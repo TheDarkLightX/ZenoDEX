@@ -16,7 +16,7 @@ def _make_pool(
     status: PoolStatus = PoolStatus.ACTIVE,
 ) -> PoolState:
     return PoolState(
-        pool_id="0xpool",
+        pool_id="local-pool",
         asset0="A",
         asset1="B",
         reserve0=reserve0,

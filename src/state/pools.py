@@ -4,15 +4,13 @@ Pool state management for DEX pools.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Tuple
 
-import hashlib
-
-from .balances import AssetId, Amount
+from .balances import Amount, AssetId
 from .canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
-
 
 CURVE_TAG_CPMM = "CPMM"
 CURVE_TAG_CUBIC_SUM_V1 = "CUBIC_SUM_V1"
@@ -330,13 +328,50 @@ def compute_pool_id(
     return "0x" + hashlib.sha256(pool_id_data).hexdigest()
 
 
+def validate_pool_id_format(pool_id: object, *, allow_symbolic: bool) -> None:
+    """Require a canonical 32-byte pool ID or an explicit local symbolic ID.
+
+    Hex-looking values never fall through to symbolic compatibility. Production
+    identifiers use exactly ``0x`` followed by 64 lowercase hex characters.
+    """
+    if not isinstance(allow_symbolic, bool):
+        raise TypeError("allow_symbolic must be a bool")
+    if not isinstance(pool_id, str):
+        raise TypeError("pool_id must be a string")
+    if not pool_id or pool_id != pool_id.strip():
+        raise ValueError("pool_id must be non-empty and must not contain surrounding whitespace")
+
+    try:
+        canonical_pool_id = canonical_hex_fixed_allow_0x(
+            pool_id,
+            nbytes=32,
+            name="pool_id",
+        )
+    except ValueError as exc:
+        if pool_id.lower().startswith("0x"):
+            raise ValueError(
+                "pool_id must be a canonical lowercase 0x-prefixed 32-byte hex string"
+            ) from exc
+        if allow_symbolic:
+            return
+        raise ValueError(
+            "pool_id must be a canonical lowercase 0x-prefixed 32-byte hex string"
+        ) from exc
+
+    if pool_id != canonical_pool_id:
+        raise ValueError(
+            "pool_id must be a canonical lowercase 0x-prefixed 32-byte hex string"
+        )
+
+
 @dataclass
 class PoolState:
     """
     State of a DEX liquidity pool.
     
     Attributes:
-        pool_id: 32-byte pool identifier (hex string)
+        pool_id: Canonical parameter-bound 32-byte hex identifier. Symbolic
+            values exist only for non-authoritative legacy compatibility.
         asset0: First asset identifier (must be < asset1 lexicographically)
         asset1: Second asset identifier
         reserve0: Reserve amount for asset0
@@ -382,6 +417,11 @@ class PoolState:
         # Validate non-negative LP supply
         if self.lp_supply < 0:
             raise ValueError(f"LP supply must be non-negative: {self.lp_supply}")
+
+        # Canonical hex IDs are authoritative and must bind the normalized pool
+        # identity at construction. Symbolic legacy objects remain constructible
+        # for local compatibility; snapshot/root boundaries reject them.
+        validate_pool_identity(self, allow_symbolic=True)
     
     def get_reserve(self, asset: AssetId) -> Amount:
         """
@@ -431,4 +471,31 @@ class PoolState:
             f"assets=({self.asset0[:8]}..., {self.asset1[:8]}...), "
             f"reserves=({self.reserve0}, {self.reserve1}), "
             f"lp_supply={self.lp_supply}, status={self.status.value})"
+        )
+
+
+def validate_pool_identity(pool: PoolState, *, allow_symbolic: bool) -> None:
+    """Bind a canonical pool ID to every parameter that defines pool identity."""
+    if not isinstance(pool, PoolState):
+        raise TypeError("pool must be a PoolState")
+    validate_pool_id_format(pool.pool_id, allow_symbolic=allow_symbolic)
+
+    try:
+        canonical_hex_fixed_allow_0x(pool.pool_id, nbytes=32, name="pool_id")
+    except ValueError:
+        # ``validate_pool_id_format`` admits this branch only for an explicitly
+        # enabled symbolic local/test identifier.
+        return
+
+    expected_pool_id = compute_pool_id(
+        pool.asset0,
+        pool.asset1,
+        pool.fee_bps,
+        curve_tag=pool.curve_tag,
+        curve_params=pool.curve_params,
+    )
+    if pool.pool_id != expected_pool_id:
+        raise ValueError(
+            "pool_id does not match canonical pool identity: "
+            f"expected={expected_pool_id} actual={pool.pool_id}"
         )

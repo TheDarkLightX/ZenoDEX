@@ -126,14 +126,14 @@ def test_support_root_changes_on_tracked_nonce_change() -> None:
     assert root_1 != root_2
 
 
-def _pool(pool_id: str, asset0: str, asset1: str) -> PoolState:
+def _pool(pool_id: str, asset0: str, asset1: str, *, fee_bps: int = 30) -> PoolState:
     return PoolState(
         pool_id=pool_id,
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000,
         reserve1=2_000,
-        fee_bps=30,
+        fee_bps=fee_bps,
         lp_supply=3_000,
         status=PoolStatus.ACTIVE,
         created_at=1,
@@ -229,7 +229,8 @@ def test_compute_support_state_root_rejects_wrong_table_types() -> None:
 def test_compute_support_state_root_omits_missing_pools_and_zero_entries() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
-    pool_id = "0x" + "aa" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30)
     support = BatchStateSupport(balance_keys=((pk, asset0),), pool_ids=(pool_id,), lp_keys=((pk, pool_id),), nonce_keys=(pk,))
 
     root_empty = compute_support_state_root(
@@ -240,7 +241,7 @@ def test_compute_support_state_root_omits_missing_pools_and_zero_entries() -> No
     )
     root_zero = compute_support_state_root(
         balances=BalanceTable(),
-        pools={pool_id: _pool(pool_id, asset0, "0x" + "02" * 32)},
+        pools={pool_id: _pool(pool_id, asset0, asset1)},
         lp_balances=LPTable(),
         support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=()),
     )
@@ -483,8 +484,10 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
 
 def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> None:
     pk = "0x" + "11" * 48
-    pool_id = "0x" + "aa" * 32
     asset = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset, asset1, 30)
+    uppercase_pool_id = pool_id.upper().replace("0X", "0x")
     balances = BalanceTable()
     balances.set(pk, asset, 1)
     lp = LPTable()
@@ -498,12 +501,14 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             support=BatchStateSupport(balance_keys=((pk, asset), (pk.upper().replace("0X", "0x"), asset)), pool_ids=(), lp_keys=(), nonce_keys=()),
         )
 
+    uppercase_pool = _pool(pool_id, asset, asset1)
+    uppercase_pool.pool_id = uppercase_pool_id
     with pytest.raises(ValueError, match="duplicate decoded pool_id"):
         compute_support_state_root(
             balances=BalanceTable(),
-            pools={pool_id: _pool(pool_id, asset, "0x" + "02" * 32), pool_id.upper().replace("0X", "0x"): _pool(pool_id.upper().replace("0X", "0x"), asset, "0x" + "02" * 32)},
+            pools={pool_id: _pool(pool_id, asset, asset1), uppercase_pool_id: uppercase_pool},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id, pool_id.upper().replace("0X", "0x")), lp_keys=(), nonce_keys=()),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id, uppercase_pool_id), lp_keys=(), nonce_keys=()),
         )
 
     with pytest.raises(ValueError, match="duplicate decoded \\(pubkey, pool_id\\)"):
@@ -567,10 +572,13 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
 def test_support_root_changes_when_curve_configuration_changes() -> None:
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
-    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="SUM_BOOST_V1", curve_params='{"mu_num":1,"mu_den":2}')
+    params_a = '{"mu_den":2,"mu_num":1}'
+    params_b = '{"mu_den":3,"mu_num":2}'
+    pool_id_a = compute_pool_id(asset0, asset1, 30, curve_tag="SUM_BOOST_V1", curve_params=params_a)
+    pool_id_b = compute_pool_id(asset0, asset1, 30, curve_tag="SUM_BOOST_V1", curve_params=params_b)
 
     pool_a = PoolState(
-        pool_id=pool_id,
+        pool_id=pool_id_a,
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000,
@@ -580,10 +588,10 @@ def test_support_root_changes_when_curve_configuration_changes() -> None:
         status=PoolStatus.ACTIVE,
         created_at=1,
         curve_tag="SUM_BOOST_V1",
-        curve_params='{"mu_num":1,"mu_den":2}',
+        curve_params=params_a,
     )
     pool_b = PoolState(
-        pool_id=pool_id,
+        pool_id=pool_id_b,
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000,
@@ -593,21 +601,22 @@ def test_support_root_changes_when_curve_configuration_changes() -> None:
         status=PoolStatus.ACTIVE,
         created_at=1,
         curve_tag="SUM_BOOST_V1",
-        curve_params='{"mu_num":2,"mu_den":3}',
+        curve_params=params_b,
     )
 
-    support = BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=())
+    support_a = BatchStateSupport(balance_keys=(), pool_ids=(pool_id_a,), lp_keys=(), nonce_keys=())
+    support_b = BatchStateSupport(balance_keys=(), pool_ids=(pool_id_b,), lp_keys=(), nonce_keys=())
     root_a = compute_support_state_root(
         balances=BalanceTable(),
-        pools={pool_id: pool_a},
+        pools={pool_id_a: pool_a},
         lp_balances=LPTable(),
-        support=support,
+        support=support_a,
     )
     root_b = compute_support_state_root(
         balances=BalanceTable(),
-        pools={pool_id: pool_b},
+        pools={pool_id_b: pool_b},
         lp_balances=LPTable(),
-        support=support,
+        support=support_b,
     )
     assert root_a != root_b
 
@@ -626,7 +635,7 @@ def test_large_mixed_batch_support_root_is_stable_and_sensitive_to_tracked_state
         asset0 = assets[2 * i]
         asset1 = assets[2 * i + 1]
         pool_id = compute_pool_id(asset0, asset1, 30 + i, curve_tag="CPMM", curve_params="")
-        pools[pool_id] = _pool(pool_id, asset0, asset1)
+        pools[pool_id] = _pool(pool_id, asset0, asset1, fee_bps=30 + i)
 
         swap_sender = senders[i]
         add_sender = senders[i + 12]

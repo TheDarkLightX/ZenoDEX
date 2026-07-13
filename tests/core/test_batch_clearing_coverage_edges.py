@@ -5,7 +5,7 @@ from src.core.batch_clearing import _cow_pair_netting_exact_in_v1, _refine_ab_or
 from src.core.liquidity import create_pool
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
-from src.state.pools import PoolState, PoolStatus
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
 
 def _iid(n: int) -> str:
@@ -19,7 +19,7 @@ def test_cow_pair_netting_falls_back_when_aggregate_debit_check_fails_closed(mon
     asset1 = "0x" + "02" * 32
 
     pool = PoolState(
-        pool_id="0x" + "aa" * 32,
+        pool_id=compute_pool_id(asset0, asset1, 30),
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000_000,

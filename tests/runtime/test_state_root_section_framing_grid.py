@@ -20,15 +20,19 @@ for _path in (str(REPO), str(TOOLS_RUNTIME)):
         sys.path.insert(0, _path)
 
 from src.state.canonical import encode_uvarint, sha256_hex  # noqa: E402
+from src.state.pools import compute_pool_id  # noqa: E402
 from src.state.state_root import STATE_ROOT_SECTION_LABELS, state_root_preimage  # noqa: E402
 from tools.runtime import state_root_lib as lib  # noqa: E402
-from tools.runtime.state_root_injectivity import decode_state_root_preimage, decode_uvarint  # noqa: E402
+from tools.runtime.state_root_injectivity import (  # noqa: E402
+    decode_state_root_preimage,
+    decode_uvarint,
+)
 
 PK = "0x" + "11" * 48
 PK2 = "0x" + "22" * 48
 ASSET0 = "0x" + "01" * 32
 ASSET1 = "0x" + "02" * 32
-POOL = "0x" + "33" * 32
+POOL = compute_pool_id(ASSET0, ASSET1, 30)
 
 
 def _pool() -> dict:
