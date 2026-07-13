@@ -24,6 +24,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Initialize fail-closed ZRPF assurance report
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p internal
+          printf '%s\n' \
+            '{"accepted":false,"reason":"required_source_built_replay_did_not_complete","schema":"zenodex/zrpf/ci_live_replay_status/v1","status":"not_run"}' \
+            > internal/zrpf-ci-live-replay.json
+
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -449,7 +458,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p internal
+          live_report="internal/zrpf-ci-live-replay.pending.json"
+          rm -f "${live_report}"
           docker run --rm \
             --network none \
             --read-only \
@@ -480,7 +490,20 @@ jobs:
                 --risc0-home /risc0 \
                 --target-dir /out/private/live \
                 --json
-            ' | tee internal/zrpf-ci-live-replay.json
+            ' | tee "${live_report}"
+          python3 - "${live_report}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          report_path = Path(sys.argv[1])
+          value = json.loads(report_path.read_text(encoding="utf-8"))
+          if not isinstance(value, dict):
+              raise SystemExit("live replay report must be a JSON object")
+          if value.get("ok") is not True:
+              raise SystemExit("live replay report must record ok=true")
+          PY
+          mv "${live_report}" internal/zrpf-ci-live-replay.json
 
       - name: Upload ZRPF assurance report
         if: always()

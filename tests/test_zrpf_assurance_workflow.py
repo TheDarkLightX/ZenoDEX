@@ -46,6 +46,11 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--no-checkout --no-hardlinks /input /out/private/repo" in replay_command
     assert 'checkout --detach "${source_head}"' in replay_command
     assert "--live" in replay_command
+    assert 'live_report="internal/zrpf-ci-live-replay.pending.json"' in replay_command
+    assert "' | tee \"${live_report}\"" in replay_command
+    assert 'mv "${live_report}" internal/zrpf-ci-live-replay.json' in replay_command
+    assert "json.loads(report_path.read_text" in replay_command
+    assert 'value.get("ok") is not True' in replay_command
     broad_cargo_mount = '"${HOME}/.cargo:/home/' + 'zrpf/.cargo:ro"'
     exact_registry_mount = '"${HOME}/.cargo/registry:/home/' + 'zrpf/.cargo/registry:ro"'
     assert broad_cargo_mount not in replay_command
@@ -219,9 +224,16 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert steps["Set up Python"]["uses"] == (
         "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
     )
+    initializer = steps["Initialize fail-closed ZRPF assurance report"]["run"]
+    assert '"accepted":false' in initializer
+    assert '"status":"not_run"' in initializer
+    assert '"reason":"required_source_built_replay_did_not_complete"' in initializer
+    assert "> internal/zrpf-ci-live-replay.json" in initializer
     assert steps["Upload ZRPF assurance report"]["uses"] == (
         "actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4"
     )
+    assert steps["Upload ZRPF assurance report"]["if"] == "always()"
+    assert steps["Upload ZRPF assurance report"]["with"]["if-no-files-found"] == "error"
 
 
 def test_zrpf_assurance_container_is_digest_pinned_and_nonroot() -> None:
