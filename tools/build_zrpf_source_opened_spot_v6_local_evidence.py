@@ -1,16 +1,28 @@
 #!/usr/bin/env python3
-"""Build one deterministic, fail-closed Spot V6 local-evidence bundle.
+"""Build one deterministic, fail-closed Spot V6 candidate evidence bundle.
 
 Every input path is explicit. Inputs are snapshotted through bounded regular
 file descriptors before any output is created. The resulting evidence is
-validated by the V2 checker, including fresh image-ID recomputation through the
-pinned r0vm. This builder cannot enable ledger, release, settlement, privacy,
-general-scaling, or production authority.
+validated for internal consistency by the V2 checker, including fresh image-ID
+recomputation through the pinned r0vm. A digest computed during generation is
+never treated as an independently governed anchor. This builder cannot enable
+scoped replay, ledger, release, settlement, privacy, general-scaling, or
+production authority.
+
+The supplied proof and replay reports propose execution history. This builder
+does not execute either sealed verifier, so its successful result remains a
+candidate pending a separately governed digest and live replay gate. Bundle and
+evidence publication use two atomic renames and are not one atomic transaction.
+Scoped validation remains a separate checker operation that requires both a
+pre-existing governed digest and an explicit request to require the scoped
+claim.
 """
 
 from __future__ import annotations
 
 import argparse
+import ctypes
+import errno
 import hashlib
 import json
 import os
@@ -148,7 +160,9 @@ class BuildResult:
     evidence_sha256: str
     build_record_sha256: str
     artifact_count: int
-    scoped_local_replay_claim_allowed: bool
+    candidate_bundle_built: bool = True
+    scoped_local_replay_claim_allowed: bool = False
+    bundle_and_evidence_publication_atomic: bool = False
     release_authority: bool = False
     settlement_authority: bool = False
     production_authority: bool = False
@@ -201,7 +215,7 @@ def build_evidence(
     bundle_directory: Path,
     evidence_path: Path,
 ) -> BuildResult:
-    """Build and self-check one exact singleton Spot V6 evidence bundle.
+    """Build and self-check one exact singleton Spot V6 candidate bundle.
 
     All arguments are explicit and deterministic. ``recorded_at`` is supplied
     by the caller; no wall clock, network, environment, or implicit artifact
@@ -229,30 +243,40 @@ def build_evidence(
         recorded_at,
         snapshot,
     )
-    _write_bundle(bundle, snapshot.artifact_raw)
-    _self_check(
-        document=document,
-        evidence_raw=evidence_raw,
-        evidence_sha256=evidence_sha256,
-        bundle=bundle,
-        build_record_path=build_record_path,
-        r0vm_path=r0vm_path,
+    staged_bundle = _new_output_path(
+        bundle.with_name(f".{bundle.name}.candidate-staging"),
+        "staged bundle directory",
     )
-    _write_new(evidence_output, evidence_raw)
-    _fsync_directory(evidence_output.parent)
-    if _read_stable_bytes(
-        evidence_output,
-        maximum_bytes=evidence_checker.MAX_EVIDENCE_BYTES,
-        label="written evidence",
-    ) != evidence_raw:
-        raise EvidenceBuildError("written evidence differs from the checked bytes")
+    staged_evidence = _new_output_path(
+        evidence_output.with_name(f".{evidence_output.name}.candidate-staging"),
+        "staged evidence path",
+    )
+    try:
+        _write_bundle(staged_bundle, snapshot.artifact_raw)
+        _self_check_candidate(
+            document=document,
+            evidence_raw=evidence_raw,
+            bundle=staged_bundle,
+            build_record_path=build_record_path,
+            r0vm_path=r0vm_path,
+        )
+        _write_new(staged_evidence, evidence_raw)
+        _fsync_directory(staged_evidence.parent)
+        _publish_candidate(
+            staged_bundle,
+            staged_evidence,
+            bundle,
+            evidence_output,
+        )
+    except BaseException:
+        _cleanup_candidate_staging(staged_bundle, staged_evidence)
+        raise
     return BuildResult(
         evidence_path=evidence_output,
         bundle_directory=bundle,
         evidence_sha256=evidence_sha256,
         build_record_sha256=snapshot.build_record_sha256,
         artifact_count=len(snapshot.artifact_raw),
-        scoped_local_replay_claim_allowed=True,
     )
 
 
@@ -383,11 +407,10 @@ def _write_bundle(bundle: Path, artifact_raw: Mapping[str, bytes]) -> None:
     _require_exact_output_inventory(bundle)
 
 
-def _self_check(
+def _self_check_candidate(
     *,
     document: dict[str, Any],
     evidence_raw: bytes,
-    evidence_sha256: str,
     bundle: Path,
     build_record_path: Path,
     r0vm_path: Path,
@@ -399,7 +422,6 @@ def _self_check(
             artifact_directory=bundle,
             build_record_path=build_record_path,
             r0vm_path=r0vm_path,
-            expected_evidence_sha256=evidence_sha256,
         )
     except (
         OSError,
@@ -407,11 +429,115 @@ def _self_check(
         build_checker.BuildRecordError,
     ) as exc:
         raise EvidenceBuildError(f"generated evidence self-check rejected: {exc}") from exc
-    if report["scoped_local_replay_claim_allowed"] is not True:
-        raise EvidenceBuildError("generated evidence did not establish the scoped local claim")
+    required_counts = {
+        "program_image_ids_recomputed": len(build_checker.PROGRAM_SPECS),
+        "external_artifact_files_checked": len(EXPECTED_ARTIFACT_SPECS),
+        "exact_mutation_relations_checked": 4,
+        "verifier_transcripts_checked": 2,
+    }
+    if report["build_record_rechecked"] is not True:
+        raise EvidenceBuildError("candidate build record was not rechecked")
+    for field, expected in required_counts.items():
+        if report[field] != expected:
+            raise EvidenceBuildError(f"candidate self-check {field} mismatch")
+    if report["governed_anchor_checked"] is not False:
+        raise EvidenceBuildError("candidate self-check manufactured a governed anchor")
+    if report["scoped_local_replay_claim_allowed"] is not False:
+        raise EvidenceBuildError("candidate self-check promoted the scoped replay claim")
     for field in ("release_authority", "settlement_authority", "production_authority"):
         if report[field] is not False:
             raise EvidenceBuildError(f"generated evidence unexpectedly promoted {field}")
+
+
+def _publish_candidate(
+    staged_bundle: Path,
+    staged_evidence: Path,
+    bundle: Path,
+    evidence: Path,
+) -> None:
+    if bundle.exists() or bundle.is_symlink() or evidence.exists() or evidence.is_symlink():
+        raise EvidenceBuildError("candidate output appeared before atomic publication")
+    bundle_published = False
+    evidence_published = False
+    try:
+        _rename_no_replace(staged_bundle, bundle)
+        bundle_published = True
+        _rename_no_replace(staged_evidence, evidence)
+        evidence_published = True
+        _fsync_directory(bundle.parent)
+        if evidence.parent != bundle.parent:
+            _fsync_directory(evidence.parent)
+    except OSError as exc:
+        rollback_failed = False
+        if evidence_published:
+            try:
+                _rename_no_replace(evidence, staged_evidence)
+            except OSError:
+                rollback_failed = True
+        if bundle_published:
+            try:
+                _rename_no_replace(bundle, staged_bundle)
+            except OSError:
+                rollback_failed = True
+        if rollback_failed:
+            raise EvidenceBuildError("candidate publication and rollback failed") from exc
+        raise EvidenceBuildError("candidate publication failed and was rolled back") from exc
+
+
+def _rename_no_replace(source: Path, destination: Path) -> None:
+    """Atomically rename one staged output without replacing any destination."""
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2: Any = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise OSError(errno.ENOSYS, "renameat2 is required for no-replace publication")
+    renameat2.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    renameat2.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = renameat2(
+        -100,  # AT_FDCWD
+        os.fsencode(source),
+        -100,
+        os.fsencode(destination),
+        1,  # RENAME_NOREPLACE
+    )
+    if result == 0:
+        return
+    error_number = ctypes.get_errno()
+    if error_number == 0:
+        error_number = errno.EIO
+    raise OSError(
+        error_number,
+        os.strerror(error_number),
+        os.fspath(destination),
+    )
+
+
+def _cleanup_candidate_staging(staged_bundle: Path, staged_evidence: Path) -> None:
+    if staged_evidence.exists() and not staged_evidence.is_symlink():
+        try:
+            staged_evidence.unlink()
+        except OSError:
+            pass
+    if not staged_bundle.exists() or staged_bundle.is_symlink():
+        return
+    for _artifact_id, path, _kind in EXPECTED_ARTIFACT_SPECS:
+        candidate = staged_bundle / path
+        if candidate.exists() and not candidate.is_symlink():
+            try:
+                candidate.unlink()
+            except OSError:
+                pass
+    try:
+        staged_bundle.rmdir()
+    except OSError:
+        pass
 
 
 def _require_checker_contract() -> None:
@@ -1131,6 +1257,8 @@ def main() -> int:
             {
                 "artifact_count": result.artifact_count,
                 "build_record_sha256": result.build_record_sha256,
+                "bundle_and_evidence_publication_atomic": False,
+                "candidate_bundle_built": result.candidate_bundle_built,
                 "evidence_sha256": result.evidence_sha256,
                 "ok": True,
                 "production_authority": False,

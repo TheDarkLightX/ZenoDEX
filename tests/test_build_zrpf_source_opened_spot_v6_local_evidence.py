@@ -386,7 +386,8 @@ def test_builder_emits_checker_accepted_exact_bundle_and_nonclaims(tmp_path: Pat
     result = _run_build(tmp_path, fixture)
 
     assert result.artifact_count == len(evidence_checker.ARTIFACT_SPECS)
-    assert result.scoped_local_replay_claim_allowed is True
+    assert result.candidate_bundle_built is True
+    assert result.scoped_local_replay_claim_allowed is False
     evidence, raw = evidence_checker.load_evidence(result.evidence_path)
     assert _sha256(raw) == result.evidence_sha256
     assert set(path.name for path in result.bundle_directory.iterdir()) == {
@@ -401,10 +402,10 @@ def test_builder_emits_checker_accepted_exact_bundle_and_nonclaims(tmp_path: Pat
         artifact_directory=result.bundle_directory,
         build_record_path=fixture.build_record,
         r0vm_path=fixture.r0vm,
-        expected_evidence_sha256=result.evidence_sha256,
-        require_scoped_claim=True,
     )
     assert report["ok"] is True
+    assert report["governed_anchor_checked"] is False
+    assert report["scoped_local_replay_claim_allowed"] is False
     assert report["release_authority"] is False
     assert report["settlement_authority"] is False
     assert report["production_authority"] is False
@@ -422,6 +423,135 @@ def test_same_inputs_produce_identical_evidence_and_bundle_bytes(tmp_path: Path)
         assert (first.bundle_directory / path).read_bytes() == (
             second.bundle_directory / path
         ).read_bytes()
+
+
+def test_builder_never_uses_its_fresh_hash_as_a_governed_anchor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _fixture(tmp_path)
+    real_validate = evidence_checker.validate_evidence
+    observed_anchors: list[str | None] = []
+
+    def validate_without_self_anchor(*args, **kwargs):
+        observed_anchors.append(kwargs.get("expected_evidence_sha256"))
+        return real_validate(*args, **kwargs)
+
+    monkeypatch.setattr(
+        evidence_checker,
+        "validate_evidence",
+        validate_without_self_anchor,
+    )
+
+    result = _run_build(tmp_path, fixture)
+
+    assert observed_anchors == [None]
+    assert result.scoped_local_replay_claim_allowed is False
+
+
+def test_synthetic_candidate_cannot_promote_without_a_separate_anchor(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture(tmp_path)
+    result = _run_build(tmp_path, fixture)
+
+    report = evidence_checker.check_evidence(
+        result.evidence_path,
+        artifact_directory=result.bundle_directory,
+        build_record_path=fixture.build_record,
+        r0vm_path=fixture.r0vm,
+        require_scoped_claim=True,
+    )
+
+    assert report["ok"] is False
+    assert report["governed_anchor_checked"] is False
+    assert report["scoped_local_replay_claim_allowed"] is False
+    assert result.scoped_local_replay_claim_allowed is False
+
+
+def test_failed_self_check_publishes_no_bundle_or_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _fixture(tmp_path)
+
+    def reject_candidate(*_args, **_kwargs):
+        raise evidence_checker.EvidenceError("synthetic self-check rejection")
+
+    monkeypatch.setattr(evidence_checker, "validate_evidence", reject_candidate)
+
+    with pytest.raises(builder.EvidenceBuildError, match="self-check rejected"):
+        _run_build(tmp_path, fixture)
+    assert not (tmp_path / "bundle-one").exists()
+    assert not (tmp_path / "evidence-one.json").exists()
+    assert not (tmp_path / ".bundle-one.candidate-staging").exists()
+    assert not (tmp_path / ".evidence-one.json.candidate-staging").exists()
+
+
+def test_second_publication_failure_rolls_back_first_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _fixture(tmp_path)
+    real_rename = builder._rename_no_replace
+    rename_calls = 0
+
+    def fail_evidence_publication(source, destination, *args, **kwargs):
+        nonlocal rename_calls
+        rename_calls += 1
+        if rename_calls == 2:
+            raise OSError("synthetic evidence publication failure")
+        return real_rename(source, destination, *args, **kwargs)
+
+    monkeypatch.setattr(builder, "_rename_no_replace", fail_evidence_publication)
+
+    with pytest.raises(builder.EvidenceBuildError, match="rolled back"):
+        _run_build(tmp_path, fixture)
+    assert rename_calls == 3
+    assert not (tmp_path / "bundle-one").exists()
+    assert not (tmp_path / "evidence-one.json").exists()
+    assert not (tmp_path / ".bundle-one.candidate-staging").exists()
+    assert not (tmp_path / ".evidence-one.json.candidate-staging").exists()
+
+
+def test_publication_race_cannot_replace_a_concurrent_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _fixture(tmp_path)
+    real_rename = builder._rename_no_replace
+    injected = False
+
+    def inject_destination_before_rename(source: Path, destination: Path) -> None:
+        nonlocal injected
+        if not injected:
+            injected = True
+            destination.mkdir()
+            (destination / "sentinel").write_bytes(b"concurrent-output")
+        real_rename(source, destination)
+
+    monkeypatch.setattr(builder, "_rename_no_replace", inject_destination_before_rename)
+
+    with pytest.raises(builder.EvidenceBuildError, match="rolled back"):
+        _run_build(tmp_path, fixture)
+    assert (tmp_path / "bundle-one" / "sentinel").read_bytes() == b"concurrent-output"
+    assert not (tmp_path / "evidence-one.json").exists()
+    assert not (tmp_path / ".bundle-one.candidate-staging").exists()
+    assert not (tmp_path / ".evidence-one.json.candidate-staging").exists()
+
+
+def test_missing_atomic_no_replace_support_fails_before_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = _fixture(tmp_path)
+
+    def reject_unsupported(_source: Path, _destination: Path) -> None:
+        raise OSError(builder.errno.ENOSYS, "renameat2 unavailable")
+
+    monkeypatch.setattr(builder, "_rename_no_replace", reject_unsupported)
+
+    with pytest.raises(builder.EvidenceBuildError, match="rolled back"):
+        _run_build(tmp_path, fixture)
+    assert not (tmp_path / "bundle-one").exists()
+    assert not (tmp_path / "evidence-one.json").exists()
+    assert not (tmp_path / ".bundle-one.candidate-staging").exists()
+    assert not (tmp_path / ".evidence-one.json.candidate-staging").exists()
 
 
 @pytest.mark.parametrize("kind", ["missing", "extra"])
@@ -533,16 +663,28 @@ def test_report_json_must_be_unambiguous_integer_only_and_canonical(
         _run_build(tmp_path, fixture)
 
 
-def test_existing_output_is_never_overwritten(tmp_path: Path) -> None:
+@pytest.mark.parametrize("existing_output", ["bundle", "evidence"])
+def test_failed_build_preserves_preexisting_output(
+    tmp_path: Path, existing_output: str
+) -> None:
     fixture = _fixture(tmp_path)
     bundle = tmp_path / "bundle-one"
-    bundle.mkdir()
-    sentinel = bundle / "sentinel"
-    sentinel.write_bytes(b"preserve")
+    evidence = tmp_path / "evidence-one.json"
+    if existing_output == "bundle":
+        bundle.mkdir()
+        sentinel = bundle / "sentinel"
+        sentinel.write_bytes(b"preserve-bundle")
+        expected = b"preserve-bundle"
+    else:
+        evidence.write_bytes(b"preserve-evidence")
+        sentinel = evidence
+        expected = b"preserve-evidence"
 
     with pytest.raises(builder.EvidenceBuildError, match="already exists"):
         _run_build(tmp_path, fixture)
-    assert sentinel.read_bytes() == b"preserve"
+    assert sentinel.read_bytes() == expected
+    assert not (tmp_path / ".bundle-one.candidate-staging").exists()
+    assert not (tmp_path / ".evidence-one.json.candidate-staging").exists()
 
 
 def test_non_regular_input_rejects_without_blocking(tmp_path: Path) -> None:
