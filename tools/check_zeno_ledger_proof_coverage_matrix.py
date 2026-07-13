@@ -40,6 +40,7 @@ REQUIRED_GAP_IDS = frozenset(
         "zusd_lifecycle_real_proof",
         "perps_settlement_real_proof",
         "proof_market_reward_real_proof",
+        "light_client_state_transition_replay",
         "light_client_production_finality",
         "recursive_epoch_real_proof",
     }
@@ -52,6 +53,7 @@ REQUIRED_NON_CLAIMS = frozenset(
         "does_not_claim_oracle_truth_or_governance",
         "does_not_claim_zusd_or_perps_zk_execution",
         "does_not_claim_proof_market_zk_execution",
+        "does_not_claim_light_client_state_transition_replay",
         "does_not_claim_light_client_finality",
         "does_not_claim_recursive_epoch_proof_soundness",
     }
@@ -106,18 +108,18 @@ def validate_proof_coverage_matrix_v0(matrix: Any, *, claims_registry: Path = CL
 
     gap_ids: set[str] = set()
     for index, raw in enumerate(gaps):
-        item_errors: list[str] = []
-        item = _mapping(raw, f"gap_surfaces[{index}]", item_errors)
-        gap_id = _str(item.get("id"), f"gap_surfaces[{index}].id", item_errors)
-        _str(item.get("required_for"), f"gap_surfaces[{index}].required_for", item_errors)
-        _str(item.get("gap"), f"gap_surfaces[{index}].gap", item_errors)
+        gap_errors: list[str] = []
+        item = _mapping(raw, f"gap_surfaces[{index}]", gap_errors)
+        gap_id = _str(item.get("id"), f"gap_surfaces[{index}].id", gap_errors)
+        _str(item.get("required_for"), f"gap_surfaces[{index}].required_for", gap_errors)
+        _str(item.get("gap"), f"gap_surfaces[{index}].gap", gap_errors)
         if "claim_id" in item:
-            item_errors.append("gap surface must not carry claim_id")
+            gap_errors.append("gap surface must not carry claim_id")
         if gap_id is not None:
             if gap_id in gap_ids:
-                item_errors.append("gap surface id must be unique")
+                gap_errors.append("gap surface id must be unique")
             gap_ids.add(gap_id)
-        errors.extend(f"gap_surfaces[{index}]: {err}" for err in item_errors)
+        errors.extend(f"gap_surfaces[{index}]: {err}" for err in gap_errors)
 
     missing_supported = sorted(REQUIRED_SUPPORTED_IDS - supported_ids)
     missing_gaps = sorted(REQUIRED_GAP_IDS - gap_ids)

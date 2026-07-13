@@ -9,12 +9,12 @@ from pathlib import Path
 
 from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state
+from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
 from src.integration.zeno_ledger_profile import (
     sample_local_sandbox_profile_v0,
     sample_tau_exclusive_release_profile_v0,
     sample_zeno_sovereign_testnet_profile_v0,
 )
-from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
 from src.integration.zeno_ledger_signature import validate_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_tau_export import validate_tau_export_packet_v0
 from src.integration.zeno_ledger_testnet_status import validate_testnet_status_v0
@@ -37,7 +37,6 @@ from src.integration.zeno_ledger_v0 import (
 from src.integration.zeno_ledger_watcher import validate_watcher_attestation_v0
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
-
 
 ROOT = Path(__file__).resolve().parents[2]
 VERIFY_SCRIPT = ROOT / "tools" / "zeno_ledger_verify.py"
@@ -224,6 +223,7 @@ def _resolve_command_against_manifest(manifest_path: Path, command: list[str]) -
         "--confidential-state",
         "--headers-dir",
         "--index",
+        "--engine-config",
         "--manifest",
         "--mirror-root",
         "--oracle-reporter-state",
@@ -242,6 +242,7 @@ def _resolve_command_against_manifest(manifest_path: Path, command: list[str]) -
         "--upba-state",
         "--zusd-state",
         "--pre-snapshot",
+        "--pre-snapshots-dir",
     }
     out: list[str] = []
     previous = ""
@@ -259,8 +260,13 @@ def _resolve_command_against_manifest(manifest_path: Path, command: list[str]) -
 
 
 def _run_verify(*args: str) -> subprocess.CompletedProcess[str]:
+    mode_args = (
+        ()
+        if {"--structural-only", "--require-state-replay"}.intersection(args)
+        else ("--structural-only",)
+    )
     return subprocess.run(
-        [sys.executable, str(VERIFY_SCRIPT), *args],
+        [sys.executable, str(VERIFY_SCRIPT), *mode_args, *args],
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -1497,6 +1503,7 @@ def test_watcher_attestation_binds_verified_sovereign_range(tmp_path: Path) -> N
     manifest_path, manifest = _load_manifest(report)
     ledger_out_dir = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"])
     profile_path = _manifest_relative_path(manifest_path, manifest["profile_path"])
+    engine_config_path = _manifest_relative_path(manifest_path, manifest["engine_config_path"])
     attestation_path = tmp_path / "watcher.json"
     attest = _run_attest(
         "--headers-dir",
@@ -1511,6 +1518,12 @@ def test_watcher_attestation_binds_verified_sovereign_range(tmp_path: Path) -> N
         "1",
         "--to-height",
         "5",
+        "--require-state-replay",
+        "--require-rejection-receipt-replay",
+        "--pre-snapshots-dir",
+        str(ledger_out_dir / "pre_snapshots"),
+        "--engine-config",
+        str(engine_config_path),
         "--watcher-id",
         "test-watcher",
         "--observed-time-ms",
@@ -1547,6 +1560,7 @@ def test_watcher_attestation_rejects_tampered_verified_range(tmp_path: Path) -> 
     manifest_path, manifest = _load_manifest(report)
     ledger_out_dir = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"])
     profile_path = _manifest_relative_path(manifest_path, manifest["profile_path"])
+    engine_config_path = _manifest_relative_path(manifest_path, manifest["engine_config_path"])
     body_path = ledger_out_dir / "bodies" / "5.json"
     body = json.loads(body_path.read_text(encoding="utf-8"))
     body["transactions"] = []
@@ -1565,6 +1579,12 @@ def test_watcher_attestation_rejects_tampered_verified_range(tmp_path: Path) -> 
         "1",
         "--to-height",
         "5",
+        "--require-state-replay",
+        "--require-rejection-receipt-replay",
+        "--pre-snapshots-dir",
+        str(ledger_out_dir / "pre_snapshots"),
+        "--engine-config",
+        str(engine_config_path),
         "--watcher-id",
         "test-watcher",
         "--observed-time-ms",
@@ -1723,6 +1743,7 @@ def test_testnet_status_rejects_disagreeing_watcher_ranges(tmp_path: Path) -> No
     manifest_path, manifest = _load_manifest(report)
     ledger_out_dir = _manifest_relative_path(manifest_path, manifest["ledger_out_dir"])
     profile_path = _manifest_relative_path(manifest_path, manifest["profile_path"])
+    engine_config_path = _manifest_relative_path(manifest_path, manifest["engine_config_path"])
     mirror_index_path = _manifest_relative_path(manifest_path, manifest["mirror_index_path"])
     attestation_path = _manifest_relative_path(manifest_path, manifest["attestation_path"])
     short_attestation_path = tmp_path / "short_range_attestation.json"
@@ -1739,6 +1760,12 @@ def test_testnet_status_rejects_disagreeing_watcher_ranges(tmp_path: Path) -> No
         "1",
         "--to-height",
         "4",
+        "--require-state-replay",
+        "--require-rejection-receipt-replay",
+        "--pre-snapshots-dir",
+        str(ledger_out_dir / "pre_snapshots"),
+        "--engine-config",
+        str(engine_config_path),
         "--watcher-id",
         "short-range-watcher",
         "--observed-time-ms",

@@ -1454,6 +1454,7 @@ def build_local_block_v0(
     height = int(body["height"])
     chain_id = str(body["chain_id"])
     receipts: list[dict[str, Any]] = []
+    canonical_pre_snapshot: dict[str, Any] | None = None
     post_snapshot: dict[str, Any] | None = None
 
     supplied_state_modes = sum(
@@ -1482,6 +1483,7 @@ def build_local_block_v0(
     if pre_snapshot_path is not None:
         pre_snapshot = _load_json_object(pre_snapshot_path)
         pre_state = state_from_snapshot(pre_snapshot)
+        canonical_pre_snapshot = snapshot_from_state(pre_state).data
         pre_state_root = dex_state_root_v0(pre_state)
         engine_config = DexEngineConfig(
             allow_missing_settlement=allow_missing_settlement,
@@ -1678,6 +1680,7 @@ def build_local_block_v0(
     checkpoint_path = out_dir / "checkpoints" / f"{height}.json"
     receipts_path = out_dir / "receipts" / f"{height}.json"
     proof_metadata_path = out_dir / "proof_metadata" / f"{height}.json"
+    pre_snapshot_output_path = out_dir / "pre_snapshots" / f"{height}.json"
     post_snapshot_path = out_dir / "snapshots" / f"{height}.json"
     post_app_state_path = out_dir / "app_states" / f"{height}.json"
     post_zusd_state_path = out_dir / "zusd_states" / f"{height}.json"
@@ -1694,6 +1697,8 @@ def build_local_block_v0(
     _write_json(receipts_path, receipts)
     if proof_metadata is not None:
         _write_json(proof_metadata_path, proof_metadata)
+    if canonical_pre_snapshot is not None:
+        _write_json(pre_snapshot_output_path, canonical_pre_snapshot)
     if post_snapshot is not None:
         _write_json(post_snapshot_path, post_snapshot)
     if post_app_state_json is not None:
@@ -1732,6 +1737,8 @@ def build_local_block_v0(
     if proof_metadata is not None:
         report["proof_metadata_path"] = str(proof_metadata_path)
         report["proof_journal_hash"] = proof_journal_hash
+    if canonical_pre_snapshot is not None:
+        report["pre_snapshot_path"] = str(pre_snapshot_output_path)
     if post_snapshot is not None:
         report["post_snapshot_path"] = str(post_snapshot_path)
     if post_app_state_json is not None:
@@ -1770,6 +1777,7 @@ _STDOUT_REPORT_KEYS = (
     "app_hash",
     "proof_metadata_path",
     "proof_journal_hash",
+    "pre_snapshot_path",
     "post_snapshot_path",
     "post_app_state_path",
     "post_zusd_state_path",

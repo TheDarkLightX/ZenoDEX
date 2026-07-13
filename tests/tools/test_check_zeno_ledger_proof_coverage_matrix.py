@@ -19,7 +19,7 @@ def test_proof_coverage_matrix_accepts_default_matrix() -> None:
 
     assert report["ok"] is True
     assert report["supported_surface_count"] == 7
-    assert report["gap_surface_count"] == 7
+    assert report["gap_surface_count"] == 8
     assert {item["claim_status"] for item in report["supported_surfaces"]} <= {"proved", "supported"}
 
 
