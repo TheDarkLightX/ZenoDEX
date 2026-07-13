@@ -25,8 +25,80 @@ const AUTHORITY_EXPECTATIONS_SCHEMA_V1: &str =
     "zenodex.zeno_ledger.risc0_spot_authority_expectations.v1";
 const SPOT_PROOF_PROFILE_V1: &str = "risc0_spot_state_transition_v1";
 const HEADER_SCHEMA_V0: &str = "zenodex/zeno_ledger/header/v0";
-const REPLAY_CONFIG_SCHEMA_V0: &str = "zenodex/zeno_ledger/replay_engine_config/v0";
-const REPLAY_CONFIG_PROFILE_V0: &str = "bounded_dex_engine_v0";
+const REPLAY_CONFIG_SCHEMA_V1: &str = "zenodex/zeno_ledger/replay_engine_config/v1";
+const REPLAY_CONFIG_PROFILE_V1: &str = "bounded_dex_engine_proof_authority_v1";
+const GOVERNED_PROOF_AUTHORITY_BINDING_SCHEMA_V1: &str =
+    "zenodex.zeno_ledger.governed_proof_authority_binding.v1";
+const PROOF_AUTHORITY_POLICY_KEYS: &[&str] = &[
+    "schema",
+    "policy_id",
+    "chain_id",
+    "authority_manifest_sha256",
+    "verifier_registry_id",
+    "verifier_registry_entry_id",
+    "strict_result_schema",
+    "proof_profile",
+    "valid_from_height",
+    "valid_until_height",
+];
+const ENGINE_CONFIG_KEYS: &[&str] = &[
+    "allow_missing_settlement",
+    "require_settlement_match",
+    "swap_ordering",
+    "require_intent_signatures",
+    "allow_unsigned_intents_if_tx_sender_matches",
+    "max_intents",
+    "max_intent_bytes",
+    "max_total_intent_bytes",
+    "max_intent_entry_bytes",
+    "max_total_intent_entry_bytes",
+    "max_settlement_op_bytes",
+    "max_settlement_bytes",
+    "max_settlement_fills",
+    "proof_config",
+    "require_proof_when_present",
+    "chain_id",
+    "allow_external_tools",
+    "consensus_mode",
+    "tau_gate_config",
+    "require_settlement_certificate",
+    "settlement_certificate_proof_flags",
+    "settlement_certificate_price_history",
+    "require_settlement_end_to_end_certificate",
+    "settlement_end_to_end_certificate_inputs",
+    "require_oracle_authorization_for_protected_swaps",
+    "require_oracle_authorization_for_critical_settlements",
+    "allow_uniform_batch_certificate",
+    "allow_uniform_batch_partial_fill_certificate",
+    "require_uniform_batch_certificate_for_supported_swaps",
+    "require_uniform_batch_optimality_certificate",
+    "require_uniform_batch_v2_bounded_grid_optimality",
+    "require_uniform_batch_v3_exact_out_grid_optimality",
+    "min_lp_position_age_seconds",
+    "lp_duration_risk_policy",
+    "dex_config",
+    "enable_test_fault_injection",
+    "fault_injection",
+];
+const ENGINE_PROOF_CONFIG_KEYS: &[&str] = &[
+    "enabled",
+    "verifier_cmd",
+    "allow_path_lookup",
+    "max_proof_bytes",
+    "max_stdout_bytes",
+    "max_stderr_bytes",
+];
+const ENGINE_DEX_CONFIG_KEYS: &[&str] = &[
+    "fee_split_params",
+    "swap_ordering",
+    "settlement_validation",
+    "allow_snapshot_bound_quote_bindings",
+    "reject_settlements_with_rejected_intents",
+    "require_all_nonces",
+    "allow_legacy_nonce_free_steps",
+    "protocol_fee_share_bps",
+    "protocol_fee_recipient_pubkey",
+];
 
 const REQUEST_KEYS: &[&str] = &[
     "schema",
@@ -282,10 +354,8 @@ fn verify(req: &Value) -> Result<Value, String> {
 
     let expectations = parse_expectations(request_value(request, "authority_expectations")?)?;
     let header = validate_header(request_value(request, "ledger_header")?)?;
-    let config_digest = validate_replay_config(
-        request_value(request, "replay_config")?,
-        &expectations.chain_id,
-    )?;
+    let config_digest =
+        validate_replay_config(request_value(request, "replay_config")?, &expectations)?;
     let canonical_header_hash = hash_v0("header_v0", request_value(request, "ledger_header")?)?;
     bind_outer_expectations(
         &expectations,
@@ -918,19 +988,198 @@ fn validate_header(value: &Value) -> Result<&Map<String, Value>, String> {
     Ok(obj)
 }
 
-fn validate_replay_config(value: &Value, expected_chain_id: &str) -> Result<String, String> {
-    let obj = exact_object(value, "replay_config", &["schema", "profile", "config"])?;
-    expect_string(obj, "schema", REPLAY_CONFIG_SCHEMA_V0, "replay_config")?;
-    expect_string(obj, "profile", REPLAY_CONFIG_PROFILE_V0, "replay_config")?;
-    let config = obj
-        .get("config")
-        .and_then(Value::as_object)
-        .ok_or_else(|| "replay_config.config must be an object".to_string())?;
-    let chain_id = required_token(config, "chain_id", "replay_config.config")?;
+fn validate_replay_config(
+    value: &Value,
+    expectations: &AuthorityExpectationsV1,
+) -> Result<String, String> {
+    let obj = exact_object(
+        value,
+        "replay_config",
+        &["schema", "profile", "config", "proof_authority_policy"],
+    )?;
+    expect_string(obj, "schema", REPLAY_CONFIG_SCHEMA_V1, "replay_config")?;
+    expect_string(obj, "profile", REPLAY_CONFIG_PROFILE_V1, "replay_config")?;
+    validate_engine_config_projection(
+        obj.get("config")
+            .ok_or_else(|| "replay_config.config missing".to_string())?,
+        &expectations.chain_id,
+    )?;
+    validate_proof_authority_policy(
+        obj.get("proof_authority_policy")
+            .ok_or_else(|| "replay_config.proof_authority_policy missing".to_string())?,
+        expectations,
+    )?;
+    hash_v0("zeno_ledger_replay_engine_config_v1", value)
+}
+
+fn validate_proof_authority_policy(
+    value: &Value,
+    expectations: &AuthorityExpectationsV1,
+) -> Result<(), String> {
+    let name = "replay_config.proof_authority_policy";
+    let policy = exact_object(value, name, PROOF_AUTHORITY_POLICY_KEYS)?;
+    expect_string(
+        policy,
+        "schema",
+        GOVERNED_PROOF_AUTHORITY_BINDING_SCHEMA_V1,
+        name,
+    )?;
+    let policy_id = canonical_root(policy.get("policy_id"), &format!("{name}.policy_id"))?;
+    let chain_id = required_token(policy, "chain_id", name)?;
+    let authority_manifest_sha256 = canonical_bare_sha256(
+        policy.get("authority_manifest_sha256"),
+        &format!("{name}.authority_manifest_sha256"),
+    )?;
+    let verifier_registry_id = canonical_root(
+        policy.get("verifier_registry_id"),
+        &format!("{name}.verifier_registry_id"),
+    )?;
+    let verifier_registry_entry_id = canonical_root(
+        policy.get("verifier_registry_entry_id"),
+        &format!("{name}.verifier_registry_entry_id"),
+    )?;
+    expect_string(
+        policy,
+        "strict_result_schema",
+        SPOT_AUTHORITY_RESULT_SCHEMA_V1,
+        name,
+    )?;
+    expect_string(policy, "proof_profile", SPOT_PROOF_PROFILE_V1, name)?;
+    let valid_from_height = required_u64(policy, "valid_from_height", name)?;
+    let valid_until_height = required_u64(policy, "valid_until_height", name)?;
+    if valid_until_height < valid_from_height {
+        return Err("replay_config proof-authority validity interval inverted".to_string());
+    }
+
+    let mut policy_payload = policy.clone();
+    policy_payload.remove("policy_id");
+    let recomputed_policy_id = hash_v0(
+        "governed_proof_authority_binding_v1",
+        &Value::Object(policy_payload),
+    )?;
+    if policy_id != recomputed_policy_id {
+        return Err("replay_config proof-authority policy_id mismatch".to_string());
+    }
+    if policy_id != expectations.policy_id
+        || chain_id != expectations.chain_id
+        || authority_manifest_sha256 != expectations.authority_manifest_sha256
+        || verifier_registry_id != expectations.verifier_registry_id
+        || verifier_registry_entry_id != expectations.verifier_registry_entry_id
+        || valid_from_height != expectations.valid_from_height
+        || valid_until_height != expectations.valid_until_height
+    {
+        return Err("replay_config proof-authority policy/expectations mismatch".to_string());
+    }
+    Ok(())
+}
+
+fn validate_engine_config_projection(value: &Value, expected_chain_id: &str) -> Result<(), String> {
+    let name = "replay_config.config";
+    let config = exact_object(value, name, ENGINE_CONFIG_KEYS)?;
+    required_bool(config, "allow_missing_settlement", name)?;
+    expect_bool(config, "require_settlement_match", true, name)?;
+    expect_string(config, "swap_ordering", "greedy_ab_refined", name)?;
+    required_bool(config, "require_intent_signatures", name)?;
+    required_bool(config, "allow_unsigned_intents_if_tx_sender_matches", name)?;
+    for (key, expected) in [
+        ("max_intents", 256),
+        ("max_intent_bytes", 32_000),
+        ("max_total_intent_bytes", 256_000),
+        ("max_intent_entry_bytes", 40_000),
+        ("max_total_intent_entry_bytes", 300_000),
+        ("max_settlement_op_bytes", 512_000),
+        ("max_settlement_bytes", 512_000),
+        ("max_settlement_fills", 512),
+    ] {
+        expect_u64(config, key, expected, name)?;
+    }
+    validate_engine_proof_config(
+        config
+            .get("proof_config")
+            .ok_or_else(|| format!("{name}.proof_config missing"))?,
+    )?;
+    for key in [
+        "require_proof_when_present",
+        "allow_external_tools",
+        "require_settlement_certificate",
+        "require_settlement_end_to_end_certificate",
+        "require_oracle_authorization_for_protected_swaps",
+        "require_oracle_authorization_for_critical_settlements",
+        "allow_uniform_batch_certificate",
+        "allow_uniform_batch_partial_fill_certificate",
+        "require_uniform_batch_certificate_for_supported_swaps",
+        "require_uniform_batch_optimality_certificate",
+        "require_uniform_batch_v2_bounded_grid_optimality",
+        "require_uniform_batch_v3_exact_out_grid_optimality",
+        "enable_test_fault_injection",
+    ] {
+        expect_bool(config, key, false, name)?;
+    }
+    expect_bool(config, "consensus_mode", true, name)?;
+    for key in [
+        "tau_gate_config",
+        "settlement_certificate_proof_flags",
+        "settlement_certificate_price_history",
+        "settlement_end_to_end_certificate_inputs",
+        "lp_duration_risk_policy",
+        "fault_injection",
+    ] {
+        expect_null(config, key, name)?;
+    }
+    let chain_id = required_token(config, "chain_id", name)?;
     if chain_id != expected_chain_id {
         return Err("replay_config.config.chain_id mismatch".to_string());
     }
-    hash_v0("zeno_ledger_replay_engine_config_v0", value)
+    required_u64(config, "min_lp_position_age_seconds", name)?;
+    validate_engine_dex_config(
+        config
+            .get("dex_config")
+            .ok_or_else(|| format!("{name}.dex_config missing"))?,
+    )
+}
+
+fn validate_engine_proof_config(value: &Value) -> Result<(), String> {
+    let name = "replay_config.config.proof_config";
+    let config = exact_object(value, name, ENGINE_PROOF_CONFIG_KEYS)?;
+    expect_bool(config, "enabled", false, name)?;
+    expect_null(config, "verifier_cmd", name)?;
+    expect_bool(config, "allow_path_lookup", false, name)?;
+    expect_u64(config, "max_proof_bytes", 256_000, name)?;
+    expect_u64(config, "max_stdout_bytes", 32_000, name)?;
+    expect_u64(config, "max_stderr_bytes", 8_000, name)
+}
+
+fn validate_engine_dex_config(value: &Value) -> Result<(), String> {
+    let name = "replay_config.config.dex_config";
+    let config = exact_object(value, name, ENGINE_DEX_CONFIG_KEYS)?;
+    expect_null(config, "fee_split_params", name)?;
+    expect_string(config, "swap_ordering", "greedy_ab_refined", name)?;
+    expect_string(
+        config,
+        "settlement_validation",
+        "strong_proof_carrying",
+        name,
+    )?;
+    expect_bool(config, "allow_snapshot_bound_quote_bindings", false, name)?;
+    expect_bool(
+        config,
+        "reject_settlements_with_rejected_intents",
+        true,
+        name,
+    )?;
+    expect_bool(config, "require_all_nonces", true, name)?;
+    expect_bool(config, "allow_legacy_nonce_free_steps", false, name)?;
+    let fee_share = required_u64(config, "protocol_fee_share_bps", name)?;
+    if fee_share > 10_000 {
+        return Err(format!("{name}.protocol_fee_share_bps exceeds 10000"));
+    }
+    match config.get("protocol_fee_recipient_pubkey") {
+        Some(Value::Null) => Ok(()),
+        Some(Value::String(value)) if !value.is_empty() && value.is_ascii() => Ok(()),
+        _ => Err(format!(
+            "{name}.protocol_fee_recipient_pubkey must be null or a non-empty ASCII string"
+        )),
+    }
 }
 
 fn bind_outer_expectations(
@@ -1219,6 +1468,32 @@ fn required_u64(obj: &Map<String, Value>, key: &str, name: &str) -> Result<u64, 
         .ok_or_else(|| format!("{name}.{key} must be a u64"))
 }
 
+fn required_bool(obj: &Map<String, Value>, key: &str, name: &str) -> Result<bool, String> {
+    obj.get(key)
+        .and_then(Value::as_bool)
+        .ok_or_else(|| format!("{name}.{key} must be a bool"))
+}
+
+fn expect_bool(
+    obj: &Map<String, Value>,
+    key: &str,
+    expected: bool,
+    name: &str,
+) -> Result<(), String> {
+    if required_bool(obj, key, name)? != expected {
+        return Err(format!("{name}.{key} mismatch"));
+    }
+    Ok(())
+}
+
+fn expect_null(obj: &Map<String, Value>, key: &str, name: &str) -> Result<(), String> {
+    match obj.get(key) {
+        Some(Value::Null) => Ok(()),
+        Some(_) => Err(format!("{name}.{key} must be null")),
+        None => Err(format!("{name}.{key} missing")),
+    }
+}
+
 fn expect_u64(
     obj: &Map<String, Value>,
     key: &str,
@@ -1457,11 +1732,106 @@ mod tests {
     }
 
     #[test]
+    fn replay_config_v1_matches_python_policy_and_digest_vectors() {
+        let expectations = parse_expectations(&test_expectations()).unwrap();
+        let config = test_replay_config();
+        let policy = config["proof_authority_policy"].as_object().unwrap();
+        let mut policy_payload = policy.clone();
+        policy_payload.remove("policy_id");
+        assert_eq!(
+            hash_v0(
+                "governed_proof_authority_binding_v1",
+                &Value::Object(policy_payload),
+            )
+            .unwrap(),
+            "0xa33a534c7c1b17e49e8710a904849ec0db74e150ab579cf37c0b434447606825"
+        );
+        assert_eq!(
+            validate_replay_config(&config, &expectations).unwrap(),
+            "0x5f5869a1291ea7b17b57bb07d1394ad9ba880f202725755b8995226c3938415f"
+        );
+    }
+
+    #[test]
+    fn strict_replay_config_rejects_v0_or_noncanonical_engine_projection() {
+        let expectations = parse_expectations(&test_expectations()).unwrap();
+        let mut expanded_v1 = test_replay_config();
+        expanded_v1["verified"] = Value::Bool(true);
+        assert_eq!(
+            validate_replay_config(&expanded_v1, &expectations).unwrap_err(),
+            "replay_config keys mismatch"
+        );
+
+        let v0 = json!({
+            "schema": "zenodex/zeno_ledger/replay_engine_config/v0",
+            "profile": "bounded_dex_engine_v0",
+            "config": test_engine_config_projection(),
+        });
+        assert_eq!(
+            validate_replay_config(&v0, &expectations).unwrap_err(),
+            "replay_config keys mismatch"
+        );
+
+        let mut injected_v0 = test_replay_config();
+        injected_v0["schema"] = json!("zenodex/zeno_ledger/replay_engine_config/v0");
+        injected_v0["profile"] = json!("bounded_dex_engine_v0");
+        assert_eq!(
+            validate_replay_config(&injected_v0, &expectations).unwrap_err(),
+            "replay_config.schema mismatch"
+        );
+
+        let mut changed_limit = test_replay_config();
+        changed_limit["config"]["max_intents"] = json!(257);
+        assert_eq!(
+            validate_replay_config(&changed_limit, &expectations).unwrap_err(),
+            "replay_config.config.max_intents mismatch"
+        );
+    }
+
+    #[test]
+    fn strict_replay_config_rejects_policy_expansion_tamper_or_coherent_substitution() {
+        let expectations = parse_expectations(&test_expectations()).unwrap();
+
+        let mut expanded = test_replay_config();
+        expanded["proof_authority_policy"]["verified"] = Value::Bool(true);
+        assert_eq!(
+            validate_replay_config(&expanded, &expectations).unwrap_err(),
+            "replay_config.proof_authority_policy keys mismatch"
+        );
+
+        let mut tampered_id = test_replay_config();
+        tampered_id["proof_authority_policy"]["policy_id"] =
+            json!(format!("0x{}", "00".repeat(32)));
+        assert_eq!(
+            validate_replay_config(&tampered_id, &expectations).unwrap_err(),
+            "replay_config proof-authority policy_id mismatch"
+        );
+
+        let mut coherent_substitution = test_replay_config();
+        coherent_substitution["proof_authority_policy"]["authority_manifest_sha256"] =
+            json!("44".repeat(32));
+        let policy = coherent_substitution["proof_authority_policy"]
+            .as_object_mut()
+            .unwrap();
+        policy.remove("policy_id");
+        let replacement_id = hash_v0(
+            "governed_proof_authority_binding_v1",
+            &Value::Object(policy.clone()),
+        )
+        .unwrap();
+        policy.insert("policy_id".to_string(), json!(replacement_id));
+        assert_eq!(
+            validate_replay_config(&coherent_substitution, &expectations).unwrap_err(),
+            "replay_config proof-authority policy/expectations mismatch"
+        );
+    }
+
+    #[test]
     fn outer_binding_accepts_exact_header_config_and_governed_expectations() {
         let (header, config, expectations_value) = consistent_outer_fixture();
         let expectations = parse_expectations(&expectations_value).unwrap();
         let header_obj = validate_header(&header).unwrap();
-        let config_digest = validate_replay_config(&config, "tau-test").unwrap();
+        let config_digest = validate_replay_config(&config, &expectations).unwrap();
         let header_hash = hash_v0("header_v0", &header).unwrap();
         bind_outer_expectations(&expectations, header_obj, &header_hash, &config_digest).unwrap();
     }
@@ -1475,7 +1845,7 @@ mod tests {
         wrong_chain["chain_id"] = json!("tau-other");
         let wrong_chain_obj = validate_header(&wrong_chain).unwrap();
         let wrong_chain_hash = hash_v0("header_v0", &wrong_chain).unwrap();
-        let config_digest = validate_replay_config(&config, "tau-test").unwrap();
+        let config_digest = validate_replay_config(&config, &expectations).unwrap();
         assert_eq!(
             bind_outer_expectations(
                 &expectations,
@@ -1490,7 +1860,7 @@ mod tests {
         let mut wrong_config = config.clone();
         wrong_config["config"]["chain_id"] = json!("tau-other");
         assert_eq!(
-            validate_replay_config(&wrong_config, "tau-test").unwrap_err(),
+            validate_replay_config(&wrong_config, &expectations).unwrap_err(),
             "replay_config.config.chain_id mismatch"
         );
 
@@ -1506,7 +1876,7 @@ mod tests {
         let expectations = parse_expectations(&expectations_value).unwrap();
         let wrong_time_obj = validate_header(&wrong_time_header).unwrap();
         let wrong_time_hash = hash_v0("header_v0", &wrong_time_header).unwrap();
-        let config_digest = validate_replay_config(&config, "tau-test").unwrap();
+        let config_digest = validate_replay_config(&config, &expectations).unwrap();
         assert_eq!(
             bind_outer_expectations(
                 &expectations,
@@ -1595,12 +1965,10 @@ mod tests {
     }
 
     fn consistent_outer_fixture() -> (Value, Value, Value) {
-        let config = json!({
-            "schema": REPLAY_CONFIG_SCHEMA_V0,
-            "profile": REPLAY_CONFIG_PROFILE_V0,
-            "config": {"chain_id": "tau-test"},
-        });
-        let config_digest = validate_replay_config(&config, "tau-test").unwrap();
+        let expectations_value = test_expectations();
+        let expectations = parse_expectations(&expectations_value).unwrap();
+        let config = test_replay_config();
+        let config_digest = validate_replay_config(&config, &expectations).unwrap();
         let zero = format!("0x{}", "00".repeat(32));
         let module_versions = format!("0x{}", "77".repeat(32));
         let data_availability = format!("0x{}", "88".repeat(32));
@@ -1624,7 +1992,7 @@ mod tests {
             "module_versions_digest": module_versions,
             "signature_set_root": format!("0x{}", "0a".repeat(32)),
         });
-        let mut expectations = test_expectations();
+        let mut expectations = expectations_value;
         expectations["expected_image_id"] = json!(compiled_image_id());
         expectations["canonical_header_hash"] = json!(hash_v0("header_v0", &header).unwrap());
         expectations["config_digest"] = json!(header["config_digest"].clone());
@@ -1634,6 +2002,89 @@ mod tests {
         (header, config, expectations)
     }
 
+    fn test_replay_config() -> Value {
+        json!({
+            "schema": REPLAY_CONFIG_SCHEMA_V1,
+            "profile": REPLAY_CONFIG_PROFILE_V1,
+            "config": test_engine_config_projection(),
+            "proof_authority_policy": test_proof_authority_policy(),
+        })
+    }
+
+    fn test_proof_authority_policy() -> Value {
+        json!({
+            "schema": GOVERNED_PROOF_AUTHORITY_BINDING_SCHEMA_V1,
+            "policy_id": "0xa33a534c7c1b17e49e8710a904849ec0db74e150ab579cf37c0b434447606825",
+            "chain_id": "tau-test",
+            "authority_manifest_sha256": "11".repeat(32),
+            "verifier_registry_id": format!("0x{}", "22".repeat(32)),
+            "verifier_registry_entry_id": format!("0x{}", "33".repeat(32)),
+            "strict_result_schema": SPOT_AUTHORITY_RESULT_SCHEMA_V1,
+            "proof_profile": SPOT_PROOF_PROFILE_V1,
+            "valid_from_height": 1,
+            "valid_until_height": 10,
+        })
+    }
+
+    fn test_engine_config_projection() -> Value {
+        json!({
+            "allow_external_tools": false,
+            "allow_missing_settlement": false,
+            "allow_uniform_batch_certificate": false,
+            "allow_uniform_batch_partial_fill_certificate": false,
+            "allow_unsigned_intents_if_tx_sender_matches": true,
+            "chain_id": "tau-test",
+            "consensus_mode": true,
+            "dex_config": {
+                "allow_legacy_nonce_free_steps": false,
+                "allow_snapshot_bound_quote_bindings": false,
+                "fee_split_params": null,
+                "protocol_fee_recipient_pubkey": null,
+                "protocol_fee_share_bps": 0,
+                "reject_settlements_with_rejected_intents": true,
+                "require_all_nonces": true,
+                "settlement_validation": "strong_proof_carrying",
+                "swap_ordering": "greedy_ab_refined",
+            },
+            "enable_test_fault_injection": false,
+            "fault_injection": null,
+            "lp_duration_risk_policy": null,
+            "max_intent_bytes": 32000,
+            "max_intent_entry_bytes": 40000,
+            "max_intents": 256,
+            "max_settlement_bytes": 512000,
+            "max_settlement_fills": 512,
+            "max_settlement_op_bytes": 512000,
+            "max_total_intent_bytes": 256000,
+            "max_total_intent_entry_bytes": 300000,
+            "min_lp_position_age_seconds": 0,
+            "proof_config": {
+                "allow_path_lookup": false,
+                "enabled": false,
+                "max_proof_bytes": 256000,
+                "max_stderr_bytes": 8000,
+                "max_stdout_bytes": 32000,
+                "verifier_cmd": null,
+            },
+            "require_intent_signatures": true,
+            "require_oracle_authorization_for_critical_settlements": false,
+            "require_oracle_authorization_for_protected_swaps": false,
+            "require_proof_when_present": false,
+            "require_settlement_certificate": false,
+            "require_settlement_end_to_end_certificate": false,
+            "require_settlement_match": true,
+            "require_uniform_batch_certificate_for_supported_swaps": false,
+            "require_uniform_batch_optimality_certificate": false,
+            "require_uniform_batch_v2_bounded_grid_optimality": false,
+            "require_uniform_batch_v3_exact_out_grid_optimality": false,
+            "settlement_certificate_price_history": null,
+            "settlement_certificate_proof_flags": null,
+            "settlement_end_to_end_certificate_inputs": null,
+            "swap_ordering": "greedy_ab_refined",
+            "tau_gate_config": null,
+        })
+    }
+
     fn test_expectations() -> Value {
         json!({
             "schema": AUTHORITY_EXPECTATIONS_SCHEMA_V1,
@@ -1641,7 +2092,7 @@ mod tests {
             "verifier_registry_id": format!("0x{}", "22".repeat(32)),
             "verifier_registry_entry_id": format!("0x{}", "33".repeat(32)),
             "strict_result_schema": SPOT_AUTHORITY_RESULT_SCHEMA_V1,
-            "policy_id": format!("0x{}", "10".repeat(32)),
+            "policy_id": "0xa33a534c7c1b17e49e8710a904849ec0db74e150ab579cf37c0b434447606825",
             "chain_id": "tau-test",
             "height": 7,
             "valid_from_height": 1,

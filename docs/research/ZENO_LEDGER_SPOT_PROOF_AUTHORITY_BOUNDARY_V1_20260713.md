@@ -80,6 +80,49 @@ millisecond timestamp must fall within that same integer second. This closes
 the temporal join without claiming that the current Spot journal directly
 commits the timestamp.
 
+## Replay-config V1 authority binding
+
+The strict schema requires:
+
+```text
+zenodex/zeno_ledger/replay_engine_config/v1
+bounded_dex_engine_proof_authority_v1
+```
+
+Its top-level keys are exactly `schema`, `profile`, `config`, and
+`proof_authority_policy`. The engine projection is the same exact canonical
+bounded projection accepted by the Python V1 parser. Reduced projections,
+unknown keys, changed fixed limits, floats, and V0 documents reject.
+
+The proof-authority policy has the exact schema
+`zenodex.zeno_ledger.governed_proof_authority_binding.v1`. It commits the chain,
+authority-manifest SHA-256, verifier-registry and entry roots, strict result
+schema, proof profile, and finite height interval. Rust independently derives:
+
+```text
+policy_id = hash_v0(
+  governed_proof_authority_binding_v1,
+  exact policy object without policy_id
+)
+
+config_digest = hash_v0(
+  zeno_ledger_replay_engine_config_v1,
+  complete exact V1 config document
+)
+```
+
+Every recomputed policy field must equal the strict expectation, and the V1
+config digest must equal both the expectation and header. The Python/Rust
+parity vectors are:
+
+```text
+policy_id    = 0xa33a534c7c1b17e49e8710a904849ec0db74e150ab579cf37c0b434447606825
+config_digest = 0x5f5869a1291ea7b17b57bb07d1394ad9ba880f202725755b8995226c3938415f
+```
+
+The ordinary diagnostic verifier retains its existing V0-compatible behavior.
+V0 is inadmissible on the strict authority schema.
+
 ## Transaction domain bridge
 
 The strict verifier derives both commitments from the same ordered JSON
