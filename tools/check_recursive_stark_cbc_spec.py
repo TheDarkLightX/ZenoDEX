@@ -25,6 +25,12 @@ recursive_v1_evidence: Any = importlib.import_module(
 recursive_v2_evidence: Any = importlib.import_module(
     f"{_MODULE_PREFIX}check_risc0_recursive_v2_rebuild_evidence"
 )
+recursive_v1_live_record: Any = importlib.import_module(
+    f"{_MODULE_PREFIX}check_risc0_recursive_live_replay_evidence"
+)
+active_reproof_v3: Any = importlib.import_module(
+    f"{_MODULE_PREFIX}check_risc0_recursive_active_reproof_v3"
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MATRIX = REPO_ROOT / "docs" / "research" / "RECURSIVE_STARK_CBC_MATRIX_20260709.json"
@@ -235,10 +241,17 @@ FULL_CURRENT_PROOF_CLAIM_STATUS = (
 )
 V1_HOST_REPLAY_PENDING_CLAIM_STATUS = (
     "v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified_"
-    "v1_current_host_replay_pending"
+    "v1_governed_host_replay_evidence_pending"
 )
 V1_HOST_REPLAY_PENDING_NON_CLAIM = (
-    "no_current_v1_host_verifier_replay_after_host_cli_changes"
+    "no_governed_current_v1_host_replay_evidence_after_host_cli_changes"
+)
+V1_RECORDED_LIVE_REPLAY_CLAIM_STATUS = (
+    "v1_recorded_same_host_retained_receipt_live_replay_v2_current_image_local_recursive_"
+    "proofs_and_temporary_v3_structural_tree_verified"
+)
+V1_RECORDED_LIVE_REPLAY_NON_CLAIM = (
+    "no_authenticated_historical_execution_provenance_for_v1_live_replay_record"
 )
 PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS = (
     "active_workspaces_patched_anyhow_temporary_v3_retained_structural_tree_verified_"
@@ -253,9 +266,24 @@ PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM = (
 class ClaimStatusPolicy:
     required_source_closures: frozenset[str]
     required_implemented_statements: frozenset[str]
+    required_implemented_obligations: frozenset[str]
+    required_pending_obligations: frozenset[str]
 
 
 CLAIM_STATUS_POLICIES = {
+    FULL_CURRENT_PROOF_CLAIM_STATUS: ClaimStatusPolicy(
+        required_source_closures=frozenset({"active_v3"}),
+        required_implemented_statements=frozenset(
+            {
+                "recursive_epoch_v1",
+                "recursive_node_v2",
+                "zrpf_node_v3_structural",
+                "zrpf_v1_spot_adapter_receipt_v1",
+            }
+        ),
+        required_implemented_obligations=frozenset({"RS-CBC-014"}),
+        required_pending_obligations=frozenset(),
+    ),
     PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS: ClaimStatusPolicy(
         required_source_closures=frozenset(),
         required_implemented_statements=frozenset(
@@ -264,6 +292,8 @@ CLAIM_STATUS_POLICIES = {
                 "zrpf_v1_spot_adapter_receipt_v1",
             }
         ),
+        required_implemented_obligations=frozenset(),
+        required_pending_obligations=frozenset({"RS-CBC-014"}),
     ),
 }
 ACCEPTED_CLAIM_STATUSES = frozenset(CLAIM_STATUS_POLICIES)
@@ -297,6 +327,17 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
     obligations = _validate_obligations(root.get("obligations"), repo_root=inspected_root)
 
     claim_status = promotion["facts"]["claim_status"]
+    live_record_integrity_verified = False
+    if inspected_root is None:
+        errors.append("V1 live-replay record cannot be checked")
+    else:
+        live_record = recursive_v1_live_record.check_retained_evidence(
+            repository_root=inspected_root
+        )
+        live_record_integrity_verified = live_record.get("ok") is True
+        if not live_record_integrity_verified:
+            errors.append("V1 live-replay record rejected")
+
     if claim_status in ACCEPTED_CLAIM_STATUSES:
         policy = CLAIM_STATUS_POLICIES[claim_status]
         statement_statuses = {item["id"]: item["status"] for item in statements["items"]}
@@ -307,8 +348,18 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
                     "implemented or implemented_partial"
                 )
         obligation_statuses = {item["id"]: item["status"] for item in obligations["items"]}
-        if obligation_statuses.get("RS-CBC-014") != "implemented":
-            errors.append("reviewed recursive claim status requires RS-CBC-014 implemented")
+        for obligation_id in sorted(policy.required_implemented_obligations):
+            if obligation_statuses.get(obligation_id) not in IMPLEMENTED_STATUSES:
+                errors.append(
+                    f"{claim_status} requires {obligation_id} implemented under the active "
+                    "current-image reference"
+                )
+        for obligation_id in sorted(policy.required_pending_obligations):
+            if obligation_statuses.get(obligation_id) not in PENDING_STATUSES:
+                errors.append(
+                    f"{claim_status} requires {obligation_id} pending until fresh current-image "
+                    "evidence exists"
+                )
         for obligation_id in ("RS-CBC-016", "RS-CBC-022"):
             if obligation_statuses.get(obligation_id) not in IMPLEMENTED_STATUSES:
                 errors.append(
@@ -320,6 +371,7 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
             errors,
             required_closures=policy.required_source_closures,
         )
+    promotion["facts"]["v1_live_replay_record_integrity_verified"] = live_record_integrity_verified
 
     for section_name, section in (
         ("promotion_boundary", promotion),
@@ -406,6 +458,11 @@ def _validate_promoted_source_closures(
         except (MatrixInputError, recursive_v2_evidence.EvidenceError) as exc:
             errors.append(f"promoted V2 source closure rejected: {exc}")
 
+    if "active_v3" in required_closures:
+        result = active_reproof_v3.check_reference(repository_root=repo_root)
+        if result.get("ok") is not True:
+            errors.append(f"promoted active V3 reference rejected: {result.get('error')}")
+
 
 def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
     errors: list[str] = []
@@ -443,15 +500,9 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
     missing_non_claims = sorted(REQUIRED_NON_CLAIMS - non_claims)
     if missing_non_claims:
         errors.append("promotion_boundary.non_claims missing required values")
-    if (
-        claim_status in ACCEPTED_CLAIM_STATUSES
-        and STALE_CURRENT_IMAGE_NON_CLAIM in non_claims
-    ):
+    if claim_status in ACCEPTED_CLAIM_STATUSES and STALE_CURRENT_IMAGE_NON_CLAIM in non_claims:
         errors.append("promotion_boundary.non_claims retains stale current-image proof absence")
-    if (
-        claim_status in ACCEPTED_CLAIM_STATUSES
-        and STALE_V3_TREE_ABSENCE_NON_CLAIM in non_claims
-    ):
+    if claim_status in ACCEPTED_CLAIM_STATUSES and STALE_V3_TREE_ABSENCE_NON_CLAIM in non_claims:
         errors.append("promotion_boundary.non_claims retains stale V3 structural-tree absence")
     if (
         claim_status == V1_HOST_REPLAY_PENDING_CLAIM_STATUS
@@ -465,8 +516,11 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
         and PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM not in non_claims
     ):
         errors.append(
-            "patched-anyhow reproof-pending status requires its exact current-proof "
-            "non-claim"
+            "patched-anyhow reproof-pending status requires its exact current-proof non-claim"
+        )
+    if V1_RECORDED_LIVE_REPLAY_NON_CLAIM not in non_claims:
+        errors.append(
+            "retained V1 live-replay record requires its exact historical-provenance non-claim"
         )
     return {
         "ok": not errors,
@@ -480,6 +534,12 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
             ),
             "required_implemented_statements": sorted(
                 claim_policy.required_implemented_statements if claim_policy else frozenset()
+            ),
+            "required_implemented_obligations": sorted(
+                claim_policy.required_implemented_obligations if claim_policy else frozenset()
+            ),
+            "required_pending_obligations": sorted(
+                claim_policy.required_pending_obligations if claim_policy else frozenset()
             ),
             "missing_required_non_claims": missing_non_claims,
         },
@@ -884,9 +944,7 @@ def _reject_unknown_fields(
     if any(not isinstance(field, str) for field in value):
         errors.append(f"{name} field names must be strings")
     unknown_fields = sorted(
-        field
-        for field in value
-        if isinstance(field, str) and field not in allowed_fields
+        field for field in value if isinstance(field, str) and field not in allowed_fields
     )
     if unknown_fields:
         errors.append(f"{name} has unknown fields: {','.join(unknown_fields)}")

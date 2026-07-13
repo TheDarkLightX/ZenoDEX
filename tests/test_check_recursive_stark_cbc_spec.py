@@ -30,11 +30,16 @@ RECURSIVE_REBUILD_REFERENCES = (
     "config/proof_profiles/risc0_recursive_rebuild_reference.json",
     "config/proof_profiles/risc0_recursive_v2_rebuild_reference.json",
 )
-REPROOF_PENDING_REQUIRED_STATEMENTS = frozenset(
+CURRENT_PROOF_REQUIRED_STATEMENTS = frozenset(
     {
+        "recursive_epoch_v1",
+        "recursive_node_v2",
         "zrpf_node_v3_structural",
         "zrpf_v1_spot_adapter_receipt_v1",
     }
+)
+LIVE_REPLAY_SOURCE_FILES = frozenset(
+    checker.recursive_v1_live_record.live.support.CHECKER_SOURCE_PATHS.values()
 )
 
 
@@ -51,6 +56,7 @@ def _repo_copy_for_matrix(tmp_path: Path, matrix: dict[str, Any]) -> Path:
     for obligation in matrix["obligations"]:
         paths.update(ref["path"] for ref in obligation["code_refs"])
         paths.update(ref["path"] for ref in obligation["test_refs"])
+    paths.update(LIVE_REPLAY_SOURCE_FILES)
     for relative in sorted(paths):
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -93,37 +99,37 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["implemented_obligation_count"] == 20
     assert report["facts"]["pending_obligation_count"] == 5
     assert report["matrix_sha256"] == (
-        "sha256:96f8fb8008d026f8061a2bb1d7f954eb3bafe98bb0e3985656b7045488bf30ad"
+        "sha256:e6aa60a61f51f1d907e3801d6e5ac0d285050f4b527290923c2c93361358d136"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
     assert (
         report["promotion_boundary"]["facts"]["claim_status"]
-        == checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS
+        == checker.FULL_CURRENT_PROOF_CLAIM_STATUS
     )
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == []
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["active_v3"]
     assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
-        REPROOF_PENDING_REQUIRED_STATEMENTS
+        CURRENT_PROOF_REQUIRED_STATEMENTS
     )
+    assert report["promotion_boundary"]["facts"]["required_implemented_obligations"] == [
+        "RS-CBC-014"
+    ]
+    assert report["promotion_boundary"]["facts"]["required_pending_obligations"] == []
     assert (
         checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
-        in matrix["promotion_boundary"]["non_claims"]
+        not in matrix["promotion_boundary"]["non_claims"]
     )
-    assert (
-        "no_canonical_recursive_outer_envelope"
-        in matrix["promotion_boundary"]["non_claims"]
-    )
-    assert (
-        "no_v3_semantic_receipt_authenticated_tree"
-        in matrix["promotion_boundary"]["non_claims"]
-    )
+    assert checker.V1_RECORDED_LIVE_REPLAY_NON_CLAIM in matrix["promotion_boundary"]["non_claims"]
+    assert report["promotion_boundary"]["facts"]["v1_live_replay_record_integrity_verified"]
+    assert "no_canonical_recursive_outer_envelope" in matrix["promotion_boundary"]["non_claims"]
+    assert "no_v3_semantic_receipt_authenticated_tree" in matrix["promotion_boundary"]["non_claims"]
     assert (
         "no_release_backed_v3_receipt_authenticated_tree"
         in matrix["promotion_boundary"]["non_claims"]
     )
     assert "no_complete_v3_semantic_composition" in matrix["promotion_boundary"]["non_claims"]
-    assert "no_generic_v4_runtime_identity_authority" in (
-        matrix["promotion_boundary"]["non_claims"]
+    assert (
+        "no_generic_v4_runtime_identity_authority" in (matrix["promotion_boundary"]["non_claims"])
     )
     assert "no_zrpf_16x4_profile" in matrix["promotion_boundary"]["non_claims"]
     assert (
@@ -139,16 +145,12 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     )
     assert perps_source_finality["code_refs"] == []
     assert perps_source_finality["test_refs"] == []
-    outer_envelope = next(
-        item for item in matrix["obligations"] if item["id"] == "RS-CBC-021"
-    )
+    outer_envelope = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-021")
     assert outer_envelope["status"] == "pending"
     assert outer_envelope["code_refs"] == []
     assert outer_envelope["test_refs"] == []
     assert outer_envelope["external_commands"] == []
-    adapter_receipt = next(
-        item for item in matrix["obligations"] if item["id"] == "RS-CBC-022"
-    )
+    adapter_receipt = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-022")
     assert adapter_receipt["status"] == "implemented_partial"
     assert adapter_receipt["code_refs"]
     assert adapter_receipt["test_refs"]
@@ -160,26 +162,25 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert semantic_runtime_identity["code_refs"]
     assert semantic_runtime_identity["test_refs"]
     assert semantic_runtime_identity["external_commands"]
-    durable_admission = next(
-        item for item in matrix["obligations"] if item["id"] == "RS-CBC-025"
-    )
+    durable_admission = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-025")
     assert durable_admission["status"] == "implemented_partial"
     assert durable_admission["code_refs"]
     assert durable_admission["test_refs"]
     assert durable_admission["external_commands"]
-    assert "outer_verified_receipt_profile" in next(
-        item
-        for item in matrix["typed_statements"]
-        if item["id"] == "zrpf_semantic_epoch_receipt_v2"
-    )["required_fields"]
+    assert (
+        "outer_verified_receipt_profile"
+        in next(
+            item
+            for item in matrix["typed_statements"]
+            if item["id"] == "zrpf_semantic_epoch_receipt_v2"
+        )["required_fields"]
+    )
     assert any(
         "v1.94.1-rust-x86_64-unknown-linux-gnu" in command
         for command in semantic_runtime_identity["external_commands"]
     )
     for obligation_id in ("RS-CBC-023",):
-        obligation = next(
-            item for item in matrix["obligations"] if item["id"] == obligation_id
-        )
+        obligation = next(item for item in matrix["obligations"] if item["id"] == obligation_id)
         assert obligation["status"] == "pending"
         assert obligation["code_refs"] == []
         assert obligation["test_refs"] == []
@@ -188,17 +189,14 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
 
 def test_recursive_stark_cbc_matrix_requires_canonical_outer_envelope_nonclaim() -> None:
     matrix = _matrix()
-    matrix["promotion_boundary"]["non_claims"].remove(
-        "no_canonical_recursive_outer_envelope"
-    )
+    matrix["promotion_boundary"]["non_claims"].remove("no_canonical_recursive_outer_envelope")
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is False
-    assert (
-        report["promotion_boundary"]["facts"]["missing_required_non_claims"]
-        == ["no_canonical_recursive_outer_envelope"]
-    )
+    assert report["promotion_boundary"]["facts"]["missing_required_non_claims"] == [
+        "no_canonical_recursive_outer_envelope"
+    ]
     assert (
         "promotion_boundary.non_claims missing required values"
         in report["promotion_boundary"]["errors"]
@@ -232,9 +230,7 @@ def test_current_v2_public_evidence_matches_reference_and_preserves_nonclaims() 
     host_pair_verifier = dict(evidence["regenerated_build_artifacts"]["host_pair_verifier"])
     assert host_pair_verifier.pop("committed_reference_field") == "proof_pair.static_verifier"
     assert host_pair_verifier == proof_reference["static_verifier"]
-    two_leaf_verifier = dict(
-        evidence["regenerated_build_artifacts"]["two_leaf_host_pair_verifier"]
-    )
+    two_leaf_verifier = dict(evidence["regenerated_build_artifacts"]["two_leaf_host_pair_verifier"])
     assert two_leaf_verifier.pop("committed_reference_field") == (
         "proof_pair.two_leaf_static_verifier"
     )
@@ -521,11 +517,12 @@ def test_two_leaf_source_pinned_evidence_is_exact_and_claim_limited() -> None:
         if row["path"] == verifier["source_path"]
     )
     assert verifier["source_sha256"] == source_row["sha256"]
-    assert verifier["binary_sha256"] == (
-        reference["proof_pair"]["two_leaf_static_verifier"]["sha256"]
+    assert (
+        verifier["binary_sha256"] == (reference["proof_pair"]["two_leaf_static_verifier"]["sha256"])
     )
-    assert verifier["binary_size_bytes"] == (
-        reference["proof_pair"]["two_leaf_static_verifier"]["size_bytes"]
+    assert (
+        verifier["binary_size_bytes"]
+        == (reference["proof_pair"]["two_leaf_static_verifier"]["size_bytes"])
     )
     assert verifier["status"] == "recursive_v2_two_leaf_pair_verified"
     assert evidence["verification"]["missing_child_assumption_control"]["status"] == (
@@ -550,9 +547,7 @@ def test_same_profile_two_spot_evidence_is_exact_and_claim_limited() -> None:
     assert hashlib.sha256(evidence_bytes).hexdigest() == (
         "18141ffae7279b1a717edb41674b4fae101a489e2d7870b920c45c8d6810512a"
     )
-    assert evidence["schema"] == (
-        "zenodex/recursive_stark_v2_same_profile_two_spot_evidence/v1"
-    )
+    assert evidence["schema"] == ("zenodex/recursive_stark_v2_same_profile_two_spot_evidence/v1")
     assert evidence["status"] == (
         "same_host_source_frozen_same_profile_two_spot_receipts_generated_and_verified"
     )
@@ -588,26 +583,46 @@ def test_same_profile_two_spot_evidence_is_exact_and_claim_limited() -> None:
         assert forbidden not in public_text
 
 
-def test_current_recursive_proof_status_requires_fresh_proof_obligation_implemented() -> None:
+def test_reproof_pending_status_rejects_fresh_proof_obligation_promotion() -> None:
     matrix = _matrix()
+    matrix["promotion_boundary"]["claim_status"] = (
+        checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS
+    )
+    matrix["promotion_boundary"]["non_claims"].append(
+        checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
+    )
     for obligation in matrix["obligations"]:
         if obligation["id"] == "RS-CBC-014":
-            obligation["status"] = "pending"
+            obligation["status"] = "implemented"
             break
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is False
     assert (
-        "reviewed recursive claim status requires RS-CBC-014 implemented"
-        in report["errors"]
+        f"{checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS} requires RS-CBC-014 "
+        "pending until fresh current-image evidence exists" in report["errors"]
     )
+
+
+def test_current_proof_status_requires_rscbc014_implemented() -> None:
+    matrix = _matrix()
+    obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-014")
+    obligation["status"] = "pending"
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        f"{checker.FULL_CURRENT_PROOF_CLAIM_STATUS} requires RS-CBC-014 implemented "
+        "under the active current-image reference"
+    ) in report["errors"]
 
 
 def test_patched_anyhow_reproof_pending_status_requires_exact_nonclaim() -> None:
     matrix = _matrix()
-    matrix["promotion_boundary"]["non_claims"].remove(
-        checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
+    matrix["promotion_boundary"]["claim_status"] = (
+        checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS
     )
 
     report = checker.validate_matrix(matrix)
@@ -619,33 +634,87 @@ def test_patched_anyhow_reproof_pending_status_requires_exact_nonclaim() -> None
     )
 
 
-def test_full_current_proof_status_is_unavailable_without_current_host_evidence(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_retained_v1_live_replay_record_requires_exact_provenance_nonclaim() -> None:
     matrix = _matrix()
-    matrix["promotion_boundary"]["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
-    matrix["promotion_boundary"]["non_claims"].remove(
-        checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
-    )
-    obligation = next(
-        item for item in matrix["obligations"] if item["id"] == "RS-CBC-014"
-    )
-    obligation["status"] = "implemented"
-    monkeypatch.setattr(
-        checker,
-        "_validate_promoted_source_closures",
-        lambda *_args, **_kwargs: None,
-    )
+    matrix["promotion_boundary"]["non_claims"].remove(checker.V1_RECORDED_LIVE_REPLAY_NON_CLAIM)
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is False
     assert (
-        "promotion_boundary.claim_status is not an accepted reviewed status"
+        "retained V1 live-replay record requires its exact historical-provenance non-claim"
         in report["promotion_boundary"]["errors"]
     )
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == []
-    assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == []
+
+
+def test_recorded_v1_live_replay_status_requires_accepted_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    matrix = _matrix()
+    monkeypatch.setattr(
+        checker.recursive_v1_live_record,
+        "check_retained_evidence",
+        lambda **_kwargs: {"ok": False},
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert "V1 live-replay record rejected" in report["errors"]
+    assert (
+        report["promotion_boundary"]["facts"]["v1_live_replay_record_integrity_verified"] is False
+    )
+
+
+def test_recorded_v1_live_replay_status_rejects_repository_record_mutation(
+    tmp_path: Path,
+) -> None:
+    matrix = _matrix()
+    root = _repo_copy_for_matrix(tmp_path, matrix)
+    evidence_path = root / "docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["production_authority"] = True
+    evidence_path.write_text(
+        json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    report = checker.validate_matrix(matrix, repo_root=root)
+
+    assert report["ok"] is False
+    assert "V1 live-replay record rejected" in report["errors"]
+
+
+def test_recorded_v1_live_replay_status_rejects_missing_bound_checker_source(
+    tmp_path: Path,
+) -> None:
+    matrix = _matrix()
+    root = _repo_copy_for_matrix(tmp_path, matrix)
+    bound_source = root / next(
+        iter(checker.recursive_v1_live_record.live.support.CHECKER_SOURCE_PATHS.values())
+    )
+    bound_source.unlink()
+
+    report = checker.validate_matrix(matrix, repo_root=root)
+
+    assert report["ok"] is False
+    assert "V1 live-replay record rejected" in report["errors"]
+
+
+def test_full_current_proof_status_rejects_active_reference_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    matrix = _matrix()
+    monkeypatch.setattr(
+        checker.active_reproof_v3,
+        "check_reference",
+        lambda **_kwargs: {"error": "mutated", "ok": False},
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert "promoted active V3 reference rejected: mutated" in report["errors"]
 
 
 def test_post_repair_verified_status_rejects_stale_proof_absence_nonclaim() -> None:
@@ -665,9 +734,7 @@ def test_post_repair_verified_status_rejects_stale_proof_absence_nonclaim() -> N
 
 def test_structural_tree_verified_status_rejects_stale_tree_absence_nonclaim() -> None:
     matrix = _matrix()
-    matrix["promotion_boundary"]["non_claims"].append(
-        "no_v3_receipt_authenticated_tree"
-    )
+    matrix["promotion_boundary"]["non_claims"].append("no_v3_receipt_authenticated_tree")
 
     report = checker.validate_matrix(matrix)
 
@@ -683,9 +750,7 @@ def test_structural_tree_verified_status_requires_implemented_tree_obligations(
     obligation_id: str,
 ) -> None:
     matrix = _matrix()
-    obligation = next(
-        item for item in matrix["obligations"] if item["id"] == obligation_id
-    )
+    obligation = next(item for item in matrix["obligations"] if item["id"] == obligation_id)
     obligation["status"] = "pending"
     obligation["code_refs"] = []
     obligation["test_refs"] = []
@@ -700,28 +765,13 @@ def test_structural_tree_verified_status_requires_implemented_tree_obligations(
     ) in report["errors"]
 
 
-def test_reproof_pending_status_does_not_consult_stale_v1_or_v2_closures(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_current_status_consults_active_v3_closure() -> None:
     matrix = _matrix()
-
-    def reject_unexpected_validation(*_args: Any, **_kwargs: Any) -> Any:
-        raise AssertionError("reproof-pending status must not consult stale source closures")
-
-    monkeypatch.setattr(
-        checker.recursive_v1_evidence,
-        "validate_reference",
-        reject_unexpected_validation,
-    )
-    monkeypatch.setattr(
-        checker.recursive_v2_evidence,
-        "validate_reference",
-        reject_unexpected_validation,
-    )
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is True
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["active_v3"]
 
 
 def test_claim_status_routes_exact_source_closure_policy(
@@ -743,25 +793,23 @@ def test_claim_status_routes_exact_source_closure_policy(
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is True
-    assert captured == [frozenset()]
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == []
+    assert captured == [frozenset({"active_v3"})]
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["active_v3"]
     assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
-        REPROOF_PENDING_REQUIRED_STATEMENTS
+        CURRENT_PROOF_REQUIRED_STATEMENTS
     )
 
 
 @pytest.mark.parametrize(
     "statement_id",
-    sorted(REPROOF_PENDING_REQUIRED_STATEMENTS),
+    sorted(CURRENT_PROOF_REQUIRED_STATEMENTS),
 )
 def test_claim_status_rejects_pending_required_typed_statement(
     monkeypatch: pytest.MonkeyPatch,
     statement_id: str,
 ) -> None:
     matrix = _matrix()
-    statement = next(
-        item for item in matrix["typed_statements"] if item["id"] == statement_id
-    )
+    statement = next(item for item in matrix["typed_statements"] if item["id"] == statement_id)
     statement["status"] = "pending"
     monkeypatch.setattr(
         checker,
@@ -773,7 +821,7 @@ def test_claim_status_rejects_pending_required_typed_statement(
 
     assert report["ok"] is False
     assert (
-        f"{checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS} requires typed statement "
+        f"{checker.FULL_CURRENT_PROOF_CLAIM_STATUS} requires typed statement "
         f"{statement_id} "
         "implemented or implemented_partial"
     ) in report["errors"]
@@ -921,10 +969,7 @@ def test_recursive_stark_cbc_matrix_rejects_unknown_reference_field() -> None:
 
     assert report["ok"] is False
     errors = _obligation_report(report, obligation["id"])["errors"]
-    assert (
-        "obligations[0].code_refs[0] has unknown fields: unreviewed_extension"
-        in errors
-    )
+    assert "obligations[0].code_refs[0] has unknown fields: unreviewed_extension" in errors
 
 
 def test_recursive_stark_cbc_matrix_rejects_implemented_obligation_without_tests() -> None:
@@ -1043,9 +1088,7 @@ def test_semantic_v2_statuses_cannot_self_promote_without_fresh_receipt_evidence
         for item in matrix["typed_statements"]
         if item["id"] == "zrpf_semantic_epoch_receipt_v2"
     )
-    obligation = next(
-        item for item in matrix["obligations"] if item["id"] == "RS-CBC-024"
-    )
+    obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-024")
     statement["status"] = "implemented"
     obligation["status"] = "implemented"
 
@@ -1064,9 +1107,7 @@ def test_semantic_v2_statuses_cannot_self_promote_without_fresh_receipt_evidence
 
 def test_durable_replay_admission_cannot_self_promote_to_full_implementation() -> None:
     matrix = _matrix()
-    obligation = next(
-        item for item in matrix["obligations"] if item["id"] == "RS-CBC-025"
-    )
+    obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-025")
     obligation["status"] = "implemented"
 
     report = checker.validate_matrix(matrix)
@@ -1080,9 +1121,7 @@ def test_durable_replay_admission_cannot_self_promote_to_full_implementation() -
 
 def test_semantic_v2_fresh_receipt_nonclaim_is_required() -> None:
     matrix = _matrix()
-    matrix["promotion_boundary"]["non_claims"].remove(
-        "no_fresh_zrpf_semantic_v2_receipt_evidence"
-    )
+    matrix["promotion_boundary"]["non_claims"].remove("no_fresh_zrpf_semantic_v2_receipt_evidence")
 
     report = checker.validate_matrix(matrix)
 
@@ -1105,10 +1144,7 @@ def test_outer_envelope_obligation_cannot_self_promote_with_unrelated_evidence()
 
     assert report["ok"] is False
     errors = _obligation_report(report, "RS-CBC-021")["errors"]
-    assert (
-        "required obligation remains pinned pending until checker policy is updated"
-        in errors
-    )
+    assert "required obligation remains pinned pending until checker policy is updated" in errors
     assert "pinned pending obligation must not cite implementation evidence" in errors
 
 

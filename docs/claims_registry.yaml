@@ -1215,15 +1215,16 @@ claims:
     status: supported
     layer: runtime
     statement: >
-      The local ZenoLedger light-client checkpoint verifier composes
-      header/body/checkpoint range replay with BLS signer-registry quorum
-      verification. It accepts a target checkpoint only when the verified range
+      The local ZenoLedger light-client checkpoint verifier composes an explicit
+      structural header/body/checkpoint diagnostic with BLS signer-registry
+      quorum verification. It accepts a target checkpoint only when the structurally checked range
       reaches that checkpoint header hash, the checkpoint is exactly derived
       from the target header, the header `signature_set_root` matches the
       signer-registry root and threshold, and release BLS envelopes meet quorum
-      over the checkpoint hash. This is a local checkpoint-quorum replay gate;
-      it does not implement production validator rotation, open-network fork
-      choice, slashing, peer discovery, or adversarial light-client finality.
+      over the checkpoint hash. This is a local checkpoint-quorum and commitment
+      binding gate. It does not establish deterministic state-transition replay,
+      production validator rotation, open-network fork choice, slashing, peer
+      discovery, or adversarial light-client finality.
     evidence:
       kind: pytest
       check:
@@ -1237,6 +1238,31 @@ claims:
         - src/integration/zeno_ledger_signature.py
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.json
         - docs/ZENO_LEDGER_PROOF_COVERAGE_MATRIX_V0.md
+
+  - id: py:zeno_ledger:replay_bound_range_v0
+    status: supported
+    layer: runtime
+    statement: >
+      The strict ZenoLedger range verifier binds every checked header to a
+      canonical bounded DexEngineConfig digest, anchors the range to a canonical
+      pre-state snapshot at from_height, checks parent-post to child-pre continuity,
+      deterministically re-executes every body exactly once, requires the replayed
+      post-state root and exact rejection receipts to match their commitments, and
+      carries the replayed state across the range. Any replay failure clears partial
+      range acceptance. Structural
+      checking remains available only as an explicitly non-authoritative mode,
+      and watcher attestations reject structural reports.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: python3 -m pytest -q tests/integration/test_zeno_ledger_replay_bound_verify.py
+        - cmd: python3 -m pytest -q tests/integration/test_zeno_ledger_verify_cli.py::test_run_manifest_executes_generated_testnet_bundle tests/integration/test_zeno_ledger_verify_cli.py::test_watcher_attestation_binds_verified_sovereign_range
+      files:
+        - src/integration/zeno_ledger_replay.py
+        - src/integration/zeno_ledger_watcher.py
+        - tools/zeno_ledger_verify.py
+        - tools/zeno_ledger_attest.py
+        - tests/integration/test_zeno_ledger_replay_bound_verify.py
 
   - id: py:zeno_ledger:proof_coverage_matrix_v0
     status: supported

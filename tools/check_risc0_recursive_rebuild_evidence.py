@@ -48,7 +48,7 @@ EXPECTED_PROGRAM_NAMES = (
     "zusd_leaf",
 )
 EXPECTED_REFERENCE_CANONICAL_SHA256 = (
-    "0603e3cf3fc76b5226f319dc82724a8d8fc8c972a0e8f63a99645a7cb79c14c8"
+    "7c6016e43f80b1b1f4af15a34ed990085e8676edf9f95a2e5b48e65f0173839f"
 )
 
 EXPECTED_CLAIMS = {
@@ -211,11 +211,54 @@ def _required_flag(name: str) -> int:
     return value
 
 
+def _absolute_path(path: Path, *, code: str, label: str) -> Path:
+    try:
+        raw_path = os.fspath(path)
+        if "\x00" in raw_path:
+            raise ValueError("path contains NUL")
+        os.fsencode(raw_path)
+        return Path(os.path.abspath(raw_path))
+    except (OSError, TypeError, UnicodeError, ValueError) as exc:
+        raise _reject(code, label) from exc
+
+
+def _close_descriptors(
+    file_descriptor: int | None,
+    directory_descriptors: list[int],
+    *,
+    label: str,
+) -> None:
+    first_error: OSError | None = None
+    descriptors = ([] if file_descriptor is None else [file_descriptor]) + list(
+        reversed(directory_descriptors)
+    )
+    for descriptor in descriptors:
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            if first_error is None:
+                first_error = exc
+    if first_error is not None:
+        raise _reject("FILE_CLOSE_FAILED", label) from first_error
+
+
+def _record_cleanup_failure(
+    primary_error: BaseException,
+    cleanup_error: EvidenceError,
+) -> None:
+    detail = f"cleanup_failure={cleanup_error.code}: {cleanup_error.detail}"
+    if isinstance(primary_error, EvidenceError):
+        primary_error.detail = f"{primary_error.detail}; {detail}"
+        primary_error.args = (f"{primary_error.code}: {primary_error.detail}",)
+        return
+    primary_error.add_note(detail)
+
+
 def _canonical_directory(path: Path, *, label: str) -> Path:
-    absolute = Path(os.path.abspath(os.fspath(path)))
+    absolute = _absolute_path(path, code="DIRECTORY_INVALID", label=label)
     try:
         resolved = absolute.resolve(strict=True)
-    except (OSError, RuntimeError) as exc:
+    except (OSError, RuntimeError, UnicodeError, ValueError) as exc:
         raise _reject("DIRECTORY_INVALID", label) from exc
     if resolved != absolute:
         raise _reject("SYMLINK_FORBIDDEN", label)
@@ -273,6 +316,7 @@ def _read_regular_under_root(
     file_flags = os.O_RDONLY | _required_flag("O_NOFOLLOW") | getattr(os, "O_CLOEXEC", 0)
     directory_descriptors: list[int] = []
     file_descriptor: int | None = None
+    primary_error: BaseException | None = None
     try:
         directory_descriptors.append(os.open(root, directory_flags))
         current_descriptor = directory_descriptors[0]
@@ -326,21 +370,33 @@ def _read_regular_under_root(
             sha256=digest.hexdigest(),
             size_bytes=total,
         )
-    except EvidenceError:
+    except EvidenceError as exc:
+        primary_error = exc
         raise
     except FileNotFoundError as exc:
-        raise _reject("FILE_MISSING", label) from exc
+        primary_error = _reject("FILE_MISSING", label)
+        raise primary_error from exc
     except OSError as exc:
-        raise _reject("FILE_OPEN_FAILED", label) from exc
+        primary_error = _reject("FILE_OPEN_FAILED", label)
+        raise primary_error from exc
+    except BaseException as exc:
+        primary_error = exc
+        raise
     finally:
-        if file_descriptor is not None:
-            os.close(file_descriptor)
-        for descriptor in reversed(directory_descriptors):
-            os.close(descriptor)
+        try:
+            _close_descriptors(
+                file_descriptor,
+                directory_descriptors,
+                label=label,
+            )
+        except EvidenceError as cleanup_error:
+            if primary_error is None:
+                raise
+            _record_cleanup_failure(primary_error, cleanup_error)
 
 
 def _read_regular_path(path: Path, *, label: str, max_bytes: int) -> FileDigest:
-    absolute = Path(os.path.abspath(os.fspath(path)))
+    absolute = _absolute_path(path, code="FILE_PATH_INVALID", label=label)
     parent = _canonical_directory(absolute.parent, label=f"{label}.parent")
     if not absolute.name:
         raise _reject("FILE_PATH_INVALID", label)

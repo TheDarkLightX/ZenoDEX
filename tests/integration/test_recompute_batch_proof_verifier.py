@@ -15,11 +15,12 @@ from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
 from src.core.fees import FeeAccumulatorState
 from src.integration.dex_engine import DexEngineConfig, apply_ops
+from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.operations import create_settlement_operation
 from src.integration.proof_verifier import ProofVerifierConfig
-from src.integration.dex_snapshot import snapshot_from_state
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+from src.state.pools import compute_pool_id
 
 
 def _zlib_b64_json(value: object) -> str:
@@ -467,9 +468,9 @@ def test_projected_recompute_batch_proofs_reject_unbound_projected_state(
     )
 
     unbound_pubkey = "0x" + "fe" * 48
-    unbound_pool_id = "0x" + "97" * 32
     unbound_asset0 = "0x" + "98" * 32
     unbound_asset1 = "0x" + "99" * 32
+    unbound_pool_id = compute_pool_id(unbound_asset0, unbound_asset1, 30)
     if mutation_name == "balance":
         projected["balances"].append({"pubkey": unbound_pubkey, "asset": unbound_asset0, "amount": 1})
     elif mutation_name == "pool":

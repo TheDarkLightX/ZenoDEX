@@ -18,15 +18,11 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from src.state.canonical import canonical_json_bytes  # noqa: E402
-from src.state.pools import normalize_curve_config  # noqa: E402
+from src.state.pools import compute_pool_id, normalize_curve_config  # noqa: E402
 from tools.runtime import state_root_lib as lib  # noqa: E402
 
 ASSET0 = "0x" + "01" * 32
 ASSET1 = "0x" + "02" * 32
-
-
-def _id(byte: int) -> str:
-    return "0x" + f"{byte:02x}" * 32
 
 
 def _params(obj: dict[str, int]) -> str:
@@ -34,8 +30,23 @@ def _params(obj: dict[str, int]) -> str:
 
 
 def _pool(index: int, curve_tag: str, curve_params: str) -> dict:
+    try:
+        normalized_tag, normalized_params = normalize_curve_config(
+            curve_tag=curve_tag,
+            curve_params=curve_params,
+        )
+    except ValueError:
+        # Raw Rust-rejection vectors still need a well-formed pool ID; curve
+        # validation rejects them before the identity comparison.
+        normalized_tag, normalized_params = "CPMM", ""
     return {
-        "pool_id": _id(0x40 + index),
+        "pool_id": compute_pool_id(
+            ASSET0,
+            ASSET1,
+            index,
+            curve_tag=normalized_tag,
+            curve_params=normalized_params,
+        ),
         "asset0": ASSET0,
         "asset1": ASSET1,
         "reserve0": 100 + index,

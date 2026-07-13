@@ -70,6 +70,7 @@ def _policy_payloads() -> dict[str, object]:
     return {
         "state_proof_risc0": state_payload,
         "recursive_stark_v2_risc0": recursive_v2_payload,
+        "recursive_stark_v2_active_reproof_risc0": recursive_v2_payload,
         "zrpf_risc0": current_risc0_payload,
         "zrpf_protocol": _payload(),
     }
@@ -219,7 +220,7 @@ def test_policy_pins_exact_workspaces_and_scoped_advisories() -> None:
 
     assert policy["workspaces"] == checker._workspace_rows()
     assert checker._disposition_keys(policy) == checker.PERMITTED_DISPOSITION_KEYS
-    assert len(policy["dispositions"]) == 6
+    assert len(policy["dispositions"]) == 8
     assert {row["category"] for row in policy["dispositions"]} == {
         "vulnerability"
     }
@@ -254,6 +255,7 @@ def test_policy_rejects_control_or_boolean_drift(
     [
         "zk/state_proof_risc0/Cargo.lock",
         "zk/recursive_stark_v2_risc0/Cargo.lock",
+        "zk/recursive_stark_v2_active_reproof_risc0/Cargo.lock",
     ],
 )
 def test_active_risc0_workspaces_pin_patched_anyhow(lockfile: str) -> None:
@@ -267,7 +269,7 @@ def test_active_risc0_workspaces_pin_patched_anyhow(lockfile: str) -> None:
     assert versions == {"1.0.103"}
 
 
-def test_four_workspace_report_records_lock_hashes_and_database_revision() -> None:
+def test_five_workspace_report_records_lock_hashes_and_database_revision() -> None:
     revision = "1" * 40
     report = checker.check_audit_payloads(
         _policy_payloads(),
@@ -293,6 +295,7 @@ def test_four_workspace_report_records_lock_hashes_and_database_revision() -> No
         for workspace_id in (
             "state_proof_risc0",
             "recursive_stark_v2_risc0",
+            "recursive_stark_v2_active_reproof_risc0",
             "zrpf_risc0",
             "zrpf_protocol",
         )

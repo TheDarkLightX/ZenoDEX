@@ -5,7 +5,7 @@
   "promotion_boundary": {
     "public_claim_allowed": false,
     "production_ready": false,
-    "claim_status": "active_workspaces_patched_anyhow_temporary_v3_retained_structural_tree_verified_v1_v2_reproof_pending",
+    "claim_status": "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified",
     "non_claims": [
       "no_production_ready_recursive_starks",
       "no_full_zk_execution_for_all_value_moving_surfaces",
@@ -32,7 +32,7 @@
       "no_complete_v3_semantic_composition",
       "no_fresh_zrpf_semantic_v2_receipt_evidence",
       "no_generic_v4_runtime_identity_authority",
-      "no_current_v1_or_v2_image_receipt_evidence_after_anyhow_1_0_103_migration",
+      "no_authenticated_historical_execution_provenance_for_v1_live_replay_record",
       "no_zrpf_16x4_profile"
     ]
   },
@@ -643,6 +643,22 @@
           "symbol": "_validate_malformed_proof_evidence"
         },
         {
+          "path": "tools/check_risc0_recursive_live_replay.py",
+          "symbol": "check_risc0_recursive_live_replay"
+        },
+        {
+          "path": "tools/risc0_recursive_live_replay_support.py",
+          "symbol": "execute_controls"
+        },
+        {
+          "path": "tools/check_risc0_recursive_live_replay_evidence.py",
+          "symbol": "check_retained_evidence"
+        },
+        {
+          "path": "docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json",
+          "symbol": "same_host_pinned_v1_verifier_live_replay_accepted"
+        },
+        {
           "path": "docs/research/RECURSIVE_STARK_V2_CURRENT_EVIDENCE_20260710.json",
           "symbol": "a366d6e0d00f963c061cd7c9be9bbc531d6502f49950834f4297b773db05aeb1"
         },
@@ -677,6 +693,18 @@
         {
           "path": "tools/check_risc0_recursive_v2_same_profile_two_spot_evidence.py",
           "symbol": "check_live"
+        },
+        {
+          "path": "config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json",
+          "symbol": "same_host_bounded_current_image_two_leaf_reproof"
+        },
+        {
+          "path": "tools/check_risc0_recursive_active_reproof_v3.py",
+          "symbol": "check_reference"
+        },
+        {
+          "path": "zk/recursive_stark_v2_active_reproof_risc0/src/bin/verify_recursive_v2_pair.rs",
+          "symbol": "has_exact_active_two_leaf_topology"
         }
       ],
       "test_refs": [
@@ -709,6 +737,14 @@
           "symbol": "test_rebound_malformed_proof_cannot_change_second_seal_word"
         },
         {
+          "path": "tests/test_check_risc0_recursive_live_replay.py",
+          "symbol": "test_live_replay_accepts_only_after_all_exact_controls"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_live_replay_evidence.py",
+          "symbol": "test_required_non_claim_rejects_coherent_promotion"
+        },
+        {
           "path": "tests/test_check_recursive_stark_cbc_spec.py",
           "symbol": "test_current_v2_public_evidence_matches_reference_and_preserves_nonclaims"
         },
@@ -727,19 +763,30 @@
         {
           "path": "tests/test_check_risc0_recursive_v2_same_profile_two_spot_evidence.py",
           "symbol": "test_committed_manifest_accepts_against_pinned_recursive_trust_roots"
+        },
+        {
+          "path": "tests/test_check_risc0_recursive_active_reproof_v3.py",
+          "symbol": "test_active_reproof_reference_accepts"
+        },
+        {
+          "path": "zk/recursive_stark_v2_active_reproof_risc0/src/bin/verify_recursive_v2_pair.rs",
+          "symbol": "active_pair_topology_accepts_only_the_governed_two_leaf_shape"
         }
       ],
       "external_commands": [
         "cd zk/state_proof_risc0 && RISC0_FORCE_BUILD=1 <PINNED_CARGO> run --frozen --release --target x86_64-unknown-linux-gnu -p tau-state-proof-risc0-cli --example recursive_summary_leaf_smoke -- spot <SPOT_IMAGE_ID_HEX>",
         "cd zk/state_proof_risc0 && RISC0_PROVER=ipc <PINNED_CARGO> run --frozen --release --target x86_64-unknown-linux-gnu -p tau-state-proof-risc0-cli < <ROOT_REQUEST>",
         "python3 tools/check_risc0_recursive_rebuild_evidence.py --workspace-root <workspace> --workspace-archive <archive> --artifact-report <report> --program-directory <programs> --static-verifier <verifier> --root-proof <proof> --positive-verify-request <positive-request> --verified-transcript <transcript> --malformed-root-proof <mutated-proof> --malformed-verify-request <mutated-request> --malformed-reject-transcript <reject-transcript> --json",
+        "python3 tools/check_risc0_recursive_live_replay.py --workspace-root <workspace> --workspace-archive <archive> --artifact-report <report> --program-directory <programs> --static-verifier <verifier> --root-proof <proof> --positive-verify-request <positive-request> --verified-transcript <transcript> --malformed-root-proof <mutated-proof> --malformed-verify-request <mutated-request> --malformed-reject-transcript <reject-transcript> --runtime-directory <private-new-runtime-directory> --json",
+        "python3 tools/check_risc0_recursive_live_replay_evidence.py --json",
         "python3 tools/check_risc0_recursive_v2_rebuild_evidence.py --build-target-root <TARGET> --inner-artifact <INNER> --root-artifact <ROOT> --missing-assumption-transcript <NEGATIVE> --risc0-home <RISC0_HOME> --cargo-home <CARGO_HOME> --json",
         "python3 tools/check_risc0_recursive_v2_two_leaf_source_pinned_evidence.py --spot-leaf <SPOT> --zusd-leaf <ZUSD> --inner-artifact <TWO_LEAF_INNER> --root-artifact <TWO_LEAF_ROOT> --release-harness <HARNESS> --one-leaf-verifier <ONE_LEAF_VERIFIER> --two-leaf-verifier <TWO_LEAF_VERIFIER> --r0vm <PINNED_R0VM> --json",
         "python3 tools/check_risc0_recursive_v2_same_profile_two_spot_evidence.py --baseline-spot-leaf <SPOT_A> --distinct-spot-leaf <SPOT_B> --duplicate-source-alias-leaf <SPOT_ALIAS> --inner-artifact <SAME_PROFILE_INNER> --root-artifact <SAME_PROFILE_ROOT> --release-harness <HARNESS> --two-leaf-verifier <TWO_LEAF_VERIFIER> --json",
-        "python3 tools/check_recursive_stark_replay_bundle.py <bundle> --expected-manifest-sha256 <sha256>"
+        "python3 tools/check_recursive_stark_replay_bundle.py <bundle> --expected-manifest-sha256 <sha256>",
+        "python3 tools/check_risc0_recursive_active_reproof_v3.py"
       ],
-      "next_action": "rebuild the strict-ingress, single-verification V1 host from its governed source closure and replay both the retained positive receipt and malformed-proof rejection before restoring the combined V1-plus-V2 status; preserve and replay the fe131b V2 one-leaf, heterogeneous fanout-two, and same-profile fanout-two pairs before broader fanout promotion",
-      "non_claim": "current V2 RISC0 3.0.5 one-leaf, source-frozen spot-plus-zUSD fanout-two, and same-profile distinct-statement spot fanout-two evidence remains source-closure checked; the hardened V1 host has Rust tests for strict ingress and exactly-once receipt authentication but no fresh current-host V1 receipt or malformed-proof replay, so the prior combined V1-plus-V2 current-host status is withheld; this evidence does not establish a promoted general multi-leaf profile, nonempty receipt-set witness coverage, public replay, cross-host or reproducible-release evidence, settlement or ledger-admission authority, privacy, or production readiness"
+      "next_action": "preserve the active V3 reference and rerun its checker after every V1 or V2 source, toolchain, verifier, receipt-profile, or evidence change",
+      "non_claim": "the active V3 reference establishes only same-host bounded current-image computational integrity for the recorded two-leaf V1 and V2 proof trees; no public replay, cross-host reproducibility, network isolation, sandbox, semantic conservation, data availability, durable ledger admission, privacy, settlement, release, or production claim follows"
     },
     {
       "id": "RS-CBC-015",

@@ -21,7 +21,9 @@ def test_retained_adapter_evidence_rejects_hardened_verifier_source_drift() -> N
     assert set(report["errors"]) == {
         "source SHA-256 mismatch: config/proof_profiles/risc0_recursive_rebuild_reference.json",
         "source SHA-256 mismatch: config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v1.json",
+        "source SHA-256 mismatch: zk/state_proof_risc0/shared/src/recursive.rs",
         "source SHA-256 mismatch: zk/state_proof_risc0/shared/Cargo.toml",
+        "source SHA-256 mismatch: zk/zrpf_protocol/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_protocol/protocol/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_protocol/protocol/src/lib.rs",
         "source SHA-256 mismatch: zk/zrpf_risc0/Cargo.lock",

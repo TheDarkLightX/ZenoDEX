@@ -157,7 +157,7 @@
   "schema": "zenodex/risc0_recursive_rebuild_reference/v2",
   "sdk_version": "3.0.5",
   "source_compile": {
-    "file_count": 28,
+    "file_count": 30,
     "files": [
       {
         "path": "zk/state_proof_risc0/.cargo/config.toml",
@@ -186,23 +186,33 @@
       },
       {
         "path": "zk/state_proof_risc0/cli/examples/recursive_artifact_export.rs",
-        "sha256": "f284820f7bd053017a958b6e75bd1ddc54f50d4ca0c95e84205ecb27e45943b1",
-        "size_bytes": 5722
+        "sha256": "bab0f0b7a9d55837bb220cbe5055878d7cf56cc9dc59f1f79aea4bb078cc1a7e",
+        "size_bytes": 5738
       },
       {
         "path": "zk/state_proof_risc0/cli/examples/recursive_missing_assumption_reject.rs",
-        "sha256": "506cd9d4de96c1081cee8caacd1caea2f83e27ac7b38e1e690e5dc9bdf5390b0",
-        "size_bytes": 4630
+        "sha256": "55250e007ffc818e63e4afd96ec569954f8490869a6080616049146834b52f46",
+        "size_bytes": 5606
       },
       {
         "path": "zk/state_proof_risc0/cli/examples/recursive_summary_leaf_smoke.rs",
-        "sha256": "5cc3334fa3c5c11ce55ef1db9c0cbdab7d22b5d6e494827011e03b1a1884ab67",
-        "size_bytes": 38121
+        "sha256": "8ca6c12f0f2e20425cee82953150282b73add51689b6fefb3e8bb04e98e7d1fd",
+        "size_bytes": 39525
       },
       {
         "path": "zk/state_proof_risc0/cli/src/main.rs",
-        "sha256": "83318e08e6721a31716060526198ac4c71454e1a829bd03eafca0e7afe207fcb",
-        "size_bytes": 267417
+        "sha256": "3694764af13888ed74fa6ccaa12f99a736db82da1a4ee1c17654b8cc3029c51e",
+        "size_bytes": 286385
+      },
+      {
+        "path": "zk/state_proof_risc0/cli/src/recursive_wire.rs",
+        "sha256": "2abd371588dae603ae0a8d894cfed3e192d0e1ccdc5da57d7742c5b18343e000",
+        "size_bytes": 5911
+      },
+      {
+        "path": "zk/state_proof_risc0/cli/src/strict_json.rs",
+        "sha256": "4b22530a386336a28328d2d7646cbde4e6cf60da95ba326634c43a5baa381ee3",
+        "size_bytes": 4055
       },
       {
         "path": "zk/state_proof_risc0/methods/Cargo.toml",
@@ -301,12 +311,12 @@
       }
     ],
     "root_algorithm": "sha256(sorted(path_utf8 || nul || file_sha256_ascii || nul))",
-    "root_sha256": "76a267fd6cbd51c8397073af5553d8a5877945dbf3d18cde2ac262c149366d50",
+    "root_sha256": "81f5dc170de45306b7427f8379ea23add429f5c6325a06c0bb4fa6c4315f78bf",
     "workspace_identity_prefix": "zk/state_proof_risc0"
   },
   "static_verifier": {
-    "sha256": "49d83f7c08256677e9b9aed993a7db59c46875aa96ab08791e0b1d60ad06acd9",
-    "size_bytes": 15299456
+    "sha256": "8836f22431e2ce241eec9e6503f741b92673e2fec054208b0c36dea4f1bcf146",
+    "size_bytes": 15339184
   },
   "verified_transcript": {
     "sha256": "af2a660f10f3b4eb01811cb4215f01546679618296dcd369e3f6d542bfae5c8a",
@@ -315,7 +325,7 @@
   "version": 2,
   "workspace_archive": {
     "format": "normalized_gnu_tar_v1",
-    "sha256": "dbda5dc7c4301244872fca661f4042d78d8d9453d7d29b32ccb37da30433f22a",
-    "size_bytes": 1126400
+    "sha256": "d468808f7bb538c455b8dd074e50a1857ac75de424dffb43f28016d86f968106",
+    "size_bytes": 1157120
   }
 }

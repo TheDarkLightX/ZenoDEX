@@ -15,6 +15,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -27,6 +28,50 @@ import {
 
 const _here = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(_here, '../../..');
+const PUBLIC_KEY_DEDUPE_VECTORS = JSON.parse(readFileSync(
+  resolve(REPO_ROOT, 'tests/fixtures/zeno_bls_public_key_dedupe_v0.json'),
+  'utf-8',
+));
+
+async function buildSelfConsistentRegistryVector(vector) {
+  const signers = [];
+  for (const signer of vector.signers) {
+    const body = {
+      signer_id: signer.signer_id,
+      key_id: signer.key_id,
+      algorithm: 'bls12-381-g2-basic-release-v0',
+      public_key: signer.public_key,
+      weight: signer.weight,
+      status: signer.status,
+    };
+    signers.push({
+      ...body,
+      signer_hash: await hashV0('signer_registry_entry_v0', body),
+    });
+  }
+  signers.sort((a, b) => (
+    a.signer_id < b.signer_id
+      ? -1
+      : a.signer_id > b.signer_id
+        ? 1
+        : a.key_id < b.key_id
+          ? -1
+          : a.key_id > b.key_id
+            ? 1
+            : 0
+  ));
+  const body = {
+    schema: 'zenodex/zeno_ledger/signer_registry/v0',
+    registry_id: vector.registry_id,
+    payload_kind: 'checkpoint',
+    threshold: vector.threshold,
+    signers,
+  };
+  return {
+    ...body,
+    registry_hash: await hashV0('signer_registry_v0', body),
+  };
+}
 
 /** Run a Python snippet against the repo's venv-equivalent interpreter. */
 function pyRun(snippet) {
@@ -225,6 +270,28 @@ print(json.dumps(reg, sort_keys=True))
   assert.equal(result.threshold, 2);
   assert.equal(result.payloadHash, payloadHash);
   assert.match(result.quorumReportHash, /^0x[0-9a-f]{64}$/);
+});
+
+test('fixed public-key dedupe vectors match Python registry verdicts', async () => {
+  assert.equal(
+    PUBLIC_KEY_DEDUPE_VECTORS.schema,
+    'zenodex/test/zeno_bls_public_key_dedupe_vectors/v0',
+  );
+  for (const vector of PUBLIC_KEY_DEDUPE_VECTORS.cases) {
+    const registry = await buildSelfConsistentRegistryVector(vector);
+    const result = await verifyBlsQuorumV0({
+      schema: BROWSER_CHECKPOINT_BUNDLE_SCHEMA_V0,
+      signer_registry: registry,
+      signature_envelopes: [],
+    });
+    if (vector.expected_registry_status === 'rejected') {
+      assert.equal(result.ok, false, vector.name);
+      assert.equal(result.error, vector.expected_error, vector.name);
+    } else {
+      assert.equal(result.ok, false, vector.name);
+      assert.equal(result.error, 'bundle.signature_envelopes length rejected', vector.name);
+    }
+  }
 });
 
 test('quorum rejects when expected checkpoint payload hash differs', { skip: !_PY_ECC }, async () => {

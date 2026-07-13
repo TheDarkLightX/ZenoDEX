@@ -47,8 +47,9 @@ against the real encoders:
         state PLUS every single-nonce state over (pk x nonce in {1,2,255,256,
         2^32-1}) crossed with dust in {0,1,256}. Exact N=33, pairs=528.
       Sweep 4 (`test_exhaustive_single_pool_field_boundaries_injective`): one
-        fixed pool id and asset pair, with reserves, fee, LP supply, status,
-        created_at, and curve config varied over a boundary-rich field lattice.
+        fixed asset pair with pool IDs derived from fee and curve identity
+        fields, while reserves, LP supply, status, and created_at also vary over
+        a boundary-rich field lattice.
         Exact N=1458, pairs=1,062,153.
       Sweep 5 (`test_exhaustive_lp_duration_risk_field_boundaries_injective`):
         one fixed LP key with a fixed positive LP balance and all duration-risk
@@ -64,13 +65,10 @@ against the real encoders:
       (b) FIELD-BOUNDARY SHIFT: two states that, WITHOUT the length/count
           framing, would let a byte migrate between adjacent fields to yield
           equal concatenation (proves the length-prefix/label is load-bearing);
-      (c) hex CASE variants 0xAA vs 0xaa (decode-equal => SAME logical state =>
-          MUST share a root — spelling independence, asserted as equality). The
-          encoder requires EXACT fixed-width hex (``hex_to_bytes_fixed``), so
-          leading-zero / variable-width spellings of the same logical value are
-          REJECTED inputs, not collision candidates; case is the only spelling
-          variant that decodes to identical bytes here, and we assert it as
-          equality.
+      (c) pubkey/asset hex CASE variants 0xAA vs 0xaa (decode-equal => SAME
+          logical state => MUST share a root — spelling independence, asserted
+          as equality). Pool IDs use exact lowercase canonical form and are not
+          case-equivalent inputs.
       (e) empty-string/absent vs explicit-zero (dust None vs dust 0 => SAME;
           amount-0 entry == absent entry => SAME);
       (f) "split aliasing": one key holding x+y  vs  two keys holding x and y;
@@ -91,11 +89,10 @@ SCOPE / NON-CLAIMS
   * Authority mode is the default PYTHON_AUTHORITY, so this exercises the pure
     ``_compute_state_root_python`` path. No Rust subprocess and no BLS/signature
     crypto is invoked by this surface.
-  * "Distinct logical state" is decoded-content identity (``hex_to_bytes_fixed``
-    keys on 48/32 RAW bytes). Non-canonical hex *spelling* that decodes to the
-    SAME bytes is, by design, the SAME logical state and MUST share a root — we
-    assert that as an equality (it is the spelling-independence property the
-    verifier relies on, NOT a collision).
+  * Pubkey and asset identity is decoded content (``hex_to_bytes_fixed`` keys on
+    48/32 raw bytes), so case-only variants share a root. Pool IDs are stricter:
+    every occurrence uses exact lowercase canonical form, and pool entries bind
+    that ID to assets, fee, and curve configuration.
   * Out of scope: cross-module sequencing (apply_ops), the Python<->Rust bridge,
     multi-pool enumeration beyond a couple of seeds (the balance/LP/nonce/fee
     sections and a single-pool field lattice are the exhaustive targets here),
@@ -113,9 +110,8 @@ from src.state.balances import BalanceTable
 from src.state.canonical import sha256_hex
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
-from src.state.pools import PoolState, PoolStatus
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from src.state.support_root import BatchStateSupport, compute_support_state_root
-
 
 # ---------------------------------------------------------------------------
 # Boundary-rich, BOUNDED domain. Two distinct pubkeys/assets, and an amount
@@ -445,8 +441,8 @@ def _pool_root_identity(pool: PoolState) -> tuple:
 def test_exhaustive_single_pool_field_boundaries_injective():
     """Sweep 4 (single-pool field lattice).
 
-    Domain: one fixed pool id and canonical asset pair, with the committed pool
-    fields varied over boundary-rich small alphabets:
+    Domain: one canonical asset pair with the pool ID derived from fee and curve
+    identity fields, while committed fields vary over boundary-rich alphabets:
       reserve0/reserve1 in {0, 1, 128}
       fee_bps in {0, 30, 10000}
       lp_supply in {0, 1, 2^32}
@@ -458,7 +454,6 @@ def test_exhaustive_single_pool_field_boundaries_injective():
     section from seed-covered to a small exact field lattice. Every distinct
     decoded pool identity must yield a distinct root."""
     a0, a1 = (ASSET[0], ASSET[1]) if ASSET[0] < ASSET[1] else (ASSET[1], ASSET[0])
-    pid = "0x" + "30" * 32
     reserves = (0, 1, 128)
     fee_bps_values = (0, 30, 10_000)
     lp_supplies = (0, 1, 2**32)
@@ -481,6 +476,13 @@ def test_exhaustive_single_pool_field_boundaries_injective():
         created_at_values,
         curves,
     ):
+        pid = compute_pool_id(
+            a0,
+            a1,
+            fee_bps,
+            curve_tag=curve[0],
+            curve_params=curve[1],
+        )
         pool = PoolState(
             pool_id=pid,
             asset0=a0,
@@ -772,14 +774,21 @@ def test_adv_support_root_section_aliasing_differs():
 
 def test_adv_pool_status_and_curve_seeds_differ():
     """Two adversarial POOL seeds (the one section Gen A leaves out):
-      - same pool, only ``status`` differs (ACTIVE vs FROZEN vs DISABLED);
-      - same pool, only ``curve_tag`` differs (CPMM vs CUBIC_SUM_V1).
+      - same canonical pool, only ``status`` differs;
+      - identity-bound curve config differs (CPMM vs CUBIC_SUM_V1), with each
+        pool carrying its corresponding canonical ID.
     All must yield distinct roots — the status code and curve framing are
     committed."""
     a0, a1 = (ASSET[0], ASSET[1]) if ASSET[0] < ASSET[1] else (ASSET[1], ASSET[0])
-    pid = "0x" + "30" * 32
 
     def pool_root(status, tag, params):
+        pid = compute_pool_id(
+            a0,
+            a1,
+            30,
+            curve_tag=tag,
+            curve_params=params,
+        )
         p = PoolState(
             pool_id=pid, asset0=a0, asset1=a1, reserve0=10, reserve1=20,
             fee_bps=30, lp_supply=5, status=status, created_at=7,

@@ -44,7 +44,7 @@ from src.runtime.authority import (
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
-from src.state.pools import PoolState, PoolStatus
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
 
 def _iid(n: int) -> str:
@@ -246,7 +246,7 @@ def test_clear_batch_single_pool_optimal_ab_bounded_canonicalizes_lex_order() ->
     asset1 = "0x" + "02" * 32
 
     pool = PoolState(
-        pool_id="0x" + "aa" * 32,
+        pool_id=compute_pool_id(asset0, asset1, 30),
         asset0=asset0,
         asset1=asset1,
         reserve0=100,
@@ -333,7 +333,7 @@ def test_ab_ordering_subset_mask_does_not_determine_cpmm_state() -> None:
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     pool = PoolState(
-        pool_id="0x" + "aa" * 32,
+        pool_id=compute_pool_id(asset0, asset1, 0),
         asset0=asset0,
         asset1=asset1,
         reserve0=2,
@@ -443,7 +443,7 @@ def test_cow_pair_netting_fills_opposite_exact_in_intents_without_pool_deltas() 
     asset1 = "0x" + "02" * 32
 
     pool = PoolState(
-        pool_id="0x" + "aa" * 32,
+        pool_id=compute_pool_id(asset0, asset1, 30),
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000_000,
@@ -524,7 +524,7 @@ def test_cow_pair_netting_bva_min_out_boundary() -> None:
     asset1 = "0x" + "02" * 32
 
     pool = PoolState(
-        pool_id="0x" + "aa" * 32,
+        pool_id=compute_pool_id(asset0, asset1, 30),
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000_000,
@@ -1069,7 +1069,7 @@ def test_apply_settlement_pure_returns_copies_and_applies_create_pool_event() ->
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
-    pool_id = "0x" + "cc" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30)
     balances = BalanceTable()
     balances.set(pk, asset0, 10)
     pools: dict[str, PoolState] = {}
@@ -2977,7 +2977,7 @@ def test_cow_pair_netting_bruteforce_prunes_overdrawn_x_sender() -> None:
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     pool = PoolState(
-        pool_id="0x" + "aa" * 32,
+        pool_id=compute_pool_id(asset0, asset1, 30),
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000_000,
@@ -3044,7 +3044,7 @@ def test_cow_pair_netting_bruteforce_tracks_used_y_and_sender_balance() -> None:
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     pool = PoolState(
-        pool_id="0x" + "ab" * 32,
+        pool_id=compute_pool_id(asset0, asset1, 30),
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000_000,
@@ -3108,7 +3108,7 @@ def test_cow_pair_netting_greedy_fallback_filters_balance_and_feasibility() -> N
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     pool = PoolState(
-        pool_id="0x" + "ac" * 32,
+        pool_id=compute_pool_id(asset0, asset1, 30),
         asset0=asset0,
         asset1=asset1,
         reserve0=1_000_000,

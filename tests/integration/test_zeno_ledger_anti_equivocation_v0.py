@@ -12,7 +12,6 @@ from src.integration.zeno_ledger_anti_equivocation_v0 import (
 from src.integration.zeno_ledger_v0 import build_checkpoint_v0, build_header_v0, hash_v0
 from src.integration.zeno_ledger_watcher import build_watcher_attestation_v0
 
-
 ZERO_ROOT = "0x" + "00" * 32
 
 
@@ -46,7 +45,16 @@ def _verify_report(*, from_height: int, to_height: int, last_header_hash: str) -
     return {
         "schema": "zenodex.zeno_ledger.verify_report.v0",
         "ok": True,
-        "status": "accepted",
+        "status": "range_verified",
+        "mode": "replay_bound",
+        "authority_scope": "replay_bound_range_v0",
+        "range_verified": True,
+        "header_linkage_checked": True,
+        "state_continuity_checked": True,
+        "state_replay_checked": True,
+        "receipt_replay_checked": True,
+        "config_binding_checked": True,
+        "replay_config_digest": _root("replay-config"),
         "checked_heights": list(range(from_height, to_height + 1)),
         "proof_metadata_checked_heights": [],
         "proof_verification_checked_heights": [],

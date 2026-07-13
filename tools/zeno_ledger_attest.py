@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Verify a ZenoLedger range and emit a watcher attestation."""
 
 from __future__ import annotations
@@ -15,8 +16,11 @@ if str(ROOT) not in sys.path:
 
 from src.integration.zeno_ledger_v0 import ZERO_ROOT_V0
 from src.integration.zeno_ledger_watcher import build_watcher_attestation_v0
-from tools.zeno_ledger_verify import verify_zeno_ledger_v0
-
+from tools.zeno_ledger_verify import (
+    REPLAY_BOUND_MODE,
+    STRUCTURAL_DIAGNOSTIC_MODE,
+    verify_zeno_ledger_v0,
+)
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.attest_report.v0"
 
@@ -42,6 +46,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--from-height", required=True, type=int)
     parser.add_argument("--to-height", required=True, type=int)
     parser.add_argument("--trusted-prev-header-hash", default=ZERO_ROOT_V0)
+    parser.add_argument("--pre-snapshots-dir", type=Path)
+    parser.add_argument("--engine-config", type=Path)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--structural-only", action="store_true")
+    mode.add_argument("--require-state-replay", action="store_true")
+    parser.add_argument("--require-rejection-receipt-replay", action="store_true")
     parser.add_argument("--watcher-id", required=True)
     parser.add_argument("--observed-time-ms", required=True, type=int)
     parser.add_argument("--verifier-ref", default="tools/zeno_ledger_verify.py@v0")
@@ -60,6 +70,10 @@ def main(argv: list[str] | None = None) -> int:
         from_height=args.from_height,
         to_height=args.to_height,
         trusted_prev_header_hash=args.trusted_prev_header_hash,
+        mode=REPLAY_BOUND_MODE if args.require_state_replay else STRUCTURAL_DIAGNOSTIC_MODE,
+        pre_snapshots_dir=args.pre_snapshots_dir,
+        engine_config_path=args.engine_config,
+        require_rejection_receipt_replay=bool(args.require_rejection_receipt_replay),
     )
 
     try:

@@ -4,6 +4,13 @@ All notable changes to `@zenodex/proof-client`.
 
 This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Security
+- Reject signer registries that assign one canonical BLS public key to more
+  than one signer identity, including revoked entries. Quorum verification
+  also refuses to count the same public key twice as a defense-in-depth check.
+
 ## [0.1.0] — Initial public release
 
 ### Added

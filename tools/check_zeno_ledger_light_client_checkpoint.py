@@ -22,7 +22,11 @@ from src.integration.zeno_ledger_v0 import (  # noqa: E402
     validate_checkpoint_header_binding_v0,
     validate_checkpoint_v0,
 )
-from tools.zeno_ledger_verify import ZERO_ROOT, verify_zeno_ledger_v0  # noqa: E402
+from tools.zeno_ledger_verify import (  # noqa: E402
+    STRUCTURAL_DIAGNOSTIC_MODE,
+    ZERO_ROOT,
+    verify_zeno_ledger_v0,
+)
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.light_client_checkpoint_report.v0"
 CHECKPOINT_PAYLOAD_KIND = "checkpoint"
@@ -75,9 +79,10 @@ def validate_light_client_checkpoint_v0(
         proof_metadata_dir=proof_metadata_dir,
         proof_verification_report_dir=proof_verification_report_dir,
         require_proof_verification_report=require_proof_verification_report,
+        mode=STRUCTURAL_DIAGNOSTIC_MODE,
     )
     if verify_report.get("ok") is not True:
-        errors.append("range verification rejected")
+        errors.append("structural range diagnostic rejected")
 
     registry_obj = dict(registry)
     try:

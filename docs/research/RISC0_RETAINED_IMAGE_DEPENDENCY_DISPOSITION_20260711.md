@@ -37,9 +37,13 @@ This is an exact, bounded exception for two historical guest identities. It
 does not authorize either affected `anyhow` version for new proof-generation,
 release, settlement, or production profiles.
 
-The governing machine-readable policy at that time was
-`config/proof_profiles/risc0_dependency_audit_policy_v2.json`, then SHA-256
+The original machine-readable exception policy had SHA-256
 `f4d1aa8bcd7fb19fe983ba797eb9cca5e273831d1418ef26c2f53640ac3d03ae`.
+The later same-host V1 replay record used the superseded policy revision with
+SHA-256
+`8d7273e02a454f47813f0115f5a2fb2abc970841c60c3d16b7b0a44b41970fe5`.
+Both are historical. The active policy identified above contains no unsound
+disposition.
 The checker rejects other workspace, category, advisory, package, or version
 combinations and rejects unused dispositions. It also binds the exact lockfile
 and rebuild-reference bytes, recomputes every referenced current source-file
@@ -77,7 +81,7 @@ Two isolated counterfactual rebuilds separated the dependencies:
 | V1 state proof | `1.0.100` | `0.11.15` | all six program bytes and image IDs matched the retained reference |
 | recursive v2 | `1.0.102` | `0.11.15` | program, raw ELF, image ID, and both verifier outputs matched the retained reference |
 
-The current lock identities are:
+The historical counterfactual lock identities were:
 
 ```text
 state_proof_risc0 Cargo.lock
@@ -91,7 +95,7 @@ The refreshed source closures are:
 
 ```text
 V1
-76a267fd6cbd51c8397073af5553d8a5877945dbf3d18cde2ac262c149366d50
+81f5dc170de45306b7427f8379ea23add429f5c6325a06c0bb4fa6c4315f78bf
 
 recursive v2
 20e5587e3ed7b8f6c561295a04f2cc2de92b90fd38c070de08a33d55b5f7572a
@@ -118,6 +122,15 @@ The scoped function review found:
 - no affected demangled symbol or string in the recursive-v2 guest ELF;
 - no affected symbol in the rebuilt V1 static verifier or either recursive-v2
   verifier.
+
+The July 12 V1 refresh repeated that review after strict JSON ingress,
+closed-wire validation, and single-verification control flow changed the host
+source. The 30-file closure contains no `downcast_mut` token. The current
+static PIE verifier SHA-256 is
+`8836f22431e2ce241eec9e6503f741b92673e2fec054208b0c36dea4f1bcf146`;
+its demangled symbols and strings contain no affected function. All six guest
+programs remained byte-identical to the retained reference, and none contains
+the affected function string. No proof was regenerated.
 
 For recursive v2, the compiler-input scan covered 3,843 Rust files. Its only
 `anyhow` occurrence was the affected method definition inside the pinned

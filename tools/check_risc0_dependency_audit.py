@@ -47,6 +47,11 @@ REVIEWED_WORKSPACES: tuple[WorkspaceSpec, ...] = (
         "zk/recursive_stark_v2_risc0/Cargo.lock",
     ),
     WorkspaceSpec(
+        "recursive_stark_v2_active_reproof_risc0",
+        "zk/recursive_stark_v2_active_reproof_risc0",
+        "zk/recursive_stark_v2_active_reproof_risc0/Cargo.lock",
+    ),
+    WorkspaceSpec(
         "zrpf_risc0",
         "zk/zrpf_risc0",
         "zk/zrpf_risc0/Cargo.lock",
@@ -57,7 +62,7 @@ REVIEWED_WORKSPACES: tuple[WorkspaceSpec, ...] = (
         "zk/zrpf_protocol/Cargo.lock",
     ),
 )
-RISC0_WORKSPACE_IDS = frozenset(spec.workspace_id for spec in REVIEWED_WORKSPACES[:3])
+RISC0_WORKSPACE_IDS = frozenset(spec.workspace_id for spec in REVIEWED_WORKSPACES[:4])
 DispositionKey = tuple[str, str, str, str, str]
 PERMITTED_DISPOSITION_KEYS: frozenset[DispositionKey] = frozenset(
     (workspace_id, "vulnerability", advisory_id, package, version)

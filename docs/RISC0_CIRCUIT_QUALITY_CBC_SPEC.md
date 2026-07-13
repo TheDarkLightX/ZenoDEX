@@ -14,11 +14,17 @@ leaf-to-subtree-to-epoch-root composition. This policy does not claim
 arbitrary-depth recursion or production-ready recursive aggregation.
 
 Status update, 2026-07-12: the active V1 and recursive-v2 lockfiles now pin
-`anyhow 1.0.103`. This changes their build closures and image identities. All
-V1 and V2 receipts described in the 2026-07-10 sections below are historical
-regression evidence. Fresh image IDs and receipts are required before restoring
-a current-proof claim. The active audit policy permits no unsound-warning
-disposition.
+`anyhow 1.0.103`. Fresh current-source evidence now binds a Spot leaf, zUSD
+leaf, two-child V1 root, two-leaf recursive-v2 inner node, and recursive-v2
+epoch root. The active V1 aggregate image ID is
+`c4bde351d48e8e775c2e831fc37fb98a9e45ed59455afe761572d2e11ceed6c4`;
+the active V2 aggregate image ID is
+`0a678da608708af7bd6c35bf825ffe8815efd67f0a8041466929fb2fcda7ae68`.
+The active V3 reference and checker bind the exact source inventories, guest
+programs, host verifiers, toolchain observations, five positive receipts, and
+nine negative controls. This closes `RS-CBC-014` only for the recorded
+same-host bounded computational-integrity profile. The active audit policy
+permits no unsound-warning disposition.
 
 Status update, 2026-07-10: fanout-oriented composition repairs changed
 guest-linked v1 and v2 source. At that revision, RISC0 3.0.5 v1 leaf/root receipts
@@ -119,11 +125,46 @@ remains a pending critical promotion obligation.
 The host CLI changes invalidated the prior V1 current-source verifier replay
 claim because the retained V1 verifier source closure includes the CLI. The
 subsequent `anyhow 1.0.103` migration changed both active V1 and V2 build
-closures and image identities. The CBC matrix now requires the exact non-claim
-`no_current_v1_or_v2_image_receipt_evidence_after_anyhow_1_0_103_migration`.
-Restoring a current V1-and-V2 status requires rebuilding both profiles from
-their patched source closures and generating fresh positive and negative proof
-evidence. Historical receipts remain bounded regression evidence only.
+closures and image identities. The active V3 reproof reference restores only a
+same-host current-image computational-integrity claim. Historical receipts
+remain bounded regression evidence. Public replay, cross-host reproducibility,
+release authority, settlement authority, privacy, and production readiness
+remain false.
+
+Before the active dependency migration, a local pinned-toolchain V1 rebuild
+produced the exact 30-file source
+root `81f5dc170de45306b7427f8379ea23add429f5c6325a06c0bb4fa6c4315f78bf`
+and static PIE verifier
+`8836f22431e2ce241eec9e6503f741b92673e2fec054208b0c36dea4f1bcf146`.
+That binary reproduced the retained positive transcript and the exact
+cryptographic-invalid response for the one-bit seal mutation with empty
+stderr and process exit code zero.
+
+The executable live checker first requires the complete pinned artifact check,
+seals the exact verifier into a fully sealed Linux memfd, and applies bounded
+stdin, stdout, stderr, CPU, address-space, file, descriptor, process, and stack
+limits before execution. It reproduced the accepted transcript with
+`RISC0_DEV_MODE` absent and set to `0`; it rejected enabled aliases `1`,
+`true`, `yes`, and `on`; and it reproduced the exact cryptographic-invalid
+response for the one-bit seal mutation. The retained report has canonical
+SHA-256
+`7b33cea014263fe0841fc291d9ce8097fcfa3a85cc7d1f18b832a52380df43c6`
+and binds the exact checker-source closure and numeric runtime limits.
+
+The required workflow validates this retained record, its source closure, and
+its bounded privacy scan without re-executing the V1 verifier. The CBC matrix
+records its integrity as historical evidence and requires the exact non-claim
+`no_authenticated_historical_execution_provenance_for_v1_live_replay_record`.
+The record does not restore current V1 image or receipt evidence after the
+`anyhow 1.0.103` migration.
+`config/proof_profiles/risc0_recursive_rebuild_reference.json` is frozen as
+the immutable historical V1 replay reference. Fresh active V1/V2 reproof work
+must use
+`config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json` or a
+later separately reviewed path; it must not overwrite the historical trust
+root.
+Historical execution provenance, public replay, network isolation, sandbox,
+settlement, release, privacy, and production authority remain false.
 
 The additive ZRPF V3 candidate under `zk/zrpf_protocol` now implements a
 proof-system-neutral, bounded 8-by-8 structural journal nucleus. It provides a

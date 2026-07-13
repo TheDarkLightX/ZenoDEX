@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Build a deterministic sovereign ZenoLedger testnet bootstrap bundle."""
 
 from __future__ import annotations
@@ -14,8 +15,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.core.dex import DexState
+from src.integration.dex_engine import DexEngineConfig
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.zeno_ledger_profile import sample_zeno_sovereign_testnet_profile_v0
+from src.integration.zeno_ledger_replay import (
+    replay_engine_config_digest_v0,
+    replay_engine_config_document_v0,
+)
 from src.integration.zeno_ledger_tokenomics import (
     DEFAULT_PROTOCOL_TOKEN_SYMBOL,
     build_protocol_token_distribution_v0,
@@ -33,7 +39,6 @@ from src.integration.zeno_ledger_v0 import (
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 from src.state.pools import compute_pool_id
-
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_testnet_bundle_report.v0"
 
@@ -373,7 +378,15 @@ def build_testnet_bundle_v0(
     proof_required: bool,
     token_distribution_role_pubkeys: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    config_digest = _root("config", {"chain_id": chain_id, "profile": "sovereign_testnet_v0"})
+    engine_config_document = replay_engine_config_document_v0(
+        DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=False,
+            allow_unsigned_intents_if_tx_sender_matches=True,
+            chain_id=chain_id,
+        )
+    )
+    config_digest = replay_engine_config_digest_v0(engine_config_document)
     sequencer_set_hash = _root("sequencer_set", {"sequencer_id": sequencer_id})
     module_versions_digest = _root("module_versions", {"schema": "zeno_ledger_v0"})
     token_asset_id = _root("token_asset", {"chain_id": chain_id, "symbol": token_symbol})
@@ -443,6 +456,7 @@ def build_testnet_bundle_v0(
     )
 
     profile_path = out_dir / "profile.json"
+    engine_config_path = out_dir / "engine_config.json"
     genesis_path = out_dir / "genesis_snapshot.json"
     token_distribution_path = out_dir / "token_distribution.json"
     body1_path = out_dir / "bodies" / "1_create_pool.json"
@@ -454,6 +468,8 @@ def build_testnet_bundle_v0(
     attestation_path = out_dir / "watcher_attestations" / "bootstrap_range_1_5.json"
     mirror_index_path = out_dir / "mirror_index.json"
     manifest_path = out_dir / "manifest.json"
+
+    _write_json(engine_config_path, engine_config_document)
 
     def run_local_command(
         *,
@@ -480,6 +496,7 @@ def build_testnet_bundle_v0(
                     _rel(out_dir, ledger_out_dir / "headers" / f"{prev_height}.json"),
                     "--pre-snapshot",
                     _rel(out_dir, ledger_out_dir / "snapshots" / f"{prev_height}.json"),
+                    "--omit-pre-snapshot-output",
                 ]
             )
         command.extend(
@@ -520,6 +537,12 @@ def build_testnet_bundle_v0(
         "1",
         "--to-height",
         "5",
+        "--require-state-replay",
+        "--require-rejection-receipt-replay",
+        "--pre-snapshots-dir",
+        _rel(out_dir, ledger_out_dir / "pre_snapshots"),
+        "--engine-config",
+        _rel(out_dir, engine_config_path),
     ]
     attest_command = [
         "python3",
@@ -536,6 +559,12 @@ def build_testnet_bundle_v0(
         "1",
         "--to-height",
         "5",
+        "--require-state-replay",
+        "--require-rejection-receipt-replay",
+        "--pre-snapshots-dir",
+        _rel(out_dir, ledger_out_dir / "pre_snapshots"),
+        "--engine-config",
+        _rel(out_dir, engine_config_path),
         "--watcher-id",
         "bootstrap-watcher-0",
         "--observed-time-ms",
@@ -566,6 +595,7 @@ def build_testnet_bundle_v0(
         "token_distribution_path": _rel(out_dir, token_distribution_path),
         "token_distribution_hash": token_distribution["distribution_hash"],
         "profile_path": _rel(out_dir, profile_path),
+        "engine_config_path": _rel(out_dir, engine_config_path),
         "genesis_snapshot_path": _rel(out_dir, genesis_path),
         "body_paths": [
             _rel(out_dir, body1_path),

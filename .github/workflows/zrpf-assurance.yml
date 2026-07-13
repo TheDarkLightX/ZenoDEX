@@ -24,6 +24,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Initialize fail-closed ZRPF assurance report
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p internal
+          printf '%s\n' \
+            '{"accepted":false,"reason":"required_source_built_replay_did_not_complete","schema":"zenodex/zrpf/ci_live_replay_status/v1","status":"not_run"}' \
+            > internal/zrpf-ci-live-replay.json
+
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
@@ -79,6 +88,12 @@ jobs:
             RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
             "${pinned_bin}/cargo" fetch --locked \
               --manifest-path zk/state_proof_risc0/Cargo.toml
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml
 
       - name: Run Python and evidence assurance
         run: |
@@ -92,6 +107,12 @@ jobs:
             src/integration/recursive_stark_admission_store_types.py \
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
+            tools/check_risc0_recursive_rebuild_evidence.py \
+            tools/check_risc0_recursive_live_replay.py \
+            tools/check_risc0_recursive_live_replay_evidence.py \
+            tools/check_risc0_recursive_active_reproof_v3.py \
+            tools/build_risc0_recursive_active_reproof_reference_v3.py \
+            tools/risc0_recursive_live_replay_support.py \
             tools/check_zrpf_v3_firecracker_direct_replay_evidence.py \
             tools/check_zrpf_v3_firecracker_guest_elf.py \
             tools/check_zrpf_v3_firecracker_launch_preflight.py \
@@ -121,6 +142,10 @@ jobs:
             tests/test_check_zrpf_v3_firecracker_replay_profile.py \
             tests/test_check_zrpf_v3_firecracker_runtime_artifacts.py \
             tests/test_check_zrpf_v3_replay_verifier_evidence.py \
+            tests/test_check_risc0_recursive_rebuild_evidence.py \
+            tests/test_check_risc0_recursive_live_replay.py \
+            tests/test_check_risc0_recursive_live_replay_evidence.py \
+            tests/test_check_risc0_recursive_active_reproof_v3.py \
             tests/test_build_zrpf_semantic_epoch_v1_local_evidence.py \
             tests/test_check_zrpf_semantic_epoch_v1_local_evidence.py \
             tests/test_check_zrpf_v4_spot_value_leaf_local_evidence.py \
@@ -136,6 +161,7 @@ jobs:
             tests/test_zrpf_v3_firecracker_output_protocol.py \
             tests/test_zrpf_v3_firecracker_runtime_manifest.py \
             tests/test_zrpf_v3_source_closure.py \
+            tests/test_risc0_recursive_v2_active_reproof_harness.py \
             tests/test_zrpf_assurance_workflow.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
@@ -152,6 +178,12 @@ jobs:
             src/integration/recursive_stark_admission_store_types.py \
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
+            tools/check_risc0_recursive_rebuild_evidence.py \
+            tools/check_risc0_recursive_live_replay.py \
+            tools/check_risc0_recursive_live_replay_evidence.py \
+            tools/check_risc0_recursive_active_reproof_v3.py \
+            tools/build_risc0_recursive_active_reproof_reference_v3.py \
+            tools/risc0_recursive_live_replay_support.py \
             tools/check_zrpf_v3_firecracker_direct_replay_evidence.py \
             tools/check_zrpf_v3_firecracker_guest_elf.py \
             tools/check_zrpf_v3_firecracker_launch_preflight.py \
@@ -184,6 +216,10 @@ jobs:
             tests/test_check_zrpf_v1_leaf_adapter_source_policy.py \
             tests/test_check_zrpf_v1_leaf_adapter_vector.py \
             tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py \
+            tests/test_check_risc0_recursive_rebuild_evidence.py \
+            tests/test_check_risc0_recursive_live_replay.py \
+            tests/test_check_risc0_recursive_live_replay_evidence.py \
+            tests/test_check_risc0_recursive_active_reproof_v3.py \
             tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py \
             tests/test_check_zrpf_v3_firecracker_guest_elf.py \
             tests/test_check_zrpf_v3_firecracker_launch_preflight.py \
@@ -207,6 +243,7 @@ jobs:
             tests/test_zrpf_v3_firecracker_runtime_manifest.py \
             tests/test_zrpf_assurance_workflow.py \
             tests/test_zrpf_v3_source_closure.py \
+            tests/test_risc0_recursive_v2_active_reproof_harness.py \
             tests/test_check_zrpf_v3_hash_vector.py \
             tests/test_check_recursive_stark_cbc_spec.py \
             tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py \
@@ -216,6 +253,8 @@ jobs:
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py
           python3 tools/check_zrpf_v1_leaf_adapter_source_policy.py
+          python3 tools/check_risc0_recursive_live_replay_evidence.py --json
+          python3 tools/check_risc0_recursive_active_reproof_v3.py
           python3 tools/check_recursive_stark_cbc_spec.py
           python3 tools/check_zrpf_semantic_epoch_v1_local_evidence.py
           python3 tools/check_zrpf_v4_spot_value_leaf_local_evidence.py
@@ -226,6 +265,8 @@ jobs:
           python3 -I tools/check_zrpf_v3_firecracker_runtime_artifacts.py
           bash -n tools/build_zrpf_v3_firecracker_guest_images.sh
           python3 tools/zrpf_v3_artifact_privacy.py
+          python3 tools/zrpf_v3_artifact_privacy.py \
+            --artifact docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json
           python3 tools/check_zrpf_v3_replay_verifier_evidence.py --json
 
       - name: Run Rust protocol and verifier assurance
@@ -256,6 +297,13 @@ jobs:
             -p zenodex-zrpf-risc0-value-aggregate-shared \
             -p zenodex-zrpf-risc0-value-aggregate-l2-policy \
             -p zenodex-zrpf-risc0-value-aggregate-root-policy \
+            -p zenodex-zrpf-risc0-spot-value-leaf-v6-shared \
+            -p zenodex-zrpf-risc0-spot-value-aggregate-l1-policy-v6 \
+            -p zenodex-zrpf-risc0-spot-value-aggregate-l2-policy-v6 \
+            -p zenodex-zrpf-risc0-spot-value-aggregate-root-policy-v6 \
+            -p zenodex-zrpf-risc0-spot-settlement-v6-shared \
+            -p zenodex-zrpf-risc0-spot-settlement-root-policy-v6 \
+            -p zenodex-zrpf-risc0-spot-v6-methods \
             -p zenodex-zrpf-risc0-methods \
             -p zenodex-zrpf-risc0-harness \
             -p zenodex-zrpf-risc0-verifier \
@@ -270,6 +318,13 @@ jobs:
             -p zenodex-zrpf-risc0-value-aggregate-shared \
             -p zenodex-zrpf-risc0-value-aggregate-l2-policy \
             -p zenodex-zrpf-risc0-value-aggregate-root-policy \
+            -p zenodex-zrpf-risc0-spot-value-leaf-v6-shared \
+            -p zenodex-zrpf-risc0-spot-value-aggregate-l1-policy-v6 \
+            -p zenodex-zrpf-risc0-spot-value-aggregate-l2-policy-v6 \
+            -p zenodex-zrpf-risc0-spot-value-aggregate-root-policy-v6 \
+            -p zenodex-zrpf-risc0-spot-settlement-v6-shared \
+            -p zenodex-zrpf-risc0-spot-settlement-root-policy-v6 \
+            -p zenodex-zrpf-risc0-spot-v6-methods \
             -p zenodex-zrpf-risc0-methods \
             -p zenodex-zrpf-risc0-harness \
             -p zenodex-zrpf-risc0-verifier \
@@ -293,6 +348,15 @@ jobs:
             --manifest-path zk/recursive_stark_v2_risc0/Cargo.toml \
             --locked --workspace --all-targets -- -D warnings
           "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml \
+            --locked --offline --all-targets
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml \
+            --locked --offline --all-targets -- -D warnings
+          "${pinned_bin}/cargo" fmt \
             --manifest-path zk/state_proof_risc0/Cargo.toml \
             --all -- --check
           "${pinned_bin}/cargo" test \
@@ -301,6 +365,105 @@ jobs:
           "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/state_proof_risc0/Cargo.toml \
             --locked --offline -p tau-state-proof-risc0-cli --all-targets -- -D warnings
+
+      - name: Build governed host verifiers and cryptographically replay retained roots
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          export CARGO="${pinned_bin}/cargo"
+          export CARGO_TARGET_DIR="${RUNNER_TEMP}/zrpf-active-reproof-build"
+          export PATH="${pinned_bin}:/usr/bin:/bin"
+          export RUSTC="${pinned_bin}/rustc"
+          export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
+          export RISC0_SKIP_BUILD=1
+          "${pinned_bin}/cargo" build \
+            --manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml \
+            --frozen --offline --release \
+            --bin verify_recursive_v1_root \
+            --bin verify_recursive_v2_pair
+          v1_output="$(
+            "${CARGO_TARGET_DIR}/release/verify_recursive_v1_root" \
+              evidence/risc0-recursive-active-reproof-v3/requests/v1-root.verify.request.json
+          )"
+          test "${v1_output}" = "$(cat evidence/risc0-recursive-active-reproof-v3/reports/v1-root.active-verifier.json)"
+          v2_output="$(
+            "${CARGO_TARGET_DIR}/release/verify_recursive_v2_pair" \
+              evidence/risc0-recursive-active-reproof-v3/receipts/v2-inner.proof.json \
+              evidence/risc0-recursive-active-reproof-v3/receipts/v2-root.proof.json
+          )"
+          test "${v2_output}" = "$(cat evidence/risc0-recursive-active-reproof-v3/reports/v2-pair.verify.json)"
+          if RISC0_DEV_MODE=1 "${CARGO_TARGET_DIR}/release/verify_recursive_v1_root" \
+            evidence/risc0-recursive-active-reproof-v3/requests/v1-root.verify.request.json; then
+            echo "V1 governed verifier accepted RISC0_DEV_MODE" >&2
+            exit 1
+          fi
+          python3 - "${RUNNER_TEMP}" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          root = pathlib.Path("evidence/risc0-recursive-active-reproof-v3")
+          request = json.loads((root / "requests/v1-root.verify.request.json").read_text())
+          output = pathlib.Path(sys.argv[1])
+
+          seal = json.loads(json.dumps(request))
+          seal["proof"] = json.loads(
+              (root / "controls/v1-root.seal-word-1-xor-lsb.proof.json").read_text()
+          )
+          metadata = json.loads(json.dumps(request))
+          metadata["proof"]["meta"]["public_policy_hash"] = "00" * 32
+          expectations = json.loads(json.dumps(request))
+          expectations["recursive_expectations"]["public_policy_hash"] = "00" * 32
+          disclosure = json.loads(json.dumps(request))
+          child_bytes = disclosure["recursive_input"]["children"][0]["child_journal_bytes"]
+          child_bytes[0] ^= 1
+          unknown = json.loads(json.dumps(request))
+          unknown["recursive_input"]["unrecognized_but_canonical"] = 17
+          for name, candidate in (
+              ("seal", seal),
+              ("metadata", metadata),
+              ("expectations", expectations),
+              ("disclosure", disclosure),
+              ("unknown", unknown),
+          ):
+              (output / f"v1-{name}.verify.request.json").write_text(
+                  json.dumps(candidate, separators=(",", ":"), sort_keys=True)
+              )
+          PY
+          for negative_request in \
+            "${RUNNER_TEMP}/v1-seal.verify.request.json" \
+            "${RUNNER_TEMP}/v1-metadata.verify.request.json" \
+            "${RUNNER_TEMP}/v1-expectations.verify.request.json" \
+            "${RUNNER_TEMP}/v1-disclosure.verify.request.json" \
+            "${RUNNER_TEMP}/v1-unknown.verify.request.json"; do
+              if "${CARGO_TARGET_DIR}/release/verify_recursive_v1_root" "${negative_request}"; then
+                echo "V1 governed verifier accepted negative request ${negative_request}" >&2
+                exit 1
+              fi
+          done
+          if "${CARGO_TARGET_DIR}/release/verify_recursive_v2_pair" \
+            evidence/risc0-recursive-active-reproof-v3/receipts/v2-inner.proof.json \
+            evidence/risc0-recursive-active-reproof-v3/controls/v2-root.seal-word-1-xor-lsb.proof.json; then
+            echo "V2 governed verifier accepted the root seal mutation" >&2
+            exit 1
+          fi
+
+      - name: Build pinned current RISC0 guests
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          export CARGO="${pinned_bin}/cargo"
+          export CARGO_TARGET_DIR="${RUNNER_TEMP}/zrpf-current-guest-build"
+          export PATH="${pinned_bin}:/usr/bin:/bin"
+          export RUSTC="${pinned_bin}/rustc"
+          export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
+          unset RISC0_SKIP_BUILD
+          "${pinned_bin}/cargo" build \
+            --manifest-path zk/zrpf_risc0/Cargo.toml \
+            --frozen --offline --release \
+            -p zenodex-zrpf-risc0-methods
 
       - name: Check every ZRPF guest on the zkVM target
         shell: bash
@@ -325,6 +488,10 @@ jobs:
             -p zenodex-zrpf-risc0-structural-aggregate-l2 \
             -p zenodex-zrpf-risc0-semantic-epoch \
             -p zenodex-zrpf-risc0-spot-value-leaf-v4 \
+            -p zenodex-zrpf-risc0-spot-value-leaf-v6 \
+            -p zenodex-zrpf-risc0-spot-value-aggregate-l1-v6 \
+            -p zenodex-zrpf-risc0-spot-value-aggregate-l2-v6 \
+            -p zenodex-zrpf-risc0-source-opened-spot-settlement-v6 \
             -p zenodex-zrpf-risc0-value-aggregate-l1 \
             -p zenodex-zrpf-risc0-value-aggregate-l2 \
             -p zenodex-zrpf-risc0-ordinary-spot-settlement
@@ -340,7 +507,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p internal
+          live_report="internal/zrpf-ci-live-replay.pending.json"
+          rm -f "${live_report}"
           docker run --rm \
             --network none \
             --read-only \
@@ -371,7 +539,20 @@ jobs:
                 --risc0-home /risc0 \
                 --target-dir /out/private/live \
                 --json
-            ' | tee internal/zrpf-ci-live-replay.json
+            ' | tee "${live_report}"
+          python3 - "${live_report}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          report_path = Path(sys.argv[1])
+          value = json.loads(report_path.read_text(encoding="utf-8"))
+          if not isinstance(value, dict):
+              raise SystemExit("live replay report must be a JSON object")
+          if value.get("ok") is not True:
+              raise SystemExit("live replay report must record ok=true")
+          PY
+          mv "${live_report}" internal/zrpf-ci-live-replay.json
 
       - name: Upload ZRPF assurance report
         if: always()

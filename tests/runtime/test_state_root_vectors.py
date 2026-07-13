@@ -17,8 +17,8 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from tools.runtime import state_root_lib as lib
-
+from src.state.pools import compute_pool_id  # noqa: E402
+from tools.runtime import state_root_lib as lib  # noqa: E402
 
 # --- Python authority: semantic properties (no Rust) --------------------------
 
@@ -109,7 +109,7 @@ def test_rust_matches_python_randomized(rust_bin, seed):
 
 def test_rust_rejects_raw_noncanonical_authority_inputs(rust_bin):
     canonical_pool = {
-        "pool_id": _id(1),
+        "pool_id": compute_pool_id(_id(2), _id(3), 30),
         "asset0": _id(2),
         "asset1": _id(3),
         "reserve0": 1,
@@ -128,6 +128,15 @@ def test_rust_rejects_raw_noncanonical_authority_inputs(rust_bin):
         {"pools": [{**canonical_pool, "curve_tag": "BOGUS_CURVE"}]},
         {"pools": [{**canonical_pool, "curve_tag": "cpmm"}]},
         {"pools": [{**canonical_pool, "curve_params": "{}"}]},
+        {"pools": [{**canonical_pool, "pool_id": _id(1)}]},
+        {
+            "pools": [
+                {
+                    **canonical_pool,
+                    "pool_id": "0x" + canonical_pool["pool_id"][2:].upper(),
+                }
+            ]
+        },
         {
             "pools": [
                 {

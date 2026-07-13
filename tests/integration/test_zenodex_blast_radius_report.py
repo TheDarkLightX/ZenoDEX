@@ -4,17 +4,24 @@ import json
 import subprocess
 from pathlib import Path
 
-from src.agents.intent_signer import create_swap_intent_from_quote_receipt, create_swap_intents_from_quote_receipt
+from src.agents.intent_signer import (
+    create_swap_intent_from_quote_receipt,
+    create_swap_intents_from_quote_receipt,
+)
 from src.core.dex import DexState
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
 from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.operations import SignedIntentEnvelope, create_intent_operation, create_signed_intent_operation
+from src.integration.operations import (
+    SignedIntentEnvelope,
+    create_intent_operation,
+    create_signed_intent_operation,
+)
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
-from src.state.pools import PoolState, PoolStatus
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from tools.zenodex_blast_radius_report import build_blast_radius_report
 
 
@@ -30,14 +37,14 @@ def _asset(n: int) -> str:
     return "0x" + f"{n:064x}"
 
 
-def _pool(*, pid: str, asset0: str, asset1: str, reserve0: int, reserve1: int) -> PoolState:
+def _pool(*, pid: str, asset0: str, asset1: str, reserve0: int, reserve1: int, fee_bps: int = 30) -> PoolState:
     return PoolState(
         pool_id=pid,
         asset0=asset0,
         asset1=asset1,
         reserve0=int(reserve0),
         reserve1=int(reserve1),
-        fee_bps=30,
+        fee_bps=fee_bps,
         lp_supply=1,
         status=PoolStatus.ACTIVE,
         created_at=0,
@@ -53,8 +60,8 @@ def test_build_blast_radius_report_uses_snapshot_for_exact_scope() -> None:
     asset_b = _asset(2)
     asset_c = _asset(3)
     asset_d = _asset(4)
-    pool_ab = "0x" + "aa" * 32
-    pool_cd = "0x" + "bb" * 32
+    pool_ab = compute_pool_id(asset_a, asset_b, 30)
+    pool_cd = compute_pool_id(asset_c, asset_d, 30)
 
     balances = BalanceTable()
     balances.set(sender1, asset_a, 10_000)
@@ -126,7 +133,7 @@ def test_blast_radius_cli_reports_conflict_component_for_shared_pool(tmp_path: P
     sender2 = _pk(2)
     asset_a = _asset(1)
     asset_b = _asset(2)
-    pool_ab = "0x" + "aa" * 32
+    pool_ab = compute_pool_id(asset_a, asset_b, 30)
 
     balances = BalanceTable()
     balances.set(sender1, asset_a, 10_000)
@@ -210,7 +217,7 @@ def test_build_blast_radius_report_marks_attached_quote_receipt_witness_as_full(
     sender = _pk(7)
     asset_a = _asset(10)
     asset_b = _asset(11)
-    pool_id = "0x" + "cc" * 32
+    pool_id = compute_pool_id(asset_a, asset_b, 10)
     balances = BalanceTable()
     balances.set(sender, asset_a, 10_000)
     balances.set(sender, asset_b, 0)
@@ -277,7 +284,7 @@ def test_build_blast_radius_report_keeps_invalid_attached_quote_receipt_witness_
     sender = _pk(8)
     asset_a = _asset(12)
     asset_b = _asset(13)
-    pool_id = "0x" + "dd" * 32
+    pool_id = compute_pool_id(asset_a, asset_b, 10)
     balances = BalanceTable()
     balances.set(sender, asset_a, 10_000)
     balances.set(sender, asset_b, 0)
@@ -334,7 +341,7 @@ def test_build_blast_radius_report_marks_attached_quote_receipt_without_snapshot
     sender = _pk(9)
     asset_a = _asset(14)
     asset_b = _asset(15)
-    pool_id = "0x" + "ee" * 32
+    pool_id = compute_pool_id(asset_a, asset_b, 10)
     pools = {
         pool_id: PoolState(
             pool_id=pool_id,
@@ -372,7 +379,7 @@ def test_build_blast_radius_report_marks_snapshot_only_quote_binding() -> None:
     sender = _pk(10)
     asset_a = _asset(16)
     asset_b = _asset(17)
-    pool_id = "0x" + "ff" * 32
+    pool_id = compute_pool_id(asset_a, asset_b, 10)
     fingerprint = "0x" + "12" * 32
 
     balances = BalanceTable()
@@ -430,11 +437,11 @@ def test_build_blast_radius_report_flags_incomplete_split_quote_receipt_group() 
     sender = _pk(11)
     asset_a = _asset(18)
     asset_b = _asset(19)
-    pool_1 = "0x" + "91" * 32
-    pool_2 = "0x" + "92" * 32
+    pool_1 = compute_pool_id(asset_a, asset_b, 30)
+    pool_2 = compute_pool_id(asset_a, asset_b, 31)
     pools = {
         pool_1: _pool(pid=pool_1, asset0=asset_a, asset1=asset_b, reserve0=1_000, reserve1=1_000),
-        pool_2: _pool(pid=pool_2, asset0=asset_a, asset1=asset_b, reserve0=1_000, reserve1=1_000),
+        pool_2: _pool(pid=pool_2, asset0=asset_a, asset1=asset_b, reserve0=1_000, reserve1=1_000, fee_bps=31),
     }
     balances = BalanceTable()
     balances.set(sender, asset_a, 10_000)
@@ -473,11 +480,11 @@ def test_build_blast_radius_report_flags_duplicate_split_quote_receipt_leg() -> 
     sender = _pk(12)
     asset_a = _asset(20)
     asset_b = _asset(21)
-    pool_1 = "0x" + "93" * 32
-    pool_2 = "0x" + "94" * 32
+    pool_1 = compute_pool_id(asset_a, asset_b, 30)
+    pool_2 = compute_pool_id(asset_a, asset_b, 31)
     pools = {
         pool_1: _pool(pid=pool_1, asset0=asset_a, asset1=asset_b, reserve0=1_000, reserve1=1_000),
-        pool_2: _pool(pid=pool_2, asset0=asset_a, asset1=asset_b, reserve0=1_000, reserve1=1_000),
+        pool_2: _pool(pid=pool_2, asset0=asset_a, asset1=asset_b, reserve0=1_000, reserve1=1_000, fee_bps=31),
     }
     balances = BalanceTable()
     balances.set(sender, asset_a, 10_000)

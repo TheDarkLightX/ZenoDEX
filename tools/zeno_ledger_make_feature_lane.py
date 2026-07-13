@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402
 """Build a ZenoLedger manifest from arbitrary feature-test body files."""
 
 from __future__ import annotations
@@ -15,7 +16,6 @@ if str(ROOT) not in sys.path:
 
 from src.integration.zeno_ledger_profile import validate_zeno_ledger_profile_v0
 from src.integration.zeno_ledger_v0 import hash_v0, validate_body_v0
-
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_feature_lane_report.v0"
 MANIFEST_SCHEMA = "zenodex.zeno_ledger.testnet_bundle.v0"
@@ -458,6 +458,7 @@ def build_feature_lane_manifest_v0(
         str(from_height),
         "--to-height",
         str(to_height),
+        "--structural-only",
     ]
     attest_command = [
         sys.executable,
@@ -474,6 +475,7 @@ def build_feature_lane_manifest_v0(
         str(from_height),
         "--to-height",
         str(to_height),
+        "--structural-only",
         "--watcher-id",
         "feature-lane-watcher-0",
         "--observed-time-ms",

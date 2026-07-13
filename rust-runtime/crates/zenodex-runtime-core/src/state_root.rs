@@ -19,8 +19,10 @@
 //!
 //! Each entry's hex identifiers are decoded to fixed-width bytes
 //! (`pubkey` 48, `asset`/`pool_id` 32) and entries are sorted by those *decoded
-//! bytes*, not by hex string — so the root is independent of input order and of
-//! hex letter case. Duplicate decoded keys are a typed rejection.
+//! bytes*, not by hex string. Pool IDs are stricter: every occurrence must use
+//! canonical lowercase `0x` form, and pool entries must match the ID recomputed
+//! from assets, fee, and curve configuration. Duplicate decoded keys are a
+//! typed rejection.
 //!
 //! Domain note: amounts are taken as `u128`. The Python encoder accepts up to
 //! 256-bit uvarints, but every runtime state amount (balances ≤ 2^112−1,
@@ -67,6 +69,10 @@ pub enum StateRootError {
     NonCanonicalPoolAssets,
     /// Pool curve tag/params are unsupported or not in canonical normalized form.
     InvalidCurveConfig,
+    /// A pool ID is not exact lowercase, 0x-prefixed, fixed-width hex.
+    NonCanonicalPoolId,
+    /// A pool ID does not bind the pool's assets, fee, and curve configuration.
+    PoolIdentityMismatch,
     /// LP mint metadata exists for a non-existent or zero LP balance.
     MissingLpBalanceForMintMetadata,
     /// LP duration metadata entry would be dropped by Python's sparse filter.
@@ -84,6 +90,8 @@ impl StateRootError {
             StateRootError::ZeroAmount(section) => format!("zero_amount:{section}"),
             StateRootError::NonCanonicalPoolAssets => "non_canonical_pool_assets".to_string(),
             StateRootError::InvalidCurveConfig => "invalid_curve_config".to_string(),
+            StateRootError::NonCanonicalPoolId => "non_canonical_pool_id".to_string(),
+            StateRootError::PoolIdentityMismatch => "pool_identity_mismatch".to_string(),
             StateRootError::MissingLpBalanceForMintMetadata => {
                 "missing_lp_balance_for_mint_metadata".to_string()
             }
@@ -209,6 +217,35 @@ fn pool_assets_in_canonical_order(asset0: &[u8], asset1: &[u8]) -> bool {
     asset0 < asset1
 }
 
+fn decode_canonical_pool_id(pool_id: &str) -> Result<Vec<u8>, StateRootError> {
+    let bytes = pool_id.as_bytes();
+    if bytes.len() != 2 + 2 * POOL_NBYTES
+        || !pool_id.starts_with("0x")
+        || !bytes[2..]
+            .iter()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+    {
+        return Err(StateRootError::NonCanonicalPoolId);
+    }
+    Ok(hex_to_bytes_fixed(pool_id, POOL_NBYTES)?)
+}
+
+fn canonical_pool_identity(
+    asset0: &[u8],
+    asset1: &[u8],
+    fee_bps: u128,
+    curve_tag: &str,
+    curve_params: &str,
+) -> String {
+    let mut payload = b"TauSwapPool".to_vec();
+    payload.extend_from_slice(format!("0x{}", hex::encode(asset0)).as_bytes());
+    payload.extend_from_slice(format!("0x{}", hex::encode(asset1)).as_bytes());
+    payload.extend_from_slice(fee_bps.to_string().as_bytes());
+    payload.extend_from_slice(curve_tag.as_bytes());
+    payload.extend_from_slice(curve_params.as_bytes());
+    sha256_hex(&payload)
+}
+
 fn duration_metadata_is_present_flags(
     has_mint: bool,
     has_remove: bool,
@@ -328,7 +365,7 @@ fn collect_lp_balance_keys(entries: &[LpEntry]) -> Result<BTreeSet<DecodedLpKey>
     let mut keys = BTreeSet::new();
     for e in entries {
         let pk = hex_to_bytes_fixed(&e.pubkey, PUBKEY_NBYTES)?;
-        let pool = hex_to_bytes_fixed(&e.pool_id, POOL_NBYTES)?;
+        let pool = decode_canonical_pool_id(&e.pool_id)?;
         if e.amount == 0 {
             return Err(StateRootError::ZeroAmount("lp_balances"));
         }
@@ -371,7 +408,7 @@ fn encode_pools(entries: &[PoolEntry]) -> Result<Vec<u8>, StateRootError> {
     let mut decoded: Vec<DecodedPool<'_>> = Vec::with_capacity(entries.len());
     let mut seen: BTreeSet<Vec<u8>> = BTreeSet::new();
     for e in entries {
-        let pool = hex_to_bytes_fixed(&e.pool_id, POOL_NBYTES)?;
+        let pool = decode_canonical_pool_id(&e.pool_id)?;
         let asset0 = hex_to_bytes_fixed(&e.asset0, ASSET_NBYTES)?;
         let asset1 = hex_to_bytes_fixed(&e.asset1, ASSET_NBYTES)?;
         validate_pool_fee_bps(e.fee_bps)?;
@@ -379,6 +416,11 @@ fn encode_pools(entries: &[PoolEntry]) -> Result<Vec<u8>, StateRootError> {
             return Err(StateRootError::NonCanonicalPoolAssets);
         }
         canonical_curve_config(&e.curve_tag, &e.curve_params)?;
+        if e.pool_id
+            != canonical_pool_identity(&asset0, &asset1, e.fee_bps, &e.curve_tag, &e.curve_params)
+        {
+            return Err(StateRootError::PoolIdentityMismatch);
+        }
         if !seen.insert(pool.clone()) {
             return Err(StateRootError::DuplicateKey("pools"));
         }
@@ -407,7 +449,7 @@ fn encode_lp(entries: &[LpEntry]) -> Result<Vec<u8>, StateRootError> {
     let mut seen: BTreeSet<(Vec<u8>, Vec<u8>)> = BTreeSet::new();
     for e in entries {
         let pk = hex_to_bytes_fixed(&e.pubkey, PUBKEY_NBYTES)?;
-        let pool = hex_to_bytes_fixed(&e.pool_id, POOL_NBYTES)?;
+        let pool = decode_canonical_pool_id(&e.pool_id)?;
         if !seen.insert((pk.clone(), pool.clone())) {
             return Err(StateRootError::DuplicateKey("lp_balances"));
         }
@@ -434,7 +476,7 @@ fn encode_lp_duration(
     let mut seen: BTreeSet<(Vec<u8>, Vec<u8>)> = BTreeSet::new();
     for e in entries {
         let pk = hex_to_bytes_fixed(&e.pubkey, PUBKEY_NBYTES)?;
-        let pool = hex_to_bytes_fixed(&e.pool_id, POOL_NBYTES)?;
+        let pool = decode_canonical_pool_id(&e.pool_id)?;
         if !duration_entry_is_present(e) {
             return Err(StateRootError::EmptyLpDurationMetadata);
         }
@@ -525,10 +567,18 @@ mod tests {
     }
 
     fn valid_pool() -> PoolEntry {
+        let asset0 = id32(2);
+        let asset1 = id32(3);
         PoolEntry {
-            pool_id: id32(1),
-            asset0: id32(2),
-            asset1: id32(3),
+            pool_id: canonical_pool_identity(
+                &[2; ASSET_NBYTES],
+                &[3; ASSET_NBYTES],
+                30,
+                CURVE_TAG_CPMM,
+                "",
+            ),
+            asset0,
+            asset1,
             reserve0: 1,
             reserve1: 1,
             fee_bps: 30,
@@ -758,6 +808,37 @@ mod tests {
         assert_eq!(
             compute_state_root(&s),
             Err(StateRootError::InvalidCurveConfig)
+        );
+    }
+
+    #[test]
+    fn mismatched_pool_identity_rejected() {
+        let s = StateInput {
+            pools: vec![PoolEntry {
+                pool_id: id32(1),
+                ..valid_pool()
+            }],
+            ..Default::default()
+        };
+        assert_eq!(
+            compute_state_root(&s),
+            Err(StateRootError::PoolIdentityMismatch)
+        );
+    }
+
+    #[test]
+    fn noncanonical_pool_id_case_rejected() {
+        let pool = valid_pool();
+        let s = StateInput {
+            pools: vec![PoolEntry {
+                pool_id: format!("0x{}", pool.pool_id[2..].to_uppercase()),
+                ..pool
+            }],
+            ..Default::default()
+        };
+        assert_eq!(
+            compute_state_root(&s),
+            Err(StateRootError::NonCanonicalPoolId)
         );
     }
 
