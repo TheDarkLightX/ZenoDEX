@@ -107,10 +107,14 @@ repository-local source superset. Compiler, linker, registry content, runtime
 image, kernel, and other external inputs remain outside a complete build-input
 closure.
 
-The inventory root commits each path, Git file mode, byte length, and SHA-256.
-The source-stage observation and the future V2 source anchor must use this exact
-inventory root. An independently reported source-tree digest cannot satisfy the
-checker.
+The broad inventory root commits each path, Git file mode, byte length, and
+SHA-256 and remains a repository-level build observation. A separate acyclic
+source-guest inventory applies the same construction only to
+`zk/state_proof_risc0`. The source-stage observation and future V2 source
+policy must use that source-guest inventory root. This prevents the source
+guest from committing a digest that includes the downstream policy which
+stores the digest. An independently reported source-tree digest cannot satisfy
+the checker.
 
 The prior exact V6 retained inventory predates the parallel-shard files. It must
 be regenerated for a future candidate and cannot support the new source tree.
