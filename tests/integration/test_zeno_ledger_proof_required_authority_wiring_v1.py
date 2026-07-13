@@ -154,7 +154,9 @@ def _make_case(tmp_path: Path) -> _Case:
     sequencer_set_hash = _root("sequencer-set")
 
     body = _body(1, txs=[])
-    body["evidence"]["rejection_receipts"] = []
+    evidence = body.get("evidence")
+    assert isinstance(evidence, dict)
+    evidence["rejection_receipts"] = []
     evidence_root = compute_evidence_root_v0(body["evidence"])
     tx_root = compute_tx_root_v0(body["transactions"])
     body_root = canonical_body_root_v0(body)
