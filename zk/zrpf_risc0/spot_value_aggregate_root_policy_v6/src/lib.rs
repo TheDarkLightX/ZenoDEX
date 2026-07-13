@@ -11,14 +11,14 @@ use zenodex_zrpf_risc0_spot_value_aggregate_l2_policy_v6::{
 use zenodex_zrpf_risc0_value_aggregate_shared::ValueAggregateRecompositionErrorV5;
 
 pub const PINNED_SOURCE_OPENED_SPOT_VALUE_AGGREGATE_L2_IMAGE_ID_V6: [u32; 8] = [
-    731_367_023,
-    1_105_319_294,
-    1_757_024_783,
-    2_950_572_022,
-    3_130_457_835,
-    3_876_914_184,
-    935_406_304,
-    4_025_677_289,
+    3_029_634_908,
+    3_574_245_293,
+    3_328_839_098,
+    1_426_090_941,
+    3_276_333_481,
+    2_066_626_345,
+    1_225_959_460,
+    1_873_217_535,
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
