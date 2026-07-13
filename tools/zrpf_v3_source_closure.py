@@ -39,6 +39,7 @@ WORKSPACE_AUXILIARY_ROWS: tuple[tuple[str, str], ...] = tuple(
         "zk/state_proof_risc0/cli/src/recursive_wire/application/perps.rs",
         "zk/state_proof_risc0/cli/src/recursive_wire/application/spot.rs",
         "zk/state_proof_risc0/cli/src/recursive_wire/application/zusd.rs",
+        "zk/state_proof_risc0/cli/src/spot_authority.rs",
         "zk/state_proof_risc0/cli/src/strict_json.rs",
         "zk/state_proof_risc0/methods/Cargo.toml",
         "zk/state_proof_risc0/methods/aggregate/Cargo.toml",
@@ -476,6 +477,10 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             (
                 "data_availability_protocol_v1",
                 "zk/zrpf_protocol/protocol/src/full_blob_da_v1/mod.rs",
+            ),
+            (
+                "data_availability_protocol_v1",
+                "zk/zrpf_protocol/protocol/src/full_blob_da_v1/policy.rs",
             ),
             (
                 "settlement_certificate_protocol_v1",

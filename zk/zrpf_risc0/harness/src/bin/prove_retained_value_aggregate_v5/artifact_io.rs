@@ -85,6 +85,10 @@ pub(super) fn read_receipt_once(path: &Path, label: &str) -> Result<Vec<u8>, Str
     read_regular_once(path, MAX_RECEIPT_BYTES, label)
 }
 
+pub(super) fn read_bundle_once(path: &Path) -> Result<Vec<u8>, String> {
+    read_regular_once(path, MAX_BUNDLE_BYTES, "V5 receipt bundle")
+}
+
 pub(super) fn canonical_receipt_bytes(receipt: &Receipt) -> Result<Vec<u8>, String> {
     let bytes = serde_json::to_vec(receipt).map_err(|error| format!("receipt encode: {error}"))?;
     if bytes.is_empty() || bytes.len() > MAX_RECEIPT_BYTES {

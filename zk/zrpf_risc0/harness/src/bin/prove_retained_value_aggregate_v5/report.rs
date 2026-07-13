@@ -1,8 +1,8 @@
 use std::io::Write;
 
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
-use risc0_zkvm::Digest;
-use serde::Serialize;
+use risc0_zkvm::{Digest, Receipt};
+use serde::{Deserialize, Serialize};
 use sha2::Digest as _;
 
 use super::{
@@ -13,7 +13,7 @@ use super::{
 
 const MAX_REPORT_BYTES: usize = 32 * 1_024;
 const MAX_BUNDLE_BYTES: usize = 32 * 1_024 * 1_024;
-const NONCLAIMS: [&str; 14] = [
+pub(super) const NONCLAIMS: [&str; 14] = [
     "retained program source-to-binary provenance is not re-established by this harness",
     "the retained programs are not rebuilt by this harness",
     "the SDK-selected IPC transport name does not authenticate r0vm locality or executable identity",
@@ -30,7 +30,8 @@ const NONCLAIMS: [&str; 14] = [
     "production authority is false",
 ];
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
 struct ReceiptBundleClaims {
     retained_program_identity_rechecked: bool,
     child_receipt_authenticated: bool,
@@ -46,9 +47,10 @@ struct ReceiptBundleClaims {
     production_authority: bool,
 }
 
-#[derive(Serialize)]
-struct ReceiptBundle<'a> {
-    schema: &'static str,
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ReceiptBundle {
+    schema: String,
     level_one_receipt_base64: String,
     level_one_receipt_bytes: usize,
     level_one_receipt_sha256: String,
@@ -56,7 +58,7 @@ struct ReceiptBundle<'a> {
     level_two_receipt_bytes: usize,
     level_two_receipt_sha256: String,
     claims: ReceiptBundleClaims,
-    nonclaims: &'a [&'static str],
+    nonclaims: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -78,6 +80,8 @@ struct HarnessReport<'a> {
     persisted_bundle_bytes: Option<usize>,
     persisted_bundle_sha256: Option<String>,
     persisted_bundle_final_path_identity_checked: bool,
+    existing_bundle_stable_read_verified: bool,
+    receipt_pair_verified: bool,
     proof_generation_executed: bool,
     retained_program_source_to_binary_verified: bool,
     prover_binary_identity_verified: bool,
@@ -95,6 +99,21 @@ pub(super) struct EncodedReceiptBundle {
     level_one_receipt_sha256: String,
     level_two_receipt_sha256: String,
     sha256: [u8; 32],
+}
+
+pub(super) struct DecodedReceiptBundle {
+    level_one_receipt_bytes: Vec<u8>,
+    level_two_receipt_bytes: Vec<u8>,
+}
+
+impl DecodedReceiptBundle {
+    pub(super) fn level_one_receipt_bytes(&self) -> &[u8] {
+        &self.level_one_receipt_bytes
+    }
+
+    pub(super) fn level_two_receipt_bytes(&self) -> &[u8] {
+        &self.level_two_receipt_bytes
+    }
 }
 
 impl EncodedReceiptBundle {
@@ -125,31 +144,28 @@ pub(super) fn encode_receipt_bundle(
     }
     let level_one_receipt = canonical_receipt_bytes(proved.level_one.receipt())?;
     let level_two_receipt = canonical_receipt_bytes(proved.level_two.receipt())?;
+    encode_receipt_pair_bytes(level_one_receipt, level_two_receipt)
+}
+
+fn encode_receipt_pair_bytes(
+    level_one_receipt: Vec<u8>,
+    level_two_receipt: Vec<u8>,
+) -> Result<EncodedReceiptBundle, String> {
+    if level_one_receipt == level_two_receipt {
+        return Err("V5 receipt bundle levels must contain distinct receipts".to_owned());
+    }
     let level_one_receipt_sha256 = sha256_hex(&level_one_receipt);
     let level_two_receipt_sha256 = sha256_hex(&level_two_receipt);
     let bytes = serde_json::to_vec(&ReceiptBundle {
-        schema: "zenodex/zrpf_retained_value_aggregate_v5_receipt_bundle/v1",
+        schema: "zenodex/zrpf_retained_value_aggregate_v5_receipt_bundle/v1".to_owned(),
         level_one_receipt_base64: BASE64_STANDARD.encode(&level_one_receipt),
         level_one_receipt_bytes: level_one_receipt.len(),
         level_one_receipt_sha256: level_one_receipt_sha256.clone(),
         level_two_receipt_base64: BASE64_STANDARD.encode(&level_two_receipt),
         level_two_receipt_bytes: level_two_receipt.len(),
         level_two_receipt_sha256: level_two_receipt_sha256.clone(),
-        claims: ReceiptBundleClaims {
-            retained_program_identity_rechecked: true,
-            child_receipt_authenticated: true,
-            level_one_receipt_generated_and_verified: true,
-            level_two_receipt_generated_and_verified: true,
-            retained_program_source_to_binary_verified: false,
-            prover_binary_identity_verified: false,
-            cross_host_reproducible_build: false,
-            settlement_semantics_verified: false,
-            durable_atomic_admission_verified: false,
-            release_authority: false,
-            settlement_authority: false,
-            production_authority: false,
-        },
-        nonclaims: &NONCLAIMS,
+        claims: expected_bundle_claims(),
+        nonclaims: expected_nonclaims(),
     })
     .map_err(|error| format!("encode V5 receipt bundle: {error}"))?;
     if bytes.is_empty() || bytes.len() > MAX_BUNDLE_BYTES {
@@ -163,6 +179,122 @@ pub(super) fn encode_receipt_bundle(
     })
 }
 
+#[cfg(test)]
+pub(super) fn encode_receipt_bundle_fixture_for_test(
+    first_receipt_bytes: &[u8],
+    second_receipt_bytes: &[u8],
+) -> Result<Vec<u8>, String> {
+    for (label, bytes) in [
+        ("level-one", first_receipt_bytes),
+        ("level-two", second_receipt_bytes),
+    ] {
+        let receipt: Receipt = serde_json::from_slice(bytes)
+            .map_err(|error| format!("decode V5 {label} test receipt: {error}"))?;
+        if canonical_receipt_bytes(&receipt)? != bytes {
+            return Err(format!("V5 {label} test receipt is not canonical"));
+        }
+    }
+    Ok(
+        encode_receipt_pair_bytes(first_receipt_bytes.to_vec(), second_receipt_bytes.to_vec())?
+            .bytes,
+    )
+}
+
+pub(super) fn decode_receipt_bundle(bytes: &[u8]) -> Result<DecodedReceiptBundle, String> {
+    if bytes.is_empty() || bytes.len() > MAX_BUNDLE_BYTES {
+        return Err("V5 receipt bundle byte length unsupported".to_owned());
+    }
+    let bundle: ReceiptBundle = serde_json::from_slice(bytes)
+        .map_err(|error| format!("decode V5 receipt bundle: {error}"))?;
+    let canonical = serde_json::to_vec(&bundle)
+        .map_err(|error| format!("re-encode V5 receipt bundle: {error}"))?;
+    if canonical != bytes {
+        return Err("V5 receipt bundle JSON is not exact canonical encoding".to_owned());
+    }
+    if bundle.schema != "zenodex/zrpf_retained_value_aggregate_v5_receipt_bundle/v1" {
+        return Err("V5 receipt bundle schema mismatch".to_owned());
+    }
+    if bundle.claims != expected_bundle_claims() {
+        return Err("V5 receipt bundle claims mismatch".to_owned());
+    }
+    if bundle.nonclaims != expected_nonclaims() {
+        return Err("V5 receipt bundle nonclaims mismatch".to_owned());
+    }
+    let level_one_receipt_bytes = decode_canonical_receipt(
+        "level-one",
+        &bundle.level_one_receipt_base64,
+        bundle.level_one_receipt_bytes,
+        &bundle.level_one_receipt_sha256,
+    )?;
+    let level_two_receipt_bytes = decode_canonical_receipt(
+        "level-two",
+        &bundle.level_two_receipt_base64,
+        bundle.level_two_receipt_bytes,
+        &bundle.level_two_receipt_sha256,
+    )?;
+    if level_one_receipt_bytes == level_two_receipt_bytes {
+        return Err("V5 receipt bundle levels must contain distinct receipts".to_owned());
+    }
+    Ok(DecodedReceiptBundle {
+        level_one_receipt_bytes,
+        level_two_receipt_bytes,
+    })
+}
+
+fn expected_bundle_claims() -> ReceiptBundleClaims {
+    ReceiptBundleClaims {
+        retained_program_identity_rechecked: true,
+        child_receipt_authenticated: true,
+        level_one_receipt_generated_and_verified: true,
+        level_two_receipt_generated_and_verified: true,
+        retained_program_source_to_binary_verified: false,
+        prover_binary_identity_verified: false,
+        cross_host_reproducible_build: false,
+        settlement_semantics_verified: false,
+        durable_atomic_admission_verified: false,
+        release_authority: false,
+        settlement_authority: false,
+        production_authority: false,
+    }
+}
+
+fn expected_nonclaims() -> Vec<String> {
+    NONCLAIMS.iter().map(|value| (*value).to_owned()).collect()
+}
+
+fn decode_canonical_receipt(
+    label: &str,
+    encoded: &str,
+    expected_bytes: usize,
+    expected_sha256: &str,
+) -> Result<Vec<u8>, String> {
+    let maximum_encoded = super::artifact_io::MAX_RECEIPT_BYTES
+        .checked_add(2)
+        .and_then(|value| value.checked_div(3))
+        .and_then(|value| value.checked_mul(4))
+        .ok_or_else(|| format!("V5 {label} receipt base64 bound overflow"))?;
+    if encoded.is_empty() || encoded.len() > maximum_encoded {
+        return Err(format!("V5 {label} receipt base64 length unsupported"));
+    }
+    let receipt_bytes = BASE64_STANDARD
+        .decode(encoded)
+        .map_err(|error| format!("decode V5 {label} receipt base64: {error}"))?;
+    if receipt_bytes.len() != expected_bytes
+        || receipt_bytes.is_empty()
+        || receipt_bytes.len() > super::artifact_io::MAX_RECEIPT_BYTES
+        || BASE64_STANDARD.encode(&receipt_bytes) != encoded
+        || hex::encode(sha2::Sha256::digest(&receipt_bytes)) != expected_sha256
+    {
+        return Err(format!("V5 {label} receipt identity mismatch"));
+    }
+    let receipt: Receipt = serde_json::from_slice(&receipt_bytes)
+        .map_err(|error| format!("decode V5 {label} receipt JSON: {error}"))?;
+    if canonical_receipt_bytes(&receipt)? != receipt_bytes {
+        return Err(format!("V5 {label} receipt JSON is not canonical"));
+    }
+    Ok(receipt_bytes)
+}
+
 pub(super) struct ReportInput<'a> {
     pub(super) mode: Mode,
     pub(super) build_record_sha256: &'static str,
@@ -174,22 +306,29 @@ pub(super) struct ReportInput<'a> {
 }
 
 pub(super) fn write_report(input: ReportInput<'_>) -> Result<(), String> {
-    let proof_generation_executed = match (input.mode, input.bundle, input.persisted) {
-        (Mode::Preflight, None, None) => false,
-        (Mode::Prove, Some(bundle), Some(persisted)) => {
-            if bundle.bytes().len() != persisted.byte_length()
-                || bundle.sha256() != persisted.sha256()
-            {
-                return Err("reported V5 bundle differs from persisted same-fd bytes".to_owned());
+    let (proof_generation_executed, existing_bundle_stable_read_verified) =
+        match (input.mode, input.bundle, input.persisted) {
+            (Mode::Preflight, None, None) => (false, false),
+            (Mode::Prove, Some(bundle), Some(persisted)) => {
+                if bundle.bytes().len() != persisted.byte_length()
+                    || bundle.sha256() != persisted.sha256()
+                {
+                    return Err(
+                        "reported V5 bundle differs from persisted same-fd bytes".to_owned()
+                    );
+                }
+                (true, false)
             }
-            true
+            (Mode::VerifyExisting, Some(_), None) => (false, true),
+            _ => return Err("V5 report evidence does not match execution mode".to_owned()),
+        };
+    let receipt_pair_verified = input.bundle.is_some();
+    let status = match input.mode {
+        Mode::Preflight => "retained_value_aggregate_v5_preflight_verified",
+        Mode::Prove => "retained_value_aggregate_v5_l1_l2_succinct_receipts_generated_and_verified",
+        Mode::VerifyExisting => {
+            "retained_value_aggregate_v5_l1_l2_succinct_receipts_replayed_and_verified"
         }
-        _ => return Err("V5 report evidence does not match execution mode".to_owned()),
-    };
-    let status = if proof_generation_executed {
-        "retained_value_aggregate_v5_l1_l2_succinct_receipts_verified"
-    } else {
-        "retained_value_aggregate_v5_preflight_verified"
     };
     let report = HarnessReport {
         schema: "zenodex/zrpf_retained_value_aggregate_v5_harness_report/v1",
@@ -215,6 +354,8 @@ pub(super) fn write_report(input: ReportInput<'_>) -> Result<(), String> {
             .persisted
             .map(|persisted| hex::encode(persisted.sha256())),
         persisted_bundle_final_path_identity_checked: input.persisted.is_some(),
+        existing_bundle_stable_read_verified,
+        receipt_pair_verified,
         proof_generation_executed,
         retained_program_source_to_binary_verified: false,
         prover_binary_identity_verified: false,

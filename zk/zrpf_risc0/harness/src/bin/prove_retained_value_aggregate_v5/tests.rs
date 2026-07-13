@@ -5,15 +5,18 @@ use std::{
 };
 
 use risc0_zkvm::Digest;
+use serde_json::Value;
 use sha2::Digest as _;
 
 use super::{
     artifact_io::{persist_bundle, read_fixture_once, remove_fixture},
     cli::{parse_options, Mode},
     expected_level_one_identity, expected_level_two_identity, governed_programs_from_record,
-    load_authenticated_child, require_retained_host_feature_closure, require_sdk_ipc_prover,
-    GOVERNED_BUILD_RECORD_BYTES, GOVERNED_BUILD_RECORD_SHA256,
-    PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5, PINNED_VALUE_AGGREGATE_L2_IMAGE_ID_V5,
+    load_authenticated_child,
+    report::{decode_receipt_bundle, encode_receipt_bundle_fixture_for_test},
+    require_retained_host_feature_closure, require_sdk_ipc_prover, GOVERNED_BUILD_RECORD_BYTES,
+    GOVERNED_BUILD_RECORD_SHA256, PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
+    PINNED_VALUE_AGGREGATE_L2_IMAGE_ID_V5,
 };
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -54,6 +57,8 @@ fn arguments(mode: &str) -> Vec<String> {
     ];
     if mode == "prove" {
         values.extend(["--bundle-out".to_owned(), "bundle.json".to_owned()]);
+    } else if mode == "verify-existing" {
+        values.extend(["--bundle".to_owned(), "bundle.json".to_owned()]);
     }
     values
 }
@@ -107,11 +112,18 @@ fn any_build_record_mutation_rejects_before_parsing() {
 fn cli_is_strict_and_separates_preflight_from_persistence() -> Result<(), String> {
     let preflight = parse_options(arguments("preflight"))?;
     assert_eq!(preflight.mode, Mode::Preflight);
-    assert!(preflight.bundle_out.is_none());
+    assert!(preflight.bundle_input.is_none());
+    assert!(preflight.bundle_output.is_none());
 
     let prove = parse_options(arguments("prove"))?;
     assert_eq!(prove.mode, Mode::Prove);
-    assert_eq!(prove.bundle_out, Some(PathBuf::from("bundle.json")));
+    assert_eq!(prove.bundle_output, Some(PathBuf::from("bundle.json")));
+    assert!(prove.bundle_input.is_none());
+
+    let verify = parse_options(arguments("verify-existing"))?;
+    assert_eq!(verify.mode, Mode::VerifyExisting);
+    assert_eq!(verify.bundle_input, Some(PathBuf::from("bundle.json")));
+    assert!(verify.bundle_output.is_none());
 
     let mut duplicate = arguments("prove");
     duplicate.extend(["--bundle-out".to_owned(), "second.json".to_owned()]);
@@ -120,6 +132,62 @@ fn cli_is_strict_and_separates_preflight_from_persistence() -> Result<(), String
     unknown.extend(["--profile".to_owned(), "candidate".to_owned()]);
     assert!(parse_options(unknown).is_err());
     assert!(parse_options(arguments("unknown")).is_err());
+    let mut wrong_bundle_direction = arguments("verify-existing");
+    wrong_bundle_direction[7] = "--bundle-out".to_owned();
+    assert!(parse_options(wrong_bundle_direction).is_err());
+    Ok(())
+}
+
+fn structurally_valid_bundle_bytes() -> Result<Vec<u8>, String> {
+    let receipts = repository_root().join("evidence/zrpf-v4-spot-value-leaf-v1/receipts");
+    let level_one = fs::read(receipts.join("spot-value-leaf-v4.receipt.json"))
+        .map_err(|error| format!("read positive receipt fixture: {error}"))?;
+    let level_two = fs::read(receipts.join("spot-value-leaf-v4.seal-word-1-xor-lsb.receipt.json"))
+        .map_err(|error| format!("read mutation receipt fixture: {error}"))?;
+    encode_receipt_bundle_fixture_for_test(&level_one, &level_two)
+}
+
+#[test]
+fn existing_bundle_decoder_is_exact_bounded_and_fail_closed() -> Result<(), String> {
+    let canonical = structurally_valid_bundle_bytes()?;
+    let decoded = decode_receipt_bundle(&canonical)?;
+    assert!(!decoded.level_one_receipt_bytes().is_empty());
+    assert!(!decoded.level_two_receipt_bytes().is_empty());
+    assert_ne!(
+        decoded.level_one_receipt_bytes(),
+        decoded.level_two_receipt_bytes()
+    );
+
+    let mut trailing = canonical.clone();
+    trailing.push(b'\n');
+    assert!(decode_receipt_bundle(&trailing).is_err());
+
+    let mut promoted: Value = serde_json::from_slice(&canonical)
+        .map_err(|error| format!("decode bundle fixture for mutation: {error}"))?;
+    promoted["claims"]["production_authority"] = Value::Bool(true);
+    assert!(decode_receipt_bundle(
+        &serde_json::to_vec(&promoted)
+            .map_err(|error| format!("encode promoted fixture: {error}"))?
+    )
+    .is_err());
+
+    let mut unknown: Value = serde_json::from_slice(&canonical)
+        .map_err(|error| format!("decode bundle fixture for unknown field: {error}"))?;
+    unknown["unexpected"] = Value::Bool(false);
+    assert!(decode_receipt_bundle(
+        &serde_json::to_vec(&unknown)
+            .map_err(|error| format!("encode unknown fixture: {error}"))?
+    )
+    .is_err());
+
+    let mut hash_drift: Value = serde_json::from_slice(&canonical)
+        .map_err(|error| format!("decode bundle fixture for hash drift: {error}"))?;
+    hash_drift["level_one_receipt_sha256"] = Value::String("00".repeat(32));
+    assert!(decode_receipt_bundle(
+        &serde_json::to_vec(&hash_drift)
+            .map_err(|error| format!("encode hash-drift fixture: {error}"))?
+    )
+    .is_err());
     Ok(())
 }
 
@@ -191,6 +259,8 @@ fn positive_bundle_claims_require_the_sealed_proof_pair_type() {
     assert!(!report_source.contains("level_one_receipt: &[u8]"));
     assert!(report_source.contains("persisted_bundle_sha256"));
     assert!(report_source.contains("bundle.sha256() != persisted.sha256()"));
+    assert!(report_source.contains("existing_bundle_stable_read_verified"));
+    assert!(report_source.contains("V5 receipt bundle claims mismatch"));
 }
 
 #[test]
@@ -219,4 +289,6 @@ fn source_contract_uses_retained_program_bytes_without_methods_feature() {
     assert!(source.contains("BONSAI_API_URL"));
     assert!(source.contains("BONSAI_API_KEY"));
     assert!(source.contains("VerifiedValueAggregateReceiptV5::verify_exact_succinct_bytes"));
+    assert!(source.contains("verify_existing_and_report"));
+    assert!(source.contains("verified V5 receipt bundle differs from canonical re-encoding"));
 }

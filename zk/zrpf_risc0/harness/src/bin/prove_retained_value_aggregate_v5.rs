@@ -38,7 +38,8 @@ mod cli;
 mod report;
 
 use artifact_io::{
-    canonical_receipt_bytes, persist_bundle, read_receipt_once, BoundProgram, PersistedBundle,
+    canonical_receipt_bytes, persist_bundle, read_bundle_once, read_receipt_once, BoundProgram,
+    PersistedBundle,
 };
 use cli::{Mode, Options};
 
@@ -102,6 +103,13 @@ fn run() -> Result<(), String> {
             level_one_program,
             level_two_program,
         ),
+        Mode::VerifyExisting => verify_existing_and_report(
+            options,
+            governed,
+            child,
+            level_one_program,
+            level_two_program,
+        ),
     }
 }
 
@@ -116,7 +124,7 @@ fn prove_persist_and_report(
     let bundle = report::encode_receipt_bundle(&proved)?;
     let persisted = persist_bundle(
         options
-            .bundle_out
+            .bundle_output
             .as_deref()
             .ok_or_else(|| "prove mode requires a bundle output".to_owned())?,
         bundle.bytes(),
@@ -126,6 +134,39 @@ fn prove_persist_and_report(
         &governed,
         Some(&bundle),
         Some(&persisted),
+    ))
+}
+
+fn verify_existing_and_report(
+    options: Options,
+    governed: GovernedPrograms,
+    child: AuthenticatedSpotValueLeafReceiptV4,
+    _level_one_program: BoundProgram,
+    _level_two_program: BoundProgram,
+) -> Result<(), String> {
+    let bundle_path = options
+        .bundle_input
+        .as_deref()
+        .ok_or_else(|| "verify-existing mode requires a bundle input".to_owned())?;
+    let existing_bytes = read_bundle_once(bundle_path)?;
+    let decoded = report::decode_receipt_bundle(&existing_bytes)?;
+    let level_one_material = level_one_material(&child, &governed.child)?;
+    let level_one = verify_level_one_bytes(decoded.level_one_receipt_bytes(), &level_one_material)?;
+    let level_two_material = level_two_material(&level_one)?;
+    let level_two = verify_level_two_bytes(decoded.level_two_receipt_bytes(), &level_two_material)?;
+    let verified = ProvedReceipts {
+        level_one,
+        level_two,
+    };
+    let canonical_bundle = report::encode_receipt_bundle(&verified)?;
+    if canonical_bundle.bytes() != existing_bytes {
+        return Err("verified V5 receipt bundle differs from canonical re-encoding".to_owned());
+    }
+    report::write_report(report_input(
+        options.mode,
+        &governed,
+        Some(&canonical_bundle),
+        None,
     ))
 }
 
@@ -220,8 +261,15 @@ fn prove_level_one(
         "V5 L1",
     )?;
     let bytes = canonical_receipt_bytes(&receipt)?;
+    verify_level_one_bytes(&bytes, material)
+}
+
+fn verify_level_one_bytes(
+    bytes: &[u8],
+    material: &LevelMaterial,
+) -> Result<VerifiedValueAggregateReceiptV5, String> {
     VerifiedValueAggregateReceiptV5::verify_exact_succinct_bytes(
-        &bytes,
+        bytes,
         PINNED_VALUE_AGGREGATE_L1_IMAGE_ID_V5,
         expected_level_one_identity()?,
         &material.expected_proposal,
@@ -241,8 +289,15 @@ fn prove_level_two(
         "V5 L2",
     )?;
     let bytes = canonical_receipt_bytes(&receipt)?;
+    verify_level_two_bytes(&bytes, material)
+}
+
+fn verify_level_two_bytes(
+    bytes: &[u8],
+    material: &LevelMaterial,
+) -> Result<VerifiedValueAggregateReceiptV5, String> {
     VerifiedValueAggregateReceiptV5::verify_exact_succinct_bytes(
-        &bytes,
+        bytes,
         PINNED_VALUE_AGGREGATE_L2_IMAGE_ID_V5,
         expected_level_two_identity()?,
         &material.expected_proposal,

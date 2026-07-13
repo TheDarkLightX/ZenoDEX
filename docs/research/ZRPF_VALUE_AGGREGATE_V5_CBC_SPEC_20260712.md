@@ -2,8 +2,9 @@
 
 Date: 2026-07-12
 
-Status: protocol and governed singleton V6 recursive guests implemented;
-checked retained full-chain evidence and settlement authority pending
+Status: protocol, governed singleton V6 recursive guests, and exact retained
+V5 aggregate program identities implemented; compatible retained receipt-chain
+evidence and settlement authority pending
 
 ## Purpose
 
@@ -20,10 +21,22 @@ The source-opened ordinary Spot V6 profile instantiates this proposal with a
 leaf guest, a level-one guest, and a level-two guest. Each successor pins the
 exact image of its predecessor, verifies every supplied child before decoding
 the child journal, and independently recomposes the expected proposal. The
-current proof harness exercises one child at each aggregate level. Local
-Succinct leaf, level-one, and level-two receipts have been generated; their
-checked retained evidence record remains pending. This status supplies no
-multi-leaf or maximum-topology claim.
+current proof harness exercises one child at each aggregate level. The exact
+governed level-one and level-two retained program binaries recompute to their
+recorded image IDs. No compatible governed V4 child program and receipt plus
+V5 level-one and level-two receipt bundle is currently retained. The older
+retained V4 receipt belongs to a different image and rejects under the governed
+V5 child image. Historical local-generation assertions therefore supply no
+current proof claim.
+
+The harness supports strict create-new receipt persistence and strict
+`verify-existing` replay. Existing bundles must be bounded regular files with
+exact canonical JSON, canonical receipt encodings, exact claims and nonclaims,
+and distinct level receipts. Replay then cryptographically verifies both
+receipts against independently recomposed level-one and level-two proposals.
+This capability becomes evidence only after the compatible receipt chain is
+generated, retained, and replayed. The present status supplies no multi-leaf or
+maximum-topology claim.
 
 ## Authority progression
 
