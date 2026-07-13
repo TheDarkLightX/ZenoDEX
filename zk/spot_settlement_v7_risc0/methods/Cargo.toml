@@ -1,0 +1,15 @@
+[package]
+name = "zenodex-zrpf-risc0-spot-settlement-v7-methods"
+version = "0.1.0"
+edition = "2021"
+description = "RISC0 method identity for source-opened Spot settlement V7"
+publish = false
+
+[build-dependencies]
+risc0-build = "=3.0.5"
+
+[lib]
+doctest = false
+
+[package.metadata.risc0]
+methods = ["guest"]
