@@ -81,6 +81,10 @@ path = "tests/task_manifest_compatibility_v1.rs"
 name = "task_manifest_assignment_policy_v1"
 path = "tests/task_manifest_assignment_policy_v1.rs"
 
+[[test]]
+name = "parallel_shard_epoch_v1"
+path = "tests/parallel_shard_epoch_v1.rs"
+
 [dependencies]
 postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 serde = { version = "1.0.219", default-features = false, features = ["alloc", "derive"] }
