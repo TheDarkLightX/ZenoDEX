@@ -105,6 +105,30 @@ jobs:
             RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
             "${pinned_bin}/cargo" fetch --locked \
               --manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/spot_settlement_v7_risc0/Cargo.toml
 
       - name: Run Python and evidence assurance
         run: |
@@ -118,6 +142,13 @@ jobs:
             src/integration/recursive_stark_admission_store_types.py \
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_capability.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_engine.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_history.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_records.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_schema.py \
+            src/integration/zrpf_spot_v7_atomic_settlement_store.py \
+            src/integration/zrpf_spot_v7_atomic_settlement_types.py \
             src/integration/zeno_ledger_authenticated_proof_verification_v1.py \
             src/integration/zeno_ledger_watcher.py \
             src/integration/zeno_sdk_browser_bundle_v0.py \
@@ -153,8 +184,14 @@ jobs:
             tools/zrpf_v3_firecracker_host_probe.py \
             tools/zrpf_v3_firecracker_artifact_set.py \
             tools/zrpf_v3_firecracker_candidate_plan.py \
+            tools/zrpf_v3_firecracker_cgroup_contract.py \
+            tools/zrpf_v3_firecracker_cgroup_io.py \
+            tools/zrpf_v3_firecracker_cgroup_v2.py \
+            tools/zrpf_v3_firecracker_jailer_launcher.py \
+            tools/zrpf_v3_firecracker_netns.py \
             tools/zrpf_v3_firecracker_output_protocol.py \
             tools/zrpf_v3_firecracker_runtime_manifest.py \
+            tools/zrpf_v3_firecracker_trusted_runtime.py \
             tools/zrpf_v3_replay_*.py \
             tools/zrpf_v3_source_closure.py \
             tests/test_check_zrpf_v3_firecracker_direct_replay_evidence.py \
@@ -181,6 +218,8 @@ jobs:
             tests/test_zrpf_v3_firecracker_host_probe.py \
             tests/test_zrpf_v3_firecracker_artifact_set.py \
             tests/test_zrpf_v3_firecracker_candidate_plan.py \
+            tests/test_zrpf_v3_firecracker_cgroup_v2.py \
+            tests/test_zrpf_v3_firecracker_jailer_launcher.py \
             tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_output_protocol.py \
             tests/test_zrpf_v3_firecracker_runtime_manifest.py \
@@ -192,6 +231,7 @@ jobs:
             tests/integration/test_recursive_stark_durable_admission_store.py \
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
+            tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py \
             tests/integration/test_zeno_ledger_risc0_proof_metadata.py \
@@ -209,6 +249,13 @@ jobs:
             src/integration/recursive_stark_admission_store_types.py \
             src/integration/recursive_stark_replay_manifest.py \
             src/integration/recursive_stark_verifier_adapter.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_capability.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_engine.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_history.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_records.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_schema.py \
+            src/integration/zrpf_spot_v7_atomic_settlement_store.py \
+            src/integration/zrpf_spot_v7_atomic_settlement_types.py \
             src/integration/zeno_ledger_authenticated_proof_verification_v1.py \
             src/integration/zeno_ledger_watcher.py \
             src/integration/zeno_sdk_browser_bundle_v0.py \
@@ -243,16 +290,25 @@ jobs:
             tools/zrpf_v3_firecracker_host_probe.py \
             tools/zrpf_v3_firecracker_artifact_set.py \
             tools/zrpf_v3_firecracker_candidate_plan.py \
+            tools/zrpf_v3_firecracker_cgroup_contract.py \
+            tools/zrpf_v3_firecracker_cgroup_io.py \
+            tools/zrpf_v3_firecracker_cgroup_v2.py \
+            tools/zrpf_v3_firecracker_jailer_launcher.py \
+            tools/zrpf_v3_firecracker_netns.py \
             tools/zrpf_v3_firecracker_output_protocol.py \
             tools/zrpf_v3_firecracker_runtime_manifest.py \
+            tools/zrpf_v3_firecracker_trusted_runtime.py \
             tools/zrpf_v3_replay_*.py \
             tools/zrpf_v3_source_closure.py \
+            tests/test_zrpf_v3_firecracker_cgroup_v2.py \
+            tests/test_zrpf_v3_firecracker_jailer_launcher.py \
             tests/test_zrpf_v3_source_closure.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
             tests/integration/test_recursive_stark_durable_admission_store.py \
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
+            tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py
           pytest -q \
@@ -283,6 +339,8 @@ jobs:
             tests/test_zrpf_v3_firecracker_host_probe.py \
             tests/test_zrpf_v3_firecracker_artifact_set.py \
             tests/test_zrpf_v3_firecracker_candidate_plan.py \
+            tests/test_zrpf_v3_firecracker_cgroup_v2.py \
+            tests/test_zrpf_v3_firecracker_jailer_launcher.py \
             tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_output_protocol.py \
             tests/test_zrpf_v3_firecracker_runtime_manifest.py \
@@ -297,6 +355,7 @@ jobs:
             tests/integration/test_recursive_stark_durable_admission_store.py \
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
+            tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py \
             tests/integration/test_zeno_ledger_risc0_proof_metadata.py \
@@ -306,8 +365,10 @@ jobs:
             tests/test_zeno_sdk_browser_bundle.py
           python3 tools/check_zrpf_v1_leaf_adapter_source_policy.py
           python3 tools/check_zrpf_current_source_adapter_v2.py
-          python3 tools/check_risc0_recursive_live_replay_evidence.py --json
-          python3 tools/check_risc0_recursive_active_reproof_v3.py
+          python3 tools/check_risc0_recursive_live_replay_evidence.py \
+            --json --historical-recorded-source
+          python3 tools/check_risc0_recursive_active_reproof_v3.py \
+            --historical-recorded-source
           python3 tools/check_recursive_stark_cbc_spec.py
           python3 tools/check_zrpf_semantic_epoch_v1_local_evidence.py
           python3 tools/check_zrpf_v4_spot_value_leaf_local_evidence.py
@@ -339,6 +400,62 @@ jobs:
           "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/zrpf_protocol/Cargo.toml \
             --locked --all-targets -- -D warnings
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml \
+            --locked --offline --all-targets
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml \
+            --locked --offline --doc
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml \
+            --locked --offline --all-targets -- -D warnings
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml \
+            --locked --offline --all-targets
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml \
+            --locked --offline --doc
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml \
+            --locked --offline --all-targets -- -D warnings
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml \
+            --locked --offline --all-targets
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml \
+            --locked --offline --doc
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml \
+            --locked --offline --all-targets -- -D warnings
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/spot_settlement_v7_risc0/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/spot_settlement_v7_risc0/Cargo.toml \
+            --locked --offline \
+            -p zenodex-zrpf-risc0-spot-settlement-v7-child-policy \
+            -p zenodex-zrpf-risc0-spot-settlement-v7-shared \
+            -p zenodex-zrpf-risc0-spot-settlement-v7-verifier \
+            -p zenodex-zrpf-risc0-spot-settlement-v7-harness
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/spot_settlement_v7_risc0/Cargo.toml \
+            --locked --offline --workspace \
+            --exclude zenodex-zrpf-risc0-spot-settlement-v7-guest \
+            --all-targets -- -D warnings
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/spot_settlement_v7_risc0/Cargo.toml \
+            --locked --offline \
+            -p zenodex-zrpf-risc0-spot-settlement-v7-guest \
+            --bin zenodex-zrpf-risc0-spot-settlement-v7-guest -- -D warnings
           "${pinned_bin}/cargo" fmt --manifest-path zk/zrpf_risc0/Cargo.toml \
             --all -- --check
           "${pinned_bin}/cargo" test --manifest-path zk/zrpf_risc0/Cargo.toml \
@@ -517,6 +634,10 @@ jobs:
             --manifest-path zk/zrpf_risc0/Cargo.toml \
             --frozen --offline --release \
             -p zenodex-zrpf-risc0-methods
+          "${pinned_bin}/cargo" build \
+            --manifest-path zk/spot_settlement_v7_risc0/Cargo.toml \
+            --frozen --offline --release \
+            -p zenodex-zrpf-risc0-spot-settlement-v7-methods
 
       - name: Check every ZRPF guest on the zkVM target
         shell: bash
@@ -549,6 +670,12 @@ jobs:
             -p zenodex-zrpf-risc0-value-aggregate-l1 \
             -p zenodex-zrpf-risc0-value-aggregate-l2 \
             -p zenodex-zrpf-risc0-ordinary-spot-settlement
+          "${pinned_bin}/cargo" check \
+            --manifest-path zk/spot_settlement_v7_risc0/Cargo.toml \
+            --locked --offline \
+            --target riscv32im-risc0-zkvm-elf \
+            --target-dir "${RUNNER_TEMP}/zrpf-guest-check" \
+            -p zenodex-zrpf-risc0-spot-settlement-v7-guest
 
       - name: Build pinned replay container
         run: |

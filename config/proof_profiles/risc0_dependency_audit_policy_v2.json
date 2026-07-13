@@ -105,6 +105,32 @@
       "scope": "experimental_risc0_dependency_audit_only",
       "version": "0.2.25",
       "workspace_id": "zrpf_risc0"
+    },
+    {
+      "advisory_id": "RUSTSEC-2023-0071",
+      "category": "vulnerability",
+      "dependency_path": "risc0-zkvm 3.0.5 -> rzup 0.5.1 -> rsa 0.9.10",
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "rsa",
+      "production_authority": false,
+      "reachability": "The crate is transitively reachable through RISC0 toolchain acquisition. The V7 settlement verifier performs no RSA private-key operation and receives no private key material.",
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "0.9.10",
+      "workspace_id": "spot_settlement_v7_risc0"
+    },
+    {
+      "advisory_id": "RUSTSEC-2025-0055",
+      "category": "vulnerability",
+      "dependency_path": "risc0-zkvm 3.0.5 -> risc0-groth16 3.0.4 -> ark-groth16 0.5.0 -> ark-relations 0.5.1 -> tracing-subscriber 0.2.25",
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "tracing-subscriber",
+      "production_authority": false,
+      "reachability": "The crate is transitively present in the proof stack. The V7 settlement verifier emits bounded canonical output and does not route raw untrusted input through this subscriber.",
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "0.2.25",
+      "workspace_id": "spot_settlement_v7_risc0"
     }
   ],
   "nonclaims": [
@@ -114,7 +140,7 @@
     "does_not_replace_source_to_binary_provenance",
     "does_not_establish_dependency_non_reachability"
   ],
-  "policy_id": "zenodex-risc0-five-workspace-active-reproof-audit-20260712",
+  "policy_id": "zenodex-risc0-nine-workspace-v7-audit-20260713",
   "production_authority": false,
   "schema": "zenodex/risc0-dependency-audit-policy/v2",
   "warning_policy": {
@@ -151,6 +177,26 @@
       "id": "zrpf_protocol",
       "lockfile": "zk/zrpf_protocol/Cargo.lock",
       "path": "zk/zrpf_protocol"
+    },
+    {
+      "id": "spot_state_root_v5_bridge_shared",
+      "lockfile": "zk/spot_state_root_v5_bridge_shared/Cargo.lock",
+      "path": "zk/spot_state_root_v5_bridge_shared"
+    },
+    {
+      "id": "spot_state_root_v7_semantic_shared",
+      "lockfile": "zk/spot_state_root_v7_semantic_shared/Cargo.lock",
+      "path": "zk/spot_state_root_v7_semantic_shared"
+    },
+    {
+      "id": "spot_settlement_v7_effect_binding_shared",
+      "lockfile": "zk/spot_settlement_v7_effect_binding_shared/Cargo.lock",
+      "path": "zk/spot_settlement_v7_effect_binding_shared"
+    },
+    {
+      "id": "spot_settlement_v7_risc0",
+      "lockfile": "zk/spot_settlement_v7_risc0/Cargo.lock",
+      "path": "zk/spot_settlement_v7_risc0"
     }
   ]
 }

@@ -1,13 +1,19 @@
 # Recursive STARK Active Reproof V3 Specification
 
-Date: 2026-07-12
-Status: implemented; RS-CBC-014 closed for the scoped same-host profile
+Date: 2026-07-12; historical-status correction 2026-07-13
+Status: retained historical evidence; current RS-CBC-014 pending after guest-source drift
 
 ## Purpose
 
-This profile restores bounded current-image V1 and recursive-v2 computational
-integrity evidence after the active lockfiles moved to `anyhow 1.0.103` and
-later V1 recursive source hardening changed the guest programs.
+This profile records bounded V1 and recursive-v2 computational-integrity
+evidence for its exact evidence-era source closure. It originally restored a
+current-image claim after the active lockfiles moved to `anyhow 1.0.103`.
+
+Subsequent guest-linked changes added Spot domain ceilings, canonical pool-ID
+validation, and a new authority module. The retained receipts therefore remain
+evidence only for commit
+`793a98f73a52ac3722d4c453495fed16a1a14c41` and its recorded image IDs. They do
+not establish a current-image claim for the live checkout.
 
 The profile is additive. It must not modify or reinterpret either historical
 trust root:
@@ -15,10 +21,12 @@ trust root:
 - `config/proof_profiles/risc0_recursive_rebuild_reference.json`;
 - `config/proof_profiles/risc0_recursive_v2_rebuild_reference.json`.
 
-The eventual active trust root is
+The retained historical trust root is
 `config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json`.
-That file must not exist as an accepted reference until every positive receipt
-and negative control in this specification has been generated and replayed.
+Its historical checker reconstructs the recorded source closure from immutable
+Git objects and checks every retained positive receipt and negative control.
+The live-source checker must reject while the checkout differs from that
+closure.
 
 ## Construction Boundary
 
@@ -44,7 +52,7 @@ The active workspace has its own lockfile. The repository dependency-audit
 registry must include that lockfile and must reject any `anyhow` version other
 than `1.0.103`.
 
-## Locally Rebuilt Candidate Identities
+## Evidence-Era Locally Rebuilt Identities
 
 The worktree based on merged revision
 `7b495df837e1a877d8c49da0f06ebce85661e39e`, plus the exact source
@@ -62,18 +70,20 @@ that did not yet exist in that base revision.
 | V1 zUSD leaf | `17d5dd12874cf18efc00869350bbc9c9b43c996629f52957e96e1a8c63e1cdef` |
 | recursive-v2 aggregate | `0a678da608708af7bd6c35bf825ffe8815efd67f0a8041466929fb2fcda7ae68` |
 
-These are build observations. They gain scoped evidence authority only through
-the active reference and replay checker defined below.
+These are evidence-era build observations. They retain scoped historical
+evidence authority only through the recorded reference and historical replay
+checker defined below. They do not identify the live checkout.
 
 ## Required Positive Evidence
 
-The accepted evidence set must contain freshly generated Succinct receipts for:
+The retained evidence set contains Succinct receipts that were freshly generated
+from its evidence-era source closure for:
 
-1. one current V1 Spot leaf;
-2. one current V1 zUSD leaf;
-3. one current V1 aggregate root over the two leaves;
-4. one current recursive-v2 closed subtree over the same two leaves;
-5. one current recursive-v2 epoch root over that subtree.
+1. one evidence-era V1 Spot leaf;
+2. one evidence-era V1 zUSD leaf;
+3. one evidence-era V1 aggregate root over the two leaves;
+4. one evidence-era recursive-v2 closed subtree over the same two leaves;
+5. one evidence-era recursive-v2 epoch root over that subtree.
 
 Each receipt must be verified under its independently recomputed image ID. The
 checker must independently recompose and require exact authenticated journal
@@ -106,9 +116,9 @@ A handled verifier rejection may exit zero only when its canonical typed output
 unambiguously reports rejection. Process exit status alone never authorizes a
 proof.
 
-## Active Reference Contract
+## Historical Reference Contract
 
-The active V3 reference must bind:
+The retained V3 reference binds:
 
 - the verified Git base revision and its ancestry relationship to the checkout;
 - exact source inventory for V1, V2, and the active harness;
@@ -138,9 +148,14 @@ This verifier replay does not establish cross-host guest-image reproduction.
 The static checker does not claim to reauthenticate absent historical binaries
 or the recorded toolchain executables.
 
-## Promotion Rule
+## Historical Validation And Future Promotion Rule
 
-RS-CBC-014 may advance from `pending` only when:
+The retained V3 record is historically valid only when its evidence-era Git
+closure, evidence inventory, receipt identities, and negative controls all
+match. This historical result does not advance current `RS-CBC-014`.
+
+Current `RS-CBC-014` may advance from `pending` only when a new additive
+reference proves all of the following against the then-current guest source:
 
 ```text
 fresh_v1_leaf_receipts_verified
@@ -153,8 +168,8 @@ fresh_v1_leaf_receipts_verified
 && active_reference_checker_accepts
 ```
 
-The scoped promoted claim is limited to same-host, bounded, current-image
-computational integrity for the recorded two-leaf proof tree.
+Any future scoped claim remains limited to same-host, bounded, current-image
+computational integrity for its newly recorded proof tree.
 
 ## Required Nonclaims
 

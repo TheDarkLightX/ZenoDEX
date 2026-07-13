@@ -13,18 +13,20 @@ recursive-v2 workspace implements an experimental fixed-height
 leaf-to-subtree-to-epoch-root composition. This policy does not claim
 arbitrary-depth recursion or production-ready recursive aggregation.
 
-Status update, 2026-07-12: the active V1 and recursive-v2 lockfiles now pin
-`anyhow 1.0.103`. Fresh current-source evidence now binds a Spot leaf, zUSD
-leaf, two-child V1 root, two-leaf recursive-v2 inner node, and recursive-v2
-epoch root. The active V1 aggregate image ID is
+Status correction, 2026-07-13: the V3 evidence remains valid for its exact
+evidence-era source closure at
+`793a98f73a52ac3722d4c453495fed16a1a14c41`. Later guest-linked Spot source
+changes invalidate its current-image status. Current `RS-CBC-014` is pending
+until fresh image identities, receipts, and mutation controls exist. The
+recorded V1 aggregate image ID is
 `c4bde351d48e8e775c2e831fc37fb98a9e45ed59455afe761572d2e11ceed6c4`;
-the active V2 aggregate image ID is
+the recorded V2 aggregate image ID is
 `0a678da608708af7bd6c35bf825ffe8815efd67f0a8041466929fb2fcda7ae68`.
-The active V3 reference and checker bind the exact source inventories, guest
+The historical V3 reference and checker bind the exact source inventories, guest
 programs, host verifiers, toolchain observations, five positive receipts, and
-nine negative controls. This closes `RS-CBC-014` only for the recorded
-same-host bounded computational-integrity profile. The active audit policy
-permits no unsound-warning disposition.
+nine negative controls for that recorded source. The current audit policy
+permits no unsound-warning disposition. The exact nonclaim is
+`no_current_v1_or_v2_image_receipt_evidence_after_recorded_guest_source_closure_drift`.
 
 Status update, 2026-07-10: fanout-oriented composition repairs changed
 guest-linked v1 and v2 source. At that revision, RISC0 3.0.5 v1 leaf/root receipts
@@ -125,9 +127,10 @@ remains a pending critical promotion obligation.
 The host CLI changes invalidated the prior V1 current-source verifier replay
 claim because the retained V1 verifier source closure includes the CLI. The
 subsequent `anyhow 1.0.103` migration changed both active V1 and V2 build
-closures and image identities. The active V3 reproof reference restores only a
-same-host current-image computational-integrity claim. Historical receipts
-remain bounded regression evidence. Public replay, cross-host reproducibility,
+closures and image identities. V3 restored a bounded claim for its recorded
+source closure. Later guest-linked Spot hardening made that reference
+historical. Its Git-object checker preserves bounded regression evidence while
+the live-source checker rejects. Public replay, cross-host reproducibility,
 release authority, settlement authority, privacy, and production readiness
 remain false.
 

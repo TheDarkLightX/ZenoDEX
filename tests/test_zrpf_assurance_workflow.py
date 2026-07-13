@@ -100,6 +100,17 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     guest_assurance = steps["Check every ZRPF guest on the zkVM target"]["run"]
     cargo_acquisition = steps["Acquire lockfile-bound Cargo sources"]["run"]
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in cargo_acquisition
+    assert (
+        "--manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml"
+        in cargo_acquisition
+    )
+    assert "--manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml" in (
+        cargo_acquisition
+    )
+    assert "--manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml" in (
+        cargo_acquisition
+    )
+    assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in cargo_acquisition
     assert "tools/check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tools/check_zrpf_current_source_adapter_v2.py" in python_assurance
@@ -113,9 +124,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tools/risc0_recursive_live_replay_support.py" in python_assurance
     assert "tests/test_check_risc0_recursive_live_replay.py" in python_assurance
     assert "tests/test_check_risc0_recursive_live_replay_evidence.py" in python_assurance
-    assert "python3 tools/check_risc0_recursive_live_replay_evidence.py --json" in (
-        python_assurance
-    )
+    assert (
+        "python3 tools/check_risc0_recursive_live_replay_evidence.py \\\n"
+        "  --json --historical-recorded-source"
+    ) in python_assurance
     assert (
         "--artifact docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json"
         in python_assurance
@@ -152,6 +164,13 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/recursive_stark_admission_store_types.py",
         "src/integration/recursive_stark_replay_manifest.py",
         "src/integration/recursive_stark_verifier_adapter.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_capability.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_engine.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_history.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_records.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_schema.py",
+        "src/integration/zrpf_spot_v7_atomic_settlement_store.py",
+        "src/integration/zrpf_spot_v7_atomic_settlement_types.py",
         "src/integration/zeno_ledger_authenticated_proof_verification_v1.py",
         "src/integration/zeno_ledger_watcher.py",
         "src/integration/zeno_sdk_browser_bundle_v0.py",
@@ -171,6 +190,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_recursive_stark_durable_admission_store.py",
         "tests/integration/test_recursive_stark_replay_manifest.py",
         "tests/integration/test_recursive_stark_verifier_adapter.py",
+        "tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py",
         "tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py",
         "tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py",
     ):
@@ -208,7 +228,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         assert required_path in mypy_assurance
     assert "tests/test_check_risc0_recursive_active_reproof_v3.py" in ruff_assurance
     assert "tests/test_check_risc0_recursive_active_reproof_v3.py" in pytest_assurance
-    assert "python3 tools/check_risc0_recursive_active_reproof_v3.py" in python_assurance
+    assert (
+        "python3 tools/check_risc0_recursive_active_reproof_v3.py \\\n"
+        "  --historical-recorded-source"
+    ) in python_assurance
     assert "zrpf-v3-firecracker-elf-source-v2-20260712" in raw
     assert "25032924eb4fca7f156a9ec4eedd39afeade9623" in raw
     assert "tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (python_assurance)
@@ -227,6 +250,23 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tests/test_check_zrpf_v3_firecracker_runtime_artifacts.py" in python_assurance
     assert "tests/test_check_zrpf_v3_firecracker_launch_preflight.py" in python_assurance
     assert "tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py" in python_assurance
+    for required_path in (
+        "tools/zrpf_v3_firecracker_cgroup_contract.py",
+        "tools/zrpf_v3_firecracker_cgroup_io.py",
+        "tools/zrpf_v3_firecracker_cgroup_v2.py",
+        "tools/zrpf_v3_firecracker_jailer_launcher.py",
+        "tools/zrpf_v3_firecracker_netns.py",
+        "tools/zrpf_v3_firecracker_trusted_runtime.py",
+    ):
+        assert required_path in ruff_assurance
+        assert required_path in mypy_assurance
+    for required_path in (
+        "tests/test_zrpf_v3_firecracker_cgroup_v2.py",
+        "tests/test_zrpf_v3_firecracker_jailer_launcher.py",
+    ):
+        assert required_path in ruff_assurance
+        assert required_path in mypy_assurance
+        assert required_path in pytest_assurance
     assert "python3 -I tools/check_zrpf_v3_firecracker_replay_profile.py" in (python_assurance)
     assert "python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py" in (python_assurance)
     assert "python3 -I tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (
@@ -242,6 +282,37 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--manifest-path zk/recursive_stark_v2_risc0/Cargo.toml" in rust_assurance
     assert "--manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml" in rust_assurance
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in rust_assurance
+    assert (
+        "--manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml"
+        in rust_assurance
+    )
+    assert rust_assurance.count(
+        "--manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml"
+    ) == 4
+    assert rust_assurance.count(
+        "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml"
+    ) == 4
+    for package in (
+        "zenodex-zrpf-risc0-spot-settlement-v7-child-policy",
+        "zenodex-zrpf-risc0-spot-settlement-v7-shared",
+        "zenodex-zrpf-risc0-spot-settlement-v7-verifier",
+        "zenodex-zrpf-risc0-spot-settlement-v7-harness",
+    ):
+        assert package in rust_assurance
+    assert (
+        "--exclude zenodex-zrpf-risc0-spot-settlement-v7-guest"
+        in rust_assurance
+    )
+    assert (
+        "--bin zenodex-zrpf-risc0-spot-settlement-v7-guest"
+        in rust_assurance
+    )
+    assert rust_assurance.count(
+        "--manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml"
+    ) == 4
+    assert rust_assurance.count(
+        "--manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml"
+    ) == 4
     assert rust_assurance.count("--manifest-path zk/state_proof_risc0/Cargo.toml") == 3
     assert rust_assurance.count("-p tau-state-proof-risc0-cli --all-targets") == 2
     assert rust_assurance.count("--locked --offline -p tau-state-proof-risc0-cli") == 2
@@ -254,7 +325,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert rust_assurance.count("-p zenodex-zrpf-risc0-methods") == 2
     assert "--locked --all-targets" in rust_assurance
     assert rust_assurance.count("--no-default-features --test semantic_v2") == 2
-    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 6
+    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 11
     assert '"${pinned_bin}/cargo" clippy' not in rust_assurance
     host_packages, guest_packages = _zrpf_workspace_packages()
     host_package_args = _cargo_package_args(rust_assurance)
@@ -276,6 +347,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert '--target-dir "${RUNNER_TEMP}/zrpf-guest-check"' in guest_assurance
     assert "zenodex-zrpf-risc0-semantic-epoch" in guest_packages
     assert "zenodex-zrpf-risc0-v2-leaf-adapter" in guest_packages
+    assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in (
+        guest_assurance
+    )
+    assert "-p zenodex-zrpf-risc0-spot-settlement-v7-guest" in guest_assurance
     assert "export RISC0_SKIP_BUILD=1" in active_replay
     assert "unset RISC0_SKIP_BUILD" not in active_replay
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" not in active_replay
@@ -303,6 +378,13 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert 'CARGO_TARGET_DIR="${RUNNER_TEMP}/zrpf-current-guest-build"' in current_guest_build
     assert "--frozen --offline --release" in current_guest_build
     assert "-p zenodex-zrpf-risc0-methods" in current_guest_build
+    assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in (
+        current_guest_build
+    )
+    assert (
+        "-p zenodex-zrpf-risc0-spot-settlement-v7-methods"
+        in current_guest_build
+    )
     assert "ZENODEX_RUN_NATIVE_ZRPF_REPLAY" not in raw
     assert steps["Checkout full source history"]["uses"] == (
         "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10"
