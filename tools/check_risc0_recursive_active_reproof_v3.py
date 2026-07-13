@@ -18,6 +18,9 @@ EVIDENCE = ROOT / "evidence/risc0-recursive-active-reproof-v3"
 SCHEMA = "zenodex/risc0_recursive_active_reproof_reference/v3"
 BASE_REVISION = "7b495df837e1a877d8c49da0f06ebce85661e39e"
 INVENTORY_DOMAIN = b"zenodex.risc0.active_reproof.inventory.v3"
+V1_CHILD_JOURNAL_HASH_DOMAIN = b"zenodex.risc0.recursive.child_journal_hash.v1"
+V2_IMMEDIATE_CLAIMS_ROOT_DOMAIN = b"zenodex.risc0.recursive.immediate_child_claims_root.v2"
+V2_IMMEDIATE_JOURNALS_ROOT_DOMAIN = b"zenodex.risc0.recursive.immediate_child_journals_root.v2"
 MAX_JSON_BYTES = 16 * 1024 * 1024
 
 PROMOTION_SOURCE_PATHS = (
@@ -352,6 +355,28 @@ def _v1_claim_hash(image_id_words: Any, journal: bytes) -> str:
     return digest.hexdigest()
 
 
+def _v1_journal_hash(journal: bytes) -> str:
+    _require(bool(journal), "V1 journal bytes empty")
+    digest = hashlib.sha256(V1_CHILD_JOURNAL_HASH_DOMAIN)
+    digest.update(len(journal).to_bytes(4, "big"))
+    digest.update(journal)
+    return digest.hexdigest()
+
+
+def _root_list_hash(domain: bytes, values: list[str]) -> str:
+    digest = hashlib.sha256(domain)
+    digest.update(len(values).to_bytes(4, "big"))
+    for value in values:
+        _require(type(value) is str and len(value) == 64, "root-list value invalid")
+        try:
+            raw = bytes.fromhex(value)
+        except ValueError as error:
+            raise CheckError("root-list value invalid") from error
+        _require(len(raw) == 32, "root-list value invalid")
+        digest.update(raw)
+    return digest.hexdigest()
+
+
 def _v1_claims_root(claims: list[str]) -> str:
     digest = hashlib.sha256(b"zenodex.risc0.recursive.child_verification_claims_root.v1")
     digest.update(len(claims).to_bytes(4, "big"))
@@ -529,6 +554,7 @@ def _check_evidence(reference: dict[str, Any], *, repo_root: Path) -> None:
     leaf_artifacts = (spot, zusd)
     leaf_programs = (PROGRAMS[1], PROGRAMS[2])
     computed_claims = []
+    computed_journals = []
     receipt_sha256s = []
     for child, artifact, program in zip(children, leaf_artifacts, leaf_programs, strict=True):
         journal = _authenticated_journal_bytes(artifact)
@@ -541,6 +567,7 @@ def _check_evidence(reference: dict[str, Any], *, repo_root: Path) -> None:
             "V1 child verification claim mismatch",
         )
         computed_claims.append(claim)
+        computed_journals.append(_v1_journal_hash(journal))
         receipt_sha256s.append(hashlib.sha256(_receipt_bytes(artifact)).hexdigest())
 
     v1_verify = load_json(evidence / "reports/v1-root.verify.json")
@@ -615,6 +642,24 @@ def _check_evidence(reference: dict[str, Any], *, repo_root: Path) -> None:
             == (profile, level, immediate, flat),
             "V2 topology mismatch",
         )
+
+    inner_journal = inner["journal"]
+    _require(
+        _hex32(
+            inner_journal["immediate_child_claims_root"],
+            "V2 inner immediate claim root invalid",
+        )
+        == _root_list_hash(V2_IMMEDIATE_CLAIMS_ROOT_DOMAIN, computed_claims),
+        "V2 inner does not bind retained V1 leaf claims",
+    )
+    _require(
+        _hex32(
+            inner_journal["immediate_child_journals_root"],
+            "V2 inner immediate journal root invalid",
+        )
+        == _root_list_hash(V2_IMMEDIATE_JOURNALS_ROOT_DOMAIN, computed_journals),
+        "V2 inner does not bind retained V1 leaf journals",
+    )
 
     pair = load_json(evidence / "reports/v2-pair.verify.json")
     _require_exact_typed(

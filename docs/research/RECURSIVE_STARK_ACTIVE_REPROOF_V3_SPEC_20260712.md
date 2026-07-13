@@ -82,6 +82,11 @@ canonical artifact bytes, and bounded artifact size are mandatory fields.
 
 The V1 and V2 roots must bind the same ordered authenticated leaf statements.
 They may use different proof topology and journal schemas.
+The checker must derive each V1 child verification-claim hash and child-journal
+hash from the retained receipt's authenticated journal bytes, recompose the V2
+immediate claim and journal roots, and require exact equality with the
+authenticated V2 inner journal. Dry-run receipt-hash fields are supporting
+records and cannot establish this leaf-set binding.
 
 ## Required Negative Evidence
 

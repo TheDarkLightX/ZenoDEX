@@ -115,6 +115,29 @@ def test_active_reproof_binds_v2_inputs_to_exact_v1_receipts(monkeypatch) -> Non
         checker.validate(reference())
 
 
+@pytest.mark.parametrize(
+    ("field", "message"),
+    [
+        ("immediate_child_claims_root", "bind retained V1 leaf claims"),
+        ("immediate_child_journals_root", "bind retained V1 leaf journals"),
+    ],
+)
+def test_active_reproof_recomputes_v2_inner_leaf_roots(
+    monkeypatch, field: str, message: str
+) -> None:
+    original = checker.load_json
+
+    def altered(path: Path):
+        value = original(path)
+        if path.name == "v2-inner.proof.json":
+            value["journal"][field][0] ^= 1
+        return value
+
+    monkeypatch.setattr(checker, "load_json", altered)
+    with pytest.raises(checker.CheckError, match=message):
+        checker.validate(reference())
+
+
 def test_active_reproof_recomputes_v1_child_claims(monkeypatch) -> None:
     original = checker.load_json
 
