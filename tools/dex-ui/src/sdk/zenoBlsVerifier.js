@@ -258,7 +258,8 @@ async function validateSignerRegistryV0(registry) {
   }
 
   const entries = [];
-  const seen = new Set();
+  const seenIdentities = new Set();
+  const seenPublicKeys = new Set();
   let activeWeight = 0;
   for (let i = 0; i < registry.signers.length; i += 1) {
     const signer = registry.signers[i];
@@ -284,10 +285,14 @@ async function validateSignerRegistryV0(registry) {
       status,
     };
     const identity = `${entryBody.signer_id}\u0001${entryBody.key_id}`;
-    if (seen.has(identity)) {
+    if (seenIdentities.has(identity)) {
       throw new Error('duplicate signer_id/key_id');
     }
-    seen.add(identity);
+    if (seenPublicKeys.has(entryBody.public_key)) {
+      throw new Error('duplicate signer public_key');
+    }
+    seenIdentities.add(identity);
+    seenPublicKeys.add(entryBody.public_key);
     if (status === 'active') {
       activeWeight += entryBody.weight;
       if (!Number.isSafeInteger(activeWeight)) {
@@ -344,7 +349,7 @@ async function validateSignerRegistryV0(registry) {
  *  - Each envelope's algorithm must match the registry's expected algorithm.
  *  - Each envelope's public_key must match the registry entry's public_key.
  *  - Each envelope's signature must verify cryptographically.
- *  - Duplicate (signer_id, key_id) envelopes are rejected.
+ *  - Duplicate signer identities or BLS public keys are rejected.
  *  - Sum of accepted weights must be ≥ registry.threshold.
  *
  * Returns `{ ok: true, acceptedWeight, threshold, acceptedSigners: [...] }`
@@ -388,6 +393,7 @@ export async function verifyBlsQuorumV0(bundle, { expectedPayloadHash } = {}) {
   }
 
   const seenIdentities = new Set();
+  const seenPublicKeys = new Set();
   const accepted = [];
   let acceptedWeight = 0;
   const payloadKind = 'checkpoint';
@@ -415,6 +421,9 @@ export async function verifyBlsQuorumV0(bundle, { expectedPayloadHash } = {}) {
     if (envelope.algorithm !== signer.algorithm) {
       return { ok: false, error: `envelope[${i}] algorithm does not match registry`, accepted };
     }
+    if (seenPublicKeys.has(signer.public_key)) {
+      return { ok: false, error: 'duplicate envelope signer public_key', accepted };
+    }
     const verification = await verifyBlsEnvelopeV0(envelope, {
       expectedPayloadKind: payloadKind,
       expectedPayloadHash: payloadHash,
@@ -422,6 +431,7 @@ export async function verifyBlsQuorumV0(bundle, { expectedPayloadHash } = {}) {
     if (!verification.ok) {
       return { ok: false, error: `envelope[${i}] ${verification.error}`, accepted };
     }
+    seenPublicKeys.add(signer.public_key);
     const weight = requirePositiveSafeInt(signer.weight, `signers[${i}].weight`);
     acceptedWeight += weight;
     if (!Number.isSafeInteger(acceptedWeight)) {

@@ -1,0 +1,73 @@
+{
+  "schema": "zenodex/test/zeno_bls_public_key_dedupe_vectors/v0",
+  "cases": [
+    {
+      "name": "duplicate-active-public-key",
+      "registry_id": "dedupe-active-v0",
+      "threshold": 2,
+      "signers": [
+        {
+          "signer_id": "alice",
+          "key_id": "alice-release-v0",
+          "public_key": "0x97248533cef0908a5ebe52c3b487471301bf6369010e6167f63dd74feddac2dfb5336a59a331d38eb0e454d6f6fcb1a4",
+          "weight": 1,
+          "status": "active"
+        },
+        {
+          "signer_id": "mallory-alias",
+          "key_id": "mallory-release-v0",
+          "public_key": "0x97248533cef0908a5ebe52c3b487471301bf6369010e6167f63dd74feddac2dfb5336a59a331d38eb0e454d6f6fcb1a4",
+          "weight": 1,
+          "status": "active"
+        }
+      ],
+      "expected_registry_status": "rejected",
+      "expected_error": "duplicate signer public_key"
+    },
+    {
+      "name": "duplicate-active-revoked-public-key",
+      "registry_id": "dedupe-active-revoked-v0",
+      "threshold": 1,
+      "signers": [
+        {
+          "signer_id": "alice",
+          "key_id": "alice-release-v0",
+          "public_key": "0x97248533cef0908a5ebe52c3b487471301bf6369010e6167f63dd74feddac2dfb5336a59a331d38eb0e454d6f6fcb1a4",
+          "weight": 1,
+          "status": "active"
+        },
+        {
+          "signer_id": "retired-alias",
+          "key_id": "retired-release-v0",
+          "public_key": "0x97248533cef0908a5ebe52c3b487471301bf6369010e6167f63dd74feddac2dfb5336a59a331d38eb0e454d6f6fcb1a4",
+          "weight": 1,
+          "status": "revoked"
+        }
+      ],
+      "expected_registry_status": "rejected",
+      "expected_error": "duplicate signer public_key"
+    },
+    {
+      "name": "distinct-active-public-keys",
+      "registry_id": "dedupe-distinct-v0",
+      "threshold": 2,
+      "signers": [
+        {
+          "signer_id": "alice",
+          "key_id": "alice-release-v0",
+          "public_key": "0x97248533cef0908a5ebe52c3b487471301bf6369010e6167f63dd74feddac2dfb5336a59a331d38eb0e454d6f6fcb1a4",
+          "weight": 1,
+          "status": "active"
+        },
+        {
+          "signer_id": "bob",
+          "key_id": "bob-release-v0",
+          "public_key": "0x8b5602ce59fb113eec6a6d917909b45e10560e69a4caa384d9006ab4fa1616c4883f89b4c731fcc932fac1b3b8bf82d6",
+          "weight": 1,
+          "status": "active"
+        }
+      ],
+      "expected_registry_status": "accepted"
+    }
+  ]
+}

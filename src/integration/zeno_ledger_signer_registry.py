@@ -12,7 +12,6 @@ from src.integration.zeno_ledger_signature import (
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
-
 SIGNER_REGISTRY_SCHEMA_V0 = "zenodex/zeno_ledger/signer_registry/v0"
 SIGNATURE_QUORUM_REPORT_SCHEMA_V0 = "zenodex/zeno_ledger/signature_quorum_report/v0"
 
@@ -83,7 +82,8 @@ def build_signer_registry_v0(
         raise ValueError("signer registry requires at least one signer")
 
     entries: list[dict[str, Any]] = []
-    seen_keys: set[tuple[str, str]] = set()
+    seen_identities: set[tuple[str, str]] = set()
+    seen_public_keys: set[str] = set()
     active_weight = 0
     for index, raw in enumerate(signers):
         obj = _require_mapping(raw, name=f"signers[{index}]")
@@ -95,9 +95,13 @@ def build_signer_registry_v0(
             status=_require_str(obj.get("status", "active"), name=f"signers[{index}].status"),
         )
         identity = (entry["signer_id"], entry["key_id"])
-        if identity in seen_keys:
+        if identity in seen_identities:
             raise ValueError("duplicate signer_id/key_id")
-        seen_keys.add(identity)
+        public_key = str(entry["public_key"])
+        if public_key in seen_public_keys:
+            raise ValueError("duplicate signer public_key")
+        seen_identities.add(identity)
+        seen_public_keys.add(public_key)
         if entry["status"] == "active":
             active_weight += int(entry["weight"])
         entries.append(entry)
@@ -155,7 +159,8 @@ def verify_signature_quorum_v0(
             active_by_identity[(str(entry["signer_id"]), str(entry["key_id"]))] = entry
 
     accepted: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
+    seen_identities: set[tuple[str, str]] = set()
+    seen_public_keys: set[str] = set()
     weight = 0
     for index, raw_envelope in enumerate(envelopes):
         envelope = _require_mapping(raw_envelope, name=f"envelopes[{index}]")
@@ -163,20 +168,24 @@ def verify_signature_quorum_v0(
             _require_str(envelope.get("signer_id"), name=f"envelopes[{index}].signer_id"),
             _require_str(envelope.get("key_id"), name=f"envelopes[{index}].key_id"),
         )
-        if identity in seen:
+        if identity in seen_identities:
             raise ValueError("duplicate envelope signer_id/key_id")
         signer = active_by_identity.get(identity)
         if signer is None:
             raise ValueError("envelope signer is not active in registry")
         if envelope.get("algorithm") != SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0:
             raise ValueError("envelope algorithm is not allowed by registry")
+        public_key = str(signer["public_key"])
+        if public_key in seen_public_keys:
+            raise ValueError("duplicate envelope signer public_key")
         validate_bls_signed_artifact_envelope_v0(
             envelope=envelope,
             expected_payload_kind=kind,
             expected_payload_hash=payload_hash,
-            expected_public_key=str(signer["public_key"]),
+            expected_public_key=public_key,
         )
-        seen.add(identity)
+        seen_identities.add(identity)
+        seen_public_keys.add(public_key)
         signer_weight = int(signer["weight"])
         weight += signer_weight
         accepted.append(

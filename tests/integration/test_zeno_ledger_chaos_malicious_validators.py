@@ -28,14 +28,13 @@ from typing import Any
 
 import pytest
 
+from src.integration.zeno_ledger_signature import (
+    SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0,
+)
 from src.integration.zeno_ledger_signer_registry import (
-    SIGNER_REGISTRY_SCHEMA_V0,
     build_signer_registry_v0,
     validate_signer_registry_v0,
     verify_signature_quorum_v0,
-)
-from src.integration.zeno_ledger_signature import (
-    SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0,
 )
 from src.integration.zeno_ledger_v0 import (
     VALIDATOR_SET_SCHEMA_V0,
@@ -43,7 +42,6 @@ from src.integration.zeno_ledger_v0 import (
     validate_validator_set_v0,
     validator_set_hash_v0,
 )
-
 
 _PK = lambda byte: "0x" + f"{byte:02x}" * 48  # noqa: E731
 
@@ -212,10 +210,11 @@ class TestHomoglyphIds:
 
 
 class TestPublicKeyImpersonation:
-    """If an attacker registers two validators with different IDs but the
-    same public key, a single signer satisfies both slots. The schema does
-    NOT detect this — there's no uniqueness check on public_key. This is a
-    governance-level concern; document via test."""
+    """Validator-set public-key uniqueness remains governance-scoped here.
+
+    The authority-bearing signer registry rejects a key reused under another
+    identity so one BLS private key cannot contribute quorum weight twice.
+    """
 
     def test_two_validators_with_same_public_key_accepted_by_schema(self) -> None:
         vs = _vset(validators=[
@@ -229,20 +228,17 @@ class TestPublicKeyImpersonation:
         h_one = validator_set_hash_v0(_vset(validators=[_validator("alice", pk_byte=0xAA)]))
         assert validator_set_hash_v0(vs) != h_one
 
-    def test_signer_registry_does_not_dedupe_by_public_key(self) -> None:
-        """Same as above but for the signer registry layer. Two signers can
-        share a public key as long as (signer_id, key_id) differs."""
-        reg = build_signer_registry_v0(
-            registry_id="r",
-            payload_kind="checkpoint",
-            threshold=1,
-            signers=[
-                _signer(signer_id="alice", key_id="k", pk_byte=0xAA),
-                _signer(signer_id="bob", key_id="k", pk_byte=0xAA),  # same key
-            ],
-        )
-        # Accepted.
-        assert len(reg["signers"]) == 2
+    def test_signer_registry_rejects_duplicate_public_key(self) -> None:
+        with pytest.raises(ValueError, match="duplicate signer public_key"):
+            build_signer_registry_v0(
+                registry_id="r",
+                payload_kind="checkpoint",
+                threshold=1,
+                signers=[
+                    _signer(signer_id="alice", key_id="k", pk_byte=0xAA),
+                    _signer(signer_id="bob", key_id="k", pk_byte=0xAA),
+                ],
+            )
 
 
 # -----------------------------------------------------------------------------
@@ -310,7 +306,7 @@ class TestQuorumDropRotation:
 
     def test_envelope_signed_under_old_registry_fails_under_new(self) -> None:
         # Build an old registry with signer "alice".
-        old_reg = build_signer_registry_v0(
+        build_signer_registry_v0(
             registry_id="r",
             payload_kind="checkpoint",
             threshold=1,
