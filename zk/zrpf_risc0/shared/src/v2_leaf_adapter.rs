@@ -162,7 +162,11 @@ mod tests {
         recursive_cross_shard_messages_root_v1, recursive_receipt_ids_root_v1,
         RecursiveEffectSummaryV1,
     };
-    use zenodex_zrpf_protocol_v3::NodeKindV3;
+    use zenodex_zrpf_protocol_v3::{
+        ExpectedV1AdapterLeafIdentityV1, ExpectedV2AdapterLeafIdentityV2, NodeKindV3,
+        ProposedSemanticLeafV1, SemanticEpochErrorV1, V1AdapterSemanticLeafOpeningV1,
+        V2AdapterSemanticLeafOpeningV2,
+    };
 
     use super::*;
     use crate::{profile_id_v3, AdapterErrorV1, SourcePolicyV2, CURRENT_SPOT_SOURCE_POLICY_V2};
@@ -255,6 +259,26 @@ mod tests {
             }
         );
         projection.journal.validate().unwrap();
+        let source_binding_hash = projection.source_binding.canonical_hash().unwrap();
+        let adapter_program_id = projection.journal.actual_program_id();
+        let semantic_leaf = ProposedSemanticLeafV1::bind_v2_adapter_journal(
+            &projection.journal,
+            V2AdapterSemanticLeafOpeningV2::new(source_binding_hash),
+            &ExpectedV2AdapterLeafIdentityV2::new(adapter_program_id).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            semantic_leaf.semantic_source_id().into_commitment(),
+            source_binding_hash
+        );
+        assert_eq!(
+            ProposedSemanticLeafV1::bind_v1_adapter_journal(
+                &projection.journal,
+                V1AdapterSemanticLeafOpeningV1::new(source_binding_hash),
+                &ExpectedV1AdapterLeafIdentityV1::new(adapter_program_id).unwrap(),
+            ),
+            Err(SemanticEpochErrorV1::V1AdapterProfileMismatch)
+        );
     }
 
     #[test]

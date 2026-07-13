@@ -10,9 +10,12 @@ const PROFILE_ID_DOMAIN_V3: &[u8] = b"zenodex.zrpf.profile_id.v3";
 const COUNT_UNIT_ID_DOMAIN_V3: &[u8] = b"zenodex.zrpf.count_unit_id.v3";
 const V1_ADAPTER_MANIFEST_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_manifest.v1";
 const V1_ADAPTER_MANIFEST_CLASS: &[u8] = b"unreleased_compatibility_manifest";
+const V2_ADAPTER_MANIFEST_DOMAIN: &[u8] = b"zenodex.zrpf.v2_adapter_manifest.v2";
+const V2_ADAPTER_MANIFEST_CLASS: &[u8] = b"unpromoted_current_source_compatibility_manifest";
 const SEMANTIC_EPOCH_MANIFEST_DOMAIN: &[u8] = b"zenodex.zrpf.semantic_epoch_manifest.v1";
 const SEMANTIC_EPOCH_MANIFEST_CLASS: &[u8] = b"unreleased_semantic_epoch_manifest";
 const V1_ADAPTER_NODE_STATEMENT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_node_statement.v1";
+const V2_ADAPTER_NODE_STATEMENT_DOMAIN: &[u8] = b"zenodex.zrpf.v2_adapter_node_statement.v2";
 const V1_ADAPTER_TASK_SET_ROOT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_task_set_root.v1";
 const V1_ADAPTER_PROVENANCE_ROOT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_provenance_root.v1";
 const V1_ADAPTER_SEMANTIC_SOURCE_SET_ROOT_DOMAIN: &[u8] =
@@ -42,6 +45,7 @@ pub(super) const EPOCH_ROOT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.semantic_epoch_roo
 pub(super) const PROPOSAL_HASH_DOMAIN_V1: &[u8] = b"zenodex.zrpf.semantic_epoch_proposal_hash.v1";
 
 const V1_ADAPTER_PROFILE: &[u8] = b"zrpf_v1_leaf_adapter_compatibility_v1";
+const V2_ADAPTER_PROFILE: &[u8] = b"zrpf_v2_leaf_adapter_compatibility_v2";
 const V1_SEMANTIC_PROFILE: &[u8] = b"zrpf_semantic_v1_adapter_compatibility_v1";
 const SOURCE_TRANSITION_RECEIPT_COUNT_UNIT: &[u8] = b"source_transition_receipt";
 
@@ -49,6 +53,13 @@ pub fn v1_adapter_profile_id_v1() -> Result<ProfileIdV3, SemanticEpochErrorV1> {
     Ok(ProfileIdV3::new(hash_framed(
         PROFILE_ID_DOMAIN_V3,
         &[V1_ADAPTER_PROFILE],
+    )?)?)
+}
+
+pub fn v2_adapter_profile_id_v2() -> Result<ProfileIdV3, SemanticEpochErrorV1> {
+    Ok(ProfileIdV3::new(hash_framed(
+        PROFILE_ID_DOMAIN_V3,
+        &[V2_ADAPTER_PROFILE],
     )?)?)
 }
 
@@ -134,6 +145,20 @@ pub fn v1_adapter_manifest_root_v1(
     )?)?)
 }
 
+pub fn v2_adapter_manifest_root_v2(
+    adapter_program_id: ProgramIdV3,
+) -> Result<CommitmentV3, SemanticEpochErrorV1> {
+    let profile_id = v2_adapter_profile_id_v2()?;
+    Ok(CommitmentV3::new(hash_framed(
+        V2_ADAPTER_MANIFEST_DOMAIN,
+        &[
+            adapter_program_id.as_bytes(),
+            profile_id.as_bytes(),
+            V2_ADAPTER_MANIFEST_CLASS,
+        ],
+    )?)?)
+}
+
 pub fn v1_adapter_task_set_root_v1(
     task_id: TaskIdV3,
 ) -> Result<CommitmentV3, SemanticEpochErrorV1> {
@@ -196,11 +221,44 @@ pub(super) struct V1AdapterNodeStatementInputV1 {
     pub commitments_hash: CommitmentV3,
 }
 
+pub(super) struct V2AdapterNodeStatementInputV2 {
+    pub adapter_program_id: ProgramIdV3,
+    pub adapter_profile_id: ProfileIdV3,
+    pub adapter_manifest_root: CommitmentV3,
+    pub source_binding_hash: CommitmentV3,
+    pub scope_hash: CommitmentV3,
+    pub task_id: TaskIdV3,
+    pub partition: PartitionV3,
+    pub count_unit_id: CommitmentV3,
+    pub commitments_hash: CommitmentV3,
+}
+
 pub(super) fn v1_adapter_node_statement_hash_v1(
     input: V1AdapterNodeStatementInputV1,
 ) -> Result<CommitmentV3, SemanticEpochErrorV1> {
     Ok(CommitmentV3::new(hash_fixed(
         V1_ADAPTER_NODE_STATEMENT_DOMAIN,
+        &[
+            input.adapter_program_id.as_bytes(),
+            input.adapter_profile_id.as_bytes(),
+            input.adapter_manifest_root.as_bytes(),
+            input.source_binding_hash.as_bytes(),
+            input.scope_hash.as_bytes(),
+            input.task_id.as_bytes(),
+            &input.partition.start().to_be_bytes(),
+            &input.partition.end_exclusive().to_be_bytes(),
+            &1u64.to_be_bytes(),
+            input.count_unit_id.as_bytes(),
+            input.commitments_hash.as_bytes(),
+        ],
+    )?)?)
+}
+
+pub(super) fn v2_adapter_node_statement_hash_v2(
+    input: V2AdapterNodeStatementInputV2,
+) -> Result<CommitmentV3, SemanticEpochErrorV1> {
+    Ok(CommitmentV3::new(hash_fixed(
+        V2_ADAPTER_NODE_STATEMENT_DOMAIN,
         &[
             input.adapter_program_id.as_bytes(),
             input.adapter_profile_id.as_bytes(),

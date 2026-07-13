@@ -9,8 +9,9 @@ use super::hash::{
     v1_adapter_empty_message_ids_root_v1, v1_adapter_empty_receipt_ids_root_v1,
     v1_adapter_manifest_root_v1, v1_adapter_node_statement_hash_v1,
     v1_adapter_partition_plan_root_v1, v1_adapter_profile_id_v1, v1_adapter_provenance_root_v1,
-    v1_adapter_semantic_source_root_v1, v1_adapter_task_set_root_v1, V1AdapterNodeStatementInputV1,
-    LEAF_RECORD_DOMAIN_V1,
+    v1_adapter_semantic_source_root_v1, v1_adapter_task_set_root_v1, v2_adapter_manifest_root_v2,
+    v2_adapter_node_statement_hash_v2, v2_adapter_profile_id_v2, V1AdapterNodeStatementInputV1,
+    V2AdapterNodeStatementInputV2, LEAF_RECORD_DOMAIN_V1,
 };
 use super::{SemanticEpochErrorV1, SemanticSourceIdV1, SourceClaimIdV1};
 
@@ -25,6 +26,24 @@ pub struct V1AdapterSemanticLeafOpeningV1 {
 }
 
 impl V1AdapterSemanticLeafOpeningV1 {
+    pub const fn new(semantic_source_binding_hash: CommitmentV3) -> Self {
+        Self {
+            semantic_source_binding_hash,
+        }
+    }
+
+    pub const fn semantic_source_binding_hash(self) -> CommitmentV3 {
+        self.semantic_source_binding_hash
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Untrusted singleton semantic-source opening for the current-source V2 adapter.
+pub struct V2AdapterSemanticLeafOpeningV2 {
+    semantic_source_binding_hash: CommitmentV3,
+}
+
+impl V2AdapterSemanticLeafOpeningV2 {
     pub const fn new(semantic_source_binding_hash: CommitmentV3) -> Self {
         Self {
             semantic_source_binding_hash,
@@ -75,12 +94,57 @@ impl ExpectedV1AdapterLeafIdentityV1 {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Governed current-source V2 adapter identity expected by a semantic caller.
+///
+/// This type is intentionally not deserializable. Receipt-bearing guests and
+/// verifiers must construct it from compiled or separately governed policy.
+pub struct ExpectedV2AdapterLeafIdentityV2 {
+    adapter_program_id: ProgramIdV3,
+    adapter_profile_id: ProfileIdV3,
+    adapter_manifest_root: CommitmentV3,
+    count_unit_id: CommitmentV3,
+}
+
+impl ExpectedV2AdapterLeafIdentityV2 {
+    pub fn new(adapter_program_id: ProgramIdV3) -> Result<Self, SemanticEpochErrorV1> {
+        Ok(Self {
+            adapter_program_id,
+            adapter_profile_id: v2_adapter_profile_id_v2()?,
+            adapter_manifest_root: v2_adapter_manifest_root_v2(adapter_program_id)?,
+            count_unit_id: v1_adapter_count_unit_id_v1()?,
+        })
+    }
+
+    pub const fn adapter_program_id(self) -> ProgramIdV3 {
+        self.adapter_program_id
+    }
+
+    pub const fn adapter_profile_id(self) -> ProfileIdV3 {
+        self.adapter_profile_id
+    }
+
+    pub const fn adapter_manifest_root(self) -> CommitmentV3 {
+        self.adapter_manifest_root
+    }
+
+    pub const fn count_unit_id(self) -> CommitmentV3 {
+        self.count_unit_id
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AdapterProjectionKindV1 {
+    RetainedV1,
+    CurrentSourceV2,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
-/// Profile-specific semantic projection of one exact V1 adapter leaf journal.
+/// Profile-specific semantic projection of one exact governed adapter journal.
 ///
 /// Fields are private and this type is intentionally not deserializable. The
-/// only public constructor validates the exact adapter profile, manifest,
-/// count unit, task-set singleton, semantic-source singleton, and statement.
+/// Its version-specific constructors validate the exact adapter profile,
+/// manifest, count unit, task-set singleton, semantic-source singleton, and statement.
 /// Receipt authentication remains a later guest/verifier responsibility.
 ///
 /// ```compile_fail
@@ -88,6 +152,7 @@ impl ExpectedV1AdapterLeafIdentityV1 {
 /// requires_deserialize::<zenodex_zrpf_protocol_v3::ProposedSemanticLeafV1>();
 /// ```
 pub struct ProposedSemanticLeafV1 {
+    adapter_projection_kind: AdapterProjectionKindV1,
     partition: PartitionV3,
     operation_count: u64,
     count_unit_id: CommitmentV3,
@@ -108,25 +173,63 @@ impl ProposedSemanticLeafV1 {
         opening: V1AdapterSemanticLeafOpeningV1,
         expected: &ExpectedV1AdapterLeafIdentityV1,
     ) -> Result<Self, SemanticEpochErrorV1> {
+        Self::bind_adapter_journal(
+            journal,
+            opening.semantic_source_binding_hash(),
+            expected.adapter_program_id,
+            expected.adapter_profile_id,
+            expected.adapter_manifest_root,
+            expected.count_unit_id,
+            AdapterProjectionKindV1::RetainedV1,
+        )
+    }
+
+    pub fn bind_v2_adapter_journal(
+        journal: &NodeJournalV3,
+        opening: V2AdapterSemanticLeafOpeningV2,
+        expected: &ExpectedV2AdapterLeafIdentityV2,
+    ) -> Result<Self, SemanticEpochErrorV1> {
+        Self::bind_adapter_journal(
+            journal,
+            opening.semantic_source_binding_hash(),
+            expected.adapter_program_id,
+            expected.adapter_profile_id,
+            expected.adapter_manifest_root,
+            expected.count_unit_id,
+            AdapterProjectionKindV1::CurrentSourceV2,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn bind_adapter_journal(
+        journal: &NodeJournalV3,
+        semantic_source_binding_hash: CommitmentV3,
+        expected_program_id: ProgramIdV3,
+        expected_profile_id: ProfileIdV3,
+        expected_manifest_root: CommitmentV3,
+        expected_count_unit_id: CommitmentV3,
+        projection_kind: AdapterProjectionKindV1,
+    ) -> Result<Self, SemanticEpochErrorV1> {
         journal.validate()?;
         if journal.node_kind() != NodeKindV3::Leaf {
             return Err(SemanticEpochErrorV1::LeafJournalRequired);
         }
-        if journal.actual_program_id() != expected.adapter_program_id {
+        if journal.actual_program_id() != expected_program_id {
             return Err(SemanticEpochErrorV1::LeafProgramMismatch);
         }
-        if journal.proof_profile_id() != expected.adapter_profile_id {
-            return Err(SemanticEpochErrorV1::V1AdapterProfileMismatch);
+        if journal.proof_profile_id() != expected_profile_id {
+            return Err(profile_mismatch(projection_kind));
         }
-        if journal.program_manifest_root() != expected.adapter_manifest_root {
-            return Err(SemanticEpochErrorV1::V1AdapterManifestMismatch);
+        if journal.program_manifest_root() != expected_manifest_root {
+            return Err(manifest_mismatch(projection_kind));
         }
-        if journal.count_unit_id() != expected.count_unit_id {
-            return Err(SemanticEpochErrorV1::V1AdapterCountUnitMismatch);
+        if journal.count_unit_id() != expected_count_unit_id {
+            return Err(count_unit_mismatch(projection_kind));
         }
         let commitments = journal.commitments().clone();
         let commitment_input = commitments.to_input();
         let record = Self {
+            adapter_projection_kind: projection_kind,
             partition: journal.partition(),
             operation_count: journal.operation_count(),
             count_unit_id: journal.count_unit_id(),
@@ -136,7 +239,7 @@ impl ProposedSemanticLeafV1 {
                 commitment_input.input_root,
             ),
             semantic_source_id: SemanticSourceIdV1::from_profile_bound_proposal(
-                opening.semantic_source_binding_hash(),
+                semantic_source_binding_hash,
             ),
             leaf_program_id: journal.actual_program_id(),
             leaf_profile_id: journal.proof_profile_id(),
@@ -160,52 +263,78 @@ impl ProposedSemanticLeafV1 {
         if self.operation_count != 1 {
             return Err(SemanticEpochErrorV1::InvalidLeafOperationCount);
         }
-        let expected_profile = v1_adapter_profile_id_v1()?;
+        let expected_profile = match self.adapter_projection_kind {
+            AdapterProjectionKindV1::RetainedV1 => v1_adapter_profile_id_v1()?,
+            AdapterProjectionKindV1::CurrentSourceV2 => v2_adapter_profile_id_v2()?,
+        };
         if self.leaf_profile_id != expected_profile {
-            return Err(SemanticEpochErrorV1::V1AdapterProfileMismatch);
+            return Err(profile_mismatch(self.adapter_projection_kind));
         }
         let expected_count_unit = v1_adapter_count_unit_id_v1()?;
         if self.count_unit_id != expected_count_unit {
-            return Err(SemanticEpochErrorV1::V1AdapterCountUnitMismatch);
+            return Err(count_unit_mismatch(self.adapter_projection_kind));
         }
-        let expected_manifest = v1_adapter_manifest_root_v1(self.leaf_program_id)?;
+        let expected_manifest = match self.adapter_projection_kind {
+            AdapterProjectionKindV1::RetainedV1 => {
+                v1_adapter_manifest_root_v1(self.leaf_program_id)?
+            }
+            AdapterProjectionKindV1::CurrentSourceV2 => {
+                v2_adapter_manifest_root_v2(self.leaf_program_id)?
+            }
+        };
         if self.leaf_program_manifest_root != expected_manifest {
-            return Err(SemanticEpochErrorV1::V1AdapterManifestMismatch);
+            return Err(manifest_mismatch(self.adapter_projection_kind));
         }
         let commitment_input = self.commitments.to_input();
         let semantic_source = self.semantic_source_id.into_commitment();
         let expected_provenance = v1_adapter_provenance_root_v1(semantic_source)?;
         if commitment_input.provenance_root != expected_provenance {
-            return Err(SemanticEpochErrorV1::V1AdapterProvenanceMismatch);
+            return Err(provenance_mismatch(self.adapter_projection_kind));
         }
         let expected_task_set = v1_adapter_task_set_root_v1(self.task_id)?;
         if commitment_input.task_set_root != expected_task_set {
-            return Err(SemanticEpochErrorV1::V1AdapterTaskSetMismatch);
+            return Err(task_set_mismatch(self.adapter_projection_kind));
         }
         let expected_semantic_source = v1_adapter_semantic_source_root_v1(semantic_source)?;
         if commitment_input.semantic_source_set_root != expected_semantic_source {
-            return Err(SemanticEpochErrorV1::V1AdapterSemanticSourceMismatch);
+            return Err(semantic_source_mismatch(self.adapter_projection_kind));
         }
         let expected_partition_plan =
             v1_adapter_partition_plan_root_v1(self.task_id, self.partition)?;
         if commitment_input.partition_plan_root != expected_partition_plan {
-            return Err(SemanticEpochErrorV1::V1AdapterPartitionPlanMismatch);
+            return Err(partition_plan_mismatch(self.adapter_projection_kind));
         }
-        validate_empty_auxiliary_sets(&commitment_input)?;
-        let expected_statement =
-            v1_adapter_node_statement_hash_v1(V1AdapterNodeStatementInputV1 {
-                adapter_program_id: self.leaf_program_id,
-                adapter_profile_id: self.leaf_profile_id,
-                adapter_manifest_root: self.leaf_program_manifest_root,
-                source_binding_hash: semantic_source,
-                scope_hash: self.scope.canonical_hash()?,
-                task_id: self.task_id,
-                partition: self.partition,
-                count_unit_id: self.count_unit_id,
-                commitments_hash: self.commitments.canonical_hash()?,
-            })?;
+        validate_empty_auxiliary_sets(self.adapter_projection_kind, &commitment_input)?;
+        let expected_statement = match self.adapter_projection_kind {
+            AdapterProjectionKindV1::RetainedV1 => {
+                v1_adapter_node_statement_hash_v1(V1AdapterNodeStatementInputV1 {
+                    adapter_program_id: self.leaf_program_id,
+                    adapter_profile_id: self.leaf_profile_id,
+                    adapter_manifest_root: self.leaf_program_manifest_root,
+                    source_binding_hash: semantic_source,
+                    scope_hash: self.scope.canonical_hash()?,
+                    task_id: self.task_id,
+                    partition: self.partition,
+                    count_unit_id: self.count_unit_id,
+                    commitments_hash: self.commitments.canonical_hash()?,
+                })?
+            }
+            AdapterProjectionKindV1::CurrentSourceV2 => {
+                v2_adapter_node_statement_hash_v2(V2AdapterNodeStatementInputV2 {
+                    adapter_program_id: self.leaf_program_id,
+                    adapter_profile_id: self.leaf_profile_id,
+                    adapter_manifest_root: self.leaf_program_manifest_root,
+                    source_binding_hash: semantic_source,
+                    scope_hash: self.scope.canonical_hash()?,
+                    task_id: self.task_id,
+                    partition: self.partition,
+                    count_unit_id: self.count_unit_id,
+                    commitments_hash: self.commitments.canonical_hash()?,
+                })?
+            }
+        };
         if self.leaf_statement_hash != expected_statement {
-            return Err(SemanticEpochErrorV1::V1AdapterStatementMismatch);
+            return Err(statement_mismatch(self.adapter_projection_kind));
         }
         Ok(())
     }
@@ -281,7 +410,90 @@ impl ProposedSemanticLeafV1 {
     }
 }
 
+const fn profile_mismatch(kind: AdapterProjectionKindV1) -> SemanticEpochErrorV1 {
+    match kind {
+        AdapterProjectionKindV1::RetainedV1 => SemanticEpochErrorV1::V1AdapterProfileMismatch,
+        AdapterProjectionKindV1::CurrentSourceV2 => SemanticEpochErrorV1::V2AdapterProfileMismatch,
+    }
+}
+
+const fn manifest_mismatch(kind: AdapterProjectionKindV1) -> SemanticEpochErrorV1 {
+    match kind {
+        AdapterProjectionKindV1::RetainedV1 => SemanticEpochErrorV1::V1AdapterManifestMismatch,
+        AdapterProjectionKindV1::CurrentSourceV2 => SemanticEpochErrorV1::V2AdapterManifestMismatch,
+    }
+}
+
+const fn count_unit_mismatch(kind: AdapterProjectionKindV1) -> SemanticEpochErrorV1 {
+    match kind {
+        AdapterProjectionKindV1::RetainedV1 => SemanticEpochErrorV1::V1AdapterCountUnitMismatch,
+        AdapterProjectionKindV1::CurrentSourceV2 => {
+            SemanticEpochErrorV1::V2AdapterCountUnitMismatch
+        }
+    }
+}
+
+const fn provenance_mismatch(kind: AdapterProjectionKindV1) -> SemanticEpochErrorV1 {
+    match kind {
+        AdapterProjectionKindV1::RetainedV1 => SemanticEpochErrorV1::V1AdapterProvenanceMismatch,
+        AdapterProjectionKindV1::CurrentSourceV2 => {
+            SemanticEpochErrorV1::V2AdapterProvenanceMismatch
+        }
+    }
+}
+
+const fn task_set_mismatch(kind: AdapterProjectionKindV1) -> SemanticEpochErrorV1 {
+    match kind {
+        AdapterProjectionKindV1::RetainedV1 => SemanticEpochErrorV1::V1AdapterTaskSetMismatch,
+        AdapterProjectionKindV1::CurrentSourceV2 => SemanticEpochErrorV1::V2AdapterTaskSetMismatch,
+    }
+}
+
+const fn semantic_source_mismatch(kind: AdapterProjectionKindV1) -> SemanticEpochErrorV1 {
+    match kind {
+        AdapterProjectionKindV1::RetainedV1 => {
+            SemanticEpochErrorV1::V1AdapterSemanticSourceMismatch
+        }
+        AdapterProjectionKindV1::CurrentSourceV2 => {
+            SemanticEpochErrorV1::V2AdapterSemanticSourceMismatch
+        }
+    }
+}
+
+const fn partition_plan_mismatch(kind: AdapterProjectionKindV1) -> SemanticEpochErrorV1 {
+    match kind {
+        AdapterProjectionKindV1::RetainedV1 => SemanticEpochErrorV1::V1AdapterPartitionPlanMismatch,
+        AdapterProjectionKindV1::CurrentSourceV2 => {
+            SemanticEpochErrorV1::V2AdapterPartitionPlanMismatch
+        }
+    }
+}
+
+const fn statement_mismatch(kind: AdapterProjectionKindV1) -> SemanticEpochErrorV1 {
+    match kind {
+        AdapterProjectionKindV1::RetainedV1 => SemanticEpochErrorV1::V1AdapterStatementMismatch,
+        AdapterProjectionKindV1::CurrentSourceV2 => {
+            SemanticEpochErrorV1::V2AdapterStatementMismatch
+        }
+    }
+}
+
+const fn auxiliary_set_mismatch(
+    kind: AdapterProjectionKindV1,
+    field: &'static str,
+) -> SemanticEpochErrorV1 {
+    match kind {
+        AdapterProjectionKindV1::RetainedV1 => {
+            SemanticEpochErrorV1::V1AdapterAuxiliarySetMustBeEmpty(field)
+        }
+        AdapterProjectionKindV1::CurrentSourceV2 => {
+            SemanticEpochErrorV1::V2AdapterAuxiliarySetMustBeEmpty(field)
+        }
+    }
+}
+
 fn validate_empty_auxiliary_sets(
+    kind: AdapterProjectionKindV1,
     commitments: &super::super::NodeCommitmentsInputV3,
 ) -> Result<(), SemanticEpochErrorV1> {
     let empty_receipts = v1_adapter_empty_receipt_ids_root_v1()?;
@@ -290,9 +502,7 @@ fn validate_empty_auxiliary_sets(
         ("rejected_receipts_root", commitments.rejected_receipts_root),
     ] {
         if actual != empty_receipts {
-            return Err(SemanticEpochErrorV1::V1AdapterAuxiliarySetMustBeEmpty(
-                field,
-            ));
+            return Err(auxiliary_set_mismatch(kind, field));
         }
     }
     let empty_messages = v1_adapter_empty_cross_shard_messages_root_v1()?;
@@ -301,15 +511,11 @@ fn validate_empty_auxiliary_sets(
         ("cross_lane_inbox_root", commitments.cross_lane_inbox_root),
     ] {
         if actual != empty_messages {
-            return Err(SemanticEpochErrorV1::V1AdapterAuxiliarySetMustBeEmpty(
-                field,
-            ));
+            return Err(auxiliary_set_mismatch(kind, field));
         }
     }
     if commitments.cross_lane_message_ids_root != v1_adapter_empty_message_ids_root_v1()? {
-        return Err(SemanticEpochErrorV1::V1AdapterAuxiliarySetMustBeEmpty(
-            "cross_lane_message_ids_root",
-        ));
+        return Err(auxiliary_set_mismatch(kind, "cross_lane_message_ids_root"));
     }
     Ok(())
 }
