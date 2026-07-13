@@ -54,7 +54,9 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "v1.94.1-rust-x86_64-unknown-linux-gnu:/risc0/toolchains/" in replay_command
     python_assurance = steps["Run Python and evidence assurance"]["run"]
     rust_assurance = steps["Run Rust protocol and verifier assurance"]["run"]
-    active_replay = steps["Rebuild and cryptographically replay active V1 and V2 roots"]["run"]
+    active_replay = steps[
+        "Build governed host verifiers and cryptographically replay retained roots"
+    ]["run"]
     guest_assurance = steps["Build pinned current RISC0 guests"]["run"]
     cargo_acquisition = steps["Acquire lockfile-bound Cargo sources"]["run"]
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in cargo_acquisition
@@ -183,18 +185,27 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert rust_assurance.count("--no-default-features --test semantic_v2") == 2
     assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 6
     assert '"${pinned_bin}/cargo" clippy' not in rust_assurance
-    assert "unset RISC0_SKIP_BUILD" in active_replay
-    assert "RISC0_SKIP_BUILD=1" not in active_replay
-    assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in active_replay
+    assert "export RISC0_SKIP_BUILD=1" in active_replay
+    assert "unset RISC0_SKIP_BUILD" not in active_replay
+    assert "--manifest-path zk/state_proof_risc0/Cargo.toml" not in active_replay
     assert "--manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml" in (
         active_replay
     )
-    assert "--frozen --offline --release -p tau-state-proof-risc0-cli" in active_replay
-    assert "--frozen --offline --release --bin verify_recursive_v2_pair" in active_replay
+    assert "--bin verify_recursive_v1_root" in active_replay
+    assert "--bin verify_recursive_v2_pair" in active_replay
     assert "v1-root.verify.request.json" in active_replay
-    assert "v1-root.verify.json" in active_replay
+    assert "v1-root.active-verifier.json" in active_replay
+    assert "RISC0_DEV_MODE=1" in active_replay
+    assert "v1-root.seal-word-1-xor-lsb.proof.json" in active_replay
+    assert 'metadata["proof"]["meta"]["public_policy_hash"]' in active_replay
+    assert 'expectations["recursive_expectations"]["public_policy_hash"]' in active_replay
+    assert 'child_bytes[0] ^= 1' in active_replay
+    assert "v1-disclosure.verify.request.json" in active_replay
+    assert 'unknown["recursive_input"]["unrecognized_but_canonical"]' in active_replay
+    assert "v1-unknown.verify.request.json" in active_replay
     assert "v2-inner.proof.json" in active_replay
     assert "v2-root.proof.json" in active_replay
+    assert "v2-root.seal-word-1-xor-lsb.proof.json" in active_replay
     assert "v2-pair.verify.json" in active_replay
     assert "unset RISC0_SKIP_BUILD" in guest_assurance
     assert "RISC0_SKIP_BUILD=1" not in guest_assurance

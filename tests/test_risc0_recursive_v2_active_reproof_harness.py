@@ -114,20 +114,24 @@ def test_active_reproof_harness_pins_the_current_v1_guest_ids() -> None:
     assert "Historical proof\n// harnesses retain their older IDs" in active
 
 
-def test_active_pair_verifier_changes_only_the_governed_topology_guard() -> None:
+def test_active_pair_verifier_preserves_security_anchors_and_pins_governed_id() -> None:
     historical = REPO / "zk/recursive_stark_v2_risc0/harness/src/bin/verify_recursive_v2_pair.rs"
     active = REPO / "zk/recursive_stark_v2_active_reproof_risc0/src/bin/verify_recursive_v2_pair.rs"
 
     active_text = active.read_text(encoding="utf-8")
     historical_text = historical.read_text(encoding="utf-8")
-    for security_anchor in (
-        ".verify(TAU_STATE_PROOF_RISC0_AGGREGATE_V2_ID)",
+    for shared_security_anchor in (
         "artifact journal does not match the authenticated journal",
         "epoch root does not bind the supplied inner receipt journal",
         "epoch root immediate verifier set mismatch",
     ):
-        assert security_anchor in active_text
-        assert security_anchor in historical_text
+        assert shared_security_anchor in active_text
+        assert shared_security_anchor in historical_text
+
+    assert ".verify(GOVERNED_AGGREGATE_V2_ID)" in active_text
+    assert ".verify(TAU_STATE_PROOF_RISC0_AGGREGATE_V2_ID)" in historical_text
+    assert "tau_state_proof_risc0_recursive_v2_methods" not in active_text
+    assert "const GOVERNED_AGGREGATE_V2_ID: [u32; 8]" in active_text
 
     assert "has_exact_active_two_leaf_topology" in active_text
     assert "journal.immediate_child_count != 1" in historical_text

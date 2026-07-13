@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import base64
 import copy
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -15,7 +18,7 @@ checker = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(checker)
 
 
-def reference() -> dict[str, object]:
+def reference() -> dict[str, Any]:
     return json.loads(checker.REFERENCE.read_bytes())
 
 
@@ -137,6 +140,24 @@ def test_active_reproof_reports_require_exact_boolean_types(monkeypatch) -> None
 
     monkeypatch.setattr(checker, "load_json", altered)
     with pytest.raises(checker.CheckError, match="V2 pair transcript mismatch"):
+        checker.validate(reference())
+
+
+def test_active_reproof_derives_v2_security_profile_from_receipt_bytes(monkeypatch) -> None:
+    original = checker.load_json
+
+    def altered(path: Path):
+        value = original(path)
+        if path.name == "v2-root.proof.json":
+            receipt = json.loads(base64.b64decode(value["proof"]))
+            receipt["inner"]["Succinct"]["hashfn"] = "sha-256"
+            receipt_bytes = json.dumps(receipt, separators=(",", ":"), sort_keys=True).encode()
+            value["proof"] = base64.b64encode(receipt_bytes).decode()
+            value["receipt_sha256"] = hashlib.sha256(receipt_bytes).hexdigest()
+        return value
+
+    monkeypatch.setattr(checker, "load_json", altered)
+    with pytest.raises(checker.CheckError, match="receipt hash function mismatch"):
         checker.validate(reference())
 
 

@@ -124,11 +124,14 @@ separately review-governed source changes and are bound by the promotion-source
 inventory.
 
 The host binaries and guest ELF hashes are retained build observations. Their
-files are not committed into this evidence packet. The required CI lane must
-rebuild current V1/V2 verifier programs from the pinned source and
-cryptographically replay the retained root receipts. The static checker does
-not claim to reauthenticate absent historical binaries or the recorded
-toolchain executables.
+files are not committed into this evidence packet. The required CI lane
+source-builds bounded host verifiers that pin the recorded V1/V2 image IDs,
+cryptographically verifies the retained root receipts, and independently
+recomposes their authenticated journals. It sets `RISC0_SKIP_BUILD=1` because
+the recorded guest image IDs remain sensitive to compiler-visible source paths.
+This verifier replay does not establish cross-host guest-image reproduction.
+The static checker does not claim to reauthenticate absent historical binaries
+or the recorded toolchain executables.
 
 ## Promotion Rule
 

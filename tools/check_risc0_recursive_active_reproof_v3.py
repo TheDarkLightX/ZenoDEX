@@ -51,12 +51,12 @@ SOURCE_ROOTS = {
     ),
     "recursive_stark_v2_active_reproof_risc0": (
         "zk/recursive_stark_v2_active_reproof_risc0",
-        5,
-        "fa58bda629872638e4ea4cf4344995a05a398dc1ae69e3596719e25eaa6864fa",
+        6,
+        "86b326d2aaf153d36479c9920081fa98b20c550b0c677996075976f3db93dda4",
     ),
 }
-EVIDENCE_COUNT = 24
-EVIDENCE_ROOT = "75738dd91d170a1d6e4473fcd722c10e76f4a6bb3ff5a758d0e7273230a724bc"
+EVIDENCE_COUNT = 25
+EVIDENCE_ROOT = "dcca61fcbe665df1a8db28451401eca8fc71b5acbab05e154f6177b60aa31681"
 V1_IDS = {
     "aggregate": "c4bde351d48e8e775c2e831fc37fb98a9e45ed59455afe761572d2e11ceed6c4",
     "spot": "59930b80d7f250923cf6d88aab34e431033f35f60343339c37e737fa30847dab",
@@ -141,9 +141,14 @@ HOST_BINARIES = [
         "size_bytes": 9754528,
     },
     {
+        "name": "v1_active_verifier",
+        "sha256": "3556844a1c760c9d0199aa1aa6a2de64d9d0c537bc8740e5a07cebe8b76f97cc",
+        "size_bytes": 2856208,
+    },
+    {
         "name": "v2_pair_verifier",
-        "sha256": "b19856ff8ea3a318257d9b027e0da9d712396ba4282938b91212f39a07a92cef",
-        "size_bytes": 2675272,
+        "sha256": "4230b474463ec1ff988fc12df2f2a123dec6db506cbda68c84a26502cb42bff9",
+        "size_bytes": 2676184,
     },
 ]
 TOOLCHAIN = {
@@ -395,6 +400,40 @@ def _decode_canonical_receipt(artifact: dict[str, Any]) -> dict[str, Any]:
     return receipt
 
 
+def _risc0_digest_words_hex(value: Any, label: str) -> str:
+    _require(type(value) is list and len(value) == 8, f"{label} word count mismatch")
+    raw = bytearray()
+    for word in value:
+        _require(type(word) is int and 0 <= word <= 0xFFFFFFFF, f"{label} word invalid")
+        raw.extend(word.to_bytes(4, "little"))
+    return bytes(raw).hex()
+
+
+def _check_succinct_security_profile(artifact: dict[str, Any]) -> None:
+    receipt = _decode_canonical_receipt(artifact)
+    inner = receipt.get("inner")
+    if not isinstance(inner, dict):
+        raise CheckError("receipt kind mismatch")
+    _require(set(inner) == {"Succinct"}, "receipt kind mismatch")
+    succinct = inner["Succinct"]
+    metadata = receipt.get("metadata")
+    if not isinstance(succinct, dict) or not isinstance(metadata, dict):
+        raise CheckError("receipt security shape mismatch")
+    _require(succinct.get("hashfn") == SECURITY["hashfn"], "receipt hash function mismatch")
+    _require(
+        _risc0_digest_words_hex(succinct.get("control_id"), "receipt control ID")
+        == SECURITY["control_id"],
+        "receipt control ID mismatch",
+    )
+    _require(
+        _risc0_digest_words_hex(
+            metadata.get("verifier_parameters"), "receipt verifier parameters"
+        )
+        == SECURITY["verifier_parameters"],
+        "receipt verifier parameters mismatch",
+    )
+
+
 def _check_exact_seal_mutation(source: dict[str, Any], mutated: dict[str, Any]) -> None:
     _require(
         _difference_paths(source, mutated) == [("proof",)], "seal mutation changed outer fields"
@@ -539,6 +578,19 @@ def _check_evidence(reference: dict[str, Any], *, repo_root: Path) -> None:
         {"ok": True, "verified_recursive_facts": expected_facts},
         "V1 positive transcript mismatch",
     )
+    v1_active_verify = load_json(evidence / "reports/v1-root.active-verifier.json")
+    _require_exact_typed(
+        v1_active_verify,
+        {
+            "aggregate_v1_image_id": V1_IDS["aggregate"],
+            "child_verification_claims_root": root_meta["child_verification_claims_root"],
+            "ok": True,
+            "receipt_sha256": hashlib.sha256(_receipt_bytes(root)).hexdigest(),
+            "root_journal_hash": root_journal_digest,
+            "status": "recursive_v1_root_verified",
+        },
+        "V1 active verifier transcript mismatch",
+    )
 
     inner = load_json(evidence / "receipts/v2-inner.proof.json")
     v2_root = load_json(evidence / "receipts/v2-root.proof.json")
@@ -552,6 +604,7 @@ def _check_evidence(reference: dict[str, Any], *, repo_root: Path) -> None:
             artifact["risc0_image_id"] == V2_ID and artifact["receipt_kind"] == "succinct",
             "V2 receipt identity mismatch",
         )
+        _check_succinct_security_profile(artifact)
         _require(
             (
                 journal["profile"],

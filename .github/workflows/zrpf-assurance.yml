@@ -339,7 +339,7 @@ jobs:
             --manifest-path zk/state_proof_risc0/Cargo.toml \
             --locked --offline -p tau-state-proof-risc0-cli --all-targets -- -D warnings
 
-      - name: Rebuild and cryptographically replay active V1 and V2 roots
+      - name: Build governed host verifiers and cryptographically replay retained roots
         shell: bash
         run: |
           set -euo pipefail
@@ -349,24 +349,78 @@ jobs:
           export PATH="${pinned_bin}:/usr/bin:/bin"
           export RUSTC="${pinned_bin}/rustc"
           export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
-          unset RISC0_SKIP_BUILD
-          "${pinned_bin}/cargo" build \
-            --manifest-path zk/state_proof_risc0/Cargo.toml \
-            --frozen --offline --release -p tau-state-proof-risc0-cli
-          v1_output="$(
-            "${CARGO_TARGET_DIR}/release/tau-state-proof-risc0-cli" \
-              < evidence/risc0-recursive-active-reproof-v3/requests/v1-root.verify.request.json
-          )"
-          test "${v1_output}" = "$(cat evidence/risc0-recursive-active-reproof-v3/reports/v1-root.verify.json)"
+          export RISC0_SKIP_BUILD=1
           "${pinned_bin}/cargo" build \
             --manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml \
-            --frozen --offline --release --bin verify_recursive_v2_pair
+            --frozen --offline --release \
+            --bin verify_recursive_v1_root \
+            --bin verify_recursive_v2_pair
+          v1_output="$(
+            "${CARGO_TARGET_DIR}/release/verify_recursive_v1_root" \
+              evidence/risc0-recursive-active-reproof-v3/requests/v1-root.verify.request.json
+          )"
+          test "${v1_output}" = "$(cat evidence/risc0-recursive-active-reproof-v3/reports/v1-root.active-verifier.json)"
           v2_output="$(
             "${CARGO_TARGET_DIR}/release/verify_recursive_v2_pair" \
               evidence/risc0-recursive-active-reproof-v3/receipts/v2-inner.proof.json \
               evidence/risc0-recursive-active-reproof-v3/receipts/v2-root.proof.json
           )"
           test "${v2_output}" = "$(cat evidence/risc0-recursive-active-reproof-v3/reports/v2-pair.verify.json)"
+          if RISC0_DEV_MODE=1 "${CARGO_TARGET_DIR}/release/verify_recursive_v1_root" \
+            evidence/risc0-recursive-active-reproof-v3/requests/v1-root.verify.request.json; then
+            echo "V1 governed verifier accepted RISC0_DEV_MODE" >&2
+            exit 1
+          fi
+          python3 - "${RUNNER_TEMP}" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          root = pathlib.Path("evidence/risc0-recursive-active-reproof-v3")
+          request = json.loads((root / "requests/v1-root.verify.request.json").read_text())
+          output = pathlib.Path(sys.argv[1])
+
+          seal = json.loads(json.dumps(request))
+          seal["proof"] = json.loads(
+              (root / "controls/v1-root.seal-word-1-xor-lsb.proof.json").read_text()
+          )
+          metadata = json.loads(json.dumps(request))
+          metadata["proof"]["meta"]["public_policy_hash"] = "00" * 32
+          expectations = json.loads(json.dumps(request))
+          expectations["recursive_expectations"]["public_policy_hash"] = "00" * 32
+          disclosure = json.loads(json.dumps(request))
+          child_bytes = disclosure["recursive_input"]["children"][0]["child_journal_bytes"]
+          child_bytes[0] ^= 1
+          unknown = json.loads(json.dumps(request))
+          unknown["recursive_input"]["unrecognized_but_canonical"] = 17
+          for name, candidate in (
+              ("seal", seal),
+              ("metadata", metadata),
+              ("expectations", expectations),
+              ("disclosure", disclosure),
+              ("unknown", unknown),
+          ):
+              (output / f"v1-{name}.verify.request.json").write_text(
+                  json.dumps(candidate, separators=(",", ":"), sort_keys=True)
+              )
+          PY
+          for negative_request in \
+            "${RUNNER_TEMP}/v1-seal.verify.request.json" \
+            "${RUNNER_TEMP}/v1-metadata.verify.request.json" \
+            "${RUNNER_TEMP}/v1-expectations.verify.request.json" \
+            "${RUNNER_TEMP}/v1-disclosure.verify.request.json" \
+            "${RUNNER_TEMP}/v1-unknown.verify.request.json"; do
+              if "${CARGO_TARGET_DIR}/release/verify_recursive_v1_root" "${negative_request}"; then
+                echo "V1 governed verifier accepted negative request ${negative_request}" >&2
+                exit 1
+              fi
+          done
+          if "${CARGO_TARGET_DIR}/release/verify_recursive_v2_pair" \
+            evidence/risc0-recursive-active-reproof-v3/receipts/v2-inner.proof.json \
+            evidence/risc0-recursive-active-reproof-v3/controls/v2-root.seal-word-1-xor-lsb.proof.json; then
+            echo "V2 governed verifier accepted the root seal mutation" >&2
+            exit 1
+          fi
 
       - name: Build pinned current RISC0 guests
         shell: bash

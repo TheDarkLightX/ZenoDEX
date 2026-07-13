@@ -5,7 +5,6 @@ use risc0_zkvm::{Digest, InnerReceipt, Receipt};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sha2::{Digest as ShaDigest, Sha256};
-use tau_state_proof_risc0_recursive_v2_methods::TAU_STATE_PROOF_RISC0_AGGREGATE_V2_ID;
 use tau_state_proof_risc0_shared_v2::{
     decode_exact_postcard_v2, recursive_immediate_verifier_set_root_v2,
     recursive_node_journal_bytes_hash_v2, recursive_node_verification_claim_hash_v2,
@@ -22,12 +21,26 @@ use evidence_policy::has_exact_recursive_v2_local_nonclaims;
 const ARTIFACT_SCHEMA: &str = "tau_recursive_node_v2_receipt_artifact";
 const ARTIFACT_SCHEMA_VERSION: u32 = 2;
 const RECEIPT_CODEC: &str = "risc0_receipt_canonical_serde_json_depth128_v1";
+const RECEIPT_CONTROL_ID: &str = "53a7b23d07f99e5d5685e85874f5181e8486aa267a0ae607ffe9ba47c8bdda4a";
+const RECEIPT_HASHFN: &str = "poseidon2";
+const RECEIPT_VERIFIER_PARAMETERS: &str =
+    "ece5e9b8ae2cd6ea6b1827b464ff0348f9a7f4decd269c0087fdfd75098da013";
 const MAX_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_ARTIFACT_BYTES_U64: u64 = 16 * 1024 * 1024;
 const IMMEDIATE_CLAIMS_ROOT_DOMAIN: &[u8] =
     b"zenodex.risc0.recursive.immediate_child_claims_root.v2";
 const IMMEDIATE_JOURNALS_ROOT_DOMAIN: &[u8] =
     b"zenodex.risc0.recursive.immediate_child_journals_root.v2";
+const GOVERNED_AGGREGATE_V2_ID: [u32; 8] = [
+    2_794_284_810,
+    4_153_045_000,
+    3_207_949_501,
+    2_298_371_970,
+    2_144_792_341,
+    1_178_697_738,
+    804_989_289,
+    1_756_276_685,
+];
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -132,8 +145,9 @@ fn verify_artifact(path: &Path) -> Result<VerifiedArtifact, String> {
     if !matches!(&receipt.inner, InnerReceipt::Succinct(_)) {
         return Err("receipt is not succinct".to_string());
     }
+    validate_receipt_security(&receipt)?;
     receipt
-        .verify(TAU_STATE_PROOF_RISC0_AGGREGATE_V2_ID)
+        .verify(GOVERNED_AGGREGATE_V2_ID)
         .map_err(|error| format!("receipt verification failed: {error}"))?;
 
     let receipt_sha256 = sha256_hex(&receipt_bytes);
@@ -165,6 +179,19 @@ fn verify_artifact(path: &Path) -> Result<VerifiedArtifact, String> {
     })
 }
 
+fn validate_receipt_security(receipt: &Receipt) -> Result<(), String> {
+    let InnerReceipt::Succinct(inner) = &receipt.inner else {
+        return Err("receipt is not succinct".to_string());
+    };
+    if inner.hashfn != RECEIPT_HASHFN
+        || inner.control_id.to_string() != RECEIPT_CONTROL_ID
+        || receipt.metadata.verifier_parameters.to_string() != RECEIPT_VERIFIER_PARAMETERS
+    {
+        return Err("receipt security profile mismatch".to_string());
+    }
+    Ok(())
+}
+
 fn validate_artifact_header(artifact: &ReceiptArtifact) -> Result<(), String> {
     if artifact.schema != ARTIFACT_SCHEMA
         || artifact.schema_version != ARTIFACT_SCHEMA_VERSION
@@ -183,7 +210,7 @@ fn validate_authenticated_journal(journal: &RecursiveNodeJournalV2) -> Result<()
     if journal.journal_version != RECURSIVE_NODE_JOURNAL_VERSION_V2
         || journal.proof_type != PROOF_TYPE_RECURSIVE_NODE_V2
         || journal.domain_separator != RECURSIVE_NODE_DOMAIN_SEPARATOR_V2
-        || journal.self_image_id != TAU_STATE_PROOF_RISC0_AGGREGATE_V2_ID
+        || journal.self_image_id != GOVERNED_AGGREGATE_V2_ID
         || !has_exact_active_two_leaf_topology(journal)
     {
         return Err("authenticated journal surface mismatch".to_string());
@@ -249,11 +276,9 @@ fn verify_pair_binding(inner: &VerifiedArtifact, root: &VerifiedArtifact) -> Res
         return Err("recursive pair flat projection or leaf-set binding mismatch".to_string());
     }
 
-    let inner_claim = recursive_node_verification_claim_hash_v2(
-        &TAU_STATE_PROOF_RISC0_AGGREGATE_V2_ID,
-        &inner.journal_bytes,
-    )
-    .map_err(|error| format!("inner claim hash: {error:?}"))?;
+    let inner_claim =
+        recursive_node_verification_claim_hash_v2(&GOVERNED_AGGREGATE_V2_ID, &inner.journal_bytes)
+            .map_err(|error| format!("inner claim hash: {error:?}"))?;
     let inner_journal = recursive_node_journal_bytes_hash_v2(&inner.journal_bytes)
         .map_err(|error| format!("inner journal hash: {error:?}"))?;
     if root.journal.immediate_child_claims_root
@@ -264,7 +289,7 @@ fn verify_pair_binding(inner: &VerifiedArtifact, root: &VerifiedArtifact) -> Res
         return Err("epoch root does not bind the supplied inner receipt journal".to_string());
     }
     let node_verifier_id = recursive_node_verifier_id_v2(
-        &TAU_STATE_PROOF_RISC0_AGGREGATE_V2_ID,
+        &GOVERNED_AGGREGATE_V2_ID,
         RecursiveNodeProfileV2::ClosedSubtree,
     )
     .map_err(|error| format!("inner verifier ID: {error:?}"))?;
@@ -285,7 +310,7 @@ fn singleton_root(domain: &[u8], value: &[u8; 32]) -> [u8; 32] {
 }
 
 fn image_id_hex() -> String {
-    Digest::from(TAU_STATE_PROOF_RISC0_AGGREGATE_V2_ID).to_string()
+    Digest::from(GOVERNED_AGGREGATE_V2_ID).to_string()
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -299,6 +324,14 @@ fn hex32(value: &[u8; 32]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn governed_aggregate_id_matches_the_active_reproof_identity() {
+        assert_eq!(
+            image_id_hex(),
+            "0a678da608708af7bd6c35bf825ffe8815efd67f0a8041466929fb2fcda7ae68"
+        );
+    }
 
     #[test]
     fn active_pair_topology_accepts_only_the_governed_two_leaf_shape() {
