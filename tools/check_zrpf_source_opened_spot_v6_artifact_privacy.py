@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +23,13 @@ else:
     from tools import zrpf_v3_artifact_privacy as privacy
 
 REPORT_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_artifact_privacy_scan/v1"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_BUILD_RECORD = (
+    REPO_ROOT
+    / "docs/research/ZRPF_SOURCE_OPENED_SPOT_V6_BUILD_RECORD_20260712.json"
+)
+BUILD_RECORD_SCHEMA = "zenodex/zrpf_source_opened_spot_v6_build_record/v2"
+MAX_BUILD_RECORD_BYTES = 256 * 1024
 RISC0_PROGRAM_BINARY_MAGIC = b"R0BF"
 RISC0_PROGRAM_BINARY_ROLES = frozenset(
     {
@@ -36,6 +44,31 @@ _ROOT_PATH_PATTERN = re.compile(rb"/root[^/\x00\s]*/")
 _PATH_CONTINUATION_BYTES = frozenset(
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~/-"
 )
+_BUILD_RECORD_ROOT_FIELDS = {
+    "schema",
+    "recorded_at",
+    "source_snapshot",
+    "toolchain",
+    "programs",
+    "executed_commands",
+    "claims",
+}
+_BUILD_RECORD_PROGRAM_FIELDS = {
+    "stage",
+    "package",
+    "artifact_file",
+    "program_binary_bytes",
+    "program_binary_sha256",
+    "image_id_hex",
+    "image_id_words_le",
+    "verified_child_stage",
+    "verified_child_image_id",
+}
+_BUILD_RECORD_FALSE_AUTHORITY_FIELDS = {
+    "release_authority",
+    "settlement_authority",
+    "production_authority",
+}
 
 
 @dataclass(frozen=True, order=True)
@@ -46,6 +79,26 @@ class UpstreamPathException:
     exact_path: bytes
     governed_source_artifact_sha256: str
     rule_id: str
+
+
+@dataclass(frozen=True, order=True)
+class ProgramArtifactBinding:
+    """Candidate build-record identity for one complete combined program."""
+
+    role: str
+    sha256: str
+    size_bytes: int
+
+
+@dataclass(frozen=True)
+class CandidateBuildRecordBinding:
+    """Unanchored program identities parsed from one candidate build record."""
+
+    record_sha256: str
+    programs: tuple[ProgramArtifactBinding, ...]
+
+    def program_for_role(self, role: str) -> ProgramArtifactBinding | None:
+        return next((program for program in self.programs if program.role == role), None)
 
 
 _V1COMPAT_COMPONENT_ID = "risc0_zkos_v1compat_2_2_2_elf"
@@ -114,34 +167,62 @@ FINAL_ARTIFACTS: tuple[privacy.ArtifactSpec, ...] = tuple(
 )
 
 
-def scan_artifact_directory(root: Path) -> dict[str, Any]:
-    """Scan exactly the governed flat V6 inventory under one supplied root."""
+def scan_artifact_directory(
+    root: Path,
+    *,
+    build_record_path: Path | None = None,
+) -> dict[str, Any]:
+    """Scan one stable descriptor-relative snapshot of the governed inventory."""
 
-    expected_names = {artifact.relative_path for artifact in FINAL_ARTIFACTS}
-    observed_names, inventory_errors = _read_exact_inventory(root, expected_names)
-    base = privacy.scan_artifacts(root, FINAL_ARTIFACTS)
+    base, raw_by_path, observed_names, inventory_errors = _capture_snapshot(root)
+    build_binding, build_binding_errors = _load_candidate_build_record_binding(
+        build_record_path
+    )
     exceptions, policy_errors = _validate_upstream_path_exception_policy()
     findings, exception_errors, allowed_exceptions = _apply_upstream_path_exceptions(
-        root,
         base,
+        raw_by_path,
         exceptions,
+        build_binding,
     )
     errors = [
         *base["errors"],
         *inventory_errors,
+        *build_binding_errors,
         *policy_errors,
         *exception_errors,
     ]
     errors.sort(key=lambda row: (row["path"], row["role"], row["code"]))
-    artifact_set_sha256 = _artifact_set_sha256(base["artifacts"])
+    return _render_report(
+        base,
+        observed_names,
+        errors,
+        findings,
+        allowed_exceptions,
+        build_binding,
+    )
+
+
+def _render_report(
+    base: dict[str, Any],
+    observed_names: list[str],
+    errors: list[dict[str, str]],
+    findings: list[dict[str, Any]],
+    allowed_exceptions: list[dict[str, Any]],
+    build_binding: CandidateBuildRecordBinding | None,
+) -> dict[str, Any]:
     return {
         "allowed_upstream_path_exception_count": len(allowed_exceptions),
         "allowed_upstream_path_exceptions": allowed_exceptions,
         "artifact_count_expected": len(FINAL_ARTIFACTS),
         "artifact_count_observed": len(observed_names),
         "artifact_count_scanned": base["artifact_count_scanned"],
-        "artifact_set_sha256": artifact_set_sha256,
+        "artifact_set_sha256": _artifact_set_sha256(base["artifacts"]),
         "artifacts": base["artifacts"],
+        "build_record_anchor_checked": False,
+        "build_record_sha256": (
+            build_binding.record_sha256 if build_binding is not None else None
+        ),
         "complete_artifact_privacy_verified": False,
         "error_count": len(errors),
         "errors": errors,
@@ -151,9 +232,10 @@ def scan_artifact_directory(root: Path) -> dict[str, Any]:
         "negative_knowledge": (
             "This bounded denylist detects the configured path, email, token, "
             "credential, and private-key patterns in the exact V6 artifact set. "
-            "Exact role-scoped public paths already embedded in hash-pinned "
-            "upstream RISC0 kernel or sysroot artifacts are recorded as provenance "
-            "exceptions; this scanner does not independently rebuild those artifacts. "
+            "Exact role-scoped public paths already embedded in candidate-build-record "
+            "bound RISC0 program binaries are recorded as bounded exceptions. Upstream "
+            "component digests remain publisher records rather than reconstructed "
+            "component provenance. The build record and exception policy are unanchored. "
             "A clean scan does not prove complete artifact privacy or the absence "
             "of unmodeled secrets, covert channels, or side channels."
         ),
@@ -163,11 +245,312 @@ def scan_artifact_directory(root: Path) -> dict[str, Any]:
             and base["artifact_count_scanned"] == len(FINAL_ARTIFACTS)
         ),
         "schema": REPORT_SCHEMA,
+        "snapshot_root_identity_verified": base["snapshot_root_identity_verified"],
         "total_bytes_scanned": base["total_bytes_scanned"],
+        "upstream_path_exception_policy_anchored": False,
+        "upstream_path_exception_policy_authority": False,
         "upstream_path_exception_policy_sha256": (
             _upstream_path_exception_policy_sha256()
         ),
     }
+
+
+def _capture_snapshot(
+    root: Path,
+) -> tuple[dict[str, Any], dict[str, bytes], list[str], list[dict[str, str]]]:
+    ordered, specification_errors = privacy._validate_artifact_specs(FINAL_ARTIFACTS)
+    expected_names = {artifact.relative_path for artifact in ordered}
+    if len(ordered) > privacy.MAX_ARTIFACT_COUNT:
+        specification_errors.append(
+            _error(".", "inventory", "artifact_count_limit_exceeded")
+        )
+        ordered = ordered[: privacy.MAX_ARTIFACT_COUNT]
+    try:
+        root_descriptor = privacy._open_root(root)
+    except privacy.ArtifactReadError as exc:
+        errors = [*specification_errors, _error(".", "inventory", exc.code)]
+        return _base_scan([], [], errors, 0, False), {}, [], []
+    try:
+        before = os.fstat(root_descriptor)
+        try:
+            observed_names = _list_inventory(root_descriptor)
+            inventory_errors = _inventory_errors(observed_names, expected_names)
+        except privacy.ArtifactReadError as exc:
+            observed_names = []
+            inventory_errors = [_error(".", "inventory", exc.code)]
+        artifacts, raw_by_path, findings, errors, total = _read_snapshot_artifacts(
+            root_descriptor,
+            ordered,
+            specification_errors,
+        )
+        snapshot_ok, snapshot_errors = _finish_snapshot(
+            root,
+            root_descriptor,
+            before,
+            observed_names,
+        )
+        errors.extend(snapshot_errors)
+    finally:
+        os.close(root_descriptor)
+    return (
+        _base_scan(artifacts, findings, errors, total, snapshot_ok),
+        raw_by_path,
+        observed_names,
+        inventory_errors,
+    )
+
+
+def _read_snapshot_artifacts(
+    root_descriptor: int,
+    artifacts: list[privacy.ArtifactSpec],
+    specification_errors: list[dict[str, str]],
+) -> tuple[
+    list[dict[str, Any]],
+    dict[str, bytes],
+    list[dict[str, Any]],
+    list[dict[str, str]],
+    int,
+]:
+    scanned: list[dict[str, Any]] = []
+    raw_by_path: dict[str, bytes] = {}
+    findings: list[dict[str, Any]] = []
+    errors = list(specification_errors)
+    total = 0
+    for artifact in artifacts:
+        remaining = privacy.MAX_TOTAL_BYTES - total
+        if remaining <= 0:
+            errors.append(
+                _error(artifact.relative_path, artifact.role, "total_size_limit_exceeded")
+            )
+            continue
+        try:
+            raw = privacy._read_regular_bounded(
+                root_descriptor,
+                artifact.relative_path,
+                min(privacy.MAX_ARTIFACT_BYTES, remaining),
+            )
+        except privacy.ArtifactReadError as exc:
+            errors.append(_error(artifact.relative_path, artifact.role, exc.code))
+            continue
+        total += len(raw)
+        raw_by_path[artifact.relative_path] = raw
+        scanned.append(_artifact_identity(artifact, raw))
+        additions, exceeded = privacy._scan_bytes(
+            artifact,
+            raw,
+            privacy.MAX_FINDINGS - len(findings),
+        )
+        findings.extend(additions)
+        if exceeded:
+            errors.append(
+                _error(artifact.relative_path, artifact.role, "finding_limit_exceeded")
+            )
+            break
+    return scanned, raw_by_path, findings, errors, total
+
+
+def _finish_snapshot(
+    root: Path,
+    root_descriptor: int,
+    before: os.stat_result,
+    observed_names: list[str],
+) -> tuple[bool, list[dict[str, str]]]:
+    errors: list[dict[str, str]] = []
+    try:
+        final_names = _list_inventory(root_descriptor)
+        after = os.fstat(root_descriptor)
+    except (OSError, privacy.ArtifactReadError):
+        return False, [_error(".", "inventory", "snapshot_finalization_unavailable")]
+    if final_names != observed_names:
+        errors.append(_error(".", "inventory", "inventory_changed_during_snapshot"))
+    if privacy._identity_tuple(before) != privacy._identity_tuple(after):
+        errors.append(_error(".", "inventory", "root_changed_during_snapshot"))
+    if not _root_path_still_names_descriptor(root, after):
+        errors.append(_error(".", "inventory", "root_path_replaced_during_snapshot"))
+    return not errors, errors
+
+
+def _root_path_still_names_descriptor(root: Path, expected: os.stat_result) -> bool:
+    try:
+        observed = os.stat(root, follow_symlinks=False)
+    except (OSError, ValueError):
+        return False
+    return (
+        stat.S_ISDIR(observed.st_mode)
+        and observed.st_dev == expected.st_dev
+        and observed.st_ino == expected.st_ino
+        and observed.st_mode == expected.st_mode
+    )
+
+
+def _list_inventory(root_descriptor: int) -> list[str]:
+    try:
+        return sorted(os.listdir(root_descriptor))
+    except OSError as exc:
+        raise privacy.ArtifactReadError("inventory_unavailable") from exc
+
+
+def _inventory_errors(
+    observed_names: list[str],
+    expected_names: set[str],
+) -> list[dict[str, str]]:
+    observed = set(observed_names)
+    errors = [
+        _error(path, "inventory", "governed_artifact_missing")
+        for path in sorted(expected_names - observed)
+    ]
+    if observed - expected_names:
+        errors.append(_error(".", "inventory", "extra_governed_inventory"))
+    return errors
+
+
+def _artifact_identity(
+    artifact: privacy.ArtifactSpec,
+    raw: bytes,
+) -> dict[str, Any]:
+    return {
+        "path": artifact.relative_path,
+        "role": artifact.role,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "size_bytes": len(raw),
+    }
+
+
+def _base_scan(
+    artifacts: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+    errors: list[dict[str, str]],
+    total_bytes: int,
+    snapshot_ok: bool,
+) -> dict[str, Any]:
+    findings.sort(key=lambda row: (row["path"], row["byte_offset"], row["rule_id"]))
+    errors.sort(key=lambda row: (row["path"], row["role"], row["code"]))
+    return {
+        "artifact_count_scanned": len(artifacts),
+        "artifacts": artifacts,
+        "errors": errors,
+        "findings": findings,
+        "snapshot_root_identity_verified": snapshot_ok,
+        "total_bytes_scanned": total_bytes,
+    }
+
+
+def _load_candidate_build_record_binding(
+    path: Path | None,
+) -> tuple[CandidateBuildRecordBinding | None, list[dict[str, str]]]:
+    if path is None:
+        return None, []
+    try:
+        raw = _read_stable_build_record(path)
+        document = _decode_build_record(raw)
+        programs = _program_bindings_from_record(document)
+    except (OSError, ValueError, privacy.ArtifactReadError):
+        return None, [_error(".", "build_record", "build_record_binding_rejected")]
+    return CandidateBuildRecordBinding(hashlib.sha256(raw).hexdigest(), programs), []
+
+
+def _read_stable_build_record(path: Path) -> bytes:
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+        )
+    except (OSError, ValueError) as exc:
+        raise privacy.ArtifactReadError("build_record_unavailable") from exc
+    try:
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_size <= 0
+            or before.st_size > MAX_BUILD_RECORD_BYTES
+        ):
+            raise privacy.ArtifactReadError("build_record_size_out_of_bounds")
+        raw = privacy._read_descriptor_bounded(descriptor, MAX_BUILD_RECORD_BYTES)
+        after = os.fstat(descriptor)
+        if privacy._identity_tuple(before) != privacy._identity_tuple(after):
+            raise privacy.ArtifactReadError("build_record_changed_during_read")
+        if len(raw) != after.st_size:
+            raise privacy.ArtifactReadError("build_record_changed_during_read")
+        return raw
+    finally:
+        os.close(descriptor)
+
+
+def _decode_build_record(raw: bytes) -> dict[str, Any]:
+    def reject_float(_value: str) -> None:
+        raise ValueError("floating-point build-record numbers are forbidden")
+
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        output: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in output:
+                raise ValueError("duplicate build-record key")
+            output[key] = value
+        return output
+
+    document = json.loads(
+        raw,
+        object_pairs_hook=reject_duplicates,
+        parse_float=reject_float,
+        parse_constant=reject_float,
+    )
+    if type(document) is not dict or set(document) != _BUILD_RECORD_ROOT_FIELDS:
+        raise ValueError("build-record root schema mismatch")
+    if document["schema"] != BUILD_RECORD_SCHEMA:
+        raise ValueError("build-record schema mismatch")
+    canonical = (json.dumps(document, indent=2, sort_keys=False) + "\n").encode()
+    if raw != canonical:
+        raise ValueError("build-record bytes are noncanonical")
+    claims = document["claims"]
+    if type(claims) is not dict or any(
+        claims.get(field) is not False for field in _BUILD_RECORD_FALSE_AUTHORITY_FIELDS
+    ):
+        raise ValueError("build-record authority claims must remain false")
+    return document
+
+
+def _program_bindings_from_record(
+    document: dict[str, Any],
+) -> tuple[ProgramArtifactBinding, ...]:
+    programs = document["programs"]
+    if type(programs) is not list:
+        raise ValueError("build-record programs must be a list")
+    roles_by_file = {
+        artifact.relative_path: artifact.role
+        for artifact in FINAL_ARTIFACTS
+        if artifact.role in RISC0_PROGRAM_BINARY_ROLES
+    }
+    bindings: list[ProgramArtifactBinding] = []
+    for row in programs:
+        bindings.append(_program_binding_from_row(row, roles_by_file))
+    bindings.sort()
+    if {binding.role for binding in bindings} != set(roles_by_file.values()):
+        raise ValueError("build-record program inventory mismatch")
+    if len(bindings) != len(roles_by_file):
+        raise ValueError("duplicate build-record program binding")
+    return tuple(bindings)
+
+
+def _program_binding_from_row(
+    row: Any,
+    roles_by_file: dict[str, str],
+) -> ProgramArtifactBinding:
+    if type(row) is not dict or set(row) != _BUILD_RECORD_PROGRAM_FIELDS:
+        raise ValueError("build-record program schema mismatch")
+    role = roles_by_file.get(row["artifact_file"])
+    size = row["program_binary_bytes"]
+    digest = row["program_binary_sha256"]
+    if role is None:
+        raise ValueError("unknown build-record program artifact")
+    if type(size) is not int or not 8 < size <= privacy.MAX_ARTIFACT_BYTES:
+        raise ValueError("build-record program size mismatch")
+    if (
+        type(digest) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+        or digest == "0" * 64
+    ):
+        raise ValueError("build-record program digest mismatch")
+    return ProgramArtifactBinding(role=role, sha256=digest, size_bytes=size)
 
 
 def _validate_upstream_path_exception_policy(
@@ -201,102 +584,57 @@ def _validate_upstream_path_exception_policy(
 
 
 def _apply_upstream_path_exceptions(
-    root: Path,
     base: dict[str, Any],
+    raw_by_path: dict[str, bytes],
     exceptions: tuple[UpstreamPathException, ...],
+    build_binding: CandidateBuildRecordBinding | None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], list[dict[str, Any]]]:
     findings = [dict(row) for row in base["findings"]]
-    raw_by_path, additional, errors = _read_exception_scan_artifacts(
-        root,
-        base["artifacts"],
-        findings,
-    )
+    additional, errors = _scan_snapshot_additional_paths(raw_by_path, findings)
     findings.extend(additional)
     retained, allowed = _filter_upstream_path_exceptions(
         findings,
         raw_by_path,
         exceptions,
+        build_binding,
     )
     return retained, errors, allowed
 
 
-def _read_exception_scan_artifacts(
-    root: Path,
-    scanned_artifacts: list[dict[str, Any]],
+def _scan_snapshot_additional_paths(
+    raw_by_path: dict[str, bytes],
     base_findings: list[dict[str, Any]],
-) -> tuple[dict[str, bytes], list[dict[str, Any]], list[dict[str, str]]]:
-    scanned_by_path = {row["path"]: row for row in scanned_artifacts}
-    raw_by_path: dict[str, bytes] = {}
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     additional: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
-    try:
-        root_descriptor = privacy._open_root(root)
-    except privacy.ArtifactReadError:
-        return raw_by_path, additional, errors
-    try:
-        for artifact in FINAL_ARTIFACTS:
-            scanned = scanned_by_path.get(artifact.relative_path)
-            if scanned is None:
-                continue
-            raw, error_code = _read_stable_exception_candidate(
-                root_descriptor,
-                artifact,
-                scanned,
-            )
-            if error_code is not None:
-                errors.append(_error(artifact.relative_path, artifact.role, error_code))
-                continue
-            raw_by_path[artifact.relative_path] = raw
-            new_findings, exceeded = _scan_additional_paths(
-                artifact,
-                raw,
-                privacy.MAX_FINDINGS - len(base_findings) - len(additional),
-                {
-                    (row["rule_id"], row["byte_offset"])
-                    for row in [*base_findings, *additional]
-                    if row["path"] == artifact.relative_path
-                },
-            )
-            additional.extend(new_findings)
-            if exceeded:
-                errors.append(
-                    _error(
-                        artifact.relative_path,
-                        artifact.role,
-                        "finding_limit_exceeded",
-                    )
-                )
-                break
-    finally:
-        os.close(root_descriptor)
-    return raw_by_path, additional, errors
-
-
-def _read_stable_exception_candidate(
-    root_descriptor: int,
-    artifact: privacy.ArtifactSpec,
-    scanned: dict[str, Any],
-) -> tuple[bytes, str | None]:
-    try:
-        raw = privacy._read_regular_bounded(
-            root_descriptor,
-            artifact.relative_path,
-            privacy.MAX_ARTIFACT_BYTES,
+    for artifact in FINAL_ARTIFACTS:
+        raw = raw_by_path.get(artifact.relative_path)
+        if raw is None:
+            continue
+        new_findings, exceeded = _scan_additional_paths(
+            artifact,
+            raw,
+            privacy.MAX_FINDINGS - len(base_findings) - len(additional),
+            {
+                (row["rule_id"], row["byte_offset"])
+                for row in [*base_findings, *additional]
+                if row["path"] == artifact.relative_path
+            },
         )
-    except privacy.ArtifactReadError:
-        return b"", "upstream_exception_scan_unavailable"
-    if (
-        len(raw) != scanned["size_bytes"]
-        or hashlib.sha256(raw).hexdigest() != scanned["sha256"]
-    ):
-        return b"", "artifact_changed_between_privacy_scans"
-    return raw, None
+        additional.extend(new_findings)
+        if exceeded:
+            errors.append(
+                _error(artifact.relative_path, artifact.role, "finding_limit_exceeded")
+            )
+            break
+    return additional, errors
 
 
 def _filter_upstream_path_exceptions(
     findings: list[dict[str, Any]],
     raw_by_path: dict[str, bytes],
     exceptions: tuple[UpstreamPathException, ...],
+    build_binding: CandidateBuildRecordBinding | None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     artifacts_by_path = {
         artifact.relative_path: artifact for artifact in FINAL_ARTIFACTS
@@ -313,7 +651,13 @@ def _filter_upstream_path_exceptions(
         if artifact is None or raw is None:
             retained.append(finding)
             continue
-        exception = _matching_exception(artifact, raw, finding, exceptions)
+        exception = _matching_exception(
+            artifact,
+            raw,
+            finding,
+            exceptions,
+            build_binding,
+        )
         if exception is None:
             retained.append(finding)
             continue
@@ -326,19 +670,7 @@ def _filter_upstream_path_exceptions(
             retained.append(finding)
             continue
         use_count[usage_key] = 1
-        allowed.append(
-            {
-                "artifact_path": artifact.relative_path,
-                "artifact_role": artifact.role,
-                "byte_offset": finding["byte_offset"],
-                "component_id": exception.component_id,
-                "governed_source_artifact_sha256": (
-                    exception.governed_source_artifact_sha256
-                ),
-                "path_sha256": hashlib.sha256(exception.exact_path).hexdigest(),
-                "rule_id": exception.rule_id,
-            }
-        )
+        allowed.append(_allowed_exception_row(artifact, raw, finding, exception))
     allowed.sort(
         key=lambda row: (
             row["artifact_path"],
@@ -347,6 +679,26 @@ def _filter_upstream_path_exceptions(
         )
     )
     return retained, allowed
+
+
+def _allowed_exception_row(
+    artifact: privacy.ArtifactSpec,
+    raw: bytes,
+    finding: dict[str, Any],
+    exception: UpstreamPathException,
+) -> dict[str, Any]:
+    return {
+        "artifact_path": artifact.relative_path,
+        "artifact_role": artifact.role,
+        "byte_offset": finding["byte_offset"],
+        "component_id": exception.component_id,
+        "governed_source_artifact_sha256": (
+            exception.governed_source_artifact_sha256
+        ),
+        "governed_program_binary_sha256": hashlib.sha256(raw).hexdigest(),
+        "path_sha256": hashlib.sha256(exception.exact_path).hexdigest(),
+        "rule_id": exception.rule_id,
+    }
 
 
 def _scan_additional_paths(
@@ -383,10 +735,19 @@ def _matching_exception(
     raw: bytes,
     finding: dict[str, Any],
     exceptions: tuple[UpstreamPathException, ...],
+    build_binding: CandidateBuildRecordBinding | None,
 ) -> UpstreamPathException | None:
+    program = (
+        build_binding.program_for_role(artifact.role)
+        if build_binding is not None
+        else None
+    )
     if (
         artifact.role not in RISC0_PROGRAM_BINARY_ROLES
         or not raw.startswith(RISC0_PROGRAM_BINARY_MAGIC)
+        or program is None
+        or len(raw) != program.size_bytes
+        or hashlib.sha256(raw).hexdigest() != program.sha256
     ):
         return None
     offset = finding.get("byte_offset")
@@ -448,32 +809,6 @@ def _upstream_path_exception_policy_sha256() -> str:
     ).hexdigest()
 
 
-def _read_exact_inventory(
-    root: Path,
-    expected_names: set[str],
-) -> tuple[list[str], list[dict[str, str]]]:
-    try:
-        descriptor = privacy._open_root(root)
-    except privacy.ArtifactReadError as exc:
-        return [], [_error(".", "inventory", exc.code)]
-    try:
-        observed_names = sorted(os.listdir(descriptor))
-    except OSError:
-        return [], [_error(".", "inventory", "inventory_unavailable")]
-    finally:
-        os.close(descriptor)
-
-    observed = set(observed_names)
-    errors = [
-        _error(path, "inventory", "governed_artifact_missing")
-        for path in sorted(expected_names - observed)
-    ]
-    if observed - expected_names:
-        # Extra names are not echoed because their names may themselves leak data.
-        errors.append(_error(".", "inventory", "extra_governed_inventory"))
-    return observed_names, errors
-
-
 def _inventory_names_sha256(names: list[str]) -> str:
     hasher = hashlib.sha256()
     hasher.update(b"zenodex.zrpf.source_opened_spot_v6.inventory.v1\0")
@@ -508,8 +843,12 @@ def _error(path: str, role: str, code: str) -> dict[str, str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--artifact-directory", type=Path, required=True)
+    parser.add_argument("--build-record", type=Path, default=DEFAULT_BUILD_RECORD)
     arguments = parser.parse_args(argv)
-    report = scan_artifact_directory(arguments.artifact_directory)
+    report = scan_artifact_directory(
+        arguments.artifact_directory,
+        build_record_path=arguments.build_record,
+    )
     print(json.dumps(report, sort_keys=True, separators=(",", ":")))
     return 0 if report["ok"] is True else 1
 

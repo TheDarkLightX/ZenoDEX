@@ -29,6 +29,45 @@ def _artifact_for_role(role: str) -> privacy.ArtifactSpec:
     return next(artifact for artifact in checker.FINAL_ARTIFACTS if artifact.role == role)
 
 
+def _write_candidate_build_record(path: Path, artifact_root: Path) -> None:
+    programs = []
+    for artifact in checker.FINAL_ARTIFACTS:
+        if artifact.role not in checker.RISC0_PROGRAM_BINARY_ROLES:
+            continue
+        raw = (artifact_root / artifact.relative_path).read_bytes()
+        programs.append(
+            {
+                "stage": artifact.role,
+                "package": f"fixture-{artifact.role}",
+                "artifact_file": artifact.relative_path,
+                "program_binary_bytes": len(raw),
+                "program_binary_sha256": hashlib.sha256(raw).hexdigest(),
+                "image_id_hex": "1" * 64,
+                "image_id_words_le": [1] * 8,
+                "verified_child_stage": "fixture-child",
+                "verified_child_image_id": "2" * 64,
+            }
+        )
+    record = {
+        "schema": checker.BUILD_RECORD_SCHEMA,
+        "recorded_at": "2026-07-12",
+        "source_snapshot": {},
+        "toolchain": {},
+        "programs": programs,
+        "executed_commands": {},
+        "claims": {
+            "release_authority": False,
+            "settlement_authority": False,
+            "production_authority": False,
+        },
+    }
+    path.write_text(json.dumps(record, indent=2, sort_keys=False) + "\n")
+
+
+def _candidate_build_record_path(artifact_root: Path) -> Path:
+    return artifact_root.parent / f"{artifact_root.name}.candidate-build-record.json"
+
+
 def test_governed_inventory_matches_the_evidence_artifacts() -> None:
     assert len(checker.FINAL_ARTIFACTS) == len(evidence.ARTIFACT_SPECS)
     assert [artifact.relative_path for artifact in checker.FINAL_ARTIFACTS] == [
@@ -55,11 +94,16 @@ def test_clean_binary_and_json_inventory_has_deterministic_hashes(
     assert first["finding_count"] == 0
     assert first["error_count"] == 0
     assert first["complete_artifact_privacy_verified"] is False
+    assert first["snapshot_root_identity_verified"] is True
+    assert first["build_record_anchor_checked"] is False
+    assert first["build_record_sha256"] is None
     assert first["allowed_upstream_path_exception_count"] == 0
     assert first["allowed_upstream_path_exceptions"] == []
     assert len(first["artifact_set_sha256"]) == 64
     assert len(first["inventory_names_sha256"]) == 64
     assert len(first["upstream_path_exception_policy_sha256"]) == 64
+    assert first["upstream_path_exception_policy_anchored"] is False
+    assert first["upstream_path_exception_policy_authority"] is False
     assert all(len(row["sha256"]) == 64 for row in first["artifacts"])
 
 
@@ -73,8 +117,13 @@ def test_exact_pinned_upstream_path_is_allowed_once_only_in_r0bf_program(
     (tmp_path / target.relative_path).write_bytes(
         b"R0BF\x01\x00public-prefix\x00" + exception.exact_path + b"\x00public-suffix"
     )
+    build_record = _candidate_build_record_path(tmp_path)
+    _write_candidate_build_record(build_record, tmp_path)
 
-    report = checker.scan_artifact_directory(tmp_path)
+    report = checker.scan_artifact_directory(
+        tmp_path,
+        build_record_path=build_record,
+    )
     encoded = json.dumps(report, sort_keys=True).encode()
 
     assert report["ok"] is True
@@ -90,10 +139,16 @@ def test_exact_pinned_upstream_path_is_allowed_once_only_in_r0bf_program(
             "governed_source_artifact_sha256": (
                 exception.governed_source_artifact_sha256
             ),
+            "governed_program_binary_sha256": hashlib.sha256(
+                (tmp_path / target.relative_path).read_bytes()
+            ).hexdigest(),
             "path_sha256": hashlib.sha256(exception.exact_path).hexdigest(),
             "rule_id": exception.rule_id,
         }
     ]
+    assert report["build_record_anchor_checked"] is False
+    assert len(report["build_record_sha256"]) == 64
+    assert report["upstream_path_exception_policy_authority"] is False
     assert exception.exact_path not in encoded
 
 
@@ -170,13 +225,72 @@ def test_second_exact_upstream_path_occurrence_rejects(tmp_path: Path) -> None:
         + exception.exact_path
         + b"\x00"
     )
+    build_record = _candidate_build_record_path(tmp_path)
+    _write_candidate_build_record(build_record, tmp_path)
 
-    report = checker.scan_artifact_directory(tmp_path)
+    report = checker.scan_artifact_directory(
+        tmp_path,
+        build_record_path=build_record,
+    )
 
     assert report["ok"] is False
     assert report["allowed_upstream_path_exception_count"] == 1
     assert report["finding_count"] == 1
     assert report["findings"][0]["rule_id"] == "posix_home_path"
+
+
+def test_modified_r0bf_with_exact_path_rejects_build_record_binding(
+    tmp_path: Path,
+) -> None:
+    _populate_clean_inventory(tmp_path)
+    target = _artifact_for_role("leaf_program_binary")
+    exception = checker.UPSTREAM_PATH_EXCEPTIONS[0]
+    governed = b"R0BF\x01\x00governed\x00" + exception.exact_path + b"\x00"
+    target_path = tmp_path / target.relative_path
+    target_path.write_bytes(governed)
+    build_record = _candidate_build_record_path(tmp_path)
+    _write_candidate_build_record(build_record, tmp_path)
+    target_path.write_bytes(governed + b"modified-after-build-record")
+
+    report = checker.scan_artifact_directory(
+        tmp_path,
+        build_record_path=build_record,
+    )
+
+    assert report["ok"] is False
+    assert report["allowed_upstream_path_exception_count"] == 0
+    assert exception.rule_id in {row["rule_id"] for row in report["findings"]}
+    assert report["build_record_anchor_checked"] is False
+    assert report["upstream_path_exception_policy_authority"] is False
+
+
+def test_candidate_build_record_cannot_promote_authority(tmp_path: Path) -> None:
+    _populate_clean_inventory(tmp_path)
+    target = _artifact_for_role("leaf_program_binary")
+    exception = checker.UPSTREAM_PATH_EXCEPTIONS[0]
+    (tmp_path / target.relative_path).write_bytes(
+        b"R0BF\x01\x00" + exception.exact_path + b"\x00"
+    )
+    build_record = _candidate_build_record_path(tmp_path)
+    _write_candidate_build_record(build_record, tmp_path)
+    document = json.loads(build_record.read_bytes())
+    document["claims"]["release_authority"] = True
+    build_record.write_text(json.dumps(document, indent=2, sort_keys=False) + "\n")
+
+    report = checker.scan_artifact_directory(
+        tmp_path,
+        build_record_path=build_record,
+    )
+
+    assert report["ok"] is False
+    assert report["allowed_upstream_path_exception_count"] == 0
+    assert report["build_record_anchor_checked"] is False
+    assert report["build_record_sha256"] is None
+    assert report["upstream_path_exception_policy_anchored"] is False
+    assert report["upstream_path_exception_policy_authority"] is False
+    assert "build_record_binding_rejected" in {
+        row["code"] for row in report["errors"]
+    }
 
 
 @pytest.mark.parametrize("exception_index", [0, 1])
@@ -304,6 +418,43 @@ def test_extra_inventory_fails_without_echoing_the_extra_name(tmp_path: Path) ->
     assert private_name not in encoded
 
 
+def test_same_uid_root_directory_swap_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "artifacts"
+    replacement = tmp_path / "replacement"
+    displaced = tmp_path / "displaced"
+    root.mkdir()
+    replacement.mkdir()
+    _populate_clean_inventory(root)
+    _populate_clean_inventory(replacement)
+    private_name = "private-project-hidden-after-inventory.txt"
+    (replacement / private_name).write_bytes(b"researcher@example.invalid")
+    original_read = privacy._read_regular_bounded
+    swapped = False
+
+    def swap_then_read(descriptor: int, relative_path: str, maximum: int) -> bytes:
+        nonlocal swapped
+        if not swapped:
+            root.rename(displaced)
+            replacement.rename(root)
+            swapped = True
+        return original_read(descriptor, relative_path, maximum)
+
+    monkeypatch.setattr(privacy, "_read_regular_bounded", swap_then_read)
+
+    report = checker.scan_artifact_directory(root)
+    encoded = json.dumps(report, sort_keys=True)
+
+    assert report["ok"] is False
+    assert report["snapshot_root_identity_verified"] is False
+    assert "root_path_replaced_during_snapshot" in {
+        row["code"] for row in report["errors"]
+    }
+    assert private_name not in encoded
+
+
 def test_cli_emits_canonical_report_and_rejects_finding(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -311,8 +462,17 @@ def test_cli_emits_canonical_report_and_rejects_finding(
     _populate_clean_inventory(tmp_path)
     target = tmp_path / checker.FINAL_ARTIFACTS[0].relative_path
     target.write_bytes(b"researcher@example.invalid")
+    build_record = _candidate_build_record_path(tmp_path)
+    _write_candidate_build_record(build_record, tmp_path)
 
-    exit_code = checker.main(["--artifact-directory", str(tmp_path)])
+    exit_code = checker.main(
+        [
+            "--artifact-directory",
+            str(tmp_path),
+            "--build-record",
+            str(build_record),
+        ]
+    )
     stdout = capsys.readouterr().out
     report = json.loads(stdout)
 
