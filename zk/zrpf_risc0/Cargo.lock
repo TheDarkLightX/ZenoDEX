@@ -3634,6 +3634,9 @@ name = "zenodex-zrpf-risc0-spot-v6-methods"
 version = "0.1.0"
 dependencies = [
  "risc0-build",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
