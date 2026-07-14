@@ -177,9 +177,9 @@ def _namespace(
     def close() -> None:
         events.append("namespace_close")
 
-    value.reverify_path = reverify_path
-    value.verify_empty = verify_empty
-    value.close = close
+    value.reverify_path = reverify_path  # type: ignore[method-assign]
+    value.verify_empty = verify_empty  # type: ignore[method-assign]
+    value.close = close  # type: ignore[method-assign]
     return value
 
 
