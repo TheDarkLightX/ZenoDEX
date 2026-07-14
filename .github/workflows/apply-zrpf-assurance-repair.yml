@@ -1,0 +1,318 @@
+name: apply-zrpf-assurance-repair
+
+on:
+  push:
+    branches:
+      - agent/zrpf-assurance-repair-20260714
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Install hash-pinned assurance tools
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Apply exact reviewed repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement, observed {count}")
+              target.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          for path in (
+              "tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py",
+              "tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py",
+          ):
+              replace_once(
+                  path,
+                  '        "source SHA-256 mismatch: zk/state_proof_risc0/shared/Cargo.toml",\n',
+                  '        "source SHA-256 mismatch: zk/state_proof_risc0/shared/Cargo.toml",\n'
+                  '        "source SHA-256 mismatch: zk/state_proof_risc0/shared/src/lib.rs",\n',
+              )
+              replace_once(
+                  path,
+                  '        "source SHA-256 mismatch: zk/zrpf_risc0/shared/Cargo.toml",\n',
+                  '        "source SHA-256 mismatch: zk/zrpf_risc0/shared/Cargo.toml",\n'
+                  '        "source SHA-256 mismatch: zk/zrpf_risc0/shared/src/lib.rs",\n'
+                  '        "source SHA-256 mismatch: zk/zrpf_risc0/shared/src/v1_leaf_adapter.rs",\n',
+              )
+
+          closure_path = "tools/zrpf_v3_source_closure.py"
+          checkpoint_rows = '''    (
+              "checkpoint_finality_protocol_v1",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/certificate.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v1",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/codec.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v1",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/error.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v1",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/hash.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v1",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/mod.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v1",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/policy.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v2",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/certificate.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v2",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/codec.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v2",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/cursor.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v2",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/error.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v2",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/hash.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v2",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/mod.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v2",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/policy.rs",
+          ),
+          (
+              "checkpoint_finality_protocol_v2",
+              "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/transition.rs",
+          ),
+          (
+              "assurance_compiler_source",
+              "zk/zrpf_protocol/protocol/tests/checkpoint_finality_v1.rs",
+          ),
+          (
+              "assurance_compiler_source",
+              "zk/zrpf_protocol/protocol/tests/checkpoint_finality_v2.rs",
+          ),
+          '''
+          replace_once(
+              closure_path,
+              '    (\n        "parallel_shard_epoch_protocol_v1",\n',
+              checkpoint_rows + '    (\n        "parallel_shard_epoch_protocol_v1",\n',
+          )
+
+          replace_once(
+              "tests/test_zrpf_v3_source_closure.py",
+              '    assert document["file_count"] == 399\n',
+              '    assert document["file_count"] == 415\n',
+          )
+          replace_once(
+              "tests/test_zrpf_v3_source_closure.py",
+              '    assert roles_by_path["zk/zrpf_protocol/protocol/src/full_blob_da_v1/policy.rs"] == (\n'
+              '        "data_availability_protocol_v1"\n'
+              '    )\n',
+              '    assert roles_by_path["zk/zrpf_protocol/protocol/src/full_blob_da_v1/policy.rs"] == (\n'
+              '        "data_availability_protocol_v1"\n'
+              '    )\n'
+              '    assert roles_by_path[\n'
+              '        "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/transition.rs"\n'
+              '    ] == "checkpoint_finality_protocol_v2"\n',
+          )
+
+          worker = Path("tools/run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py")
+          worker_text = worker.read_text(encoding="utf-8")
+          new_limits = '''def _set_child_limit(resource_id: int, requested: int) -> None:
+              """Install a limit no looser than requested under the inherited hard cap."""
+
+              _soft, inherited_hard = resource.getrlimit(resource_id)
+              effective = (
+                  requested
+                  if inherited_hard == resource.RLIM_INFINITY
+                  else min(requested, inherited_hard)
+              )
+              if effective < 0:
+                  raise WorkerError("inherited child resource limit is invalid")
+              resource.setrlimit(resource_id, (effective, effective))
+
+
+          def _limit_child(limits: Mapping[str, object]) -> None:
+              _set_child_limit(resource.RLIMIT_NOFILE, _recorded_int(limits, "max_open_files"))
+              if hasattr(resource, "RLIMIT_NPROC"):
+                  _set_child_limit(resource.RLIMIT_NPROC, _recorded_int(limits, "max_processes"))
+              if hasattr(resource, "RLIMIT_CORE"):
+                  _set_child_limit(resource.RLIMIT_CORE, 0)
+              if hasattr(resource, "RLIMIT_AS"):
+                  _set_child_limit(
+                      resource.RLIMIT_AS,
+                      _recorded_int(limits, "max_virtual_address_space_bytes"),
+                  )
+              if hasattr(resource, "RLIMIT_FSIZE"):
+                  _set_child_limit(
+                      resource.RLIMIT_FSIZE,
+                      _recorded_int(limits, "max_stage_artifact_bytes"),
+                  )
+              os.umask(0o077)
+
+
+          '''
+          worker_text, substitutions = re.subn(
+              r"def _limit_child\(limits: Mapping\[str, object\]\) -> None:\n.*?(?=def _kill_residual_process_group)",
+              new_limits,
+              worker_text,
+              count=1,
+              flags=re.DOTALL,
+          )
+          if substitutions != 1:
+              raise SystemExit(f"worker limit replacement count: {substitutions}")
+          worker.write_text(worker_text, encoding="utf-8")
+
+          profile = Path("tools/check_zrpf_v3_firecracker_replay_profile.py")
+          profile_text = profile.read_text(encoding="utf-8")
+          depth_helper = '''def _require_bounded_json_depth(raw: bytes, maximum: int = 128) -> None:
+              depth = 0
+              in_string = False
+              escaped = False
+              for byte in raw:
+                  if in_string:
+                      if escaped:
+                          escaped = False
+                      elif byte == 0x5C:
+                          escaped = True
+                      elif byte == 0x22:
+                          in_string = False
+                      continue
+                  if byte == 0x22:
+                      in_string = True
+                  elif byte in (0x5B, 0x7B):
+                      depth += 1
+                      if depth > maximum:
+                          raise ValueError("profile JSON exceeds the nesting limit")
+                  elif byte in (0x5D, 0x7D):
+                      depth -= 1
+                      if depth < 0:
+                          raise ValueError("profile JSON nesting is malformed")
+
+
+          '''
+          marker = "def _validate_profile_document(\n"
+          if profile_text.count(marker) != 1:
+              raise SystemExit("profile depth insertion marker mismatch")
+          profile_text = profile_text.replace(marker, depth_helper + marker, 1)
+          old_parse = '''        raw = _read_bounded_regular(profile_path)
+                  profile = support.strict_json_loads(raw)
+          '''
+          new_parse = '''        raw = _read_bounded_regular(profile_path)
+                  _require_bounded_json_depth(raw)
+                  profile = support.strict_json_loads(raw)
+          '''
+          if profile_text.count(old_parse) != 1:
+              raise SystemExit("profile parse replacement marker mismatch")
+          profile.write_text(profile_text.replace(old_parse, new_parse, 1), encoding="utf-8")
+
+          authority = Path("tests/integration/test_recursive_stark_admission_authority_boundary.py")
+          authority_text = authority.read_text(encoding="utf-8")
+          authority_text = authority_text.replace(
+              'SPOT_V7_ATOMIC_STORE = (\n    ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"\n)\n',
+              'SPOT_V7_ATOMIC_STORE = (\n    ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"\n)\n'
+              'SPOT_V7_OPERATIONAL_CAPABILITY_V2 = (\n'
+              '    ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v2.py"\n'
+              ')\n'
+              'SPOT_V7_OPERATIONAL_GATE = (\n'
+              '    ROOT / "src/integration/_zrpf_spot_v7_operational_gate.py"\n'
+              ')\n',
+              1,
+          )
+          authority_text = authority_text.replace(
+              'PRIVATE_FIRECRACKER_STORE_REFERENCES = frozenset(\n'
+              '    {\n'
+              '        "_GovernedFirecrackerSpotV7SettlementV1",\n'
+              '        "_require_governed_firecracker_spot_v7_authority_available_v1",\n'
+              '    }\n'
+              ')\n',
+              'PRIVATE_FIRECRACKER_STORE_REFERENCES = frozenset(\n'
+              '    {\n'
+              '        "_GovernedFirecrackerSpotV7SettlementV1",\n'
+              '        "_require_governed_firecracker_spot_v7_authority_available_v1",\n'
+              '    }\n'
+              ')\n'
+              'PRIVATE_OPERATIONAL_FIRECRACKER_REFERENCES = frozenset(\n'
+              '    {\n'
+              '        "_GovernedFirecrackerSpotV7SettlementV1",\n'
+              '        "_candidate_for_atomic_store",\n'
+              '    }\n'
+              ')\n',
+              1,
+          )
+          authority_text = authority_text.replace(
+              '            SPOT_V7_ATOMIC_STORE: PRIVATE_FIRECRACKER_STORE_REFERENCES,\n',
+              '            SPOT_V7_ATOMIC_STORE: PRIVATE_FIRECRACKER_STORE_REFERENCES,\n'
+              '            SPOT_V7_OPERATIONAL_CAPABILITY_V2: (\n'
+              '                PRIVATE_OPERATIONAL_FIRECRACKER_REFERENCES\n'
+              '            ),\n'
+              '            SPOT_V7_OPERATIONAL_GATE: PRIVATE_OPERATIONAL_FIRECRACKER_REFERENCES,\n',
+              1,
+          )
+          for required in (
+              "SPOT_V7_OPERATIONAL_CAPABILITY_V2",
+              "SPOT_V7_OPERATIONAL_GATE",
+              "PRIVATE_OPERATIONAL_FIRECRACKER_REFERENCES",
+          ):
+              if required not in authority_text:
+                  raise SystemExit(f"authority allowlist insertion missing: {required}")
+          authority.write_text(authority_text, encoding="utf-8")
+          PY
+
+          rm .github/workflows/apply-zrpf-assurance-repair.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'ci: repair exact-head ZRPF assurance regressions'
+
+      - name: Run the eight previously failing tests
+        run: |
+          set -euo pipefail
+          pytest -q \
+            tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py::test_retained_adapter_evidence_rejects_hardened_verifier_source_drift \
+            tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py::test_bounded_quiet_command_allows_empty_stdout \
+            tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py::test_bounded_command_kills_and_rejects_residual_process_group \
+            tests/test_check_zrpf_v3_firecracker_replay_profile.py::test_deep_json_rejects_without_cli_traceback \
+            tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory \
+            tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest \
+            tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py::test_retained_structural_evidence_rejects_hardened_verifier_source_drift \
+            tests/integration/test_recursive_stark_admission_authority_boundary.py::test_private_admission_symbols_are_absent_from_other_production_modules
+
+      - name: Push reviewed repair commit
+        run: git push origin HEAD:agent/zrpf-assurance-repair-20260714
