@@ -7,6 +7,7 @@ import hashlib
 import json
 import pickle
 from dataclasses import dataclass, replace
+from typing import NoReturn
 
 import pytest
 from py_ecc.optimized_bls12_381 import curve_order
@@ -451,12 +452,10 @@ def test_invalid_bls_signature_rejects_before_capability_mint(
     malformed = dict(fixture.envelopes[0])
     malformed["signature"] = "0x" + _fixed_bytes("wrong-signature", 96).hex()
     calls = 0
-    original = adapter_module._AuthenticatedExactCheckpointFinalityTransitionV2
-
-    def record_mint(*args: object, **kwargs: object) -> object:
+    def record_mint(*_args: object, **_kwargs: object) -> NoReturn:
         nonlocal calls
         calls += 1
-        return original(*args, **kwargs)
+        raise AssertionError("finality capability mint reached before signature rejection")
 
     monkeypatch.setattr(
         adapter_module,
