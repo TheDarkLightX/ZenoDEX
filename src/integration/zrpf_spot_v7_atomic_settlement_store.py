@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import NoReturn, cast, final
+from typing import NoReturn, final
 
 from src.integration._recursive_stark_admission_store_schema import (
     DEFAULT_BUSY_TIMEOUT_MS,
@@ -215,13 +215,16 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
         self,
         *,
         expected_cursor: SpotV7AtomicSettlementCursorV1,
-        candidate: _TestOnlySealedSpotV7SettlementV1,
+        candidate: object,
     ) -> SpotV7AtomicSettlementResultV1:
         """Apply one sealed authority-false candidate in a single write lock."""
 
         if type(expected_cursor) is not SpotV7AtomicSettlementCursorV1:
             raise TypeError("expected_cursor must be exact SpotV7AtomicSettlementCursorV1")
-        if type(candidate) is not _TestOnlySealedSpotV7SettlementV1:
+        if (
+            not isinstance(candidate, _TestOnlySealedSpotV7SettlementV1)
+            or type(candidate) is not _TestOnlySealedSpotV7SettlementV1
+        ):
             raise TypeError("candidate must be a test-only sealed Spot V7 candidate")
         if not candidate._has_private_test_seal():
             raise TypeError("candidate lacks the module-private test-only seal")
@@ -309,10 +312,12 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
 
         if type(expected_cursor) is not SpotV7AtomicSettlementCursorV1:
             raise TypeError("expected_cursor must be exact SpotV7AtomicSettlementCursorV1")
-        if type(capability) is not _GovernedFirecrackerSpotV7SettlementV1:
+        if (
+            not isinstance(capability, _GovernedFirecrackerSpotV7SettlementV1)
+            or type(capability) is not _GovernedFirecrackerSpotV7SettlementV1
+        ):
             raise TypeError("capability must be a governed Firecracker Spot V7 capability")
-        governed = cast(_GovernedFirecrackerSpotV7SettlementV1, capability)
-        if not governed._has_private_binder_seal():
+        if not capability._has_private_binder_seal():
             raise TypeError("capability lacks the module-private governed binder seal")
         _require_spot_v7_operational_commit_authority_available_v1()
 

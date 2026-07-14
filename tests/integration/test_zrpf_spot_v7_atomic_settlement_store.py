@@ -40,6 +40,9 @@ from src.integration._zrpf_spot_v7_firecracker_output import (
     _decode_exact_committed_spot_v7_output_v1,
     _decode_spot_v7_payload_v1,
 )
+from src.integration._zrpf_spot_v7_operational_gate import (
+    SpotV7OperationalCommitAuthorityUnavailableV1,
+)
 from src.integration.zrpf_spot_v7_atomic_settlement_store import (
     SQLiteSpotV7AtomicSettlementStoreV1,
 )
@@ -726,7 +729,7 @@ def test_direct_or_object_new_capability_construction_cannot_cross_private_seals
     with pytest.raises(TypeError, match="governed runtime seal"):
         _GovernedJailedFirecrackerExecutionV1(
             bound,
-            seal=object(),  # type: ignore[arg-type]
+            seal=object(),
         )
     forged_runtime = object.__new__(_GovernedJailedFirecrackerExecutionV1)
     with pytest.raises(TypeError, match="governed jailed Firecracker execution"):
@@ -736,7 +739,7 @@ def test_direct_or_object_new_capability_construction_cannot_cross_private_seals
     with pytest.raises(TypeError, match="governed binder seal"):
         _GovernedFirecrackerSpotV7SettlementV1(
             runtime_execution=forged_runtime,
-            seal=object(),  # type: ignore[arg-type]
+            seal=object(),
         )
 
 
@@ -865,7 +868,7 @@ def test_exact_sealed_but_unavailable_capability_rejects_before_sqlite_mutation(
         "_connect",
         side_effect=AssertionError("unavailable authority must precede SQLite"),
     ):
-        with pytest.raises(SpotV7FirecrackerAuthorityUnavailableV1):
+        with pytest.raises(SpotV7OperationalCommitAuthorityUnavailableV1):
             store._commit_governed_firecracker_capability(
                 expected_cursor=before_cursor,
                 capability=capability,

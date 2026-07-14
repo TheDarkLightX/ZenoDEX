@@ -13,13 +13,12 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from enum import Enum
-from typing import Final, NoReturn, SupportsIndex, cast, final
+from typing import Final, NoReturn, SupportsIndex, final
 
 from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
     _SpotV7SettlementCandidateInputV1,
 )
 from src.integration._zrpf_spot_v7_firecracker_authority import (
-    SpotV7FirecrackerAuthorityUnavailableV1,
     _GovernedFirecrackerSpotV7SettlementV1,
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
@@ -54,9 +53,7 @@ SPOT_V7_OPERATIONAL_COMMIT_MISSING_CONDITIONS_V1: Final = tuple(
 )
 
 
-class SpotV7OperationalCommitAuthorityUnavailableV1(
-    SpotV7FirecrackerAuthorityUnavailableV1
-):
+class SpotV7OperationalCommitAuthorityUnavailableV1(RuntimeError):
     """Stable reject while no combined operational commit authority exists."""
 
     code: Final = "SPOT_V7_OPERATIONAL_COMMIT_AUTHORITY_UNAVAILABLE"
@@ -335,12 +332,14 @@ def _require_spot_v7_operational_commit_authority_available_v1() -> NoReturn:
 def _require_settlement_capability(
     value: object,
 ) -> _GovernedFirecrackerSpotV7SettlementV1:
-    if type(value) is not _GovernedFirecrackerSpotV7SettlementV1:
+    if (
+        not isinstance(value, _GovernedFirecrackerSpotV7SettlementV1)
+        or type(value) is not _GovernedFirecrackerSpotV7SettlementV1
+    ):
         raise TypeError("operational gate requires governed Spot V7 settlement facts")
-    governed = cast(_GovernedFirecrackerSpotV7SettlementV1, value)
-    if not governed._has_private_binder_seal():
+    if not value._has_private_binder_seal():
         raise TypeError("operational gate requires governed Spot V7 settlement facts")
-    return governed
+    return value
 
 
 def _require_operational_policy(value: object) -> _GovernedSpotV7OperationalPolicyV1:
