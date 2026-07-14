@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Mapping
-from dataclasses import dataclass
 from typing import NoReturn, SupportsIndex, final
 
 from .codec import (
@@ -24,6 +22,11 @@ from .model import (
     require_root,
     require_u64,
 )
+from .projection import (
+    _build_verified_projection_v1,
+    _require_authenticated_provider_ids,
+    _VerifiedProjectionV1,
+)
 from .response_verifier import verify_provider_responses_v1
 from .validation import (
     checked_add as _checked_add,
@@ -34,16 +37,6 @@ from .validation import (
 from .validation import (
     require_list as _require_list,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class _VerifiedProjectionV1:
-    checked_epoch: int
-    accepted_provider_ids: tuple[str, ...]
-    policy_root: str
-    certificate_root: str
-    beacon_commitment: str
-    evidence_sha256: str
 
 
 class _AuthenticatedEvidenceSealV1:
@@ -57,9 +50,23 @@ _AUTHENTICATED_EVIDENCE_SEAL_V1 = _AuthenticatedEvidenceSealV1()
 class _AuthenticatedSampledRetrievabilityEvidenceV1:
     """Process-local result of exact BLS, opening, lifecycle, and quorum checks."""
 
-    __slots__ = ("_exact_evidence_bytes", "_projection", "_seal")
+    __slots__ = (
+        "_accepted_provider_ids",
+        "_checked_epoch",
+        "_exact_evidence_bytes",
+        "_expected_beacon",
+        "_expected_policy",
+        "_expected_target",
+        "_projection",
+        "_seal",
+    )
 
+    _accepted_provider_ids: tuple[str, ...]
+    _checked_epoch: int
     _exact_evidence_bytes: bytes
+    _expected_beacon: BeaconCommitmentV1
+    _expected_policy: SampledRetrievabilityPolicyV1
+    _expected_target: FullBlobRetrievabilityTargetV1
     _projection: _VerifiedProjectionV1
     _seal: _AuthenticatedEvidenceSealV1
 
@@ -68,12 +75,46 @@ class _AuthenticatedSampledRetrievabilityEvidenceV1:
         projection: _VerifiedProjectionV1,
         exact_evidence_bytes: bytes,
         *,
+        expected_policy: SampledRetrievabilityPolicyV1,
+        expected_target: FullBlobRetrievabilityTargetV1,
+        expected_beacon: BeaconCommitmentV1,
+        checked_epoch: int,
+        accepted_provider_ids: tuple[str, ...],
         seal: _AuthenticatedEvidenceSealV1,
     ) -> None:
         if type(projection) is not _VerifiedProjectionV1:
             raise TypeError("authenticated retrievability projection has the wrong type")
         if seal is not _AUTHENTICATED_EVIDENCE_SEAL_V1:
             raise TypeError("authenticated retrievability evidence requires the private seal")
+        if type(expected_policy) is not SampledRetrievabilityPolicyV1:
+            raise TypeError("authenticated retrievability policy has the wrong type")
+        if type(expected_target) is not FullBlobRetrievabilityTargetV1:
+            raise TypeError("authenticated retrievability target has the wrong type")
+        if type(expected_beacon) is not BeaconCommitmentV1:
+            raise TypeError("authenticated retrievability beacon has the wrong type")
+        checked = require_u64(checked_epoch, name="authenticated checked_epoch")
+        accepted = _require_authenticated_provider_ids(
+            accepted_provider_ids,
+            expected_policy,
+            checked,
+        )
+        if type(exact_evidence_bytes) is not bytes or not exact_evidence_bytes:
+            raise ValueError("authenticated retrievability evidence bytes are empty")
+        expected_projection = _build_verified_projection_v1(
+            policy=expected_policy,
+            target=expected_target,
+            beacon=expected_beacon,
+            checked_epoch=checked,
+            accepted_provider_ids=accepted,
+            exact_evidence_bytes=exact_evidence_bytes,
+        )
+        if projection != expected_projection:
+            raise ValueError("authenticated retrievability projection drift")
+        object.__setattr__(self, "_expected_policy", expected_policy)
+        object.__setattr__(self, "_expected_target", expected_target)
+        object.__setattr__(self, "_expected_beacon", expected_beacon)
+        object.__setattr__(self, "_checked_epoch", checked)
+        object.__setattr__(self, "_accepted_provider_ids", accepted)
         object.__setattr__(self, "_projection", projection)
         object.__setattr__(self, "_exact_evidence_bytes", exact_evidence_bytes)
         object.__setattr__(self, "_seal", seal)
@@ -95,34 +136,56 @@ class _AuthenticatedSampledRetrievabilityEvidenceV1:
 
     @property
     def authenticated_sampled_response_scoped_to_checked_epoch(self) -> bool:
+        self._projection_for_spot_v7_da_prerequisite_v1()
         return True
+
+    def _has_private_seal(self) -> bool:
+        return getattr(self, "_seal", None) is _AUTHENTICATED_EVIDENCE_SEAL_V1
+
+    def _projection_for_spot_v7_da_prerequisite_v1(self) -> _VerifiedProjectionV1:
+        if not self._has_private_seal():
+            raise TypeError("authenticated sampled response lacks its private seal")
+        expected = _build_verified_projection_v1(
+            policy=self._expected_policy,
+            target=self._expected_target,
+            beacon=self._expected_beacon,
+            checked_epoch=self._checked_epoch,
+            accepted_provider_ids=self._accepted_provider_ids,
+            exact_evidence_bytes=self._exact_evidence_bytes,
+        )
+        if expected != self._projection:
+            if expected.evidence_sha256 != self._projection.evidence_sha256:
+                raise ValueError("authenticated retrievability evidence digest drift")
+            raise ValueError("authenticated retrievability projection drift")
+        return self._projection
 
     @property
     def checked_epoch(self) -> int:
-        return self._projection.checked_epoch
+        return self._projection_for_spot_v7_da_prerequisite_v1().checked_epoch
 
     @property
     def accepted_provider_ids(self) -> tuple[str, ...]:
-        return self._projection.accepted_provider_ids
+        return self._projection_for_spot_v7_da_prerequisite_v1().accepted_provider_ids
 
     @property
     def policy_root(self) -> str:
-        return self._projection.policy_root
+        return self._projection_for_spot_v7_da_prerequisite_v1().policy_root
 
     @property
     def certificate_root(self) -> str:
-        return self._projection.certificate_root
+        return self._projection_for_spot_v7_da_prerequisite_v1().certificate_root
 
     @property
     def beacon_commitment(self) -> str:
-        return self._projection.beacon_commitment
+        return self._projection_for_spot_v7_da_prerequisite_v1().beacon_commitment
 
     @property
     def evidence_sha256(self) -> str:
-        return self._projection.evidence_sha256
+        return self._projection_for_spot_v7_da_prerequisite_v1().evidence_sha256
 
     @property
     def exact_evidence_bytes(self) -> bytes:
+        self._projection_for_spot_v7_da_prerequisite_v1()
         return self._exact_evidence_bytes
 
     @property
@@ -206,17 +269,22 @@ def verify_exact_evidence_v1(
     )
     if len(accepted) < policy.minimum_provider_responses:
         _reject("PROVIDER_QUORUM_NOT_MET", "distinct active provider quorum is below policy")
-    projection = _VerifiedProjectionV1(
+    projection = _build_verified_projection_v1(
+        policy=policy,
+        target=target,
+        beacon=beacon,
         checked_epoch=checked,
         accepted_provider_ids=accepted,
-        policy_root=policy.policy_root,
-        certificate_root=target.certificate_root,
-        beacon_commitment=beacon.commitment,
-        evidence_sha256=hashlib.sha256(exact_evidence_bytes).hexdigest(),
+        exact_evidence_bytes=exact_evidence_bytes,
     )
     return _AuthenticatedSampledRetrievabilityEvidenceV1(
         projection,
         exact_evidence_bytes,
+        expected_policy=policy,
+        expected_target=target,
+        expected_beacon=beacon,
+        checked_epoch=checked,
+        accepted_provider_ids=accepted,
         seal=_AUTHENTICATED_EVIDENCE_SEAL_V1,
     )
 

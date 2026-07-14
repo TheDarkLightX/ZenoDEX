@@ -46,6 +46,12 @@ SPOT_V7_OPERATIONAL_STORE = ROOT / "src/integration/_zrpf_spot_v7_operational_st
 SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER = (
     ROOT / "src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py"
 )
+SAMPLED_RETRIEVABILITY_VERIFIER = (
+    ROOT / "src/integration/zrpf_sampled_retrievability_v1/verifier.py"
+)
+SPOT_V7_GOVERNED_DA_PREREQUISITE = (
+    ROOT / "src/integration/zrpf_spot_v7_governed_da_prerequisite.py"
+)
 SPOT_V7_ATOMIC_STORE = (
     ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
 )
@@ -94,6 +100,24 @@ PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES = frozenset(
 PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES = frozenset(
     {"_GovernedOperationalPolicyProvenanceV1"}
 )
+PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES = frozenset(
+    {
+        "_AuthenticatedEvidenceSealV1",
+        "_AUTHENTICATED_EVIDENCE_SEAL_V1",
+        "_AuthenticatedSampledRetrievabilityEvidenceV1",
+        "_projection_for_spot_v7_da_prerequisite_v1",
+    }
+)
+PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES = frozenset(
+    {
+        "_GovernedSpotV7DataAvailabilityPrerequisiteSealV1",
+        "_GOVERNED_SPOT_V7_DA_PREREQUISITE_SEAL_V1",
+        "_GovernedSpotV7DataAvailabilityPrerequisiteV1",
+        "_bind_governed_spot_v7_da_prerequisite_v1",
+        "_require_authenticated_sampled_response_v1",
+        "_projection_for_downstream_binding_v1",
+    }
+)
 PRIVATE_AUTHORITY_NAMES = frozenset(
     {
         PRIVATE_CAPABILITY_TYPE,
@@ -112,6 +136,8 @@ PROTECTED_AUTHORITY_NAMES = (
     | PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
     | PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
     | PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES
+    | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES
 )
 PRIVATE_ADAPTER_IMPORTS = frozenset(
     {
@@ -194,6 +220,14 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             SPOT_V7_OPERATIONAL_STORE: PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES,
             SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER: (
                 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+            ),
+            SAMPLED_RETRIEVABILITY_VERIFIER: (
+                PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
+            ),
+            SPOT_V7_GOVERNED_DA_PREREQUISITE: (
+                PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
+                | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES
             ),
         }.get(path, frozenset())
         tree = _parse(path)
@@ -279,6 +313,14 @@ def test_operational_policy_release_handoff_has_no_production_mint_or_consumer()
 )
 def test_firecracker_authority_symbols_have_no_public_alias_or_export(path: Path) -> None:
     tree = _parse(path)
+
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _public_top_level_authority_reachability(tree) == []
+
+
+def test_combined_da_authority_symbols_have_no_public_alias_or_export() -> None:
+    tree = _parse(SPOT_V7_GOVERNED_DA_PREREQUISITE)
 
     assert _public_authority_alias_violations(tree) == []
     assert _private_authority_all_exports(tree) == []

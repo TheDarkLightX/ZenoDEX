@@ -208,16 +208,20 @@ integer substitutions for authority booleans.
 
 ## Current integration boundary
 
-This implementation deliberately does not modify the Spot V7 operational
-policy capability, full-blob certificate, atomic store schema, or settlement
-gate. A later integration requires independently authenticated:
+This implementation does not modify the Spot V7 operational policy capability,
+full-blob certificate, atomic store schema, or settlement gate. The separate
+private `zrpf_spot_v7_governed_da_prerequisite` adapter now closes the exact
+bridge from a governed full-blob result to this sampled-result projection. It
+retains the existing operational-policy release provenance and cross-binds the
+application, domain, certificate, data, epoch, retention, provider-set result,
+and sampled-evidence digest.
+
+Operational use still requires independently authenticated:
 
 1. retrievability policy provenance and lifecycle;
 2. beacon source, policy, commitment, and finality provenance;
-3. an exact bridge from the governed full-blob checker result to the
-   application-neutral full-blob target;
-4. a store field for the exact sampled evidence digest and checked epoch;
-5. explicit operational policy deciding whether sampling is mandatory in
+3. a store field for the exact sampled evidence digest and checked epoch;
+4. explicit operational policy deciding whether sampling is mandatory in
    addition to exact local full-blob persistence.
 
 Until those boundaries exist, this profile supplies cryptographic sampled
