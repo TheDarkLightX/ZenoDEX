@@ -311,6 +311,12 @@ def test_deep_json_rejects_without_cli_traceback(
     assert deep.as_posix() not in captured.out
 
 
+def test_json_nesting_preflight_ignores_container_bytes_inside_strings() -> None:
+    raw = b'{"value":"[\\\"{still a string}\\\"]"}\n'
+
+    checker._require_bounded_json_nesting(raw)
+
+
 def test_cli_rejects_unknown_arguments() -> None:
     try:
         checker.main(["--profile", "attacker.json"])

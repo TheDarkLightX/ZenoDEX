@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -95,14 +96,23 @@ def _artifacts(
 @pytest.fixture(scope="session")
 def rust_checker(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
     target = tmp_path_factory.mktemp("full-blob-da-rust-target")
+    cargo = shutil.which("cargo")
+    if cargo is None:
+        raise FileNotFoundError("cargo is required for the full-blob DA checker fixture")
+    cargo_path = Path(cargo)
+    home = os.environ.get("HOME", str(Path.home()))
     environment = {
-        **os.environ,
+        "CARGO_HOME": os.environ.get("CARGO_HOME", f"{home}/.cargo"),
+        "CARGO_NET_OFFLINE": "true",
         "CARGO_TARGET_DIR": str(target),
         "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS": ("-C target-feature=+crt-static"),
+        "HOME": home,
+        "PATH": f"{cargo_path.parent}:/usr/bin:/bin",
+        "RUSTUP_HOME": os.environ.get("RUSTUP_HOME", f"{home}/.rustup"),
     }
     subprocess.run(
         (
-            "cargo",
+            str(cargo_path),
             "build",
             "--locked",
             "--release",

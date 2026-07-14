@@ -24,6 +24,7 @@ support = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_evidence_supp
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE_PATH = REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_replay_profile_v1.json"
 MAX_PROFILE_BYTES = 64 * 1024
+MAX_PROFILE_JSON_NESTING = 64
 EXPECTED_PROFILE_CANONICAL_SHA256 = (
     "e7ab29b1327cd89dd7180cd45aed9663fdb9234d738f7acb51412bb576c8c88e"
 )
@@ -497,6 +498,7 @@ def _validate_profile_document(
     profile: Any = None
     try:
         raw = _read_bounded_regular(profile_path)
+        _require_bounded_json_nesting(raw)
         profile = support.strict_json_loads(raw)
     except (
         OSError,
@@ -539,6 +541,33 @@ def _validate_profile_document(
     }
     governed_profile = profile if not errors and isinstance(profile, dict) else None
     return validation, governed_profile
+
+
+def _require_bounded_json_nesting(raw: bytes) -> None:
+    """Reject pathological container depth before recursive JSON decoding."""
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for byte in raw:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif byte == ord("\\"):
+                escaped = True
+            elif byte == ord('"'):
+                in_string = False
+            continue
+        if byte == ord('"'):
+            in_string = True
+        elif byte in (ord("["), ord("{")):
+            depth += 1
+            if depth > MAX_PROFILE_JSON_NESTING:
+                raise ValueError("profile JSON nesting exceeds the fixed bound")
+        elif byte in (ord("]"), ord("}")):
+            depth -= 1
+            if depth < 0:
+                raise ValueError("profile JSON container closing is unbalanced")
 
 
 def build_report(
