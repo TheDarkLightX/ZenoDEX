@@ -250,6 +250,57 @@ def test_v7_lifecycle_finish_binds_prepare_and_rejects_identity_substitution(
         )
 
 
+def test_v7_lifecycle_launch_failure_removes_prepared_jail(tmp_path: Path) -> None:
+    inputs = _inputs(tmp_path)
+    prepared = inputs.prepare()
+    jail_root = prepared.jail_root_path
+
+    def fail_launch() -> tuple[_FakeProcess, lifecycle._JailerLaunchObservationV1]:
+        raise staging.JailerLauncherReject("test_launch_failed_after_shared_teardown")
+
+    with pytest.raises(
+        staging.JailerLauncherReject,
+        match="test_launch_failed_after_shared_teardown",
+    ):
+        lifecycle._complete_prepared_spot_v7_jailer_lifecycle_for_test(
+            prepared_jail=prepared,
+            launch=fail_launch,
+            finish=lambda _process, _observation, _prepare: {},
+        )
+
+    assert not jail_root.exists()
+
+
+def test_v7_lifecycle_finish_failure_removes_prepared_jail(tmp_path: Path) -> None:
+    inputs = _inputs(tmp_path)
+    prepared = inputs.prepare()
+    jail_root = prepared.jail_root_path
+    observation = lifecycle._JailerLaunchObservationV1(
+        jailer_pid=41,
+        process_set=frozenset({41, 42}),
+        cgroup_relative_path="zrpf/run00001",
+    )
+
+    def fail_finish(
+        _process: lifecycle.ProcessHandle,
+        _observation: lifecycle._JailerLaunchObservationV1,
+        _prepare: runtime_binding.SpotV7FirecrackerPrepareObservationV1,
+    ) -> dict[str, object]:
+        raise staging.JailerLauncherReject("test_finish_failed_after_shared_teardown")
+
+    with pytest.raises(
+        staging.JailerLauncherReject,
+        match="test_finish_failed_after_shared_teardown",
+    ):
+        lifecycle._complete_prepared_spot_v7_jailer_lifecycle_for_test(
+            prepared_jail=prepared,
+            launch=lambda: (_FakeProcess(41), observation),
+            finish=fail_finish,
+        )
+
+    assert not jail_root.exists()
+
+
 @dataclass(slots=True)
 class _Inputs:
     spec: staging.PreparedJailRootSpecV2
