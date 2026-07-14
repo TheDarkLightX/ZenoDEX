@@ -19,10 +19,10 @@ from tools.zrpf_spot_v7_verifier_payload_codec import (
 )
 from tools.zrpf_spot_v7_verifier_payload_codec import (
     SpotV7FirecrackerProtocolRejectV1,
-    SpotV7VerifierPayloadFrameV1,
+    StructurallyDecodedSpotV7VerifierPayloadV1,
 )
 from tools.zrpf_spot_v7_verifier_payload_codec import (
-    decode_exact_v7_verifier_payload_v1 as _decode_exact_v7_payload,
+    decode_structural_v7_verifier_payload_v1 as _decode_structural_v7_payload,
 )
 
 SPOT_V7_FIRECRACKER_REQUEST_BYTES_V1: Final = 192
@@ -37,7 +37,7 @@ SPOT_V7_FIRECRACKER_OUTPUT_COMMIT_DOMAIN_V1: Final = (
     b"zenodex/zrpf_spot_v7_firecracker_output_commit/v1\x00"
 )
 SPOT_V7_FIRECRACKER_PROTOCOL_VERSION_V1: Final = 1
-SPOT_V7_FIRECRACKER_ACCEPTED_STATUS_V1: Final = 1
+SPOT_V7_FIRECRACKER_DATA_ONLY_COMMITTED_STATUS_V1: Final = 1
 
 SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_DESCRIPTOR_V1: Final = (
     b"\n".join(
@@ -55,10 +55,11 @@ SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_DESCRIPTOR_V1: Final = (
             b"output_payload_cap_bytes=65536",
             b"output_header_endian=little",
             b"output_header_layout=magic:u8x8,version:u16,header_bytes:u16,status:u32,payload_bytes:u32,flags:u32,output_bytes:u64,nonce:u8x32,request_sha256:u8x32,profile:u8x32,runtime_manifest:u8x32,input_drive:u8x32,settlement_intent:u8x32,payload_sha256:u8x32",
+            b"output_status=1:data_only_committed",
             b"output_zero_region=header_plus_payload_to_commit_offset",
             b"payload_magic=ZSPTV7O1",
             b"payload_version=1",
-            b"payload_codec=SpotSettlementV7VerifierOutputV1_exact_canonical_big_endian",
+            b"payload_codec=SpotSettlementV7VerifierOutputV1_structural_envelope_big_endian",
             b"payload_journal_magic=ZSPTV7J1",
             b"payload_journal_version=1",
             b"commit_domain=zenodex/zrpf_spot_v7_firecracker_output_commit/v1\\0",
@@ -168,7 +169,7 @@ def build_data_only_committed_output_v1(
     _require_digest(observed_input_drive_sha256, "output_binding")
     if observed_input_drive_sha256 != request.input_drive_sha256:
         raise SpotV7FirecrackerProtocolRejectV1("output_binding")
-    decoded_payload = decode_exact_v7_verifier_payload_v1(payload)
+    decoded_payload = decode_structural_v7_verifier_payload_v1(payload)
     header = _build_output_header(request, decoded_payload.raw_bytes)
     marker = _output_commit_marker(request, header, decoded_payload.raw_bytes)
     output = bytearray(SPOT_V7_FIRECRACKER_OUTPUT_BYTES_V1)
@@ -182,7 +183,7 @@ def build_data_only_committed_output_v1(
 def validate_exact_committed_output_v1(
     raw: bytes,
     request: SpotV7FirecrackerRequestV1,
-) -> SpotV7VerifierPayloadFrameV1:
+) -> StructurallyDecodedSpotV7VerifierPayloadV1:
     """Validate the fixed output image, fresh request binding, and V7 payload."""
 
     _require_exact_request_type(request)
@@ -204,13 +205,15 @@ def validate_exact_committed_output_v1(
     )
     if raw[commit_offset:] != expected_marker:
         raise SpotV7FirecrackerProtocolRejectV1("output_commit")
-    return decode_exact_v7_verifier_payload_v1(payload)
+    return decode_structural_v7_verifier_payload_v1(payload)
 
 
-def decode_exact_v7_verifier_payload_v1(raw: bytes) -> SpotV7VerifierPayloadFrameV1:
-    """Decode the bounded, exact canonical V7 verifier payload."""
+def decode_structural_v7_verifier_payload_v1(
+    raw: bytes,
+) -> StructurallyDecodedSpotV7VerifierPayloadV1:
+    """Check the bounded V7 structural envelope without proof authority."""
 
-    return _decode_exact_v7_payload(raw)
+    return _decode_structural_v7_payload(raw)
 
 
 def _validate_request_header(raw: bytes) -> None:
@@ -241,7 +244,7 @@ def _build_output_header(request: SpotV7FirecrackerRequestV1, payload: bytes) ->
         8,
         SPOT_V7_FIRECRACKER_PROTOCOL_VERSION_V1,
         SPOT_V7_FIRECRACKER_OUTPUT_HEADER_BYTES_V1,
-        SPOT_V7_FIRECRACKER_ACCEPTED_STATUS_V1,
+        SPOT_V7_FIRECRACKER_DATA_ONLY_COMMITTED_STATUS_V1,
         len(payload),
         0,
         SPOT_V7_FIRECRACKER_OUTPUT_BYTES_V1,
@@ -264,7 +267,7 @@ def _validate_output_header(raw: bytes, request: SpotV7FirecrackerRequestV1) -> 
         raw[:8] != SPOT_V7_FIRECRACKER_OUTPUT_MAGIC_V1
         or version != SPOT_V7_FIRECRACKER_PROTOCOL_VERSION_V1
         or header_bytes != SPOT_V7_FIRECRACKER_OUTPUT_HEADER_BYTES_V1
-        or status != SPOT_V7_FIRECRACKER_ACCEPTED_STATUS_V1
+        or status != SPOT_V7_FIRECRACKER_DATA_ONLY_COMMITTED_STATUS_V1
         or flags != 0
         or output_bytes != SPOT_V7_FIRECRACKER_OUTPUT_BYTES_V1
     ):

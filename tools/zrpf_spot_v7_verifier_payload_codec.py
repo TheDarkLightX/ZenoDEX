@@ -1,4 +1,8 @@
-"""Exact authority-neutral codec for ``SpotSettlementV7VerifierOutputV1``."""
+"""Structural envelope codec for ``SpotSettlementV7VerifierOutputV1``.
+
+The codec checks canonical framing and selected hash associations. It does not
+decode Plan B semantics or authenticate the receipt that produced the bytes.
+"""
 
 from __future__ import annotations
 
@@ -36,8 +40,8 @@ class SpotV7FirecrackerProtocolRejectV1(ValueError):
 
 
 @dataclass(frozen=True, slots=True, init=False)
-class SpotV7VerifierPayloadFrameV1:
-    """Exactly decoded V7 verifier-output bytes with no execution authority."""
+class StructurallyDecodedSpotV7VerifierPayloadV1:
+    """Structurally checked V7 verifier-output bytes with no proof authority."""
 
     raw_bytes: bytes
     journal_bytes: bytes
@@ -47,8 +51,10 @@ class SpotV7VerifierPayloadFrameV1:
     effect_binding_fixed_fields: tuple[bytes, ...]
     state_root_host_input_length: int
 
-    def __new__(cls) -> SpotV7VerifierPayloadFrameV1:
-        raise TypeError("SpotV7VerifierPayloadFrameV1 requires exact decoding")
+    def __new__(cls) -> StructurallyDecodedSpotV7VerifierPayloadV1:
+        raise TypeError(
+            "StructurallyDecodedSpotV7VerifierPayloadV1 requires checked decoding"
+        )
 
     @property
     def payload_sha256(self) -> bytes:
@@ -72,10 +78,10 @@ class _DecodedV7JournalV1:
     state_root_host_input_length: int
 
 
-def decode_exact_v7_verifier_payload_v1(
+def decode_structural_v7_verifier_payload_v1(
     raw: bytes,
-) -> SpotV7VerifierPayloadFrameV1:
-    """Decode exact ``SpotSettlementV7VerifierOutputV1`` canonical framing."""
+) -> StructurallyDecodedSpotV7VerifierPayloadV1:
+    """Check the structural envelope without authenticating execution."""
 
     if type(raw) is not bytes or not (
         SPOT_V7_VERIFIER_OUTPUT_HEADER_BYTES_V1 < len(raw) <= SPOT_V7_VERIFIER_PAYLOAD_CAP_BYTES_V1
@@ -101,7 +107,9 @@ def decode_exact_v7_verifier_payload_v1(
         count=SPOT_V7_VERIFIER_OUTPUT_FIXED_FIELD_COUNT_V1,
         code="v7_output_fixed_field",
     )
-    journal = _decode_exact_v7_journal_v1(raw[SPOT_V7_VERIFIER_OUTPUT_HEADER_BYTES_V1:])
+    journal = _decode_structural_v7_journal_v1(
+        raw[SPOT_V7_VERIFIER_OUTPUT_HEADER_BYTES_V1:]
+    )
     if plan_length != len(journal.plan_b_bytes) or (
         host_input_length != journal.state_root_host_input_length
     ):
@@ -120,8 +128,8 @@ def _new_payload_frame(
     journal: _DecodedV7JournalV1,
     fixed: tuple[bytes, ...],
     host_input_length: int,
-) -> SpotV7VerifierPayloadFrameV1:
-    value = object.__new__(SpotV7VerifierPayloadFrameV1)
+) -> StructurallyDecodedSpotV7VerifierPayloadV1:
+    value = object.__new__(StructurallyDecodedSpotV7VerifierPayloadV1)
     object.__setattr__(value, "raw_bytes", raw)
     object.__setattr__(value, "journal_bytes", journal.raw_bytes)
     object.__setattr__(value, "plan_b_bytes", journal.plan_b_bytes)
@@ -136,7 +144,7 @@ def _new_payload_frame(
     return value
 
 
-def _decode_exact_v7_journal_v1(raw: bytes) -> _DecodedV7JournalV1:
+def _decode_structural_v7_journal_v1(raw: bytes) -> _DecodedV7JournalV1:
     minimum = (
         SPOT_V7_JOURNAL_HEADER_BYTES_V1
         + 32 * SPOT_V7_JOURNAL_FIXED_FIELD_COUNT_V1

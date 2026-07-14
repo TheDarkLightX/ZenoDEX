@@ -39,10 +39,10 @@ def test_request_vector_is_canonical_and_round_trips() -> None:
     assert len(encoded) == protocol.SPOT_V7_FIRECRACKER_REQUEST_BYTES_V1
     assert protocol.decode_exact_request_v1(encoded) == request
     assert hashlib.sha256(encoded).hexdigest() == (
-        "05f3d19a3d83c90d40892bde3d2943d56573320c94799a4f2101cfcb07625824"
+        "613519701cef6cde07f58ed97c10cedd60ec9a3c790efdab5824afb02ef27a36"
     )
     assert protocol.SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1.hex() == (
-        "0ff5876bdf454838ac7d59be61e68156d5eaed351f5ee83f716a526a72705f96"
+        "1b60e4bc78bc3ea3938f2ca72848418097208096574a1fc37e3404b841f36cd4"
     )
 
 
@@ -98,7 +98,7 @@ def test_request_rejects_wrong_type_width_and_zero_bindings() -> None:
     assert short.value.code == "request_length"
 
     with pytest.raises(TypeError):
-        protocol.SpotV7VerifierPayloadFrameV1()
+        protocol.StructurallyDecodedSpotV7VerifierPayloadV1()
 
 
 def test_committed_output_vector_round_trips_and_binds_exact_v7_payload() -> None:
@@ -117,7 +117,7 @@ def test_committed_output_vector_round_trips_and_binds_exact_v7_payload() -> Non
     assert decoded.state_root_host_input_length == 1_024
     assert decoded.payload_sha256 == hashlib.sha256(payload).digest()
     assert hashlib.sha256(output).hexdigest() == (
-        "24dfeb650061fe938b25d27b3079cd793720fe875c6a46b1b45a2eadd76baf53"
+        "4c6620737cc4b8f9153ccd6f014666ebed823692afffa7278f0a60bb5e7cf3f6"
     )
 
 
@@ -245,7 +245,7 @@ def test_v7_payload_header_mutations_reject(offset: int, code: str) -> None:
     payload[offset] ^= 1
 
     with pytest.raises(protocol.SpotV7FirecrackerProtocolRejectV1) as captured:
-        protocol.decode_exact_v7_verifier_payload_v1(bytes(payload))
+        protocol.decode_structural_v7_verifier_payload_v1(bytes(payload))
 
     assert captured.value.code == code
 
@@ -287,7 +287,7 @@ def test_v7_payload_rejects_outer_to_journal_association_mutation() -> None:
 
 def test_v7_payload_codec_matches_existing_candidate_decoder() -> None:
     payload = _valid_v7_payload()
-    decoded = protocol.decode_exact_v7_verifier_payload_v1(payload)
+    decoded = protocol.decode_structural_v7_verifier_payload_v1(payload)
     existing = _decode_spot_v7_payload_v1(payload)
 
     assert existing == (
@@ -309,7 +309,7 @@ def test_v7_payload_negative_corpus_has_existing_decoder_reject_parity() -> None
     )
     for payload in mutations:
         with pytest.raises(protocol.SpotV7FirecrackerProtocolRejectV1) as current:
-            protocol.decode_exact_v7_verifier_payload_v1(payload)
+            protocol.decode_structural_v7_verifier_payload_v1(payload)
         with pytest.raises(SpotV7CommittedOutputRejectV1) as existing:
             _decode_spot_v7_payload_v1(payload)
         assert current.value.code == existing.value.code
@@ -457,7 +457,7 @@ def _assert_output_reject(
 
 def _assert_payload_reject(raw: bytes | bytearray, code: str) -> None:
     with pytest.raises(protocol.SpotV7FirecrackerProtocolRejectV1) as captured:
-        protocol.decode_exact_v7_verifier_payload_v1(bytes(raw))
+        protocol.decode_structural_v7_verifier_payload_v1(bytes(raw))
     assert captured.value.code == code
 
 

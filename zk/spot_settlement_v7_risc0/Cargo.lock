@@ -3681,6 +3681,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenodex-zrpf-spot-v7-firecracker-runtime"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "rustix",
+ "sha2",
+]
+
+[[package]]
 name = "zerocopy"
 version = "0.8.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"

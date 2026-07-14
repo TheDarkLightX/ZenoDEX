@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "child_policy",
+  "firecracker_runtime",
   "input_builder",
   "shared",
   "methods",
