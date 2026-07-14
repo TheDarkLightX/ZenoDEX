@@ -702,14 +702,17 @@ def test_evidence_codec_rejects_duplicate_unknown_and_float_fields() -> None:
     floating = evidence.replace(b'"checked_epoch":52', b'"checked_epoch":52.0', 1)
 
     for malformed in (duplicate, unknown, floating):
-        _assert_reject(
-            "NONCANONICAL_EVIDENCE",
-            lambda malformed=malformed: _verify(
-                malformed,
+        def verify_malformed(value: bytes = malformed) -> object:
+            return _verify(
+                value,
                 policy=policy,
                 target=target,
                 beacon=beacon,
-            ),
+            )
+
+        _assert_reject(
+            "NONCANONICAL_EVIDENCE",
+            verify_malformed,
         )
 
 

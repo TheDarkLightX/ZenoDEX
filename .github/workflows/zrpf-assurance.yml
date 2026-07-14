@@ -171,9 +171,12 @@ jobs:
             src/integration/zrpf_sampled_retrievability_v1/errors.py \
             src/integration/zrpf_sampled_retrievability_v1/hashing.py \
             src/integration/zrpf_sampled_retrievability_v1/model.py \
+            src/integration/zrpf_sampled_retrievability_v1/projection.py \
             src/integration/zrpf_sampled_retrievability_v1/response_verifier.py \
             src/integration/zrpf_sampled_retrievability_v1/validation.py \
             src/integration/zrpf_sampled_retrievability_v1/verifier.py \
+            src/integration/_zrpf_spot_v7_governed_da_projection.py \
+            src/integration/zrpf_spot_v7_governed_da_prerequisite.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_finality_contract.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_replay_contract.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_replay_observation.py \
@@ -328,6 +331,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_sampled_retrievability_v1.py \
+            tests/integration/test_zrpf_spot_v7_governed_da_prerequisite.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \
@@ -378,9 +382,12 @@ jobs:
             src/integration/zrpf_sampled_retrievability_v1/errors.py \
             src/integration/zrpf_sampled_retrievability_v1/hashing.py \
             src/integration/zrpf_sampled_retrievability_v1/model.py \
+            src/integration/zrpf_sampled_retrievability_v1/projection.py \
             src/integration/zrpf_sampled_retrievability_v1/response_verifier.py \
             src/integration/zrpf_sampled_retrievability_v1/validation.py \
             src/integration/zrpf_sampled_retrievability_v1/verifier.py \
+            src/integration/_zrpf_spot_v7_governed_da_projection.py \
+            src/integration/zrpf_spot_v7_governed_da_prerequisite.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_finality_contract.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_replay_contract.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_replay_observation.py \
@@ -495,6 +502,8 @@ jobs:
             tests/integration/test_zrpf_spot_v7_settlement_envelope_replay.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
+            tests/integration/test_zrpf_sampled_retrievability_v1.py \
+            tests/integration/test_zrpf_spot_v7_governed_da_prerequisite.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \
@@ -570,6 +579,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_sampled_retrievability_v1.py \
+            tests/integration/test_zrpf_spot_v7_governed_da_prerequisite.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \

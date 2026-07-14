@@ -32,6 +32,12 @@ SPOT_V7_FIRECRACKER_OUTPUT = (
 SPOT_V7_FIRECRACKER_EXECUTION_BINDING = (
     ROOT / "src/integration/_zrpf_spot_v7_firecracker_execution_binding.py"
 )
+SPOT_V7_SETTLEMENT_ENVELOPE_CODEC = (
+    ROOT / "src/integration/_zrpf_spot_v7_settlement_envelope_codec.py"
+)
+SPOT_V7_SETTLEMENT_ENVELOPE_REPLAY = (
+    ROOT / "src/integration/_zrpf_spot_v7_settlement_envelope_replay.py"
+)
 SPOT_V7_OPERATIONAL_GATE = ROOT / "src/integration/_zrpf_spot_v7_operational_gate.py"
 SPOT_V7_OPERATIONAL_CAPABILITY_V2 = (
     ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v2.py"
@@ -203,6 +209,12 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             SPOT_V7_FIRECRACKER_EXECUTION_BINDING: (
                 PRIVATE_FIRECRACKER_EXECUTION_BINDING_REFERENCES
             ),
+            SPOT_V7_SETTLEMENT_ENVELOPE_CODEC: (
+                PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+            ),
+            SPOT_V7_SETTLEMENT_ENVELOPE_REPLAY: (
+                PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+            ),
             SPOT_V7_OPERATIONAL_GATE: PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES,
             SPOT_V7_OPERATIONAL_CAPABILITY_V2: (
                 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
@@ -325,6 +337,16 @@ def test_combined_da_authority_symbols_have_no_public_alias_or_export() -> None:
     assert _public_authority_alias_violations(tree) == []
     assert _private_authority_all_exports(tree) == []
     assert _public_top_level_authority_reachability(tree) == []
+
+
+def test_sampled_retrievability_exposes_only_the_exact_verifier_mint() -> None:
+    tree = _parse(SAMPLED_RETRIEVABILITY_VERIFIER)
+
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _public_top_level_authority_reachability(tree) == [
+        "verify_exact_evidence_v1"
+    ]
 
 
 def test_firecracker_static_binding_factory_and_expected_document_ratchets() -> None:

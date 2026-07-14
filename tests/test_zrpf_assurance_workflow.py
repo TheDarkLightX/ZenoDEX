@@ -359,9 +359,12 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/zrpf_sampled_retrievability_v1/errors.py",
         "src/integration/zrpf_sampled_retrievability_v1/hashing.py",
         "src/integration/zrpf_sampled_retrievability_v1/model.py",
+        "src/integration/zrpf_sampled_retrievability_v1/projection.py",
         "src/integration/zrpf_sampled_retrievability_v1/response_verifier.py",
         "src/integration/zrpf_sampled_retrievability_v1/validation.py",
         "src/integration/zrpf_sampled_retrievability_v1/verifier.py",
+        "src/integration/_zrpf_spot_v7_governed_da_projection.py",
+        "src/integration/zrpf_spot_v7_governed_da_prerequisite.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
@@ -369,7 +372,14 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_zrpf_sampled_retrievability_v1.py"
     )
     assert required_retrievability_test in ruff_assurance
+    assert required_retrievability_test in mypy_assurance
     assert required_retrievability_test in pytest_assurance
+    required_governed_da_test = (
+        "tests/integration/test_zrpf_spot_v7_governed_da_prerequisite.py"
+    )
+    assert required_governed_da_test in ruff_assurance
+    assert required_governed_da_test in mypy_assurance
+    assert required_governed_da_test in pytest_assurance
     for required_path in (
         "tests/test_zrpf_spot_v7_firecracker_runtime_binding.py",
         "tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py",
