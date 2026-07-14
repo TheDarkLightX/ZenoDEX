@@ -1,0 +1,169 @@
+name: zrpf-python-assurance-diagnostics
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zrpf-python-assurance-diagnostics-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout full source history
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node for browser-verifier assurance
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tools/dex-ui/package-lock.json
+
+      - name: Install lockfile-bound browser-verifier dependencies
+        working-directory: tools/dex-ui
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Verify durable source-anchor tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse 'refs/tags/zrpf-v3-source-anchor-20260711^{commit}')" = \
+            'b37b741520e95f50236f6a9f0825c23ae3487374'
+          test "$(git rev-parse 'refs/tags/zrpf-v3-source-anchor-v7-20260712^{commit}')" = \
+            'ff76ff9c1dc307f0e7dc5afd009e2961f2e36f21'
+          test "$(git rev-parse 'refs/tags/zrpf-v3-firecracker-elf-source-v2-20260712^{commit}')" = \
+            '25032924eb4fca7f156a9ec4eedd39afeade9623'
+          test "$(git rev-parse 'refs/tags/zrpf-v1-retained-source-anchor-20260710^{commit}')" = \
+            '1d1559fd402cdb906d52e6d572d39aec99a5ebda'
+
+      - name: Install hash-pinned Python assurance tools
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Install hash-pinned RISC0 host Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz"
+          destination="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "${archive}" \
+            'https://github.com/risc0/rust/releases/download/r0.1.94.1/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz'
+          test "$(stat --format='%s' "${archive}")" = '512619537'
+          echo 'e88d823762fc06e8911fb6b310ffe2fca8fcd7af2438572f7aa90aaf3e84ea02  '"${archive}" \
+            | sha256sum --check --strict
+          mkdir -p "${destination}"
+          tar --extract --gzip --file "${archive}" \
+            --directory "${destination}" --no-same-owner
+          rm --force "${archive}"
+
+      - name: Acquire lockfile-bound Cargo sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          for manifest in \
+            zk/zrpf_risc0/Cargo.toml \
+            zk/state_proof_risc0/Cargo.toml \
+            zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml \
+            zk/spot_state_root_v5_bridge_shared/Cargo.toml \
+            zk/spot_state_root_v7_semantic_shared/Cargo.toml \
+            zk/spot_settlement_v7_effect_binding_shared/Cargo.toml \
+            zk/spot_settlement_v7_risc0/Cargo.toml
+          do
+            env \
+              PATH="${pinned_bin}:/usr/bin:/bin" \
+              RUSTC="${pinned_bin}/rustc" \
+              RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+              "${pinned_bin}/cargo" fetch --locked --manifest-path "${manifest}"
+          done
+
+      - name: Extract exact production Python assurance command
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p internal
+          python3 - <<'PY'
+          from hashlib import sha256
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/zrpf-assurance.yml')
+          lines = workflow.read_text(encoding='utf-8').splitlines()
+          marker = '      - name: Run Python and evidence assurance'
+          try:
+              start = lines.index(marker)
+          except ValueError as exc:
+              raise SystemExit('production Python assurance step marker is missing') from exc
+
+          run_line = None
+          for index in range(start + 1, len(lines)):
+              if lines[index] == '        run: |':
+                  run_line = index
+                  break
+              if lines[index].startswith('      - name:'):
+                  break
+          if run_line is None:
+              raise SystemExit('production Python assurance run block is missing')
+
+          body: list[str] = []
+          for line in lines[run_line + 1:]:
+              if line.startswith('      - name:'):
+                  break
+              if line and not line.startswith('          '):
+                  raise SystemExit(f'unexpected assurance indentation: {line!r}')
+              body.append(line[10:] if line else '')
+          while body and body[-1] == '':
+              body.pop()
+          if not body:
+              raise SystemExit('production Python assurance run block is empty')
+
+          prelude = [
+              '#!/usr/bin/env bash',
+              'set -euo pipefail',
+              "PS4='+ zrpf-python-assurance:${LINENO}: '",
+              'set -x',
+              "trap 'status=$?; printf \'ZRPF_PYTHON_ASSURANCE_FAILED line=%s status=%s command=%q\\n\' \"${LINENO}\" \"${status}\" \"${BASH_COMMAND}\" >&2; exit \"${status}\"' ERR",
+          ]
+          rendered = '\n'.join((*prelude, *body, ''))
+          output = Path('internal/zrpf-python-assurance-command.sh')
+          output.write_text(rendered, encoding='utf-8')
+          output.chmod(0o700)
+          Path('internal/zrpf-python-assurance-command.sha256').write_text(
+              sha256(rendered.encode('utf-8')).hexdigest() + '\n',
+              encoding='ascii',
+          )
+          print(f'extracted {len(body)} command lines from {workflow}')
+          PY
+
+      - name: Run exact Python and evidence assurance with trace
+        shell: bash
+        run: |
+          set -o pipefail
+          bash internal/zrpf-python-assurance-command.sh \
+            2>&1 | tee internal/zrpf-python-assurance.log
+
+      - name: Upload Python assurance diagnostics
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: zrpf-python-assurance-diagnostics
+          path: |
+            internal/zrpf-python-assurance-command.sh
+            internal/zrpf-python-assurance-command.sha256
+            internal/zrpf-python-assurance.log
+          if-no-files-found: error
+          retention-days: 14
