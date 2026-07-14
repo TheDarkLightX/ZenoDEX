@@ -567,6 +567,7 @@ jobs:
             --manifest-path zk/spot_settlement_v7_risc0/Cargo.toml \
             --locked --offline \
             -p zenodex-zrpf-risc0-spot-settlement-v7-child-policy \
+            -p zenodex-zrpf-risc0-spot-settlement-v7-input-builder \
             -p zenodex-zrpf-risc0-spot-settlement-v7-shared \
             -p zenodex-zrpf-risc0-spot-settlement-v7-verifier \
             -p zenodex-zrpf-risc0-spot-settlement-v7-harness

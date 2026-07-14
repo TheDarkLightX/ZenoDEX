@@ -55,6 +55,42 @@ insufficient to update balances.
 
 All settlement and production authority constants remain `false`.
 
+## Deterministic guest-input builder
+
+The `input_builder` package constructs the exact proof-neutral V7 guest
+envelope from four canonical files:
+
+1. a V6 `SettlementAdmissionJournalV1`;
+2. a V6 `FullBlobDataAvailabilityCertificateV1`;
+3. a V6 `ProposedSourceOpenedSpotSettlementReplayV3`;
+4. a V7 `BoundedSpotStateRootV7HostInputV1`.
+
+Each input is opened without following symlinks, bounded before allocation,
+read once through a stable file descriptor, and checked against before/after
+metadata. The builder strictly decodes and canonically re-encodes every
+component before constructing and round-tripping the V7 envelope. Output uses
+create-new semantics, mode `0600` on Unix, a complete sync, and exact reread
+verification. An existing output is never overwritten.
+
+Run it from this workspace:
+
+```bash
+cargo run --locked --offline \
+  -p zenodex-zrpf-risc0-spot-settlement-v7-input-builder \
+  --bin build_spot_settlement_v7_guest_input -- \
+  --source-child-journal /path/to/settlement-admission-v6.bin \
+  --data-availability-certificate /path/to/full-blob-da-v1.bin \
+  --replay /path/to/source-opened-replay-v6.bin \
+  --state-root-host-input /path/to/state-root-host-input-v7.bin \
+  --output /new/path/spot-settlement-v7-guest-input.bin
+```
+
+The builder validates byte framing and canonical form only. It does not verify
+a receipt, establish data availability, execute the transition, validate the
+state opening, or grant release, settlement, or production authority. Those
+checks remain inside the guest, sealed verifier, and future atomic admission
+boundary.
+
 ## Accepted source-operation profile
 
 The V1 guest profile accepts exactly one ordinary `TauSwap` `v1`
@@ -195,6 +231,7 @@ export RUSTDOC="$PINNED_BIN/rustdoc_tool_binary"
 
 RISC0_SKIP_BUILD=1 cargo test --locked \
   -p zenodex-zrpf-risc0-spot-settlement-v7-child-policy \
+  -p zenodex-zrpf-risc0-spot-settlement-v7-input-builder \
   -p zenodex-zrpf-risc0-spot-settlement-v7-shared \
   -p zenodex-zrpf-risc0-spot-settlement-v7-verifier \
   -p zenodex-zrpf-risc0-spot-settlement-v7-harness

@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "child_policy",
+  "input_builder",
   "shared",
   "methods",
   "methods/guest",

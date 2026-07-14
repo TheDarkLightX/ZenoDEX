@@ -353,6 +353,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     ) == 4
     for package in (
         "zenodex-zrpf-risc0-spot-settlement-v7-child-policy",
+        "zenodex-zrpf-risc0-spot-settlement-v7-input-builder",
         "zenodex-zrpf-risc0-spot-settlement-v7-shared",
         "zenodex-zrpf-risc0-spot-settlement-v7-verifier",
         "zenodex-zrpf-risc0-spot-settlement-v7-harness",

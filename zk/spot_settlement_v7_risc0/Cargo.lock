@@ -3523,6 +3523,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenodex-zrpf-risc0-spot-settlement-v7-input-builder"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "tau-state-proof-risc0-shared",
+ "zenodex-zrpf-protocol-v3",
+ "zenodex-zrpf-risc0-semantic-shared",
+ "zenodex-zrpf-risc0-spot-settlement-v6-shared",
+ "zenodex-zrpf-risc0-spot-settlement-v7-shared",
+ "zenodex-zrpf-risc0-spot-state-root-v7-semantic-shared",
+ "zenodex-zrpf-risc0-spot-value-leaf-v6-shared",
+]
+
+[[package]]
 name = "zenodex-zrpf-risc0-spot-settlement-v7-methods"
 version = "0.1.0"
 dependencies = [
