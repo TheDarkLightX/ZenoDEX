@@ -7,11 +7,12 @@ observation, then binds the candidate, effect plan, action, nullifiers, cell
 effects, state roots, and parent before authenticating the same proof-neutral
 checkpoint quorum and certificate primitive.
 
-Only the V2 private capability is accepted by the authority-false V2 atomic
-store sink. V3 deliberately returns a distinct sealed transition pending a V3
-durable store that persists and re-executes the retained replay material.
-Release provenance, data availability, economic settlement, and production
-authority remain separate gates.
+The V2 private capability remains compatible with the authority-false V2 store.
+V3 returns a distinct sealed transition consumed through the V3 operational
+packet and the V4 durable store, which persists and replays the retained
+settlement material. Governed live runtime resolution, release provenance,
+data availability, settlement authority, and production authority remain
+separate gates.
 """
 
 from __future__ import annotations
