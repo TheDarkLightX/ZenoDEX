@@ -14,21 +14,13 @@ DURABLE_STORE = ROOT / "src/integration/recursive_stark_admission_store.py"
 DURABLE_ENGINE = ROOT / "src/integration/_recursive_stark_admission_store_engine.py"
 DURABLE_HASHES = ROOT / "src/integration/_recursive_stark_admission_store_hashes.py"
 SETTLEMENT_AUTHORITY = ROOT / "src/core/_zrpf_settlement_commit_authority.py"
-SETTLEMENT_CERTIFICATE_AUTHORITY = (
-    ROOT / "src/core/_zrpf_settlement_certificate_authority.py"
-)
-SETTLEMENT_VERIFIER_ADAPTER = (
-    ROOT / "src/integration/zrpf_settlement_verifier_adapter.py"
-)
+SETTLEMENT_CERTIFICATE_AUTHORITY = ROOT / "src/core/_zrpf_settlement_certificate_authority.py"
+SETTLEMENT_VERIFIER_ADAPTER = ROOT / "src/integration/zrpf_settlement_verifier_adapter.py"
 SOURCE_OPENED_V6_VERIFIER_ADAPTER = (
     ROOT / "src/integration/zrpf_source_opened_spot_v6_verifier_adapter.py"
 )
-SPOT_V7_FIRECRACKER_AUTHORITY = (
-    ROOT / "src/integration/_zrpf_spot_v7_firecracker_authority.py"
-)
-SPOT_V7_FIRECRACKER_OUTPUT = (
-    ROOT / "src/integration/_zrpf_spot_v7_firecracker_output.py"
-)
+SPOT_V7_FIRECRACKER_AUTHORITY = ROOT / "src/integration/_zrpf_spot_v7_firecracker_authority.py"
+SPOT_V7_FIRECRACKER_OUTPUT = ROOT / "src/integration/_zrpf_spot_v7_firecracker_output.py"
 SPOT_V7_FIRECRACKER_EXECUTION_BINDING = (
     ROOT / "src/integration/_zrpf_spot_v7_firecracker_execution_binding.py"
 )
@@ -45,15 +37,11 @@ SPOT_V7_OPERATIONAL_CAPABILITY_V2 = (
 SPOT_V7_OPERATIONAL_POLICY_PROVENANCE = (
     ROOT / "src/integration/zrpf_spot_v7_operational_policy_provenance.py"
 )
-SPOT_V7_OPERATIONAL_POLICY_V3 = (
-    ROOT / "src/integration/_zrpf_spot_v7_operational_policy_v3.py"
-)
+SPOT_V7_OPERATIONAL_POLICY_V3 = ROOT / "src/integration/_zrpf_spot_v7_operational_policy_v3.py"
 SPOT_V7_OPERATIONAL_POLICY_PROVENANCE_V2 = (
     ROOT / "src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py"
 )
-SPOT_V7_LAGGED_CHECKPOINT_BEACON = (
-    ROOT / "src/integration/zrpf_spot_v7_lagged_checkpoint_beacon.py"
-)
+SPOT_V7_LAGGED_CHECKPOINT_BEACON = ROOT / "src/integration/zrpf_spot_v7_lagged_checkpoint_beacon.py"
 SPOT_V7_OPERATIONAL_POLICY_STORE = (
     ROOT / "src/integration/_zrpf_spot_v7_operational_policy_store.py"
 )
@@ -64,15 +52,21 @@ SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER = (
 SAMPLED_RETRIEVABILITY_VERIFIER = (
     ROOT / "src/integration/zrpf_sampled_retrievability_v1/verifier.py"
 )
-SPOT_V7_GOVERNED_DA_PREREQUISITE = (
-    ROOT / "src/integration/zrpf_spot_v7_governed_da_prerequisite.py"
-)
+SPOT_V7_GOVERNED_DA_PREREQUISITE = ROOT / "src/integration/zrpf_spot_v7_governed_da_prerequisite.py"
 SPOT_V7_GOVERNED_DA_PREREQUISITE_V2 = (
     ROOT / "src/integration/zrpf_spot_v7_governed_da_prerequisite_v2.py"
 )
-SPOT_V7_ATOMIC_STORE = (
-    ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
+SPOT_V7_OPERATIONAL_CAPABILITY_V3 = (
+    ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v3.py"
 )
+SPOT_V7_ATOMIC_SCHEMA_V4 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_schema_v4.py"
+SPOT_V7_ATOMIC_RECORDS_V4 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_records_v4.py"
+SPOT_V7_ATOMIC_HISTORY_V4 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_history_v4.py"
+SPOT_V7_ATOMIC_EVIDENCE_V4 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_evidence_v4.py"
+SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4 = (
+    ROOT / "src/integration/zrpf_spot_v7_atomic_operational_store_v4.py"
+)
+SPOT_V7_ATOMIC_STORE = ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
 PRIVATE_CAPABILITY_TYPE = "_AuthenticatedRecursiveStarkRootFacts"
 PRIVATE_SEAL = "_AUTHENTICATED_FACTS_SEAL"
 PRIVATE_MINT = "_mint_recursive_stark_root_facts_after_verification"
@@ -115,9 +109,7 @@ PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES = frozenset(
         "load_governed_spot_v7_operational_policy_v2",
     }
 )
-PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES = frozenset(
-    {"_GovernedOperationalPolicyProvenanceV1"}
-)
+PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES = frozenset({"_GovernedOperationalPolicyProvenanceV1"})
 PRIVATE_OPERATIONAL_POLICY_V3_NAMES = frozenset(
     {
         "_GovernedOperationalPolicyMaterialV3",
@@ -176,6 +168,29 @@ PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES = frozenset(
         "_bind_governed_spot_v7_da_prerequisite_v2",
     }
 )
+PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES = frozenset(
+    {
+        "_AuthenticatedCheckpointFinalityProjectionV3",
+        "_AuthenticatedCheckpointFinalitySealV3",
+        "_AUTHENTICATED_CHECKPOINT_FINALITY_SEAL_V3",
+        "_AuthenticatedExactCheckpointFinalityTransitionV3",
+        "_derive_exact_finality_capability_v3",
+    }
+)
+PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES = frozenset(
+    {
+        "_SpotV7OperationalCommitPacketV3",
+        "_SpotV7AtomicEconomicCommitSealV3",
+        "_SPOT_V7_ATOMIC_ECONOMIC_COMMIT_SEAL_V3",
+        "_NonTransferableSpotV7AtomicOperationalCapabilityV3",
+        "_SpotV7AtomicEconomicCommitCapabilityV3",
+        "_bind_spot_v7_operational_commit_capability_v3",
+        "_require_finality_v3",
+        "_build_operational_commit_packet_v3",
+        "_packet_for_atomic_store_v4",
+        "_commit_operational_capability_v3",
+    }
+)
 PRIVATE_AUTHORITY_NAMES = frozenset(
     {
         PRIVATE_CAPABILITY_TYPE,
@@ -200,6 +215,8 @@ PROTECTED_AUTHORITY_NAMES = (
     | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
+    | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
 )
 PRIVATE_ADAPTER_IMPORTS = frozenset(
     {
@@ -265,12 +282,8 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             SPOT_V7_FIRECRACKER_EXECUTION_BINDING: (
                 PRIVATE_FIRECRACKER_EXECUTION_BINDING_REFERENCES
             ),
-            SPOT_V7_SETTLEMENT_ENVELOPE_CODEC: (
-                PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
-            ),
-            SPOT_V7_SETTLEMENT_ENVELOPE_REPLAY: (
-                PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
-            ),
+            SPOT_V7_SETTLEMENT_ENVELOPE_CODEC: (PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES),
+            SPOT_V7_SETTLEMENT_ENVELOPE_REPLAY: (PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES),
             SPOT_V7_OPERATIONAL_GATE: PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES,
             SPOT_V7_OPERATIONAL_CAPABILITY_V2: (
                 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
@@ -283,27 +296,23 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 | PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES
             ),
             SPOT_V7_OPERATIONAL_POLICY_V3: (
-                PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
-                | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                PRIVATE_OPERATIONAL_POLICY_MINT_NAMES | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
             ),
             SPOT_V7_OPERATIONAL_POLICY_PROVENANCE_V2: (
                 PRIVATE_OPERATIONAL_POLICY_V3_NAMES
                 | PRIVATE_OPERATIONAL_POLICY_V3_RELEASE_HANDOFF_NAMES
             ),
             SPOT_V7_LAGGED_CHECKPOINT_BEACON: (
-                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
-                | PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES | PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES
             ),
-            SPOT_V7_OPERATIONAL_POLICY_STORE: (
-                PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
-            ),
+            SPOT_V7_OPERATIONAL_POLICY_STORE: (PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES),
             SPOT_V7_OPERATIONAL_STORE: PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES,
             SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER: (
                 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+                | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
             ),
-            SAMPLED_RETRIEVABILITY_VERIFIER: (
-                PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
-            ),
+            SAMPLED_RETRIEVABILITY_VERIFIER: (PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES),
             SPOT_V7_GOVERNED_DA_PREREQUISITE: (
                 PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
                 | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
@@ -314,6 +323,24 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 | PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES
                 | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
                 | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
+            ),
+            SPOT_V7_OPERATIONAL_CAPABILITY_V3: (
+                PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+                | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_SCHEMA_V4: PRIVATE_OPERATIONAL_POLICY_V3_NAMES,
+            SPOT_V7_ATOMIC_RECORDS_V4: (PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES),
+            SPOT_V7_ATOMIC_HISTORY_V4: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES | PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+            ),
+            SPOT_V7_ATOMIC_EVIDENCE_V4: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
             ),
         }.get(path, frozenset())
         tree = _parse(path)
@@ -416,6 +443,54 @@ def test_operational_policy_v3_has_one_mint_and_no_production_loader_consumer() 
     assert loader_calls == []
 
 
+def test_finality_v3_and_operational_v3_have_exact_production_mint_paths() -> None:
+    callers: dict[str, list[str]] = {
+        "_AuthenticatedExactCheckpointFinalityTransitionV3": [],
+        "_derive_exact_finality_capability_v3": [],
+        "_SpotV7AtomicEconomicCommitCapabilityV3": [],
+        "_bind_spot_v7_operational_commit_capability_v3": [],
+        "_commit_operational_capability_v3": [],
+    }
+    for path in _production_python_paths():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = _call_name(node)
+            if name in callers:
+                callers[name].append(f"{path.relative_to(ROOT)}:{_line(node)}")
+
+    finality_path = "src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py"
+    capability_path = "src/integration/_zrpf_spot_v7_operational_capability_v3.py"
+    assert {
+        name: [location.split(":", maxsplit=1)[0] for location in locations]
+        for name, locations in callers.items()
+    } == {
+        "_AuthenticatedExactCheckpointFinalityTransitionV3": [finality_path],
+        "_derive_exact_finality_capability_v3": [finality_path],
+        "_SpotV7AtomicEconomicCommitCapabilityV3": [capability_path],
+        "_bind_spot_v7_operational_commit_capability_v3": [],
+        "_commit_operational_capability_v3": [],
+    }
+
+
+def test_operational_v3_store_packet_projection_has_exact_consumers() -> None:
+    callers: list[str] = []
+    for path in _production_python_paths():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and _call_name(node) == "_packet_for_atomic_store_v4":
+                callers.append(f"{path.relative_to(ROOT)}:{_line(node)}")
+
+    assert [location.split(":", maxsplit=1)[0] for location in callers] == [
+        "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
+        "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
+        "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
+        "src/integration/zrpf_spot_v7_atomic_operational_store_v4.py",
+        "src/integration/zrpf_spot_v7_atomic_operational_store_v4.py",
+    ]
+
+
 @pytest.mark.parametrize(
     "path",
     (
@@ -469,9 +544,36 @@ def test_v3_governed_da_authority_has_exact_public_reachability(
 
     assert _public_authority_alias_violations(tree) == []
     assert _private_authority_all_exports(tree) == []
-    assert _public_top_level_authority_reachability(tree) == (
-        expected_public_reachability
-    )
+    assert _public_top_level_authority_reachability(tree) == (expected_public_reachability)
+
+
+@pytest.mark.parametrize(
+    ("path", "expected_public_reachability"),
+    (
+        (
+            SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER,
+            [
+                "SpotV7ZenoLedgerCheckpointFinalityAdapterV2.authenticate",
+                "SpotV7ZenoLedgerCheckpointFinalityAdapterV3.authenticate",
+            ],
+        ),
+        (SPOT_V7_OPERATIONAL_CAPABILITY_V3, []),
+        (SPOT_V7_ATOMIC_SCHEMA_V4, []),
+        (SPOT_V7_ATOMIC_RECORDS_V4, []),
+        (SPOT_V7_ATOMIC_HISTORY_V4, []),
+        (SPOT_V7_ATOMIC_EVIDENCE_V4, []),
+        (SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4, []),
+    ),
+)
+def test_finality_v3_and_operational_v4_have_exact_public_reachability(
+    path: Path,
+    expected_public_reachability: list[str],
+) -> None:
+    tree = _parse(path)
+
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _public_top_level_authority_reachability(tree) == (expected_public_reachability)
 
 
 def test_sampled_retrievability_exposes_only_the_exact_verifier_mint() -> None:
@@ -479,20 +581,15 @@ def test_sampled_retrievability_exposes_only_the_exact_verifier_mint() -> None:
 
     assert _public_authority_alias_violations(tree) == []
     assert _private_authority_all_exports(tree) == []
-    assert _public_top_level_authority_reachability(tree) == [
-        "verify_exact_evidence_v1"
-    ]
+    assert _public_top_level_authority_reachability(tree) == ["verify_exact_evidence_v1"]
 
 
 def test_firecracker_static_binding_factory_and_expected_document_ratchets() -> None:
     tree = _parse(SPOT_V7_FIRECRACKER_EXECUTION_BINDING)
-    classes = {
-        node.name: node for node in tree.body if isinstance(node, ast.ClassDef)
-    }
+    classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
     result_class = classes["_AuthorityFalseSpotV7FirecrackerExecutionBindingV1"]
     assert not any(
-        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == "_from_verified"
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "_from_verified"
         for node in result_class.body
     )
 
@@ -515,8 +612,7 @@ def test_firecracker_static_binding_factory_and_expected_document_ratchets() -> 
         node
         for node in tree.body
         if isinstance(node, ast.FunctionDef)
-        and node.name
-        == "_verify_authority_false_spot_v7_firecracker_execution_binding_v1"
+        and node.name == "_verify_authority_false_spot_v7_firecracker_execution_binding_v1"
     )
     all_result_allocations = [
         node
@@ -564,9 +660,7 @@ def public_capability(runtime):
 """,
         filename="public_firecracker_capability_wrapper.py",
     )
-    assert _public_top_level_authority_reachability(public_wrapper) == [
-        "public_capability"
-    ]
+    assert _public_top_level_authority_reachability(public_wrapper) == ["public_capability"]
 
 
 @pytest.mark.parametrize(
@@ -600,9 +694,7 @@ def test_settlement_adapters_mint_recursive_authority_once_inside_verification(
         for imported in node.names
         if imported.name in PRIVATE_AUTHORITY_NAMES
     }
-    assert private_imports == {
-        (name, None) for name in PRIVATE_SETTLEMENT_VERIFIER_IMPORTS
-    }
+    assert private_imports == {(name, None) for name in PRIVATE_SETTLEMENT_VERIFIER_IMPORTS}
     assert (
         _reserved_adapter_binding_violations(
             tree,
@@ -700,8 +792,7 @@ def test_source_opened_v6_authority_seal_rejects_public_alias_and_external_call_
         PRIVATE_SOURCE_OPENED_V6_SEAL,
     ) == [1]
     assert _public_authority_alias_violations(class_alias_mutant) == [
-        "PinnedSourceOpenedSpotSettlementVerifierV6.public_seal:"
-        f"{PRIVATE_SOURCE_OPENED_V6_SEAL}"
+        f"PinnedSourceOpenedSpotSettlementVerifierV6.public_seal:{PRIVATE_SOURCE_OPENED_V6_SEAL}"
     ]
 
 
@@ -718,27 +809,28 @@ def test_settlement_adapter_ratchet_rejects_public_recursive_authority_alias_mut
         filename=str(path),
     )
 
-    assert _public_authority_alias_violations(mutant) == [
-        f"public_mint_alias:{PRIVATE_MINT}"
-    ]
-    assert _private_adapter_reference_violations(
-        mutant,
-        _method(
-            _class(
-                mutant,
+    assert _public_authority_alias_violations(mutant) == [f"public_mint_alias:{PRIVATE_MINT}"]
+    assert (
+        _private_adapter_reference_violations(
+            mutant,
+            _method(
+                _class(
+                    mutant,
+                    (
+                        "PinnedSettlementCertificateVerifierV1"
+                        if path == SETTLEMENT_VERIFIER_ADAPTER
+                        else "PinnedSourceOpenedSpotSettlementVerifierV6"
+                    ),
+                ),
                 (
-                    "PinnedSettlementCertificateVerifierV1"
+                    "_verify_authenticated_certificate"
                     if path == SETTLEMENT_VERIFIER_ADAPTER
-                    else "PinnedSourceOpenedSpotSettlementVerifierV6"
+                    else "_seal_verified_result"
                 ),
             ),
-            (
-                "_verify_authenticated_certificate"
-                if path == SETTLEMENT_VERIFIER_ADAPTER
-                else "_seal_verified_result"
-            ),
-        ),
-    ) != []
+        )
+        != []
+    )
 
 
 @pytest.mark.parametrize(
@@ -1270,9 +1362,7 @@ def _authority_alias_names_in_body(
     initial_names: set[str],
 ) -> set[str]:
     authority_names = set(initial_names)
-    assignments = tuple(
-        node for node in body if isinstance(node, (ast.Assign, ast.AnnAssign))
-    )
+    assignments = tuple(node for node in body if isinstance(node, (ast.Assign, ast.AnnAssign)))
     while True:
         discovered = {
             target
@@ -1359,10 +1449,7 @@ def _reserved_adapter_binding_violations(
     violations: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if (
-                node.name in PROTECTED_AUTHORITY_NAMES
-                and node.name not in allowed_definitions
-            ):
+            if node.name in PROTECTED_AUTHORITY_NAMES and node.name not in allowed_definitions:
                 violations.append(f"{_line(node)}:definition:{node.name}")
         elif isinstance(node, ast.arg) and node.arg in PROTECTED_AUTHORITY_NAMES:
             violations.append(f"{_line(node)}:argument:{node.arg}")

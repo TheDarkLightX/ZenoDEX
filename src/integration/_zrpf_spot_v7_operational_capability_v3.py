@@ -95,7 +95,7 @@ class _SpotV7AtomicEconomicCommitSealV3:
 _SPOT_V7_ATOMIC_ECONOMIC_COMMIT_SEAL_V3 = _SpotV7AtomicEconomicCommitSealV3()
 
 
-class _NonTransferableOperationalCapabilityV3:
+class _NonTransferableSpotV7AtomicOperationalCapabilityV3:
     __slots__ = ()
 
     def __setattr__(self, _name: str, _value: object) -> NoReturn:
@@ -115,7 +115,9 @@ class _NonTransferableOperationalCapabilityV3:
 
 
 @final
-class _SpotV7AtomicEconomicCommitCapabilityV3(_NonTransferableOperationalCapabilityV3):
+class _SpotV7AtomicEconomicCommitCapabilityV3(
+    _NonTransferableSpotV7AtomicOperationalCapabilityV3
+):
     """Private recomposable packet for one authority-neutral atomic commit."""
 
     __slots__ = (
@@ -244,7 +246,7 @@ def _require_governed_da_v2(
 ) -> _GovernedSpotV7DataAvailabilityPrerequisiteV2:
     if type(value) is not _GovernedSpotV7DataAvailabilityPrerequisiteV2:
         raise TypeError("operational V3 join requires exact governed DA V2")
-    typed = value
+    typed = cast(_GovernedSpotV7DataAvailabilityPrerequisiteV2, value)
     if not typed._has_private_seal():
         raise TypeError("operational V3 join requires sealed governed DA V2")
     typed._projection_for_downstream_binding_v2()

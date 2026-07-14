@@ -300,6 +300,9 @@ class SpotV7AtomicSettlementRejectReasonV1(Enum):
     DUPLICATE_APPLICATION_CHECKPOINT = (
         "spot_v7.atomic_settlement.duplicate_application_checkpoint"
     )
+    HISTORY_CAPACITY_EXHAUSTED = (
+        "spot_v7.atomic_settlement.history_capacity_exhausted"
+    )
 
 
 class SpotV7AtomicSettlementDispositionV1(Enum):

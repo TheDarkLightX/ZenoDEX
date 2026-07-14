@@ -161,9 +161,16 @@ jobs:
             src/integration/_zrpf_spot_v7_atomic_settlement_history.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_records.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_schema.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_evidence_v4.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_history_v4.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_records_v4.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_schema_v4.py \
             src/integration/_zrpf_spot_v7_operational_gate.py \
             src/integration/_zrpf_spot_v7_operational_capability_v2.py \
+            src/integration/_zrpf_spot_v7_operational_capability_v3.py \
+            src/integration/_zrpf_spot_v7_operational_policy_v3.py \
             src/integration/zrpf_spot_v7_operational_policy_provenance.py \
+            src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py \
             src/integration/_zrpf_spot_v7_full_blob_da_codec.py \
             src/integration/zrpf_spot_v7_full_blob_da_adapter.py \
             src/integration/zrpf_sampled_retrievability_v1/__init__.py \
@@ -176,7 +183,12 @@ jobs:
             src/integration/zrpf_sampled_retrievability_v1/validation.py \
             src/integration/zrpf_sampled_retrievability_v1/verifier.py \
             src/integration/_zrpf_spot_v7_governed_da_projection.py \
+            src/integration/_zrpf_spot_v7_governed_da_projection_v2.py \
             src/integration/zrpf_spot_v7_governed_da_prerequisite.py \
+            src/integration/zrpf_spot_v7_governed_da_prerequisite_v2.py \
+            src/integration/zrpf_spot_v7_lagged_checkpoint_beacon.py \
+            src/integration/_zrpf_spot_v7_settlement_durable_replay.py \
+            src/integration/_zrpf_spot_v7_settlement_replay_packet.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_finality_contract.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_replay_contract.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_replay_observation.py \
@@ -185,6 +197,7 @@ jobs:
             src/integration/_zrpf_spot_v7_operational_policy_store.py \
             src/integration/_zrpf_spot_v7_operational_store.py \
             src/integration/zrpf_spot_v7_atomic_settlement_store.py \
+            src/integration/zrpf_spot_v7_atomic_operational_store_v4.py \
             src/integration/zrpf_spot_v7_atomic_settlement_types.py \
             src/integration/_zeno_ledger_pinned_verifier_process_v1.py \
             src/integration/zeno_ledger_authenticated_proof_verification_v1.py \
@@ -328,14 +341,21 @@ jobs:
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
             tests/integration/test_zrpf_spot_v7_settlement_envelope_replay.py \
+            tests/integration/test_zrpf_spot_v7_settlement_durable_replay.py \
+            tests/integration/test_zrpf_spot_v7_atomic_operational_store_v4.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_sampled_retrievability_v1.py \
             tests/integration/test_zrpf_spot_v7_governed_da_prerequisite.py \
+            tests/integration/test_zrpf_spot_v7_governed_da_prerequisite_v2.py \
+            tests/integration/test_zrpf_spot_v7_lagged_checkpoint_beacon.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
+            tests/integration/test_zrpf_spot_v7_operational_capability_v3.py \
+            tests/integration/test_zrpf_spot_v7_operational_policy_v3.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_finality_adapter.py \
+            tests/integration/test_zrpf_spot_v7_settlement_finality_v3.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
             tests/integration/test_zeno_ledger_proof_required_quarantine_v0.py \
@@ -372,9 +392,16 @@ jobs:
             src/integration/_zrpf_spot_v7_atomic_settlement_history.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_records.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_schema.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_evidence_v4.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_history_v4.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_records_v4.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_schema_v4.py \
             src/integration/_zrpf_spot_v7_operational_gate.py \
             src/integration/_zrpf_spot_v7_operational_capability_v2.py \
+            src/integration/_zrpf_spot_v7_operational_capability_v3.py \
+            src/integration/_zrpf_spot_v7_operational_policy_v3.py \
             src/integration/zrpf_spot_v7_operational_policy_provenance.py \
+            src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py \
             src/integration/_zrpf_spot_v7_full_blob_da_codec.py \
             src/integration/zrpf_spot_v7_full_blob_da_adapter.py \
             src/integration/zrpf_sampled_retrievability_v1/__init__.py \
@@ -387,7 +414,12 @@ jobs:
             src/integration/zrpf_sampled_retrievability_v1/validation.py \
             src/integration/zrpf_sampled_retrievability_v1/verifier.py \
             src/integration/_zrpf_spot_v7_governed_da_projection.py \
+            src/integration/_zrpf_spot_v7_governed_da_projection_v2.py \
             src/integration/zrpf_spot_v7_governed_da_prerequisite.py \
+            src/integration/zrpf_spot_v7_governed_da_prerequisite_v2.py \
+            src/integration/zrpf_spot_v7_lagged_checkpoint_beacon.py \
+            src/integration/_zrpf_spot_v7_settlement_durable_replay.py \
+            src/integration/_zrpf_spot_v7_settlement_replay_packet.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_finality_contract.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_replay_contract.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_replay_observation.py \
@@ -396,6 +428,7 @@ jobs:
             src/integration/_zrpf_spot_v7_operational_policy_store.py \
             src/integration/_zrpf_spot_v7_operational_store.py \
             src/integration/zrpf_spot_v7_atomic_settlement_store.py \
+            src/integration/zrpf_spot_v7_atomic_operational_store_v4.py \
             src/integration/zrpf_spot_v7_atomic_settlement_types.py \
             src/integration/_zeno_ledger_pinned_verifier_process_v1.py \
             src/integration/zeno_ledger_authenticated_proof_verification_v1.py \
@@ -500,14 +533,21 @@ jobs:
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
             tests/integration/test_zrpf_spot_v7_settlement_envelope_replay.py \
+            tests/integration/test_zrpf_spot_v7_settlement_durable_replay.py \
+            tests/integration/test_zrpf_spot_v7_atomic_operational_store_v4.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_sampled_retrievability_v1.py \
             tests/integration/test_zrpf_spot_v7_governed_da_prerequisite.py \
+            tests/integration/test_zrpf_spot_v7_governed_da_prerequisite_v2.py \
+            tests/integration/test_zrpf_spot_v7_lagged_checkpoint_beacon.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
+            tests/integration/test_zrpf_spot_v7_operational_capability_v3.py \
+            tests/integration/test_zrpf_spot_v7_operational_policy_v3.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_finality_adapter.py \
+            tests/integration/test_zrpf_spot_v7_settlement_finality_v3.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
             tests/integration/test_zeno_ledger_proof_required_quarantine_v0.py \
@@ -576,14 +616,21 @@ jobs:
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
             tests/integration/test_zrpf_spot_v7_settlement_envelope_replay.py \
+            tests/integration/test_zrpf_spot_v7_settlement_durable_replay.py \
+            tests/integration/test_zrpf_spot_v7_atomic_operational_store_v4.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_sampled_retrievability_v1.py \
             tests/integration/test_zrpf_spot_v7_governed_da_prerequisite.py \
+            tests/integration/test_zrpf_spot_v7_governed_da_prerequisite_v2.py \
+            tests/integration/test_zrpf_spot_v7_lagged_checkpoint_beacon.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
+            tests/integration/test_zrpf_spot_v7_operational_capability_v3.py \
+            tests/integration/test_zrpf_spot_v7_operational_policy_v3.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_finality_adapter.py \
+            tests/integration/test_zrpf_spot_v7_settlement_finality_v3.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
             tests/integration/test_zeno_ledger_proof_required_quarantine_v0.py \

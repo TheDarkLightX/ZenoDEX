@@ -51,7 +51,16 @@ class _ReplayStateV1:
 
 
 def _validate_complete_spot_v7_history(connection: sqlite3.Connection) -> None:
-    """Replay every committed row and compare it with the current cell table."""
+    """Replay economic rows plus the legacy operational evidence surface."""
+
+    _validate_complete_spot_v7_economic_history(connection)
+    _validate_complete_test_only_operational_history(connection)
+
+
+def _validate_complete_spot_v7_economic_history(
+    connection: sqlite3.Connection,
+) -> None:
+    """Replay every committed economic row and compare current cells."""
 
     _validate_database_pragmas_and_counts(connection)
     meta = _read_meta_row(connection)
@@ -77,13 +86,10 @@ def _validate_complete_spot_v7_history(connection: sqlite3.Connection) -> None:
         raise ValueError("Spot V7 metadata state root disagrees with replayed history")
     if head.last_epoch_id != state.epoch_id:
         raise ValueError("Spot V7 metadata epoch disagrees with replayed history")
-    _validate_complete_test_only_operational_history(connection)
 
 
 def _read_meta_row(connection: sqlite3.Connection) -> sqlite3.Row:
-    row = connection.execute(
-        "SELECT * FROM spot_v7_store_meta WHERE singleton = 1"
-    ).fetchone()
+    row = connection.execute("SELECT * FROM spot_v7_store_meta WHERE singleton = 1").fetchone()
     if row is None:
         raise ValueError("Spot V7 metadata row is missing")
     return row
@@ -93,9 +99,7 @@ def _read_genesis_replay_state(
     connection: sqlite3.Connection,
     meta: sqlite3.Row,
 ) -> _ReplayStateV1:
-    rows = connection.execute(
-        "SELECT * FROM spot_v7_genesis_cells ORDER BY cell_key"
-    ).fetchall()
+    rows = connection.execute("SELECT * FROM spot_v7_genesis_cells ORDER BY cell_key").fetchall()
     cells = tuple(_opening_from_row(row) for row in rows)
     return _ReplayStateV1(
         cells={cell.cell_key: cell for cell in cells},
@@ -240,8 +244,7 @@ def _load_transitions(
     commitment: bytes,
 ) -> tuple[SpotV7CellTransitionV1, ...]:
     rows = connection.execute(
-        "SELECT * FROM spot_v7_cell_transitions "
-        "WHERE settlement_commitment = ? ORDER BY ordinal",
+        "SELECT * FROM spot_v7_cell_transitions WHERE settlement_commitment = ? ORDER BY ordinal",
         (commitment,),
     ).fetchall()
     if len(rows) != 4 or [int(row["ordinal"]) for row in rows] != list(range(4)):
@@ -254,8 +257,7 @@ def _load_effects(
     commitment: bytes,
 ) -> tuple[SpotV7AssetEffectV1, ...]:
     rows = connection.execute(
-        "SELECT * FROM spot_v7_asset_effects "
-        "WHERE settlement_commitment = ? ORDER BY ordinal",
+        "SELECT * FROM spot_v7_asset_effects WHERE settlement_commitment = ? ORDER BY ordinal",
         (commitment,),
     ).fetchall()
     if len(rows) != 2 or [int(row["ordinal"]) for row in rows] != [0, 1]:
@@ -268,8 +270,7 @@ def _load_consumed_objects(
     commitment: bytes,
 ) -> tuple[str, ...]:
     rows = connection.execute(
-        "SELECT * FROM spot_v7_consumed_objects "
-        "WHERE settlement_commitment = ? ORDER BY ordinal",
+        "SELECT * FROM spot_v7_consumed_objects WHERE settlement_commitment = ? ORDER BY ordinal",
         (commitment,),
     ).fetchall()
     ordinals = [int(row["ordinal"]) for row in rows]
@@ -311,9 +312,7 @@ def _candidate_input_from_rows(
         exact_v7_receipt_bytes=bytes(row["exact_v7_receipt"]),
         exact_v7_journal_bytes=bytes(row["exact_v7_journal"]),
         exact_plan_b_bytes=bytes(row["exact_plan_b"]),
-        exact_firecracker_execution_record_bytes=bytes(
-            row["exact_firecracker_execution_record"]
-        ),
+        exact_firecracker_execution_record_bytes=bytes(row["exact_firecracker_execution_record"]),
         exact_firecracker_output_bytes=bytes(row["exact_firecracker_output"]),
     )
 

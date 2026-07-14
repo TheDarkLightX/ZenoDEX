@@ -1313,3 +1313,19 @@ def test_v1_replay_observation_behavior_and_claim_scope_are_unchanged() -> None:
     assert observation.settlement_authority is False
     assert observation.release_authority is False
     assert observation.production_authority is False
+
+
+def test_exact_json_object_rejects_pathological_nesting_before_decode() -> None:
+    raw = b'{"value":' * 65 + b"0" + b"}" * 65
+
+    with pytest.raises(ValueError, match="nesting bound"):
+        replay_contract._decode_exact_json_object(raw, name="adversarial transcript")
+
+
+def test_exact_json_object_nesting_preflight_ignores_string_bytes() -> None:
+    raw = canonical_json_bytes_v0({"value": "[{" * 1_000})
+
+    assert replay_contract._decode_exact_json_object(
+        raw,
+        name="string-heavy transcript",
+    ) == {"value": "[{" * 1_000}

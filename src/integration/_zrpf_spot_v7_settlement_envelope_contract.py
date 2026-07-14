@@ -45,6 +45,8 @@ ENVELOPE_PROPOSAL_HASH_DOMAIN_V1 = "zrpf_spot_v7_settlement_envelope_proposal_v1
 ENVELOPE_RECEIPT_HASH_DOMAIN_V1 = "zrpf_spot_v7_settlement_envelope_receipt_v1"
 SPOT_V7_SETTLEMENT_EFFECT_IDS_ROOT_DOMAIN_V1 = "zrpf_spot_v7_settlement_envelope_effect_ids_v1"
 SPOT_V7_SETTLEMENT_REPLAY_MATERIAL_ROOT_DOMAIN_V2 = "zrpf_spot_v7_settlement_replay_material_v2"
+_MAX_EXACT_JSON_OBJECT_BYTES_V2 = 24 * 1_024 * 1_024
+_MAX_EXACT_JSON_OBJECT_DEPTH_V2 = 64
 
 
 class SpotV7SettlementEnvelopeReplayErrorV1(ValueError):
@@ -689,10 +691,44 @@ def _require_settlement_replay_observation_v2(
 
 
 def _decode_exact_json_object(value: bytes, *, name: str) -> dict[str, Any]:
-    decoded = json.loads(value)
-    if type(decoded) is not dict or canonical_json_bytes_v0(decoded) != value:
+    if type(value) is not bytes or not value or len(value) > _MAX_EXACT_JSON_OBJECT_BYTES_V2:
+        raise ValueError(f"{name} exceeds the exact JSON byte bound")
+    _require_bounded_json_nesting(value, name=name)
+    try:
+        decoded = json.loads(value)
+        canonical = canonical_json_bytes_v0(decoded)
+    except (TypeError, ValueError, RecursionError) as exc:
+        raise ValueError(f"{name} is not a bounded JSON object") from exc
+    if type(decoded) is not dict or canonical != value:
         raise ValueError(f"{name} is not an exact canonical JSON object")
     return decoded
+
+
+def _require_bounded_json_nesting(value: bytes, *, name: str) -> None:
+    depth = 0
+    in_string = False
+    escaped = False
+    for byte in value:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif byte == 0x5C:
+                escaped = True
+            elif byte == 0x22:
+                in_string = False
+            continue
+        if byte == 0x22:
+            in_string = True
+        elif byte in (0x5B, 0x7B):
+            depth += 1
+            if depth > _MAX_EXACT_JSON_OBJECT_DEPTH_V2:
+                raise ValueError(f"{name} exceeds the exact JSON nesting bound")
+        elif byte in (0x5D, 0x7D):
+            depth -= 1
+            if depth < 0:
+                raise ValueError(f"{name} has invalid JSON nesting")
+    if depth != 0 or in_string:
+        raise ValueError(f"{name} has invalid JSON nesting")
 
 
 def _sha256(value: bytes) -> str:
