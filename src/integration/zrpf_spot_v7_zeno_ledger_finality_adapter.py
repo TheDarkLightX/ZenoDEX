@@ -2,9 +2,10 @@
 
 The adapter accepts one sealed Spot V7 settlement candidate and one sealed
 operational policy. It snapshots bounded plain-data inputs, authenticates an
-exact ZenoLedger checkpoint with the policy-pinned BLS signer registry, binds
-the application checkpoint cursor and Spot V7 journal/state roots, and derives
-the canonical ``checkpoint_finality_v2`` certificate itself.
+app-hash-consistent ZenoLedger checkpoint with the policy-pinned BLS signer
+registry, separately verifies the canonical validator schedule, binds the
+application checkpoint cursor and Spot V7 journal/state roots, and derives the
+canonical ``checkpoint_finality_v2`` certificate itself.
 
 The resulting private capability is suitable for the authority-false V2 atomic
 store sink. Release provenance, data availability, economic settlement, and
@@ -57,7 +58,11 @@ from src.integration.zeno_ledger_signer_registry import (
 )
 from src.integration.zeno_ledger_v0 import (
     canonical_json_bytes_v0,
+    compute_app_hash_v0,
     validate_checkpoint_header_binding_v0,
+)
+from src.integration.zeno_ledger_validator_schedule_v0 import (
+    build_scheduled_header_admission_v0,
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     MAX_U64,
@@ -101,6 +106,9 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
         prior_cursor: object,
         header: object,
         checkpoint: object,
+        validator_set: object,
+        proposer_id: object,
+        proposer_key_id: object,
         registry: object,
         envelopes: object,
     ) -> _AuthenticatedExactCheckpointFinalityTransitionV2:
@@ -111,6 +119,9 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
         snapshot = _snapshot_inputs(
             header=header,
             checkpoint=checkpoint,
+            validator_set=validator_set,
+            proposer_id=proposer_id,
+            proposer_key_id=proposer_key_id,
             registry=registry,
             envelopes=envelopes,
         )
@@ -119,6 +130,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
         _require_policy_binding(candidate, policy_projection)
         policy = self._policy._policy_for_atomic_store()
         _validate_checkpoint_structure(snapshot)
+        _validate_header_app_hash(snapshot.header)
         _require_checkpoint_transition_binding(
             candidate=candidate,
             cursor=cursor,
@@ -126,6 +138,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
             checkpoint=snapshot.checkpoint,
             policy=policy,
         )
+        scheduled_header_admission = _require_scheduled_header_admission(snapshot)
         _require_registry_and_external_policy_binding(
             header=snapshot.header,
             registry=snapshot.registry,
@@ -141,6 +154,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
             candidate=candidate,
             cursor=cursor,
             snapshot=snapshot,
+            scheduled_header_admission=scheduled_header_admission,
             admission=admission,
         )
         return _derive_exact_finality_capability(
@@ -158,6 +172,37 @@ def _validate_checkpoint_structure(snapshot: _FinalityInputSnapshotV1) -> None:
         raise SpotV7ZenoLedgerFinalityBindingErrorV1("embedded_signature_set")
     if snapshot.checkpoint["signature_set_root"] != _ZERO_ROOT:
         raise SpotV7ZenoLedgerFinalityBindingErrorV1("embedded_signature_set_root")
+
+
+def _validate_header_app_hash(header: Mapping[str, Any]) -> None:
+    expected = compute_app_hash_v0(
+        {
+            "chain_id": header["chain_id"],
+            "height": header["height"],
+            "post_state_root": header["post_state_root"],
+            "evidence_root": header["evidence_root"],
+            "config_digest": header["config_digest"],
+            "module_versions_digest": header["module_versions_digest"],
+        }
+    )
+    if header["app_hash"] != expected:
+        raise SpotV7ZenoLedgerFinalityBindingErrorV1("app_hash")
+
+
+def _require_scheduled_header_admission(
+    snapshot: _FinalityInputSnapshotV1,
+) -> dict[str, Any]:
+    try:
+        return build_scheduled_header_admission_v0(
+            header=snapshot.header,
+            validator_set=snapshot.validator_set,
+            proposer_id=snapshot.proposer_id,
+            key_id=snapshot.proposer_key_id,
+        )
+    except (TypeError, ValueError) as exc:
+        raise SpotV7ZenoLedgerFinalityBindingErrorV1(
+            "scheduled_header_admission"
+        ) from exc
 
 
 def _require_checkpoint_transition_binding(
@@ -222,7 +267,6 @@ def _require_registry_and_external_policy_binding(
             policy.finality_verifier_set_root == registry_hash,
             "verifier_set_root",
         ),
-        (header["sequencer_set_hash"] == registry_hash, "sequencer_registry_binding"),
         (
             policy.finality_network_id == derive_zeno_ledger_finality_network_id_v1(chain_id),
             "finality_network",
@@ -266,6 +310,7 @@ def _canonical_finality_evidence(
     candidate: _SpotV7SettlementCandidateInputV1,
     cursor: ZenoLedgerCheckpointFinalityCursorV1,
     snapshot: _FinalityInputSnapshotV1,
+    scheduled_header_admission: Mapping[str, Any],
     admission: Mapping[str, Any],
 ) -> bytes:
     body = {
@@ -283,6 +328,8 @@ def _canonical_finality_evidence(
         },
         "header": snapshot.header,
         "checkpoint": snapshot.checkpoint,
+        "validator_set": snapshot.validator_set,
+        "scheduled_header_admission": dict(scheduled_header_admission),
         "registry": snapshot.registry,
         "envelopes": list(snapshot.envelopes),
         "live_quorum_admission": dict(admission),

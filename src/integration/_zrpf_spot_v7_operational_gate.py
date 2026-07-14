@@ -2,10 +2,11 @@
 
 The Spot V7 Firecracker capability authenticates one exact proof result. The
 proof-neutral ``full_blob_da_v1`` and ``checkpoint_finality_v2`` primitives do
-not authenticate policy provenance or external finality. Governed adapters now
-perform the exact local full-blob check and the policy-pinned ZenoLedger BLS
-checkpoint check when given the same sealed policy. The production join remains
-unavailable while governed settlement and policy provenance are absent.
+not authenticate policy provenance or external finality. The governed DA
+adapter performs the exact local full-blob check. The governed ZenoLedger
+BLS-quorum adapter authenticates one scheduled, app-hash-consistent checkpoint
+under the same sealed policy. Canonical fork choice, body replay, release-backed
+ZenoLedger finality, governed settlement, and policy provenance remain open.
 """
 
 from __future__ import annotations
@@ -36,6 +37,9 @@ class SpotV7OperationalCommitMissingConditionV1(Enum):
     )
     GOVERNED_OPERATIONAL_POLICY = (
         "governed_da_and_finality_policy_provenance_unavailable"
+    )
+    CANONICAL_ZENO_LEDGER_FINALITY_AUTHORITY = (
+        "canonical_zeno_ledger_finality_authority_unavailable"
     )
 
 

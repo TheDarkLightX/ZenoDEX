@@ -3,9 +3,10 @@
 Date: 2026-07-13
 
 Status: authority-false V2 commit capability, combined atomic sink, exact
-manifest-pinned `full_blob_da_v1` Rust checker adapter, and policy-pinned
-ZenoLedger BLS checkpoint-finality adapter implemented; governed policy
-provenance, settlement authority, and production authority remain unavailable
+manifest-pinned `full_blob_da_v1` Rust checker adapter, and bounded
+policy-pinned ZenoLedger BLS checkpoint adapter implemented; canonical
+ZenoLedger finality authority, governed policy provenance, settlement
+authority, and production authority remain unavailable
 
 ## Purpose
 
@@ -44,7 +45,9 @@ module-sealed prerequisite objects, retains those objects, and deterministically
 reconstructs the permanently authority-false schema packet. The exact DA
 prerequisite has a bounded Rust-checker adapter. A governed ZenoLedger adapter
 mints the exact checkpoint-finality prerequisite only after cryptographic
-quorum and complete binding checks. The governed policy and Firecracker
+quorum, canonical scheduled-header admission, header `app_hash` recomputation,
+and the scoped candidate bindings below. This remains a bounded,
+authority-false checkpoint result. The governed policy and Firecracker
 settlement mint paths remain absent, so raw caller data cannot reach the
 combined binder.
 
@@ -122,14 +125,17 @@ information-hiding boundaries, not protection against hostile code already
 executing in the same interpreter.
 
 The ZenoLedger finality adapter authenticates BLS checkpoint signatures against
-the exact registry hash pinned by the sealed operational policy. It enforces
-strict greater-than-two-thirds active-weight quorum intersection, reconstructs
-the canonical `checkpoint_finality_v2` certificate through the source-bound
-Python parity implementation, and binds the proposed prior cursor. The combined
-store still performs the durable prior-cursor compare-and-swap. Direct
-execution of the Rust policy checker in this adapter remains release hardening.
-Caller booleans, quorum reports, and certificate bytes never mint either
-capability.
+the exact registry hash pinned by the sealed operational policy. It enforces strict
+greater-than-two-thirds active-weight quorum intersection. The checkpoint
+signer-registry root remains distinct from the header's validator-set root. The
+adapter invokes canonical scheduled-header admission for that validator set,
+recomputes `app_hash`, reconstructs the canonical `checkpoint_finality_v2`
+certificate through the source-bound Python parity implementation, and binds
+the proposed prior cursor. The combined store still performs the durable
+prior-cursor compare-and-swap. Direct execution of the Rust policy checker,
+canonical body replay and fork choice, validator-set release governance, and
+proposer-authorship evidence remain open. Caller booleans, quorum reports, and
+certificate bytes never mint either capability.
 
 Separate types whose names begin with `_TestOnly` exercise the completed
 storage mechanics. They recompute the Rust-compatible roots and canonical
@@ -199,19 +205,23 @@ The production gate reports these exact missing conditions:
 
 1. governed V7 receipt and Firecracker settlement capability;
 2. governed DA/finality policy provenance;
+3. canonical, release-backed ZenoLedger finality authority.
 
-The two governed adapters close three former implementation conditions for
-their bounded profiles:
+The two governed adapters close these bounded subconditions while the third
+condition remains open:
 
 ```text
 exact full_blob_da_v1 invocation and private capability mint
 policy-pinned ZenoLedger BLS checkpoint-quorum authentication
+canonical scheduled-header admission with separate validator and signer roots
+header app-hash recomputation
 exact checkpoint_finality_v2 certificate derivation and private capability mint
 ```
 
 This does not mint the operational policy. Governance must still supply the
 sealed policy that pins the exact chain, config digest, signer-registry root,
-genesis checkpoint, and adapter protocol identity.
+genesis checkpoint, and adapter protocol identity. The header's separately
+committed validator-set root is checked by scheduled-header admission.
 
 These previously open mechanics are closed for both the test lane and the
 authority-false V2 sealed-packet lane:
@@ -283,15 +293,22 @@ Focused tests establish:
   reached;
 - a registry substitution, header/config substitution, wrong predecessor,
   wrong sequence, wrong V7 journal hash, or wrong post-state root rejects;
+- replacing the validator-set root with the checkpoint signer-registry root
+  rejects through scheduled-header admission;
+- an incorrect `app_hash` and an unscheduled proposer identity reject before
+  checkpoint quorum can mint the private capability;
+- deeply nested or excessively wide input rejects during an iterative bounded
+  structural walk before recursive JSON serialization;
 - a signer threshold that is reached but does not exceed two thirds of active
   weight cannot mint finality;
 - signature-envelope order is normalized and produces byte-identical canonical
   evidence and certificate bytes;
 - embedded checkpoint signature arrays are forbidden, keeping the externally
   verified BLS envelope set as the only signature authority for this profile;
-- the exact header, checkpoint, registry, BLS envelopes, recomputed quorum
-  admission, application binding, and prior cursor are retained in one bounded
-  canonical finality-evidence object.
+- the exact header, checkpoint, validator set, scheduled-header admission,
+  signer registry, BLS envelopes, recomputed quorum admission, application
+  binding, and prior cursor are retained in one bounded canonical
+  finality-evidence object.
 
 ### Rust/Python parity evidence
 
@@ -333,13 +350,16 @@ This integration contract does not establish current governed V7 receipt
 evidence, governed Firecracker execution, policy governance, a governed raw
 policy mint, provider retrievability, consensus safety outside the pinned
 strict-quorum assumptions, canonical fork choice across conflicting qualified
-checkpoints, production rollback resistance, governed combined
+checkpoints, body-root validation and deterministic body replay, authenticated
+proposer authorship, validator-set release governance, production rollback
+resistance, governed combined
 proof/DA/finality/economic admission, settlement authority, release authority,
 privacy, liveness, or production authority. It establishes one
-manifest-pinned exact local DA check, scoped ZenoLedger BLS checkpoint
-authentication, exact finality-certificate construction, SQLite atomicity,
-rollback, exact-byte persistence, replay rejection, and reopen validation for
-the authority-false lanes.
+manifest-pinned exact local DA check, scoped BLS checkpoint authentication,
+scheduled-header structural admission, app-hash consistency, exact
+finality-certificate construction, SQLite atomicity, rollback, exact-byte
+persistence, replay rejection, and reopen validation for the authority-false
+lanes.
 
 The private prerequisite classes are future adapter contracts. Unit tests may
 apply their module-private seals to exercise cross-binding logic; those test

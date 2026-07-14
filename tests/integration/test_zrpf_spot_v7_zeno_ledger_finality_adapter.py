@@ -6,7 +6,7 @@ import copy
 import hashlib
 import json
 import pickle
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 import pytest
 from py_ecc.optimized_bls12_381 import curve_order
@@ -34,7 +34,12 @@ from src.integration.zeno_ledger_v0 import (
     build_checkpoint_v0,
     build_header_v0,
     canonical_json_bytes_v0,
+    compute_app_hash_v0,
     hash_v0,
+)
+from src.integration.zeno_ledger_validator_schedule_v0 import (
+    build_proposer_duty_v0,
+    build_validator_set_v0,
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     SpotV7AssetEffectV1,
@@ -56,6 +61,20 @@ from src.integration.zrpf_spot_v7_zeno_ledger_finality_adapter import (
 
 ZERO_ROOT = "0x" + "00" * 32
 CHAIN_ID = "zeno-ledger-zrpf-finality-test-v1"
+
+
+@dataclass(frozen=True, slots=True)
+class _FinalityFixture:
+    adapter: SpotV7ZenoLedgerCheckpointFinalityAdapterV1
+    settlement: _GovernedFirecrackerSpotV7SettlementV1
+    prior_cursor: ZenoLedgerCheckpointFinalityCursorV1
+    header: dict[str, object]
+    checkpoint: dict[str, object]
+    validator_set: dict[str, object]
+    proposer_id: str
+    proposer_key_id: str
+    registry: dict[str, object]
+    envelopes: tuple[dict[str, object], ...]
 
 
 def _root(label: str) -> str:
@@ -187,32 +206,66 @@ def _registry(*, threshold: int = 2) -> dict[str, object]:
     )
 
 
+def _validator_set() -> dict[str, object]:
+    keys = (_private_key("sequencer-a"), _private_key("sequencer-b"))
+    return build_validator_set_v0(
+        chain_id=CHAIN_ID,
+        epoch=0,
+        start_height=1,
+        validators=[
+            {
+                "validator_id": f"sequencer-{index}",
+                "key_id": f"sequencer-bls-{index}",
+                "public_key": bls_public_key_hex_from_private_key_v0(key),
+                "voting_power": 1,
+                "status": "active",
+            }
+            for index, key in enumerate(keys)
+        ],
+    )
+
+
 def _header(
     candidate: _SpotV7SettlementCandidateInputV1,
-    registry: dict[str, object],
+    validator_set: dict[str, object],
     *,
     previous_hash: str,
     proof_journal_hash: str | None = None,
     post_state_root: str | None = None,
+    app_hash: str | None = None,
 ) -> dict[str, object]:
+    checked_post_state_root = post_state_root or candidate.post_state_root
+    evidence_root = _root("ledger-evidence")
+    config_digest = _root("ledger-config")
+    module_versions_digest = _root("modules")
+    checked_app_hash = app_hash or compute_app_hash_v0(
+        {
+            "chain_id": CHAIN_ID,
+            "height": candidate.epoch_id,
+            "post_state_root": checked_post_state_root,
+            "evidence_root": evidence_root,
+            "config_digest": config_digest,
+            "module_versions_digest": module_versions_digest,
+        }
+    )
     return build_header_v0(
         chain_id=CHAIN_ID,
         height=candidate.epoch_id,
         time_ms=1_784_000_000_000 + candidate.epoch_id,
         prev_header_hash=previous_hash,
-        sequencer_set_hash=str(registry["registry_hash"]),
+        sequencer_set_hash=str(validator_set["validator_set_hash"]),
         ingress_root=_root("ingress"),
         tx_root=_root("transactions"),
         pre_state_root=candidate.pre_state_root,
-        post_state_root=post_state_root or candidate.post_state_root,
-        app_hash=_root("application-state"),
-        evidence_root=_root("ledger-evidence"),
+        post_state_root=checked_post_state_root,
+        app_hash=checked_app_hash,
+        evidence_root=evidence_root,
         body_root=_root("body"),
         data_availability_root=candidate.data_root,
         proof_journal_hash=proof_journal_hash
         or "0x" + hashlib.sha256(candidate.exact_v7_journal_bytes).hexdigest(),
-        config_digest=_root("ledger-config"),
-        module_versions_digest=_root("modules"),
+        config_digest=config_digest,
+        module_versions_digest=module_versions_digest,
         signature_set_root=ZERO_ROOT,
     )
 
@@ -264,59 +317,55 @@ def _envelopes(header_hash: str) -> tuple[dict[str, object], ...]:
     )
 
 
-def _fixture() -> tuple[
-    SpotV7ZenoLedgerCheckpointFinalityAdapterV1,
-    _GovernedFirecrackerSpotV7SettlementV1,
-    ZenoLedgerCheckpointFinalityCursorV1,
-    dict[str, object],
-    dict[str, object],
-    dict[str, object],
-    tuple[dict[str, object], ...],
-]:
+def _fixture() -> _FinalityFixture:
     candidate = _candidate()
     registry = _registry()
+    validator_set = _validator_set()
     genesis_hash = _root("checkpoint-genesis")
-    header = _header(candidate, registry, previous_hash=genesis_hash)
+    header = _header(candidate, validator_set, previous_hash=genesis_hash)
     checkpoint = build_checkpoint_v0(header)
     policy = _policy(candidate, registry, header, genesis_hash=genesis_hash)
-    return (
-        SpotV7ZenoLedgerCheckpointFinalityAdapterV1(policy),
-        _settlement(candidate),
-        ZenoLedgerCheckpointFinalityCursorV1(sequence=0, checkpoint_hash=genesis_hash),
-        header,
-        checkpoint,
-        registry,
-        _envelopes(str(checkpoint["header_hash"])),
+    duty = build_proposer_duty_v0(
+        validator_set=validator_set,
+        height=candidate.epoch_id,
+    )
+    proposer = duty["proposer"]
+    assert isinstance(proposer, dict)
+    return _FinalityFixture(
+        adapter=SpotV7ZenoLedgerCheckpointFinalityAdapterV1(policy),
+        settlement=_settlement(candidate),
+        prior_cursor=ZenoLedgerCheckpointFinalityCursorV1(
+            sequence=0,
+            checkpoint_hash=genesis_hash,
+        ),
+        header=header,
+        checkpoint=checkpoint,
+        validator_set=validator_set,
+        proposer_id=str(proposer["validator_id"]),
+        proposer_key_id=str(proposer["key_id"]),
+        registry=registry,
+        envelopes=_envelopes(str(checkpoint["header_hash"])),
     )
 
 
-def _authenticate(
-    fixture: tuple[
-        SpotV7ZenoLedgerCheckpointFinalityAdapterV1,
-        _GovernedFirecrackerSpotV7SettlementV1,
-        ZenoLedgerCheckpointFinalityCursorV1,
-        dict[str, object],
-        dict[str, object],
-        dict[str, object],
-        tuple[dict[str, object], ...],
-    ],
-) -> _AuthenticatedExactCheckpointFinalityTransitionV2:
-    adapter, settlement, prior_cursor, header, checkpoint, registry, envelopes = fixture
-    return adapter.authenticate(
-        settlement=settlement,
-        prior_cursor=prior_cursor,
-        header=header,
-        checkpoint=checkpoint,
-        registry=registry,
-        envelopes=envelopes,
+def _authenticate(fixture: _FinalityFixture) -> _AuthenticatedExactCheckpointFinalityTransitionV2:
+    return fixture.adapter.authenticate(
+        settlement=fixture.settlement,
+        prior_cursor=fixture.prior_cursor,
+        header=fixture.header,
+        checkpoint=fixture.checkpoint,
+        validator_set=fixture.validator_set,
+        proposer_id=fixture.proposer_id,
+        proposer_key_id=fixture.proposer_key_id,
+        registry=fixture.registry,
+        envelopes=fixture.envelopes,
     )
 
 
 def test_valid_governed_bls_quorum_mints_exact_checkpoint_finality_v2() -> None:
     fixture = _fixture()
     capability = _authenticate(fixture)
-    _adapter, settlement, cursor, _header_value, checkpoint, registry, _envelopes_value = fixture
-    candidate = settlement._candidate_for_atomic_store()
+    candidate = fixture.settlement._candidate_for_atomic_store()
 
     assert type(capability) is _AuthenticatedExactCheckpointFinalityTransitionV2
     assert capability._has_private_seal() is True
@@ -327,16 +376,23 @@ def test_valid_governed_bls_quorum_mints_exact_checkpoint_finality_v2() -> None:
         "0x" + hashlib.sha256(candidate.exact_v7_journal_bytes).hexdigest()
     )
     assert capability._projection.post_state_root == candidate.post_state_root
-    assert capability._projection.prior_application_checkpoint_sequence == cursor.sequence
-    assert capability._projection.prior_application_checkpoint_hash == cursor.checkpoint_hash
+    assert capability._projection.prior_application_checkpoint_sequence == fixture.prior_cursor.sequence
+    assert capability._projection.prior_application_checkpoint_hash == fixture.prior_cursor.checkpoint_hash
     assert capability._projection.next_application_checkpoint_sequence == 1
-    assert capability._projection.next_application_checkpoint_hash == checkpoint["header_hash"]
+    assert capability._projection.next_application_checkpoint_hash == fixture.checkpoint["header_hash"]
     assert capability._projection.finality_evidence_root == (
         "0x" + hashlib.sha256(capability._exact_finality_evidence_bytes).hexdigest()
     )
     evidence = json.loads(capability._exact_finality_evidence_bytes)
     assert evidence["schema"] == SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V1
-    assert evidence["registry"]["registry_hash"] == registry["registry_hash"]
+    assert evidence["registry"]["registry_hash"] == fixture.registry["registry_hash"]
+    assert evidence["validator_set"]["validator_set_hash"] == (
+        fixture.validator_set["validator_set_hash"]
+    )
+    assert fixture.registry["registry_hash"] != fixture.validator_set["validator_set_hash"]
+    assert evidence["scheduled_header_admission"]["validator_set_hash"] == (
+        fixture.header["sequencer_set_hash"]
+    )
     assert evidence["live_quorum_admission"]["accepted_weight"] == 2
     assert canonical_json_bytes_v0(evidence) == capability._exact_finality_evidence_bytes
 
@@ -344,14 +400,16 @@ def test_valid_governed_bls_quorum_mints_exact_checkpoint_finality_v2() -> None:
 def test_signature_order_does_not_change_canonical_finality_evidence() -> None:
     fixture = _fixture()
     first = _authenticate(fixture)
-    adapter, settlement, cursor, header, checkpoint, registry, envelopes = fixture
-    second = adapter.authenticate(
-        settlement=settlement,
-        prior_cursor=cursor,
-        header=header,
-        checkpoint=checkpoint,
-        registry=registry,
-        envelopes=tuple(reversed(envelopes)),
+    second = fixture.adapter.authenticate(
+        settlement=fixture.settlement,
+        prior_cursor=fixture.prior_cursor,
+        header=fixture.header,
+        checkpoint=fixture.checkpoint,
+        validator_set=fixture.validator_set,
+        proposer_id=fixture.proposer_id,
+        proposer_key_id=fixture.proposer_key_id,
+        registry=fixture.registry,
+        envelopes=tuple(reversed(fixture.envelopes)),
     )
 
     assert second._exact_finality_evidence_bytes == first._exact_finality_evidence_bytes
@@ -370,16 +428,19 @@ def test_signature_order_does_not_change_canonical_finality_evidence() -> None:
     ),
 )
 def test_caller_reports_and_booleans_cannot_enter_finality_adapter(untrusted: object) -> None:
-    adapter, _settlement_value, cursor, header, checkpoint, registry, envelopes = _fixture()
+    fixture = _fixture()
 
     with pytest.raises(TypeError):
-        adapter.authenticate(
+        fixture.adapter.authenticate(
             settlement=untrusted,
-            prior_cursor=cursor,
-            header=header,
-            checkpoint=checkpoint,
-            registry=registry,
-            envelopes=envelopes,
+            prior_cursor=fixture.prior_cursor,
+            header=fixture.header,
+            checkpoint=fixture.checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            registry=fixture.registry,
+            envelopes=fixture.envelopes,
         )
 
 
@@ -387,8 +448,7 @@ def test_invalid_bls_signature_rejects_before_capability_mint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fixture = _fixture()
-    adapter, settlement, cursor, header, checkpoint, registry, envelopes = fixture
-    malformed = dict(envelopes[0])
+    malformed = dict(fixture.envelopes[0])
     malformed["signature"] = "0x" + _fixed_bytes("wrong-signature", 96).hex()
     calls = 0
     original = adapter_module._AuthenticatedExactCheckpointFinalityTransitionV2
@@ -404,44 +464,189 @@ def test_invalid_bls_signature_rejects_before_capability_mint(
         record_mint,
     )
     with pytest.raises(ValueError, match="signature invalid"):
-        adapter.authenticate(
-            settlement=settlement,
-            prior_cursor=cursor,
-            header=header,
-            checkpoint=checkpoint,
-            registry=registry,
-            envelopes=(malformed, envelopes[1]),
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=fixture.header,
+            checkpoint=fixture.checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            registry=fixture.registry,
+            envelopes=(malformed, fixture.envelopes[1]),
         )
 
     assert calls == 0
 
 
 def test_registry_must_match_governed_verifier_set_root() -> None:
-    adapter, settlement, cursor, header, checkpoint, _registry_value, envelopes = _fixture()
+    fixture = _fixture()
     replacement_registry = _registry(threshold=1)
 
     with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
-        adapter.authenticate(
-            settlement=settlement,
-            prior_cursor=cursor,
-            header=header,
-            checkpoint=checkpoint,
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=fixture.header,
+            checkpoint=fixture.checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
             registry=replacement_registry,
-            envelopes=envelopes,
+            envelopes=fixture.envelopes,
         )
 
     assert captured.value.code == "verifier_set_root"
 
 
+def test_checkpoint_signer_registry_cannot_replace_canonical_validator_set() -> None:
+    fixture = _fixture()
+    mutated_header = dict(fixture.header)
+    mutated_header["sequencer_set_hash"] = fixture.registry["registry_hash"]
+    checkpoint = build_checkpoint_v0(mutated_header)
+
+    with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=mutated_header,
+            checkpoint=checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            registry=fixture.registry,
+            envelopes=_envelopes(str(checkpoint["header_hash"])),
+        )
+
+    assert captured.value.code == "scheduled_header_admission"
+
+
+@pytest.mark.parametrize(
+    ("proposer_id", "proposer_key_id"),
+    (
+        ("wrong-proposer", "sequencer-bls-0"),
+        ("sequencer-0", "wrong-key"),
+    ),
+)
+def test_unscheduled_proposer_identity_rejects_before_quorum(
+    proposer_id: str,
+    proposer_key_id: str,
+) -> None:
+    fixture = _fixture()
+
+    with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=fixture.header,
+            checkpoint=fixture.checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=proposer_id,
+            proposer_key_id=proposer_key_id,
+            registry=fixture.registry,
+            envelopes=fixture.envelopes,
+        )
+
+    assert captured.value.code == "scheduled_header_admission"
+
+
+def test_noncanonical_app_hash_rejects_before_quorum() -> None:
+    fixture = _fixture()
+    mutated_header = dict(fixture.header)
+    mutated_header["app_hash"] = _root("noncanonical-app-hash")
+    checkpoint = build_checkpoint_v0(mutated_header)
+
+    with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=mutated_header,
+            checkpoint=checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            registry=fixture.registry,
+            envelopes=_envelopes(str(checkpoint["header_hash"])),
+        )
+
+    assert captured.value.code == "app_hash"
+
+
+def test_deep_input_rejects_before_recursive_json_serialization() -> None:
+    fixture = _fixture()
+    nested: object = []
+    for _ in range(10_000):
+        nested = [nested]
+    malformed_header = dict(fixture.header)
+    malformed_header["untrusted_nested_value"] = nested
+
+    with pytest.raises(ValueError, match="maximum depth"):
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=malformed_header,
+            checkpoint=fixture.checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            registry=fixture.registry,
+            envelopes=fixture.envelopes,
+        )
+
+
+def test_wide_input_rejects_before_json_output_allocation() -> None:
+    fixture = _fixture()
+    malformed_header = dict(fixture.header)
+    malformed_header["untrusted_wide_value"] = [None] * 32_769
+
+    with pytest.raises(ValueError, match="item bound"):
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=malformed_header,
+            checkpoint=fixture.checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            registry=fixture.registry,
+            envelopes=fixture.envelopes,
+        )
+
+
+def test_escape_amplification_rejects_before_json_output_allocation() -> None:
+    fixture = _fixture()
+    malformed_header = dict(fixture.header)
+    malformed_header["untrusted_escaped_value"] = "\x00" * 200_000
+
+    with pytest.raises(ValueError, match="json size exceeds max_bytes"):
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=malformed_header,
+            checkpoint=fixture.checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            registry=fixture.registry,
+            envelopes=fixture.envelopes,
+        )
+
+
 def test_reached_quorum_below_strict_two_thirds_never_mints_finality() -> None:
     candidate = _candidate()
     registry = _registry(threshold=1)
+    validator_set = _validator_set()
     genesis_hash = _root("checkpoint-genesis")
-    header = _header(candidate, registry, previous_hash=genesis_hash)
+    header = _header(candidate, validator_set, previous_hash=genesis_hash)
     checkpoint = build_checkpoint_v0(header)
     policy = _policy(candidate, registry, header, genesis_hash=genesis_hash)
     adapter = SpotV7ZenoLedgerCheckpointFinalityAdapterV1(policy)
     first_envelope = _envelopes(str(checkpoint["header_hash"]))[:1]
+    proposer = build_proposer_duty_v0(
+        validator_set=validator_set,
+        height=candidate.epoch_id,
+    )["proposer"]
+    assert isinstance(proposer, dict)
 
     with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
         adapter.authenticate(
@@ -452,6 +657,9 @@ def test_reached_quorum_below_strict_two_thirds_never_mints_finality() -> None:
             ),
             header=header,
             checkpoint=checkpoint,
+            validator_set=validator_set,
+            proposer_id=str(proposer["validator_id"]),
+            proposer_key_id=str(proposer["key_id"]),
             registry=registry,
             envelopes=first_envelope,
         )
@@ -472,11 +680,16 @@ def test_transition_binding_mutations_reject_before_finality_mint(
     mutation: str,
     code: str,
 ) -> None:
-    adapter, settlement, cursor, header, checkpoint, registry, envelopes = _fixture()
+    fixture = _fixture()
+    settlement = fixture.settlement
+    cursor = fixture.prior_cursor
+    header = fixture.header
+    checkpoint = fixture.checkpoint
+    envelopes = fixture.envelopes
     if mutation == "journal":
         header = _header(
             settlement._candidate_for_atomic_store(),
-            registry,
+            fixture.validator_set,
             previous_hash=cursor.checkpoint_hash,
             proof_journal_hash=_root("wrong-journal"),
         )
@@ -485,7 +698,7 @@ def test_transition_binding_mutations_reject_before_finality_mint(
     elif mutation == "post_state":
         header = _header(
             settlement._candidate_for_atomic_store(),
-            registry,
+            fixture.validator_set,
             previous_hash=cursor.checkpoint_hash,
             post_state_root=_root("wrong-post-state"),
         )
@@ -494,7 +707,7 @@ def test_transition_binding_mutations_reject_before_finality_mint(
     elif mutation == "parent":
         header = _header(
             settlement._candidate_for_atomic_store(),
-            registry,
+            fixture.validator_set,
             previous_hash=_root("wrong-parent"),
         )
         checkpoint = build_checkpoint_v0(header)
@@ -503,12 +716,15 @@ def test_transition_binding_mutations_reject_before_finality_mint(
         cursor = replace(cursor, sequence=4)
 
     with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
-        adapter.authenticate(
+        fixture.adapter.authenticate(
             settlement=settlement,
             prior_cursor=cursor,
             header=header,
             checkpoint=checkpoint,
-            registry=registry,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            registry=fixture.registry,
             envelopes=envelopes,
         )
 
@@ -516,18 +732,31 @@ def test_transition_binding_mutations_reject_before_finality_mint(
 
 
 def test_governed_config_and_sequencer_policy_are_exact() -> None:
-    adapter, settlement, cursor, header, _checkpoint, registry, _envelopes_value = _fixture()
-    mutated = dict(header)
+    fixture = _fixture()
+    mutated = dict(fixture.header)
     mutated["config_digest"] = _root("other-config")
+    mutated["app_hash"] = compute_app_hash_v0(
+        {
+            "chain_id": mutated["chain_id"],
+            "height": mutated["height"],
+            "post_state_root": mutated["post_state_root"],
+            "evidence_root": mutated["evidence_root"],
+            "config_digest": mutated["config_digest"],
+            "module_versions_digest": mutated["module_versions_digest"],
+        }
+    )
     checkpoint = build_checkpoint_v0(mutated)
 
     with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
-        adapter.authenticate(
-            settlement=settlement,
-            prior_cursor=cursor,
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
             header=mutated,
             checkpoint=checkpoint,
-            registry=registry,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            registry=fixture.registry,
             envelopes=_envelopes(str(checkpoint["header_hash"])),
         )
 
@@ -535,17 +764,23 @@ def test_governed_config_and_sequencer_policy_are_exact() -> None:
 
 
 def test_checkpoint_embedded_signature_set_is_forbidden() -> None:
-    adapter, settlement, cursor, header, _checkpoint, registry, envelopes = _fixture()
-    checkpoint = build_checkpoint_v0(header, signature_set=[{"accepted": True}])
+    fixture = _fixture()
+    checkpoint = build_checkpoint_v0(
+        fixture.header,
+        signature_set=[{"accepted": True}],
+    )
 
     with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
-        adapter.authenticate(
-            settlement=settlement,
-            prior_cursor=cursor,
-            header=header,
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=fixture.header,
             checkpoint=checkpoint,
-            registry=registry,
-            envelopes=envelopes,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            registry=fixture.registry,
+            envelopes=fixture.envelopes,
         )
 
     assert captured.value.code == "embedded_signature_set"
@@ -553,13 +788,12 @@ def test_checkpoint_embedded_signature_set_is_forbidden() -> None:
 
 def test_finality_capability_remains_nontransferable_and_authority_is_conservative() -> None:
     fixture = _fixture()
-    adapter = fixture[0]
     capability = _authenticate(fixture)
 
-    assert adapter.cryptographic_checkpoint_quorum_supported is True
-    assert adapter.release_authority is False
-    assert adapter.settlement_authority is False
-    assert adapter.production_authority is False
+    assert fixture.adapter.cryptographic_checkpoint_quorum_supported is True
+    assert fixture.adapter.release_authority is False
+    assert fixture.adapter.settlement_authority is False
+    assert fixture.adapter.production_authority is False
     for operation in (copy.copy, copy.deepcopy, pickle.dumps):
         with pytest.raises(TypeError):
             operation(capability)

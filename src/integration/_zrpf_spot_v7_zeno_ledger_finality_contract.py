@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any, Final
+from typing import Any, Final, cast
 
 from src.integration.zeno_ledger_live_quorum_v0 import (
     LIVE_CHECKPOINT_QUORUM_ADMISSION_SCHEMA_V0,
@@ -19,16 +19,23 @@ from src.integration.zeno_ledger_signature import (
 )
 from src.integration.zeno_ledger_signer_registry import SIGNER_REGISTRY_SCHEMA_V0
 from src.integration.zeno_ledger_v0 import (
+    APP_HASH_ROOT_FIELDS_V0,
     CHECKPOINT_SCHEMA_V0,
     HEADER_SCHEMA_V0,
     canonical_json_bytes_v0,
     hash_v0,
+)
+from src.integration.zeno_ledger_validator_schedule_v0 import (
+    SCHEDULE_MODE_V0,
+    SCHEDULED_HEADER_ADMISSION_SCHEMA_V0,
+    VALIDATOR_SET_SCHEMA_V0,
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     MAX_U64,
     _hash_bytes,
     _require_uint,
 )
+from src.state.canonical import bounded_json_utf8_size
 
 SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V1: Final = (
     "zenodex/zrpf/spot_v7/zeno_ledger_checkpoint_finality_evidence/v1"
@@ -38,6 +45,9 @@ _FINALITY_NETWORK_DOMAIN_V1: Final = "zrpf_spot_v7_zeno_ledger_finality_network_
 _FINALITY_PROTOCOL_DOMAIN_V1: Final = "zrpf_spot_v7_zeno_ledger_finality_protocol_v1"
 _EXTERNAL_FINALITY_POLICY_DOMAIN_V1: Final = "zrpf_spot_v7_zeno_ledger_external_finality_policy_v1"
 _MAX_FINALITY_INPUT_BYTES_V1: Final = 1 * 1_024 * 1_024
+_MAX_FINALITY_INPUT_DEPTH_V1: Final = 64
+_MAX_FINALITY_INPUT_ITEMS_V1: Final = 32_768
+_MAX_FINALITY_STRING_BYTES_V1: Final = 1 * 1_024 * 1_024
 _MAX_FINALITY_VALIDATORS_V1: Final = 256
 _ZERO_ROOT: Final = "0x" + "00" * 32
 
@@ -66,6 +76,9 @@ class ZenoLedgerCheckpointFinalityCursorV1:
 class _FinalityInputSnapshotV1:
     header: dict[str, Any]
     checkpoint: dict[str, Any]
+    validator_set: dict[str, Any]
+    proposer_id: str
+    proposer_key_id: str
     registry: dict[str, Any]
     envelopes: tuple[dict[str, Any], ...]
 
@@ -90,6 +103,11 @@ def derive_zeno_ledger_finality_protocol_id_v1() -> str:
             "live_quorum_schema": LIVE_CHECKPOINT_QUORUM_ADMISSION_SCHEMA_V0,
             "signature_algorithm": SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0,
             "signer_registry_schema": SIGNER_REGISTRY_SCHEMA_V0,
+            "validator_set_schema": VALIDATOR_SET_SCHEMA_V0,
+            "scheduled_header_admission_schema": SCHEDULED_HEADER_ADMISSION_SCHEMA_V0,
+            "validator_schedule_mode": SCHEDULE_MODE_V0,
+            "app_hash_domain": "app_hash_v0",
+            "app_hash_root_fields": list(APP_HASH_ROOT_FIELDS_V0),
         },
     )
 
@@ -123,11 +141,20 @@ def _snapshot_inputs(
     *,
     header: object,
     checkpoint: object,
+    validator_set: object,
+    proposer_id: object,
+    proposer_key_id: object,
     registry: object,
     envelopes: object,
 ) -> _FinalityInputSnapshotV1:
     header_value = _snapshot_plain_dict(header, name="header")
     checkpoint_value = _snapshot_plain_dict(checkpoint, name="checkpoint")
+    validator_set_value = _snapshot_plain_dict(validator_set, name="validator_set")
+    proposer_id_value = _require_nonempty_string(proposer_id, name="proposer_id")
+    proposer_key_id_value = _require_nonempty_string(
+        proposer_key_id,
+        name="proposer_key_id",
+    )
     registry_value = _snapshot_plain_dict(registry, name="registry")
     if type(envelopes) is not tuple:
         raise TypeError("envelopes must be an exact tuple")
@@ -142,6 +169,9 @@ def _snapshot_inputs(
         {
             "header": header_value,
             "checkpoint": checkpoint_value,
+            "validator_set": validator_set_value,
+            "proposer_id": proposer_id_value,
+            "proposer_key_id": proposer_key_id_value,
             "registry": registry_value,
             "envelopes": envelope_values,
         },
@@ -150,6 +180,9 @@ def _snapshot_inputs(
     return _FinalityInputSnapshotV1(
         header=header_value,
         checkpoint=checkpoint_value,
+        validator_set=validator_set_value,
+        proposer_id=proposer_id_value,
+        proposer_key_id=proposer_key_id_value,
         registry=registry_value,
         envelopes=envelope_values,
     )
@@ -166,10 +199,80 @@ def _snapshot_plain_dict(value: object, *, name: str) -> dict[str, Any]:
 
 
 def _require_bounded_canonical_json(value: object, *, name: str) -> bytes:
+    _require_bounded_plain_json_tree(value, name=name)
+    bounded_json_utf8_size(
+        value,
+        max_bytes=_MAX_FINALITY_INPUT_BYTES_V1,
+        max_depth=_MAX_FINALITY_INPUT_DEPTH_V1 + 1,
+        max_items=_MAX_FINALITY_INPUT_ITEMS_V1,
+    )
     encoded = canonical_json_bytes_v0(value)
     if not encoded or len(encoded) > _MAX_FINALITY_INPUT_BYTES_V1:
         raise ValueError(f"{name} exceeds the governed canonical byte bound")
     return encoded
+
+
+def _require_bounded_plain_json_tree(value: object, *, name: str) -> None:
+    """Reject hostile depth, width, aliases, and primitives before JSON recursion."""
+
+    pending: list[tuple[object, int]] = [(value, 0)]
+    seen_containers: set[int] = set()
+    visited = 0
+    while pending:
+        current, depth = pending.pop()
+        visited += 1
+        if visited > _MAX_FINALITY_INPUT_ITEMS_V1:
+            raise ValueError(f"{name} exceeds the governed item bound")
+        if depth > _MAX_FINALITY_INPUT_DEPTH_V1:
+            raise ValueError(f"{name} exceeds the governed maximum depth")
+        if type(current) is dict:
+            _require_new_container(current, seen_containers, name=name)
+            if visited + len(pending) + len(current) > _MAX_FINALITY_INPUT_ITEMS_V1:
+                raise ValueError(f"{name} exceeds the governed item bound")
+            for key, child in current.items():
+                if type(key) is not str:
+                    raise TypeError(f"{name} contains a non-string object key")
+                _require_bounded_string(key, name=f"{name} object key")
+                pending.append((child, depth + 1))
+            continue
+        if type(current) in (list, tuple):
+            _require_new_container(current, seen_containers, name=name)
+            children = cast(list[object] | tuple[object, ...], current)
+            if visited + len(pending) + len(children) > _MAX_FINALITY_INPUT_ITEMS_V1:
+                raise ValueError(f"{name} exceeds the governed item bound")
+            pending.extend((child, depth + 1) for child in children)
+            continue
+        if type(current) is str:
+            _require_bounded_string(current, name=f"{name} string")
+            continue
+        if type(current) is int:
+            if current < -MAX_U64 or current > MAX_U64:
+                raise ValueError(f"{name} integer exceeds the governed width")
+            continue
+        if current is None or type(current) is bool:
+            continue
+        raise TypeError(f"{name} contains a non-JSON value")
+
+
+def _require_new_container(
+    value: object,
+    seen_containers: set[int],
+    *,
+    name: str,
+) -> None:
+    identity = id(value)
+    if identity in seen_containers:
+        raise ValueError(f"{name} contains a cycle or repeated container alias")
+    seen_containers.add(identity)
+
+
+def _require_bounded_string(value: str, *, name: str) -> None:
+    try:
+        encoded_length = len(value.encode("utf-8"))
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"{name} is not valid UTF-8") from exc
+    if encoded_length > _MAX_FINALITY_STRING_BYTES_V1:
+        raise ValueError(f"{name} exceeds the governed string byte bound")
 
 
 def _envelope_order_key(envelope: dict[str, Any]) -> tuple[str, str]:
