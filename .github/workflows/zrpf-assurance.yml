@@ -144,6 +144,7 @@ jobs:
             src/integration/recursive_stark_verifier_adapter.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_capability.py \
             src/integration/_zrpf_spot_v7_firecracker_authority.py \
+            src/integration/_zrpf_spot_v7_firecracker_execution_binding.py \
             src/integration/_zrpf_spot_v7_firecracker_output.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_engine.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_history.py \
@@ -282,6 +283,7 @@ jobs:
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
+            tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
@@ -309,6 +311,7 @@ jobs:
             src/integration/recursive_stark_verifier_adapter.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_capability.py \
             src/integration/_zrpf_spot_v7_firecracker_authority.py \
+            src/integration/_zrpf_spot_v7_firecracker_execution_binding.py \
             src/integration/_zrpf_spot_v7_firecracker_output.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_engine.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_history.py \
@@ -408,6 +411,7 @@ jobs:
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
+            tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
@@ -472,6 +476,7 @@ jobs:
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
+            tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \

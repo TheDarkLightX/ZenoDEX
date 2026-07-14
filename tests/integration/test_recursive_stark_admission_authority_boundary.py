@@ -29,14 +29,16 @@ SPOT_V7_FIRECRACKER_AUTHORITY = (
 SPOT_V7_FIRECRACKER_OUTPUT = (
     ROOT / "src/integration/_zrpf_spot_v7_firecracker_output.py"
 )
+SPOT_V7_FIRECRACKER_EXECUTION_BINDING = (
+    ROOT / "src/integration/_zrpf_spot_v7_firecracker_execution_binding.py"
+)
+SPOT_V7_OPERATIONAL_GATE = ROOT / "src/integration/_zrpf_spot_v7_operational_gate.py"
+SPOT_V7_OPERATIONAL_CAPABILITY_V2 = (
+    ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v2.py"
+)
 SPOT_V7_ATOMIC_STORE = (
     ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
 )
-SPOT_V7_OPERATIONAL_CAPABILITY = (
-    ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v2.py"
-)
-SPOT_V7_OPERATIONAL_GATE = ROOT / "src/integration/_zrpf_spot_v7_operational_gate.py"
-
 PRIVATE_CAPABILITY_TYPE = "_AuthenticatedRecursiveStarkRootFacts"
 PRIVATE_SEAL = "_AUTHENTICATED_FACTS_SEAL"
 PRIVATE_MINT = "_mint_recursive_stark_root_facts_after_verification"
@@ -105,6 +107,13 @@ PRIVATE_FIRECRACKER_STORE_REFERENCES = frozenset(
         "_require_governed_firecracker_spot_v7_authority_available_v1",
     }
 )
+PRIVATE_FIRECRACKER_EXECUTION_BINDING_REFERENCES = frozenset(
+    {
+        "_BoundCommittedSpotV7CandidateV1",
+        "_bind_decoded_spot_v7_output_to_candidate_v1",
+        "_decode_exact_committed_spot_v7_output_v1",
+    }
+)
 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES = frozenset(
     {
         "_GovernedFirecrackerSpotV7SettlementV1",
@@ -136,8 +145,13 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             SETTLEMENT_VERIFIER_ADAPTER: PRIVATE_SETTLEMENT_VERIFIER_IMPORTS,
             SOURCE_OPENED_V6_VERIFIER_ADAPTER: PRIVATE_SOURCE_OPENED_V6_REFERENCES,
             SPOT_V7_ATOMIC_STORE: PRIVATE_FIRECRACKER_STORE_REFERENCES,
-            SPOT_V7_OPERATIONAL_CAPABILITY: PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES,
+            SPOT_V7_FIRECRACKER_EXECUTION_BINDING: (
+                PRIVATE_FIRECRACKER_EXECUTION_BINDING_REFERENCES
+            ),
             SPOT_V7_OPERATIONAL_GATE: PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES,
+            SPOT_V7_OPERATIONAL_CAPABILITY_V2: (
+                PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+            ),
         }.get(path, frozenset())
         tree = _parse(path)
         for node in ast.walk(tree):
@@ -150,7 +164,13 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
 
 @pytest.mark.parametrize(
     "path",
-    (SPOT_V7_FIRECRACKER_AUTHORITY, SPOT_V7_FIRECRACKER_OUTPUT),
+    (
+        SPOT_V7_FIRECRACKER_AUTHORITY,
+        SPOT_V7_FIRECRACKER_OUTPUT,
+        SPOT_V7_FIRECRACKER_EXECUTION_BINDING,
+        SPOT_V7_OPERATIONAL_GATE,
+        SPOT_V7_OPERATIONAL_CAPABILITY_V2,
+    ),
 )
 def test_firecracker_authority_symbols_have_no_public_alias_or_export(path: Path) -> None:
     tree = _parse(path)

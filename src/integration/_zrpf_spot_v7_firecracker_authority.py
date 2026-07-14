@@ -2,11 +2,13 @@
 
 The current jailed-runner implementation does not yet own immutable staged
 artifacts or validate the exact output image and V7 payload inside one trusted
-lifecycle. Therefore this module exposes no mint path. It defines the sealed
-types and exact runtime-to-store missing-condition error that the future
-governed runner must close. Durable retries and exact-once consumption belong
-to the atomic store transaction. Raw bytes, report dictionaries, Docker results,
-and caller booleans remain data.
+lifecycle. The authority-false execution-binding detector closes the exact data
+join and records the remaining governed-runner capability blocker. Therefore
+this module exposes no mint path. It defines the sealed types and exact
+runtime-to-store missing-condition error that the future governed runner must
+close. Durable retries and exact-once consumption belong to the atomic store
+transaction. Raw bytes, report dictionaries, Docker results, and caller
+booleans remain data.
 """
 
 from __future__ import annotations
@@ -55,6 +57,9 @@ class SpotV7FirecrackerAuthorityMissingConditionV1(Enum):
     )
     LIVE_EXCLUSIVE_NETWORK_NAMESPACE = (
         "live_exclusive_network_namespace_evidence_missing"
+    )
+    GOVERNED_RUNNER_RESULT_CAPABILITY = (
+        "governed_live_jailed_execution_result_capability_missing"
     )
     EXACT_EXECUTION_RECORD_BINDING = (
         "canonical_execution_record_and_provenance_binding_missing"
