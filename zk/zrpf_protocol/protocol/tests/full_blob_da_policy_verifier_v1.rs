@@ -33,8 +33,8 @@ fn fixture() -> Fixture {
     let data_schema_id = CommitmentV3::new(bytes32(3)).expect("data schema ID");
     let storage_policy_hash = CommitmentV3::new(bytes32(4)).expect("storage policy");
     let blob = b"exact full-blob DA verifier fixture".to_vec();
-    let certificate = FullBlobDataAvailabilityCertificateV1::derive(
-        FullBlobDataAvailabilityCertificateInputV1 {
+    let certificate =
+        FullBlobDataAvailabilityCertificateV1::derive(FullBlobDataAvailabilityCertificateInputV1 {
             application_id,
             chain_or_domain_id,
             epoch_id: 50,
@@ -42,9 +42,8 @@ fn fixture() -> Fixture {
             blob: &blob,
             retention_through_epoch: 200,
             storage_policy_hash,
-        },
-    )
-    .expect("certificate");
+        })
+        .expect("certificate");
     let certificate_bytes =
         encode_full_blob_da_certificate_v1(&certificate).expect("certificate bytes");
     let policy = LocalFullBlobPolicyV1::new(LocalFullBlobPolicyInputV1 {
@@ -155,12 +154,7 @@ fn coherent_certificate_with_mutated_blob_rejects() {
     let fixture = fixture();
     let mut blob = fixture.blob.clone();
     blob[0] ^= 1;
-    let output = execute(&request(
-        &fixture,
-        75,
-        fixture.storage_policy_hash,
-        &blob,
-    ));
+    let output = execute(&request(&fixture, 75, fixture.storage_policy_hash, &blob));
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
     assert!(String::from_utf8_lossy(&output.stderr).contains("ZRPF_DA_POLICY_REJECTED"));
@@ -172,12 +166,7 @@ fn wrong_storage_policy_and_early_check_reject() {
     let wrong_storage = CommitmentV3::new(bytes32(9)).expect("wrong storage policy");
     for candidate in [
         request(&fixture, 75, wrong_storage, &fixture.blob),
-        request(
-            &fixture,
-            49,
-            fixture.storage_policy_hash,
-            &fixture.blob,
-        ),
+        request(&fixture, 49, fixture.storage_policy_hash, &fixture.blob),
     ] {
         let output = execute(&candidate);
         assert!(!output.status.success());
@@ -188,12 +177,7 @@ fn wrong_storage_policy_and_early_check_reject() {
 #[test]
 fn framing_mutations_reject() {
     let fixture = fixture();
-    let baseline = request(
-        &fixture,
-        75,
-        fixture.storage_policy_hash,
-        &fixture.blob,
-    );
+    let baseline = request(&fixture, 75, fixture.storage_policy_hash, &fixture.blob);
     let mut wrong_magic = baseline.clone();
     wrong_magic[0] ^= 1;
     let mut wrong_version = baseline.clone();
