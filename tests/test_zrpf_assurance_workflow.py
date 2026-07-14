@@ -260,6 +260,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py",
         "tests/test_check_zrpf_v6_v7_post_pin_governance.py",
         "tests/test_zrpf_spot_settlement_v7_local_evidence.py",
+        "tests/test_zrpf_spot_settlement_v7_proof_runner_source_contract.py",
         "tests/test_zrpf_v6_identity_runner_hardening.py",
     ):
         assert required_path in ruff_assurance

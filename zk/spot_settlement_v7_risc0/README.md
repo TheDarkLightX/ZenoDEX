@@ -145,6 +145,42 @@ output parser and does not yet exist in this workspace.
 The output is not an attestation, signature, finality certificate, release
 authorization, settlement authorization, or production authorization.
 
+## Authority-neutral proof runner
+
+The harness includes `prove_spot_settlement_v7`. It consumes one exact encoded
+V7 guest envelope and one canonical governed V6 child receipt. The runner uses
+the sealed harness to verify the child, prove V7, verify the resulting Succinct
+receipt, recompose the complete journal, derive the Firecracker output and Plan
+B, and require the exact seal-word mutation to fail at receipt verification.
+Only then does it create the five candidate output files.
+
+```bash
+PINNED_BIN="$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+export CARGO="$PINNED_BIN/cargo"
+export PATH="$PINNED_BIN:/usr/bin:/bin"
+export RUSTC="$PINNED_BIN/rustc"
+export RUSTDOC="$PINNED_BIN/rustdoc_tool_binary"
+unset RISC0_DEV_MODE
+unset RISC0_SKIP_BUILD
+
+"$PINNED_BIN/cargo" run --locked --offline --release \
+  -p zenodex-zrpf-risc0-spot-settlement-v7-harness \
+  --bin prove_spot_settlement_v7 -- \
+  --v7-receipt-out /new/output/v7.receipt.json \
+  --v7-receipt-seal-mutation-out /new/output/v7.mutation.json \
+  --v7-journal-out /new/output/v7.journal.bin \
+  --v7-verifier-output-out /new/output/v7.verifier-output.bin \
+  --v7-plan-b-out /new/output/v7.plan-b.bin \
+  --v6-child-receipt /input/v6.child.receipt.json \
+  --v7-guest-input /input/v7.guest-input.bin
+```
+
+All output paths must be distinct, must not exist, and must not alias either
+input. The command can leave an incomplete authority-neutral candidate set if
+the host fails between file writes. The independent seven-artifact builder and
+checker reject incomplete sets. A successful runner report grants no release,
+settlement, production, privacy, DA, finality, or Firecracker authority.
+
 ## Local checks
 
 The RISC0 guest must not be executed as a host test binary because its syscalls

@@ -90,7 +90,25 @@ own those stronger obligations.
 
 ## Builder behavior
 
-`tools/build_zrpf_spot_settlement_v7_local_evidence.py`:
+The Rust `prove_spot_settlement_v7` runner accepts the exact guest-input bytes
+and canonical V6 child receipt, invokes the existing sealed V7 harness, and
+persists the five derived candidate artifacts only after:
+
+1. the V6 child receipt has passed the sealed V6 verifier;
+2. the V7 prover has produced a Succinct receipt;
+3. the sealed V7 verifier has checked the receipt and recomposed the journal;
+4. the Firecracker output and exact Plan B have been derived from that sealed
+   verified value; and
+5. an exact XOR-1 mutation of Succinct seal word 1 has rejected specifically at
+   the RISC0 receipt-verification boundary.
+
+Each output uses create-new mode, `fsync`, and byte-for-byte reread. Output
+publication is not an atomic five-file transaction. A failed run may leave an
+incomplete candidate set, which the seven-artifact evidence builder rejects.
+The runner's JSON report is authority-neutral and keeps release, settlement,
+production, and privacy claims false.
+
+`tools/build_zrpf_spot_settlement_v7_local_evidence.py` then:
 
 - accepts exactly the seven artifact IDs;
 - reads each input through a stable descriptor with bounded length and
@@ -106,7 +124,37 @@ stronger governed container or content-addressed release transaction.
 
 ## Commands
 
-After a fresh V7 proving run has produced all seven inputs:
+After the governed V6 receipt and exact V7 guest input have been produced, run
+the proof runner from `zk/spot_settlement_v7_risc0`. Every output path must be
+new:
+
+```bash
+PINNED_BIN="$HOME/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+export CARGO="$PINNED_BIN/cargo"
+export PATH="$PINNED_BIN:/usr/bin:/bin"
+export RUSTC="$PINNED_BIN/rustc"
+export RUSTDOC="$PINNED_BIN/rustdoc_tool_binary"
+unset RISC0_DEV_MODE
+unset RISC0_SKIP_BUILD
+
+"$PINNED_BIN/cargo" run --locked --offline --release \
+  -p zenodex-zrpf-risc0-spot-settlement-v7-harness \
+  --bin prove_spot_settlement_v7 -- \
+  --v7-receipt-out /absolute/output/spot-settlement-v7.receipt.json \
+  --v7-receipt-seal-mutation-out /absolute/output/spot-settlement-v7.mutation.json \
+  --v7-journal-out /absolute/output/spot-settlement-v7.journal.bin \
+  --v7-verifier-output-out /absolute/output/spot-settlement-v7.verifier-output.bin \
+  --v7-plan-b-out /absolute/output/spot-settlement-v7.plan-b.bin \
+  --v6-child-receipt /absolute/input/source-opened-v6.child.receipt.json \
+  --v7-guest-input /absolute/input/spot-settlement-v7.guest-input.bin
+```
+
+The command performs real proof generation and can be expensive. It must run
+only after the C0/C1/C2 program-identity chain is materialized. A successful
+local command still grants no release or settlement authority.
+
+After the runner has produced the five derived artifacts, construct the exact
+seven-artifact bundle:
 
 ```bash
 python3 tools/build_zrpf_spot_settlement_v7_local_evidence.py \
