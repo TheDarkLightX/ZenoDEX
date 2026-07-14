@@ -367,6 +367,7 @@ def _governed_v2_components(
             checked_epoch=da.checked_epoch,
             retention_through_epoch=da.retention_through_epoch,
         ),
+        governed_policy=policy,
         exact_blob_bytes=da.exact_blob_bytes,
         exact_certificate_bytes=da.exact_certificate_bytes,
         seal=operational_v2._GOVERNED_EXACT_FULL_BLOB_POLICY_SEAL_V2,
@@ -565,6 +566,7 @@ def test_given_mutated_exact_v2_artifact_when_binding_then_no_capability_is_mint
         if artifact == "blob":
             da = _GovernedExactFullBlobPolicySatisfactionV2(
                 da._projection,
+                governed_policy=policy,
                 exact_blob_bytes=b"X" + da._exact_blob_bytes[1:],
                 exact_certificate_bytes=da._exact_certificate_bytes,
                 seal=operational_v2._GOVERNED_EXACT_FULL_BLOB_POLICY_SEAL_V2,
@@ -572,6 +574,7 @@ def test_given_mutated_exact_v2_artifact_when_binding_then_no_capability_is_mint
         elif artifact == "da_certificate":
             da = _GovernedExactFullBlobPolicySatisfactionV2(
                 da._projection,
+                governed_policy=policy,
                 exact_blob_bytes=da._exact_blob_bytes,
                 exact_certificate_bytes=b"X" + da._exact_certificate_bytes[1:],
                 seal=operational_v2._GOVERNED_EXACT_FULL_BLOB_POLICY_SEAL_V2,

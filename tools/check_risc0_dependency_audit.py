@@ -62,6 +62,11 @@ REVIEWED_WORKSPACES: tuple[WorkspaceSpec, ...] = (
         "zk/zrpf_protocol/Cargo.lock",
     ),
     WorkspaceSpec(
+        "zrpf_full_blob_da_checker",
+        "zk/zrpf_full_blob_da_checker",
+        "zk/zrpf_full_blob_da_checker/Cargo.lock",
+    ),
+    WorkspaceSpec(
         "spot_state_root_v5_bridge_shared",
         "zk/spot_state_root_v5_bridge_shared",
         "zk/spot_state_root_v5_bridge_shared/Cargo.lock",

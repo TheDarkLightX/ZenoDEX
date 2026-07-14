@@ -129,6 +129,12 @@ jobs:
             RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
             "${pinned_bin}/cargo" fetch --locked \
               --manifest-path zk/spot_settlement_v7_risc0/Cargo.toml
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml
 
       - name: Run Python and evidence assurance
         run: |
@@ -152,6 +158,8 @@ jobs:
             src/integration/_zrpf_spot_v7_atomic_settlement_schema.py \
             src/integration/_zrpf_spot_v7_operational_gate.py \
             src/integration/_zrpf_spot_v7_operational_capability_v2.py \
+            src/integration/_zrpf_spot_v7_full_blob_da_codec.py \
+            src/integration/zrpf_spot_v7_full_blob_da_adapter.py \
             src/integration/_zrpf_spot_v7_operational_mechanics.py \
             src/integration/_zrpf_spot_v7_operational_store.py \
             src/integration/zrpf_spot_v7_atomic_settlement_store.py \
@@ -285,6 +293,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
+            tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
@@ -319,6 +328,8 @@ jobs:
             src/integration/_zrpf_spot_v7_atomic_settlement_schema.py \
             src/integration/_zrpf_spot_v7_operational_gate.py \
             src/integration/_zrpf_spot_v7_operational_capability_v2.py \
+            src/integration/_zrpf_spot_v7_full_blob_da_codec.py \
+            src/integration/zrpf_spot_v7_full_blob_da_adapter.py \
             src/integration/_zrpf_spot_v7_operational_mechanics.py \
             src/integration/_zrpf_spot_v7_operational_store.py \
             src/integration/zrpf_spot_v7_atomic_settlement_store.py \
@@ -413,6 +424,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
+            tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
@@ -478,6 +490,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
+            tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
@@ -529,6 +542,15 @@ jobs:
           "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/zrpf_protocol/Cargo.toml \
             --locked --all-targets -- -D warnings
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml \
+            --locked --offline --all-targets
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml \
+            --locked --offline --all-targets -- -D warnings
           "${pinned_bin}/cargo" fmt \
             --manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml \
             --all -- --check

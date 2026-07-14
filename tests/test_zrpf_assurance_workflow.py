@@ -111,6 +111,9 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         cargo_acquisition
     )
     assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in cargo_acquisition
+    assert "--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml" in (
+        cargo_acquisition
+    )
     assert "tools/check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tools/check_zrpf_current_source_adapter_v2.py" in python_assurance
@@ -174,6 +177,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/_zrpf_spot_v7_atomic_settlement_schema.py",
         "src/integration/_zrpf_spot_v7_operational_gate.py",
         "src/integration/_zrpf_spot_v7_operational_capability_v2.py",
+        "src/integration/_zrpf_spot_v7_full_blob_da_codec.py",
+        "src/integration/zrpf_spot_v7_full_blob_da_adapter.py",
         "src/integration/_zrpf_spot_v7_operational_mechanics.py",
         "src/integration/_zrpf_spot_v7_operational_store.py",
         "src/integration/zrpf_spot_v7_atomic_settlement_store.py",
@@ -234,6 +239,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py",
         "tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py",
         "tests/integration/test_zrpf_spot_v7_operational_atomic_store.py",
+        "tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py",
         "tests/integration/test_zrpf_spot_v7_operational_gate.py",
         "tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py",
         "tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py",
@@ -375,6 +381,9 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert rust_assurance.count(
         "--manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml"
     ) == 4
+    assert rust_assurance.count(
+        "--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml"
+    ) == 3
     assert rust_assurance.count("--manifest-path zk/state_proof_risc0/Cargo.toml") == 3
     assert rust_assurance.count("-p tau-state-proof-risc0-cli --all-targets") == 2
     assert rust_assurance.count("--locked --offline -p tau-state-proof-risc0-cli") == 2
@@ -387,7 +396,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert rust_assurance.count("-p zenodex-zrpf-risc0-methods") == 2
     assert "--locked --all-targets" in rust_assurance
     assert rust_assurance.count("--no-default-features --test semantic_v2") == 2
-    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 11
+    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 12
     assert '"${pinned_bin}/cargo" clippy' not in rust_assurance
     host_packages, guest_packages = _zrpf_workspace_packages()
     host_package_args = _cargo_package_args(rust_assurance)

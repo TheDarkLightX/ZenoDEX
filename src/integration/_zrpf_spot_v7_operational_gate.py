@@ -5,7 +5,7 @@ proof-neutral ``full_blob_da_v1`` and ``checkpoint_finality_v2`` primitives do
 not authenticate policy provenance or external finality. Authority-false
 combined persistence and cursor mechanics now exist in a separate test-only
 lane. This module defines the production join and exposes no production mint
-path while governed adapters remain absent.
+path while governed policy and finality adapters remain absent.
 """
 
 from __future__ import annotations
@@ -36,9 +36,6 @@ class SpotV7OperationalCommitMissingConditionV1(Enum):
     )
     GOVERNED_OPERATIONAL_POLICY = (
         "governed_da_and_finality_policy_provenance_unavailable"
-    )
-    EXACT_FULL_BLOB_POLICY_CHECK = (
-        "exact_full_blob_da_v1_policy_result_adapter_unavailable"
     )
     AUTHENTICATED_EXTERNAL_FINALITY = (
         "protocol_specific_external_finality_authentication_unavailable"

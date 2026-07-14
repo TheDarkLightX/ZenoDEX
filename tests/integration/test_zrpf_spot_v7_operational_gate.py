@@ -265,7 +265,6 @@ def test_operational_frontier_names_every_unclosed_authority_condition() -> None
     assert SPOT_V7_OPERATIONAL_COMMIT_MISSING_CONDITIONS_V1 == (
         SpotV7OperationalCommitMissingConditionV1.GOVERNED_V7_SETTLEMENT_CAPABILITY,
         SpotV7OperationalCommitMissingConditionV1.GOVERNED_OPERATIONAL_POLICY,
-        SpotV7OperationalCommitMissingConditionV1.EXACT_FULL_BLOB_POLICY_CHECK,
         SpotV7OperationalCommitMissingConditionV1.AUTHENTICATED_EXTERNAL_FINALITY,
         SpotV7OperationalCommitMissingConditionV1.EXACT_CHECKPOINT_FINALITY_V2_CHECK,
     )

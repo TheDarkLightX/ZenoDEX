@@ -140,7 +140,7 @@
     "does_not_replace_source_to_binary_provenance",
     "does_not_establish_dependency_non_reachability"
   ],
-  "policy_id": "zenodex-risc0-nine-workspace-v7-audit-20260713",
+  "policy_id": "zenodex-risc0-ten-workspace-v7-audit-20260713",
   "production_authority": false,
   "schema": "zenodex/risc0-dependency-audit-policy/v2",
   "warning_policy": {
@@ -177,6 +177,11 @@
       "id": "zrpf_protocol",
       "lockfile": "zk/zrpf_protocol/Cargo.lock",
       "path": "zk/zrpf_protocol"
+    },
+    {
+      "id": "zrpf_full_blob_da_checker",
+      "lockfile": "zk/zrpf_full_blob_da_checker/Cargo.lock",
+      "path": "zk/zrpf_full_blob_da_checker"
     },
     {
       "id": "spot_state_root_v5_bridge_shared",

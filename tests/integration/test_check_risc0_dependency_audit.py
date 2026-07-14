@@ -73,6 +73,7 @@ def _policy_payloads() -> dict[str, object]:
         "recursive_stark_v2_active_reproof_risc0": recursive_v2_payload,
         "zrpf_risc0": current_risc0_payload,
         "zrpf_protocol": _payload(),
+        "zrpf_full_blob_da_checker": _payload(),
         "spot_state_root_v5_bridge_shared": _payload(),
         "spot_state_root_v7_semantic_shared": _payload(),
         "spot_settlement_v7_effect_binding_shared": _payload(),
@@ -274,7 +275,7 @@ def test_active_risc0_workspaces_pin_patched_anyhow(lockfile: str) -> None:
     assert versions == {"1.0.103"}
 
 
-def test_nine_workspace_report_records_lock_hashes_and_database_revision() -> None:
+def test_ten_workspace_report_records_lock_hashes_and_database_revision() -> None:
     revision = "1" * 40
     report = checker.check_audit_payloads(
         _policy_payloads(),
@@ -303,6 +304,7 @@ def test_nine_workspace_report_records_lock_hashes_and_database_revision() -> No
             "recursive_stark_v2_active_reproof_risc0",
             "zrpf_risc0",
             "zrpf_protocol",
+            "zrpf_full_blob_da_checker",
             "spot_state_root_v5_bridge_shared",
             "spot_state_root_v7_semantic_shared",
             "spot_settlement_v7_effect_binding_shared",

@@ -186,6 +186,7 @@ class _GovernedExactFullBlobPolicySatisfactionV2(_NonTransferableOperationalCapa
     """Exact blob and canonical certificate retained by a governed DA adapter."""
 
     __slots__ = (
+        "_governed_policy",
         "_projection",
         "_exact_blob_bytes",
         "_exact_certificate_bytes",
@@ -193,6 +194,7 @@ class _GovernedExactFullBlobPolicySatisfactionV2(_NonTransferableOperationalCapa
     )
 
     _projection: _GovernedFullBlobPolicyProjectionV1
+    _governed_policy: _GovernedSpotV7OperationalPolicyV2
     _exact_blob_bytes: bytes
     _exact_certificate_bytes: bytes
     _seal: _GovernedExactFullBlobPolicySealV2
@@ -201,12 +203,17 @@ class _GovernedExactFullBlobPolicySatisfactionV2(_NonTransferableOperationalCapa
         self,
         projection: _GovernedFullBlobPolicyProjectionV1,
         *,
+        governed_policy: _GovernedSpotV7OperationalPolicyV2,
         exact_blob_bytes: bytes,
         exact_certificate_bytes: bytes,
         seal: _GovernedExactFullBlobPolicySealV2,
     ) -> None:
         if type(projection) is not _GovernedFullBlobPolicyProjectionV1:
             raise TypeError("exact full-blob projection has the wrong type")
+        if type(governed_policy) is not _GovernedSpotV7OperationalPolicyV2:
+            raise TypeError("exact full-blob result requires the exact governed policy")
+        if not governed_policy._has_private_seal():
+            raise TypeError("exact full-blob result requires the exact governed policy")
         if seal is not _GOVERNED_EXACT_FULL_BLOB_POLICY_SEAL_V2:
             raise TypeError("exact full-blob result requires the module-private governed seal")
         _require_exact_artifact_bytes(
@@ -221,6 +228,14 @@ class _GovernedExactFullBlobPolicySatisfactionV2(_NonTransferableOperationalCapa
         )
         if _sha256(exact_blob_bytes) != projection.exact_blob_sha256:
             raise ValueError("exact full-blob SHA-256 disagrees with its sealed projection")
+        policy = governed_policy._policy_for_atomic_store()
+        if (
+            projection.application_id != policy.application_id
+            or projection.chain_or_domain_id != policy.chain_or_domain_id
+            or projection.policy_root != policy.full_blob_policy_root
+        ):
+            raise ValueError("exact full-blob policy projection disagrees with governed policy")
+        object.__setattr__(self, "_governed_policy", governed_policy)
         object.__setattr__(self, "_projection", projection)
         object.__setattr__(self, "_exact_blob_bytes", exact_blob_bytes)
         object.__setattr__(self, "_exact_certificate_bytes", exact_certificate_bytes)
@@ -228,6 +243,14 @@ class _GovernedExactFullBlobPolicySatisfactionV2(_NonTransferableOperationalCapa
 
     def _has_private_seal(self) -> bool:
         return getattr(self, "_seal", None) is _GOVERNED_EXACT_FULL_BLOB_POLICY_SEAL_V2
+
+    @property
+    def settlement_authority(self) -> bool:
+        return False
+
+    @property
+    def production_authority(self) -> bool:
+        return False
 
 
 @final
@@ -408,6 +431,8 @@ def _build_authority_false_store_packet_v2(
     policy_value = _require_operational_policy_v2(policy)
     da_value = _require_exact_full_blob_satisfaction_v2(data_availability)
     finality_value = _require_exact_authenticated_finality_v2(finality)
+    if da_value._governed_policy is not policy_value:
+        raise ValueError("exact V2 DA result retains a different governed policy capability")
     candidate = settlement_value._candidate_for_atomic_store()
     policy_projection = policy_value._projection
     _require_policy_binding(candidate, policy_projection)

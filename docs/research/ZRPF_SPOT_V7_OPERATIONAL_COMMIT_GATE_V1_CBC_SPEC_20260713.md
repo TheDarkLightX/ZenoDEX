@@ -2,9 +2,10 @@
 
 Date: 2026-07-13
 
-Status: authority-false V2 commit capability and combined atomic sink
-implemented; no governed prerequisite adapter, settlement authority, or
-production authority is available
+Status: authority-false V2 commit capability, combined atomic sink, and exact
+manifest-pinned `full_blob_da_v1` Rust checker adapter implemented; governed
+policy provenance, settlement authority, and production authority remain
+unavailable
 
 ## Purpose
 
@@ -40,8 +41,9 @@ The present implementation exercises the combined durable transaction through
 both an explicitly test-only packet and
 `_SpotV7AtomicEconomicCommitCapabilityV2`. The V2 type accepts only four exact
 module-sealed prerequisite objects, retains those objects, and deterministically
-reconstructs the permanently authority-false schema packet. Governed
-prerequisite adapters remain absent, so raw caller data cannot reach its binder.
+reconstructs the permanently authority-false schema packet. The exact DA
+prerequisite now has a bounded Rust-checker adapter. The V7 settlement,
+governed-policy, and authenticated-finality prerequisite adapters remain open.
 
 ## Existing primitives and their limits
 
@@ -100,18 +102,26 @@ _SpotV7AtomicEconomicCommitCapabilityV2
 ```
 
 The V1 capability still has no mint path. The V2 binder mints only the
-authority-false V2 packet and only from all four exact sealed prerequisites. No
-current function mints those prerequisite seals from raw policy, proof, blob,
-certificate, finality evidence, report, or Boolean input. These are Python
+authority-false V2 packet and only from all four exact sealed prerequisites.
+`PinnedFullBlobDataAvailabilityCheckerV1` now accepts only an already-sealed V2
+policy capability plus exact certificate/blob bytes and explicit epochs. It
+executes the manifest-pinned static Rust checker under the shared bounded
+pre-exec process contract. The fixed response binds the complete request,
+policy root, exact artifact hashes, content roots, and retention horizon before
+the adapter constructs `_GovernedExactFullBlobPolicySatisfactionV2`.
+
+The DA capability retains the identical governed policy object and exact
+certificate/blob bytes. Substituting a separately sealed policy object is
+therefore rejected by the combined V2 binder even when a caller can construct
+similar-looking fields. Raw mappings, reports, and acceptance Booleans cannot
+stand in for the governed policy or checker result. These are Python
 information-hiding boundaries, not protection against hostile code already
 executing in the same interpreter.
 
-The future DA adapter must run the exact Rust `full_blob_da_v1` checker and
-retain the exact bytes for the combined store transaction. The future finality
-adapter must authenticate protocol-specific evidence, run the exact Rust
-`checkpoint_finality_v2` checker, and bind the prior cursor loaded inside the
-combined durable transaction. Caller booleans and report dictionaries never
-mint either capability.
+The future finality adapter must authenticate protocol-specific evidence, run
+the exact Rust `checkpoint_finality_v2` checker, and bind the prior cursor
+loaded inside the combined durable transaction. Caller booleans and report
+dictionaries never mint that capability.
 
 Separate types whose names begin with `_TestOnly` exercise the completed
 storage mechanics. They recompute the Rust-compatible roots and canonical
@@ -181,9 +191,8 @@ The production gate reports these exact missing conditions:
 
 1. governed V7 receipt and Firecracker settlement capability;
 2. governed DA/finality policy provenance;
-3. exact `full_blob_da_v1` result adapter;
-4. authenticated protocol-specific external finality;
-5. exact `checkpoint_finality_v2` result adapter.
+3. authenticated protocol-specific external finality;
+4. exact `checkpoint_finality_v2` result adapter.
 
 These previously open mechanics are closed for both the test lane and the
 authority-false V2 sealed-packet lane:
@@ -193,6 +202,8 @@ atomic full-blob and certificate persistence
 durable checkpoint-finality cursor compare-and-swap
 combined proof-artifact, DA, finality, replay, cursor, and economic schema
 pre-open and in-transaction exact V2 packet recomposition
+fixed-width exact Rust `full_blob_da_v1` invocation and response rebinding
+exact governed-policy identity retained inside the sealed DA capability
 ```
 
 The existing future Firecracker store sink now terminates at this operational
@@ -237,6 +248,18 @@ Focused tests establish:
   exact artifacts, replay identities, and both cursors;
 - two concurrent exact V2 submissions produce one commit, one idempotent replay,
   and one complete row set.
+- the standalone Rust checker uses the canonical Postcard decoder and calls
+  `check_local_full_blob_policy_satisfied_v1` directly;
+- request framing, truncation, extension, blob-byte mutation, certificate
+  mutation, scope mutation, and exhausted-retention cases reject;
+- the pinned Python adapter rejects manifest drift, executable substitution,
+  noncanonical JSON, caller mappings, and every one-byte mutation of the fixed
+  response before a capability can be minted;
+- checker execution uses a sealed executable snapshot, bounded I/O, rlimits,
+  `no_new_privs`, socket denial, timeout, and process-group teardown before
+  result interpretation;
+- the protocol workspace lockfile remains byte-identical because the checker
+  has its own additive lockfile and build closure.
 
 ### Rust/Python parity evidence
 
@@ -275,14 +298,14 @@ finality_certificate        419 bytes, SHA-256 a3812dbfdecfa716f73ec70eb0b8986e6
 ## Explicit nonclaims
 
 This integration contract does not establish current governed V7 receipt
-evidence, governed Firecracker execution, policy governance, a raw-input
-prerequisite mint, provider retrievability, authenticated external finality,
+evidence, governed Firecracker execution, operational-policy governance,
+provider retrievability, authenticated external finality,
 consensus fork choice,
 production rollback resistance, governed proof/DA/finality/economic admission,
 settlement authority, release authority, privacy, liveness, or production
 authority. It establishes scoped SQLite atomicity, rollback, exact-byte
-persistence, replay rejection, and reopen validation for the authority-false
-test and V2 sealed-packet lanes only.
+persistence, replay rejection, reopen validation, and one manifest-pinned exact
+local DA check for the authority-false test and V2 sealed-packet lanes only.
 
 The private prerequisite classes are future adapter contracts. Unit tests may
 apply their module-private seals to exercise cross-binding logic; those test

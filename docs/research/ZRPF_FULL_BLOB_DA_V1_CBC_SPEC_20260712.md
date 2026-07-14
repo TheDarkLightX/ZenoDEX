@@ -3,8 +3,8 @@
 Date: 2026-07-12
 
 Status: proof-neutral full-blob content binding, governed local policy checking,
-and bounded local V6 atomic persistence implemented; replication and public
-retrievability pending
+bounded local V6 atomic persistence, and a manifest-pinned Spot V7 exact-check
+adapter implemented; replication and public retrievability pending
 
 ## Scoped claim
 
@@ -141,6 +141,16 @@ checker does not authenticate a ledger cursor and does not prove that the
 declared future retention will occur. Policy provenance and governance are also
 external: successful evaluation does not establish that the supplied policy is
 the policy authorized by a ledger, release, or consensus process.
+
+The Spot V7 adapter packages this checker as a standalone, lockfile-bound Rust
+process with fixed binary request and response ABIs. The Python shell snapshots
+the exact static executable, applies the shared bounded pre-exec contract,
+checks the response commitment, and rebinds every result to the complete
+request, governed policy capability, certificate bytes, and blob bytes. This is
+the governed exact-check path for the V2 DA prerequisite used by the
+authority-false combined atomic sink. The adapter adds no provider or
+future-retention claim. Its expected manifest digest remains a trusted release
+configuration input; the adapter does not establish release governance.
 
 ## Evidence
 
