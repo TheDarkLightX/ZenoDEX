@@ -217,11 +217,14 @@ def test_all_multibyte_fields_actively_distinguish_byte_order() -> None:
         (184, 216, "guest_input_sha256"),
         (220, 252, "v6_receipt_sha256"),
     ):
-        mutated = bytearray(manifest)
-        mutated[start:end] = mutated[start:end][::-1]
-        decoded = decode_exact_authority_input_manifest_v1(bytes(mutated))
+        reversed_digest = bytearray(manifest)
+        reversed_digest[start:end] = reversed_digest[start:end][::-1]
+        decoded = decode_exact_authority_input_manifest_v1(bytes(reversed_digest))
         assert getattr(decoded, field_name) == manifest[start:end][::-1]
-        assert hashlib.sha256(mutated).hexdigest() != CANONICAL_MANIFEST_SHA256
+        assert (
+            hashlib.sha256(reversed_digest).hexdigest()
+            != CANONICAL_MANIFEST_SHA256
+        )
 
 
 def test_protocol_only_pid1_remains_receipt_verification_free() -> None:
