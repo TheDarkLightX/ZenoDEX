@@ -20,6 +20,9 @@ from src.integration.zeno_ledger_replay import (
     replay_engine_config_digest_v1,
     replay_engine_config_document_v1,
 )
+from src.integration.zeno_ledger_strict_spot_authority_v1 import (
+    PinnedStrictSpotAuthorityVerifierV1,
+)
 from src.integration.zeno_ledger_v0 import (
     ZERO_ROOT_V0,
     build_checkpoint_v0,
@@ -42,7 +45,13 @@ from tests.integration.test_zeno_ledger_strict_spot_authority_v1 import (
     _make_case,
 )
 from tests.integration.test_zeno_ledger_verify_cli import _body
-from tools.zeno_ledger_verify import REPLAY_BOUND_MODE, verify_zeno_ledger_v0
+from tools.zeno_ledger_verify import (
+    REPLAY_BOUND_MODE,
+    verify_zeno_ledger_v0,
+)
+from tools.zeno_ledger_verify import (
+    main as verify_main,
+)
 
 _ROOT = Path(__file__).resolve().parents[2]
 _BRIDGE_FIXTURE = _ROOT / "tests/fixtures/zrpf_spot_state_root_v5_bridge_v1.json"
@@ -63,7 +72,7 @@ class _RangeCase:
     snapshots_dir: Path
     config_path: Path
     profile_path: Path
-    verifier: object
+    verifier: PinnedStrictSpotAuthorityVerifierV1
     registry: dict[str, Any]
     spot_state_roots: dict[str, str]
 
@@ -511,4 +520,170 @@ def test_duplicate_key_governed_config_rejects_before_execution(
     assert report["ok"] is False
     assert any("duplicate JSON key: schema" in error for error in report["errors"])
     assert report["proof_authority_satisfied"] is False
+    assert call_count == 0
+
+
+def _strict_cli_args(case: _RangeCase, tmp_path: Path) -> list[str]:
+    manifest_path = tmp_path / "strict-authority-manifest.json"
+    registry_path = tmp_path / "verifier-registry.json"
+    verifier = case.verifier
+    manifest_path.write_bytes(verifier.authority_manifest_json)
+    _write_json(registry_path, case.registry)
+    return [
+        "--headers-dir",
+        str(case.headers_dir),
+        "--bodies-dir",
+        str(case.bodies_dir),
+        "--checkpoints-dir",
+        str(case.checkpoints_dir),
+        "--proof-metadata-dir",
+        str(case.proof_metadata_dir),
+        "--profile",
+        str(case.profile_path),
+        "--from-height",
+        "7",
+        "--to-height",
+        "7",
+        "--require-state-replay",
+        "--pre-snapshots-dir",
+        str(case.snapshots_dir),
+        "--engine-config",
+        str(case.config_path),
+        "--require-rejection-receipt-replay",
+        "--strict-spot-request-payloads-dir",
+        str(case.strict_payloads_dir),
+        "--strict-spot-verifier-executable",
+        str(verifier.executable),
+        "--strict-spot-authority-manifest",
+        str(manifest_path),
+        "--verifier-registry",
+        str(registry_path),
+    ]
+
+
+def test_cli_constructs_governed_strict_verifier_and_executes_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    case = _make_range_case(tmp_path)
+    call_count = 0
+
+    def fake_execute(**kwargs: Any) -> bytes:
+        nonlocal call_count
+        call_count += 1
+        return _fake_response(
+            json.loads(kwargs["request_bytes"]),
+            spot_state_roots=case.spot_state_roots,
+        )
+
+    monkeypatch.setattr(
+        "src.integration.zeno_ledger_strict_spot_authority_v1.execute_pinned_verifier_once",
+        fake_execute,
+    )
+
+    exit_code = verify_main(_strict_cli_args(case, tmp_path))
+    report = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert report["ok"] is True
+    assert report["proof_authority_status"] == "satisfied"
+    assert report["proof_authority_satisfied"] is True
+    assert report["governed_proof_authority_checked_heights"] == [7]
+    assert report["settlement_authority"] is False
+    assert report["production_authority"] is False
+    assert call_count == 1
+
+
+def test_cli_rejects_partial_strict_authority_inputs_before_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = _make_range_case(tmp_path)
+    args = _strict_cli_args(case, tmp_path)
+    registry_index = args.index("--verifier-registry")
+    del args[registry_index : registry_index + 2]
+    call_count = 0
+
+    def fake_execute(**_kwargs: Any) -> bytes:
+        nonlocal call_count
+        call_count += 1
+        raise AssertionError("partial CLI authority inputs must reject before execution")
+
+    monkeypatch.setattr(
+        "src.integration.zeno_ledger_strict_spot_authority_v1.execute_pinned_verifier_once",
+        fake_execute,
+    )
+
+    with pytest.raises(SystemExit) as caught:
+        verify_main(args)
+
+    assert caught.value.code == 2
+    assert call_count == 0
+
+
+def test_cli_manifest_file_cannot_replace_config_governance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    case = _make_range_case(tmp_path)
+    args = _strict_cli_args(case, tmp_path)
+    manifest_index = args.index("--strict-spot-authority-manifest")
+    manifest_path = Path(args[manifest_index + 1])
+    manifest = json.loads(manifest_path.read_bytes())
+    manifest["public_policy_hash"] = "0x" + "ef" * 32
+    manifest_path.write_bytes(canonical_json_bytes(manifest))
+    call_count = 0
+
+    def fake_execute(**_kwargs: Any) -> bytes:
+        nonlocal call_count
+        call_count += 1
+        raise AssertionError("ungoverned manifest must reject before execution")
+
+    monkeypatch.setattr(
+        "src.integration.zeno_ledger_strict_spot_authority_v1.execute_pinned_verifier_once",
+        fake_execute,
+    )
+
+    exit_code = verify_main(args)
+    report = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 1
+    assert report["proof_authority_satisfied"] is False
+    assert report["governed_proof_authority_checked_heights"] == []
+    assert any(
+        "strict_spot_authority.manifest_invalid" in error
+        for error in report["errors"]
+    )
+    assert call_count == 0
+
+
+def test_cli_rejects_pathological_manifest_depth_before_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = _make_range_case(tmp_path)
+    args = _strict_cli_args(case, tmp_path)
+    manifest_index = args.index("--strict-spot-authority-manifest")
+    manifest_path = Path(args[manifest_index + 1])
+    manifest_path.write_bytes(
+        b'{"nested":' + (b"[" * 2_000) + b"0" + (b"]" * 2_000) + b"}"
+    )
+    call_count = 0
+
+    def fake_execute(**_kwargs: Any) -> bytes:
+        nonlocal call_count
+        call_count += 1
+        raise AssertionError("pathological JSON must reject before execution")
+
+    monkeypatch.setattr(
+        "src.integration.zeno_ledger_strict_spot_authority_v1.execute_pinned_verifier_once",
+        fake_execute,
+    )
+
+    with pytest.raises(SystemExit) as caught:
+        verify_main(args)
+
+    assert caught.value.code == 2
     assert call_count == 0

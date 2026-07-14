@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import stat
@@ -43,6 +44,7 @@ from src.integration.zeno_ledger_replay import (  # noqa: E402
     validate_replay_bound_block_v0,
 )
 from src.integration.zeno_ledger_strict_spot_authority_v1 import (  # noqa: E402
+    MAX_STRICT_MANIFEST_BYTES,
     MAX_STRICT_REQUEST_BYTES,
     PinnedStrictSpotAuthorityVerifierV1,
     parse_strict_spot_request_payload_bytes_v1,
@@ -64,6 +66,7 @@ TEE_PROOF_METADATA_REPORT_SCHEMA = "zenodex.zeno_ledger.tee_proof_metadata_repor
 REPLAY_BOUND_MODE = "replay_bound"
 STRUCTURAL_DIAGNOSTIC_MODE = "structural_diagnostic"
 VERIFY_MODES = frozenset({REPLAY_BOUND_MODE, STRUCTURAL_DIAGNOSTIC_MODE})
+MAX_STRICT_JSON_DEPTH = 64
 
 
 def _load_json_object(path: Path) -> Mapping[str, Any]:
@@ -137,6 +140,7 @@ def _read_bounded_regular_file(
 
 def _load_strict_authority_json_object(path: Path) -> Mapping[str, Any]:
     raw = _read_bounded_regular_file(path, max_bytes=MAX_STRICT_REQUEST_BYTES)
+    _require_bounded_strict_json_nesting(raw, name=str(path))
     value = json.loads(
         raw.decode("utf-8"),
         object_pairs_hook=_reject_duplicate_json_keys,
@@ -150,6 +154,35 @@ def _load_strict_authority_json_object(path: Path) -> Mapping[str, Any]:
     return value
 
 
+def _require_bounded_strict_json_nesting(raw: bytes, *, name: str) -> None:
+    """Reject hostile nesting before recursive JSON decoding."""
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for byte in raw:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif byte == 0x5C:
+                escaped = True
+            elif byte == 0x22:
+                in_string = False
+            continue
+        if byte == 0x22:
+            in_string = True
+        elif byte in (0x5B, 0x7B):
+            depth += 1
+            if depth > MAX_STRICT_JSON_DEPTH:
+                raise ValueError(f"{name} exceeds the strict JSON nesting bound")
+        elif byte in (0x5D, 0x7D):
+            depth -= 1
+            if depth < 0:
+                raise ValueError(f"{name} has invalid JSON nesting")
+    if depth != 0 or in_string:
+        raise ValueError(f"{name} has invalid JSON nesting")
+
+
 def _load_range_json_object(
     path: Path,
     *,
@@ -158,6 +191,32 @@ def _load_range_json_object(
     if strict_authority:
         return _load_strict_authority_json_object(path)
     return _load_json_object(path)
+
+
+def _load_cli_strict_spot_authority_inputs_v1(
+    *,
+    executable: Path,
+    authority_manifest_path: Path,
+    verifier_registry_path: Path,
+) -> tuple[PinnedStrictSpotAuthorityVerifierV1, dict[str, Any]]:
+    """Construct the pinned verifier only from bounded canonical files.
+
+    The manifest digest is recomputed from the stable file snapshot.  The
+    strict adapter subsequently requires that exact digest and registry
+    identity to equal the policy committed by replay-engine config V1.
+    """
+
+    manifest_bytes = _read_bounded_regular_file(
+        authority_manifest_path,
+        max_bytes=MAX_STRICT_MANIFEST_BYTES,
+    )
+    verifier = PinnedStrictSpotAuthorityVerifierV1(
+        executable=executable,
+        authority_manifest_json=manifest_bytes,
+        authority_manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
+    )
+    registry = dict(_load_strict_authority_json_object(verifier_registry_path))
+    return verifier, registry
 
 
 def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -723,7 +782,7 @@ def _load_mapping(value: object, *, name: str) -> Mapping[str, Any]:
     return value
 
 
-def main(argv: list[str] | None = None) -> int:
+def _argument_parser_v1() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Verify a ZenoLedger v0 header/body sequence")
     parser.add_argument("--headers-dir", required=True, type=Path)
     parser.add_argument("--bodies-dir", required=True, type=Path)
@@ -731,6 +790,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--proof-metadata-dir", type=Path)
     parser.add_argument("--proof-verification-report-dir", type=Path)
     parser.add_argument("--require-proof-verification-report", action="store_true")
+    parser.add_argument("--strict-spot-request-payloads-dir", type=Path)
+    parser.add_argument("--strict-spot-verifier-executable", type=Path)
+    parser.add_argument("--strict-spot-authority-manifest", type=Path)
+    parser.add_argument("--verifier-registry", type=Path)
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--from-height", required=True, type=int)
     parser.add_argument("--to-height", required=True, type=int)
@@ -741,7 +804,57 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--pre-snapshots-dir", type=Path)
     parser.add_argument("--engine-config", type=Path)
     parser.add_argument("--require-rejection-receipt-replay", action="store_true")
+    return parser
+
+
+def _load_cli_strict_spot_authority_from_args_v1(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+) -> tuple[
+    Path | None,
+    PinnedStrictSpotAuthorityVerifierV1 | None,
+    dict[str, Any] | None,
+]:
+    """Load an all-or-none strict authority group before range verification."""
+
+    strict_cli_values = (
+        args.strict_spot_request_payloads_dir,
+        args.strict_spot_verifier_executable,
+        args.strict_spot_authority_manifest,
+        args.verifier_registry,
+    )
+    if any(value is not None for value in strict_cli_values) and not all(
+        value is not None for value in strict_cli_values
+    ):
+        parser.error(
+            "strict Spot proof authority requires payloads, executable, "
+            "authority manifest, and verifier registry together"
+        )
+
+    strict_verifier: PinnedStrictSpotAuthorityVerifierV1 | None = None
+    verifier_registry: dict[str, Any] | None = None
+    if all(value is not None for value in strict_cli_values):
+        try:
+            strict_verifier, verifier_registry = (
+                _load_cli_strict_spot_authority_inputs_v1(
+                    executable=args.strict_spot_verifier_executable,
+                    authority_manifest_path=args.strict_spot_authority_manifest,
+                    verifier_registry_path=args.verifier_registry,
+                )
+            )
+        except (OSError, RecursionError, TypeError, ValueError) as exc:
+            parser.error(f"strict Spot proof-authority inputs are invalid: {exc}")
+    return args.strict_spot_request_payloads_dir, strict_verifier, verifier_registry
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _argument_parser_v1()
     args = parser.parse_args(argv)
+    (
+        strict_spot_request_payloads_dir,
+        strict_verifier,
+        verifier_registry,
+    ) = _load_cli_strict_spot_authority_from_args_v1(parser, args)
 
     result = verify_zeno_ledger_v0(
         headers_dir=args.headers_dir,
@@ -754,6 +867,9 @@ def main(argv: list[str] | None = None) -> int:
         proof_metadata_dir=args.proof_metadata_dir,
         proof_verification_report_dir=args.proof_verification_report_dir,
         require_proof_verification_report=bool(args.require_proof_verification_report),
+        strict_spot_request_payloads_dir=strict_spot_request_payloads_dir,
+        strict_spot_authority_verifier=strict_verifier,
+        verifier_registry=verifier_registry,
         mode=REPLAY_BOUND_MODE if args.require_state_replay else STRUCTURAL_DIAGNOSTIC_MODE,
         pre_snapshots_dir=args.pre_snapshots_dir,
         engine_config_path=args.engine_config,

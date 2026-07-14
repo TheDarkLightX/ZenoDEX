@@ -502,7 +502,7 @@ def test_caller_supplied_static_manifest_still_lacks_governed_binding(
     assert not case.counter_path.exists()
 
 
-def test_current_cli_cannot_reach_proof_authority_path(
+def test_cli_without_strict_authority_inputs_cannot_satisfy_proof_authority(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:

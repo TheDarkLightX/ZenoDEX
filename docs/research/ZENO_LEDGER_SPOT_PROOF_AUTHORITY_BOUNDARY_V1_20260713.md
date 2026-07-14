@@ -204,6 +204,24 @@ The connection is covered by deterministic protocol tests. Fresh
 final-source receipt replay through the complete range path remains a separate
 promotion requirement, so the public proof-coverage matrix is unchanged.
 
+The operational CLI now reaches this singleton governed path only when all
+four authority inputs are supplied together:
+
+```text
+--strict-spot-request-payloads-dir <canonical payload directory>
+--strict-spot-verifier-executable <absolute static verifier path>
+--strict-spot-authority-manifest <canonical manifest file>
+--verifier-registry <canonical registry file>
+```
+
+The loader performs stable bounded reads, rejects duplicate keys, floats,
+noncanonical bytes, and JSON nesting beyond 64 levels, and recomputes the
+manifest SHA-256. Replay-config V1 must commit that exact digest and the exact
+registry identities before the verifier can execute. Partial argument groups
+reject during CLI parsing. This operational reachability does not satisfy
+final-source release evidence, external checkpoint finality, settlement
+authority, or production authority.
+
 Settlement promotion still requires an exact guest-committed settlement-effect
 plan, typed cell-transition openings, data-availability and finality gates, and
 one atomic application-state commit. The current bridge excludes vault, oracle,
