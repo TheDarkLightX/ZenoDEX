@@ -398,6 +398,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     for required_path in (
         "tools/zrpf_spot_v7_firecracker_jail_staging.py",
         "tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py",
+        "tools/zrpf_spot_v7_firecracker_artifact_binding.py",
         "tools/zrpf_spot_v7_firecracker_runtime_binding.py",
         "tools/zrpf_spot_v7_firecracker_runtime_manifest.py",
         "tools/zrpf_spot_v7_firecracker_runtime_protocol.py",
@@ -432,6 +433,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert required_governed_da_test in mypy_assurance
     assert required_governed_da_test in pytest_assurance
     for required_path in (
+        "tests/test_zrpf_spot_v7_firecracker_artifact_binding.py",
         "tests/test_zrpf_spot_v7_firecracker_runtime_binding.py",
         "tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py",
         "tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py",

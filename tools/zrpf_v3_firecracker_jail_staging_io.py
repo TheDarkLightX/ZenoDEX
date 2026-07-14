@@ -77,6 +77,7 @@ def open_trusted_source(
         trusted_root=trusted_root,
         trusted_uid=trusted_uid,
     )
+    descriptor: int | None = None
     try:
         before = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
         descriptor = os.open(
@@ -93,11 +94,17 @@ def open_trusted_source(
             or after.st_uid != trusted_uid
             or stat.S_IMODE(after.st_mode) & 0o022
         ):
-            os.close(descriptor)
             raise JailerLauncherReject("jail_stage_source_untrusted")
         return descriptor
-    except OSError as exc:
-        raise JailerLauncherReject("jail_stage_source_open_failed") from exc
+    except BaseException as exc:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        if isinstance(exc, OSError):
+            raise JailerLauncherReject("jail_stage_source_open_failed") from exc
+        raise
     finally:
         os.close(parent_fd)
 
