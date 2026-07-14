@@ -191,7 +191,7 @@ def _evaluate(
     proposal_hash = hash_v0(ENVELOPE_PROPOSAL_HASH_DOMAIN_V1, proposal)
     try:
         semantic = _semantic_projection(candidate)
-        if proposal != _candidate_proposal(candidate, semantic):
+        if not _canonical_json_equal(proposal, _candidate_proposal(candidate, semantic)):
             raise SpotV7SettlementEnvelopeReplayErrorV1("candidate_binding")
         post_state = _apply_exact_candidate(candidate, semantic, pre_snapshot)
     except SpotV7SettlementEnvelopeReplayErrorV1 as exc:
@@ -232,11 +232,17 @@ def _require_accepted_committed_receipt(
 ) -> None:
     committed_receipt = envelope["expected_receipt"]
     if evaluation.receipt["accepted"] is not True:
-        if committed_receipt == evaluation.receipt:
+        if _canonical_json_equal(committed_receipt, evaluation.receipt):
             raise SpotV7SettlementEnvelopeReplayErrorV1("settlement_rejected")
         raise SpotV7SettlementEnvelopeReplayErrorV1(str(evaluation.receipt["reject_code"]))
-    if committed_receipt != evaluation.receipt:
+    if not _canonical_json_equal(committed_receipt, evaluation.receipt):
         raise SpotV7SettlementEnvelopeReplayErrorV1("committed_receipt")
+
+
+def _canonical_json_equal(left: object, right: object) -> bool:
+    """Compare JSON values without Python's bool/int equality alias."""
+
+    return canonical_json_bytes_v0(left) == canonical_json_bytes_v0(right)
 
 
 def _seal_observation(

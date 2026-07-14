@@ -505,10 +505,13 @@ def test_authenticated_replay_binds_exact_plan_openings_state_and_candidate() ->
         (("proposal", "economic_action_id"), _root("wrong-action"), "candidate_binding"),
         (("proposal", "authorization_nullifier"), _root("wrong-nullifier"), "candidate_binding"),
         (("proposal", "sender_pubkey"), "0x" + "bb" * 48, "candidate_binding"),
+        (("proposal", "epoch_id"), True, "candidate_binding"),
         (("proposal", "ingress_nonce"), 8, "candidate_binding"),
         (("proposal", "cell_transitions", 0, "post", "atoms"), 2_093, "candidate_binding"),
         (("proposal", "asset_effects", 0, "amount_atoms"), 999, "candidate_binding"),
         (("expected_receipt", "economic_action_id"), _root("wrong-receipt"), "committed_receipt"),
+        (("expected_receipt", "accepted"), 1, "committed_receipt"),
+        (("expected_receipt", "state_changed"), 1, "committed_receipt"),
     ),
 )
 def test_candidate_field_substitutions_fail_closed(
@@ -539,6 +542,31 @@ def test_repaired_committed_rejection_cannot_mint_authenticated_observation() ->
     body = copy.deepcopy(fixture.body)
     envelope = body["settlement_envelopes"][0]
     envelope["proposal"]["settlement_effect_plan_commitment"] = _root("wrong-plan")
+    envelope["expected_receipt"] = fixture.adapter.evaluate(
+        settlement=fixture.settlement,
+        envelope=envelope,
+        pre_snapshot=fixture.pre_snapshot,
+    )
+    config_document = replay_engine_config_document_v0(DexEngineConfig(chain_id=_CHAIN_ID))
+    header = _header(fixture.candidate, body, config_document)
+
+    with pytest.raises(SpotV7SettlementEnvelopeReplayErrorV1) as captured:
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            header=header,
+            body=body,
+            pre_snapshot=fixture.pre_snapshot,
+        )
+
+    assert captured.value.code == "settlement_rejected"
+
+
+def test_bool_integer_alias_cannot_repair_receipt_and_mint_observation() -> None:
+    fixture = _fixture()
+    body = copy.deepcopy(fixture.body)
+    envelope = body["settlement_envelopes"][0]
+    assert envelope["proposal"]["epoch_id"] == 1
+    envelope["proposal"]["epoch_id"] = True
     envelope["expected_receipt"] = fixture.adapter.evaluate(
         settlement=fixture.settlement,
         envelope=envelope,
