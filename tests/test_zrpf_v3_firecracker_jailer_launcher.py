@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import os
 import subprocess
@@ -146,6 +147,33 @@ def test_exact_jailer_argv_uses_precreated_leaf_without_cgroup_properties() -> N
     assert arguments[-4:] == ("--", "--no-api", "--config-file", "/config.json")
 
 
+def test_prepared_jailer_v2_uses_immutable_resource_config_path() -> None:
+    spec = launcher.PreparedJailerLaunchSpecV2(
+        jail_id="run00001",
+        uid=20001,
+        gid=20001,
+        chroot_base_dir=Path("/srv/zenodex-jailer"),
+    )
+
+    arguments = spec.argv(
+        jailer=_PathPinned("/trusted/jailer"),
+        firecracker=_PathPinned("/trusted/firecracker"),
+        cgroup_leaf=_Leaf(),
+        network_namespace=_Netns("/run/netns/run00001"),
+    )
+
+    assert arguments[-4:] == (
+        "--",
+        "--no-api",
+        "--config-file",
+        "/resources/config.json",
+    )
+    assert not any(
+        argument == "--cgroup" or argument.startswith("--cgroup=")
+        for argument in arguments
+    )
+
+
 def test_public_candidate_entry_rejects_injected_test_controls() -> None:
     with pytest.raises(
         launcher.JailerLauncherReject,
@@ -165,6 +193,103 @@ def test_public_candidate_entry_rejects_injected_test_controls() -> None:
             ),
             process_timeout_seconds=5.0,
         )
+
+
+def test_public_prepared_entry_rejects_test_double_before_spawn() -> None:
+    with pytest.raises(
+        launcher.JailerLauncherReject,
+        match="jailer_prepared_control_type_invalid",
+    ):
+        launcher.run_prepared_jailer_process_control_v2(
+            spec=launcher.PreparedJailerLaunchSpecV2(
+                jail_id="run00001",
+                uid=20001,
+                gid=20001,
+                chroot_base_dir=Path("/srv/zenodex-jailer"),
+            ),
+            prepared_jail=cast(launcher.PreparedJailRootV2, _PreparedJail()),
+            jailer=cast(launcher.PinnedExecutableV1, _PathPinned("/trusted/jailer")),
+            firecracker=cast(
+                launcher.PinnedExecutableV1,
+                _PathPinned("/trusted/firecracker"),
+            ),
+            cgroup_leaf=cast(cgroup_v2.CgroupLeafV1, _Leaf()),
+            network_namespace=cast(
+                launcher.PinnedNetworkNamespaceV1,
+                _Netns("/run/netns/run00001"),
+            ),
+            process_timeout_seconds=5.0,
+        )
+
+
+def test_prepared_runner_has_no_spot_v7_authority_mint_or_integration_import() -> None:
+    source = inspect.getsource(launcher)
+
+    assert "_GovernedJailedFirecrackerExecutionV1" not in source
+    assert "_GovernedFirecrackerSpotV7SettlementV1" not in source
+    assert "_GOVERNED_RUNTIME_SEAL_V1" not in source
+    assert "src.integration" not in source
+
+
+def test_prepared_lifecycle_reads_only_after_finish_and_then_cleans() -> None:
+    prepared = _PreparedJail()
+    process = _Process(321)
+    observation = launcher._JailerLaunchObservationV1(
+        jailer_pid=321,
+        process_set=frozenset({321}),
+        cgroup_relative_path="/zenodex01/zrpf0001/run00001",
+    )
+    events: list[str] = []
+
+    def launch() -> tuple[_Process, launcher._JailerLaunchObservationV1]:
+        events.append("launch")
+        return process, observation
+
+    def finish(
+        actual_process: launcher.ProcessHandle,
+        actual_observation: launcher._JailerLaunchObservationV1,
+    ) -> dict[str, object]:
+        assert actual_process is process
+        assert actual_observation is observation
+        events.append("finish")
+        prepared.finish_seen = True
+        return {"status": "finished"}
+
+    result = launcher._complete_prepared_jailer_lifecycle_for_test(
+        prepared_jail=prepared,
+        launch=launch,
+        finish=finish,
+    )
+
+    assert events == ["launch", "finish"]
+    assert prepared.calls == ["verify", "read", "cleanup"]
+    assert result.output_device_bytes == b"committed-output"
+
+
+def test_prepared_lifecycle_quarantines_stage_when_launch_is_uncertain() -> None:
+    prepared = _PreparedJail()
+
+    with pytest.raises(RuntimeError, match="uncertain launch"):
+        launcher._complete_prepared_jailer_lifecycle_for_test(
+            prepared_jail=prepared,
+            launch=lambda: (_ for _ in ()).throw(RuntimeError("uncertain launch")),
+            finish=lambda _process, _observation: {},
+        )
+
+    assert prepared.calls == ["verify"]
+
+
+def test_prepared_lifecycle_abandons_only_when_prelaunch_rejects() -> None:
+    prepared = _PreparedJail(reject_prelaunch=True)
+
+    with pytest.raises(RuntimeError, match="prelaunch reject"):
+        launcher._complete_prepared_jailer_lifecycle_for_test(
+            prepared_jail=prepared,
+            launch=lambda: (_ for _ in ()).throw(AssertionError("must not launch")),
+            finish=lambda _process, _observation: {},
+        )
+
+    assert prepared.calls == ["verify", "abandon"]
 
 
 @pytest.mark.parametrize(
@@ -575,6 +700,29 @@ class _Process:
     def kill(self) -> None:
         self.kill_count += 1
         self.exit_code = -9
+
+
+class _PreparedJail:
+    def __init__(self, *, reject_prelaunch: bool = False) -> None:
+        self.reject_prelaunch = reject_prelaunch
+        self.finish_seen = False
+        self.calls: list[str] = []
+
+    def verify_prelaunch(self) -> None:
+        self.calls.append("verify")
+        if self.reject_prelaunch:
+            raise RuntimeError("prelaunch reject")
+
+    def read_validated_output_after_exit(self) -> bytes:
+        assert self.finish_seen
+        self.calls.append("read")
+        return b"committed-output"
+
+    def cleanup_after_teardown(self) -> None:
+        self.calls.append("cleanup")
+
+    def abandon_before_launch(self) -> None:
+        self.calls.append("abandon")
 
 
 class _TimeoutProcess(_Process):

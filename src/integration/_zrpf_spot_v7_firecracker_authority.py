@@ -1,14 +1,15 @@
 """Fail-closed future Firecracker-to-Spot-V7 authority boundary.
 
-The current jailed-runner implementation does not yet own immutable staged
-artifacts or validate the exact output image and V7 payload inside one trusted
-lifecycle. The authority-false execution-binding detector closes the exact data
-join and records the remaining governed-runner capability blocker. Therefore
-this module exposes no mint path. It defines the sealed types and exact
-runtime-to-store missing-condition error that the future governed runner must
-close. Durable retries and exact-once consumption belong to the atomic store
-transaction. Raw bytes, report dictionaries, Docker results, and caller
-booleans remain data.
+The candidate jailed-runner implementation can retain immutable staged
+artifacts and validate the outer request/output image inside one lifecycle. It
+does not yet have the Spot V7 PID-1 guest, governed V7 raw-output profile,
+runtime manifest, or authenticated V7 payload boundary. The authority-false
+execution-binding detector closes the exact data join and records the remaining
+governed-runner capability blockers. Therefore this module exposes no mint
+path. It defines the sealed types and exact runtime-to-store missing-condition
+error that the future governed runner must close. Durable retries and
+exact-once consumption belong to the atomic store transaction. Raw bytes,
+report dictionaries, Docker results, and caller booleans remain data.
 """
 
 from __future__ import annotations
@@ -47,6 +48,15 @@ class SpotV7FirecrackerAuthorityMissingConditionV1(Enum):
     )
     GOVERNED_RELEASE_BINDING = (
         "governed_v7_release_manifest_and_revocation_binding_missing"
+    )
+    SPOT_V7_PID1_GUEST_AND_INPUT_IMAGE = (
+        "spot_v7_pid1_guest_init_and_input_image_missing"
+    )
+    SPOT_V7_GOVERNED_RAW_OUTPUT_PROFILE = (
+        "spot_v7_governed_raw_output_profile_and_verified_writer_missing"
+    )
+    SPOT_V7_GOVERNED_RUNTIME_MANIFEST = (
+        "spot_v7_governed_runtime_manifest_and_artifact_set_missing"
     )
     ROOT_OWNED_IMMUTABLE_STAGING = "root_owned_immutable_artifact_staging_missing"
     EXACT_RUNTIME_ARTIFACT_SET = "exact_runtime_artifact_set_validation_missing"

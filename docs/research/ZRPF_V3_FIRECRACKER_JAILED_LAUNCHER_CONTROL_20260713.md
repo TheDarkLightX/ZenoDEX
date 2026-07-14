@@ -17,6 +17,11 @@ This tranche adds the process-control portion of a future root-owned jailed
 Firecracker runner. It does not execute the retained replay or promote any
 authority claim.
 
+The 2026-07-14 follow-up adds descriptor-retained, supervisor-prepared jail
+staging and an outer request/output-bound lifecycle. Its exact V7 frontier is
+recorded in
+`ZRPF_SPOT_V7_ROOT_OWNED_FIRECRACKER_RUNNER_FRONTIER_20260714.md`.
+
 ## Implemented control
 
 The new control implements and tests this bounded sequence:
@@ -111,11 +116,11 @@ The following remain false:
 - live Jailer and Firecracker execution under this control;
 - live cgroup limit and membership verification;
 - live empty network-namespace verification;
-- descriptor-bound execution handoff from the supervisor into Jailer;
-- descriptor-bound chroot-base validation and exact stale-jail rejection;
+- live descriptor-bound execution handoff from the supervisor into Jailer;
+- live descriptor-bound chroot-base and stale-jail evidence;
 - an independently supervised crash-cleanup watchdog;
-- root-owned immutable artifact staging;
-- complete Firecracker configuration and output-protocol integration;
+- live root-owned immutable artifact staging evidence;
+- final Spot V7 configuration, guest, and payload integration;
 - sandbox escape resistance;
 - hardware side-channel resistance;
 - covert-channel freedom;

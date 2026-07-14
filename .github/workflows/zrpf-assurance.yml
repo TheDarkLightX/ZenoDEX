@@ -242,6 +242,8 @@ jobs:
             tools/zrpf_v3_firecracker_cgroup_contract.py \
             tools/zrpf_v3_firecracker_cgroup_io.py \
             tools/zrpf_v3_firecracker_cgroup_v2.py \
+            tools/zrpf_v3_firecracker_jail_staging.py \
+            tools/zrpf_v3_firecracker_jail_staging_io.py \
             tools/zrpf_v3_firecracker_jailer_launcher.py \
             tools/zrpf_v3_firecracker_netns.py \
             tools/zrpf_v3_firecracker_output_protocol.py \
@@ -283,6 +285,7 @@ jobs:
             tests/test_zrpf_v3_firecracker_artifact_set.py \
             tests/test_zrpf_v3_firecracker_candidate_plan.py \
             tests/test_zrpf_v3_firecracker_cgroup_v2.py \
+            tests/test_zrpf_v3_firecracker_jail_staging.py \
             tests/test_zrpf_v3_firecracker_jailer_launcher.py \
             tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_output_protocol.py \
@@ -417,6 +420,8 @@ jobs:
             tools/zrpf_v3_firecracker_cgroup_contract.py \
             tools/zrpf_v3_firecracker_cgroup_io.py \
             tools/zrpf_v3_firecracker_cgroup_v2.py \
+            tools/zrpf_v3_firecracker_jail_staging.py \
+            tools/zrpf_v3_firecracker_jail_staging_io.py \
             tools/zrpf_v3_firecracker_jailer_launcher.py \
             tools/zrpf_v3_firecracker_netns.py \
             tools/zrpf_v3_firecracker_output_protocol.py \
@@ -425,6 +430,7 @@ jobs:
             tools/zrpf_v3_replay_*.py \
             tools/zrpf_v3_source_closure.py \
             tests/test_zrpf_v3_firecracker_cgroup_v2.py \
+            tests/test_zrpf_v3_firecracker_jail_staging.py \
             tests/test_zrpf_v3_firecracker_jailer_launcher.py \
             tests/test_zrpf_v3_source_closure.py \
             tests/test_zrpf_spot_v7_release_closure.py \
@@ -486,6 +492,7 @@ jobs:
             tests/test_zrpf_v3_firecracker_artifact_set.py \
             tests/test_zrpf_v3_firecracker_candidate_plan.py \
             tests/test_zrpf_v3_firecracker_cgroup_v2.py \
+            tests/test_zrpf_v3_firecracker_jail_staging.py \
             tests/test_zrpf_v3_firecracker_jailer_launcher.py \
             tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py \
             tests/test_zrpf_v3_firecracker_output_protocol.py \

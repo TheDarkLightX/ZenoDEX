@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 import time
@@ -21,6 +22,7 @@ from pathlib import Path
 from typing import Any, Callable, Protocol
 
 from tools import zrpf_v3_firecracker_cgroup_v2 as cgroup_v2
+from tools.zrpf_v3_firecracker_jail_staging import PreparedJailRootV2
 from tools.zrpf_v3_firecracker_netns import (
     PinnedNetworkNamespaceV1,
     open_pinned_network_namespace,
@@ -35,13 +37,16 @@ from tools.zrpf_v3_firecracker_trusted_runtime import (
 
 __all__ = [
     "ExecutableExpectationV1",
+    "CompletedPreparedJailerRunV2",
     "JailerLaunchSpecV1",
+    "PreparedJailerLaunchSpecV2",
     "JailerLauncherReject",
     "PinnedExecutableV1",
     "PinnedNetworkNamespaceV1",
     "open_pinned_executable",
     "open_pinned_network_namespace",
     "run_candidate_jailer_process_control",
+    "run_prepared_jailer_process_control_v2",
     "verify_fresh_chroot_target",
 ]
 
@@ -94,6 +99,39 @@ class NetworkNamespaceControl(Protocol):
     def verify_empty(self) -> None: ...
 
     def verify_exact_process_set(self, pids: frozenset[int]) -> None: ...
+
+
+class LaunchSpecControl(Protocol):
+    @property
+    def jail_id(self) -> str: ...
+
+    @property
+    def uid(self) -> int: ...
+
+    @property
+    def gid(self) -> int: ...
+
+    @property
+    def chroot_base_dir(self) -> Path: ...
+
+    def argv(
+        self,
+        *,
+        jailer: ExecutableControl,
+        firecracker: ExecutableControl,
+        cgroup_leaf: CgroupLeafControl,
+        network_namespace: NetworkNamespaceControl,
+    ) -> tuple[str, ...]: ...
+
+
+class PreparedJailControl(Protocol):
+    def verify_prelaunch(self) -> None: ...
+
+    def read_validated_output_after_exit(self) -> bytes: ...
+
+    def cleanup_after_teardown(self) -> None: ...
+
+    def abandon_before_launch(self) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +200,80 @@ class JailerLaunchSpecV1:
         if "--daemonize" in arguments or "--no-seccomp" in arguments:
             raise JailerLauncherReject("jailer_forbidden_option_constructed")
         return arguments
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedJailerLaunchSpecV2:
+    """Exact Jailer invocation for a supervisor-prepared resource directory."""
+
+    jail_id: str
+    uid: int
+    gid: int
+    chroot_base_dir: Path
+    nofile_limit: int = DEFAULT_NOFILE_LIMIT
+
+    def __post_init__(self) -> None:
+        if _JAIL_ID.fullmatch(self.jail_id) is None:
+            raise JailerLauncherReject("jailer_id_invalid")
+        if any(
+            type(value) is not int or not 1 <= value <= (1 << 31) - 1
+            for value in (self.uid, self.gid)
+        ):
+            raise JailerLauncherReject("jailer_uid_gid_invalid")
+        if not self.chroot_base_dir.is_absolute():
+            raise JailerLauncherReject("jailer_chroot_base_not_absolute")
+        if not 32 <= self.nofile_limit <= 1024:
+            raise JailerLauncherReject("jailer_nofile_limit_invalid")
+
+    def argv(
+        self,
+        *,
+        jailer: ExecutableControl,
+        firecracker: ExecutableControl,
+        cgroup_leaf: CgroupLeafControl,
+        network_namespace: NetworkNamespaceControl,
+    ) -> tuple[str, ...]:
+        relative_cgroup = cgroup_leaf.identity.relative_path.removeprefix("/")
+        arguments = (
+            jailer.path.as_posix(),
+            "--id",
+            self.jail_id,
+            "--exec-file",
+            firecracker.path.as_posix(),
+            "--uid",
+            str(self.uid),
+            "--gid",
+            str(self.gid),
+            "--cgroup-version=2",
+            "--parent-cgroup",
+            relative_cgroup,
+            "--chroot-base-dir",
+            self.chroot_base_dir.as_posix(),
+            "--netns",
+            network_namespace.path.as_posix(),
+            "--new-pid-ns",
+            "--resource-limit",
+            f"fsize={OUTPUT_SIZE_BYTES}",
+            "--resource-limit",
+            f"no-file={self.nofile_limit}",
+            "--",
+            "--no-api",
+            "--config-file",
+            "/resources/config.json",
+        )
+        cgroup_v2.validate_jailer_cgroup_arguments(list(arguments))
+        if "--daemonize" in arguments or "--no-seccomp" in arguments:
+            raise JailerLauncherReject("jailer_forbidden_option_constructed")
+        return arguments
+
+
+@dataclass(frozen=True, slots=True)
+class CompletedPreparedJailerRunV2:
+    """Ordinary output and lifecycle data; never an authority capability."""
+
+    launch_observation: dict[str, Any]
+    finish_observation: dict[str, Any]
+    output_device_bytes: bytes
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,9 +351,117 @@ def run_candidate_jailer_process_control(
     return observation.to_document(), report
 
 
+def run_prepared_jailer_process_control_v2(
+    *,
+    spec: PreparedJailerLaunchSpecV2,
+    prepared_jail: PreparedJailRootV2,
+    jailer: PinnedExecutableV1,
+    firecracker: PinnedExecutableV1,
+    cgroup_leaf: cgroup_v2.CgroupLeafV1,
+    network_namespace: PinnedNetworkNamespaceV1,
+    process_timeout_seconds: float,
+) -> CompletedPreparedJailerRunV2:
+    """Run one exact prepared jail and validate its committed outer output.
+
+    This function closes the supervisor-prepared path handoff.  It does not
+    authenticate a Spot V7 payload and cannot mint any integration capability.
+    A failed or uncertain process teardown leaves the jail quarantined instead
+    of deleting files that a surviving process might still use.
+    """
+
+    if (
+        type(spec) is not PreparedJailerLaunchSpecV2
+        or type(prepared_jail) is not PreparedJailRootV2
+        or type(jailer) is not PinnedExecutableV1
+        or type(firecracker) is not PinnedExecutableV1
+        or type(cgroup_leaf) is not cgroup_v2.CgroupLeafV1
+        or type(network_namespace) is not PinnedNetworkNamespaceV1
+    ):
+        raise JailerLauncherReject("jailer_prepared_control_type_invalid")
+    if (
+        os.geteuid() != 0
+        or jailer.trusted_uid != 0
+        or firecracker.trusted_uid != 0
+        or cgroup_leaf.trusted_uid != 0
+        or network_namespace.trusted_uid != 0
+        or prepared_jail.spec.trusted_uid != 0
+    ):
+        raise JailerLauncherReject("jailer_prepared_control_not_root_owned")
+    _require_prepared_jail_matches_launch(spec, prepared_jail, firecracker)
+    return _complete_prepared_jailer_lifecycle_for_test(
+        prepared_jail=prepared_jail,
+        launch=lambda: _launch_jailer_process_control_for_test(
+            spec=spec,
+            jailer=jailer,
+            firecracker=firecracker,
+            cgroup_leaf=cgroup_leaf,
+            network_namespace=network_namespace,
+        ),
+        finish=lambda process, observation: _finish_jailer_process_control_for_test(
+            process=process,
+            cgroup_leaf=cgroup_leaf,
+            network_namespace=network_namespace,
+            observation=observation,
+            process_timeout_seconds=process_timeout_seconds,
+        ),
+    )
+
+
+def _complete_prepared_jailer_lifecycle_for_test(
+    *,
+    prepared_jail: PreparedJailControl,
+    launch: Callable[[], tuple[ProcessHandle, _JailerLaunchObservationV1]],
+    finish: Callable[[ProcessHandle, _JailerLaunchObservationV1], dict[str, Any]],
+) -> CompletedPreparedJailerRunV2:
+    """Complete the data-only lifecycle; injected controls remain test-only."""
+
+    try:
+        prepared_jail.verify_prelaunch()
+    except BaseException:
+        prepared_jail.abandon_before_launch()
+        raise
+    # After launch begins, any uncertain launch or teardown leaves the jail in
+    # quarantine. Deleting it could race a surviving process.
+    process, observation = launch()
+    report = finish(process, observation)
+    try:
+        output = prepared_jail.read_validated_output_after_exit()
+    finally:
+        prepared_jail.cleanup_after_teardown()
+    return CompletedPreparedJailerRunV2(
+        launch_observation=observation.to_document(),
+        finish_observation=report,
+        output_device_bytes=output,
+    )
+
+
+def _require_prepared_jail_matches_launch(
+    spec: PreparedJailerLaunchSpecV2,
+    prepared_jail: PreparedJailRootV2,
+    firecracker: PinnedExecutableV1,
+) -> None:
+    staged = prepared_jail.spec
+    if (
+        staged.jail_id,
+        staged.firecracker_file_name,
+        staged.chroot_base_dir,
+        staged.runtime_uid,
+        staged.runtime_gid,
+        staged.config_path_in_jail,
+    ) != (
+        spec.jail_id,
+        firecracker.path.name,
+        spec.chroot_base_dir,
+        spec.uid,
+        spec.gid,
+        "/resources/config.json",
+    ):
+        raise JailerLauncherReject("jailer_prepared_stage_binding_mismatch")
+
+
 def _launch_jailer_process_control_for_test(
     *,
-    spec: JailerLaunchSpecV1,
+    spec: LaunchSpecControl,
     jailer: ExecutableControl,
     firecracker: ExecutableControl,
     cgroup_leaf: CgroupLeafControl,
