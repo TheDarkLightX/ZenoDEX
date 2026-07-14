@@ -99,6 +99,7 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
         "zk/zrpf_protocol/protocol/tests/checkpoint_finality_v2.rs",
         "zk/zrpf_protocol/protocol/tests/full_blob_da_v1.rs",
         "zk/zrpf_protocol/protocol/tests/node_v3.rs",
+        "zk/zrpf_protocol/protocol/tests/proof_shape_v1.rs",
         "zk/zrpf_protocol/protocol/tests/semantic_epoch_v1.rs",
         "zk/zrpf_protocol/protocol/tests/settlement_certificate_v1.rs",
         "zk/zrpf_protocol/protocol/tests/settlement_effect_v2.rs",
@@ -149,6 +150,22 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
         "zk/zrpf_risc0/value_aggregate_shared/tests/level_two_v5.rs",
         "zk/zrpf_risc0/value_aggregate_shared/tests/support/mod.rs",
         "zk/zrpf_risc0/value_node_shared/tests/leaf_v4.rs",
+    )
+)
+
+PROOF_SHAPE_V1_ROWS: tuple[tuple[str, str], ...] = tuple(
+    ("proof_shape_protocol_v1", path)
+    for path in (
+        "zk/zrpf_protocol/protocol/src/proof_shape_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/src/proof_shape_v1/error.rs",
+        "zk/zrpf_protocol/protocol/src/proof_shape_v1/hash.rs",
+        "zk/zrpf_protocol/protocol/src/proof_shape_v1/ids.rs",
+        "zk/zrpf_protocol/protocol/src/proof_shape_v1/manifest.rs",
+        "zk/zrpf_protocol/protocol/src/proof_shape_v1/mod.rs",
+        "zk/zrpf_protocol/protocol/src/proof_shape_v1/registry.rs",
+        "zk/zrpf_protocol/protocol/src/proof_shape_v1/resolution.rs",
+        "zk/zrpf_protocol/protocol/src/proof_shape_v1/resource.rs",
+        "zk/zrpf_protocol/protocol/src/proof_shape_v1/shape.rs",
     )
 )
 
@@ -431,6 +448,7 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
         (
             *AUXILIARY_RUST_ROWS,
             *CURRENT_ZRPF_ROWS,
+            *PROOF_SHAPE_V1_ROWS,
             *WORKSPACE_AUXILIARY_ROWS,
             (
                 "economic_action_protocol_v1",
