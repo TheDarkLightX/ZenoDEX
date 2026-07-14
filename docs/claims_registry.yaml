@@ -1190,26 +1190,26 @@ claims:
     status: supported
     layer: runtime
     statement: >
-      The ZenoLedger range verifier can require per-height proof-verification
-      reports in addition to proof metadata. In that mode, every checked height
-      must include a report whose proof journal hash, proof kind, program id,
-      verifier id, and kind-specific verifier flag match the header-bound
-      proof metadata. Risc0 metadata requires a Risc0 verification report with
-      `risc0_verified = true`; TEE metadata requires a TEE verification report
-      with `tee_verified = true` and matching measurement hash. This gates
-      metadata-only replay from being accepted as verifier-backed replay. The
-      reports still remain replay artifacts; cryptographic soundness comes from
-      the verifier binaries that generated them.
+      Structural-diagnostic mode can require per-height caller-authored report
+      files in addition to proof metadata. It checks their proof journal hash,
+      proof kind, program id, verifier id, toolchain lock, and kind-specific
+      fields only as diagnostic shape and equality evidence. These reports have
+      no cryptographic, settlement, or production authority. Replay-bound mode
+      rejects both the report directory and the require-report flag; its proof
+      authority must come through a separate opaque authenticated verifier
+      capability.
     evidence:
       kind: pytest
       check:
         - cmd: python3 -m py_compile tools/zeno_ledger_verify.py tests/integration/test_zeno_ledger_verify_cli.py
-        - cmd: pytest -q tests/integration/test_zeno_ledger_verify_cli.py::test_verify_can_require_proof_verification_report_replay tests/integration/test_zeno_ledger_verify_cli.py::test_proof_required_profile_requires_metadata_replay tests/integration/test_zeno_ledger_verify_cli.py::test_run_local_builds_structured_proof_metadata
+        - cmd: pytest -q tests/integration/test_zeno_ledger_verify_cli.py::test_structural_mode_can_check_untrusted_proof_report_shape tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py::test_replay_bound_authority_rejects_caller_authored_report_lane
       files:
         - tools/zeno_ledger_verify.py
         - tests/integration/test_zeno_ledger_verify_cli.py
+        - tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py
         - tools/zeno_ledger_risc0_proof_metadata.py
         - tools/zeno_ledger_tee_proof_metadata.py
+        - docs/research/ZENO_LEDGER_PROOF_REQUIRED_V0_QUARANTINE_CBC_SPEC_20260713.md
 
   - id: py:zeno_ledger:light_client_checkpoint_quorum_v0
     status: supported

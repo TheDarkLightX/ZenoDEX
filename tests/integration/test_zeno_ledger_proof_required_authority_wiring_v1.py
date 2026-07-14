@@ -112,6 +112,7 @@ class _Case:
         mode: str,
         authenticated: bool,
         include_report: bool = True,
+        require_report: bool | None = None,
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {}
         if authenticated:
@@ -129,7 +130,9 @@ class _Case:
             to_height=1,
             proof_metadata_dir=self.proof_metadata_dir,
             proof_verification_report_dir=self.proof_reports_dir if include_report else None,
-            require_proof_verification_report=include_report,
+            require_proof_verification_report=(
+                include_report if require_report is None else require_report
+            ),
             mode=mode,
             pre_snapshots_dir=self.snapshots_dir if mode == REPLAY_BOUND_MODE else None,
             engine_config_path=self.config_path if mode == REPLAY_BOUND_MODE else None,
@@ -339,6 +342,39 @@ def test_proof_required_replay_rejects_fabricated_positive_report(
 
 
 @pytest.mark.parametrize(
+    ("include_report", "require_report"),
+    ((True, False), (False, True), (True, True)),
+)
+def test_replay_bound_authority_rejects_caller_authored_report_lane(
+    tmp_path: Path,
+    include_report: bool,
+    require_report: bool,
+) -> None:
+    case = _make_case(
+        tmp_path,
+        executable_format=VerifierExecutableFormatV1.STATIC_ELF_X86_64,
+    )
+
+    report = case.verify(
+        mode=REPLAY_BOUND_MODE,
+        authenticated=True,
+        include_report=include_report,
+        require_report=require_report,
+    )
+
+    assert report["ok"] is False
+    assert report["proof_verification_checked_heights"] == []
+    assert report["governed_proof_authority_checked_heights"] == []
+    assert report["proof_authority_satisfied"] is False
+    assert report["settlement_authority"] is False
+    assert report["production_authority"] is False
+    assert "replay_bound_rejects_caller_authored_proof_verification_reports" in report[
+        "errors"
+    ]
+    assert not case.counter_path.exists()
+
+
+@pytest.mark.parametrize(
     ("mutation", "expected_error"),
     [
         ("chain", "checkpoint chain_id not admitted by profile"),
@@ -515,6 +551,7 @@ def test_structural_mode_remains_explicitly_non_authoritative(
     assert report["ok"] is True
     assert report["status"] == "structural_diagnostic_accepted"
     assert report["authority_scope"] == "none"
+    assert report["proof_verification_checked_heights"] == [1]
     assert report["proof_authority_required"] is True
     assert report["proof_authority_satisfied"] is False
     assert report["governed_proof_authority_checked_heights"] == []

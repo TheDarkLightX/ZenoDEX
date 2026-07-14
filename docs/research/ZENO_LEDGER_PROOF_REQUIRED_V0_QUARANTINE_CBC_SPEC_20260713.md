@@ -19,6 +19,11 @@ proof_required.authenticated_cryptographic_authority_unavailable_v0
 diagnostics. It validates checkpoint/profile shape and commitments without
 granting admission authority.
 
+Caller-authored V0 proof-verification reports remain structural diagnostics.
+The replay-bound verifier rejects `proof_verification_report_dir` and
+`require_proof_verification_report`; a future authenticated receipt needs a
+separate opaque capability path.
+
 ## Positive governed path
 
 The replay-bound range verifier retains its strict Spot authority path. That
@@ -62,6 +67,7 @@ Executable reachability tests cover:
 
 - a nonzero proof journal at generic checkpoint admission;
 - a fabricated accepted watcher report;
+- a caller-authored proof-verification report presented to replay-bound mode;
 - a Tau export attempt;
 - a bridge policy requiring a proof journal while the profile flag is false;
 - the absence of report/Boolean escape parameters from generic admission.

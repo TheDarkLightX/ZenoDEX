@@ -251,6 +251,15 @@ def verify_zeno_ledger_v0(
     if mode not in VERIFY_MODES:
         errors.append("verify_mode_invalid")
     replay_bound = mode == REPLAY_BOUND_MODE
+    # V0 report files are caller-authored JSON. They remain available for
+    # structural diagnostics and cannot participate in a replay-bound result.
+    if replay_bound and (
+        proof_verification_report_dir is not None
+        or require_proof_verification_report
+    ):
+        errors.append(
+            "replay_bound_rejects_caller_authored_proof_verification_reports"
+        )
     if replay_bound:
         if pre_snapshots_dir is None:
             errors.append("replay_bound_requires_pre_snapshots_dir")

@@ -67,7 +67,12 @@ class _RangeCase:
     registry: dict[str, Any]
     spot_state_roots: dict[str, str]
 
-    def verify(self) -> dict[str, Any]:
+    def verify(
+        self,
+        *,
+        proof_verification_report_dir: Path | None = None,
+        require_proof_verification_report: bool = False,
+    ) -> dict[str, Any]:
         return verify_zeno_ledger_v0(
             headers_dir=self.headers_dir,
             bodies_dir=self.bodies_dir,
@@ -76,6 +81,8 @@ class _RangeCase:
             from_height=7,
             to_height=7,
             proof_metadata_dir=self.proof_metadata_dir,
+            proof_verification_report_dir=proof_verification_report_dir,
+            require_proof_verification_report=require_proof_verification_report,
             strict_spot_request_payloads_dir=self.strict_payloads_dir,
             strict_spot_authority_verifier=self.verifier,
             verifier_registry=self.registry,
@@ -282,6 +289,36 @@ def test_range_verifier_calls_governed_strict_verifier_once_and_satisfies_author
     assert report["settlement_authority"] is False
     assert report["production_authority"] is False
     assert call_count == 1
+
+
+def test_strict_spot_report_injection_rejects_before_verifier_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = _make_range_case(tmp_path)
+    report_dir = tmp_path / "caller-reports"
+    report_dir.mkdir()
+    call_count = 0
+
+    def fake_execute(**_kwargs: Any) -> bytes:
+        nonlocal call_count
+        call_count += 1
+        raise AssertionError("caller-authored reports must reject before verifier execution")
+
+    monkeypatch.setattr(
+        "src.integration.zeno_ledger_strict_spot_authority_v1.execute_pinned_verifier_once",
+        fake_execute,
+    )
+
+    report = case.verify(proof_verification_report_dir=report_dir)
+
+    assert report["ok"] is False
+    assert report["proof_authority_satisfied"] is False
+    assert report["governed_proof_authority_checked_heights"] == []
+    assert "replay_bound_rejects_caller_authored_proof_verification_reports" in report[
+        "errors"
+    ]
+    assert call_count == 0
 
 
 def test_range_verifier_rejects_authenticated_source_substitution_after_one_call(
