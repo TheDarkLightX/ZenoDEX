@@ -50,6 +50,14 @@ def test_leaf_change_plans_exact_transitive_chain() -> None:
     ]
 
 
+def test_recursive_glob_with_wildcard_prefix_matches() -> None:
+    assert planner._matches("zk/demo/prover/engine.rs", "zk/**/prover/**")
+    assert planner._matches(
+        "zk/zrpf_risc0/methods/spot_value_leaf_v6/src/main.rs",
+        "zk/zrpf_risc0/methods/**",
+    )
+
+
 def test_unrelated_documentation_change_produces_no_tasks() -> None:
     plan = planner.plan_reproof(_graph(), ["docs/unrelated.md"])
     assert plan["tasks"] == []
