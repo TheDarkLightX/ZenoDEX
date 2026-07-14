@@ -1,6 +1,9 @@
 name: apply-zrpf-assurance-repair
 
 on:
+  pull_request:
+    branches:
+      - agent/zrpf-completion-integration-20260712
   push:
     branches:
       - agent/zrpf-assurance-repair-20260714
@@ -19,6 +22,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
+          ref: agent/zrpf-assurance-repair-20260714
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
