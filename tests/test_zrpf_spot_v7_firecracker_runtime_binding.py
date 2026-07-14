@@ -173,6 +173,7 @@ def test_v7_lifecycle_finish_binds_prepare_and_rejects_identity_substitution(
 ) -> None:
     inputs = _inputs(tmp_path)
     prepared = inputs.prepare()
+    jail_root = prepared.jail_root_path
     launch_observation = lifecycle._JailerLaunchObservationV1(
         jailer_pid=41,
         process_set=frozenset({41, 42}),
@@ -220,6 +221,7 @@ def test_v7_lifecycle_finish_binds_prepare_and_rejects_identity_substitution(
     authority = validated["authority"]
     assert isinstance(authority, dict)
     assert all(value is False for value in authority.values())
+    assert not jail_root.exists()
 
     for field in (
         "exact_machine_config_ascii",
@@ -250,17 +252,51 @@ def test_v7_lifecycle_finish_binds_prepare_and_rejects_identity_substitution(
         )
 
 
-def test_v7_lifecycle_launch_failure_removes_prepared_jail(tmp_path: Path) -> None:
+def test_v7_lifecycle_prelaunch_failure_abandons_prepared_jail(
+    tmp_path: Path,
+) -> None:
+    inputs = _inputs(tmp_path)
+    prepared = inputs.prepare()
+    jail_root = prepared.jail_root_path
+    output = jail_root / "resources/output"
+    with output.open("r+b") as stream:
+        stream.seek(len(inputs.request_bytes))
+        stream.write(b"\x01")
+
+    launch_called = False
+
+    def launch() -> tuple[_FakeProcess, lifecycle._JailerLaunchObservationV1]:
+        nonlocal launch_called
+        launch_called = True
+        raise AssertionError("launch must not run after prelaunch rejection")
+
+    with pytest.raises(
+        staging.JailerLauncherReject,
+        match="jail_stage_output_not_fresh",
+    ):
+        lifecycle._complete_prepared_spot_v7_jailer_lifecycle_for_test(
+            prepared_jail=prepared,
+            launch=launch,
+            finish=lambda _process, _observation, _prepare: {},
+        )
+
+    assert launch_called is False
+    assert not jail_root.exists()
+
+
+def test_v7_lifecycle_launch_failure_quarantines_prepared_jail(
+    tmp_path: Path,
+) -> None:
     inputs = _inputs(tmp_path)
     prepared = inputs.prepare()
     jail_root = prepared.jail_root_path
 
     def fail_launch() -> tuple[_FakeProcess, lifecycle._JailerLaunchObservationV1]:
-        raise staging.JailerLauncherReject("test_launch_failed_after_shared_teardown")
+        raise staging.JailerLauncherReject("test_launch_state_uncertain")
 
     with pytest.raises(
         staging.JailerLauncherReject,
-        match="test_launch_failed_after_shared_teardown",
+        match="test_launch_state_uncertain",
     ):
         lifecycle._complete_prepared_spot_v7_jailer_lifecycle_for_test(
             prepared_jail=prepared,
@@ -268,10 +304,14 @@ def test_v7_lifecycle_launch_failure_removes_prepared_jail(tmp_path: Path) -> No
             finish=lambda _process, _observation, _prepare: {},
         )
 
+    assert jail_root.exists()
+    prepared.cleanup_after_teardown()
     assert not jail_root.exists()
 
 
-def test_v7_lifecycle_finish_failure_removes_prepared_jail(tmp_path: Path) -> None:
+def test_v7_lifecycle_finish_failure_quarantines_prepared_jail(
+    tmp_path: Path,
+) -> None:
     inputs = _inputs(tmp_path)
     prepared = inputs.prepare()
     jail_root = prepared.jail_root_path
@@ -286,16 +326,54 @@ def test_v7_lifecycle_finish_failure_removes_prepared_jail(tmp_path: Path) -> No
         _observation: lifecycle._JailerLaunchObservationV1,
         _prepare: runtime_binding.SpotV7FirecrackerPrepareObservationV1,
     ) -> dict[str, object]:
-        raise staging.JailerLauncherReject("test_finish_failed_after_shared_teardown")
+        raise staging.JailerLauncherReject("test_finish_state_uncertain")
 
     with pytest.raises(
         staging.JailerLauncherReject,
-        match="test_finish_failed_after_shared_teardown",
+        match="test_finish_state_uncertain",
     ):
         lifecycle._complete_prepared_spot_v7_jailer_lifecycle_for_test(
             prepared_jail=prepared,
             launch=lambda: (_FakeProcess(41), observation),
             finish=fail_finish,
+        )
+
+    assert jail_root.exists()
+    prepared.cleanup_after_teardown()
+    assert not jail_root.exists()
+
+
+def test_v7_lifecycle_output_reject_after_verified_finish_removes_prepared_jail(
+    tmp_path: Path,
+) -> None:
+    inputs = _inputs(tmp_path)
+    prepared = inputs.prepare()
+    jail_root = prepared.jail_root_path
+    observation = lifecycle._JailerLaunchObservationV1(
+        jailer_pid=41,
+        process_set=frozenset({41, 42}),
+        cgroup_relative_path="zrpf/run00001",
+    )
+
+    def finish(
+        _process: lifecycle.ProcessHandle,
+        exact_observation: lifecycle._JailerLaunchObservationV1,
+        prepare: runtime_binding.SpotV7FirecrackerPrepareObservationV1,
+    ) -> dict[str, object]:
+        return lifecycle._spot_v7_finish_observation_document_v1(
+            observation=exact_observation,
+            prepare_observation=prepare,
+            exit_code=0,
+        )
+
+    with pytest.raises(
+        staging.JailerLauncherReject,
+        match="jail_stage_output_protocol_rejected",
+    ):
+        lifecycle._complete_prepared_spot_v7_jailer_lifecycle_for_test(
+            prepared_jail=prepared,
+            launch=lambda: (_FakeProcess(41), observation),
+            finish=finish,
         )
 
     assert not jail_root.exists()

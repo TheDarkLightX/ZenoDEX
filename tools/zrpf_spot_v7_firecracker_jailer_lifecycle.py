@@ -160,11 +160,12 @@ def _complete_prepared_spot_v7_jailer_lifecycle_for_test(
         dict[str, Any],
     ],
 ) -> CompletedPreparedSpotV7JailerRunV1:
-    """Complete one V7 lifecycle and always close its staged jail.
+    """Complete one V7 lifecycle after positively verified teardown.
 
-    The production ``launch`` and ``finish`` callbacks own cgroup teardown on
-    every failure. Once either callback returns or raises, removing the staged
-    jail is therefore safe and mandatory.
+    A prelaunch rejection may abandon the staged jail because no process has
+    received it. Once launch begins, an uncertain launch or teardown leaves the
+    jail quarantined. A returned ``finish`` observation is the boundary that
+    permits output validation and cleanup.
     """
 
     if type(prepared_jail) is not PreparedSpotV7JailRootV1:
@@ -174,18 +175,21 @@ def _complete_prepared_spot_v7_jailer_lifecycle_for_test(
     except BaseException:
         prepared_jail.abandon_before_launch()
         raise
+
+    # Once launch begins, deleting the jail could race a surviving process.
+    # Launch or finish failures therefore retain the stage for quarantine.
+    process, observation = launch()
+    report = finish(process, observation, prepare_observation)
     try:
-        process, observation = launch()
-        report = finish(process, observation, prepare_observation)
         output = prepared_jail.read_validated_output_after_exit()
-        return CompletedPreparedSpotV7JailerRunV1(
-            prepare_observation=prepare_observation.to_document(),
-            launch_observation=observation.to_document(),
-            finish_observation=report,
-            output_device_bytes=output,
-        )
     finally:
         prepared_jail.cleanup_after_teardown()
+    return CompletedPreparedSpotV7JailerRunV1(
+        prepare_observation=prepare_observation.to_document(),
+        launch_observation=observation.to_document(),
+        finish_observation=report,
+        output_device_bytes=output,
+    )
 
 
 def _finish_spot_v7_jailer_process_control_for_test(
