@@ -5,13 +5,15 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import pickle
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
 import src.integration._zrpf_spot_v7_firecracker_authority as firecracker_authority
+import src.integration._zrpf_spot_v7_settlement_envelope_contract as replay_contract
 from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
     _candidate_action_ids_root,
     _SpotV7SettlementCandidateInputV1,
@@ -20,7 +22,9 @@ from src.integration._zrpf_spot_v7_firecracker_authority import (
     _GovernedFirecrackerSpotV7SettlementV1,
 )
 from src.integration._zrpf_spot_v7_settlement_envelope_replay import (
+    SPOT_V7_SETTLEMENT_EFFECT_IDS_ROOT_DOMAIN_V1,
     SpotV7SettlementEnvelopeReplayAdapterV1,
+    SpotV7SettlementEnvelopeReplayAdapterV2,
     SpotV7SettlementEnvelopeReplayErrorV1,
     build_spot_v7_settlement_envelope_v1,
     decode_exact_spot_v7_settlement_envelope_v1,
@@ -42,6 +46,7 @@ from src.integration.zeno_ledger_v0 import (
     build_header_v0,
     canonical_body_root_v0,
     canonical_header_hash_v0,
+    canonical_json_bytes_v0,
     compute_app_hash_v0,
     compute_evidence_root_v0,
     compute_ingress_root_v0,
@@ -883,3 +888,420 @@ def test_bounded_depth_two_envelope_mutation_frontier_fails_closed() -> None:
 
     assert explored == 16
     assert observed_codes == {"candidate_binding", "committed_receipt"}
+
+
+def _v2_observation() -> tuple[
+    _Fixture,
+    replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2,
+]:
+    fixture = _fixture()
+    config = replay_engine_config_document_v0(DexEngineConfig(chain_id=_CHAIN_ID))
+    observation = SpotV7SettlementEnvelopeReplayAdapterV2(config).authenticate(
+        settlement=fixture.settlement,
+        header=fixture.header,
+        body=fixture.body,
+        pre_snapshot=fixture.pre_snapshot,
+    )
+    return fixture, observation
+
+
+def test_v2_retains_exact_canonical_replay_material_with_scoped_claims() -> None:
+    fixture, observation = _v2_observation()
+
+    projection = observation._projection_for_finality_adapter()
+    material = observation._exact_replay_material_for_history_reverification()
+    config = replay_engine_config_document_v0(DexEngineConfig(chain_id=_CHAIN_ID))
+
+    assert material.exact_config_document_bytes == canonical_json_bytes_v0(config)
+    assert material.exact_pre_state_snapshot_bytes == canonical_json_bytes_v0(fixture.pre_snapshot)
+    assert projection.config_document_sha256 == _prefixed_sha256(
+        material.exact_config_document_bytes
+    )
+    assert projection.pre_state_snapshot_sha256 == _prefixed_sha256(
+        material.exact_pre_state_snapshot_bytes
+    )
+    assert observation._header_for_finality_adapter() == fixture.header
+    assert (
+        observation._canonical_projection_for_finality_adapter()["replay_material_root"]
+        == projection.replay_material_root
+    )
+    assert projection.asset_effect_ids_root == hash_v0(
+        SPOT_V7_SETTLEMENT_EFFECT_IDS_ROOT_DOMAIN_V1,
+        {"effect_ids": [row.effect_id for row in fixture.candidate.asset_effects]},
+    )
+    assert observation.exact_replay_material_authenticated is True
+    assert observation.durable_settlement_replay_reverification_material_retained is True
+    assert observation.durable_settlement_replay_reverified is False
+    assert observation.application_domain_to_ledger_chain_binding_established is False
+    assert observation.settlement_authority is False
+    assert observation.release_authority is False
+    assert observation.production_authority is False
+
+
+@pytest.mark.parametrize(
+    "artifact_name",
+    ("config", "pre_state"),
+)
+def test_v2_constructor_rejects_config_and_pre_state_substitution(
+    artifact_name: str,
+) -> None:
+    _fixture_value, observation = _v2_observation()
+    projection = observation._projection_for_finality_adapter()
+    material = observation._exact_replay_material_for_history_reverification()
+    config_bytes = material.exact_config_document_bytes
+    pre_state_bytes = material.exact_pre_state_snapshot_bytes
+    if artifact_name == "config":
+        config = json.loads(config_bytes)
+        config["config"]["max_intents"] += 1
+        config_bytes = canonical_json_bytes_v0(config)
+    else:
+        pre_state = json.loads(pre_state_bytes)
+        pre_state["balances"].reverse()
+        pre_state_bytes = canonical_json_bytes_v0(pre_state)
+
+    with pytest.raises(ValueError):
+        replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2(
+            projection,
+            exact_header_bytes=observation._exact_header_bytes,
+            exact_body_bytes=observation._exact_body_bytes,
+            exact_envelope_bytes=observation._exact_envelope_bytes,
+            exact_receipt_bytes=observation._exact_receipt_bytes,
+            exact_evidence_bytes=observation._exact_evidence_bytes,
+            exact_config_document_bytes=config_bytes,
+            exact_pre_state_snapshot_bytes=pre_state_bytes,
+            seal=replay_contract._SETTLEMENT_REPLAY_OBSERVATION_SEAL_V2,
+        )
+
+
+@pytest.mark.parametrize("artifact_name", ("config", "pre_state"))
+def test_v2_constructor_rejects_noncanonical_retained_replay_material(
+    artifact_name: str,
+) -> None:
+    _fixture_value, observation = _v2_observation()
+    projection = observation._projection_for_finality_adapter()
+    material = observation._exact_replay_material_for_history_reverification()
+    config_bytes = material.exact_config_document_bytes
+    pre_state_bytes = material.exact_pre_state_snapshot_bytes
+    if artifact_name == "config":
+        config_bytes = b" " + config_bytes
+        config_sha256 = _prefixed_sha256(config_bytes)
+        pre_state_sha256 = projection.pre_state_snapshot_sha256
+    else:
+        pre_state_bytes = b" " + pre_state_bytes
+        config_sha256 = projection.config_document_sha256
+        pre_state_sha256 = _prefixed_sha256(pre_state_bytes)
+    material_root = replay_contract._derive_replay_material_root_v2(
+        chain_id=projection.chain_id,
+        height=projection.height,
+        candidate_settlement_commitment=projection.candidate_settlement_commitment,
+        envelope_sha256=projection.envelope_sha256,
+        config_digest=projection.config_digest,
+        config_document_sha256=config_sha256,
+        pre_state_root=projection.pre_state_root,
+        pre_state_snapshot_sha256=pre_state_sha256,
+    )
+    evidence = json.loads(observation._exact_evidence_bytes)
+    evidence["config_document_sha256"] = config_sha256
+    evidence["pre_state_snapshot_sha256"] = pre_state_sha256
+    evidence["replay_material_root"] = material_root
+    evidence_bytes = canonical_json_bytes_v0(evidence)
+    substituted_projection = replace(
+        projection,
+        config_document_sha256=config_sha256,
+        pre_state_snapshot_sha256=pre_state_sha256,
+        replay_material_root=material_root,
+        observation_evidence_root=_prefixed_sha256(evidence_bytes),
+    )
+
+    with pytest.raises(ValueError, match="exact canonical JSON object"):
+        replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2(
+            substituted_projection,
+            exact_header_bytes=observation._exact_header_bytes,
+            exact_body_bytes=observation._exact_body_bytes,
+            exact_envelope_bytes=observation._exact_envelope_bytes,
+            exact_receipt_bytes=observation._exact_receipt_bytes,
+            exact_evidence_bytes=evidence_bytes,
+            exact_config_document_bytes=config_bytes,
+            exact_pre_state_snapshot_bytes=pre_state_bytes,
+            seal=replay_contract._SETTLEMENT_REPLAY_OBSERVATION_SEAL_V2,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "replacement", "expected_code"),
+    (
+        ("verified_program_id", _root("wrong-program"), "candidate_binding"),
+        ("verified_profile_id", _root("wrong-policy-profile"), "candidate_binding"),
+        (
+            "verified_program_manifest_root",
+            _root("wrong-program-manifest"),
+            "candidate_binding",
+        ),
+        ("pre_state_root", _root("wrong-state"), "pre_state_root"),
+    ),
+)
+def test_v2_replay_rejects_program_policy_and_state_substitution(
+    field_name: str,
+    replacement: str,
+    expected_code: str,
+) -> None:
+    fixture = _fixture()
+    candidate = replace(fixture.candidate, **{field_name: replacement})
+    config = replay_engine_config_document_v0(DexEngineConfig(chain_id=_CHAIN_ID))
+    adapter = SpotV7SettlementEnvelopeReplayAdapterV2(config)
+
+    with pytest.raises(SpotV7SettlementEnvelopeReplayErrorV1) as captured:
+        adapter.authenticate(
+            settlement=_settlement(candidate),
+            header=fixture.header,
+            body=fixture.body,
+            pre_snapshot=fixture.pre_snapshot,
+        )
+
+    assert captured.value.code == expected_code
+
+
+def test_v2_replay_rejects_envelope_substitution() -> None:
+    fixture = _fixture()
+    body = copy.deepcopy(fixture.body)
+    body["settlement_envelopes"][0]["proposal"]["economic_action_id"] = _root(
+        "wrong-envelope-action"
+    )
+    config = replay_engine_config_document_v0(DexEngineConfig(chain_id=_CHAIN_ID))
+    header = _header(fixture.candidate, body, config)
+
+    with pytest.raises(SpotV7SettlementEnvelopeReplayErrorV1) as captured:
+        SpotV7SettlementEnvelopeReplayAdapterV2(config).authenticate(
+            settlement=fixture.settlement,
+            header=header,
+            body=body,
+            pre_snapshot=fixture.pre_snapshot,
+        )
+
+    assert captured.value.code == "candidate_binding"
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    (
+        "parent_header_hash",
+        "body_root",
+        "config_digest",
+        "proof_journal_hash",
+        "candidate_settlement_commitment",
+        "envelope_proposal_hash",
+        "receipt_hash",
+        "settlement_effect_plan_commitment",
+        "pre_state_root",
+        "post_state_root",
+        "economic_action_id",
+        "authorization_nullifier",
+        "authorization_grant_spend_nullifier",
+        "cell_transitions_root",
+        "asset_effect_ids_root",
+    ),
+)
+def test_v2_constructor_rejects_projection_graph_substitution(field_name: str) -> None:
+    _fixture_value, observation = _v2_observation()
+    projection = observation._projection_for_finality_adapter()
+    material = observation._exact_replay_material_for_history_reverification()
+    substituted_projection = _replace_v2_projection_hash_field(
+        projection,
+        field_name,
+        _root(field_name),
+    )
+
+    with pytest.raises(ValueError):
+        replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2(
+            substituted_projection,
+            exact_header_bytes=observation._exact_header_bytes,
+            exact_body_bytes=observation._exact_body_bytes,
+            exact_envelope_bytes=observation._exact_envelope_bytes,
+            exact_receipt_bytes=observation._exact_receipt_bytes,
+            exact_evidence_bytes=observation._exact_evidence_bytes,
+            exact_config_document_bytes=material.exact_config_document_bytes,
+            exact_pre_state_snapshot_bytes=material.exact_pre_state_snapshot_bytes,
+            seal=replay_contract._SETTLEMENT_REPLAY_OBSERVATION_SEAL_V2,
+        )
+
+
+def _replace_v2_projection_hash_field(
+    projection: replay_contract._SpotV7SettlementReplayProjectionV2,
+    field_name: str,
+    replacement: str,
+) -> replay_contract._SpotV7SettlementReplayProjectionV2:
+    replacements = {
+        "parent_header_hash": lambda: replace(projection, parent_header_hash=replacement),
+        "body_root": lambda: replace(projection, body_root=replacement),
+        "config_digest": lambda: replace(projection, config_digest=replacement),
+        "proof_journal_hash": lambda: replace(projection, proof_journal_hash=replacement),
+        "candidate_settlement_commitment": lambda: replace(
+            projection,
+            candidate_settlement_commitment=replacement,
+        ),
+        "envelope_proposal_hash": lambda: replace(
+            projection,
+            envelope_proposal_hash=replacement,
+        ),
+        "receipt_hash": lambda: replace(projection, receipt_hash=replacement),
+        "settlement_effect_plan_commitment": lambda: replace(
+            projection,
+            settlement_effect_plan_commitment=replacement,
+        ),
+        "pre_state_root": lambda: replace(projection, pre_state_root=replacement),
+        "post_state_root": lambda: replace(projection, post_state_root=replacement),
+        "economic_action_id": lambda: replace(projection, economic_action_id=replacement),
+        "authorization_nullifier": lambda: replace(
+            projection,
+            authorization_nullifier=replacement,
+        ),
+        "authorization_grant_spend_nullifier": lambda: replace(
+            projection,
+            authorization_grant_spend_nullifier=replacement,
+        ),
+        "cell_transitions_root": lambda: replace(
+            projection,
+            cell_transitions_root=replacement,
+        ),
+        "asset_effect_ids_root": lambda: replace(
+            projection,
+            asset_effect_ids_root=replacement,
+        ),
+    }
+    try:
+        return replacements[field_name]()
+    except KeyError as exc:
+        raise AssertionError(f"unsupported test projection field: {field_name}") from exc
+
+
+def test_v2_constructor_rejects_coherently_rehashed_body_envelope_substitution() -> None:
+    _fixture_value, observation = _v2_observation()
+    projection = observation._projection_for_finality_adapter()
+    material = observation._exact_replay_material_for_history_reverification()
+    body = json.loads(observation._exact_body_bytes)
+    body["settlement_envelopes"][0]["proposal"]["economic_action_id"] = _root(
+        "coherent-body-only-action"
+    )
+    body_bytes = canonical_json_bytes_v0(body)
+    body_root = canonical_body_root_v0(body)
+    header = json.loads(observation._exact_header_bytes)
+    header["body_root"] = body_root
+    header_bytes = canonical_json_bytes_v0(header)
+    header_hash = canonical_header_hash_v0(header)
+    evidence = json.loads(observation._exact_evidence_bytes)
+    evidence["body_root"] = body_root
+    evidence["header_hash"] = header_hash
+    evidence_bytes = canonical_json_bytes_v0(evidence)
+    substituted_projection = replace(
+        projection,
+        body_root=body_root,
+        header_hash=header_hash,
+        observation_evidence_root=_prefixed_sha256(evidence_bytes),
+    )
+
+    with pytest.raises(ValueError, match="body envelope disagrees"):
+        replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2(
+            substituted_projection,
+            exact_header_bytes=header_bytes,
+            exact_body_bytes=body_bytes,
+            exact_envelope_bytes=observation._exact_envelope_bytes,
+            exact_receipt_bytes=observation._exact_receipt_bytes,
+            exact_evidence_bytes=evidence_bytes,
+            exact_config_document_bytes=material.exact_config_document_bytes,
+            exact_pre_state_snapshot_bytes=material.exact_pre_state_snapshot_bytes,
+            seal=replay_contract._SETTLEMENT_REPLAY_OBSERVATION_SEAL_V2,
+        )
+
+
+def test_v2_constructor_rejects_coherently_rehashed_envelope_receipt_substitution() -> None:
+    _fixture_value, observation = _v2_observation()
+    projection = observation._projection_for_finality_adapter()
+    material = observation._exact_replay_material_for_history_reverification()
+    envelope = json.loads(observation._exact_envelope_bytes)
+    envelope["expected_receipt"]["economic_action_id"] = _root("coherent-envelope-only-action")
+    envelope_bytes = canonical_json_bytes_v0(envelope)
+    body = json.loads(observation._exact_body_bytes)
+    body["settlement_envelopes"] = [envelope]
+    body_bytes = canonical_json_bytes_v0(body)
+    body_root = canonical_body_root_v0(body)
+    header = json.loads(observation._exact_header_bytes)
+    header["body_root"] = body_root
+    header_bytes = canonical_json_bytes_v0(header)
+    header_hash = canonical_header_hash_v0(header)
+    envelope_sha256 = _prefixed_sha256(envelope_bytes)
+    evidence = json.loads(observation._exact_evidence_bytes)
+    evidence["body_root"] = body_root
+    evidence["header_hash"] = header_hash
+    evidence["envelope_sha256"] = envelope_sha256
+    evidence_bytes = canonical_json_bytes_v0(evidence)
+    substituted_projection = replace(
+        projection,
+        body_root=body_root,
+        header_hash=header_hash,
+        envelope_sha256=envelope_sha256,
+        observation_evidence_root=_prefixed_sha256(evidence_bytes),
+    )
+
+    with pytest.raises(ValueError, match="envelope receipt disagrees"):
+        replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2(
+            substituted_projection,
+            exact_header_bytes=header_bytes,
+            exact_body_bytes=body_bytes,
+            exact_envelope_bytes=envelope_bytes,
+            exact_receipt_bytes=observation._exact_receipt_bytes,
+            exact_evidence_bytes=evidence_bytes,
+            exact_config_document_bytes=material.exact_config_document_bytes,
+            exact_pre_state_snapshot_bytes=material.exact_pre_state_snapshot_bytes,
+            seal=replay_contract._SETTLEMENT_REPLAY_OBSERVATION_SEAL_V2,
+        )
+
+
+def test_v2_observation_rejects_copy_pickle_mutation_and_forgery() -> None:
+    _fixture_value, observation = _v2_observation()
+
+    with pytest.raises(TypeError):
+        copy.copy(observation)
+    with pytest.raises(TypeError):
+        copy.deepcopy(observation)
+    with pytest.raises(TypeError):
+        pickle.dumps(observation)
+    with pytest.raises(TypeError):
+        mutable_view = cast(Any, observation)
+        mutable_view._projection = observation._projection_for_finality_adapter()
+    with pytest.raises(TypeError):
+        replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2(
+            observation._projection_for_finality_adapter(),
+            exact_header_bytes=observation._exact_header_bytes,
+            exact_body_bytes=observation._exact_body_bytes,
+            exact_envelope_bytes=observation._exact_envelope_bytes,
+            exact_receipt_bytes=observation._exact_receipt_bytes,
+            exact_evidence_bytes=observation._exact_evidence_bytes,
+            exact_config_document_bytes=(
+                observation._exact_replay_material_for_history_reverification().exact_config_document_bytes
+            ),
+            exact_pre_state_snapshot_bytes=(
+                observation._exact_replay_material_for_history_reverification().exact_pre_state_snapshot_bytes
+            ),
+            seal=cast(replay_contract._SettlementReplayObservationSealV2, object()),
+        )
+
+    forged = object.__new__(replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2)
+    with pytest.raises(TypeError):
+        replay_contract._require_settlement_replay_observation_v2(forged)
+
+
+def test_v1_replay_observation_behavior_and_claim_scope_are_unchanged() -> None:
+    fixture = _fixture()
+
+    observation = fixture.adapter.authenticate(
+        settlement=fixture.settlement,
+        header=fixture.header,
+        body=fixture.body,
+        pre_snapshot=fixture.pre_snapshot,
+    )
+
+    assert type(observation) is replay_contract._AuthenticatedSpotV7SettlementReplayObservationV1
+    assert not hasattr(observation, "_exact_replay_material_for_history_reverification")
+    assert observation.settlement_authority is False
+    assert observation.release_authority is False
+    assert observation.production_authority is False
