@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import src.integration.zrpf_source_opened_spot_v6_verifier_adapter as source_adapter
 from src.core._zrpf_settlement_certificate_authority import (
     _source_opened_spot_v6_projection_binding_v1,
 )
@@ -73,6 +74,15 @@ def _prefixed(index: int) -> str:
 
 def _root(index: int) -> bytes:
     return bytes.fromhex(_bare(index))
+
+
+def test_source_opened_adapter_uses_pre_exec_process_contract() -> None:
+    source = Path(source_adapter.__file__).read_text(encoding="utf-8")
+
+    assert "execute_pinned_verifier_once" in source
+    assert "resource.prlimit" not in source
+    assert "subprocess.Popen" not in source
+    assert "_apply_resource_limits" not in source
 
 
 def _guest_input() -> bytes:

@@ -12,9 +12,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import resource
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, NoReturn, final
@@ -35,6 +32,12 @@ from src.core.recursive_stark_admission import (
     recursive_receipt_ids_root_v1,
 )
 from src.core.zrpf_settlement_effect_plan import SettlementEffectPlanV1
+from src.integration._zeno_ledger_pinned_verifier_process_v1 import (
+    PinnedVerifierProcessError,
+    PinnedVerifierProcessFailure,
+    VerifierExecutableFormatV1,
+    execute_pinned_verifier_once,
+)
 from src.integration._zrpf_atomic_settlement_plan_codec import (
     _decode_canonical_settlement_plan_v1,
 )
@@ -43,15 +46,12 @@ from src.integration.recursive_stark_verifier_adapter import (
     DEFAULT_VERIFIER_STACK_BYTES,
     MAX_AUTHORITY_MANIFEST_BYTES,
     MAX_VERIFIER_REQUEST_BYTES,
-    RecursiveStarkVerificationError,
+    MAX_VERIFIER_STDERR_BYTES,
+    MAX_VERIFIER_STDOUT_BYTES,
     RecursiveVerifierExecutableFormat,
     _canonical_json_bytes,
-    _communicate_bounded,
     _reject_duplicate_object_keys,
     _reject_json_constant,
-    _sealed_executable_snapshot,
-    _terminate_process_group,
-    _verifier_environment,
 )
 from src.state.canonical import canonical_json_bytes
 
@@ -334,72 +334,48 @@ class PinnedSettlementCertificateVerifierV1:
             ) from exc
 
     def _execute_verifier_once(self, request_bytes: bytes) -> bytes:
-        executable_fd: int | None = None
         try:
-            executable_fd, actual_hash = _sealed_executable_snapshot(
-                self.executable,
-                executable_format=self.executable_format,
-            )
-            if actual_hash != self.sha256:
-                raise SettlementCertificateVerificationError(
-                    "settlement verifier binary hash mismatch"
-                )
-            process = subprocess.Popen(
-                [f"/proc/self/fd/{executable_fd}"],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                start_new_session=True,
-                pass_fds=(executable_fd,),
-                cwd="/",
-                env=_verifier_environment(),
-            )
-            try:
-                self._apply_resource_limits(process.pid)
-            except (OSError, ValueError) as exc:
-                _terminate_process_group(process)
-                raise SettlementCertificateVerificationError(
-                    f"failed to apply settlement verifier resource limits: {exc}"
-                ) from exc
-            stdout, _stderr, returncode = _communicate_bounded(
-                process,
+            return execute_pinned_verifier_once(
+                executable=self.executable,
+                expected_sha256=self.sha256,
+                executable_format=VerifierExecutableFormatV1(self.executable_format.value),
                 request_bytes=request_bytes,
                 timeout_seconds=self.timeout_seconds,
+                max_address_space_bytes=self.max_address_space_bytes,
+                max_stack_bytes=self.max_stack_bytes,
+                max_stdout_bytes=MAX_VERIFIER_STDOUT_BYTES,
+                max_stderr_bytes=MAX_VERIFIER_STDERR_BYTES,
             )
-        except subprocess.TimeoutExpired as exc:
-            raise SettlementCertificateVerificationError("settlement verifier timed out") from exc
-        except RecursiveStarkVerificationError as exc:
-            raise SettlementCertificateVerificationError(str(exc)) from exc
-        except OSError as exc:
-            raise SettlementCertificateVerificationError(
-                f"settlement verifier process failed: {exc}"
-            ) from exc
-        finally:
-            if executable_fd is not None:
-                os.close(executable_fd)
-        if returncode != 0:
-            raise SettlementCertificateVerificationError(
-                f"settlement verifier exited with status {returncode}"
-            )
-        return stdout
+        except PinnedVerifierProcessError as exc:
+            raise _settlement_process_error(exc) from exc
 
-    def _apply_resource_limits(self, process_id: int) -> None:
-        resource.prlimit(
-            process_id,
-            resource.RLIMIT_AS,
-            (self.max_address_space_bytes, self.max_address_space_bytes),
+
+def _settlement_process_error(
+    error: PinnedVerifierProcessError,
+) -> SettlementCertificateVerificationError:
+    if error.reason is PinnedVerifierProcessFailure.EXECUTABLE_HASH_MISMATCH:
+        return SettlementCertificateVerificationError(
+            "settlement verifier binary hash mismatch"
         )
-        resource.prlimit(
-            process_id,
-            resource.RLIMIT_STACK,
-            (self.max_stack_bytes, self.max_stack_bytes),
+    if error.reason is PinnedVerifierProcessFailure.TIMEOUT:
+        return SettlementCertificateVerificationError("settlement verifier timed out")
+    if error.reason is PinnedVerifierProcessFailure.EXECUTABLE_INVALID:
+        return SettlementCertificateVerificationError(
+            f"settlement verifier executable invalid: {error.detail}"
         )
-        cpu_seconds = self.timeout_seconds + 1
-        resource.prlimit(process_id, resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
-        resource.prlimit(process_id, resource.RLIMIT_CORE, (0, 0))
-        resource.prlimit(process_id, resource.RLIMIT_FSIZE, (0, 0))
-        resource.prlimit(process_id, resource.RLIMIT_NOFILE, (32, 32))
-        resource.prlimit(process_id, resource.RLIMIT_NPROC, (1, 1))
+    if error.reason is PinnedVerifierProcessFailure.OUTPUT_INVALID:
+        detail = error.detail.replace(
+            "verifier stdout exceeds byte limit", "stdout exceeds limit"
+        ).replace("verifier stderr exceeds byte limit", "stderr exceeds limit")
+        return SettlementCertificateVerificationError(f"settlement verifier {detail}")
+    exit_prefix = "pinned verifier exited with status "
+    if error.detail.startswith(exit_prefix):
+        return SettlementCertificateVerificationError(
+            "settlement verifier exited with status " + error.detail.removeprefix(exit_prefix)
+        )
+    return SettlementCertificateVerificationError(
+        f"settlement verifier process failed: {error.detail}"
+    )
 
 
 def settlement_certificate_authority_manifest_bytes_v1(

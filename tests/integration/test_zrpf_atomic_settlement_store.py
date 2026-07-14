@@ -16,6 +16,7 @@ import src.core._zrpf_settlement_commit_authority as settlement_authority_module
 import src.integration._zrpf_atomic_settlement_store_schema as settlement_schema_module
 import src.integration._zrpf_authenticated_certificate_store_engine as certificate_engine_module
 import src.integration.zrpf_atomic_settlement_store as settlement_store_module
+import src.integration.zrpf_settlement_verifier_adapter as settlement_verifier_adapter_module
 from src.core._zrpf_settlement_certificate_authority import (
     SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,
     SOURCE_OPENED_SINGLETON_SPOT_SETTLEMENT_PROFILE_V6,
@@ -71,6 +72,15 @@ from src.integration.zrpf_settlement_verifier_adapter import (
     SettlementCertificateVerificationError,
     settlement_certificate_authority_manifest_bytes_v1,
 )
+
+
+def test_legacy_settlement_adapter_uses_pre_exec_process_contract() -> None:
+    source = Path(settlement_verifier_adapter_module.__file__).read_text(encoding="utf-8")
+
+    assert "execute_pinned_verifier_once" in source
+    assert "resource.prlimit" not in source
+    assert "subprocess.Popen" not in source
+    assert "_apply_resource_limits" not in source
 
 
 def _hash(index: int) -> str:
