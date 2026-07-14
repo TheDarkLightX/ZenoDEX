@@ -136,7 +136,7 @@ jobs:
               'set -euo pipefail',
               "PS4='+ zrpf-python-assurance:${LINENO}: '",
               'set -x',
-              "trap 'status=$?; printf \'ZRPF_PYTHON_ASSURANCE_FAILED line=%s status=%s command=%q\\n\' \"${LINENO}\" \"${status}\" \"${BASH_COMMAND}\" >&2; exit \"${status}\"' ERR",
+              "trap 'status=$?; printf \"ZRPF_PYTHON_ASSURANCE_FAILED line=%s status=%s command=%q\\n\" \"${LINENO}\" \"${status}\" \"${BASH_COMMAND}\" >&2; exit \"${status}\"' ERR",
           ]
           rendered = '\n'.join((*prelude, *body, ''))
           output = Path('internal/zrpf-python-assurance-command.sh')
