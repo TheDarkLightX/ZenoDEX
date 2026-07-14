@@ -16,6 +16,7 @@ import src.integration._zrpf_spot_v7_firecracker_authority as firecracker_author
 import src.integration._zrpf_spot_v7_operational_capability_v2 as operational_v2
 import src.integration._zrpf_spot_v7_zeno_ledger_finality_contract as finality_contract
 import src.integration.zrpf_spot_v7_zeno_ledger_finality_adapter as adapter_module
+from src.core.dex import DexState
 from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
     _SpotV7SettlementCandidateInputV1,
 )
@@ -28,20 +29,40 @@ from src.integration._zrpf_spot_v7_operational_capability_v2 import (
     _GovernedOperationalPolicyProvenanceV1,
     _GovernedSpotV7OperationalPolicyV2,
 )
+from src.integration._zrpf_spot_v7_zeno_ledger_replay_contract import (
+    SPOT_V7_ZENO_LEDGER_BODY_PROOF_RECEIPT_PROJECTION_SCHEMA_V1,
+)
+from src.integration._zrpf_spot_v7_zeno_ledger_replay_observation import (
+    SpotV7ZenoLedgerReplayBoundObservationAdapterV1,
+    _AuthenticatedReplayBoundBlockObservationV1,
+)
+from src.integration.dex_engine import DexEngineConfig
+from src.integration.dex_snapshot import snapshot_from_state
+from src.integration.zeno_ledger_replay import (
+    replay_engine_config_digest_v0,
+    replay_engine_config_document_v0,
+)
 from src.integration.zeno_ledger_signature import (
     bls_public_key_hex_from_private_key_v0,
     build_bls_signed_artifact_envelope_v0,
 )
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_ledger_v0 import (
-    VALIDATOR_SET_SCHEMA_V0 as LEDGER_VALIDATOR_SET_SCHEMA_V0,
-)
-from src.integration.zeno_ledger_v0 import (
+    BATCH_CUTOFF_SCHEMA_V0,
+    BODY_SCHEMA_V0,
     build_checkpoint_v0,
     build_header_v0,
+    canonical_body_root_v0,
     canonical_json_bytes_v0,
     compute_app_hash_v0,
+    compute_evidence_root_v0,
+    compute_ingress_root_v0,
+    compute_tx_root_v0,
+    dex_state_root_v0,
     hash_v0,
+)
+from src.integration.zeno_ledger_v0 import (
+    VALIDATOR_SET_SCHEMA_V0 as LEDGER_VALIDATOR_SET_SCHEMA_V0,
 )
 from src.integration.zeno_ledger_validator_schedule_v0 import (
     build_proposer_duty_v0,
@@ -65,6 +86,8 @@ from src.integration.zrpf_spot_v7_zeno_ledger_finality_adapter import (
     derive_zeno_ledger_finality_protocol_id_v2,
     derive_zeno_ledger_proposer_authorship_payload_hash_v1,
 )
+from src.state.balances import BalanceTable
+from src.state.lp import LPTable
 
 ZERO_ROOT = "0x" + "00" * 32
 CHAIN_ID = "zeno-ledger-zrpf-finality-test-v1"
@@ -75,6 +98,7 @@ class _FinalityFixture:
     adapter: SpotV7ZenoLedgerCheckpointFinalityAdapterV2
     settlement: _GovernedFirecrackerSpotV7SettlementV1
     prior_cursor: ZenoLedgerCheckpointFinalityCursorV1
+    replay_observation: _AuthenticatedReplayBoundBlockObservationV1
     header: dict[str, object]
     checkpoint: dict[str, object]
     validator_set: dict[str, object]
@@ -111,6 +135,10 @@ def _opening(
     atoms: int,
 ) -> SpotV7CellOpeningV1:
     return SpotV7CellOpeningV1(kind, subject_id, asset_id, atoms)
+
+
+def _empty_state() -> DexState:
+    return DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
 
 
 def _candidate(*, epoch_id: int = 1) -> _SpotV7SettlementCandidateInputV1:
@@ -156,6 +184,7 @@ def _candidate(*, epoch_id: int = 1) -> _SpotV7SettlementCandidateInputV1:
             key=lambda row: (row.asset_id, row.effect_id),
         )
     )
+    state_root = dex_state_root_v0(_empty_state())
     return _SpotV7SettlementCandidateInputV1(
         application_id=_root("application"),
         chain_or_domain_id=_root("domain"),
@@ -168,8 +197,8 @@ def _candidate(*, epoch_id: int = 1) -> _SpotV7SettlementCandidateInputV1:
         data_availability_certificate_root=_root("da-certificate"),
         data_root=_root("data"),
         settlement_effect_plan_commitment=_root("plan"),
-        pre_state_root=_root("pre-state"),
-        post_state_root=_root("post-state"),
+        pre_state_root=state_root,
+        post_state_root=state_root,
         economic_action_id=action,
         authorization_nullifier=_root("authorization"),
         authorization_grant_spend_nullifier=_root("grant-spend"),
@@ -233,6 +262,78 @@ def _validator_set() -> dict[str, object]:
     )
 
 
+def _ledger_body(
+    candidate: _SpotV7SettlementCandidateInputV1,
+    *,
+    body_proof_journal_hash: str | None = None,
+) -> dict[str, object]:
+    return {
+        "schema": BODY_SCHEMA_V0,
+        "chain_id": CHAIN_ID,
+        "height": candidate.epoch_id,
+        "ingress": {
+            "batch_cutoff": {
+                "schema": BATCH_CUTOFF_SCHEMA_V0,
+                "chain_id": CHAIN_ID,
+                "height": candidate.epoch_id,
+                "cutoff_time_ms": 1_784_000_000_000 + candidate.epoch_id,
+                "cutoff_sequence": candidate.epoch_id,
+                "sequencer_id": "sequencer-0",
+                "policy_id": "bounded-replay-v0",
+                "policy_digest": _root("ingress-policy"),
+            },
+            "ingress_receipts": [],
+            "forced_inclusion_requests": [],
+            "forced_inclusion_decisions": [],
+        },
+        "transactions": [],
+        "settlement_envelopes": [],
+        "evidence": {
+            "upba_certificates": [],
+            "price_grid_tables": [],
+            "uniform_batch_hypergraph_roots": [],
+            "oracle_packets": [],
+            "proof_receipts": [
+                {
+                    "schema": (
+                        SPOT_V7_ZENO_LEDGER_BODY_PROOF_RECEIPT_PROJECTION_SCHEMA_V1
+                    ),
+                    "proof_journal_hash": (
+                        body_proof_journal_hash
+                        or "0x"
+                        + hashlib.sha256(candidate.exact_v7_journal_bytes).hexdigest()
+                    )
+                }
+            ],
+            "rejection_receipts": [],
+        },
+    }
+
+
+def _engine_config_document() -> dict[str, object]:
+    return replay_engine_config_document_v0(DexEngineConfig(chain_id=CHAIN_ID))
+
+
+def _replay_observation(
+    candidate: _SpotV7SettlementCandidateInputV1,
+    header: dict[str, object],
+    *,
+    parent_header: dict[str, object] | None = None,
+    body_proof_journal_hash: str | None = None,
+) -> _AuthenticatedReplayBoundBlockObservationV1:
+    return SpotV7ZenoLedgerReplayBoundObservationAdapterV1(
+        _engine_config_document()
+    ).authenticate(
+        header=header,
+        body=_ledger_body(
+            candidate,
+            body_proof_journal_hash=body_proof_journal_hash,
+        ),
+        pre_snapshot=snapshot_from_state(_empty_state()).data,
+        parent_header=parent_header,
+    )
+
+
 def _header(
     candidate: _SpotV7SettlementCandidateInputV1,
     validator_set: dict[str, object],
@@ -241,10 +342,21 @@ def _header(
     proof_journal_hash: str | None = None,
     post_state_root: str | None = None,
     app_hash: str | None = None,
+    body_proof_journal_hash: str | None = None,
 ) -> dict[str, object]:
     checked_post_state_root = post_state_root or candidate.post_state_root
-    evidence_root = _root("ledger-evidence")
-    config_digest = _root("ledger-config")
+    body = _ledger_body(
+        candidate,
+        body_proof_journal_hash=body_proof_journal_hash,
+    )
+    evidence = body["evidence"]
+    ingress = body["ingress"]
+    transactions = body["transactions"]
+    assert isinstance(evidence, dict)
+    assert isinstance(ingress, dict)
+    assert isinstance(transactions, list)
+    evidence_root = compute_evidence_root_v0(evidence)
+    config_digest = replay_engine_config_digest_v0(_engine_config_document())
     module_versions_digest = _root("modules")
     checked_app_hash = app_hash or compute_app_hash_v0(
         {
@@ -262,13 +374,13 @@ def _header(
         time_ms=1_784_000_000_000 + candidate.epoch_id,
         prev_header_hash=previous_hash,
         sequencer_set_hash=str(validator_set["validator_set_hash"]),
-        ingress_root=_root("ingress"),
-        tx_root=_root("transactions"),
+        ingress_root=compute_ingress_root_v0(ingress),
+        tx_root=compute_tx_root_v0(transactions),
         pre_state_root=candidate.pre_state_root,
         post_state_root=checked_post_state_root,
         app_hash=checked_app_hash,
         evidence_root=evidence_root,
-        body_root=_root("body"),
+        body_root=canonical_body_root_v0(body),
         data_availability_root=candidate.data_root,
         proof_journal_hash=proof_journal_hash
         or "0x" + hashlib.sha256(candidate.exact_v7_journal_bytes).hexdigest(),
@@ -386,6 +498,7 @@ def _fixture() -> _FinalityFixture:
             sequence=0,
             checkpoint_hash=genesis_hash,
         ),
+        replay_observation=_replay_observation(candidate, header),
         header=header,
         checkpoint=checkpoint,
         validator_set=validator_set,
@@ -405,6 +518,7 @@ def _authenticate(fixture: _FinalityFixture) -> _AuthenticatedExactCheckpointFin
         settlement=fixture.settlement,
         prior_cursor=fixture.prior_cursor,
         header=fixture.header,
+        replay_observation=fixture.replay_observation,
         checkpoint=fixture.checkpoint,
         validator_set=fixture.validator_set,
         proposer_id=fixture.proposer_id,
@@ -467,6 +581,15 @@ def test_valid_governed_bls_quorum_mints_exact_checkpoint_finality_v2() -> None:
     )
     assert fixture.proposer_envelope["payload_hash"] != fixture.checkpoint["header_hash"]
     assert evidence["live_quorum_admission"]["accepted_weight"] == 2
+    replay = evidence["replay_bound_observation"]
+    assert replay["header_hash"] == fixture.checkpoint["header_hash"]
+    assert replay["body_root"] == fixture.header["body_root"]
+    assert replay["config_digest"] == fixture.header["config_digest"]
+    assert replay["pre_state_root"] == candidate.pre_state_root
+    assert replay["post_state_root"] == candidate.post_state_root
+    assert replay["replayed_receipt_count"] == 0
+    assert replay["replayed_rejection_count"] == 0
+    assert replay["committed_proof_receipt_count"] == 1
     assert canonical_json_bytes_v0(evidence) == capability._exact_finality_evidence_bytes
 
 def test_finality_rejects_policy_reuse_at_its_revocation_epoch() -> None:
@@ -516,6 +639,49 @@ def test_finality_protocol_identity_binds_scheduled_validator_set_contract(
     assert derive_zeno_ledger_finality_protocol_id_v2() != expected
 
 
+@pytest.mark.parametrize(
+    ("constant_name", "replacement"),
+    (
+        (
+            "SPOT_V7_ZENO_LEDGER_REPLAY_OBSERVATION_SCHEMA_V1",
+            "zenodex/zrpf/spot_v7/zeno_ledger_replay_bound_observation/test-mutation",
+        ),
+        (
+            "SPOT_V7_ZENO_LEDGER_RECEIPTS_ROOT_DOMAIN_V1",
+            "zrpf_spot_v7_zeno_ledger_replayed_receipts_test_mutation",
+        ),
+        (
+            "SPOT_V7_ZENO_LEDGER_CONFIG_DOCUMENT_ROOT_DOMAIN_V1",
+            "zrpf_spot_v7_zeno_ledger_config_document_test_mutation",
+        ),
+        (
+            "SPOT_V7_ZENO_LEDGER_REJECTIONS_ROOT_DOMAIN_V1",
+            "zrpf_spot_v7_zeno_ledger_replayed_rejections_test_mutation",
+        ),
+        (
+            "SPOT_V7_ZENO_LEDGER_PROOF_RECEIPTS_ROOT_DOMAIN_V1",
+            "zrpf_spot_v7_zeno_ledger_committed_proof_receipts_test_mutation",
+        ),
+        (
+            "SPOT_V7_ZENO_LEDGER_BODY_PROOF_RECEIPT_PROJECTION_SCHEMA_V1",
+            "zenodex/zrpf/spot_v7/zeno_ledger_body_proof_receipt_projection/test",
+        ),
+        ("SPOT_V7_ZENO_LEDGER_BODY_PROOF_RECEIPT_COUNT_V1", 2),
+        ("MAX_SPOT_V7_ZENO_LEDGER_REPLAY_RECEIPTS_V1", 65_535),
+    ),
+)
+def test_finality_protocol_identity_binds_replay_observation_contract(
+    constant_name: str,
+    replacement: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = derive_zeno_ledger_finality_protocol_id_v2()
+
+    monkeypatch.setattr(finality_contract, constant_name, replacement)
+
+    assert derive_zeno_ledger_finality_protocol_id_v2() != expected
+
+
 def test_signature_order_does_not_change_canonical_finality_evidence() -> None:
     fixture = _fixture()
     first = _authenticate(fixture)
@@ -523,6 +689,7 @@ def test_signature_order_does_not_change_canonical_finality_evidence() -> None:
         settlement=fixture.settlement,
         prior_cursor=fixture.prior_cursor,
         header=fixture.header,
+        replay_observation=fixture.replay_observation,
         checkpoint=fixture.checkpoint,
         validator_set=fixture.validator_set,
         proposer_id=fixture.proposer_id,
@@ -541,14 +708,20 @@ def test_weighted_schedule_uses_the_height_selected_proposer_key() -> None:
     candidate = _candidate(epoch_id=2)
     registry = _registry()
     validator_set = _validator_set()
-    prior_hash = _root("checkpoint-one")
+    genesis_hash = _root("checkpoint-genesis")
+    parent_header = _header(
+        _candidate(),
+        validator_set,
+        previous_hash=genesis_hash,
+    )
+    prior_hash = str(build_checkpoint_v0(parent_header)["header_hash"])
     header = _header(candidate, validator_set, previous_hash=prior_hash)
     checkpoint = build_checkpoint_v0(header)
     policy = _policy(
         candidate,
         registry,
         header,
-        genesis_hash=_root("checkpoint-genesis"),
+        genesis_hash=genesis_hash,
     )
     duty = build_proposer_duty_v0(validator_set=validator_set, height=2)
     proposer = duty["proposer"]
@@ -562,6 +735,11 @@ def test_weighted_schedule_uses_the_height_selected_proposer_key() -> None:
             checkpoint_hash=prior_hash,
         ),
         header=header,
+        replay_observation=_replay_observation(
+            candidate,
+            header,
+            parent_header=parent_header,
+        ),
         checkpoint=checkpoint,
         validator_set=validator_set,
         proposer_id=str(proposer["validator_id"]),
@@ -580,6 +758,47 @@ def test_weighted_schedule_uses_the_height_selected_proposer_key() -> None:
     assert evidence["proposer_authorship_admission"]["proposer_id"] == "sequencer-1"
 
 
+def test_non_genesis_finality_requires_parent_state_continuity_observation() -> None:
+    candidate = _candidate(epoch_id=2)
+    registry = _registry()
+    validator_set = _validator_set()
+    genesis_hash = _root("checkpoint-genesis")
+    prior_hash = _root("unobserved-checkpoint-one")
+    header = _header(candidate, validator_set, previous_hash=prior_hash)
+    checkpoint = build_checkpoint_v0(header)
+    policy = _policy(candidate, registry, header, genesis_hash=genesis_hash)
+    proposer = build_proposer_duty_v0(
+        validator_set=validator_set,
+        height=candidate.epoch_id,
+    )["proposer"]
+    assert isinstance(proposer, dict)
+
+    with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
+        SpotV7ZenoLedgerCheckpointFinalityAdapterV2(policy).authenticate(
+            settlement=_settlement(candidate),
+            prior_cursor=ZenoLedgerCheckpointFinalityCursorV1(
+                sequence=1,
+                checkpoint_hash=prior_hash,
+            ),
+            header=header,
+            replay_observation=_replay_observation(candidate, header),
+            checkpoint=checkpoint,
+            validator_set=validator_set,
+            proposer_id=str(proposer["validator_id"]),
+            proposer_key_id=str(proposer["key_id"]),
+            proposer_envelope=_proposer_envelope(
+                str(checkpoint["header_hash"]),
+                validator_set,
+                height=2,
+                proposer_index=1,
+            ),
+            registry=registry,
+            envelopes=_envelopes(str(checkpoint["header_hash"])),
+        )
+
+    assert captured.value.code == "replay_parent_state_continuity"
+
+
 def test_valid_signature_from_unscheduled_validator_cannot_author_header() -> None:
     fixture = _fixture()
     wrong_but_valid = _proposer_envelope(
@@ -593,6 +812,7 @@ def test_valid_signature_from_unscheduled_validator_cannot_author_header() -> No
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=fixture.header,
+            replay_observation=fixture.replay_observation,
             checkpoint=fixture.checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -620,6 +840,7 @@ def test_checkpoint_vote_signature_cannot_be_replayed_as_proposer_authorship() -
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=fixture.header,
+            replay_observation=fixture.replay_observation,
             checkpoint=fixture.checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -650,6 +871,35 @@ def test_caller_reports_and_booleans_cannot_enter_finality_adapter(untrusted: ob
             settlement=untrusted,
             prior_cursor=fixture.prior_cursor,
             header=fixture.header,
+            replay_observation=fixture.replay_observation,
+            checkpoint=fixture.checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            proposer_envelope=fixture.proposer_envelope,
+            registry=fixture.registry,
+            envelopes=fixture.envelopes,
+        )
+
+
+@pytest.mark.parametrize(
+    "untrusted",
+    (
+        {"state_replay_checked": True, "receipt_replay_checked": True},
+        {"ok": True, "body_bound": True, "config_bound": True},
+        b"caller-authored-replay-observation",
+        True,
+    ),
+)
+def test_forged_replay_reports_cannot_enter_finality_adapter(untrusted: object) -> None:
+    fixture = _fixture()
+
+    with pytest.raises(TypeError, match="private replay-bound observation"):
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=fixture.header,
+            replay_observation=untrusted,
             checkpoint=fixture.checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -682,6 +932,7 @@ def test_invalid_bls_signature_rejects_before_capability_mint(
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=fixture.header,
+            replay_observation=fixture.replay_observation,
             checkpoint=fixture.checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -703,6 +954,7 @@ def test_registry_must_match_governed_verifier_set_root() -> None:
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=fixture.header,
+            replay_observation=fixture.replay_observation,
             checkpoint=fixture.checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -726,6 +978,7 @@ def test_checkpoint_signer_registry_cannot_replace_canonical_validator_set() -> 
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=mutated_header,
+            replay_observation=fixture.replay_observation,
             checkpoint=checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -739,6 +992,65 @@ def test_checkpoint_signer_registry_cannot_replace_canonical_validator_set() -> 
         )
 
     assert captured.value.code == "scheduled_header_admission"
+
+
+def test_body_root_substitution_cannot_escape_private_replay_observation() -> None:
+    fixture = _fixture()
+    mutated_header = dict(fixture.header)
+    mutated_header["body_root"] = _root("substituted-body")
+    checkpoint = build_checkpoint_v0(mutated_header)
+
+    with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=mutated_header,
+            replay_observation=fixture.replay_observation,
+            checkpoint=checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            proposer_envelope=fixture.proposer_envelope,
+            registry=fixture.registry,
+            envelopes=fixture.envelopes,
+        )
+
+    assert captured.value.code == "replay_body_root"
+
+
+def test_body_proof_receipt_journal_must_match_candidate_journal() -> None:
+    fixture = _fixture()
+    candidate = fixture.settlement._candidate_for_atomic_store()
+    wrong_journal = _root("body-proof-receipt-wrong-journal")
+    header = _header(
+        candidate,
+        fixture.validator_set,
+        previous_hash=fixture.prior_cursor.checkpoint_hash,
+        body_proof_journal_hash=wrong_journal,
+    )
+    checkpoint = build_checkpoint_v0(header)
+    replay_observation = _replay_observation(
+        candidate,
+        header,
+        body_proof_journal_hash=wrong_journal,
+    )
+
+    with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=header,
+            replay_observation=replay_observation,
+            checkpoint=checkpoint,
+            validator_set=fixture.validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            proposer_envelope=fixture.proposer_envelope,
+            registry=fixture.registry,
+            envelopes=fixture.envelopes,
+        )
+
+    assert captured.value.code == "replay_proof_receipt_journal"
 
 
 def test_legacy_ledger_validator_set_cannot_replace_scheduled_validator_set() -> None:
@@ -763,6 +1075,7 @@ def test_legacy_ledger_validator_set_cannot_replace_scheduled_validator_set() ->
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=fixture.header,
+            replay_observation=fixture.replay_observation,
             checkpoint=fixture.checkpoint,
             validator_set=legacy_validator_set,
             proposer_id=fixture.proposer_id,
@@ -793,6 +1106,7 @@ def test_unscheduled_proposer_identity_rejects_before_quorum(
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=fixture.header,
+            replay_observation=fixture.replay_observation,
             checkpoint=fixture.checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=proposer_id,
@@ -840,6 +1154,7 @@ def test_scheduled_proposer_must_cryptographically_author_header(
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=fixture.header,
+            replay_observation=fixture.replay_observation,
             checkpoint=fixture.checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -864,6 +1179,7 @@ def test_noncanonical_app_hash_rejects_before_quorum() -> None:
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=mutated_header,
+            replay_observation=fixture.replay_observation,
             checkpoint=checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -892,6 +1208,7 @@ def test_deep_input_rejects_before_recursive_json_serialization() -> None:
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=malformed_header,
+            replay_observation=fixture.replay_observation,
             checkpoint=fixture.checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -912,6 +1229,7 @@ def test_wide_input_rejects_before_json_output_allocation() -> None:
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=malformed_header,
+            replay_observation=fixture.replay_observation,
             checkpoint=fixture.checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -932,6 +1250,7 @@ def test_escape_amplification_rejects_before_json_output_allocation() -> None:
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=malformed_header,
+            replay_observation=fixture.replay_observation,
             checkpoint=fixture.checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -966,6 +1285,7 @@ def test_reached_quorum_below_strict_two_thirds_never_mints_finality() -> None:
                 checkpoint_hash=genesis_hash,
             ),
             header=header,
+            replay_observation=_replay_observation(candidate, header),
             checkpoint=checkpoint,
             validator_set=validator_set,
             proposer_id=str(proposer["validator_id"]),
@@ -1047,6 +1367,7 @@ def test_transition_binding_mutations_reject_before_finality_mint(
             settlement=settlement,
             prior_cursor=cursor,
             header=header,
+            replay_observation=fixture.replay_observation,
             checkpoint=checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -1080,6 +1401,7 @@ def test_governed_config_and_sequencer_policy_are_exact() -> None:
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=mutated,
+            replay_observation=fixture.replay_observation,
             checkpoint=checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,
@@ -1107,6 +1429,7 @@ def test_checkpoint_embedded_signature_set_is_forbidden() -> None:
             settlement=fixture.settlement,
             prior_cursor=fixture.prior_cursor,
             header=fixture.header,
+            replay_observation=fixture.replay_observation,
             checkpoint=checkpoint,
             validator_set=fixture.validator_set,
             proposer_id=fixture.proposer_id,

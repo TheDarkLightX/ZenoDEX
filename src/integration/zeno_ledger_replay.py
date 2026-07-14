@@ -284,6 +284,35 @@ def validate_replay_bound_block_v0(
 ) -> DexState:
     """Validate and replay one block, returning the only admissible next state."""
 
+    next_state, _replayed_body, _receipts = _replay_bound_block_details_v0(
+        header=header,
+        body=body,
+        pre_snapshot=pre_snapshot,
+        config=config,
+        config_digest=config_digest,
+        parent_header=parent_header,
+        carried_state=carried_state,
+    )
+    return next_state
+
+
+def _replay_bound_block_details_v0(
+    *,
+    header: Mapping[str, Any],
+    body: Mapping[str, Any],
+    pre_snapshot: Mapping[str, Any] | None,
+    config: DexEngineConfig,
+    config_digest: str,
+    parent_header: Mapping[str, Any] | None,
+    carried_state: DexState | None,
+) -> tuple[DexState, dict[str, Any], tuple[dict[str, Any], ...]]:
+    """Return replay details for an in-process authority adapter.
+
+    This helper is deliberately private.  Its tuple is ordinary data and is not
+    an authentication capability.  Callers that need an authority boundary
+    must seal the result only after binding every committed input themselves.
+    """
+
     # V0 replays transactions only. A body-level settlement envelope is a
     # separately committed effect surface, so accepting one without a governed
     # executor would overstate state_replay_checked.
@@ -316,7 +345,7 @@ def validate_replay_bound_block_v0(
         if canonical_snapshot != carried_snapshot:
             raise ValueError("pre-state snapshot bytes do not match carried replay state")
 
-    next_state, replayed_body, _receipts = replay_block_state_transition_v0(
+    next_state, replayed_body, receipts = replay_block_state_transition_v0(
         pre_state=replay_state,
         header=dict(header),
         body=dict(body),
@@ -324,4 +353,4 @@ def validate_replay_bound_block_v0(
     )
     if body["evidence"]["rejection_receipts"] != replayed_body["evidence"]["rejection_receipts"]:
         raise ValueError("committed rejection receipts do not match deterministic replay")
-    return next_state
+    return next_state, replayed_body, tuple(receipts)

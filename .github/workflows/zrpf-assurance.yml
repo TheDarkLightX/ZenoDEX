@@ -162,6 +162,8 @@ jobs:
             src/integration/_zrpf_spot_v7_full_blob_da_codec.py \
             src/integration/zrpf_spot_v7_full_blob_da_adapter.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_finality_contract.py \
+            src/integration/_zrpf_spot_v7_zeno_ledger_replay_contract.py \
+            src/integration/_zrpf_spot_v7_zeno_ledger_replay_observation.py \
             src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py \
             src/integration/_zrpf_spot_v7_operational_mechanics.py \
             src/integration/_zrpf_spot_v7_operational_policy_store.py \
@@ -175,6 +177,7 @@ jobs:
             src/integration/zeno_ledger_strict_spot_authority_v1.py \
             src/integration/zeno_ledger_signature.py \
             src/integration/zeno_ledger_signer_registry.py \
+            src/integration/zeno_ledger_replay.py \
             src/integration/zeno_ledger_v0.py \
             src/integration/zeno_ledger_watcher.py \
             src/integration/zeno_sdk_browser_bundle_v0.py \
@@ -305,6 +308,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
+            tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_finality_adapter.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
@@ -343,6 +347,8 @@ jobs:
             src/integration/_zrpf_spot_v7_full_blob_da_codec.py \
             src/integration/zrpf_spot_v7_full_blob_da_adapter.py \
             src/integration/_zrpf_spot_v7_zeno_ledger_finality_contract.py \
+            src/integration/_zrpf_spot_v7_zeno_ledger_replay_contract.py \
+            src/integration/_zrpf_spot_v7_zeno_ledger_replay_observation.py \
             src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py \
             src/integration/_zrpf_spot_v7_operational_mechanics.py \
             src/integration/_zrpf_spot_v7_operational_policy_store.py \
@@ -356,6 +362,7 @@ jobs:
             src/integration/zeno_ledger_strict_spot_authority_v1.py \
             src/integration/zeno_ledger_signature.py \
             src/integration/zeno_ledger_signer_registry.py \
+            src/integration/zeno_ledger_replay.py \
             src/integration/zeno_ledger_watcher.py \
             src/integration/zeno_sdk_browser_bundle_v0.py \
             tools/build_zeno_sdk_browser_bundle.py \
@@ -447,6 +454,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
+            tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_finality_adapter.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
@@ -516,6 +524,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
+            tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_finality_adapter.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \

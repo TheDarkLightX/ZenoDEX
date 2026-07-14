@@ -11,8 +11,23 @@ import json
 from dataclasses import dataclass
 from typing import Any, Final, cast
 
+from src.integration._zrpf_spot_v7_zeno_ledger_replay_contract import (
+    MAX_SPOT_V7_ZENO_LEDGER_REPLAY_RECEIPTS_V1,
+    SPOT_V7_ZENO_LEDGER_BODY_PROOF_RECEIPT_COUNT_V1,
+    SPOT_V7_ZENO_LEDGER_BODY_PROOF_RECEIPT_PROJECTION_SCHEMA_V1,
+    SPOT_V7_ZENO_LEDGER_CONFIG_DOCUMENT_ROOT_DOMAIN_V1,
+    SPOT_V7_ZENO_LEDGER_PROOF_RECEIPTS_ROOT_DOMAIN_V1,
+    SPOT_V7_ZENO_LEDGER_RECEIPTS_ROOT_DOMAIN_V1,
+    SPOT_V7_ZENO_LEDGER_REJECTIONS_ROOT_DOMAIN_V1,
+    SPOT_V7_ZENO_LEDGER_REPLAY_OBSERVATION_PROFILE_V1,
+    SPOT_V7_ZENO_LEDGER_REPLAY_OBSERVATION_SCHEMA_V1,
+)
 from src.integration.zeno_ledger_live_quorum_v0 import (
     LIVE_CHECKPOINT_QUORUM_ADMISSION_SCHEMA_V0,
+)
+from src.integration.zeno_ledger_replay import (
+    REPLAY_ENGINE_CONFIG_PROFILE,
+    REPLAY_ENGINE_CONFIG_SCHEMA,
 )
 from src.integration.zeno_ledger_signature import (
     SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0,
@@ -20,8 +35,10 @@ from src.integration.zeno_ledger_signature import (
 from src.integration.zeno_ledger_signer_registry import SIGNER_REGISTRY_SCHEMA_V0
 from src.integration.zeno_ledger_v0 import (
     APP_HASH_ROOT_FIELDS_V0,
+    BODY_SCHEMA_V0,
     CHECKPOINT_SCHEMA_V0,
     HEADER_SCHEMA_V0,
+    TX_RECEIPT_SCHEMA_V0,
     canonical_json_bytes_v0,
     hash_v0,
 )
@@ -129,6 +146,38 @@ def derive_zeno_ledger_finality_protocol_id_v2() -> str:
             "proposer_signature_payload_kind": "checkpoint",
             "proposer_signature_payload_domain": _PROPOSER_AUTHORSHIP_PAYLOAD_DOMAIN_V1,
             "proposer_signature_required": True,
+            "replay_observation_schema": (
+                SPOT_V7_ZENO_LEDGER_REPLAY_OBSERVATION_SCHEMA_V1
+            ),
+            "replay_observation_profile": (
+                SPOT_V7_ZENO_LEDGER_REPLAY_OBSERVATION_PROFILE_V1
+            ),
+            "replay_engine_config_schema": REPLAY_ENGINE_CONFIG_SCHEMA,
+            "replay_engine_config_profile": REPLAY_ENGINE_CONFIG_PROFILE,
+            "replay_config_document_root_domain": (
+                SPOT_V7_ZENO_LEDGER_CONFIG_DOCUMENT_ROOT_DOMAIN_V1
+            ),
+            "replayed_body_schema": BODY_SCHEMA_V0,
+            "replayed_transaction_receipt_schema": TX_RECEIPT_SCHEMA_V0,
+            "replayed_receipts_root_domain": (
+                SPOT_V7_ZENO_LEDGER_RECEIPTS_ROOT_DOMAIN_V1
+            ),
+            "replayed_rejections_root_domain": (
+                SPOT_V7_ZENO_LEDGER_REJECTIONS_ROOT_DOMAIN_V1
+            ),
+            "committed_proof_receipts_root_domain": (
+                SPOT_V7_ZENO_LEDGER_PROOF_RECEIPTS_ROOT_DOMAIN_V1
+            ),
+            "body_proof_receipt_projection_schema": (
+                SPOT_V7_ZENO_LEDGER_BODY_PROOF_RECEIPT_PROJECTION_SCHEMA_V1
+            ),
+            "body_proof_receipt_projection_count": (
+                SPOT_V7_ZENO_LEDGER_BODY_PROOF_RECEIPT_COUNT_V1
+            ),
+            "maximum_replayed_receipts": (
+                MAX_SPOT_V7_ZENO_LEDGER_REPLAY_RECEIPTS_V1
+            ),
+            "body_settlement_envelopes_required_empty": True,
             "app_hash_domain": "app_hash_v0",
             "app_hash_root_fields": list(APP_HASH_ROOT_FIELDS_V0),
         },

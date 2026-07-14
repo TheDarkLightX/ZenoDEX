@@ -4,10 +4,11 @@ Date: 2026-07-14
 
 Status: authority-false V2 commit capability, combined atomic sink, exact
 manifest-pinned `full_blob_da_v1` Rust checker adapter, and bounded
-policy-pinned ZenoLedger BLS checkpoint adapter implemented; exact canonical
-BLS-quorum operational-policy provenance and scheduled-proposer authentication
-are implemented. Independently governed release-pin minting, durable policy
-distribution, canonical V7 body replay, conflicting-checkpoint selection,
+policy-pinned ZenoLedger BLS checkpoint adapter with private transaction-body
+replay observation implemented. Exact canonical BLS-quorum operational-policy
+provenance, durable provenance persistence, and scheduled-proposer
+authentication are implemented. Independently governed release-pin minting and
+distribution, V7 settlement-envelope replay, conflicting-checkpoint selection,
 settlement authority, and production authority remain unavailable
 
 ## Purpose
@@ -154,9 +155,29 @@ public key. A checkpoint vote cannot be replayed as proposal authorship. It
 recomputes `app_hash`, reconstructs the
 canonical `checkpoint_finality_v2` certificate through the source-bound Python
 parity implementation, and binds the proposed prior cursor. The combined store
-still performs the durable prior-cursor compare-and-swap. Direct execution of
-the Rust policy checker, V7-compatible canonical body replay, and canonical
-selection among conflicting quorum-qualified checkpoints remain open.
+still performs the durable prior-cursor compare-and-swap.
+
+The adapter requires a private
+`zenodex/zrpf/spot_v7/zeno_ledger_replay_bound_observation/v1`. Its constructor
+snapshots canonical header, body, pre-state, and engine-config documents, then
+invokes the deterministic ZenoLedger replay verifier. The sealed projection
+binds header and body identities, config digest, pre/post state,
+ingress/transaction/evidence roots, all replayed transaction receipts,
+committed rejection receipts, and one exact body-committed proof-journal
+projection. The projection must name the same Spot V7 journal committed by the
+header and candidate. It is unverified evidence metadata and does not
+cryptographically authenticate a proof receipt. The finality
+evidence root jointly commits that projection with scheduled-header admission,
+scheduled-proposer authorship, and live quorum admission. Caller-authored
+reports or acceptance Booleans cannot replace the private observation. The
+genesis successor is anchored by its canonical pre-state snapshot. Every later
+successor must also supply the exact prior header, whose hash must equal the
+checkpoint cursor and whose post-state must equal the successor pre-state.
+
+This bounded profile requires `settlement_envelopes=[]`. It does not establish
+that the Spot V7 settlement plan is the transaction-body state transition.
+Direct execution of the Rust policy checker, V7 settlement-envelope replay, and
+canonical selection among conflicting quorum-qualified checkpoints remain open.
 Validator-set release binding belongs to the separate governed-policy
 provenance condition because the external finality policy commits the exact
 sequencer-set hash. Caller booleans, quorum reports, and certificate bytes never
@@ -242,7 +263,7 @@ The production gate reports these exact missing conditions:
 1. governed V7 receipt and Firecracker settlement capability;
 2. independently governed origin and durable distribution of the operational
    policy manifest, signer-registry, revision, and trusted evaluation-epoch pins;
-3. V7-compatible canonical ZenoLedger body replay authority;
+3. V7 settlement-envelope replay and exact settlement-plan/state binding;
 4. canonical choice among conflicting quorum-qualified checkpoint successors.
 
 The two governed adapters close these bounded subconditions while the two
@@ -251,6 +272,7 @@ named finality conditions remain open:
 ```text
 exact full_blob_da_v1 invocation and private capability mint
 policy-pinned ZenoLedger BLS checkpoint-quorum authentication
+private deterministic transaction-body replay observation
 canonical scheduled-header admission with separate validator and signer roots
 scheduled-proposer BLS authorship over a purpose-separated exact-header commitment
 header app-hash recomputation
@@ -413,15 +435,17 @@ evidence, governed Firecracker execution, an external authority for the trusted
 policy and registry pins, a production mint for their private release handoff,
 provider retrievability, consensus safety outside the pinned strict-quorum
 assumptions, canonical fork choice across conflicting qualified checkpoints,
-body-root validation and deterministic body replay, validator-set release
-governance, production rollback resistance, or governed combined
-proof/DA/finality/economic admission, settlement authority, release authority,
-privacy, liveness, or production authority. It establishes one
+V7 settlement-envelope replay, exact settlement-plan/state equivalence,
+validator-set release governance, production rollback resistance, or governed
+combined proof/DA/finality/economic admission, settlement authority, release
+authority, privacy, liveness, or production authority. It establishes one
 manifest-pinned exact local DA check, scoped BLS checkpoint authentication,
 scheduled-header structural admission, scheduled-proposer BLS authorship,
-app-hash consistency, exact finality-certificate construction, SQLite
-atomicity, rollback, exact-byte persistence, replay rejection, and reopen
-validation for the authority-false lanes.
+app-hash consistency, deterministic transaction-body replay with exact
+header/body/config/state/transaction-receipt/rejection binding, exact
+body-committed proof-journal metadata binding, exact finality-certificate
+construction, SQLite atomicity, rollback, exact-byte persistence, replay
+rejection, and reopen validation for the authority-false lanes.
 
 The V2 policy capability exposes and rechecks a canonical provenance root over
 the manifest, registry, revisions, lifecycle, evaluation epoch, signature

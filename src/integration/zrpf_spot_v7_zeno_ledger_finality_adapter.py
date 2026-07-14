@@ -55,6 +55,10 @@ from src.integration._zrpf_spot_v7_zeno_ledger_finality_contract import (
     derive_zeno_ledger_finality_protocol_id_v2,
     derive_zeno_ledger_proposer_authorship_payload_hash_v1,
 )
+from src.integration._zrpf_spot_v7_zeno_ledger_replay_observation import (
+    _AuthenticatedReplayBoundBlockObservationV1,
+    _require_replay_observation,
+)
 from src.integration.zeno_ledger_live_quorum_v0 import build_live_checkpoint_quorum_admission_v0
 from src.integration.zeno_ledger_signature import (
     validate_bls_signed_artifact_envelope_v0,
@@ -114,6 +118,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV2:
         settlement: object,
         prior_cursor: object,
         header: object,
+        replay_observation: object,
         checkpoint: object,
         validator_set: object,
         proposer_id: object,
@@ -126,6 +131,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV2:
 
         settlement_value = _require_settlement_capability(settlement)
         cursor = _require_cursor(prior_cursor)
+        replay = _require_replay_observation(replay_observation)
         snapshot = _snapshot_inputs(
             header=header,
             checkpoint=checkpoint,
@@ -161,6 +167,13 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV2:
             registry=snapshot.registry,
             policy=policy,
         )
+        _require_replay_transition_binding(
+            candidate=candidate,
+            cursor=cursor,
+            header=snapshot.header,
+            policy=policy,
+            replay=replay,
+        )
         proposer_authorship_admission = _require_proposer_authorship(snapshot)
         admission = build_live_checkpoint_quorum_admission_v0(
             header=snapshot.header,
@@ -172,6 +185,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV2:
             candidate=candidate,
             cursor=cursor,
             snapshot=snapshot,
+            replay_observation=replay,
             scheduled_header_admission=scheduled_header_admission,
             proposer_authorship_admission=proposer_authorship_admission,
             admission=admission,
@@ -327,6 +341,42 @@ def _require_checkpoint_transition_binding(
     _require_checks(checks)
 
 
+def _require_replay_transition_binding(
+    *,
+    candidate: _SpotV7SettlementCandidateInputV1,
+    cursor: ZenoLedgerCheckpointFinalityCursorV1,
+    header: Mapping[str, Any],
+    policy: _TestOnlySpotV7OperationalPolicyV1,
+    replay: _AuthenticatedReplayBoundBlockObservationV1,
+) -> None:
+    projection = replay._projection_for_finality_adapter()
+    replay_header = replay._header_for_finality_adapter()
+    expected_parent_header_hash = (
+        None
+        if cursor.sequence == policy.genesis_application_checkpoint_sequence
+        else cursor.checkpoint_hash
+    )
+    checks = (
+        (projection.body_root == header["body_root"], "replay_body_root"),
+        (projection.config_digest == header["config_digest"], "replay_config_digest"),
+        (projection.height == candidate.epoch_id, "replay_epoch"),
+        (projection.pre_state_root == candidate.pre_state_root, "replay_pre_state_root"),
+        (projection.post_state_root == candidate.post_state_root, "replay_post_state_root"),
+        (
+            projection.body_committed_proof_journal_hash
+            == _candidate_journal_hash(candidate),
+            "replay_proof_receipt_journal",
+        ),
+        (
+            projection.parent_header_hash == expected_parent_header_hash,
+            "replay_parent_state_continuity",
+        ),
+        (replay_header == header, "replay_header"),
+        (projection.header_hash == canonical_header_hash_v0(dict(header)), "replay_header"),
+    )
+    _require_checks(checks)
+
+
 def _require_registry_and_external_policy_binding(
     *,
     header: Mapping[str, Any],
@@ -399,6 +449,7 @@ def _canonical_finality_evidence(
     candidate: _SpotV7SettlementCandidateInputV1,
     cursor: ZenoLedgerCheckpointFinalityCursorV1,
     snapshot: _FinalityInputSnapshotV1,
+    replay_observation: _AuthenticatedReplayBoundBlockObservationV1,
     scheduled_header_admission: Mapping[str, Any],
     proposer_authorship_admission: Mapping[str, Any],
     admission: Mapping[str, Any],
@@ -416,6 +467,9 @@ def _canonical_finality_evidence(
             "sequence": cursor.sequence,
             "checkpoint_hash": cursor.checkpoint_hash,
         },
+        "replay_bound_observation": (
+            replay_observation._canonical_projection_for_finality_adapter()
+        ),
         "header": snapshot.header,
         "checkpoint": snapshot.checkpoint,
         "validator_set": snapshot.validator_set,
