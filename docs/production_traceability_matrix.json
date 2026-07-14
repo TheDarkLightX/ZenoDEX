@@ -206,21 +206,23 @@
     {
       "id": "zk_risc0_metadata_binding",
       "status": "supported_scoped",
-      "invariant": "RISC0 proof metadata must bind nonzero conflict-schedule, feature-suite, dependency-lock, guest, image, receipt, and checkpoint roots before ledger admission.",
+      "invariant": "RISC0 proof metadata diagnostics bind nonzero conflict-schedule, feature-suite, dependency-lock, guest, image, receipt, and checkpoint roots. Caller-authored verification reports cannot satisfy replay-bound proof authority.",
       "runtime_guard_paths": [
         "tools/zeno_ledger_risc0_proof_metadata.py",
+        "tools/zeno_ledger_verify.py",
         "src/integration/zeno_ledger_verifier_registry_v0.py",
         "src/integration/zeno_ledger_v0.py"
       ],
       "test_paths": [
         "tests/integration/test_zeno_ledger_risc0_proof_metadata.py",
         "tests/integration/test_zeno_ledger_verifier_registry_v0.py",
-        "tests/integration/test_zeno_ledger_verify_cli.py"
+        "tests/integration/test_zeno_ledger_verify_cli.py",
+        "tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py"
       ],
       "evidence_commands": [
-        "python3 -m pytest -q tests/integration/test_zeno_ledger_risc0_proof_metadata.py tests/integration/test_zeno_ledger_verifier_registry_v0.py tests/integration/test_zeno_ledger_verify_cli.py::test_verify_can_require_proof_verification_report_replay"
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_risc0_proof_metadata.py tests/integration/test_zeno_ledger_verifier_registry_v0.py tests/integration/test_zeno_ledger_verify_cli.py::test_structural_mode_can_check_untrusted_proof_report_shape tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py::test_replay_bound_authority_rejects_caller_authored_report_lane"
       ],
-      "residual_limits": "This is metadata binding plus an admitted verifier registry policy. Full proof-of-execution still needs broader guest coverage, reproducible inputs, and a governed public registry release process."
+      "residual_limits": "This is structural metadata binding plus an admitted verifier registry policy. Caller-authored reports carry no cryptographic authority. Replay-bound proof authority requires the opaque authenticated verifier path. Full proof-of-execution still needs broader guest coverage, reproducible inputs, and a governed public registry release process."
     },
     {
       "id": "dependency_pinning_ratchet",
