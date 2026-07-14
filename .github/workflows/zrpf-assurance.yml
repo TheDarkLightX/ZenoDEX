@@ -345,6 +345,7 @@ jobs:
             tests/test_materialize_zrpf_source_opened_spot_v6_identity.py \
             tests/test_plan_zrpf_remote_reproof_handoff_v2.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
+            tests/test_zrpf_remote_mutation_verifier_source_contract.py \
             tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
             tests/test_zrpf_spot_v7_firecracker_artifact_binding.py \
@@ -597,6 +598,7 @@ jobs:
             tests/test_zrpf_spot_v7_firecracker_rust_parity.py \
             tests/test_zrpf_spot_v7_release_closure.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
+            tests/test_zrpf_remote_mutation_verifier_source_contract.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
             tests/integration/test_recursive_stark_durable_admission_store.py \
@@ -641,6 +643,7 @@ jobs:
             tests/test_materialize_zrpf_source_opened_spot_v6_identity.py \
             tests/test_plan_zrpf_remote_reproof_handoff_v2.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
+            tests/test_zrpf_remote_mutation_verifier_source_contract.py \
             tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
             tests/test_zrpf_spot_v7_firecracker_artifact_binding.py \

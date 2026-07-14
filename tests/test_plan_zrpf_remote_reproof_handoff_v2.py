@@ -203,7 +203,7 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
             if command["stdout_artifact_role"] is not None:
                 assert command["stdout_artifact_role"] in output_roles
     planned = [task["stage_id"] for task in tasks if task["command_status"] == "template_planned"]
-    assert planned == ["mutation_verification", "release_checks"]
+    assert planned == ["release_checks"]
     implemented = [
         task["stage_id"] for task in tasks if task["execution_adapter_status"] == "implemented"
     ]
@@ -216,6 +216,7 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
         "v6_l2_receipt",
         "v6_settlement_receipt",
         "v7_receipt",
+        "mutation_verification",
     ]
     assert all(
         task["execution_adapter_status"] == "missing"
@@ -227,6 +228,86 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
     assert identity_state["command_template_available"] is True
     assert identity_state["execution_adapter_available"] is False
     handoff.validate_handoff(plan, REPO_ROOT)
+
+
+def test_mutation_task_binds_every_program_receipt_and_exact_runner(
+    plan: dict[str, Any],
+) -> None:
+    contracts = {
+        row["contract_id"]: row for row in cast(list[dict[str, Any]], plan["artifact_contracts"])
+    }
+    task = next(row for row in plan["tasks"] if row["stage_id"] == "mutation_verification")
+    input_roles = [contracts[item]["role"] for item in task["input_artifact_contract_ids"]]
+    assert input_roles == [
+        "v6_leaf_envelope",
+        "v6_settlement_guest_input",
+        "v7_guest_input",
+        "v6_leaf_program",
+        "v6_l1_program",
+        "v6_l2_program",
+        "v6_settlement_program",
+        "v7_program",
+        "v6_leaf_receipt",
+        "v6_l1_receipt",
+        "v6_l2_receipt",
+        "v6_settlement_receipt",
+        "v7_receipt",
+        "v7_seal_mutation",
+        "v6_settlement_seal_mutation",
+        "mutation_verifier",
+    ]
+    assert task["commands"] == [
+        {
+            "runner": "@mutation_verifier",
+            "argv": [
+                "--leaf-source-envelope",
+                "@v6_leaf_envelope",
+                "--settlement-guest-input",
+                "@v6_settlement_guest_input",
+                "--v7-guest-input",
+                "@v7_guest_input",
+                "--leaf-program",
+                "@v6_leaf_program",
+                "--level-one-program",
+                "@v6_l1_program",
+                "--level-two-program",
+                "@v6_l2_program",
+                "--settlement-program",
+                "@v6_settlement_program",
+                "--v7-program",
+                "@v7_program",
+                "--leaf-receipt",
+                "@v6_leaf_receipt",
+                "--level-one-receipt",
+                "@v6_l1_receipt",
+                "--level-two-receipt",
+                "@v6_l2_receipt",
+                "--settlement-receipt",
+                "@v6_settlement_receipt",
+                "--v7-receipt",
+                "@v7_receipt",
+                "--settlement-mutation",
+                "@v6_settlement_seal_mutation",
+                "--v7-mutation",
+                "@v7_seal_mutation",
+                "--leaf-mutation-out",
+                "@v6_leaf_seal_mutation",
+                "--level-one-mutation-out",
+                "@v6_l1_seal_mutation",
+                "--level-two-mutation-out",
+                "@v6_l2_seal_mutation",
+            ],
+            "stdin_artifact_role": None,
+            "stdout_artifact_role": "mutation_report",
+        }
+    ]
+    output_contracts = [contracts[item] for item in task["output_artifact_contract_ids"]]
+    assert [(item["role"], item["maximum_bytes"]) for item in output_contracts] == [
+        ("v6_leaf_seal_mutation", 16 * 1024 * 1024),
+        ("v6_l1_seal_mutation", 16 * 1024 * 1024),
+        ("v6_l2_seal_mutation", 16 * 1024 * 1024),
+        ("mutation_report", 64 * 1024),
+    ]
 
 
 def test_source_proof_task_is_required_and_missing_source_proof_blocks_adapter(

@@ -171,6 +171,9 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tools/zrpf_remote_reproof_worker_v2_contract.py" in python_assurance
     assert "tests/test_plan_zrpf_remote_reproof_handoff_v2.py" in python_assurance
     assert "tests/test_run_zrpf_remote_reproof_worker_v2.py" in python_assurance
+    assert "tests/test_zrpf_remote_mutation_verifier_source_contract.py" in (
+        python_assurance
+    )
     assert "tools/check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tools/check_risc0_recursive_live_replay.py" in python_assurance
@@ -349,6 +352,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_zeno_ledger_strict_spot_range_authority_v1.py",
         "tests/test_zrpf_spot_v7_release_closure.py",
         "tests/test_run_zrpf_remote_reproof_worker_v2.py",
+        "tests/test_zrpf_remote_mutation_verifier_source_contract.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance

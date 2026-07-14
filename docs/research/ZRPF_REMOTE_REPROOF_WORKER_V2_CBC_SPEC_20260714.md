@@ -1,7 +1,7 @@
 # ZRPF remote reproof worker V2 CBC specification
 
 Status: implemented authority-neutral, one-stage worker over the existing ZRPF
-remote reproof handoff V2 packet ABI for the eight supported stages below.
+remote reproof handoff V2 packet ABI for the nine supported stages below.
 
 The worker may execute only a task already fixed by the governed handoff
 catalog. It does not accept an arbitrary executable, argv vector, resource
@@ -47,6 +47,7 @@ v6_l1_receipt
 v6_l2_receipt
 v6_settlement_receipt
 v7_receipt
+mutation_verification
 ```
 
 These stages become `execution_adapter_status = implemented` in the catalog.
@@ -60,14 +61,26 @@ identity_rebuild
 worker_prover_build
   requires a governed Cargo-output collector and clean target contract
 
-mutation_verification
-  command template remains planned
-
 release_checks
   bundle-aware release adapter remains planned
 ```
 
 The worker rejects a missing, planned, or unsupported execution adapter.
+
+The mutation stage uses one declared executable artifact rather than an
+ambient binary or shell command. Its exact packet orders every program,
+receipt, guest input, retained mutation, and output role. The Rust verifier
+cryptographically verifies all five positive receipts under their governed
+program identities and common Succinct profile before it creates any new
+mutation. It accepts only a position-distinguishing seal-word-1, bit-0 change,
+requires all five negatives to reject at the cryptographic receipt boundary,
+and emits one canonical fixed-schema report with all authority fields false.
+The report finalizer validates every fixed stage/profile/mutation/reject
+invariant. Its active-witness test distinguishes all 17 input-derived scalar
+leaves at all five stage positions; fixed schema, status, counts, authority,
+and non-claim values are construction invariants committed by the report ID.
+Each generated mutation is capped at 16 MiB and the report at 64 KiB by its
+artifact contract in addition to the worker resource envelope.
 
 ## Process contract
 

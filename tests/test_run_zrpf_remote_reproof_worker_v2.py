@@ -350,6 +350,48 @@ def test_unsupported_stage_remains_blocked(tmp_path: Path) -> None:
         worker.execute_stage(plan, packet, repo, artifact_root, tmp_path / "run")
 
 
+def test_mutation_stage_uses_exact_artifact_runner_and_complete_output_inventory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, _chain, plan, artifact_root, _packet_path, packet = _stage_context(
+        tmp_path, "mutation_verification"
+    )
+    seen: list[tuple[str, ...]] = []
+
+    def exact_mutation_success(
+        command: worker.ResolvedCommand,
+        _policy: worker.ResourcePolicy,
+        _environment: dict[str, str],
+        _cwd: Path,
+    ) -> worker.ProcessResult:
+        seen.append(command.argv)
+        argv = list(command.argv)
+        for flag in (
+            "--leaf-mutation-out",
+            "--level-one-mutation-out",
+            "--level-two-mutation-out",
+        ):
+            Path(argv[argv.index(flag) + 1]).write_bytes(flag.encode("ascii") + b"\n")
+        return worker.ProcessResult(
+            stdout=b'{"schema":"zenodex/zrpf_remote_mutation_verification/v1"}\n',
+            stderr=b"",
+            exit_code=0,
+            duration_milliseconds=3,
+        )
+
+    monkeypatch.setattr(worker, "_run_bounded_command", exact_mutation_success)
+    run_root = tmp_path / "run"
+    capture = worker.execute_stage(plan, packet, repo, artifact_root, run_root)
+    assert len(seen) == 1
+    assert seen[0][0].endswith("worker/bin/verify-spot-v7-remote-mutations")
+    assert [row["role"] for row in capture["outputs"]] == [
+        "v6_leaf_seal_mutation",
+        "v6_l1_seal_mutation",
+        "v6_l2_seal_mutation",
+        "mutation_report",
+    ]
+
+
 def test_worker_capture_authority_requires_exact_false_values(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

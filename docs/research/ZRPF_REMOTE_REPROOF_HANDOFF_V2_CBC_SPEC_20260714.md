@@ -1,9 +1,10 @@
 # ZRPF remote reproof handoff V2 CBC specification
 
 Status: implemented planner, per-stage exact-input packet builder, return
-checker, and bounded authority-neutral worker for eight packet-expressible
-stages. Identity rebuild and prover-build adapters remain missing. The mutation
-worker and bundle-aware release checker command templates remain planned.
+checker, and bounded authority-neutral worker for nine packet-expressible
+stages. Identity rebuild and prover-build adapters remain missing. The exact
+mutation verifier is implemented. The bundle-aware release checker command
+template remains planned.
 
 The closed task/artifact catalog lives in
 `tools/zrpf_remote_reproof_handoff_v2_catalog.py`. Parsing, content addressing,
@@ -40,7 +41,13 @@ A successfully checked return establishes only these metadata facts:
 7. The source-derived identity plan, observations, and candidate report pass
    the existing governed recomposition checker. Source-through-V6 program and
    source-CLI artifact bytes match that report.
-8. Every authority field remains false.
+8. The mutation stage is bound to the exact five programs, five positive
+   receipts, two retained mutations, and three generated mutations in its
+   packet. Its fixed Rust verifier authenticates every positive receipt under
+   the expected image and Succinct profile before requiring exactly seal word
+   1, bit 0 to differ and requiring each mutation to fail cryptographic receipt
+   verification at the governed boundary.
+9. Every authority field remains false.
 
 The checker does not establish:
 
@@ -118,17 +125,32 @@ before packet creation, or distinguish a same-handoff replay of the same bytes.
 A future trusted-controller signature or external anchor and initial expected
 digests are required for those claims.
 
-`mutation_verification` is intentionally marked `template_planned` in this
-revision.
-The existing V7 prover already emits and rejects its V7 mutation, and the V6
-settlement prover emits its settlement mutation. A follow-up bounded worker
-must create and reject the V6 leaf, L1, and L2 mutations and emit the unified
-report. Until that worker exists, the task-state projection remains blocked and
-the automated handoff is incomplete. `release_checks` is also
-`template_planned`: the existing release checker operates on repository paths
-and does not yet consume this returned proof/mutation bundle. Manually supplied
-bytes can still be captured as authority-neutral metadata; capture does not
-prove they were produced by the declared task.
+`mutation_verification` is implemented by the fixed
+`verify-spot-v7-remote-mutations` Rust executable. The packet binds the five
+program ELFs, five positive receipts, exact leaf and settlement inputs, and two
+retained prover mutations. The verifier derives the V6 leaf, L1, and L2
+mutations only after all positive receipts verify, rejects any representation
+change outside seal word 1 bit 0, requires all five mutations to fail at the
+cryptographic receipt boundary, persists the three generated mutations, and
+emits one canonical fixed-schema report. The report binds program, image,
+receipt, journal, mutation, profile, and report digests. It carries no proof,
+release, settlement, or production authority.
+
+The schema, status, common profile, positive and negative counts, all-false
+authority map, and non-claim list are construction invariants. They cannot be
+provided by a packet or receipt. Their exact bytes still enter the report ID.
+The report finalizer rejects a wrong stage position, profile, digest shape,
+mutation relation, reject boundary, or reject code. An active-witness matrix
+changes every other input-derived report scalar at each of the five positions
+and requires the report ID to change. The same matrix proves the fixed
+construction invariants are committed while excluding only the
+self-referential report-ID field.
+
+`release_checks` remains `template_planned`: the existing release checker
+operates on repository paths and does not yet consume this returned
+proof/mutation bundle. Manually supplied bytes can still be captured as
+authority-neutral metadata; capture does not prove they were produced by the
+declared task.
 
 The catalog marks these packet-expressible stages as implemented:
 
@@ -141,6 +163,7 @@ v6_l1_receipt
 v6_l2_receipt
 v6_settlement_receipt
 v7_receipt
+mutation_verification
 ```
 
 The bounded worker resolves only typed declared-artifact placeholders, executes
@@ -149,7 +172,7 @@ and emits an all-false authority capture. It does not provide a mount, network,
 container, VM, or hardware sandbox. `identity_rebuild` and
 `worker_prover_build` remain `execution_adapter_status = missing` because their
 current templates depend on inputs and output collection not yet expressed by
-the packet ABI. Mutation and release stages remain planned.
+the packet ABI. The release stage remains planned.
 
 ## Artifact contract
 
