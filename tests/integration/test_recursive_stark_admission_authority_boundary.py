@@ -36,6 +36,9 @@ SPOT_V7_OPERATIONAL_GATE = ROOT / "src/integration/_zrpf_spot_v7_operational_gat
 SPOT_V7_OPERATIONAL_CAPABILITY_V2 = (
     ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v2.py"
 )
+SPOT_V7_OPERATIONAL_POLICY_PROVENANCE = (
+    ROOT / "src/integration/zrpf_spot_v7_operational_policy_provenance.py"
+)
 SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER = (
     ROOT / "src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py"
 )
@@ -71,6 +74,19 @@ PRIVATE_FIRECRACKER_AUTHORITY_NAMES = frozenset(
         "_revalidate_bound_spot_v7_candidate_v1",
     }
 )
+PRIVATE_OPERATIONAL_POLICY_MINT_NAMES = frozenset(
+    {
+        "_GovernedOperationalPolicyMaterialV2",
+        "_GOVERNED_OPERATIONAL_POLICY_SEAL_V2",
+    }
+)
+PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES = frozenset(
+    {
+        "_AuthenticatedSpotV7OperationalPolicyReleasePinsV1",
+        "_AUTHENTICATED_OPERATIONAL_POLICY_RELEASE_PINS_SEAL_V1",
+        "load_governed_spot_v7_operational_policy_v2",
+    }
+)
 PRIVATE_AUTHORITY_NAMES = frozenset(
     {
         PRIVATE_CAPABILITY_TYPE,
@@ -86,6 +102,8 @@ PROTECTED_AUTHORITY_NAMES = (
     PRIVATE_AUTHORITY_NAMES
     | frozenset({PRIVATE_SOURCE_OPENED_V6_SEAL})
     | PRIVATE_FIRECRACKER_AUTHORITY_NAMES
+    | PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
+    | PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES
 )
 PRIVATE_ADAPTER_IMPORTS = frozenset(
     {
@@ -154,6 +172,11 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             SPOT_V7_OPERATIONAL_GATE: PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES,
             SPOT_V7_OPERATIONAL_CAPABILITY_V2: (
                 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+                | PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
+            ),
+            SPOT_V7_OPERATIONAL_POLICY_PROVENANCE: (
+                PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
+                | PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES
             ),
             SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER: (
                 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
@@ -166,6 +189,68 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 violations.append(f"{path.relative_to(ROOT)}:{_line(node)}:{name}")
 
     assert violations == []
+
+
+def test_operational_policy_provenance_is_the_only_production_policy_mint() -> None:
+    callers: list[str] = []
+    for path in _production_python_paths():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and _call_name(node) == "_GovernedSpotV7OperationalPolicyV2"
+            ):
+                callers.append(f"{path.relative_to(ROOT)}:{_line(node)}")
+
+    assert len(callers) == 1
+    assert callers[0].split(":", maxsplit=1)[0] == (
+        "src/integration/zrpf_spot_v7_operational_policy_provenance.py"
+    )
+
+    tree = _parse(SPOT_V7_OPERATIONAL_POLICY_PROVENANCE)
+    loader = _function(tree, "load_governed_spot_v7_operational_policy_v2")
+    ordered_calls = (
+        "_open_authenticated_release_context",
+        "_parse_manifest_v1",
+        "_require_manifest_binding",
+        "_require_active_release_context",
+        "_verify_release_quorum",
+        "_GovernedSpotV7OperationalPolicyV2",
+    )
+    call_lines = {
+        name: [
+            _line(node)
+            for node in ast.walk(loader)
+            if isinstance(node, ast.Call) and _call_name(node) == name
+        ]
+        for name in ordered_calls
+    }
+    assert {name: len(lines) for name, lines in call_lines.items()} == {
+        name: 1 for name in ordered_calls
+    }
+    assert tuple(call_lines[name][0] for name in ordered_calls) == tuple(
+        sorted(call_lines[name][0] for name in ordered_calls)
+    )
+
+
+def test_operational_policy_release_handoff_has_no_production_mint_or_consumer() -> None:
+    forbidden_calls: dict[str, list[str]] = {
+        "_AuthenticatedSpotV7OperationalPolicyReleasePinsV1": [],
+        "load_governed_spot_v7_operational_policy_v2": [],
+    }
+    for path in _production_python_paths():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = _call_name(node)
+            if name in forbidden_calls:
+                forbidden_calls[name].append(f"{path.relative_to(ROOT)}:{_line(node)}")
+
+    assert forbidden_calls == {
+        "_AuthenticatedSpotV7OperationalPolicyReleasePinsV1": [],
+        "load_governed_spot_v7_operational_policy_v2": [],
+    }
 
 
 @pytest.mark.parametrize(

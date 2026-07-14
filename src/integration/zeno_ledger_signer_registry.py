@@ -76,7 +76,10 @@ def build_signer_registry_v0(
     if kind not in SUPPORTED_PAYLOAD_KINDS_V0:
         raise ValueError("payload_kind is not supported")
     threshold_value = _require_positive_int(threshold, name="threshold")
-    if not isinstance(signers, Sequence) or isinstance(signers, (str, bytes, bytearray)):
+    untrusted_signers: object = signers
+    if not isinstance(untrusted_signers, Sequence) or isinstance(
+        untrusted_signers, (str, bytes, bytearray)
+    ):
         raise TypeError("signers must be a sequence")
     if not signers:
         raise ValueError("signer registry requires at least one signer")
@@ -147,7 +150,10 @@ def verify_signature_quorum_v0(
     kind = _require_str(payload_kind, name="payload_kind")
     if kind != registry["payload_kind"]:
         raise ValueError("payload_kind does not match registry")
-    if not isinstance(envelopes, Sequence) or isinstance(envelopes, (str, bytes, bytearray)):
+    untrusted_envelopes: object = envelopes
+    if not isinstance(untrusted_envelopes, Sequence) or isinstance(
+        untrusted_envelopes, (str, bytes, bytearray)
+    ):
         raise TypeError("envelopes must be a sequence")
     if not envelopes:
         raise ValueError("at least one envelope is required")

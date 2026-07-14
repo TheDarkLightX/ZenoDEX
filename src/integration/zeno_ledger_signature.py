@@ -43,6 +43,7 @@ SUPPORTED_PAYLOAD_KINDS_V0 = frozenset(
         "perps_wallet_recovery_exercise",
         "perps_wallet_rotation_exercise",
         "governance_action",
+        "zrpf_spot_v7_operational_policy",
         "perps_wallet_encrypted_sss_audit_evidence",
         "perps_wallet_sss_production_ceremony",
         "perps_wallet_sss_custodian_registry",

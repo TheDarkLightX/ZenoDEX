@@ -1,12 +1,14 @@
 # ZRPF Spot V7 Operational Commit Gate V1/V2 CBC Specification
 
-Date: 2026-07-13
+Date: 2026-07-14
 
 Status: authority-false V2 commit capability, combined atomic sink, exact
 manifest-pinned `full_blob_da_v1` Rust checker adapter, and bounded
-policy-pinned ZenoLedger BLS checkpoint adapter implemented; canonical
-ZenoLedger finality authority, governed policy provenance, settlement
-authority, and production authority remain unavailable
+policy-pinned ZenoLedger BLS checkpoint adapter implemented; an exact canonical
+BLS-quorum operational-policy verifier and private-handoff-gated mint adapter
+are implemented, while the independently governed mint for that release-pin
+handoff, canonical ZenoLedger finality authority, settlement authority, and
+production authority remain unavailable
 
 ## Purpose
 
@@ -47,8 +49,11 @@ prerequisite has a bounded Rust-checker adapter. A governed ZenoLedger adapter
 mints the exact checkpoint-finality prerequisite only after cryptographic
 quorum, canonical scheduled-header admission, header `app_hash` recomputation,
 and the scoped candidate bindings below. This remains a bounded,
-authority-false checkpoint result. The governed policy and Firecracker
-settlement mint paths remain absent, so raw caller data cannot reach the
+authority-false checkpoint result. The policy mint now requires canonical
+manifest bytes, a private authenticated release-pin and evaluation-epoch
+handoff, active policy and registry revisions, and a verified BLS quorum. No
+production path mints that private handoff in this tranche. The Firecracker
+settlement mint path also remains absent, so raw caller data cannot reach the
 combined binder.
 
 ## Existing primitives and their limits
@@ -109,6 +114,13 @@ _SpotV7AtomicEconomicCommitCapabilityV2
 
 The V1 capability still has no mint path. The V2 binder mints only the
 authority-false V2 packet and only from all four exact sealed prerequisites.
+`load_governed_spot_v7_operational_policy_v2` is the only production constructor
+of `_GovernedSpotV7OperationalPolicyV2`. It checks exact canonical policy
+material, application/domain scope, policy and signer-registry revisions,
+activation and revocation epochs, the manifest and registry hashes carried by
+an exact private authenticated release handoff, and a BLS quorum over the exact
+manifest payload hash before using the private policy seal. No acceptance or
+authority Boolean is an input. The private handoff has no production mint yet.
 `PinnedFullBlobDataAvailabilityCheckerV1` now accepts only an already-sealed V2
 policy capability plus exact certificate/blob bytes and explicit epochs. It
 executes the manifest-pinned static Rust checker under the shared bounded
@@ -204,7 +216,8 @@ second pass makes precheck-to-transaction drift fail closed and roll back.
 The production gate reports these exact missing conditions:
 
 1. governed V7 receipt and Firecracker settlement capability;
-2. governed DA/finality policy provenance;
+2. independently governed origin and durable distribution of the operational
+   policy manifest, signer-registry, revision, and trusted evaluation-epoch pins;
 3. canonical, release-backed ZenoLedger finality authority.
 
 The two governed adapters close these bounded subconditions while the third
@@ -218,10 +231,12 @@ header app-hash recomputation
 exact checkpoint_finality_v2 certificate derivation and private capability mint
 ```
 
-This does not mint the operational policy. Governance must still supply the
-sealed policy that pins the exact chain, config digest, signer-registry root,
-genesis checkpoint, and adapter protocol identity. The header's separately
-committed validator-set root is checked by scheduled-header admission.
+The provenance adapter can mint the sealed operational policy only after an
+exact private release handoff plus canonical and cryptographic checks.
+Governance must still authenticate the expected manifest digest, registry hash
+and revision, and trusted evaluation epoch, then mint that private handoff. The
+header's separately committed validator-set root is checked by scheduled-header
+admission.
 
 These previously open mechanics are closed for both the test lane and the
 authority-false V2 sealed-packet lane:
@@ -309,6 +324,18 @@ Focused tests establish:
   signer registry, BLS envelopes, recomputed quorum admission, application
   binding, and prior cursor are retained in one bounded canonical
   finality-evidence object.
+- the operational-policy manifest rejects duplicate keys, floats,
+  noncanonical bytes, unknown authority Booleans, scope drift, revision drift,
+  inactive or revoked policy and registry contexts, registry substitution,
+  revoked signers, and a missing or invalid signature quorum;
+- a coherently edited and re-signed policy cannot pass the independently pinned
+  manifest digest, while a coherent signer-registry substitution cannot pass
+  the independently pinned registry hash;
+- caller-constructible pin and epoch data cannot substitute for the exact
+  private authenticated release handoff;
+- the architecture ratchet admits one production policy constructor call and
+  requires manifest binding, lifecycle checks, and BLS quorum verification to
+  precede that call.
 
 ### Rust/Python parity evidence
 
@@ -347,10 +374,11 @@ finality_certificate        419 bytes, SHA-256 a3812dbfdecfa716f73ec70eb0b8986e6
 ## Explicit nonclaims
 
 This integration contract does not establish current governed V7 receipt
-evidence, governed Firecracker execution, policy governance, a governed raw
-policy mint, provider retrievability, consensus safety outside the pinned
-strict-quorum assumptions, canonical fork choice across conflicting qualified
-checkpoints, body-root validation and deterministic body replay, authenticated
+evidence, governed Firecracker execution, an external authority for the trusted
+policy and registry pins, a production mint for their private release handoff,
+provider retrievability, consensus safety outside the pinned strict-quorum
+assumptions, canonical fork choice across conflicting qualified checkpoints,
+body-root validation and deterministic body replay, authenticated
 proposer authorship, validator-set release governance, production rollback
 resistance, governed combined
 proof/DA/finality/economic admission, settlement authority, release authority,
@@ -360,6 +388,12 @@ scheduled-header structural admission, app-hash consistency, exact
 finality-certificate construction, SQLite atomicity, rollback, exact-byte
 persistence, replay rejection, and reopen validation for the authority-false
 lanes.
+
+The V2 policy capability does not yet expose or persist a canonical provenance
+root covering the manifest, registry, revisions, lifecycle, evaluation epoch,
+and accepted quorum report. A future authority-bearing sink must retain that
+binding so identical policy material admitted under different release contexts
+remains auditable and distinguishable.
 
 The private prerequisite classes are future adapter contracts. Unit tests may
 apply their module-private seals to exercise cross-binding logic; those test
