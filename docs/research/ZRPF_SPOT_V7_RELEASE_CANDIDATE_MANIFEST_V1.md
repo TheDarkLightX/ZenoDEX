@@ -61,17 +61,24 @@ policies:
 
 Every commitment in those groups has exactly one fixed evidence role. The
 inventory contains 31 rows in protocol order. Each row has the exact fields
-`role`, `codec`, `sha256`, and `size_bytes`. Unknown, missing, reordered,
-duplicated, aliased, wrongly encoded, empty, or oversized rows reject. The
-candidate checker requires every bound commitment to equal the digest carried
-by its designated evidence role. Each role has a fixed size ceiling, and the
-sum of all proposed sizes cannot exceed 1 GiB.
+`role`, `codec`, `artifact_sha256`, `bound_identity`, and `size_bytes`.
+`artifact_sha256` identifies the exact artifact bytes. `bound_identity`
+identifies the semantic root or ID that the role-specific artifact checker
+must later derive. Unknown, missing, reordered, duplicated, aliased, wrongly
+encoded, empty, or oversized rows reject. The candidate checker requires every
+bound commitment to equal its row's `bound_identity`. Fields explicitly named
+`*_sha256` additionally require `bound_identity = artifact_sha256`. Semantic
+roots and IDs remain separate because they can use domain-separated or
+structured derivations. Each role has a fixed size ceiling, and the sum of all
+proposed sizes cannot exceed 1 GiB.
 
 This is a proposed content-identity relation. The checker does not read the
 named artifacts or establish that their internal claims are true. Every
 `size_bytes` value is publisher-proposed metadata in this candidate-only
 slice; a later artifact-opening boundary must compare it with the exact bytes
-read from a stable descriptor.
+read from a stable descriptor. That boundary must also parse the artifact and
+derive its declared `bound_identity`; committing both values does not prove
+their relation.
 
 ## Canonical format
 
@@ -151,12 +158,12 @@ source identities, distinct chain/domain strings, and asymmetric multi-byte
 integers. Its fixed values are:
 
 ```text
-canonical bytes: 9,589
+canonical bytes: 12,472
 canonical SHA-256:
-  b6e4e4592a6dd8602739ddf3e89f2d0e88ee5664de7ee890fb96c6c6841e73a1
+  4aef5bb5bbc792b741d3949372c757e6e021bc4feabf50dfa045ebe5f4d58976
 candidate ID:
-  404d724f362dfd4585fbd0415cb49cae01ab802f4eaf6ff5919abf9fd7047992
-candidate-body scalar positions: 189
+  719db33cbac91d95251592c874a08754530f8210c3504e844af5e1f490cda6ac
+candidate-body scalar positions: 220
 ```
 
 The mutation corpus proves these representation choices are active:
@@ -166,6 +173,9 @@ The mutation corpus proves these representation choices are active:
 - all 32 `reserved_u32` bit mutations reject;
 - evidence-row reversal and role swaps reject;
 - wrong-role codec and duplicate digest aliasing reject;
+- raw artifact SHA-256 and semantic identity positions are independently
+  active, and substituting one for the other rejects unless the field is
+  explicitly a raw `*_sha256` binding;
 - proof-root swaps and multi-byte digest reversals cannot preserve identity;
 - absent parent, absent expiration, and absent revocation-record states remain
   distinct;
@@ -181,6 +191,7 @@ correctness.
 | --- | --- |
 | field omitted or silently defaulted | exact fields and no defaults |
 | digest used in the wrong release role | fixed role order plus commitment-to-row binding |
+| raw artifact digest confused with a domain-separated semantic root | separate `artifact_sha256` and `bound_identity` fields plus role-specific equality rules |
 | V6/V7 receipt or journal identity swapped | distinct role-bound roots and candidate-ID change |
 | stale candidate treated as current | all selector/current authority properties are constant false |
 | revocation embedded as a caller label | revocation record must be exactly absent |

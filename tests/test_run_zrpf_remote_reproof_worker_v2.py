@@ -384,7 +384,8 @@ def test_mutation_stage_uses_exact_artifact_runner_and_complete_output_inventory
     capture = worker.execute_stage(plan, packet, repo, artifact_root, run_root)
     assert len(seen) == 1
     assert seen[0][0].endswith("worker/bin/verify-spot-v7-remote-mutations")
-    assert [row["role"] for row in capture["outputs"]] == [
+    outputs = cast(list[dict[str, object]], capture["outputs"])
+    assert [row["role"] for row in outputs] == [
         "v6_leaf_seal_mutation",
         "v6_l1_seal_mutation",
         "v6_l2_seal_mutation",
