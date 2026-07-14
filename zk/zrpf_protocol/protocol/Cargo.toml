@@ -13,6 +13,10 @@ autobenches = false
 [lib]
 path = "src/lib.rs"
 
+[[bin]]
+name = "zrpf-full-blob-da-policy-verifier-v1"
+path = "src/bin/full_blob_da_policy_verifier_v1.rs"
+
 [[test]]
 name = "node_v3"
 path = "tests/node_v3.rs"
@@ -44,6 +48,10 @@ path = "tests/economic_action_v1.rs"
 [[test]]
 name = "full_blob_da_v1"
 path = "tests/full_blob_da_v1.rs"
+
+[[test]]
+name = "full_blob_da_policy_verifier_v1"
+path = "tests/full_blob_da_policy_verifier_v1.rs"
 
 [[test]]
 name = "checkpoint_finality_v1"
