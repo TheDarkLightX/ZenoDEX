@@ -149,8 +149,12 @@ jobs:
             src/integration/_zrpf_spot_v7_atomic_settlement_history.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_records.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_schema.py \
+            src/integration/_zrpf_spot_v7_operational_gate.py \
+            src/integration/_zrpf_spot_v7_operational_mechanics.py \
+            src/integration/_zrpf_spot_v7_operational_store.py \
             src/integration/zrpf_spot_v7_atomic_settlement_store.py \
             src/integration/zrpf_spot_v7_atomic_settlement_types.py \
+            src/integration/_zeno_ledger_pinned_verifier_process_v1.py \
             src/integration/zeno_ledger_authenticated_proof_verification_v1.py \
             src/integration/zeno_ledger_proof_authority_consumer_v1.py \
             src/integration/zeno_ledger_spot_state_domain_bridge_v1.py \
@@ -268,7 +272,11 @@ jobs:
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
+            tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
+            tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
+            tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
+            tests/integration/test_zeno_ledger_proof_required_quarantine_v0.py \
             tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py \
             tests/integration/test_zeno_ledger_spot_outer_nonce_bridge_v1.py \
             tests/integration/test_zeno_ledger_spot_state_domain_bridge_v1.py \
@@ -296,8 +304,12 @@ jobs:
             src/integration/_zrpf_spot_v7_atomic_settlement_history.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_records.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_schema.py \
+            src/integration/_zrpf_spot_v7_operational_gate.py \
+            src/integration/_zrpf_spot_v7_operational_mechanics.py \
+            src/integration/_zrpf_spot_v7_operational_store.py \
             src/integration/zrpf_spot_v7_atomic_settlement_store.py \
             src/integration/zrpf_spot_v7_atomic_settlement_types.py \
+            src/integration/_zeno_ledger_pinned_verifier_process_v1.py \
             src/integration/zeno_ledger_authenticated_proof_verification_v1.py \
             src/integration/zeno_ledger_proof_authority_consumer_v1.py \
             src/integration/zeno_ledger_spot_state_domain_bridge_v1.py \
@@ -377,7 +389,11 @@ jobs:
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
+            tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
+            tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
+            tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
+            tests/integration/test_zeno_ledger_proof_required_quarantine_v0.py \
             tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py \
             tests/integration/test_zeno_ledger_spot_outer_nonce_bridge_v1.py \
             tests/integration/test_zeno_ledger_spot_state_domain_bridge_v1.py \
@@ -435,7 +451,11 @@ jobs:
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
+            tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
+            tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
+            tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
+            tests/integration/test_zeno_ledger_proof_required_quarantine_v0.py \
             tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py \
             tests/integration/test_zeno_ledger_spot_outer_nonce_bridge_v1.py \
             tests/integration/test_zeno_ledger_spot_state_domain_bridge_v1.py \
