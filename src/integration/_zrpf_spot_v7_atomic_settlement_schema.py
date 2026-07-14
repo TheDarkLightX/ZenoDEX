@@ -14,14 +14,14 @@ from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     _hex_hash,
 )
 
-SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V2 = 2
+SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V3 = 3
 SPOT_V7_ATOMIC_SETTLEMENT_APPLICATION_ID_V1 = 0x5A535637
 
 _SCHEMA_STATEMENTS = (
     """
     CREATE TABLE spot_v7_store_meta (
         singleton INTEGER NOT NULL PRIMARY KEY CHECK (singleton = 1),
-        schema_version INTEGER NOT NULL CHECK (schema_version = 2),
+        schema_version INTEGER NOT NULL CHECK (schema_version = 3),
         application_id BLOB NOT NULL CHECK (typeof(application_id) = 'blob' AND length(application_id) = 32),
         chain_or_domain_id BLOB NOT NULL CHECK (typeof(chain_or_domain_id) = 'blob' AND length(chain_or_domain_id) = 32),
         verified_program_id BLOB NOT NULL CHECK (typeof(verified_program_id) = 'blob' AND length(verified_program_id) = 32),
@@ -214,6 +214,26 @@ _SCHEMA_STATEMENTS = (
         production_authority INTEGER NOT NULL CHECK (production_authority = 0)
     ) STRICT, WITHOUT ROWID
     """,
+    """
+    CREATE TABLE spot_v7_operational_policy_provenance (
+        singleton INTEGER NOT NULL PRIMARY KEY CHECK (singleton = 1),
+        evidence_root BLOB NOT NULL UNIQUE CHECK (typeof(evidence_root) = 'blob' AND length(evidence_root) = 32),
+        manifest_sha256 BLOB NOT NULL CHECK (typeof(manifest_sha256) = 'blob' AND length(manifest_sha256) = 32),
+        signer_registry_hash BLOB NOT NULL CHECK (typeof(signer_registry_hash) = 'blob' AND length(signer_registry_hash) = 32),
+        signature_quorum_report_hash BLOB NOT NULL CHECK (typeof(signature_quorum_report_hash) = 'blob' AND length(signature_quorum_report_hash) = 32),
+        policy_revision_be BLOB NOT NULL CHECK (typeof(policy_revision_be) = 'blob' AND length(policy_revision_be) = 8),
+        policy_activation_epoch_be BLOB NOT NULL CHECK (typeof(policy_activation_epoch_be) = 'blob' AND length(policy_activation_epoch_be) = 8),
+        policy_revocation_epoch_be BLOB CHECK (policy_revocation_epoch_be IS NULL OR (typeof(policy_revocation_epoch_be) = 'blob' AND length(policy_revocation_epoch_be) = 8)),
+        signer_registry_revision_be BLOB NOT NULL CHECK (typeof(signer_registry_revision_be) = 'blob' AND length(signer_registry_revision_be) = 8),
+        signer_registry_activation_epoch_be BLOB NOT NULL CHECK (typeof(signer_registry_activation_epoch_be) = 'blob' AND length(signer_registry_activation_epoch_be) = 8),
+        signer_registry_revocation_epoch_be BLOB CHECK (signer_registry_revocation_epoch_be IS NULL OR (typeof(signer_registry_revocation_epoch_be) = 'blob' AND length(signer_registry_revocation_epoch_be) = 8)),
+        evaluation_epoch_be BLOB NOT NULL CHECK (typeof(evaluation_epoch_be) = 'blob' AND length(evaluation_epoch_be) = 8),
+        exact_evidence BLOB NOT NULL CHECK (typeof(exact_evidence) = 'blob' AND length(exact_evidence) BETWEEN 1 AND 2097152),
+        release_authority INTEGER NOT NULL CHECK (release_authority = 0),
+        settlement_authority INTEGER NOT NULL CHECK (settlement_authority = 0),
+        production_authority INTEGER NOT NULL CHECK (production_authority = 0)
+    ) STRICT, WITHOUT ROWID
+    """,
 )
 
 _EXPECTED_SCHEMA_SQL = {
@@ -230,6 +250,7 @@ _EXPECTED_SCHEMA_SQL = {
     "spot_v7_operational_policy": _SCHEMA_STATEMENTS[10],
     "spot_v7_operational_da": _SCHEMA_STATEMENTS[11],
     "spot_v7_operational_finality": _SCHEMA_STATEMENTS[12],
+    "spot_v7_operational_policy_provenance": _SCHEMA_STATEMENTS[13],
 }
 
 
@@ -263,7 +284,7 @@ def _create_schema(
     if connection.execute("PRAGMA user_version").fetchone()[0] != 0:
         raise ValueError("empty Spot V7 database has a user_version")
     connection.execute(f"PRAGMA application_id = {SPOT_V7_ATOMIC_SETTLEMENT_APPLICATION_ID_V1}")
-    connection.execute(f"PRAGMA user_version = {SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V2}")
+    connection.execute(f"PRAGMA user_version = {SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V3}")
     for statement in _SCHEMA_STATEMENTS:
         connection.execute(statement)
     connection.execute(
@@ -274,7 +295,7 @@ def _create_schema(
             genesis_state_root, state_root, revision, settlement_count, cell_count,
             last_epoch_id_be, settlement_authority, production_authority,
             authority_blocked_reason
-        ) VALUES (1, 2, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, NULL, 0, 0, ?)
+        ) VALUES (1, 3, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, NULL, 0, 0, ?)
         """,
         (
             _hash_bytes(identity.application_id, name="store application_id"),
@@ -318,7 +339,7 @@ def _validate_spot_v7_schema(connection: sqlite3.Connection) -> None:
         raise ValueError("Spot V7 store application_id mismatch")
     if (
         connection.execute("PRAGMA user_version").fetchone()[0]
-        != SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V2
+        != SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V3
     ):
         raise ValueError("Spot V7 store user_version mismatch")
     rows = connection.execute(

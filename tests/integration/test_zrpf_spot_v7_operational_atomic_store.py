@@ -58,6 +58,7 @@ from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     SpotV7AtomicSettlementDispositionV1,
     SpotV7AtomicSettlementRejectReasonV1,
     SpotV7AtomicSettlementResultV1,
+    SpotV7AtomicSettlementStoreErrorV1,
     SpotV7AtomicSettlementStoreIdentityV1,
     SpotV7CellKindV1,
     SpotV7CellOpeningV1,
@@ -310,9 +311,9 @@ def _governed_policy_v2(
     policy: _TestOnlySpotV7OperationalPolicyV1 | None = None,
     *,
     policy_revocation_epoch: int | None = None,
+    provenance_bytes: bytes = b'{"schema":"test-only-operational-policy-provenance-v1"}',
 ) -> _GovernedSpotV7OperationalPolicyV2:
     value = policy or _policy()
-    provenance_bytes = b'{"schema":"test-only-operational-policy-provenance-v1"}'
     return _GovernedSpotV7OperationalPolicyV2(
         _GovernedOperationalPolicyMaterialV2(
             application_id=value.application_id,
@@ -552,6 +553,110 @@ def test_atomic_sink_rechecks_policy_lifecycle_before_opening_transaction(
         )
 
     assert _database_rows(store.path) == before
+
+
+def test_governed_store_persists_exact_policy_release_provenance(
+    tmp_path: Path,
+) -> None:
+    policy = _governed_policy_v2()
+    provenance = policy._policy_provenance_for_atomic_store()
+    store = _governed_store_v2(tmp_path, policy)
+
+    with sqlite3.connect(store.path) as connection:
+        connection.row_factory = sqlite3.Row
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 3
+        row = connection.execute(
+            "SELECT * FROM spot_v7_operational_policy_provenance WHERE singleton = 1"
+        ).fetchone()
+
+    assert row is not None
+    assert bytes(row["evidence_root"]) == bytes.fromhex(provenance.evidence_root[2:])
+    assert bytes(row["manifest_sha256"]) == bytes.fromhex(provenance.manifest_sha256)
+    assert bytes(row["signer_registry_hash"]) == bytes.fromhex(
+        provenance.signer_registry_hash[2:]
+    )
+    assert bytes(row["signature_quorum_report_hash"]) == bytes.fromhex(
+        provenance.signature_quorum_report_hash[2:]
+    )
+    assert bytes(row["exact_evidence"]) == provenance.exact_evidence_bytes
+    assert tuple(
+        int(row[field])
+        for field in ("release_authority", "settlement_authority", "production_authority")
+    ) == (0, 0, 0)
+
+
+def test_governed_store_reopen_rejects_policy_provenance_tamper(
+    tmp_path: Path,
+) -> None:
+    policy = _governed_policy_v2()
+    store = _governed_store_v2(tmp_path, policy)
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE spot_v7_operational_policy_provenance SET exact_evidence = ? "
+            "WHERE singleton = 1",
+            (b"tampered-policy-release-provenance",),
+        )
+        connection.commit()
+
+    with pytest.raises(
+        SpotV7AtomicSettlementStoreErrorV1,
+        match="stored operational policy provenance root mismatch",
+    ):
+        SQLiteSpotV7AtomicSettlementStoreV1(
+            store.path,
+            identity=_identity(),
+            genesis_cells=_initial_cells(),
+            governed_operational_policy=policy,
+        )
+
+
+def test_governed_store_reopen_rejects_different_release_for_same_policy_material(
+    tmp_path: Path,
+) -> None:
+    policy = _governed_policy_v2()
+    store = _governed_store_v2(tmp_path, policy)
+    replacement = _governed_policy_v2(
+        provenance_bytes=b'{"schema":"different-test-release-provenance-v1"}'
+    )
+
+    with pytest.raises(
+        SpotV7AtomicSettlementStoreErrorV1,
+        match="stored operational policy provenance",
+    ):
+        SQLiteSpotV7AtomicSettlementStoreV1(
+            store.path,
+            identity=_identity(),
+            genesis_cells=_initial_cells(),
+            governed_operational_policy=replacement,
+        )
+
+
+def test_atomic_sink_rejects_coherent_policy_provenance_substitution_under_lock(
+    tmp_path: Path,
+) -> None:
+    source_packet = _packet()
+    capability, policy = _governed_v2_capability(source_packet)
+    store = _governed_store_v2(tmp_path, policy)
+    substituted = b'{"schema":"coherently-substituted-policy-provenance-v1"}'
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "UPDATE spot_v7_operational_policy_provenance "
+            "SET evidence_root = ?, exact_evidence = ? WHERE singleton = 1",
+            (hashlib.sha256(substituted).digest(), substituted),
+        )
+        connection.commit()
+
+    with pytest.raises(
+        SpotV7AtomicSettlementStoreErrorV1,
+        match="stored operational policy provenance evidence mismatch",
+    ):
+        store._commit_operational_capability(
+            expected_cursor=store.read_cursor(),
+            capability=capability,
+        )
+
+    with sqlite3.connect(store.path) as connection:
+        assert connection.execute("SELECT count(*) FROM spot_v7_settlements").fetchone()[0] == 0
 
 
 @pytest.mark.parametrize(

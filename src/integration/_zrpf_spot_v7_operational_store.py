@@ -5,6 +5,9 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 
+from src.integration._zrpf_spot_v7_operational_capability_v2 import (
+    _GovernedOperationalPolicyProvenanceV1,
+)
 from src.integration._zrpf_spot_v7_operational_mechanics import (
     _derive_test_only_full_blob_artifacts_v1,
     _encode_checkpoint_finality_certificate_v2,
@@ -12,6 +15,12 @@ from src.integration._zrpf_spot_v7_operational_mechanics import (
     _TestOnlySpotV7OperationalCommitInputV1,
     _TestOnlySpotV7OperationalCommitV1,
     _TestOnlySpotV7OperationalPolicyV1,
+)
+from src.integration._zrpf_spot_v7_operational_policy_store import (
+    _insert_policy_provenance,
+    _read_policy_provenance_row,
+    _validate_policy_provenance_integrity,
+    _validate_policy_provenance_row,
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     SpotV7AtomicSettlementRejectReasonV1,
@@ -26,20 +35,31 @@ def _initialize_or_validate_test_only_operational_policy(
     *,
     identity: SpotV7AtomicSettlementStoreIdentityV1,
     policy: _TestOnlySpotV7OperationalPolicyV1 | None,
+    governed_provenance: _GovernedOperationalPolicyProvenanceV1 | None = None,
 ) -> None:
     if not connection.in_transaction:
         raise ValueError("operational policy initialization requires a transaction")
     row = _read_policy_row(connection)
+    provenance_row = _read_policy_provenance_row(connection)
     if row is None:
         if policy is not None:
             _require_policy_scope(identity, policy)
             _insert_policy(connection, policy)
+            if governed_provenance is not None:
+                _insert_policy_provenance(connection, governed_provenance)
+        elif governed_provenance is not None:
+            raise ValueError("governed provenance requires an operational policy")
         return
     if policy is None:
         raise ValueError("operational store reopen requires its exact test-only policy")
     _require_policy_scope(identity, policy)
     if _policy_from_row(row) != policy:
         raise ValueError("operational store policy mismatch")
+    if governed_provenance is None:
+        if provenance_row is not None:
+            raise ValueError("governed policy provenance requires governed reopen")
+    else:
+        _validate_policy_provenance_row(provenance_row, governed_provenance)
 
 
 def _test_only_operational_policy_is_configured(connection: sqlite3.Connection) -> bool:
@@ -211,6 +231,7 @@ def _validate_complete_test_only_operational_history(
     connection: sqlite3.Connection,
 ) -> None:
     policy_row = _read_policy_row(connection)
+    provenance_row = _read_policy_provenance_row(connection)
     revision = int(
         connection.execute(
             "SELECT revision FROM spot_v7_store_meta WHERE singleton = 1"
@@ -221,9 +242,11 @@ def _validate_complete_test_only_operational_history(
         connection.execute("SELECT count(*) FROM spot_v7_operational_finality").fetchone()[0]
     )
     if policy_row is None:
-        if da_count != 0 or finality_count != 0:
+        if da_count != 0 or finality_count != 0 or provenance_row is not None:
             raise ValueError("operational rows exist without configured policy")
         return
+    if provenance_row is not None:
+        _validate_policy_provenance_integrity(provenance_row)
     if da_count != revision or finality_count != revision:
         raise ValueError("operational row counts do not match settlement revision")
     policy = _policy_from_row(policy_row)

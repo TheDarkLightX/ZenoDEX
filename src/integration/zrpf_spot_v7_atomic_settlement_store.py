@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import NoReturn, final
+from typing import NoReturn, cast, final
 
 from src.integration._recursive_stark_admission_store_schema import (
     DEFAULT_BUSY_TIMEOUT_MS,
@@ -58,6 +58,9 @@ from src.integration._zrpf_spot_v7_operational_gate import (
 from src.integration._zrpf_spot_v7_operational_mechanics import (
     _TestOnlySpotV7OperationalCommitV1,
     _TestOnlySpotV7OperationalPolicyV1,
+)
+from src.integration._zrpf_spot_v7_operational_policy_store import (
+    _require_governed_policy_provenance_locked,
 )
 from src.integration._zrpf_spot_v7_operational_store import (
     _cas_test_only_operational_cursor,
@@ -128,6 +131,11 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
             test_only_operational_policy,
             governed_operational_policy,
         )
+        configured_provenance = (
+            governed_operational_policy._policy_provenance_for_atomic_store()
+            if governed_operational_policy is not None
+            else None
+        )
         try:
             _require_private_parent(path.parent)
             _create_private_database_file(path)
@@ -142,6 +150,7 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
                     connection,
                     identity=identity,
                     policy=configured_policy,
+                    governed_provenance=configured_provenance,
                 )
                 _validate_complete_spot_v7_history(connection)
                 connection.commit()
@@ -359,7 +368,7 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
             raise TypeError("expected_cursor must be exact SpotV7AtomicSettlementCursorV1")
         if type(capability) is not _SpotV7AtomicEconomicCommitCapabilityV2:
             raise TypeError("capability must be an exact Spot V7 V2 operational commit")
-        operational = capability
+        operational = cast(_SpotV7AtomicEconomicCommitCapabilityV2, capability)
         if not operational._has_private_seal():
             raise TypeError("V2 operational capability lacks its module-private seal")
         governed_policy = self._governed_operational_policy
@@ -373,6 +382,10 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
             connection.execute("BEGIN IMMEDIATE")
             _validate_spot_v7_schema(connection)
             _validate_complete_spot_v7_history(connection)
+            _require_governed_policy_provenance_locked(
+                connection,
+                governed_policy._policy_provenance_for_atomic_store(),
+            )
             transaction_packet = operational._packet_for_atomic_store()
             _require_v2_policy_match(governed_policy, transaction_packet)
             return self._evaluate_and_commit_operational_locked(

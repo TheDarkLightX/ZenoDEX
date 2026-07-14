@@ -183,6 +183,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/_zrpf_spot_v7_zeno_ledger_finality_contract.py",
         "src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py",
         "src/integration/_zrpf_spot_v7_operational_mechanics.py",
+        "src/integration/_zrpf_spot_v7_operational_policy_store.py",
         "src/integration/_zrpf_spot_v7_operational_store.py",
         "src/integration/zrpf_spot_v7_atomic_settlement_store.py",
         "src/integration/zrpf_spot_v7_atomic_settlement_types.py",

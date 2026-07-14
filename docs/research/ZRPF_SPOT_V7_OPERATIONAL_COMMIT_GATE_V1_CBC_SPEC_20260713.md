@@ -7,8 +7,8 @@ manifest-pinned `full_blob_da_v1` Rust checker adapter, and bounded
 policy-pinned ZenoLedger BLS checkpoint adapter implemented; exact canonical
 BLS-quorum operational-policy provenance and scheduled-proposer authentication
 are implemented. Independently governed release-pin minting, durable policy
-provenance persistence, canonical V7 body replay, conflicting-checkpoint
-selection, settlement authority, and production authority remain unavailable
+distribution, canonical V7 body replay, conflicting-checkpoint selection,
+settlement authority, and production authority remain unavailable
 
 ## Purpose
 
@@ -70,7 +70,7 @@ and linear application-checkpoint continuity. Its opaque checked result remains
 proof-neutral. It does not authenticate external consensus evidence or prove
 that the prior cursor came from rollback-resistant durable state.
 
-Spot V7 atomic-store schema revision two has an authority-false operational
+Spot V7 atomic-store schema revision three has an authority-false operational
 profile. One `BEGIN IMMEDIATE` transaction persists:
 
 ```text
@@ -82,15 +82,16 @@ canonical checkpoint_finality_v2 certificate bytes
 exact finality-evidence bytes and their digest
 prior and next application-checkpoint cursor
 economic-state cursor and checkpoint-finality cursor CAS updates
+exact governed policy provenance and its manifest, registry, quorum, and lifecycle bindings
 ```
 
 Every authority column remains constrained to zero. The external-finality and
 provider-retrievability columns also remain constrained to zero.
 
-Schema revision two has no implicit migration path. A revision-one database,
+Schema revision three has no implicit migration path. An earlier database,
 missing operational table, or mismatched schema SQL fails closed on open. An
 operator must use a separately reviewed offline migration or rebuild from
-canonical history before adopting revision two.
+canonical history before adopting revision three.
 
 ## Process-local prerequisite types
 
@@ -208,7 +209,7 @@ governed checkpoint_finality_v2 policy_root
 ```
 
 The local finality capability also requires an exact-successor application
-checkpoint sequence. Schema revision two durably compares and swaps the exact
+checkpoint sequence. Schema revision three durably compares and swaps the exact
 prior cursor in the same transaction as economics, replay rows, blob bytes,
 certificates, and the next cursor.
 
@@ -241,9 +242,8 @@ The production gate reports these exact missing conditions:
 1. governed V7 receipt and Firecracker settlement capability;
 2. independently governed origin and durable distribution of the operational
    policy manifest, signer-registry, revision, and trusted evaluation-epoch pins;
-3. durable policy-provenance persistence in the atomic store;
-4. V7-compatible canonical ZenoLedger body replay authority;
-5. canonical choice among conflicting quorum-qualified checkpoint successors.
+3. V7-compatible canonical ZenoLedger body replay authority;
+4. canonical choice among conflicting quorum-qualified checkpoint successors.
 
 The two governed adapters close these bounded subconditions while the two
 named finality conditions remain open:
@@ -425,10 +425,11 @@ validation for the authority-false lanes.
 
 The V2 policy capability exposes and rechecks a canonical provenance root over
 the manifest, registry, revisions, lifecycle, evaluation epoch, signature
-envelopes, and accepted quorum report. The SQLite sink does not yet persist that
-root and exact evidence. A future authority-bearing sink must retain them so
-identical policy material admitted under different release contexts remains
-auditable and distinguishable.
+envelopes, and accepted quorum report. Schema revision three persists that root
+and exact evidence during governed-store initialization and requires byte-exact
+provenance on reopen. Identical policy material admitted under different
+release contexts therefore remains auditable and distinguishable. The trusted
+origin and production distribution of the initial release pins remain external.
 
 The private prerequisite classes are future adapter contracts. Unit tests may
 apply their module-private seals to exercise cross-binding logic; those test

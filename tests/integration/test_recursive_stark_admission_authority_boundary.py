@@ -39,6 +39,10 @@ SPOT_V7_OPERATIONAL_CAPABILITY_V2 = (
 SPOT_V7_OPERATIONAL_POLICY_PROVENANCE = (
     ROOT / "src/integration/zrpf_spot_v7_operational_policy_provenance.py"
 )
+SPOT_V7_OPERATIONAL_POLICY_STORE = (
+    ROOT / "src/integration/_zrpf_spot_v7_operational_policy_store.py"
+)
+SPOT_V7_OPERATIONAL_STORE = ROOT / "src/integration/_zrpf_spot_v7_operational_store.py"
 SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER = (
     ROOT / "src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py"
 )
@@ -87,6 +91,9 @@ PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES = frozenset(
         "load_governed_spot_v7_operational_policy_v2",
     }
 )
+PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES = frozenset(
+    {"_GovernedOperationalPolicyProvenanceV1"}
+)
 PRIVATE_AUTHORITY_NAMES = frozenset(
     {
         PRIVATE_CAPABILITY_TYPE,
@@ -103,6 +110,7 @@ PROTECTED_AUTHORITY_NAMES = (
     | frozenset({PRIVATE_SOURCE_OPENED_V6_SEAL})
     | PRIVATE_FIRECRACKER_AUTHORITY_NAMES
     | PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
+    | PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
     | PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES
 )
 PRIVATE_ADAPTER_IMPORTS = frozenset(
@@ -173,11 +181,17 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             SPOT_V7_OPERATIONAL_CAPABILITY_V2: (
                 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
                 | PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
+                | PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
             ),
             SPOT_V7_OPERATIONAL_POLICY_PROVENANCE: (
                 PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
+                | PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
                 | PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES
             ),
+            SPOT_V7_OPERATIONAL_POLICY_STORE: (
+                PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
+            ),
+            SPOT_V7_OPERATIONAL_STORE: PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES,
             SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER: (
                 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
             ),
