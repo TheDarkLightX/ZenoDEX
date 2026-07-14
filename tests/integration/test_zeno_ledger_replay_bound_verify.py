@@ -607,7 +607,7 @@ def test_watcher_attestation_rejects_structural_diagnostic_report(tmp_path: Path
         )
 
 
-def test_attest_cli_refuses_structural_report_and_accepts_replay_bound_range(
+def test_attest_cli_refuses_unprofiled_structural_and_replay_bound_ranges(
     tmp_path: Path,
 ) -> None:
     state = _empty_state()
@@ -657,12 +657,9 @@ def test_attest_cli_refuses_structural_report_and_accepts_replay_bound_range(
         capture_output=True,
     )
 
-    structural_report = json.loads(structural.stdout)
-    replay_bound_report = json.loads(replay_bound.stdout)
-    assert structural.returncode == 1
-    assert structural_report["ok"] is False
-    assert structural_report["verify_report"]["status"] == "structural_diagnostic_accepted"
-    assert replay_bound.returncode == 0, replay_bound.stderr
-    assert replay_bound_report["ok"] is True
-    assert replay_bound_report["verify_report"]["status"] == "range_verified"
-    assert replay_bound_report["attestation"]["status"] == "range_verified"
+    assert structural.returncode == 2
+    assert structural.stdout == ""
+    assert "--profile" in structural.stderr
+    assert replay_bound.returncode == 2
+    assert replay_bound.stdout == ""
+    assert "--profile" in replay_bound.stderr
