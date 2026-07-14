@@ -14,14 +14,14 @@ from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     _hex_hash,
 )
 
-SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V1 = 1
+SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V2 = 2
 SPOT_V7_ATOMIC_SETTLEMENT_APPLICATION_ID_V1 = 0x5A535637
 
 _SCHEMA_STATEMENTS = (
     """
     CREATE TABLE spot_v7_store_meta (
         singleton INTEGER NOT NULL PRIMARY KEY CHECK (singleton = 1),
-        schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+        schema_version INTEGER NOT NULL CHECK (schema_version = 2),
         application_id BLOB NOT NULL CHECK (typeof(application_id) = 'blob' AND length(application_id) = 32),
         chain_or_domain_id BLOB NOT NULL CHECK (typeof(chain_or_domain_id) = 'blob' AND length(chain_or_domain_id) = 32),
         verified_program_id BLOB NOT NULL CHECK (typeof(verified_program_id) = 'blob' AND length(verified_program_id) = 32),
@@ -152,6 +152,68 @@ _SCHEMA_STATEMENTS = (
         UNIQUE (settlement_commitment, ordinal)
     ) STRICT, WITHOUT ROWID
     """,
+    """
+    CREATE TABLE spot_v7_operational_policy (
+        singleton INTEGER NOT NULL PRIMARY KEY CHECK (singleton = 1),
+        application_id BLOB NOT NULL CHECK (typeof(application_id) = 'blob' AND length(application_id) = 32),
+        chain_or_domain_id BLOB NOT NULL CHECK (typeof(chain_or_domain_id) = 'blob' AND length(chain_or_domain_id) = 32),
+        data_schema_id BLOB NOT NULL CHECK (typeof(data_schema_id) = 'blob' AND length(data_schema_id) = 32),
+        storage_policy_hash BLOB NOT NULL CHECK (typeof(storage_policy_hash) = 'blob' AND length(storage_policy_hash) = 32),
+        minimum_retention_epochs_be BLOB NOT NULL CHECK (typeof(minimum_retention_epochs_be) = 'blob' AND length(minimum_retention_epochs_be) = 8),
+        minimum_remaining_epochs_be BLOB NOT NULL CHECK (typeof(minimum_remaining_epochs_be) = 'blob' AND length(minimum_remaining_epochs_be) = 8),
+        maximum_blob_bytes INTEGER NOT NULL CHECK (maximum_blob_bytes BETWEEN 1 AND 8388608),
+        full_blob_policy_root BLOB NOT NULL UNIQUE CHECK (typeof(full_blob_policy_root) = 'blob' AND length(full_blob_policy_root) = 32),
+        finality_network_id BLOB NOT NULL CHECK (typeof(finality_network_id) = 'blob' AND length(finality_network_id) = 32),
+        finality_protocol_id BLOB NOT NULL CHECK (typeof(finality_protocol_id) = 'blob' AND length(finality_protocol_id) = 32),
+        external_finality_policy_hash BLOB NOT NULL CHECK (typeof(external_finality_policy_hash) = 'blob' AND length(external_finality_policy_hash) = 32),
+        finality_verifier_set_root BLOB NOT NULL CHECK (typeof(finality_verifier_set_root) = 'blob' AND length(finality_verifier_set_root) = 32),
+        checkpoint_finality_policy_root BLOB NOT NULL UNIQUE CHECK (typeof(checkpoint_finality_policy_root) = 'blob' AND length(checkpoint_finality_policy_root) = 32),
+        genesis_checkpoint_sequence_be BLOB NOT NULL CHECK (typeof(genesis_checkpoint_sequence_be) = 'blob' AND length(genesis_checkpoint_sequence_be) = 8),
+        genesis_checkpoint_hash BLOB NOT NULL CHECK (typeof(genesis_checkpoint_hash) = 'blob' AND length(genesis_checkpoint_hash) = 32),
+        current_checkpoint_sequence_be BLOB NOT NULL CHECK (typeof(current_checkpoint_sequence_be) = 'blob' AND length(current_checkpoint_sequence_be) = 8),
+        current_checkpoint_hash BLOB NOT NULL CHECK (typeof(current_checkpoint_hash) = 'blob' AND length(current_checkpoint_hash) = 32),
+        settlement_authority INTEGER NOT NULL CHECK (settlement_authority = 0),
+        production_authority INTEGER NOT NULL CHECK (production_authority = 0)
+    ) STRICT, WITHOUT ROWID
+    """,
+    """
+    CREATE TABLE spot_v7_operational_da (
+        settlement_commitment BLOB NOT NULL PRIMARY KEY REFERENCES spot_v7_settlements(settlement_commitment) ON DELETE RESTRICT,
+        certificate_root BLOB NOT NULL UNIQUE CHECK (typeof(certificate_root) = 'blob' AND length(certificate_root) = 32),
+        data_root BLOB NOT NULL CHECK (typeof(data_root) = 'blob' AND length(data_root) = 32),
+        policy_root BLOB NOT NULL CHECK (typeof(policy_root) = 'blob' AND length(policy_root) = 32),
+        checked_epoch_be BLOB NOT NULL CHECK (typeof(checked_epoch_be) = 'blob' AND length(checked_epoch_be) = 8),
+        retention_through_epoch_be BLOB NOT NULL CHECK (typeof(retention_through_epoch_be) = 'blob' AND length(retention_through_epoch_be) = 8),
+        blob_sha256 BLOB NOT NULL UNIQUE CHECK (typeof(blob_sha256) = 'blob' AND length(blob_sha256) = 32),
+        certificate_sha256 BLOB NOT NULL UNIQUE CHECK (typeof(certificate_sha256) = 'blob' AND length(certificate_sha256) = 32),
+        exact_blob BLOB NOT NULL CHECK (typeof(exact_blob) = 'blob' AND length(exact_blob) BETWEEN 1 AND 8388608),
+        exact_certificate BLOB NOT NULL CHECK (typeof(exact_certificate) = 'blob' AND length(exact_certificate) BETWEEN 1 AND 512),
+        provider_retrievability_verified INTEGER NOT NULL CHECK (provider_retrievability_verified = 0),
+        settlement_authority INTEGER NOT NULL CHECK (settlement_authority = 0),
+        production_authority INTEGER NOT NULL CHECK (production_authority = 0)
+    ) STRICT, WITHOUT ROWID
+    """,
+    """
+    CREATE TABLE spot_v7_operational_finality (
+        settlement_commitment BLOB NOT NULL PRIMARY KEY REFERENCES spot_v7_settlements(settlement_commitment) ON DELETE RESTRICT,
+        certificate_root BLOB NOT NULL UNIQUE CHECK (typeof(certificate_root) = 'blob' AND length(certificate_root) = 32),
+        policy_root BLOB NOT NULL CHECK (typeof(policy_root) = 'blob' AND length(policy_root) = 32),
+        proof_journal_hash BLOB NOT NULL UNIQUE CHECK (typeof(proof_journal_hash) = 'blob' AND length(proof_journal_hash) = 32),
+        post_state_root BLOB NOT NULL UNIQUE CHECK (typeof(post_state_root) = 'blob' AND length(post_state_root) = 32),
+        finality_evidence_root BLOB NOT NULL UNIQUE CHECK (typeof(finality_evidence_root) = 'blob' AND length(finality_evidence_root) = 32),
+        prior_checkpoint_sequence_be BLOB NOT NULL CHECK (typeof(prior_checkpoint_sequence_be) = 'blob' AND length(prior_checkpoint_sequence_be) = 8),
+        prior_checkpoint_hash BLOB NOT NULL CHECK (typeof(prior_checkpoint_hash) = 'blob' AND length(prior_checkpoint_hash) = 32),
+        next_checkpoint_sequence_be BLOB NOT NULL UNIQUE CHECK (typeof(next_checkpoint_sequence_be) = 'blob' AND length(next_checkpoint_sequence_be) = 8),
+        next_checkpoint_hash BLOB NOT NULL UNIQUE CHECK (typeof(next_checkpoint_hash) = 'blob' AND length(next_checkpoint_hash) = 32),
+        certificate_sha256 BLOB NOT NULL UNIQUE CHECK (typeof(certificate_sha256) = 'blob' AND length(certificate_sha256) = 32),
+        evidence_sha256 BLOB NOT NULL UNIQUE CHECK (typeof(evidence_sha256) = 'blob' AND length(evidence_sha256) = 32),
+        exact_certificate BLOB NOT NULL CHECK (typeof(exact_certificate) = 'blob' AND length(exact_certificate) BETWEEN 1 AND 576),
+        exact_finality_evidence BLOB NOT NULL CHECK (typeof(exact_finality_evidence) = 'blob' AND length(exact_finality_evidence) BETWEEN 1 AND 1048576),
+        external_finality_authenticated INTEGER NOT NULL CHECK (external_finality_authenticated = 0),
+        settlement_authority INTEGER NOT NULL CHECK (settlement_authority = 0),
+        production_authority INTEGER NOT NULL CHECK (production_authority = 0)
+    ) STRICT, WITHOUT ROWID
+    """,
 )
 
 _EXPECTED_SCHEMA_SQL = {
@@ -165,6 +227,9 @@ _EXPECTED_SCHEMA_SQL = {
     "spot_v7_authorization_nullifiers": _SCHEMA_STATEMENTS[7],
     "spot_v7_authorization_grant_spends": _SCHEMA_STATEMENTS[8],
     "spot_v7_consumed_objects": _SCHEMA_STATEMENTS[9],
+    "spot_v7_operational_policy": _SCHEMA_STATEMENTS[10],
+    "spot_v7_operational_da": _SCHEMA_STATEMENTS[11],
+    "spot_v7_operational_finality": _SCHEMA_STATEMENTS[12],
 }
 
 
@@ -198,7 +263,7 @@ def _create_schema(
     if connection.execute("PRAGMA user_version").fetchone()[0] != 0:
         raise ValueError("empty Spot V7 database has a user_version")
     connection.execute(f"PRAGMA application_id = {SPOT_V7_ATOMIC_SETTLEMENT_APPLICATION_ID_V1}")
-    connection.execute(f"PRAGMA user_version = {SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V1}")
+    connection.execute(f"PRAGMA user_version = {SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V2}")
     for statement in _SCHEMA_STATEMENTS:
         connection.execute(statement)
     connection.execute(
@@ -209,7 +274,7 @@ def _create_schema(
             genesis_state_root, state_root, revision, settlement_count, cell_count,
             last_epoch_id_be, settlement_authority, production_authority,
             authority_blocked_reason
-        ) VALUES (1, 1, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, NULL, 0, 0, ?)
+        ) VALUES (1, 2, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, NULL, 0, 0, ?)
         """,
         (
             _hash_bytes(identity.application_id, name="store application_id"),
@@ -253,7 +318,7 @@ def _validate_spot_v7_schema(connection: sqlite3.Connection) -> None:
         raise ValueError("Spot V7 store application_id mismatch")
     if (
         connection.execute("PRAGMA user_version").fetchone()[0]
-        != SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V1
+        != SPOT_V7_ATOMIC_SETTLEMENT_SCHEMA_VERSION_V2
     ):
         raise ValueError("Spot V7 store user_version mismatch")
     rows = connection.execute(

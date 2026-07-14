@@ -17,6 +17,9 @@ from src.integration._zrpf_spot_v7_atomic_settlement_schema import (
     _read_current_cells,
     _read_spot_v7_cursor,
 )
+from src.integration._zrpf_spot_v7_operational_store import (
+    _validate_complete_test_only_operational_history,
+)
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     SPOT_V7_ATOMIC_SETTLEMENT_AUTHORITY_BLOCKED_REASON_V1,
     SpotV7AssetEffectV1,
@@ -74,6 +77,7 @@ def _validate_complete_spot_v7_history(connection: sqlite3.Connection) -> None:
         raise ValueError("Spot V7 metadata state root disagrees with replayed history")
     if head.last_epoch_id != state.epoch_id:
         raise ValueError("Spot V7 metadata epoch disagrees with replayed history")
+    _validate_complete_test_only_operational_history(connection)
 
 
 def _read_meta_row(connection: sqlite3.Connection) -> sqlite3.Row:

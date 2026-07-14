@@ -288,6 +288,18 @@ class SpotV7AtomicSettlementRejectReasonV1(Enum):
         "spot_v7.atomic_settlement.duplicate_authorization_grant_spend"
     )
     DUPLICATE_CONSUMED_OBJECT = "spot_v7.atomic_settlement.duplicate_consumed_object"
+    OPERATIONAL_POLICY_REQUIRED = "spot_v7.atomic_settlement.operational_policy_required"
+    OPERATIONAL_POLICY_NOT_CONFIGURED = (
+        "spot_v7.atomic_settlement.operational_policy_not_configured"
+    )
+    FINALITY_CURSOR_MISMATCH = "spot_v7.atomic_settlement.finality_cursor_mismatch"
+    DUPLICATE_DA_CERTIFICATE = "spot_v7.atomic_settlement.duplicate_da_certificate"
+    DUPLICATE_FINALITY_CERTIFICATE = (
+        "spot_v7.atomic_settlement.duplicate_finality_certificate"
+    )
+    DUPLICATE_APPLICATION_CHECKPOINT = (
+        "spot_v7.atomic_settlement.duplicate_application_checkpoint"
+    )
 
 
 class SpotV7AtomicSettlementDispositionV1(Enum):
