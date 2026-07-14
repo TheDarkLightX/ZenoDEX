@@ -1138,8 +1138,19 @@ from the relevant rows.
 | cross-shard messages | duplicate, missing, carry, and cancellation tests |
 | recursive child verification | child substitution and child omission tests |
 | CLI parser | malformed input, overflow, truncation, and unknown-mode tests |
-| Python/Rust parity | shared fixture corpus or explicit non-claim |
+| Python/Rust parity | active distinguishing-witness fixture corpus or explicit non-claim |
 | public claim update | claims registry or coverage matrix checker |
+
+Representation coverage requires an active distinguishing witness for every
+acceptance-relevant choice. A field appearing in a fixture or surviving a
+round trip is insufficient when the fixture would also pass after a field
+swap, byte-order reversal, flag omission, alias substitution, or default-value
+collapse. Cross-language fixtures must therefore use position-distinct,
+non-palindromic values for ordered and multi-byte fields. Each accepted flag
+state needs a witness, while reserved or rejected flag states need a mutation
+that reaches the expected fail-closed boundary. A mutation of every governed
+field position must either change a committed digest or produce the stable
+typed rejection required by the format.
 
 Use BDD-style scenario tests only for cross-layer user-visible behavior. For
 proof correctness, prefer invariant-named unit/property/parity/mutation tests.
