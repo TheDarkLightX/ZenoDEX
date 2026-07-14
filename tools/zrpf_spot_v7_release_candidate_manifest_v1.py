@@ -1,8 +1,10 @@
 """Exact authority-neutral release candidate for the bounded Spot V7 lane.
 
-This module is a pure format, recomposition, and checking boundary.  It binds
-the complete proposed release surface without reading artifacts, selecting a
-release, executing a verifier, or minting an authority capability.
+This module is a pure format, recomposition, and checking boundary.  Each
+inventory row separates the raw artifact SHA-256 from the semantic identity
+that an artifact-specific checker must later derive.  It binds the complete
+proposed release surface without reading artifacts, selecting a release,
+executing a verifier, or minting an authority capability.
 """
 
 from __future__ import annotations
@@ -215,7 +217,13 @@ _POLICY_FIELDS_V1: Final = {
     "finality_policy_root",
     "operational_policy_root",
 }
-_INVENTORY_ROW_FIELDS_V1: Final = {"codec", "role", "sha256", "size_bytes"}
+_INVENTORY_ROW_FIELDS_V1: Final = {
+    "artifact_sha256",
+    "bound_identity",
+    "codec",
+    "role",
+    "size_bytes",
+}
 
 _EVIDENCE_BINDING_BY_ROLE_V1: Final = MappingProxyType(
     {
@@ -263,6 +271,12 @@ _EVIDENCE_BINDING_BY_ROLE_V1: Final = MappingProxyType(
         ),
         "finality_policy": ("policies", "finality_policy_root"),
     }
+)
+
+RAW_ARTIFACT_DIGEST_ROLES_V1: Final = frozenset(
+    role
+    for role, (_, field) in _EVIDENCE_BINDING_BY_ROLE_V1.items()
+    if field.endswith("_sha256")
 )
 
 
@@ -546,12 +560,22 @@ def _validate_inventory(value: object) -> dict[str, dict[str, object]]:
             raise SpotV7ReleaseCandidateRejectV1("release_candidate_inventory_order")
         if row_value["codec"] != EXPECTED_EVIDENCE_CODEC_BY_ROLE_V1[expected_role]:
             raise SpotV7ReleaseCandidateRejectV1("release_candidate_inventory_codec")
-        digest = _require_digest_hex(
-            row_value["sha256"], "release_candidate_inventory_digest"
+        artifact_digest = _require_digest_hex(
+            row_value["artifact_sha256"], "release_candidate_inventory_digest"
         )
-        if digest.hex() in digests:
+        if artifact_digest.hex() in digests:
             raise SpotV7ReleaseCandidateRejectV1("release_candidate_inventory_digest")
-        digests.add(digest.hex())
+        digests.add(artifact_digest.hex())
+        bound_identity = _require_digest_hex(
+            row_value["bound_identity"], "release_candidate_inventory_identity"
+        )
+        if (
+            expected_role in RAW_ARTIFACT_DIGEST_ROLES_V1
+            and bound_identity != artifact_digest
+        ):
+            raise SpotV7ReleaseCandidateRejectV1(
+                "release_candidate_inventory_identity"
+            )
         maximum = MAX_EVIDENCE_BYTES_BY_ROLE_V1[expected_role]
         if (
             type(row_value["size_bytes"]) is not int
@@ -574,7 +598,7 @@ def _validate_inventory_bindings(
 ) -> None:
     for role in REQUIRED_EVIDENCE_ROLES_V1:
         section, field = _EVIDENCE_BINDING_BY_ROLE_V1[role]
-        if body[section][field] != inventory[role]["sha256"]:
+        if body[section][field] != inventory[role]["bound_identity"]:
             raise SpotV7ReleaseCandidateRejectV1("release_candidate_inventory_binding")
 
 
