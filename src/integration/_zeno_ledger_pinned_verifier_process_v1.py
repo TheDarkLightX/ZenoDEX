@@ -1,11 +1,15 @@
-"""Private one-shot process shell for a pinned ZenoLedger verifier."""
+"""Private one-shot process shell for a pinned ZenoLedger verifier.
+
+This is an intermediate Linux pre-exec contract.  The embedded Python launcher
+runtime is not release-bound, and the process shell is not a complete native
+sandbox.  Production authority remains false in the consuming boundary.
+"""
 
 from __future__ import annotations
 
 import fcntl
 import hashlib
 import os
-import resource
 import signal
 import stat
 import struct
@@ -21,6 +25,138 @@ MAX_VERIFIER_STDOUT_BYTES = 2 * 1024 * 1024
 MAX_VERIFIER_STDERR_BYTES = 64 * 1024
 DEFAULT_VERIFIER_ADDRESS_SPACE_BYTES = 4 * 1024 * 1024 * 1024
 DEFAULT_VERIFIER_STACK_BYTES = 16 * 1024 * 1024
+MAX_VERIFIER_OPEN_FILES = 32
+# RLIMIT_NPROC limits later process creation under Linux per-real-UID accounting.
+# It is not process isolation; process-group teardown independently owns any
+# descendants that a governed test profile is explicitly allowed to create.
+MAX_VERIFIER_PROCESSES = 1
+
+# This source runs under the current trusted Python runtime with isolated mode
+# enabled. It installs the complete child contract before replacing itself with
+# the already sealed governed verifier. Any setup failure exits without calling
+# execve, so the governed program never observes a partially applied profile.
+_PRE_EXEC_LAUNCHER_SOURCE = r"""
+import ctypes
+import errno
+import os
+import resource
+import sys
+
+PR_SET_NO_NEW_PRIVS = 38
+PR_GET_NO_NEW_PRIVS = 39
+PR_SET_SECCOMP = 22
+SECCOMP_MODE_FILTER = 2
+SECCOMP_RET_KILL_PROCESS = 0x80000000
+SECCOMP_RET_ERRNO = 0x00050000
+SECCOMP_RET_ALLOW = 0x7fff0000
+BPF_LD_W_ABS = 0x20
+BPF_JMP_JEQ_K = 0x15
+BPF_RET_K = 0x06
+
+
+class SockFilter(ctypes.Structure):
+    _fields_ = [
+        ("code", ctypes.c_ushort),
+        ("jt", ctypes.c_ubyte),
+        ("jf", ctypes.c_ubyte),
+        ("k", ctypes.c_uint32),
+    ]
+
+
+class SockFprog(ctypes.Structure):
+    _fields_ = [("len", ctypes.c_ushort), ("filter", ctypes.POINTER(SockFilter))]
+
+
+def set_limit(kind, requested):
+    _soft, inherited_hard = resource.getrlimit(kind)
+    if inherited_hard != resource.RLIM_INFINITY and requested > inherited_hard:
+        raise RuntimeError("requested verifier limit exceeds inherited hard limit")
+    resource.setrlimit(kind, (requested, requested))
+    if resource.getrlimit(kind) != (requested, requested):
+        raise RuntimeError("verifier resource limit did not install exactly")
+
+
+def close_unexpected_fds(executable_fd):
+    for name in os.listdir("/proc/self/fd"):
+        descriptor = int(name)
+        if descriptor in (0, 1, 2, executable_fd):
+            continue
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            if exc.errno != errno.EBADF:
+                raise
+
+
+def install_no_new_privileges(libc):
+    if libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "PR_SET_NO_NEW_PRIVS failed")
+    if libc.prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) != 1:
+        raise RuntimeError("PR_SET_NO_NEW_PRIVS did not persist")
+
+
+def install_socket_deny_filter(libc, audit_arch, socket_syscall):
+    filters = (SockFilter * 7)(
+        SockFilter(BPF_LD_W_ABS, 0, 0, 4),
+        SockFilter(BPF_JMP_JEQ_K, 1, 0, audit_arch),
+        SockFilter(BPF_RET_K, 0, 0, SECCOMP_RET_KILL_PROCESS),
+        SockFilter(BPF_LD_W_ABS, 0, 0, 0),
+        SockFilter(BPF_JMP_JEQ_K, 0, 1, socket_syscall),
+        SockFilter(BPF_RET_K, 0, 0, SECCOMP_RET_ERRNO | errno.EPERM),
+        SockFilter(BPF_RET_K, 0, 0, SECCOMP_RET_ALLOW),
+    )
+    program = SockFprog(len(filters), filters)
+    if libc.prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ctypes.addressof(program), 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "SECCOMP_MODE_FILTER failed")
+
+
+def main():
+    if len(sys.argv) != 9:
+        raise RuntimeError("invalid pre-exec launcher argument count")
+    executable_fd = int(sys.argv[1])
+    timeout_seconds = int(sys.argv[2])
+    address_space_bytes = int(sys.argv[3])
+    stack_bytes = int(sys.argv[4])
+    open_files = int(sys.argv[5])
+    audit_arch = int(sys.argv[6])
+    socket_syscall = int(sys.argv[7])
+    process_count = int(sys.argv[8])
+    os.umask(0o077)
+    close_unexpected_fds(executable_fd)
+    set_limit(resource.RLIMIT_AS, address_space_bytes)
+    set_limit(resource.RLIMIT_STACK, stack_bytes)
+    set_limit(resource.RLIMIT_CPU, timeout_seconds + 1)
+    set_limit(resource.RLIMIT_CORE, 0)
+    set_limit(resource.RLIMIT_FSIZE, 2 * 1024 * 1024)
+    set_limit(resource.RLIMIT_NOFILE, open_files)
+    set_limit(resource.RLIMIT_NPROC, process_count)
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.prctl.argtypes = [
+        ctypes.c_int,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+    ]
+    libc.prctl.restype = ctypes.c_int
+    install_no_new_privileges(libc)
+    install_socket_deny_filter(libc, audit_arch, socket_syscall)
+    path = "/proc/self/fd/" + str(executable_fd)
+    os.execve(
+        path,
+        [path],
+        {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "TZ": "UTC"},
+    )
+
+
+try:
+    main()
+except BaseException:
+    try:
+        os.write(2, b"pre-exec verifier launcher rejected\n")
+    finally:
+        os._exit(126)
+"""
 
 
 class VerifierExecutableFormatV1(str, Enum):
@@ -69,28 +205,37 @@ def execute_pinned_verifier_once(
                 "pinned verifier executable hash mismatch",
             )
         with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
-            process = _start_verifier(executable_fd, stdout_file, stderr_file)
-            _apply_resource_limits(
-                process.pid,
+            process = _start_verifier(
+                executable_fd,
+                stdout_file,
+                stderr_file,
                 timeout_seconds=timeout_seconds,
                 max_address_space_bytes=max_address_space_bytes,
                 max_stack_bytes=max_stack_bytes,
             )
             process.communicate(input=request_bytes, timeout=timeout_seconds)
+            return_code = process.returncode
+            _terminate_process_group(process)
+            process = None
             stdout = _read_bounded_output(
                 stdout_file,
                 max_bytes=MAX_VERIFIER_STDOUT_BYTES,
                 label="stdout",
             )
-            _read_bounded_output(
+            stderr = _read_bounded_output(
                 stderr_file,
                 max_bytes=MAX_VERIFIER_STDERR_BYTES,
                 label="stderr",
             )
-            if process.returncode != 0:
+            if return_code != 0:
                 raise PinnedVerifierProcessError(
                     PinnedVerifierProcessFailure.PROCESS_FAILED,
-                    f"pinned verifier exited with status {process.returncode}",
+                    f"pinned verifier exited with status {return_code}",
+                )
+            if stderr:
+                raise PinnedVerifierProcessError(
+                    PinnedVerifierProcessFailure.OUTPUT_INVALID,
+                    "successful pinned verifier emitted stderr",
                 )
             return stdout
     except subprocess.TimeoutExpired as exc:
@@ -118,52 +263,49 @@ def _start_verifier(
     executable_fd: int,
     stdout_file: BinaryIO,
     stderr_file: BinaryIO,
+    *,
+    timeout_seconds: int,
+    max_address_space_bytes: int,
+    max_stack_bytes: int,
 ) -> subprocess.Popen[bytes]:
+    audit_arch, socket_syscall = _seccomp_socket_profile()
     return subprocess.Popen(
-        [f"/proc/self/fd/{executable_fd}"],
+        [
+            "/proc/self/exe",
+            "-I",
+            "-S",
+            "-c",
+            _PRE_EXEC_LAUNCHER_SOURCE,
+            str(executable_fd),
+            str(timeout_seconds),
+            str(max_address_space_bytes),
+            str(max_stack_bytes),
+            str(MAX_VERIFIER_OPEN_FILES),
+            str(audit_arch),
+            str(socket_syscall),
+            str(MAX_VERIFIER_PROCESSES),
+        ],
         stdin=subprocess.PIPE,
         stdout=stdout_file,
         stderr=stderr_file,
         start_new_session=True,
+        close_fds=True,
         pass_fds=(executable_fd,),
         cwd="/",
         env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "TZ": "UTC"},
     )
 
 
-def _apply_resource_limits(
-    process_id: int,
-    *,
-    timeout_seconds: int,
-    max_address_space_bytes: int,
-    max_stack_bytes: int,
-) -> None:
-    try:
-        resource.prlimit(
-            process_id,
-            resource.RLIMIT_AS,
-            (max_address_space_bytes, max_address_space_bytes),
-        )
-        resource.prlimit(
-            process_id,
-            resource.RLIMIT_STACK,
-            (max_stack_bytes, max_stack_bytes),
-        )
-        cpu_seconds = timeout_seconds + 1
-        resource.prlimit(process_id, resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
-        resource.prlimit(process_id, resource.RLIMIT_CORE, (0, 0))
-        resource.prlimit(
-            process_id,
-            resource.RLIMIT_FSIZE,
-            (MAX_VERIFIER_STDOUT_BYTES, MAX_VERIFIER_STDOUT_BYTES),
-        )
-        resource.prlimit(process_id, resource.RLIMIT_NOFILE, (32, 32))
-        resource.prlimit(process_id, resource.RLIMIT_NPROC, (1, 1))
-    except (OSError, ValueError) as exc:
-        raise PinnedVerifierProcessError(
-            PinnedVerifierProcessFailure.PROCESS_FAILED,
-            "failed to apply verifier resource limits",
-        ) from exc
+def _seccomp_socket_profile() -> tuple[int, int]:
+    machine = os.uname().machine.lower()
+    if machine in {"x86_64", "amd64"}:
+        return 0xC000003E, 41
+    if machine in {"aarch64", "arm64"}:
+        return 0xC00000B7, 198
+    raise PinnedVerifierProcessError(
+        PinnedVerifierProcessFailure.PROCESS_FAILED,
+        "host architecture has no governed verifier seccomp profile",
+    )
 
 
 def _sealed_executable_snapshot(
