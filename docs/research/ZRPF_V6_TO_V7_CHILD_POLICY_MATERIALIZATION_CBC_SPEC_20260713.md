@@ -134,20 +134,47 @@ The manifest commits to:
 Unknown authority is never represented as true. Every authority field in this
 lane remains false.
 
-### Pending post-pin governance binding
+### Implemented post-pin governance binding
 
-This version emits its canonical manifest outside the repository. It does not
-yet add a committed release manifest or a required checker that reopens the
-committed post-pin source and compares its exact bytes, image ID, C1 binding,
-and release evidence with that manifest.
+The materializer still emits its canonical manifest outside the repository so
+that a failed materialization cannot partially write governed evidence. The
+separate post-pin checker now accepts one exact committed chain:
+
+```text
+C0 = rebuild-plan source commit
+C1 = exact reconstructed V6 identity materialization
+C2 = C1 plus only the exact V7 child-policy pin
+G  = C2 plus only the four fixed canonical evidence objects
+```
+
+The four evidence objects are the plan, observations, candidate report, and
+materialization manifest under the fixed
+`evidence/zrpf_v6_to_v7_post_pin_v1/` directory. They must be new `100644`
+blobs in G. G, C2, and C1 must each have exactly one literal parent, Git grafts
+and replace refs reject, and the checkout must be clean at the exact G commit.
+
+The checker independently recomposes the report and C0-to-C1 transition. It
+then derives the expected nonzero settlement image words, renders the exact V7
+source from C1, reconstructs the materializer patch and tree, and requires the
+committed C2 source, C2 tree, and manifest to match exactly. Unknown manifest
+fields, promoted authority fields, noncanonical JSON, an extra transition
+path, or any manual post-pin source edit reject.
+
+Run at the exact governance commit:
+
+```bash
+python3 tools/check_zrpf_v6_v7_post_pin_governance.py
+```
+
+Success establishes a committed, authority-neutral post-pin binding. It does
+not convert the candidate into release evidence or program-binary provenance.
 
 The materializer itself cannot start from a manually selected nonzero value:
 it requires the exact zero placeholder and derives the only accepted nonzero
 value from the independently recomposed report. After the indexed candidate is
 created, ordinary same-UID code can still alter the staged source. Such an edit
-does not inherit this manifest and cannot promote any authority field. A future
-promotion tranche must commit the reviewed manifest and add a fail-closed
-governance checker before the pin can participate in release authority.
+does not inherit this manifest: the governance checker rejects its C2 bytes and
+tree. Same-UID race resistance during checking remains explicitly unclaimed.
 
 ## Failure detector
 
@@ -167,11 +194,23 @@ The focused test suite covers:
 - rollback after external-manifest failure;
 - stable success after a post-commit descriptor-close error.
 
+The post-pin governance suite additionally covers:
+
+- an exact C0-to-C1-to-C2-to-G accepted chain;
+- committed manual post-pin source mutation rejection;
+- extra C2 and governance path rejection;
+- manifest authority-promotion rejection;
+- image-word/report mismatch and all-zero identity rejection;
+- noncanonical committed-manifest rejection;
+- Git-graft rejection;
+- dirty governance-checkout rejection.
+
 Run:
 
 ```bash
 python3 -m pytest -q \
-  tests/test_materialize_zrpf_v6_settlement_child_into_v7.py
+  tests/test_materialize_zrpf_v6_settlement_child_into_v7.py \
+  tests/test_check_zrpf_v6_v7_post_pin_governance.py
 ```
 
 ## Explicit non-claims
@@ -191,5 +230,7 @@ The resulting pin is one required source transition. Fresh V7 source build,
 image derivation, receipt generation, negative controls, replay, release, data
 availability, finality, and atomic settlement gates remain separate.
 
-The committed post-pin manifest and required governance checker also remain a
-separate pending obligation.
+The real final-build source closure, fresh V7 image and receipt evidence,
+release-policy promotion, independently replayed negative controls, and any
+production authority remain separate pending obligations. The implemented
+governance checker deliberately emits false for every authority field.
