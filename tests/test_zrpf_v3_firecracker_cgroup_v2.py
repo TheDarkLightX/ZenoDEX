@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -319,7 +320,33 @@ def test_finite_limit_boundary_atlas_rejects_one_predicate_flip(
     reject_code: str,
 ) -> None:
     with pytest.raises(cgroup.CgroupV2Reject, match=reject_code):
-        replace(_limits(), **changes)
+        _replace_one_limit_for_negative_test(changes)
+
+
+def _replace_one_limit_for_negative_test(
+    changes: dict[str, object],
+) -> cgroup.CgroupLimitsV1:
+    if len(changes) != 1:
+        raise ValueError("negative limit test requires exactly one changed field")
+    name, value = next(iter(changes.items()))
+    limits = _limits()
+    if name == "cpu_quota_us":
+        return replace(limits, cpu_quota_us=cast(int, value))
+    if name == "cpu_period_us":
+        return replace(limits, cpu_period_us=cast(int, value))
+    if name == "cpuset_cpus":
+        return replace(limits, cpuset_cpus=cast(str, value))
+    if name == "io_max":
+        return replace(limits, io_max=cast(str, value))
+    if name == "memory_high_bytes":
+        return replace(limits, memory_high_bytes=cast(int, value))
+    if name == "memory_max_bytes":
+        return replace(limits, memory_max_bytes=cast(int, value))
+    if name == "memory_swap_max_bytes":
+        return replace(limits, memory_swap_max_bytes=cast(int, value))
+    if name == "pids_max":
+        return replace(limits, pids_max=cast(int, value))
+    raise ValueError(f"unsupported negative limit field: {name}")
 
 
 class _FakeCgroupV2:

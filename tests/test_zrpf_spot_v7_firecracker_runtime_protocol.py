@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+from typing import cast
 
 import pytest
 
@@ -101,7 +102,7 @@ def test_request_rejects_wrong_type_and_width() -> None:
 
     with pytest.raises(protocol.SpotV7FirecrackerProtocolRejectV1) as mutable:
         protocol.SpotV7FirecrackerRequestV1.validated(
-            run_nonce_256=bytearray(_digest(1)),  # type: ignore[arg-type]
+            run_nonce_256=cast(bytes, bytearray(_digest(1))),
             runtime_manifest_sha256=_digest(2),
             machine_config_sha256=_digest(3),
             input_drive_sha256=_digest(4),

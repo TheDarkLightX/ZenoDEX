@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import NoReturn, cast, final
+from typing import NoReturn, TypeGuard, final
 
 from src.integration._recursive_stark_admission_store_schema import (
     DEFAULT_BUSY_TIMEOUT_MS,
@@ -366,9 +366,9 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
 
         if type(expected_cursor) is not SpotV7AtomicSettlementCursorV1:
             raise TypeError("expected_cursor must be exact SpotV7AtomicSettlementCursorV1")
-        if type(capability) is not _SpotV7AtomicEconomicCommitCapabilityV2:
+        if not _is_exact_v2_operational_capability(capability):
             raise TypeError("capability must be an exact Spot V7 V2 operational commit")
-        operational = cast(_SpotV7AtomicEconomicCommitCapabilityV2, capability)
+        operational = capability
         if not operational._has_private_seal():
             raise TypeError("V2 operational capability lacks its module-private seal")
         governed_policy = self._governed_operational_policy
@@ -609,6 +609,14 @@ def _configured_operational_policy(
     if governed_policy is not None:
         return governed_policy._policy_for_atomic_store()
     return test_only_policy
+
+
+def _is_exact_v2_operational_capability(
+    value: object,
+) -> TypeGuard[_SpotV7AtomicEconomicCommitCapabilityV2]:
+    """Narrow only the exact sealed V2 capability class."""
+
+    return type(value) is _SpotV7AtomicEconomicCommitCapabilityV2
 
 
 def _require_v2_policy_match(

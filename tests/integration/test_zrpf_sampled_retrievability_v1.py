@@ -6,6 +6,7 @@ import json
 import pickle
 from collections.abc import Callable
 from dataclasses import replace
+from typing import cast
 
 import pytest
 
@@ -785,4 +786,4 @@ def test_exact_full_blob_target_matches_existing_hash_domains() -> None:
     with pytest.raises(ValueError, match="certificate version 1"):
         replace(target, certificate_version=True)
     with pytest.raises(ValueError, match="chunk_size must be 65536"):
-        replace(target, chunk_size=65_536.0)
+        replace(target, chunk_size=cast(int, 65_536.0))
