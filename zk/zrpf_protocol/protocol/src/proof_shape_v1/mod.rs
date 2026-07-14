@@ -1,8 +1,11 @@
 //! Application-neutral proof-shape and child-assumption contracts.
 //!
-//! These types describe bounded proof resources and exact child bindings. They
-//! do not verify proofs, authenticate receipts, authorize releases, or grant
-//! settlement or production authority.
+//! `ProofShapeV1` is a reusable static contract over program, profile, child
+//! shape, and resource ceilings. `AssumptionManifestV1` is an instance contract
+//! over exact verification claims and child journals. Keeping those identities
+//! separate lets compilation and policy caches reuse a shape across proofs.
+//! These types do not verify proofs, authenticate receipts, authorize releases,
+//! or grant settlement or production authority.
 
 mod codec;
 mod error;

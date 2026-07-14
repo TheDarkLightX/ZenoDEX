@@ -13,6 +13,7 @@ use super::{
     ProofShapeIdV1, ASSUMPTION_MANIFEST_VERSION_V1, ASSUMPTION_REQUIREMENT_VERSION_V1,
     MAX_REQUIRED_ASSUMPTIONS_V1,
 };
+use crate::CommitmentV3;
 
 const ASSUMPTION_ID_DOMAIN_V1: &[u8] = b"zkpf.assumption_id.v1";
 const ASSUMPTION_MANIFEST_ID_DOMAIN_V1: &[u8] = b"zkpf.assumption_manifest_id.v1";
@@ -21,6 +22,8 @@ const ASSUMPTION_MANIFEST_ID_DOMAIN_V1: &[u8] = b"zkpf.assumption_manifest_id.v1
 pub struct AssumptionRequirementInputV1 {
     pub slot: u16,
     pub allowed_child_binding_id: AllowedChildBindingIdV1,
+    pub expected_verification_claim_hash: CommitmentV3,
+    pub expected_child_journal_hash: CommitmentV3,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -29,6 +32,8 @@ pub struct AssumptionRequirementV1 {
     assumption_id: AssumptionIdV1,
     slot: u16,
     allowed_child_binding_id: AllowedChildBindingIdV1,
+    expected_verification_claim_hash: CommitmentV3,
+    expected_child_journal_hash: CommitmentV3,
 }
 
 #[derive(Deserialize)]
@@ -38,6 +43,8 @@ struct AssumptionRequirementWireV1 {
     assumption_id: AssumptionIdV1,
     slot: u16,
     allowed_child_binding_id: AllowedChildBindingIdV1,
+    expected_verification_claim_hash: CommitmentV3,
+    expected_child_journal_hash: CommitmentV3,
 }
 
 impl AssumptionRequirementV1 {
@@ -51,6 +58,8 @@ impl AssumptionRequirementV1 {
             assumption_id,
             slot: input.slot,
             allowed_child_binding_id: input.allowed_child_binding_id,
+            expected_verification_claim_hash: input.expected_verification_claim_hash,
+            expected_child_journal_hash: input.expected_child_journal_hash,
         };
         value.validate(proof_shape_id)?;
         Ok(value)
@@ -74,6 +83,8 @@ impl AssumptionRequirementV1 {
         AssumptionRequirementInputV1 {
             slot: self.slot,
             allowed_child_binding_id: self.allowed_child_binding_id,
+            expected_verification_claim_hash: self.expected_verification_claim_hash,
+            expected_child_journal_hash: self.expected_child_journal_hash,
         }
     }
 
@@ -88,6 +99,14 @@ impl AssumptionRequirementV1 {
     pub const fn allowed_child_binding_id(&self) -> AllowedChildBindingIdV1 {
         self.allowed_child_binding_id
     }
+
+    pub const fn expected_verification_claim_hash(&self) -> CommitmentV3 {
+        self.expected_verification_claim_hash
+    }
+
+    pub const fn expected_child_journal_hash(&self) -> CommitmentV3 {
+        self.expected_child_journal_hash
+    }
 }
 
 pub fn derive_assumption_id_v1(
@@ -99,6 +118,8 @@ pub fn derive_assumption_id_v1(
     hasher.update(proof_shape_id.as_bytes());
     hasher.update(input.slot.to_be_bytes());
     hasher.update(input.allowed_child_binding_id.as_bytes());
+    hasher.update(input.expected_verification_claim_hash.as_bytes());
+    hasher.update(input.expected_child_journal_hash.as_bytes());
     assumption_id(hasher)
 }
 
@@ -211,6 +232,8 @@ impl<'de> Deserialize<'de> for AssumptionManifestV1 {
                 assumption_id: requirement.assumption_id,
                 slot: requirement.slot,
                 allowed_child_binding_id: requirement.allowed_child_binding_id,
+                expected_verification_claim_hash: requirement.expected_verification_claim_hash,
+                expected_child_journal_hash: requirement.expected_child_journal_hash,
             })
             .collect();
         let value = Self {
@@ -242,8 +265,13 @@ fn validate_requirements(
             if prior.slot() == requirement.slot() {
                 return Err(ProofShapeErrorV1::DuplicateAssumptionSlot);
             }
-            if prior.allowed_child_binding_id() == requirement.allowed_child_binding_id() {
-                return Err(ProofShapeErrorV1::DuplicateRequiredBinding);
+            if prior.expected_verification_claim_hash()
+                == requirement.expected_verification_claim_hash()
+            {
+                return Err(ProofShapeErrorV1::DuplicateExpectedVerificationClaim);
+            }
+            if prior.expected_child_journal_hash() == requirement.expected_child_journal_hash() {
+                return Err(ProofShapeErrorV1::DuplicateExpectedChildJournal);
             }
         }
     }

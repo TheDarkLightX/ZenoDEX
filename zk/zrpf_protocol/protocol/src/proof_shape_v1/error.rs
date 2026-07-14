@@ -18,7 +18,6 @@ pub enum ProofShapeErrorV1 {
     },
     DuplicateAllowedChildBinding,
     NonCanonicalAllowedChildBindingOrder,
-    DuplicateChildJournal,
     LeafHasChildContract,
     AggregateHasNoChildContract,
     TooManyRequiredAssumptions {
@@ -26,7 +25,8 @@ pub enum ProofShapeErrorV1 {
         maximum: usize,
     },
     DuplicateAssumptionSlot,
-    DuplicateRequiredBinding,
+    DuplicateExpectedVerificationClaim,
+    DuplicateExpectedChildJournal,
     NonDenseAssumptionSlots,
     NonCanonicalAssumptionOrder,
     ProofShapeMismatch {
@@ -59,6 +59,7 @@ pub enum ProofShapeErrorV1 {
     ChildShapeMismatch,
     ChildProgramMismatch,
     ChildProfileMismatch,
+    VerificationClaimMismatch,
     ChildJournalMismatch,
     ChildJournalBytesExceeded {
         actual: u64,
@@ -112,7 +113,6 @@ impl fmt::Display for ProofShapeErrorV1 {
             Self::NonCanonicalAllowedChildBindingOrder => {
                 formatter.write_str("allowed child bindings are not in canonical order")
             }
-            Self::DuplicateChildJournal => formatter.write_str("duplicate child journal"),
             Self::LeafHasChildContract => {
                 formatter.write_str("leaf proof shape declares a child contract")
             }
@@ -126,8 +126,11 @@ impl fmt::Display for ProofShapeErrorV1 {
                 )
             }
             Self::DuplicateAssumptionSlot => formatter.write_str("duplicate assumption slot"),
-            Self::DuplicateRequiredBinding => {
-                formatter.write_str("duplicate required child binding")
+            Self::DuplicateExpectedVerificationClaim => {
+                formatter.write_str("duplicate expected verification claim")
+            }
+            Self::DuplicateExpectedChildJournal => {
+                formatter.write_str("duplicate expected child journal")
             }
             Self::NonDenseAssumptionSlots => {
                 formatter.write_str("assumption slots are not dense from zero")
@@ -169,6 +172,7 @@ impl fmt::Display for ProofShapeErrorV1 {
             Self::ChildShapeMismatch => formatter.write_str("child shape mismatch"),
             Self::ChildProgramMismatch => formatter.write_str("child program mismatch"),
             Self::ChildProfileMismatch => formatter.write_str("child profile mismatch"),
+            Self::VerificationClaimMismatch => formatter.write_str("verification claim mismatch"),
             Self::ChildJournalMismatch => formatter.write_str("child journal mismatch"),
             Self::ChildJournalBytesExceeded { actual, maximum } => {
                 write!(formatter, "child journal bytes {actual} exceed {maximum}")

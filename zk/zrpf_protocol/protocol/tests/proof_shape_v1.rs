@@ -29,8 +29,21 @@ fn binding(seed: u8, max_child_journal_bytes: u64) -> AllowedChildBindingInputV1
         child_shape_id: child_shape(seed),
         child_program_id: ProgramIdV3::new(bytes(seed.wrapping_add(20))).unwrap(),
         child_profile_id: ProfileIdV3::new(bytes(seed.wrapping_add(40))).unwrap(),
-        child_journal_hash: commitment(seed.wrapping_add(60)),
         max_child_journal_bytes,
+    }
+}
+
+fn requirement(
+    slot: u16,
+    allowed_child_binding_id: AllowedChildBindingIdV1,
+    claim_seed: u8,
+    journal_seed: u8,
+) -> AssumptionRequirementInputV1 {
+    AssumptionRequirementInputV1 {
+        slot,
+        allowed_child_binding_id,
+        expected_verification_claim_hash: commitment(claim_seed),
+        expected_child_journal_hash: commitment(journal_seed),
     }
 }
 
@@ -83,14 +96,8 @@ fn fixture() -> (
     let manifest = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
         proof_shape_id: shape.shape_id(),
         required_assumptions: vec![
-            AssumptionRequirementInputV1 {
-                slot: 1,
-                allowed_child_binding_id: bindings[1].binding_id(),
-            },
-            AssumptionRequirementInputV1 {
-                slot: 0,
-                allowed_child_binding_id: bindings[0].binding_id(),
-            },
+            requirement(1, bindings[1].binding_id(), 101, 72),
+            requirement(0, bindings[0].binding_id(), 100, 71),
         ],
     })
     .unwrap();
@@ -106,13 +113,11 @@ fn fixture() -> (
                 .unwrap();
             ResolvedChildClaimV1::new(ResolvedChildClaimInputV1 {
                 assumption_id: requirement.assumption_id(),
-                verification_claim_hash: commitment(
-                    100_u8.wrapping_add(u8::try_from(requirement.slot()).unwrap()),
-                ),
+                verification_claim_hash: requirement.expected_verification_claim_hash(),
                 child_shape_id: allowed.child_shape_id(),
                 child_program_id: allowed.child_program_id(),
                 child_profile_id: allowed.child_profile_id(),
-                child_journal_hash: allowed.child_journal_hash(),
+                child_journal_hash: requirement.expected_child_journal_hash(),
                 child_journal_bytes: allowed.max_child_journal_bytes() / 2,
             })
             .unwrap()
@@ -203,9 +208,13 @@ fn caller_order_does_not_change_canonical_contracts() {
             .allowed_child_bindings()
             .iter()
             .enumerate()
-            .map(|(slot, binding)| AssumptionRequirementInputV1 {
-                slot: u16::try_from(slot).unwrap(),
-                allowed_child_binding_id: binding.binding_id(),
+            .map(|(slot, binding)| {
+                requirement(
+                    u16::try_from(slot).unwrap(),
+                    binding.binding_id(),
+                    100_u8.wrapping_add(u8::try_from(slot).unwrap()),
+                    71_u8.wrapping_add(u8::try_from(slot).unwrap()),
+                )
             })
             .collect(),
     })
@@ -345,6 +354,16 @@ fn exact_resolution_rejects_every_child_binding_substitution() {
         .unwrap(),
         ResolvedChildClaimV1::new(ResolvedChildClaimInputV1 {
             assumption_id: original.assumption_id(),
+            verification_claim_hash: commitment(74),
+            child_shape_id: original.child_shape_id(),
+            child_program_id: original.child_program_id(),
+            child_profile_id: original.child_profile_id(),
+            child_journal_hash: original.child_journal_hash(),
+            child_journal_bytes: original.child_journal_bytes(),
+        })
+        .unwrap(),
+        ResolvedChildClaimV1::new(ResolvedChildClaimInputV1 {
+            assumption_id: original.assumption_id(),
             verification_claim_hash: original.verification_claim_hash(),
             child_shape_id: original.child_shape_id(),
             child_program_id: original.child_program_id(),
@@ -367,6 +386,7 @@ fn exact_resolution_rejects_every_child_binding_substitution() {
     let expected = [
         ProofShapeErrorV1::ChildShapeMismatch,
         ProofShapeErrorV1::ChildProgramMismatch,
+        ProofShapeErrorV1::VerificationClaimMismatch,
         ProofShapeErrorV1::ChildProfileMismatch,
         ProofShapeErrorV1::ChildJournalMismatch,
     ];
@@ -423,14 +443,6 @@ fn shape_manifest_and_registry_reject_duplicates_and_resource_excess() {
         Err(ProofShapeErrorV1::DuplicateAllowedChildBinding)
     );
 
-    let mut duplicate_journal = aggregate_shape_input();
-    duplicate_journal.allowed_child_bindings[1].child_journal_hash =
-        duplicate_journal.allowed_child_bindings[0].child_journal_hash;
-    assert_eq!(
-        ProofShapeV1::derive(duplicate_journal),
-        Err(ProofShapeErrorV1::DuplicateChildJournal)
-    );
-
     let mut too_many = aggregate_shape_input();
     too_many.allowed_child_bindings = (0..=MAX_ALLOWED_CHILD_BINDINGS_V1)
         .map(|index| binding(u8::try_from(index + 1).unwrap(), 1))
@@ -445,14 +457,8 @@ fn shape_manifest_and_registry_reject_duplicates_and_resource_excess() {
     let duplicate_slot = AssumptionManifestInputV1 {
         proof_shape_id: shape.shape_id(),
         required_assumptions: vec![
-            AssumptionRequirementInputV1 {
-                slot: 0,
-                allowed_child_binding_id: bindings[0].binding_id(),
-            },
-            AssumptionRequirementInputV1 {
-                slot: 0,
-                allowed_child_binding_id: bindings[1].binding_id(),
-            },
+            requirement(0, bindings[0].binding_id(), 110, 111),
+            requirement(0, bindings[1].binding_id(), 112, 113),
         ],
     };
     assert_eq!(
@@ -460,35 +466,69 @@ fn shape_manifest_and_registry_reject_duplicates_and_resource_excess() {
         Err(ProofShapeErrorV1::DuplicateAssumptionSlot)
     );
 
-    let duplicate_required_binding = AssumptionManifestInputV1 {
+    let repeated_required_binding = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
         proof_shape_id: shape.shape_id(),
         required_assumptions: vec![
-            AssumptionRequirementInputV1 {
-                slot: 0,
-                allowed_child_binding_id: bindings[0].binding_id(),
-            },
-            AssumptionRequirementInputV1 {
-                slot: 1,
-                allowed_child_binding_id: bindings[0].binding_id(),
-            },
+            requirement(0, bindings[0].binding_id(), 114, 115),
+            requirement(1, bindings[0].binding_id(), 116, 117),
+        ],
+    })
+    .unwrap();
+    ProofShapeRegistrationV1::new(shape.clone(), repeated_required_binding.clone()).unwrap();
+    let repeated_binding = &bindings[0];
+    let repeated_claims = repeated_required_binding
+        .required_assumptions()
+        .iter()
+        .map(|required| {
+            ResolvedChildClaimV1::new(ResolvedChildClaimInputV1 {
+                assumption_id: required.assumption_id(),
+                verification_claim_hash: required.expected_verification_claim_hash(),
+                child_shape_id: repeated_binding.child_shape_id(),
+                child_program_id: repeated_binding.child_program_id(),
+                child_profile_id: repeated_binding.child_profile_id(),
+                child_journal_hash: required.expected_child_journal_hash(),
+                child_journal_bytes: repeated_binding.max_child_journal_bytes() / 2,
+            })
+            .unwrap()
+        })
+        .collect();
+    assert_eq!(
+        resolve_assumptions_v1(&shape, &repeated_required_binding, repeated_claims)
+            .unwrap()
+            .claims()
+            .len(),
+        2
+    );
+
+    let duplicate_expected_claim = AssumptionManifestInputV1 {
+        proof_shape_id: shape.shape_id(),
+        required_assumptions: vec![
+            requirement(0, bindings[0].binding_id(), 118, 119),
+            requirement(1, bindings[1].binding_id(), 118, 120),
         ],
     };
     assert_eq!(
-        AssumptionManifestV1::derive(duplicate_required_binding),
-        Err(ProofShapeErrorV1::DuplicateRequiredBinding)
+        AssumptionManifestV1::derive(duplicate_expected_claim),
+        Err(ProofShapeErrorV1::DuplicateExpectedVerificationClaim)
+    );
+
+    let duplicate_expected_journal = AssumptionManifestInputV1 {
+        proof_shape_id: shape.shape_id(),
+        required_assumptions: vec![
+            requirement(0, bindings[0].binding_id(), 121, 122),
+            requirement(1, bindings[1].binding_id(), 123, 122),
+        ],
+    };
+    assert_eq!(
+        AssumptionManifestV1::derive(duplicate_expected_journal),
+        Err(ProofShapeErrorV1::DuplicateExpectedChildJournal)
     );
 
     let non_dense = AssumptionManifestInputV1 {
         proof_shape_id: shape.shape_id(),
         required_assumptions: vec![
-            AssumptionRequirementInputV1 {
-                slot: 0,
-                allowed_child_binding_id: bindings[0].binding_id(),
-            },
-            AssumptionRequirementInputV1 {
-                slot: 2,
-                allowed_child_binding_id: bindings[1].binding_id(),
-            },
+            requirement(0, bindings[0].binding_id(), 124, 125),
+            requirement(2, bindings[1].binding_id(), 126, 127),
         ],
     };
     assert_eq!(
@@ -498,10 +538,12 @@ fn shape_manifest_and_registry_reject_duplicates_and_resource_excess() {
 
     let unallowed = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
         proof_shape_id: shape.shape_id(),
-        required_assumptions: vec![AssumptionRequirementInputV1 {
-            slot: 0,
-            allowed_child_binding_id: AllowedChildBindingIdV1::new(bytes(200)).unwrap(),
-        }],
+        required_assumptions: vec![requirement(
+            0,
+            AllowedChildBindingIdV1::new(bytes(200)).unwrap(),
+            128,
+            129,
+        )],
     })
     .unwrap();
     assert_eq!(
@@ -562,14 +604,8 @@ fn shape_manifest_and_registry_reject_duplicates_and_resource_excess() {
     let excessive_manifest = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
         proof_shape_id: narrow_shape.shape_id(),
         required_assumptions: vec![
-            AssumptionRequirementInputV1 {
-                slot: 0,
-                allowed_child_binding_id: narrow_bindings[0].binding_id(),
-            },
-            AssumptionRequirementInputV1 {
-                slot: 1,
-                allowed_child_binding_id: narrow_bindings[1].binding_id(),
-            },
+            requirement(0, narrow_bindings[0].binding_id(), 130, 131),
+            requirement(1, narrow_bindings[1].binding_id(), 132, 133),
         ],
     })
     .unwrap();
@@ -590,14 +626,8 @@ fn shape_manifest_and_registry_reject_duplicates_and_resource_excess() {
     let total_excessive_manifest = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
         proof_shape_id: total_narrow_shape.shape_id(),
         required_assumptions: vec![
-            AssumptionRequirementInputV1 {
-                slot: 0,
-                allowed_child_binding_id: total_narrow_bindings[0].binding_id(),
-            },
-            AssumptionRequirementInputV1 {
-                slot: 1,
-                allowed_child_binding_id: total_narrow_bindings[1].binding_id(),
-            },
+            requirement(0, total_narrow_bindings[0].binding_id(), 134, 135),
+            requirement(1, total_narrow_bindings[1].binding_id(), 136, 137),
         ],
     })
     .unwrap();
@@ -720,7 +750,6 @@ fn manual_binding_id(input: &AllowedChildBindingInputV1) -> [u8; 32] {
     hasher.update(input.child_shape_id.as_bytes());
     hasher.update(input.child_program_id.as_bytes());
     hasher.update(input.child_profile_id.as_bytes());
-    hasher.update(input.child_journal_hash.as_bytes());
     hasher.update(input.max_child_journal_bytes.to_be_bytes());
     hasher.finalize().into()
 }
@@ -766,6 +795,8 @@ fn manual_assumption_id(
     hasher.update(proof_shape_id.as_bytes());
     hasher.update(requirement.slot().to_be_bytes());
     hasher.update(requirement.allowed_child_binding_id().as_bytes());
+    hasher.update(requirement.expected_verification_claim_hash().as_bytes());
+    hasher.update(requirement.expected_child_journal_hash().as_bytes());
     hasher.finalize().into()
 }
 
@@ -797,6 +828,10 @@ fn manual_resolution_id(resolution: &zenodex_zrpf_protocol_v3::AssumptionResolut
     for claim in resolution.claims() {
         hasher.update(claim.assumption_id().as_bytes());
         hasher.update(claim.verification_claim_hash().as_bytes());
+        hasher.update(claim.child_shape_id().as_bytes());
+        hasher.update(claim.child_program_id().as_bytes());
+        hasher.update(claim.child_profile_id().as_bytes());
+        hasher.update(claim.child_journal_hash().as_bytes());
         hasher.update(claim.child_journal_bytes().to_be_bytes());
     }
     hasher.finalize().into()
@@ -830,9 +865,9 @@ fn stable_binding_id_matches_independent_hash_vector() {
     assert_eq!(
         manual,
         [
-            0x51, 0x44, 0xd3, 0x72, 0x0e, 0x48, 0x05, 0xa7, 0x12, 0x4b, 0xb2, 0x26, 0xde, 0x6a,
-            0x87, 0x0d, 0xb6, 0x15, 0xb3, 0xb6, 0x24, 0x48, 0x63, 0x3e, 0x16, 0xf8, 0x69, 0xfc,
-            0x64, 0x8f, 0x26, 0xe5,
+            0xeb, 0xe9, 0xee, 0x3b, 0x0e, 0x18, 0x20, 0xfb, 0x6a, 0xc4, 0x0b, 0xbb, 0x11, 0x47,
+            0xed, 0x71, 0x05, 0x20, 0xcd, 0xa7, 0xc1, 0xcd, 0xad, 0xde, 0x44, 0x81, 0xbe, 0xd8,
+            0x07, 0x9e, 0x22, 0x69,
         ]
     );
 }
@@ -870,57 +905,111 @@ fn stable_object_ids_and_encodings_match_independent_vectors() {
     assert_eq!(
         shape.shape_id().as_bytes(),
         &[
-            0x97, 0x9e, 0xc4, 0xe2, 0x47, 0xed, 0xe9, 0xee, 0xe0, 0x7d, 0xad, 0x2e, 0x77, 0x8e,
-            0xdf, 0x8d, 0xf8, 0xc4, 0x3a, 0x6d, 0xf8, 0x9d, 0xd0, 0x18, 0x17, 0xab, 0x96, 0x82,
-            0x67, 0xf6, 0x64, 0xc7,
+            0x1d, 0xc6, 0x03, 0x52, 0xe9, 0xf5, 0xdd, 0xf0, 0x1d, 0xdd, 0x9e, 0x88, 0xda, 0x46,
+            0x00, 0xa2, 0xdb, 0xae, 0x28, 0xf2, 0xa6, 0xde, 0xed, 0x36, 0xfe, 0x5c, 0x9b, 0x9d,
+            0xc6, 0x6b, 0x98, 0x3f,
         ]
     );
     assert_eq!(
         manifest.manifest_id().as_bytes(),
         &[
-            0xa3, 0x64, 0x78, 0xfa, 0x1d, 0x5b, 0xf7, 0xd6, 0x16, 0xc4, 0x17, 0x42, 0x48, 0x05,
-            0x70, 0x5b, 0x87, 0xe6, 0x81, 0x9c, 0xb7, 0xaa, 0x14, 0x05, 0xba, 0x42, 0x6e, 0x0e,
-            0xf9, 0xe0, 0x3e, 0xd3,
+            0xb7, 0xee, 0x88, 0x21, 0x29, 0x93, 0xf4, 0x79, 0x5f, 0xbe, 0xcf, 0x31, 0x78, 0x6f,
+            0xcb, 0x8d, 0x8d, 0x0a, 0x1e, 0x89, 0x6f, 0x20, 0x6b, 0xc6, 0xfc, 0x0b, 0x99, 0x78,
+            0x48, 0xba, 0xd4, 0x98,
         ]
     );
     assert_eq!(
         resolution.resolution_id().as_bytes(),
         &[
-            0x8f, 0x9a, 0xba, 0x5c, 0xfd, 0x74, 0xd1, 0x2e, 0x75, 0xfc, 0x23, 0xd1, 0xd1, 0x9a,
-            0x79, 0xe3, 0xf3, 0x18, 0x91, 0x18, 0x40, 0xac, 0x99, 0x98, 0x37, 0xfb, 0xb2, 0x07,
-            0x58, 0xcc, 0x0a, 0x5d,
+            0xdd, 0xf0, 0x04, 0x7f, 0x65, 0xbb, 0x4a, 0x85, 0x5f, 0x22, 0x0f, 0x2b, 0x3f, 0xa4,
+            0xfb, 0x9f, 0x2d, 0x07, 0xf6, 0xfe, 0xae, 0x9a, 0x43, 0x6a, 0xe0, 0x58, 0xd1, 0xf4,
+            0xa5, 0x33, 0x70, 0x94,
         ]
     );
     assert_eq!(
         registry.registry_id().as_bytes(),
         &[
-            0x34, 0x25, 0x37, 0xd8, 0xe3, 0x4d, 0xe0, 0x32, 0x5e, 0x0f, 0x2c, 0x6c, 0x9f, 0x32,
-            0x4b, 0xe6, 0x26, 0xed, 0xc5, 0x0d, 0x06, 0xed, 0x84, 0xa7, 0x34, 0x15, 0x30, 0x28,
-            0x45, 0xf4, 0x80, 0x16,
+            0xa7, 0x2c, 0x81, 0x82, 0xe4, 0x42, 0x07, 0xa3, 0x49, 0xfe, 0x57, 0xde, 0x7f, 0x14,
+            0x15, 0xd1, 0xa0, 0x4a, 0xb9, 0xa7, 0x22, 0x1e, 0xfc, 0x22, 0x82, 0x8a, 0xb4, 0xd5,
+            0x7e, 0xb0, 0x4a, 0xfb,
         ]
     );
     assert_eq!(
         Sha256::digest(encode_proof_shape_v1(&shape).unwrap()).as_slice(),
         &[
-            0xa0, 0xa8, 0x3b, 0x04, 0x5f, 0x27, 0x49, 0x4a, 0x81, 0x4f, 0x22, 0x33, 0xb3, 0xc6,
-            0xb9, 0x56, 0xa2, 0x05, 0xbf, 0xc6, 0xd6, 0x0c, 0x01, 0x73, 0xb0, 0x05, 0x0e, 0x76,
-            0x68, 0xc3, 0x5c, 0x46,
+            0x3b, 0x6e, 0x5f, 0x9b, 0xd3, 0x2f, 0xca, 0xdf, 0xeb, 0xb8, 0x9d, 0x2c, 0xd3, 0x48,
+            0x75, 0xf3, 0x2c, 0xf4, 0xfa, 0xc0, 0x4e, 0xea, 0xc8, 0x71, 0xfb, 0xa4, 0x82, 0x37,
+            0x56, 0x2a, 0xd4, 0x92,
         ]
     );
     assert_eq!(
         Sha256::digest(encode_assumption_manifest_v1(&manifest).unwrap()).as_slice(),
         &[
-            0x3f, 0xc7, 0xda, 0x78, 0xa6, 0x7d, 0xbf, 0xc8, 0x19, 0xaf, 0x53, 0x5b, 0x92, 0x50,
-            0xb9, 0xa9, 0x97, 0xc8, 0xa3, 0x65, 0xdf, 0xc0, 0x1e, 0xbc, 0x45, 0x1a, 0xeb, 0xda,
-            0x38, 0x66, 0x64, 0xa0,
+            0x98, 0xe8, 0x17, 0xe8, 0xb2, 0x85, 0x4e, 0x7c, 0xba, 0xf3, 0x30, 0x2d, 0x08, 0xfa,
+            0x5d, 0xab, 0xf7, 0xfa, 0x8a, 0x23, 0x45, 0x81, 0x5a, 0xcb, 0x01, 0x83, 0x26, 0x78,
+            0x58, 0xa4, 0x6a, 0x2f,
         ]
     );
     assert_eq!(
         Sha256::digest(encode_proof_shape_registry_v1(&registry).unwrap()).as_slice(),
         &[
-            0xfc, 0x47, 0x5d, 0x7e, 0x91, 0x32, 0x2e, 0x4d, 0x50, 0x86, 0x56, 0x13, 0xcf, 0x19,
-            0xa3, 0x09, 0xfc, 0x4c, 0x0b, 0x8d, 0x68, 0x88, 0x5b, 0x26, 0x62, 0xd8, 0x83, 0xd9,
-            0x00, 0xa8, 0xe0, 0x55,
+            0xbb, 0xfc, 0x16, 0xa8, 0xb9, 0x95, 0xe2, 0xb4, 0xe4, 0x5e, 0x0a, 0xb1, 0x5d, 0x51,
+            0x2e, 0x0c, 0x97, 0x1c, 0xc5, 0xc5, 0x4c, 0x43, 0xca, 0xca, 0x4c, 0xf8, 0x7a, 0x96,
+            0x68, 0x73, 0x25, 0x67,
         ]
+    );
+}
+
+#[test]
+fn reusable_shape_identity_excludes_instance_claim_and_journal_hashes() {
+    let static_binding = AllowedChildBindingInputV1 {
+        child_shape_id: child_shape(11),
+        child_program_id: ProgramIdV3::new(bytes(31)).unwrap(),
+        child_profile_id: ProfileIdV3::new(bytes(51)).unwrap(),
+        max_child_journal_bytes: 8_192,
+    };
+    let shape_a = ProofShapeV1::derive(ProofShapeInputV1 {
+        shape_kind: ProofShapeKindV1::Aggregate,
+        program_id: ProgramIdV3::new(bytes(1)).unwrap(),
+        profile_id: ProfileIdV3::new(bytes(2)).unwrap(),
+        resource_ceilings: aggregate_resources(1, 8_192),
+        allowed_child_bindings: vec![static_binding.clone()],
+    })
+    .unwrap();
+    let shape_b = ProofShapeV1::derive(ProofShapeInputV1 {
+        shape_kind: ProofShapeKindV1::Aggregate,
+        program_id: ProgramIdV3::new(bytes(1)).unwrap(),
+        profile_id: ProfileIdV3::new(bytes(2)).unwrap(),
+        resource_ceilings: aggregate_resources(1, 8_192),
+        allowed_child_bindings: vec![static_binding],
+    })
+    .unwrap();
+    assert_eq!(shape_a.shape_id(), shape_b.shape_id());
+
+    let binding_id = shape_a.allowed_child_bindings()[0].binding_id();
+    let manifest_a = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
+        proof_shape_id: shape_a.shape_id(),
+        required_assumptions: vec![AssumptionRequirementInputV1 {
+            slot: 0,
+            allowed_child_binding_id: binding_id,
+            expected_verification_claim_hash: commitment(90),
+            expected_child_journal_hash: commitment(91),
+        }],
+    })
+    .unwrap();
+    let manifest_b = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
+        proof_shape_id: shape_b.shape_id(),
+        required_assumptions: vec![AssumptionRequirementInputV1 {
+            slot: 0,
+            allowed_child_binding_id: binding_id,
+            expected_verification_claim_hash: commitment(92),
+            expected_child_journal_hash: commitment(93),
+        }],
+    })
+    .unwrap();
+    assert_ne!(manifest_a.manifest_id(), manifest_b.manifest_id());
+    assert_ne!(
+        manifest_a.required_assumptions()[0].assumption_id(),
+        manifest_b.required_assumptions()[0].assumption_id()
     );
 }

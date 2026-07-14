@@ -6,8 +6,9 @@ use sha2::Digest;
 use super::hash::{domain_hasher, resolution_id};
 use super::{
     AllowedChildBindingV1, AssumptionIdV1, AssumptionManifestIdV1, AssumptionManifestV1,
-    AssumptionResolutionIdV1, ProofShapeErrorV1, ProofShapeIdV1, ProofShapeKindV1, ProofShapeV1,
-    ASSUMPTION_RESOLUTION_VERSION_V1, MAX_RESOLVED_CHILD_CLAIMS_V1, MAX_SHAPE_JOURNAL_BYTES_V1,
+    AssumptionRequirementV1, AssumptionResolutionIdV1, ProofShapeErrorV1, ProofShapeIdV1,
+    ProofShapeKindV1, ProofShapeV1, ASSUMPTION_RESOLUTION_VERSION_V1, MAX_RESOLVED_CHILD_CLAIMS_V1,
+    MAX_SHAPE_JOURNAL_BYTES_V1,
 };
 use crate::{CommitmentV3, ProfileIdV3, ProgramIdV3};
 
@@ -175,7 +176,7 @@ pub fn resolve_assumptions_v1(
                 slot: requirement.slot(),
             })?;
         let binding = find_allowed_binding(shape, requirement.allowed_child_binding_id())?;
-        validate_claim_binding(claim, binding)?;
+        validate_claim_binding(claim, requirement, binding)?;
         total_child_journal_bytes = total_child_journal_bytes
             .checked_add(claim.child_journal_bytes())
             .ok_or(ProofShapeErrorV1::ArithmeticOverflow(
@@ -308,6 +309,7 @@ fn find_allowed_binding(
 
 fn validate_claim_binding(
     claim: &ResolvedChildClaimV1,
+    requirement: &AssumptionRequirementV1,
     binding: &AllowedChildBindingV1,
 ) -> Result<(), ProofShapeErrorV1> {
     if claim.child_shape_id() != binding.child_shape_id() {
@@ -319,7 +321,10 @@ fn validate_claim_binding(
     if claim.child_profile_id() != binding.child_profile_id() {
         return Err(ProofShapeErrorV1::ChildProfileMismatch);
     }
-    if claim.child_journal_hash() != binding.child_journal_hash() {
+    if claim.verification_claim_hash() != requirement.expected_verification_claim_hash() {
+        return Err(ProofShapeErrorV1::VerificationClaimMismatch);
+    }
+    if claim.child_journal_hash() != requirement.expected_child_journal_hash() {
         return Err(ProofShapeErrorV1::ChildJournalMismatch);
     }
     if claim.child_journal_bytes() > binding.max_child_journal_bytes() {
@@ -356,6 +361,10 @@ fn derive_resolution_id_parts_v1(
     for claim in claims {
         hasher.update(claim.assumption_id().as_bytes());
         hasher.update(claim.verification_claim_hash().as_bytes());
+        hasher.update(claim.child_shape_id().as_bytes());
+        hasher.update(claim.child_program_id().as_bytes());
+        hasher.update(claim.child_profile_id().as_bytes());
+        hasher.update(claim.child_journal_hash().as_bytes());
         hasher.update(claim.child_journal_bytes().to_be_bytes());
     }
     resolution_id(hasher)

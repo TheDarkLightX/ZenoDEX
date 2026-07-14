@@ -13,7 +13,7 @@ use super::{
     ALLOWED_CHILD_BINDING_VERSION_V1, MAX_ALLOWED_CHILD_BINDINGS_V1, MAX_SHAPE_JOURNAL_BYTES_V1,
     PROOF_SHAPE_VERSION_V1,
 };
-use crate::{CommitmentV3, ProfileIdV3, ProgramIdV3};
+use crate::{ProfileIdV3, ProgramIdV3};
 
 const ALLOWED_CHILD_BINDING_ID_DOMAIN_V1: &[u8] = b"zkpf.allowed_child_binding_id.v1";
 const PROOF_SHAPE_ID_DOMAIN_V1: &[u8] = b"zkpf.proof_shape_id.v1";
@@ -23,7 +23,6 @@ pub struct AllowedChildBindingInputV1 {
     pub child_shape_id: ProofShapeIdV1,
     pub child_program_id: ProgramIdV3,
     pub child_profile_id: ProfileIdV3,
-    pub child_journal_hash: CommitmentV3,
     pub max_child_journal_bytes: u64,
 }
 
@@ -34,7 +33,6 @@ pub struct AllowedChildBindingV1 {
     child_shape_id: ProofShapeIdV1,
     child_program_id: ProgramIdV3,
     child_profile_id: ProfileIdV3,
-    child_journal_hash: CommitmentV3,
     max_child_journal_bytes: u64,
 }
 
@@ -46,7 +44,6 @@ struct AllowedChildBindingWireV1 {
     child_shape_id: ProofShapeIdV1,
     child_program_id: ProgramIdV3,
     child_profile_id: ProfileIdV3,
-    child_journal_hash: CommitmentV3,
     max_child_journal_bytes: u64,
 }
 
@@ -60,7 +57,6 @@ impl AllowedChildBindingV1 {
             child_shape_id: input.child_shape_id,
             child_program_id: input.child_program_id,
             child_profile_id: input.child_profile_id,
-            child_journal_hash: input.child_journal_hash,
             max_child_journal_bytes: input.max_child_journal_bytes,
         };
         value.validate()?;
@@ -89,7 +85,6 @@ impl AllowedChildBindingV1 {
             child_shape_id: self.child_shape_id,
             child_program_id: self.child_program_id,
             child_profile_id: self.child_profile_id,
-            child_journal_hash: self.child_journal_hash,
             max_child_journal_bytes: self.max_child_journal_bytes,
         }
     }
@@ -110,10 +105,6 @@ impl AllowedChildBindingV1 {
         self.child_profile_id
     }
 
-    pub const fn child_journal_hash(&self) -> CommitmentV3 {
-        self.child_journal_hash
-    }
-
     pub const fn max_child_journal_bytes(&self) -> u64 {
         self.max_child_journal_bytes
     }
@@ -131,7 +122,6 @@ impl<'de> Deserialize<'de> for AllowedChildBindingV1 {
             child_shape_id: wire.child_shape_id,
             child_program_id: wire.child_program_id,
             child_profile_id: wire.child_profile_id,
-            child_journal_hash: wire.child_journal_hash,
             max_child_journal_bytes: wire.max_child_journal_bytes,
         };
         value.validate().map_err(de::Error::custom)?;
@@ -148,7 +138,6 @@ pub fn derive_allowed_child_binding_id_v1(
     hasher.update(input.child_shape_id.as_bytes());
     hasher.update(input.child_program_id.as_bytes());
     hasher.update(input.child_profile_id.as_bytes());
-    hasher.update(input.child_journal_hash.as_bytes());
     hasher.update(input.max_child_journal_bytes.to_be_bytes());
     binding_id(hasher)
 }
@@ -329,12 +318,6 @@ fn validate_allowed_bindings(bindings: &[AllowedChildBindingV1]) -> Result<(), P
         }
         if index > 0 && bindings[index - 1].binding_id() > binding.binding_id() {
             return Err(ProofShapeErrorV1::NonCanonicalAllowedChildBindingOrder);
-        }
-        if bindings[..index]
-            .iter()
-            .any(|prior| prior.child_journal_hash() == binding.child_journal_hash())
-        {
-            return Err(ProofShapeErrorV1::DuplicateChildJournal);
         }
     }
     Ok(())
