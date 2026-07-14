@@ -2,15 +2,18 @@
 
 Date: 2026-07-13
 
+Security revision: 2026-07-14
+
 Status: exact static execution-data binding implemented; governed live jailed
 execution capability, settlement authority, and production authority remain
 unavailable
 
 ## Purpose
 
-The Spot V7 settlement candidate already binds the authenticated V7 receipt,
-journal, effect plan, and economic state transition. The Firecracker output
-decoder already binds the fixed request, committed output image, and nested
+The proposed Spot V7 settlement candidate carries retained receipt, journal,
+effect-plan, and economic-transition data. Receipt authentication is a
+separate upstream obligation. The Firecracker output decoder binds the fixed
+request, committed output image, and the fields actually present in the nested
 Spot V7 payload at the byte level. The remaining runtime seam must establish
 that one governed jailed lifecycle owned the exact artifacts, request, output,
 and teardown before it can mint the private settlement capability.
@@ -53,15 +56,25 @@ fixed output-device size and payload cap
 request digest carried by the committed output
 complete output-device commitment and trailing-zero rules
 exact nested Spot V7 output, journal, and settlement-plan bytes
-exact Spot V7 receipt, program, manifest, state, and effect bindings
-canonical launch observation and exact cgroup path
-canonical finish observation, process exit, cgroup kill, and empty teardown
+output-carried Spot V7 program, manifest, state, and effect bindings
+canonical launch observation and canonical leading-slash cgroup identity
+canonical finish observation bound to the exact launch-document SHA-256,
+  cgroup identity, jailer PID, and observed process count
+reported process exit, cgroup kill, and empty teardown facts
 candidate copy of the canonical execution record
 ```
 
+The candidate application, domain, epoch, and retained receipt are recorded as
+explicitly unverified candidate data. The committed Firecracker output does
+not carry those values and this detector does not claim to bind or authenticate
+them. In particular, changing the retained receipt and recomputing the
+authority-false audit record remains a valid static data join.
+
 Any single mismatch rejects with a stable typed code. The lifecycle documents
-must contain the exact authority-false field set. A publisher-supplied `true`
-authority field rejects.
+must contain the exact authority-false field set. Expected authority and
+control-fact tables are immutable tuples, and every value must have the exact
+Boolean type. Publisher-supplied `true`, integer substitution, or field-set
+mutation rejects.
 
 ## Authority boundary
 
@@ -107,10 +120,13 @@ artifact identity
 canonical Firecracker profile
 launch cgroup path
 finish teardown facts
+finish observation substituted from another launch lifecycle
 committed output marker
 canonical execution-record copy
 lifecycle JSON canonical form
 publisher-supplied settlement authority
+integer substitution for a Boolean field
+direct construction or factory access for the authority-false result
 ```
 
 The architecture ratchet includes the new module in its no-public-alias,
@@ -123,6 +139,8 @@ This evidence does not establish:
 
 ```text
 live privileged Firecracker or Jailer execution
+retained V7 receipt authentication or Firecracker-output binding
+candidate application, domain, or epoch binding to the Firecracker output
 root-owned immutable V7 artifact staging
 final governed Spot V7 runtime-manifest and artifact-role validation
 exclusive network-namespace ownership

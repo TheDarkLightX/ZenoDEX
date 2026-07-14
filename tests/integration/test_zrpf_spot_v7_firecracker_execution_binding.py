@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, replace
 from typing import Any
@@ -26,7 +27,9 @@ from src.integration._zrpf_spot_v7_firecracker_execution_binding import (
 from tests.integration.test_zrpf_spot_v7_atomic_settlement_store import (
     _bound_committed_output,
 )
+from tools import zrpf_v3_firecracker_jailer_launcher as launcher
 from tools import zrpf_v3_firecracker_output_protocol as protocol
+from tools.zrpf_v3_firecracker_cgroup_v2 import CgroupLeafIdentityV1
 
 _AUTHORITY_NONCLAIMS = {
     "chroot_base_live_verified": False,
@@ -57,24 +60,18 @@ def _canonical(document: object) -> bytes:
 
 
 def _launch_document(*, cgroup_relative_path: str) -> dict[str, Any]:
-    return {
-        "authority": dict(_AUTHORITY_NONCLAIMS),
-        "cgroup_relative_path": cgroup_relative_path,
-        "control_facts": {
-            "cgroup_descendant_set_verified": True,
-            "executable_bytes_reverified_after_spawn": True,
-            "network_namespace_membership_verified": True,
-        },
-        "jailer_pid": 42,
-        "observed_process_count": 2,
-        "schema": "zenodex/zrpf_firecracker_jailer_launch_observation/v1",
-        "scope": "live_process_placement_control_only",
-    }
+    return launcher._JailerLaunchObservationV1(
+        jailer_pid=42,
+        process_set=frozenset({42, 43}),
+        cgroup_relative_path=cgroup_relative_path,
+    ).to_document()
 
 
-def _finish_document() -> dict[str, Any]:
+def _finish_document(*, launch_observation_bytes: bytes) -> dict[str, Any]:
+    launch = json.loads(launch_observation_bytes)
     return {
         "authority": dict(_AUTHORITY_NONCLAIMS),
+        "cgroup_relative_path": launch["cgroup_relative_path"],
         "control_facts": {
             "cgroup_populated_zero_verified": True,
             "cgroup_removed_after_kill": True,
@@ -82,8 +79,13 @@ def _finish_document() -> dict[str, Any]:
             "process_exit_observed": True,
         },
         "exit_code": 0,
-        "schema": "zenodex/zrpf_firecracker_jailer_finish_observation/v1",
-        "scope": "live_process_exit_and_cgroup_teardown_control_only",
+        "jailer_pid": launch["jailer_pid"],
+        "launch_observation_sha256": hashlib.sha256(
+            launch_observation_bytes
+        ).hexdigest(),
+        "observed_process_count": launch["observed_process_count"],
+        "schema": "zenodex/zrpf_firecracker_jailer_finish_observation/v2",
+        "scope": "live_process_exit_and_exact_launch_teardown_control_only",
     }
 
 
@@ -107,7 +109,7 @@ def _fixture() -> _Fixture:
             "schema": "zenodex/test_runtime_manifest/v1",
         }
     )
-    cgroup_relative_path = "zenodex01/zrpf0001/run00001"
+    cgroup_relative_path = "/zenodex01/zrpf0001/run00001"
     policy = _ProposedSpotV7FirecrackerExecutionPolicyV1(
         exact_runtime_manifest_bytes=runtime_manifest,
         run_nonce_256=bytes([0x41]) * 32,
@@ -146,7 +148,9 @@ def _fixture() -> _Fixture:
     launch_bytes = _canonical(
         _launch_document(cgroup_relative_path=cgroup_relative_path)
     )
-    finish_bytes = _canonical(_finish_document())
+    finish_bytes = _canonical(
+        _finish_document(launch_observation_bytes=launch_bytes)
+    )
     record = _derive_authority_false_spot_v7_execution_record_v1(
         policy=policy,
         observed_artifacts=artifacts,
@@ -252,10 +256,12 @@ def test_each_static_join_boundary_rejects_exact_mutation(
         )
     elif mutation == "launch_cgroup":
         values.launch_observation_bytes = _canonical(
-            _launch_document(cgroup_relative_path="zenodex01/zrpf0001/other0001")
+            _launch_document(cgroup_relative_path="/zenodex01/zrpf0001/other0001")
         )
     elif mutation == "finish_teardown":
-        document = _finish_document()
+        document = _finish_document(
+            launch_observation_bytes=values.launch_observation_bytes
+        )
         document["control_facts"]["cgroup_populated_zero_verified"] = False
         values.finish_observation_bytes = _canonical(document)
     elif mutation == "output_commit":
@@ -310,3 +316,128 @@ def test_authority_claim_inside_runner_document_rejects() -> None:
         _verify(values)
 
     assert captured.value.code == "lifecycle_launch_authority"
+
+
+def test_cgroup_path_matches_cgroup_leaf_identity_with_canonical_leading_slash() -> None:
+    values = _fixture()
+    identity = CgroupLeafIdentityV1(
+        relative_path=values.policy.cgroup_relative_path,
+        device=1,
+        inode=2,
+    )
+
+    assessment = _verify(values)
+
+    assert identity.relative_path == "/zenodex01/zrpf0001/run00001"
+    assert assessment.static_binding_verified is True
+
+
+def test_finish_document_parser_matches_launcher_v2_document() -> None:
+    observation = launcher._JailerLaunchObservationV1(
+        jailer_pid=42,
+        process_set=frozenset({42, 43}),
+        cgroup_relative_path="/zenodex01/zrpf0001/run00001",
+    )
+    launch_bytes = _canonical(observation.to_document())
+
+    independent_document = _finish_document(
+        launch_observation_bytes=launch_bytes
+    )
+    launcher_document = launcher._finish_observation_document_v2(
+        observation=observation,
+        exit_code=0,
+    )
+
+    assert independent_document == launcher_document
+
+
+def test_legacy_cgroup_path_without_leading_slash_rejects() -> None:
+    values = _fixture()
+
+    with pytest.raises(SpotV7FirecrackerExecutionBindingRejectV1) as captured:
+        replace(
+            values.policy,
+            cgroup_relative_path=values.policy.cgroup_relative_path.removeprefix("/"),
+        )
+
+    assert captured.value.code == "policy_cgroup_path"
+
+
+def test_finish_observation_from_another_launch_rejects() -> None:
+    values = _fixture()
+    other_launch_bytes = _canonical(
+        _launch_document(
+            cgroup_relative_path="/zenodex01/zrpf0001/run00002"
+        )
+    )
+    values.finish_observation_bytes = _canonical(
+        _finish_document(launch_observation_bytes=other_launch_bytes)
+    )
+
+    with pytest.raises(SpotV7FirecrackerExecutionBindingRejectV1) as captured:
+        _verify(values)
+
+    assert captured.value.code == "lifecycle_finish_launch_binding"
+
+
+def test_authority_false_result_has_no_direct_factory() -> None:
+    assert "_from_verified" not in (
+        _AuthorityFalseSpotV7FirecrackerExecutionBindingV1.__dict__
+    )
+    with pytest.raises(
+        TypeError,
+        match="authority-false Firecracker binding requires exact verification",
+    ):
+        _AuthorityFalseSpotV7FirecrackerExecutionBindingV1()
+
+
+def test_expected_boolean_documents_are_immutable_and_require_exact_bools() -> None:
+    from src.integration import _zrpf_spot_v7_firecracker_execution_binding as binding
+
+    for items in (
+        binding._LIFECYCLE_AUTHORITY_NONCLAIM_ITEMS_V1,
+        binding._LAUNCH_CONTROL_FACT_ITEMS_V1,
+        binding._FINISH_CONTROL_FACT_ITEMS_V1,
+    ):
+        assert type(items) is tuple
+        assert "__setitem__" not in dir(items)
+
+    values = _fixture()
+    launch = json.loads(values.launch_observation_bytes)
+    launch["authority"]["settlement_authority"] = 0
+    values.launch_observation_bytes = _canonical(launch)
+
+    with pytest.raises(SpotV7FirecrackerExecutionBindingRejectV1) as captured:
+        _verify(values)
+
+    assert captured.value.code == "lifecycle_launch_authority"
+
+
+def test_retained_receipt_is_candidate_data_not_firecracker_output_binding() -> None:
+    values = _fixture()
+    changed_candidate = replace(
+        values.candidate,
+        exact_v7_receipt_bytes=b"different retained receipt bytes",
+    )
+    record = _derive_authority_false_spot_v7_execution_record_v1(
+        policy=values.policy,
+        observed_artifacts=values.observed_artifacts,
+        request_bytes=values.request_bytes,
+        output_device_bytes=values.output_device_bytes,
+        candidate=changed_candidate,
+        launch_observation_bytes=values.launch_observation_bytes,
+        finish_observation_bytes=values.finish_observation_bytes,
+    )
+    values.candidate = replace(
+        changed_candidate,
+        exact_firecracker_execution_record_bytes=record,
+    )
+
+    assessment = _verify(values)
+    record_document = json.loads(assessment.execution_record_bytes)
+
+    assert assessment.static_binding_verified is True
+    assert assessment.firecracker_execution_verified is False
+    assert record_document["candidate_data"]["retained_receipt_sha256_unverified"] == (
+        hashlib.sha256(values.candidate.exact_v7_receipt_bytes).hexdigest()
+    )

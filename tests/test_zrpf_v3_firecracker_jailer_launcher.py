@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -271,6 +272,24 @@ def test_finish_control_reaps_process_and_verifies_whole_cgroup_teardown() -> No
     )
 
     assert report["exit_code"] == 0
+    assert report["cgroup_relative_path"] == observation.cgroup_relative_path
+    assert report["jailer_pid"] == observation.jailer_pid
+    assert report["observed_process_count"] == len(observation.process_set)
+    launch_bytes = (
+        json.dumps(
+            observation.to_document(),
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("ascii")
+    assert report["launch_observation_sha256"] == hashlib.sha256(
+        launch_bytes
+    ).hexdigest()
+    assert report["schema"] == (
+        "zenodex/zrpf_firecracker_jailer_finish_observation/v2"
+    )
     assert report["control_facts"] == {
         "cgroup_populated_zero_verified": True,
         "cgroup_removed_after_kill": True,
@@ -280,6 +299,64 @@ def test_finish_control_reaps_process_and_verifies_whole_cgroup_teardown() -> No
     assert all(value is False for value in report["authority"].values())
     assert leaf.teardown_count == 1
     assert netns.empty_check_count == 1
+
+
+def test_finish_report_binding_changes_with_launch_lifecycle() -> None:
+    first = launcher._JailerLaunchObservationV1(
+        jailer_pid=321,
+        process_set=frozenset({321}),
+        cgroup_relative_path="/zenodex01/zrpf0001/run00001",
+    )
+    second = launcher._JailerLaunchObservationV1(
+        jailer_pid=322,
+        process_set=frozenset({322}),
+        cgroup_relative_path="/zenodex01/zrpf0001/run00002",
+    )
+
+    first_report = launcher._finish_jailer_process_control_for_test(
+        process=_Process(321, exit_code=0),
+        cgroup_leaf=_Leaf(relative_path=first.cgroup_relative_path),
+        network_namespace=_Netns("/run/netns/run00001"),
+        observation=first,
+        process_timeout_seconds=5.0,
+    )
+    second_report = launcher._finish_jailer_process_control_for_test(
+        process=_Process(322, exit_code=0),
+        cgroup_leaf=_Leaf(relative_path=second.cgroup_relative_path),
+        network_namespace=_Netns("/run/netns/run00002"),
+        observation=second,
+        process_timeout_seconds=5.0,
+    )
+
+    assert first_report["launch_observation_sha256"] != (
+        second_report["launch_observation_sha256"]
+    )
+    assert first_report["cgroup_relative_path"] != second_report[
+        "cgroup_relative_path"
+    ]
+
+
+def test_finish_rejects_observation_substituted_from_other_lifecycle() -> None:
+    leaf = _Leaf()
+    substituted = launcher._JailerLaunchObservationV1(
+        jailer_pid=999,
+        process_set=frozenset({999}),
+        cgroup_relative_path="/zenodex01/zrpf0001/run99999",
+    )
+
+    with pytest.raises(
+        launcher.JailerLauncherReject,
+        match="jailer_finish_launch_observation_mismatch",
+    ):
+        launcher._finish_jailer_process_control_for_test(
+            process=_Process(321, exit_code=0),
+            cgroup_leaf=leaf,
+            network_namespace=_Netns("/run/netns/run00001"),
+            observation=substituted,
+            process_timeout_seconds=5.0,
+        )
+
+    assert leaf.teardown_count == 1
 
 
 def test_spawn_failure_still_removes_fresh_cgroup_leaf() -> None:
@@ -436,10 +513,11 @@ class _Leaf:
     def __init__(
         self,
         *,
+        relative_path: str = "/zenodex01/zrpf0001/run00001",
         reject_membership: bool = False,
         reject_teardown: bool = False,
     ) -> None:
-        self.identity = SimpleNamespace(relative_path="/zenodex01/zrpf0001/run00001")
+        self.identity = SimpleNamespace(relative_path=relative_path)
         self.prelaunch_count = 0
         self.supervisor_pids: list[int] = []
         self.reject_membership = reject_membership

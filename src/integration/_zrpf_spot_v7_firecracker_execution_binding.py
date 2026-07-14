@@ -39,35 +39,35 @@ _MAX_RUNTIME_MANIFEST_BYTES_V1: Final = 256 * 1_024
 _MAX_LIFECYCLE_OBSERVATION_BYTES_V1: Final = 64 * 1_024
 _LOWER_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _CGROUP_RELATIVE_PATH = re.compile(
-    r"[a-z0-9][a-z0-9-]{0,63}(?:/[a-z0-9][a-z0-9-]{0,63}){1,7}\Z"
+    r"/[a-z0-9][a-z0-9-]{7,63}(?:/[a-z0-9][a-z0-9-]{7,63}){1,7}\Z"
 )
 
-_LIFECYCLE_AUTHORITY_NONCLAIMS_V1: Final = {
-    "chroot_base_live_verified": False,
-    "cgroup_limits_live_verified": False,
-    "cgroup_membership_live_verified": False,
-    "descriptor_bound_exec_handoff_verified": False,
-    "external_watchdog_live_verified": False,
-    "firecracker_jailer_live_verified": False,
-    "io_backing_device_binding_live_verified": False,
-    "network_namespace_exclusive_live_verified": False,
-    "network_namespace_live_verified": False,
-    "production_authority": False,
-    "root_owned_launcher_live_verified": False,
-    "sandbox_escape_resistance": False,
-    "settlement_authority": False,
-}
-_LAUNCH_CONTROL_FACTS_V1: Final = {
-    "cgroup_descendant_set_verified": True,
-    "executable_bytes_reverified_after_spawn": True,
-    "network_namespace_membership_verified": True,
-}
-_FINISH_CONTROL_FACTS_V1: Final = {
-    "cgroup_populated_zero_verified": True,
-    "cgroup_removed_after_kill": True,
-    "network_namespace_path_identity_preserved": True,
-    "process_exit_observed": True,
-}
+_LIFECYCLE_AUTHORITY_NONCLAIM_ITEMS_V1: Final = (
+    ("chroot_base_live_verified", False),
+    ("cgroup_limits_live_verified", False),
+    ("cgroup_membership_live_verified", False),
+    ("descriptor_bound_exec_handoff_verified", False),
+    ("external_watchdog_live_verified", False),
+    ("firecracker_jailer_live_verified", False),
+    ("io_backing_device_binding_live_verified", False),
+    ("network_namespace_exclusive_live_verified", False),
+    ("network_namespace_live_verified", False),
+    ("production_authority", False),
+    ("root_owned_launcher_live_verified", False),
+    ("sandbox_escape_resistance", False),
+    ("settlement_authority", False),
+)
+_LAUNCH_CONTROL_FACT_ITEMS_V1: Final = (
+    ("cgroup_descendant_set_verified", True),
+    ("executable_bytes_reverified_after_spawn", True),
+    ("network_namespace_membership_verified", True),
+)
+_FINISH_CONTROL_FACT_ITEMS_V1: Final = (
+    ("cgroup_populated_zero_verified", True),
+    ("cgroup_removed_after_kill", True),
+    ("network_namespace_path_identity_preserved", True),
+    ("process_exit_observed", True),
+)
 
 
 class SpotV7FirecrackerExecutionBindingRejectV1(ValueError):
@@ -173,20 +173,6 @@ class _AuthorityFalseSpotV7FirecrackerExecutionBindingV1:
             "authority-false Firecracker binding requires exact verification"
         )
 
-    @classmethod
-    def _from_verified(
-        cls,
-        *,
-        execution_record_bytes: bytes,
-        request_sha256: str,
-        output_device_sha256: str,
-    ) -> _AuthorityFalseSpotV7FirecrackerExecutionBindingV1:
-        value = object.__new__(cls)
-        object.__setattr__(value, "execution_record_bytes", execution_record_bytes)
-        object.__setattr__(value, "request_sha256", request_sha256)
-        object.__setattr__(value, "output_device_sha256", output_device_sha256)
-        return value
-
     @property
     def static_binding_verified(self) -> bool:
         return True
@@ -269,13 +255,23 @@ def _verify_authority_false_spot_v7_firecracker_execution_binding_v1(
         raise SpotV7FirecrackerExecutionBindingRejectV1(
             "execution_record_binding"
         )
-    return _AuthorityFalseSpotV7FirecrackerExecutionBindingV1._from_verified(
-        execution_record_bytes=inspected.execution_record_bytes,
-        request_sha256=inspected.bound_output.decoded_output.request_sha256.hex(),
-        output_device_sha256=(
-            inspected.bound_output.decoded_output.output_device_sha256.hex()
-        ),
+    result = object.__new__(_AuthorityFalseSpotV7FirecrackerExecutionBindingV1)
+    object.__setattr__(
+        result,
+        "execution_record_bytes",
+        inspected.execution_record_bytes,
     )
+    object.__setattr__(
+        result,
+        "request_sha256",
+        inspected.bound_output.decoded_output.request_sha256.hex(),
+    )
+    object.__setattr__(
+        result,
+        "output_device_sha256",
+        inspected.bound_output.decoded_output.output_device_sha256.hex(),
+    )
+    return result
 
 
 def _inspect_authority_false_spot_v7_execution_v1(
@@ -321,7 +317,11 @@ def _inspect_authority_false_spot_v7_execution_v1(
         launch_observation_bytes,
         expected_cgroup_relative_path=policy.cgroup_relative_path,
     )
-    finish = _validate_finish_observation(finish_observation_bytes)
+    finish = _validate_finish_observation(
+        finish_observation_bytes,
+        launch_observation_bytes=launch_observation_bytes,
+        launch=launch,
+    )
     record = _execution_record_bytes(
         policy=policy,
         observed_artifacts=observed_artifacts,
@@ -394,16 +394,21 @@ def _validate_launch_observation(
         raise SpotV7FirecrackerExecutionBindingRejectV1(
             "lifecycle_launch_fields"
         )
-    if document["authority"] != _LIFECYCLE_AUTHORITY_NONCLAIMS_V1:
-        raise SpotV7FirecrackerExecutionBindingRejectV1(
-            "lifecycle_launch_authority"
-        )
+    _require_exact_bool_document(
+        document["authority"],
+        expected_items=_LIFECYCLE_AUTHORITY_NONCLAIM_ITEMS_V1,
+        code="lifecycle_launch_authority",
+    )
+    _require_exact_bool_document(
+        document["control_facts"],
+        expected_items=_LAUNCH_CONTROL_FACT_ITEMS_V1,
+        code="lifecycle_launch_binding",
+    )
     if (
         document["schema"]
         != "zenodex/zrpf_firecracker_jailer_launch_observation/v1"
         or document["scope"] != "live_process_placement_control_only"
         or document["cgroup_relative_path"] != expected_cgroup_relative_path
-        or document["control_facts"] != _LAUNCH_CONTROL_FACTS_V1
         or not _bounded_positive_int(document["jailer_pid"], maximum=(1 << 31) - 1)
         or not _bounded_positive_int(document["observed_process_count"], maximum=64)
     ):
@@ -413,29 +418,53 @@ def _validate_launch_observation(
     return document
 
 
-def _validate_finish_observation(raw: object) -> dict[str, Any]:
+def _validate_finish_observation(
+    raw: object,
+    *,
+    launch_observation_bytes: object,
+    launch: dict[str, Any],
+) -> dict[str, Any]:
     document = _parse_canonical_document(raw, label="lifecycle_finish")
     if set(document) != {
         "authority",
+        "cgroup_relative_path",
         "control_facts",
         "exit_code",
+        "jailer_pid",
+        "launch_observation_sha256",
+        "observed_process_count",
         "schema",
         "scope",
     }:
         raise SpotV7FirecrackerExecutionBindingRejectV1(
             "lifecycle_finish_fields"
         )
-    if document["authority"] != _LIFECYCLE_AUTHORITY_NONCLAIMS_V1:
+    _require_exact_bool_document(
+        document["authority"],
+        expected_items=_LIFECYCLE_AUTHORITY_NONCLAIM_ITEMS_V1,
+        code="lifecycle_finish_authority",
+    )
+    _require_exact_bool_document(
+        document["control_facts"],
+        expected_items=_FINISH_CONTROL_FACT_ITEMS_V1,
+        code="lifecycle_finish_binding",
+    )
+    if (
+        document["cgroup_relative_path"] != launch["cgroup_relative_path"]
+        or document["jailer_pid"] != launch["jailer_pid"]
+        or document["observed_process_count"] != launch["observed_process_count"]
+        or document["launch_observation_sha256"]
+        != _sha256_object_bytes(launch_observation_bytes)
+    ):
         raise SpotV7FirecrackerExecutionBindingRejectV1(
-            "lifecycle_finish_authority"
+            "lifecycle_finish_launch_binding"
         )
     exit_code = document["exit_code"]
     if (
         document["schema"]
-        != "zenodex/zrpf_firecracker_jailer_finish_observation/v1"
+        != "zenodex/zrpf_firecracker_jailer_finish_observation/v2"
         or document["scope"]
-        != "live_process_exit_and_cgroup_teardown_control_only"
-        or document["control_facts"] != _FINISH_CONTROL_FACTS_V1
+        != "live_process_exit_and_exact_launch_teardown_control_only"
         or type(exit_code) is not int
         or not -(1 << 31) <= exit_code <= (1 << 31) - 1
     ):
@@ -471,13 +500,17 @@ def _execution_record_bytes(
             "settlement_authority": False,
         },
         "authority_blocker": SPOT_V7_FIRECRACKER_STATIC_BINDING_BLOCKER_V1,
-        "candidate_binding": {
-            "application_id": candidate.application_id,
-            "chain_or_domain_id": candidate.chain_or_domain_id,
-            "epoch_id": candidate.epoch_id,
+        "candidate_data": {
+            "application_id_unverified": candidate.application_id,
+            "chain_or_domain_id_unverified": candidate.chain_or_domain_id,
+            "epoch_id_unverified": candidate.epoch_id,
+            "retained_receipt_sha256_unverified": hashlib.sha256(
+                candidate.exact_v7_receipt_bytes
+            ).hexdigest(),
+        },
+        "output_bound_candidate_data": {
             "journal_sha256": hashlib.sha256(candidate.exact_v7_journal_bytes).hexdigest(),
             "plan_b_sha256": hashlib.sha256(candidate.exact_plan_b_bytes).hexdigest(),
-            "receipt_sha256": hashlib.sha256(candidate.exact_v7_receipt_bytes).hexdigest(),
         },
         "lifecycle_binding": {
             "cgroup_relative_path": policy.cgroup_relative_path,
@@ -562,6 +595,20 @@ def _reject_constant(_value: str) -> None:
 
 def _bounded_positive_int(value: object, *, maximum: int) -> bool:
     return type(value) is int and 0 < value <= maximum
+
+
+def _require_exact_bool_document(
+    value: object,
+    *,
+    expected_items: tuple[tuple[str, bool], ...],
+    code: str,
+) -> None:
+    if type(value) is not dict or set(value) != {name for name, _ in expected_items}:
+        raise SpotV7FirecrackerExecutionBindingRejectV1(code)
+    for name, expected in expected_items:
+        actual = value[name]
+        if type(actual) is not bool or actual is not expected:
+            raise SpotV7FirecrackerExecutionBindingRejectV1(code)
 
 
 def _require_digest_bytes(value: bytes, code: str) -> None:

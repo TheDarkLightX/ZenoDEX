@@ -5,10 +5,14 @@ precreated cgroup-v2 leaf before invoking the jailer. Artifact staging,
 namespace creation, output validation, and live privileged evidence remain
 separate obligations. Jailer still reopens governed paths; immutable root-owned
 staging and descriptor-bound execution handoff are required before promotion.
+The V2 finish document binds its reported teardown to the exact canonical
+launch document, cgroup identity, jailer PID, and observed process count.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import subprocess
 import time
@@ -297,6 +301,14 @@ def _finish_jailer_process_control_for_test(
 
     if not 0.1 <= process_timeout_seconds <= 300.0:
         raise JailerLauncherReject("jailer_process_timeout_invalid")
+    if (
+        type(observation) is not _JailerLaunchObservationV1
+        or process.pid != observation.jailer_pid
+        or process.pid not in observation.process_set
+        or cgroup_leaf.identity.relative_path != observation.cgroup_relative_path
+    ):
+        _cleanup_failed_launch(cgroup_leaf, process)
+        raise JailerLauncherReject("jailer_finish_launch_observation_mismatch")
     timed_out = False
     wait_failed = False
     exit_code: int | None = None
@@ -323,8 +335,30 @@ def _finish_jailer_process_control_for_test(
         raise JailerLauncherReject("jailer_process_wait_failed")
     if type(exit_code) is not int:
         raise JailerLauncherReject("jailer_exit_status_invalid")
+    return _finish_observation_document_v2(
+        observation=observation,
+        exit_code=exit_code,
+    )
+
+
+def _finish_observation_document_v2(
+    *,
+    observation: _JailerLaunchObservationV1,
+    exit_code: int,
+) -> dict[str, Any]:
+    """Derive the canonical-data finish document bound to one launch record."""
+
+    if type(observation) is not _JailerLaunchObservationV1:
+        raise TypeError("observation must be exact _JailerLaunchObservationV1")
+    if type(exit_code) is not int or not -(1 << 31) <= exit_code <= (1 << 31) - 1:
+        raise JailerLauncherReject("jailer_exit_status_invalid")
+    launch_document = observation.to_document()
+    launch_observation_sha256 = hashlib.sha256(
+        _canonical_observation_bytes_v1(launch_document)
+    ).hexdigest()
     return {
-        "authority": observation.to_document()["authority"],
+        "authority": launch_document["authority"],
+        "cgroup_relative_path": observation.cgroup_relative_path,
         "control_facts": {
             "cgroup_populated_zero_verified": True,
             "cgroup_removed_after_kill": True,
@@ -332,9 +366,24 @@ def _finish_jailer_process_control_for_test(
             "process_exit_observed": True,
         },
         "exit_code": exit_code,
-        "schema": "zenodex/zrpf_firecracker_jailer_finish_observation/v1",
-        "scope": "live_process_exit_and_cgroup_teardown_control_only",
+        "jailer_pid": observation.jailer_pid,
+        "launch_observation_sha256": launch_observation_sha256,
+        "observed_process_count": len(observation.process_set),
+        "schema": "zenodex/zrpf_firecracker_jailer_finish_observation/v2",
+        "scope": "live_process_exit_and_exact_launch_teardown_control_only",
     }
+
+
+def _canonical_observation_bytes_v1(document: object) -> bytes:
+    return (
+        json.dumps(
+            document,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("ascii")
 
 
 def _verify_prelaunch_boundaries(

@@ -180,6 +180,62 @@ def test_firecracker_authority_symbols_have_no_public_alias_or_export(path: Path
     assert _public_top_level_authority_reachability(tree) == []
 
 
+def test_firecracker_static_binding_factory_and_expected_document_ratchets() -> None:
+    tree = _parse(SPOT_V7_FIRECRACKER_EXECUTION_BINDING)
+    classes = {
+        node.name: node for node in tree.body if isinstance(node, ast.ClassDef)
+    }
+    result_class = classes["_AuthorityFalseSpotV7FirecrackerExecutionBindingV1"]
+    assert not any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "_from_verified"
+        for node in result_class.body
+    )
+
+    immutable_names = {
+        "_LIFECYCLE_AUTHORITY_NONCLAIM_ITEMS_V1",
+        "_LAUNCH_CONTROL_FACT_ITEMS_V1",
+        "_FINISH_CONTROL_FACT_ITEMS_V1",
+    }
+    assignments = {
+        node.target.id: node.value
+        for node in tree.body
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id in immutable_names
+    }
+    assert set(assignments) == immutable_names
+    assert all(isinstance(value, ast.Tuple) for value in assignments.values())
+
+    verifier = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name
+        == "_verify_authority_false_spot_v7_firecracker_execution_binding_v1"
+    )
+    all_result_allocations = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "object"
+        and node.func.attr == "__new__"
+    ]
+    verifier_result_allocations = [
+        node
+        for node in ast.walk(verifier)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "object"
+        and node.func.attr == "__new__"
+    ]
+    assert len(all_result_allocations) == 1
+    assert verifier_result_allocations == all_result_allocations
+
+
 def test_firecracker_authority_ratchet_rejects_seal_and_binder_alias_mutants() -> None:
     source = SPOT_V7_FIRECRACKER_AUTHORITY.read_text(encoding="utf-8")
     mutant = ast.parse(
