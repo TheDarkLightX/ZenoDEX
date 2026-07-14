@@ -992,6 +992,21 @@ jobs:
             --target riscv32im-risc0-zkvm-elf \
             --target-dir "${RUNNER_TEMP}/zrpf-guest-check" \
             -p zenodex-zrpf-risc0-spot-settlement-v7-guest
+          candidate_guard_log="${RUNNER_TEMP}/candidate-source-policy-zkvm-reject.log"
+          if "${pinned_bin}/cargo" check \
+            --manifest-path zk/zrpf_risc0/Cargo.toml \
+            --locked --offline \
+            --target riscv32im-risc0-zkvm-elf \
+            --target-dir "${RUNNER_TEMP}/zrpf-candidate-policy-negative-check" \
+            -p zenodex-zrpf-risc0-shared \
+            --features test-only-candidate-source-policy \
+            >"${candidate_guard_log}" 2>&1; then
+            echo "candidate source policy unexpectedly compiled for the zkVM target" >&2
+            exit 1
+          fi
+          grep -F \
+            "test-only candidate source policy is forbidden on the zkVM target" \
+            "${candidate_guard_log}"
 
       - name: Build pinned replay container
         run: |

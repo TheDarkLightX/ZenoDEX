@@ -94,9 +94,16 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     python_assurance = steps["Run Python and evidence assurance"]["run"]
     rust_assurance = steps["Run Rust protocol and verifier assurance"]["run"]
     assert rust_assurance.count("--features test-only-candidate-source-policy") == 2
+    shared_source = (ROOT / "zk/zrpf_risc0/shared/src/lib.rs").read_text(
+        encoding="utf-8"
+    )
     assert (
-        "test-only candidate source policy is forbidden on the zkVM target"
-        in (ROOT / "zk/zrpf_risc0/shared/src/lib.rs").read_text(encoding="utf-8")
+        '#[cfg(all(feature = "test-only-candidate-source-policy", target_os = "zkvm"))]'
+        in shared_source
+    )
+    assert (
+        'compile_error!("test-only candidate source policy is forbidden on the zkVM target");'
+        in shared_source
     )
     for relative_manifest in (
         "zk/zrpf_risc0/spot_value_leaf_v6_shared/Cargo.toml",
@@ -111,6 +118,14 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     ]["run"]
     current_guest_build = steps["Build pinned current RISC0 guests"]["run"]
     guest_assurance = steps["Check every ZRPF guest on the zkVM target"]["run"]
+    assert "candidate-source-policy-zkvm-reject.log" in guest_assurance
+    assert "zrpf-candidate-policy-negative-check" in guest_assurance
+    assert "-p zenodex-zrpf-risc0-shared" in guest_assurance
+    assert "--features test-only-candidate-source-policy" in guest_assurance
+    assert (
+        "test-only candidate source policy is forbidden on the zkVM target"
+        in guest_assurance
+    )
     cargo_acquisition = steps["Acquire lockfile-bound Cargo sources"]["run"]
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in cargo_acquisition
     assert (
@@ -501,7 +516,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     guest_package_args = _cargo_package_args(guest_assurance)
     for package in host_packages:
         assert host_package_args.count(package) >= 2, package
-        assert package not in guest_package_args
+        if package == "zenodex-zrpf-risc0-shared":
+            assert guest_package_args.count(package) == 1
+        else:
+            assert package not in guest_package_args
     for package in guest_packages:
         assert package not in host_package_args
         assert guest_package_args.count(package) == 1, package

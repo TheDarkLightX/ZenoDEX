@@ -169,6 +169,7 @@ PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES = frozenset(
         "_GOVERNED_DA_PREREQUISITE_SEAL_V2",
         "_GovernedSpotV7DataAvailabilityPrerequisiteV2",
         "_bind_governed_spot_v7_da_prerequisite_v2",
+        "_projection_for_downstream_binding_v2",
     }
 )
 PRIVATE_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_NAMES = frozenset(
