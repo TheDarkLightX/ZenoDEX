@@ -193,13 +193,20 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tools/build_zrpf_spot_settlement_v7_local_evidence.py",
         "tools/check_zrpf_spot_settlement_v7_local_evidence.py",
         "tools/check_zrpf_v6_v7_post_pin_governance.py",
+        "tools/check_zrpf_spot_v7_release_closure.py",
         "tools/materialize_zrpf_v6_settlement_child_into_v7.py",
         "tools/materialize_zrpf_source_opened_spot_v6_identity.py",
+        "tools/plan_zrpf_spot_v7_release_closure.py",
         "tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py",
         "tools/recover_zrpf_v6_identity_build_lease.py",
         "tools/run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py",
         "tools/zrpf_v6_v7_child_policy_materialization.py",
         "tools/zrpf_v6_v7_post_pin_governance.py",
+        "tools/zrpf_spot_v7_release_ancestry.py",
+        "tools/zrpf_spot_v7_release_cargo.py",
+        "tools/zrpf_spot_v7_release_closure.py",
+        "tools/zrpf_spot_v7_release_inventory.py",
+        "tools/zrpf_spot_v7_release_schema.py",
         "tools/zrpf_v6_identity_artifacts.py",
         "tools/zrpf_v6_identity_docker_runner.py",
         "tools/zrpf_v6_identity_executor_types.py",
@@ -233,6 +240,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_zeno_ledger_spot_state_domain_bridge_v1.py",
         "tests/integration/test_zeno_ledger_strict_spot_authority_v1.py",
         "tests/integration/test_zeno_ledger_strict_spot_range_authority_v1.py",
+        "tests/test_zrpf_spot_v7_release_closure.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
