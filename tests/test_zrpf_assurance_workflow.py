@@ -439,6 +439,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tools/zrpf_spot_v7_firecracker_descriptor_staging.py",
         "tools/zrpf_spot_v7_firecracker_runtime_binding.py",
         "tools/zrpf_spot_v7_firecracker_runtime_manifest.py",
+        "tools/zrpf_spot_v7_governed_release_selection_store_v1.py",
+        "tools/zrpf_spot_v7_governed_release_selector_input_v1.py",
         "tools/zrpf_spot_v7_release_candidate_manifest_v1.py",
         "tools/zrpf_spot_v7_firecracker_runtime_protocol.py",
     ):
@@ -476,6 +478,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/test_zrpf_spot_v7_firecracker_descriptor_staging.py",
         "tests/test_zrpf_spot_v7_firecracker_runtime_binding.py",
         "tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py",
+        "tests/test_zrpf_spot_v7_governed_release_selection_store_v1.py",
         "tests/test_zrpf_spot_v7_release_candidate_manifest_v1.py",
         "tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py",
         "tests/test_zrpf_spot_v7_firecracker_authority_input_parity.py",
