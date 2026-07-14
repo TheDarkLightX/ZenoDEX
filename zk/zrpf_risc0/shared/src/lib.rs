@@ -1,5 +1,8 @@
 #![no_std]
 
+#[cfg(all(feature = "test-only-candidate-source-policy", target_os = "zkvm"))]
+compile_error!("test-only candidate source policy is forbidden on the zkVM target");
+
 extern crate alloc;
 #[cfg(test)]
 extern crate std;

@@ -16,6 +16,13 @@ path = "src/lib.rs"
 [[test]]
 name = "source_opened_settlement_v6"
 path = "tests/source_opened_settlement_v6.rs"
+required-features = ["test-only-candidate-source-policy"]
+
+[features]
+default = []
+test-only-candidate-source-policy = [
+  "zenodex-zrpf-risc0-spot-value-leaf-v6-shared/test-only-candidate-source-policy",
+]
 
 [dependencies]
 sha2 = { version = "0.10.9", default-features = false }

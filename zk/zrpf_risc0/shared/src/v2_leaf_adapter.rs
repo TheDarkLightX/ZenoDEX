@@ -328,6 +328,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(feature = "test-only-candidate-source-policy"))]
     #[test]
     fn pending_policy_fails_closed_before_source_interpretation() {
         let result = project_policy_bound_v2_journal(SourceKindV2::Spot, &[0xff], 0, ADAPTER_IMAGE);
@@ -337,6 +338,18 @@ mod tests {
                 "current_source_image_id_unpinned"
             ))
         );
+    }
+
+    #[cfg(feature = "test-only-candidate-source-policy")]
+    #[test]
+    fn host_test_candidate_does_not_promote_current_source_pins() {
+        let policy = source_policy_v2(SourceKindV2::Spot).unwrap();
+        assert!(policy.image_id.iter().any(|word| *word != 0));
+        assert!(policy.program_sha256.iter().any(|byte| *byte != 0));
+        assert!(policy.source_closure_root.iter().any(|byte| *byte != 0));
+        assert_eq!(CURRENT_SPOT_SOURCE_POLICY_V2.image_id, [0; 8]);
+        assert_eq!(CURRENT_SPOT_SOURCE_POLICY_V2.program_sha256, [0; 32]);
+        assert_eq!(CURRENT_SPOT_SOURCE_POLICY_V2.source_closure_root, [0; 32]);
     }
 
     #[test]

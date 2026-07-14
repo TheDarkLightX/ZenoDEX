@@ -93,6 +93,19 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "v1.94.1-rust-x86_64-unknown-linux-gnu:/risc0/toolchains/" in replay_command
     python_assurance = steps["Run Python and evidence assurance"]["run"]
     rust_assurance = steps["Run Rust protocol and verifier assurance"]["run"]
+    assert rust_assurance.count("--features test-only-candidate-source-policy") == 2
+    assert (
+        "test-only candidate source policy is forbidden on the zkVM target"
+        in (ROOT / "zk/zrpf_risc0/shared/src/lib.rs").read_text(encoding="utf-8")
+    )
+    for relative_manifest in (
+        "zk/zrpf_risc0/spot_value_leaf_v6_shared/Cargo.toml",
+        "zk/zrpf_risc0/spot_settlement_v6_shared/Cargo.toml",
+    ):
+        manifest = tomllib.loads((ROOT / relative_manifest).read_text(encoding="utf-8"))
+        assert manifest["test"][0]["required-features"] == [
+            "test-only-candidate-source-policy"
+        ]
     active_replay = steps[
         "Build governed host verifiers and cryptographically replay retained roots"
     ]["run"]
@@ -477,7 +490,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert rust_assurance.count("-p zenodex-zrpf-risc0-methods") == 2
     assert "--locked --all-targets" in rust_assurance
     assert rust_assurance.count("--no-default-features --test semantic_v2") == 2
-    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 12
+    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 13
     assert '"${pinned_bin}/cargo" clippy' not in rust_assurance
     host_packages, guest_packages = _zrpf_workspace_packages()
     host_package_args = _cargo_package_args(rust_assurance)

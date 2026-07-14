@@ -40,9 +40,37 @@ pub const CURRENT_SPOT_SOURCE_POLICY_V2: SourcePolicyV2 = SourcePolicyV2 {
     source_closure_root: PINNED_CURRENT_SPOT_SOURCE_CLOSURE_ROOT_V2,
 };
 
+// This policy exists solely to keep proof-neutral semantic and mutation tests
+// executable while the final current-source identity remains deliberately
+// unpinned. The feature is disabled by default and rejected on the zkVM target.
+#[cfg(feature = "test-only-candidate-source-policy")]
+const TEST_ONLY_CANDIDATE_SPOT_SOURCE_POLICY_V2: SourcePolicyV2 = SourcePolicyV2 {
+    source_kind: SourceKindV2::Spot,
+    proof_type: PROOF_TYPE_RECURSIVE_SPOT_LEAF,
+    proof_profile: RECURSIVE_SPOT_LEAF_PROFILE_V1,
+    lane_kind: "spot",
+    image_id: [
+        0x7465_7374,
+        0x2d6f_6e6c,
+        0x792d_6361,
+        0x6e64_6964,
+        0x6174_652d,
+        0x736f_7572,
+        0x6365_2d76,
+        0x3200_0001,
+    ],
+    program_sha256: [0xA5; 32],
+    source_closure_root: [0x5A; 32],
+};
+
 pub fn source_policy_v2(
     source_kind: SourceKindV2,
 ) -> Result<&'static SourcePolicyV2, AdapterErrorV1> {
+    #[cfg(feature = "test-only-candidate-source-policy")]
+    let policy = match source_kind {
+        SourceKindV2::Spot => &TEST_ONLY_CANDIDATE_SPOT_SOURCE_POLICY_V2,
+    };
+    #[cfg(not(feature = "test-only-candidate-source-policy"))]
     let policy = match source_kind {
         SourceKindV2::Spot => &CURRENT_SPOT_SOURCE_POLICY_V2,
     };

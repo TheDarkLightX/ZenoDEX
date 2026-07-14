@@ -793,6 +793,21 @@ jobs:
             -- -D warnings
           "${pinned_bin}/cargo" test \
             --manifest-path zk/zrpf_risc0/Cargo.toml \
+            --locked --all-targets \
+            --features test-only-candidate-source-policy \
+            -p zenodex-zrpf-risc0-shared \
+            -p zenodex-zrpf-risc0-spot-value-leaf-v6-shared \
+            -p zenodex-zrpf-risc0-spot-settlement-v6-shared
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/zrpf_risc0/Cargo.toml \
+            --locked --all-targets \
+            --features test-only-candidate-source-policy \
+            -p zenodex-zrpf-risc0-shared \
+            -p zenodex-zrpf-risc0-spot-value-leaf-v6-shared \
+            -p zenodex-zrpf-risc0-spot-settlement-v6-shared \
+            -- -D warnings
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/zrpf_risc0/Cargo.toml \
             --locked -p zenodex-zrpf-risc0-semantic-shared \
             --no-default-features --test semantic_v2
           "${pinned_bin}/cargo-clippy" clippy \
