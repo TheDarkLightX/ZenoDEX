@@ -353,6 +353,26 @@ class _GovernedSpotV7DataAvailabilityPrerequisiteV2:
             raise ValueError("combined DA V2 projection drift")
         return self._projection
 
+    def _source_finality_artifacts_for_operational_store_v4(
+        self,
+    ) -> tuple[bytes, bytes]:
+        projection = self._projection_for_downstream_binding_v2()
+        source = self._sampled._beacon._source_finality
+        if not source._has_private_seal():
+            raise TypeError("governed DA V2 source finality lacks its private seal")
+        if source._projection.certificate_root != (
+            projection.source_finality_certificate_root
+        ):
+            raise ValueError("governed DA V2 source finality certificate drift")
+        if source._projection.finality_evidence_root != (
+            projection.source_finality_evidence_root
+        ):
+            raise ValueError("governed DA V2 source finality evidence drift")
+        return (
+            source._exact_certificate_bytes,
+            source._exact_finality_evidence_bytes,
+        )
+
     @property
     def governed_exact_full_blob_policy_satisfied(self) -> bool:
         self._projection_for_downstream_binding_v2()
@@ -451,7 +471,7 @@ def _derive_combined_da_projection_v2(
     governed_sample = _require_governed_sampled_response(governed_sampled_response)
     if governed_sample._policy is not policy:
         _mismatch("POLICY_CAPABILITY_MISMATCH")
-    base_policy = policy._base_store_policy_for_governed_beacon_v1()
+    base_policy = policy._base_store_policy_for_full_blob_v2()
     if full_blob._governed_policy._policy_for_atomic_store() != base_policy:
         _mismatch("FULL_BLOB_POLICY_MATERIAL_MISMATCH")
     full = full_blob._projection

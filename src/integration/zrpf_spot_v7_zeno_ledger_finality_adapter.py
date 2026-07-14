@@ -173,6 +173,11 @@ class _AuthenticatedExactCheckpointFinalityTransitionV3:
         "_seal",
     )
 
+    _projection: _AuthenticatedCheckpointFinalityProjectionV3
+    _exact_certificate_bytes: bytes
+    _exact_finality_evidence_bytes: bytes
+    _seal: _AuthenticatedCheckpointFinalitySealV3
+
     def __init__(
         self,
         projection: _AuthenticatedCheckpointFinalityProjectionV3,
@@ -1079,12 +1084,12 @@ def _derive_exact_finality_capability(
 def _derive_exact_finality_capability_v3(
     *,
     candidate: _SpotV7SettlementCandidateInputV1,
-    policy: _GovernedSpotV7OperationalPolicyV2,
+    policy: _FinalityPolicyV3,
     cursor: ZenoLedgerCheckpointFinalityCursorV1,
     checkpoint: Mapping[str, Any],
     evidence_bytes: bytes,
 ) -> _AuthenticatedExactCheckpointFinalityTransitionV3:
-    store_policy = policy._policy_for_atomic_store()
+    store_policy = _base_store_policy_for_finality_v3(policy)
     store_settlement = _seal_test_only_spot_v7_settlement_v1(candidate)
     artifacts = _build_test_only_checkpoint_finality_artifacts_v2(
         policy=store_policy,

@@ -94,6 +94,19 @@ def _beacon_policy(
     )
 
 
+def _source_finality_material(
+    *,
+    genesis_sequence: int = 0,
+    genesis_hash: str | None = None,
+) -> _GovernedOperationalPolicyMaterialV2:
+    return replace(
+        _base_material(),
+        finality_protocol_id=derive_zeno_ledger_finality_protocol_id_v2(),
+        genesis_application_checkpoint_sequence=genesis_sequence,
+        genesis_application_checkpoint_hash=(genesis_hash or _root("source-genesis")),
+    )
+
+
 def _providers() -> tuple[ProviderKeyLifecycleV1, ...]:
     return (
         ProviderKeyLifecycleV1(
@@ -145,12 +158,16 @@ def _sampled_policy(
 def _material(
     *,
     base: _GovernedOperationalPolicyMaterialV2 | None = None,
+    source_finality: _GovernedOperationalPolicyMaterialV2 | None = None,
     beacon: BeaconPolicyV1 | None = None,
     sampled: SampledRetrievabilityPolicyV1 | None = None,
 ) -> _GovernedOperationalPolicyMaterialV3:
     selected_beacon = beacon or _beacon_policy()
     return _GovernedOperationalPolicyMaterialV3(
         base_material=base or _base_material(),
+        beacon_source_finality_material=(
+            source_finality or _source_finality_material()
+        ),
         zeno_ledger_chain_id=CHAIN_ID,
         sampled_retrievability_policy=(sampled or _sampled_policy(beacon=selected_beacon)),
         beacon_policy=selected_beacon,
@@ -220,6 +237,9 @@ def _load(
         policy_revision=POLICY_REVISION,
         sampled_policy_root=material.sampled_retrievability_policy.policy_root,
         beacon_policy_root=material.beacon_policy.policy_root,
+        beacon_source_finality_policy_root=(
+            material._to_authority_false_beacon_source_policy().checkpoint_finality_policy_root
+        ),
         signer_registry_id=REGISTRY_ID,
         signer_registry_hash=str(registry["registry_hash"]),
         signer_registry_revision=REGISTRY_REVISION,
@@ -250,6 +270,11 @@ def test_v3_manifest_mints_governed_sampled_policy_with_exact_chain_binding() ->
     assert projection.zeno_ledger_chain_id == CHAIN_ID
     assert projection.sampled_policy_root == _sampled_policy().policy_root
     assert projection.beacon_policy_root == _beacon_policy().policy_root
+    assert projection.beacon_source_finality_policy_root == (
+        _source_finality_material()
+        ._to_authority_false_store_policy()
+        .checkpoint_finality_policy_root
+    )
     assert policy.sampled_policy_governance_provenance_verified is True
     assert policy.current_operational_policy_release_head_verified is False
     assert policy.beacon_unpredictability_verified is False
@@ -265,15 +290,23 @@ def test_signed_policy_separates_settlement_v3_from_lagged_beacon_source_v2() ->
     registry = _registry()
     policy = _load(_manifest(registry), registry)
 
-    settlement_policy = policy._base_store_policy_for_governed_beacon_v1()
+    source_policy = policy._base_store_policy_for_governed_beacon_v1()
+    settlement_policy = policy._base_store_policy_for_finality_v3()
     beacon_policy = policy._beacon_policy_for_governed_da_v2()
+    assert source_policy.finality_protocol_id == (
+        derive_zeno_ledger_finality_protocol_id_v2()
+    )
     assert settlement_policy.finality_protocol_id == (
         derive_zeno_ledger_finality_protocol_id_v3()
     )
     assert beacon_policy.source_protocol_id == (
         derive_zeno_ledger_finality_protocol_id_v2()
     )
-    assert settlement_policy.finality_protocol_id != beacon_policy.source_protocol_id
+    assert source_policy.finality_protocol_id == beacon_policy.source_protocol_id
+    assert source_policy.checkpoint_finality_policy_root != (
+        settlement_policy.checkpoint_finality_policy_root
+    )
+    assert source_policy.genesis_application_checkpoint_hash == _root("source-genesis")
 
 
 def test_finality_v3_adapter_accepts_the_exact_sealed_v3_policy() -> None:
@@ -296,6 +329,15 @@ def test_v3_material_rejects_v2_settlement_finality_protocol() -> None:
 
     with pytest.raises(ValueError, match="settlement finality protocol mismatch"):
         _material(base=legacy_settlement_policy)
+
+
+def test_v3_material_rejects_unreachable_beacon_source_genesis() -> None:
+    source = _source_finality_material(
+        genesis_sequence=POLICY_ACTIVATION_EPOCH - 1,
+    )
+
+    with pytest.raises(ValueError, match="source finality genesis"):
+        _material(source_finality=source)
 
 
 def test_v3_manifest_is_canonical_and_hash_stable() -> None:
@@ -407,6 +449,7 @@ def test_v3_material_rejects_cross_binding_mutations(mutation: str) -> None:
     with pytest.raises(ValueError):
         _GovernedOperationalPolicyMaterialV3(
             base_material=base,
+            beacon_source_finality_material=_source_finality_material(),
             zeno_ledger_chain_id=chain_id,
             sampled_retrievability_policy=sampled,
             beacon_policy=beacon,

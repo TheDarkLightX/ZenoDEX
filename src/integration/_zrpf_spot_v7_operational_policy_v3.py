@@ -117,6 +117,7 @@ class _GovernedOperationalPolicyMaterialV3:
     """Complete signed V3 policy material before the private governed seal."""
 
     base_material: _GovernedOperationalPolicyMaterialV2
+    beacon_source_finality_material: _GovernedOperationalPolicyMaterialV2
     zeno_ledger_chain_id: str
     sampled_retrievability_policy: SampledRetrievabilityPolicyV1
     beacon_policy: BeaconPolicyV1
@@ -124,18 +125,27 @@ class _GovernedOperationalPolicyMaterialV3:
     def __post_init__(self) -> None:
         if type(self.base_material) is not _GovernedOperationalPolicyMaterialV2:
             raise TypeError("base_material must be exact V2 operational material")
+        if (
+            type(self.beacon_source_finality_material)
+            is not _GovernedOperationalPolicyMaterialV2
+        ):
+            raise TypeError(
+                "beacon_source_finality_material must be exact V2 operational material"
+            )
         if type(self.sampled_retrievability_policy) is not SampledRetrievabilityPolicyV1:
             raise TypeError("sampled policy must be exact SampledRetrievabilityPolicyV1")
         if type(self.beacon_policy) is not BeaconPolicyV1:
             raise TypeError("beacon policy must be exact BeaconPolicyV1")
         chain_id = _require_chain_id(self.zeno_ledger_chain_id)
         base = self.base_material
+        source = self.beacon_source_finality_material
         sampled = self.sampled_retrievability_policy
         beacon = self.beacon_policy
         expected_network = derive_zeno_ledger_finality_network_id_v1(chain_id)
         expected_settlement_protocol = derive_zeno_ledger_finality_protocol_id_v3()
         expected_beacon_source_protocol = derive_zeno_ledger_finality_protocol_id_v2()
         expected_source = derive_zeno_ledger_checkpoint_beacon_source_id_v1(chain_id)
+        first_source_sequence = beacon.activation_epoch - beacon.source_epoch_lag
         checks = (
             (sampled.application_id == base.application_id, "sampled application mismatch"),
             (
@@ -165,6 +175,40 @@ class _GovernedOperationalPolicyMaterialV3:
                 "beacon source finality protocol mismatch",
             ),
             (beacon.source_id == expected_source, "beacon source mismatch"),
+            (source.application_id == base.application_id, "source application mismatch"),
+            (
+                source.chain_or_domain_id == base.chain_or_domain_id,
+                "source domain mismatch",
+            ),
+            (source.data_schema_id == base.data_schema_id, "source data schema mismatch"),
+            (
+                source.storage_policy_hash == base.storage_policy_hash,
+                "source storage policy mismatch",
+            ),
+            (
+                source.minimum_retention_epochs == base.minimum_retention_epochs,
+                "source minimum retention mismatch",
+            ),
+            (
+                source.minimum_remaining_epochs == base.minimum_remaining_epochs,
+                "source remaining retention mismatch",
+            ),
+            (
+                source.maximum_blob_bytes == base.maximum_blob_bytes,
+                "source maximum blob bytes mismatch",
+            ),
+            (
+                source.finality_network_id == beacon.source_network_id,
+                "source finality network mismatch",
+            ),
+            (
+                source.finality_protocol_id == beacon.source_protocol_id,
+                "source finality protocol mismatch",
+            ),
+            (
+                source.genesis_application_checkpoint_sequence < first_source_sequence,
+                "source finality genesis does not precede the first beacon checkpoint",
+            ),
             (sampled.beacon_source_id == beacon.source_id, "sampled beacon source mismatch"),
             (
                 sampled.beacon_policy_hash == beacon.policy_root,
@@ -185,6 +229,13 @@ class _GovernedOperationalPolicyMaterialV3:
 
     def _to_authority_false_store_policy(self) -> _TestOnlySpotV7OperationalPolicyV1:
         return self.base_material._to_authority_false_store_policy()
+
+    def _to_authority_false_beacon_source_policy(
+        self,
+    ) -> _TestOnlySpotV7OperationalPolicyV1:
+        """Derive the V2 policy that authenticates the lagged beacon source."""
+
+        return self.beacon_source_finality_material._to_authority_false_store_policy()
 
 
 @dataclass(frozen=True, slots=True)
@@ -263,6 +314,7 @@ class _GovernedSpotV7OperationalPolicyProjectionV3:
     zeno_ledger_chain_id: str
     full_blob_da_policy_root: str
     checkpoint_finality_policy_root: str
+    beacon_source_finality_policy_root: str
     sampled_policy_root: str
     beacon_policy_root: str
     policy_provenance_root: str
@@ -273,6 +325,7 @@ class _GovernedSpotV7OperationalPolicyProjectionV3:
             "chain_or_domain_id",
             "full_blob_da_policy_root",
             "checkpoint_finality_policy_root",
+            "beacon_source_finality_policy_root",
             "sampled_policy_root",
             "beacon_policy_root",
             "policy_provenance_root",
@@ -338,6 +391,9 @@ class _GovernedSpotV7OperationalPolicyV3(_NonTransferableOperationalCapabilityV3
             zeno_ledger_chain_id=material.zeno_ledger_chain_id,
             full_blob_da_policy_root=store_policy.full_blob_policy_root,
             checkpoint_finality_policy_root=store_policy.checkpoint_finality_policy_root,
+            beacon_source_finality_policy_root=(
+                material._to_authority_false_beacon_source_policy().checkpoint_finality_policy_root
+            ),
             sampled_policy_root=material.sampled_retrievability_policy.policy_root,
             beacon_policy_root=material.beacon_policy.policy_root,
             policy_provenance_root=provenance.evidence_root,
@@ -365,6 +421,9 @@ class _GovernedSpotV7OperationalPolicyV3(_NonTransferableOperationalCapabilityV3
             zeno_ledger_chain_id=self._material.zeno_ledger_chain_id,
             full_blob_da_policy_root=store_policy.full_blob_policy_root,
             checkpoint_finality_policy_root=store_policy.checkpoint_finality_policy_root,
+            beacon_source_finality_policy_root=(
+                self._material._to_authority_false_beacon_source_policy().checkpoint_finality_policy_root
+            ),
             sampled_policy_root=self._material.sampled_retrievability_policy.policy_root,
             beacon_policy_root=self._material.beacon_policy.policy_root,
             policy_provenance_root=self._provenance.evidence_root,
@@ -397,6 +456,12 @@ class _GovernedSpotV7OperationalPolicyV3(_NonTransferableOperationalCapabilityV3
         return self._material.beacon_policy
 
     def _base_store_policy_for_governed_beacon_v1(
+        self,
+    ) -> _TestOnlySpotV7OperationalPolicyV1:
+        self._require_live_integrity()
+        return self._material._to_authority_false_beacon_source_policy()
+
+    def _base_store_policy_for_full_blob_v2(
         self,
     ) -> _TestOnlySpotV7OperationalPolicyV1:
         self._require_live_integrity()

@@ -71,6 +71,7 @@ _TOP_FIELDS = frozenset(
 _MATERIAL_FIELDS = frozenset(
     {
         "base_operational_policy",
+        "beacon_source_finality_policy",
         "zeno_ledger_chain_id",
         "sampled_retrievability_policy",
         "beacon_policy",
@@ -147,6 +148,7 @@ class SpotV7OperationalPolicyReleasePinsV2:
     policy_revision: int
     sampled_policy_root: str
     beacon_policy_root: str
+    beacon_source_finality_policy_root: str
     signer_registry_id: str
     signer_registry_hash: str
     signer_registry_revision: int
@@ -158,6 +160,7 @@ class SpotV7OperationalPolicyReleasePinsV2:
             "chain_or_domain_id",
             "sampled_policy_root",
             "beacon_policy_root",
+            "beacon_source_finality_policy_root",
             "signer_registry_hash",
         ):
             _require_root(getattr(self, name), name=name)
@@ -305,6 +308,9 @@ def _material_document(material: _GovernedOperationalPolicyMaterialV3) -> dict[s
     material._to_authority_false_store_policy()
     return {
         "base_operational_policy": _base_material_document(material.base_material),
+        "beacon_source_finality_policy": _base_material_document(
+            material.beacon_source_finality_material
+        ),
         "beacon_policy": material.beacon_policy.to_document(),
         "sampled_retrievability_policy": (
             material.sampled_retrievability_policy.to_document()
@@ -474,11 +480,13 @@ def _parse_material(value: object) -> _GovernedOperationalPolicyMaterialV3:
     item = _require_exact_fields(value, expected=_MATERIAL_FIELDS, name="policy material")
     try:
         base = _parse_base_material(item["base_operational_policy"])
+        source_finality = _parse_base_material(item["beacon_source_finality_policy"])
     except SpotV7OperationalPolicyProvenanceErrorV1 as exc:
         raise _reject("BASE_POLICY_INVALID", exc.detail) from exc
     try:
         return _GovernedOperationalPolicyMaterialV3(
             base_material=base,
+            beacon_source_finality_material=source_finality,
             zeno_ledger_chain_id=_require_token(
                 item["zeno_ledger_chain_id"], name="zeno_ledger_chain_id"
             ),
@@ -622,6 +630,11 @@ def _require_manifest_binding(
             "SAMPLED_POLICY_ROOT_MISMATCH",
         ),
         (material.beacon_policy.policy_root == pins.beacon_policy_root, "BEACON_POLICY_ROOT_MISMATCH"),
+        (
+            material._to_authority_false_beacon_source_policy().checkpoint_finality_policy_root
+            == pins.beacon_source_finality_policy_root,
+            "BEACON_SOURCE_FINALITY_POLICY_ROOT_MISMATCH",
+        ),
         (parsed.registry.registry_id == pins.signer_registry_id, "REGISTRY_ID_MISMATCH"),
         (
             hmac.compare_digest(parsed.registry.registry_hash, pins.signer_registry_hash),
