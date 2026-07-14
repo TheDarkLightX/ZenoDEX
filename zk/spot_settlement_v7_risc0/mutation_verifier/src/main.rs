@@ -21,6 +21,7 @@ use sha2::{Digest as _, Sha256};
 use zenodex_zrpf_protocol_v3::NodeLevelV3;
 use zenodex_zrpf_risc0_shared::program_id_from_risc0_words_v3;
 use zenodex_zrpf_risc0_spot_settlement_root_policy_v6::pinned_source_opened_spot_settlement_identity_v6;
+use zenodex_zrpf_risc0_spot_settlement_v6_shared::decode_exact_source_opened_spot_settlement_guest_envelope_v3;
 use zenodex_zrpf_risc0_spot_settlement_v7_methods::ZENODEX_ZRPF_RISC0_SPOT_SETTLEMENT_V7_ID;
 use zenodex_zrpf_risc0_spot_settlement_v7_verifier::{
     verify_spot_settlement_v7_canonical_succinct_bytes, VerifiedSpotSettlementV7ErrorV1,
@@ -151,6 +152,7 @@ struct ReportV1 {
     receipt_profile_id: String,
     positive_receipts_verified: u8,
     exact_seal_mutations_rejected: u8,
+    settlement_l2_claim_bound: bool,
     stages: [StageFactsV1; 5],
     authority: AuthorityV1,
     non_claims: [&'static str; 4],
@@ -204,6 +206,10 @@ impl VerifiedChain {
         let (level_one, level_one_identity) = verify_level_one(inputs, &leaf)?;
         let (level_two, level_two_image_id, level_two_identity) =
             verify_level_two(inputs, &level_one)?;
+        require_settlement_l2_claim(
+            &inputs.settlement_guest_input,
+            &level_two.receipt().journal.bytes,
+        )?;
         let settlement = VerifiedSourceOpenedSpotSettlementAdmissionV6::verify(
             &inputs.settlement_receipt,
             &inputs.settlement_guest_input,
@@ -233,6 +239,26 @@ impl VerifiedChain {
             v7,
         })
     }
+}
+
+fn require_settlement_l2_claim(
+    exact_settlement_guest_input: &[u8],
+    verified_l2_journal: &[u8],
+) -> Result<(), CliError> {
+    let envelope =
+        decode_exact_source_opened_spot_settlement_guest_envelope_v3(exact_settlement_guest_input)
+            .map_err(|_| CliError("settlement_guest_envelope_rejected"))?;
+    require_exact_settlement_l2_claim(envelope.proposal_bytes(), verified_l2_journal)
+}
+
+fn require_exact_settlement_l2_claim(
+    settlement_proposal: &[u8],
+    verified_l2_journal: &[u8],
+) -> Result<(), CliError> {
+    if settlement_proposal != verified_l2_journal {
+        return Err(CliError("settlement_l2_claim_mismatch"));
+    }
+    Ok(())
 }
 
 fn verify_leaf(inputs: &Inputs) -> Result<VerifiedSourceOpenedSpotValueLeafReceiptV6, CliError> {
@@ -753,6 +779,7 @@ fn finalized_report(stages: [StageFactsV1; 5]) -> Result<ReportV1, CliError> {
         receipt_profile_id: ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1.to_owned(),
         positive_receipts_verified: 5,
         exact_seal_mutations_rejected: 5,
+        settlement_l2_claim_bound: true,
         stages,
         authority: AuthorityV1 {
             proof_authority: false,
@@ -1109,6 +1136,28 @@ mod tests {
         }
     }
 
+    #[test]
+    fn settlement_l2_link_distinguishes_position_specific_proposals() {
+        let verified_l2 = [0x13, 0x57, 0x9b, 0xdf, 0x24, 0x68, 0xac, 0xe0, 0x5a];
+        let foreign_l2 = [0x13, 0x57, 0x9b, 0xdf, 0x24, 0x68, 0xad, 0xe0, 0xa5];
+        assert_eq!(
+            require_exact_settlement_l2_claim(&verified_l2, &verified_l2),
+            Ok(())
+        );
+        assert_eq!(
+            require_exact_settlement_l2_claim(&foreign_l2, &verified_l2),
+            Err(CliError("settlement_l2_claim_mismatch"))
+        );
+        assert_eq!(
+            require_exact_settlement_l2_claim(&verified_l2, &foreign_l2),
+            Err(CliError("settlement_l2_claim_mismatch"))
+        );
+        assert_eq!(
+            require_settlement_l2_claim(&verified_l2, &verified_l2),
+            Err(CliError("settlement_guest_envelope_rejected"))
+        );
+    }
+
     fn mutate_stage_scalar(
         changed: &mut [StageFactsV1; 5],
         position: usize,
@@ -1272,6 +1321,7 @@ mod tests {
         assert_eq!(baseline.status, REPORT_STATUS);
         assert_eq!(baseline.positive_receipts_verified, 5);
         assert_eq!(baseline.exact_seal_mutations_rejected, 5);
+        assert!(baseline.settlement_l2_claim_bound);
         assert_eq!(
             baseline.receipt_profile_id,
             ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1
@@ -1281,7 +1331,7 @@ mod tests {
         assert!(!baseline.authority.settlement_authority);
         assert!(!baseline.authority.production_authority);
 
-        for invariant in 0..13 {
+        for invariant in 0..14 {
             let mut changed = baseline.clone();
             match invariant {
                 0 => changed.schema = "wrong-schema",
@@ -1297,6 +1347,7 @@ mod tests {
                 10 => changed.non_claims[1] = "wrong-nonclaim-1",
                 11 => changed.non_claims[2] = "wrong-nonclaim-2",
                 12 => changed.non_claims[3] = "wrong-nonclaim-3",
+                13 => changed.settlement_l2_claim_bound = false,
                 _ => unreachable!(),
             }
             assert_ne!(derive_report_id(&changed).unwrap(), baseline.report_id);

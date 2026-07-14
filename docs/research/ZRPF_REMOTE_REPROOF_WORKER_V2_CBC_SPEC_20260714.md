@@ -67,12 +67,16 @@ release_checks
 
 The worker rejects a missing, planned, or unsupported execution adapter.
 
-The mutation stage uses one declared executable artifact rather than an
-ambient binary or shell command. Its exact packet orders every program,
-receipt, guest input, retained mutation, and output role. The Rust verifier
-cryptographically verifies all five positive receipts under their governed
-program identities and common Succinct profile before it creates any new
-mutation. It accepts only a position-distinguishing seal-word-1, bit-0 change,
+The mutation stage uses one declared executable artifact from a dedicated
+workspace package rather than an ambient binary or shell command. Its exact
+packet orders every program, receipt, guest input, retained mutation, and
+output role. Mutation-only dependencies are excluded from the production V7
+verifier and Firecracker graph. The Rust verifier cryptographically verifies
+the leaf, L1, and L2 receipts, then requires the exact settlement envelope's
+proposal bytes to equal the verified L2 journal before settlement verification.
+It verifies the remaining positives under their governed program identities
+and common Succinct profile before it creates any new mutation. It accepts only
+a position-distinguishing seal-word-1, bit-0 change,
 requires all five negatives to reject at the cryptographic receipt boundary,
 and emits one canonical fixed-schema report with all authority fields false.
 The report finalizer validates every fixed stage/profile/mutation/reject

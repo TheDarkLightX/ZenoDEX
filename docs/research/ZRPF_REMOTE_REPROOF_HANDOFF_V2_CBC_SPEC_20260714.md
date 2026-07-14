@@ -126,9 +126,14 @@ A future trusted-controller signature or external anchor and initial expected
 digests are required for those claims.
 
 `mutation_verification` is implemented by the fixed
-`verify-spot-v7-remote-mutations` Rust executable. The packet binds the five
-program ELFs, five positive receipts, exact leaf and settlement inputs, and two
-retained prover mutations. The verifier derives the V6 leaf, L1, and L2
+`verify-spot-v7-remote-mutations` Rust executable from the dedicated
+`mutation_verifier` workspace package. Mutation-only V6 method and aggregation
+dependencies do not enter the production V7 verifier or Firecracker dependency
+closure. The packet binds the five program ELFs, five positive receipts, exact
+leaf and settlement inputs, and two retained prover mutations. After verifying
+the L2 receipt, the verifier decodes the exact settlement envelope and requires
+its proposal bytes to equal that verified L2 journal before settlement receipt
+verification. The verifier derives the V6 leaf, L1, and L2
 mutations only after all positive receipts verify, rejects any representation
 change outside seal word 1 bit 0, requires all five mutations to fail at the
 cryptographic receipt boundary, persists the three generated mutations, and
@@ -137,8 +142,9 @@ receipt, journal, mutation, profile, and report digests. It carries no proof,
 release, settlement, or production authority.
 
 The schema, status, common profile, positive and negative counts, all-false
-authority map, and non-claim list are construction invariants. They cannot be
-provided by a packet or receipt. Their exact bytes still enter the report ID.
+authority map, settlement-to-L2 link fact, and non-claim list are construction
+invariants. They cannot be provided by a packet or receipt. Their exact bytes
+still enter the report ID.
 The report finalizer rejects a wrong stage position, profile, digest shape,
 mutation relation, reject boundary, or reject code. An active-witness matrix
 changes every other input-derived report scalar at each of the five positions

@@ -310,6 +310,24 @@ def test_mutation_task_binds_every_program_receipt_and_exact_runner(
     ]
 
 
+def test_worker_build_uses_the_dedicated_mutation_verifier_package(
+    plan: dict[str, Any],
+) -> None:
+    task = next(row for row in plan["tasks"] if row["stage_id"] == "worker_prover_build")
+    commands = cast(list[dict[str, Any]], task["commands"])
+    mutation_build = next(
+        command
+        for command in commands
+        if "verify-spot-v7-remote-mutations" in command["argv"]
+    )
+    argv = cast(list[str], mutation_build["argv"])
+    package_index = argv.index("-p") + 1
+    assert argv[package_index] == (
+        "zenodex-zrpf-risc0-spot-v7-remote-mutation-verifier"
+    )
+    assert "zenodex-zrpf-risc0-spot-settlement-v7-verifier" not in argv
+
+
 def test_source_proof_task_is_required_and_missing_source_proof_blocks_adapter(
     plan: dict[str, Any],
 ) -> None:

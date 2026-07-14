@@ -10,8 +10,8 @@ fn main() {
         fs::write(
             methods_rs,
             r#"
-pub const ZENODEX_ZRPF_RISC0_SPOT_SETTLEMENT_V7_ELF: &[u8] = &[];
-pub const ZENODEX_ZRPF_RISC0_SPOT_SETTLEMENT_V7_ID: [u32; 8] = [0; 8];
+pub const ZENODEX_ZRPF_RISC0_SPOT_SETTLEMENT_V7_GUEST_ELF: &[u8] = &[];
+pub const ZENODEX_ZRPF_RISC0_SPOT_SETTLEMENT_V7_GUEST_ID: [u32; 8] = [0; 8];
 "#,
         )
         .expect("write Spot settlement V7 placeholder methods.rs");

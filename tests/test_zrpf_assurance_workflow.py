@@ -174,6 +174,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tests/test_zrpf_remote_mutation_verifier_source_contract.py" in (
         python_assurance
     )
+    assert "tests/test_zrpf_remote_mutation_dependency_closure.py" in python_assurance
     assert "tools/check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tools/check_risc0_recursive_live_replay.py" in python_assurance
@@ -353,6 +354,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/test_zrpf_spot_v7_release_closure.py",
         "tests/test_run_zrpf_remote_reproof_worker_v2.py",
         "tests/test_zrpf_remote_mutation_verifier_source_contract.py",
+        "tests/test_zrpf_remote_mutation_dependency_closure.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
@@ -525,6 +527,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "zenodex-zrpf-risc0-spot-settlement-v7-input-builder",
         "zenodex-zrpf-risc0-spot-settlement-v7-shared",
         "zenodex-zrpf-risc0-spot-settlement-v7-verifier",
+        "zenodex-zrpf-risc0-spot-v7-remote-mutation-verifier",
         "zenodex-zrpf-risc0-spot-settlement-v7-harness",
     ):
         assert package in rust_assurance

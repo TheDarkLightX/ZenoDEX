@@ -3565,7 +3565,6 @@ dependencies = [
 name = "zenodex-zrpf-risc0-spot-settlement-v7-verifier"
 version = "0.1.0"
 dependencies = [
- "libc",
  "risc0-zkvm",
  "serde",
  "serde_json",
@@ -3573,16 +3572,9 @@ dependencies = [
  "tau-state-proof-risc0-shared",
  "zenodex-zrpf-protocol-v3",
  "zenodex-zrpf-risc0-shared",
- "zenodex-zrpf-risc0-spot-settlement-root-policy-v6",
  "zenodex-zrpf-risc0-spot-settlement-v7-child-policy",
  "zenodex-zrpf-risc0-spot-settlement-v7-methods",
  "zenodex-zrpf-risc0-spot-settlement-v7-shared",
- "zenodex-zrpf-risc0-spot-v6-methods",
- "zenodex-zrpf-risc0-spot-value-aggregate-l1-policy-v6",
- "zenodex-zrpf-risc0-spot-value-aggregate-l2-policy-v6",
- "zenodex-zrpf-risc0-spot-value-aggregate-root-policy-v6",
- "zenodex-zrpf-risc0-spot-value-leaf-v6-shared",
- "zenodex-zrpf-risc0-value-aggregate-shared",
  "zenodex-zrpf-risc0-verifier",
 ]
 
@@ -3610,6 +3602,31 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "zenodex-zrpf-risc0-spot-v7-remote-mutation-verifier"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "risc0-zkvm",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tau-state-proof-risc0-shared",
+ "zenodex-zrpf-protocol-v3",
+ "zenodex-zrpf-risc0-shared",
+ "zenodex-zrpf-risc0-spot-settlement-root-policy-v6",
+ "zenodex-zrpf-risc0-spot-settlement-v6-shared",
+ "zenodex-zrpf-risc0-spot-settlement-v7-methods",
+ "zenodex-zrpf-risc0-spot-settlement-v7-verifier",
+ "zenodex-zrpf-risc0-spot-v6-methods",
+ "zenodex-zrpf-risc0-spot-value-aggregate-l1-policy-v6",
+ "zenodex-zrpf-risc0-spot-value-aggregate-l2-policy-v6",
+ "zenodex-zrpf-risc0-spot-value-aggregate-root-policy-v6",
+ "zenodex-zrpf-risc0-spot-value-leaf-v6-shared",
+ "zenodex-zrpf-risc0-value-aggregate-shared",
+ "zenodex-zrpf-risc0-verifier",
 ]
 
 [[package]]

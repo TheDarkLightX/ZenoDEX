@@ -6,6 +6,7 @@ members = [
   "shared",
   "methods",
   "methods/guest",
+  "mutation_verifier",
   "verifier",
   "harness",
 ]

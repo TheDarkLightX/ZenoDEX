@@ -433,7 +433,7 @@ TASK_SPECS = (
                     "--offline",
                     "--release",
                     "-p",
-                    "zenodex-zrpf-risc0-spot-settlement-v7-verifier",
+                    "zenodex-zrpf-risc0-spot-v7-remote-mutation-verifier",
                     "--bin",
                     "verify-spot-v7-remote-mutations",
                 ),

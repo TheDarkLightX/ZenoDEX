@@ -4,8 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / (
-    "zk/spot_settlement_v7_risc0/verifier/src/bin/"
-    "verify_spot_v7_remote_mutations.rs"
+    "zk/spot_settlement_v7_risc0/mutation_verifier/src/main.rs"
 )
 
 
@@ -32,9 +31,21 @@ def test_remote_mutation_verifier_requires_crypto_reject_at_exact_boundary() -> 
     assert "restored_bytes != source_bytes" in source
 
 
+def test_settlement_is_linked_to_the_already_verified_l2_journal() -> None:
+    source = SOURCE.read_text(encoding="utf-8")
+    decoder = "decode_exact_source_opened_spot_settlement_guest_envelope_v3"
+    link = "require_settlement_l2_claim("
+    settlement_verify = "VerifiedSourceOpenedSpotSettlementAdmissionV6::verify("
+    assert decoder in source
+    assert "envelope.proposal_bytes(), verified_l2_journal" in source
+    assert 'CliError("settlement_l2_claim_mismatch")' in source
+    assert source.index(link) < source.index(settlement_verify)
+
+
 def test_remote_mutation_report_is_authority_false_and_content_bound() -> None:
     source = SOURCE.read_text(encoding="utf-8")
     assert "REPORT_DOMAIN" in source
+    assert "settlement_l2_claim_bound: true" in source
     assert 'report_id: ZERO_SHA256.to_owned()' in source
     for field in (
         "proof_authority: false",

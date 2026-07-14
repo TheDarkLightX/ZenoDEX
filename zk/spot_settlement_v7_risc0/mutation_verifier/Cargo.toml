@@ -1,0 +1,36 @@
+[package]
+name = "zenodex-zrpf-risc0-spot-v7-remote-mutation-verifier"
+version = "0.1.0"
+edition = "2021"
+description = "Authority-neutral exact mutation verifier for the remote Spot V6/V7 chain"
+publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[[bin]]
+name = "verify-spot-v7-remote-mutations"
+path = "src/main.rs"
+
+[dependencies]
+libc = "=0.2.186"
+risc0-zkvm = { version = "=3.0.5", features = ["disable-dev-mode"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "=1.0.150"
+sha2 = "0.10.9"
+tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared" }
+zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol" }
+zenodex-zrpf-risc0-shared = { path = "../../zrpf_risc0/shared" }
+zenodex-zrpf-risc0-spot-settlement-root-policy-v6 = { path = "../../zrpf_risc0/spot_settlement_root_policy_v6" }
+zenodex-zrpf-risc0-spot-settlement-v6-shared = { path = "../../zrpf_risc0/spot_settlement_v6_shared" }
+zenodex-zrpf-risc0-spot-settlement-v7-methods = { path = "../methods" }
+zenodex-zrpf-risc0-spot-settlement-v7-verifier = { path = "../verifier" }
+zenodex-zrpf-risc0-spot-v6-methods = { path = "../../zrpf_risc0/spot_v6_methods" }
+zenodex-zrpf-risc0-spot-value-aggregate-l1-policy-v6 = { path = "../../zrpf_risc0/spot_value_aggregate_l1_policy_v6" }
+zenodex-zrpf-risc0-spot-value-aggregate-l2-policy-v6 = { path = "../../zrpf_risc0/spot_value_aggregate_l2_policy_v6" }
+zenodex-zrpf-risc0-spot-value-aggregate-root-policy-v6 = { path = "../../zrpf_risc0/spot_value_aggregate_root_policy_v6" }
+zenodex-zrpf-risc0-spot-value-leaf-v6-shared = { path = "../../zrpf_risc0/spot_value_leaf_v6_shared" }
+zenodex-zrpf-risc0-value-aggregate-shared = { path = "../../zrpf_risc0/value_aggregate_shared" }
+zenodex-zrpf-risc0-verifier = { path = "../../zrpf_risc0/verifier" }
