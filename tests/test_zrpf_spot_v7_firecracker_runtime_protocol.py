@@ -39,10 +39,10 @@ def test_request_vector_is_canonical_and_round_trips() -> None:
     assert len(encoded) == protocol.SPOT_V7_FIRECRACKER_REQUEST_BYTES_V1
     assert protocol.decode_exact_request_v1(encoded) == request
     assert hashlib.sha256(encoded).hexdigest() == (
-        "613519701cef6cde07f58ed97c10cedd60ec9a3c790efdab5824afb02ef27a36"
+        "f5f7ce3112563ca79383d8c7502e36df1db78e2d3bc0f32df7b8d09e38ac2c23"
     )
     assert protocol.SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1.hex() == (
-        "1b60e4bc78bc3ea3938f2ca72848418097208096574a1fc37e3404b841f36cd4"
+        "c8cf02b22988315b667c8b37675b6c8d8cd56f5638b8aa176357a044a89fcdd6"
     )
 
 
@@ -53,8 +53,8 @@ def test_request_vector_is_canonical_and_round_trips() -> None:
         (8, 2, "request_version"),
         (12, 1, "request_flags"),
         (48, 0, "request_profile"),
-        (144, 1, "request_output_bounds"),
-        (188, 1, "request_reserved"),
+        (176, 1, "request_output_bounds"),
+        (220, 1, "request_reserved"),
     ],
 )
 def test_request_mutations_reject_at_stable_boundaries(
@@ -71,25 +71,41 @@ def test_request_mutations_reject_at_stable_boundaries(
     assert captured.value.code == code
 
 
-def test_request_rejects_wrong_type_width_and_zero_bindings() -> None:
+@pytest.mark.parametrize(
+    ("field", "code"),
+    [
+        ("run_nonce_256", "request_nonce"),
+        ("runtime_manifest_sha256", "request_manifest"),
+        ("machine_config_sha256", "request_machine_config"),
+        ("input_drive_sha256", "request_input"),
+        ("settlement_intent_sha256", "request_intent"),
+    ],
+)
+def test_request_rejects_each_zero_binding(field: str, code: str) -> None:
+    values = {
+        "run_nonce_256": _digest(1),
+        "runtime_manifest_sha256": _digest(2),
+        "machine_config_sha256": _digest(3),
+        "input_drive_sha256": _digest(4),
+        "settlement_intent_sha256": _digest(5),
+    }
+    values[field] = bytes(32)
+    with pytest.raises(protocol.SpotV7FirecrackerProtocolRejectV1) as captured:
+        protocol.SpotV7FirecrackerRequestV1.validated(**values)
+    assert captured.value.code == code
+
+
+def test_request_rejects_wrong_type_and_width() -> None:
     with pytest.raises(TypeError):
         protocol.SpotV7FirecrackerRequestV1()
 
-    with pytest.raises(protocol.SpotV7FirecrackerProtocolRejectV1) as zero_nonce:
-        protocol.SpotV7FirecrackerRequestV1.validated(
-            run_nonce_256=bytes(32),
-            runtime_manifest_sha256=_digest(2),
-            input_drive_sha256=_digest(3),
-            settlement_intent_sha256=_digest(4),
-        )
-    assert zero_nonce.value.code == "request_nonce"
-
     with pytest.raises(protocol.SpotV7FirecrackerProtocolRejectV1) as mutable:
         protocol.SpotV7FirecrackerRequestV1.validated(
-            run_nonce_256=bytearray(_digest(1)),
+            run_nonce_256=bytearray(_digest(1)),  # type: ignore[arg-type]
             runtime_manifest_sha256=_digest(2),
-            input_drive_sha256=_digest(3),
-            settlement_intent_sha256=_digest(4),
+            machine_config_sha256=_digest(3),
+            input_drive_sha256=_digest(4),
+            settlement_intent_sha256=_digest(5),
         )
     assert mutable.value.code == "request_nonce"
 
@@ -99,6 +115,17 @@ def test_request_rejects_wrong_type_width_and_zero_bindings() -> None:
 
     with pytest.raises(TypeError):
         protocol.StructurallyDecodedSpotV7VerifierPayloadV1()
+
+
+def test_v7_rejects_legacy_request_and_output_header_framing() -> None:
+    request = _request()
+    with pytest.raises(protocol.SpotV7FirecrackerProtocolRejectV1) as legacy_request:
+        protocol.decode_exact_request_v1(request.encode()[:192])
+    assert legacy_request.value.code == "request_length"
+
+    output = bytearray(_committed_output(request))
+    output[10:12] = (256).to_bytes(2, "little")
+    _assert_output_reject(output, request, "output_header")
 
 
 def test_committed_output_vector_round_trips_and_binds_exact_v7_payload() -> None:
@@ -117,7 +144,7 @@ def test_committed_output_vector_round_trips_and_binds_exact_v7_payload() -> Non
     assert decoded.state_root_host_input_length == 1_024
     assert decoded.payload_sha256 == hashlib.sha256(payload).digest()
     assert hashlib.sha256(output).hexdigest() == (
-        "4c6620737cc4b8f9153ccd6f014666ebed823692afffa7278f0a60bb5e7cf3f6"
+        "62a13ecdd2df03c7d17da2b13c4f7e40401b4ae7236188a4b29822c77be7d467"
     )
 
 
@@ -126,6 +153,7 @@ def test_committed_output_vector_round_trips_and_binds_exact_v7_payload() -> Non
     [
         "run_nonce_256",
         "runtime_manifest_sha256",
+        "machine_config_sha256",
         "input_drive_sha256",
         "settlement_intent_sha256",
     ],
@@ -140,6 +168,7 @@ def test_committed_output_rejects_stale_request_binding(field: str) -> None:
     values = {
         "run_nonce_256": request.run_nonce_256,
         "runtime_manifest_sha256": request.runtime_manifest_sha256,
+        "machine_config_sha256": request.machine_config_sha256,
         "input_drive_sha256": request.input_drive_sha256,
         "settlement_intent_sha256": request.settlement_intent_sha256,
     }
@@ -198,7 +227,7 @@ def test_committed_output_rejects_structural_header_mutations(offset: int) -> No
     _assert_output_reject(output, request, "output_header")
 
 
-@pytest.mark.parametrize("offset", [32, 64, 96, 128, 160, 192])
+@pytest.mark.parametrize("offset", [32, 64, 96, 128, 160, 192, 224])
 def test_committed_output_rejects_direct_header_binding_mutations(offset: int) -> None:
     request = _request()
     output = bytearray(_committed_output(request))
@@ -319,8 +348,9 @@ def _request() -> protocol.SpotV7FirecrackerRequestV1:
     return protocol.SpotV7FirecrackerRequestV1.validated(
         run_nonce_256=_digest(1),
         runtime_manifest_sha256=_digest(2),
-        input_drive_sha256=_digest(3),
-        settlement_intent_sha256=_digest(4),
+        machine_config_sha256=_digest(3),
+        input_drive_sha256=_digest(4),
+        settlement_intent_sha256=_digest(5),
     )
 
 
@@ -468,7 +498,7 @@ def _recommit_output(
 ) -> None:
     payload_start = protocol.SPOT_V7_FIRECRACKER_OUTPUT_HEADER_BYTES_V1
     payload = bytes(output[payload_start : payload_start + payload_length])
-    output[224:256] = hashlib.sha256(payload).digest()
+    output[256:288] = hashlib.sha256(payload).digest()
     header = bytes(output[:payload_start])
     output[-protocol.SPOT_V7_FIRECRACKER_OUTPUT_COMMIT_BYTES_V1 :] = hashlib.sha256(
         protocol.SPOT_V7_FIRECRACKER_OUTPUT_COMMIT_DOMAIN_V1

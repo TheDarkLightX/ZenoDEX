@@ -14,10 +14,20 @@ import os
 import shutil
 import stat
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Final, NoReturn, SupportsIndex, final
 
 from tools import zrpf_v3_firecracker_jail_staging_io as staging_io
+from tools.zrpf_spot_v7_firecracker_runtime_protocol import (
+    SpotV7FirecrackerProtocolRejectV1,
+)
+from tools.zrpf_spot_v7_firecracker_runtime_protocol import (
+    decode_exact_request_v1 as decode_spot_v7_request_v1,
+)
+from tools.zrpf_spot_v7_firecracker_runtime_protocol import (
+    validate_exact_committed_output_v1 as validate_spot_v7_committed_output_v1,
+)
 from tools.zrpf_v3_firecracker_output_protocol import (
     OUTPUT_BYTES_V1,
     REQUEST_BYTES_V1,
@@ -29,6 +39,11 @@ from tools.zrpf_v3_firecracker_trusted_runtime import JailerLauncherReject
 _RESOURCE_DIRECTORY_NAME: Final = "resources"
 _RESOURCE_NAMES: Final = ("config.json", "input", "kernel", "output", "rootfs")
 _READ_ONLY_ARTIFACT_ROLES: Final = ("input", "kernel", "rootfs")
+
+
+class _StagedOutputProtocolV1(Enum):
+    RETAINED_V3 = "retained_v3"
+    SPOT_V7_V1 = "spot_v7_v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +133,7 @@ class PreparedJailRootV2:
         "_file_fds",
         "_file_versions",
         "_jail_dir_fd",
+        "_output_protocol",
         "_request_bytes",
         "_resources_dir_fd",
         "_root_dir_fd",
@@ -130,6 +146,7 @@ class PreparedJailRootV2:
     _file_fds: dict[str, int]
     _file_versions: dict[str, staging_io.FileVersionV2]
     _jail_dir_fd: int
+    _output_protocol: _StagedOutputProtocolV1
     _request_bytes: bytes
     _resources_dir_fd: int
     _root_dir_fd: int
@@ -147,6 +164,7 @@ class PreparedJailRootV2:
         file_fds: dict[str, int],
         file_versions: dict[str, staging_io.FileVersionV2],
         request_bytes: bytes,
+        output_protocol: _StagedOutputProtocolV1,
         seal: _PreparedJailRootSealV2,
     ) -> None:
         if seal is not _PREPARED_JAIL_ROOT_SEAL_V2:
@@ -159,6 +177,7 @@ class PreparedJailRootV2:
         object.__setattr__(self, "_file_fds", file_fds)
         object.__setattr__(self, "_file_versions", file_versions)
         object.__setattr__(self, "_request_bytes", request_bytes)
+        object.__setattr__(self, "_output_protocol", output_protocol)
         object.__setattr__(self, "_seal", seal)
         object.__setattr__(self, "_closed", False)
 
@@ -201,15 +220,15 @@ class PreparedJailRootV2:
         output = self._reverify_file("output", mutable=True)
         if output.size != OUTPUT_BYTES_V1:
             raise JailerLauncherReject("jail_stage_output_size_changed")
-        if (
-            staging_io.pread_exact(self._file_fds["output"], REQUEST_BYTES_V1, 0)
-            != self._request_bytes
-        ):
+        request_bytes = len(self._request_bytes)
+        if staging_io.pread_exact(
+            self._file_fds["output"], request_bytes, 0
+        ) != self._request_bytes:
             raise JailerLauncherReject("jail_stage_request_changed")
         if staging_io.region_has_nonzero(
             self._file_fds["output"],
-            start=REQUEST_BYTES_V1,
-            size=OUTPUT_BYTES_V1 - REQUEST_BYTES_V1,
+            start=request_bytes,
+            size=OUTPUT_BYTES_V1 - request_bytes,
         ):
             raise JailerLauncherReject("jail_stage_output_not_fresh")
 
@@ -233,8 +252,16 @@ class PreparedJailRootV2:
 
         raw = self.read_output_after_exit()
         try:
-            validate_committed_output(raw, decode_request(self._request_bytes))
-        except ValueError as exc:
+            if self._output_protocol is _StagedOutputProtocolV1.RETAINED_V3:
+                validate_committed_output(raw, decode_request(self._request_bytes))
+            elif self._output_protocol is _StagedOutputProtocolV1.SPOT_V7_V1:
+                validate_spot_v7_committed_output_v1(
+                    raw,
+                    decode_spot_v7_request_v1(self._request_bytes),
+                )
+            else:
+                raise JailerLauncherReject("jail_stage_output_protocol_unknown")
+        except (SpotV7FirecrackerProtocolRejectV1, ValueError) as exc:
             raise JailerLauncherReject("jail_stage_output_protocol_rejected") from exc
         return raw
 
@@ -396,6 +423,27 @@ def prepare_root_owned_jail_v2(
     """Create a unique staged jail and retain every authority-relevant fd."""
 
     _validate_prepare_inputs(spec, artifacts, config_bytes, request_bytes)
+    return _prepare_validated_root_owned_jail(
+        spec=spec,
+        artifacts=artifacts,
+        config_bytes=config_bytes,
+        request_bytes=request_bytes,
+        output_protocol=_StagedOutputProtocolV1.RETAINED_V3,
+        trusted_chroot_root=trusted_chroot_root,
+        trusted_source_root=trusted_source_root,
+    )
+
+
+def _prepare_validated_root_owned_jail(
+    *,
+    spec: PreparedJailRootSpecV2,
+    artifacts: tuple[RootOwnedStagedArtifactV2, ...],
+    config_bytes: bytes,
+    request_bytes: bytes,
+    output_protocol: _StagedOutputProtocolV1,
+    trusted_chroot_root: Path,
+    trusted_source_root: Path,
+) -> PreparedJailRootV2:
     exec_dir_fd = staging_io.open_exec_directory(
         chroot_base_dir=spec.chroot_base_dir,
         firecracker_file_name=spec.firecracker_file_name,
@@ -429,6 +477,7 @@ def prepare_root_owned_jail_v2(
             file_fds=file_fds,
             file_versions=_capture_file_versions(file_fds),
             request_bytes=request_bytes,
+            output_protocol=output_protocol,
             seal=_PREPARED_JAIL_ROOT_SEAL_V2,
         )
         prepared.verify_prelaunch()
@@ -451,13 +500,7 @@ def _validate_prepare_inputs(
     config_bytes: bytes,
     request_bytes: bytes,
 ) -> None:
-    if type(spec) is not PreparedJailRootSpecV2:
-        raise TypeError("spec must be exact PreparedJailRootSpecV2")
-    if tuple(sorted(artifact.role for artifact in artifacts)) != _READ_ONLY_ARTIFACT_ROLES:
-        raise JailerLauncherReject("jail_stage_artifact_inventory_invalid")
-    if any(type(artifact) is not RootOwnedStagedArtifactV2 for artifact in artifacts):
-        raise TypeError("artifacts must contain exact RootOwnedStagedArtifactV2 values")
-    staging_io.validate_config_bytes(config_bytes)
+    _validate_shared_prepare_inputs(spec, artifacts, config_bytes)
     if type(request_bytes) is not bytes or len(request_bytes) != REQUEST_BYTES_V1:
         raise JailerLauncherReject("jail_stage_request_invalid")
     try:
@@ -466,6 +509,20 @@ def _validate_prepare_inputs(
         raise JailerLauncherReject("jail_stage_request_invalid") from exc
     if decoded_request.encode() != request_bytes:
         raise JailerLauncherReject("jail_stage_request_noncanonical")
+
+
+def _validate_shared_prepare_inputs(
+    spec: PreparedJailRootSpecV2,
+    artifacts: tuple[RootOwnedStagedArtifactV2, ...],
+    config_bytes: bytes,
+) -> None:
+    if type(spec) is not PreparedJailRootSpecV2:
+        raise TypeError("spec must be exact PreparedJailRootSpecV2")
+    if any(type(artifact) is not RootOwnedStagedArtifactV2 for artifact in artifacts):
+        raise TypeError("artifacts must contain exact RootOwnedStagedArtifactV2 values")
+    if tuple(sorted(artifact.role for artifact in artifacts)) != _READ_ONLY_ARTIFACT_ROLES:
+        raise JailerLauncherReject("jail_stage_artifact_inventory_invalid")
+    staging_io.validate_config_bytes(config_bytes)
 
 
 def _create_staging_directories(

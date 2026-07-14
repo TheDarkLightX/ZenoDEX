@@ -25,9 +25,9 @@ from tools.zrpf_spot_v7_verifier_payload_codec import (
     decode_structural_v7_verifier_payload_v1 as _decode_structural_v7_payload,
 )
 
-SPOT_V7_FIRECRACKER_REQUEST_BYTES_V1: Final = 192
+SPOT_V7_FIRECRACKER_REQUEST_BYTES_V1: Final = 224
 SPOT_V7_FIRECRACKER_OUTPUT_BYTES_V1: Final = 16_777_216
-SPOT_V7_FIRECRACKER_OUTPUT_HEADER_BYTES_V1: Final = 256
+SPOT_V7_FIRECRACKER_OUTPUT_HEADER_BYTES_V1: Final = 288
 SPOT_V7_FIRECRACKER_OUTPUT_COMMIT_BYTES_V1: Final = 32
 SPOT_V7_FIRECRACKER_OUTPUT_PAYLOAD_CAP_BYTES_V1: Final = _SPOT_V7_VERIFIER_PAYLOAD_CAP_BYTES_V1
 
@@ -44,17 +44,17 @@ SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_DESCRIPTOR_V1: Final = (
         (
             b"zenodex.zrpf.spot_v7.firecracker.runtime_profile.v1",
             b"request_magic=ZSV7REQ1",
-            b"request_bytes=192",
+            b"request_bytes=224",
             b"request_version=1",
             b"request_endian=little",
-            b"request_layout=magic:u8x8,version:u16,bytes:u16,flags:u32,nonce:u8x32,profile:u8x32,runtime_manifest:u8x32,input_drive:u8x32,output_bytes:u64,payload_cap:u32,settlement_intent:u8x32,reserved:u8x4",
+            b"request_layout=magic:u8x8,version:u16,bytes:u16,flags:u32,nonce:u8x32,profile:u8x32,runtime_manifest:u8x32,machine_config:u8x32,input_drive:u8x32,output_bytes:u64,payload_cap:u32,settlement_intent:u8x32,reserved:u8x4",
             b"output_magic=ZSV7OUT1",
             b"output_bytes=16777216",
-            b"output_header_bytes=256",
+            b"output_header_bytes=288",
             b"output_commit_bytes=32",
             b"output_payload_cap_bytes=65536",
             b"output_header_endian=little",
-            b"output_header_layout=magic:u8x8,version:u16,header_bytes:u16,status:u32,payload_bytes:u32,flags:u32,output_bytes:u64,nonce:u8x32,request_sha256:u8x32,profile:u8x32,runtime_manifest:u8x32,input_drive:u8x32,settlement_intent:u8x32,payload_sha256:u8x32",
+            b"output_header_layout=magic:u8x8,version:u16,header_bytes:u16,status:u32,payload_bytes:u32,flags:u32,output_bytes:u64,nonce:u8x32,request_sha256:u8x32,profile:u8x32,runtime_manifest:u8x32,machine_config:u8x32,input_drive:u8x32,settlement_intent:u8x32,payload_sha256:u8x32",
             b"output_status=1:data_only_committed",
             b"output_zero_region=header_plus_payload_to_commit_offset",
             b"payload_magic=ZSPTV7O1",
@@ -84,6 +84,7 @@ class SpotV7FirecrackerRequestV1:
 
     run_nonce_256: bytes
     runtime_manifest_sha256: bytes
+    machine_config_sha256: bytes
     input_drive_sha256: bytes
     settlement_intent_sha256: bytes
 
@@ -96,16 +97,19 @@ class SpotV7FirecrackerRequestV1:
         *,
         run_nonce_256: bytes,
         runtime_manifest_sha256: bytes,
+        machine_config_sha256: bytes,
         input_drive_sha256: bytes,
         settlement_intent_sha256: bytes,
     ) -> SpotV7FirecrackerRequestV1:
         _require_digest(run_nonce_256, "request_nonce")
         _require_digest(runtime_manifest_sha256, "request_manifest")
+        _require_digest(machine_config_sha256, "request_machine_config")
         _require_digest(input_drive_sha256, "request_input")
         _require_digest(settlement_intent_sha256, "request_intent")
         value = object.__new__(cls)
         object.__setattr__(value, "run_nonce_256", run_nonce_256)
         object.__setattr__(value, "runtime_manifest_sha256", runtime_manifest_sha256)
+        object.__setattr__(value, "machine_config_sha256", machine_config_sha256)
         object.__setattr__(value, "input_drive_sha256", input_drive_sha256)
         object.__setattr__(value, "settlement_intent_sha256", settlement_intent_sha256)
         return value
@@ -124,15 +128,16 @@ class SpotV7FirecrackerRequestV1:
         output[16:48] = self.run_nonce_256
         output[48:80] = SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1
         output[80:112] = self.runtime_manifest_sha256
-        output[112:144] = self.input_drive_sha256
+        output[112:144] = self.machine_config_sha256
+        output[144:176] = self.input_drive_sha256
         struct.pack_into(
             "<QI",
             output,
-            144,
+            176,
             SPOT_V7_FIRECRACKER_OUTPUT_BYTES_V1,
             SPOT_V7_FIRECRACKER_OUTPUT_PAYLOAD_CAP_BYTES_V1,
         )
-        output[156:188] = self.settlement_intent_sha256
+        output[188:220] = self.settlement_intent_sha256
         return bytes(output)
 
     @property
@@ -141,19 +146,20 @@ class SpotV7FirecrackerRequestV1:
 
 
 def decode_exact_request_v1(raw: bytes) -> SpotV7FirecrackerRequestV1:
-    """Decode one exact 192-byte request and reject every noncanonical bit."""
+    """Decode one exact 224-byte request and reject every noncanonical bit."""
 
     _require_exact_bytes(raw, SPOT_V7_FIRECRACKER_REQUEST_BYTES_V1, "request_length")
     _validate_request_header(raw)
     if raw[48:80] != SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1:
         raise SpotV7FirecrackerProtocolRejectV1("request_profile")
-    if any(raw[188:]):
+    if any(raw[220:]):
         raise SpotV7FirecrackerProtocolRejectV1("request_reserved")
     return SpotV7FirecrackerRequestV1.validated(
         run_nonce_256=raw[16:48],
         runtime_manifest_sha256=raw[80:112],
-        input_drive_sha256=raw[112:144],
-        settlement_intent_sha256=raw[156:188],
+        machine_config_sha256=raw[112:144],
+        input_drive_sha256=raw[144:176],
+        settlement_intent_sha256=raw[188:220],
     )
 
 
@@ -194,7 +200,7 @@ def validate_exact_committed_output_v1(
     if payload_end > commit_offset:
         raise SpotV7FirecrackerProtocolRejectV1("output_payload")
     payload = raw[SPOT_V7_FIRECRACKER_OUTPUT_HEADER_BYTES_V1:payload_end]
-    if hashlib.sha256(payload).digest() != raw[224:256]:
+    if hashlib.sha256(payload).digest() != raw[256:288]:
         raise SpotV7FirecrackerProtocolRejectV1("output_payload")
     if any(raw[payload_end:commit_offset]):
         raise SpotV7FirecrackerProtocolRejectV1("output_trailing_bytes")
@@ -227,7 +233,7 @@ def _validate_request_header(raw: bytes) -> None:
         raise SpotV7FirecrackerProtocolRejectV1("request_version")
     if flags != 0:
         raise SpotV7FirecrackerProtocolRejectV1("request_flags")
-    output_bytes, payload_cap = struct.unpack_from("<QI", raw, 144)
+    output_bytes, payload_cap = struct.unpack_from("<QI", raw, 176)
     if (
         output_bytes != SPOT_V7_FIRECRACKER_OUTPUT_BYTES_V1
         or payload_cap != SPOT_V7_FIRECRACKER_OUTPUT_PAYLOAD_CAP_BYTES_V1
@@ -253,9 +259,10 @@ def _build_output_header(request: SpotV7FirecrackerRequestV1, payload: bytes) ->
     header[64:96] = request.sha256
     header[96:128] = SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1
     header[128:160] = request.runtime_manifest_sha256
-    header[160:192] = request.input_drive_sha256
-    header[192:224] = request.settlement_intent_sha256
-    header[224:256] = hashlib.sha256(payload).digest()
+    header[160:192] = request.machine_config_sha256
+    header[192:224] = request.input_drive_sha256
+    header[224:256] = request.settlement_intent_sha256
+    header[256:288] = hashlib.sha256(payload).digest()
     return bytes(header)
 
 
@@ -277,8 +284,9 @@ def _validate_output_header(raw: bytes, request: SpotV7FirecrackerRequestV1) -> 
         (raw[64:96], request.sha256),
         (raw[96:128], SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1),
         (raw[128:160], request.runtime_manifest_sha256),
-        (raw[160:192], request.input_drive_sha256),
-        (raw[192:224], request.settlement_intent_sha256),
+        (raw[160:192], request.machine_config_sha256),
+        (raw[192:224], request.input_drive_sha256),
+        (raw[224:256], request.settlement_intent_sha256),
     )
     if any(actual != expected for actual, expected in bindings):
         raise SpotV7FirecrackerProtocolRejectV1("output_binding")

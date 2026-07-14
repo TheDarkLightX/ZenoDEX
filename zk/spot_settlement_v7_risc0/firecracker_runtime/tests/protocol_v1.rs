@@ -30,18 +30,22 @@ fn profile_and_request_match_python_vectors() {
     );
     assert_eq!(
         hex::encode(SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1),
-        "1b60e4bc78bc3ea3938f2ca72848418097208096574a1fc37e3404b841f36cd4"
+        "c8cf02b22988315b667c8b37675b6c8d8cd56f5638b8aa176357a044a89fcdd6"
     );
     let request = request();
     let encoded = request.encode();
     assert_eq!(SpotV7FirecrackerRequestV1::decode(&encoded), Ok(request));
     assert_eq!(
         hex::encode(sha256(&encoded)),
-        "613519701cef6cde07f58ed97c10cedd60ec9a3c790efdab5824afb02ef27a36"
+        "f5f7ce3112563ca79383d8c7502e36df1db78e2d3bc0f32df7b8d09e38ac2c23"
     );
     assert!(!LIB_SOURCE.contains("VerifiedReplayReport"));
     assert!(
         !LIB_SOURCE.contains("e7ab29b1327cd89dd7180cd45aed9663fdb9234d738f7acb51412bb576c8c88e")
+    );
+    assert_eq!(
+        SpotV7FirecrackerRequestV1::new([1; 32], [2; 32], [0; 32], [4; 32], [5; 32]),
+        Err(SpotV7FirecrackerProtocolErrorV1::RequestMachineConfig)
     );
 }
 
@@ -59,7 +63,7 @@ fn golden_payload_and_committed_output_match_python_vectors() {
     let path = test_output_path();
     let mut file = create_output_file(&path);
     let request = request();
-    commit_data_only_output_v1(&mut file, &request, [3; 32], &decoded)
+    commit_data_only_output_v1(&mut file, &request, [4; 32], &decoded)
         .expect("golden payload must commit");
     let output = read_output(&mut file);
     let replayed =
@@ -67,7 +71,7 @@ fn golden_payload_and_committed_output_match_python_vectors() {
     assert_eq!(replayed, decoded);
     assert_eq!(
         hex::encode(sha256(&output)),
-        "5109be6580c464569034d6c1652f9b01d00d2229440445b2c3e48b7b10676dfa"
+        "d5d88a069e65df2776ce440a148695998abe2ad0ee9185cdd4c9c4bd0eccc595"
     );
     drop(file);
     std::fs::remove_file(path).expect("remove output fixture");
@@ -86,7 +90,7 @@ fn request_and_output_mutations_reject_at_stable_boundaries() {
     let mut file = create_output_file(&path);
     let request = request();
     let payload = decode_structural_spot_v7_payload_v1(&golden_payload()).expect("valid fixture");
-    commit_data_only_output_v1(&mut file, &request, [3; 32], &payload).expect("commit fixture");
+    commit_data_only_output_v1(&mut file, &request, [4; 32], &payload).expect("commit fixture");
     let mut output = read_output(&mut file);
     output[SPOT_V7_FIRECRACKER_OUTPUT_HEADER_BYTES_V1 + payload.raw_bytes().len() + 1] = 1;
     assert_eq!(
@@ -102,6 +106,26 @@ fn request_and_output_mutations_reject_at_stable_boundaries() {
     );
     drop(file);
     std::fs::remove_file(path).expect("remove output fixture");
+}
+
+#[test]
+fn legacy_request_and_output_header_framing_reject() {
+    let request = request();
+    assert_eq!(
+        SpotV7FirecrackerRequestV1::decode(&request.encode()[..192]),
+        Err(SpotV7FirecrackerProtocolErrorV1::RequestLength)
+    );
+
+    let payload = decode_structural_spot_v7_payload_v1(&golden_payload()).expect("valid fixture");
+    let mut output = zenodex_zrpf_spot_v7_firecracker_runtime::build_data_only_output_image_v1(
+        &request, [4; 32], &payload,
+    )
+    .expect("build output fixture");
+    output[10..12].copy_from_slice(&256_u16.to_le_bytes());
+    assert_eq!(
+        validate_committed_output_v1(&output, &request),
+        Err(SpotV7FirecrackerProtocolErrorV1::OutputHeader)
+    );
 }
 
 #[test]
@@ -140,7 +164,7 @@ fn rejected_input_binding_leaves_commit_marker_absent() {
 }
 
 fn request() -> SpotV7FirecrackerRequestV1 {
-    SpotV7FirecrackerRequestV1::new([1; 32], [2; 32], [3; 32], [4; 32])
+    SpotV7FirecrackerRequestV1::new([1; 32], [2; 32], [3; 32], [4; 32], [5; 32])
         .expect("valid request fixture")
 }
 

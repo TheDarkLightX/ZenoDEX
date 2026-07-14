@@ -3,9 +3,10 @@
 Date: 2026-07-14
 
 Status: exact request/output codecs, structural Python/Rust V7 payload decoders,
-a protocol-only static PID-1 writer, and cross-language vectors are implemented
-and tested; receipt verification in the guest, a governed runtime manifest,
-live execution, and every authority claim remain unimplemented
+a protocol-only static PID-1 writer, cross-language vectors, and authority-false
+root-owned prepare/finish identity binding are implemented and tested; receipt
+verification in the guest, governed release selection, live execution, and
+every authority claim remain unimplemented
 
 ## Claim scope
 
@@ -46,7 +47,7 @@ zero region, commit domain, and commit formula.
 
 ```text
 profile SHA-256:
-1b60e4bc78bc3ea3938f2ca72848418097208096574a1fc37e3404b841f36cd4
+c8cf02b22988315b667c8b37675b6c8d8cd56f5638b8aa176357a044a89fcdd6
 
 retained V3 profile SHA-256:
 e7ab29b1327cd89dd7180cd45aed9663fdb9234d738f7acb51412bb576c8c88e
@@ -57,40 +58,44 @@ The identities intentionally differ. The V3 profile and its
 
 ## Request ABI
 
-The request is exactly 192 bytes and uses little-endian integers.
+The request is exactly 224 bytes and uses little-endian integers. V7 rejects
+the legacy 192-byte framing rather than inferring a missing machine-config
+identity.
 
 | Offset | Bytes | Field |
 | ---: | ---: | --- |
 | 0 | 8 | `ZSV7REQ1` magic |
 | 8 | 2 | version `1` |
-| 10 | 2 | request bytes `192` |
+| 10 | 2 | request bytes `224` |
 | 12 | 4 | flags, exactly zero |
 | 16 | 32 | fresh run nonce |
 | 48 | 32 | canonical V7 runtime-profile SHA-256 |
-| 80 | 32 | governed runtime-manifest SHA-256 |
-| 112 | 32 | exact input-drive SHA-256 |
-| 144 | 8 | output bytes `16,777,216` |
-| 152 | 4 | payload cap `65,536` |
-| 156 | 32 | exact settlement-intent SHA-256 |
-| 188 | 4 | reserved, exactly zero |
+| 80 | 32 | exact proposed runtime-manifest SHA-256 |
+| 112 | 32 | exact proposed canonical machine-config SHA-256 |
+| 144 | 32 | exact input-drive SHA-256 |
+| 176 | 8 | output bytes `16,777,216` |
+| 184 | 4 | payload cap `65,536` |
+| 188 | 32 | exact settlement-intent SHA-256 |
+| 220 | 4 | reserved, exactly zero |
 
-All four request digests must be nonzero. The request vector used by the tests
+All five 32-byte request bindings must be nonzero. The request vector used by the tests
 has SHA-256:
 
 ```text
-613519701cef6cde07f58ed97c10cedd60ec9a3c790efdab5824afb02ef27a36
+f5f7ce3112563ca79383d8c7502e36df1db78e2d3bc0f32df7b8d09e38ac2c23
 ```
 
 ## Output ABI
 
-The output block device is exactly 16 MiB. Its 256-byte header uses
-little-endian integers.
+The output block device is exactly 16 MiB. Its 288-byte header uses
+little-endian integers. V7 rejects a header declaring the legacy 256-byte
+framing.
 
 | Offset | Bytes | Field |
 | ---: | ---: | --- |
 | 0 | 8 | `ZSV7OUT1` magic |
 | 8 | 2 | version `1` |
-| 10 | 2 | header bytes `256` |
+| 10 | 2 | header bytes `288` |
 | 12 | 4 | data-only committed status `1` |
 | 16 | 4 | payload byte length |
 | 20 | 4 | flags, exactly zero |
@@ -99,11 +104,12 @@ little-endian integers.
 | 64 | 32 | exact request SHA-256 |
 | 96 | 32 | canonical V7 runtime-profile SHA-256 |
 | 128 | 32 | runtime-manifest SHA-256 |
-| 160 | 32 | input-drive SHA-256 |
-| 192 | 32 | settlement-intent SHA-256 |
-| 224 | 32 | payload SHA-256 |
+| 160 | 32 | canonical machine-config SHA-256 |
+| 192 | 32 | input-drive SHA-256 |
+| 224 | 32 | settlement-intent SHA-256 |
+| 256 | 32 | payload SHA-256 |
 
-The payload begins at byte 256. Every byte after the payload and before the
+The payload begins at byte 288. Every byte after the payload and before the
 final 32-byte commit marker must be zero. This rejects stale bytes from a prior
 run. The final marker is:
 
@@ -112,7 +118,7 @@ SHA256(
   commit_domain
   || runtime_profile_sha256
   || request_sha256
-  || exact_256_byte_header
+  || exact_288_byte_header
   || exact_payload
 )
 ```
@@ -120,14 +126,14 @@ SHA256(
 The canonical synthetic Python fixture output has SHA-256:
 
 ```text
-4c6620737cc4b8f9153ccd6f014666ebed823692afffa7278f0a60bb5e7cf3f6
+62a13ecdd2df03c7d17da2b13c4f7e40401b4ae7236188a4b29822c77be7d467
 ```
 
 The independently encoded Python/Rust output containing the retained canonical
 V7 verifier-output vector has SHA-256:
 
 ```text
-5109be6580c464569034d6c1652f9b01d00d2229440445b2c3e48b7b10676dfa
+d5d88a069e65df2776ce440a148695998abe2ad0ee9185cdd4c9c4bd0eccc595
 ```
 
 The marker provides completion and internal binding. It is unkeyed and grants
@@ -161,10 +167,13 @@ Focused Python replay and cross-language parity:
 ```bash
 python3 -m pytest -q \
   tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
-  tests/test_zrpf_spot_v7_firecracker_rust_parity.py
+  tests/test_zrpf_spot_v7_firecracker_rust_parity.py \
+  tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
+  tests/test_zrpf_v3_firecracker_jail_staging.py \
+  tests/test_zrpf_v3_firecracker_jailer_launcher.py
 ```
 
-The 41 tests cover canonical vectors, request mutation, wrong widths and zero
+The focused protocol tests cover canonical vectors, request mutation, wrong widths and zero
 digests, all direct header bindings, stale and torn output, output truncation,
 nonzero trailing bytes, commit-marker mutation, nested payload and journal
 mutation, and one structure-preserving nested mutation that recomputes the
@@ -172,6 +181,9 @@ outer payload hash and commit marker before reaching the deeper Plan B reject.
 They also require positive and negative parity with the pre-existing V7
 candidate payload decoder, exact agreement with a Rust positive vector, and
 stable Python/Rust reject-code parity for four transport and nested mutations.
+The runtime-binding and lifecycle tests additionally reject config and manifest
+substitution, a stale profile, legacy 192/256 framing, and same-byte replacement
+of the staged config path after preparation.
 
 Focused Rust gates:
 
@@ -184,10 +196,11 @@ cargo clippy --locked --offline \
   -p zenodex-zrpf-spot-v7-firecracker-runtime --all-targets -- -D warnings
 ```
 
-Six Rust tests cover the profile and request vectors, the retained V7 payload,
+Seven Rust tests cover the profile and request vectors, the retained V7 payload,
 the fixed committed output, transport mutations, nested payload mutations, and
-the PID-1 path/bound/non-authority contract. A rejected input-drive binding is
-also checked to leave the commit marker absent.
+the PID-1 path/bound/non-authority contract. They also require legacy framing
+rejection. A rejected input-drive binding is checked to leave the commit marker
+absent.
 
 The static-PIE build and ELF inspection are reproducible with:
 
@@ -205,12 +218,22 @@ Typing and lint gates:
 ```bash
 python3 -m ruff check \
   tools/zrpf_spot_v7_firecracker_runtime_protocol.py \
+  tools/zrpf_spot_v7_firecracker_runtime_binding.py \
+  tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py \
+  tools/zrpf_spot_v7_firecracker_jail_staging.py \
+  tools/zrpf_v3_firecracker_jail_staging.py \
+  tools/zrpf_v3_firecracker_jailer_launcher.py \
   tools/zrpf_spot_v7_verifier_payload_codec.py \
   tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
   tests/test_zrpf_spot_v7_firecracker_rust_parity.py
 
 python3 -m mypy \
   tools/zrpf_spot_v7_firecracker_runtime_protocol.py \
+  tools/zrpf_spot_v7_firecracker_runtime_binding.py \
+  tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py \
+  tools/zrpf_spot_v7_firecracker_jail_staging.py \
+  tools/zrpf_v3_firecracker_jail_staging.py \
+  tools/zrpf_v3_firecracker_jailer_launcher.py \
   tools/zrpf_spot_v7_verifier_payload_codec.py \
   tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
   tests/test_zrpf_spot_v7_firecracker_rust_parity.py
@@ -228,7 +251,6 @@ RISC0 receipt verification inside the PID-1 guest
 authority-capable PID-1 guest profile
 governed V7 runtime manifest
 current V6 or V7 receipt evidence
-root-owned staging integration
 live Jailer or Firecracker execution
 cgroup and network-namespace lifecycle evidence
 same-UID mutation resistance
@@ -241,6 +263,12 @@ covert-channel freedom
 hardware side-channel resistance
 ```
 
+The runtime binding retains exact canonical config and manifest bytes and
+hashes them into prepare/finish evidence. Those bytes remain proposals until a
+separately governed release manifest selects the same identities. A caller can
+construct an authority-false proposal; it cannot manufacture governance,
+release, execution, settlement, or production authority.
+
 The pre/post input-drive hashes do not close an ABA attack by a hostile host:
 mutable backing bytes could be substituted while SquashFS reads the payload and
 restored before the second whole-drive hash. A future authority profile must
@@ -250,8 +278,8 @@ input binding to execution authority.
 
 ## Next safe step
 
-Define the governed V7 runtime manifest and bind a separate authority-capable
-PID-1 profile to actual V6/V7 receipt verification. The manifest must commit the
-profile digest, exact guest binary, kernel, rootfs, input contract, and verifier
-identities before root-owned jail staging or a live runner can mint an execution
-capability.
+Freeze and govern the V7 release manifest, then bind a separate
+authority-capable PID-1 profile to actual V6/V7 receipt verification. The
+release must select this profile digest, the exact machine configuration, guest
+binary, kernel, rootfs, input contract, and verifier identities before a live
+runner can mint an execution capability.

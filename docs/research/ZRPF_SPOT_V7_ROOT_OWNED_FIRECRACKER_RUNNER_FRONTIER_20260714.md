@@ -2,8 +2,9 @@
 
 Date: 2026-07-14
 
-Status: descriptor-retained jail staging and a data-only prepared-Jailer
-lifecycle are implemented; Spot V7 runtime authority remains unavailable
+Status: descriptor-retained jail staging, the data-only prepared-Jailer
+lifecycle, and exact authority-false Spot V7 config/manifest identity binding
+are implemented; Spot V7 runtime authority remains unavailable
 
 ## Purpose
 
@@ -50,7 +51,7 @@ root-owned trusted directory chain
   -> bounded copy plus source and staged SHA-256 checks
   -> root-owned read-only kernel, rootfs, input, and config
   -> runtime-owned fixed 16 MiB output
-  -> canonical 192-byte request at offset zero
+  -> canonical retained-V3 192-byte or Spot-V7 224-byte request at offset zero
   -> all remaining output bytes zero
   -> retained directory and resource descriptors
   -> prelaunch inode, mode, owner, link-count, size, and version checks
@@ -65,9 +66,19 @@ The canonical Firecracker configuration must bind exactly these paths:
 /resources/output
 ```
 
-The public prepared lifecycle in
-`tools/zrpf_v3_firecracker_jailer_launcher.py` requires exact concrete pinned
-Jailer, Firecracker, cgroup, network-namespace, and prepared-root types. It
+The Spot V7-specific prepare path additionally requires one validated proposal
+that retains the exact canonical machine configuration and runtime-manifest
+bytes. The 224-byte raw request must commit their exact SHA-256 identities and
+the staged input-drive identity before any jail directory is created. The
+sealed prepare observation and canonical finish observation both retain the
+exact proposal and its profile, request, config, and manifest hashes. Every
+authority field remains false because no governed release has selected those
+proposal bytes.
+
+The shared prepared lifecycle in
+`tools/zrpf_v3_firecracker_jailer_launcher.py` and the V7 identity layer in
+`tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py` require exact concrete
+pinned Jailer, Firecracker, cgroup, network-namespace, and prepared-root types. They
 requires root ownership, checks that launch parameters match the staged jail,
 executes the existing live placement controls, reaps the short-lived Jailer
 parent, waits for the Firecracker cgroup to become naturally empty, reads output
@@ -95,6 +106,10 @@ Deterministic tests cover:
 - staged resource mutation and same-byte path replacement;
 - stale jail rejection without deletion;
 - config path substitution;
+- Spot V7 machine-config and runtime-manifest substitution before staging;
+- stale Spot V7 runtime-profile identity and legacy 192/256 framing;
+- post-prepare same-byte config-path replacement;
+- config or manifest substitution in retained finish evidence;
 - nonzero stale output and uncommitted output;
 - stable committed-output validation through the retained descriptor;
 - launch-before-read and teardown-before-cleanup ordering;
@@ -122,16 +137,17 @@ The authority frontier now records these V7-specific missing inputs in addition
 to the existing release, execution, teardown, and store blockers:
 
 ```text
-Spot V7 PID-1 guest init and three-file input image
-Spot V7 governed raw output profile and verified writer
-Spot V7 governed runtime manifest and exact artifact set
+governed release selection of the exact V7 runtime proposal
+authority-capable PID-1 receipt verification
+fresh V6/V7 receipt evidence under the final release source closure
 ```
 
 The retained V3 replay guest is not a Spot V7 guest. Its raw profile digest and
 `VerifiedReplayReport` output contract cannot be relabeled as V7 authority.
-The current generic stage validates canonical resource paths and the outer
-request/output protocol. It does not validate a final Spot V7 machine profile,
-guest payload, receipt, release manifest, or source-to-binary chain.
+The V7 path now validates the exact proposed machine profile, runtime manifest,
+input identity, and outer request/output protocol. It does not authenticate a
+guest payload or receipt, prove that governance selected the proposal, bind a
+release manifest, or establish a source-to-binary chain.
 
 The high-level root supervisor also still needs to own creation and final
 destruction of the fresh network namespace and preconfigured cgroup leaf.
@@ -145,7 +161,7 @@ This tranche does not establish:
 ```text
 live privileged Jailer or Firecracker execution
 live hostile staging or same-UID resistance evidence
-complete Spot V7 runtime artifact identity
+governed Spot V7 release artifact identity
 Spot V7 guest execution or payload authentication
 current V6/V7 image IDs or receipt evidence
 source-to-binary or cross-host reproducibility
@@ -161,18 +177,17 @@ production readiness
 
 ## Next safe implementation order
 
-1. Define a Spot V7-specific governed raw request/output profile without
-   inheriting the retained structural V3 report type.
-2. Build the static PID-1 Spot V7 guest init and deterministic three-file input
-   image builder.
-3. Freeze the V7 runtime manifest and exact kernel, rootfs, guest-init, input,
-   Firecracker, and Jailer identities.
-4. Add one root supervisor that creates the cgroup and network namespace,
+1. Freeze and govern the V7 runtime manifest and exact kernel, rootfs,
+   guest-init, input, Firecracker, Jailer, machine-config, and raw-profile
+   identities.
+2. Replace the protocol-only PID-1 path with an authority-capable guest that
+   verifies the exact V6/V7 receipts and derives the authenticated payload.
+3. Add one root supervisor that creates the cgroup and network namespace,
    prepares the jail, runs the exact lifecycle, and destroys all three only
    after verified emptiness.
-5. Run privileged hostile controls on a disposable KVM host.
-6. Decode and authenticate the exact V7 payload inside that lifecycle. Only
+4. Run privileged hostile controls on a disposable KVM host.
+5. Decode and authenticate the exact V7 payload inside that lifecycle. Only
    then may the module-private governed execution capability gain a mint site.
 
-No long RISC0 proof run is needed for steps 1 through 4. Fresh proof evidence
+No long RISC0 proof run is needed for steps 1 and 3. Fresh proof evidence
 belongs after the final V6/V7 guest source closure is frozen.

@@ -43,13 +43,14 @@ def test_rust_protocol_vector_matches_independent_python_codec(tmp_path: Path) -
     request = SpotV7FirecrackerRequestV1.validated(
         run_nonce_256=bytes([1]) * 32,
         runtime_manifest_sha256=bytes([2]) * 32,
-        input_drive_sha256=bytes([3]) * 32,
-        settlement_intent_sha256=bytes([4]) * 32,
+        machine_config_sha256=bytes([3]) * 32,
+        input_drive_sha256=bytes([4]) * 32,
+        settlement_intent_sha256=bytes([5]) * 32,
     )
     payload = _read_golden_payload()
     output = build_data_only_committed_output_v1(
         request,
-        observed_input_drive_sha256=bytes([3]) * 32,
+        observed_input_drive_sha256=bytes([4]) * 32,
         payload=payload,
     )
     python_vector = {
@@ -63,16 +64,16 @@ def test_rust_protocol_vector_matches_independent_python_codec(tmp_path: Path) -
     assert rust_vector == python_vector
     assert rust_vector == {
         "output_sha256": (
-            "5109be6580c464569034d6c1652f9b01d00d2229440445b2c3e48b7b10676dfa"
+            "d5d88a069e65df2776ce440a148695998abe2ad0ee9185cdd4c9c4bd0eccc595"
         ),
         "payload_sha256": (
             "979b2e9cb4757de50ec935c55ca827c693ad5cb4e22ee8034bee9e7866de148c"
         ),
         "profile_sha256": (
-            "1b60e4bc78bc3ea3938f2ca72848418097208096574a1fc37e3404b841f36cd4"
+            "c8cf02b22988315b667c8b37675b6c8d8cd56f5638b8aa176357a044a89fcdd6"
         ),
         "request_sha256": (
-            "613519701cef6cde07f58ed97c10cedd60ec9a3c790efdab5824afb02ef27a36"
+            "f5f7ce3112563ca79383d8c7502e36df1db78e2d3bc0f32df7b8d09e38ac2c23"
         ),
     }
 
@@ -94,13 +95,14 @@ def test_rust_and_python_reject_structure_preserving_mutations_identically(
     request = SpotV7FirecrackerRequestV1.validated(
         run_nonce_256=bytes([1]) * 32,
         runtime_manifest_sha256=bytes([2]) * 32,
-        input_drive_sha256=bytes([3]) * 32,
-        settlement_intent_sha256=bytes([4]) * 32,
+        machine_config_sha256=bytes([3]) * 32,
+        input_drive_sha256=bytes([4]) * 32,
+        settlement_intent_sha256=bytes([5]) * 32,
     )
     payload = _read_golden_payload()
     output = build_data_only_committed_output_v1(
         request,
-        observed_input_drive_sha256=bytes([3]) * 32,
+        observed_input_drive_sha256=bytes([4]) * 32,
         payload=payload,
     )
 

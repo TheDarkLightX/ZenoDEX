@@ -12,9 +12,9 @@ use std::io::{Read, Seek, SeekFrom, Write};
 
 use sha2::{Digest as _, Sha256};
 
-pub const SPOT_V7_FIRECRACKER_REQUEST_BYTES_V1: usize = 192;
+pub const SPOT_V7_FIRECRACKER_REQUEST_BYTES_V1: usize = 224;
 pub const SPOT_V7_FIRECRACKER_OUTPUT_BYTES_V1: usize = 16_777_216;
-pub const SPOT_V7_FIRECRACKER_OUTPUT_HEADER_BYTES_V1: usize = 256;
+pub const SPOT_V7_FIRECRACKER_OUTPUT_HEADER_BYTES_V1: usize = 288;
 pub const SPOT_V7_FIRECRACKER_OUTPUT_COMMIT_BYTES_V1: usize = 32;
 pub const SPOT_V7_FIRECRACKER_OUTPUT_PAYLOAD_CAP_BYTES_V1: usize = 65_536;
 
@@ -23,9 +23,9 @@ const OUTPUT_MAGIC_V1: &[u8; 8] = b"ZSV7OUT1";
 const OUTPUT_COMMIT_DOMAIN_V1: &[u8] = b"zenodex/zrpf_spot_v7_firecracker_output_commit/v1\0";
 const PROTOCOL_VERSION_V1: u16 = 1;
 const DATA_ONLY_COMMITTED_STATUS_V1: u32 = 1;
-const REQUEST_BYTES_FIELD_V1: u16 = 192;
+const REQUEST_BYTES_FIELD_V1: u16 = 224;
 const OUTPUT_BYTES_FIELD_V1: u64 = 16_777_216;
-const OUTPUT_HEADER_BYTES_FIELD_V1: u16 = 256;
+const OUTPUT_HEADER_BYTES_FIELD_V1: u16 = 288;
 const OUTPUT_PAYLOAD_CAP_FIELD_V1: u32 = 65_536;
 const OUTPUT_COMMIT_BYTES_FIELD_V1: u64 = 32;
 const COMMIT_OFFSET_V1: u64 = OUTPUT_BYTES_FIELD_V1 - OUTPUT_COMMIT_BYTES_FIELD_V1;
@@ -48,17 +48,17 @@ const V7_EFFECT_BINDING_COMMITMENT_DOMAIN_BYTES_V1: u16 = 57;
 pub const SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_DESCRIPTOR_V1: &[u8] = concat!(
     "zenodex.zrpf.spot_v7.firecracker.runtime_profile.v1\n",
     "request_magic=ZSV7REQ1\n",
-    "request_bytes=192\n",
+    "request_bytes=224\n",
     "request_version=1\n",
     "request_endian=little\n",
-    "request_layout=magic:u8x8,version:u16,bytes:u16,flags:u32,nonce:u8x32,profile:u8x32,runtime_manifest:u8x32,input_drive:u8x32,output_bytes:u64,payload_cap:u32,settlement_intent:u8x32,reserved:u8x4\n",
+    "request_layout=magic:u8x8,version:u16,bytes:u16,flags:u32,nonce:u8x32,profile:u8x32,runtime_manifest:u8x32,machine_config:u8x32,input_drive:u8x32,output_bytes:u64,payload_cap:u32,settlement_intent:u8x32,reserved:u8x4\n",
     "output_magic=ZSV7OUT1\n",
     "output_bytes=16777216\n",
-    "output_header_bytes=256\n",
+    "output_header_bytes=288\n",
     "output_commit_bytes=32\n",
     "output_payload_cap_bytes=65536\n",
     "output_header_endian=little\n",
-    "output_header_layout=magic:u8x8,version:u16,header_bytes:u16,status:u32,payload_bytes:u32,flags:u32,output_bytes:u64,nonce:u8x32,request_sha256:u8x32,profile:u8x32,runtime_manifest:u8x32,input_drive:u8x32,settlement_intent:u8x32,payload_sha256:u8x32\n",
+    "output_header_layout=magic:u8x8,version:u16,header_bytes:u16,status:u32,payload_bytes:u32,flags:u32,output_bytes:u64,nonce:u8x32,request_sha256:u8x32,profile:u8x32,runtime_manifest:u8x32,machine_config:u8x32,input_drive:u8x32,settlement_intent:u8x32,payload_sha256:u8x32\n",
     "output_status=1:data_only_committed\n",
     "output_zero_region=header_plus_payload_to_commit_offset\n",
     "payload_magic=ZSPTV7O1\n",
@@ -73,8 +73,8 @@ pub const SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_DESCRIPTOR_V1: &[u8] = concat!(
 .as_bytes();
 
 pub const SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1: [u8; 32] = [
-    0x1b, 0x60, 0xe4, 0xbc, 0x78, 0xbc, 0x3e, 0xa3, 0x93, 0x8f, 0x2c, 0xa7, 0x28, 0x48, 0x41, 0x80,
-    0x97, 0x20, 0x80, 0x96, 0x57, 0x4a, 0x1f, 0xc3, 0x7e, 0x34, 0x04, 0xb8, 0x41, 0xf3, 0x6c, 0xd4,
+    0xc8, 0xcf, 0x02, 0xb2, 0x29, 0x88, 0x31, 0x5b, 0x66, 0x7c, 0x8b, 0x37, 0x67, 0x5b, 0x6c, 0x8d,
+    0x8c, 0xd5, 0x6f, 0x56, 0x38, 0xb8, 0xaa, 0x17, 0x63, 0x57, 0xa0, 0x44, 0xa8, 0x9f, 0xcd, 0xd6,
 ];
 
 pub const SPOT_V7_FIRECRACKER_EXECUTION_AUTHORITY_V1: bool = false;
@@ -91,6 +91,7 @@ pub enum SpotV7FirecrackerProtocolErrorV1 {
     RequestNonce,
     RequestProfile,
     RequestManifest,
+    RequestMachineConfig,
     RequestInput,
     RequestIntent,
     RequestOutputBounds,
@@ -132,6 +133,7 @@ impl SpotV7FirecrackerProtocolErrorV1 {
             Self::RequestNonce => "request_nonce",
             Self::RequestProfile => "request_profile",
             Self::RequestManifest => "request_manifest",
+            Self::RequestMachineConfig => "request_machine_config",
             Self::RequestInput => "request_input",
             Self::RequestIntent => "request_intent",
             Self::RequestOutputBounds => "request_output_bounds",
@@ -177,6 +179,7 @@ impl std::error::Error for SpotV7FirecrackerProtocolErrorV1 {}
 pub struct SpotV7FirecrackerRequestV1 {
     run_nonce_256: [u8; 32],
     runtime_manifest_sha256: [u8; 32],
+    machine_config_sha256: [u8; 32],
     input_drive_sha256: [u8; 32],
     settlement_intent_sha256: [u8; 32],
 }
@@ -185,6 +188,7 @@ impl SpotV7FirecrackerRequestV1 {
     pub fn new(
         run_nonce_256: [u8; 32],
         runtime_manifest_sha256: [u8; 32],
+        machine_config_sha256: [u8; 32],
         input_drive_sha256: [u8; 32],
         settlement_intent_sha256: [u8; 32],
     ) -> Result<Self, SpotV7FirecrackerProtocolErrorV1> {
@@ -197,6 +201,10 @@ impl SpotV7FirecrackerRequestV1 {
             SpotV7FirecrackerProtocolErrorV1::RequestManifest,
         )?;
         require_nonzero(
+            &machine_config_sha256,
+            SpotV7FirecrackerProtocolErrorV1::RequestMachineConfig,
+        )?;
+        require_nonzero(
             &input_drive_sha256,
             SpotV7FirecrackerProtocolErrorV1::RequestInput,
         )?;
@@ -207,6 +215,7 @@ impl SpotV7FirecrackerRequestV1 {
         Ok(Self {
             run_nonce_256,
             runtime_manifest_sha256,
+            machine_config_sha256,
             input_drive_sha256,
             settlement_intent_sha256,
         })
@@ -218,6 +227,10 @@ impl SpotV7FirecrackerRequestV1 {
 
     pub const fn runtime_manifest_sha256(&self) -> &[u8; 32] {
         &self.runtime_manifest_sha256
+    }
+
+    pub const fn machine_config_sha256(&self) -> &[u8; 32] {
+        &self.machine_config_sha256
     }
 
     pub const fn input_drive_sha256(&self) -> &[u8; 32] {
@@ -236,10 +249,11 @@ impl SpotV7FirecrackerRequestV1 {
         output[16..48].copy_from_slice(&self.run_nonce_256);
         output[48..80].copy_from_slice(&SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1);
         output[80..112].copy_from_slice(&self.runtime_manifest_sha256);
-        output[112..144].copy_from_slice(&self.input_drive_sha256);
-        output[144..152].copy_from_slice(&OUTPUT_BYTES_FIELD_V1.to_le_bytes());
-        output[152..156].copy_from_slice(&OUTPUT_PAYLOAD_CAP_FIELD_V1.to_le_bytes());
-        output[156..188].copy_from_slice(&self.settlement_intent_sha256);
+        output[112..144].copy_from_slice(&self.machine_config_sha256);
+        output[144..176].copy_from_slice(&self.input_drive_sha256);
+        output[176..184].copy_from_slice(&OUTPUT_BYTES_FIELD_V1.to_le_bytes());
+        output[184..188].copy_from_slice(&OUTPUT_PAYLOAD_CAP_FIELD_V1.to_le_bytes());
+        output[188..220].copy_from_slice(&self.settlement_intent_sha256);
         output
     }
 
@@ -249,14 +263,19 @@ impl SpotV7FirecrackerRequestV1 {
         if profile != SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1 {
             return Err(SpotV7FirecrackerProtocolErrorV1::RequestProfile);
         }
-        if bytes[188..].iter().any(|byte| *byte != 0) {
+        if bytes[220..].iter().any(|byte| *byte != 0) {
             return Err(SpotV7FirecrackerProtocolErrorV1::RequestReserved);
         }
         Self::new(
             array_32(bytes, 16, SpotV7FirecrackerProtocolErrorV1::RequestNonce)?,
             array_32(bytes, 80, SpotV7FirecrackerProtocolErrorV1::RequestManifest)?,
-            array_32(bytes, 112, SpotV7FirecrackerProtocolErrorV1::RequestInput)?,
-            array_32(bytes, 156, SpotV7FirecrackerProtocolErrorV1::RequestIntent)?,
+            array_32(
+                bytes,
+                112,
+                SpotV7FirecrackerProtocolErrorV1::RequestMachineConfig,
+            )?,
+            array_32(bytes, 144, SpotV7FirecrackerProtocolErrorV1::RequestInput)?,
+            array_32(bytes, 188, SpotV7FirecrackerProtocolErrorV1::RequestIntent)?,
         )
     }
 
@@ -440,7 +459,7 @@ pub fn validate_committed_output_v1(
     let payload = bytes
         .get(SPOT_V7_FIRECRACKER_OUTPUT_HEADER_BYTES_V1..payload_end)
         .ok_or(SpotV7FirecrackerProtocolErrorV1::OutputPayload)?;
-    if sha256(payload) != array_32(bytes, 224, SpotV7FirecrackerProtocolErrorV1::OutputPayload)? {
+    if sha256(payload) != array_32(bytes, 256, SpotV7FirecrackerProtocolErrorV1::OutputPayload)? {
         return Err(SpotV7FirecrackerProtocolErrorV1::OutputPayload);
     }
     if bytes[payload_end..commit_offset]
@@ -475,8 +494,8 @@ fn validate_request_header(bytes: &[u8]) -> Result<(), SpotV7FirecrackerProtocol
     if read_u32_le(bytes, 12)? != 0 {
         return Err(SpotV7FirecrackerProtocolErrorV1::RequestFlags);
     }
-    if read_u64_le(bytes, 144)? != OUTPUT_BYTES_FIELD_V1
-        || read_u32_le(bytes, 152)? != OUTPUT_PAYLOAD_CAP_FIELD_V1
+    if read_u64_le(bytes, 176)? != OUTPUT_BYTES_FIELD_V1
+        || read_u32_le(bytes, 184)? != OUTPUT_PAYLOAD_CAP_FIELD_V1
     {
         return Err(SpotV7FirecrackerProtocolErrorV1::RequestOutputBounds);
     }
@@ -506,9 +525,10 @@ fn build_output_header_and_marker(
     header[64..96].copy_from_slice(&request.sha256());
     header[96..128].copy_from_slice(&SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1);
     header[128..160].copy_from_slice(request.runtime_manifest_sha256());
-    header[160..192].copy_from_slice(request.input_drive_sha256());
-    header[192..224].copy_from_slice(request.settlement_intent_sha256());
-    header[224..256].copy_from_slice(&sha256(payload));
+    header[160..192].copy_from_slice(request.machine_config_sha256());
+    header[192..224].copy_from_slice(request.input_drive_sha256());
+    header[224..256].copy_from_slice(request.settlement_intent_sha256());
+    header[256..288].copy_from_slice(&sha256(payload));
     let marker = output_commit_marker(request, &header, payload);
     Ok((header, marker))
 }
@@ -531,8 +551,9 @@ fn validate_output_header(
         (64, request.sha256()),
         (96, SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1),
         (128, *request.runtime_manifest_sha256()),
-        (160, *request.input_drive_sha256()),
-        (192, *request.settlement_intent_sha256()),
+        (160, *request.machine_config_sha256()),
+        (192, *request.input_drive_sha256()),
+        (224, *request.settlement_intent_sha256()),
     ];
     for (offset, expected) in bindings {
         if array_32(

@@ -19,12 +19,12 @@ fn run() -> Result<(), String> {
     if std::env::args_os().len() != 1 {
         return Err("arguments are forbidden".to_string());
     }
-    let request = SpotV7FirecrackerRequestV1::new([1; 32], [2; 32], [3; 32], [4; 32])
+    let request = SpotV7FirecrackerRequestV1::new([1; 32], [2; 32], [3; 32], [4; 32], [5; 32])
         .map_err(|error| error.to_string())?;
     let payload_bytes = decode_golden_payload()?;
     let payload =
         decode_structural_spot_v7_payload_v1(&payload_bytes).map_err(|error| error.to_string())?;
-    let output = build_data_only_output_image_v1(&request, [3; 32], &payload)
+    let output = build_data_only_output_image_v1(&request, [4; 32], &payload)
         .map_err(|error| error.to_string())?;
 
     let mut request_magic = request.encode();
