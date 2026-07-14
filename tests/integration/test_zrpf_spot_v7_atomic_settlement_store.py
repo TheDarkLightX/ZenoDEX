@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from threading import Barrier
+from typing import cast
 from unittest.mock import patch
 
 import pytest
@@ -729,7 +730,7 @@ def test_direct_or_object_new_capability_construction_cannot_cross_private_seals
     with pytest.raises(TypeError, match="governed runtime seal"):
         _GovernedJailedFirecrackerExecutionV1(
             bound,
-            seal=object(),
+            seal=cast(firecracker_authority_module._GovernedRuntimeSealV1, object()),
         )
     forged_runtime = object.__new__(_GovernedJailedFirecrackerExecutionV1)
     with pytest.raises(TypeError, match="governed jailed Firecracker execution"):
@@ -739,7 +740,7 @@ def test_direct_or_object_new_capability_construction_cannot_cross_private_seals
     with pytest.raises(TypeError, match="governed binder seal"):
         _GovernedFirecrackerSpotV7SettlementV1(
             runtime_execution=forged_runtime,
-            seal=object(),
+            seal=cast(firecracker_authority_module._GovernedBinderSealV1, object()),
         )
 
 
