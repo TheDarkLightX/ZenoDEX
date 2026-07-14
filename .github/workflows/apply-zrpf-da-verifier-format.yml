@@ -1,0 +1,63 @@
+name: apply-zrpf-da-verifier-format
+
+on:
+  push:
+    branches:
+      - agent/zrpf-full-blob-da-verifier-20260714
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          ref: agent/zrpf-full-blob-da-verifier-20260714
+
+      - name: Install hash-pinned Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz"
+          destination="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "${archive}" \
+            'https://github.com/risc0/rust/releases/download/r0.1.94.1/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz'
+          test "$(stat --format='%s' "${archive}")" = '512619537'
+          echo 'e88d823762fc06e8911fb6b310ffe2fca8fcd7af2438572f7aa90aaf3e84ea02  '"${archive}" \
+            | sha256sum --check --strict
+          mkdir -p "${destination}"
+          tar --extract --gzip --file "${archive}" \
+            --directory "${destination}" --no-same-owner
+          rm --force "${archive}"
+
+      - name: Apply pinned rustfmt
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          export PATH="${pinned_bin}:/usr/bin:/bin"
+          export RUSTC="${pinned_bin}/rustc"
+          export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/zrpf_protocol/Cargo.toml \
+            --all
+
+      - name: Remove staging workflow and push formatting commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/apply-zrpf-da-verifier-format.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git diff --cached --quiet && { echo 'rustfmt produced no changes'; exit 1; }
+          git commit -m 'style: format exact full-blob DA verifier'
+          git push origin HEAD:agent/zrpf-full-blob-da-verifier-20260714
