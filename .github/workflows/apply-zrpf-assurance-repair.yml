@@ -1,0 +1,122 @@
+name: apply-zrpf-assurance-repair
+
+on:
+  push:
+    branches:
+      - agent/zrpf-assurance-repair-20260714
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          ref: agent/zrpf-assurance-repair-20260714
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Install hash-pinned assurance tools
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Make the inventory transformation unambiguous
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("tools/apply_zrpf_assurance_repair_20260714.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''    replace_once(
+                  "tools/zrpf_v3_source_closure.py",
+                  '    (\n        "parallel_shard_epoch_protocol_v1",\n',
+                  checkpoint_rows + '    (\n        "parallel_shard_epoch_protocol_v1",\n',
+              )
+          '''
+          new = '''    adapter_boundary = (
+                  '    (\\n'
+                  '        "current_source_adapter_v2",\\n'
+                  '        "zk/zrpf_risc0/shared/src/v2_leaf_adapter.rs",\\n'
+                  '    ),\\n'
+                  '    (\\n'
+                  '        "parallel_shard_epoch_protocol_v1",\\n'
+              )
+              replace_once(
+                  "tools/zrpf_v3_source_closure.py",
+                  adapter_boundary,
+                  adapter_boundary.removesuffix(
+                      '    (\\n        "parallel_shard_epoch_protocol_v1",\\n'
+                  )
+                  + checkpoint_rows
+                  + '    (\\n        "parallel_shard_epoch_protocol_v1",\\n',
+              )
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(
+                  "repair-script inventory block drifted; refusing an ambiguous rewrite"
+              )
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+      - name: Apply exact reviewed repair
+        shell: bash
+        run: |
+          set +e
+          python3 tools/apply_zrpf_assurance_repair_20260714.py \
+            > zrpf-assurance-repair.log 2>&1
+          status=$?
+          printf '%s\n' "${status}" > zrpf-assurance-repair.status
+          cat zrpf-assurance-repair.log
+          exit 0
+
+      - name: Upload repair diagnostics
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: zrpf-assurance-repair-diagnostics
+          path: |
+            zrpf-assurance-repair.log
+            zrpf-assurance-repair.status
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce repair transformation
+        run: test "$(cat zrpf-assurance-repair.status)" = 0
+
+      - name: Remove staging machinery and commit repaired tree
+        run: |
+          set -euo pipefail
+          rm \
+            .github/workflows/apply-zrpf-assurance-repair.yml \
+            tools/apply_zrpf_assurance_repair_20260714.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'ci: repair exact-head ZRPF assurance regressions'
+
+      - name: Run the eight previously failing tests
+        run: |
+          set -euo pipefail
+          pytest -q \
+            tests/test_check_zrpf_v1_spot_adapter_temporary_evidence.py::test_retained_adapter_evidence_rejects_hardened_verifier_source_drift \
+            tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py::test_bounded_quiet_command_allows_empty_stdout \
+            tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py::test_bounded_command_kills_and_rejects_residual_process_group \
+            tests/test_check_zrpf_v3_firecracker_replay_profile.py::test_deep_json_rejects_without_cli_traceback \
+            tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory \
+            tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest \
+            tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py::test_retained_structural_evidence_rejects_hardened_verifier_source_drift \
+            tests/integration/test_recursive_stark_admission_authority_boundary.py::test_private_admission_symbols_are_absent_from_other_production_modules
+
+      - name: Push reviewed repair commit
+        run: git push origin HEAD:agent/zrpf-assurance-repair-20260714
