@@ -201,12 +201,27 @@ def test_partial_snapshot_failure_removes_stage_and_closes_source_descriptors(
     original_copy = descriptor_staging.staging_io.copy_exact_artifact
     calls = 0
 
-    def fail_third_copy(**kwargs: object) -> int:
+    def fail_third_copy(
+        *,
+        source_fd: int,
+        destination_dir_fd: int,
+        role: str,
+        expected_sha256: str,
+        expected_size: int,
+        trusted_uid: int,
+    ) -> int:
         nonlocal calls
         calls += 1
         if calls == 3:
             raise jail_staging.JailerLauncherReject("injected_partial_stage_failure")
-        return original_copy(**kwargs)
+        return original_copy(
+            source_fd=source_fd,
+            destination_dir_fd=destination_dir_fd,
+            role=role,
+            expected_sha256=expected_sha256,
+            expected_size=expected_size,
+            trusted_uid=trusted_uid,
+        )
 
     monkeypatch.setattr(
         descriptor_staging.staging_io,

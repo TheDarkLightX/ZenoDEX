@@ -13,7 +13,7 @@ import hashlib
 import sqlite3
 from dataclasses import dataclass
 from enum import Enum
-from typing import NoReturn, SupportsIndex, cast, final
+from typing import NoReturn, SupportsIndex, TypeGuard, final
 
 from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
     _derive_capability_commitment,
@@ -32,6 +32,12 @@ MAX_SPOT_V7_V5_MANIFEST_BYTES = 4 * 1_024 * 1_024
 MAX_SPOT_V7_V5_RELEASE_EVIDENCE_BYTES = 8 * 1_024 * 1_024
 _MAX_U64 = (1 << 64) - 1
 _PREREQUISITE_ROOT_DOMAIN_V5 = b"zenodex.zrpf.spot_v7.authority_prerequisites.v5\0"
+
+
+def _is_exact_operational_capability_v3(
+    value: object,
+) -> TypeGuard[_SpotV7AtomicEconomicCommitCapabilityV3]:
+    return type(value) is _SpotV7AtomicEconomicCommitCapabilityV3
 
 
 class SpotV7OperationalStoreActivationBlockerCodeV5(Enum):
@@ -300,12 +306,9 @@ def _seal_test_only_dormant_spot_v7_authority_prerequisites_v5(
 ) -> _DormantSpotV7AuthorityPrerequisitesV5:
     """Exercise dormant persistence without creating any authority claim."""
 
-    if type(operational_capability_v3) is not _SpotV7AtomicEconomicCommitCapabilityV3:
+    if not _is_exact_operational_capability_v3(operational_capability_v3):
         raise TypeError("test-only V5 sealer requires exact operational V3")
-    operational = cast(
-        _SpotV7AtomicEconomicCommitCapabilityV3,
-        operational_capability_v3,
-    )
+    operational = operational_capability_v3
     if not operational._has_private_seal():
         raise TypeError("test-only V5 sealer requires sealed operational V3")
     provenance = _SpotV7DormantAuthorityProvenanceV5(
