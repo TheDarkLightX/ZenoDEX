@@ -23,7 +23,7 @@ from src.integration.zeno_ledger_authenticated_proof_verification_v1 import (  #
     VerifierExecutableFormatV1,
 )
 from src.integration.zeno_ledger_profile import (  # noqa: E402
-    validate_checkpoint_admission_v0,
+    validate_checkpoint_structural_compatibility_v0,
     validate_zeno_ledger_profile_v0,
     zeno_ledger_profile_requires_proof_authority_v0,
 )
@@ -495,7 +495,10 @@ def verify_zeno_ledger_v0(
                 )
                 validate_checkpoint_header_binding_v0(checkpoint, header)
                 if profile is not None:
-                    validate_checkpoint_admission_v0(checkpoint=checkpoint, profile=profile)
+                    validate_checkpoint_structural_compatibility_v0(
+                        checkpoint=checkpoint,
+                        profile=profile,
+                    )
             if proof_authority_required and replay_bound:
                 if strict_authority_requested:
                     if (

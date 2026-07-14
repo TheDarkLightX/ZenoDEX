@@ -12,6 +12,8 @@ from src.integration.zeno_ledger_profile import (
     DEPLOYMENT_MODE_ZENO_SOVEREIGN_TESTNET_V0,
     TOKEN_SCOPE_NONE_V0,
     TOKEN_SCOPE_ZENO_LEDGER_TESTNET_V0,
+    ProofRequiredAuthorityErrorV0,
+    ProofRequiredAuthorityRejectReasonV0,
     clone_profile_with_new_id_v0,
     make_zeno_ledger_profile_v0,
     profile_content_hash_v0,
@@ -19,6 +21,7 @@ from src.integration.zeno_ledger_profile import (
     sample_tau_exclusive_release_profile_v0,
     sample_zeno_sovereign_testnet_profile_v0,
     validate_checkpoint_admission_v0,
+    validate_checkpoint_structural_compatibility_v0,
     validate_zeno_ledger_profile_v0,
 )
 from src.integration.zeno_ledger_v0 import (
@@ -198,7 +201,16 @@ def test_sovereign_testnet_profile_can_require_zk_without_requiring_tau() -> Non
         sequencer_set_hash=sequencer,
         proof_journal_hash=_root("proof-journal"),
     )
-    validate_checkpoint_admission_v0(checkpoint=checkpoint_with_proof, profile=profile)
+    validate_checkpoint_structural_compatibility_v0(
+        checkpoint=checkpoint_with_proof,
+        profile=profile,
+    )
+    with pytest.raises(ProofRequiredAuthorityErrorV0) as exc_info:
+        validate_checkpoint_admission_v0(checkpoint=checkpoint_with_proof, profile=profile)
+    assert exc_info.value.reason is (
+        ProofRequiredAuthorityRejectReasonV0
+        .AUTHENTICATED_CRYPTOGRAPHIC_AUTHORITY_UNAVAILABLE
+    )
 
 
 def test_sovereign_testnet_rejects_tau_dependent_bridge_policy() -> None:
@@ -252,7 +264,7 @@ def test_tau_exclusive_release_rejects_missing_proof_journal() -> None:
         validate_checkpoint_admission_v0(checkpoint=checkpoint, profile=profile)
 
 
-def test_tau_exclusive_release_admits_checkpoint_with_proof_journal() -> None:
+def test_tau_exclusive_release_quarantines_checkpoint_with_proof_journal() -> None:
     config = _root("config")
     sequencer = _root("sequencer-set")
     profile = sample_tau_exclusive_release_profile_v0(
@@ -268,7 +280,16 @@ def test_tau_exclusive_release_admits_checkpoint_with_proof_journal() -> None:
         sequencer_set_hash=sequencer,
         proof_journal_hash=_root("proof-journal"),
     )
-    validate_checkpoint_admission_v0(checkpoint=checkpoint, profile=profile)
+    validate_checkpoint_structural_compatibility_v0(
+        checkpoint=checkpoint,
+        profile=profile,
+    )
+    with pytest.raises(ProofRequiredAuthorityErrorV0) as exc_info:
+        validate_checkpoint_admission_v0(checkpoint=checkpoint, profile=profile)
+    assert exc_info.value.reason is (
+        ProofRequiredAuthorityRejectReasonV0
+        .AUTHENTICATED_CRYPTOGRAPHIC_AUTHORITY_UNAVAILABLE
+    )
 
 
 def test_tau_exclusive_release_rejects_non_tau_token_deployment() -> None:

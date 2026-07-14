@@ -6,8 +6,8 @@ from typing import Any, Mapping
 
 from src.integration.zeno_ledger_profile import (
     ZERO_ROOT_V0,
+    require_production_proof_authority_v0,
     validate_zeno_ledger_profile_v0,
-    zeno_ledger_profile_requires_proof_authority_v0,
 )
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.state.canonical import canonical_hex_fixed_allow_0x
@@ -139,8 +139,10 @@ def build_watcher_attestation_v0(
     if profile is not None:
         profile_obj = dict(_require_mapping(profile, name="profile"))
         validate_zeno_ledger_profile_v0(profile_obj)
-        if zeno_ledger_profile_requires_proof_authority_v0(profile_obj):
-            raise ValueError("proof-required profile cannot produce a watcher v0 attestation")
+        require_production_proof_authority_v0(
+            profile=profile_obj,
+            boundary="watcher_attestation_v0",
+        )
         profile_id = _require_root(profile_obj["profile_id"], name="profile.profile_id")
         profile_name = str(profile_obj["profile_name"])
         deployment_mode = str(profile_obj["deployment_mode"])
