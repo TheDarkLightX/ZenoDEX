@@ -40,11 +40,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn placeholder_is_explicit_and_fail_closed() {
-        assert_eq!(FINAL_SOURCE_OPENED_SPOT_SETTLEMENT_V6_IMAGE_ID_V1, [0; 8]);
-        assert_eq!(
-            final_source_opened_spot_settlement_v6_image_id_v1(),
-            Err(SpotSettlementV7ChildPolicyErrorV1::FinalV6ImageIdUnmaterialized)
-        );
+    fn policy_result_matches_materialization_state() {
+        // This checks local API semantics; it is not post-pin release authority.
+        let configured = FINAL_SOURCE_OPENED_SPOT_SETTLEMENT_V6_IMAGE_ID_V1;
+        let result = final_source_opened_spot_settlement_v6_image_id_v1();
+        if configured.iter().all(|word| *word == 0) {
+            assert_eq!(
+                result,
+                Err(SpotSettlementV7ChildPolicyErrorV1::FinalV6ImageIdUnmaterialized)
+            );
+        } else {
+            assert_eq!(result, Ok(configured));
+        }
     }
 }
