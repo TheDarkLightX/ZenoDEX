@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import NoReturn, SupportsIndex, cast, final
+from typing import NoReturn, SupportsIndex, final
 
 from src.integration._zrpf_spot_v7_operational_capability_v2 import (
     _AuthenticatedExactCheckpointFinalityTransitionV2,
@@ -270,9 +270,12 @@ def bind_governed_spot_v7_lagged_checkpoint_beacon_v1(
 def _require_authenticated_finality_v2(
     value: object,
 ) -> _AuthenticatedExactCheckpointFinalityTransitionV2:
-    if type(value) is not _AuthenticatedExactCheckpointFinalityTransitionV2:
+    if (
+        not isinstance(value, _AuthenticatedExactCheckpointFinalityTransitionV2)
+        or type(value) is not _AuthenticatedExactCheckpointFinalityTransitionV2
+    ):
         raise TypeError("governed beacon requires exact authenticated finality V2")
-    authenticated = cast(_AuthenticatedExactCheckpointFinalityTransitionV2, value)
+    authenticated = value
     if not authenticated._has_private_seal():
         raise TypeError("governed beacon requires sealed authenticated finality V2")
     projection = authenticated._projection

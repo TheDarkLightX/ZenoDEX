@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import NoReturn, SupportsIndex, cast, final
+from typing import NoReturn, SupportsIndex, final
 
 from src.integration._zrpf_spot_v7_governed_da_projection import (
     _SpotV7GovernedDaPrerequisiteProjectionV1,
@@ -256,9 +256,12 @@ def _derive_governed_sample_projection_v1(
 def _require_authenticated_sampled_response(
     value: object,
 ) -> _AuthenticatedSampledRetrievabilityEvidenceV1:
-    if type(value) is not _AuthenticatedSampledRetrievabilityEvidenceV1:
+    if (
+        not isinstance(value, _AuthenticatedSampledRetrievabilityEvidenceV1)
+        or type(value) is not _AuthenticatedSampledRetrievabilityEvidenceV1
+    ):
         raise TypeError("governed sample requires exact authenticated sampled response")
-    authenticated = cast(_AuthenticatedSampledRetrievabilityEvidenceV1, value)
+    authenticated = value
     if not authenticated._has_private_seal():
         raise TypeError("governed sample requires sealed authenticated sampled response")
     authenticated._projection_for_spot_v7_da_prerequisite_v1()

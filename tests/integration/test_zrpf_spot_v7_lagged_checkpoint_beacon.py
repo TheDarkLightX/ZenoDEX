@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import pickle
+from typing import Any, cast
 
 import pytest
 
@@ -245,7 +246,7 @@ def test_lagged_beacon_capability_is_nontransferable_and_rechecks_sources() -> N
     with pytest.raises(TypeError):
         pickle.dumps(governed)
     with pytest.raises(TypeError):
-        governed._seal = object()
+        governed._seal = cast(Any, object())
 
     object.__setattr__(source._projection, "next_application_checkpoint_hash", _root("forged"))
     with pytest.raises(ValueError, match="projection drift"):

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import NoReturn, SupportsIndex, cast, final
+from typing import NoReturn, SupportsIndex, final
 
 from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
     _derive_capability_commitment,
@@ -244,9 +244,12 @@ def _bind_spot_v7_operational_commit_capability_v3(
 def _require_governed_da_v2(
     value: object,
 ) -> _GovernedSpotV7DataAvailabilityPrerequisiteV2:
-    if type(value) is not _GovernedSpotV7DataAvailabilityPrerequisiteV2:
+    if (
+        not isinstance(value, _GovernedSpotV7DataAvailabilityPrerequisiteV2)
+        or type(value) is not _GovernedSpotV7DataAvailabilityPrerequisiteV2
+    ):
         raise TypeError("operational V3 join requires exact governed DA V2")
-    typed = cast(_GovernedSpotV7DataAvailabilityPrerequisiteV2, value)
+    typed = value
     if not typed._has_private_seal():
         raise TypeError("operational V3 join requires sealed governed DA V2")
     typed._projection_for_downstream_binding_v2()
@@ -256,9 +259,12 @@ def _require_governed_da_v2(
 def _require_finality_v3(
     value: object,
 ) -> _AuthenticatedExactCheckpointFinalityTransitionV3:
-    if type(value) is not _AuthenticatedExactCheckpointFinalityTransitionV3:
+    if (
+        not isinstance(value, _AuthenticatedExactCheckpointFinalityTransitionV3)
+        or type(value) is not _AuthenticatedExactCheckpointFinalityTransitionV3
+    ):
         raise TypeError("operational V3 join requires exact finality V3")
-    typed = cast(_AuthenticatedExactCheckpointFinalityTransitionV3, value)
+    typed = value
     if not typed._has_private_seal():
         raise TypeError("operational V3 join requires sealed finality V3")
     if "0x" + hashlib.sha256(typed._exact_finality_evidence_bytes).hexdigest() != (

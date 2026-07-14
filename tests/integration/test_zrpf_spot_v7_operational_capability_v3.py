@@ -7,6 +7,7 @@ import hashlib
 import pickle
 from collections.abc import Callable
 from dataclasses import replace
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -292,4 +293,4 @@ def test_v3_capability_is_nontransferable(
         operation(capability)
 
     with pytest.raises(TypeError):
-        capability._settlement = settlement
+        capability._settlement = cast(Any, settlement)

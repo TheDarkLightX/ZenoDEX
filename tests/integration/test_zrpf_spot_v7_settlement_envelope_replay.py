@@ -1055,7 +1055,10 @@ def test_v2_replay_rejects_program_policy_and_state_substitution(
     expected_code: str,
 ) -> None:
     fixture = _fixture()
-    candidate = replace(fixture.candidate, **{field_name: replacement})
+    candidate = replace(
+        fixture.candidate,
+        **cast(Any, {field_name: replacement}),
+    )
     config = replay_engine_config_document_v0(DexEngineConfig(chain_id=_CHAIN_ID))
     adapter = SpotV7SettlementEnvelopeReplayAdapterV2(config)
 

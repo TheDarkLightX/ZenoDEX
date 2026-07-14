@@ -17,6 +17,9 @@ import src.integration._zrpf_spot_v7_zeno_ledger_finality_contract as finality_c
 import src.integration.zrpf_spot_v7_zeno_ledger_finality_adapter as finality_adapter
 import tests.integration.test_zrpf_spot_v7_settlement_envelope_replay as replay_test
 import tests.integration.test_zrpf_spot_v7_zeno_ledger_finality_adapter as v2_test
+from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
+    _SpotV7SettlementCandidateInputV1,
+)
 from src.integration._zrpf_spot_v7_operational_capability_v2 import (
     _AuthenticatedExactCheckpointFinalityTransitionV2,
     _GovernedSpotV7OperationalPolicyV2,
@@ -68,7 +71,7 @@ class _V3Fixture:
 
 
 def _policy_v3(
-    candidate: object,
+    candidate: _SpotV7SettlementCandidateInputV1,
     registry: dict[str, Any],
     header: dict[str, Any],
     *,
