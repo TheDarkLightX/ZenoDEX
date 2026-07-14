@@ -36,6 +36,9 @@ SPOT_V7_OPERATIONAL_GATE = ROOT / "src/integration/_zrpf_spot_v7_operational_gat
 SPOT_V7_OPERATIONAL_CAPABILITY_V2 = (
     ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v2.py"
 )
+SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER = (
+    ROOT / "src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py"
+)
 SPOT_V7_ATOMIC_STORE = (
     ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
 )
@@ -150,6 +153,9 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             ),
             SPOT_V7_OPERATIONAL_GATE: PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES,
             SPOT_V7_OPERATIONAL_CAPABILITY_V2: (
+                PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+            ),
+            SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER: (
                 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
             ),
         }.get(path, frozenset())
