@@ -1,0 +1,81 @@
+name: zrpf-full-blob-da-verifier
+
+on:
+  pull_request:
+    paths:
+      - 'zk/zrpf_protocol/protocol/Cargo.toml'
+      - 'zk/zrpf_protocol/protocol/src/bin/full_blob_da_policy_verifier_v1.rs'
+      - 'zk/zrpf_protocol/protocol/tests/full_blob_da_policy_verifier_v1.rs'
+      - '.github/workflows/zrpf-full-blob-da-verifier.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'zk/zrpf_protocol/protocol/Cargo.toml'
+      - 'zk/zrpf_protocol/protocol/src/bin/full_blob_da_policy_verifier_v1.rs'
+      - 'zk/zrpf_protocol/protocol/tests/full_blob_da_policy_verifier_v1.rs'
+      - '.github/workflows/zrpf-full-blob-da-verifier.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verifier:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install hash-pinned Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz"
+          destination="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "${archive}" \
+            'https://github.com/risc0/rust/releases/download/r0.1.94.1/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz'
+          test "$(stat --format='%s' "${archive}")" = '512619537'
+          echo 'e88d823762fc06e8911fb6b310ffe2fca8fcd7af2438572f7aa90aaf3e84ea02  '"${archive}" \
+            | sha256sum --check --strict
+          mkdir -p "${destination}"
+          tar --extract --gzip --file "${archive}" \
+            --directory "${destination}" --no-same-owner
+          rm --force "${archive}"
+
+      - name: Acquire lockfile-bound dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/zrpf_protocol/Cargo.toml
+
+      - name: Run exact verifier assurance
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          export PATH="${pinned_bin}:/usr/bin:/bin"
+          export RUSTC="${pinned_bin}/rustc"
+          export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/zrpf_protocol/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/zrpf_protocol/Cargo.toml \
+            --locked -p zenodex-zrpf-protocol-v3 \
+            --test full_blob_da_policy_verifier_v1
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/zrpf_protocol/Cargo.toml \
+            --locked -p zenodex-zrpf-protocol-v3 \
+            --bin zrpf-full-blob-da-policy-verifier-v1 \
+            --test full_blob_da_policy_verifier_v1 \
+            -- -D warnings
