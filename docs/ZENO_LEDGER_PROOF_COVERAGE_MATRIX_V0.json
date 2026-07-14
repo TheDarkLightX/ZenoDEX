@@ -28,7 +28,7 @@
     {
       "id": "replay_bound_range_verification",
       "claim_id": "py:zeno_ledger:replay_bound_range_v0",
-      "coverage": "Strict ZenoLedger range verification anchors a canonical pre-state snapshot, binds a float-free governed engine configuration, carries replayed state across linked headers, executes each body exactly once, and requires exact post-state roots and rejection receipts. Structural diagnostics cannot authorize watcher attestations.",
+      "coverage": "Strict ZenoLedger range verification anchors a canonical pre-state snapshot, binds a float-free governed engine configuration, carries replayed state across linked headers, executes each supported transaction body exactly once, and requires exact post-state roots and rejection receipts. V0 rejects nonempty body-level settlement_envelopes because it has no governed executor for that effect surface. Structural diagnostics cannot authorize watcher attestations.",
       "proof_kind": "deterministic_replay_v0"
     },
     {
@@ -106,6 +106,7 @@
     "does_not_claim_light_client_state_transition_replay",
     "does_not_claim_light_client_finality",
     "does_not_claim_recursive_epoch_proof_soundness",
-    "does_not_claim_proof_required_cryptographic_authority"
+    "does_not_claim_proof_required_cryptographic_authority",
+    "does_not_claim_body_level_settlement_envelope_replay"
   ]
 }

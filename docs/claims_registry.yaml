@@ -1246,10 +1246,12 @@ claims:
       The strict ZenoLedger range verifier binds every checked header to a
       canonical bounded DexEngineConfig digest, anchors the range to a canonical
       pre-state snapshot at from_height, checks parent-post to child-pre continuity,
-      deterministically re-executes every body exactly once, requires the replayed
-      post-state root and exact rejection receipts to match their commitments, and
-      carries the replayed state across the range. Any replay failure clears partial
-      range acceptance. Structural
+      deterministically re-executes every supported transaction body exactly once,
+      requires the replayed post-state root and exact rejection receipts to match
+      their commitments, and carries the replayed state across the range. Because
+      V0 has no governed executor for body-level settlement envelopes, replay-bound verification
+      rejects any body whose settlement_envelopes list is nonempty. Any replay
+      failure clears partial range acceptance. Structural
       checking remains available only as an explicitly non-authoritative mode,
       and watcher attestations reject structural reports.
     evidence:

@@ -27,7 +27,10 @@ Current supported surfaces cover:
   the archive checker for `real_proof_smoke_report.json`;
 - strict replay-bound range verification from one canonical anchor snapshot,
   with governed configuration binding, linked carried state, one deterministic
-  execution per body, and exact post-state-root and rejection-receipt checks;
+  execution per supported transaction body, and exact post-state-root and
+  rejection-receipt checks. V0 rejects nonempty body-level
+  `settlement_envelopes` because that effect surface has no governed replay
+  executor;
 - proof-required metadata gating as a structural diagnostic. The range verifier
   records a typed pending authority obligation and does not accept metadata or
   report booleans as cryptographic proof authority;

@@ -415,6 +415,54 @@ def test_replay_bound_range_rejects_fabricated_post_state_root(tmp_path: Path) -
     assert any("post_state_root does not match re-executed body state" in error for error in report["errors"])
 
 
+def test_replay_bound_range_rejects_unexecuted_settlement_envelopes(
+    tmp_path: Path,
+) -> None:
+    state = _empty_state()
+    body = _empty_body(1)
+    body["settlement_envelopes"] = [
+        {
+            "schema": "adversarial/unexecuted_settlement_envelope/v0",
+            "claimed_value_effect": _root("unexecuted-value-effect"),
+        }
+    ]
+    inputs = _write_single_height(
+        tmp_path,
+        body=body,
+        pre_state=state,
+        post_state_root=dex_state_root_v0(state),
+    )
+
+    structural = verify_zeno_ledger_v0(
+        headers_dir=inputs[0],
+        bodies_dir=inputs[1],
+        checkpoints_dir=None,
+        profile_path=None,
+        from_height=1,
+        to_height=1,
+        mode=STRUCTURAL_DIAGNOSTIC_MODE,
+    )
+    replay_bound = _strict_verify(
+        headers_dir=inputs[0],
+        bodies_dir=inputs[1],
+        snapshots_dir=inputs[2],
+        config_path=inputs[3],
+        to_height=1,
+    )
+
+    assert structural["ok"] is True
+    assert replay_bound["ok"] is False
+    assert replay_bound["state_replay_checked"] is False
+    assert replay_bound["checked_heights"] == []
+    assert replay_bound["last_header_hash"] is None
+    assert replay_bound["last_post_state_root"] is None
+    assert replay_bound["last_app_hash"] is None
+    assert any(
+        "body settlement_envelopes are not supported by replay-bound v0" in error
+        for error in replay_bound["errors"]
+    )
+
+
 @pytest.mark.parametrize("mutation", ["forged", "missing", "duplicated", "reordered"])
 def test_replay_bound_range_rejects_mutated_rejection_receipts(
     tmp_path: Path,

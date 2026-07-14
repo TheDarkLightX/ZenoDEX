@@ -284,6 +284,13 @@ def validate_replay_bound_block_v0(
 ) -> DexState:
     """Validate and replay one block, returning the only admissible next state."""
 
+    # V0 replays transactions only. A body-level settlement envelope is a
+    # separately committed effect surface, so accepting one without a governed
+    # executor would overstate state_replay_checked.
+    if body.get("settlement_envelopes") != []:
+        raise ValueError(
+            "body settlement_envelopes are not supported by replay-bound v0"
+        )
     if header.get("config_digest") != config_digest:
         raise ValueError("header config_digest does not match governed engine config")
     if header.get("chain_id") != config.chain_id:
