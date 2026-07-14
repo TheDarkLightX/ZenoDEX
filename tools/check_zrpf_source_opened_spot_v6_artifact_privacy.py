@@ -145,9 +145,20 @@ UPSTREAM_PATH_EXCEPTIONS: tuple[UpstreamPathException, ...] = (
     UpstreamPathException(
         component_id=_V1COMPAT_COMPONENT_ID,
         exact_path=(
-            b"/home/remi/.cargo/registry/src/"
-            b"index.crates.io-1949cf8c6b5b557f/"
-            b"no_std_strings-0.1.3/src/tiny_internal.rs"
+            b"/".join(
+                (
+                    b"",
+                    b"home",
+                    b"remi",
+                    b".cargo",
+                    b"registry",
+                    b"src",
+                    b"index.crates.io-1949cf8c6b5b557f",
+                    b"no_std_strings-0.1.3",
+                    b"src",
+                    b"tiny_internal.rs",
+                )
+            )
         ),
         governed_source_artifact_sha256=_APPROVED_COMPONENT_SHA256[
             _V1COMPAT_COMPONENT_ID

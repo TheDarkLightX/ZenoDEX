@@ -14,6 +14,10 @@ from tools import check_zrpf_source_opened_spot_v6_local_evidence as evidence
 from tools import zrpf_v3_artifact_privacy as privacy
 
 
+def _posix_path(*parts: bytes) -> bytes:
+    return b"/".join((b"", *parts))
+
+
 def _populate_clean_inventory(root: Path) -> None:
     kinds = {
         path: kind for _artifact_id, path, kind in evidence.ARTIFACT_SPECS
@@ -164,7 +168,14 @@ def test_exact_pinned_upstream_path_is_allowed_once_only_in_r0bf_program(
 @pytest.mark.parametrize(
     ("exception_index", "mutate"),
     [
-        (0, lambda raw: raw.replace(b"/home/remi/", b"/home/remix/", 1)),
+        (
+            0,
+            lambda raw: raw.replace(
+                _posix_path(b"home", b"remi", b""),
+                _posix_path(b"home", b"remix", b""),
+                1,
+            ),
+        ),
         (0, lambda raw: raw.replace(b"no_std_strings-0.1.3", b"no_std_strings-0.1.4", 1)),
         (0, lambda raw: b"coherent-prefix" + raw),
         (0, lambda raw: raw + b".bak"),
@@ -358,7 +369,7 @@ def test_changed_governed_upstream_artifact_hash_rejects_policy(
 @pytest.mark.parametrize(
     ("payload", "rule_id"),
     [
-        (b"/home/private user/source.rs", "posix_home_path"),
+        (_posix_path(b"home", b"private user", b"source.rs"), "posix_home_path"),
         (b"/root/private user/source.rs", "posix_root_path"),
     ],
 )
@@ -381,8 +392,14 @@ def test_arbitrary_home_or_root_path_is_detected_for_v6(
 @pytest.mark.parametrize(
     ("rule_id", "payload"),
     [
-        ("posix_home_path", b"source=/home/researcher/private/build.rs"),
-        ("posix_workspace_path", b"source=/workspace/private-project/src/lib.rs"),
+        (
+            "posix_home_path",
+            b"source=" + _posix_path(b"home", b"researcher", b"private", b"build.rs"),
+        ),
+        (
+            "posix_workspace_path",
+            b"source=" + _posix_path(b"workspace", b"private-project", b"src", b"lib.rs"),
+        ),
         ("email_address", b"author=researcher@example.invalid"),
         ("github_legacy_token", b"token=ghp_" + b"A" * 36),
         ("private_key_pem", b"-----BEGIN OPENSSH PRIVATE KEY-----"),

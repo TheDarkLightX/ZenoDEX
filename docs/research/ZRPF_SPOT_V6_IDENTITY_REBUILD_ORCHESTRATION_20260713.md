@@ -219,8 +219,8 @@ Docker image. Both the run root and every executor output must begin absent.
 ```bash
 python3 tools/execute_zrpf_source_opened_spot_v6_identity_rebuild.py \
   --plan /absolute/external/rebuild-plan.json \
-  --risc0-home /home/trevormoc/.risc0 \
-  --cargo-registry-dir /home/trevormoc/.cargo/registry
+  --risc0-home /absolute/pinned/risc0-home \
+  --cargo-registry-dir /absolute/pinned/cargo-registry
 ```
 
 On success, the executor writes these exact canonical documents beneath the
