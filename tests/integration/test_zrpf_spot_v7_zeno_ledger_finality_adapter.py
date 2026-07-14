@@ -481,7 +481,7 @@ def test_finality_rejects_policy_reuse_at_its_revocation_epoch() -> None:
     )
     expired = replace(
         fixture,
-        adapter=SpotV7ZenoLedgerCheckpointFinalityAdapterV1(policy),
+        adapter=SpotV7ZenoLedgerCheckpointFinalityAdapterV2(policy),
     )
 
     with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
