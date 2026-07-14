@@ -151,8 +151,80 @@ def test_loader_mints_exact_governed_policy_after_pinned_bls_quorum() -> None:
 
     assert type(policy) is _GovernedSpotV7OperationalPolicyV2
     assert policy._policy_for_atomic_store() == _material()._to_authority_false_store_policy()
+    provenance = policy._policy_provenance_for_atomic_store()
+    evidence = json.loads(provenance.exact_evidence_bytes)
+    assert provenance.evidence_root == "0x" + hashlib.sha256(
+        provenance.exact_evidence_bytes
+    ).hexdigest()
+    assert provenance.manifest_sha256 == hashlib.sha256(raw).hexdigest()
+    assert provenance.signer_registry_hash == registry["registry_hash"]
+    assert evidence["manifest_bytes_hex"] == raw.hex()
+    assert evidence["signature_quorum_report"]["quorum_report_hash"] == (
+        provenance.signature_quorum_report_hash
+    )
     assert policy.settlement_authority is False
     assert policy.production_authority is False
+
+
+def test_loader_canonicalizes_signature_set_order_in_retained_provenance() -> None:
+    registry = build_signer_registry_v0(
+        registry_id=REGISTRY_ID,
+        payload_kind=SPOT_V7_OPERATIONAL_POLICY_PAYLOAD_KIND_V1,
+        threshold=2,
+        signers=[
+            {
+                "signer_id": "release-signer-0",
+                "key_id": "release-key-0",
+                "public_key": bls_public_key_hex_from_private_key_v0(PRIVATE_KEY),
+                "weight": 1,
+                "status": "active",
+            },
+            {
+                "signer_id": "release-signer-1",
+                "key_id": "release-key-1",
+                "public_key": bls_public_key_hex_from_private_key_v0(ATTACKER_PRIVATE_KEY),
+                "weight": 1,
+                "status": "active",
+            },
+        ],
+    )
+    raw = _manifest(registry)
+    payload_hash = spot_v7_operational_policy_manifest_payload_hash_v1(raw)
+    envelopes = (
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=SPOT_V7_OPERATIONAL_POLICY_PAYLOAD_KIND_V1,
+            payload_hash=payload_hash,
+            signer_id="release-signer-0",
+            key_id="release-key-0",
+            private_key_hex=PRIVATE_KEY,
+        ),
+        build_bls_signed_artifact_envelope_v0(
+            payload_kind=SPOT_V7_OPERATIONAL_POLICY_PAYLOAD_KIND_V1,
+            payload_hash=payload_hash,
+            signer_id="release-signer-1",
+            key_id="release-key-1",
+            private_key_hex=ATTACKER_PRIVATE_KEY,
+        ),
+    )
+
+    forward = _load(raw, registry, envelopes)
+    reverse = _load(raw, registry, tuple(reversed(envelopes)))
+
+    assert (
+        forward._policy_provenance_for_atomic_store().evidence_root
+        == reverse._policy_provenance_for_atomic_store().evidence_root
+    )
+
+
+def test_policy_rechecks_retained_provenance_before_atomic_handoff() -> None:
+    registry = _registry()
+    raw = _manifest(registry)
+    policy = _load(raw, registry, _envelopes(raw))
+    provenance = policy._policy_provenance_for_atomic_store()
+    object.__setattr__(provenance, "exact_evidence_bytes", b"forged")
+
+    with pytest.raises(ValueError, match="provenance drift"):
+        policy._policy_provenance_for_atomic_store()
 
 
 def test_manifest_builder_is_canonical_and_payload_hash_is_deterministic() -> None:

@@ -24,6 +24,7 @@ from src.integration._zrpf_spot_v7_firecracker_authority import (
 from src.integration._zrpf_spot_v7_operational_capability_v2 import (
     _AuthenticatedExactCheckpointFinalityTransitionV2,
     _GovernedOperationalPolicyMaterialV2,
+    _GovernedOperationalPolicyProvenanceV1,
     _GovernedSpotV7OperationalPolicyV2,
 )
 from src.integration.zeno_ledger_signature import (
@@ -277,6 +278,7 @@ def _policy(
     header: dict[str, object],
     *,
     genesis_hash: str,
+    policy_revocation_epoch: int | None = None,
 ) -> _GovernedSpotV7OperationalPolicyV2:
     material = _GovernedOperationalPolicyMaterialV2(
         application_id=candidate.application_id,
@@ -299,8 +301,23 @@ def _policy(
         genesis_application_checkpoint_sequence=0,
         genesis_application_checkpoint_hash=genesis_hash,
     )
+    provenance_bytes = b'{"schema":"test-only-operational-policy-provenance-v1"}'
     return _GovernedSpotV7OperationalPolicyV2(
         material,
+        provenance=_GovernedOperationalPolicyProvenanceV1(
+            evidence_root="0x" + hashlib.sha256(provenance_bytes).hexdigest(),
+            exact_evidence_bytes=provenance_bytes,
+            manifest_sha256=hashlib.sha256(b"test-only-manifest").hexdigest(),
+            signer_registry_hash=_root("test-only-policy-registry"),
+            signature_quorum_report_hash=_root("test-only-policy-quorum"),
+            policy_revision=1,
+            policy_activation_epoch=0,
+            policy_revocation_epoch=policy_revocation_epoch,
+            signer_registry_revision=1,
+            signer_registry_activation_epoch=0,
+            signer_registry_revocation_epoch=None,
+            evaluation_epoch=0,
+        ),
         seal=operational_v2._GOVERNED_OPERATIONAL_POLICY_SEAL_V2,
     )
 
@@ -396,6 +413,27 @@ def test_valid_governed_bls_quorum_mints_exact_checkpoint_finality_v2() -> None:
     )
     assert evidence["live_quorum_admission"]["accepted_weight"] == 2
     assert canonical_json_bytes_v0(evidence) == capability._exact_finality_evidence_bytes
+
+
+def test_finality_rejects_policy_reuse_at_its_revocation_epoch() -> None:
+    fixture = _fixture()
+    candidate = fixture.settlement._candidate_for_atomic_store()
+    policy = _policy(
+        candidate,
+        fixture.registry,
+        fixture.header,
+        genesis_hash=fixture.prior_cursor.checkpoint_hash,
+        policy_revocation_epoch=candidate.epoch_id,
+    )
+    expired = replace(
+        fixture,
+        adapter=SpotV7ZenoLedgerCheckpointFinalityAdapterV1(policy),
+    )
+
+    with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
+        _authenticate(expired)
+
+    assert captured.value.code == "operational_policy_inactive"
 
 
 def test_signature_order_does_not_change_canonical_finality_evidence() -> None:

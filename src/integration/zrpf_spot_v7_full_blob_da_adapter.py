@@ -139,6 +139,7 @@ class PinnedFullBlobDataAvailabilityCheckerV1:
         if type(policy) is not _GovernedSpotV7OperationalPolicyV2:
             raise TypeError("DA checker requires the exact governed Spot V7 operational policy")
         try:
+            policy._require_active_at_epoch_for_operational_use(checked_epoch)
             input_value = _FullBlobDaCheckInputV1(
                 policy,
                 expected_certificate_epoch,

@@ -30,6 +30,7 @@ from typing import Any, Mapping, NoReturn, Sequence, SupportsIndex, cast, final
 from src.integration._zrpf_spot_v7_operational_capability_v2 import (
     _GOVERNED_OPERATIONAL_POLICY_SEAL_V2,
     _GovernedOperationalPolicyMaterialV2,
+    _GovernedOperationalPolicyProvenanceV1,
     _GovernedSpotV7OperationalPolicyV2,
 )
 from src.integration.zeno_ledger_signer_registry import verify_signature_quorum_v0
@@ -39,6 +40,9 @@ SPOT_V7_OPERATIONAL_POLICY_MANIFEST_SCHEMA_V1 = (
     "zenodex.zrpf.spot_v7.operational_policy_manifest.v1"
 )
 SPOT_V7_OPERATIONAL_POLICY_PAYLOAD_KIND_V1 = "zrpf_spot_v7_operational_policy"
+SPOT_V7_OPERATIONAL_POLICY_PROVENANCE_SCHEMA_V1 = (
+    "zenodex.zrpf.spot_v7.operational_policy_provenance.v1"
+)
 MAX_SPOT_V7_OPERATIONAL_POLICY_MANIFEST_BYTES_V1 = 16 * 1024
 MAX_SPOT_V7_OPERATIONAL_POLICY_SIGNERS_V1 = 64
 MAX_SPOT_V7_OPERATIONAL_POLICY_SIGNATURES_V1 = 64
@@ -236,6 +240,13 @@ class _ParsedOperationalPolicyManifestV1:
     material: _GovernedOperationalPolicyMaterialV2
     policy: _PolicyContextV1
     registry: _SignerRegistryContextV1
+
+
+@dataclass(frozen=True, slots=True)
+class _VerifiedOperationalPolicyReleaseQuorumV1:
+    registry: dict[str, Any]
+    envelopes: tuple[dict[str, Any], ...]
+    report: dict[str, Any]
 
 
 @dataclass(slots=True)
@@ -500,6 +511,22 @@ def spot_v7_operational_policy_manifest_bytes_v1(
     return raw
 
 
+def _material_root(material: Mapping[str, object], field: str) -> str:
+    return _require_root(
+        material[field],
+        name=field,
+        code="POLICY_MATERIAL_INVALID",
+    )
+
+
+def _material_u64(material: Mapping[str, object], field: str) -> int:
+    return _require_u64(
+        material[field],
+        name=field,
+        code="POLICY_MATERIAL_INVALID",
+    )
+
+
 def _parse_material(value: object) -> _GovernedOperationalPolicyMaterialV2:
     material = _require_exact_fields(
         value,
@@ -508,21 +535,31 @@ def _parse_material(value: object) -> _GovernedOperationalPolicyMaterialV2:
     )
     try:
         return _GovernedOperationalPolicyMaterialV2(
-            application_id=material["application_id"],
-            chain_or_domain_id=material["chain_or_domain_id"],
-            data_schema_id=material["data_schema_id"],
-            storage_policy_hash=material["storage_policy_hash"],
-            minimum_retention_epochs=material["minimum_retention_epochs"],
-            minimum_remaining_epochs=material["minimum_remaining_epochs"],
-            maximum_blob_bytes=material["maximum_blob_bytes"],
-            finality_network_id=material["finality_network_id"],
-            finality_protocol_id=material["finality_protocol_id"],
-            external_finality_policy_hash=material["external_finality_policy_hash"],
-            finality_verifier_set_root=material["finality_verifier_set_root"],
-            genesis_application_checkpoint_sequence=material[
-                "genesis_application_checkpoint_sequence"
-            ],
-            genesis_application_checkpoint_hash=material["genesis_application_checkpoint_hash"],
+            application_id=_material_root(material, "application_id"),
+            chain_or_domain_id=_material_root(material, "chain_or_domain_id"),
+            data_schema_id=_material_root(material, "data_schema_id"),
+            storage_policy_hash=_material_root(material, "storage_policy_hash"),
+            minimum_retention_epochs=_material_u64(material, "minimum_retention_epochs"),
+            minimum_remaining_epochs=_material_u64(material, "minimum_remaining_epochs"),
+            maximum_blob_bytes=_material_u64(material, "maximum_blob_bytes"),
+            finality_network_id=_material_root(material, "finality_network_id"),
+            finality_protocol_id=_material_root(material, "finality_protocol_id"),
+            external_finality_policy_hash=_material_root(
+                material,
+                "external_finality_policy_hash",
+            ),
+            finality_verifier_set_root=_material_root(
+                material,
+                "finality_verifier_set_root",
+            ),
+            genesis_application_checkpoint_sequence=_material_u64(
+                material,
+                "genesis_application_checkpoint_sequence",
+            ),
+            genesis_application_checkpoint_hash=_material_root(
+                material,
+                "genesis_application_checkpoint_hash",
+            ),
         )
     except (TypeError, ValueError) as exc:
         raise _reject("POLICY_MATERIAL_INVALID", str(exc)) from exc
@@ -821,9 +858,14 @@ def _verify_release_quorum(
     parsed: _ParsedOperationalPolicyManifestV1,
     signer_registry: object,
     signature_envelopes: object,
-) -> None:
+) -> _VerifiedOperationalPolicyReleaseQuorumV1:
     registry = _snapshot_registry(signer_registry)
-    envelopes = _snapshot_envelopes(signature_envelopes)
+    envelopes = tuple(
+        sorted(
+            _snapshot_envelopes(signature_envelopes),
+            key=canonical_json_bytes,
+        )
+    )
     if registry.get("registry_id") != parsed.registry.registry_id:
         raise _reject("SIGNER_REGISTRY_ID_MISMATCH", "signer registry id differs from manifest")
     if registry.get("registry_hash") != parsed.registry.registry_hash:
@@ -832,7 +874,7 @@ def _verify_release_quorum(
             "signer registry hash differs from manifest",
         )
     try:
-        verify_signature_quorum_v0(
+        report = verify_signature_quorum_v0(
             registry=registry,
             payload_kind=SPOT_V7_OPERATIONAL_POLICY_PAYLOAD_KIND_V1,
             payload_hash=spot_v7_operational_policy_manifest_payload_hash_v1(raw_manifest),
@@ -840,6 +882,65 @@ def _verify_release_quorum(
         )
     except (RuntimeError, TypeError, ValueError) as exc:
         raise _reject("SIGNATURE_QUORUM_INVALID", str(exc)) from exc
+    return _VerifiedOperationalPolicyReleaseQuorumV1(
+        registry=registry,
+        envelopes=envelopes,
+        report=report,
+    )
+
+
+def _build_policy_provenance(
+    *,
+    raw_manifest: bytes,
+    parsed: _ParsedOperationalPolicyManifestV1,
+    pins: SpotV7OperationalPolicyReleasePinsV1,
+    evaluation_epoch: int,
+    quorum: _VerifiedOperationalPolicyReleaseQuorumV1,
+) -> _GovernedOperationalPolicyProvenanceV1:
+    evidence = canonical_json_bytes(
+        {
+            "schema": SPOT_V7_OPERATIONAL_POLICY_PROVENANCE_SCHEMA_V1,
+            "manifest_bytes_hex": raw_manifest.hex(),
+            "manifest_payload_hash": (
+                spot_v7_operational_policy_manifest_payload_hash_v1(raw_manifest)
+            ),
+            "release_pins": {
+                "manifest_sha256": pins.manifest_sha256,
+                "application_id": pins.application_id,
+                "chain_or_domain_id": pins.chain_or_domain_id,
+                "policy_revision": pins.policy_revision,
+                "signer_registry_id": pins.signer_registry_id,
+                "signer_registry_hash": pins.signer_registry_hash,
+                "signer_registry_revision": pins.signer_registry_revision,
+            },
+            "evaluation_epoch": evaluation_epoch,
+            "policy_lifecycle": {
+                "activation_epoch": parsed.policy.activation_epoch,
+                "revocation_epoch": parsed.policy.revocation_epoch,
+            },
+            "signer_registry_lifecycle": {
+                "activation_epoch": parsed.registry.activation_epoch,
+                "revocation_epoch": parsed.registry.revocation_epoch,
+            },
+            "signer_registry": quorum.registry,
+            "signature_envelopes": list(quorum.envelopes),
+            "signature_quorum_report": quorum.report,
+        }
+    )
+    return _GovernedOperationalPolicyProvenanceV1(
+        evidence_root="0x" + hashlib.sha256(evidence).hexdigest(),
+        exact_evidence_bytes=evidence,
+        manifest_sha256=pins.manifest_sha256,
+        signer_registry_hash=pins.signer_registry_hash,
+        signature_quorum_report_hash=str(quorum.report["quorum_report_hash"]),
+        policy_revision=pins.policy_revision,
+        policy_activation_epoch=parsed.policy.activation_epoch,
+        policy_revocation_epoch=parsed.policy.revocation_epoch,
+        signer_registry_revision=pins.signer_registry_revision,
+        signer_registry_activation_epoch=parsed.registry.activation_epoch,
+        signer_registry_revocation_epoch=parsed.registry.revocation_epoch,
+        evaluation_epoch=evaluation_epoch,
+    )
 
 
 def _open_authenticated_release_context(
@@ -888,7 +989,7 @@ def load_governed_spot_v7_operational_policy_v2(
     parsed = _parse_manifest_v1(raw_manifest)
     _require_manifest_binding(raw_manifest=raw_manifest, parsed=parsed, pins=release_pins)
     _require_active_release_context(parsed, checked_epoch)
-    _verify_release_quorum(
+    quorum = _verify_release_quorum(
         raw_manifest=raw_manifest,
         parsed=parsed,
         signer_registry=signer_registry,
@@ -896,5 +997,12 @@ def load_governed_spot_v7_operational_policy_v2(
     )
     return _GovernedSpotV7OperationalPolicyV2(
         parsed.material,
+        provenance=_build_policy_provenance(
+            raw_manifest=raw_manifest,
+            parsed=parsed,
+            pins=release_pins,
+            evaluation_epoch=checked_epoch,
+            quorum=quorum,
+        ),
         seal=_GOVERNED_OPERATIONAL_POLICY_SEAL_V2,
     )

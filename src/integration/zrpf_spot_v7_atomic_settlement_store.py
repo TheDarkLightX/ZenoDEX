@@ -608,6 +608,9 @@ def _require_v2_policy_match(
         raise TypeError("V2 operational store packet lacks its private mechanics seal")
     if packet._input.policy != governed_policy._policy_for_atomic_store():
         raise ValueError("V2 operational packet policy differs from the governed store policy")
+    governed_policy._require_active_at_epoch_for_operational_use(
+        packet._candidate_for_store().epoch_id
+    )
 
 
 def _reject_locked(

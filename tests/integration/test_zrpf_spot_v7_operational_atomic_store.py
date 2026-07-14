@@ -29,6 +29,7 @@ from src.integration._zrpf_spot_v7_operational_capability_v2 import (
     _bind_spot_v7_operational_commit_capability_v2,
     _GovernedExactFullBlobPolicySatisfactionV2,
     _GovernedOperationalPolicyMaterialV2,
+    _GovernedOperationalPolicyProvenanceV1,
     _GovernedSpotV7OperationalPolicyV2,
     _SpotV7AtomicEconomicCommitCapabilityV2,
 )
@@ -307,8 +308,11 @@ def _reopen(store: SQLiteSpotV7AtomicSettlementStoreV1) -> SQLiteSpotV7AtomicSet
 
 def _governed_policy_v2(
     policy: _TestOnlySpotV7OperationalPolicyV1 | None = None,
+    *,
+    policy_revocation_epoch: int | None = None,
 ) -> _GovernedSpotV7OperationalPolicyV2:
     value = policy or _policy()
+    provenance_bytes = b'{"schema":"test-only-operational-policy-provenance-v1"}'
     return _GovernedSpotV7OperationalPolicyV2(
         _GovernedOperationalPolicyMaterialV2(
             application_id=value.application_id,
@@ -324,6 +328,20 @@ def _governed_policy_v2(
             finality_verifier_set_root=value.finality_verifier_set_root,
             genesis_application_checkpoint_sequence=(value.genesis_application_checkpoint_sequence),
             genesis_application_checkpoint_hash=(value.genesis_application_checkpoint_hash),
+        ),
+        provenance=_GovernedOperationalPolicyProvenanceV1(
+            evidence_root="0x" + hashlib.sha256(provenance_bytes).hexdigest(),
+            exact_evidence_bytes=provenance_bytes,
+            manifest_sha256=hashlib.sha256(b"test-only-manifest").hexdigest(),
+            signer_registry_hash=_root(0x901),
+            signature_quorum_report_hash=_root(0x902),
+            policy_revision=1,
+            policy_activation_epoch=0,
+            policy_revocation_epoch=policy_revocation_epoch,
+            signer_registry_revision=1,
+            signer_registry_activation_epoch=0,
+            signer_registry_revocation_epoch=None,
+            evaluation_epoch=1,
         ),
         seal=operational_v2._GOVERNED_OPERATIONAL_POLICY_SEAL_V2,
     )
@@ -345,6 +363,8 @@ def _governed_settlement_v2(
 
 def _governed_v2_components(
     packet: _TestOnlySpotV7OperationalCommitV1 | None = None,
+    *,
+    policy_revocation_epoch: int | None = None,
 ) -> tuple[
     _GovernedFirecrackerSpotV7SettlementV1,
     _GovernedSpotV7OperationalPolicyV2,
@@ -353,7 +373,10 @@ def _governed_v2_components(
 ]:
     value = (packet or _packet())._input
     settlement = _governed_settlement_v2(value.settlement._input)
-    policy = _governed_policy_v2(value.policy)
+    policy = _governed_policy_v2(
+        value.policy,
+        policy_revocation_epoch=policy_revocation_epoch,
+    )
     da = value.data_availability
     governed_da = _GovernedExactFullBlobPolicySatisfactionV2(
         _GovernedFullBlobPolicyProjectionV1(
@@ -397,11 +420,16 @@ def _governed_v2_components(
 
 def _governed_v2_capability(
     packet: _TestOnlySpotV7OperationalCommitV1 | None = None,
+    *,
+    policy_revocation_epoch: int | None = None,
 ) -> tuple[
     _SpotV7AtomicEconomicCommitCapabilityV2,
     _GovernedSpotV7OperationalPolicyV2,
 ]:
-    settlement, policy, da, finality = _governed_v2_components(packet)
+    settlement, policy, da, finality = _governed_v2_components(
+        packet,
+        policy_revocation_epoch=policy_revocation_epoch,
+    )
     return (
         _bind_spot_v7_operational_commit_capability_v2(
             settlement=settlement,
@@ -503,6 +531,27 @@ def test_given_exact_sealed_v2_inputs_when_committed_then_every_surface_moves_on
         source_packet._input.finality.exact_certificate_bytes,
         source_packet._input.finality.exact_finality_evidence_bytes,
     )
+
+
+def test_atomic_sink_rechecks_policy_lifecycle_before_opening_transaction(
+    tmp_path: Path,
+) -> None:
+    source_packet = _packet()
+    epoch_id = source_packet._input.settlement._input.epoch_id
+    capability, policy = _governed_v2_capability(
+        source_packet,
+        policy_revocation_epoch=epoch_id,
+    )
+    store = _governed_store_v2(tmp_path, policy)
+    before = _database_rows(store.path)
+
+    with pytest.raises(ValueError, match="revoked at the checked epoch"):
+        store._commit_operational_capability(
+            expected_cursor=store.read_cursor(),
+            capability=capability,
+        )
+
+    assert _database_rows(store.path) == before
 
 
 @pytest.mark.parametrize(

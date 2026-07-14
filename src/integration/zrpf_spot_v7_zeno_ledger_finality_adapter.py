@@ -128,6 +128,12 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
         candidate = settlement_value._candidate_for_atomic_store()
         policy_projection = self._policy._projection
         _require_policy_binding(candidate, policy_projection)
+        try:
+            self._policy._require_active_at_epoch_for_operational_use(candidate.epoch_id)
+        except ValueError as exc:
+            raise SpotV7ZenoLedgerFinalityBindingErrorV1(
+                "operational_policy_inactive"
+            ) from exc
         policy = self._policy._policy_for_atomic_store()
         _validate_checkpoint_structure(snapshot)
         _validate_header_app_hash(snapshot.header)

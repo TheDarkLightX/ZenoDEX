@@ -104,6 +104,109 @@ _GOVERNED_EXACT_FULL_BLOB_POLICY_SEAL_V2 = _GovernedExactFullBlobPolicySealV2()
 _AUTHENTICATED_EXACT_CHECKPOINT_FINALITY_SEAL_V2 = _AuthenticatedExactCheckpointFinalitySealV2()
 _ATOMIC_ECONOMIC_COMMIT_SEAL_V2 = _AtomicEconomicCommitSealV2()
 
+MAX_OPERATIONAL_POLICY_PROVENANCE_BYTES_V1 = 2 * 1_024 * 1_024
+_MAX_U64 = (1 << 64) - 1
+
+
+def _require_policy_provenance_root_v1(value: str, *, name: str) -> None:
+    if (
+        type(value) is not str
+        or len(value) != 66
+        or not value.startswith("0x")
+        or any(character not in "0123456789abcdef" for character in value[2:])
+    ):
+        raise ValueError(f"{name} must be one canonical 32-byte root")
+
+
+def _require_policy_provenance_u64_v1(value: int, *, name: str) -> None:
+    if type(value) is not int or not 0 <= value <= _MAX_U64:
+        raise ValueError(f"{name} must be a u64")
+
+
+@dataclass(frozen=True, slots=True)
+class _GovernedOperationalPolicyProvenanceV1:
+    """Exact release evidence retained with one governed operational policy."""
+
+    evidence_root: str
+    exact_evidence_bytes: bytes
+    manifest_sha256: str
+    signer_registry_hash: str
+    signature_quorum_report_hash: str
+    policy_revision: int
+    policy_activation_epoch: int
+    policy_revocation_epoch: int | None
+    signer_registry_revision: int
+    signer_registry_activation_epoch: int
+    signer_registry_revocation_epoch: int | None
+    evaluation_epoch: int
+
+    def __post_init__(self) -> None:
+        _require_policy_provenance_root_v1(
+            self.evidence_root,
+            name="operational policy provenance root",
+        )
+        _require_policy_provenance_root_v1(
+            self.signer_registry_hash,
+            name="operational policy registry hash",
+        )
+        _require_policy_provenance_root_v1(
+            self.signature_quorum_report_hash,
+            name="operational policy quorum report hash",
+        )
+        if (
+            type(self.exact_evidence_bytes) is not bytes
+            or not self.exact_evidence_bytes
+            or len(self.exact_evidence_bytes) > MAX_OPERATIONAL_POLICY_PROVENANCE_BYTES_V1
+        ):
+            raise ValueError("operational policy provenance bytes are empty or oversized")
+        if _sha256(self.exact_evidence_bytes) != self.evidence_root:
+            raise ValueError("operational policy provenance root mismatch")
+        if (
+            type(self.manifest_sha256) is not str
+            or len(self.manifest_sha256) != 64
+            or any(character not in "0123456789abcdef" for character in self.manifest_sha256)
+        ):
+            raise ValueError("operational policy manifest SHA-256 is not canonical")
+        for name in (
+            "policy_revision",
+            "policy_activation_epoch",
+            "signer_registry_revision",
+            "signer_registry_activation_epoch",
+            "evaluation_epoch",
+        ):
+            _require_policy_provenance_u64_v1(
+                getattr(self, name),
+                name=f"operational policy provenance {name}",
+            )
+        for name in ("policy_revocation_epoch", "signer_registry_revocation_epoch"):
+            value = getattr(self, name)
+            if value is not None:
+                _require_policy_provenance_u64_v1(
+                    value,
+                    name=f"operational policy provenance {name}",
+                )
+        self._require_active_at_epoch(self.evaluation_epoch)
+
+    def _require_active_at_epoch(self, epoch: int) -> None:
+        _require_policy_provenance_u64_v1(epoch, name="operational policy checked epoch")
+        lifecycles = (
+            (
+                "operational policy",
+                self.policy_activation_epoch,
+                self.policy_revocation_epoch,
+            ),
+            (
+                "operational policy signer registry",
+                self.signer_registry_activation_epoch,
+                self.signer_registry_revocation_epoch,
+            ),
+        )
+        for name, activation_epoch, revocation_epoch in lifecycles:
+            if epoch < activation_epoch:
+                raise ValueError(f"{name} is not active at the checked epoch")
+            if revocation_epoch is not None and epoch >= revocation_epoch:
+                raise ValueError(f"{name} is revoked at the checked epoch")
+
 
 class _NonTransferableOperationalCapabilityV2:
     __slots__ = ()
@@ -128,22 +231,26 @@ class _NonTransferableOperationalCapabilityV2:
 class _GovernedSpotV7OperationalPolicyV2(_NonTransferableOperationalCapabilityV2):
     """Release-adapter-owned complete policy material for the V2 store sink."""
 
-    __slots__ = ("_material", "_projection", "_seal")
+    __slots__ = ("_material", "_projection", "_provenance", "_seal")
 
     _material: _GovernedOperationalPolicyMaterialV2
     _projection: _GovernedOperationalPolicyProjectionV1
+    _provenance: _GovernedOperationalPolicyProvenanceV1
     _seal: _GovernedOperationalPolicySealV2
 
     def __init__(
         self,
         material: _GovernedOperationalPolicyMaterialV2,
         *,
+        provenance: _GovernedOperationalPolicyProvenanceV1,
         seal: _GovernedOperationalPolicySealV2,
     ) -> None:
         if type(material) is not _GovernedOperationalPolicyMaterialV2:
             raise TypeError("governed operational policy material has the wrong type")
         if seal is not _GOVERNED_OPERATIONAL_POLICY_SEAL_V2:
             raise TypeError("V2 operational policy requires the module-private governed seal")
+        if type(provenance) is not _GovernedOperationalPolicyProvenanceV1:
+            raise TypeError("V2 operational policy requires exact release provenance")
         store_policy = material._to_authority_false_store_policy()
         projection = _GovernedOperationalPolicyProjectionV1(
             application_id=material.application_id,
@@ -153,6 +260,7 @@ class _GovernedSpotV7OperationalPolicyV2(_NonTransferableOperationalCapabilityV2
         )
         object.__setattr__(self, "_material", material)
         object.__setattr__(self, "_projection", projection)
+        object.__setattr__(self, "_provenance", provenance)
         object.__setattr__(self, "_seal", seal)
 
     def _has_private_seal(self) -> bool:
@@ -171,6 +279,20 @@ class _GovernedSpotV7OperationalPolicyV2(_NonTransferableOperationalCapabilityV2
         if expected != self._projection:
             raise ValueError("V2 operational policy projection drift")
         return policy
+
+    def _policy_provenance_for_atomic_store(
+        self,
+    ) -> _GovernedOperationalPolicyProvenanceV1:
+        if not self._has_private_seal():
+            raise TypeError("V2 operational policy lacks its private governed seal")
+        provenance = self._provenance
+        if _sha256(provenance.exact_evidence_bytes) != provenance.evidence_root:
+            raise ValueError("V2 operational policy provenance drift")
+        return provenance
+
+    def _require_active_at_epoch_for_operational_use(self, epoch: int) -> None:
+        provenance = self._policy_provenance_for_atomic_store()
+        provenance._require_active_at_epoch(epoch)
 
     @property
     def settlement_authority(self) -> bool:

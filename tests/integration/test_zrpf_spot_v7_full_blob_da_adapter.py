@@ -14,6 +14,7 @@ import src.integration._zrpf_spot_v7_operational_capability_v2 as operational_v2
 import src.integration.zrpf_spot_v7_full_blob_da_adapter as da_adapter
 from src.integration._zrpf_spot_v7_operational_capability_v2 import (
     _GovernedOperationalPolicyMaterialV2,
+    _GovernedOperationalPolicyProvenanceV1,
     _GovernedSpotV7OperationalPolicyV2,
 )
 from src.integration._zrpf_spot_v7_operational_mechanics import (
@@ -57,8 +58,11 @@ def _test_policy() -> _TestOnlySpotV7OperationalPolicyV1:
 
 def _governed_policy(
     value: _TestOnlySpotV7OperationalPolicyV1 | None = None,
+    *,
+    policy_revocation_epoch: int | None = None,
 ) -> _GovernedSpotV7OperationalPolicyV2:
     policy = value or _test_policy()
+    provenance_bytes = b'{"schema":"test-only-operational-policy-provenance-v1"}'
     return _GovernedSpotV7OperationalPolicyV2(
         _GovernedOperationalPolicyMaterialV2(
             application_id=policy.application_id,
@@ -76,6 +80,20 @@ def _governed_policy(
                 policy.genesis_application_checkpoint_sequence
             ),
             genesis_application_checkpoint_hash=(policy.genesis_application_checkpoint_hash),
+        ),
+        provenance=_GovernedOperationalPolicyProvenanceV1(
+            evidence_root="0x" + hashlib.sha256(provenance_bytes).hexdigest(),
+            exact_evidence_bytes=provenance_bytes,
+            manifest_sha256=hashlib.sha256(b"test-only-manifest").hexdigest(),
+            signer_registry_hash=_hash(10),
+            signature_quorum_report_hash=_hash(11),
+            policy_revision=1,
+            policy_activation_epoch=0,
+            policy_revocation_epoch=policy_revocation_epoch,
+            signer_registry_revision=1,
+            signer_registry_activation_epoch=0,
+            signer_registry_revocation_epoch=None,
+            evaluation_epoch=1,
         ),
         seal=operational_v2._GOVERNED_OPERATIONAL_POLICY_SEAL_V2,
     )
@@ -187,6 +205,24 @@ def test_exact_rust_check_mints_policy_and_byte_bound_authority_false_capability
     assert result._exact_blob_bytes == artifacts.exact_blob_bytes
     assert result.settlement_authority is False
     assert result.production_authority is False
+
+
+def test_loaded_policy_cannot_be_reused_at_or_after_its_revocation_epoch(
+    rust_checker: Path,
+) -> None:
+    artifacts = _artifacts()
+    policy = _governed_policy(policy_revocation_epoch=artifacts.checked_epoch)
+
+    with pytest.raises(FullBlobDaAdapterRejectedV1) as rejected:
+        _checker(rust_checker).check_exact(
+            policy=policy,
+            expected_certificate_epoch=artifacts.epoch_id,
+            checked_epoch=artifacts.checked_epoch,
+            exact_certificate_bytes=artifacts.exact_certificate_bytes,
+            exact_blob_bytes=artifacts.exact_blob_bytes,
+        )
+
+    assert rejected.value.reason is FullBlobDaAdapterRejectV1.REQUEST_INVALID
 
 
 @pytest.mark.parametrize(
