@@ -71,12 +71,12 @@ fn fixture() -> Fixture {
 
 fn request(
     fixture: &Fixture,
-    *,
     checked_epoch: u64,
     storage_policy_hash: CommitmentV3,
     blob: &[u8],
 ) -> Vec<u8> {
-    let certificate_length = u32::try_from(fixture.certificate_bytes.len()).expect("certificate len");
+    let certificate_length =
+        u32::try_from(fixture.certificate_bytes.len()).expect("certificate len");
     let blob_length = u32::try_from(blob.len()).expect("blob len");
     let mut request = Vec::new();
     request.extend_from_slice(REQUEST_MAGIC);
@@ -118,22 +118,32 @@ fn exact_policy_and_blob_emit_canonical_fixed_response() {
     let fixture = fixture();
     let output = execute(&request(
         &fixture,
-        checked_epoch: 75,
-        storage_policy_hash: fixture.storage_policy_hash,
-        blob: &fixture.blob,
+        75,
+        fixture.storage_policy_hash,
+        &fixture.blob,
     ));
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(output.stderr.is_empty());
     assert_eq!(output.stdout.len(), 160);
     assert_eq!(&output.stdout[..8], RESPONSE_MAGIC);
 
     let expected_blob_sha256: [u8; 32] = Sha256::digest(&fixture.blob).into();
-    assert_eq!(&output.stdout[8..40], fixture.policy.policy_root().unwrap().as_bytes());
+    assert_eq!(
+        &output.stdout[8..40],
+        fixture.policy.policy_root().unwrap().as_bytes()
+    );
     assert_eq!(
         &output.stdout[40..72],
         fixture.certificate.certificate_root().as_bytes()
     );
-    assert_eq!(&output.stdout[72..104], fixture.certificate.data_root().as_bytes());
+    assert_eq!(
+        &output.stdout[72..104],
+        fixture.certificate.data_root().as_bytes()
+    );
     assert_eq!(&output.stdout[104..136], &expected_blob_sha256);
     assert_eq!(&output.stdout[136..144], &50u64.to_be_bytes());
     assert_eq!(&output.stdout[144..152], &75u64.to_be_bytes());
@@ -147,9 +157,9 @@ fn coherent_certificate_with_mutated_blob_rejects() {
     blob[0] ^= 1;
     let output = execute(&request(
         &fixture,
-        checked_epoch: 75,
-        storage_policy_hash: fixture.storage_policy_hash,
-        blob: &blob,
+        75,
+        fixture.storage_policy_hash,
+        &blob,
     ));
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
@@ -161,17 +171,12 @@ fn wrong_storage_policy_and_early_check_reject() {
     let fixture = fixture();
     let wrong_storage = CommitmentV3::new(bytes32(9)).expect("wrong storage policy");
     for candidate in [
+        request(&fixture, 75, wrong_storage, &fixture.blob),
         request(
             &fixture,
-            checked_epoch: 75,
-            storage_policy_hash: wrong_storage,
-            blob: &fixture.blob,
-        ),
-        request(
-            &fixture,
-            checked_epoch: 49,
-            storage_policy_hash: fixture.storage_policy_hash,
-            blob: &fixture.blob,
+            49,
+            fixture.storage_policy_hash,
+            &fixture.blob,
         ),
     ] {
         let output = execute(&candidate);
@@ -185,9 +190,9 @@ fn framing_mutations_reject() {
     let fixture = fixture();
     let baseline = request(
         &fixture,
-        checked_epoch: 75,
-        storage_policy_hash: fixture.storage_policy_hash,
-        blob: &fixture.blob,
+        75,
+        fixture.storage_policy_hash,
+        &fixture.blob,
     );
     let mut wrong_magic = baseline.clone();
     wrong_magic[0] ^= 1;
