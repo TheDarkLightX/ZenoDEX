@@ -493,7 +493,7 @@ def test_descriptor_capabilities_require_module_private_seals() -> None:
         )
     with pytest.raises(TypeError, match="module-private seal"):
         artifact_binding._DescriptorBoundSpotV7FirecrackerRuntimeBindingV1(
-            proposal=object(),
+            proposal=object(),  # type: ignore[arg-type]
             artifacts=object(),  # type: ignore[arg-type]
             seal=object(),  # type: ignore[arg-type]
         )
