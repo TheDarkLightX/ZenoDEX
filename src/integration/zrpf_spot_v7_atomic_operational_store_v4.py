@@ -35,10 +35,18 @@ from src.integration._zrpf_spot_v7_atomic_settlement_engine import (
 )
 from src.integration._zrpf_spot_v7_atomic_settlement_history import (
     _stored_candidate_matches,
+    _validate_complete_spot_v7_economic_history,
 )
 from src.integration._zrpf_spot_v7_atomic_settlement_history_v4 import (
     MAX_SPOT_V7_V4_HISTORY_ENTRIES,
     SettlementResolverV4,
+    _append_resolved_operational_history_v4,
+    _capture_operational_history_anchor_locked_v4,
+    _empty_resolved_operational_history_locked_v4,
+    _resolve_operational_history_outside_transaction_v4,
+    _ResolvedSpotV7OperationalHistoryV4,
+    _SpotV7OperationalHistoryAnchorV4,
+    _SpotV7OperationalHistoryChangedV4,
     _validate_complete_spot_v7_operational_history_v4,
 )
 from src.integration._zrpf_spot_v7_atomic_settlement_records import (
@@ -136,7 +144,6 @@ class SQLiteSpotV7AtomicOperationalStoreV4:
                     identity=identity,
                     genesis_cells=genesis_cells,
                     policy=policy,
-                    settlement_resolver=settlement_resolver,
                     busy_timeout_ms=busy_timeout_ms,
                 )
             else:
@@ -145,14 +152,17 @@ class SQLiteSpotV7AtomicOperationalStoreV4:
                     identity=identity,
                     genesis_cells=genesis_cells,
                     policy=policy,
-                    settlement_resolver=settlement_resolver,
                     busy_timeout_ms=busy_timeout_ms,
                 )
             object.__setattr__(self, "_database_identity", _database_identity(path))
-            with self._connect() as connection:
+            resolved_history = self._resolve_history_outside_transaction_v4()
+            connection = self._connect()
+            try:
                 connection.execute("BEGIN IMMEDIATE")
-                self._validate_locked(connection)
+                self._validate_locked(connection, resolved_history=resolved_history)
                 connection.commit()
+            finally:
+                _close_connection_without_masking_v4(connection)
             _fsync_directory(path.parent)
         except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
             raise SpotV7AtomicSettlementStoreErrorV1(
@@ -209,16 +219,21 @@ class SQLiteSpotV7AtomicOperationalStoreV4:
         self,
         settlement_commitment: str,
     ) -> DurableSpotV7AtomicSettlementReceiptV1 | None:
+        connection: sqlite3.Connection | None = None
         try:
-            with self._connect() as connection:
-                connection.execute("BEGIN")
-                self._validate_locked(connection)
-                return _receipt_for_commitment(connection, settlement_commitment)
+            resolved_history = self._resolve_history_outside_transaction_v4()
+            connection = self._connect()
+            connection.execute("BEGIN")
+            self._validate_locked(connection, resolved_history=resolved_history)
+            return _receipt_for_commitment(connection, settlement_commitment)
         except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
             raise SpotV7AtomicSettlementStoreErrorV1(
                 "SPOT_V7_ATOMIC_OPERATIONAL_V4_READ_FAILED",
                 str(exc),
             ) from exc
+        finally:
+            if connection is not None:
+                _close_connection_without_masking_v4(connection)
 
     def _commit_operational_capability_v3(
         self,
@@ -228,7 +243,10 @@ class SQLiteSpotV7AtomicOperationalStoreV4:
     ) -> SpotV7AtomicSettlementResultV1:
         if type(expected_cursor) is not SpotV7AtomicSettlementCursorV1:
             raise TypeError("expected_cursor must be exact SpotV7AtomicSettlementCursorV1")
-        if type(capability) is not _SpotV7AtomicEconomicCommitCapabilityV3:
+        if (
+            not isinstance(capability, _SpotV7AtomicEconomicCommitCapabilityV3)
+            or type(capability) is not _SpotV7AtomicEconomicCommitCapabilityV3
+        ):
             raise TypeError("capability must be exact Spot V7 operational V3")
         operational = capability
         if not operational._has_private_seal():
@@ -237,16 +255,24 @@ class SQLiteSpotV7AtomicOperationalStoreV4:
         self._require_packet_policy(preflight)
         connection: sqlite3.Connection | None = None
         try:
+            resolved_history = self._resolve_history_outside_transaction_v4()
             connection = self._connect()
             connection.execute("BEGIN IMMEDIATE")
-            self._validate_locked(connection)
+            self._validate_locked(connection, resolved_history=resolved_history)
             packet = operational._packet_for_atomic_store_v4()
             self._require_packet_policy(packet)
             return self._evaluate_and_commit_locked(
                 connection,
                 expected_cursor=expected_cursor,
                 packet=packet,
+                resolved_history=resolved_history,
             )
+        except _SpotV7OperationalHistoryChangedV4 as exc:
+            _rollback_if_needed(connection)
+            raise SpotV7AtomicSettlementStoreErrorV1(
+                "SPOT_V7_ATOMIC_OPERATIONAL_V4_RETRY_REQUIRED",
+                "operational history changed during external settlement resolution",
+            ) from exc
         except SpotV7AtomicSettlementStoreErrorV1:
             _rollback_if_needed(connection)
             raise
@@ -266,6 +292,7 @@ class SQLiteSpotV7AtomicOperationalStoreV4:
         *,
         expected_cursor: SpotV7AtomicSettlementCursorV1,
         packet: _SpotV7OperationalCommitPacketV3,
+        resolved_history: _ResolvedSpotV7OperationalHistoryV4,
     ) -> SpotV7AtomicSettlementResultV1:
         candidate = _seal_test_only_spot_v7_settlement_v1(packet.candidate)
         head = _read_spot_v7_cursor(connection)
@@ -309,12 +336,27 @@ class SQLiteSpotV7AtomicOperationalStoreV4:
         _cas_operational_cursor_v4(connection, packet)
         _cas_spot_v7_meta(connection, head, next_cursor)
         _validate_spot_v7_schema_v4(connection)
-        _validate_complete_spot_v7_operational_history_v4(
-            connection,
-            policy=self._policy,
-            settlement_resolver=self._settlement_resolver,
-            pending_settlements={candidate.settlement_commitment: packet.settlement},
+        post_anchor = _SpotV7OperationalHistoryAnchorV4(
+            next_cursor,
+            packet.finality.next_application_checkpoint_sequence,
+            packet.finality.next_application_checkpoint_hash,
+            resolved_history.anchor.ordered_settlement_commitments
+            + (candidate.settlement_commitment,),
         )
+        post_history = _append_resolved_operational_history_v4(
+            resolved_history,
+            expected_anchor=post_anchor,
+            commitment=candidate.settlement_commitment,
+            settlement=packet.settlement,
+        )
+        try:
+            _validate_complete_spot_v7_operational_history_v4(
+                connection,
+                policy=self._policy,
+                resolved_history=post_history,
+            )
+        except _SpotV7OperationalHistoryChangedV4 as exc:
+            raise ValueError("Spot V7 V4 post-write history invariant mismatch") from exc
         receipt = _receipt_for_commitment(connection, candidate.settlement_commitment)
         if receipt is None:
             raise ValueError("committed Spot V7 V4 receipt is missing before commit")
@@ -359,6 +401,7 @@ class SQLiteSpotV7AtomicOperationalStoreV4:
         self,
         connection: sqlite3.Connection,
         *,
+        resolved_history: _ResolvedSpotV7OperationalHistoryV4,
         allow_initialize: bool = False,
     ) -> None:
         _initialize_or_validate_spot_v7_store_v4(
@@ -371,7 +414,7 @@ class SQLiteSpotV7AtomicOperationalStoreV4:
         _validate_complete_spot_v7_operational_history_v4(
             connection,
             policy=self._policy,
-            settlement_resolver=self._settlement_resolver,
+            resolved_history=resolved_history,
         )
 
     def _require_packet_policy(self, packet: _SpotV7OperationalCommitPacketV3) -> None:
@@ -380,16 +423,43 @@ class SQLiteSpotV7AtomicOperationalStoreV4:
         self._policy._require_active_at_epoch_for_finality_v3(packet.candidate.epoch_id)
 
     def _read_locked(self, reader: Callable[[sqlite3.Connection], _T]) -> _T:
+        connection: sqlite3.Connection | None = None
         try:
-            with self._connect() as connection:
-                connection.execute("BEGIN")
-                self._validate_locked(connection)
-                return reader(connection)
+            resolved_history = self._resolve_history_outside_transaction_v4()
+            connection = self._connect()
+            connection.execute("BEGIN")
+            self._validate_locked(connection, resolved_history=resolved_history)
+            return reader(connection)
         except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
             raise SpotV7AtomicSettlementStoreErrorV1(
                 "SPOT_V7_ATOMIC_OPERATIONAL_V4_READ_FAILED",
                 str(exc),
             ) from exc
+        finally:
+            if connection is not None:
+                _close_connection_without_masking_v4(connection)
+
+    def _resolve_history_outside_transaction_v4(
+        self,
+    ) -> _ResolvedSpotV7OperationalHistoryV4:
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN")
+            _initialize_or_validate_spot_v7_store_v4(
+                connection,
+                identity=self._identity,
+                genesis_cells=self._genesis_cells,
+                policy=self._policy,
+            )
+            _validate_complete_spot_v7_economic_history(connection)
+            anchor = _capture_operational_history_anchor_locked_v4(connection)
+            connection.rollback()
+        finally:
+            connection.close()
+        return _resolve_operational_history_outside_transaction_v4(
+            anchor,
+            self._settlement_resolver,
+        )
 
     def _connect(self) -> sqlite3.Connection:
         _require_private_parent(self._path.parent)
@@ -485,7 +555,6 @@ def _initialize_new_database_atomically_v4(
     identity: SpotV7AtomicSettlementStoreIdentityV1,
     genesis_cells: tuple[SpotV7CellOpeningV1, ...],
     policy: _GovernedSpotV7OperationalPolicyV3,
-    settlement_resolver: SettlementResolverV4,
     busy_timeout_ms: int,
 ) -> None:
     staging = _initialization_staging_path_v4(path)
@@ -502,10 +571,11 @@ def _initialize_new_database_atomically_v4(
                 policy=policy,
                 allow_initialize=created,
             )
+            empty_history = _empty_resolved_operational_history_locked_v4(connection)
             _validate_complete_spot_v7_operational_history_v4(
                 connection,
                 policy=policy,
-                settlement_resolver=settlement_resolver,
+                resolved_history=empty_history,
             )
             revision = int(
                 connection.execute(
@@ -523,10 +593,11 @@ def _initialize_new_database_atomically_v4(
                 genesis_cells=genesis_cells,
                 policy=policy,
             )
+            empty_history = _empty_resolved_operational_history_locked_v4(connection)
             _validate_complete_spot_v7_operational_history_v4(
                 connection,
                 policy=policy,
-                settlement_resolver=settlement_resolver,
+                resolved_history=empty_history,
             )
             connection.rollback()
         _require_no_staging_sidecars_v4(staging)
@@ -549,7 +620,6 @@ def _recover_published_initialization_link_v4(
     identity: SpotV7AtomicSettlementStoreIdentityV1,
     genesis_cells: tuple[SpotV7CellOpeningV1, ...],
     policy: _GovernedSpotV7OperationalPolicyV3,
-    settlement_resolver: SettlementResolverV4,
     busy_timeout_ms: int,
 ) -> None:
     staging = _initialization_staging_path_v4(path)
@@ -580,10 +650,11 @@ def _recover_published_initialization_link_v4(
             genesis_cells=genesis_cells,
             policy=policy,
         )
+        empty_history = _empty_resolved_operational_history_locked_v4(connection)
         _validate_complete_spot_v7_operational_history_v4(
             connection,
             policy=policy,
-            settlement_resolver=settlement_resolver,
+            resolved_history=empty_history,
         )
         connection.rollback()
     final_after = path.stat(follow_symlinks=False)

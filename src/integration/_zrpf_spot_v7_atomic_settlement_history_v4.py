@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, cast
 
 from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
@@ -17,6 +18,12 @@ from src.integration._zrpf_spot_v7_atomic_settlement_evidence_v4 import (
 from src.integration._zrpf_spot_v7_atomic_settlement_history import (
     _stored_candidate_matches,
     _validate_complete_spot_v7_economic_history,
+)
+from src.integration._zrpf_spot_v7_atomic_settlement_schema import (
+    _read_spot_v7_cursor,
+)
+from src.integration._zrpf_spot_v7_firecracker_authority import (
+    _GovernedFirecrackerSpotV7SettlementV1,
 )
 from src.integration._zrpf_spot_v7_operational_gate import (
     _require_settlement_capability,
@@ -34,6 +41,7 @@ from src.integration._zrpf_spot_v7_settlement_replay_packet import (
     _UntrustedPersistedSpotV7SettlementReplayInputsV2,
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
+    SpotV7AtomicSettlementCursorV1,
     _hash_bytes,
     _hex_hash,
 )
@@ -47,22 +55,37 @@ class _SpotV7SettlementResolverErrorV4(ValueError):
     """Typed fail-closed wrapper for the explicitly external resolver port."""
 
 
-def _validate_complete_spot_v7_operational_history_v4(
+class _SpotV7OperationalHistoryChangedV4(ValueError):
+    """The database changed after the resolver-safe history snapshot closed."""
+
+
+@dataclass(frozen=True, slots=True)
+class _SpotV7OperationalHistoryAnchorV4:
+    economic_cursor: SpotV7AtomicSettlementCursorV1
+    policy_checkpoint_sequence: int
+    policy_checkpoint_hash: str
+    ordered_settlement_commitments: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedSpotV7SettlementEntryV4:
+    commitment: str
+    settlement: _GovernedFirecrackerSpotV7SettlementV1
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedSpotV7OperationalHistoryV4:
+    anchor: _SpotV7OperationalHistoryAnchorV4
+    entries: tuple[_ResolvedSpotV7SettlementEntryV4, ...]
+
+
+def _capture_operational_history_anchor_locked_v4(
     connection: sqlite3.Connection,
-    *,
-    policy: _GovernedSpotV7OperationalPolicyV3,
-    settlement_resolver: SettlementResolverV4,
-    pending_settlements: Mapping[str, object] | None = None,
-) -> None:
-    _validate_complete_spot_v7_economic_history(connection)
-    revision = int(
-        connection.execute(
-            "SELECT revision FROM spot_v7_store_meta WHERE singleton = 1"
-        ).fetchone()[0]
-    )
+) -> _SpotV7OperationalHistoryAnchorV4:
+    cursor = _read_spot_v7_cursor(connection)
     page_count = int(connection.execute("PRAGMA page_count").fetchone()[0])
     page_size = int(connection.execute("PRAGMA page_size").fetchone()[0])
-    if revision > MAX_SPOT_V7_V4_HISTORY_ENTRIES:
+    if cursor.revision > MAX_SPOT_V7_V4_HISTORY_ENTRIES:
         raise ValueError("Spot V7 V4 history exceeds the governed entry bound")
     if (
         page_count <= 0
@@ -70,27 +93,103 @@ def _validate_complete_spot_v7_operational_history_v4(
         or (page_count * page_size > MAX_SPOT_V7_V4_DATABASE_BYTES)
     ):
         raise ValueError("Spot V7 V4 database exceeds the governed byte bound")
+    commitments = tuple(
+        _hex_hash(bytes(row[0]))
+        for row in connection.execute(
+            "SELECT settlement_commitment FROM spot_v7_settlements ORDER BY revision"
+        ).fetchall()
+    )
+    if len(commitments) != cursor.revision:
+        raise ValueError("Spot V7 V4 settlement history count mismatch")
     for table in (
         "spot_v7_operational_da_v4",
         "spot_v7_operational_finality_v4",
         "spot_v7_settlement_replay_v4",
     ):
         count = int(connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
-        if count != revision:
+        if count != cursor.revision:
             raise ValueError(f"Spot V7 V4 history count mismatch for {table}")
+    policy_row = connection.execute(
+        "SELECT current_checkpoint_sequence_be, current_checkpoint_hash "
+        "FROM spot_v7_operational_policy_v4 WHERE singleton = 1"
+    ).fetchone()
+    if policy_row is None:
+        raise ValueError("Spot V7 V4 policy cursor is missing")
+    return _SpotV7OperationalHistoryAnchorV4(
+        cursor,
+        int.from_bytes(bytes(policy_row[0]), "big"),
+        _hex_hash(bytes(policy_row[1])),
+        commitments,
+    )
+
+
+def _resolve_operational_history_outside_transaction_v4(
+    anchor: _SpotV7OperationalHistoryAnchorV4,
+    settlement_resolver: SettlementResolverV4,
+) -> _ResolvedSpotV7OperationalHistoryV4:
+    entries = tuple(
+        _resolve_settlement_entry(commitment, settlement_resolver)
+        for commitment in anchor.ordered_settlement_commitments
+    )
+    return _ResolvedSpotV7OperationalHistoryV4(anchor, entries)
+
+
+def _empty_resolved_operational_history_locked_v4(
+    connection: sqlite3.Connection,
+) -> _ResolvedSpotV7OperationalHistoryV4:
+    anchor = _capture_operational_history_anchor_locked_v4(connection)
+    if anchor.economic_cursor.revision != 0 or anchor.ordered_settlement_commitments:
+        raise ValueError("Spot V7 V4 initialization history is not empty")
+    return _ResolvedSpotV7OperationalHistoryV4(anchor, ())
+
+
+def _append_resolved_operational_history_v4(
+    resolved: _ResolvedSpotV7OperationalHistoryV4,
+    *,
+    expected_anchor: _SpotV7OperationalHistoryAnchorV4,
+    commitment: str,
+    settlement: _GovernedFirecrackerSpotV7SettlementV1,
+) -> _ResolvedSpotV7OperationalHistoryV4:
+    if expected_anchor.ordered_settlement_commitments != (
+        resolved.anchor.ordered_settlement_commitments + (commitment,)
+    ):
+        raise ValueError("Spot V7 V4 successor history commitment order mismatch")
+    entry = _resolved_settlement_entry(commitment, settlement)
+    return _ResolvedSpotV7OperationalHistoryV4(
+        expected_anchor,
+        resolved.entries + (entry,),
+    )
+
+
+def _validate_complete_spot_v7_operational_history_v4(
+    connection: sqlite3.Connection,
+    *,
+    policy: _GovernedSpotV7OperationalPolicyV3,
+    resolved_history: _ResolvedSpotV7OperationalHistoryV4,
+) -> None:
+    _validate_complete_spot_v7_economic_history(connection)
+    actual_anchor = _capture_operational_history_anchor_locked_v4(connection)
+    if actual_anchor != resolved_history.anchor:
+        raise _SpotV7OperationalHistoryChangedV4(
+            "Spot V7 V4 operational history changed during external resolution"
+        )
+    if len(resolved_history.entries) != len(actual_anchor.ordered_settlement_commitments):
+        raise ValueError("Spot V7 V4 resolved history entry count mismatch")
     store_policy = policy._base_store_policy_for_finality_v3()
     prior_sequence = store_policy.genesis_application_checkpoint_sequence
     prior_hash = store_policy.genesis_application_checkpoint_hash
     settlements = connection.execute(
         "SELECT * FROM spot_v7_settlements ORDER BY revision"
     ).fetchall()
-    for settlement_row in settlements:
+    for settlement_row, resolved_entry in zip(
+        settlements,
+        resolved_history.entries,
+        strict=True,
+    ):
         commitment = _hex_hash(bytes(settlement_row["settlement_commitment"]))
-        settlement = _resolve_settlement(
-            commitment,
-            settlement_resolver=settlement_resolver,
-            pending_settlements=pending_settlements,
-        )
+        if resolved_entry.commitment != commitment:
+            raise ValueError("Spot V7 V4 resolved history order mismatch")
+        settlement = resolved_entry.settlement
         candidate = settlement._candidate_for_atomic_store()
         if _derive_capability_commitment(candidate) != commitment:
             raise ValueError("Spot V7 V4 resolver returned the wrong settlement")
@@ -121,20 +220,25 @@ def _validate_complete_spot_v7_operational_history_v4(
     _require_policy_cursor(connection, prior_sequence, prior_hash)
 
 
-def _resolve_settlement(
+def _resolve_settlement_entry(
     commitment: str,
-    *,
     settlement_resolver: SettlementResolverV4,
-    pending_settlements: Mapping[str, object] | None,
-) -> Any:
-    if pending_settlements is not None and commitment in pending_settlements:
-        value = pending_settlements[commitment]
-    else:
-        try:
-            value = settlement_resolver(commitment)
-        except Exception as exc:
-            raise _SpotV7SettlementResolverErrorV4("Spot V7 V4 settlement resolver failed") from exc
-    return _require_settlement_capability(value)
+) -> _ResolvedSpotV7SettlementEntryV4:
+    try:
+        value = settlement_resolver(commitment)
+    except Exception as exc:
+        raise _SpotV7SettlementResolverErrorV4("Spot V7 V4 settlement resolver failed") from exc
+    return _resolved_settlement_entry(commitment, value)
+
+
+def _resolved_settlement_entry(
+    commitment: str,
+    value: object,
+) -> _ResolvedSpotV7SettlementEntryV4:
+    settlement = _require_settlement_capability(value)
+    if _derive_capability_commitment(settlement._candidate_for_atomic_store()) != commitment:
+        raise ValueError("Spot V7 V4 resolver returned the wrong settlement")
+    return _ResolvedSpotV7SettlementEntryV4(commitment, settlement)
 
 
 def _operational_rows(

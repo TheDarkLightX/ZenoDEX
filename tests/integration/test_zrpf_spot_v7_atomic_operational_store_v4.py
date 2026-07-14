@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
+import src.integration._zrpf_spot_v7_atomic_settlement_history_v4 as history_v4_module
 import src.integration.zrpf_spot_v7_atomic_operational_store_v4 as store_v4_module
 import tests.integration.test_zrpf_spot_v7_governed_da_prerequisite_v2 as da_test
 import tests.integration.test_zrpf_spot_v7_operational_atomic_store as legacy_store_test
@@ -586,6 +587,16 @@ def _tamper_operational_blob(path: Path, mutation: str) -> None:
         connection.execute(update_statement, (_flip_first_byte(row[0]),))
 
 
+def _acquire_immediate_noop_write_and_rollback(path: Path) -> None:
+    with sqlite3.connect(path, timeout=0.05, isolation_level=None) as connection:
+        connection.execute("PRAGMA busy_timeout = 50")
+        connection.execute("BEGIN IMMEDIATE")
+        connection.execute(
+            "UPDATE spot_v7_store_meta SET revision = revision WHERE singleton = 1"
+        )
+        connection.rollback()
+
+
 def test_given_genuine_prerequisites_when_v4_commits_and_reopens_then_history_replays_authority_false(
     tmp_path: Path,
     genuine_v4_fixture: _GenuineV4Fixture,
@@ -701,6 +712,7 @@ def test_given_commit_and_rollback_failures_then_primary_outcome_unknown_error_s
 ) -> None:
     store = _store(tmp_path, genuine_v4_fixture)
     initial_cursor = store.read_cursor()
+    snapshot_connection = store._connect()
     proxy = _CommitFaultConnection(
         store._connect(),
         commit_before_raise=False,
@@ -709,7 +721,7 @@ def test_given_commit_and_rollback_failures_then_primary_outcome_unknown_error_s
     with patch.object(
         store_v4_module.SQLiteSpotV7AtomicOperationalStoreV4,
         "_connect",
-        return_value=proxy,
+        side_effect=(snapshot_connection, proxy),
     ):
         with pytest.raises(SpotV7AtomicSettlementStoreErrorV1) as captured:
             store._commit_operational_capability_v3(
@@ -730,6 +742,7 @@ def test_given_commit_succeeds_before_ack_failure_then_exact_retry_is_idempotent
 ) -> None:
     store = _store(tmp_path, genuine_v4_fixture)
     initial_cursor = store.read_cursor()
+    snapshot_connection = store._connect()
     proxy = _CommitFaultConnection(
         store._connect(),
         commit_before_raise=True,
@@ -738,7 +751,7 @@ def test_given_commit_succeeds_before_ack_failure_then_exact_retry_is_idempotent
     with patch.object(
         store_v4_module.SQLiteSpotV7AtomicOperationalStoreV4,
         "_connect",
-        return_value=proxy,
+        side_effect=(snapshot_connection, proxy),
     ):
         with pytest.raises(SpotV7AtomicSettlementStoreErrorV1) as captured:
             store._commit_operational_capability_v3(
@@ -965,6 +978,240 @@ def test_given_committed_store_when_resolver_raises_runtime_error_then_open_retu
 
     assert captured.value.code == "SPOT_V7_ATOMIC_OPERATIONAL_V4_OPEN_FAILED"
     assert captured.value.detail == "Spot V7 V4 settlement resolver failed"
+
+
+def test_given_reopen_and_read_when_resolver_runs_then_callback_can_hold_separate_immediate_writer(
+    tmp_path: Path,
+    genuine_v4_fixture: _GenuineV4Fixture,
+) -> None:
+    store = _store(tmp_path, genuine_v4_fixture)
+    committed = _commit(store, genuine_v4_fixture)
+    calls: list[str] = []
+
+    def resolver(commitment: str) -> object:
+        _acquire_immediate_noop_write_and_rollback(store.path)
+        calls.append(commitment)
+        return _resolver(genuine_v4_fixture)(commitment)
+
+    reopened = _open_existing(
+        store.path,
+        genuine_v4_fixture,
+        resolver=resolver,
+    )
+    assert reopened.read_cursor() == committed.head_cursor
+    assert calls == [genuine_v4_fixture.settlement_commitment] * 2
+
+
+def test_given_resolver_exception_then_callback_and_caller_observe_immediate_writability_without_cursor_change(
+    tmp_path: Path,
+    genuine_v4_fixture: _GenuineV4Fixture,
+) -> None:
+    store = _store(tmp_path, genuine_v4_fixture)
+    committed = _commit(store, genuine_v4_fixture)
+    callback_acquired_writer = False
+
+    def failed_resolver(_commitment: str) -> object:
+        nonlocal callback_acquired_writer
+        _acquire_immediate_noop_write_and_rollback(store.path)
+        callback_acquired_writer = True
+        raise RuntimeError("deterministic resolver failure after no-op write")
+
+    with pytest.raises(SpotV7AtomicSettlementStoreErrorV1) as captured:
+        _open_existing(
+            store.path,
+            genuine_v4_fixture,
+            resolver=failed_resolver,
+        )
+
+    assert captured.value.code == "SPOT_V7_ATOMIC_OPERATIONAL_V4_OPEN_FAILED"
+    assert captured.value.detail == "Spot V7 V4 settlement resolver failed"
+    assert callback_acquired_writer is True
+    _acquire_immediate_noop_write_and_rollback(store.path)
+    reopened = _open_existing(store.path, genuine_v4_fixture)
+    assert reopened.read_cursor() == committed.head_cursor
+
+
+def test_given_commit_resolver_exception_then_typed_commit_failure_preserves_state(
+    tmp_path: Path,
+    genuine_v4_fixture: _GenuineV4Fixture,
+) -> None:
+    initial_store = _store(tmp_path, genuine_v4_fixture)
+    committed = _commit(initial_store, genuine_v4_fixture)
+    resolver_must_fail = False
+
+    def resolver(commitment: str) -> object:
+        if resolver_must_fail:
+            raise RuntimeError("deterministic commit resolver failure")
+        return _resolver(genuine_v4_fixture)(commitment)
+
+    store = _open_existing(
+        initial_store.path,
+        genuine_v4_fixture,
+        resolver=resolver,
+    )
+    resolver_must_fail = True
+
+    with pytest.raises(SpotV7AtomicSettlementStoreErrorV1) as captured:
+        store._commit_operational_capability_v3(
+            expected_cursor=committed.head_cursor,
+            capability=genuine_v4_fixture.capability,
+        )
+
+    assert captured.value.code == "SPOT_V7_ATOMIC_OPERATIONAL_V4_COMMIT_FAILED"
+    assert captured.value.detail == "Spot V7 V4 settlement resolver failed"
+    reopened = _open_existing(initial_store.path, genuine_v4_fixture)
+    assert reopened.read_cursor() == committed.head_cursor
+    assert (
+        reopened.get_receipt(genuine_v4_fixture.settlement_commitment)
+        == committed.receipt
+    )
+
+
+def test_given_operational_anchor_drift_during_resolution_then_stale_retry_rejects_without_partial_write(
+    tmp_path: Path,
+    genuine_v4_fixture: _GenuineV4Fixture,
+) -> None:
+    store = _store(tmp_path, genuine_v4_fixture)
+    committed = _commit(store, genuine_v4_fixture)
+    before_cursor = store.read_cursor()
+    before_receipt = store.get_receipt(genuine_v4_fixture.settlement_commitment)
+    with sqlite3.connect(store.path) as connection:
+        policy_row = connection.execute(
+            "SELECT current_checkpoint_sequence_be, current_checkpoint_hash "
+            "FROM spot_v7_operational_policy_v4 WHERE singleton = 1"
+        ).fetchone()
+        settlement_rows = connection.execute(
+            "SELECT settlement_commitment FROM spot_v7_settlements ORDER BY revision"
+        ).fetchall()
+        before_counts = tuple(
+            int(connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
+            for table in (
+                "spot_v7_settlements",
+                "spot_v7_operational_da_v4",
+                "spot_v7_operational_finality_v4",
+                "spot_v7_settlement_replay_v4",
+            )
+        )
+    assert policy_row is not None
+    policy_sequence = int.from_bytes(bytes(policy_row[0]), "big")
+    policy_hash = "0x" + bytes(policy_row[1]).hex()
+    commitments = tuple("0x" + bytes(row[0]).hex() for row in settlement_rows)
+    anchor_factory = cast(
+        Callable[..., object],
+        getattr(store_v4_module, "_SpotV7OperationalHistoryAnchorV4", None),
+    )
+    assert callable(anchor_factory), "V4 operational history anchor type is missing"
+    phase_a = anchor_factory(
+        before_cursor,
+        policy_sequence,
+        policy_hash,
+        commitments,
+    )
+    drifted_cursor = replace(
+        before_cursor,
+        revision=before_cursor.revision + 1,
+        state_root=policy_v3_test._root("concurrent-state-root"),
+        settlement_count=before_cursor.settlement_count + 1,
+        last_epoch_id=_CURRENT_EPOCH + 1,
+    )
+    phase_b = anchor_factory(
+        drifted_cursor,
+        policy_sequence + 1,
+        policy_v3_test._root("concurrent-checkpoint-hash"),
+        commitments + (policy_v3_test._root("concurrent-settlement"),),
+    )
+
+    with (
+        patch.object(
+            store_v4_module,
+            "_capture_operational_history_anchor_locked_v4",
+            return_value=phase_a,
+        ) as capture_phase_a,
+        patch.object(
+            history_v4_module,
+            "_capture_operational_history_anchor_locked_v4",
+            return_value=phase_b,
+        ) as capture_phase_b,
+    ):
+        with pytest.raises(SpotV7AtomicSettlementStoreErrorV1) as captured:
+            store._commit_operational_capability_v3(
+                expected_cursor=committed.head_cursor,
+                capability=genuine_v4_fixture.capability,
+            )
+
+    assert captured.value.code == "SPOT_V7_ATOMIC_OPERATIONAL_V4_RETRY_REQUIRED"
+    assert capture_phase_a.call_count == 1
+    assert capture_phase_b.call_count == 1
+    assert store.read_cursor() == before_cursor
+    assert store.get_receipt(genuine_v4_fixture.settlement_commitment) == before_receipt
+    with sqlite3.connect(store.path) as connection:
+        after_counts = tuple(
+            int(connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
+            for table in (
+                "spot_v7_settlements",
+                "spot_v7_operational_da_v4",
+                "spot_v7_operational_finality_v4",
+                "spot_v7_settlement_replay_v4",
+            )
+        )
+    assert after_counts == before_counts
+
+    reconciled = store._commit_operational_capability_v3(
+        expected_cursor=before_cursor,
+        capability=genuine_v4_fixture.capability,
+    )
+    assert reconciled.disposition is SpotV7AtomicSettlementDispositionV1.IDEMPOTENT_REPLAY
+    assert reconciled.head_cursor == before_cursor
+
+
+def test_given_post_write_anchor_mismatch_then_commit_fails_and_rolls_back_without_retry_classification(
+    tmp_path: Path,
+    genuine_v4_fixture: _GenuineV4Fixture,
+) -> None:
+    store = _store(tmp_path, genuine_v4_fixture)
+    before_cursor = store.read_cursor()
+    with sqlite3.connect(store.path) as connection:
+        policy_row = connection.execute(
+            "SELECT current_checkpoint_sequence_be, current_checkpoint_hash "
+            "FROM spot_v7_operational_policy_v4 WHERE singleton = 1"
+        ).fetchone()
+    assert policy_row is not None
+    anchor_factory = cast(
+        Callable[..., object],
+        getattr(store_v4_module, "_SpotV7OperationalHistoryAnchorV4", None),
+    )
+    assert callable(anchor_factory), "V4 operational history anchor type is missing"
+    empty_anchor = anchor_factory(
+        before_cursor,
+        int.from_bytes(bytes(policy_row[0]), "big"),
+        "0x" + bytes(policy_row[1]).hex(),
+        (),
+    )
+
+    with (
+        patch.object(
+            store_v4_module,
+            "_capture_operational_history_anchor_locked_v4",
+            return_value=empty_anchor,
+        ) as capture_phase_a,
+        patch.object(
+            history_v4_module,
+            "_capture_operational_history_anchor_locked_v4",
+            side_effect=(empty_anchor, empty_anchor),
+        ) as capture_locked,
+    ):
+        with pytest.raises(SpotV7AtomicSettlementStoreErrorV1) as captured:
+            store._commit_operational_capability_v3(
+                expected_cursor=before_cursor,
+                capability=genuine_v4_fixture.capability,
+            )
+
+    assert captured.value.code == "SPOT_V7_ATOMIC_OPERATIONAL_V4_COMMIT_FAILED"
+    assert captured.value.detail == "Spot V7 V4 post-write history invariant mismatch"
+    assert capture_phase_a.call_count == 1
+    assert capture_locked.call_count == 2
+    assert store.read_cursor() == before_cursor
+    assert store.get_receipt(genuine_v4_fixture.settlement_commitment) is None
 
 
 def test_given_open_store_when_same_inode_is_truncated_then_read_rejects_without_reinitializing(

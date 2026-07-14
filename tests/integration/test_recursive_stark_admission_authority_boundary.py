@@ -191,6 +191,15 @@ PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES = frozenset(
         "_commit_operational_capability_v3",
     }
 )
+PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES = frozenset(
+    {
+        "_ResolvedSpotV7SettlementEntryV4",
+        "_ResolvedSpotV7OperationalHistoryV4",
+        "_resolve_operational_history_outside_transaction_v4",
+        "_empty_resolved_operational_history_locked_v4",
+        "_append_resolved_operational_history_v4",
+    }
+)
 PRIVATE_AUTHORITY_NAMES = frozenset(
     {
         PRIVATE_CAPABILITY_TYPE,
@@ -217,6 +226,7 @@ PROTECTED_AUTHORITY_NAMES = (
     | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
     | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
 )
 PRIVATE_ADAPTER_IMPORTS = frozenset(
     {
@@ -334,13 +344,17 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             SPOT_V7_ATOMIC_SCHEMA_V4: PRIVATE_OPERATIONAL_POLICY_V3_NAMES,
             SPOT_V7_ATOMIC_RECORDS_V4: (PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES),
             SPOT_V7_ATOMIC_HISTORY_V4: (
-                PRIVATE_OPERATIONAL_POLICY_V3_NAMES | PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
             ),
             SPOT_V7_ATOMIC_EVIDENCE_V4: (
                 PRIVATE_OPERATIONAL_POLICY_V3_NAMES | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
             ),
             SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4: (
-                PRIVATE_OPERATIONAL_POLICY_V3_NAMES | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
             ),
         }.get(path, frozenset())
         tree = _parse(path)
@@ -491,6 +505,67 @@ def test_operational_v3_store_packet_projection_has_exact_consumers() -> None:
     ]
 
 
+def test_v4_settlement_resolver_is_only_invoked_outside_sqlite_transactions() -> None:
+    history_tree = _parse(SPOT_V7_ATOMIC_HISTORY_V4)
+    resolver_calls = [
+        node
+        for node in ast.walk(history_tree)
+        if isinstance(node, ast.Call) and _call_name(node) == "settlement_resolver"
+    ]
+    assert len(resolver_calls) == 1
+    resolver_call_helper = _function(
+        history_tree,
+        "_resolve_settlement_entry",
+    )
+    assert resolver_calls[0] in frozenset(ast.walk(resolver_call_helper))
+    settlement_entry_callers = [
+        node
+        for node in ast.walk(history_tree)
+        if isinstance(node, ast.Call) and _call_name(node) == "_resolve_settlement_entry"
+    ]
+    assert len(settlement_entry_callers) == 1
+    resolver_phase = _function(
+        history_tree,
+        "_resolve_operational_history_outside_transaction_v4",
+    )
+    assert settlement_entry_callers[0] in frozenset(ast.walk(resolver_phase))
+
+    validator = _function(
+        history_tree,
+        "_validate_complete_spot_v7_operational_history_v4",
+    )
+    validator_arguments = {
+        argument.arg for argument in (*validator.args.args, *validator.args.kwonlyargs)
+    }
+    assert "settlement_resolver" not in validator_arguments
+    assert "actual_anchor" not in validator_arguments
+    assert "resolved_history" in validator_arguments
+    assert _direct_name_call_count(
+        validator,
+        "_capture_operational_history_anchor_locked_v4",
+    ) == 1
+
+    store_tree = _parse(SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4)
+    outside_method = _method(
+        _class(store_tree, "SQLiteSpotV7AtomicOperationalStoreV4"),
+        "_resolve_history_outside_transaction_v4",
+    )
+    close_lines = [
+        _line(node)
+        for node in ast.walk(outside_method)
+        if isinstance(node, ast.Call) and _call_name(node) == "close"
+    ]
+    resolve_lines = [
+        _line(node)
+        for node in ast.walk(outside_method)
+        if isinstance(node, ast.Call)
+        and _call_name(node) == "_resolve_operational_history_outside_transaction_v4"
+    ]
+    assert len(close_lines) == 1
+    assert len(resolve_lines) == 1
+    assert close_lines[0] < resolve_lines[0]
+
+
 @pytest.mark.parametrize(
     "path",
     (
@@ -562,7 +637,14 @@ def test_v3_governed_da_authority_has_exact_public_reachability(
         (SPOT_V7_ATOMIC_RECORDS_V4, []),
         (SPOT_V7_ATOMIC_HISTORY_V4, []),
         (SPOT_V7_ATOMIC_EVIDENCE_V4, []),
-        (SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4, []),
+        (
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4,
+            [
+                "SQLiteSpotV7AtomicOperationalStoreV4.get_receipt",
+                "SQLiteSpotV7AtomicOperationalStoreV4.read_cells",
+                "SQLiteSpotV7AtomicOperationalStoreV4.read_cursor",
+            ],
+        ),
     ),
 )
 def test_finality_v3_and_operational_v4_have_exact_public_reachability(
@@ -574,6 +656,19 @@ def test_finality_v3_and_operational_v4_have_exact_public_reachability(
     assert _public_authority_alias_violations(tree) == []
     assert _private_authority_all_exports(tree) == []
     assert _public_top_level_authority_reachability(tree) == (expected_public_reachability)
+
+
+def test_operational_v4_public_reads_reach_only_the_outside_transaction_resolver() -> None:
+    tree = _parse(SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4)
+
+    assert _public_method_protected_symbol_reachability(
+        tree,
+        class_name="SQLiteSpotV7AtomicOperationalStoreV4",
+    ) == {
+        "get_receipt": ("_resolve_operational_history_outside_transaction_v4",),
+        "read_cells": ("_resolve_operational_history_outside_transaction_v4",),
+        "read_cursor": ("_resolve_operational_history_outside_transaction_v4",),
+    }
 
 
 def test_sampled_retrievability_exposes_only_the_exact_verifier_mint() -> None:
@@ -1248,6 +1343,81 @@ def _public_top_level_authority_reachability(tree: ast.Module) -> list[str]:
             f"{node.name}.{name}" for name in reaching_methods if not name.startswith("_")
         )
     return sorted(violations)
+
+
+def _public_method_protected_symbol_reachability(
+    tree: ast.Module,
+    *,
+    class_name: str,
+) -> dict[str, tuple[str, ...]]:
+    class_node = _class(tree, class_name)
+    top_level_graph = {
+        node.name: {
+            name
+            for descendant in ast.walk(node)
+            if isinstance(descendant, ast.Call)
+            if (name := _call_name(descendant)) is not None
+        }
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    top_level_reach = _protected_symbol_reachability(top_level_graph)
+    method_graph = {
+        node.name: {
+            name
+            for descendant in ast.walk(node)
+            if isinstance(descendant, ast.Call)
+            if (name := _call_name(descendant)) is not None
+        }
+        for node in class_node.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    method_reach = {
+        name: set(calls & PROTECTED_AUTHORITY_NAMES)
+        | {
+            protected
+            for called in calls
+            for protected in top_level_reach.get(called, frozenset())
+        }
+        for name, calls in method_graph.items()
+    }
+    while True:
+        changed = False
+        for name, calls in method_graph.items():
+            before = len(method_reach[name])
+            method_reach[name].update(
+                protected
+                for called in calls
+                for protected in method_reach.get(called, set())
+            )
+            changed = changed or len(method_reach[name]) != before
+        if not changed:
+            return {
+                name: tuple(sorted(reachable))
+                for name, reachable in sorted(method_reach.items())
+                if not name.startswith("_") and reachable
+            }
+
+
+def _protected_symbol_reachability(
+    call_graph: dict[str, set[str]],
+) -> dict[str, frozenset[str]]:
+    reachable = {
+        name: set(calls & PROTECTED_AUTHORITY_NAMES)
+        for name, calls in call_graph.items()
+    }
+    while True:
+        changed = False
+        for name, calls in call_graph.items():
+            before = len(reachable[name])
+            reachable[name].update(
+                protected
+                for called in calls
+                for protected in reachable.get(called, set())
+            )
+            changed = changed or len(reachable[name]) != before
+        if not changed:
+            return {name: frozenset(symbols) for name, symbols in reachable.items()}
 
 
 def _public_authority_alias_violations(tree: ast.Module) -> list[str]:
