@@ -265,7 +265,8 @@ def test_operational_frontier_names_every_unclosed_authority_condition() -> None
     assert SPOT_V7_OPERATIONAL_COMMIT_MISSING_CONDITIONS_V1 == (
         SpotV7OperationalCommitMissingConditionV1.GOVERNED_V7_SETTLEMENT_CAPABILITY,
         SpotV7OperationalCommitMissingConditionV1.GOVERNED_OPERATIONAL_POLICY,
-        SpotV7OperationalCommitMissingConditionV1.CANONICAL_ZENO_LEDGER_FINALITY_AUTHORITY,
+        SpotV7OperationalCommitMissingConditionV1.CANONICAL_ZENO_LEDGER_BODY_REPLAY_AUTHORITY,
+        SpotV7OperationalCommitMissingConditionV1.CONFLICTING_QUALIFIED_CHECKPOINT_CHOICE_AUTHORITY,
     )
 
 

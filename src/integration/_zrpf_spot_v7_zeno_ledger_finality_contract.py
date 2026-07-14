@@ -37,13 +37,19 @@ from src.integration.zrpf_spot_v7_atomic_settlement_types import (
 )
 from src.state.canonical import bounded_json_utf8_size
 
-SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V1: Final = (
-    "zenodex/zrpf/spot_v7/zeno_ledger_checkpoint_finality_evidence/v1"
+SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V2: Final = (
+    "zenodex/zrpf/spot_v7/zeno_ledger_checkpoint_finality_evidence/v2"
+)
+SPOT_V7_ZENO_LEDGER_PROPOSER_AUTHORSHIP_ADMISSION_SCHEMA_V1: Final = (
+    "zenodex/zrpf/spot_v7/zeno_ledger_proposer_authorship_admission/v1"
 )
 
 _FINALITY_NETWORK_DOMAIN_V1: Final = "zrpf_spot_v7_zeno_ledger_finality_network_v1"
-_FINALITY_PROTOCOL_DOMAIN_V1: Final = "zrpf_spot_v7_zeno_ledger_finality_protocol_v1"
-_EXTERNAL_FINALITY_POLICY_DOMAIN_V1: Final = "zrpf_spot_v7_zeno_ledger_external_finality_policy_v1"
+_FINALITY_PROTOCOL_DOMAIN_V2: Final = "zrpf_spot_v7_zeno_ledger_finality_protocol_v2"
+_EXTERNAL_FINALITY_POLICY_DOMAIN_V2: Final = "zrpf_spot_v7_zeno_ledger_external_finality_policy_v2"
+_PROPOSER_AUTHORSHIP_PAYLOAD_DOMAIN_V1: Final = (
+    "zrpf_spot_v7_zeno_ledger_proposer_authorship_payload_v1"
+)
 _MAX_FINALITY_INPUT_BYTES_V1: Final = 1 * 1_024 * 1_024
 _MAX_FINALITY_INPUT_DEPTH_V1: Final = 64
 _MAX_FINALITY_INPUT_ITEMS_V1: Final = 32_768
@@ -79,6 +85,7 @@ class _FinalityInputSnapshotV1:
     validator_set: dict[str, Any]
     proposer_id: str
     proposer_key_id: str
+    proposer_envelope: dict[str, Any]
     registry: dict[str, Any]
     envelopes: tuple[dict[str, Any], ...]
 
@@ -92,11 +99,11 @@ def derive_zeno_ledger_finality_network_id_v1(chain_id: str) -> str:
     )
 
 
-def derive_zeno_ledger_finality_protocol_id_v1() -> str:
+def derive_zeno_ledger_finality_protocol_id_v2() -> str:
     """Derive the fixed protocol identity for this adapter version."""
 
     return hash_v0(
-        _FINALITY_PROTOCOL_DOMAIN_V1,
+        _FINALITY_PROTOCOL_DOMAIN_V2,
         {
             "checkpoint_schema": CHECKPOINT_SCHEMA_V0,
             "header_schema": HEADER_SCHEMA_V0,
@@ -106,22 +113,28 @@ def derive_zeno_ledger_finality_protocol_id_v1() -> str:
             "validator_set_schema": VALIDATOR_SET_SCHEMA_V0,
             "scheduled_header_admission_schema": SCHEDULED_HEADER_ADMISSION_SCHEMA_V0,
             "validator_schedule_mode": SCHEDULE_MODE_V0,
+            "proposer_authorship_schema": (
+                SPOT_V7_ZENO_LEDGER_PROPOSER_AUTHORSHIP_ADMISSION_SCHEMA_V1
+            ),
+            "proposer_signature_payload_kind": "checkpoint",
+            "proposer_signature_payload_domain": _PROPOSER_AUTHORSHIP_PAYLOAD_DOMAIN_V1,
+            "proposer_signature_required": True,
             "app_hash_domain": "app_hash_v0",
             "app_hash_root_fields": list(APP_HASH_ROOT_FIELDS_V0),
         },
     )
 
 
-def derive_zeno_ledger_external_finality_policy_hash_v1(
+def derive_zeno_ledger_external_finality_policy_hash_v2(
     *,
     chain_id: str,
     config_digest: str,
     sequencer_set_hash: str,
 ) -> str:
-    """Bind chain config and the strict quorum-intersection policy."""
+    """Bind chain config, scheduled authorship, and strict quorum policy."""
 
     return hash_v0(
-        _EXTERNAL_FINALITY_POLICY_DOMAIN_V1,
+        _EXTERNAL_FINALITY_POLICY_DOMAIN_V2,
         {
             "chain_id": _require_nonempty_string(chain_id, name="chain_id"),
             "config_digest": _require_hash(config_digest, name="config_digest"),
@@ -133,6 +146,34 @@ def derive_zeno_ledger_external_finality_policy_hash_v1(
             "embedded_signature_set_required_empty": True,
             "quorum_rule": "strictly_more_than_two_thirds_active_weight",
             "signature_algorithm": SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0,
+            "scheduled_proposer_signature_required": True,
+            "scheduled_proposer_signature_payload_kind": "checkpoint",
+            "scheduled_proposer_signature_payload_domain": (_PROPOSER_AUTHORSHIP_PAYLOAD_DOMAIN_V1),
+        },
+    )
+
+
+def derive_zeno_ledger_proposer_authorship_payload_hash_v1(
+    *,
+    chain_id: str,
+    height: int,
+    header_hash: str,
+    validator_set_hash: str,
+    duty_hash: str,
+) -> str:
+    """Purpose-separate scheduled authorship from checkpoint quorum votes."""
+
+    return hash_v0(
+        _PROPOSER_AUTHORSHIP_PAYLOAD_DOMAIN_V1,
+        {
+            "chain_id": _require_nonempty_string(chain_id, name="chain_id"),
+            "height": _require_uint(height, name="height", maximum=MAX_U64),
+            "header_hash": _require_hash(header_hash, name="header_hash"),
+            "validator_set_hash": _require_hash(
+                validator_set_hash,
+                name="validator_set_hash",
+            ),
+            "duty_hash": _require_hash(duty_hash, name="duty_hash"),
         },
     )
 
@@ -144,6 +185,7 @@ def _snapshot_inputs(
     validator_set: object,
     proposer_id: object,
     proposer_key_id: object,
+    proposer_envelope: object,
     registry: object,
     envelopes: object,
 ) -> _FinalityInputSnapshotV1:
@@ -154,6 +196,10 @@ def _snapshot_inputs(
     proposer_key_id_value = _require_nonempty_string(
         proposer_key_id,
         name="proposer_key_id",
+    )
+    proposer_envelope_value = _snapshot_plain_dict(
+        proposer_envelope,
+        name="proposer_envelope",
     )
     registry_value = _snapshot_plain_dict(registry, name="registry")
     if type(envelopes) is not tuple:
@@ -172,6 +218,7 @@ def _snapshot_inputs(
             "validator_set": validator_set_value,
             "proposer_id": proposer_id_value,
             "proposer_key_id": proposer_key_id_value,
+            "proposer_envelope": proposer_envelope_value,
             "registry": registry_value,
             "envelopes": envelope_values,
         },
@@ -183,6 +230,7 @@ def _snapshot_inputs(
         validator_set=validator_set_value,
         proposer_id=proposer_id_value,
         proposer_key_id=proposer_key_id_value,
+        proposer_envelope=proposer_envelope_value,
         registry=registry_value,
         envelopes=envelope_values,
     )

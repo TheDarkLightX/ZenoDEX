@@ -3,9 +3,10 @@
 The adapter accepts one sealed Spot V7 settlement candidate and one sealed
 operational policy. It snapshots bounded plain-data inputs, authenticates an
 app-hash-consistent ZenoLedger checkpoint with the policy-pinned BLS signer
-registry, separately verifies the canonical validator schedule, binds the
-application checkpoint cursor and Spot V7 journal/state roots, and derives the
-canonical ``checkpoint_finality_v2`` certificate itself.
+registry, verifies the canonical validator schedule and the scheduled
+proposer's BLS authorship, binds the application checkpoint cursor and Spot V7
+journal/state roots, and derives the canonical ``checkpoint_finality_v2``
+certificate itself.
 
 The resulting private capability is suitable for the authority-false V2 atomic
 store sink. Release provenance, data availability, economic settlement, and
@@ -40,7 +41,8 @@ from src.integration._zrpf_spot_v7_operational_mechanics import (
 from src.integration._zrpf_spot_v7_zeno_ledger_finality_contract import (
     _MAX_FINALITY_VALIDATORS_V1,
     _ZERO_ROOT,
-    SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V1,
+    SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V2,
+    SPOT_V7_ZENO_LEDGER_PROPOSER_AUTHORSHIP_ADMISSION_SCHEMA_V1,
     SpotV7ZenoLedgerFinalityBindingErrorV1,
     ZenoLedgerCheckpointFinalityCursorV1,
     _FinalityInputSnapshotV1,
@@ -48,20 +50,27 @@ from src.integration._zrpf_spot_v7_zeno_ledger_finality_contract import (
     _require_nonempty_string,
     _require_positive_u64,
     _snapshot_inputs,
-    derive_zeno_ledger_external_finality_policy_hash_v1,
+    derive_zeno_ledger_external_finality_policy_hash_v2,
     derive_zeno_ledger_finality_network_id_v1,
-    derive_zeno_ledger_finality_protocol_id_v1,
+    derive_zeno_ledger_finality_protocol_id_v2,
+    derive_zeno_ledger_proposer_authorship_payload_hash_v1,
 )
 from src.integration.zeno_ledger_live_quorum_v0 import build_live_checkpoint_quorum_admission_v0
+from src.integration.zeno_ledger_signature import (
+    validate_bls_signed_artifact_envelope_v0,
+)
 from src.integration.zeno_ledger_signer_registry import (
     validate_signer_registry_v0,
 )
 from src.integration.zeno_ledger_v0 import (
+    canonical_header_hash_v0,
     canonical_json_bytes_v0,
     compute_app_hash_v0,
+    hash_v0,
     validate_checkpoint_header_binding_v0,
 )
 from src.integration.zeno_ledger_validator_schedule_v0 import (
+    build_proposer_duty_v0,
     build_scheduled_header_admission_v0,
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
@@ -70,7 +79,7 @@ from src.integration.zrpf_spot_v7_atomic_settlement_types import (
 
 
 @final
-class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
+class SpotV7ZenoLedgerCheckpointFinalityAdapterV2:
     """Authenticate one policy-pinned ZenoLedger checkpoint BLS quorum."""
 
     __slots__ = ("_policy",)
@@ -81,7 +90,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
         object.__setattr__(self, "_policy", _require_operational_policy_v2(policy))
 
     def __init_subclass__(cls, **_kwargs: object) -> NoReturn:
-        raise TypeError("SpotV7ZenoLedgerCheckpointFinalityAdapterV1 cannot be subclassed")
+        raise TypeError("SpotV7ZenoLedgerCheckpointFinalityAdapterV2 cannot be subclassed")
 
     @property
     def cryptographic_checkpoint_quorum_supported(self) -> bool:
@@ -109,6 +118,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
         validator_set: object,
         proposer_id: object,
         proposer_key_id: object,
+        proposer_envelope: object,
         registry: object,
         envelopes: object,
     ) -> _AuthenticatedExactCheckpointFinalityTransitionV2:
@@ -122,6 +132,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
             validator_set=validator_set,
             proposer_id=proposer_id,
             proposer_key_id=proposer_key_id,
+            proposer_envelope=proposer_envelope,
             registry=registry,
             envelopes=envelopes,
         )
@@ -150,6 +161,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
             registry=snapshot.registry,
             policy=policy,
         )
+        proposer_authorship_admission = _require_proposer_authorship(snapshot)
         admission = build_live_checkpoint_quorum_admission_v0(
             header=snapshot.header,
             checkpoint=snapshot.checkpoint,
@@ -161,6 +173,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV1:
             cursor=cursor,
             snapshot=snapshot,
             scheduled_header_admission=scheduled_header_admission,
+            proposer_authorship_admission=proposer_authorship_admission,
             admission=admission,
         )
         return _derive_exact_finality_capability(
@@ -206,9 +219,75 @@ def _require_scheduled_header_admission(
             key_id=snapshot.proposer_key_id,
         )
     except (TypeError, ValueError) as exc:
-        raise SpotV7ZenoLedgerFinalityBindingErrorV1(
-            "scheduled_header_admission"
-        ) from exc
+        raise SpotV7ZenoLedgerFinalityBindingErrorV1("scheduled_header_admission") from exc
+
+
+def _require_proposer_authorship(
+    snapshot: _FinalityInputSnapshotV1,
+) -> dict[str, Any]:
+    """Authenticate the scheduled proposer over the exact canonical header."""
+
+    try:
+        duty = build_proposer_duty_v0(
+            validator_set=snapshot.validator_set,
+            height=int(snapshot.header["height"]),
+        )
+        proposer = duty["proposer"]
+        if type(proposer) is not dict:
+            raise TypeError("scheduled proposer must be an exact dict")
+        if (
+            proposer.get("validator_id") != snapshot.proposer_id
+            or proposer.get("key_id") != snapshot.proposer_key_id
+        ):
+            raise ValueError("proposer identity does not match scheduled duty")
+        envelope = snapshot.proposer_envelope
+        if (
+            envelope.get("signer_id") != snapshot.proposer_id
+            or envelope.get("key_id") != snapshot.proposer_key_id
+        ):
+            raise ValueError("proposer envelope identity mismatch")
+        header_hash = canonical_header_hash_v0(snapshot.header)
+        authorship_payload_hash = derive_zeno_ledger_proposer_authorship_payload_hash_v1(
+            chain_id=snapshot.header["chain_id"],
+            height=snapshot.header["height"],
+            header_hash=header_hash,
+            validator_set_hash=snapshot.validator_set["validator_set_hash"],
+            duty_hash=duty["duty_hash"],
+        )
+        public_key = _require_nonempty_string(
+            proposer.get("public_key"),
+            name="scheduled proposer public key",
+        )
+        validate_bls_signed_artifact_envelope_v0(
+            envelope=envelope,
+            expected_payload_kind="checkpoint",
+            expected_payload_hash=authorship_payload_hash,
+            expected_public_key=public_key,
+        )
+        body = {
+            "schema": SPOT_V7_ZENO_LEDGER_PROPOSER_AUTHORSHIP_ADMISSION_SCHEMA_V1,
+            "ok": True,
+            "status": "accepted",
+            "chain_id": snapshot.header["chain_id"],
+            "height": snapshot.header["height"],
+            "header_hash": header_hash,
+            "authorship_payload_hash": authorship_payload_hash,
+            "validator_set_hash": snapshot.validator_set["validator_set_hash"],
+            "duty_hash": duty["duty_hash"],
+            "proposer_id": snapshot.proposer_id,
+            "key_id": snapshot.proposer_key_id,
+            "public_key": public_key,
+            "envelope_hash": envelope["envelope_hash"],
+        }
+        return {
+            **body,
+            "admission_hash": hash_v0(
+                "zrpf_spot_v7_proposer_authorship_admission_v1",
+                body,
+            ),
+        }
+    except (KeyError, RuntimeError, TypeError, ValueError) as exc:
+        raise SpotV7ZenoLedgerFinalityBindingErrorV1("proposer_authorship") from exc
 
 
 def _require_checkpoint_transition_binding(
@@ -260,7 +339,7 @@ def _require_registry_and_external_policy_binding(
         raise ValueError("signer registry count is outside the governed bound")
     chain_id = _require_nonempty_string(header["chain_id"], name="header.chain_id")
     registry_hash = _require_hash(registry["registry_hash"], name="registry hash")
-    expected_external_policy = derive_zeno_ledger_external_finality_policy_hash_v1(
+    expected_external_policy = derive_zeno_ledger_external_finality_policy_hash_v2(
         chain_id=chain_id,
         config_digest=_require_hash(header["config_digest"], name="header config digest"),
         sequencer_set_hash=_require_hash(
@@ -278,7 +357,7 @@ def _require_registry_and_external_policy_binding(
             "finality_network",
         ),
         (
-            policy.finality_protocol_id == derive_zeno_ledger_finality_protocol_id_v1(),
+            policy.finality_protocol_id == derive_zeno_ledger_finality_protocol_id_v2(),
             "finality_protocol",
         ),
         (
@@ -317,10 +396,11 @@ def _canonical_finality_evidence(
     cursor: ZenoLedgerCheckpointFinalityCursorV1,
     snapshot: _FinalityInputSnapshotV1,
     scheduled_header_admission: Mapping[str, Any],
+    proposer_authorship_admission: Mapping[str, Any],
     admission: Mapping[str, Any],
 ) -> bytes:
     body = {
-        "schema": SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V1,
+        "schema": SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V2,
         "application_binding": {
             "application_id": candidate.application_id,
             "chain_or_domain_id": candidate.chain_or_domain_id,
@@ -336,6 +416,8 @@ def _canonical_finality_evidence(
         "checkpoint": snapshot.checkpoint,
         "validator_set": snapshot.validator_set,
         "scheduled_header_admission": dict(scheduled_header_admission),
+        "proposer_envelope": snapshot.proposer_envelope,
+        "proposer_authorship_admission": dict(proposer_authorship_admission),
         "registry": snapshot.registry,
         "envelopes": list(snapshot.envelopes),
         "live_quorum_admission": dict(admission),
@@ -406,11 +488,13 @@ def _require_checks(checks: Sequence[tuple[bool, str]]) -> None:
 
 
 __all__ = [
-    "SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V1",
-    "SpotV7ZenoLedgerCheckpointFinalityAdapterV1",
+    "SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V2",
+    "SPOT_V7_ZENO_LEDGER_PROPOSER_AUTHORSHIP_ADMISSION_SCHEMA_V1",
+    "SpotV7ZenoLedgerCheckpointFinalityAdapterV2",
     "SpotV7ZenoLedgerFinalityBindingErrorV1",
     "ZenoLedgerCheckpointFinalityCursorV1",
-    "derive_zeno_ledger_external_finality_policy_hash_v1",
+    "derive_zeno_ledger_external_finality_policy_hash_v2",
     "derive_zeno_ledger_finality_network_id_v1",
-    "derive_zeno_ledger_finality_protocol_id_v1",
+    "derive_zeno_ledger_finality_protocol_id_v2",
+    "derive_zeno_ledger_proposer_authorship_payload_hash_v1",
 ]
