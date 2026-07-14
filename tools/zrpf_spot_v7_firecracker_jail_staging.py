@@ -117,6 +117,12 @@ class PreparedSpotV7JailRootV1:
     def read_validated_output_after_exit(self) -> bytes:
         return self._inner.read_validated_output_after_exit()
 
+    def _exact_request_bytes_for_supervisor_v1(self) -> bytes:
+        """Expose the retained canonical request only to the local supervisor."""
+
+        self.verify_prelaunch()
+        return self._inner._request_bytes
+
     def cleanup_after_teardown(self) -> None:
         self._inner.cleanup_after_teardown()
 

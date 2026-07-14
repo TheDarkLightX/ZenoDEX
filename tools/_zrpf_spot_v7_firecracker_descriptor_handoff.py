@@ -258,6 +258,48 @@ class _DescriptorBoundSpotV7LifecycleHandoffV1:
         self._require_open()
         _verify_launch_resources(self._resources)
 
+    def _exact_request_bytes_for_supervisor_v1(self) -> bytes:
+        """Return the already-staged request after rechecking every resource."""
+
+        self.verify_prelaunch()
+        return self._resources.prepared_jail._exact_request_bytes_for_supervisor_v1()
+
+    def _close_after_completed_lifecycle_v1(self) -> None:
+        """Close snapshot resources after the lifecycle removed its jail."""
+
+        self._require_open()
+        try:
+            _close_executables_and_snapshot(self._resources)
+        finally:
+            object.__setattr__(self, "_closed", True)
+
+    def _cleanup_after_forced_teardown_v1(self) -> None:
+        """Remove staged files only after the supervisor proved process absence."""
+
+        self._require_open()
+        primary: BaseException | None = None
+        try:
+            self._resources.prepared_jail.cleanup_after_teardown()
+        except BaseException as exc:
+            primary = exc
+        try:
+            _close_executables_and_snapshot(self._resources)
+        except BaseException as exc:
+            if primary is None:
+                primary = exc
+        finally:
+            object.__setattr__(self, "_closed", True)
+        if primary is not None:
+            raise SpotV7DescriptorStagingRejectV1(
+                "descriptor_stage_forced_cleanup_failed"
+            ) from primary
+
+    def _quarantine_after_uncertain_lifecycle_v1(self) -> None:
+        """Spend the capability while retaining files for operator recovery."""
+
+        self._require_open()
+        object.__setattr__(self, "_closed", True)
+
     def abandon_before_launch(self) -> None:
         if self._closed:
             return
@@ -345,4 +387,23 @@ def _abandon_unlaunched_resources(resources: _LaunchResourcesV1) -> None:
     if primary is not None:
         raise SpotV7DescriptorStagingRejectV1(
             "descriptor_stage_abandon_failed"
+        ) from primary
+
+
+def _close_executables_and_snapshot(resources: _LaunchResourcesV1) -> None:
+    primary: BaseException | None = None
+    for executable in (resources.jailer, resources.firecracker):
+        try:
+            executable.close()
+        except BaseException as exc:
+            if primary is None:
+                primary = exc
+    try:
+        resources.snapshot.close_and_remove()
+    except BaseException as exc:
+        if primary is None:
+            primary = exc
+    if primary is not None:
+        raise SpotV7DescriptorStagingRejectV1(
+            "descriptor_stage_completed_cleanup_failed"
         ) from primary

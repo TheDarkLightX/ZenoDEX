@@ -3,9 +3,10 @@
 Date: 2026-07-14
 
 Status: descriptor-retained artifact binding, one-shot descriptor-sourced
-launch snapshots, root-owned jail preparation, and the data-only prepared
-Jailer lifecycle are implemented; Spot V7 runtime authority remains
-unavailable
+launch snapshots, root-owned jail preparation, the data-only prepared Jailer
+lifecycle, and an authority-false root-supervisor orchestration contract are
+implemented; the concrete privileged OS port and Spot V7 runtime authority
+remain unavailable
 
 ## Purpose
 
@@ -213,10 +214,15 @@ guest payload or receipt, prove governance selected the proposal, bind a
 release manifest, prove guest-init/rootfs inclusion, or establish a
 source-to-binary chain.
 
-The high-level root supervisor also still needs to own creation and final
-destruction of the fresh network namespace and preconfigured cgroup leaf.
-Those controls exist separately; this tranche consumes exact live handles and
-does not claim that the complete allocation owner is implemented.
+The high-level contract in
+`tools/zrpf_spot_v7_firecracker_root_supervisor.py` now spends the sealed
+descriptor launch, orders cgroup and namespace allocation through a narrow OS
+port, invokes the prepared-lifecycle port, independently validates the exact
+request-bound output, and requires cgroup absence plus namespace emptiness and
+destruction before closing launch resources. Deterministic ports cover the
+orchestration and disaster-state contract. The concrete privileged Linux port
+that creates and owns the live controls remains unimplemented, so no live
+ownership or execution claim follows.
 
 ## Non-claims
 
