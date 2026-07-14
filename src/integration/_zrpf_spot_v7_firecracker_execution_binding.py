@@ -63,10 +63,11 @@ _LAUNCH_CONTROL_FACT_ITEMS_V1: Final = (
     ("network_namespace_membership_verified", True),
 )
 _FINISH_CONTROL_FACT_ITEMS_V1: Final = (
-    ("cgroup_populated_zero_verified", True),
-    ("cgroup_removed_after_kill", True),
+    ("cgroup_kill_issued", False),
+    ("cgroup_removed_after_natural_completion", True),
+    ("firecracker_cgroup_naturally_empty_verified", True),
+    ("jailer_parent_exit_observed", True),
     ("network_namespace_path_identity_preserved", True),
-    ("process_exit_observed", True),
 )
 
 
@@ -462,11 +463,11 @@ def _validate_finish_observation(
     exit_code = document["exit_code"]
     if (
         document["schema"]
-        != "zenodex/zrpf_firecracker_jailer_finish_observation/v2"
+        != "zenodex/zrpf_firecracker_jailer_finish_observation/v3"
         or document["scope"]
-        != "live_process_exit_and_exact_launch_teardown_control_only"
+        != "jailer_parent_handoff_and_natural_cgroup_completion_control_only"
         or type(exit_code) is not int
-        or not -(1 << 31) <= exit_code <= (1 << 31) - 1
+        or exit_code != 0
     ):
         raise SpotV7FirecrackerExecutionBindingRejectV1(
             "lifecycle_finish_binding"

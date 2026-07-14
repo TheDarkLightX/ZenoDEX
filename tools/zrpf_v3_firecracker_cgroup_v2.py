@@ -164,15 +164,44 @@ class CgroupLeafV1:
             if monotonic_ns() >= deadline:
                 raise CgroupV2Reject("cgroup_teardown_timeout")
             pause()
-        self._verify_empty_after_kill()
+        self._verify_empty_before_removal(
+            process_code="cgroup_teardown_processes_remain",
+            descendant_code="cgroup_teardown_descendants_remain",
+        )
         self._verify_limits()
         self._require_open_identity()
-        os.close(self._leaf_fd)
-        self._leaf_fd = -1
-        _remove_and_require_absent(self._parent_fd, self._leaf_name)
-        os.close(self._parent_fd)
-        self._parent_fd = -1
-        self._closed = True
+        self._remove_empty_leaf()
+
+    def wait_until_empty_and_remove(
+        self,
+        *,
+        timeout_ns: int,
+        monotonic_ns: Callable[[], int] = time.monotonic_ns,
+        wait_once: Callable[[], None] | None = None,
+    ) -> None:
+        """Wait for natural process completion and remove without ``cgroup.kill``."""
+
+        if not 1_000_000 <= timeout_ns <= 300_000_000_000:
+            raise CgroupV2Reject("cgroup_natural_completion_timeout_invalid")
+        self._require_open_identity()
+        if cgroup_io.read_value(self._leaf_fd, "cgroup.type") != "domain":
+            raise CgroupV2Reject("cgroup_natural_completion_not_domain")
+        deadline = monotonic_ns() + timeout_ns
+        pause = wait_once if wait_once is not None else lambda: time.sleep(0.01)
+        while cgroup_io.keyed_integer(self._leaf_fd, "cgroup.events", "populated") != 0:
+            self._require_open_identity()
+            self._verify_limits()
+            self._require_no_descendant_cgroups("cgroup_natural_completion_descendants_present")
+            if monotonic_ns() >= deadline:
+                raise CgroupV2Reject("cgroup_natural_completion_timeout")
+            pause()
+        self._verify_empty_before_removal(
+            process_code="cgroup_natural_completion_processes_remain",
+            descendant_code="cgroup_natural_completion_descendants_present",
+        )
+        self._verify_limits()
+        self._require_open_identity()
+        self._remove_empty_leaf()
 
     def close_without_removal(self) -> None:
         """Close descriptors without asserting teardown; used only after rejection."""
@@ -185,10 +214,23 @@ class CgroupLeafV1:
             self._parent_fd = -1
         self._closed = True
 
-    def _verify_empty_after_kill(self) -> None:
+    def _verify_empty_before_removal(
+        self,
+        *,
+        process_code: str,
+        descendant_code: str,
+    ) -> None:
         if cgroup_io.read_pids(self._leaf_fd):
-            raise CgroupV2Reject("cgroup_teardown_processes_remain")
-        self._require_no_descendant_cgroups("cgroup_teardown_descendants_remain")
+            raise CgroupV2Reject(process_code)
+        self._require_no_descendant_cgroups(descendant_code)
+
+    def _remove_empty_leaf(self) -> None:
+        os.close(self._leaf_fd)
+        self._leaf_fd = -1
+        _remove_and_require_absent(self._parent_fd, self._leaf_name)
+        os.close(self._parent_fd)
+        self._parent_fd = -1
+        self._closed = True
 
     def _require_no_descendant_cgroups(self, code: str) -> None:
         if cgroup_io.keyed_integer(self._leaf_fd, "cgroup.stat", "nr_descendants") != 0:

@@ -5,8 +5,10 @@ precreated cgroup-v2 leaf before invoking the jailer. Artifact staging,
 namespace creation, output validation, and live privileged evidence remain
 separate obligations. Jailer still reopens governed paths; immutable root-owned
 staging and descriptor-bound execution handoff are required before promotion.
-The V2 finish document binds its reported teardown to the exact canonical
-launch document, cgroup identity, jailer PID, and observed process count.
+The V3 finish document binds natural whole-cgroup completion to the exact
+canonical launch document, cgroup identity, jailer PID, and observed process
+count. Under ``--new-pid-ns``, Jailer-parent exit is launch handoff; the
+Firecracker child owns the remaining cgroup lifetime.
 """
 
 from __future__ import annotations
@@ -87,6 +89,8 @@ class CgroupLeafControl(Protocol):
     def verify_prelaunch(self) -> None: ...
 
     def verify_active_descendant_set(self, supervisor_pid: int) -> frozenset[int]: ...
+
+    def wait_until_empty_and_remove(self, *, timeout_ns: int) -> None: ...
 
     def terminate_and_remove(self, *, timeout_ns: int) -> None: ...
 
@@ -517,7 +521,7 @@ def _finish_jailer_process_control_for_test(
     process_timeout_seconds: float,
     teardown_timeout_ns: int = 5_000_000_000,
 ) -> dict[str, Any]:
-    """Wait once, kill the complete cgroup, and report control facts only."""
+    """Reap Jailer, wait for natural VM completion, and report control facts."""
 
     if not 0.1 <= process_timeout_seconds <= 300.0:
         raise JailerLauncherReject("jailer_process_timeout_invalid")
@@ -529,39 +533,102 @@ def _finish_jailer_process_control_for_test(
     ):
         _cleanup_failed_launch(cgroup_leaf, process)
         raise JailerLauncherReject("jailer_finish_launch_observation_mismatch")
-    timed_out = False
-    wait_failed = False
-    exit_code: int | None = None
-    try:
-        try:
-            exit_code = process.wait(timeout=process_timeout_seconds)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-        except OSError:
-            wait_failed = True
-    finally:
-        try:
-            cgroup_leaf.terminate_and_remove(timeout_ns=teardown_timeout_ns)
-        except (cgroup_v2.CgroupV2Reject, OSError) as exc:
-            _fallback_kill_and_reap(process)
-            raise JailerLauncherReject("jailer_cgroup_teardown_failed") from exc
+    exit_code = _wait_for_jailer_parent_handoff(
+        process=process,
+        cgroup_leaf=cgroup_leaf,
+        process_timeout_seconds=process_timeout_seconds,
+        teardown_timeout_ns=teardown_timeout_ns,
+    )
+    _wait_for_firecracker_natural_completion(
+        process=process,
+        cgroup_leaf=cgroup_leaf,
+        process_timeout_seconds=process_timeout_seconds,
+        teardown_timeout_ns=teardown_timeout_ns,
+    )
     network_namespace.reverify_path()
     network_namespace.verify_empty()
-    if timed_out:
-        _reap_after_cgroup_kill(process)
-        raise JailerLauncherReject("jailer_process_timeout")
-    if wait_failed:
-        _reap_after_cgroup_kill(process)
-        raise JailerLauncherReject("jailer_process_wait_failed")
-    if type(exit_code) is not int:
-        raise JailerLauncherReject("jailer_exit_status_invalid")
-    return _finish_observation_document_v2(
+    return _finish_observation_document_v3(
         observation=observation,
         exit_code=exit_code,
     )
 
 
-def _finish_observation_document_v2(
+def _wait_for_jailer_parent_handoff(
+    *,
+    process: ProcessHandle,
+    cgroup_leaf: CgroupLeafControl,
+    process_timeout_seconds: float,
+    teardown_timeout_ns: int,
+) -> int:
+    """Reap the short-lived Jailer parent without treating it as VM exit."""
+
+    try:
+        exit_code = process.wait(timeout=process_timeout_seconds)
+    except subprocess.TimeoutExpired as exc:
+        _terminate_failed_lifecycle(
+            cgroup_leaf=cgroup_leaf,
+            process=process,
+            parent_reaped=False,
+            teardown_timeout_ns=teardown_timeout_ns,
+        )
+        raise JailerLauncherReject("jailer_process_timeout") from exc
+    except OSError as exc:
+        _terminate_failed_lifecycle(
+            cgroup_leaf=cgroup_leaf,
+            process=process,
+            parent_reaped=False,
+            teardown_timeout_ns=teardown_timeout_ns,
+        )
+        raise JailerLauncherReject("jailer_process_wait_failed") from exc
+    if type(exit_code) is not int:
+        _terminate_failed_lifecycle(
+            cgroup_leaf=cgroup_leaf,
+            process=process,
+            parent_reaped=True,
+            teardown_timeout_ns=teardown_timeout_ns,
+        )
+        raise JailerLauncherReject("jailer_exit_status_invalid")
+    if exit_code != 0:
+        _terminate_failed_lifecycle(
+            cgroup_leaf=cgroup_leaf,
+            process=process,
+            parent_reaped=True,
+            teardown_timeout_ns=teardown_timeout_ns,
+        )
+        raise JailerLauncherReject("jailer_parent_exit_nonzero")
+    return exit_code
+
+
+def _wait_for_firecracker_natural_completion(
+    *,
+    process: ProcessHandle,
+    cgroup_leaf: CgroupLeafControl,
+    process_timeout_seconds: float,
+    teardown_timeout_ns: int,
+) -> None:
+    """Wait for the child-owned cgroup lifetime; kill only on failure."""
+
+    try:
+        cgroup_leaf.wait_until_empty_and_remove(
+            timeout_ns=int(process_timeout_seconds * 1_000_000_000)
+        )
+    except (cgroup_v2.CgroupV2Reject, OSError) as exc:
+        _terminate_failed_lifecycle(
+            cgroup_leaf=cgroup_leaf,
+            process=process,
+            parent_reaped=True,
+            teardown_timeout_ns=teardown_timeout_ns,
+        )
+        code = (
+            "jailer_child_completion_timeout"
+            if isinstance(exc, cgroup_v2.CgroupV2Reject)
+            and exc.code == "cgroup_natural_completion_timeout"
+            else "jailer_cgroup_natural_completion_failed"
+        )
+        raise JailerLauncherReject(code) from exc
+
+
+def _finish_observation_document_v3(
     *,
     observation: _JailerLaunchObservationV1,
     exit_code: int,
@@ -570,7 +637,7 @@ def _finish_observation_document_v2(
 
     if type(observation) is not _JailerLaunchObservationV1:
         raise TypeError("observation must be exact _JailerLaunchObservationV1")
-    if type(exit_code) is not int or not -(1 << 31) <= exit_code <= (1 << 31) - 1:
+    if type(exit_code) is not int or exit_code != 0:
         raise JailerLauncherReject("jailer_exit_status_invalid")
     launch_document = observation.to_document()
     launch_observation_sha256 = hashlib.sha256(
@@ -580,17 +647,18 @@ def _finish_observation_document_v2(
         "authority": launch_document["authority"],
         "cgroup_relative_path": observation.cgroup_relative_path,
         "control_facts": {
-            "cgroup_populated_zero_verified": True,
-            "cgroup_removed_after_kill": True,
+            "cgroup_kill_issued": False,
+            "cgroup_removed_after_natural_completion": True,
+            "firecracker_cgroup_naturally_empty_verified": True,
+            "jailer_parent_exit_observed": True,
             "network_namespace_path_identity_preserved": True,
-            "process_exit_observed": True,
         },
         "exit_code": exit_code,
         "jailer_pid": observation.jailer_pid,
         "launch_observation_sha256": launch_observation_sha256,
         "observed_process_count": len(observation.process_set),
-        "schema": "zenodex/zrpf_firecracker_jailer_finish_observation/v2",
-        "scope": "live_process_exit_and_exact_launch_teardown_control_only",
+        "schema": "zenodex/zrpf_firecracker_jailer_finish_observation/v3",
+        "scope": "jailer_parent_handoff_and_natural_cgroup_completion_control_only",
     }
 
 
@@ -668,6 +736,24 @@ def _cleanup_failed_launch(
             failed = True
     if failed:
         raise JailerLauncherReject("jailer_failed_launch_cleanup_failed")
+
+
+def _terminate_failed_lifecycle(
+    *,
+    cgroup_leaf: CgroupLeafControl,
+    process: ProcessHandle,
+    parent_reaped: bool,
+    teardown_timeout_ns: int,
+) -> None:
+    """Kill the complete cgroup only after a timeout or failed completion check."""
+
+    try:
+        cgroup_leaf.terminate_and_remove(timeout_ns=teardown_timeout_ns)
+    except (cgroup_v2.CgroupV2Reject, OSError) as exc:
+        _fallback_kill_and_reap(process)
+        raise JailerLauncherReject("jailer_cgroup_teardown_failed") from exc
+    if not parent_reaped:
+        _reap_after_cgroup_kill(process)
 
 
 def _reap_after_cgroup_kill(process: ProcessHandle) -> None:

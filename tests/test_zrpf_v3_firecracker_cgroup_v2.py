@@ -221,6 +221,61 @@ def test_teardown_timeout_preserves_leaf_for_supervisor_recovery(
     leaf.close_without_removal()
 
 
+def test_natural_completion_waits_for_empty_and_removes_without_kill(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _FakeCgroupV2(tmp_path, monkeypatch)
+    leaf = fixture.create_leaf()
+    fixture.activate({123})
+    real_rmdir = os.rmdir
+    observed_kill: list[bytes] = []
+
+    def finish_processes() -> None:
+        (fixture.leaf_path / "cgroup.events").write_text("populated 0\n", encoding="ascii")
+        (fixture.leaf_path / "cgroup.procs").write_text("", encoding="ascii")
+
+    def remove_fake_leaf(path: str, *, dir_fd: int | None = None) -> None:
+        if path == fixture.leaf_path.name and dir_fd is not None:
+            observed_kill.append((fixture.leaf_path / "cgroup.kill").read_bytes())
+            for child in fixture.leaf_path.iterdir():
+                child.unlink()
+        real_rmdir(path, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "rmdir", remove_fake_leaf)
+    clock = iter((10, 11, 12, 13))
+
+    leaf.wait_until_empty_and_remove(
+        timeout_ns=1_000_000,
+        monotonic_ns=lambda: next(clock),
+        wait_once=finish_processes,
+    )
+
+    assert observed_kill == [b""]
+    assert not fixture.leaf_path.exists()
+
+
+def test_natural_completion_timeout_preserves_live_leaf_without_kill(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _FakeCgroupV2(tmp_path, monkeypatch)
+    leaf = fixture.create_leaf()
+    fixture.activate({123})
+    clock = iter((0, 2_000_000))
+
+    with pytest.raises(cgroup.CgroupV2Reject, match="cgroup_natural_completion_timeout"):
+        leaf.wait_until_empty_and_remove(
+            timeout_ns=1_000_000,
+            monotonic_ns=lambda: next(clock),
+            wait_once=lambda: None,
+        )
+
+    assert (fixture.leaf_path / "cgroup.kill").read_bytes() == b""
+    assert fixture.leaf_path.exists()
+    leaf.close_without_removal()
+
+
 @pytest.mark.parametrize(
     "arguments",
     (
@@ -264,7 +319,7 @@ def test_finite_limit_boundary_atlas_rejects_one_predicate_flip(
     reject_code: str,
 ) -> None:
     with pytest.raises(cgroup.CgroupV2Reject, match=reject_code):
-        replace(_limits(), **changes)  # type: ignore[arg-type]
+        replace(_limits(), **changes)
 
 
 class _FakeCgroupV2:

@@ -40,8 +40,10 @@ validate finite cgroup limits
   -> spawn with an empty environment and closed inherited descriptors
   -> reverify executable and namespace identities
   -> verify the exact cgroup descendant set and netns membership
-  -> on every failure, write cgroup.kill and reap the process
-  -> on completion, require cgroup.events populated=0
+  -> treat Jailer-parent exit as PID-namespace launch handoff
+  -> wait for Firecracker to leave the cgroup naturally
+  -> on timeout or failure, write cgroup.kill and reap the Jailer parent
+  -> on successful completion, require cgroup.events populated=0 without kill
   -> require no remaining process or descendant
   -> remove the exact fresh leaf
 ```
@@ -85,6 +87,8 @@ The new tranche has deterministic unit and fake-filesystem evidence for:
 - nsfs path and per-process network-namespace binding;
 - spawn, placement, timeout, and teardown failure cleanup;
 - the literal `1\n` cgroup-kill write, `populated=0`, and leaf removal;
+- natural cgroup completion and removal with no successful-path cgroup kill;
+- the `--new-pid-ns` Jailer-parent/Firecracker-child lifetime regression;
 - granular authority fields remaining false.
 
 This is code-level control evidence. It is not a live privileged jailed replay.

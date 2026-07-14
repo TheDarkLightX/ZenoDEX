@@ -69,9 +69,17 @@ The public prepared lifecycle in
 `tools/zrpf_v3_firecracker_jailer_launcher.py` requires exact concrete pinned
 Jailer, Firecracker, cgroup, network-namespace, and prepared-root types. It
 requires root ownership, checks that launch parameters match the staged jail,
-executes the existing live placement and teardown controls, reads output only
-after teardown succeeds, validates the request-bound outer commit protocol
-through the retained output descriptor, and then removes the jail.
+executes the existing live placement controls, reaps the short-lived Jailer
+parent, waits for the Firecracker cgroup to become naturally empty, reads output
+only after the empty cgroup has been removed, validates the request-bound outer
+commit protocol through the retained output descriptor, and then removes the
+jail.
+
+With `--new-pid-ns`, Firecracker v1.16.1 clones the Firecracker child and the
+original Jailer process exits after recording the child PID. Jailer-parent exit
+therefore records launch handoff only. It is not VM completion. The runner does
+not issue `cgroup.kill` on the accepted path. It uses whole-cgroup kill only
+after timeout or a failed completion check.
 
 If launch or teardown becomes uncertain, the jail remains quarantined. A
 prelaunch rejection may remove the never-executed stage. The returned
@@ -90,6 +98,8 @@ Deterministic tests cover:
 - nonzero stale output and uncommitted output;
 - stable committed-output validation through the retained descriptor;
 - launch-before-read and teardown-before-cleanup ordering;
+- Jailer-parent exit followed by child lifetime, natural cgroup completion, and
+  output read without a successful-path `cgroup.kill`;
 - prelaunch abandonment and uncertain-launch quarantine;
 - non-copyable, non-serializable, immutable prepared capability;
 - rejection of injected control doubles at the public runner entry.

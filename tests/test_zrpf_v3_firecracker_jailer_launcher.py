@@ -266,6 +266,74 @@ def test_prepared_lifecycle_reads_only_after_finish_and_then_cleans() -> None:
     assert result.output_device_bytes == b"committed-output"
 
 
+def test_jailer_parent_exit_waits_for_child_cgroup_completion_before_output_read() -> None:
+    events: list[str] = []
+
+    class ParentJailerProcess(_Process):
+        def wait(self, timeout: float | None = None) -> int:
+            del timeout
+            self.wait_count += 1
+            events.append("jailer_parent_exit")
+            return 0
+
+    class ChildBearingLeaf(_Leaf):
+        def wait_until_empty_and_remove(self, *, timeout_ns: int) -> None:
+            assert timeout_ns > 0
+            assert self.teardown_count == 0
+            events.append("wait_for_firecracker_child")
+            events.append("firecracker_child_natural_exit")
+            self.natural_completion_count += 1
+
+        def terminate_and_remove(self, *, timeout_ns: int) -> None:
+            events.append("cgroup_kill")
+            super().terminate_and_remove(timeout_ns=timeout_ns)
+
+    class TrackingNetns(_Netns):
+        def verify_empty(self) -> None:
+            events.append("netns_empty")
+            super().verify_empty()
+
+    class TrackingPreparedJail(_PreparedJail):
+        def read_validated_output_after_exit(self) -> bytes:
+            events.append("output_read")
+            self.calls.append("read")
+            return b"committed-output"
+
+    leaf = ChildBearingLeaf()
+    process = ParentJailerProcess(321)
+    prepared = TrackingPreparedJail()
+    observation = launcher._JailerLaunchObservationV1(
+        jailer_pid=321,
+        process_set=frozenset({321, 322}),
+        cgroup_relative_path=leaf.identity.relative_path,
+    )
+
+    result = launcher._complete_prepared_jailer_lifecycle_for_test(
+        prepared_jail=prepared,
+        launch=lambda: (process, observation),
+        finish=lambda actual_process, actual_observation: (
+            launcher._finish_jailer_process_control_for_test(
+                process=actual_process,
+                cgroup_leaf=leaf,
+                network_namespace=TrackingNetns("/run/netns/run00001"),
+                observation=actual_observation,
+                process_timeout_seconds=5.0,
+            )
+        ),
+    )
+
+    assert result.output_device_bytes == b"committed-output"
+    assert events == [
+        "jailer_parent_exit",
+        "wait_for_firecracker_child",
+        "firecracker_child_natural_exit",
+        "netns_empty",
+        "output_read",
+    ]
+    assert leaf.teardown_count == 0
+    assert leaf.natural_completion_count == 1
+
+
 def test_prepared_lifecycle_quarantines_stage_when_launch_is_uncertain() -> None:
     prepared = _PreparedJail()
 
@@ -274,6 +342,27 @@ def test_prepared_lifecycle_quarantines_stage_when_launch_is_uncertain() -> None
             prepared_jail=prepared,
             launch=lambda: (_ for _ in ()).throw(RuntimeError("uncertain launch")),
             finish=lambda _process, _observation: {},
+        )
+
+    assert prepared.calls == ["verify"]
+
+
+def test_prepared_lifecycle_quarantines_stage_when_child_completion_is_uncertain() -> None:
+    prepared = _PreparedJail()
+    process = _Process(321, exit_code=0)
+    observation = launcher._JailerLaunchObservationV1(
+        jailer_pid=321,
+        process_set=frozenset({321, 322}),
+        cgroup_relative_path="/zenodex01/zrpf0001/run00001",
+    )
+
+    with pytest.raises(RuntimeError, match="child completion uncertain"):
+        launcher._complete_prepared_jailer_lifecycle_for_test(
+            prepared_jail=prepared,
+            launch=lambda: (process, observation),
+            finish=lambda _process, _observation: (_ for _ in ()).throw(
+                RuntimeError("child completion uncertain")
+            ),
         )
 
     assert prepared.calls == ["verify"]
@@ -378,7 +467,7 @@ def test_launch_control_rejects_non_descendant_or_missing_cgroup_membership() ->
     assert process.wait_count == 1
 
 
-def test_finish_control_reaps_process_and_verifies_whole_cgroup_teardown() -> None:
+def test_finish_control_reaps_parent_and_waits_for_natural_cgroup_completion() -> None:
     leaf = _Leaf()
     netns = _Netns("/run/netns/run00001")
     process = _Process(321, exit_code=0)
@@ -413,16 +502,18 @@ def test_finish_control_reaps_process_and_verifies_whole_cgroup_teardown() -> No
         launch_bytes
     ).hexdigest()
     assert report["schema"] == (
-        "zenodex/zrpf_firecracker_jailer_finish_observation/v2"
+        "zenodex/zrpf_firecracker_jailer_finish_observation/v3"
     )
     assert report["control_facts"] == {
-        "cgroup_populated_zero_verified": True,
-        "cgroup_removed_after_kill": True,
+        "cgroup_kill_issued": False,
+        "cgroup_removed_after_natural_completion": True,
+        "firecracker_cgroup_naturally_empty_verified": True,
+        "jailer_parent_exit_observed": True,
         "network_namespace_path_identity_preserved": True,
-        "process_exit_observed": True,
     }
     assert all(value is False for value in report["authority"].values())
-    assert leaf.teardown_count == 1
+    assert leaf.teardown_count == 0
+    assert leaf.natural_completion_count == 1
     assert netns.empty_check_count == 1
 
 
@@ -520,6 +611,53 @@ def test_watchdog_timeout_kills_complete_cgroup_before_reporting_reject() -> Non
         )
 
     assert leaf.teardown_count == 1
+
+
+def test_child_completion_timeout_kills_complete_cgroup_and_rejects() -> None:
+    class NeverEmptyLeaf(_Leaf):
+        def wait_until_empty_and_remove(self, *, timeout_ns: int) -> None:
+            assert timeout_ns > 0
+            raise cgroup_v2.CgroupV2Reject("cgroup_natural_completion_timeout")
+
+    leaf = NeverEmptyLeaf()
+    observation = launcher._JailerLaunchObservationV1(
+        jailer_pid=321,
+        process_set=frozenset({321, 322}),
+        cgroup_relative_path=leaf.identity.relative_path,
+    )
+
+    with pytest.raises(launcher.JailerLauncherReject, match="jailer_child_completion_timeout"):
+        launcher._finish_jailer_process_control_for_test(
+            process=_Process(321, exit_code=0),
+            cgroup_leaf=leaf,
+            network_namespace=_Netns("/run/netns/run00001"),
+            observation=observation,
+            process_timeout_seconds=0.1,
+        )
+
+    assert leaf.teardown_count == 1
+    assert leaf.natural_completion_count == 0
+
+
+def test_nonzero_jailer_parent_exit_kills_child_cgroup_and_rejects() -> None:
+    leaf = _Leaf()
+    observation = launcher._JailerLaunchObservationV1(
+        jailer_pid=321,
+        process_set=frozenset({321}),
+        cgroup_relative_path=leaf.identity.relative_path,
+    )
+
+    with pytest.raises(launcher.JailerLauncherReject, match="jailer_parent_exit_nonzero"):
+        launcher._finish_jailer_process_control_for_test(
+            process=_Process(321, exit_code=1),
+            cgroup_leaf=leaf,
+            network_namespace=_Netns("/run/netns/run00001"),
+            observation=observation,
+            process_timeout_seconds=0.1,
+        )
+
+    assert leaf.teardown_count == 1
+    assert leaf.natural_completion_count == 0
 
 
 def test_teardown_failure_falls_back_to_parent_kill_and_reap() -> None:
@@ -648,6 +786,7 @@ class _Leaf:
         self.reject_membership = reject_membership
         self.reject_teardown = reject_teardown
         self.teardown_count = 0
+        self.natural_completion_count = 0
 
     def verify_prelaunch(self) -> None:
         self.prelaunch_count += 1
@@ -663,6 +802,10 @@ class _Leaf:
         self.teardown_count += 1
         if self.reject_teardown:
             raise cgroup_v2.CgroupV2Reject("cgroup_leaf_remove_failed")
+
+    def wait_until_empty_and_remove(self, *, timeout_ns: int) -> None:
+        assert timeout_ns > 0
+        self.natural_completion_count += 1
 
 
 class _Netns:

@@ -73,10 +73,11 @@ def _finish_document(*, launch_observation_bytes: bytes) -> dict[str, Any]:
         "authority": dict(_AUTHORITY_NONCLAIMS),
         "cgroup_relative_path": launch["cgroup_relative_path"],
         "control_facts": {
-            "cgroup_populated_zero_verified": True,
-            "cgroup_removed_after_kill": True,
+            "cgroup_kill_issued": False,
+            "cgroup_removed_after_natural_completion": True,
+            "firecracker_cgroup_naturally_empty_verified": True,
+            "jailer_parent_exit_observed": True,
             "network_namespace_path_identity_preserved": True,
-            "process_exit_observed": True,
         },
         "exit_code": 0,
         "jailer_pid": launch["jailer_pid"],
@@ -84,8 +85,8 @@ def _finish_document(*, launch_observation_bytes: bytes) -> dict[str, Any]:
             launch_observation_bytes
         ).hexdigest(),
         "observed_process_count": launch["observed_process_count"],
-        "schema": "zenodex/zrpf_firecracker_jailer_finish_observation/v2",
-        "scope": "live_process_exit_and_exact_launch_teardown_control_only",
+        "schema": "zenodex/zrpf_firecracker_jailer_finish_observation/v3",
+        "scope": "jailer_parent_handoff_and_natural_cgroup_completion_control_only",
     }
 
 
@@ -262,7 +263,9 @@ def test_each_static_join_boundary_rejects_exact_mutation(
         document = _finish_document(
             launch_observation_bytes=values.launch_observation_bytes
         )
-        document["control_facts"]["cgroup_populated_zero_verified"] = False
+        document["control_facts"][
+            "firecracker_cgroup_naturally_empty_verified"
+        ] = False
         values.finish_observation_bytes = _canonical(document)
     elif mutation == "output_commit":
         raw = bytearray(values.output_device_bytes)
@@ -332,7 +335,7 @@ def test_cgroup_path_matches_cgroup_leaf_identity_with_canonical_leading_slash()
     assert assessment.static_binding_verified is True
 
 
-def test_finish_document_parser_matches_launcher_v2_document() -> None:
+def test_finish_document_parser_matches_launcher_v3_document() -> None:
     observation = launcher._JailerLaunchObservationV1(
         jailer_pid=42,
         process_set=frozenset({42, 43}),
@@ -343,12 +346,24 @@ def test_finish_document_parser_matches_launcher_v2_document() -> None:
     independent_document = _finish_document(
         launch_observation_bytes=launch_bytes
     )
-    launcher_document = launcher._finish_observation_document_v2(
+    launcher_document = launcher._finish_observation_document_v3(
         observation=observation,
         exit_code=0,
     )
 
     assert independent_document == launcher_document
+
+
+def test_nonzero_jailer_parent_exit_cannot_claim_natural_completion() -> None:
+    values = _fixture()
+    finish = json.loads(values.finish_observation_bytes)
+    finish["exit_code"] = 1
+    values.finish_observation_bytes = _canonical(finish)
+
+    with pytest.raises(SpotV7FirecrackerExecutionBindingRejectV1) as captured:
+        _verify(values)
+
+    assert captured.value.code == "lifecycle_finish_binding"
 
 
 def test_legacy_cgroup_path_without_leading_slash_rejects() -> None:
