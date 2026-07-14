@@ -2,8 +2,8 @@
 
 Date: 2026-07-14
 
-Status: authority-false imperative-shell contract implemented; concrete
-privileged port and live evidence pending
+Status: authority-false imperative-shell contract and Linux composition adapter
+implemented; concrete namespace-kernel effects and live evidence pending
 
 ## Scoped result
 
@@ -72,10 +72,12 @@ verifies that the exact allocated path is absent.
 
 Injected deterministic ports establish orchestration, reject precedence, and
 cleanup ordering. They do not establish that a real kernel performed those
-operations. A future concrete Linux port must return the exact existing
-`CgroupLeafV1` and `PinnedNetworkNamespaceV1` controls, call
-`run_prepared_spot_v7_jailer_process_control_v1`, and receive separate
-privileged hostile-run evidence before any live claim changes.
+operations. `LinuxSpotV7RootSupervisorOsPortV1` now returns the exact existing
+`CgroupLeafV1` and `PinnedNetworkNamespaceV1` controls and calls
+`run_prepared_spot_v7_jailer_process_control_v1`. Persistent namespace
+creation, route/address inventory, destruction, and absence remain behind a
+narrow privileged-kernel port. A separately reviewed implementation and
+privileged hostile-run evidence are required before any live claim changes.
 
 ## Disaster-state closures
 
@@ -114,7 +116,9 @@ Replay command:
 
 ```bash
 python3 -m pytest -q \
+  tests/test_zrpf_spot_v7_firecracker_linux_port.py \
   tests/test_zrpf_spot_v7_firecracker_root_supervisor.py \
+  tests/test_zrpf_v3_firecracker_cgroup_v2.py \
   tests/test_zrpf_spot_v7_firecracker_descriptor_staging.py
 ```
 
@@ -124,11 +128,13 @@ This slice does not establish live cgroup ownership, live network-namespace
 creation, live descendant membership, Jailer or Firecracker execution, sandbox
 escape resistance, same-UID resistance, hardware attestation, current V6/V7
 proof identities, governed release selection, settlement, or production
-readiness.
+readiness. The supervisor retains a bounded integer-nanosecond timeout, while
+the inherited lifecycle API receives floating-point seconds. That operational
+conversion carries no deterministic timing or authority claim.
 
-The next safe step is a concrete root-only Linux port followed by an opt-in run
-on a disposable KVM host. That run must retain exact cgroup files before,
-during, and after execution, namespace mount identity and network inventory,
-the canonical request and output, the exact Jailer/Firecracker command, and
-failure controls for timeout, surviving descendants, namespace routes, and
-teardown failure.
+The next safe step is a concrete root-only namespace-kernel implementation
+followed by an opt-in run on a disposable KVM host. That run must retain exact
+cgroup files before, during, and after execution, namespace mount identity and
+network inventory, the canonical request and output, the exact
+Jailer/Firecracker command, and failure controls for timeout, surviving
+descendants, namespace routes, and teardown failure.

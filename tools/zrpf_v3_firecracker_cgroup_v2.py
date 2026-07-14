@@ -38,6 +38,7 @@ __all__ = [
     "authority_nonclaims",
     "create_cgroup_leaf",
     "create_cgroup_leaf_from_request",
+    "require_cgroup_leaf_absent_from_request",
     "validate_jailer_cgroup_arguments",
 ]
 
@@ -304,6 +305,43 @@ def create_cgroup_leaf_from_request(request: CgroupCreateRequestV1) -> CgroupLea
         )
         return _create_leaf_under_parent(parent_fd, components, request)
     finally:
+        os.close(mount_fd)
+
+
+def require_cgroup_leaf_absent_from_request(request: CgroupCreateRequestV1) -> None:
+    """Require descriptor-safely that one exact requested leaf is absent."""
+
+    if type(request) is not CgroupCreateRequestV1:
+        raise CgroupV2Reject("cgroup_absence_request_invalid")
+    require_leaf_name(request.leaf_name)
+    components = relative_components(request.parent_relative_path)
+    mount_fd = cgroup_io.open_trusted_directory(
+        request.cgroup_mount,
+        trusted_uid=request.trusted_uid,
+    )
+    parent_fd = -1
+    try:
+        cgroup_io.require_cgroup2_mount(
+            request.cgroup_mount,
+            mount_fd,
+            os.fstat(mount_fd),
+            request.mountinfo_path,
+        )
+        parent_fd = cgroup_io.walk_directories(
+            mount_fd,
+            components,
+            trusted_uid=request.trusted_uid,
+        )
+        try:
+            os.stat(request.leaf_name, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            raise CgroupV2Reject("cgroup_leaf_absence_check_failed") from exc
+        raise CgroupV2Reject("cgroup_leaf_still_exists")
+    finally:
+        if parent_fd >= 0:
+            os.close(parent_fd)
         os.close(mount_fd)
 
 

@@ -36,6 +36,55 @@ def test_existing_leaf_rejects_instead_of_inheriting_stale_state(
         fixture.create_leaf()
 
 
+def test_descriptor_safe_absence_accepts_only_removed_exact_leaf(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _FakeCgroupV2(tmp_path, monkeypatch)
+    leaf = fixture.create_leaf()
+    request = cgroup.CgroupCreateRequestV1(
+        cgroup_mount=fixture.mount,
+        parent_relative_path="zenodex01/zrpf0001",
+        leaf_name="run00001",
+        limits=fixture.limits,
+        mountinfo_path=fixture.mountinfo,
+        proc_root=fixture.proc_root,
+        trusted_uid=os.getuid(),
+    )
+
+    with pytest.raises(cgroup.CgroupV2Reject, match="cgroup_leaf_still_exists"):
+        cgroup.require_cgroup_leaf_absent_from_request(request)
+
+    leaf.close_without_removal()
+    for control_file in fixture.leaf_path.iterdir():
+        control_file.unlink()
+    fixture.leaf_path.rmdir()
+    cgroup.require_cgroup_leaf_absent_from_request(request)
+
+
+def test_absence_check_rejects_replaced_leaf_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _FakeCgroupV2(tmp_path, monkeypatch)
+    leaf = fixture.create_leaf()
+    leaf.close_without_removal()
+    fixture.leaf_path.rename(fixture.parent / "old-run00001")
+    fixture.leaf_path.mkdir()
+    request = cgroup.CgroupCreateRequestV1(
+        cgroup_mount=fixture.mount,
+        parent_relative_path="zenodex01/zrpf0001",
+        leaf_name="run00001",
+        limits=fixture.limits,
+        mountinfo_path=fixture.mountinfo,
+        proc_root=fixture.proc_root,
+        trusted_uid=os.getuid(),
+    )
+
+    with pytest.raises(cgroup.CgroupV2Reject, match="cgroup_leaf_still_exists"):
+        cgroup.require_cgroup_leaf_absent_from_request(request)
+
+
 def test_limit_mutation_rejects_before_jailer_membership_is_trusted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

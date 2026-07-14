@@ -282,6 +282,8 @@ jobs:
             tools/zrpf_spot_v7_release_schema.py \
             tools/zrpf_spot_v7_firecracker_jail_staging.py \
             tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py \
+            tools/zrpf_spot_v7_firecracker_linux_namespace.py \
+            tools/zrpf_spot_v7_firecracker_linux_port.py \
             tools/zrpf_spot_v7_firecracker_root_supervisor.py \
             tools/zrpf_spot_v7_firecracker_artifact_binding.py \
             tools/_zrpf_spot_v7_firecracker_descriptor_handoff.py \
@@ -347,6 +349,7 @@ jobs:
             tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
             tests/test_zrpf_spot_v7_firecracker_artifact_binding.py \
             tests/test_zrpf_spot_v7_firecracker_descriptor_staging.py \
+            tests/test_zrpf_spot_v7_firecracker_linux_port.py \
             tests/test_zrpf_spot_v7_firecracker_root_supervisor.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \
@@ -537,6 +540,8 @@ jobs:
             tools/zrpf_spot_v7_release_schema.py \
             tools/zrpf_spot_v7_firecracker_jail_staging.py \
             tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py \
+            tools/zrpf_spot_v7_firecracker_linux_namespace.py \
+            tools/zrpf_spot_v7_firecracker_linux_port.py \
             tools/zrpf_spot_v7_firecracker_root_supervisor.py \
             tools/zrpf_spot_v7_firecracker_artifact_binding.py \
             tools/_zrpf_spot_v7_firecracker_descriptor_handoff.py \
@@ -582,6 +587,7 @@ jobs:
             tests/test_zrpf_v3_source_closure.py \
             tests/test_zrpf_spot_v7_firecracker_artifact_binding.py \
             tests/test_zrpf_spot_v7_firecracker_descriptor_staging.py \
+            tests/test_zrpf_spot_v7_firecracker_linux_port.py \
             tests/test_zrpf_spot_v7_firecracker_root_supervisor.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \
@@ -639,6 +645,7 @@ jobs:
             tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
             tests/test_zrpf_spot_v7_firecracker_artifact_binding.py \
             tests/test_zrpf_spot_v7_firecracker_descriptor_staging.py \
+            tests/test_zrpf_spot_v7_firecracker_linux_port.py \
             tests/test_zrpf_spot_v7_firecracker_root_supervisor.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \

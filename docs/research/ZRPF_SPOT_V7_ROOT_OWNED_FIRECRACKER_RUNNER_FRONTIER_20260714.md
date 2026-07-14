@@ -4,9 +4,10 @@ Date: 2026-07-14
 
 Status: descriptor-retained artifact binding, one-shot descriptor-sourced
 launch snapshots, root-owned jail preparation, the data-only prepared Jailer
-lifecycle, and an authority-false root-supervisor orchestration contract are
-implemented; the concrete privileged OS port and Spot V7 runtime authority
-remain unavailable
+lifecycle, an authority-false root-supervisor orchestration contract, and the
+Linux cgroup/Jailer composition adapter are implemented; concrete privileged
+namespace-kernel effects, live evidence, and Spot V7 runtime authority remain
+unavailable
 
 ## Purpose
 
@@ -220,9 +221,11 @@ descriptor launch, orders cgroup and namespace allocation through a narrow OS
 port, invokes the prepared-lifecycle port, independently validates the exact
 request-bound output, and requires cgroup absence plus namespace emptiness and
 destruction before closing launch resources. Deterministic ports cover the
-orchestration and disaster-state contract. The concrete privileged Linux port
-that creates and owns the live controls remains unimplemented, so no live
-ownership or execution claim follows.
+orchestration and disaster-state contract.
+`LinuxSpotV7RootSupervisorOsPortV1` now composes the exact descriptor-safe
+cgroup leaf, pinned namespace handle, and prepared Jailer lifecycle. Its
+persistent namespace create/inventory/destroy operations remain an injected
+privileged-kernel seam, so no live ownership or execution claim follows.
 
 ## Non-claims
 
@@ -244,6 +247,7 @@ release or revocation authority
 sandbox escape resistance
 hardware side-channel resistance
 covert-channel freedom
+integer-exact timeout enforcement at the lower lifecycle boundary
 production readiness
 ```
 
@@ -253,9 +257,8 @@ production readiness
    stage or execute only from those retained descriptors or immutable snapshots.
 2. Build the authority-capable PID-1 guest from the final source closure and
    verify fresh V6/V7 receipts under the selected image IDs.
-3. Add one root supervisor that creates the cgroup and network namespace,
-   prepares the jail, runs the exact lifecycle, and destroys all three only
-   after verified emptiness.
+3. Implement and review the concrete privileged namespace-kernel seam, then
+   execute the existing root supervisor and Linux composition adapter.
 4. Run privileged hostile controls on a disposable KVM host.
 5. Decode and authenticate the exact V7 payload inside that lifecycle. Only
    then may the module-private governed execution capability gain a mint site.
