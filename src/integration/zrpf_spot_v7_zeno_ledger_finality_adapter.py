@@ -1,24 +1,27 @@
-"""Governed ZenoLedger BLS-quorum adapter for Spot V7 checkpoint finality.
+"""Governed ZenoLedger BLS-quorum adapters for Spot V7 checkpoint finality.
 
-The adapter accepts one sealed Spot V7 settlement candidate and one sealed
-operational policy. It snapshots bounded plain-data inputs, authenticates an
-app-hash-consistent ZenoLedger checkpoint with the policy-pinned BLS signer
-registry, verifies the canonical validator schedule and the scheduled
-proposer's BLS authorship, binds the application checkpoint cursor and Spot V7
-journal/state roots, and derives the canonical ``checkpoint_finality_v2``
-certificate itself.
+Both versions accept one sealed Spot V7 settlement candidate and one sealed
+operational policy. V2 binds the legacy transaction-only replay observation.
+V3 derives its header from the exact retained-material settlement-envelope
+observation, then binds the candidate, effect plan, action, nullifiers, cell
+effects, state roots, and parent before authenticating the same proof-neutral
+checkpoint quorum and certificate primitive.
 
-The resulting private capability is suitable for the authority-false V2 atomic
-store sink. Release provenance, data availability, economic settlement, and
-production authority remain separate gates.
+Only the V2 private capability is accepted by the authority-false V2 atomic
+store sink. V3 deliberately returns a distinct sealed transition pending a V3
+durable store that persists and re-executes the retained replay material.
+Release provenance, data availability, economic settlement, and production
+authority remain separate gates.
 """
 
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Mapping, NoReturn, Sequence, final
+from dataclasses import dataclass
+from typing import Any, Mapping, NoReturn, Sequence, SupportsIndex, final
 
 from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
+    _derive_capability_commitment,
     _seal_test_only_spot_v7_settlement_v1,
     _SpotV7SettlementCandidateInputV1,
 )
@@ -34,14 +37,21 @@ from src.integration._zrpf_spot_v7_operational_gate import (
     _require_settlement_capability,
 )
 from src.integration._zrpf_spot_v7_operational_mechanics import (
+    MAX_FINALITY_CERTIFICATE_BYTES_V2,
     MAX_FINALITY_EVIDENCE_BYTES_V2,
     _build_test_only_checkpoint_finality_artifacts_v2,
     _TestOnlySpotV7OperationalPolicyV1,
+)
+from src.integration._zrpf_spot_v7_settlement_envelope_contract import (
+    SPOT_V7_SETTLEMENT_EFFECT_IDS_ROOT_DOMAIN_V1,
+    _AuthenticatedSpotV7SettlementReplayObservationV2,
+    _require_settlement_replay_observation_v2,
 )
 from src.integration._zrpf_spot_v7_zeno_ledger_finality_contract import (
     _MAX_FINALITY_QUORUM_SIGNERS_V1,
     _ZERO_ROOT,
     SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V2,
+    SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V3,
     SPOT_V7_ZENO_LEDGER_PROPOSER_AUTHORSHIP_ADMISSION_SCHEMA_V1,
     SpotV7ZenoLedgerFinalityBindingErrorV1,
     ZenoLedgerCheckpointFinalityCursorV1,
@@ -53,6 +63,7 @@ from src.integration._zrpf_spot_v7_zeno_ledger_finality_contract import (
     derive_zeno_ledger_external_finality_policy_hash_v2,
     derive_zeno_ledger_finality_network_id_v1,
     derive_zeno_ledger_finality_protocol_id_v2,
+    derive_zeno_ledger_finality_protocol_id_v3,
     derive_zeno_ledger_proposer_authorship_payload_hash_v1,
 )
 from src.integration._zrpf_spot_v7_zeno_ledger_replay_observation import (
@@ -79,7 +90,181 @@ from src.integration.zeno_ledger_validator_schedule_v0 import (
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     MAX_U64,
+    _hash_bytes,
+    _require_uint,
+    _root_bytes_allow_zero,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _AuthenticatedCheckpointQuorumCoreV1:
+    """Private proof-neutral result of one exact checkpoint quorum verification."""
+
+    scheduled_header_admission: dict[str, Any]
+    proposer_authorship_admission: dict[str, Any]
+    live_quorum_admission: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class _AuthenticatedCheckpointFinalityProjectionV3:
+    application_id: str
+    chain_or_domain_id: str
+    epoch_id: int
+    proof_journal_hash: str
+    post_state_root: str
+    policy_root: str
+    certificate_root: str
+    finality_evidence_root: str
+    prior_application_checkpoint_sequence: int
+    prior_application_checkpoint_hash: str
+    next_application_checkpoint_sequence: int
+    next_application_checkpoint_hash: str
+
+    def __post_init__(self) -> None:
+        for name in (
+            "application_id",
+            "chain_or_domain_id",
+            "proof_journal_hash",
+            "post_state_root",
+            "policy_root",
+            "certificate_root",
+            "finality_evidence_root",
+            "next_application_checkpoint_hash",
+        ):
+            _hash_bytes(getattr(self, name), name=f"checkpoint finality V3 {name}")
+        _root_bytes_allow_zero(
+            self.prior_application_checkpoint_hash,
+            name="checkpoint finality V3 prior_application_checkpoint_hash",
+        )
+        for name in (
+            "epoch_id",
+            "prior_application_checkpoint_sequence",
+            "next_application_checkpoint_sequence",
+        ):
+            _require_uint(getattr(self, name), name=name, maximum=MAX_U64)
+        if self.prior_application_checkpoint_sequence == MAX_U64:
+            raise ValueError("checkpoint finality V3 prior sequence overflows")
+        if self.next_application_checkpoint_sequence != (
+            self.prior_application_checkpoint_sequence + 1
+        ):
+            raise ValueError("checkpoint finality V3 cursor is not an exact successor")
+
+
+class _AuthenticatedCheckpointFinalitySealV3:
+    __slots__ = ()
+
+
+_AUTHENTICATED_CHECKPOINT_FINALITY_SEAL_V3 = _AuthenticatedCheckpointFinalitySealV3()
+
+
+@final
+class _AuthenticatedExactCheckpointFinalityTransitionV3:
+    """Sealed V3 finality transition; intentionally not accepted by the V2 store."""
+
+    __slots__ = (
+        "_projection",
+        "_exact_certificate_bytes",
+        "_exact_finality_evidence_bytes",
+        "_seal",
+    )
+
+    def __init__(
+        self,
+        projection: _AuthenticatedCheckpointFinalityProjectionV3,
+        *,
+        exact_certificate_bytes: bytes,
+        exact_finality_evidence_bytes: bytes,
+        seal: _AuthenticatedCheckpointFinalitySealV3,
+    ) -> None:
+        if type(projection) is not _AuthenticatedCheckpointFinalityProjectionV3:
+            raise TypeError("checkpoint finality V3 projection has the wrong type")
+        if seal is not _AUTHENTICATED_CHECKPOINT_FINALITY_SEAL_V3:
+            raise TypeError("checkpoint finality V3 requires its private seal")
+        if type(exact_certificate_bytes) is not bytes or not exact_certificate_bytes:
+            raise TypeError("checkpoint finality V3 certificate must be non-empty bytes")
+        if (
+            type(exact_finality_evidence_bytes) is not bytes
+            or not exact_finality_evidence_bytes
+        ):
+            raise TypeError("checkpoint finality V3 evidence must be non-empty bytes")
+        if len(exact_certificate_bytes) > MAX_FINALITY_CERTIFICATE_BYTES_V2:
+            raise ValueError("checkpoint finality V3 certificate exceeds its byte bound")
+        if len(exact_finality_evidence_bytes) > MAX_FINALITY_EVIDENCE_BYTES_V2:
+            raise ValueError("checkpoint finality V3 evidence exceeds its byte bound")
+        if _sha256_prefixed(exact_finality_evidence_bytes) != (
+            projection.finality_evidence_root
+        ):
+            raise ValueError("checkpoint finality V3 evidence root mismatch")
+        object.__setattr__(self, "_projection", projection)
+        object.__setattr__(self, "_exact_certificate_bytes", exact_certificate_bytes)
+        object.__setattr__(
+            self,
+            "_exact_finality_evidence_bytes",
+            exact_finality_evidence_bytes,
+        )
+        object.__setattr__(self, "_seal", seal)
+
+    def _has_private_seal(self) -> bool:
+        return getattr(self, "_seal", None) is _AUTHENTICATED_CHECKPOINT_FINALITY_SEAL_V3
+
+    def __setattr__(self, _name: str, _value: object) -> NoReturn:
+        raise TypeError("checkpoint finality V3 transition cannot be mutated")
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("checkpoint finality V3 transition cannot be copied")
+
+    def __deepcopy__(self, _memo: object) -> NoReturn:
+        raise TypeError("checkpoint finality V3 transition cannot be deep-copied")
+
+    def __reduce__(self) -> NoReturn:
+        raise TypeError("checkpoint finality V3 transition cannot be serialized")
+
+    def __reduce_ex__(self, _protocol: SupportsIndex) -> NoReturn:
+        raise TypeError("checkpoint finality V3 transition cannot be serialized")
+
+    @property
+    def proof_receipt_authentication_established(self) -> bool:
+        return False
+
+    @property
+    def application_domain_to_ledger_chain_binding_established(self) -> bool:
+        return False
+
+    @property
+    def public_data_retrievability_established(self) -> bool:
+        return False
+
+    @property
+    def canonical_conflicting_checkpoint_selection_established(self) -> bool:
+        return False
+
+    @property
+    def durable_settlement_replay_reverified(self) -> bool:
+        return False
+
+    @property
+    def exact_replay_material_authenticated(self) -> bool:
+        return True
+
+    @property
+    def durable_settlement_replay_material_persisted(self) -> bool:
+        return False
+
+    @property
+    def hostile_same_interpreter_resistance_established(self) -> bool:
+        return False
+
+    @property
+    def release_authority(self) -> bool:
+        return False
+
+    @property
+    def settlement_authority(self) -> bool:
+        return False
+
+    @property
+    def production_authority(self) -> bool:
+        return False
 
 
 @final
@@ -166,6 +351,7 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV2:
             header=snapshot.header,
             registry=snapshot.registry,
             policy=policy,
+            expected_finality_protocol_id=derive_zeno_ledger_finality_protocol_id_v2(),
         )
         _require_replay_transition_binding(
             candidate=candidate,
@@ -174,23 +360,168 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV2:
             policy=policy,
             replay=replay,
         )
-        proposer_authorship_admission = _require_proposer_authorship(snapshot)
-        admission = build_live_checkpoint_quorum_admission_v0(
-            header=snapshot.header,
-            checkpoint=snapshot.checkpoint,
-            registry=snapshot.registry,
-            envelopes=snapshot.envelopes,
+        quorum = _authenticate_checkpoint_quorum_core(
+            snapshot=snapshot,
+            scheduled_header_admission=scheduled_header_admission,
         )
         evidence_bytes = _canonical_finality_evidence(
             candidate=candidate,
             cursor=cursor,
             snapshot=snapshot,
             replay_observation=replay,
-            scheduled_header_admission=scheduled_header_admission,
-            proposer_authorship_admission=proposer_authorship_admission,
-            admission=admission,
+            scheduled_header_admission=quorum.scheduled_header_admission,
+            proposer_authorship_admission=quorum.proposer_authorship_admission,
+            admission=quorum.live_quorum_admission,
         )
         return _derive_exact_finality_capability(
+            candidate=candidate,
+            policy=self._policy,
+            cursor=cursor,
+            checkpoint=snapshot.checkpoint,
+            evidence_bytes=evidence_bytes,
+        )
+
+
+@final
+class SpotV7ZenoLedgerCheckpointFinalityAdapterV3:
+    """Authenticate finality for one exact sealed settlement-envelope replay."""
+
+    __slots__ = ("_policy",)
+
+    _policy: _GovernedSpotV7OperationalPolicyV2
+
+    def __init__(self, policy: object) -> None:
+        object.__setattr__(self, "_policy", _require_operational_policy_v2(policy))
+
+    def __init_subclass__(cls, **_kwargs: object) -> NoReturn:
+        raise TypeError("SpotV7ZenoLedgerCheckpointFinalityAdapterV3 cannot be subclassed")
+
+    @property
+    def cryptographic_checkpoint_quorum_supported(self) -> bool:
+        return True
+
+    @property
+    def proof_receipt_authentication_established(self) -> bool:
+        return False
+
+    @property
+    def application_domain_to_ledger_chain_binding_established(self) -> bool:
+        return False
+
+    @property
+    def public_data_retrievability_established(self) -> bool:
+        return False
+
+    @property
+    def canonical_conflicting_checkpoint_selection_established(self) -> bool:
+        return False
+
+    @property
+    def durable_settlement_replay_reverified(self) -> bool:
+        return False
+
+    @property
+    def exact_replay_material_authenticated(self) -> bool:
+        return True
+
+    @property
+    def durable_settlement_replay_material_persisted(self) -> bool:
+        return False
+
+    @property
+    def hostile_same_interpreter_resistance_established(self) -> bool:
+        return False
+
+    @property
+    def release_authority(self) -> bool:
+        return False
+
+    @property
+    def settlement_authority(self) -> bool:
+        return False
+
+    @property
+    def production_authority(self) -> bool:
+        return False
+
+    def authenticate(
+        self,
+        *,
+        settlement: object,
+        prior_cursor: object,
+        settlement_replay_observation: object,
+        checkpoint: object,
+        validator_set: object,
+        proposer_id: object,
+        proposer_key_id: object,
+        proposer_envelope: object,
+        registry: object,
+        envelopes: object,
+    ) -> _AuthenticatedExactCheckpointFinalityTransitionV3:
+        """Derive the header from sealed replay and authenticate exact BLS finality."""
+
+        settlement_value = _require_settlement_capability(settlement)
+        cursor = _require_cursor(prior_cursor)
+        replay = _require_settlement_replay_observation_v2(
+            settlement_replay_observation
+        )
+        snapshot = _snapshot_inputs(
+            header=replay._header_for_finality_adapter(),
+            checkpoint=checkpoint,
+            validator_set=validator_set,
+            proposer_id=proposer_id,
+            proposer_key_id=proposer_key_id,
+            proposer_envelope=proposer_envelope,
+            registry=registry,
+            envelopes=envelopes,
+        )
+        candidate = settlement_value._candidate_for_atomic_store()
+        policy_projection = self._policy._projection
+        _require_policy_binding(candidate, policy_projection)
+        try:
+            self._policy._require_active_at_epoch_for_operational_use(candidate.epoch_id)
+        except ValueError as exc:
+            raise SpotV7ZenoLedgerFinalityBindingErrorV1(
+                "operational_policy_inactive"
+            ) from exc
+        policy = self._policy._policy_for_atomic_store()
+        _validate_checkpoint_structure(snapshot)
+        _validate_header_app_hash(snapshot.header)
+        _require_checkpoint_transition_binding(
+            candidate=candidate,
+            cursor=cursor,
+            header=snapshot.header,
+            checkpoint=snapshot.checkpoint,
+            policy=policy,
+        )
+        _require_settlement_replay_transition_binding(
+            candidate=candidate,
+            cursor=cursor,
+            header=snapshot.header,
+            policy=policy,
+            replay=replay,
+        )
+        scheduled_header_admission = _require_scheduled_header_admission(snapshot)
+        _require_registry_and_external_policy_binding(
+            header=snapshot.header,
+            registry=snapshot.registry,
+            policy=policy,
+            expected_finality_protocol_id=derive_zeno_ledger_finality_protocol_id_v3(),
+        )
+        quorum = _authenticate_checkpoint_quorum_core(
+            snapshot=snapshot,
+            scheduled_header_admission=scheduled_header_admission,
+        )
+        evidence_bytes = _canonical_finality_evidence_v3(
+            candidate=candidate,
+            cursor=cursor,
+            snapshot=snapshot,
+            settlement_replay_observation=replay,
+            scheduled_header_admission=quorum.scheduled_header_admission,
+            proposer_authorship_admission=quorum.proposer_authorship_admission,
+            admission=quorum.live_quorum_admission,
+        )
+        return _derive_exact_finality_capability_v3(
             candidate=candidate,
             policy=self._policy,
             cursor=cursor,
@@ -304,6 +635,27 @@ def _require_proposer_authorship(
         raise SpotV7ZenoLedgerFinalityBindingErrorV1("proposer_authorship") from exc
 
 
+def _authenticate_checkpoint_quorum_core(
+    *,
+    snapshot: _FinalityInputSnapshotV1,
+    scheduled_header_admission: dict[str, Any],
+) -> _AuthenticatedCheckpointQuorumCoreV1:
+    """Authenticate proposer and live quorum once after protocol-specific binding."""
+
+    proposer_authorship_admission = _require_proposer_authorship(snapshot)
+    admission = build_live_checkpoint_quorum_admission_v0(
+        header=snapshot.header,
+        checkpoint=snapshot.checkpoint,
+        registry=snapshot.registry,
+        envelopes=snapshot.envelopes,
+    )
+    return _AuthenticatedCheckpointQuorumCoreV1(
+        scheduled_header_admission=scheduled_header_admission,
+        proposer_authorship_admission=proposer_authorship_admission,
+        live_quorum_admission=admission,
+    )
+
+
 def _require_checkpoint_transition_binding(
     *,
     candidate: _SpotV7SettlementCandidateInputV1,
@@ -377,11 +729,88 @@ def _require_replay_transition_binding(
     _require_checks(checks)
 
 
+def _require_settlement_replay_transition_binding(
+    *,
+    candidate: _SpotV7SettlementCandidateInputV1,
+    cursor: ZenoLedgerCheckpointFinalityCursorV1,
+    header: Mapping[str, Any],
+    policy: _TestOnlySpotV7OperationalPolicyV1,
+    replay: _AuthenticatedSpotV7SettlementReplayObservationV2,
+) -> None:
+    projection = replay._projection_for_finality_adapter()
+    expected_parent_header_hash = (
+        None
+        if (
+            cursor.sequence == policy.genesis_application_checkpoint_sequence
+            and cursor.checkpoint_hash == _ZERO_ROOT
+        )
+        else cursor.checkpoint_hash
+    )
+    expected_effect_ids_root = hash_v0(
+        SPOT_V7_SETTLEMENT_EFFECT_IDS_ROOT_DOMAIN_V1,
+        {"effect_ids": [row.effect_id for row in candidate.asset_effects]},
+    )
+    checks = (
+        (projection.chain_id == header["chain_id"], "replay_chain_id"),
+        (projection.height == candidate.epoch_id, "replay_epoch"),
+        (projection.header_hash == canonical_header_hash_v0(dict(header)), "replay_header"),
+        (projection.body_root == header["body_root"], "replay_body_root"),
+        (projection.config_digest == header["config_digest"], "replay_config_digest"),
+        (
+            projection.candidate_settlement_commitment
+            == _derive_capability_commitment(candidate),
+            "replay_candidate_settlement",
+        ),
+        (
+            projection.proof_journal_hash == _candidate_journal_hash(candidate),
+            "replay_proof_receipt_journal",
+        ),
+        (projection.receipt_accepted is True, "replay_receipt_acceptance"),
+        (
+            projection.settlement_effect_plan_commitment
+            == candidate.settlement_effect_plan_commitment,
+            "replay_settlement_effect_plan",
+        ),
+        (projection.pre_state_root == candidate.pre_state_root, "replay_pre_state_root"),
+        (
+            projection.post_state_root == candidate.post_state_root,
+            "replay_post_state_root",
+        ),
+        (
+            projection.economic_action_id == candidate.economic_action_id,
+            "replay_economic_action",
+        ),
+        (
+            projection.authorization_nullifier == candidate.authorization_nullifier,
+            "replay_authorization_nullifier",
+        ),
+        (
+            projection.authorization_grant_spend_nullifier
+            == candidate.authorization_grant_spend_nullifier,
+            "replay_authorization_grant_spend_nullifier",
+        ),
+        (
+            projection.cell_transitions_root == candidate.cell_transitions_root,
+            "replay_cell_transitions",
+        ),
+        (
+            projection.asset_effect_ids_root == expected_effect_ids_root,
+            "replay_asset_effect_ids",
+        ),
+        (
+            projection.parent_header_hash == expected_parent_header_hash,
+            "replay_parent_state_continuity",
+        ),
+    )
+    _require_checks(checks)
+
+
 def _require_registry_and_external_policy_binding(
     *,
     header: Mapping[str, Any],
     registry: dict[str, Any],
     policy: _TestOnlySpotV7OperationalPolicyV1,
+    expected_finality_protocol_id: str,
 ) -> None:
     validate_signer_registry_v0(registry)
     signers = registry["signers"]
@@ -411,7 +840,7 @@ def _require_registry_and_external_policy_binding(
             "finality_network",
         ),
         (
-            policy.finality_protocol_id == derive_zeno_ledger_finality_protocol_id_v2(),
+            policy.finality_protocol_id == expected_finality_protocol_id,
             "finality_protocol",
         ),
         (
@@ -486,6 +915,80 @@ def _canonical_finality_evidence(
     return encoded
 
 
+def _canonical_finality_evidence_v3(
+    *,
+    candidate: _SpotV7SettlementCandidateInputV1,
+    cursor: ZenoLedgerCheckpointFinalityCursorV1,
+    snapshot: _FinalityInputSnapshotV1,
+    settlement_replay_observation: _AuthenticatedSpotV7SettlementReplayObservationV2,
+    scheduled_header_admission: Mapping[str, Any],
+    proposer_authorship_admission: Mapping[str, Any],
+    admission: Mapping[str, Any],
+) -> bytes:
+    body = {
+        "schema": SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V3,
+        "application_binding": {
+            "application_id": candidate.application_id,
+            "chain_or_domain_id": candidate.chain_or_domain_id,
+            "epoch_id": candidate.epoch_id,
+            "verified_program_id": candidate.verified_program_id,
+            "verified_profile_id": candidate.verified_profile_id,
+            "verified_program_manifest_root": candidate.verified_program_manifest_root,
+            "candidate_settlement_commitment": _derive_capability_commitment(candidate),
+            "settlement_effect_plan_commitment": (
+                candidate.settlement_effect_plan_commitment
+            ),
+            "pre_state_root": candidate.pre_state_root,
+            "post_state_root": candidate.post_state_root,
+            "economic_action_id": candidate.economic_action_id,
+            "authorization_nullifier": candidate.authorization_nullifier,
+            "authorization_grant_spend_nullifier": (
+                candidate.authorization_grant_spend_nullifier
+            ),
+            "cell_transitions_root": candidate.cell_transitions_root,
+            "proof_journal_hash": _candidate_journal_hash(candidate),
+        },
+        "prior_application_checkpoint": {
+            "sequence": cursor.sequence,
+            "checkpoint_hash": cursor.checkpoint_hash,
+        },
+        "settlement_replay_observation": (
+            settlement_replay_observation._canonical_projection_for_finality_adapter()
+        ),
+        "header": snapshot.header,
+        "checkpoint": snapshot.checkpoint,
+        "validator_set": snapshot.validator_set,
+        "scheduled_header_admission": dict(scheduled_header_admission),
+        "proposer_envelope": snapshot.proposer_envelope,
+        "proposer_authorship_admission": dict(proposer_authorship_admission),
+        "registry": snapshot.registry,
+        "envelopes": list(snapshot.envelopes),
+        "live_quorum_admission": dict(admission),
+        "claims": {
+            "exact_settlement_envelope_replay_bound": True,
+            "exact_header_derived_from_sealed_replay": True,
+            "candidate_effect_and_state_bindings_checked": True,
+            "cryptographic_checkpoint_quorum_supported": True,
+            "proof_receipt_authentication_established": False,
+            "application_domain_to_ledger_chain_binding_established": False,
+            "public_data_retrievability_established": False,
+            "canonical_conflicting_checkpoint_selection_established": False,
+            "exact_replay_material_authenticated": True,
+            "replay_material_commitment_bound": True,
+            "durable_settlement_replay_material_persisted": False,
+            "durable_settlement_replay_reverified": False,
+            "hostile_same_interpreter_resistance_established": False,
+            "release_authority": False,
+            "settlement_authority": False,
+            "production_authority": False,
+        },
+    }
+    encoded = canonical_json_bytes_v0(body)
+    if not encoded or len(encoded) > MAX_FINALITY_EVIDENCE_BYTES_V2:
+        raise ValueError("canonical finality evidence exceeds checkpoint-finality V3 bound")
+    return encoded
+
+
 def _derive_exact_finality_capability(
     *,
     candidate: _SpotV7SettlementCandidateInputV1,
@@ -529,6 +1032,53 @@ def _derive_exact_finality_capability(
     )
 
 
+def _derive_exact_finality_capability_v3(
+    *,
+    candidate: _SpotV7SettlementCandidateInputV1,
+    policy: _GovernedSpotV7OperationalPolicyV2,
+    cursor: ZenoLedgerCheckpointFinalityCursorV1,
+    checkpoint: Mapping[str, Any],
+    evidence_bytes: bytes,
+) -> _AuthenticatedExactCheckpointFinalityTransitionV3:
+    store_policy = policy._policy_for_atomic_store()
+    store_settlement = _seal_test_only_spot_v7_settlement_v1(candidate)
+    artifacts = _build_test_only_checkpoint_finality_artifacts_v2(
+        policy=store_policy,
+        settlement=store_settlement,
+        prior_application_checkpoint_sequence=cursor.sequence,
+        prior_application_checkpoint_hash=cursor.checkpoint_hash,
+        next_application_checkpoint_hash=_require_hash(
+            checkpoint["header_hash"],
+            name="checkpoint header hash",
+        ),
+        exact_finality_evidence_bytes=evidence_bytes,
+    )
+    projection = _AuthenticatedCheckpointFinalityProjectionV3(
+        application_id=store_policy.application_id,
+        chain_or_domain_id=store_policy.chain_or_domain_id,
+        epoch_id=artifacts.epoch_id,
+        proof_journal_hash=artifacts.proof_journal_hash,
+        post_state_root=artifacts.post_state_root,
+        policy_root=artifacts.policy_root,
+        certificate_root=artifacts.certificate_root,
+        finality_evidence_root=artifacts.finality_evidence_root,
+        prior_application_checkpoint_sequence=(
+            artifacts.prior_application_checkpoint_sequence
+        ),
+        prior_application_checkpoint_hash=artifacts.prior_application_checkpoint_hash,
+        next_application_checkpoint_sequence=(
+            artifacts.next_application_checkpoint_sequence
+        ),
+        next_application_checkpoint_hash=artifacts.next_application_checkpoint_hash,
+    )
+    return _AuthenticatedExactCheckpointFinalityTransitionV3(
+        projection,
+        exact_certificate_bytes=artifacts.exact_certificate_bytes,
+        exact_finality_evidence_bytes=artifacts.exact_finality_evidence_bytes,
+        seal=_AUTHENTICATED_CHECKPOINT_FINALITY_SEAL_V3,
+    )
+
+
 def _require_cursor(value: object) -> ZenoLedgerCheckpointFinalityCursorV1:
     if type(value) is not ZenoLedgerCheckpointFinalityCursorV1:
         raise TypeError("prior_cursor must be exact ZenoLedgerCheckpointFinalityCursorV1")
@@ -539,6 +1089,10 @@ def _candidate_journal_hash(candidate: _SpotV7SettlementCandidateInputV1) -> str
     return "0x" + hashlib.sha256(candidate.exact_v7_journal_bytes).hexdigest()
 
 
+def _sha256_prefixed(value: bytes) -> str:
+    return "0x" + hashlib.sha256(value).hexdigest()
+
+
 def _require_checks(checks: Sequence[tuple[bool, str]]) -> None:
     for accepted, code in checks:
         if not accepted:
@@ -547,12 +1101,15 @@ def _require_checks(checks: Sequence[tuple[bool, str]]) -> None:
 
 __all__ = [
     "SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V2",
+    "SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V3",
     "SPOT_V7_ZENO_LEDGER_PROPOSER_AUTHORSHIP_ADMISSION_SCHEMA_V1",
     "SpotV7ZenoLedgerCheckpointFinalityAdapterV2",
+    "SpotV7ZenoLedgerCheckpointFinalityAdapterV3",
     "SpotV7ZenoLedgerFinalityBindingErrorV1",
     "ZenoLedgerCheckpointFinalityCursorV1",
     "derive_zeno_ledger_external_finality_policy_hash_v2",
     "derive_zeno_ledger_finality_network_id_v1",
     "derive_zeno_ledger_finality_protocol_id_v2",
+    "derive_zeno_ledger_finality_protocol_id_v3",
     "derive_zeno_ledger_proposer_authorship_payload_hash_v1",
 ]

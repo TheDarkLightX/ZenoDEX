@@ -18,6 +18,7 @@ from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     MAX_U64,
     _hash_bytes,
     _require_uint,
+    _root_bytes_allow_zero,
     _sha256_prefixed,
 )
 
@@ -66,9 +67,12 @@ class _TestOnlySpotV7OperationalPolicyV1:
             "finality_protocol_id",
             "external_finality_policy_hash",
             "finality_verifier_set_root",
-            "genesis_application_checkpoint_hash",
         ):
             _hash_bytes(getattr(self, name), name=f"test-only operational policy {name}")
+        _root_bytes_allow_zero(
+            self.genesis_application_checkpoint_hash,
+            name="test-only operational policy genesis_application_checkpoint_hash",
+        )
         for name in (
             "minimum_retention_epochs",
             "minimum_remaining_epochs",
@@ -120,7 +124,7 @@ class _TestOnlySpotV7OperationalPolicyV1:
                         name="finality verifier set",
                     ),
                     self.genesis_application_checkpoint_sequence.to_bytes(8, "big"),
-                    _hash_bytes(
+                    _root_bytes_allow_zero(
                         self.genesis_application_checkpoint_hash,
                         name="genesis checkpoint hash",
                     ),
@@ -202,10 +206,13 @@ class _TestOnlyCheckpointFinalityArtifactsV2:
             "policy_root",
             "certificate_root",
             "finality_evidence_root",
-            "prior_application_checkpoint_hash",
             "next_application_checkpoint_hash",
         ):
             _hash_bytes(getattr(self, name), name=f"test-only finality {name}")
+        _root_bytes_allow_zero(
+            self.prior_application_checkpoint_hash,
+            name="test-only finality prior_application_checkpoint_hash",
+        )
         for name in (
             "epoch_id",
             "prior_application_checkpoint_sequence",
@@ -507,7 +514,7 @@ def _build_test_only_checkpoint_finality_artifacts_v2(
     )
     if prior_application_checkpoint_sequence == MAX_U64:
         raise ValueError("test-only finality sequence overflow")
-    _hash_bytes(
+    _root_bytes_allow_zero(
         prior_application_checkpoint_hash,
         name="prior application checkpoint hash",
     )
@@ -720,7 +727,7 @@ def _finality_certificate_root_v2(
                 _hash_bytes(post_state_root, name="finality post state"),
                 sequence.to_bytes(8, "big"),
                 _hash_bytes(checkpoint_hash, name="checkpoint hash"),
-                _hash_bytes(parent_hash, name="checkpoint parent"),
+                _root_bytes_allow_zero(parent_hash, name="checkpoint parent"),
                 _hash_bytes(policy.finality_network_id, name="finality network"),
                 _hash_bytes(policy.finality_protocol_id, name="finality protocol"),
                 _hash_bytes(
@@ -793,7 +800,7 @@ def _encode_checkpoint_finality_certificate_v2(
         _hash_bytes(post_state_root, name="finality post state"),
         _postcard_uint(sequence),
         _hash_bytes(checkpoint_hash, name="checkpoint hash"),
-        _hash_bytes(parent_hash, name="checkpoint parent"),
+        _root_bytes_allow_zero(parent_hash, name="checkpoint parent"),
         _hash_bytes(policy.finality_network_id, name="finality network"),
         _hash_bytes(policy.finality_protocol_id, name="finality protocol"),
         _hash_bytes(

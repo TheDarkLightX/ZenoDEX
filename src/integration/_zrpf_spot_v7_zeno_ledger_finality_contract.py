@@ -11,6 +11,26 @@ import json
 from dataclasses import dataclass
 from typing import Any, Final, cast
 
+from src.integration._zrpf_spot_v7_settlement_envelope_codec import (
+    MAX_ENVELOPE_BYTES_V1,
+    MAX_ENVELOPE_DEPTH_V1,
+    MAX_ENVELOPE_ITEMS_V1,
+    MAX_HEADER_OR_CONFIG_BYTES_V1,
+    MAX_LEDGER_BODY_BYTES_V1,
+    MAX_PRE_STATE_SNAPSHOT_BYTES_V1,
+    MAX_PRE_STATE_SNAPSHOT_ITEMS_V1,
+)
+from src.integration._zrpf_spot_v7_settlement_envelope_contract import (
+    ENVELOPE_PROPOSAL_HASH_DOMAIN_V1,
+    ENVELOPE_RECEIPT_HASH_DOMAIN_V1,
+    SPOT_V7_SETTLEMENT_EFFECT_IDS_ROOT_DOMAIN_V1,
+    SPOT_V7_SETTLEMENT_ENVELOPE_PROFILE_V1,
+    SPOT_V7_SETTLEMENT_ENVELOPE_RECEIPT_SCHEMA_V1,
+    SPOT_V7_SETTLEMENT_ENVELOPE_SCHEMA_V1,
+    SPOT_V7_SETTLEMENT_REPLAY_MATERIAL_ROOT_DOMAIN_V2,
+    SPOT_V7_SETTLEMENT_REPLAY_OBSERVATION_PROFILE_V2,
+    SPOT_V7_SETTLEMENT_REPLAY_OBSERVATION_SCHEMA_V2,
+)
 from src.integration._zrpf_spot_v7_zeno_ledger_replay_contract import (
     MAX_SPOT_V7_ZENO_LEDGER_REPLAY_RECEIPTS_V1,
     SPOT_V7_ZENO_LEDGER_BODY_PROOF_RECEIPT_COUNT_V1,
@@ -33,6 +53,11 @@ from src.integration.zeno_ledger_signature import (
     SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0,
 )
 from src.integration.zeno_ledger_signer_registry import SIGNER_REGISTRY_SCHEMA_V0
+from src.integration.zeno_ledger_spot_state_domain_bridge_v1 import (
+    RESTRICTED_SPOT_STATE_DOMAIN_BRIDGE_SCHEMA_V1,
+    RESTRICTED_SPOT_STATE_DOMAIN_COMPATIBILITY_PROFILE_ID_V1,
+    RESTRICTED_SPOT_STATE_ROOT_SCHEME_ID_V5,
+)
 from src.integration.zeno_ledger_v0 import (
     APP_HASH_ROOT_FIELDS_V0,
     BODY_SCHEMA_V0,
@@ -54,11 +79,15 @@ from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     MAX_U64,
     _hash_bytes,
     _require_uint,
+    _root_bytes_allow_zero,
 )
 from src.state.canonical import bounded_json_utf8_size
 
 SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V2: Final = (
     "zenodex/zrpf/spot_v7/zeno_ledger_checkpoint_finality_evidence/v2"
+)
+SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V3: Final = (
+    "zenodex/zrpf/spot_v7/zeno_ledger_checkpoint_finality_evidence/v3"
 )
 SPOT_V7_ZENO_LEDGER_PROPOSER_AUTHORSHIP_ADMISSION_SCHEMA_V1: Final = (
     "zenodex/zrpf/spot_v7/zeno_ledger_proposer_authorship_admission/v1"
@@ -66,6 +95,7 @@ SPOT_V7_ZENO_LEDGER_PROPOSER_AUTHORSHIP_ADMISSION_SCHEMA_V1: Final = (
 
 _FINALITY_NETWORK_DOMAIN_V1: Final = "zrpf_spot_v7_zeno_ledger_finality_network_v1"
 _FINALITY_PROTOCOL_DOMAIN_V2: Final = "zrpf_spot_v7_zeno_ledger_finality_protocol_v2"
+_FINALITY_PROTOCOL_DOMAIN_V3: Final = "zrpf_spot_v7_zeno_ledger_finality_protocol_v3"
 _EXTERNAL_FINALITY_POLICY_DOMAIN_V2: Final = "zrpf_spot_v7_zeno_ledger_external_finality_policy_v2"
 _PROPOSER_AUTHORSHIP_PAYLOAD_DOMAIN_V1: Final = (
     "zrpf_spot_v7_zeno_ledger_proposer_authorship_payload_v1"
@@ -95,7 +125,7 @@ class ZenoLedgerCheckpointFinalityCursorV1:
 
     def __post_init__(self) -> None:
         _require_uint(self.sequence, name="checkpoint cursor sequence", maximum=MAX_U64)
-        _hash_bytes(self.checkpoint_hash, name="checkpoint cursor hash")
+        _root_bytes_allow_zero(self.checkpoint_hash, name="checkpoint cursor hash")
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +208,87 @@ def derive_zeno_ledger_finality_protocol_id_v2() -> str:
                 MAX_SPOT_V7_ZENO_LEDGER_REPLAY_RECEIPTS_V1
             ),
             "body_settlement_envelopes_required_empty": True,
+            "app_hash_domain": "app_hash_v0",
+            "app_hash_root_fields": list(APP_HASH_ROOT_FIELDS_V0),
+        },
+    )
+
+
+def derive_zeno_ledger_finality_protocol_id_v3() -> str:
+    """Bind finality to exact singleton Spot V7 settlement-envelope replay."""
+
+    return hash_v0(
+        _FINALITY_PROTOCOL_DOMAIN_V3,
+        {
+            "finality_evidence_schema": SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V3,
+            "proof_neutral_checkpoint_certificate_version": 2,
+            "checkpoint_schema": CHECKPOINT_SCHEMA_V0,
+            "header_schema": HEADER_SCHEMA_V0,
+            "live_quorum_schema": LIVE_CHECKPOINT_QUORUM_ADMISSION_SCHEMA_V0,
+            "signature_algorithm": SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0,
+            "signer_registry_schema": SIGNER_REGISTRY_SCHEMA_V0,
+            "scheduled_validator_set_schema": SCHEDULED_VALIDATOR_SET_SCHEMA_V1,
+            "scheduled_validator_set_hash_domain": (
+                SCHEDULED_VALIDATOR_SET_HASH_DOMAIN_V1
+            ),
+            "scheduled_validator_entry_hash_domain": (
+                SCHEDULED_VALIDATOR_ENTRY_HASH_DOMAIN_V1
+            ),
+            "maximum_scheduled_validators": MAX_SCHEDULED_VALIDATORS_V1,
+            "scheduled_header_admission_schema": SCHEDULED_HEADER_ADMISSION_SCHEMA_V0,
+            "validator_schedule_mode": SCHEDULE_MODE_V0,
+            "proposer_authorship_schema": (
+                SPOT_V7_ZENO_LEDGER_PROPOSER_AUTHORSHIP_ADMISSION_SCHEMA_V1
+            ),
+            "proposer_signature_payload_kind": "checkpoint",
+            "proposer_signature_payload_domain": _PROPOSER_AUTHORSHIP_PAYLOAD_DOMAIN_V1,
+            "proposer_signature_required": True,
+            "settlement_replay_observation_schema": (
+                SPOT_V7_SETTLEMENT_REPLAY_OBSERVATION_SCHEMA_V2
+            ),
+            "settlement_replay_observation_profile": (
+                SPOT_V7_SETTLEMENT_REPLAY_OBSERVATION_PROFILE_V2
+            ),
+            "settlement_replay_material_root_domain": (
+                SPOT_V7_SETTLEMENT_REPLAY_MATERIAL_ROOT_DOMAIN_V2
+            ),
+            "settlement_envelope_schema": SPOT_V7_SETTLEMENT_ENVELOPE_SCHEMA_V1,
+            "settlement_envelope_profile": SPOT_V7_SETTLEMENT_ENVELOPE_PROFILE_V1,
+            "settlement_envelope_receipt_schema": (
+                SPOT_V7_SETTLEMENT_ENVELOPE_RECEIPT_SCHEMA_V1
+            ),
+            "settlement_envelope_proposal_hash_domain": (
+                ENVELOPE_PROPOSAL_HASH_DOMAIN_V1
+            ),
+            "settlement_envelope_receipt_hash_domain": ENVELOPE_RECEIPT_HASH_DOMAIN_V1,
+            "settlement_envelope_effect_ids_root_domain": (
+                SPOT_V7_SETTLEMENT_EFFECT_IDS_ROOT_DOMAIN_V1
+            ),
+            "replay_engine_config_schema": REPLAY_ENGINE_CONFIG_SCHEMA,
+            "replay_engine_config_profile": REPLAY_ENGINE_CONFIG_PROFILE,
+            "replayed_body_schema": BODY_SCHEMA_V0,
+            "body_proof_receipt_projection_schema": (
+                SPOT_V7_ZENO_LEDGER_BODY_PROOF_RECEIPT_PROJECTION_SCHEMA_V1
+            ),
+            "body_proof_receipt_projection_count": (
+                SPOT_V7_ZENO_LEDGER_BODY_PROOF_RECEIPT_COUNT_V1
+            ),
+            "body_transactions_required_empty": True,
+            "body_settlement_envelope_count": 1,
+            "body_rejection_receipts_required_empty": True,
+            "parent_rule": "zero_root_without_parent_else_exact_parent_header_hash",
+            "maximum_envelope_bytes": MAX_ENVELOPE_BYTES_V1,
+            "maximum_envelope_depth": MAX_ENVELOPE_DEPTH_V1,
+            "maximum_envelope_items": MAX_ENVELOPE_ITEMS_V1,
+            "maximum_header_or_config_bytes": MAX_HEADER_OR_CONFIG_BYTES_V1,
+            "maximum_ledger_body_bytes": MAX_LEDGER_BODY_BYTES_V1,
+            "maximum_pre_state_snapshot_bytes": MAX_PRE_STATE_SNAPSHOT_BYTES_V1,
+            "maximum_pre_state_snapshot_items": MAX_PRE_STATE_SNAPSHOT_ITEMS_V1,
+            "state_domain_bridge_schema": RESTRICTED_SPOT_STATE_DOMAIN_BRIDGE_SCHEMA_V1,
+            "state_domain_compatibility_profile": (
+                RESTRICTED_SPOT_STATE_DOMAIN_COMPATIBILITY_PROFILE_ID_V1
+            ),
+            "state_root_scheme": RESTRICTED_SPOT_STATE_ROOT_SCHEME_ID_V5,
             "app_hash_domain": "app_hash_v0",
             "app_hash_root_fields": list(APP_HASH_ROOT_FIELDS_V0),
         },

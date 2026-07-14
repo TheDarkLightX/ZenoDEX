@@ -431,6 +431,17 @@ def _hash_bytes(value: str, *, name: str) -> bytes:
     return _identifier_bytes(value, name=name, length=32)
 
 
+def _root_bytes_allow_zero(value: str, *, name: str) -> bytes:
+    """Decode one exact canonical root whose all-zero sentinel is meaningful."""
+
+    if type(value) is not str or len(value) != 66 or not value.startswith("0x"):
+        raise ValueError(f"{name} must be canonical 32-byte lowercase hex")
+    bare = value[2:]
+    if any(character not in "0123456789abcdef" for character in bare):
+        raise ValueError(f"{name} must be canonical 32-byte lowercase hex")
+    return bytes.fromhex(bare)
+
+
 def _hex_hash(value: bytes) -> str:
     if type(value) is not bytes or len(value) != 32:
         raise ValueError("hash bytes must be exactly 32 bytes")
