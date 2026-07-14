@@ -402,6 +402,29 @@ class _GovernedSpotV7OperationalPolicyV3(_NonTransferableOperationalCapabilityV3
         self._require_live_integrity()
         return self._material._to_authority_false_store_policy()
 
+    def _require_active_at_epoch_for_finality_v3(self, epoch: int) -> None:
+        """Require the signed policy and signer registry at one finality epoch."""
+
+        self._require_live_integrity()
+        self._provenance._require_active_at_epoch(epoch)
+
+    def _base_store_policy_for_finality_v3(
+        self,
+    ) -> _TestOnlySpotV7OperationalPolicyV1:
+        self._require_live_integrity()
+        return self._material._to_authority_false_store_policy()
+
+    def _legacy_projection_for_finality_v3(
+        self,
+    ) -> _GovernedOperationalPolicyProjectionV1:
+        self._require_live_integrity()
+        return _GovernedOperationalPolicyProjectionV1(
+            application_id=self._projection.application_id,
+            chain_or_domain_id=self._projection.chain_or_domain_id,
+            full_blob_da_policy_root=self._projection.full_blob_da_policy_root,
+            checkpoint_finality_policy_root=self._projection.checkpoint_finality_policy_root,
+        )
+
     def _provenance_for_governed_da_v2(self) -> _GovernedOperationalPolicyProvenanceV2:
         self._require_live_integrity()
         return self._provenance

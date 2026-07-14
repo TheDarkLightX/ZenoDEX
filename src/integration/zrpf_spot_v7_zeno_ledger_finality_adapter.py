@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import Any, Mapping, NoReturn, Sequence, SupportsIndex, final
+from typing import Any, Mapping, NoReturn, Sequence, SupportsIndex, TypeAlias, final
 
 from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
     _derive_capability_commitment,
@@ -33,6 +33,7 @@ from src.integration._zrpf_spot_v7_operational_capability_v2 import (
 )
 from src.integration._zrpf_spot_v7_operational_gate import (
     _AuthenticatedCheckpointFinalityProjectionV2,
+    _GovernedOperationalPolicyProjectionV1,
     _require_policy_binding,
     _require_settlement_capability,
 )
@@ -41,6 +42,10 @@ from src.integration._zrpf_spot_v7_operational_mechanics import (
     MAX_FINALITY_EVIDENCE_BYTES_V2,
     _build_test_only_checkpoint_finality_artifacts_v2,
     _TestOnlySpotV7OperationalPolicyV1,
+)
+from src.integration._zrpf_spot_v7_operational_policy_v3 import (
+    _GovernedSpotV7OperationalPolicyV3,
+    _require_governed_operational_policy_v3,
 )
 from src.integration._zrpf_spot_v7_settlement_envelope_contract import (
     SPOT_V7_SETTLEMENT_EFFECT_IDS_ROOT_DOMAIN_V1,
@@ -382,16 +387,55 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV2:
         )
 
 
+_FinalityPolicyV3: TypeAlias = (
+    _GovernedSpotV7OperationalPolicyV2 | _GovernedSpotV7OperationalPolicyV3
+)
+
+
+def _require_finality_policy_v3(value: object) -> _FinalityPolicyV3:
+    if type(value) is _GovernedSpotV7OperationalPolicyV2:
+        return _require_operational_policy_v2(value)
+    if type(value) is _GovernedSpotV7OperationalPolicyV3:
+        return _require_governed_operational_policy_v3(value)
+    raise TypeError("finality V3 requires an exact governed V2 or V3 policy")
+
+
+def _finality_policy_projection_v3(
+    policy: _FinalityPolicyV3,
+) -> _GovernedOperationalPolicyProjectionV1:
+    if isinstance(policy, _GovernedSpotV7OperationalPolicyV2):
+        return policy._projection
+    return policy._legacy_projection_for_finality_v3()
+
+
+def _require_finality_policy_active_v3(
+    policy: _FinalityPolicyV3,
+    epoch: int,
+) -> None:
+    if isinstance(policy, _GovernedSpotV7OperationalPolicyV2):
+        policy._require_active_at_epoch_for_operational_use(epoch)
+        return
+    policy._require_active_at_epoch_for_finality_v3(epoch)
+
+
+def _base_store_policy_for_finality_v3(
+    policy: _FinalityPolicyV3,
+) -> _TestOnlySpotV7OperationalPolicyV1:
+    if isinstance(policy, _GovernedSpotV7OperationalPolicyV2):
+        return policy._policy_for_atomic_store()
+    return policy._base_store_policy_for_finality_v3()
+
+
 @final
 class SpotV7ZenoLedgerCheckpointFinalityAdapterV3:
     """Authenticate finality for one exact sealed settlement-envelope replay."""
 
     __slots__ = ("_policy",)
 
-    _policy: _GovernedSpotV7OperationalPolicyV2
+    _policy: _GovernedSpotV7OperationalPolicyV2 | _GovernedSpotV7OperationalPolicyV3
 
     def __init__(self, policy: object) -> None:
-        object.__setattr__(self, "_policy", _require_operational_policy_v2(policy))
+        object.__setattr__(self, "_policy", _require_finality_policy_v3(policy))
 
     def __init_subclass__(cls, **_kwargs: object) -> NoReturn:
         raise TypeError("SpotV7ZenoLedgerCheckpointFinalityAdapterV3 cannot be subclassed")
@@ -476,15 +520,15 @@ class SpotV7ZenoLedgerCheckpointFinalityAdapterV3:
             envelopes=envelopes,
         )
         candidate = settlement_value._candidate_for_atomic_store()
-        policy_projection = self._policy._projection
+        policy_projection = _finality_policy_projection_v3(self._policy)
         _require_policy_binding(candidate, policy_projection)
         try:
-            self._policy._require_active_at_epoch_for_operational_use(candidate.epoch_id)
+            _require_finality_policy_active_v3(self._policy, candidate.epoch_id)
         except ValueError as exc:
             raise SpotV7ZenoLedgerFinalityBindingErrorV1(
                 "operational_policy_inactive"
             ) from exc
-        policy = self._policy._policy_for_atomic_store()
+        policy = _base_store_policy_for_finality_v3(self._policy)
         _validate_checkpoint_structure(snapshot)
         _validate_header_app_hash(snapshot.header)
         _require_checkpoint_transition_binding(

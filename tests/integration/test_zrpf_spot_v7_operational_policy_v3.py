@@ -43,6 +43,9 @@ from src.integration.zrpf_spot_v7_operational_policy_provenance_v2 import (
     spot_v7_operational_policy_manifest_bytes_v2,
     spot_v7_operational_policy_manifest_payload_hash_v2,
 )
+from src.integration.zrpf_spot_v7_zeno_ledger_finality_adapter import (
+    SpotV7ZenoLedgerCheckpointFinalityAdapterV3,
+)
 
 CHAIN_ID = "zeno-ledger-main-v1"
 POLICY_REVISION = 8
@@ -271,6 +274,18 @@ def test_signed_policy_separates_settlement_v3_from_lagged_beacon_source_v2() ->
         derive_zeno_ledger_finality_protocol_id_v2()
     )
     assert settlement_policy.finality_protocol_id != beacon_policy.source_protocol_id
+
+
+def test_finality_v3_adapter_accepts_the_exact_sealed_v3_policy() -> None:
+    registry = _registry()
+    policy = _load(_manifest(registry), registry)
+
+    adapter = SpotV7ZenoLedgerCheckpointFinalityAdapterV3(policy)
+
+    assert adapter._policy is policy
+    assert adapter.release_authority is False
+    assert adapter.settlement_authority is False
+    assert adapter.production_authority is False
 
 
 def test_v3_material_rejects_v2_settlement_finality_protocol() -> None:
