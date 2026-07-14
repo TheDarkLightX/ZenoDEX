@@ -58,7 +58,11 @@ class _NonTransferableDurableReplayResultV2:
 
 @final
 class _DurablyReverifiedSpotV7SettlementReplayV2(_NonTransferableDurableReplayResultV2):
-    """Authority-neutral fact that the retained exact replay just re-executed."""
+    """Authority-neutral fact that the retained current record re-executed.
+
+    A non-genesis parent header is an external hash-bound history prerequisite;
+    it is checked during replay and is not retained in the current-record packet.
+    """
 
     __slots__ = ("_packet", "_seal")
 
@@ -131,11 +135,12 @@ def _reverify_persisted_spot_v7_settlement_replay_v2(
     persisted: object,
     exact_parent_header_bytes: bytes | None = None,
 ) -> _DurablyReverifiedSpotV7SettlementReplayV2:
-    """Re-execute one retained exact replay graph under a governed candidate.
+    """Re-execute one retained current-record graph under a governed candidate.
 
     The returned result proves only that these retained bytes re-executed under
-    the supplied governed candidate. Proof-receipt, finality, release,
-    settlement, and production authority remain external obligations.
+    the supplied governed candidate and, for non-genesis records, the separately
+    supplied exact parent header. Parent-history retention, proof-receipt,
+    finality, release, settlement, and production authority remain external.
     """
 
     if type(persisted) is not _UntrustedPersistedSpotV7SettlementReplayInputsV2:

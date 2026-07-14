@@ -233,10 +233,25 @@ def test_persisted_projection_mutation_rejects() -> None:
     assert captured.value.code == "persisted_packet_binding"
 
 
-def test_pathologically_nested_persisted_projection_rejects_with_stable_code() -> None:
+@pytest.mark.parametrize(
+    "field_name",
+    (
+        "exact_projection_bytes",
+        "exact_header_bytes",
+        "exact_body_bytes",
+        "exact_envelope_bytes",
+        "exact_receipt_bytes",
+        "exact_evidence_bytes",
+        "exact_config_document_bytes",
+        "exact_pre_state_snapshot_bytes",
+    ),
+)
+def test_each_pathologically_nested_persisted_json_surface_rejects_with_stable_code(
+    field_name: str,
+) -> None:
     fixture, _observation, _packet, persisted = _packet_fixture()
-    nested_projection = b"{" + (b'"x":{' * 1_100) + b'"x":0' + (b"}" * 1_101)
-    mutated = replace(persisted, exact_projection_bytes=nested_projection)
+    pathologically_nested = b"{" + (b'"x":{' * 10_000) + b'"x":0' + (b"}" * 10_001)
+    mutated = replace(persisted, **{field_name: pathologically_nested})
 
     with pytest.raises(SpotV7SettlementDurableReplayErrorV2) as captured:
         _reverify_persisted_spot_v7_settlement_replay_v2(

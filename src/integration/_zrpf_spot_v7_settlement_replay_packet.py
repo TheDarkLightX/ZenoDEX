@@ -1,7 +1,9 @@
-"""Private immutable packet for exact Spot V7 settlement replay persistence.
+"""Private immutable packet for exact Spot V7 current-record replay persistence.
 
 The packet authenticates internal byte-to-projection consistency only. It is
 data for a later deterministic replay and carries no settlement authority.
+For a non-genesis record, the exact parent header remains a separately supplied,
+hash-bound history prerequisite and is not retained by this packet.
 """
 
 from __future__ import annotations
@@ -94,7 +96,7 @@ class _NonTransferableDurableReplayPacketV2:
 
 @final
 class _DurableSpotV7SettlementReplayPacketV2(_NonTransferableDurableReplayPacketV2):
-    """Sealed immutable packet retaining one exact replay input graph."""
+    """Sealed packet retaining one exact current-record replay input graph."""
 
     __slots__ = ("_inputs", "_projection", "_seal")
 
@@ -163,7 +165,10 @@ def _load_untrusted_durable_spot_v7_settlement_replay_packet_v2(
 ) -> _DurableSpotV7SettlementReplayPacketV2:
     if type(value) is not _UntrustedPersistedSpotV7SettlementReplayInputsV2:
         raise TypeError("persisted replay inputs have the wrong type")
-    return _new_durable_spot_v7_settlement_replay_packet_v2(value)
+    try:
+        return _new_durable_spot_v7_settlement_replay_packet_v2(value)
+    except RecursionError as exc:
+        raise ValueError("persisted replay input exceeds JSON nesting limits") from exc
 
 
 def _require_durable_spot_v7_settlement_replay_packet_v2(
