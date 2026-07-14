@@ -2,10 +2,10 @@
 
 Date: 2026-07-13
 
-Status: authority-false V2 commit capability, combined atomic sink, and exact
-manifest-pinned `full_blob_da_v1` Rust checker adapter implemented; governed
-policy provenance, settlement authority, and production authority remain
-unavailable
+Status: authority-false V2 commit capability, combined atomic sink, exact
+manifest-pinned `full_blob_da_v1` Rust checker adapter, and policy-pinned
+ZenoLedger BLS checkpoint-finality adapter implemented; governed policy
+provenance, settlement authority, and production authority remain unavailable
 
 ## Purpose
 
@@ -42,8 +42,11 @@ both an explicitly test-only packet and
 `_SpotV7AtomicEconomicCommitCapabilityV2`. The V2 type accepts only four exact
 module-sealed prerequisite objects, retains those objects, and deterministically
 reconstructs the permanently authority-false schema packet. The exact DA
-prerequisite now has a bounded Rust-checker adapter. The V7 settlement,
-governed-policy, and authenticated-finality prerequisite adapters remain open.
+prerequisite has a bounded Rust-checker adapter. A governed ZenoLedger adapter
+mints the exact checkpoint-finality prerequisite only after cryptographic
+quorum and complete binding checks. The governed policy and Firecracker
+settlement mint paths remain absent, so raw caller data cannot reach the
+combined binder.
 
 ## Existing primitives and their limits
 
@@ -118,10 +121,15 @@ stand in for the governed policy or checker result. These are Python
 information-hiding boundaries, not protection against hostile code already
 executing in the same interpreter.
 
-The future finality adapter must authenticate protocol-specific evidence, run
-the exact Rust `checkpoint_finality_v2` checker, and bind the prior cursor
-loaded inside the combined durable transaction. Caller booleans and report
-dictionaries never mint that capability.
+The ZenoLedger finality adapter authenticates BLS checkpoint signatures against
+the exact registry hash pinned by the sealed operational policy. It enforces
+strict greater-than-two-thirds active-weight quorum intersection, reconstructs
+the canonical `checkpoint_finality_v2` certificate through the source-bound
+Python parity implementation, and binds the proposed prior cursor. The combined
+store still performs the durable prior-cursor compare-and-swap. Direct
+execution of the Rust policy checker in this adapter remains release hardening.
+Caller booleans, quorum reports, and certificate bytes never mint either
+capability.
 
 Separate types whose names begin with `_TestOnly` exercise the completed
 storage mechanics. They recompute the Rust-compatible roots and canonical
@@ -191,8 +199,19 @@ The production gate reports these exact missing conditions:
 
 1. governed V7 receipt and Firecracker settlement capability;
 2. governed DA/finality policy provenance;
-3. authenticated protocol-specific external finality;
-4. exact `checkpoint_finality_v2` result adapter.
+
+The two governed adapters close three former implementation conditions for
+their bounded profiles:
+
+```text
+exact full_blob_da_v1 invocation and private capability mint
+policy-pinned ZenoLedger BLS checkpoint-quorum authentication
+exact checkpoint_finality_v2 certificate derivation and private capability mint
+```
+
+This does not mint the operational policy. Governance must still supply the
+sealed policy that pins the exact chain, config digest, signer-registry root,
+genesis checkpoint, and adapter protocol identity.
 
 These previously open mechanics are closed for both the test lane and the
 authority-false V2 sealed-packet lane:
@@ -260,6 +279,19 @@ Focused tests establish:
   result interpretation;
 - the protocol workspace lockfile remains byte-identical because the checker
   has its own additive lockfile and build closure.
+- invalid BLS signatures reject before the finality capability constructor is
+  reached;
+- a registry substitution, header/config substitution, wrong predecessor,
+  wrong sequence, wrong V7 journal hash, or wrong post-state root rejects;
+- a signer threshold that is reached but does not exceed two thirds of active
+  weight cannot mint finality;
+- signature-envelope order is normalized and produces byte-identical canonical
+  evidence and certificate bytes;
+- embedded checkpoint signature arrays are forbidden, keeping the externally
+  verified BLS envelope set as the only signature authority for this profile;
+- the exact header, checkpoint, registry, BLS envelopes, recomputed quorum
+  admission, application binding, and prior cursor are retained in one bounded
+  canonical finality-evidence object.
 
 ### Rust/Python parity evidence
 
@@ -298,14 +330,16 @@ finality_certificate        419 bytes, SHA-256 a3812dbfdecfa716f73ec70eb0b8986e6
 ## Explicit nonclaims
 
 This integration contract does not establish current governed V7 receipt
-evidence, governed Firecracker execution, operational-policy governance,
-provider retrievability, authenticated external finality,
-consensus fork choice,
-production rollback resistance, governed proof/DA/finality/economic admission,
-settlement authority, release authority, privacy, liveness, or production
-authority. It establishes scoped SQLite atomicity, rollback, exact-byte
-persistence, replay rejection, reopen validation, and one manifest-pinned exact
-local DA check for the authority-false test and V2 sealed-packet lanes only.
+evidence, governed Firecracker execution, policy governance, a governed raw
+policy mint, provider retrievability, consensus safety outside the pinned
+strict-quorum assumptions, canonical fork choice across conflicting qualified
+checkpoints, production rollback resistance, governed combined
+proof/DA/finality/economic admission, settlement authority, release authority,
+privacy, liveness, or production authority. It establishes one
+manifest-pinned exact local DA check, scoped ZenoLedger BLS checkpoint
+authentication, exact finality-certificate construction, SQLite atomicity,
+rollback, exact-byte persistence, replay rejection, and reopen validation for
+the authority-false lanes.
 
 The private prerequisite classes are future adapter contracts. Unit tests may
 apply their module-private seals to exercise cross-binding logic; those test

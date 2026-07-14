@@ -2,10 +2,10 @@
 
 The Spot V7 Firecracker capability authenticates one exact proof result. The
 proof-neutral ``full_blob_da_v1`` and ``checkpoint_finality_v2`` primitives do
-not authenticate policy provenance or external finality. Authority-false
-combined persistence and cursor mechanics now exist in a separate test-only
-lane. This module defines the production join and exposes no production mint
-path while governed policy and finality adapters remain absent.
+not authenticate policy provenance or external finality. Governed adapters now
+perform the exact local full-blob check and the policy-pinned ZenoLedger BLS
+checkpoint check when given the same sealed policy. The production join remains
+unavailable while governed settlement and policy provenance are absent.
 """
 
 from __future__ import annotations
@@ -36,12 +36,6 @@ class SpotV7OperationalCommitMissingConditionV1(Enum):
     )
     GOVERNED_OPERATIONAL_POLICY = (
         "governed_da_and_finality_policy_provenance_unavailable"
-    )
-    AUTHENTICATED_EXTERNAL_FINALITY = (
-        "protocol_specific_external_finality_authentication_unavailable"
-    )
-    EXACT_CHECKPOINT_FINALITY_V2_CHECK = (
-        "exact_checkpoint_finality_v2_policy_result_adapter_unavailable"
     )
 
 

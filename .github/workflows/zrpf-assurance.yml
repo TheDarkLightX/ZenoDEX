@@ -160,6 +160,8 @@ jobs:
             src/integration/_zrpf_spot_v7_operational_capability_v2.py \
             src/integration/_zrpf_spot_v7_full_blob_da_codec.py \
             src/integration/zrpf_spot_v7_full_blob_da_adapter.py \
+            src/integration/_zrpf_spot_v7_zeno_ledger_finality_contract.py \
+            src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py \
             src/integration/_zrpf_spot_v7_operational_mechanics.py \
             src/integration/_zrpf_spot_v7_operational_store.py \
             src/integration/zrpf_spot_v7_atomic_settlement_store.py \
@@ -295,6 +297,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
+            tests/integration/test_zrpf_spot_v7_zeno_ledger_finality_adapter.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
             tests/integration/test_zeno_ledger_proof_required_quarantine_v0.py \
@@ -330,6 +333,8 @@ jobs:
             src/integration/_zrpf_spot_v7_operational_capability_v2.py \
             src/integration/_zrpf_spot_v7_full_blob_da_codec.py \
             src/integration/zrpf_spot_v7_full_blob_da_adapter.py \
+            src/integration/_zrpf_spot_v7_zeno_ledger_finality_contract.py \
+            src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py \
             src/integration/_zrpf_spot_v7_operational_mechanics.py \
             src/integration/_zrpf_spot_v7_operational_store.py \
             src/integration/zrpf_spot_v7_atomic_settlement_store.py \
@@ -426,6 +431,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
+            tests/integration/test_zrpf_spot_v7_zeno_ledger_finality_adapter.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
             tests/integration/test_zeno_ledger_proof_required_quarantine_v0.py \
@@ -492,6 +498,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
+            tests/integration/test_zrpf_spot_v7_zeno_ledger_finality_adapter.py \
             tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py \
             tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py \
             tests/integration/test_zeno_ledger_proof_required_quarantine_v0.py \
