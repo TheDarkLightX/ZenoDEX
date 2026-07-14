@@ -1423,7 +1423,7 @@ def test_rust_parity_vector_source_closure_is_exact() -> None:
         closure.update(len(content).to_bytes(8, "big"))
         closure.update(content)
 
-    assert len(closure_paths) == 113
+    assert len(closure_paths) == 123
     assert closure.hexdigest() == (
-        "8160fb28e4a9db1d3287781d50e8538120729d5ddc0c15272292bcf632a5c676"
+        "05e1573dab34095fffbf8470b3d3fd661578da76a00aad2cc79e7c9993adf6c2"
     )

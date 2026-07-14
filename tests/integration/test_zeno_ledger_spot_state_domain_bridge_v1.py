@@ -193,7 +193,7 @@ def test_caller_mapping_never_has_private_bridge_type() -> None:
     assert type({"source_and_ledger_roots_verified": True}) is not type(_derive())
 
 
-def test_private_bridge_derivation_has_one_production_consumer() -> None:
+def test_private_bridge_derivation_consumers_are_exact() -> None:
     repository = Path(__file__).resolve().parents[2]
     symbol = "_derive_authenticated_spot_ledger_state_domain_bridge_v1"
     users = {
@@ -203,6 +203,7 @@ def test_private_bridge_derivation_has_one_production_consumer() -> None:
     }
 
     assert users == {
+        "src/integration/_zrpf_spot_v7_settlement_envelope_state.py",
         "src/integration/zeno_ledger_spot_state_domain_bridge_v1.py",
         "src/integration/zeno_ledger_strict_spot_authority_v1.py",
     }
