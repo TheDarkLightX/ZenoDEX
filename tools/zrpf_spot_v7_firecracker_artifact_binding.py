@@ -209,11 +209,12 @@ _DESCRIPTOR_BOUND_RUNTIME_SEAL_V1 = _DescriptorBoundRuntimeSealV1()
 class _DescriptorBoundSpotV7FirecrackerRuntimeBindingV1:
     """Private exact runtime binding backed by six retained descriptors."""
 
-    __slots__ = ("_artifacts", "_proposal", "_seal")
+    __slots__ = ("_artifacts", "_proposal", "_seal", "_spent")
 
     _artifacts: _OpenedSpotV7RuntimeArtifactSetV1
     _proposal: ProposedSpotV7FirecrackerRuntimeBindingV1
     _seal: _DescriptorBoundRuntimeSealV1
+    _spent: bool
 
     def __init__(
         self,
@@ -237,6 +238,7 @@ class _DescriptorBoundSpotV7FirecrackerRuntimeBindingV1:
         object.__setattr__(self, "_proposal", proposal)
         object.__setattr__(self, "_artifacts", artifacts)
         object.__setattr__(self, "_seal", seal)
+        object.__setattr__(self, "_spent", False)
 
     def __init_subclass__(cls, **_kwargs: object) -> NoReturn:
         raise TypeError("descriptor-bound runtime cannot be subclassed")
@@ -359,6 +361,34 @@ class _DescriptorBoundSpotV7FirecrackerRuntimeBindingV1:
 
     def reverify_artifacts(self) -> None:
         self._artifacts.reverify()
+
+    def _take_for_descriptor_staging_v1(
+        self,
+    ) -> tuple[
+        ProposedSpotV7FirecrackerRuntimeBindingV1,
+        tuple[_OpenedRuntimeArtifactV1, ...],
+    ]:
+        """Spend this binding and lend its retained descriptors to staging.
+
+        The descriptor bridge is process-local Python code, so the leading
+        underscore is an information-hiding boundary rather than protection
+        from hostile code in the same interpreter.  Marking the capability
+        spent before the final rehash makes every staging attempt one-shot,
+        including failed attempts.
+        """
+
+        if self._spent:
+            raise SpotV7RuntimeArtifactBindingRejectV1(
+                "runtime_artifact_binding_spent"
+            )
+        self._require_open()
+        object.__setattr__(self, "_spent", True)
+        try:
+            self._artifacts.reverify()
+            return self._proposal, self._artifacts._records
+        except BaseException:
+            self.close()
+            raise
 
     def close(self) -> None:
         self._artifacts.close()

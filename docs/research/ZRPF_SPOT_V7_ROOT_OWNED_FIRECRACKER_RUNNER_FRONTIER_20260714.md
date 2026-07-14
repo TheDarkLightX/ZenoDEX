@@ -2,10 +2,10 @@
 
 Date: 2026-07-14
 
-Status: descriptor-retained jail staging, the data-only prepared-Jailer
-lifecycle, a strict authority-false Spot V7 runtime-manifest proposal, and
-role-by-role descriptor binding for all six proposed runtime artifacts are
-implemented; Spot V7 runtime authority remains unavailable
+Status: descriptor-retained artifact binding, one-shot descriptor-sourced
+launch snapshots, root-owned jail preparation, and the data-only prepared
+Jailer lifecycle are implemented; Spot V7 runtime authority remains
+unavailable
 
 ## Purpose
 
@@ -100,6 +100,23 @@ non-copyable and non-serializable. Governance admission, governed-manifest
 selection, live execution, release, settlement, production, witness privacy,
 and zero-knowledge privacy remain false.
 
+`tools/zrpf_spot_v7_firecracker_descriptor_staging.py` closes the next local
+handoff. It spends the descriptor-bound source capability once, revalidates the
+exact six-role manifest inventory, and copies all six artifacts from the
+already-open descriptors into one fresh supervisor-owned snapshot. Caller
+artifact paths are never reopened during this handoff. The jail's kernel,
+rootfs, and input are copied only from that snapshot, while the prepared Jailer
+and Firecracker handles are pinned to executable snapshot copies. Guest-init
+bytes remain a separately retained manifest role; this slice does not claim
+that the rootfs contains those exact bytes.
+
+The prepared launch and its private lifecycle handoff are sealed,
+non-copyable, non-serializable, and one-shot. Failed staging consumes and
+closes the original descriptor capability. Partial snapshots are removed, and
+successful unlaunched preparations have an explicit cleanup path. The snapshot
+and jail retain descriptors through prelaunch verification. These facts prove
+local descriptor-to-snapshot and launch-input identity only.
+
 The shared prepared lifecycle in
 `tools/zrpf_v3_firecracker_jailer_launcher.py` and the V7 identity layer in
 `tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py` require exact concrete
@@ -142,6 +159,12 @@ Deterministic tests cover:
 - mutation during the bounded read and path replacement immediately after open;
 - replacement of a successfully bound path followed by descriptor revalidation;
 - complete descriptor cleanup after a partial-inventory rejection;
+- no caller-artifact path reopen after descriptor capture;
+- exact six-role descriptor-to-snapshot copies and executable modes;
+- post-open caller-path substitution and descriptor truncation before staging;
+- closed descriptor, swapped retained role, partial snapshot, and reuse
+  rejection;
+- one-shot sealed launch handoff and explicit unlaunched cleanup;
 - Boolean substitution for the trusted numeric UID;
 - non-copyable and non-serializable descriptor capability behavior;
 - authority claim, non-claim, duplicate-key, float, and unknown-field rejection;
@@ -176,7 +199,6 @@ to the existing release, execution, teardown, and store blockers:
 
 ```text
 governed release selection of the exact descriptor-bound V7 runtime proposal
-staging and exec handoff from the retained descriptors or immutable snapshots
 authority-designated PID-1 receipt verification under the selected artifact set
 fresh V6/V7 receipt evidence under the final release source closure
 ```
@@ -184,13 +206,12 @@ fresh V6/V7 receipt evidence under the final release source closure
 The retained V3 replay guest is not a Spot V7 guest. Its raw profile digest and
 `VerifiedReplayReport` output contract cannot be relabeled as V7 authority.
 The V7 path now validates the exact proposed machine profile, strict runtime
-manifest semantics, every proposed artifact byte identity, input identity, and
-outer request/output protocol. The descriptor-bound capability is not yet the
-input to the staging and executable handoff path, so that later path still
-requires an explicit retained-descriptor or immutable-snapshot bridge. The
-current work does not authenticate a guest payload or receipt, prove governance
-selected the proposal, bind a release manifest, or establish a source-to-binary
-chain.
+manifest semantics, every proposed artifact byte identity, input identity,
+outer request/output protocol, and descriptor-sourced launch preparation. The
+current work does not execute the private lifecycle handoff, authenticate a
+guest payload or receipt, prove governance selected the proposal, bind a
+release manifest, prove guest-init/rootfs inclusion, or establish a
+source-to-binary chain.
 
 The high-level root supervisor also still needs to own creation and final
 destruction of the fresh network namespace and preconfigured cgroup leaf.
@@ -206,7 +227,7 @@ live privileged Jailer or Firecracker execution
 live hostile staging or same-UID resistance evidence
 hostile same-interpreter capability resistance
 governed Spot V7 release artifact identity
-retained-descriptor staging and exec handoff
+live consumption of the descriptor-sourced lifecycle handoff
 Spot V7 guest execution or payload authentication
 current V6/V7 image IDs or receipt evidence
 source-to-binary or cross-host reproducibility
