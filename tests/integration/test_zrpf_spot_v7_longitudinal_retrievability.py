@@ -207,7 +207,7 @@ def test_consecutive_governed_samples_mint_only_bounded_finite_window_claim() ->
     result = _window(20, 21, 22)
 
     assert type(result) is _GovernedSpotV7LongitudinalRetrievabilityV1
-    projection = result._projection_for_downstream_binding_v1()
+    projection = result._projection_for_longitudinal_downstream_binding_v1()
     assert projection.start_checked_epoch == 20
     assert projection.end_checked_epoch == 22
     assert projection.sample_count == 3
@@ -318,4 +318,4 @@ def test_window_is_nontransferable_and_rechecks_exact_samples() -> None:
 
     object.__setattr__(result._projection, "data_root", _root("forged-data"))
     with pytest.raises(ValueError, match="projection drift"):
-        result._projection_for_downstream_binding_v1()
+        result._projection_for_longitudinal_downstream_binding_v1()

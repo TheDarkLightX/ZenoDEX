@@ -56,6 +56,9 @@ SPOT_V7_GOVERNED_DA_PREREQUISITE = ROOT / "src/integration/zrpf_spot_v7_governed
 SPOT_V7_GOVERNED_DA_PREREQUISITE_V2 = (
     ROOT / "src/integration/zrpf_spot_v7_governed_da_prerequisite_v2.py"
 )
+SPOT_V7_LONGITUDINAL_RETRIEVABILITY = (
+    ROOT / "src/integration/zrpf_spot_v7_longitudinal_retrievability.py"
+)
 SPOT_V7_OPERATIONAL_CAPABILITY_V3 = (
     ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v3.py"
 )
@@ -168,6 +171,16 @@ PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES = frozenset(
         "_bind_governed_spot_v7_da_prerequisite_v2",
     }
 )
+PRIVATE_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_NAMES = frozenset(
+    {
+        "_SpotV7LongitudinalRetrievabilityProjectionV1",
+        "_GovernedSpotV7LongitudinalRetrievabilitySealV1",
+        "_GOVERNED_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_SEAL_V1",
+        "_GovernedSpotV7LongitudinalRetrievabilityV1",
+        "_bind_bounded_spot_v7_longitudinal_retrievability_v1",
+        "_projection_for_longitudinal_downstream_binding_v1",
+    }
+)
 PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES = frozenset(
     {
         "_AuthenticatedCheckpointFinalityProjectionV3",
@@ -224,6 +237,7 @@ PROTECTED_AUTHORITY_NAMES = (
     | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_NAMES
     | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
@@ -333,6 +347,10 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 | PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES
                 | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
                 | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
+            ),
+            SPOT_V7_LONGITUDINAL_RETRIEVABILITY: (
+                PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_NAMES
             ),
             SPOT_V7_OPERATIONAL_CAPABILITY_V3: (
                 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
@@ -609,6 +627,7 @@ def test_combined_da_authority_symbols_have_no_public_alias_or_export() -> None:
             ["bind_governed_spot_v7_lagged_checkpoint_beacon_v1"],
         ),
         (SPOT_V7_GOVERNED_DA_PREREQUISITE_V2, []),
+        (SPOT_V7_LONGITUDINAL_RETRIEVABILITY, []),
     ),
 )
 def test_v3_governed_da_authority_has_exact_public_reachability(

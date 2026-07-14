@@ -272,7 +272,7 @@ class _GovernedSpotV7LongitudinalRetrievabilityV1:
             is _GOVERNED_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_SEAL_V1
         )
 
-    def _projection_for_downstream_binding_v1(
+    def _projection_for_longitudinal_downstream_binding_v1(
         self,
     ) -> _SpotV7LongitudinalRetrievabilityProjectionV1:
         if not self._has_private_seal():
@@ -284,17 +284,17 @@ class _GovernedSpotV7LongitudinalRetrievabilityV1:
 
     @property
     def bounded_finite_window_retrievability_verified(self) -> bool:
-        self._projection_for_downstream_binding_v1()
+        self._projection_for_longitudinal_downstream_binding_v1()
         return True
 
     @property
     def sampled_policy_governance_provenance_verified(self) -> bool:
-        self._projection_for_downstream_binding_v1()
+        self._projection_for_longitudinal_downstream_binding_v1()
         return True
 
     @property
     def governed_beacon_provenance_verified(self) -> bool:
-        self._projection_for_downstream_binding_v1()
+        self._projection_for_longitudinal_downstream_binding_v1()
         return True
 
     @property
