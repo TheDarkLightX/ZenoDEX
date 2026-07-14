@@ -461,6 +461,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/test_zrpf_spot_v7_firecracker_runtime_binding.py",
         "tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py",
         "tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py",
+        "tests/test_zrpf_spot_v7_firecracker_authority_input_parity.py",
         "tests/test_zrpf_spot_v7_firecracker_rust_parity.py",
     ):
         assert required_path in ruff_assurance
@@ -498,6 +499,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert rust_assurance.count(
         "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml"
     ) == 4
+    assert "-p zenodex-zrpf-spot-v7-firecracker-runtime" in rust_assurance
     for package in (
         "zenodex-zrpf-risc0-spot-settlement-v7-child-policy",
         "zenodex-zrpf-risc0-spot-settlement-v7-input-builder",

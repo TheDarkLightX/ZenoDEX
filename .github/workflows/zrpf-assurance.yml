@@ -341,6 +341,7 @@ jobs:
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
+            tests/test_zrpf_spot_v7_firecracker_authority_input_parity.py \
             tests/test_zrpf_spot_v7_firecracker_rust_parity.py \
             tests/test_zrpf_spot_v7_release_closure.py \
             tests/test_zrpf_spot_settlement_v7_local_evidence.py \
@@ -564,6 +565,7 @@ jobs:
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
+            tests/test_zrpf_spot_v7_firecracker_authority_input_parity.py \
             tests/test_zrpf_spot_v7_firecracker_rust_parity.py \
             tests/test_zrpf_spot_v7_release_closure.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
@@ -615,6 +617,7 @@ jobs:
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
+            tests/test_zrpf_spot_v7_firecracker_authority_input_parity.py \
             tests/test_zrpf_spot_v7_firecracker_rust_parity.py \
             tests/test_zrpf_spot_v7_release_closure.py \
             tests/test_zrpf_spot_settlement_v7_local_evidence.py \
@@ -783,7 +786,8 @@ jobs:
             -p zenodex-zrpf-risc0-spot-settlement-v7-input-builder \
             -p zenodex-zrpf-risc0-spot-settlement-v7-shared \
             -p zenodex-zrpf-risc0-spot-settlement-v7-verifier \
-            -p zenodex-zrpf-risc0-spot-settlement-v7-harness
+            -p zenodex-zrpf-risc0-spot-settlement-v7-harness \
+            -p zenodex-zrpf-spot-v7-firecracker-runtime
           "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/spot_settlement_v7_risc0/Cargo.toml \
             --locked --offline --workspace \
