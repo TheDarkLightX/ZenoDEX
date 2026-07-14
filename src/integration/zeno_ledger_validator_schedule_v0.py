@@ -7,8 +7,9 @@ from typing import Any, Mapping, Sequence
 from src.integration.zeno_ledger_v0 import canonical_header_hash_v0, hash_v0, validate_header_v0
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
-
-VALIDATOR_SET_SCHEMA_V0 = "zenodex/zeno_ledger/validator_set/v0"
+SCHEDULED_VALIDATOR_SET_SCHEMA_V1 = "zenodex/zeno_ledger/scheduled_validator_set/v1"
+SCHEDULED_VALIDATOR_SET_HASH_DOMAIN_V1 = "scheduled_validator_set_v1"
+SCHEDULED_VALIDATOR_ENTRY_HASH_DOMAIN_V1 = "scheduled_validator_set_entry_v1"
 PROPOSER_DUTY_SCHEMA_V0 = "zenodex/zeno_ledger/proposer_duty/v0"
 SCHEDULED_HEADER_ADMISSION_SCHEMA_V0 = "zenodex/zeno_ledger/scheduled_header_admission/v0"
 FORK_CHOICE_REPORT_SCHEMA_V0 = "zenodex/zeno_ledger/fork_choice_report/v0"
@@ -16,6 +17,7 @@ SCHEDULE_MODE_V0 = "weighted_round_robin_v0"
 FORK_CHOICE_POLICY_V0 = "extend_only_same_validator_set_v0"
 MAX_VALIDATOR_POWER_V0 = 1024
 MAX_ACTIVE_SLOT_COUNT_V0 = 4096
+MAX_SCHEDULED_VALIDATORS_V1 = 256
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
@@ -91,12 +93,32 @@ def _validator_body(
         ),
         "status": checked_status,
     }
-    return {**body, "validator_hash": hash_v0("validator_set_entry_v0", body)}
+    return {**body, "validator_hash": hash_v0(SCHEDULED_VALIDATOR_ENTRY_HASH_DOMAIN_V1, body)}
 
 
-def _validator_set_hash_v0(validator_set: Mapping[str, Any]) -> str:
+def _require_new_validator_identity_v1(
+    entry: Mapping[str, Any],
+    *,
+    seen: tuple[set[str], set[str], set[str]],
+) -> None:
+    validator_ids, key_ids, public_keys = seen
+    validator_id = str(entry["validator_id"])
+    key_id = str(entry["key_id"])
+    public_key = str(entry["public_key"])
+    if validator_id in validator_ids:
+        raise ValueError("duplicate validator_id")
+    if key_id in key_ids:
+        raise ValueError("duplicate validator key_id")
+    if public_key in public_keys:
+        raise ValueError("duplicate validator public_key")
+    validator_ids.add(validator_id)
+    key_ids.add(key_id)
+    public_keys.add(public_key)
+
+
+def _scheduled_validator_set_hash_v1(validator_set: Mapping[str, Any]) -> str:
     body = {key: value for key, value in dict(validator_set).items() if key != "validator_set_hash"}
-    return hash_v0("validator_set_v0", body)
+    return hash_v0(SCHEDULED_VALIDATOR_SET_HASH_DOMAIN_V1, body)
 
 
 def build_validator_set_v0(
@@ -111,9 +133,11 @@ def build_validator_set_v0(
     items = _require_sequence(validators, name="validators")
     if not items:
         raise ValueError("validator set requires at least one validator")
+    if len(items) > MAX_SCHEDULED_VALIDATORS_V1:
+        raise ValueError("scheduled validator set exceeds maximum validator count")
 
     entries: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
+    seen_identities: tuple[set[str], set[str], set[str]] = (set(), set(), set())
     active_slot_count = 0
     for index, raw in enumerate(items):
         obj = _require_mapping(raw, name=f"validators[{index}]")
@@ -128,10 +152,7 @@ def build_validator_set_v0(
             ),
             status=_require_str(obj.get("status", "active"), name=f"validators[{index}].status"),
         )
-        identity = (str(entry["validator_id"]), str(entry["key_id"]))
-        if identity in seen:
-            raise ValueError("duplicate validator_id/key_id")
-        seen.add(identity)
+        _require_new_validator_identity_v1(entry, seen=seen_identities)
         if entry["status"] == "active":
             active_slot_count += int(entry["voting_power"])
         entries.append(entry)
@@ -143,7 +164,7 @@ def build_validator_set_v0(
 
     entries.sort(key=lambda item: (str(item["validator_id"]), str(item["key_id"])))
     body = {
-        "schema": VALIDATOR_SET_SCHEMA_V0,
+        "schema": SCHEDULED_VALIDATOR_SET_SCHEMA_V1,
         "chain_id": _require_str(chain_id, name="chain_id"),
         "epoch": _require_nonnegative_int(epoch, name="epoch"),
         "start_height": _require_nonnegative_int(start_height, name="start_height"),
@@ -151,22 +172,25 @@ def build_validator_set_v0(
         "active_slot_count": active_slot_count,
         "validators": entries,
     }
-    return {**body, "validator_set_hash": _validator_set_hash_v0(body)}
+    return {**body, "validator_set_hash": _scheduled_validator_set_hash_v1(body)}
 
 
 def validate_validator_set_v0(validator_set: Mapping[str, Any]) -> None:
     obj = _require_mapping(validator_set, name="validator_set")
-    if obj.get("schema") != VALIDATOR_SET_SCHEMA_V0:
+    if obj.get("schema") != SCHEDULED_VALIDATOR_SET_SCHEMA_V1:
         raise ValueError("validator set schema mismatch")
     if obj.get("schedule_mode") != SCHEDULE_MODE_V0:
         raise ValueError("validator set schedule_mode mismatch")
+    validators = _require_sequence(obj.get("validators"), name="validator_set.validators")
+    if len(validators) > MAX_SCHEDULED_VALIDATORS_V1:
+        raise ValueError("scheduled validator set exceeds maximum validator count")
     expected = build_validator_set_v0(
         chain_id=_require_str(obj.get("chain_id"), name="validator_set.chain_id"),
         epoch=_require_nonnegative_int(obj.get("epoch"), name="validator_set.epoch"),
         start_height=_require_nonnegative_int(obj.get("start_height"), name="validator_set.start_height"),
         validators=[
             _require_mapping(item, name=f"validator_set.validators[{index}]")
-            for index, item in enumerate(_require_sequence(obj.get("validators"), name="validator_set.validators"))
+            for index, item in enumerate(validators)
         ],
     )
     if dict(obj) != expected:

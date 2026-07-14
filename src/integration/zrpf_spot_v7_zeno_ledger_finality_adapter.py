@@ -39,7 +39,7 @@ from src.integration._zrpf_spot_v7_operational_mechanics import (
     _TestOnlySpotV7OperationalPolicyV1,
 )
 from src.integration._zrpf_spot_v7_zeno_ledger_finality_contract import (
-    _MAX_FINALITY_VALIDATORS_V1,
+    _MAX_FINALITY_QUORUM_SIGNERS_V1,
     _ZERO_ROOT,
     SPOT_V7_ZENO_LEDGER_FINALITY_EVIDENCE_SCHEMA_V2,
     SPOT_V7_ZENO_LEDGER_PROPOSER_AUTHORSHIP_ADMISSION_SCHEMA_V1,
@@ -335,7 +335,11 @@ def _require_registry_and_external_policy_binding(
 ) -> None:
     validate_signer_registry_v0(registry)
     signers = registry["signers"]
-    if type(signers) is not list or not signers or len(signers) > _MAX_FINALITY_VALIDATORS_V1:
+    if (
+        type(signers) is not list
+        or not signers
+        or len(signers) > _MAX_FINALITY_QUORUM_SIGNERS_V1
+    ):
         raise ValueError("signer registry count is outside the governed bound")
     chain_id = _require_nonempty_string(header["chain_id"], name="header.chain_id")
     registry_hash = _require_hash(registry["registry_hash"], name="registry hash")

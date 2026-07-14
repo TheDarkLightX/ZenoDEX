@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import pytest
 
+from src.integration import zeno_ledger_v0 as ledger_v0
 from src.integration.zeno_ledger_v0 import build_header_v0, hash_v0
 from src.integration.zeno_ledger_validator_schedule_v0 import (
     FORK_CHOICE_POLICY_V0,
+    MAX_SCHEDULED_VALIDATORS_V1,
+    SCHEDULED_VALIDATOR_ENTRY_HASH_DOMAIN_V1,
+    SCHEDULED_VALIDATOR_SET_HASH_DOMAIN_V1,
+    SCHEDULED_VALIDATOR_SET_SCHEMA_V1,
     build_fork_choice_report_v0,
     build_proposer_duty_v0,
     build_scheduled_header_admission_v0,
@@ -14,7 +19,6 @@ from src.integration.zeno_ledger_validator_schedule_v0 import (
     validate_scheduled_header_admission_v0,
     validate_validator_set_v0,
 )
-
 
 ZERO_ROOT = "0x" + "00" * 32
 
@@ -96,8 +100,22 @@ def _tip(*, height: int, header_hash: str, validator_set_hash: str) -> dict[str,
 def test_validator_set_is_canonical_and_hash_bound() -> None:
     validator_set = _validator_set()
 
+    assert validator_set["schema"] == SCHEDULED_VALIDATOR_SET_SCHEMA_V1
+    body = {key: value for key, value in validator_set.items() if key != "validator_set_hash"}
+    assert validator_set["validator_set_hash"] == hash_v0(
+        SCHEDULED_VALIDATOR_SET_HASH_DOMAIN_V1,
+        body,
+    )
     assert validator_set["active_slot_count"] == 3
-    assert [entry["validator_id"] for entry in validator_set["validators"]] == [
+    validators = validator_set["validators"]
+    assert isinstance(validators, list)
+    for entry in validators:
+        entry_body = {key: value for key, value in entry.items() if key != "validator_hash"}
+        assert entry["validator_hash"] == hash_v0(
+            SCHEDULED_VALIDATOR_ENTRY_HASH_DOMAIN_V1,
+            entry_body,
+        )
+    assert [entry["validator_id"] for entry in validators] == [
         "validator-a",
         "validator-b",
         "validator-c",
@@ -110,17 +128,71 @@ def test_validator_set_is_canonical_and_hash_bound() -> None:
         validate_validator_set_v0(tampered)
 
 
-def test_validator_set_rejects_duplicate_identity() -> None:
+@pytest.mark.parametrize(
+    ("duplicate_field", "message"),
+    (
+        ("validator_id", "duplicate validator_id"),
+        ("key_id", "duplicate validator key_id"),
+        ("public_key", "duplicate validator public_key"),
+    ),
+)
+def test_validator_set_rejects_aliased_identity_or_key(
+    duplicate_field: str,
+    message: str,
+) -> None:
     validators = _validators()
-    validators.append(dict(validators[0]))
+    duplicate = {
+        "validator_id": "validator-d",
+        "key_id": "key-d",
+        "public_key": _pubkey(4),
+        "voting_power": 1,
+        "status": "active",
+    }
+    duplicate[duplicate_field] = validators[0][duplicate_field]
+    validators.append(duplicate)
 
-    with pytest.raises(ValueError, match="duplicate validator_id/key_id"):
+    with pytest.raises(ValueError, match=message):
         build_validator_set_v0(
             chain_id="zeno-ledger-schedule-testnet-0",
             epoch=0,
             start_height=1,
             validators=validators,
         )
+
+
+def test_validator_set_rejects_257_entries_before_entry_validation() -> None:
+    repeated = [_validators()[0]] * (MAX_SCHEDULED_VALIDATORS_V1 + 1)
+
+    with pytest.raises(ValueError, match="maximum validator count"):
+        build_validator_set_v0(
+            chain_id="zeno-ledger-schedule-testnet-0",
+            epoch=0,
+            start_height=1,
+            validators=repeated,
+        )
+
+
+def test_scheduled_and_ledger_validator_set_schemas_cannot_substitute() -> None:
+    scheduled = _validator_set()
+    assert SCHEDULED_VALIDATOR_SET_SCHEMA_V1 != ledger_v0.VALIDATOR_SET_SCHEMA_V0
+    with pytest.raises(ValueError, match="validator set keys mismatch"):
+        ledger_v0.validate_validator_set_v0(scheduled)
+
+    legacy = {
+        "schema": ledger_v0.VALIDATOR_SET_SCHEMA_V0,
+        "chain_id": "zeno-ledger-schedule-testnet-0",
+        "epoch": 0,
+        "validators": [
+            {
+                "validator_id": "validator-a",
+                "public_key": _pubkey(1),
+                "voting_power": 1,
+            }
+        ],
+    }
+    ledger_v0.validate_validator_set_v0(legacy)
+    with pytest.raises(ValueError, match="validator set schema mismatch"):
+        validate_validator_set_v0(legacy)
 
 
 def test_weighted_round_robin_proposer_duties_are_deterministic() -> None:

@@ -14,6 +14,7 @@ from py_ecc.optimized_bls12_381 import curve_order
 
 import src.integration._zrpf_spot_v7_firecracker_authority as firecracker_authority
 import src.integration._zrpf_spot_v7_operational_capability_v2 as operational_v2
+import src.integration._zrpf_spot_v7_zeno_ledger_finality_contract as finality_contract
 import src.integration.zrpf_spot_v7_zeno_ledger_finality_adapter as adapter_module
 from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
     _SpotV7SettlementCandidateInputV1,
@@ -32,6 +33,9 @@ from src.integration.zeno_ledger_signature import (
     build_bls_signed_artifact_envelope_v0,
 )
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
+from src.integration.zeno_ledger_v0 import (
+    VALIDATOR_SET_SCHEMA_V0 as LEDGER_VALIDATOR_SET_SCHEMA_V0,
+)
 from src.integration.zeno_ledger_v0 import (
     build_checkpoint_v0,
     build_header_v0,
@@ -465,7 +469,6 @@ def test_valid_governed_bls_quorum_mints_exact_checkpoint_finality_v2() -> None:
     assert evidence["live_quorum_admission"]["accepted_weight"] == 2
     assert canonical_json_bytes_v0(evidence) == capability._exact_finality_evidence_bytes
 
-
 def test_finality_rejects_policy_reuse_at_its_revocation_epoch() -> None:
     fixture = _fixture()
     candidate = fixture.settlement._candidate_for_atomic_store()
@@ -485,6 +488,32 @@ def test_finality_rejects_policy_reuse_at_its_revocation_epoch() -> None:
         _authenticate(expired)
 
     assert captured.value.code == "operational_policy_inactive"
+
+
+@pytest.mark.parametrize(
+    ("constant_name", "replacement"),
+    (
+        (
+            "SCHEDULED_VALIDATOR_SET_SCHEMA_V1",
+            "zenodex/zeno_ledger/scheduled_validator_set/test-mutation",
+        ),
+        ("SCHEDULED_VALIDATOR_SET_HASH_DOMAIN_V1", "scheduled_validator_set_test_mutation"),
+        (
+            "SCHEDULED_VALIDATOR_ENTRY_HASH_DOMAIN_V1",
+            "scheduled_validator_set_entry_test_mutation",
+        ),
+    ),
+)
+def test_finality_protocol_identity_binds_scheduled_validator_set_contract(
+    constant_name: str,
+    replacement: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = derive_zeno_ledger_finality_protocol_id_v2()
+
+    monkeypatch.setattr(finality_contract, constant_name, replacement)
+
+    assert derive_zeno_ledger_finality_protocol_id_v2() != expected
 
 
 def test_signature_order_does_not_change_canonical_finality_evidence() -> None:
@@ -707,6 +736,40 @@ def test_checkpoint_signer_registry_cannot_replace_canonical_validator_set() -> 
             ),
             registry=fixture.registry,
             envelopes=_envelopes(str(checkpoint["header_hash"])),
+        )
+
+    assert captured.value.code == "scheduled_header_admission"
+
+
+def test_legacy_ledger_validator_set_cannot_replace_scheduled_validator_set() -> None:
+    fixture = _fixture()
+    legacy_validator_set = {
+        "schema": LEDGER_VALIDATOR_SET_SCHEMA_V0,
+        "chain_id": CHAIN_ID,
+        "epoch": 0,
+        "validators": [
+            {
+                "validator_id": "sequencer-0",
+                "public_key": bls_public_key_hex_from_private_key_v0(
+                    _private_key("sequencer-a")
+                ),
+                "voting_power": 1,
+            }
+        ],
+    }
+
+    with pytest.raises(SpotV7ZenoLedgerFinalityBindingErrorV1) as captured:
+        fixture.adapter.authenticate(
+            settlement=fixture.settlement,
+            prior_cursor=fixture.prior_cursor,
+            header=fixture.header,
+            checkpoint=fixture.checkpoint,
+            validator_set=legacy_validator_set,
+            proposer_id=fixture.proposer_id,
+            proposer_key_id=fixture.proposer_key_id,
+            proposer_envelope=fixture.proposer_envelope,
+            registry=fixture.registry,
+            envelopes=fixture.envelopes,
         )
 
     assert captured.value.code == "scheduled_header_admission"

@@ -141,7 +141,12 @@ The ZenoLedger finality adapter authenticates BLS checkpoint signatures against
 the exact registry hash pinned by the sealed operational policy. It enforces
 strict greater-than-two-thirds active-weight quorum intersection. The checkpoint
 signer-registry root remains distinct from the header's validator-set root. The
-adapter invokes canonical scheduled-header admission for that validator set,
+adapter accepts only the schedule-specific
+`zenodex/zeno_ledger/scheduled_validator_set/v1` contract and its distinct
+`scheduled_validator_set_v1` set and `scheduled_validator_set_entry_v1` entry
+hash domains. That contract permits at most 256 validators and requires
+globally unique validator IDs, key IDs, and BLS public keys. The adapter invokes
+canonical scheduled-header admission for that set,
 then requires a BLS signature over a purpose-separated commitment to the exact
 canonical header and proposer duty from the scheduled proposer identity and
 public key. A checkpoint vote cannot be replayed as proposal authorship. It
@@ -155,6 +160,11 @@ Validator-set release binding belongs to the separate governed-policy
 provenance condition because the external finality policy commits the exact
 sequencer-set hash. Caller booleans, quorum reports, and certificate bytes never
 mint either capability.
+
+The schedule-specific V1 identity intentionally invalidates schedule artifacts
+that used the colliding legacy `validator_set/v0` schema and hash domain. There
+is no compatibility admission. New governed evidence must rebuild the scheduled
+set, header commitment, finality protocol identity, and dependent policy roots.
 
 The existing anti-equivocation and bonded-slashing helpers can detect and
 penalize two observed conflicting checkpoints. They do not guarantee that every
@@ -326,6 +336,12 @@ Focused tests establish:
   wrong sequence, wrong V7 journal hash, or wrong post-state root rejects;
 - replacing the validator-set root with the checkpoint signer-registry root
   rejects through scheduled-header admission;
+- the legacy body-replay `validator_set/v0` shape cannot substitute for the
+  schedule-specific V1 shape, and the finality protocol identity commits the
+  exact schedule schema, set and entry hash domains, and maximum validator
+  count;
+- duplicate scheduled validator IDs, key IDs, or BLS public keys reject, and a
+  257-entry validator set rejects before per-entry schedule work;
 - an incorrect `app_hash` and an unscheduled proposer identity reject before
   checkpoint quorum can mint the private capability;
 - mutations of the scheduled proposer's identity, key, public key, payload,

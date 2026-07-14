@@ -26,9 +26,12 @@ from src.integration.zeno_ledger_v0 import (
     hash_v0,
 )
 from src.integration.zeno_ledger_validator_schedule_v0 import (
+    MAX_SCHEDULED_VALIDATORS_V1,
     SCHEDULE_MODE_V0,
     SCHEDULED_HEADER_ADMISSION_SCHEMA_V0,
-    VALIDATOR_SET_SCHEMA_V0,
+    SCHEDULED_VALIDATOR_ENTRY_HASH_DOMAIN_V1,
+    SCHEDULED_VALIDATOR_SET_HASH_DOMAIN_V1,
+    SCHEDULED_VALIDATOR_SET_SCHEMA_V1,
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     MAX_U64,
@@ -54,7 +57,7 @@ _MAX_FINALITY_INPUT_BYTES_V1: Final = 1 * 1_024 * 1_024
 _MAX_FINALITY_INPUT_DEPTH_V1: Final = 64
 _MAX_FINALITY_INPUT_ITEMS_V1: Final = 32_768
 _MAX_FINALITY_STRING_BYTES_V1: Final = 1 * 1_024 * 1_024
-_MAX_FINALITY_VALIDATORS_V1: Final = 256
+_MAX_FINALITY_QUORUM_SIGNERS_V1: Final = 256
 _ZERO_ROOT: Final = "0x" + "00" * 32
 
 
@@ -110,7 +113,14 @@ def derive_zeno_ledger_finality_protocol_id_v2() -> str:
             "live_quorum_schema": LIVE_CHECKPOINT_QUORUM_ADMISSION_SCHEMA_V0,
             "signature_algorithm": SIGNED_ARTIFACT_ALGORITHM_BLS12_381_G2_BASIC_V0,
             "signer_registry_schema": SIGNER_REGISTRY_SCHEMA_V0,
-            "validator_set_schema": VALIDATOR_SET_SCHEMA_V0,
+            "scheduled_validator_set_schema": SCHEDULED_VALIDATOR_SET_SCHEMA_V1,
+            "scheduled_validator_set_hash_domain": (
+                SCHEDULED_VALIDATOR_SET_HASH_DOMAIN_V1
+            ),
+            "scheduled_validator_entry_hash_domain": (
+                SCHEDULED_VALIDATOR_ENTRY_HASH_DOMAIN_V1
+            ),
+            "maximum_scheduled_validators": MAX_SCHEDULED_VALIDATORS_V1,
             "scheduled_header_admission_schema": SCHEDULED_HEADER_ADMISSION_SCHEMA_V0,
             "validator_schedule_mode": SCHEDULE_MODE_V0,
             "proposer_authorship_schema": (
@@ -204,7 +214,7 @@ def _snapshot_inputs(
     registry_value = _snapshot_plain_dict(registry, name="registry")
     if type(envelopes) is not tuple:
         raise TypeError("envelopes must be an exact tuple")
-    if not envelopes or len(envelopes) > _MAX_FINALITY_VALIDATORS_V1:
+    if not envelopes or len(envelopes) > _MAX_FINALITY_QUORUM_SIGNERS_V1:
         raise ValueError("envelopes count is outside the governed bound")
     envelope_values = tuple(
         _snapshot_plain_dict(value, name=f"envelopes[{index}]")
