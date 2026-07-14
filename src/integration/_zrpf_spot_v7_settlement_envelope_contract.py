@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass
-from typing import Any, NoReturn, SupportsIndex, final
+from typing import TYPE_CHECKING, Any, NoReturn, SupportsIndex, final
 
 from src.core.dex import DexState
 from src.integration.zeno_ledger_replay import (
@@ -22,6 +22,11 @@ from src.integration.zeno_ledger_v0 import (
     hash_v0,
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_types import _hash_bytes
+
+if TYPE_CHECKING:
+    from src.integration._zrpf_spot_v7_settlement_replay_packet import (
+        _DurableSpotV7SettlementReplayPacketV2,
+    )
 
 SPOT_V7_SETTLEMENT_ENVELOPE_SCHEMA_V1 = "zenodex/zrpf/spot_v7/settlement_envelope/v1"
 SPOT_V7_SETTLEMENT_ENVELOPE_PROFILE_V1 = "restricted_singleton_spot_state_root_v5"
@@ -260,25 +265,11 @@ class _AuthenticatedSpotV7SettlementReplayObservationV2(_NonTransferableSettleme
     """Private replay observation retaining exact history-replay inputs."""
 
     __slots__ = (
-        "_projection",
-        "_exact_header_bytes",
-        "_exact_body_bytes",
-        "_exact_envelope_bytes",
-        "_exact_receipt_bytes",
-        "_exact_evidence_bytes",
-        "_exact_config_document_bytes",
-        "_exact_pre_state_snapshot_bytes",
+        "_durable_packet",
         "_seal",
     )
 
-    _projection: _SpotV7SettlementReplayProjectionV2
-    _exact_header_bytes: bytes
-    _exact_body_bytes: bytes
-    _exact_envelope_bytes: bytes
-    _exact_receipt_bytes: bytes
-    _exact_evidence_bytes: bytes
-    _exact_config_document_bytes: bytes
-    _exact_pre_state_snapshot_bytes: bytes
+    _durable_packet: _DurableSpotV7SettlementReplayPacketV2
     _seal: _SettlementReplayObservationSealV2
 
     def __init__(
@@ -298,43 +289,24 @@ class _AuthenticatedSpotV7SettlementReplayObservationV2(_NonTransferableSettleme
             raise TypeError("settlement replay V2 projection has the wrong type")
         if seal is not _SETTLEMENT_REPLAY_OBSERVATION_SEAL_V2:
             raise TypeError("settlement replay V2 observation requires its private seal")
-        exact_values = (
-            ("header", exact_header_bytes),
-            ("body", exact_body_bytes),
-            ("envelope", exact_envelope_bytes),
-            ("receipt", exact_receipt_bytes),
-            ("evidence", exact_evidence_bytes),
-            ("config document", exact_config_document_bytes),
-            ("pre-state snapshot", exact_pre_state_snapshot_bytes),
+        from src.integration._zrpf_spot_v7_settlement_replay_packet import (
+            _new_durable_spot_v7_settlement_replay_packet_v2,
+            _UntrustedPersistedSpotV7SettlementReplayInputsV2,
         )
-        for name, value in exact_values:
-            if type(value) is not bytes or not value:
-                raise TypeError(f"exact settlement replay {name} must be non-empty bytes")
-        _require_exact_artifact_bindings(
-            projection,
-            header_bytes=exact_header_bytes,
-            body_bytes=exact_body_bytes,
-            envelope_bytes=exact_envelope_bytes,
-            receipt_bytes=exact_receipt_bytes,
-            evidence_bytes=exact_evidence_bytes,
+
+        packet = _new_durable_spot_v7_settlement_replay_packet_v2(
+            _UntrustedPersistedSpotV7SettlementReplayInputsV2(
+                exact_projection_bytes=canonical_json_bytes_v0(asdict(projection)),
+                exact_header_bytes=exact_header_bytes,
+                exact_body_bytes=exact_body_bytes,
+                exact_envelope_bytes=exact_envelope_bytes,
+                exact_receipt_bytes=exact_receipt_bytes,
+                exact_evidence_bytes=exact_evidence_bytes,
+                exact_config_document_bytes=exact_config_document_bytes,
+                exact_pre_state_snapshot_bytes=exact_pre_state_snapshot_bytes,
+            )
         )
-        _require_exact_replay_material_bindings_v2(
-            projection,
-            config_document_bytes=exact_config_document_bytes,
-            pre_state_snapshot_bytes=exact_pre_state_snapshot_bytes,
-        )
-        object.__setattr__(self, "_projection", projection)
-        object.__setattr__(self, "_exact_header_bytes", exact_header_bytes)
-        object.__setattr__(self, "_exact_body_bytes", exact_body_bytes)
-        object.__setattr__(self, "_exact_envelope_bytes", exact_envelope_bytes)
-        object.__setattr__(self, "_exact_receipt_bytes", exact_receipt_bytes)
-        object.__setattr__(self, "_exact_evidence_bytes", exact_evidence_bytes)
-        object.__setattr__(self, "_exact_config_document_bytes", exact_config_document_bytes)
-        object.__setattr__(
-            self,
-            "_exact_pre_state_snapshot_bytes",
-            exact_pre_state_snapshot_bytes,
-        )
+        object.__setattr__(self, "_durable_packet", packet)
         object.__setattr__(self, "_seal", seal)
 
     def _has_private_seal(self) -> bool:
@@ -342,34 +314,44 @@ class _AuthenticatedSpotV7SettlementReplayObservationV2(_NonTransferableSettleme
 
     def _header_for_finality_adapter(self) -> dict[str, Any]:
         _require_settlement_replay_observation_v2(self)
+        persisted = self._durable_packet._persisted_inputs_for_storage()
         return _decode_exact_json_object(
-            self._exact_header_bytes,
+            persisted.exact_header_bytes,
             name="sealed settlement replay header",
         )
 
     def _projection_for_finality_adapter(self) -> _SpotV7SettlementReplayProjectionV2:
         _require_settlement_replay_observation_v2(self)
-        return self._projection
+        return self._durable_packet._projection_for_history_reverification()
 
     def _canonical_projection_for_finality_adapter(self) -> dict[str, Any]:
         _require_settlement_replay_observation_v2(self)
-        return asdict(self._projection)
+        return asdict(self._durable_packet._projection_for_history_reverification())
+
+    def _durable_replay_packet_for_history_reverification(
+        self,
+    ) -> _DurableSpotV7SettlementReplayPacketV2:
+        _require_settlement_replay_observation_v2(self)
+        return self._durable_packet
 
     def _exact_replay_material_for_history_reverification(
         self,
     ) -> _ExactSpotV7SettlementReplayMaterialV2:
         _require_settlement_replay_observation_v2(self)
+        persisted = self._durable_packet._persisted_inputs_for_storage()
         return _ExactSpotV7SettlementReplayMaterialV2(
-            exact_config_document_bytes=self._exact_config_document_bytes,
-            exact_pre_state_snapshot_bytes=self._exact_pre_state_snapshot_bytes,
+            exact_config_document_bytes=persisted.exact_config_document_bytes,
+            exact_pre_state_snapshot_bytes=persisted.exact_pre_state_snapshot_bytes,
         )
 
     @property
     def exact_replay_material_authenticated(self) -> bool:
+        _require_settlement_replay_observation_v2(self)
         return True
 
     @property
     def durable_settlement_replay_reverification_material_retained(self) -> bool:
+        _require_settlement_replay_observation_v2(self)
         return True
 
     @property

@@ -905,15 +905,24 @@ def _v2_observation() -> tuple[
     return fixture, observation
 
 
+def _v2_persisted_inputs(
+    observation: replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2,
+) -> Any:
+    return observation._durable_replay_packet_for_history_reverification()._persisted_inputs_for_storage()
+
+
 def test_v2_retains_exact_canonical_replay_material_with_scoped_claims() -> None:
     fixture, observation = _v2_observation()
 
     projection = observation._projection_for_finality_adapter()
     material = observation._exact_replay_material_for_history_reverification()
+    persisted = _v2_persisted_inputs(observation)
     config = replay_engine_config_document_v0(DexEngineConfig(chain_id=_CHAIN_ID))
 
     assert material.exact_config_document_bytes == canonical_json_bytes_v0(config)
     assert material.exact_pre_state_snapshot_bytes == canonical_json_bytes_v0(fixture.pre_snapshot)
+    assert material.exact_config_document_bytes == persisted.exact_config_document_bytes
+    assert material.exact_pre_state_snapshot_bytes == persisted.exact_pre_state_snapshot_bytes
     assert projection.config_document_sha256 == _prefixed_sha256(
         material.exact_config_document_bytes
     )
@@ -947,9 +956,9 @@ def test_v2_constructor_rejects_config_and_pre_state_substitution(
 ) -> None:
     _fixture_value, observation = _v2_observation()
     projection = observation._projection_for_finality_adapter()
-    material = observation._exact_replay_material_for_history_reverification()
-    config_bytes = material.exact_config_document_bytes
-    pre_state_bytes = material.exact_pre_state_snapshot_bytes
+    persisted = _v2_persisted_inputs(observation)
+    config_bytes = persisted.exact_config_document_bytes
+    pre_state_bytes = persisted.exact_pre_state_snapshot_bytes
     if artifact_name == "config":
         config = json.loads(config_bytes)
         config["config"]["max_intents"] += 1
@@ -962,11 +971,11 @@ def test_v2_constructor_rejects_config_and_pre_state_substitution(
     with pytest.raises(ValueError):
         replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2(
             projection,
-            exact_header_bytes=observation._exact_header_bytes,
-            exact_body_bytes=observation._exact_body_bytes,
-            exact_envelope_bytes=observation._exact_envelope_bytes,
-            exact_receipt_bytes=observation._exact_receipt_bytes,
-            exact_evidence_bytes=observation._exact_evidence_bytes,
+            exact_header_bytes=persisted.exact_header_bytes,
+            exact_body_bytes=persisted.exact_body_bytes,
+            exact_envelope_bytes=persisted.exact_envelope_bytes,
+            exact_receipt_bytes=persisted.exact_receipt_bytes,
+            exact_evidence_bytes=persisted.exact_evidence_bytes,
             exact_config_document_bytes=config_bytes,
             exact_pre_state_snapshot_bytes=pre_state_bytes,
             seal=replay_contract._SETTLEMENT_REPLAY_OBSERVATION_SEAL_V2,
@@ -979,9 +988,9 @@ def test_v2_constructor_rejects_noncanonical_retained_replay_material(
 ) -> None:
     _fixture_value, observation = _v2_observation()
     projection = observation._projection_for_finality_adapter()
-    material = observation._exact_replay_material_for_history_reverification()
-    config_bytes = material.exact_config_document_bytes
-    pre_state_bytes = material.exact_pre_state_snapshot_bytes
+    persisted = _v2_persisted_inputs(observation)
+    config_bytes = persisted.exact_config_document_bytes
+    pre_state_bytes = persisted.exact_pre_state_snapshot_bytes
     if artifact_name == "config":
         config_bytes = b" " + config_bytes
         config_sha256 = _prefixed_sha256(config_bytes)
@@ -1000,7 +1009,7 @@ def test_v2_constructor_rejects_noncanonical_retained_replay_material(
         pre_state_root=projection.pre_state_root,
         pre_state_snapshot_sha256=pre_state_sha256,
     )
-    evidence = json.loads(observation._exact_evidence_bytes)
+    evidence = json.loads(persisted.exact_evidence_bytes)
     evidence["config_document_sha256"] = config_sha256
     evidence["pre_state_snapshot_sha256"] = pre_state_sha256
     evidence["replay_material_root"] = material_root
@@ -1016,10 +1025,10 @@ def test_v2_constructor_rejects_noncanonical_retained_replay_material(
     with pytest.raises(ValueError, match="exact canonical JSON object"):
         replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2(
             substituted_projection,
-            exact_header_bytes=observation._exact_header_bytes,
-            exact_body_bytes=observation._exact_body_bytes,
-            exact_envelope_bytes=observation._exact_envelope_bytes,
-            exact_receipt_bytes=observation._exact_receipt_bytes,
+            exact_header_bytes=persisted.exact_header_bytes,
+            exact_body_bytes=persisted.exact_body_bytes,
+            exact_envelope_bytes=persisted.exact_envelope_bytes,
+            exact_receipt_bytes=persisted.exact_receipt_bytes,
             exact_evidence_bytes=evidence_bytes,
             exact_config_document_bytes=config_bytes,
             exact_pre_state_snapshot_bytes=pre_state_bytes,
@@ -1104,7 +1113,7 @@ def test_v2_replay_rejects_envelope_substitution() -> None:
 def test_v2_constructor_rejects_projection_graph_substitution(field_name: str) -> None:
     _fixture_value, observation = _v2_observation()
     projection = observation._projection_for_finality_adapter()
-    material = observation._exact_replay_material_for_history_reverification()
+    persisted = _v2_persisted_inputs(observation)
     substituted_projection = _replace_v2_projection_hash_field(
         projection,
         field_name,
@@ -1114,13 +1123,13 @@ def test_v2_constructor_rejects_projection_graph_substitution(field_name: str) -
     with pytest.raises(ValueError):
         replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2(
             substituted_projection,
-            exact_header_bytes=observation._exact_header_bytes,
-            exact_body_bytes=observation._exact_body_bytes,
-            exact_envelope_bytes=observation._exact_envelope_bytes,
-            exact_receipt_bytes=observation._exact_receipt_bytes,
-            exact_evidence_bytes=observation._exact_evidence_bytes,
-            exact_config_document_bytes=material.exact_config_document_bytes,
-            exact_pre_state_snapshot_bytes=material.exact_pre_state_snapshot_bytes,
+            exact_header_bytes=persisted.exact_header_bytes,
+            exact_body_bytes=persisted.exact_body_bytes,
+            exact_envelope_bytes=persisted.exact_envelope_bytes,
+            exact_receipt_bytes=persisted.exact_receipt_bytes,
+            exact_evidence_bytes=persisted.exact_evidence_bytes,
+            exact_config_document_bytes=persisted.exact_config_document_bytes,
+            exact_pre_state_snapshot_bytes=persisted.exact_pre_state_snapshot_bytes,
             seal=replay_contract._SETTLEMENT_REPLAY_OBSERVATION_SEAL_V2,
         )
 
@@ -1177,18 +1186,18 @@ def _replace_v2_projection_hash_field(
 def test_v2_constructor_rejects_coherently_rehashed_body_envelope_substitution() -> None:
     _fixture_value, observation = _v2_observation()
     projection = observation._projection_for_finality_adapter()
-    material = observation._exact_replay_material_for_history_reverification()
-    body = json.loads(observation._exact_body_bytes)
+    persisted = _v2_persisted_inputs(observation)
+    body = json.loads(persisted.exact_body_bytes)
     body["settlement_envelopes"][0]["proposal"]["economic_action_id"] = _root(
         "coherent-body-only-action"
     )
     body_bytes = canonical_json_bytes_v0(body)
     body_root = canonical_body_root_v0(body)
-    header = json.loads(observation._exact_header_bytes)
+    header = json.loads(persisted.exact_header_bytes)
     header["body_root"] = body_root
     header_bytes = canonical_json_bytes_v0(header)
     header_hash = canonical_header_hash_v0(header)
-    evidence = json.loads(observation._exact_evidence_bytes)
+    evidence = json.loads(persisted.exact_evidence_bytes)
     evidence["body_root"] = body_root
     evidence["header_hash"] = header_hash
     evidence_bytes = canonical_json_bytes_v0(evidence)
@@ -1204,11 +1213,11 @@ def test_v2_constructor_rejects_coherently_rehashed_body_envelope_substitution()
             substituted_projection,
             exact_header_bytes=header_bytes,
             exact_body_bytes=body_bytes,
-            exact_envelope_bytes=observation._exact_envelope_bytes,
-            exact_receipt_bytes=observation._exact_receipt_bytes,
+            exact_envelope_bytes=persisted.exact_envelope_bytes,
+            exact_receipt_bytes=persisted.exact_receipt_bytes,
             exact_evidence_bytes=evidence_bytes,
-            exact_config_document_bytes=material.exact_config_document_bytes,
-            exact_pre_state_snapshot_bytes=material.exact_pre_state_snapshot_bytes,
+            exact_config_document_bytes=persisted.exact_config_document_bytes,
+            exact_pre_state_snapshot_bytes=persisted.exact_pre_state_snapshot_bytes,
             seal=replay_contract._SETTLEMENT_REPLAY_OBSERVATION_SEAL_V2,
         )
 
@@ -1216,20 +1225,20 @@ def test_v2_constructor_rejects_coherently_rehashed_body_envelope_substitution()
 def test_v2_constructor_rejects_coherently_rehashed_envelope_receipt_substitution() -> None:
     _fixture_value, observation = _v2_observation()
     projection = observation._projection_for_finality_adapter()
-    material = observation._exact_replay_material_for_history_reverification()
-    envelope = json.loads(observation._exact_envelope_bytes)
+    persisted = _v2_persisted_inputs(observation)
+    envelope = json.loads(persisted.exact_envelope_bytes)
     envelope["expected_receipt"]["economic_action_id"] = _root("coherent-envelope-only-action")
     envelope_bytes = canonical_json_bytes_v0(envelope)
-    body = json.loads(observation._exact_body_bytes)
+    body = json.loads(persisted.exact_body_bytes)
     body["settlement_envelopes"] = [envelope]
     body_bytes = canonical_json_bytes_v0(body)
     body_root = canonical_body_root_v0(body)
-    header = json.loads(observation._exact_header_bytes)
+    header = json.loads(persisted.exact_header_bytes)
     header["body_root"] = body_root
     header_bytes = canonical_json_bytes_v0(header)
     header_hash = canonical_header_hash_v0(header)
     envelope_sha256 = _prefixed_sha256(envelope_bytes)
-    evidence = json.loads(observation._exact_evidence_bytes)
+    evidence = json.loads(persisted.exact_evidence_bytes)
     evidence["body_root"] = body_root
     evidence["header_hash"] = header_hash
     evidence["envelope_sha256"] = envelope_sha256
@@ -1248,16 +1257,17 @@ def test_v2_constructor_rejects_coherently_rehashed_envelope_receipt_substitutio
             exact_header_bytes=header_bytes,
             exact_body_bytes=body_bytes,
             exact_envelope_bytes=envelope_bytes,
-            exact_receipt_bytes=observation._exact_receipt_bytes,
+            exact_receipt_bytes=persisted.exact_receipt_bytes,
             exact_evidence_bytes=evidence_bytes,
-            exact_config_document_bytes=material.exact_config_document_bytes,
-            exact_pre_state_snapshot_bytes=material.exact_pre_state_snapshot_bytes,
+            exact_config_document_bytes=persisted.exact_config_document_bytes,
+            exact_pre_state_snapshot_bytes=persisted.exact_pre_state_snapshot_bytes,
             seal=replay_contract._SETTLEMENT_REPLAY_OBSERVATION_SEAL_V2,
         )
 
 
 def test_v2_observation_rejects_copy_pickle_mutation_and_forgery() -> None:
     _fixture_value, observation = _v2_observation()
+    persisted = _v2_persisted_inputs(observation)
 
     with pytest.raises(TypeError):
         copy.copy(observation)
@@ -1271,23 +1281,21 @@ def test_v2_observation_rejects_copy_pickle_mutation_and_forgery() -> None:
     with pytest.raises(TypeError):
         replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2(
             observation._projection_for_finality_adapter(),
-            exact_header_bytes=observation._exact_header_bytes,
-            exact_body_bytes=observation._exact_body_bytes,
-            exact_envelope_bytes=observation._exact_envelope_bytes,
-            exact_receipt_bytes=observation._exact_receipt_bytes,
-            exact_evidence_bytes=observation._exact_evidence_bytes,
-            exact_config_document_bytes=(
-                observation._exact_replay_material_for_history_reverification().exact_config_document_bytes
-            ),
-            exact_pre_state_snapshot_bytes=(
-                observation._exact_replay_material_for_history_reverification().exact_pre_state_snapshot_bytes
-            ),
+            exact_header_bytes=persisted.exact_header_bytes,
+            exact_body_bytes=persisted.exact_body_bytes,
+            exact_envelope_bytes=persisted.exact_envelope_bytes,
+            exact_receipt_bytes=persisted.exact_receipt_bytes,
+            exact_evidence_bytes=persisted.exact_evidence_bytes,
+            exact_config_document_bytes=persisted.exact_config_document_bytes,
+            exact_pre_state_snapshot_bytes=persisted.exact_pre_state_snapshot_bytes,
             seal=cast(replay_contract._SettlementReplayObservationSealV2, object()),
         )
 
     forged = object.__new__(replay_contract._AuthenticatedSpotV7SettlementReplayObservationV2)
     with pytest.raises(TypeError):
         replay_contract._require_settlement_replay_observation_v2(forged)
+    with pytest.raises(TypeError):
+        _ = forged.exact_replay_material_authenticated
 
 
 def test_v1_replay_observation_behavior_and_claim_scope_are_unchanged() -> None:
