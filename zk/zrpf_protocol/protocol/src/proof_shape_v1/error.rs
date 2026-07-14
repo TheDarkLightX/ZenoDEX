@@ -72,8 +72,7 @@ pub enum ProofShapeErrorV1 {
     },
     DuplicateProofShape,
     NonCanonicalRegistryOrder,
-    DuplicateAssumptionManifest,
-    UnknownAssumptionManifest,
+    UnknownProofShape,
     ArithmeticOverflow(&'static str),
     EmptyInput,
     InputTooLarge {
@@ -183,12 +182,9 @@ impl fmt::Display for ProofShapeErrorV1 {
             }
             Self::DuplicateProofShape => formatter.write_str("duplicate proof shape"),
             Self::NonCanonicalRegistryOrder => {
-                formatter.write_str("proof shape registrations are not in canonical order")
+                formatter.write_str("proof shapes are not in canonical registry order")
             }
-            Self::DuplicateAssumptionManifest => {
-                formatter.write_str("duplicate assumption manifest")
-            }
-            Self::UnknownAssumptionManifest => formatter.write_str("unknown assumption manifest"),
+            Self::UnknownProofShape => formatter.write_str("unknown proof shape"),
             Self::ArithmeticOverflow(field) => write!(formatter, "arithmetic overflow: {field}"),
             Self::EmptyInput => formatter.write_str("input is empty"),
             Self::InputTooLarge { actual, maximum } => {

@@ -8,68 +8,19 @@ use serde::{
 use sha2::Digest;
 
 use super::hash::{domain_hasher, registry_id};
-use super::resolution::validate_shape_manifest_contract_v1;
 use super::{
-    resolve_assumptions_v1, AssumptionManifestIdV1, AssumptionManifestV1, AssumptionResolutionV1,
-    ProofShapeErrorV1, ProofShapeIdV1, ProofShapeRegistryIdV1, ProofShapeV1, ResolvedChildClaimV1,
+    resolve_assumptions_v1, AssumptionManifestV1, AssumptionResolutionV1, ProofShapeErrorV1,
+    ProofShapeIdV1, ProofShapeRegistryIdV1, ProofShapeV1, ResolvedChildClaimV1,
     MAX_PROOF_SHAPE_REGISTRY_ENTRIES_V1, PROOF_SHAPE_REGISTRY_VERSION_V1,
 };
 
 const PROOF_SHAPE_REGISTRY_ID_DOMAIN_V1: &[u8] = b"zkpf.proof_shape_registry_id.v1";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct ProofShapeRegistrationV1 {
-    shape: ProofShapeV1,
-    assumption_manifest: AssumptionManifestV1,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ProofShapeRegistrationWireV1 {
-    shape: ProofShapeV1,
-    assumption_manifest: AssumptionManifestV1,
-}
-
-impl ProofShapeRegistrationV1 {
-    pub fn new(
-        shape: ProofShapeV1,
-        assumption_manifest: AssumptionManifestV1,
-    ) -> Result<Self, ProofShapeErrorV1> {
-        validate_shape_manifest_contract_v1(&shape, &assumption_manifest)?;
-        Ok(Self {
-            shape,
-            assumption_manifest,
-        })
-    }
-
-    pub fn validate(&self) -> Result<(), ProofShapeErrorV1> {
-        validate_shape_manifest_contract_v1(&self.shape, &self.assumption_manifest)
-    }
-
-    pub const fn shape(&self) -> &ProofShapeV1 {
-        &self.shape
-    }
-
-    pub const fn assumption_manifest(&self) -> &AssumptionManifestV1 {
-        &self.assumption_manifest
-    }
-}
-
-impl<'de> Deserialize<'de> for ProofShapeRegistrationV1 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let wire = ProofShapeRegistrationWireV1::deserialize(deserializer)?;
-        Self::new(wire.shape, wire.assumption_manifest).map_err(de::Error::custom)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ProofShapeRegistryV1 {
     registry_version: u16,
     registry_id: ProofShapeRegistryIdV1,
-    registrations: Vec<ProofShapeRegistrationV1>,
+    shapes: Vec<ProofShapeV1>,
 }
 
 #[derive(Deserialize)]
@@ -77,21 +28,19 @@ pub struct ProofShapeRegistryV1 {
 struct ProofShapeRegistryWireV1 {
     registry_version: u16,
     registry_id: ProofShapeRegistryIdV1,
-    #[serde(deserialize_with = "deserialize_bounded_registrations")]
-    registrations: Vec<ProofShapeRegistrationV1>,
+    #[serde(deserialize_with = "deserialize_bounded_shapes")]
+    shapes: Vec<ProofShapeV1>,
 }
 
 impl ProofShapeRegistryV1 {
-    pub fn derive(
-        mut registrations: Vec<ProofShapeRegistrationV1>,
-    ) -> Result<Self, ProofShapeErrorV1> {
-        validate_registration_count(registrations.len())?;
-        registrations.sort_by_key(|registration| registration.shape().shape_id());
-        let registry_id = derive_registry_id_parts_v1(&registrations)?;
+    pub fn derive(mut shapes: Vec<ProofShapeV1>) -> Result<Self, ProofShapeErrorV1> {
+        validate_shape_count(shapes.len())?;
+        shapes.sort_by_key(ProofShapeV1::shape_id);
+        let registry_id = derive_registry_id_parts_v1(&shapes)?;
         let value = Self {
             registry_version: PROOF_SHAPE_REGISTRY_VERSION_V1,
             registry_id,
-            registrations,
+            shapes,
         };
         value.validate()?;
         Ok(value)
@@ -104,7 +53,7 @@ impl ProofShapeRegistryV1 {
                 actual: self.registry_version,
             });
         }
-        validate_registrations(&self.registrations)?;
+        validate_shapes(&self.shapes)?;
         if self.registry_id != derive_registry_id_v1(self)? {
             return Err(ProofShapeErrorV1::InvalidDerivedIdentity(
                 "proof_shape_registry_id",
@@ -117,42 +66,25 @@ impl ProofShapeRegistryV1 {
         self.registry_id
     }
 
-    pub fn registrations(&self) -> &[ProofShapeRegistrationV1] {
-        &self.registrations
+    pub fn shapes(&self) -> &[ProofShapeV1] {
+        &self.shapes
     }
 
     pub fn shape(&self, shape_id: ProofShapeIdV1) -> Option<&ProofShapeV1> {
-        self.registrations
+        self.shapes
             .iter()
-            .find(|registration| registration.shape().shape_id() == shape_id)
-            .map(ProofShapeRegistrationV1::shape)
-    }
-
-    pub fn assumption_manifest(
-        &self,
-        manifest_id: AssumptionManifestIdV1,
-    ) -> Option<&AssumptionManifestV1> {
-        self.registrations
-            .iter()
-            .find(|registration| registration.assumption_manifest().manifest_id() == manifest_id)
-            .map(ProofShapeRegistrationV1::assumption_manifest)
+            .find(|shape| shape.shape_id() == shape_id)
     }
 
     pub fn resolve(
         &self,
-        manifest_id: AssumptionManifestIdV1,
+        manifest: &AssumptionManifestV1,
         claims: Vec<ResolvedChildClaimV1>,
     ) -> Result<AssumptionResolutionV1, ProofShapeErrorV1> {
-        let registration = self
-            .registrations
-            .iter()
-            .find(|registration| registration.assumption_manifest().manifest_id() == manifest_id)
-            .ok_or(ProofShapeErrorV1::UnknownAssumptionManifest)?;
-        resolve_assumptions_v1(
-            registration.shape(),
-            registration.assumption_manifest(),
-            claims,
-        )
+        let shape = self
+            .shape(manifest.proof_shape_id())
+            .ok_or(ProofShapeErrorV1::UnknownProofShape)?;
+        resolve_assumptions_v1(shape, manifest, claims)
     }
 
     pub const fn proof_authority(&self) -> bool {
@@ -181,41 +113,31 @@ impl<'de> Deserialize<'de> for ProofShapeRegistryV1 {
         let value = Self {
             registry_version: wire.registry_version,
             registry_id: wire.registry_id,
-            registrations: wire.registrations,
+            shapes: wire.shapes,
         };
         value.validate().map_err(de::Error::custom)?;
         Ok(value)
     }
 }
 
-fn validate_registrations(
-    registrations: &[ProofShapeRegistrationV1],
-) -> Result<(), ProofShapeErrorV1> {
-    validate_registration_count(registrations.len())?;
-    for (index, registration) in registrations.iter().enumerate() {
-        registration.validate()?;
-        if registrations[..index]
+fn validate_shapes(shapes: &[ProofShapeV1]) -> Result<(), ProofShapeErrorV1> {
+    validate_shape_count(shapes.len())?;
+    for (index, shape) in shapes.iter().enumerate() {
+        shape.validate()?;
+        if shapes[..index]
             .iter()
-            .any(|prior| prior.shape().shape_id() == registration.shape().shape_id())
+            .any(|prior| prior.shape_id() == shape.shape_id())
         {
             return Err(ProofShapeErrorV1::DuplicateProofShape);
         }
-        if index > 0
-            && registrations[index - 1].shape().shape_id() > registration.shape().shape_id()
-        {
+        if index > 0 && shapes[index - 1].shape_id() > shape.shape_id() {
             return Err(ProofShapeErrorV1::NonCanonicalRegistryOrder);
-        }
-        if registrations[..index].iter().any(|prior| {
-            prior.assumption_manifest().manifest_id()
-                == registration.assumption_manifest().manifest_id()
-        }) {
-            return Err(ProofShapeErrorV1::DuplicateAssumptionManifest);
         }
     }
     Ok(())
 }
 
-fn validate_registration_count(count: usize) -> Result<(), ProofShapeErrorV1> {
+fn validate_shape_count(count: usize) -> Result<(), ProofShapeErrorV1> {
     if count == 0 {
         return Err(ProofShapeErrorV1::EmptyRegistry);
     }
@@ -231,39 +153,36 @@ fn validate_registration_count(count: usize) -> Result<(), ProofShapeErrorV1> {
 fn derive_registry_id_v1(
     registry: &ProofShapeRegistryV1,
 ) -> Result<ProofShapeRegistryIdV1, ProofShapeErrorV1> {
-    derive_registry_id_parts_v1(&registry.registrations)
+    derive_registry_id_parts_v1(&registry.shapes)
 }
 
 fn derive_registry_id_parts_v1(
-    registrations: &[ProofShapeRegistrationV1],
+    shapes: &[ProofShapeV1],
 ) -> Result<ProofShapeRegistryIdV1, ProofShapeErrorV1> {
     let mut hasher = domain_hasher(PROOF_SHAPE_REGISTRY_ID_DOMAIN_V1)?;
     hasher.update(PROOF_SHAPE_REGISTRY_VERSION_V1.to_be_bytes());
-    let count = u16::try_from(registrations.len())
+    let count = u16::try_from(shapes.len())
         .map_err(|_| ProofShapeErrorV1::ArithmeticOverflow("registry_entry_count"))?;
     hasher.update(count.to_be_bytes());
-    for registration in registrations {
-        hasher.update(registration.shape().shape_id().as_bytes());
-        hasher.update(registration.assumption_manifest().manifest_id().as_bytes());
+    for shape in shapes {
+        hasher.update(shape.shape_id().as_bytes());
     }
     registry_id(hasher)
 }
 
-fn deserialize_bounded_registrations<'de, D>(
-    deserializer: D,
-) -> Result<Vec<ProofShapeRegistrationV1>, D::Error>
+fn deserialize_bounded_shapes<'de, D>(deserializer: D) -> Result<Vec<ProofShapeV1>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    struct RegistrationsVisitor;
+    struct ShapesVisitor;
 
-    impl<'de> Visitor<'de> for RegistrationsVisitor {
-        type Value = Vec<ProofShapeRegistrationV1>;
+    impl<'de> Visitor<'de> for ShapesVisitor {
+        type Value = Vec<ProofShapeV1>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(
                 formatter,
-                "at most {MAX_PROOF_SHAPE_REGISTRY_ENTRIES_V1} proof shape registrations"
+                "at most {MAX_PROOF_SHAPE_REGISTRY_ENTRIES_V1} proof shapes"
             )
         }
 
@@ -296,5 +215,5 @@ where
         }
     }
 
-    deserializer.deserialize_seq(RegistrationsVisitor)
+    deserializer.deserialize_seq(ShapesVisitor)
 }

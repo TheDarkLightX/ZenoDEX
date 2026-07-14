@@ -6,8 +6,8 @@ use zenodex_zrpf_protocol_v3::{
     AllowedChildBindingInputV1, AssumptionManifestInputV1, AssumptionManifestV1,
     AssumptionRequirementInputV1, CommitmentV3, ProfileIdV3, ProgramIdV3,
     ProofResourceCeilingsInputV1, ProofResourceCeilingsV1, ProofShapeErrorV1, ProofShapeIdV1,
-    ProofShapeInputV1, ProofShapeKindV1, ProofShapeRegistrationV1, ProofShapeRegistryV1,
-    ProofShapeV1, ResolvedChildClaimInputV1, ResolvedChildClaimV1, MAX_ALLOWED_CHILD_BINDINGS_V1,
+    ProofShapeInputV1, ProofShapeKindV1, ProofShapeRegistryV1, ProofShapeV1,
+    ResolvedChildClaimInputV1, ResolvedChildClaimV1, MAX_ALLOWED_CHILD_BINDINGS_V1,
     MAX_ASSUMPTION_MANIFEST_BYTES_V1, MAX_PROOF_SHAPE_BYTES_V1, MAX_PROOF_SHAPE_REGISTRY_BYTES_V1,
     MAX_PROOF_SHAPE_REGISTRY_ENTRIES_V1,
 };
@@ -145,26 +145,15 @@ fn canonical_shape_manifest_registry_and_exact_resolution_round_trip() {
         manifest
     );
 
-    let registry = ProofShapeRegistryV1::derive(vec![ProofShapeRegistrationV1::new(
-        shape.clone(),
-        manifest.clone(),
-    )
-    .unwrap()])
-    .unwrap();
+    let registry = ProofShapeRegistryV1::derive(vec![shape.clone()]).unwrap();
     let registry_bytes = encode_proof_shape_registry_v1(&registry).unwrap();
     assert_eq!(
         decode_exact_proof_shape_registry_v1(&registry_bytes).unwrap(),
         registry
     );
     assert_eq!(registry.shape(shape.shape_id()), Some(&shape));
-    assert_eq!(
-        registry.assumption_manifest(manifest.manifest_id()),
-        Some(&manifest)
-    );
 
-    let resolution = registry
-        .resolve(manifest.manifest_id(), claims.clone())
-        .unwrap();
+    let resolution = registry.resolve(&manifest, claims.clone()).unwrap();
     assert_eq!(resolution.claims().len(), claims.len());
     assert_eq!(
         resolution.claims()[0].assumption_id(),
@@ -235,20 +224,8 @@ fn caller_order_does_not_change_canonical_contracts() {
         allowed_child_bindings: vec![],
     })
     .unwrap();
-    let leaf_manifest = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
-        proof_shape_id: leaf.shape_id(),
-        required_assumptions: vec![],
-    })
-    .unwrap();
-    let aggregate_registration = ProofShapeRegistrationV1::new(shape, manifest).unwrap();
-    let leaf_registration = ProofShapeRegistrationV1::new(leaf, leaf_manifest).unwrap();
-    let forward_registry = ProofShapeRegistryV1::derive(vec![
-        aggregate_registration.clone(),
-        leaf_registration.clone(),
-    ])
-    .unwrap();
-    let reverse_registry =
-        ProofShapeRegistryV1::derive(vec![leaf_registration, aggregate_registration]).unwrap();
+    let forward_registry = ProofShapeRegistryV1::derive(vec![shape.clone(), leaf.clone()]).unwrap();
+    let reverse_registry = ProofShapeRegistryV1::derive(vec![leaf, shape]).unwrap();
     assert_eq!(forward_registry, reverse_registry);
 }
 
@@ -474,7 +451,6 @@ fn shape_manifest_and_registry_reject_duplicates_and_resource_excess() {
         ],
     })
     .unwrap();
-    ProofShapeRegistrationV1::new(shape.clone(), repeated_required_binding.clone()).unwrap();
     let repeated_binding = &bindings[0];
     let repeated_claims = repeated_required_binding
         .required_assumptions()
@@ -547,7 +523,7 @@ fn shape_manifest_and_registry_reject_duplicates_and_resource_excess() {
     })
     .unwrap();
     assert_eq!(
-        ProofShapeRegistrationV1::new(shape.clone(), unallowed),
+        resolve_assumptions_v1(&shape, &unallowed, vec![]),
         Err(ProofShapeErrorV1::RequiredBindingNotAllowed)
     );
 
@@ -557,38 +533,30 @@ fn shape_manifest_and_registry_reject_duplicates_and_resource_excess() {
     })
     .unwrap();
     assert!(matches!(
-        ProofShapeRegistrationV1::new(different_shape, manifest.clone()),
+        resolve_assumptions_v1(&different_shape, &manifest, vec![]),
         Err(ProofShapeErrorV1::ProofShapeMismatch { .. })
     ));
 
-    let duplicate_registration =
-        ProofShapeRegistrationV1::new(shape.clone(), manifest.clone()).unwrap();
     assert_eq!(
-        ProofShapeRegistryV1::derive(vec![duplicate_registration.clone(), duplicate_registration]),
+        ProofShapeRegistryV1::derive(vec![shape.clone(), shape.clone()]),
         Err(ProofShapeErrorV1::DuplicateProofShape)
     );
 
-    let too_many_registrations = (0..=MAX_PROOF_SHAPE_REGISTRY_ENTRIES_V1)
+    let too_many_shapes = (0..=MAX_PROOF_SHAPE_REGISTRY_ENTRIES_V1)
         .map(|index| {
             let seed = u8::try_from(index + 1).unwrap();
-            let leaf = ProofShapeV1::derive(ProofShapeInputV1 {
+            ProofShapeV1::derive(ProofShapeInputV1 {
                 shape_kind: ProofShapeKindV1::Leaf,
                 program_id: ProgramIdV3::new(bytes(seed)).unwrap(),
                 profile_id: ProfileIdV3::new(bytes(seed.wrapping_add(64))).unwrap(),
                 resource_ceilings: leaf_resources(),
                 allowed_child_bindings: vec![],
             })
-            .unwrap();
-            let leaf_manifest = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
-                proof_shape_id: leaf.shape_id(),
-                required_assumptions: vec![],
-            })
-            .unwrap();
-            ProofShapeRegistrationV1::new(leaf, leaf_manifest).unwrap()
+            .unwrap()
         })
         .collect();
     assert_eq!(
-        ProofShapeRegistryV1::derive(too_many_registrations),
+        ProofShapeRegistryV1::derive(too_many_shapes),
         Err(ProofShapeErrorV1::TooManyRegistryEntries {
             actual: MAX_PROOF_SHAPE_REGISTRY_ENTRIES_V1 + 1,
             maximum: MAX_PROOF_SHAPE_REGISTRY_ENTRIES_V1,
@@ -610,7 +578,7 @@ fn shape_manifest_and_registry_reject_duplicates_and_resource_excess() {
     })
     .unwrap();
     assert_eq!(
-        ProofShapeRegistrationV1::new(narrow_shape, excessive_manifest),
+        resolve_assumptions_v1(&narrow_shape, &excessive_manifest, vec![]),
         Err(ProofShapeErrorV1::AssumptionCountCeilingExceeded {
             actual: 2,
             maximum: 1,
@@ -632,7 +600,7 @@ fn shape_manifest_and_registry_reject_duplicates_and_resource_excess() {
     })
     .unwrap();
     assert_eq!(
-        ProofShapeRegistrationV1::new(total_narrow_shape, total_excessive_manifest),
+        resolve_assumptions_v1(&total_narrow_shape, &total_excessive_manifest, vec![]),
         Err(ProofShapeErrorV1::TotalChildJournalCeilingExceeded {
             actual: 20_480,
             maximum: 16_384,
@@ -669,12 +637,7 @@ fn leaf_shape_requires_an_empty_manifest_and_no_child_resources() {
 #[test]
 fn exact_codecs_reject_truncation_trailing_oversize_and_unknown_fields() {
     let (shape, manifest, _) = fixture();
-    let registry = ProofShapeRegistryV1::derive(vec![ProofShapeRegistrationV1::new(
-        shape.clone(),
-        manifest.clone(),
-    )
-    .unwrap()])
-    .unwrap();
+    let registry = ProofShapeRegistryV1::derive(vec![shape.clone()]).unwrap();
 
     assert_codec_rejections(
         encode_proof_shape_v1(&shape).unwrap(),
@@ -841,13 +804,12 @@ fn manual_registry_id(registry: &ProofShapeRegistryV1) -> [u8; 32] {
     let mut hasher = domain_hasher(b"zkpf.proof_shape_registry_id.v1");
     hasher.update(1_u16.to_be_bytes());
     hasher.update(
-        u16::try_from(registry.registrations().len())
+        u16::try_from(registry.shapes().len())
             .unwrap()
             .to_be_bytes(),
     );
-    for registration in registry.registrations() {
-        hasher.update(registration.shape().shape_id().as_bytes());
-        hasher.update(registration.assumption_manifest().manifest_id().as_bytes());
+    for shape in registry.shapes() {
+        hasher.update(shape.shape_id().as_bytes());
     }
     hasher.finalize().into()
 }
@@ -876,12 +838,7 @@ fn stable_binding_id_matches_independent_hash_vector() {
 fn stable_object_ids_and_encodings_match_independent_vectors() {
     let (shape, manifest, claims) = fixture();
     let resolution = resolve_assumptions_v1(&shape, &manifest, claims).unwrap();
-    let registry = ProofShapeRegistryV1::derive(vec![ProofShapeRegistrationV1::new(
-        shape.clone(),
-        manifest.clone(),
-    )
-    .unwrap()])
-    .unwrap();
+    let registry = ProofShapeRegistryV1::derive(vec![shape.clone()]).unwrap();
     for requirement in manifest.required_assumptions() {
         assert_eq!(
             requirement.assumption_id().as_bytes(),
@@ -929,9 +886,9 @@ fn stable_object_ids_and_encodings_match_independent_vectors() {
     assert_eq!(
         registry.registry_id().as_bytes(),
         &[
-            0xa7, 0x2c, 0x81, 0x82, 0xe4, 0x42, 0x07, 0xa3, 0x49, 0xfe, 0x57, 0xde, 0x7f, 0x14,
-            0x15, 0xd1, 0xa0, 0x4a, 0xb9, 0xa7, 0x22, 0x1e, 0xfc, 0x22, 0x82, 0x8a, 0xb4, 0xd5,
-            0x7e, 0xb0, 0x4a, 0xfb,
+            0xee, 0x28, 0x73, 0x05, 0xa8, 0x95, 0xfc, 0x22, 0x26, 0x85, 0x6c, 0x9c, 0xaf, 0xc7,
+            0x1b, 0x6e, 0x59, 0x3e, 0x44, 0x9f, 0x00, 0x53, 0x1d, 0x20, 0x58, 0xef, 0xce, 0x11,
+            0x1a, 0x8c, 0x0a, 0x9e,
         ]
     );
     assert_eq!(
@@ -953,9 +910,9 @@ fn stable_object_ids_and_encodings_match_independent_vectors() {
     assert_eq!(
         Sha256::digest(encode_proof_shape_registry_v1(&registry).unwrap()).as_slice(),
         &[
-            0xbb, 0xfc, 0x16, 0xa8, 0xb9, 0x95, 0xe2, 0xb4, 0xe4, 0x5e, 0x0a, 0xb1, 0x5d, 0x51,
-            0x2e, 0x0c, 0x97, 0x1c, 0xc5, 0xc5, 0x4c, 0x43, 0xca, 0xca, 0x4c, 0xf8, 0x7a, 0x96,
-            0x68, 0x73, 0x25, 0x67,
+            0x5e, 0xb1, 0x58, 0x3d, 0xde, 0xe6, 0x79, 0x0c, 0x3d, 0x77, 0x48, 0x90, 0x2a, 0xde,
+            0x5f, 0x76, 0x87, 0x94, 0xf9, 0x91, 0x35, 0x6e, 0x79, 0xd1, 0x08, 0xfc, 0xcb, 0x63,
+            0xa6, 0x63, 0xbd, 0x3d,
         ]
     );
 }
@@ -1011,5 +968,106 @@ fn reusable_shape_identity_excludes_instance_claim_and_journal_hashes() {
     assert_ne!(
         manifest_a.required_assumptions()[0].assumption_id(),
         manifest_b.required_assumptions()[0].assumption_id()
+    );
+}
+
+#[test]
+fn static_registry_resolves_two_instance_manifests_without_identity_change() {
+    let (shape, manifest_a, claims_a) = fixture();
+    let requirements_b = manifest_a
+        .required_assumptions()
+        .iter()
+        .map(|required| {
+            requirement(
+                required.slot(),
+                required.allowed_child_binding_id(),
+                150_u8.wrapping_add(u8::try_from(required.slot()).unwrap()),
+                160_u8.wrapping_add(u8::try_from(required.slot()).unwrap()),
+            )
+        })
+        .collect();
+    let manifest_b = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
+        proof_shape_id: shape.shape_id(),
+        required_assumptions: requirements_b,
+    })
+    .unwrap();
+    let claims_b = manifest_b
+        .required_assumptions()
+        .iter()
+        .map(|required| {
+            let binding = shape
+                .allowed_child_bindings()
+                .iter()
+                .find(|binding| binding.binding_id() == required.allowed_child_binding_id())
+                .unwrap();
+            ResolvedChildClaimV1::new(ResolvedChildClaimInputV1 {
+                assumption_id: required.assumption_id(),
+                verification_claim_hash: required.expected_verification_claim_hash(),
+                child_shape_id: binding.child_shape_id(),
+                child_program_id: binding.child_program_id(),
+                child_profile_id: binding.child_profile_id(),
+                child_journal_hash: required.expected_child_journal_hash(),
+                child_journal_bytes: binding.max_child_journal_bytes() / 2,
+            })
+            .unwrap()
+        })
+        .collect();
+
+    let registry_a = ProofShapeRegistryV1::derive(vec![shape.clone()]).unwrap();
+    let registry_b = ProofShapeRegistryV1::derive(vec![shape]).unwrap();
+    assert_eq!(registry_a.registry_id(), registry_b.registry_id());
+    assert_eq!(
+        encode_proof_shape_registry_v1(&registry_a).unwrap(),
+        encode_proof_shape_registry_v1(&registry_b).unwrap()
+    );
+    assert_ne!(manifest_a.manifest_id(), manifest_b.manifest_id());
+
+    let resolution_a = registry_a.resolve(&manifest_a, claims_a).unwrap();
+    let resolution_b = registry_a.resolve(&manifest_b, claims_b).unwrap();
+    assert_eq!(resolution_a.proof_shape_id(), resolution_b.proof_shape_id());
+    assert_ne!(
+        resolution_a.assumption_manifest_id(),
+        resolution_b.assumption_manifest_id()
+    );
+}
+
+#[test]
+fn static_registry_rejects_unknown_shape_and_manifest_contract_mismatch() {
+    let (shape, _, _) = fixture();
+    let registry = ProofShapeRegistryV1::derive(vec![shape.clone()]).unwrap();
+
+    let unknown_shape = ProofShapeV1::derive(ProofShapeInputV1 {
+        program_id: ProgramIdV3::new(bytes(220)).unwrap(),
+        ..aggregate_shape_input()
+    })
+    .unwrap();
+    let unknown_manifest = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
+        proof_shape_id: unknown_shape.shape_id(),
+        required_assumptions: vec![requirement(
+            0,
+            unknown_shape.allowed_child_bindings()[0].binding_id(),
+            221,
+            222,
+        )],
+    })
+    .unwrap();
+    assert_eq!(
+        registry.resolve(&unknown_manifest, vec![]),
+        Err(ProofShapeErrorV1::UnknownProofShape)
+    );
+
+    let mismatched_manifest = AssumptionManifestV1::derive(AssumptionManifestInputV1 {
+        proof_shape_id: shape.shape_id(),
+        required_assumptions: vec![requirement(
+            0,
+            AllowedChildBindingIdV1::new(bytes(223)).unwrap(),
+            224,
+            225,
+        )],
+    })
+    .unwrap();
+    assert_eq!(
+        registry.resolve(&mismatched_manifest, vec![]),
+        Err(ProofShapeErrorV1::RequiredBindingNotAllowed)
     );
 }

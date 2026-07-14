@@ -1,9 +1,11 @@
 //! Application-neutral proof-shape and child-assumption contracts.
 //!
 //! `ProofShapeV1` is a reusable static contract over program, profile, child
-//! shape, and resource ceilings. `AssumptionManifestV1` is an instance contract
-//! over exact verification claims and child journals. Keeping those identities
-//! separate lets compilation and policy caches reuse a shape across proofs.
+//! shape, and resource ceilings. `ProofShapeRegistryV1` contains only those
+//! static shapes. `AssumptionManifestV1` is a separate instance contract over
+//! exact verification claims and child journals. Keeping those identities
+//! separate lets compilation and policy caches reuse one registry across proof
+//! instances.
 //! These types do not verify proofs, authenticate receipts, authorize releases,
 //! or grant settlement or production authority.
 
