@@ -1,9 +1,10 @@
 """Exact authority-neutral identities for one proposed Spot V7 runtime.
 
-The binding retains the exact canonical Firecracker configuration and runtime
-manifest bytes selected by an external policy source.  It proves byte identity
-only.  This module does not establish that governance or a release authority
-selected those bytes, and every exposed authority property remains false.
+The binding retains the exact canonical Firecracker configuration and a strict
+proposal-only runtime manifest selected by an external policy source. It proves
+the manifest schema, artifact-role contract, and machine-config binding. This
+module does not establish that governance or a release authority selected those
+bytes, and every exposed authority property remains false.
 """
 
 from __future__ import annotations
@@ -14,16 +15,23 @@ from dataclasses import dataclass
 from typing import Any, Final, NoReturn, SupportsIndex, final
 
 from tools import zrpf_v3_firecracker_jail_staging_io as staging_io
+from tools.zrpf_spot_v7_firecracker_runtime_manifest import (
+    SPOT_V7_RUNTIME_MANIFEST_SCHEMA_V1,
+    CandidateSpotV7FirecrackerRuntimeManifestV1,
+    SpotV7RuntimeManifestRejectV1,
+    parse_exact_candidate_spot_v7_runtime_manifest_v1,
+)
 from tools.zrpf_spot_v7_firecracker_runtime_protocol import (
     SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1,
 )
 
-_MAX_RUNTIME_MANIFEST_BYTES_V1: Final = 256 * 1024
 _PREPARE_AUTHORITY_ITEMS_V1: Final = (
+    ("artifact_bytes_verified", False),
     ("governance_admission_verified", False),
     ("governed_machine_config_verified", False),
     ("governed_runtime_manifest_verified", False),
     ("independent_expected_digests_verified", False),
+    ("live_firecracker_execution_verified", False),
     ("production_authority", False),
     ("release_authority", False),
     ("settlement_authority", False),
@@ -46,6 +54,7 @@ class ProposedSpotV7FirecrackerRuntimeBindingV1:
     exact_runtime_manifest_bytes: bytes
     machine_config_sha256: bytes
     runtime_manifest_sha256: bytes
+    runtime_manifest: CandidateSpotV7FirecrackerRuntimeManifestV1
 
     def __new__(cls) -> ProposedSpotV7FirecrackerRuntimeBindingV1:
         raise TypeError("runtime binding requires validated construction")
@@ -72,7 +81,15 @@ class ProposedSpotV7FirecrackerRuntimeBindingV1:
             raise SpotV7FirecrackerRuntimeBindingRejectV1(
                 "runtime_binding_machine_config"
             ) from exc
-        _validate_manifest_bytes(exact_runtime_manifest_bytes)
+        try:
+            manifest = parse_exact_candidate_spot_v7_runtime_manifest_v1(
+                exact_runtime_manifest_bytes,
+                exact_machine_config_bytes=exact_machine_config_bytes,
+            )
+        except SpotV7RuntimeManifestRejectV1 as exc:
+            raise SpotV7FirecrackerRuntimeBindingRejectV1(
+                "runtime_binding_manifest"
+            ) from exc
         value = object.__new__(cls)
         object.__setattr__(
             value,
@@ -94,11 +111,28 @@ class ProposedSpotV7FirecrackerRuntimeBindingV1:
             "runtime_manifest_sha256",
             hashlib.sha256(exact_runtime_manifest_bytes).digest(),
         )
+        object.__setattr__(value, "runtime_manifest", manifest)
         return value
 
     @property
     def runtime_profile_sha256(self) -> bytes:
         return SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1
+
+    @property
+    def runtime_manifest_schema_verified(self) -> bool:
+        return self.runtime_manifest.runtime_manifest_schema_verified
+
+    @property
+    def machine_config_manifest_binding_verified(self) -> bool:
+        return self.runtime_manifest.machine_config_binding_verified
+
+    @property
+    def artifact_role_contract_verified(self) -> bool:
+        return self.runtime_manifest.artifact_role_contract_verified
+
+    @property
+    def artifact_bytes_verified(self) -> bool:
+        return False
 
     @property
     def governance_admission_verified(self) -> bool:
@@ -114,6 +148,10 @@ class ProposedSpotV7FirecrackerRuntimeBindingV1:
 
     @property
     def independent_expected_digests_verified(self) -> bool:
+        return False
+
+    @property
+    def live_firecracker_execution_verified(self) -> bool:
         return False
 
     @property
@@ -195,6 +233,10 @@ class SpotV7FirecrackerPrepareObservationV1:
             "runtime_manifest_sha256": (
                 self._binding.runtime_manifest_sha256.hex()
             ),
+            "runtime_manifest_artifact_set_id": (
+                self._binding.runtime_manifest.artifact_set_id.hex()
+            ),
+            "runtime_manifest_schema": SPOT_V7_RUNTIME_MANIFEST_SCHEMA_V1,
             "runtime_profile_sha256": self._binding.runtime_profile_sha256.hex(),
         }
 
@@ -227,50 +269,6 @@ def canonical_document_bytes(value: object) -> bytes:
         json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
         + "\n"
     ).encode("ascii")
-
-
-def _validate_manifest_bytes(raw: bytes) -> None:
-    if type(raw) is not bytes or not 0 < len(raw) <= _MAX_RUNTIME_MANIFEST_BYTES_V1:
-        raise SpotV7FirecrackerRuntimeBindingRejectV1(
-            "runtime_binding_manifest"
-        )
-    try:
-        document = json.loads(
-            raw.decode("ascii"),
-            object_pairs_hook=_unique_object,
-            parse_constant=_reject_constant,
-            parse_float=_reject_float,
-        )
-    except (
-        UnicodeDecodeError,
-        json.JSONDecodeError,
-        RecursionError,
-        ValueError,
-    ) as exc:
-        raise SpotV7FirecrackerRuntimeBindingRejectV1(
-            "runtime_binding_manifest"
-        ) from exc
-    if type(document) is not dict or raw != canonical_document_bytes(document):
-        raise SpotV7FirecrackerRuntimeBindingRejectV1(
-            "runtime_binding_manifest"
-        )
-
-
-def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    output: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in output:
-            raise ValueError("duplicate key")
-        output[key] = value
-    return output
-
-
-def _reject_constant(_value: str) -> None:
-    raise ValueError("non-finite number")
-
-
-def _reject_float(_value: str) -> None:
-    raise ValueError("floating-point number")
 
 
 def _require_digest(value: bytes, code: str) -> None:

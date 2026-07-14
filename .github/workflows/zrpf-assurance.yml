@@ -257,6 +257,7 @@ jobs:
             tools/zrpf_spot_v7_firecracker_jail_staging.py \
             tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py \
             tools/zrpf_spot_v7_firecracker_runtime_binding.py \
+            tools/zrpf_spot_v7_firecracker_runtime_manifest.py \
             tools/zrpf_spot_v7_firecracker_runtime_protocol.py \
             tools/zrpf_v6_identity_artifacts.py \
             tools/zrpf_v6_identity_docker_runner.py \
@@ -311,6 +312,7 @@ jobs:
             tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
+            tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
             tests/test_zrpf_spot_v7_firecracker_rust_parity.py \
             tests/test_zrpf_spot_v7_release_closure.py \
@@ -486,6 +488,7 @@ jobs:
             tools/zrpf_spot_v7_firecracker_jail_staging.py \
             tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py \
             tools/zrpf_spot_v7_firecracker_runtime_binding.py \
+            tools/zrpf_spot_v7_firecracker_runtime_manifest.py \
             tools/zrpf_spot_v7_firecracker_runtime_protocol.py \
             tools/zrpf_v6_identity_artifacts.py \
             tools/zrpf_v6_identity_docker_runner.py \
@@ -522,6 +525,7 @@ jobs:
             tests/test_zrpf_v3_firecracker_jailer_launcher.py \
             tests/test_zrpf_v3_source_closure.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
+            tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
             tests/test_zrpf_spot_v7_firecracker_rust_parity.py \
             tests/test_zrpf_spot_v7_release_closure.py \
@@ -568,6 +572,7 @@ jobs:
             tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
+            tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
             tests/test_zrpf_spot_v7_firecracker_rust_parity.py \
             tests/test_zrpf_spot_v7_release_closure.py \

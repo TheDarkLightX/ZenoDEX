@@ -11,6 +11,7 @@ import pytest
 from tools import zrpf_spot_v7_firecracker_jail_staging as spot_v7_staging
 from tools import zrpf_spot_v7_firecracker_jailer_lifecycle as lifecycle
 from tools import zrpf_spot_v7_firecracker_runtime_binding as runtime_binding
+from tools import zrpf_spot_v7_firecracker_runtime_manifest as runtime_manifest
 from tools import zrpf_spot_v7_firecracker_runtime_protocol as protocol
 from tools import zrpf_v3_firecracker_jail_staging as staging
 
@@ -19,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_runtime_binding_retains_exact_proposal_bytes_with_authority_false() -> None:
     config = _canonical(_configuration())
-    manifest = _canonical({"schema": "zenodex/test_spot_v7_runtime_manifest/v1"})
+    manifest = _runtime_manifest(config)
 
     binding = runtime_binding.ProposedSpotV7FirecrackerRuntimeBindingV1.validated(
         exact_machine_config_bytes=config,
@@ -31,10 +32,16 @@ def test_runtime_binding_retains_exact_proposal_bytes_with_authority_false() -> 
     assert binding.exact_runtime_manifest_bytes == manifest
     assert binding.machine_config_sha256 == hashlib.sha256(config).digest()
     assert binding.runtime_manifest_sha256 == hashlib.sha256(manifest).digest()
+    assert binding.runtime_manifest_schema_verified is True
+    assert binding.machine_config_manifest_binding_verified is True
+    assert binding.artifact_role_contract_verified is True
+    assert binding.runtime_manifest.artifact_set_id
+    assert binding.artifact_bytes_verified is False
     assert binding.governance_admission_verified is False
     assert binding.governed_machine_config_verified is False
     assert binding.governed_runtime_manifest_verified is False
     assert binding.independent_expected_digests_verified is False
+    assert binding.live_firecracker_execution_verified is False
     assert binding.release_authority is False
     assert binding.settlement_authority is False
     assert binding.production_authority is False
@@ -160,6 +167,10 @@ def test_prepare_observation_retains_exact_config_and_runtime_identities(
         "machine_config_sha256": inputs.binding.machine_config_sha256.hex(),
         "request_sha256": hashlib.sha256(inputs.request_bytes).hexdigest(),
         "runtime_manifest_sha256": inputs.binding.runtime_manifest_sha256.hex(),
+        "runtime_manifest_artifact_set_id": (
+            inputs.binding.runtime_manifest.artifact_set_id.hex()
+        ),
+        "runtime_manifest_schema": runtime_manifest.SPOT_V7_RUNTIME_MANIFEST_SCHEMA_V1,
         "runtime_profile_sha256": (
             protocol.SPOT_V7_FIRECRACKER_RUNTIME_PROFILE_SHA256_V1.hex()
         ),
@@ -454,7 +465,7 @@ def _inputs(tmp_path: Path) -> _Inputs:
             )
         )
     config = _canonical(_configuration())
-    manifest = _canonical({"schema": "zenodex/test_spot_v7_runtime_manifest/v1"})
+    manifest = _runtime_manifest(config)
     binding = runtime_binding.ProposedSpotV7FirecrackerRuntimeBindingV1.validated(
         exact_machine_config_bytes=config,
         exact_runtime_manifest_bytes=manifest,
@@ -481,7 +492,9 @@ def _inputs(tmp_path: Path) -> _Inputs:
 def _configuration() -> dict[str, object]:
     return {
         "boot-source": {
-            "boot_args": "init=/sbin/spot-v7-firecracker-protocol-init",
+            "boot_args": (
+                f"init={runtime_manifest.SPOT_V7_AUTHORITY_GUEST_ENTRYPOINT_V1}"
+            ),
             "kernel_image_path": "/resources/kernel",
         },
         "drives": [
@@ -518,6 +531,27 @@ def _canonical(value: object) -> bytes:
         json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
         + "\n"
     ).encode("ascii")
+
+
+def _runtime_manifest(config: bytes) -> bytes:
+    artifacts = tuple(
+        runtime_manifest.SpotV7RuntimeArtifactIdentityV1.validated(
+            role=role,
+            artifact_name=runtime_manifest.SPOT_V7_RUNTIME_ARTIFACT_NAMES_V1[role],
+            sha256=bytes([index]) * 32,
+            size_bytes=4_096 + index,
+        )
+        for index, role in enumerate(
+            runtime_manifest.SPOT_V7_RUNTIME_ARTIFACT_ROLES_V1,
+            start=1,
+        )
+    )
+    return runtime_manifest.build_candidate_spot_v7_runtime_manifest_v1(
+        exact_machine_config_bytes=config,
+        artifacts=artifacts,
+        v7_image_id=tuple(0x10 + index for index in range(8)),
+        v6_image_id=tuple(0x80 + index for index in range(8)),
+    )
 
 
 def _golden_payload() -> bytes:

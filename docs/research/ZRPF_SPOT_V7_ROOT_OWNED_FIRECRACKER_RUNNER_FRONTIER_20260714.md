@@ -3,8 +3,8 @@
 Date: 2026-07-14
 
 Status: descriptor-retained jail staging, the data-only prepared-Jailer
-lifecycle, and exact authority-false Spot V7 config/manifest identity binding
-are implemented; Spot V7 runtime authority remains unavailable
+lifecycle, and a strict authority-false Spot V7 runtime-manifest proposal are
+implemented; Spot V7 runtime authority remains unavailable
 
 ## Purpose
 
@@ -66,20 +66,27 @@ The canonical Firecracker configuration must bind exactly these paths:
 /resources/output
 ```
 
-The Spot V7-specific prepare path additionally requires one validated proposal
-that retains the exact canonical machine configuration and runtime-manifest
-bytes. The 224-byte raw request must commit their exact SHA-256 identities and
-the staged input-drive identity before any jail directory is created. The
-sealed prepare observation and canonical finish observation both retain the
-exact proposal and its profile, request, config, and manifest hashes. Every
-authority field remains false because no governed release has selected those
-proposal bytes.
+The Spot V7-specific prepare path additionally requires one strict proposal
+manifest. Its closed schema binds the x86-64 architecture, runtime and authority
+input profiles, authority-designated PID-1 entrypoint, exact machine
+configuration, declared V6 and V7 image IDs, and the ordered artifact roles for
+Firecracker, Jailer, kernel, rootfs, guest init, and input. The artifact
+identities are committed by a domain-separated artifact-set ID. Unknown fields,
+duplicate keys, floats, role reordering, invalid sizes, substituted profiles,
+and any true or integer-substituted authority field reject.
+
+The 224-byte raw request must commit the exact manifest, machine configuration,
+and staged input-drive SHA-256 identities before any jail directory is created.
+The sealed prepare observation and canonical finish observation retain the exact
+proposal, its artifact-set ID, and its profile, request, config, and manifest
+hashes. Every authority field remains false because no governed release has
+selected the proposal and this checker does not open the named artifact bytes.
 
 The shared prepared lifecycle in
 `tools/zrpf_v3_firecracker_jailer_launcher.py` and the V7 identity layer in
 `tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py` require exact concrete
-pinned Jailer, Firecracker, cgroup, network-namespace, and prepared-root types. They
-requires root ownership, checks that launch parameters match the staged jail,
+pinned Jailer, Firecracker, cgroup, network-namespace, and prepared-root types.
+They require root ownership, check that launch parameters match the staged jail,
 executes the existing live placement controls, reaps the short-lived Jailer
 parent, waits for the Firecracker cgroup to become naturally empty, reads output
 only after the empty cgroup has been removed, validates the request-bound outer
@@ -107,6 +114,11 @@ Deterministic tests cover:
 - stale jail rejection without deletion;
 - config path substitution;
 - Spot V7 machine-config and runtime-manifest substitution before staging;
+- arbitrary canonical JSON rejected as a Spot V7 runtime manifest;
+- manifest schema, status, architecture, profile, image-ID, and entrypoint
+  substitution;
+- artifact role, order, name, digest, size, and artifact-set substitution;
+- authority claim, non-claim, duplicate-key, float, and unknown-field rejection;
 - stale Spot V7 runtime-profile identity and legacy 192/256 framing;
 - post-prepare same-byte config-path replacement;
 - config or manifest substitution in retained finish evidence;
@@ -138,14 +150,16 @@ to the existing release, execution, teardown, and store blockers:
 
 ```text
 governed release selection of the exact V7 runtime proposal
-authority-capable PID-1 receipt verification
+independent opening and role-by-role hashing of every named runtime artifact
+authority-designated PID-1 receipt verification under the selected artifact set
 fresh V6/V7 receipt evidence under the final release source closure
 ```
 
 The retained V3 replay guest is not a Spot V7 guest. Its raw profile digest and
 `VerifiedReplayReport` output contract cannot be relabeled as V7 authority.
-The V7 path now validates the exact proposed machine profile, runtime manifest,
-input identity, and outer request/output protocol. It does not authenticate a
+The V7 path now validates the exact proposed machine profile, strict runtime
+manifest semantics, input identity, and outer request/output protocol. It does
+not open the manifest's artifact identities against staged bytes, authenticate a
 guest payload or receipt, prove that governance selected the proposal, bind a
 release manifest, or establish a source-to-binary chain.
 
@@ -177,11 +191,10 @@ production readiness
 
 ## Next safe implementation order
 
-1. Freeze and govern the V7 runtime manifest and exact kernel, rootfs,
-   guest-init, input, Firecracker, Jailer, machine-config, and raw-profile
-   identities.
-2. Replace the protocol-only PID-1 path with an authority-capable guest that
-   verifies the exact V6/V7 receipts and derives the authenticated payload.
+1. Bind every strict manifest artifact identity to a stable opened descriptor,
+   then select the exact manifest through the governed release policy.
+2. Build the authority-capable PID-1 guest from the final source closure and
+   verify fresh V6/V7 receipts under the selected image IDs.
 3. Add one root supervisor that creates the cgroup and network namespace,
    prepares the jail, runs the exact lifecycle, and destroys all three only
    after verified emptiness.
