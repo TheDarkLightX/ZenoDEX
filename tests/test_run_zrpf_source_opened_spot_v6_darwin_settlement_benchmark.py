@@ -282,6 +282,43 @@ def test_apple_silicon_machine_name_maps_to_rust_target() -> None:
         worker._canonical_darwin_host_target("x86_64")
 
 
+def test_child_soft_limit_clamps_to_inherited_hard_limit(monkeypatch) -> None:
+    installed: list[tuple[int, tuple[int, int]]] = []
+    monkeypatch.setattr(worker.resource, "getrlimit", lambda resource_id: (64, 128))
+    monkeypatch.setattr(
+        worker.resource,
+        "setrlimit",
+        lambda resource_id, limits: installed.append((resource_id, limits)),
+    )
+
+    worker._set_child_soft_limit(worker.resource.RLIMIT_NOFILE, 256)
+
+    assert installed == [(worker.resource.RLIMIT_NOFILE, (128, 128))]
+
+
+def test_child_soft_limit_preserves_infinite_hard_limit(monkeypatch) -> None:
+    installed: list[tuple[int, tuple[int, int]]] = []
+    monkeypatch.setattr(
+        worker.resource,
+        "getrlimit",
+        lambda resource_id: (64, worker.resource.RLIM_INFINITY),
+    )
+    monkeypatch.setattr(
+        worker.resource,
+        "setrlimit",
+        lambda resource_id, limits: installed.append((resource_id, limits)),
+    )
+
+    worker._set_child_soft_limit(worker.resource.RLIMIT_NOFILE, 256)
+
+    assert installed == [
+        (
+            worker.resource.RLIMIT_NOFILE,
+            (256, worker.resource.RLIM_INFINITY),
+        )
+    ]
+
+
 def test_bounded_quiet_command_allows_empty_stdout(tmp_path: Path) -> None:
     limits = {
         "max_open_files": 256,

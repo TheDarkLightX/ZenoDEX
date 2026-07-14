@@ -32,6 +32,10 @@ SPOT_V7_FIRECRACKER_OUTPUT = (
 SPOT_V7_ATOMIC_STORE = (
     ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
 )
+SPOT_V7_OPERATIONAL_CAPABILITY = (
+    ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v2.py"
+)
+SPOT_V7_OPERATIONAL_GATE = ROOT / "src/integration/_zrpf_spot_v7_operational_gate.py"
 
 PRIVATE_CAPABILITY_TYPE = "_AuthenticatedRecursiveStarkRootFacts"
 PRIVATE_SEAL = "_AUTHENTICATED_FACTS_SEAL"
@@ -101,6 +105,12 @@ PRIVATE_FIRECRACKER_STORE_REFERENCES = frozenset(
         "_require_governed_firecracker_spot_v7_authority_available_v1",
     }
 )
+PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES = frozenset(
+    {
+        "_GovernedFirecrackerSpotV7SettlementV1",
+        "_candidate_for_atomic_store",
+    }
+)
 RETIRED_PUBLIC_AUTHORITY_NAMES = frozenset(
     {
         "VerifiedRecursiveStarkRootFacts",
@@ -126,6 +136,8 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             SETTLEMENT_VERIFIER_ADAPTER: PRIVATE_SETTLEMENT_VERIFIER_IMPORTS,
             SOURCE_OPENED_V6_VERIFIER_ADAPTER: PRIVATE_SOURCE_OPENED_V6_REFERENCES,
             SPOT_V7_ATOMIC_STORE: PRIVATE_FIRECRACKER_STORE_REFERENCES,
+            SPOT_V7_OPERATIONAL_CAPABILITY: PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES,
+            SPOT_V7_OPERATIONAL_GATE: PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES,
         }.get(path, frozenset())
         tree = _parse(path)
         for node in ast.walk(tree):

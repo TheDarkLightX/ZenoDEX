@@ -22,6 +22,7 @@ def test_retained_adapter_evidence_rejects_hardened_verifier_source_drift() -> N
         "source SHA-256 mismatch: config/proof_profiles/risc0_recursive_rebuild_reference.json",
         "source SHA-256 mismatch: config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v1.json",
         "source SHA-256 mismatch: zk/state_proof_risc0/shared/src/recursive.rs",
+        "source SHA-256 mismatch: zk/state_proof_risc0/shared/src/lib.rs",
         "source SHA-256 mismatch: zk/state_proof_risc0/shared/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_protocol/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_protocol/protocol/Cargo.toml",
@@ -33,6 +34,8 @@ def test_retained_adapter_evidence_rejects_hardened_verifier_source_drift() -> N
         "source SHA-256 mismatch: zk/zrpf_risc0/methods/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_risc0/methods/build.rs",
         "source SHA-256 mismatch: zk/zrpf_risc0/shared/Cargo.toml",
+        "source SHA-256 mismatch: zk/zrpf_risc0/shared/src/lib.rs",
+        "source SHA-256 mismatch: zk/zrpf_risc0/shared/src/v1_leaf_adapter.rs",
         "source SHA-256 mismatch: zk/zrpf_risc0/verifier/Cargo.toml",
         "source SHA-256 mismatch: zk/zrpf_risc0/verifier/src/lib.rs",
     }

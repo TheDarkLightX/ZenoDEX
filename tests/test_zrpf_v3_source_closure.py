@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 399
+    assert document["file_count"] == 415
     roles_by_path = {row["path"]: row["role"] for row in document["files"]}
     assert roles_by_path["zk/state_proof_risc0/cli/src/spot_authority.rs"] == (
         "governed_workspace_source"
@@ -23,6 +23,15 @@ def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     assert roles_by_path["zk/zrpf_protocol/protocol/src/full_blob_da_v1/policy.rs"] == (
         "data_availability_protocol_v1"
     )
+    assert roles_by_path[
+        "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/policy.rs"
+    ] == "checkpoint_finality_protocol_v1"
+    assert roles_by_path[
+        "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/transition.rs"
+    ] == "checkpoint_finality_protocol_v2"
+    assert roles_by_path[
+        "zk/zrpf_protocol/protocol/tests/checkpoint_finality_v2.rs"
+    ] == "assurance_compiler_source"
     assert {
         row["path"]
         for row in document["files"]

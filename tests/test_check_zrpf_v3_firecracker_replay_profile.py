@@ -298,14 +298,11 @@ def test_profile_rejects_duplicate_keys_symlink_and_empty_file(tmp_path: Path) -
 
 def test_deep_json_rejects_without_cli_traceback(
     tmp_path: Path,
-    monkeypatch,
     capsys,
 ) -> None:
     deep = tmp_path / "deep.json"
     deep.write_bytes(b'{"x":' + b"[" * 1_200 + b"0" + b"]" * 1_200 + b"}\n")
-    monkeypatch.setattr(checker, "PROFILE_PATH", deep)
-
-    exit_code = checker.main([])
+    exit_code = checker.main([], profile_path=deep)
     captured = capsys.readouterr()
 
     assert exit_code == 1

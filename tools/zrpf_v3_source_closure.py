@@ -95,6 +95,8 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
     ("assurance_compiler_source", path)
     for path in (
         "zk/zrpf_protocol/protocol/tests/economic_action_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/checkpoint_finality_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/checkpoint_finality_v2.rs",
         "zk/zrpf_protocol/protocol/tests/full_blob_da_v1.rs",
         "zk/zrpf_protocol/protocol/tests/node_v3.rs",
         "zk/zrpf_protocol/protocol/tests/semantic_epoch_v1.rs",
@@ -481,6 +483,62 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             (
                 "data_availability_protocol_v1",
                 "zk/zrpf_protocol/protocol/src/full_blob_da_v1/policy.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v1",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/certificate.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v1",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/codec.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v1",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/error.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v1",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/hash.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v1",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/mod.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v1",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/policy.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v2",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/certificate.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v2",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/codec.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v2",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/cursor.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v2",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/error.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v2",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/hash.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v2",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/mod.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v2",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/policy.rs",
+            ),
+            (
+                "checkpoint_finality_protocol_v2",
+                "zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/transition.rs",
             ),
             (
                 "settlement_certificate_protocol_v1",

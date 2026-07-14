@@ -541,8 +541,13 @@ def _validate_profile_document(
     return validation, governed_profile
 
 
-def build_report(*, include_host_probe: bool) -> dict[str, Any]:
-    validation, profile = _validate_profile_document(PROFILE_PATH)
+def build_report(
+    *,
+    include_host_probe: bool,
+    profile_path: Path | None = None,
+) -> dict[str, Any]:
+    governed_profile_path = PROFILE_PATH if profile_path is None else profile_path
+    validation, profile = _validate_profile_document(governed_profile_path)
     probe: dict[str, Any] | None = None
     if include_host_probe and profile is not None:
         probe = host_probe.evaluate_host_facts(
@@ -578,13 +583,20 @@ def build_report(*, include_host_probe: bool) -> dict[str, Any]:
     }
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    profile_path: Path | None = None,
+) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--probe-host", action="store_true")
     parser.add_argument("--require-ready", action="store_true")
     arguments = parser.parse_args(argv)
     try:
-        report = build_report(include_host_probe=arguments.probe_host)
+        report = build_report(
+            include_host_probe=arguments.probe_host,
+            profile_path=profile_path,
+        )
     except (OSError, RecursionError, ValueError):
         print("error: Firecracker profile check failed closed", file=sys.stderr)
         return 2

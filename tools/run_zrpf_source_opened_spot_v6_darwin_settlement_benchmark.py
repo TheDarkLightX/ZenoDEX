@@ -1036,30 +1036,35 @@ def _tool_observations(repo: Path, task: Task) -> tuple[dict[str, str], Path]:
     return observations, r0vm_path
 
 
+def _set_child_soft_limit(resource_id: int, requested_limit: int) -> None:
+    """Install a child ceiling without attempting to raise the inherited hard limit."""
+    _current_soft, current_hard = resource.getrlimit(resource_id)
+    effective_limit = (
+        requested_limit
+        if current_hard == resource.RLIM_INFINITY
+        else min(requested_limit, current_hard)
+    )
+    resource.setrlimit(resource_id, (effective_limit, current_hard))
+
+
 def _limit_child(limits: Mapping[str, object]) -> None:
-    resource.setrlimit(
+    _set_child_soft_limit(
         resource.RLIMIT_NOFILE,
-        (
-            _recorded_int(limits, "max_open_files"),
-            _recorded_int(limits, "max_open_files"),
-        ),
+        _recorded_int(limits, "max_open_files"),
     )
     if hasattr(resource, "RLIMIT_NPROC"):
-        resource.setrlimit(
+        _set_child_soft_limit(
             resource.RLIMIT_NPROC,
-            (
-                _recorded_int(limits, "max_processes"),
-                _recorded_int(limits, "max_processes"),
-            ),
+            _recorded_int(limits, "max_processes"),
         )
     if hasattr(resource, "RLIMIT_CORE"):
-        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        _set_child_soft_limit(resource.RLIMIT_CORE, 0)
     if hasattr(resource, "RLIMIT_AS"):
         address_space_limit = _recorded_int(limits, "max_virtual_address_space_bytes")
-        resource.setrlimit(resource.RLIMIT_AS, (address_space_limit, address_space_limit))
+        _set_child_soft_limit(resource.RLIMIT_AS, address_space_limit)
     if hasattr(resource, "RLIMIT_FSIZE"):
         file_limit = _recorded_int(limits, "max_stage_artifact_bytes")
-        resource.setrlimit(resource.RLIMIT_FSIZE, (file_limit, file_limit))
+        _set_child_soft_limit(resource.RLIMIT_FSIZE, file_limit)
     os.umask(0o077)
 
 
