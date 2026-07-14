@@ -255,6 +255,39 @@ def test_inside_repo_target_rejection_creates_nothing(tmp_path: Path) -> None:
     assert not target.exists()
 
 
+def test_subprocess_failure_names_phase_and_preserves_bounded_diagnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stderr = b"discard-me:" + (b"x" * 4_096) + b":missing spin 0.9.8"
+
+    def fail(_request: replay_process.ProcessRequest) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(
+            args=("cargo", "tree"),
+            returncode=101,
+            stdout=b"",
+            stderr=stderr,
+        )
+
+    monkeypatch.setattr(replay_process, "run_bounded", fail)
+
+    with pytest.raises(RuntimeError) as rejected:
+        checker._run(
+            ["cargo", "tree"],
+            cwd=tmp_path,
+            env={"PATH": replay_environment.SYSTEM_PATH},
+            timeout=5,
+            profile=replay_process.ProcessProfile.TOOL,
+            phase="selected_dependency_graph",
+        )
+
+    message = str(rejected.value)
+    assert "phase=selected_dependency_graph" in message
+    assert "returncode=101" in message
+    assert "missing spin 0.9.8" in message
+    assert "discard-me" not in message
+
+
 def test_ancestor_cargo_config_is_rejected(tmp_path: Path) -> None:
     workspace = tmp_path / "source/zk/zrpf_risc0"
     (workspace / ".cargo").mkdir(parents=True)

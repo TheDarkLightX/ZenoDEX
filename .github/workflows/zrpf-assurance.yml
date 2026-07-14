@@ -87,6 +87,23 @@ jobs:
         run: |
           set -euo pipefail
           pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          replay_anchor_commit="ff76ff9c1dc307f0e7dc5afd009e2961f2e36f21"
+          anchor_checkout="${RUNNER_TEMP}/zrpf-v3-source-anchor-fetch"
+          test ! -e "${anchor_checkout}"
+          cleanup_anchor_checkout() {
+            git worktree remove --force "${anchor_checkout}" >/dev/null 2>&1 || true
+          }
+          trap cleanup_anchor_checkout EXIT
+          git -c core.hooksPath=/dev/null worktree add --detach "${anchor_checkout}" \
+            "${replay_anchor_commit}"
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path "${anchor_checkout}/zk/zrpf_risc0/Cargo.toml"
+          git worktree remove --force "${anchor_checkout}"
+          trap - EXIT
           env \
             PATH="${pinned_bin}:/usr/bin:/bin" \
             RUSTC="${pinned_bin}/rustc" \

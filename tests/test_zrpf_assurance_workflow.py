@@ -142,6 +142,23 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml" in (
         cargo_acquisition
     )
+    assert (
+        'replay_anchor_commit="ff76ff9c1dc307f0e7dc5afd009e2961f2e36f21"'
+        in cargo_acquisition
+    )
+    assert 'anchor_checkout="${RUNNER_TEMP}/zrpf-v3-source-anchor-fetch"' in (
+        cargo_acquisition
+    )
+    assert (
+        'git -c core.hooksPath=/dev/null worktree add --detach "${anchor_checkout}"'
+        in cargo_acquisition
+    )
+    assert '"${replay_anchor_commit}"' in cargo_acquisition
+    assert (
+        '--manifest-path "${anchor_checkout}/zk/zrpf_risc0/Cargo.toml"'
+        in cargo_acquisition
+    )
+    assert "git worktree remove --force" in cargo_acquisition
     assert "tools/check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tools/check_zrpf_current_source_adapter_v2.py" in python_assurance
