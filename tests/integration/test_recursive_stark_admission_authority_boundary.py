@@ -45,6 +45,15 @@ SPOT_V7_OPERATIONAL_CAPABILITY_V2 = (
 SPOT_V7_OPERATIONAL_POLICY_PROVENANCE = (
     ROOT / "src/integration/zrpf_spot_v7_operational_policy_provenance.py"
 )
+SPOT_V7_OPERATIONAL_POLICY_V3 = (
+    ROOT / "src/integration/_zrpf_spot_v7_operational_policy_v3.py"
+)
+SPOT_V7_OPERATIONAL_POLICY_PROVENANCE_V2 = (
+    ROOT / "src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py"
+)
+SPOT_V7_LAGGED_CHECKPOINT_BEACON = (
+    ROOT / "src/integration/zrpf_spot_v7_lagged_checkpoint_beacon.py"
+)
 SPOT_V7_OPERATIONAL_POLICY_STORE = (
     ROOT / "src/integration/_zrpf_spot_v7_operational_policy_store.py"
 )
@@ -57,6 +66,9 @@ SAMPLED_RETRIEVABILITY_VERIFIER = (
 )
 SPOT_V7_GOVERNED_DA_PREREQUISITE = (
     ROOT / "src/integration/zrpf_spot_v7_governed_da_prerequisite.py"
+)
+SPOT_V7_GOVERNED_DA_PREREQUISITE_V2 = (
+    ROOT / "src/integration/zrpf_spot_v7_governed_da_prerequisite_v2.py"
 )
 SPOT_V7_ATOMIC_STORE = (
     ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
@@ -106,6 +118,33 @@ PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES = frozenset(
 PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES = frozenset(
     {"_GovernedOperationalPolicyProvenanceV1"}
 )
+PRIVATE_OPERATIONAL_POLICY_V3_NAMES = frozenset(
+    {
+        "_GovernedOperationalPolicyMaterialV3",
+        "_GovernedOperationalPolicyProvenanceV2",
+        "_GovernedOperationalPolicySealV3",
+        "_GOVERNED_OPERATIONAL_POLICY_SEAL_V3",
+        "_GovernedSpotV7OperationalPolicyV3",
+        "_mint_governed_spot_v7_operational_policy_v3",
+        "_require_governed_operational_policy_v3",
+    }
+)
+PRIVATE_OPERATIONAL_POLICY_V3_RELEASE_HANDOFF_NAMES = frozenset(
+    {
+        "_AuthenticatedOperationalPolicyReleasePinsSealV2",
+        "_AUTHENTICATED_OPERATIONAL_POLICY_RELEASE_PINS_SEAL_V2",
+        "_AuthenticatedSpotV7OperationalPolicyReleasePinsV2",
+        "load_governed_spot_v7_operational_policy_v3",
+    }
+)
+PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES = frozenset(
+    {
+        "_GovernedLaggedCheckpointBeaconSealV1",
+        "_GOVERNED_LAGGED_CHECKPOINT_BEACON_SEAL_V1",
+        "_GovernedSpotV7LaggedCheckpointBeaconV1",
+        "_require_governed_lagged_checkpoint_beacon_v1",
+    }
+)
 PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES = frozenset(
     {
         "_AuthenticatedEvidenceSealV1",
@@ -122,6 +161,19 @@ PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES = frozenset(
         "_bind_governed_spot_v7_da_prerequisite_v1",
         "_require_authenticated_sampled_response_v1",
         "_projection_for_downstream_binding_v1",
+    }
+)
+PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES = frozenset(
+    {
+        "_GovernedSampledResponseSealV1",
+        "_GOVERNED_SAMPLED_RESPONSE_SEAL_V1",
+        "_GovernedSpotV7SampledResponseV1",
+        "_bind_governed_spot_v7_sampled_response_v1",
+        "_require_governed_sampled_response",
+        "_GovernedDaPrerequisiteSealV2",
+        "_GOVERNED_DA_PREREQUISITE_SEAL_V2",
+        "_GovernedSpotV7DataAvailabilityPrerequisiteV2",
+        "_bind_governed_spot_v7_da_prerequisite_v2",
     }
 )
 PRIVATE_AUTHORITY_NAMES = frozenset(
@@ -142,8 +194,12 @@ PROTECTED_AUTHORITY_NAMES = (
     | PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
     | PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
     | PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES
+    | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+    | PRIVATE_OPERATIONAL_POLICY_V3_RELEASE_HANDOFF_NAMES
+    | PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES
     | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
 )
 PRIVATE_ADAPTER_IMPORTS = frozenset(
     {
@@ -226,6 +282,18 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 | PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
                 | PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES
             ),
+            SPOT_V7_OPERATIONAL_POLICY_V3: (
+                PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
+                | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+            ),
+            SPOT_V7_OPERATIONAL_POLICY_PROVENANCE_V2: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_OPERATIONAL_POLICY_V3_RELEASE_HANDOFF_NAMES
+            ),
+            SPOT_V7_LAGGED_CHECKPOINT_BEACON: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES
+            ),
             SPOT_V7_OPERATIONAL_POLICY_STORE: (
                 PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
             ),
@@ -240,6 +308,12 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
                 | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
                 | PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES
+            ),
+            SPOT_V7_GOVERNED_DA_PREREQUISITE_V2: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES
+                | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
             ),
         }.get(path, frozenset())
         tree = _parse(path)
@@ -313,6 +387,35 @@ def test_operational_policy_release_handoff_has_no_production_mint_or_consumer()
     }
 
 
+def test_operational_policy_v3_has_one_mint_and_no_production_loader_consumer() -> None:
+    constructor_calls: list[str] = []
+    mint_calls: list[str] = []
+    loader_calls: list[str] = []
+    for path in _production_python_paths():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = _call_name(node)
+            location = f"{path.relative_to(ROOT)}:{_line(node)}"
+            if name == "_GovernedSpotV7OperationalPolicyV3":
+                constructor_calls.append(location)
+            elif name == "_mint_governed_spot_v7_operational_policy_v3":
+                mint_calls.append(location)
+            elif name == "load_governed_spot_v7_operational_policy_v3":
+                loader_calls.append(location)
+
+    assert len(constructor_calls) == 1
+    assert constructor_calls[0].split(":", maxsplit=1)[0] == (
+        "src/integration/_zrpf_spot_v7_operational_policy_v3.py"
+    )
+    assert len(mint_calls) == 1
+    assert mint_calls[0].split(":", maxsplit=1)[0] == (
+        "src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py"
+    )
+    assert loader_calls == []
+
+
 @pytest.mark.parametrize(
     "path",
     (
@@ -337,6 +440,38 @@ def test_combined_da_authority_symbols_have_no_public_alias_or_export() -> None:
     assert _public_authority_alias_violations(tree) == []
     assert _private_authority_all_exports(tree) == []
     assert _public_top_level_authority_reachability(tree) == []
+
+
+@pytest.mark.parametrize(
+    ("path", "expected_public_reachability"),
+    (
+        (SPOT_V7_OPERATIONAL_POLICY_V3, []),
+        (
+            SPOT_V7_OPERATIONAL_POLICY_PROVENANCE_V2,
+            [
+                "load_governed_spot_v7_operational_policy_v3",
+                "spot_v7_operational_policy_manifest_bytes_v2",
+                "spot_v7_operational_policy_manifest_payload_hash_v2",
+            ],
+        ),
+        (
+            SPOT_V7_LAGGED_CHECKPOINT_BEACON,
+            ["bind_governed_spot_v7_lagged_checkpoint_beacon_v1"],
+        ),
+        (SPOT_V7_GOVERNED_DA_PREREQUISITE_V2, []),
+    ),
+)
+def test_v3_governed_da_authority_has_exact_public_reachability(
+    path: Path,
+    expected_public_reachability: list[str],
+) -> None:
+    tree = _parse(path)
+
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _public_top_level_authority_reachability(tree) == (
+        expected_public_reachability
+    )
 
 
 def test_sampled_retrievability_exposes_only_the_exact_verifier_mint() -> None:
