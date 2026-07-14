@@ -1,0 +1,112 @@
+name: zrpf-full-blob-da-adapter
+
+on:
+  pull_request:
+    paths:
+      - 'src/integration/zrpf_spot_v7_operational_policy_adapter.py'
+      - 'src/integration/zrpf_spot_v7_full_blob_da_adapter.py'
+      - 'tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py'
+      - 'zk/zrpf_protocol/protocol/Cargo.toml'
+      - 'zk/zrpf_protocol/protocol/src/bin/full_blob_da_policy_verifier_v1.rs'
+      - '.github/workflows/zrpf-full-blob-da-adapter.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/integration/zrpf_spot_v7_operational_policy_adapter.py'
+      - 'src/integration/zrpf_spot_v7_full_blob_da_adapter.py'
+      - 'tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py'
+      - 'zk/zrpf_protocol/protocol/Cargo.toml'
+      - 'zk/zrpf_protocol/protocol/src/bin/full_blob_da_policy_verifier_v1.rs'
+      - '.github/workflows/zrpf-full-blob-da-adapter.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  da-adapter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Install hash-pinned Python assurance tools
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Install hash-pinned Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz"
+          destination="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "${archive}" \
+            'https://github.com/risc0/rust/releases/download/r0.1.94.1/rust-toolchain-x86_64-unknown-linux-gnu.tar.gz'
+          test "$(stat --format='%s' "${archive}")" = '512619537'
+          echo 'e88d823762fc06e8911fb6b310ffe2fca8fcd7af2438572f7aa90aaf3e84ea02  '"${archive}" \
+            | sha256sum --check --strict
+          mkdir -p "${destination}"
+          tar --extract --gzip --file "${archive}" \
+            --directory "${destination}" --no-same-owner
+          rm --force "${archive}"
+
+      - name: Acquire lockfile-bound Rust dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/zrpf_protocol/Cargo.toml
+
+      - name: Build static exact DA verifier
+        id: verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          target_dir="${RUNNER_TEMP}/zrpf-full-blob-da-adapter-target"
+          export CARGO_TARGET_DIR="${target_dir}"
+          export PATH="${pinned_bin}:/usr/bin:/bin"
+          export RUSTC="${pinned_bin}/rustc"
+          export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
+          export RUSTFLAGS='-C target-feature=+crt-static'
+          "${pinned_bin}/cargo" build \
+            --manifest-path zk/zrpf_protocol/Cargo.toml \
+            --locked --release \
+            --bin zrpf-full-blob-da-policy-verifier-v1
+          verifier="${target_dir}/release/zrpf-full-blob-da-policy-verifier-v1"
+          test -x "${verifier}"
+          if readelf --program-headers "${verifier}" | grep --quiet 'INTERP'; then
+            echo 'DA verifier unexpectedly contains a dynamic interpreter' >&2
+            exit 1
+          fi
+          echo "path=${verifier}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run Ruff
+        run: |
+          ruff check \
+            src/integration/zrpf_spot_v7_full_blob_da_adapter.py \
+            tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py
+
+      - name: Run mypy
+        run: |
+          mypy --follow-imports=skip \
+            src/integration/zrpf_spot_v7_full_blob_da_adapter.py \
+            tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py
+
+      - name: Run actual-verifier integration tests
+        env:
+          ZRPF_FULL_BLOB_DA_VERIFIER: ${{ steps.verifier.outputs.path }}
+        run: pytest -q tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py
