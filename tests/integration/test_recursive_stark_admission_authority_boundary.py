@@ -69,6 +69,12 @@ SPOT_V7_ATOMIC_EVIDENCE_V4 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settle
 SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4 = (
     ROOT / "src/integration/zrpf_spot_v7_atomic_operational_store_v4.py"
 )
+SPOT_V7_ATOMIC_ENGINE_V5 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_engine_v5.py"
+SPOT_V7_ATOMIC_HISTORY_V5 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_history_v5.py"
+SPOT_V7_ATOMIC_SCHEMA_V5 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_schema_v5.py"
+SPOT_V7_ATOMIC_OPERATIONAL_STORE_V5 = (
+    ROOT / "src/integration/zrpf_spot_v7_atomic_operational_store_v5.py"
+)
 SPOT_V7_ATOMIC_STORE = ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
 PRIVATE_CAPABILITY_TYPE = "_AuthenticatedRecursiveStarkRootFacts"
 PRIVATE_SEAL = "_AUTHENTICATED_FACTS_SEAL"
@@ -214,6 +220,29 @@ PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES = frozenset(
         "_append_resolved_operational_history_v4",
     }
 )
+PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES = frozenset(
+    {
+        "_SpotV7DormantAuthorityProvenanceV5",
+        "_SpotV7DormantAuthorityPacketV5",
+        "_DormantSpotV7AuthorityPrerequisiteSealV5",
+        "_DORMANT_SPOT_V7_AUTHORITY_PREREQUISITE_SEAL_V5",
+        "_NonTransferableDormantSpotV7AuthorityPrerequisitesV5",
+        "_DormantSpotV7AuthorityPrerequisitesV5",
+        "_seal_test_only_dormant_spot_v7_authority_prerequisites_v5",
+        "_require_fresh_governed_release_and_runtime_evidence_v5",
+        "_persist_authority_provenance_v5",
+        "_validate_authority_provenance_row_v5",
+    }
+)
+PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES = frozenset(
+    {
+        "_ResolvedSpotV7AuthorityEntryV5",
+        "_ResolvedSpotV7OperationalHistoryV5",
+        "_resolve_operational_history_outside_transaction_v5",
+        "_empty_resolved_operational_history_locked_v5",
+        "_append_resolved_operational_history_v5",
+    }
+)
 PRIVATE_AUTHORITY_NAMES = frozenset(
     {
         PRIVATE_CAPABILITY_TYPE,
@@ -242,6 +271,8 @@ PROTECTED_AUTHORITY_NAMES = (
     | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+    | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES
 )
 PRIVATE_ADAPTER_IMPORTS = frozenset(
     {
@@ -374,6 +405,21 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 PRIVATE_OPERATIONAL_POLICY_V3_NAMES
                 | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
                 | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_ENGINE_V5: (
+                PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+            ),
+            SPOT_V7_ATOMIC_HISTORY_V5: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_SCHEMA_V5: PRIVATE_OPERATIONAL_POLICY_V3_NAMES,
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V5: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES
             ),
         }.get(path, frozenset())
         tree = _parse(path)
@@ -516,6 +562,8 @@ def test_operational_v3_store_packet_projection_has_exact_consumers() -> None:
                 callers.append(f"{path.relative_to(ROOT)}:{_line(node)}")
 
     assert [location.split(":", maxsplit=1)[0] for location in callers] == [
+        "src/integration/_zrpf_spot_v7_atomic_settlement_engine_v5.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_engine_v5.py",
         "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
         "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
         "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
@@ -665,9 +713,20 @@ def test_v3_governed_da_authority_has_exact_public_reachability(
                 "SQLiteSpotV7AtomicOperationalStoreV4.read_cursor",
             ],
         ),
+        (SPOT_V7_ATOMIC_ENGINE_V5, []),
+        (SPOT_V7_ATOMIC_HISTORY_V5, []),
+        (SPOT_V7_ATOMIC_SCHEMA_V5, []),
+        (
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V5,
+            [
+                "SQLiteSpotV7AtomicOperationalStoreV5.get_receipt",
+                "SQLiteSpotV7AtomicOperationalStoreV5.read_cells",
+                "SQLiteSpotV7AtomicOperationalStoreV5.read_cursor",
+            ],
+        ),
     ),
 )
-def test_finality_v3_and_operational_v4_have_exact_public_reachability(
+def test_finality_v3_and_operational_stores_have_exact_public_reachability(
     path: Path,
     expected_public_reachability: list[str],
 ) -> None:
@@ -688,6 +747,19 @@ def test_operational_v4_public_reads_reach_only_the_outside_transaction_resolver
         "get_receipt": ("_resolve_operational_history_outside_transaction_v4",),
         "read_cells": ("_resolve_operational_history_outside_transaction_v4",),
         "read_cursor": ("_resolve_operational_history_outside_transaction_v4",),
+    }
+
+
+def test_operational_v5_public_reads_reach_only_the_outside_transaction_resolver() -> None:
+    tree = _parse(SPOT_V7_ATOMIC_OPERATIONAL_STORE_V5)
+
+    assert _public_method_protected_symbol_reachability(
+        tree,
+        class_name="SQLiteSpotV7AtomicOperationalStoreV5",
+    ) == {
+        "get_receipt": ("_resolve_operational_history_outside_transaction_v5",),
+        "read_cells": ("_resolve_operational_history_outside_transaction_v5",),
+        "read_cursor": ("_resolve_operational_history_outside_transaction_v5",),
     }
 
 
