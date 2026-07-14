@@ -41,7 +41,7 @@ from src.integration._zeno_ledger_pinned_verifier_process_v1 import (
     execute_pinned_verifier_once,
 )
 from src.integration.zeno_ledger_profile import (
-    validate_checkpoint_admission_v0,
+    validate_checkpoint_structural_compatibility_v0,
     zeno_ledger_profile_requires_proof_authority_v0,
 )
 from src.integration.zeno_ledger_v0 import (
@@ -327,7 +327,10 @@ def _validate_required_profile_binding_v1(
         if not zeno_ledger_profile_requires_proof_authority_v0(profile_obj):
             raise ValueError("profile does not require proof authority")
         validate_checkpoint_header_binding_v0(checkpoint_obj, header_obj)
-        validate_checkpoint_admission_v0(checkpoint=checkpoint_obj, profile=profile_obj)
+        validate_checkpoint_structural_compatibility_v0(
+            checkpoint=checkpoint_obj,
+            profile=profile_obj,
+        )
         expected_config_digest = _require_root(
             replay_config_digest,
             name="replay_config_digest",
