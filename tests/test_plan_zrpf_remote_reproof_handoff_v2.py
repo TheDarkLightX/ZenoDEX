@@ -204,7 +204,24 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
                 assert command["stdout_artifact_role"] in output_roles
     planned = [task["stage_id"] for task in tasks if task["command_status"] == "template_planned"]
     assert planned == ["mutation_verification", "release_checks"]
-    assert all(task["execution_adapter_status"] == "missing" for task in tasks)
+    implemented = [
+        task["stage_id"] for task in tasks if task["execution_adapter_status"] == "implemented"
+    ]
+    assert implemented == [
+        "ancestry_materialization",
+        "source_spot_proof",
+        "v2_adapter_receipt",
+        "v6_leaf_receipt",
+        "v6_l1_receipt",
+        "v6_l2_receipt",
+        "v6_settlement_receipt",
+        "v7_receipt",
+    ]
+    assert all(
+        task["execution_adapter_status"] == "missing"
+        for task in tasks
+        if task["stage_id"] not in implemented
+    )
     identity_state = handoff.task_states(plan, [{"role": "r0vm"}])[0]
     assert identity_state["status"] == "blocked"
     assert identity_state["command_template_available"] is True

@@ -1,15 +1,18 @@
 # ZRPF remote reproof handoff V2 CBC specification
 
-Status: implemented planner, per-stage exact-input packet builder, and return
-checker. Remote execution adapters are intentionally missing. The mutation
-worker and bundle-aware release checker command templates are explicitly
-planned.
+Status: implemented planner, per-stage exact-input packet builder, return
+checker, and bounded authority-neutral worker for eight packet-expressible
+stages. Identity rebuild and prover-build adapters remain missing. The mutation
+worker and bundle-aware release checker command templates remain planned.
 
 The closed task/artifact catalog lives in
 `tools/zrpf_remote_reproof_handoff_v2_catalog.py`. Parsing, content addressing,
 Git ancestry, capture, and return validation live in
 `tools/plan_zrpf_remote_reproof_handoff_v2.py`. This keeps declarative workflow
 changes separate from the authority-bound checker.
+Worker contract validation lives in
+`tools/zrpf_remote_reproof_worker_v2_contract.py`; one-stage execution lives in
+`tools/run_zrpf_remote_reproof_worker_v2.py`.
 
 Scope: one fresh current-source, singleton Spot proof chain from the source
 receipt through the V2 adapter, V6 leaf/L1/L2/settlement receipts, and the V7
@@ -127,11 +130,26 @@ and does not yet consume this returned proof/mutation bundle. Manually supplied
 bytes can still be captured as authority-neutral metadata; capture does not
 prove they were produced by the declared task.
 
-Every task carries `execution_adapter_status = missing`. Existing commands are
-recorded as templates where available. No generic placeholder resolver,
-process sandbox, Cargo-output collector, V7 ELF extractor, or bounded output
-stager exists in this revision, so the task-state projection cannot call any
-stage ready for automated execution.
+The catalog marks these packet-expressible stages as implemented:
+
+```text
+ancestry_materialization
+source_spot_proof
+v2_adapter_receipt
+v6_leaf_receipt
+v6_l1_receipt
+v6_l2_receipt
+v6_settlement_receipt
+v7_receipt
+```
+
+The bounded worker resolves only typed declared-artifact placeholders, executes
+argv directly without a shell, stages exact outputs into a fresh private root,
+and emits an all-false authority capture. It does not provide a mount, network,
+container, VM, or hardware sandbox. `identity_rebuild` and
+`worker_prover_build` remain `execution_adapter_status = missing` because their
+current templates depend on inputs and output collection not yet expressed by
+the packet ABI. Mutation and release stages remain planned.
 
 ## Artifact contract
 
@@ -197,10 +215,11 @@ task ID
 ```
 
 The command records are execution templates. `@name` values are typed
-substitutions reserved for a future bounded worker. They are not interpreted
-by a shell. An implementation must construct an argv vector directly and map
-each artifact role to its already-validated path. Template availability does
-not make the task executable.
+substitutions interpreted only by the bounded worker for a stage whose
+execution adapter is explicitly implemented. They are never interpreted by a
+shell. The worker constructs an argv vector directly and maps each artifact
+role to its validated private input snapshot or declared output path. Template
+availability alone does not make a task executable.
 
 The per-stage execution packet adds facts that are unavailable when the initial
 handoff is planned:
@@ -288,6 +307,34 @@ The governed filename is `<two-digit ordinal>-<stage ID>.json`. The final
 capture requires exactly one packet for every task. A packet proves input-byte
 binding only. It does not prove when or whether execution occurred.
 
+Run one implemented stage into a fresh private root and a fresh capture path:
+
+```bash
+python3 tools/run_zrpf_remote_reproof_worker_v2.py run-stage \
+  --repository "$PWD" \
+  --handoff /private/handoff.json \
+  --packet /private/execution-packets/06-v6_l1_receipt.json \
+  --artifact-root /private/zrpf-return \
+  --run-root /private/worker-runs/06-v6_l1_receipt \
+  --capture-output /private/worker-captures/06-v6_l1_receipt.json
+```
+
+Recheck that local capture against its packet, checkout, input snapshots, and
+output bytes:
+
+```bash
+python3 tools/run_zrpf_remote_reproof_worker_v2.py check-capture \
+  --repository "$PWD" \
+  --handoff /private/handoff.json \
+  --packet /private/execution-packets/06-v6_l1_receipt.json \
+  --artifact-root /private/zrpf-return \
+  --run-root /private/worker-runs/06-v6_l1_receipt \
+  --capture-output /private/worker-captures/06-v6_l1_receipt.json
+```
+
+The worker capture is an unkeyed local process observation with all authority
+false. Cryptographic proof and release verification remain separate gates.
+
 After all artifacts exist, prepare canonical program-image input bytes:
 
 ```json
@@ -354,16 +401,17 @@ aggregate artifact bytes above the governed cap
 
 1. Merge this planner/checker only after focused Python checks and independent
    review.
-2. Implement the typed placeholder resolver, process boundary, and bounded
-   output stager. Change `execution_adapter_status` only after its own negative
-   controls pass.
-3. Implement the bounded unified V6/V7 mutation worker.
-4. Implement a bundle-aware release checker that consumes the exact returned
+2. Merge the bounded worker only after its command, packet, content, path,
+   output-inventory, resource, timeout, and capture negative controls pass.
+3. Extend the packet ABI and worker for identity rebuild and governed
+   prover-build output collection.
+4. Implement the bounded unified V6/V7 mutation worker.
+5. Implement a bundle-aware release checker that consumes the exact returned
    identity, proof, mutation, and runtime artifacts.
-5. Generate a handoff from the final integration C0 and worker G commit.
-6. Run the expensive tasks on the Mac or a remote host.
-7. Check the returned bundle independently.
-8. Run exact cryptographic replay, program identity recomputation, release
+6. Generate a handoff from the final integration C0 and worker G commit.
+7. Run the expensive tasks on the Mac or a remote host.
+8. Check the returned bundle independently.
+9. Run exact cryptographic replay, program identity recomputation, release
    closure, production-boundary, DA, finality, and atomic-admission gates.
 
 No step in this specification changes the current false production, release,

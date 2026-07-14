@@ -330,6 +330,7 @@ TASK_SPECS = (
             "no replacement refs or grafts participate",
         ),
         "light",
+        execution_adapter_status="implemented",
         stdout_artifact_role="post_pin_governance_result",
     ),
     TaskSpec(
@@ -415,6 +416,7 @@ TASK_SPECS = (
             "canonical source proof bytes persist only after verification",
         ),
         "prover_heavy",
+        execution_adapter_status="implemented",
         stdin_artifact_role="source_request",
         stdout_artifact_role="source_proof",
     ),
@@ -438,6 +440,7 @@ TASK_SPECS = (
             "adapter receipt is Succinct and canonically encoded",
         ),
         "prover_heavy",
+        execution_adapter_status="implemented",
         stdout_artifact_role="v2_adapter_report",
     ),
     TaskSpec(
@@ -470,6 +473,7 @@ TASK_SPECS = (
             "the V6 leaf receipt verifies under its exact program identity",
         ),
         "prover_heavy",
+        execution_adapter_status="implemented",
         stdout_artifact_role="v6_leaf_report",
     ),
     TaskSpec(
@@ -485,6 +489,7 @@ TASK_SPECS = (
             "the L1 receipt verifies under its exact program identity",
         ),
         "prover_heavy",
+        execution_adapter_status="implemented",
         stdout_artifact_role="v6_l1_report",
     ),
     TaskSpec(
@@ -500,6 +505,7 @@ TASK_SPECS = (
             "the L2 receipt verifies under its exact program identity",
         ),
         "prover_heavy",
+        execution_adapter_status="implemented",
         stdout_artifact_role="v6_l2_report",
     ),
     TaskSpec(
@@ -540,6 +546,7 @@ TASK_SPECS = (
             "the settlement receipt verifies under its exact program identity",
         ),
         "prover_heavy",
+        execution_adapter_status="implemented",
         stdout_artifact_role="v6_settlement_report",
     ),
     TaskSpec(
@@ -577,6 +584,7 @@ TASK_SPECS = (
             "the exact V7 seal mutation rejects",
         ),
         "prover_heavy",
+        execution_adapter_status="implemented",
         stdout_artifact_role="v7_report",
     ),
     TaskSpec(

@@ -166,8 +166,11 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py" in python_assurance
     assert "tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py" in python_assurance
     assert "tools/plan_zrpf_remote_reproof_handoff_v2.py" in python_assurance
+    assert "tools/run_zrpf_remote_reproof_worker_v2.py" in python_assurance
     assert "tools/zrpf_remote_reproof_handoff_v2_catalog.py" in python_assurance
+    assert "tools/zrpf_remote_reproof_worker_v2_contract.py" in python_assurance
     assert "tests/test_plan_zrpf_remote_reproof_handoff_v2.py" in python_assurance
+    assert "tests/test_run_zrpf_remote_reproof_worker_v2.py" in python_assurance
     assert "tools/check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tools/check_risc0_recursive_live_replay.py" in python_assurance
@@ -281,6 +284,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tools/materialize_zrpf_source_opened_spot_v6_identity.py",
         "tools/plan_zrpf_spot_v7_release_closure.py",
         "tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py",
+        "tools/run_zrpf_remote_reproof_worker_v2.py",
+        "tools/zrpf_remote_reproof_worker_v2_contract.py",
         "tools/recover_zrpf_v6_identity_build_lease.py",
         "tools/run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py",
         "tools/zrpf_v6_v7_child_policy_materialization.py",
@@ -338,6 +343,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_zeno_ledger_strict_spot_authority_v1.py",
         "tests/integration/test_zeno_ledger_strict_spot_range_authority_v1.py",
         "tests/test_zrpf_spot_v7_release_closure.py",
+        "tests/test_run_zrpf_remote_reproof_worker_v2.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
