@@ -152,6 +152,11 @@ jobs:
             src/integration/_zrpf_spot_v7_firecracker_authority.py \
             src/integration/_zrpf_spot_v7_firecracker_execution_binding.py \
             src/integration/_zrpf_spot_v7_firecracker_output.py \
+            src/integration/_zrpf_spot_v7_journal_projection.py \
+            src/integration/_zrpf_spot_v7_settlement_envelope_codec.py \
+            src/integration/_zrpf_spot_v7_settlement_envelope_contract.py \
+            src/integration/_zrpf_spot_v7_settlement_envelope_replay.py \
+            src/integration/_zrpf_spot_v7_settlement_envelope_state.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_engine.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_history.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_records.py \
@@ -319,6 +324,7 @@ jobs:
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
+            tests/integration/test_zrpf_spot_v7_settlement_envelope_replay.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_sampled_retrievability_v1.py \
@@ -353,6 +359,11 @@ jobs:
             src/integration/_zrpf_spot_v7_firecracker_authority.py \
             src/integration/_zrpf_spot_v7_firecracker_execution_binding.py \
             src/integration/_zrpf_spot_v7_firecracker_output.py \
+            src/integration/_zrpf_spot_v7_journal_projection.py \
+            src/integration/_zrpf_spot_v7_settlement_envelope_codec.py \
+            src/integration/_zrpf_spot_v7_settlement_envelope_contract.py \
+            src/integration/_zrpf_spot_v7_settlement_envelope_replay.py \
+            src/integration/_zrpf_spot_v7_settlement_envelope_state.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_engine.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_history.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_records.py \
@@ -481,6 +492,7 @@ jobs:
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
+            tests/integration/test_zrpf_spot_v7_settlement_envelope_replay.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
@@ -554,6 +566,7 @@ jobs:
             tests/integration/test_recursive_stark_verifier_adapter.py \
             tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py \
             tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py \
+            tests/integration/test_zrpf_spot_v7_settlement_envelope_replay.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_sampled_retrievability_v1.py \
