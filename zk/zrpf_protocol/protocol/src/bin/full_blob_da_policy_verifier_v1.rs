@@ -137,7 +137,7 @@ fn take_array<const N: usize>(input: &[u8], cursor: &mut usize) -> Result<[u8; N
 }
 
 fn take_slice<'a>(input: &'a [u8], cursor: &mut usize, length: usize) -> Result<&'a [u8], String> {
-    let end = cursor
+    let end = (*cursor)
         .checked_add(length)
         .ok_or_else(|| "request cursor overflow".to_string())?;
     let value = input
