@@ -10456,7 +10456,7 @@ mod tests {
                     "pool.reserve0 exceeds domain max"
                 ))
             ),
-            "unexpected result: {result:?}"
+            "route pool growth above the domain maximum must reject"
         );
         assert_eq!(state.canonical_app_hash_sha256(), before);
     }

@@ -15,9 +15,15 @@ use zenodex_zrpf_protocol_v3::{
 
 const CERTIFICATE_ID_DOMAIN_V1: &[u8] = b"zenodex.zrpf.settlement_certificate_id.v1";
 const HEADER_BYTES: usize = 22;
+const BASELINE_TEST_NONCE_LABEL: &[u8] = b"base-action-nonce";
+const DISTINCT_TEST_NONCE_LABEL: &[u8] = b"first-action-nonce";
 
 fn commitment(seed: u8) -> CommitmentV3 {
     CommitmentV3::new([seed.max(1); 32]).unwrap()
+}
+
+fn deterministic_test_nonce(label: &[u8]) -> u64 {
+    u64::try_from(label.len()).unwrap()
 }
 
 fn action(
@@ -74,8 +80,11 @@ fn effect(action: &AuthorizedEconomicActionV1, seed: u8, amount: u128) -> AssetE
 }
 
 fn plan() -> SettlementEffectPlanV2 {
-    let first = action(17, 7, 8, vec![commitment(60), commitment(61)]);
-    let second = action(18, 9, 10, vec![commitment(62)]);
+    let first_nonce = deterministic_test_nonce(BASELINE_TEST_NONCE_LABEL);
+    let second_nonce = deterministic_test_nonce(DISTINCT_TEST_NONCE_LABEL);
+    assert_ne!(first_nonce, second_nonce);
+    let first = action(first_nonce, 7, 8, vec![commitment(60), commitment(61)]);
+    let second = action(second_nonce, 9, 10, vec![commitment(62)]);
     let batch =
         EconomicActionBatchV1::new(25, commitment(6), vec![second.clone(), first.clone()]).unwrap();
     SettlementEffectPlanV2::new(SettlementEffectPlanInputV2 {
