@@ -58,21 +58,33 @@ jobs:
             "${pinned_bin}/cargo" fetch --locked \
               --manifest-path zk/zrpf_protocol/Cargo.toml
 
-      - name: Run exact verifier assurance
+      - name: Check formatting
         shell: bash
         run: |
-          set -euo pipefail
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/zrpf_protocol/Cargo.toml \
+            --all -- --check
+
+      - name: Run focused tests
+        shell: bash
+        run: |
           pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
           export PATH="${pinned_bin}:/usr/bin:/bin"
           export RUSTC="${pinned_bin}/rustc"
           export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
-          "${pinned_bin}/cargo" fmt \
-            --manifest-path zk/zrpf_protocol/Cargo.toml \
-            --all -- --check
           "${pinned_bin}/cargo" test \
             --manifest-path zk/zrpf_protocol/Cargo.toml \
             --locked -p zenodex-zrpf-protocol-v3 \
             --test full_blob_da_policy_verifier_v1
+
+      - name: Run Clippy
+        shell: bash
+        run: |
+          pinned_bin="${HOME}/.risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin"
+          export PATH="${pinned_bin}:/usr/bin:/bin"
+          export RUSTC="${pinned_bin}/rustc"
+          export RUSTDOC="${pinned_bin}/rustdoc_tool_binary"
           "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/zrpf_protocol/Cargo.toml \
             --locked -p zenodex-zrpf-protocol-v3 \
