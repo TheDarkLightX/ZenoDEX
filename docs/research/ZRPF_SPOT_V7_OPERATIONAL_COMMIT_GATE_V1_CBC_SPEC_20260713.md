@@ -1,9 +1,10 @@
-# ZRPF Spot V7 Operational Commit Gate V1 CBC Specification
+# ZRPF Spot V7 Operational Commit Gate V1/V2 CBC Specification
 
 Date: 2026-07-13
 
-Status: authority-false combined atomic mechanics implemented; no governed
-commit capability, settlement authority, or production authority is available
+Status: authority-false V2 commit capability and combined atomic sink
+implemented; no governed prerequisite adapter, settlement authority, or
+production authority is available
 
 ## Purpose
 
@@ -36,8 +37,11 @@ all three exact capabilities
 ```
 
 The present implementation exercises the combined durable transaction through
-an explicitly test-only, module-sealed packet. It stops before governed
-prerequisite adapters or the production atomic commit capability can be minted.
+both an explicitly test-only packet and
+`_SpotV7AtomicEconomicCommitCapabilityV2`. The V2 type accepts only four exact
+module-sealed prerequisite objects, retains those objects, and deterministically
+reconstructs the permanently authority-false schema packet. Governed
+prerequisite adapters remain absent, so raw caller data cannot reach its binder.
 
 ## Existing primitives and their limits
 
@@ -85,8 +89,20 @@ _AuthenticatedCheckpointFinalityTransitionV2
 _SpotV7AtomicEconomicCommitCapabilityV1
 ```
 
-No current function mints any of these prerequisite or commit capabilities.
-Their private seals describe the required adapter boundaries. They are Python
+`_zrpf_spot_v7_operational_capability_v2.py` adds:
+
+```text
+_GovernedOperationalPolicyMaterialV2
+_GovernedSpotV7OperationalPolicyV2
+_GovernedExactFullBlobPolicySatisfactionV2
+_AuthenticatedExactCheckpointFinalityTransitionV2
+_SpotV7AtomicEconomicCommitCapabilityV2
+```
+
+The V1 capability still has no mint path. The V2 binder mints only the
+authority-false V2 packet and only from all four exact sealed prerequisites. No
+current function mints those prerequisite seals from raw policy, proof, blob,
+certificate, finality evidence, report, or Boolean input. These are Python
 information-hiding boundaries, not protection against hostile code already
 executing in the same interpreter.
 
@@ -139,7 +155,25 @@ certificates, and the next cursor.
 
 Structure-preserving substitution of any shared application, domain, epoch,
 certificate root, data root, policy root, journal hash, or post-state root
-rejects before SQLite is opened.
+rejects before SQLite is opened. Exact blob and finality-evidence SHA-256 values
+also rebind to their retained bytes. Both protocol certificates are recomposed
+from the exact bytes and complete governed policy material.
+
+The V2 store sink performs the complete rederivation twice:
+
+```text
+sealed V2 packet
+  -> preflight exact-byte and cross-binding recomposition
+  -> BEGIN IMMEDIATE
+  -> schema and complete-history replay
+  -> second exact-byte and cross-binding recomposition
+  -> stored governed-policy equality
+  -> checkpoint-finality prior-cursor check
+  -> one atomic economics + DA + finality + cursor commit
+```
+
+The first pass rejects forged or damaged packets before SQLite is opened. The
+second pass makes precheck-to-transaction drift fail closed and roll back.
 
 ## Current fail-closed frontier
 
@@ -151,12 +185,14 @@ The production gate reports these exact missing conditions:
 4. authenticated protocol-specific external finality;
 5. exact `checkpoint_finality_v2` result adapter.
 
-These previously open mechanics are closed for the authority-false test lane:
+These previously open mechanics are closed for both the test lane and the
+authority-false V2 sealed-packet lane:
 
 ```text
 atomic full-blob and certificate persistence
 durable checkpoint-finality cursor compare-and-swap
 combined proof-artifact, DA, finality, replay, cursor, and economic schema
+pre-open and in-transaction exact V2 packet recomposition
 ```
 
 The existing future Firecracker store sink now terminates at this operational
@@ -188,6 +224,19 @@ Focused tests establish:
 - reopening requires the exact operational policy and reconstructs the entire
   DA/finality cursor history from genesis;
 - the existing Spot V7 atomic-store regression suite remains green.
+- raw caller mappings, artifact bytes, reports, and Booleans cannot mint the V2
+  packet;
+- a forged V2 object rejects before SQLite is opened;
+- exact blob, DA-certificate, finality-certificate, and finality-evidence
+  mutation cannot mint a V2 packet;
+- the V2 packet cannot be copied, deep-copied, or serialized and permanently
+  reports settlement and production authority as false;
+- an injected failure in the second, in-transaction V2 recomposition rolls back
+  every surface;
+- an injected failure after the finality cursor update rolls back economics,
+  exact artifacts, replay identities, and both cursors;
+- two concurrent exact V2 submissions produce one commit, one idempotent replay,
+  and one complete row set.
 
 ### Rust/Python parity evidence
 
@@ -226,13 +275,14 @@ finality_certificate        419 bytes, SHA-256 a3812dbfdecfa716f73ec70eb0b8986e6
 ## Explicit nonclaims
 
 This integration contract does not establish current governed V7 receipt
-evidence, governed Firecracker execution, policy governance, provider
-retrievability, authenticated external finality, consensus fork choice,
+evidence, governed Firecracker execution, policy governance, a raw-input
+prerequisite mint, provider retrievability, authenticated external finality,
+consensus fork choice,
 production rollback resistance, governed proof/DA/finality/economic admission,
 settlement authority, release authority, privacy, liveness, or production
 authority. It establishes scoped SQLite atomicity, rollback, exact-byte
 persistence, replay rejection, and reopen validation for the authority-false
-test lane only.
+test and V2 sealed-packet lanes only.
 
 The private prerequisite classes are future adapter contracts. Unit tests may
 apply their module-private seals to exercise cross-binding logic; those test

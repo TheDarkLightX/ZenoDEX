@@ -1,4 +1,4 @@
-"""Strict SQLite schema for test-only Spot V7 atomic settlement mechanics."""
+"""Strict SQLite schema for authority-false Spot V7 atomic settlement mechanics."""
 
 from __future__ import annotations
 

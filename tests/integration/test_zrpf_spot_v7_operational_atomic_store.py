@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
+import pickle
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -12,10 +14,27 @@ from unittest.mock import patch
 
 import pytest
 
+import src.integration._zrpf_spot_v7_firecracker_authority as firecracker_authority
+import src.integration._zrpf_spot_v7_operational_capability_v2 as operational_v2
 import src.integration.zrpf_spot_v7_atomic_settlement_store as store_module
 from src.integration._zrpf_spot_v7_atomic_settlement_capability import (
     _seal_test_only_spot_v7_settlement_v1,
     _SpotV7SettlementCandidateInputV1,
+)
+from src.integration._zrpf_spot_v7_firecracker_authority import (
+    _GovernedFirecrackerSpotV7SettlementV1,
+)
+from src.integration._zrpf_spot_v7_operational_capability_v2 import (
+    _AuthenticatedExactCheckpointFinalityTransitionV2,
+    _bind_spot_v7_operational_commit_capability_v2,
+    _GovernedExactFullBlobPolicySatisfactionV2,
+    _GovernedOperationalPolicyMaterialV2,
+    _GovernedSpotV7OperationalPolicyV2,
+    _SpotV7AtomicEconomicCommitCapabilityV2,
+)
+from src.integration._zrpf_spot_v7_operational_gate import (
+    _AuthenticatedCheckpointFinalityProjectionV2,
+    _GovernedFullBlobPolicyProjectionV1,
 )
 from src.integration._zrpf_spot_v7_operational_mechanics import (
     _build_test_only_checkpoint_finality_artifacts_v2,
@@ -34,6 +53,7 @@ from src.integration.zrpf_spot_v7_atomic_settlement_store import (
 )
 from src.integration.zrpf_spot_v7_atomic_settlement_types import (
     SpotV7AssetEffectV1,
+    SpotV7AtomicSettlementCursorV1,
     SpotV7AtomicSettlementDispositionV1,
     SpotV7AtomicSettlementRejectReasonV1,
     SpotV7AtomicSettlementResultV1,
@@ -253,9 +273,7 @@ def _packet(
             prior_checkpoint_hash or policy.genesis_application_checkpoint_hash
         ),
         next_application_checkpoint_hash=_root(seed + 60),
-        exact_finality_evidence_bytes=(
-            finality_evidence or f"finality-evidence-{seed}".encode()
-        ),
+        exact_finality_evidence_bytes=(finality_evidence or f"finality-evidence-{seed}".encode()),
     )
     return _seal_test_only_spot_v7_operational_commit_v1(
         _TestOnlySpotV7OperationalCommitInputV1(
@@ -287,6 +305,127 @@ def _reopen(store: SQLiteSpotV7AtomicSettlementStoreV1) -> SQLiteSpotV7AtomicSet
     )
 
 
+def _governed_policy_v2(
+    policy: _TestOnlySpotV7OperationalPolicyV1 | None = None,
+) -> _GovernedSpotV7OperationalPolicyV2:
+    value = policy or _policy()
+    return _GovernedSpotV7OperationalPolicyV2(
+        _GovernedOperationalPolicyMaterialV2(
+            application_id=value.application_id,
+            chain_or_domain_id=value.chain_or_domain_id,
+            data_schema_id=value.data_schema_id,
+            storage_policy_hash=value.storage_policy_hash,
+            minimum_retention_epochs=value.minimum_retention_epochs,
+            minimum_remaining_epochs=value.minimum_remaining_epochs,
+            maximum_blob_bytes=value.maximum_blob_bytes,
+            finality_network_id=value.finality_network_id,
+            finality_protocol_id=value.finality_protocol_id,
+            external_finality_policy_hash=value.external_finality_policy_hash,
+            finality_verifier_set_root=value.finality_verifier_set_root,
+            genesis_application_checkpoint_sequence=(value.genesis_application_checkpoint_sequence),
+            genesis_application_checkpoint_hash=(value.genesis_application_checkpoint_hash),
+        ),
+        seal=operational_v2._GOVERNED_OPERATIONAL_POLICY_SEAL_V2,
+    )
+
+
+def _governed_settlement_v2(
+    candidate: _SpotV7SettlementCandidateInputV1,
+) -> _GovernedFirecrackerSpotV7SettlementV1:
+    capability = object.__new__(_GovernedFirecrackerSpotV7SettlementV1)
+    object.__setattr__(capability, "_candidate", candidate)
+    object.__setattr__(capability, "_runtime_execution", object())
+    object.__setattr__(
+        capability,
+        "_seal",
+        firecracker_authority._GOVERNED_BINDER_SEAL_V1,
+    )
+    return capability
+
+
+def _governed_v2_components(
+    packet: _TestOnlySpotV7OperationalCommitV1 | None = None,
+) -> tuple[
+    _GovernedFirecrackerSpotV7SettlementV1,
+    _GovernedSpotV7OperationalPolicyV2,
+    _GovernedExactFullBlobPolicySatisfactionV2,
+    _AuthenticatedExactCheckpointFinalityTransitionV2,
+]:
+    value = (packet or _packet())._input
+    settlement = _governed_settlement_v2(value.settlement._input)
+    policy = _governed_policy_v2(value.policy)
+    da = value.data_availability
+    governed_da = _GovernedExactFullBlobPolicySatisfactionV2(
+        _GovernedFullBlobPolicyProjectionV1(
+            application_id=value.policy.application_id,
+            chain_or_domain_id=value.policy.chain_or_domain_id,
+            epoch_id=da.epoch_id,
+            certificate_root=da.certificate_root,
+            data_root=da.data_root,
+            policy_root=da.policy_root,
+            exact_blob_sha256=da.blob_sha256,
+            checked_epoch=da.checked_epoch,
+            retention_through_epoch=da.retention_through_epoch,
+        ),
+        exact_blob_bytes=da.exact_blob_bytes,
+        exact_certificate_bytes=da.exact_certificate_bytes,
+        seal=operational_v2._GOVERNED_EXACT_FULL_BLOB_POLICY_SEAL_V2,
+    )
+    finality = value.finality
+    governed_finality = _AuthenticatedExactCheckpointFinalityTransitionV2(
+        _AuthenticatedCheckpointFinalityProjectionV2(
+            application_id=value.policy.application_id,
+            chain_or_domain_id=value.policy.chain_or_domain_id,
+            epoch_id=finality.epoch_id,
+            proof_journal_hash=finality.proof_journal_hash,
+            post_state_root=finality.post_state_root,
+            policy_root=finality.policy_root,
+            certificate_root=finality.certificate_root,
+            finality_evidence_root=finality.finality_evidence_root,
+            prior_application_checkpoint_sequence=(finality.prior_application_checkpoint_sequence),
+            prior_application_checkpoint_hash=(finality.prior_application_checkpoint_hash),
+            next_application_checkpoint_sequence=(finality.next_application_checkpoint_sequence),
+            next_application_checkpoint_hash=(finality.next_application_checkpoint_hash),
+        ),
+        exact_certificate_bytes=finality.exact_certificate_bytes,
+        exact_finality_evidence_bytes=finality.exact_finality_evidence_bytes,
+        seal=operational_v2._AUTHENTICATED_EXACT_CHECKPOINT_FINALITY_SEAL_V2,
+    )
+    return settlement, policy, governed_da, governed_finality
+
+
+def _governed_v2_capability(
+    packet: _TestOnlySpotV7OperationalCommitV1 | None = None,
+) -> tuple[
+    _SpotV7AtomicEconomicCommitCapabilityV2,
+    _GovernedSpotV7OperationalPolicyV2,
+]:
+    settlement, policy, da, finality = _governed_v2_components(packet)
+    return (
+        _bind_spot_v7_operational_commit_capability_v2(
+            settlement=settlement,
+            policy=policy,
+            data_availability=da,
+            finality=finality,
+        ),
+        policy,
+    )
+
+
+def _governed_store_v2(
+    tmp_path: Path,
+    policy: _GovernedSpotV7OperationalPolicyV2,
+) -> SQLiteSpotV7AtomicSettlementStoreV1:
+    directory = tmp_path / "governed-private"
+    directory.mkdir(mode=0o700)
+    return SQLiteSpotV7AtomicSettlementStoreV1(
+        directory / "spot-v7.sqlite3",
+        identity=_identity(),
+        genesis_cells=_initial_cells(),
+        governed_operational_policy=policy,
+    )
+
+
 def _database_rows(path: Path) -> tuple[tuple[str, tuple[tuple[object, ...], ...]], ...]:
     with sqlite3.connect(path) as connection:
         tables = tuple(
@@ -315,6 +454,311 @@ def _operational_cursor(path: Path) -> tuple[int, str]:
     return int.from_bytes(row[0], "big"), "0x" + bytes(row[1]).hex()
 
 
+def test_given_exact_sealed_v2_inputs_when_committed_then_every_surface_moves_once(
+    tmp_path: Path,
+) -> None:
+    source_packet = _packet()
+    capability, policy = _governed_v2_capability(source_packet)
+    store = _governed_store_v2(tmp_path, policy)
+    before = store.read_cursor()
+
+    result = store._commit_operational_capability(
+        expected_cursor=before,
+        capability=capability,
+    )
+
+    assert result.disposition is SpotV7AtomicSettlementDispositionV1.COMMITTED
+    assert result.settlement_authority is False
+    assert result.production_authority is False
+    assert store.settlement_authority is False
+    assert store.production_authority is False
+    assert store.read_cursor().revision == 1
+    with sqlite3.connect(store.path) as connection:
+        counts = tuple(
+            int(connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
+            for table in (
+                "spot_v7_settlements",
+                "spot_v7_operational_da",
+                "spot_v7_operational_finality",
+            )
+        )
+        authority = connection.execute(
+            "SELECT settlement_authority, production_authority "
+            "FROM spot_v7_store_meta WHERE singleton = 1"
+        ).fetchone()
+        exact_da = connection.execute(
+            "SELECT exact_blob, exact_certificate FROM spot_v7_operational_da"
+        ).fetchone()
+        exact_finality = connection.execute(
+            "SELECT exact_certificate, exact_finality_evidence FROM spot_v7_operational_finality"
+        ).fetchone()
+    assert counts == (1, 1, 1)
+    assert authority == (0, 0)
+    assert exact_da == (
+        source_packet._input.data_availability.exact_blob_bytes,
+        source_packet._input.data_availability.exact_certificate_bytes,
+    )
+    assert exact_finality == (
+        source_packet._input.finality.exact_certificate_bytes,
+        source_packet._input.finality.exact_finality_evidence_bytes,
+    )
+
+
+@pytest.mark.parametrize(
+    "untrusted",
+    (
+        True,
+        {"settlement_authority": True},
+        {"external_finality_authenticated": True},
+        b"exact-looking-artifact-bytes",
+        object(),
+    ),
+)
+def test_given_raw_caller_data_when_binding_v2_then_type_boundary_rejects(
+    untrusted: object,
+) -> None:
+    with pytest.raises(TypeError):
+        _bind_spot_v7_operational_commit_capability_v2(
+            settlement=untrusted,
+            policy=untrusted,
+            data_availability=untrusted,
+            finality=untrusted,
+        )
+
+
+def test_given_v2_capability_when_copying_or_serializing_then_operation_rejects() -> None:
+    capability, _policy_value = _governed_v2_capability()
+
+    assert capability.settlement_authority is False
+    assert capability.production_authority is False
+    for operation in (copy.copy, copy.deepcopy, pickle.dumps):
+        with pytest.raises(TypeError):
+            operation(capability)
+
+
+def test_given_forged_v2_capability_when_committing_then_sqlite_is_never_opened() -> None:
+    store = object.__new__(SQLiteSpotV7AtomicSettlementStoreV1)
+    forged = object.__new__(_SpotV7AtomicEconomicCommitCapabilityV2)
+
+    with pytest.raises(TypeError, match="module-private seal"):
+        store._commit_operational_capability(
+            expected_cursor=SpotV7AtomicSettlementCursorV1(
+                revision=0,
+                state_root=_identity().genesis_state_root,
+                settlement_count=0,
+                cell_count=4,
+                last_epoch_id=None,
+            ),
+            capability=forged,
+        )
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    ("blob", "da_certificate", "finality_certificate", "finality_evidence"),
+)
+def test_given_mutated_exact_v2_artifact_when_binding_then_no_capability_is_minted(
+    artifact: str,
+) -> None:
+    settlement, policy, da, finality = _governed_v2_components()
+    with pytest.raises(ValueError, match="canonical|exact bytes|SHA-256|root"):
+        if artifact == "blob":
+            da = _GovernedExactFullBlobPolicySatisfactionV2(
+                da._projection,
+                exact_blob_bytes=b"X" + da._exact_blob_bytes[1:],
+                exact_certificate_bytes=da._exact_certificate_bytes,
+                seal=operational_v2._GOVERNED_EXACT_FULL_BLOB_POLICY_SEAL_V2,
+            )
+        elif artifact == "da_certificate":
+            da = _GovernedExactFullBlobPolicySatisfactionV2(
+                da._projection,
+                exact_blob_bytes=da._exact_blob_bytes,
+                exact_certificate_bytes=b"X" + da._exact_certificate_bytes[1:],
+                seal=operational_v2._GOVERNED_EXACT_FULL_BLOB_POLICY_SEAL_V2,
+            )
+        elif artifact == "finality_certificate":
+            finality = _AuthenticatedExactCheckpointFinalityTransitionV2(
+                finality._projection,
+                exact_certificate_bytes=b"X" + finality._exact_certificate_bytes[1:],
+                exact_finality_evidence_bytes=finality._exact_finality_evidence_bytes,
+                seal=(operational_v2._AUTHENTICATED_EXACT_CHECKPOINT_FINALITY_SEAL_V2),
+            )
+        else:
+            finality = _AuthenticatedExactCheckpointFinalityTransitionV2(
+                finality._projection,
+                exact_certificate_bytes=finality._exact_certificate_bytes,
+                exact_finality_evidence_bytes=(b"X" + finality._exact_finality_evidence_bytes[1:]),
+                seal=(operational_v2._AUTHENTICATED_EXACT_CHECKPOINT_FINALITY_SEAL_V2),
+            )
+        _bind_spot_v7_operational_commit_capability_v2(
+            settlement=settlement,
+            policy=policy,
+            data_availability=da,
+            finality=finality,
+        )
+
+
+def test_given_v2_precheck_then_in_transaction_recheck_failure_when_committing_then_no_rows_move(
+    tmp_path: Path,
+) -> None:
+    capability, policy = _governed_v2_capability()
+    store = _governed_store_v2(tmp_path, policy)
+    before = _database_rows(store.path)
+    original = capability._packet_for_atomic_store
+    calls = 0
+
+    def fail_second_recheck(
+        _capability: _SpotV7AtomicEconomicCommitCapabilityV2,
+    ) -> _TestOnlySpotV7OperationalCommitV1:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return original()
+        raise ValueError("injected in-transaction V2 binding drift")
+
+    with patch.object(
+        _SpotV7AtomicEconomicCommitCapabilityV2,
+        "_packet_for_atomic_store",
+        new=fail_second_recheck,
+    ):
+        with pytest.raises(
+            RuntimeError,
+            match="SPOT_V7_ATOMIC_SETTLEMENT_COMMIT_FAILED",
+        ):
+            store._commit_operational_capability(
+                expected_cursor=store.read_cursor(),
+                capability=capability,
+            )
+
+    assert calls == 2
+    assert _database_rows(store.path) == before
+    assert store.read_cursor().revision == 0
+
+
+def test_given_v2_failure_after_finality_cursor_cas_when_committing_then_every_row_rolls_back(
+    tmp_path: Path,
+) -> None:
+    capability, policy = _governed_v2_capability()
+    store = _governed_store_v2(tmp_path, policy)
+    before = _database_rows(store.path)
+
+    with patch.object(
+        store_module,
+        "_cas_spot_v7_meta",
+        side_effect=ValueError("injected after V2 finality cursor CAS"),
+    ):
+        with pytest.raises(
+            RuntimeError,
+            match="SPOT_V7_ATOMIC_SETTLEMENT_COMMIT_FAILED",
+        ):
+            store._commit_operational_capability(
+                expected_cursor=store.read_cursor(),
+                capability=capability,
+            )
+
+    assert _database_rows(store.path) == before
+    assert _operational_cursor(store.path) == (
+        _policy().genesis_application_checkpoint_sequence,
+        _policy().genesis_application_checkpoint_hash,
+    )
+
+
+def test_given_two_concurrent_v2_retries_when_committing_then_one_complete_row_set_exists(
+    tmp_path: Path,
+) -> None:
+    capability, policy = _governed_v2_capability()
+    store = _governed_store_v2(tmp_path, policy)
+    cursor = store.read_cursor()
+    barrier = Barrier(2)
+
+    def submit() -> SpotV7AtomicSettlementResultV1:
+        barrier.wait()
+        return store._commit_operational_capability(
+            expected_cursor=cursor,
+            capability=capability,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = tuple(executor.map(lambda _index: submit(), range(2)))
+
+    dispositions = tuple(result.disposition for result in results)
+    assert dispositions.count(SpotV7AtomicSettlementDispositionV1.COMMITTED) == 1
+    assert dispositions.count(SpotV7AtomicSettlementDispositionV1.IDEMPOTENT_REPLAY) == 1
+    assert all(result.settlement_authority is False for result in results)
+    assert all(result.production_authority is False for result in results)
+    with sqlite3.connect(store.path) as connection:
+        counts = tuple(
+            int(connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
+            for table in (
+                "spot_v7_settlements",
+                "spot_v7_operational_da",
+                "spot_v7_operational_finality",
+            )
+        )
+    assert counts == (1, 1, 1)
+
+
+def test_given_stale_v2_finality_cursor_when_committing_then_rejection_is_no_op(
+    tmp_path: Path,
+) -> None:
+    first_packet = _packet()
+    first_capability, policy = _governed_v2_capability(first_packet)
+    store = _governed_store_v2(tmp_path, policy)
+    first_result = store._commit_operational_capability(
+        expected_cursor=store.read_cursor(),
+        capability=first_capability,
+    )
+    assert first_result.committed is True
+    second_packet = _packet(
+        seed=200,
+        pre_state_root=first_packet._input.settlement.post_state_root,
+        values=(900, 5_100, 7_940, 85),
+        input_atoms=50,
+        output_atoms=30,
+    )
+    second_capability, _same_policy = _governed_v2_capability(second_packet)
+    before = _database_rows(store.path)
+
+    rejected = store._commit_operational_capability(
+        expected_cursor=store.read_cursor(),
+        capability=second_capability,
+    )
+
+    assert rejected.reject_reason is SpotV7AtomicSettlementRejectReasonV1.FINALITY_CURSOR_MISMATCH
+    assert _database_rows(store.path) == before
+
+
+def test_given_committed_v2_store_when_reopened_then_exact_governed_policy_is_required(
+    tmp_path: Path,
+) -> None:
+    capability, policy = _governed_v2_capability()
+    store = _governed_store_v2(tmp_path, policy)
+    committed = store._commit_operational_capability(
+        expected_cursor=store.read_cursor(),
+        capability=capability,
+    )
+    assert committed.committed is True
+
+    reopened = SQLiteSpotV7AtomicSettlementStoreV1(
+        store.path,
+        identity=_identity(),
+        genesis_cells=_initial_cells(),
+        governed_operational_policy=policy,
+    )
+
+    assert reopened.read_cursor() == committed.head_cursor
+    assert reopened.authority_false_v2_operational_sink_available is True
+    assert reopened.operational_commit_gate_available is False
+    assert reopened.settlement_authority is False
+    assert reopened.production_authority is False
+    with pytest.raises(RuntimeError, match="SPOT_V7_ATOMIC_SETTLEMENT_OPEN_FAILED"):
+        SQLiteSpotV7AtomicSettlementStoreV1(
+            store.path,
+            identity=_identity(),
+            genesis_cells=_initial_cells(),
+        )
+
+
 def test_combined_transaction_persists_economics_blob_certificate_and_finality(
     tmp_path: Path,
 ) -> None:
@@ -336,14 +780,10 @@ def test_combined_transaction_persists_economics_blob_certificate_and_finality(
         value.finality.next_application_checkpoint_hash,
     )
     cells = {cell.cell_key: cell for cell in store.read_cells()}
-    assert cells == {
-        row.post.cell_key: row.post for row in value.settlement.cell_transitions
-    }
+    assert cells == {row.post.cell_key: row.post for row in value.settlement.cell_transitions}
     with sqlite3.connect(store.path) as connection:
         da = connection.execute("SELECT * FROM spot_v7_operational_da").fetchone()
-        finality = connection.execute(
-            "SELECT * FROM spot_v7_operational_finality"
-        ).fetchone()
+        finality = connection.execute("SELECT * FROM spot_v7_operational_finality").fetchone()
         assert da is not None and finality is not None
         assert bytes(da[8]) == value.data_availability.exact_blob_bytes
         assert bytes(da[9]) == value.data_availability.exact_certificate_bytes
@@ -480,10 +920,7 @@ def test_concurrent_operational_retry_commits_one_complete_row_set(
 
     dispositions = tuple(result.disposition for result in results)
     assert dispositions.count(SpotV7AtomicSettlementDispositionV1.COMMITTED) == 1
-    assert (
-        dispositions.count(SpotV7AtomicSettlementDispositionV1.IDEMPOTENT_REPLAY)
-        == 1
-    )
+    assert dispositions.count(SpotV7AtomicSettlementDispositionV1.IDEMPOTENT_REPLAY) == 1
     with sqlite3.connect(store.path) as connection:
         counts = tuple(
             int(connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0])
@@ -531,11 +968,7 @@ def test_reused_operational_identity_rejects_without_partial_rows(
         output_atoms=30,
         prior_checkpoint_sequence=first_value.finality.next_application_checkpoint_sequence,
         prior_checkpoint_hash=first_value.finality.next_application_checkpoint_hash,
-        blob=(
-            first_value.data_availability.exact_blob_bytes
-            if duplicate == "blob"
-            else None
-        ),
+        blob=(first_value.data_availability.exact_blob_bytes if duplicate == "blob" else None),
         finality_evidence=(
             first_value.finality.exact_finality_evidence_bytes
             if duplicate == "finality_evidence"
@@ -683,22 +1116,21 @@ def test_operational_exact_artifact_hashes_are_persisted(tmp_path: Path) -> None
             "SELECT blob_sha256, certificate_sha256 FROM spot_v7_operational_da"
         ).fetchone()
         finality_hashes = connection.execute(
-            "SELECT certificate_sha256, evidence_sha256 "
-            "FROM spot_v7_operational_finality"
+            "SELECT certificate_sha256, evidence_sha256 FROM spot_v7_operational_finality"
         ).fetchone()
     assert da_hashes is not None and finality_hashes is not None
-    assert bytes(da_hashes[0]) == hashlib.sha256(
-        value.data_availability.exact_blob_bytes
-    ).digest()
-    assert bytes(da_hashes[1]) == hashlib.sha256(
-        value.data_availability.exact_certificate_bytes
-    ).digest()
-    assert bytes(finality_hashes[0]) == hashlib.sha256(
-        value.finality.exact_certificate_bytes
-    ).digest()
-    assert bytes(finality_hashes[1]) == hashlib.sha256(
-        value.finality.exact_finality_evidence_bytes
-    ).digest()
+    assert bytes(da_hashes[0]) == hashlib.sha256(value.data_availability.exact_blob_bytes).digest()
+    assert (
+        bytes(da_hashes[1])
+        == hashlib.sha256(value.data_availability.exact_certificate_bytes).digest()
+    )
+    assert (
+        bytes(finality_hashes[0]) == hashlib.sha256(value.finality.exact_certificate_bytes).digest()
+    )
+    assert (
+        bytes(finality_hashes[1])
+        == hashlib.sha256(value.finality.exact_finality_evidence_bytes).digest()
+    )
 
 
 def test_python_operational_hashes_and_postcard_match_exact_rust_vector() -> None:
@@ -770,9 +1202,7 @@ def test_python_operational_hashes_and_postcard_match_exact_rust_vector() -> Non
         policy_root=policy.checkpoint_finality_policy_root,
         certificate_root=finality_root,
     )
-    assert finality_root == (
-        "0x1b6d5c7962859d467abe1cda70fdf4328f9c23959caf30a1866b148956d49e51"
-    )
+    assert finality_root == ("0x1b6d5c7962859d467abe1cda70fdf4328f9c23959caf30a1866b148956d49e51")
     assert len(finality_bytes) == 419
     assert hashlib.sha256(finality_bytes).hexdigest() == (
         "a3812dbfdecfa716f73ec70eb0b8986e693851d9fa268b9c998540a2743a81fa"
@@ -811,10 +1241,7 @@ def test_rust_parity_vector_source_closure_is_exact() -> None:
         ),
     }
 
-    observed = {
-        path: hashlib.sha256((root / path).read_bytes()).hexdigest()
-        for path in expected
-    }
+    observed = {path: hashlib.sha256((root / path).read_bytes()).hexdigest() for path in expected}
 
     assert observed == expected
 

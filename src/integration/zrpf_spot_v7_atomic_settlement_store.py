@@ -1,10 +1,12 @@
-"""Serializable SQLite implementation of test-only sealed Spot V7 mechanics.
+"""Serializable SQLite implementation of authority-false sealed Spot V7 mechanics.
 
 Executable tests establish that replay identities, authorization nullifiers,
 exact artifacts, economic cell updates, and the root cursor commit together or
-roll back together on the supported SQLite profile.  The only sink accepts a
-module-sealed, permanently non-authoritative test candidate.  Raw verifier
-output, a JSON report, or caller booleans have no admission entrypoint.
+roll back together on the supported SQLite profile. The V2 operational sink
+accepts only four pre-sealed prerequisites and rechecks their exact binding
+under its write transaction. Raw verifier output, JSON reports, caller
+booleans, and artifact bytes have no admission entrypoint. All authority
+columns remain constrained to zero.
 """
 
 from __future__ import annotations
@@ -46,9 +48,12 @@ from src.integration._zrpf_spot_v7_atomic_settlement_schema import (
 from src.integration._zrpf_spot_v7_firecracker_authority import (
     _GovernedFirecrackerSpotV7SettlementV1,
 )
+from src.integration._zrpf_spot_v7_operational_capability_v2 import (
+    _GovernedSpotV7OperationalPolicyV2,
+    _SpotV7AtomicEconomicCommitCapabilityV2,
+)
 from src.integration._zrpf_spot_v7_operational_gate import (
     _require_spot_v7_operational_commit_authority_available_v1,
-    _SpotV7AtomicEconomicCommitCapabilityV1,
 )
 from src.integration._zrpf_spot_v7_operational_mechanics import (
     _TestOnlySpotV7OperationalCommitV1,
@@ -84,6 +89,7 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
         "_genesis_cells",
         "_identity",
         "_path",
+        "_governed_operational_policy",
         "_test_only_operational_policy",
     )
 
@@ -91,6 +97,7 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
     _genesis_cells: tuple[SpotV7CellOpeningV1, ...]
     _identity: SpotV7AtomicSettlementStoreIdentityV1
     _path: Path
+    _governed_operational_policy: _GovernedSpotV7OperationalPolicyV2 | None
     _test_only_operational_policy: _TestOnlySpotV7OperationalPolicyV1 | None
 
     def __init__(
@@ -100,6 +107,7 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
         identity: SpotV7AtomicSettlementStoreIdentityV1,
         genesis_cells: tuple[SpotV7CellOpeningV1, ...],
         test_only_operational_policy: _TestOnlySpotV7OperationalPolicyV1 | None = None,
+        governed_operational_policy: _GovernedSpotV7OperationalPolicyV2 | None = None,
         busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS,
     ) -> None:
         _validate_constructor_inputs(
@@ -107,6 +115,7 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
             identity,
             genesis_cells,
             test_only_operational_policy,
+            governed_operational_policy,
             busy_timeout_ms,
         )
         object.__setattr__(self, "_path", path)
@@ -114,6 +123,11 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
         object.__setattr__(self, "_genesis_cells", genesis_cells)
         object.__setattr__(self, "_busy_timeout_ms", busy_timeout_ms)
         object.__setattr__(self, "_test_only_operational_policy", test_only_operational_policy)
+        object.__setattr__(self, "_governed_operational_policy", governed_operational_policy)
+        configured_policy = _configured_operational_policy(
+            test_only_operational_policy,
+            governed_operational_policy,
+        )
         try:
             _require_private_parent(path.parent)
             _create_private_database_file(path)
@@ -127,7 +141,7 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
                 _initialize_or_validate_test_only_operational_policy(
                     connection,
                     identity=identity,
-                    policy=test_only_operational_policy,
+                    policy=configured_policy,
                 )
                 _validate_complete_spot_v7_history(connection)
                 connection.commit()
@@ -160,6 +174,10 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
     @property
     def operational_commit_gate_available(self) -> bool:
         return False
+
+    @property
+    def authority_false_v2_operational_sink_available(self) -> bool:
+        return self._governed_operational_policy is not None
 
     @property
     def test_only_operational_mechanics_available(self) -> bool:
@@ -273,6 +291,8 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
             raise TypeError("capability must be exact test-only Spot V7 operational commit")
         if not capability._has_private_test_seal():
             raise TypeError("test-only operational commit lacks its module-private seal")
+        if self._governed_operational_policy is not None:
+            raise TypeError("test-only operational commits cannot enter a governed V2 store")
         connection: sqlite3.Connection | None = None
         try:
             connection = self._connect()
@@ -326,24 +346,52 @@ class SQLiteSpotV7AtomicSettlementStoreV1:
         *,
         expected_cursor: SpotV7AtomicSettlementCursorV1,
         capability: object,
-    ) -> None:
-        """Reserved production sink after authority-false mechanics exist.
+    ) -> SpotV7AtomicSettlementResultV1:
+        """Commit one pre-sealed V2 packet while keeping all authority false.
 
-        Schema revision two can atomically persist the exact blob, DA and
-        finality certificates, checkpoint cursor, replay identities, and
-        economic state. Production minting remains closed until governed V7,
-        DA-policy, external-finality, and release-bound Firecracker adapters
-        construct this distinct authority capability.
+        The capability is fully recomposed once before SQLite is opened and
+        again after ``BEGIN IMMEDIATE``. The second pass binds the exact stored
+        policy and checkpoint cursor under the same transaction as economics,
+        replay identities, DA bytes, finality evidence, and both cursor updates.
         """
 
         if type(expected_cursor) is not SpotV7AtomicSettlementCursorV1:
             raise TypeError("expected_cursor must be exact SpotV7AtomicSettlementCursorV1")
-        if type(capability) is not _SpotV7AtomicEconomicCommitCapabilityV1:
-            raise TypeError("capability must be a Spot V7 atomic economic commit capability")
+        if type(capability) is not _SpotV7AtomicEconomicCommitCapabilityV2:
+            raise TypeError("capability must be an exact Spot V7 V2 operational commit")
         operational = capability
         if not operational._has_private_seal():
-            raise TypeError("capability lacks the module-private atomic commit seal")
-        _require_spot_v7_operational_commit_authority_available_v1()
+            raise TypeError("V2 operational capability lacks its module-private seal")
+        governed_policy = self._governed_operational_policy
+        if governed_policy is None:
+            raise TypeError("store lacks its governed V2 operational policy")
+        preflight_packet = operational._packet_for_atomic_store()
+        _require_v2_policy_match(governed_policy, preflight_packet)
+        connection: sqlite3.Connection | None = None
+        try:
+            connection = self._connect()
+            connection.execute("BEGIN IMMEDIATE")
+            _validate_spot_v7_schema(connection)
+            _validate_complete_spot_v7_history(connection)
+            transaction_packet = operational._packet_for_atomic_store()
+            _require_v2_policy_match(governed_policy, transaction_packet)
+            return self._evaluate_and_commit_operational_locked(
+                connection,
+                expected_cursor=expected_cursor,
+                capability=transaction_packet,
+            )
+        except SpotV7AtomicSettlementStoreErrorV1:
+            _rollback_if_needed(connection)
+            raise
+        except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
+            _rollback_if_needed(connection)
+            raise SpotV7AtomicSettlementStoreErrorV1(
+                "SPOT_V7_ATOMIC_SETTLEMENT_COMMIT_FAILED",
+                str(exc),
+            ) from exc
+        finally:
+            if connection is not None:
+                connection.close()
 
     def _evaluate_and_commit_locked(
         self,
@@ -506,6 +554,7 @@ def _validate_constructor_inputs(
     identity: SpotV7AtomicSettlementStoreIdentityV1,
     genesis_cells: tuple[SpotV7CellOpeningV1, ...],
     test_only_operational_policy: _TestOnlySpotV7OperationalPolicyV1 | None,
+    governed_operational_policy: _GovernedSpotV7OperationalPolicyV2 | None,
     busy_timeout_ms: int,
 ) -> None:
     if not isinstance(path, Path) or not path.is_absolute():
@@ -521,11 +570,44 @@ def _validate_constructor_inputs(
         and type(test_only_operational_policy) is not _TestOnlySpotV7OperationalPolicyV1
     ):
         raise TypeError(
-            "test_only_operational_policy must be exact "
-            "_TestOnlySpotV7OperationalPolicyV1 or None"
+            "test_only_operational_policy must be exact _TestOnlySpotV7OperationalPolicyV1 or None"
         )
+    if (
+        governed_operational_policy is not None
+        and type(governed_operational_policy) is not _GovernedSpotV7OperationalPolicyV2
+    ):
+        raise TypeError(
+            "governed_operational_policy must be exact _GovernedSpotV7OperationalPolicyV2 or None"
+        )
+    if test_only_operational_policy is not None and governed_operational_policy is not None:
+        raise ValueError("test-only and governed operational policies are mutually exclusive")
+    if governed_operational_policy is not None:
+        if not governed_operational_policy._has_private_seal():
+            raise TypeError("governed operational policy lacks its private seal")
+        governed_operational_policy._policy_for_atomic_store()
     if type(busy_timeout_ms) is not int or not 1 <= busy_timeout_ms <= MAX_BUSY_TIMEOUT_MS:
         raise ValueError(f"busy_timeout_ms must be in 1..{MAX_BUSY_TIMEOUT_MS}")
+
+
+def _configured_operational_policy(
+    test_only_policy: _TestOnlySpotV7OperationalPolicyV1 | None,
+    governed_policy: _GovernedSpotV7OperationalPolicyV2 | None,
+) -> _TestOnlySpotV7OperationalPolicyV1 | None:
+    if governed_policy is not None:
+        return governed_policy._policy_for_atomic_store()
+    return test_only_policy
+
+
+def _require_v2_policy_match(
+    governed_policy: _GovernedSpotV7OperationalPolicyV2,
+    packet: _TestOnlySpotV7OperationalCommitV1,
+) -> None:
+    if type(packet) is not _TestOnlySpotV7OperationalCommitV1:
+        raise TypeError("V2 operational capability produced the wrong store packet type")
+    if not packet._has_private_test_seal():
+        raise TypeError("V2 operational store packet lacks its private mechanics seal")
+    if packet._input.policy != governed_policy._policy_for_atomic_store():
+        raise ValueError("V2 operational packet policy differs from the governed store policy")
 
 
 def _reject_locked(

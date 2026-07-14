@@ -172,6 +172,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/_zrpf_spot_v7_atomic_settlement_records.py",
         "src/integration/_zrpf_spot_v7_atomic_settlement_schema.py",
         "src/integration/_zrpf_spot_v7_operational_gate.py",
+        "src/integration/_zrpf_spot_v7_operational_capability_v2.py",
         "src/integration/_zrpf_spot_v7_operational_mechanics.py",
         "src/integration/_zrpf_spot_v7_operational_store.py",
         "src/integration/zrpf_spot_v7_atomic_settlement_store.py",
