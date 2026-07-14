@@ -185,7 +185,9 @@ def test_every_policy_field_changes_the_manifest_digest() -> None:
             continue
         mutated = copy.deepcopy(baseline)
         original = mutated[field]
-        if type(original) is int:
+        if field == "maximum_blob_bytes":
+            mutated[field] = int(original) - 1
+        elif type(original) is int:
             mutated[field] = int(original) + 1
         elif field == "authority_manifest_sha256":
             mutated[field] = f"{index:064x}"
