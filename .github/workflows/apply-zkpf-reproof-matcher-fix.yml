@@ -1,3 +1,4 @@
+# Temporary self-removing repair workflow. The resulting branch does not retain this file.
 name: apply-zkpf-reproof-matcher-fix
 
 on:
