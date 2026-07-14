@@ -262,6 +262,8 @@ jobs:
             tools/materialize_zrpf_v6_settlement_child_into_v7.py \
             tools/materialize_zrpf_source_opened_spot_v6_identity.py \
             tools/plan_zrpf_spot_v7_release_closure.py \
+            tools/plan_zrpf_remote_reproof_handoff_v2.py \
+            tools/zrpf_remote_reproof_handoff_v2_catalog.py \
             tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tools/recover_zrpf_v6_identity_build_lease.py \
             tools/run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
@@ -331,6 +333,7 @@ jobs:
             tests/test_execute_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tests/test_materialize_zrpf_v6_settlement_child_into_v7.py \
             tests/test_materialize_zrpf_source_opened_spot_v6_identity.py \
+            tests/test_plan_zrpf_remote_reproof_handoff_v2.py \
             tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
             tests/test_zrpf_spot_v7_firecracker_artifact_binding.py \
@@ -501,6 +504,8 @@ jobs:
             tools/materialize_zrpf_v6_settlement_child_into_v7.py \
             tools/materialize_zrpf_source_opened_spot_v6_identity.py \
             tools/plan_zrpf_spot_v7_release_closure.py \
+            tools/plan_zrpf_remote_reproof_handoff_v2.py \
+            tools/zrpf_remote_reproof_handoff_v2_catalog.py \
             tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tools/recover_zrpf_v6_identity_build_lease.py \
             tools/run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
@@ -602,6 +607,7 @@ jobs:
             tests/test_execute_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tests/test_materialize_zrpf_v6_settlement_child_into_v7.py \
             tests/test_materialize_zrpf_source_opened_spot_v6_identity.py \
+            tests/test_plan_zrpf_remote_reproof_handoff_v2.py \
             tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
             tests/test_zrpf_spot_v7_firecracker_artifact_binding.py \

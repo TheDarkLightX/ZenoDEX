@@ -1,0 +1,370 @@
+# ZRPF remote reproof handoff V2 CBC specification
+
+Status: implemented planner, per-stage exact-input packet builder, and return
+checker. Remote execution adapters are intentionally missing. The mutation
+worker and bundle-aware release checker command templates are explicitly
+planned.
+
+The closed task/artifact catalog lives in
+`tools/zrpf_remote_reproof_handoff_v2_catalog.py`. Parsing, content addressing,
+Git ancestry, capture, and return validation live in
+`tools/plan_zrpf_remote_reproof_handoff_v2.py`. This keeps declarative workflow
+changes separate from the authority-bound checker.
+
+Scope: one fresh current-source, singleton Spot proof chain from the source
+receipt through the V2 adapter, V6 leaf/L1/L2/settlement receipts, and the V7
+settlement receipt. This object coordinates expensive work on another machine.
+It does not generate or verify a proof by itself.
+
+## Claim boundary
+
+A successfully checked return establishes only these metadata facts:
+
+1. The handoff contract is derived from one exact C0 commit, Git tree, tracked
+   workspace inventory, source-guest inventory, toolchain identity, and build
+   image identity.
+2. Every task and artifact contract has a domain-separated content identity.
+3. The returned artifact inventory is complete, unique, bounded, regular-file
+   only, and byte-bound by SHA-256 and size.
+4. Each execution packet commits to the declared exact G commit/tree, proof
+   profile, exact current input artifact IDs, and task ID before the task's
+   output is captured.
+5. Each task-capture record commits to the execution packet, identity binding,
+   output artifact IDs, and task ID without claiming that the command ran.
+6. C1, C2, and G each have exactly one literal parent and form the exact chain
+   `C0 -> C1 -> C2 -> G`. Replacement refs and grafts reject.
+   G must equal the exact worker commit and tree fixed by the handoff.
+7. The source-derived identity plan, observations, and candidate report pass
+   the existing governed recomposition checker. Source-through-V6 program and
+   source-CLI artifact bytes match that report.
+8. Every authority field remains false.
+
+The checker does not establish:
+
+```text
+proof validity
+historical execution provenance
+operator authorization or task-packet freshness
+pre-packet substitution of external input bytes
+same-handoff same-byte stale replay detection
+coherent checker, catalog, and expected-policy redefinition
+program image-ID recomputation
+complete build-input closure
+cross-host reproducible builds
+data availability or retrievability
+finality
+ledger admission
+release authority
+settlement authority
+production authority
+```
+
+Program image IDs in a return bundle are worker-reported exact identities. The
+source-through-V6 IDs must equal the governed identity-rebuild report. The V7
+ID remains only worker-reported. A separately governed r0vm/verifier and
+release-closure check must recompute every final identity before promotion.
+Content IDs protect against data-only substitution under the reviewed checker.
+They cannot protect against a coherent edit that changes the checker, catalog,
+and expected policy together. Those code and policy changes require independent
+review plus a separately governed release anchor.
+
+## Authority progression
+
+```text
+exact C0 source identity
+  -> content-addressed task contracts
+  -> bounded external artifacts
+  -> literal C0/C1/C2/G ancestry
+  -> content-addressed exact-input execution packets
+  -> content-addressed task captures
+  -> authority-neutral return bundle
+  -> separate proof and release verification
+  -> no ledger authority
+```
+
+The task packet, worker, artifact paths, reports, commit messages, and supplied
+program image IDs can propose facts. None can grant proof or settlement
+authority.
+
+## Bounded task DAG
+
+The task order is fixed:
+
+```text
+identity_rebuild
+  -> ancestry_materialization
+  -> worker_prover_build
+  -> source_spot_proof
+  -> v2_adapter_receipt
+  -> v6_leaf_receipt
+  -> v6_l1_receipt
+  -> v6_l2_receipt
+  -> v6_settlement_receipt
+  -> v7_receipt
+  -> mutation_verification
+  -> release_checks
+```
+
+This ordering closes the previous Mac handoff dependency gap. A source proof
+and V2 adapter receipt are explicit prerequisites. The V6 leaf cannot become
+ready when the adapter receipt is absent. After an execution packet has been
+created, its downstream task capture binds the exact packet input artifact IDs.
+The packet is an unkeyed deterministic commitment. It does not authenticate an
+operator, prove freshness, detect external-input substitution that happened
+before packet creation, or distinguish a same-handoff replay of the same bytes.
+A future trusted-controller signature or external anchor and initial expected
+digests are required for those claims.
+
+`mutation_verification` is intentionally marked `template_planned` in this
+revision.
+The existing V7 prover already emits and rejects its V7 mutation, and the V6
+settlement prover emits its settlement mutation. A follow-up bounded worker
+must create and reject the V6 leaf, L1, and L2 mutations and emit the unified
+report. Until that worker exists, the task-state projection remains blocked and
+the automated handoff is incomplete. `release_checks` is also
+`template_planned`: the existing release checker operates on repository paths
+and does not yet consume this returned proof/mutation bundle. Manually supplied
+bytes can still be captured as authority-neutral metadata; capture does not
+prove they were produced by the declared task.
+
+Every task carries `execution_adapter_status = missing`. Existing commands are
+recorded as templates where available. No generic placeholder resolver,
+process sandbox, Cargo-output collector, V7 ELF extractor, or bounded output
+stager exists in this revision, so the task-state projection cannot call any
+stage ready for automated execution.
+
+## Artifact contract
+
+Every artifact contract fixes:
+
+```text
+role
+relative path
+kind
+producer stage
+maximum bytes
+contract ID
+```
+
+The contract ID is:
+
+```text
+SHA256(
+  "zenodex/zrpf_remote_reproof_artifact_contract_id/v2\0"
+  || canonical_json(contract_with_zero_id)
+)
+```
+
+Every returned artifact record fixes:
+
+```text
+contract ID
+role
+relative path
+SHA-256
+size
+producer stage
+artifact ID
+```
+
+Artifact reads use a descriptor-relative, `O_NOFOLLOW` walk beneath the opened
+artifact root. They reject missing or empty files, special files, hard links,
+symlinks, path escape, mutation during read, excess per-file size, and excess
+aggregate inventory. The return inventory must match the handoff inventory in
+the same canonical order. Missing, duplicate, surplus, or substituted records
+reject.
+
+## Task contract
+
+Every task fixes:
+
+```text
+stage and ordinal
+dependency stages
+source-binding ID
+proof-profile ID
+input artifact-contract IDs
+output artifact-contract IDs
+ordered command invocations
+stdin and stdout artifact roles
+success predicates
+resource class
+command-template status
+execution-adapter status
+false authority map
+non-claims
+task ID
+```
+
+The command records are execution templates. `@name` values are typed
+substitutions reserved for a future bounded worker. They are not interpreted
+by a shell. An implementation must construct an argv vector directly and map
+each artifact role to its already-validated path. Template availability does
+not make the task executable.
+
+The per-stage execution packet adds facts that are unavailable when the initial
+handoff is planned:
+
+```text
+handoff and task IDs
+exact G commit and tree
+proof-profile ID
+ordered input artifact IDs
+```
+
+The task-capture identity later commits the execution-packet ID, the validated
+identity-binding ID, and ordered output artifact IDs. It is named a capture
+because these records do not prove historical command execution.
+The capture also does not prove who created or preserved the packet, operator
+intent, or packet freshness.
+
+## Literal ancestry
+
+The ancestry checker reads raw commit objects with:
+
+```text
+/usr/bin/git cat-file commit <commit>
+```
+
+It requires exactly one `parent` header for C1, C2, and G and exact equality to
+the preceding governed commit. G must also equal the handoff's worker commit
+and tree. It does not use reachability as a substitute for direct parentage.
+Git replacement refs and nonempty graft files under the Git common directory
+reject, including from linked worktrees. The V2 ancestry reads use bounded
+streaming capture, disable lazy fetching and terminal prompts, forbid transport
+protocols, and kill the complete command process group during cleanup. Missing
+objects therefore reject locally instead of consulting a promisor remote.
+
+The inherited identity-rebuild planner still uses post-hoc bounded Git capture
+for its repository inventory. The handoff calls that planner during build and
+validation, so the complete path does not yet claim pre-allocation bounds or
+no-lazy-fetch behavior for a hostile C0 object graph. All authority remains
+false until that inherited boundary is hardened or executed only over an
+independently trusted local source snapshot.
+
+The intended interpretation is:
+
+```text
+C0: final source before V6 identity materialization
+C1: exact V6 identity materialization
+C2: exact V7 child-policy pin
+G:  fixed governance/evidence commit
+```
+
+The existing post-pin governance and release-closure checkers remain the
+semantic authority for these transitions. This handoff independently enforces
+the literal graph shape and binds their returned bytes.
+
+## Commands
+
+Generate a handoff only after choosing exact C0 and worker commits:
+
+```bash
+python3 tools/plan_zrpf_remote_reproof_handoff_v2.py plan \
+  --repository "$PWD" \
+  --c0-commit "$C0" \
+  --worker-commit "$WORKER" \
+  --output /private/handoff.json
+```
+
+The output path must begin absent. The generated handoff is canonical ASCII
+JSON with a trailing newline.
+
+Before each task, after its exact inputs exist, create its canonical execution
+packet. For example:
+
+```bash
+python3 tools/plan_zrpf_remote_reproof_handoff_v2.py prepare-task \
+  --repository "$PWD" \
+  --handoff /private/handoff.json \
+  --artifact-root /private/zrpf-return \
+  --stage v2_adapter_receipt \
+  --c0-commit "$C0" --c1-commit "$C1" --c2-commit "$C2" \
+  --governance-commit "$G" \
+  --output /private/execution-packets/04-v2_adapter_receipt.json
+```
+
+The governed filename is `<two-digit ordinal>-<stage ID>.json`. The final
+capture requires exactly one packet for every task. A packet proves input-byte
+binding only. It does not prove when or whether execution occurred.
+
+After all artifacts exist, prepare canonical program-image input bytes:
+
+```json
+{"source_program":"<64 hex>","v2_adapter_program":"<64 hex>","v6_l1_program":"<64 hex>","v6_l2_program":"<64 hex>","v6_leaf_program":"<64 hex>","v6_settlement_program":"<64 hex>","v7_program":"<64 hex>"}
+```
+
+Capture the returned inventory:
+
+```bash
+python3 tools/plan_zrpf_remote_reproof_handoff_v2.py capture-return \
+  --repository "$PWD" \
+  --handoff /private/handoff.json \
+  --artifact-root /private/zrpf-return \
+  --execution-packet-directory /private/execution-packets \
+  --program-image-ids /private/program-image-ids.json \
+  --c0-commit "$C0" \
+  --c1-commit "$C1" \
+  --c2-commit "$C2" \
+  --governance-commit "$G" \
+  --output /private/return-bundle.json
+```
+
+Check it independently:
+
+```bash
+python3 tools/plan_zrpf_remote_reproof_handoff_v2.py check-return \
+  --repository "$PWD" \
+  --handoff /private/handoff.json \
+  --bundle /private/return-bundle.json \
+  --artifact-root /private/zrpf-return
+```
+
+An accepted checker response still carries an all-false authority map.
+
+## Required failure detectors
+
+The focused tests require rejection or blocking for:
+
+```text
+missing source-proof task
+missing source proof before V2 adapter
+missing V2 adapter receipt before V6 leaf
+stale handoff ID
+substituted task ID
+governance commit/tree different from the handoff worker
+identity-plan hash substitution
+identity observations or candidate-report recomposition failure
+execution input changed after packet creation
+missing or surplus execution packet
+wrong literal parent
+merge commit in the governed direct-parent chain
+missing returned artifact
+duplicate returned artifact
+artifact-byte substitution
+duplicate or noncanonical JSON
+integer-for-Boolean and Boolean-for-integer substitution
+oversized Git commit object
+lazy-fetch attempt from a partial clone
+descendant process retaining Git output pipes
+aggregate artifact bytes above the governed cap
+```
+
+## Promotion sequence
+
+1. Merge this planner/checker only after focused Python checks and independent
+   review.
+2. Implement the typed placeholder resolver, process boundary, and bounded
+   output stager. Change `execution_adapter_status` only after its own negative
+   controls pass.
+3. Implement the bounded unified V6/V7 mutation worker.
+4. Implement a bundle-aware release checker that consumes the exact returned
+   identity, proof, mutation, and runtime artifacts.
+5. Generate a handoff from the final integration C0 and worker G commit.
+6. Run the expensive tasks on the Mac or a remote host.
+7. Check the returned bundle independently.
+8. Run exact cryptographic replay, program identity recomputation, release
+   closure, production-boundary, DA, finality, and atomic-admission gates.
+
+No step in this specification changes the current false production, release,
+or settlement claims.

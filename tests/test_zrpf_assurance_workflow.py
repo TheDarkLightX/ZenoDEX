@@ -165,6 +165,9 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tests/test_check_zrpf_current_source_adapter_v2.py" in python_assurance
     assert "tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py" in python_assurance
     assert "tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py" in python_assurance
+    assert "tools/plan_zrpf_remote_reproof_handoff_v2.py" in python_assurance
+    assert "tools/zrpf_remote_reproof_handoff_v2_catalog.py" in python_assurance
+    assert "tests/test_plan_zrpf_remote_reproof_handoff_v2.py" in python_assurance
     assert "tools/check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tools/check_risc0_recursive_live_replay.py" in python_assurance
