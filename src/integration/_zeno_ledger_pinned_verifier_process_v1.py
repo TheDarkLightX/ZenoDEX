@@ -111,7 +111,7 @@ def install_socket_deny_filter(libc, audit_arch, socket_syscall):
 
 
 def main():
-    if len(sys.argv) != 9:
+    if len(sys.argv) != 10:
         raise RuntimeError("invalid pre-exec launcher argument count")
     executable_fd = int(sys.argv[1])
     timeout_seconds = int(sys.argv[2])
@@ -121,13 +121,14 @@ def main():
     audit_arch = int(sys.argv[6])
     socket_syscall = int(sys.argv[7])
     process_count = int(sys.argv[8])
+    max_file_size_bytes = int(sys.argv[9])
     os.umask(0o077)
     close_unexpected_fds(executable_fd)
     set_limit(resource.RLIMIT_AS, address_space_bytes)
     set_limit(resource.RLIMIT_STACK, stack_bytes)
     set_limit(resource.RLIMIT_CPU, timeout_seconds + 1)
     set_limit(resource.RLIMIT_CORE, 0)
-    set_limit(resource.RLIMIT_FSIZE, 2 * 1024 * 1024)
+    set_limit(resource.RLIMIT_FSIZE, max_file_size_bytes)
     set_limit(resource.RLIMIT_NOFILE, open_files)
     set_limit(resource.RLIMIT_NPROC, process_count)
     libc = ctypes.CDLL(None, use_errno=True)
@@ -145,7 +146,13 @@ def main():
     os.execve(
         path,
         [path],
-        {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "TZ": "UTC"},
+        {
+            "PATH": "/usr/bin:/bin",
+            "LANG": "C",
+            "LC_ALL": "C",
+            "RISC0_DEV_MODE": "0",
+            "TZ": "UTC",
+        },
     )
 
 
@@ -177,6 +184,7 @@ class PinnedVerifierProcessFailure(str, Enum):
 class PinnedVerifierProcessError(ValueError):
     def __init__(self, reason: PinnedVerifierProcessFailure, detail: str) -> None:
         self.reason = reason
+        self.detail = detail
         super().__init__(f"{reason.value}: {detail}")
 
 
@@ -189,8 +197,13 @@ def execute_pinned_verifier_once(
     timeout_seconds: int,
     max_address_space_bytes: int,
     max_stack_bytes: int,
+    max_stdout_bytes: int = MAX_VERIFIER_STDOUT_BYTES,
+    max_stderr_bytes: int = MAX_VERIFIER_STDERR_BYTES,
 ) -> bytes:
     """Snapshot, execute once, bound outputs, and tear down the verifier."""
+
+    _validate_output_limit(max_stdout_bytes, label="stdout")
+    _validate_output_limit(max_stderr_bytes, label="stderr")
 
     executable_fd: int | None = None
     process: subprocess.Popen[bytes] | None = None
@@ -212,6 +225,7 @@ def execute_pinned_verifier_once(
                 timeout_seconds=timeout_seconds,
                 max_address_space_bytes=max_address_space_bytes,
                 max_stack_bytes=max_stack_bytes,
+                max_file_size_bytes=max(max_stdout_bytes, max_stderr_bytes),
             )
             process.communicate(input=request_bytes, timeout=timeout_seconds)
             return_code = process.returncode
@@ -219,12 +233,12 @@ def execute_pinned_verifier_once(
             process = None
             stdout = _read_bounded_output(
                 stdout_file,
-                max_bytes=MAX_VERIFIER_STDOUT_BYTES,
+                max_bytes=max_stdout_bytes,
                 label="stdout",
             )
             stderr = _read_bounded_output(
                 stderr_file,
-                max_bytes=MAX_VERIFIER_STDERR_BYTES,
+                max_bytes=max_stderr_bytes,
                 label="stderr",
             )
             if return_code != 0:
@@ -267,6 +281,7 @@ def _start_verifier(
     timeout_seconds: int,
     max_address_space_bytes: int,
     max_stack_bytes: int,
+    max_file_size_bytes: int,
 ) -> subprocess.Popen[bytes]:
     audit_arch, socket_syscall = _seccomp_socket_profile()
     return subprocess.Popen(
@@ -284,6 +299,7 @@ def _start_verifier(
             str(audit_arch),
             str(socket_syscall),
             str(MAX_VERIFIER_PROCESSES),
+            str(max_file_size_bytes),
         ],
         stdin=subprocess.PIPE,
         stdout=stdout_file,
@@ -292,8 +308,19 @@ def _start_verifier(
         close_fds=True,
         pass_fds=(executable_fd,),
         cwd="/",
-        env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "TZ": "UTC"},
+        env={
+            "PATH": "/usr/bin:/bin",
+            "LANG": "C",
+            "LC_ALL": "C",
+            "RISC0_DEV_MODE": "0",
+            "TZ": "UTC",
+        },
     )
+
+
+def _validate_output_limit(value: int, *, label: str) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"max verifier {label} bytes must be a positive int")
 
 
 def _seccomp_socket_profile() -> tuple[int, int]:
