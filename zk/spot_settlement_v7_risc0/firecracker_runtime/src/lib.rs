@@ -1,10 +1,35 @@
 //! Authority-neutral Spot V7 Firecracker binary protocol.
 //!
-//! This crate deliberately excludes the retained V3 profile and its report
-//! type. The nested V7 decoder checks structural framing and selected hash
-//! associations; it does not decode Plan B semantics. A decoded payload and
-//! committed output remain data until a future guest verifies the actual V7
-//! and V6 receipts under a governed runtime.
+//! The default protocol surface deliberately excludes the retained V3 profile
+//! and its report type. Its nested V7 decoder checks structural framing and
+//! selected hash associations; it does not decode Plan B semantics. The
+//! separate `authority-verifier` feature lets the authority PID-1 call the
+//! sealed V7 verifier and derive this same data-only payload. No payload or
+//! committed output grants release, settlement, or production authority.
+
+mod authority_input_v1;
+
+#[cfg(feature = "authority-verifier")]
+mod authority_verifier_v1;
+
+pub use authority_input_v1::{
+    SpotV7FirecrackerAuthorityInputErrorV1, SpotV7FirecrackerAuthorityInputManifestV1,
+    SPOT_V7_FIRECRACKER_AUTHORITY_INPUT_MANIFEST_BYTES_V1,
+    SPOT_V7_FIRECRACKER_AUTHORITY_INPUT_PROFILE_DESCRIPTOR_V1,
+    SPOT_V7_FIRECRACKER_AUTHORITY_INPUT_PROFILE_SHA256_V1,
+    SPOT_V7_FIRECRACKER_AUTHORITY_MAX_GUEST_INPUT_BYTES_V1,
+    SPOT_V7_FIRECRACKER_AUTHORITY_MAX_V6_RECEIPT_BYTES_V1,
+    SPOT_V7_FIRECRACKER_AUTHORITY_MAX_V7_RECEIPT_BYTES_V1,
+};
+
+#[cfg(feature = "authority-verifier")]
+pub use authority_verifier_v1::{
+    derive_governed_spot_v7_authority_payload_v1, SpotV7FirecrackerAuthorityVerificationErrorV1,
+    SPOT_V7_FIRECRACKER_AUTHORITY_PID1_LIVE_RUNNER_AUTHORITY_V1,
+    SPOT_V7_FIRECRACKER_AUTHORITY_PID1_PRODUCTION_READY_V1,
+    SPOT_V7_FIRECRACKER_AUTHORITY_PID1_RELEASE_AUTHORITY_V1,
+    SPOT_V7_FIRECRACKER_AUTHORITY_PID1_SETTLEMENT_AUTHORITY_V1,
+};
 
 use std::fmt;
 use std::fs::File;

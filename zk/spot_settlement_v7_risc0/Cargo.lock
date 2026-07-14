@@ -3687,6 +3687,9 @@ dependencies = [
  "hex",
  "rustix",
  "sha2",
+ "zenodex-zrpf-risc0-spot-settlement-v7-child-policy",
+ "zenodex-zrpf-risc0-spot-settlement-v7-methods",
+ "zenodex-zrpf-risc0-spot-settlement-v7-verifier",
 ]
 
 [[package]]
