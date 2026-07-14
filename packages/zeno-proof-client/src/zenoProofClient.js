@@ -28,8 +28,16 @@ const BUNDLE_KEYS_V0 = [
 const VERIFICATION_SUMMARY_KEYS_V0 = [
   'schema',
   'builder_id',
+  'proof_authority_required',
+  'proof_authority_satisfied',
+  'proof_authority_capable',
+  'settlement_authority',
+  'production_authority',
+  'python_structural_range_verified',
   'python_range_replay_verified',
   'python_bls_quorum_verified',
+  'browser_header_chain_verified',
+  'browser_header_chain_available',
   'browser_range_replay_verified',
   'browser_range_replay_available',
   'browser_bls_quorum_verified',
@@ -45,15 +53,27 @@ const VERIFICATION_SUMMARY_KEYS_V0 = [
   'range_summary_hash',
 ];
 const CAPABILITY_KEYS_V0 = [
+  'proof_authority_satisfied',
+  'proof_authority_capable',
+  'settlement_authority',
+  'production_authority',
+  'python_structural_range_verified',
   'python_range_replay_verified',
   'python_bls_quorum_verified',
+  'browser_shape_and_hash_available',
   'browser_shape_and_hash_verified',
+  'browser_header_chain_verified',
+  'browser_header_chain_available',
   'browser_range_replay_verified',
   'browser_range_replay_available',
   'browser_bls_quorum_verified',
 ];
 const RANGE_SUMMARY_KEYS_V0 = [
   'ok',
+  'verification_mode',
+  'structural_diagnostic_verified',
+  'range_replay_verified',
+  'proof_authority_satisfied',
   'checked_heights',
   'last_header_hash',
   'from_height',
@@ -383,10 +403,63 @@ function requireRangeSummary(summary) {
   if (rangeSummary.ok !== true) {
     throw new Error('verification summary range_summary must be accepted');
   }
+  if (
+    rangeSummary.verification_mode !== 'structural_diagnostic'
+    || rangeSummary.structural_diagnostic_verified !== true
+    || rangeSummary.range_replay_verified !== false
+    || rangeSummary.proof_authority_satisfied !== false
+  ) {
+    throw new Error('verification summary range_summary must remain structural and non-authoritative');
+  }
   if (!Array.isArray(rangeSummary.checked_heights)) {
     throw new Error('verification summary range_summary checked_heights must be an array');
   }
   return rangeSummary;
+}
+
+function requireNonAuthorityCapabilityFlags(summary, capabilities) {
+  if (
+    summary.proof_authority_required !== false
+    || summary.proof_authority_satisfied !== false
+    || summary.proof_authority_capable !== false
+    || summary.settlement_authority !== false
+    || summary.production_authority !== false
+    || capabilities.proof_authority_satisfied !== false
+    || capabilities.proof_authority_capable !== false
+    || capabilities.settlement_authority !== false
+    || capabilities.production_authority !== false
+  ) {
+    throw new Error('browser bundle authority capability flags must remain false');
+  }
+}
+
+function requireStructuralCapabilityFlags(summary, capabilities) {
+  if (
+    summary.python_structural_range_verified !== true
+    || capabilities.python_structural_range_verified !== true
+    || summary.python_range_replay_verified !== false
+    || capabilities.python_range_replay_verified !== false
+  ) {
+    throw new Error('builder verification must remain a structural diagnostic');
+  }
+  if (
+    capabilities.browser_shape_and_hash_available !== true
+    || capabilities.browser_shape_and_hash_verified !== false
+  ) {
+    throw new Error('browser shape/hash capability flags mismatch');
+  }
+  if (
+    summary.browser_header_chain_available !== true
+    || capabilities.browser_header_chain_available !== true
+    || summary.browser_header_chain_verified !== false
+    || capabilities.browser_header_chain_verified !== false
+    || summary.browser_range_replay_available !== false
+    || capabilities.browser_range_replay_available !== false
+    || summary.browser_range_replay_verified !== false
+    || capabilities.browser_range_replay_verified !== false
+  ) {
+    throw new Error('browser structural verification capability flags mismatch');
+  }
 }
 
 export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
@@ -435,6 +508,7 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     if (summary.schema !== BROWSER_CHECKPOINT_VERIFICATION_SUMMARY_SCHEMA_V0) {
       throw new Error('verification summary schema mismatch');
     }
+    requireNonAuthorityCapabilityFlags(summary, capabilities);
     const checkpointHash = await hashV0('light_client_checkpoint_v0', checkpoint);
     if (summary.checkpoint_hash !== checkpointHash) {
       throw new Error('verification summary checkpoint_hash mismatch');
@@ -442,20 +516,7 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     if (summary.target_header_hash !== checkpoint.header_hash || summary.target_header_hash !== targetHeaderHash) {
       throw new Error('verification summary target_header_hash mismatch');
     }
-    if (summary.python_range_replay_verified !== true || capabilities.python_range_replay_verified !== true) {
-      throw new Error('builder range replay verification is required');
-    }
-    if (capabilities.browser_shape_and_hash_verified !== true) {
-      throw new Error('browser shape/hash capability is required');
-    }
-    if (
-      summary.browser_range_replay_available !== true
-      || capabilities.browser_range_replay_available !== true
-      || summary.browser_range_replay_verified !== false
-      || capabilities.browser_range_replay_verified !== false
-    ) {
-      throw new Error('browser range replay capability flags mismatch');
-    }
+    requireStructuralCapabilityFlags(summary, capabilities);
     if (
       summary.browser_bls_quorum_available !== false
       || summary.browser_bls_quorum_verified !== false
@@ -542,13 +603,19 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
     }
     return {
       ok: true,
-      status: 'accepted',
+      status: 'structural_diagnostic_accepted',
       bundle_hash: bundle.bundle_hash,
       chain_id: bundle.chain_id,
       height: checkpoint.height,
       checkpoint_hash: checkpointHash,
-      browser_range_replay_verified: true,
-      browser_range_last_header_hash: rangeReplay.lastHeaderHash,
+      proof_authority_satisfied: false,
+      proof_authority_capable: false,
+      settlement_authority: false,
+      production_authority: false,
+      browser_shape_and_hash_verified: true,
+      browser_header_chain_verified: true,
+      browser_header_chain_last_hash: rangeReplay.lastHeaderHash,
+      browser_range_replay_verified: false,
       browser_bls_quorum_verified: browserBlsVerified,
       browser_bls_accepted_weight: browserBlsAcceptedWeight,
       builder_bls_quorum_verified: true,
@@ -560,6 +627,13 @@ export async function verifyBrowserCheckpointBundleV0(bundle, options = {}) {
       ok: false,
       status: 'rejected',
       gaps,
+      proof_authority_satisfied: false,
+      proof_authority_capable: false,
+      settlement_authority: false,
+      production_authority: false,
+      browser_shape_and_hash_verified: false,
+      browser_header_chain_verified: false,
+      browser_range_replay_verified: false,
       browser_bls_quorum_verified: false,
       builder_bls_quorum_verified: false,
     };
@@ -637,7 +711,11 @@ export async function advanceWalletSyncStateV0({
   };
   return {
     ok: true,
-    status: 'accepted',
+    status: 'structural_checkpoint_tracked',
+    proof_authority_satisfied: false,
+    proof_authority_capable: false,
+    settlement_authority: false,
+    production_authority: false,
     state: {
       ...body,
       state_hash: await hashV0('wallet_sync_state_v0', body),
