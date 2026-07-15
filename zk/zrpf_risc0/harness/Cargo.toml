@@ -28,6 +28,7 @@ sha2 = "0.10.9"
 tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared" }
 zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol" }
 zenodex-zrpf-risc0-aggregate-shared = { path = "../aggregate_shared" }
+zenodex-zrpf-risc0-execution-profile = { path = "../execution_profile" }
 zenodex-zrpf-risc0-methods = { path = "../methods", optional = true }
 zenodex-zrpf-risc0-semantic-shared = { path = "../semantic_shared" }
 zenodex-zrpf-risc0-shared = { path = "../shared" }

@@ -406,6 +406,8 @@ def _resolve_argument(
         return stage.c0_commit
     if role == "worker_commit":
         return stage.worker_commit
+    if role == "prover_compute_profile_id":
+        return stage.prover_compute_profile.profile_id
     if role.startswith("runtime_"):
         runtime_role = role.removeprefix("runtime_")
         try:

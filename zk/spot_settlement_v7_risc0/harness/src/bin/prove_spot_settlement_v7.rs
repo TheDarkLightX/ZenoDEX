@@ -4,7 +4,10 @@ use std::env;
 
 use risc0_zkvm::{InnerReceipt, Receipt};
 use serde_json::json;
-use zenodex_zrpf_risc0_spot_settlement_v7_harness::prove_and_verify_spot_settlement_v7_v1;
+use zenodex_zrpf_risc0_execution_profile::{encode_canonical_profile_v1, StageExecutionProfileV1};
+use zenodex_zrpf_risc0_spot_settlement_v7_harness::{
+    profile_spot_settlement_v7_execution_v1, prove_and_verify_spot_settlement_v7_v1,
+};
 use zenodex_zrpf_risc0_spot_settlement_v7_shared::MAX_SPOT_SETTLEMENT_V7_GUEST_ENVELOPE_BYTES_V1;
 use zenodex_zrpf_risc0_spot_settlement_v7_verifier::{
     encode_spot_settlement_v7_verifier_output_v1,
@@ -18,10 +21,10 @@ mod artifact_io;
 mod cli;
 
 use artifact_io::{
-    canonical_receipt_bytes, persist_verified_artifacts, read_bounded_regular_file, sha256_hex,
-    CandidateArtifactsV1,
+    canonical_receipt_bytes, persist_execution_profile, persist_verified_artifacts,
+    read_bounded_regular_file, sha256_hex, CandidateArtifactsV1,
 };
-use cli::parse_options;
+use cli::{parse_options, CommandV1, ProfileOptions, ProveOptions};
 
 fn main() {
     if let Err(error) = run() {
@@ -34,7 +37,13 @@ fn run() -> Result<(), String> {
     if env::var_os("RISC0_DEV_MODE").is_some() {
         return Err("ambient RISC0_DEV_MODE is forbidden".to_owned());
     }
-    let options = parse_options(env::args().skip(1))?;
+    match parse_options(env::args().skip(1))? {
+        CommandV1::Prove(options) => run_prove(options),
+        CommandV1::Profile(options) => run_profile(options),
+    }
+}
+
+fn run_prove(options: ProveOptions) -> Result<(), String> {
     let guest_input = read_bounded_regular_file(
         &options.v7_guest_input,
         "V7 guest input",
@@ -68,6 +77,63 @@ fn run() -> Result<(), String> {
     };
     persist_verified_artifacts(&options, artifacts)?;
     emit_report(&verified, &guest_input, &child_receipt, artifacts)
+}
+
+fn run_profile(options: ProfileOptions) -> Result<(), String> {
+    let guest_input = read_bounded_regular_file(
+        &options.v7_guest_input,
+        "V7 guest input",
+        MAX_SPOT_SETTLEMENT_V7_GUEST_ENVELOPE_BYTES_V1,
+    )?;
+    let child_receipt = read_bounded_regular_file(
+        &options.v6_child_receipt,
+        "V6 child receipt",
+        MAX_CANONICAL_SPOT_SETTLEMENT_V7_RECEIPT_BYTES_V1,
+    )?;
+    let profile = profile_spot_settlement_v7_execution_v1(&guest_input, &child_receipt)?;
+    let profile_bytes = encode_canonical_profile_v1(&profile)
+        .map_err(|error| format!("encode V7 execution profile: {error}"))?;
+    persist_execution_profile(&options.execution_profile_out, &profile_bytes)?;
+    emit_profile_report(&profile, &profile_bytes, &guest_input, &child_receipt)
+}
+
+fn emit_profile_report(
+    profile: &StageExecutionProfileV1,
+    profile_bytes: &[u8],
+    guest_input: &[u8],
+    child_receipt: &[u8],
+) -> Result<(), String> {
+    let report = json!({
+        "schema": "zenodex/zrpf_spot_settlement_v7_execution_profile_report/v1",
+        "status": "exact_v7_execution_observed_without_proof_or_accelerator_authority",
+        "profile_record_id": profile.profile_record_id(),
+        "stage_id": profile.stage_id(),
+        "prover_compute_profile_id": profile.prover_compute_profile_id(),
+        "execution_profile_sha256": sha256_hex(profile_bytes),
+        "execution_profile_bytes": profile_bytes.len(),
+        "guest_input_sha256": sha256_hex(guest_input),
+        "v6_child_receipt_sha256": sha256_hex(child_receipt),
+        "segment_count": profile.segment_count(),
+        "total_user_cycles": profile.total_user_cycles(),
+        "total_padded_cycle_capacity": profile.total_padded_cycle_capacity(),
+        "duration_milliseconds": profile.duration_milliseconds(),
+        "proof_generated": false,
+        "accelerator_execution_verified": false,
+        "release_authority": false,
+        "settlement_authority": false,
+        "production_authority": false,
+        "nonclaims": [
+            "execution profiling generates no RISC0 receipt or proof",
+            "execution profiling does not establish CUDA or other accelerator execution",
+            "execution profiling grants no release settlement or production authority"
+        ]
+    });
+    println!(
+        "{}",
+        serde_json::to_string(&report)
+            .map_err(|error| format!("encode V7 execution-profile report: {error}"))?
+    );
+    Ok(())
 }
 
 fn exact_seal_mutation_reject(

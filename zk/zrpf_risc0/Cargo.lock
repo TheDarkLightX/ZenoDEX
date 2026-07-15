@@ -3497,6 +3497,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenodex-zrpf-risc0-execution-profile"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "risc0-zkvm",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "zenodex-zrpf-risc0-harness"
 version = "0.1.0"
 dependencies = [
@@ -3511,6 +3522,7 @@ dependencies = [
  "tau-state-proof-risc0-shared",
  "zenodex-zrpf-protocol-v3",
  "zenodex-zrpf-risc0-aggregate-shared",
+ "zenodex-zrpf-risc0-execution-profile",
  "zenodex-zrpf-risc0-methods",
  "zenodex-zrpf-risc0-semantic-shared",
  "zenodex-zrpf-risc0-shared",

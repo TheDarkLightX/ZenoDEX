@@ -3,6 +3,7 @@ members = [
   "shared",
   "aggregate_shared",
   "semantic_shared",
+  "execution_profile",
   "value_node_shared",
   "value_aggregate_shared",
   "value_aggregate_l2_policy",

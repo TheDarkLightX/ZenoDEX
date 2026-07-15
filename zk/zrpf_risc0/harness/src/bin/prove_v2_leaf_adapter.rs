@@ -5,6 +5,7 @@ use risc0_zkvm::{
     MaybePruned, ProverOpts, Receipt, ReceiptClaim,
 };
 use zenodex_zrpf_protocol_v3::NodeJournalV3;
+use zenodex_zrpf_risc0_execution_profile::build_exact_framed_executor_env_v1;
 use zenodex_zrpf_risc0_methods::{
     ZENODEX_ZRPF_RISC0_V2_LEAF_ADAPTER_ELF, ZENODEX_ZRPF_RISC0_V2_LEAF_ADAPTER_ID,
 };
@@ -175,12 +176,8 @@ fn load_and_verify(
 
 fn prove_adapter(input: &V2LeafAdapterInputV2, source: &Receipt) -> Result<Receipt, String> {
     require_succinct(source, "current source assumption")?;
-    let (length, bytes) = encode_input(input)?;
-    let executor_env = ExecutorEnv::builder()
-        .write_slice(&[length])
-        .write_slice(&bytes)
-        .add_assumption(source.clone())
-        .build()
+    let (_length, bytes) = encode_input(input)?;
+    let executor_env = build_exact_framed_executor_env_v1(&bytes, std::slice::from_ref(source))
         .map_err(|error| format!("V2 adapter executor environment: {error}"))?;
     let receipt = default_prover()
         .prove_with_opts(

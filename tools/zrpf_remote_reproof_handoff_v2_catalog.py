@@ -27,6 +27,7 @@ PROVING_STAGE_IDS = (
     "v6_settlement_receipt",
     "v7_receipt",
 )
+RISC0_COMPUTE_STAGE_IDS = (*PROVING_STAGE_IDS, "v7_execution_profile")
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,6 +285,20 @@ ARTIFACT_SPECS = (
         "v6_settlement_receipt",
     ),
     ArtifactSpec("v7_receipt", "proofs/v7_receipt.json", "receipt", "v7_receipt"),
+    ArtifactSpec(
+        "v7_execution_profile",
+        "profiles/v7_execution_profile.json",
+        "execution_profile",
+        "v7_execution_profile",
+        2 * 1024 * 1024,
+    ),
+    ArtifactSpec(
+        "v7_execution_profile_report",
+        "profiles/v7_execution_profile_report.json",
+        "report",
+        "v7_execution_profile",
+        64 * 1024,
+    ),
     ArtifactSpec(
         "v7_seal_mutation", "proofs/v7_seal_mutation.json", "mutated_receipt", "v7_receipt"
     ),
@@ -623,11 +638,42 @@ TASK_SPECS = (
         stdout_artifact_role="v6_settlement_report",
     ),
     TaskSpec(
-        "v7_receipt",
+        "v7_execution_profile",
         ("v6_settlement_receipt",),
         (
             "v6_settlement_receipt",
             "v7_guest_input",
+            "v7_program",
+            "v7_prover",
+            "prover_r0vm",
+        ),
+        ("v7_execution_profile", "v7_execution_profile_report"),
+        "@v7_prover",
+        (
+            "--profile-only",
+            "--execution-profile-out",
+            "@v7_execution_profile",
+            "--v6-child-receipt",
+            "@v6_settlement_receipt",
+            "--v7-guest-input",
+            "@v7_guest_input",
+        ),
+        (
+            "the exact V6 settlement child verifies before execution",
+            "execution halts successfully with the independently recomposed V7 journal",
+            "the profile binds ordered segments and keeps every authority field false",
+        ),
+        "prover_light",
+        execution_adapter_status="implemented",
+        stdout_artifact_role="v7_execution_profile_report",
+    ),
+    TaskSpec(
+        "v7_receipt",
+        ("v7_execution_profile",),
+        (
+            "v6_settlement_receipt",
+            "v7_guest_input",
+            "v7_execution_profile",
             "v7_program",
             "v7_prover",
             "prover_r0vm",
@@ -664,6 +710,28 @@ TASK_SPECS = (
         ),
         "prover_heavy",
         execution_adapter_status="implemented",
+        pre_commands=(
+            CommandSpec(
+                "python3",
+                (
+                    "tools/check_zrpf_stage_execution_profile_v1.py",
+                    "--profile",
+                    "@v7_execution_profile",
+                    "--program",
+                    "@v7_program",
+                    "--guest-input",
+                    "@v7_guest_input",
+                    "--assumption",
+                    "@v6_settlement_receipt",
+                    "--r0vm",
+                    "@prover_r0vm",
+                    "--expected-stage",
+                    "spot_settlement_v7",
+                    "--expected-compute-profile",
+                    "@prover_compute_profile_id",
+                ),
+            ),
+        ),
         stdout_artifact_role="v7_report",
     ),
     TaskSpec(

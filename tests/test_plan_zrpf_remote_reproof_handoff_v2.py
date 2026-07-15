@@ -305,6 +305,7 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
         "v6_l1_receipt",
         "v6_l2_receipt",
         "v6_settlement_receipt",
+        "v7_execution_profile",
         "v7_receipt",
         "mutation_verification",
     ]
@@ -365,7 +366,7 @@ def test_prover_compute_profile_is_content_bound_and_every_prover_receives_r0vm(
         input_roles = {
             contracts[contract_id]["role"] for contract_id in task["input_artifact_contract_ids"]
         }
-        if task["stage_id"] in handoff.PROVING_STAGE_IDS:
+        if task["stage_id"] in handoff.RISC0_COMPUTE_STAGE_IDS:
             assert task["prover_compute_profile_id"] == (
                 handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID
             )
@@ -603,6 +604,66 @@ def test_worker_build_uses_exact_source_bound_adapter_and_position_distinct_outp
         "v7_prover",
         "worker_build_report",
     ]
+
+
+def test_v7_execution_profile_is_a_required_checked_predecessor(
+    plan: dict[str, Any],
+) -> None:
+    tasks = {
+        task["stage_id"]: task for task in cast(list[dict[str, Any]], plan["tasks"])
+    }
+    contracts = {
+        row["contract_id"]: row
+        for row in cast(list[dict[str, Any]], plan["artifact_contracts"])
+    }
+    profile = tasks["v7_execution_profile"]
+    proof = tasks["v7_receipt"]
+
+    assert profile["depends_on"] == ["v6_settlement_receipt"]
+    assert profile["prover_compute_profile_id"] == handoff.CPU_PROVER_COMPUTE_PROFILE_ID
+    assert profile["commands"] == [
+        {
+            "runner": "@v7_prover",
+            "argv": [
+                "--profile-only",
+                "--execution-profile-out",
+                "@v7_execution_profile",
+                "--v6-child-receipt",
+                "@v6_settlement_receipt",
+                "--v7-guest-input",
+                "@v7_guest_input",
+            ],
+            "stdin_artifact_role": None,
+            "stdout_artifact_role": "v7_execution_profile_report",
+        }
+    ]
+    assert proof["depends_on"] == ["v7_execution_profile"]
+    proof_inputs = {
+        contracts[contract_id]["role"] for contract_id in proof["input_artifact_contract_ids"]
+    }
+    assert "v7_execution_profile" in proof_inputs
+    assert proof["commands"][0] == {
+        "runner": "python3",
+        "argv": [
+            "tools/check_zrpf_stage_execution_profile_v1.py",
+            "--profile",
+            "@v7_execution_profile",
+            "--program",
+            "@v7_program",
+            "--guest-input",
+            "@v7_guest_input",
+            "--assumption",
+            "@v6_settlement_receipt",
+            "--r0vm",
+            "@prover_r0vm",
+            "--expected-stage",
+            "spot_settlement_v7",
+            "--expected-compute-profile",
+            "@prover_compute_profile_id",
+        ],
+        "stdin_artifact_role": None,
+        "stdout_artifact_role": None,
+    }
 
 
 def test_source_proof_task_is_required_and_missing_source_proof_blocks_adapter(
@@ -1090,7 +1151,7 @@ def test_missing_and_surplus_execution_packets_reject(tmp_path: Path) -> None:
 
     missing_directory = tmp_path / "missing-packets"
     _write_execution_packets(plan, artifact_root, repo, chain, missing_directory)
-    (missing_directory / "11-release_checks.json").unlink()
+    (missing_directory / "12-release_checks.json").unlink()
     with pytest.raises(handoff.HandoffError, match="execution packet inventory"):
         handoff.capture_return_bundle(
             plan,

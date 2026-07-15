@@ -13,7 +13,7 @@ from tools.zrpf_remote_reproof_handoff_v2_catalog import (
     CPU_PROVER_COMPUTE_PROFILE_ID,
     CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID,
     NO_PROVER_COMPUTE_PROFILE_ID,
-    PROVING_STAGE_IDS,
+    RISC0_COMPUTE_STAGE_IDS,
 )
 
 CAPTURE_SCHEMA = "zenodex/zrpf_remote_reproof_worker_capture/v3"
@@ -378,7 +378,7 @@ def validate_stage_packet(
             document.get("prover_compute_profile_id"),
             "handoff prover compute profile",
         )
-        if stage_id in PROVING_STAGE_IDS
+        if stage_id in RISC0_COMPUTE_STAGE_IDS
         else NO_PROVER_COMPUTE_PROFILE_ID
     )
     if compute_profile_id != expected_compute_profile_id:

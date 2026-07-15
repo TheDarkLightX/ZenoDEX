@@ -155,12 +155,14 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py" in python_assurance
     assert "tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py" in python_assurance
     assert "tools/plan_zrpf_remote_reproof_handoff_v2.py" in python_assurance
+    assert "tools/check_zrpf_stage_execution_profile_v1.py" in python_assurance
     assert "tools/run_zrpf_remote_identity_rebuild_stage_v2.py" in python_assurance
     assert "tools/run_zrpf_remote_worker_prover_build_stage_v2.py" in python_assurance
     assert "tools/run_zrpf_remote_reproof_worker_v2.py" in python_assurance
     assert "tools/zrpf_remote_reproof_handoff_v2_catalog.py" in python_assurance
     assert "tools/zrpf_remote_reproof_worker_v2_contract.py" in python_assurance
     assert "tests/test_plan_zrpf_remote_reproof_handoff_v2.py" in python_assurance
+    assert "tests/test_check_zrpf_stage_execution_profile_v1.py" in python_assurance
     assert "tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py" in python_assurance
     assert "tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py" in python_assurance
     assert "tests/test_run_zrpf_remote_reproof_worker_v2.py" in python_assurance
@@ -348,6 +350,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py",
         "tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py",
         "tests/test_run_zrpf_remote_reproof_worker_v2.py",
+        "tests/test_check_zrpf_stage_execution_profile_v1.py",
         "tests/test_zrpf_remote_mutation_verifier_source_contract.py",
         "tests/test_zrpf_remote_mutation_dependency_closure.py",
     ):
@@ -547,6 +550,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert rust_assurance.count("-p tau-state-proof-risc0-cli --all-targets") == 2
     assert rust_assurance.count("--locked --offline -p tau-state-proof-risc0-cli") == 2
     assert rust_assurance.count("-p zenodex-zrpf-risc0-harness") == 2
+    assert rust_assurance.count("-p zenodex-zrpf-risc0-execution-profile") == 2
     assert rust_assurance.count("-p zenodex-zrpf-risc0-semantic-shared") == 4
     assert rust_assurance.count("-p zenodex-zrpf-risc0-value-node-shared") == 2
     assert rust_assurance.count("-p zenodex-zrpf-risc0-value-aggregate-shared") == 2

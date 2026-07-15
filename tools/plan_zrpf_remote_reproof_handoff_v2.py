@@ -37,7 +37,7 @@ from tools.zrpf_remote_reproof_handoff_v2_catalog import (
     MAX_ARTIFACT_BYTES,
     NO_PROVER_COMPUTE_PROFILE_ID,
     PROVER_COMPUTE_PROFILE_IDS,
-    PROVING_STAGE_IDS,
+    RISC0_COMPUTE_STAGE_IDS,
     TASK_SPECS,
     CommandSpec,
     TaskSpec,
@@ -139,6 +139,7 @@ TASK_ORDER = (
     "v6_l1_receipt",
     "v6_l2_receipt",
     "v6_settlement_receipt",
+    "v7_execution_profile",
     "v7_receipt",
     "mutation_verification",
     "release_checks",
@@ -472,7 +473,7 @@ def _task(
         "proof_profile_id": SUCCINCT_PROFILE_ID,
         "prover_compute_profile_id": (
             prover_compute_profile_id
-            if spec.stage_id in PROVING_STAGE_IDS
+            if spec.stage_id in RISC0_COMPUTE_STAGE_IDS
             else NO_PROVER_COMPUTE_PROFILE_ID
         ),
         "input_artifact_contract_ids": [contracts[role]["contract_id"] for role in spec.inputs],
@@ -1550,7 +1551,7 @@ def _require_task_prover_r0vm_expectation(
     inputs: Sequence[Mapping[str, object]],
 ) -> None:
     stage_id = _nonempty_string(task.get("stage_id"), "task stage ID")
-    if stage_id not in PROVING_STAGE_IDS:
+    if stage_id not in RISC0_COMPUTE_STAGE_IDS:
         return
     expectation = _validated_prover_r0vm_expectation(document.get("prover_r0vm_expectation"))
     matches = [row for row in inputs if row.get("role") == "prover_r0vm"]

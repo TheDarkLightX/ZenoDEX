@@ -10,7 +10,7 @@ use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use risc0_zkvm::{InnerReceipt, Receipt};
 use sha2::{Digest as ShaDigest, Sha256};
 
-use super::cli::Options;
+use super::cli::ProveOptions;
 
 const MAX_BOUNDED_READ_EXTRA_BYTES: u64 = 1;
 
@@ -81,7 +81,7 @@ pub(super) fn read_bounded_regular_file(
 }
 
 pub(super) fn persist_verified_artifacts(
-    options: &Options,
+    options: &ProveOptions,
     artifacts: CandidateArtifactsV1<'_>,
 ) -> Result<(), String> {
     write_new_verified(&options.v7_receipt_out, artifacts.receipt, "V7 receipt")?;
@@ -97,6 +97,10 @@ pub(super) fn persist_verified_artifacts(
         "V7 verifier output",
     )?;
     write_new_verified(&options.v7_plan_b_out, artifacts.plan_b, "V7 Plan B")
+}
+
+pub(super) fn persist_execution_profile(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    write_new_verified(path, bytes, "V7 execution profile")
 }
 
 fn write_new_verified(path: &Path, bytes: &[u8], label: &str) -> Result<(), String> {

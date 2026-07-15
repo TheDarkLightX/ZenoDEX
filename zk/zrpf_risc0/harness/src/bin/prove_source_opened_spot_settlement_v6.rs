@@ -1,8 +1,6 @@
 use std::{env, path::PathBuf};
 
-use risc0_zkvm::{
-    compute_image_id, default_prover, Digest, ExecutorEnv, InnerReceipt, ProverOpts, Receipt,
-};
+use risc0_zkvm::{compute_image_id, default_prover, Digest, InnerReceipt, ProverOpts, Receipt};
 use zenodex_zrpf_protocol_v3::{
     decode_exact_settlement_admission_journal_v1, derive_sparse_merkle_root_v1,
     encode_full_blob_da_certificate_v1, ApplicationIdV3, CommitmentV3, DomainIdV3,
@@ -11,6 +9,7 @@ use zenodex_zrpf_protocol_v3::{
     SparseMerkleSiblingPathV1, ValueHashV2, SPARSE_MERKLE_TREE_DEPTH_V1,
     SPARSE_MERKLE_WITNESS_VERSION_V1,
 };
+use zenodex_zrpf_risc0_execution_profile::build_exact_framed_executor_env_v1;
 use zenodex_zrpf_risc0_semantic_shared::{
     derive_spot_settlement_projection_v1, propose_spot_settlement_state_projection_v2,
     OrdinarySpotSettlementGuestInputV2, OrdinarySpotSettlementReplayDataV2,
@@ -140,14 +139,9 @@ fn run() -> Result<(), String> {
     let expected_journal =
         compose_source_opened_spot_settlement_output_after_l2_verification_v3(&input, l2_claim)
             .map_err(|error| format!("V6 settlement recomposition rejected: {error}"))?;
-    let input_length = u32::try_from(guest_input.len())
-        .map_err(|_| "V6 settlement input exceeds u32".to_owned())?;
-    let executor_env = ExecutorEnv::builder()
-        .write_slice(&[input_length])
-        .write_slice(&guest_input)
-        .add_assumption(l2.receipt().clone())
-        .build()
-        .map_err(|error| format!("V6 settlement executor environment rejected: {error}"))?;
+    let executor_env =
+        build_exact_framed_executor_env_v1(&guest_input, std::slice::from_ref(l2.receipt()))
+            .map_err(|error| format!("V6 settlement executor environment rejected: {error}"))?;
     let receipt = default_prover()
         .prove_with_opts(
             executor_env,

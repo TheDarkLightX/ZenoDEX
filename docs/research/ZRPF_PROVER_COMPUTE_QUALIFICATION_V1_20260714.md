@@ -34,9 +34,11 @@ The 3 GB GPU is below the memory range recommended for ordinary local RISC
 Zero proving and is not an H100 build target. It may be used for a separately
 scoped CUDA-path smoke test. It is not the final proof machine.
 
-The 128 GB Apple M3 laptop supports RISC Zero's Metal path. The observed test
-run exceeded 30 minutes, but no governed cycle or stage record was captured.
-That observation is useful for routing only.
+The 128 GB Apple M3 laptop run remained CPU-bound and produced no result after
+30 minutes. No governed cycle or stage record was captured. That observation
+disqualifies the tested Apple CPU route for this evidence run. It is not
+evidence about a Metal prover because the executed process did not establish
+Metal use.
 
 The prior Linux CPU run exceeded 12 hours without completing its target. Its
 installed `r0vm` was CPU-only. That run does not predict H100 latency.
@@ -65,6 +67,38 @@ Official source anchors:
 All seven current ZRPF proving commands call `default_prover()` with Succinct
 options. The handoff therefore uses the same exact IPC mediation for source,
 adapter, leaf, L1, L2, settlement, and V7 proving.
+
+## Implemented execution-only profile
+
+The V7 harness now has an exact `--profile-only` mode. Proof and profile modes
+share one preparation path. That path verifies the exact V6 settlement child,
+recomposes the expected V7 journal, constructs the same framed executor input,
+and then either proves or executes without proving.
+
+The canonical execution record binds:
+
+```text
+program bytes and image ID
+exact guest-input bytes
+ordered assumption receipt identities
+expected and observed journal identities
+receipt-claim digest
+segment limit and ordered segment rows
+user cycles and padded cycle capacity
+exact r0vm bytes
+compute-profile request ID
+```
+
+Every proof, accelerator, release, settlement, and production authority field
+is fixed to false. An independent Python checker reopens the exact program,
+input, assumptions, and `r0vm` and rejects substitution, noncanonical JSON,
+reordered segment rows, integer/Boolean ambiguity, and authority promotion.
+
+The remote handoff schedules this profile before V7 proving and rechecks it as
+a V7 precondition. This is a bounded workload record. It is not yet a paid-run
+authorization gate for the complete chain because the source, V2, and V6
+stages are not execution-profiled, and CPU execution cycles do not measure
+Succinct CUDA proving time.
 
 ## CUDA r0vm build contract
 
@@ -158,6 +192,19 @@ Before the full chain, perform these bounded stages:
 8. Project the remaining chain from measured stages. Continue only when the
    upper estimate plus a 25 percent reserve fits `T_budget`.
 9. Stop and preserve the completed stage artifacts when the gate fails.
+
+The fail-closed implementation target is a content-addressed
+`PaidRunQualificationV1`. It must remain `UNKNOWN` unless it binds all of:
+
+```text
+stage execution profiles
+CUDA r0vm source/build record
+single-H100 hardware and runtime preflight
+one independently verified representative Succinct calibration proof
+integer-only price, budget, reserve, and deadline arithmetic
+```
+
+A valid execution profile alone must never authorize a paid proving stage.
 
 The H100 worker environment is:
 

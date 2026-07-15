@@ -1,13 +1,20 @@
 //! Fail-closed evidence harness for Spot settlement V7.
 
-use risc0_zkvm::{compute_image_id, default_prover, Digest, ExecutorEnv, InnerReceipt, ProverOpts};
+use risc0_zkvm::{compute_image_id, default_prover, Digest, InnerReceipt, ProverOpts};
 
-use zenodex_zrpf_risc0_shared::program_id_from_risc0_words_v3;
+use zenodex_zrpf_risc0_execution_profile::{
+    build_exact_framed_executor_env_v1, execute_exact_stage_v1, ExactAssumptionV1,
+    ExactStageExecutionRequestV1, StageExecutionProfileV1,
+};
+use zenodex_zrpf_risc0_shared::{
+    derive_risc0_verified_claim_binding_v1, program_id_from_risc0_words_v3,
+};
 use zenodex_zrpf_risc0_spot_settlement_v7_child_policy::final_source_opened_spot_settlement_v6_image_id_v1;
 use zenodex_zrpf_risc0_spot_settlement_v7_methods::{
     ZENODEX_ZRPF_RISC0_SPOT_SETTLEMENT_V7_ELF, ZENODEX_ZRPF_RISC0_SPOT_SETTLEMENT_V7_ID,
 };
 use zenodex_zrpf_risc0_spot_settlement_v7_shared::{
+    compose_spot_settlement_v7_after_source_receipt_verification_v1,
     decode_exact_spot_settlement_v7_guest_envelope_v1,
     required_source_child_receipt_security_profile_id_v1,
 };
@@ -17,6 +24,8 @@ use zenodex_zrpf_risc0_spot_settlement_v7_verifier::{
 use zenodex_zrpf_risc0_verifier::{
     VerifiedSourceOpenedSpotSettlementReceiptV6, ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1,
 };
+
+const SPOT_SETTLEMENT_V7_STAGE_ID_V1: &str = "spot_settlement_v7";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SpotSettlementV7HarnessErrorV1 {
@@ -47,6 +56,73 @@ pub fn prove_and_verify_spot_settlement_v7_v1(
     exact_guest_input_bytes: &[u8],
     canonical_source_v6_receipt_bytes: &[u8],
 ) -> Result<VerifiedSpotSettlementV7ReceiptV1, String> {
+    let prepared =
+        prepare_spot_settlement_v7_v1(exact_guest_input_bytes, canonical_source_v6_receipt_bytes)?;
+    let env = build_exact_framed_executor_env_v1(
+        exact_guest_input_bytes,
+        std::slice::from_ref(prepared.verified_child.receipt()),
+    )
+    .map_err(|error| format!("V7 executor environment rejected: {error}"))?;
+    let receipt = default_prover()
+        .prove_with_opts(
+            env,
+            ZENODEX_ZRPF_RISC0_SPOT_SETTLEMENT_V7_ELF,
+            &ProverOpts::succinct(),
+        )
+        .map_err(|error| format!("V7 proving failed: {error}"))?
+        .receipt;
+    if !matches!(&receipt.inner, InnerReceipt::Succinct(_)) {
+        return Err("V7 prover returned a non-Succinct receipt".to_owned());
+    }
+    let receipt_bytes =
+        serde_json::to_vec(&receipt).map_err(|error| format!("encode V7 receipt: {error}"))?;
+    verify_spot_settlement_v7_canonical_succinct_bytes(
+        &receipt_bytes,
+        exact_guest_input_bytes,
+        canonical_source_v6_receipt_bytes,
+    )
+    .map_err(|error| format!("sealed V7 verification failed: {error}"))
+}
+
+/// Execute the exact V7 workload without generating a proof.
+///
+/// The resulting profile binds the observed workload and exact recomposed
+/// journal. Every proof, release, settlement, accelerator, and production
+/// authority field remains false.
+pub fn profile_spot_settlement_v7_execution_v1(
+    exact_guest_input_bytes: &[u8],
+    canonical_source_v6_receipt_bytes: &[u8],
+) -> Result<StageExecutionProfileV1, String> {
+    let prepared =
+        prepare_spot_settlement_v7_v1(exact_guest_input_bytes, canonical_source_v6_receipt_bytes)?;
+    let assumptions = [ExactAssumptionV1::new(
+        prepared.verified_child.receipt(),
+        prepared.child_image,
+    )];
+    let request = ExactStageExecutionRequestV1::new(
+        SPOT_SETTLEMENT_V7_STAGE_ID_V1,
+        ZRPF_RISC0_SUCCINCT_RECEIPT_PROFILE_ID_V1,
+        ZENODEX_ZRPF_RISC0_SPOT_SETTLEMENT_V7_ELF,
+        ZENODEX_ZRPF_RISC0_SPOT_SETTLEMENT_V7_ID,
+        exact_guest_input_bytes,
+        &assumptions,
+        &prepared.expected_journal_bytes,
+    )
+    .map_err(|error| format!("V7 execution-profile request rejected: {error}"))?;
+    execute_exact_stage_v1(&request)
+        .map_err(|error| format!("V7 execution profiling failed: {error}"))
+}
+
+struct PreparedSpotSettlementV7V1 {
+    child_image: [u32; 8],
+    verified_child: VerifiedSourceOpenedSpotSettlementReceiptV6,
+    expected_journal_bytes: Vec<u8>,
+}
+
+fn prepare_spot_settlement_v7_v1(
+    exact_guest_input_bytes: &[u8],
+    canonical_source_v6_receipt_bytes: &[u8],
+) -> Result<PreparedSpotSettlementV7V1, String> {
     require_materialized_spot_settlement_v7_method_v1()
         .map_err(|error| format!("V7 method policy rejected: {error:?}"))?;
     if std::env::var_os("RISC0_DEV_MODE").is_some() {
@@ -79,33 +155,20 @@ pub fn prove_and_verify_spot_settlement_v7_v1(
     if verified_child.receipt().journal.bytes.as_slice() != envelope.source_child_journal_bytes() {
         return Err("V6 assumption journal differs from the exact V7 envelope child".to_owned());
     }
-    let input_length = u32::try_from(exact_guest_input_bytes.len())
-        .map_err(|_| "V7 guest input exceeds u32".to_owned())?;
-    let env = ExecutorEnv::builder()
-        .write_slice(&[input_length])
-        .write_slice(exact_guest_input_bytes)
-        .add_assumption(verified_child.receipt().clone())
-        .build()
-        .map_err(|error| format!("V7 executor environment rejected: {error}"))?;
-    let receipt = default_prover()
-        .prove_with_opts(
-            env,
-            ZENODEX_ZRPF_RISC0_SPOT_SETTLEMENT_V7_ELF,
-            &ProverOpts::succinct(),
-        )
-        .map_err(|error| format!("V7 proving failed: {error}"))?
-        .receipt;
-    if !matches!(&receipt.inner, InnerReceipt::Succinct(_)) {
-        return Err("V7 prover returned a non-Succinct receipt".to_owned());
-    }
-    let receipt_bytes =
-        serde_json::to_vec(&receipt).map_err(|error| format!("encode V7 receipt: {error}"))?;
-    verify_spot_settlement_v7_canonical_succinct_bytes(
-        &receipt_bytes,
-        exact_guest_input_bytes,
-        canonical_source_v6_receipt_bytes,
+    let child_claim =
+        derive_risc0_verified_claim_binding_v1(child_image, envelope.source_child_journal_bytes())
+            .map_err(|error| format!("derive V7 child claim binding: {error}"))?;
+    let composed = compose_spot_settlement_v7_after_source_receipt_verification_v1(
+        envelope,
+        child_image,
+        child_claim,
     )
-    .map_err(|error| format!("sealed V7 verification failed: {error}"))
+    .map_err(|error| format!("recompose exact V7 journal: {error:?}"))?;
+    Ok(PreparedSpotSettlementV7V1 {
+        child_image,
+        verified_child,
+        expected_journal_bytes: composed.journal_bytes().to_vec(),
+    })
 }
 
 #[cfg(test)]
@@ -123,13 +186,34 @@ mod tests {
     }
 
     #[test]
-    fn sealed_v6_profile_verification_precedes_assumption_registration() {
+    fn sealed_v6_profile_verification_precedes_journal_recomposition() {
         let verify = HARNESS_SOURCE
             .find("VerifiedSourceOpenedSpotSettlementReceiptV6::verify_canonical_succinct_bytes")
             .unwrap();
-        let assumption = HARNESS_SOURCE.find(".add_assumption(").unwrap();
-        assert!(verify < assumption);
+        let recompose = HARNESS_SOURCE
+            .rfind("compose_spot_settlement_v7_after_source_receipt_verification_v1(")
+            .unwrap();
+        assert!(verify < recompose);
         let raw_verify = ["source_v6_receipt", ".verify(child_image)"].concat();
         assert!(!HARNESS_SOURCE.contains(&raw_verify));
+    }
+
+    #[test]
+    fn proof_and_profile_share_one_exact_preparation_path() {
+        let proof_start = HARNESS_SOURCE
+            .find("pub fn prove_and_verify_spot_settlement_v7_v1(")
+            .unwrap();
+        let profile_start = HARNESS_SOURCE
+            .find("pub fn profile_spot_settlement_v7_execution_v1(")
+            .unwrap();
+        let preparation_start = HARNESS_SOURCE
+            .find("fn prepare_spot_settlement_v7_v1(")
+            .unwrap();
+        let proof_source = &HARNESS_SOURCE[proof_start..profile_start];
+        let profile_source = &HARNESS_SOURCE[profile_start..preparation_start];
+        assert!(proof_source.contains("prepare_spot_settlement_v7_v1("));
+        assert!(profile_source.contains("prepare_spot_settlement_v7_v1("));
+        assert!(profile_source.contains("execute_exact_stage_v1(&request)"));
+        assert!(profile_source.contains("&prepared.expected_journal_bytes"));
     }
 }

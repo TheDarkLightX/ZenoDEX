@@ -109,6 +109,36 @@ def test_compute_profile_change_ratchets_worker_capture_and_rejects_v2(
     assert (run_root / "outputs/proofs/v6_l1_receipt.json").is_file()
 
 
+@pytest.mark.parametrize(
+    "profile_id",
+    (
+        handoff.CPU_PROVER_COMPUTE_PROFILE_ID,
+        handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID,
+    ),
+)
+def test_execution_profile_checker_receives_the_authenticated_compute_profile_id(
+    tmp_path: Path,
+    profile_id: str,
+) -> None:
+    repo, _chain, plan, artifact_root, _packet_path, packet = _stage_context(
+        tmp_path,
+        stage_id="v7_receipt",
+        prover_compute_profile_id=profile_id,
+    )
+    stage = worker.validate_stage_packet(plan, packet, repo, artifact_root)
+
+    assert (
+        worker._resolve_argument(
+            "@prover_compute_profile_id",
+            stage,
+            {},
+            {},
+            {},
+        )
+        == profile_id
+    )
+
+
 def test_cli_writes_one_content_addressed_capture(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

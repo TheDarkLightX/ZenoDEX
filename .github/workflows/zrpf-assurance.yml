@@ -273,6 +273,7 @@ jobs:
             tools/materialize_zrpf_source_opened_spot_v6_identity.py \
             tools/plan_zrpf_spot_v7_release_closure.py \
             tools/plan_zrpf_remote_reproof_handoff_v2.py \
+            tools/check_zrpf_stage_execution_profile_v1.py \
             tools/run_zrpf_remote_identity_rebuild_stage_v2.py \
             tools/run_zrpf_remote_worker_prover_build_stage_v2.py \
             tools/run_zrpf_remote_reproof_worker_v2.py \
@@ -357,6 +358,7 @@ jobs:
             tests/test_materialize_zrpf_v6_settlement_child_into_v7.py \
             tests/test_materialize_zrpf_source_opened_spot_v6_identity.py \
             tests/test_plan_zrpf_remote_reproof_handoff_v2.py \
+            tests/test_check_zrpf_stage_execution_profile_v1.py \
             tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py \
             tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
@@ -544,6 +546,7 @@ jobs:
             tools/materialize_zrpf_source_opened_spot_v6_identity.py \
             tools/plan_zrpf_spot_v7_release_closure.py \
             tools/plan_zrpf_remote_reproof_handoff_v2.py \
+            tools/check_zrpf_stage_execution_profile_v1.py \
             tools/run_zrpf_remote_identity_rebuild_stage_v2.py \
             tools/run_zrpf_remote_worker_prover_build_stage_v2.py \
             tools/run_zrpf_remote_reproof_worker_v2.py \
@@ -627,6 +630,7 @@ jobs:
             tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py \
             tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
+            tests/test_check_zrpf_stage_execution_profile_v1.py \
             tests/test_zrpf_remote_mutation_verifier_source_contract.py \
             tests/test_zrpf_remote_mutation_dependency_closure.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
@@ -672,6 +676,7 @@ jobs:
             tests/test_materialize_zrpf_v6_settlement_child_into_v7.py \
             tests/test_materialize_zrpf_source_opened_spot_v6_identity.py \
             tests/test_plan_zrpf_remote_reproof_handoff_v2.py \
+            tests/test_check_zrpf_stage_execution_profile_v1.py \
             tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py \
             tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
@@ -914,6 +919,7 @@ jobs:
             -p zenodex-zrpf-risc0-spot-value-aggregate-root-policy-v6 \
             -p zenodex-zrpf-risc0-spot-settlement-v6-shared \
             -p zenodex-zrpf-risc0-spot-settlement-root-policy-v6 \
+            -p zenodex-zrpf-risc0-execution-profile \
             -p zenodex-zrpf-risc0-spot-v6-methods \
             -p zenodex-zrpf-risc0-methods \
             -p zenodex-zrpf-risc0-harness \
@@ -935,6 +941,7 @@ jobs:
             -p zenodex-zrpf-risc0-spot-value-aggregate-root-policy-v6 \
             -p zenodex-zrpf-risc0-spot-settlement-v6-shared \
             -p zenodex-zrpf-risc0-spot-settlement-root-policy-v6 \
+            -p zenodex-zrpf-risc0-execution-profile \
             -p zenodex-zrpf-risc0-spot-v6-methods \
             -p zenodex-zrpf-risc0-methods \
             -p zenodex-zrpf-risc0-harness \

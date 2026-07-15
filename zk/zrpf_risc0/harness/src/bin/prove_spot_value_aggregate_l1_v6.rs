@@ -1,7 +1,8 @@
 use std::{env, path::PathBuf};
 
-use risc0_zkvm::{compute_image_id, default_prover, Digest, ExecutorEnv, ProverOpts};
+use risc0_zkvm::{compute_image_id, default_prover, Digest, ProverOpts};
 use zenodex_zrpf_protocol_v3::NodeLevelV3;
+use zenodex_zrpf_risc0_execution_profile::build_exact_framed_executor_env_v1;
 use zenodex_zrpf_risc0_spot_v6_methods::{
     ZENODEX_ZRPF_RISC0_SPOT_VALUE_AGGREGATE_L1_V6_ELF,
     ZENODEX_ZRPF_RISC0_SPOT_VALUE_AGGREGATE_L1_V6_ID, ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V6_ELF,
@@ -77,14 +78,9 @@ fn run() -> Result<(), String> {
         &ValueAggregateGuestInputV5::LevelOneSourceOpenedSpotV6(input),
     )
     .map_err(|error| format!("V6 L1 input encoding failed: {error}"))?;
-    let input_length =
-        u32::try_from(guest_input.len()).map_err(|_| "V6 L1 input exceeds u32".to_owned())?;
-    let executor_env = ExecutorEnv::builder()
-        .write_slice(&[input_length])
-        .write_slice(&guest_input)
-        .add_assumption(child.receipt().clone())
-        .build()
-        .map_err(|error| format!("V6 L1 executor environment rejected: {error}"))?;
+    let executor_env =
+        build_exact_framed_executor_env_v1(&guest_input, std::slice::from_ref(child.receipt()))
+            .map_err(|error| format!("V6 L1 executor environment rejected: {error}"))?;
     let receipt = default_prover()
         .prove_with_opts(
             executor_env,

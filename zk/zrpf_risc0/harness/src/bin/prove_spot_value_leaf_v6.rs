@@ -1,13 +1,14 @@
 use std::{env, path::Path, path::PathBuf};
 
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
-use risc0_zkvm::{compute_image_id, default_prover, Digest, ExecutorEnv, ProverOpts, Receipt};
+use risc0_zkvm::{compute_image_id, default_prover, Digest, ProverOpts, Receipt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tau_state_proof_risc0_shared::{
     compose_spot_recursive_leaf_summary_v1, RecursiveEffectSummaryV1, SpotRecursiveLeafInputV1,
     PROOF_TYPE_RECURSIVE_SPOT_LEAF,
 };
+use zenodex_zrpf_risc0_execution_profile::build_exact_framed_executor_env_v1;
 use zenodex_zrpf_risc0_shared::{project_policy_bound_v2_journal, source_policy_v2, SourceKindV2};
 use zenodex_zrpf_risc0_spot_v6_methods::{
     ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V6_ELF, ZENODEX_ZRPF_RISC0_SPOT_VALUE_LEAF_V6_ID,
@@ -91,14 +92,9 @@ fn run() -> Result<(), String> {
         .map_err(|error| format!("V6 host recomposition rejected: {error}"))?;
     let input_bytes = encode_source_opened_spot_value_leaf_input_v6(&envelope)
         .map_err(|error| format!("V6 input encoding rejected: {error}"))?;
-    let input_length =
-        u32::try_from(input_bytes.len()).map_err(|_| "V6 input length exceeds u32")?;
-    let executor_env = ExecutorEnv::builder()
-        .write_slice(&[input_length])
-        .write_slice(&input_bytes)
-        .add_assumption(adapter.receipt().clone())
-        .build()
-        .map_err(|error| format!("V6 executor environment rejected: {error}"))?;
+    let executor_env =
+        build_exact_framed_executor_env_v1(&input_bytes, std::slice::from_ref(adapter.receipt()))
+            .map_err(|error| format!("V6 executor environment rejected: {error}"))?;
     let receipt = default_prover()
         .prove_with_opts(
             executor_env,
