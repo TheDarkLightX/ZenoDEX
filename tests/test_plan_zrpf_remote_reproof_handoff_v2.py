@@ -13,6 +13,7 @@ import pytest
 
 from tests import test_plan_zrpf_source_opened_spot_v6_identity_rebuild as identity_fixture
 from tools import plan_zrpf_remote_reproof_handoff_v2 as handoff
+from tools import run_zrpf_remote_worker_prover_build_stage_v2 as worker_build
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 C0 = subprocess.check_output(["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"], text=True).strip()
@@ -90,6 +91,61 @@ def _plan_for_chain(repo: Path, chain: list[str]) -> dict[str, Any]:
     return cast(dict[str, Any], handoff.build_handoff(repo, chain[0], chain[3]))
 
 
+def _worker_governance(plan: dict[str, object], repository: Path) -> dict[str, object]:
+    source = cast(dict[str, object], plan["source"])
+    governance_commit = str(source["worker_commit"])
+    image_id = _program_image_ids()["v6_settlement_program"]
+    image_raw = bytes.fromhex(image_id)
+    return {
+        "schema": worker_build.governance.CHECK_SCHEMA,
+        "status": "committed_post_pin_governance_binding_checked",
+        "c0_commit": source["c0_commit"],
+        "c1_commit": _git(repository, "rev-parse", f"{governance_commit}^^"),
+        "c2_commit": _git(repository, "rev-parse", f"{governance_commit}^"),
+        "governance_commit": governance_commit,
+        "plan_sha256": hashlib.sha256(b"return-fixture-plan").hexdigest(),
+        "observations_sha256": hashlib.sha256(b"return-fixture-observations").hexdigest(),
+        "candidate_report_sha256": hashlib.sha256(b"return-fixture-candidate").hexdigest(),
+        "materialization_manifest_sha256": hashlib.sha256(b"return-fixture-manifest").hexdigest(),
+        "v6_settlement_image_id": image_id,
+        "v6_settlement_image_id_words": [
+            int.from_bytes(image_raw[index : index + 4], "little") for index in range(0, 32, 4)
+        ],
+        "v7_child_policy_tree": hashlib.sha1(
+            b"return-fixture-policy-tree", usedforsecurity=False
+        ).hexdigest(),
+        "v7_child_policy_sha256": hashlib.sha256(b"return-fixture-policy").hexdigest(),
+        "validated_facts": dict(worker_build.GOVERNANCE_VALIDATED_FACTS),
+        "authority": {field: False for field in worker_build.governance.AUTHORITY_FIELDS},
+        "non_claims": list(worker_build.GOVERNANCE_NON_CLAIMS),
+    }
+
+
+def _worker_build_artifacts(plan: dict[str, object], repository: Path) -> dict[str, bytes]:
+    payloads = {
+        role: (
+            b"R0BF:return-fixture-v7-program"
+            if role == "v7_program"
+            else b"\x7fELF:return-fixture:" + role.encode("ascii")
+        )
+        for role in worker_build.BUILD_OUTPUT_ROLES
+    }
+    governance_raw = worker_build.planner.canonical_bytes(_worker_governance(plan, repository))
+    source = cast(dict[str, object], plan["source"])
+    report = worker_build._build_report(
+        str(source["worker_commit"]),
+        governance_raw,
+        payloads,
+        identity_fixture._runner_security_posture(),
+        _program_image_ids()["v7_program"],
+    )
+    return {
+        "post_pin_governance_result": governance_raw,
+        **payloads,
+        "worker_build_report": worker_build.planner.canonical_bytes(report),
+    }
+
+
 def _write_complete_artifacts(plan: dict[str, object], root: Path, repository: Path) -> None:
     contracts = plan["artifact_contracts"]
     assert isinstance(contracts, list)
@@ -147,6 +203,7 @@ def _write_complete_artifacts(plan: dict[str, object], root: Path, repository: P
         "identity_candidate_report": handoff.identity.canonical_bytes(report),
         "source_cli": source_cli,
         **{role: _artifact_bytes(role) for role in handoff.IDENTITY_STAGE_ROLES.values()},
+        **_worker_build_artifacts(plan, repository),
     }
     for contract in contracts:
         assert isinstance(contract, dict)
@@ -210,6 +267,7 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
     assert implemented == [
         "identity_rebuild",
         "ancestry_materialization",
+        "worker_prover_build",
         "source_spot_proof",
         "v2_adapter_receipt",
         "v6_leaf_receipt",
@@ -311,22 +369,64 @@ def test_mutation_task_binds_every_program_receipt_and_exact_runner(
     ]
 
 
-def test_worker_build_uses_the_dedicated_mutation_verifier_package(
+def test_worker_build_uses_exact_source_bound_adapter_and_position_distinct_outputs(
     plan: dict[str, Any],
 ) -> None:
     task = next(row for row in plan["tasks"] if row["stage_id"] == "worker_prover_build")
     commands = cast(list[dict[str, Any]], task["commands"])
-    mutation_build = next(
-        command
-        for command in commands
-        if "verify-spot-v7-remote-mutations" in command["argv"]
-    )
-    argv = cast(list[str], mutation_build["argv"])
-    package_index = argv.index("-p") + 1
-    assert argv[package_index] == (
-        "zenodex-zrpf-risc0-spot-v7-remote-mutation-verifier"
-    )
-    assert "zenodex-zrpf-risc0-spot-settlement-v7-verifier" not in argv
+    assert len(commands) == 1
+    assert commands[0]["runner"] == "python3"
+    assert commands[0]["argv"] == [
+        "tools/run_zrpf_remote_worker_prover_build_stage_v2.py",
+        "--source-commit",
+        "@worker_commit",
+        "--post-pin-governance",
+        "@post_pin_governance_result",
+        "--packet-r0vm",
+        "@r0vm",
+        "--risc0-home",
+        "@runtime_risc0_home",
+        "--cargo-registry-dir",
+        "@runtime_cargo_registry_dir",
+        "--docker",
+        "@runtime_docker",
+        "--v2-adapter-prover-out",
+        "@v2_adapter_prover",
+        "--v6-leaf-prover-out",
+        "@v6_leaf_prover",
+        "--v6-l1-prover-out",
+        "@v6_l1_prover",
+        "--v6-l2-prover-out",
+        "@v6_l2_prover",
+        "--v6-settlement-prover-out",
+        "@v6_settlement_prover",
+        "--v6-host-verifier-out",
+        "@v6_host_verifier",
+        "--mutation-verifier-out",
+        "@mutation_verifier",
+        "--v7-program-out",
+        "@v7_program",
+        "--v7-prover-out",
+        "@v7_prover",
+        "--worker-build-report-out",
+        "@worker_build_report",
+    ]
+    contracts = {
+        row["contract_id"]: row for row in cast(list[dict[str, Any]], plan["artifact_contracts"])
+    }
+    outputs = [contracts[item]["role"] for item in task["output_artifact_contract_ids"]]
+    assert outputs == [
+        "v2_adapter_prover",
+        "v6_leaf_prover",
+        "v6_l1_prover",
+        "v6_l2_prover",
+        "v6_settlement_prover",
+        "v6_host_verifier",
+        "mutation_verifier",
+        "v7_program",
+        "v7_prover",
+        "worker_build_report",
+    ]
 
 
 def test_source_proof_task_is_required_and_missing_source_proof_blocks_adapter(
@@ -693,6 +793,68 @@ def test_artifact_substitution_rejects(tmp_path: Path) -> None:
     path.write_bytes(b"substituted\n")
     with pytest.raises(handoff.HandoffError, match="artifact SHA-256"):
         handoff.validate_return_bundle(plan, bundle, artifact_root, repo)
+
+
+@pytest.mark.parametrize("mutation", ["c0_commit", "v6_settlement_image_id"])
+def test_coherent_worker_governance_substitution_rejects_before_capture(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    repo, chain = _ancestry_repo(tmp_path)
+    plan = _plan_for_chain(repo, chain)
+    artifact_root = tmp_path / "artifacts"
+    _write_complete_artifacts(plan, artifact_root, repo)
+    packet_directory = tmp_path / "packets"
+    _write_execution_packets(plan, artifact_root, repo, chain, packet_directory)
+    contracts = {
+        str(row["role"]): row for row in cast(list[dict[str, object]], plan["artifact_contracts"])
+    }
+    governance_path = artifact_root / str(contracts["post_pin_governance_result"]["path"])
+    report_path = artifact_root / str(contracts["worker_build_report"]["path"])
+    governance = worker_build.planner.load_canonical_json(
+        governance_path,
+        "worker governance",
+    )
+    if mutation == "c0_commit":
+        governance["c0_commit"] = hashlib.sha1(
+            b"coherent-wrong-C0",
+            usedforsecurity=False,
+        ).hexdigest()
+    else:
+        image_id = hashlib.sha256(b"coherent-wrong-V6-image").hexdigest()
+        image_raw = bytes.fromhex(image_id)
+        governance["v6_settlement_image_id"] = image_id
+        governance["v6_settlement_image_id_words"] = [
+            int.from_bytes(image_raw[index : index + 4], "little") for index in range(0, 32, 4)
+        ]
+    governance_raw = worker_build.planner.canonical_bytes(governance)
+    governance_path.write_bytes(governance_raw)
+    payloads = {
+        role: (artifact_root / str(contracts[role]["path"])).read_bytes()
+        for role in worker_build.BUILD_OUTPUT_ROLES
+    }
+    source = cast(dict[str, object], plan["source"])
+    report = worker_build._build_report(
+        str(source["worker_commit"]),
+        governance_raw,
+        payloads,
+        identity_fixture._runner_security_posture(),
+        _program_image_ids()["v7_program"],
+    )
+    report_path.write_bytes(worker_build.planner.canonical_bytes(report))
+
+    with pytest.raises(handoff.HandoffError, match="worker governance"):
+        handoff.capture_return_bundle(
+            plan,
+            artifact_root,
+            repo,
+            execution_packet_directory=packet_directory,
+            c0_commit=chain[0],
+            c1_commit=chain[1],
+            c2_commit=chain[2],
+            governance_commit=chain[3],
+            program_image_ids=_program_image_ids(),
+        )
 
 
 def test_identity_plan_substitution_rejects_before_capture(tmp_path: Path) -> None:

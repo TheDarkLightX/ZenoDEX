@@ -94,9 +94,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     python_assurance = steps["Run Python and evidence assurance"]["run"]
     rust_assurance = steps["Run Rust protocol and verifier assurance"]["run"]
     assert rust_assurance.count("--features test-only-candidate-source-policy") == 2
-    shared_source = (ROOT / "zk/zrpf_risc0/shared/src/lib.rs").read_text(
-        encoding="utf-8"
-    )
+    shared_source = (ROOT / "zk/zrpf_risc0/shared/src/lib.rs").read_text(encoding="utf-8")
     assert (
         '#[cfg(all(feature = "test-only-candidate-source-policy", target_os = "zkvm"))]'
         in shared_source
@@ -110,9 +108,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "zk/zrpf_risc0/spot_settlement_v6_shared/Cargo.toml",
     ):
         manifest = tomllib.loads((ROOT / relative_manifest).read_text(encoding="utf-8"))
-        assert manifest["test"][0]["required-features"] == [
-            "test-only-candidate-source-policy"
-        ]
+        assert manifest["test"][0]["required-features"] == ["test-only-candidate-source-policy"]
     active_replay = steps[
         "Build governed host verifiers and cryptographically replay retained roots"
     ]["run"]
@@ -122,42 +118,25 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "zrpf-candidate-policy-negative-check" in guest_assurance
     assert "-p zenodex-zrpf-risc0-shared" in guest_assurance
     assert "--features test-only-candidate-source-policy" in guest_assurance
-    assert (
-        "test-only candidate source policy is forbidden on the zkVM target"
-        in guest_assurance
-    )
+    assert "test-only candidate source policy is forbidden on the zkVM target" in guest_assurance
     cargo_acquisition = steps["Acquire lockfile-bound Cargo sources"]["run"]
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in cargo_acquisition
     assert (
         "--manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml"
         in cargo_acquisition
     )
-    assert "--manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml" in (
-        cargo_acquisition
-    )
-    assert "--manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml" in (
-        cargo_acquisition
-    )
+    assert "--manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml" in (cargo_acquisition)
+    assert "--manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml" in (cargo_acquisition)
     assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in cargo_acquisition
-    assert "--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml" in (
-        cargo_acquisition
-    )
-    assert (
-        'replay_anchor_commit="ff76ff9c1dc307f0e7dc5afd009e2961f2e36f21"'
-        in cargo_acquisition
-    )
-    assert 'anchor_checkout="${RUNNER_TEMP}/zrpf-v3-source-anchor-fetch"' in (
-        cargo_acquisition
-    )
+    assert "--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml" in (cargo_acquisition)
+    assert 'replay_anchor_commit="ff76ff9c1dc307f0e7dc5afd009e2961f2e36f21"' in cargo_acquisition
+    assert 'anchor_checkout="${RUNNER_TEMP}/zrpf-v3-source-anchor-fetch"' in (cargo_acquisition)
     assert (
         'git -c core.hooksPath=/dev/null worktree add --detach "${anchor_checkout}"'
         in cargo_acquisition
     )
     assert '"${replay_anchor_commit}"' in cargo_acquisition
-    assert (
-        '--manifest-path "${anchor_checkout}/zk/zrpf_risc0/Cargo.toml"'
-        in cargo_acquisition
-    )
+    assert '--manifest-path "${anchor_checkout}/zk/zrpf_risc0/Cargo.toml"' in cargo_acquisition
     assert "git worktree remove --force" in cargo_acquisition
     assert "tools/check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
@@ -167,15 +146,15 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py" in python_assurance
     assert "tools/plan_zrpf_remote_reproof_handoff_v2.py" in python_assurance
     assert "tools/run_zrpf_remote_identity_rebuild_stage_v2.py" in python_assurance
+    assert "tools/run_zrpf_remote_worker_prover_build_stage_v2.py" in python_assurance
     assert "tools/run_zrpf_remote_reproof_worker_v2.py" in python_assurance
     assert "tools/zrpf_remote_reproof_handoff_v2_catalog.py" in python_assurance
     assert "tools/zrpf_remote_reproof_worker_v2_contract.py" in python_assurance
     assert "tests/test_plan_zrpf_remote_reproof_handoff_v2.py" in python_assurance
     assert "tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py" in python_assurance
+    assert "tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py" in python_assurance
     assert "tests/test_run_zrpf_remote_reproof_worker_v2.py" in python_assurance
-    assert "tests/test_zrpf_remote_mutation_verifier_source_contract.py" in (
-        python_assurance
-    )
+    assert "tests/test_zrpf_remote_mutation_verifier_source_contract.py" in (python_assurance)
     assert "tests/test_zrpf_remote_mutation_dependency_closure.py" in python_assurance
     assert "tools/check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in python_assurance
@@ -295,6 +274,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tools/plan_zrpf_spot_v7_release_closure.py",
         "tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py",
         "tools/run_zrpf_remote_identity_rebuild_stage_v2.py",
+        "tools/run_zrpf_remote_worker_prover_build_stage_v2.py",
         "tools/run_zrpf_remote_reproof_worker_v2.py",
         "tools/zrpf_remote_reproof_worker_v2_contract.py",
         "tools/recover_zrpf_v6_identity_build_lease.py",
@@ -356,6 +336,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_zeno_ledger_strict_spot_range_authority_v1.py",
         "tests/test_zrpf_spot_v7_release_closure.py",
         "tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py",
+        "tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py",
         "tests/test_run_zrpf_remote_reproof_worker_v2.py",
         "tests/test_zrpf_remote_mutation_verifier_source_contract.py",
         "tests/test_zrpf_remote_mutation_dependency_closure.py",
@@ -467,15 +448,11 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
-    required_retrievability_test = (
-        "tests/integration/test_zrpf_sampled_retrievability_v1.py"
-    )
+    required_retrievability_test = "tests/integration/test_zrpf_sampled_retrievability_v1.py"
     assert required_retrievability_test in ruff_assurance
     assert required_retrievability_test in mypy_assurance
     assert required_retrievability_test in pytest_assurance
-    required_governed_da_test = (
-        "tests/integration/test_zrpf_spot_v7_governed_da_prerequisite.py"
-    )
+    required_governed_da_test = "tests/integration/test_zrpf_spot_v7_governed_da_prerequisite.py"
     assert required_governed_da_test in ruff_assurance
     assert required_governed_da_test in mypy_assurance
     assert required_governed_da_test in pytest_assurance
@@ -516,15 +493,15 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml" in rust_assurance
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in rust_assurance
     assert (
-        "--manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml"
-        in rust_assurance
+        "--manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml" in rust_assurance
     )
-    assert rust_assurance.count(
-        "--manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml"
-    ) == 4
-    assert rust_assurance.count(
-        "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml"
-    ) == 4
+    assert (
+        rust_assurance.count(
+            "--manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml"
+        )
+        == 4
+    )
+    assert rust_assurance.count("--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml") == 4
     assert "-p zenodex-zrpf-spot-v7-firecracker-runtime" in rust_assurance
     for package in (
         "zenodex-zrpf-risc0-spot-settlement-v7-child-policy",
@@ -535,23 +512,16 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "zenodex-zrpf-risc0-spot-settlement-v7-harness",
     ):
         assert package in rust_assurance
+    assert "--exclude zenodex-zrpf-risc0-spot-settlement-v7-guest" in rust_assurance
+    assert "--bin zenodex-zrpf-risc0-spot-settlement-v7-guest" in rust_assurance
     assert (
-        "--exclude zenodex-zrpf-risc0-spot-settlement-v7-guest"
-        in rust_assurance
+        rust_assurance.count("--manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml") == 4
     )
     assert (
-        "--bin zenodex-zrpf-risc0-spot-settlement-v7-guest"
-        in rust_assurance
+        rust_assurance.count("--manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml")
+        == 4
     )
-    assert rust_assurance.count(
-        "--manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml"
-    ) == 4
-    assert rust_assurance.count(
-        "--manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml"
-    ) == 4
-    assert rust_assurance.count(
-        "--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml"
-    ) == 3
+    assert rust_assurance.count("--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml") == 3
     assert rust_assurance.count("--manifest-path zk/state_proof_risc0/Cargo.toml") == 3
     assert rust_assurance.count("-p tau-state-proof-risc0-cli --all-targets") == 2
     assert rust_assurance.count("--locked --offline -p tau-state-proof-risc0-cli") == 2
@@ -589,9 +559,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert '--target-dir "${RUNNER_TEMP}/zrpf-guest-check"' in guest_assurance
     assert "zenodex-zrpf-risc0-semantic-epoch" in guest_packages
     assert "zenodex-zrpf-risc0-v2-leaf-adapter" in guest_packages
-    assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in (
-        guest_assurance
-    )
+    assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in (guest_assurance)
     assert "-p zenodex-zrpf-risc0-spot-settlement-v7-guest" in guest_assurance
     assert "export RISC0_SKIP_BUILD=1" in active_replay
     assert "unset RISC0_SKIP_BUILD" not in active_replay
@@ -620,13 +588,8 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert 'CARGO_TARGET_DIR="${RUNNER_TEMP}/zrpf-current-guest-build"' in current_guest_build
     assert "--frozen --offline --release" in current_guest_build
     assert "-p zenodex-zrpf-risc0-methods" in current_guest_build
-    assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in (
-        current_guest_build
-    )
-    assert (
-        "-p zenodex-zrpf-risc0-spot-settlement-v7-methods"
-        in current_guest_build
-    )
+    assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in (current_guest_build)
+    assert "-p zenodex-zrpf-risc0-spot-settlement-v7-methods" in current_guest_build
     assert "ZENODEX_RUN_NATIVE_ZRPF_REPLAY" not in raw
     assert steps["Checkout full source history"]["uses"] == (
         "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10"

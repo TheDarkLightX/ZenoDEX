@@ -27,6 +27,7 @@ from tools.zrpf_v6_identity_runner_integrity import (
     StableFileIdentity,
     capture_cargo_registry,
     capture_pinned_tool,
+    capture_stable_executable,
 )
 
 RUNNER_SECURITY_POSTURE_SCHEMA = planner.RUNNER_SECURITY_POSTURE_SCHEMA
@@ -71,8 +72,10 @@ class DockerBuildRunner:
         self._docker = _canonical_executable(docker, "Docker client")
         runner_resources.validate_resource_policy()
         self._tool_identities = self._capture_tool_identities()
+        self._docker_identity = self._capture_docker_identity()
         self._registry_identity = capture_cargo_registry(self._registry)
         self._validate_image()
+        self._require_external_inputs_unchanged("after build image validation")
 
     def security_posture(self) -> dict[str, Any]:
         """Return deterministic candidate-evidence facts and explicit non-claims."""
@@ -83,6 +86,7 @@ class DockerBuildRunner:
                 name: identity.evidence()
                 for name, identity in sorted(self._tool_identities.items())
             },
+            "observed_docker_client_identity": self._docker_identity.evidence(),
             "cargo_registry_identity": self._registry_identity.evidence(),
             "resource_policy": runner_resources.security_resource_policy(),
             "same_uid_resistance": False,
@@ -116,7 +120,6 @@ class DockerBuildRunner:
     ) -> BuildResult:
         self._require_external_inputs_unchanged(f"before {request.pass_id}")
         _create_private_directory(request.target_directory)
-        _create_private_directory(request.output_directory)
         wrapper = request.target_directory / NESTED_CARGO_WRAPPER_FILE
         _write_new_output(wrapper, NESTED_CARGO_WRAPPER_BYTES, 0o555)
         wrapper_identity = capture_pinned_tool(
@@ -132,6 +135,7 @@ class DockerBuildRunner:
             container_id_file,
         )
         primary_error: BaseException | None = None
+        payload: runner_protocol.RunnerPayload | None = None
         try:
             result = process_runner.run_bounded(
                 process_runner.ProcessRequest(
@@ -148,8 +152,6 @@ class DockerBuildRunner:
                     f"{request.pass_id} container build rejected with exit {result.returncode}"
                 )
             payload = _parse_runner_payload(result.stdout, request)
-            _materialize_runner_payload(request, payload)
-            return payload.result
         except (OSError, RuntimeError) as exc:
             wrapped = ExecutionError(f"{request.pass_id} container build failed")
             primary_error = wrapped
@@ -167,6 +169,10 @@ class DockerBuildRunner:
                 primary_error,
                 lease,
             )
+        if payload is None:
+            raise ExecutionError(f"{request.pass_id} produced no verified runner payload")
+        _materialize_runner_payload(request, payload)
+        return payload.result
 
     def _finalize_run(
         self,
@@ -247,9 +253,14 @@ class DockerBuildRunner:
             name: capture_pinned_tool(path, name, digest) for name, (path, digest) in tools.items()
         }
 
+    def _capture_docker_identity(self) -> StableFileIdentity:
+        return capture_stable_executable(self._docker, "Docker client")
+
     def _require_external_inputs_unchanged(self, transition: str) -> None:
         if self._capture_tool_identities() != self._tool_identities:
             raise ExecutionError(f"pinned tool identity changed {transition}")
+        if self._capture_docker_identity() != self._docker_identity:
+            raise ExecutionError(f"Docker client identity changed {transition}")
         if capture_cargo_registry(self._registry) != self._registry_identity:
             raise ExecutionError(f"Cargo registry identity changed {transition}")
 
@@ -526,8 +537,9 @@ def _container_script(request: BuildRequest) -> str:
     command = shlex.join(request.command)
     source = shlex.quote(request.extraction_source)
     destination = shlex.quote(f"{request.container_output_directory}/{request.artifact_file}")
-    artifact_mode = "0444" if request.kind is BuildKind.GUEST else "0555"
+    artifact_mode = "0555" if request.kind is BuildKind.HOST_VERIFIER else "0444"
     magic_check, identity = _guest_specific_checks(request.kind)
+    archive = _archive_script(request)
     companion, expected_names = _companion_script(request)
     names = " ".join(shlex.quote(name) for name in sorted(expected_names))
     maximum_bytes = (
@@ -558,6 +570,7 @@ printf '%s\n' '[default_versions]' 'rust = "1.94.1"' > /risc0/settings.toml
 [[ -z "$(find {shlex.quote(request.container_target_directory)} -mindepth 1 -print -quit)" ]]
 [[ -z "$(find {shlex.quote(request.container_output_directory)} -mindepth 1 -print -quit)" ]]
 {command} 1>&2
+{archive}
 artifact_source={source}
 [[ -f $artifact_source && ! -L $artifact_source ]]
 install -m {artifact_mode} -- "$artifact_source" {destination}
@@ -583,6 +596,58 @@ printf '\n'
 if [[ $companion != '-' ]]; then base64 -w0 -- "$companion"; fi
 printf '\nZRPF_END\n'
 """
+
+
+def _archive_script(request: BuildRequest) -> str:
+    if request.kind is not BuildKind.ARCHIVE:
+        return ""
+    staging = f"{request.container_target_directory}/.zrpf-archive-staging"
+    lines = [
+        f"archive_staging={shlex.quote(staging)}",
+        '[[ ! -e "$archive_staging" ]]',
+        'install -d -m 0700 -- "$archive_staging"',
+    ]
+    names: list[str] = []
+    for member in request.archive_members:
+        source = shlex.quote(member.source)
+        destination = shlex.quote(f"{staging}/{member.name}")
+        mode = "0555" if member.executable else "0444"
+        lines.extend(
+            (
+                f"member_source={source}",
+                '[[ -f "$member_source" && ! -L "$member_source" ]]',
+                'member_bytes=$(stat -c %s -- "$member_source")',
+                f"[[ $member_bytes -gt 0 && $member_bytes -le {planner.MAX_HOST_BINARY_BYTES} ]]",
+                f'install -m {mode} -- "$member_source" {destination}',
+            )
+        )
+        if member.executable:
+            lines.append(f"[[ -x {destination} ]]")
+        else:
+            lines.extend(
+                (
+                    f"member_magic=$(od -An -tx1 -N4 -- {destination} | tr -d ' \\n')",
+                    "[[ $member_magic == 52304246 ]]",
+                )
+            )
+        names.append(member.name)
+    ordered_names = " ".join(shlex.quote(name) for name in sorted(names))
+    archive = shlex.quote(request.extraction_source)
+    lines.extend(
+        (
+            f"expected_archive_names=$(printf '%s\\n' {ordered_names})",
+            "actual_archive_names=$(find \"$archive_staging\" -mindepth 1 -maxdepth 1 -printf '%f\\n' | sort)",
+            '[[ "$actual_archive_names" == "$expected_archive_names" ]]',
+            (
+                "/usr/bin/tar --create --format=ustar --sort=name --mtime=@0 "
+                "--owner=0 --group=0 --numeric-owner --file=- "
+                f'--directory="$archive_staging" -- {ordered_names} '
+                f"| /usr/bin/gzip -n -9 > {archive}"
+            ),
+            f"[[ -s {archive} ]]",
+        )
+    )
+    return "\n".join(lines)
 
 
 def _guest_specific_checks(kind: BuildKind) -> tuple[str, str]:

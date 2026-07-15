@@ -48,6 +48,7 @@ def _runner_security_posture() -> dict:
                 "bytes": 1,
             },
         },
+        "observed_docker_client_identity": {"sha256": "d" * 64, "bytes": 503},
         "cargo_registry_identity": {
             "schema": planner.CARGO_REGISTRY_IDENTITY_SCHEMA,
             "root_sha256": "a" * 64,
@@ -173,12 +174,11 @@ def test_executor_writes_exact_v2_candidates_and_preserves_historical_v1(
     candidates = report["governance_candidates"]
     for key in ("current_source_anchor_v2", "v2_adapter_source_policy"):
         row = candidates[key]
-        assert (snapshot / row["path"]).read_bytes() == planner.canonical_bytes(
-            row["document"]
-        )
-    assert observations["stages"][0]["source_tree_root_sha256"] == _plan(run_root)[
-        "source_guest_source_coverage"
-    ]["inventory_root_sha256"]
+        assert (snapshot / row["path"]).read_bytes() == planner.canonical_bytes(row["document"])
+    assert (
+        observations["stages"][0]["source_tree_root_sha256"]
+        == _plan(run_root)["source_guest_source_coverage"]["inventory_root_sha256"]
+    )
 
 
 def test_executor_records_exact_declared_repin_values(tmp_path: Path) -> None:
@@ -188,10 +188,7 @@ def test_executor_records_exact_declared_repin_values(tmp_path: Path) -> None:
         assert [
             (row["path"], row["symbol"], row["value_kind"], row["visibility"])
             for row in observed["repins"]
-        ] == [
-            (row.path, row.symbol, row.value_kind, row.visibility)
-            for row in spec.repins
-        ]
+        ] == [(row.path, row.symbol, row.value_kind, row.visibility) for row in spec.repins]
 
 
 def test_mutated_plan_rejects_before_run_root_creation(tmp_path: Path) -> None:
@@ -563,20 +560,20 @@ def test_host_runner_contract_never_emits_a_guest_identity(tmp_path: Path) -> No
     assert "install -m 0555" in script
     assert "image_id='-'" in script
     assert "r0vm --elf" not in script
-    assert docker_runner._parse_runner_result(
-        b"12 " + b"a" * 64 + b" -\n",
-        executor.BuildKind.HOST_VERIFIER,
-    ).image_id is None
+    assert (
+        docker_runner._parse_runner_result(
+            b"12 " + b"a" * 64 + b" -\n",
+            executor.BuildKind.HOST_VERIFIER,
+        ).image_id
+        is None
+    )
 
 
 def test_direct_cli_entrypoint_loads_outside_repository(tmp_path: Path) -> None:
     result = subprocess.run(
         [
             sys.executable,
-            str(
-                planner.REPO_ROOT
-                / "tools/execute_zrpf_source_opened_spot_v6_identity_rebuild.py"
-            ),
+            str(planner.REPO_ROOT / "tools/execute_zrpf_source_opened_spot_v6_identity_rebuild.py"),
             "--help",
         ],
         cwd=tmp_path,

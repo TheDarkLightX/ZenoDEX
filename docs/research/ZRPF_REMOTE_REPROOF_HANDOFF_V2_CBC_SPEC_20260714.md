@@ -1,10 +1,10 @@
 # ZRPF remote reproof handoff V2 CBC specification
 
 Status: implemented planner, per-stage exact-input packet builder, return
-checker, and bounded authority-neutral worker for ten packet-expressible
-stages. The identity rebuild adapter and exact mutation verifier are
-implemented. The prover-build adapter remains missing. The bundle-aware
-release checker command template remains planned.
+checker, and bounded authority-neutral worker for eleven packet-expressible
+stages. The identity rebuild, worker prover-build, and exact mutation adapters
+are implemented. The bundle-aware release checker command template remains
+planned.
 
 The closed task/artifact catalog lives in
 `tools/zrpf_remote_reproof_handoff_v2_catalog.py`. Parsing, content addressing,
@@ -47,7 +47,12 @@ A successfully checked return establishes only these metadata facts:
    the expected image and Succinct profile before requiring exactly seal word
    1, bit 0 to differ and requiring each mutation to fail cryptographic receipt
    verification at the governed boundary.
-9. Every authority field remains false.
+9. The worker-build report binds one canonically validated, authority-false G
+   governance object, all nine built worker artifacts, and an externally fixed
+   candidate V7 image ID. The return checker additionally binds C0/C1/C2/G and
+   the V6 settlement image to the validated handoff evidence. Complete
+   build-input closure and same-UID resistance remain false.
+10. Every authority field remains false.
 
 The checker does not establish:
 
@@ -69,14 +74,17 @@ settlement authority
 production authority
 ```
 
-Program image IDs in a return bundle are worker-reported exact identities. The
+Program image IDs in a return bundle are candidate exact identities. The
 source-through-V6 IDs must equal the governed identity-rebuild report. The V7
-ID remains only worker-reported. A separately governed r0vm/verifier and
+ID must equal the source-bound worker-build report and the external candidate
+expectation. Its construction path computes that candidate through the
+packet/runtime-equal pinned r0vm; the reusable return checker does not repeat
+that computation. The return remains authority-neutral. A separately governed
 release-closure check must recompute every final identity before promotion.
-Content IDs protect against data-only substitution under the reviewed checker.
-They cannot protect against a coherent edit that changes the checker, catalog,
-and expected policy together. Those code and policy changes require independent
-review plus a separately governed release anchor.
+Content IDs detect drift relative to an independently fixed expected identity.
+This authority-neutral bundle does not authenticate a coherently replaced
+artifact, report, and external image expectation. Checker, catalog, and policy
+changes require independent review plus a separately governed release anchor.
 
 ## Authority progression
 
@@ -163,6 +171,7 @@ The catalog marks these packet-expressible stages as implemented:
 ```text
 identity_rebuild
 ancestry_materialization
+worker_prover_build
 source_spot_proof
 v2_adapter_receipt
 v6_leaf_receipt
@@ -187,9 +196,14 @@ and same-UID resistance remain false. The worker host must create the canonical
 private parent `/external/zrpf-remote-reproof-handoff-v2/identity` before the
 stage begins; the fixed child `run` must begin absent. The adapter rejects a
 missing, noncanonical, repository-contained, or already-existing run root.
-`worker_prover_build` remains
-`execution_adapter_status = missing` because its multi-workspace output
-collector is not yet implemented. The release stage remains planned.
+`worker_prover_build` uses the same pinned no-network runner to create one
+deterministic V6 host bundle and one deterministic V7 bundle. Its adapter
+requires an exact ordered archive-member inventory, extracts nine outputs,
+computes the candidate V7 image ID through the packet-pinned r0vm, and emits a
+canonical build report that binds canonically validated G governance and all
+extracted bytes. The return checker binds that governance to the handoff
+ancestry and validated V6 identity. Ephemeral archive hashes are excluded from
+the reusable report. The release stage remains planned.
 
 ## Artifact contract
 
@@ -443,9 +457,8 @@ aggregate artifact bytes above the governed cap
    review.
 2. Merge the bounded worker only after its command, packet, content, path,
    output-inventory, resource, timeout, and capture negative controls pass.
-3. Extend the packet ABI and worker for identity rebuild and governed
-   prover-build output collection.
-4. Implement the bounded unified V6/V7 mutation worker.
+3. Validate identity and worker-build source/output distinguishing witnesses.
+4. Validate the bounded unified V6/V7 mutation worker.
 5. Implement a bundle-aware release checker that consumes the exact returned
    identity, proof, mutation, and runtime artifacts.
 6. Generate a handoff from the final integration C0 and worker G commit.

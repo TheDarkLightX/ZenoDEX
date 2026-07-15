@@ -28,6 +28,7 @@ if __package__ in {None, ""}:  # pragma: no cover - direct script execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools import plan_zrpf_source_opened_spot_v6_identity_rebuild as identity
+from tools import run_zrpf_remote_worker_prover_build_stage_v2 as worker_build
 from tools.zrpf_remote_reproof_handoff_v2_catalog import (
     ARTIFACT_SPECS,
     IDENTITY_RUN_ROOT,
@@ -149,6 +150,11 @@ IDENTITY_DOCUMENT_ROLES = {
     "identity_plan",
     "identity_observations",
     "identity_candidate_report",
+}
+VALIDATED_ARTIFACT_ROLES = IDENTITY_DOCUMENT_ROLES | {
+    "post_pin_governance_result",
+    *worker_build.BUILD_OUTPUT_ROLES,
+    "worker_build_report",
 }
 
 
@@ -696,6 +702,12 @@ def capture_return_bundle(
     images = dict(program_image_ids or {})
     if set(images) != set(PROGRAM_ROLES):
         raise HandoffError("program image ID inventory mismatch")
+    _validate_worker_build_artifacts(
+        handoff,
+        artifact_bytes,
+        ancestry,
+        images,
+    )
     programs = []
     for role in PROGRAM_ROLES:
         image_id = _hex(images[role], 64, f"{role} image ID")
@@ -767,7 +779,7 @@ def _artifact_records(
         if total_bytes > MAX_TOTAL_ARTIFACT_BYTES:
             raise HandoffError("aggregate artifact bytes exceed the governed bound")
         records.append(_artifact_record_from_bytes(contract, path, raw))
-        if role in IDENTITY_DOCUMENT_ROLES:
+        if role in VALIDATED_ARTIFACT_ROLES:
             raw_by_role[role] = raw
     return records, raw_by_role
 
@@ -910,6 +922,13 @@ def validate_return_bundle(
             raise HandoffError("program image ID cannot use the zero sentinel")
         if role in identity_images and image_id != identity_images[role]:
             raise HandoffError("program image ID differs from validated identity rebuild")
+    program_images = {str(row["role"]): str(row["image_id"]) for row in programs}
+    _validate_worker_build_artifacts(
+        handoff,
+        artifact_bytes,
+        ancestry,
+        program_images,
+    )
     expected_packets = _execution_packets_from_records(handoff, ancestry, by_role)
     if not _canonical_values_equal(bundle.get("execution_packets"), expected_packets):
         raise HandoffError("return execution packet inventory mismatch")
@@ -996,6 +1015,36 @@ def _validate_identity_artifacts(
     ):
         raise HandoffError("source CLI artifact differs from candidate report")
     return images
+
+
+def _validate_worker_build_artifacts(
+    handoff: Mapping[str, object],
+    artifact_bytes: Mapping[str, bytes],
+    ancestry: Mapping[str, object],
+    program_images: Mapping[str, str],
+) -> None:
+    source = _object(handoff.get("source"), "source")
+    try:
+        expected_source_commit = str(source["worker_commit"])
+        governed = worker_build._validate_governance_result(
+            artifact_bytes["post_pin_governance_result"],
+            expected_source_commit,
+        )
+        for field in ("c0_commit", "c1_commit", "c2_commit", "governance_commit"):
+            if governed[field] != ancestry.get(field):
+                raise HandoffError("worker governance ancestry binding mismatch")
+        if governed["v6_settlement_image_id"] != program_images.get("v6_settlement_program"):
+            raise HandoffError("worker governance V6 image binding mismatch")
+        observed = {role: artifact_bytes[role] for role in worker_build.BUILD_OUTPUT_ROLES}
+        worker_build.validate_worker_build_report(
+            artifact_bytes["worker_build_report"],
+            observed,
+            artifact_bytes["post_pin_governance_result"],
+            expected_source_commit=expected_source_commit,
+            expected_v7_image_id=program_images["v7_program"],
+        )
+    except (KeyError, worker_build.WorkerBuildError) as exc:
+        raise HandoffError("worker build artifacts failed governed validation") from exc
 
 
 def _load_identity_json_bytes(raw: bytes, label: str) -> dict[str, Any]:

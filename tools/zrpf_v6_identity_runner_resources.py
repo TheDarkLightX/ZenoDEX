@@ -185,12 +185,7 @@ def acquire_host_build_recovery_lease(
 def _open_locked_lease(path: Path) -> int:
     if not path.is_absolute() or path.parent.resolve(strict=True) != path.parent:
         raise ExecutionError("host build lease path is noncanonical")
-    flags = (
-        os.O_RDWR
-        | os.O_CREAT
-        | getattr(os, "O_NOFOLLOW", 0)
-        | getattr(os, "O_CLOEXEC", 0)
-    )
+    flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
     try:
         descriptor = os.open(path, flags, 0o600)
     except OSError as exc:
@@ -210,7 +205,9 @@ def _open_locked_lease(path: Path) -> int:
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
-            raise ExecutionError("another governed ZRPF identity build holds the host lease") from exc
+            raise ExecutionError(
+                "another governed ZRPF identity build holds the host lease"
+            ) from exc
     except BaseException:
         os.close(descriptor)
         raise
@@ -266,8 +263,7 @@ def _parse_recovery_record(raw: bytes) -> HostBuildRecoveryRecord:
     if (
         not isinstance(document, dict)
         or _canonical_lease_bytes(document) != raw
-        or set(document)
-        != {"schema", "state", "pid", "container_name", "container_id_file"}
+        or set(document) != {"schema", "state", "pid", "container_name", "container_id_file"}
         or document.get("schema") != HOST_BUILD_LEASE_SCHEMA
         or document.get("state") not in {"active", "cleanup_incomplete"}
         or not isinstance(document.get("pid"), int)
@@ -340,7 +336,35 @@ def validate_build_request(request: BuildRequest) -> None:
         "artifact extraction source",
     )
     _validate_companion_request(request)
+    _validate_archive_request(request)
     _validate_command_resources(request)
+
+
+def _validate_archive_request(request: BuildRequest) -> None:
+    if request.kind.value != "archive":
+        if request.archive_members:
+            raise ExecutionError("archive members require the archive build kind")
+        return
+    if request.companion_artifact_file is not None or not 0 < len(request.archive_members) <= 16:
+        raise ExecutionError("archive build has an invalid member or companion inventory")
+    names: set[str] = set()
+    sources: set[str] = set()
+    for member in request.archive_members:
+        require_output_name(member.name)
+        _require_container_artifact_path(
+            member.source,
+            request.container_target_directory,
+            "archive member source",
+        )
+        if (
+            type(member.executable) is not bool
+            or member.name in names
+            or member.source in sources
+            or member.source == request.extraction_source
+        ):
+            raise ExecutionError("archive member inventory is ambiguous")
+        names.add(member.name)
+        sources.add(member.source)
 
 
 def auxiliary_tmpfs_arguments() -> list[str]:

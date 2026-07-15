@@ -268,6 +268,7 @@ jobs:
             tools/plan_zrpf_spot_v7_release_closure.py \
             tools/plan_zrpf_remote_reproof_handoff_v2.py \
             tools/run_zrpf_remote_identity_rebuild_stage_v2.py \
+            tools/run_zrpf_remote_worker_prover_build_stage_v2.py \
             tools/run_zrpf_remote_reproof_worker_v2.py \
             tools/zrpf_remote_reproof_handoff_v2_catalog.py \
             tools/zrpf_remote_reproof_worker_v2_contract.py \
@@ -348,6 +349,7 @@ jobs:
             tests/test_materialize_zrpf_source_opened_spot_v6_identity.py \
             tests/test_plan_zrpf_remote_reproof_handoff_v2.py \
             tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py \
+            tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
             tests/test_zrpf_remote_mutation_verifier_source_contract.py \
             tests/test_zrpf_remote_mutation_dependency_closure.py \
@@ -533,6 +535,7 @@ jobs:
             tools/plan_zrpf_spot_v7_release_closure.py \
             tools/plan_zrpf_remote_reproof_handoff_v2.py \
             tools/run_zrpf_remote_identity_rebuild_stage_v2.py \
+            tools/run_zrpf_remote_worker_prover_build_stage_v2.py \
             tools/run_zrpf_remote_reproof_worker_v2.py \
             tools/zrpf_remote_reproof_handoff_v2_catalog.py \
             tools/zrpf_remote_reproof_worker_v2_contract.py \
@@ -608,6 +611,7 @@ jobs:
             tests/test_zrpf_spot_v7_firecracker_rust_parity.py \
             tests/test_zrpf_spot_v7_release_closure.py \
             tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py \
+            tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
             tests/test_zrpf_remote_mutation_verifier_source_contract.py \
             tests/test_zrpf_remote_mutation_dependency_closure.py \
@@ -655,6 +659,7 @@ jobs:
             tests/test_materialize_zrpf_source_opened_spot_v6_identity.py \
             tests/test_plan_zrpf_remote_reproof_handoff_v2.py \
             tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py \
+            tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
             tests/test_zrpf_remote_mutation_verifier_source_contract.py \
             tests/test_zrpf_remote_mutation_dependency_closure.py \

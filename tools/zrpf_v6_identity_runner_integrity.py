@@ -80,17 +80,24 @@ def capture_pinned_tool(
         character not in "0123456789abcdef" for character in expected_sha256
     ):
         raise ExecutionError(f"{label} expected SHA-256 is malformed")
+    captured = capture_stable_executable(path, label)
+    if captured.sha256 != expected_sha256:
+        raise ExecutionError(f"pinned tool SHA-256 mismatch: {label}")
+    return captured
+
+
+def capture_stable_executable(path: Path, label: str) -> StableFileIdentity:
+    """Bind observed root- or user-owned executable bytes and path identity."""
+
     raw, identity = _read_stable_regular(
         path,
         label,
         MAX_PINNED_TOOL_BYTES,
         allow_empty=False,
         executable=True,
+        allowed_owner_uids=tuple(sorted({0, os.getuid()})),
     )
-    digest = hashlib.sha256(raw).hexdigest()
-    if digest != expected_sha256:
-        raise ExecutionError(f"pinned tool SHA-256 mismatch: {label}")
-    return StableFileIdentity(*identity, digest)
+    return StableFileIdentity(*identity, hashlib.sha256(raw).hexdigest())
 
 
 def capture_cargo_registry(registry: Path) -> CargoRegistryIdentity:
@@ -193,6 +200,7 @@ def _read_stable_regular(
     *,
     allow_empty: bool,
     executable: bool,
+    allowed_owner_uids: tuple[int, ...] | None = None,
 ) -> tuple[bytes, tuple[int, int, int, int, int, int]]:
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
     try:
@@ -202,12 +210,14 @@ def _read_stable_regular(
     try:
         before = os.fstat(descriptor)
         minimum_ok = before.st_size >= 0 if allow_empty else before.st_size > 0
+        accepted_owners = (os.getuid(),) if allowed_owner_uids is None else allowed_owner_uids
         if (
             not stat.S_ISREG(before.st_mode)
             or not minimum_ok
             or before.st_size > maximum
-            or before.st_uid != os.getuid()
+            or before.st_uid not in accepted_owners
             or (executable and stat.S_IMODE(before.st_mode) & 0o111 == 0)
+            or (executable and stat.S_IMODE(before.st_mode) & (stat.S_IWGRP | stat.S_IWOTH))
         ):
             raise ExecutionError(f"{label} is not a stable regular file")
         chunks: list[bytes] = []

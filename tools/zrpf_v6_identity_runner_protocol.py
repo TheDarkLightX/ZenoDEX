@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import base64
+import ctypes
+import errno
 import hashlib
 import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from tools import plan_zrpf_source_opened_spot_v6_identity_rebuild as planner
 from tools.zrpf_v6_identity_executor_types import (
@@ -66,26 +69,71 @@ def materialize_runner_payload(
     request: BuildRequest,
     payload: RunnerPayload,
 ) -> None:
-    """Write a verified frame into the fresh host output directory."""
+    """Atomically publish a verified frame into one fresh host directory."""
 
     require_output_name(request.artifact_file)
-    write_new_file(
-        request.output_directory / request.artifact_file,
-        payload.artifact,
-        0o444 if request.kind is BuildKind.GUEST else 0o555,
-    )
-    if request.companion_artifact_file is not None:
-        require_output_name(request.companion_artifact_file)
-        if payload.companion is None:
+    companion_name = request.companion_artifact_file
+    companion_payload = payload.companion
+    if companion_name is None:
+        if companion_payload is not None:
+            raise ExecutionError("container runner returned an unexpected companion payload")
+    else:
+        require_output_name(companion_name)
+        if companion_payload is None:
             raise ExecutionError("container runner omitted the companion payload")
+
+    output_directory = request.output_directory
+    staging_directory = output_directory.with_name(f".{output_directory.name}.zrpf-staging")
+    if (
+        output_directory.exists()
+        or output_directory.is_symlink()
+        or staging_directory.exists()
+        or staging_directory.is_symlink()
+    ):
+        raise ExecutionError("runner publication directories must begin absent")
+    try:
+        staging_directory.mkdir(mode=0o700)
+    except OSError as exc:
+        raise ExecutionError("runner publication staging creation failed") from exc
+    artifact_path = staging_directory / request.artifact_file
+    companion_path = None if companion_name is None else staging_directory / companion_name
+
+    created: list[Path] = []
+    try:
         write_new_file(
-            request.output_directory / request.companion_artifact_file,
-            payload.companion,
-            0o555,
+            artifact_path,
+            payload.artifact,
+            0o555 if request.kind is BuildKind.HOST_VERIFIER else 0o444,
         )
-    elif payload.companion is not None:
-        raise ExecutionError("container runner returned an unexpected companion payload")
-    _sync_directory(request.output_directory)
+        created.append(artifact_path)
+        if companion_path is not None:
+            if companion_payload is None:
+                raise ExecutionError("container runner omitted the companion payload")
+            write_new_file(companion_path, companion_payload, 0o555)
+            created.append(companion_path)
+        _sync_directory(staging_directory)
+        _sync_directory(output_directory.parent)
+    except BaseException as primary:
+        cleanup_error = _remove_created_outputs(
+            tuple(path.name for path in created),
+            staging_directory,
+            output_directory.parent,
+        )
+        if cleanup_error is not None:
+            primary.add_note(str(cleanup_error))
+        raise
+    try:
+        _rename_noreplace(staging_directory, output_directory)
+    except OSError as exc:
+        rejection = ExecutionError("runner publication commit failed")
+        cleanup_error = _remove_created_outputs(
+            tuple(path.name for path in created),
+            staging_directory,
+            output_directory.parent,
+        )
+        if cleanup_error is not None:
+            rejection.add_note(str(cleanup_error))
+        raise rejection from exc
 
 
 def parse_runner_result(raw: bytes, kind: BuildKind) -> BuildResult:
@@ -97,7 +145,7 @@ def parse_runner_result(raw: bytes, kind: BuildKind) -> BuildResult:
     image = match.group(3).decode("ascii")
     if kind is BuildKind.GUEST and image == "-":
         raise ExecutionError("guest runner omitted image ID")
-    if kind is BuildKind.HOST_VERIFIER and image != "-":
+    if kind in {BuildKind.HOST_VERIFIER, BuildKind.ARCHIVE} and image != "-":
         raise ExecutionError("host runner returned an image ID")
     return BuildResult(
         artifact_bytes=size,
@@ -276,7 +324,7 @@ def _decode_canonical_base64(raw: bytes, label: str) -> bytes:
 def _maximum_artifact_bytes(kind: BuildKind) -> int:
     if kind is BuildKind.GUEST:
         return planner.MAX_PROGRAM_BINARY_BYTES
-    if kind is BuildKind.HOST_VERIFIER:
+    if kind in {BuildKind.HOST_VERIFIER, BuildKind.ARCHIVE}:
         return planner.MAX_HOST_BINARY_BYTES
     raise ExecutionError("unknown build kind")
 
@@ -297,3 +345,64 @@ def _sync_directory(directory: Path) -> None:
             os.close(descriptor)
     except OSError as exc:
         raise ExecutionError("runner output directory synchronization failed") from exc
+
+
+def _remove_created_outputs(
+    created_names: tuple[str, ...],
+    cleanup_root: Path,
+    parent_directory: Path,
+) -> BaseException | None:
+    try:
+        for name in reversed(created_names):
+            (cleanup_root / name).unlink(missing_ok=True)
+        cleanup_root.rmdir()
+        _sync_directory(parent_directory)
+    except BaseException as exc:
+        return exc
+    return None
+
+
+def _rename_noreplace(source: Path, destination: Path) -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2: Any = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise OSError(errno.ENOSYS, "renameat2 is required")
+    renameat2.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    renameat2.restype = ctypes.c_int
+    directory_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    source_parent = os.open(source.parent, directory_flags)
+    try:
+        destination_parent = os.open(destination.parent, directory_flags)
+        try:
+            result = renameat2(
+                source_parent,
+                os.fsencode(source.name),
+                destination_parent,
+                os.fsencode(destination.name),
+                1,
+            )
+            if result != 0:
+                error = ctypes.get_errno()
+                raise OSError(error, os.strerror(error), destination)
+        finally:
+            _close_descriptor_noexcept(destination_parent)
+    finally:
+        _close_descriptor_noexcept(source_parent)
+
+
+def _close_descriptor_noexcept(descriptor: int) -> None:
+    try:
+        os.close(descriptor)
+    except OSError:
+        pass

@@ -101,12 +101,14 @@ attestation, and cross-host rebuild. The observation report therefore says
 `locked_offline_builds_reported` and leaves complete build provenance false.
 
 Before the first build, the executor requires one exact
-`zenodex/zrpf_v6_identity_runner_security_posture/v1` object. The observation and
-candidate report bind the four pinned tool byte lengths and SHA-256 values, a
-bounded deterministic Cargo-registry root, exact CPU/job/tmpfs policy, and the
-governed nested-Cargo wrapper digest. The checker rejects unknown fields,
-changed tool digests, resource-policy drift, and any attempt to set
-`same_uid_resistance` or `complete_build_input_closure_verified` to true.
+`zenodex/zrpf_v6_identity_runner_security_posture/v2` object. The observation and
+candidate report bind the four pinned tool byte lengths and SHA-256 values, the
+Docker client bytes observed equally before and after the run, a bounded
+deterministic Cargo-registry root, exact CPU/job/tmpfs policy, and the governed
+nested-Cargo wrapper digest. The checker rejects unknown fields, changed tool
+digests, resource-policy drift, and any attempt to set `same_uid_resistance` or
+`complete_build_input_closure_verified` to true. Docker daemon, kernel, and OCI
+runtime identity remain outside the complete build-input closure.
 
 ## Acyclic repin rules
 

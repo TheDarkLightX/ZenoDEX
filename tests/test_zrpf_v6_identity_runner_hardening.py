@@ -15,6 +15,7 @@ from tools import zrpf_v6_identity_docker_runner as runner_module
 from tools import zrpf_v6_identity_runner_integrity as integrity
 from tools import zrpf_v6_identity_runner_resources as resources
 from tools.zrpf_v6_identity_executor_types import (
+    ArchiveMember,
     BuildKind,
     BuildRequest,
     ExecutionError,
@@ -65,6 +66,39 @@ def test_tool_identity_detects_same_byte_path_replacement(tmp_path: Path) -> Non
     assert after != before
 
 
+def test_unpinned_executable_identity_detects_content_and_path_replacement(
+    tmp_path: Path,
+) -> None:
+    executable = tmp_path / "docker"
+    executable.write_bytes(b"#!/bin/sh\nexit 0\n")
+    executable.chmod(0o555)
+    before = integrity.capture_stable_executable(executable, "Docker client")
+    replacement = tmp_path / "replacement"
+    replacement.write_bytes(b"#!/bin/sh\nexit 7\n")
+    replacement.chmod(0o555)
+
+    os.replace(replacement, executable)
+
+    after = integrity.capture_stable_executable(executable, "Docker client")
+    assert after.sha256 != before.sha256
+    assert after != before
+
+
+def test_observed_docker_identity_accepts_root_owner_and_rejects_unsafe_mode(
+    tmp_path: Path,
+) -> None:
+    docker = Path("/usr/bin/docker")
+    if docker.exists():
+        observed = integrity.capture_stable_executable(docker, "Docker client")
+        assert observed.sha256 == hashlib.sha256(docker.read_bytes()).hexdigest()
+
+    unsafe = tmp_path / "unsafe-docker"
+    unsafe.write_bytes(b"#!/bin/sh\nexit 0\n")
+    unsafe.chmod(0o775)
+    with pytest.raises(ExecutionError, match="stable regular file"):
+        integrity.capture_stable_executable(unsafe, "Docker client")
+
+
 def test_registry_identity_rejects_nested_file_inserted_during_capture(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -73,9 +107,24 @@ def test_registry_identity_rejects_nested_file_inserted_during_capture(
     original = integrity._read_stable_regular
     inserted = False
 
-    def insert_during_read(*args: object, **kwargs: object) -> object:
+    def insert_during_read(
+        path: Path,
+        label: str,
+        maximum: int,
+        *,
+        allow_empty: bool,
+        executable: bool,
+        allowed_owner_uids: tuple[int, ...] | None = None,
+    ) -> tuple[bytes, tuple[int, int, int, int, int, int]]:
         nonlocal inserted
-        result = original(*args, **kwargs)
+        result = original(
+            path,
+            label,
+            maximum,
+            allow_empty=allow_empty,
+            executable=executable,
+            allowed_owner_uids=allowed_owner_uids,
+        )
         if not inserted:
             inserted = True
             (registry / "src/crate/injected.rs").write_bytes(b"injected")
@@ -103,12 +152,17 @@ def test_runner_posture_keeps_same_uid_and_complete_closure_false(
     runner._tool_identities = {
         name: tool_identity for name in ("cargo", "rustc", "r0vm", "cargo_risczero")
     }
+    runner._docker_identity = tool_identity
     runner._registry_identity = registry_identity
 
     posture = runner.security_posture()
 
     assert posture["same_uid_resistance"] is False
     assert posture["complete_build_input_closure_verified"] is False
+    assert posture["observed_docker_client_identity"] == {
+        "sha256": tool_identity.sha256,
+        "bytes": tool_identity.size,
+    }
     policy = posture["resource_policy"]
     assert policy["aggregate_container_cpu_quota"] == 2
     assert policy["outer_cargo_jobs"] == 2
@@ -137,7 +191,9 @@ def test_runner_reauthentication_rejects_tool_and_registry_mutation(
     runner._registry = registry
     runner._registry_identity = baseline_registry
     runner._tool_identities = {"cargo": before}
+    runner._docker_identity = before
     monkeypatch.setattr(runner, "_capture_tool_identities", lambda: {"cargo": after})
+    monkeypatch.setattr(runner, "_capture_docker_identity", lambda: before)
 
     with pytest.raises(ExecutionError, match="pinned tool identity changed"):
         runner._require_external_inputs_unchanged("before test")
@@ -146,6 +202,11 @@ def test_runner_reauthentication_rejects_tool_and_registry_mutation(
     (registry / "cache/a.crate").write_bytes(b"mutated crate")
     with pytest.raises(ExecutionError, match="Cargo registry identity changed"):
         runner._require_external_inputs_unchanged("after test")
+
+    (registry / "cache/a.crate").write_bytes(b"crate")
+    monkeypatch.setattr(runner, "_capture_docker_identity", lambda: after)
+    with pytest.raises(ExecutionError, match="Docker client identity changed"):
+        runner._require_external_inputs_unchanged("after Docker replacement")
 
 
 def test_command_uses_cgroup_bounded_tmpfs_and_read_only_wrapper(
@@ -343,9 +404,7 @@ def test_runner_recovery_cleans_exact_record_before_clearing_poison(
     monkeypatch.setattr(
         runner,
         "_cleanup_owned_container",
-        lambda observed_name, observed_cid: cleaned.append(
-            (observed_name, observed_cid)
-        ),
+        lambda observed_name, observed_cid: cleaned.append((observed_name, observed_cid)),
     )
 
     record = runner.recover_host_build_lease(lease_path)
@@ -368,11 +427,92 @@ def test_build_request_rejects_outer_job_or_target_override(tmp_path: Path) -> N
         runner_module._validate_build_request_resources(wrong_target)
 
 
+def test_archive_build_request_has_exact_position_distinct_members(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    target = request.container_target_directory
+    archive = BuildRequest(
+        kind=BuildKind.ARCHIVE,
+        pass_id="worker:v6-hosts",
+        stage_id="worker_v6_hosts",
+        source_commit="b" * 40,
+        source_snapshot=request.source_snapshot,
+        target_directory=request.target_directory,
+        output_directory=request.output_directory,
+        container_target_directory=target,
+        container_output_directory=request.container_output_directory,
+        artifact_file="worker-v6-hosts.tar.gz",
+        command=request.command,
+        extraction_source=f"{target}/worker-v6-hosts.tar.gz",
+        archive_members=(
+            ArchiveMember(
+                source=f"{target}/release/prove_v2_leaf_adapter",
+                name="01-prove-v2-leaf-adapter",
+                executable=True,
+            ),
+            ArchiveMember(
+                source=f"{target}/release/source-opened-spot-settlement-verifier-v6",
+                name="02-source-opened-spot-settlement-verifier-v6",
+                executable=True,
+            ),
+        ),
+    )
+
+    runner_module._validate_build_request_resources(archive)
+    script = runner_module._container_script(archive)
+    assert "01-prove-v2-leaf-adapter" in script
+    assert "02-source-opened-spot-settlement-verifier-v6" in script
+    assert "--sort=name" in script
+    assert "--mtime=@0" in script
+    assert "gzip -n" in script
+
+    from dataclasses import replace
+
+    for mutation in (
+        replace(
+            archive,
+            archive_members=(archive.archive_members[0], archive.archive_members[0]),
+        ),
+        replace(
+            archive,
+            archive_members=(
+                replace(archive.archive_members[0], name="../escape"),
+                archive.archive_members[1],
+            ),
+        ),
+        replace(
+            archive,
+            archive_members=(
+                replace(archive.archive_members[0], source="/tmp/escape"),
+                archive.archive_members[1],
+            ),
+        ),
+    ):
+        with pytest.raises(ExecutionError):
+            runner_module._validate_build_request_resources(mutation)
+
+
+def test_archive_runner_payload_requires_no_image_identity(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    request = replace(
+        _request(tmp_path),
+        kind=BuildKind.ARCHIVE,
+        artifact_file="worker-hosts.tar.gz",
+        companion_artifact_file=None,
+        companion_extraction_source=None,
+    )
+    raw = _runner_output(request, b"deterministic-archive", None)
+
+    payload = runner_module._parse_runner_payload(raw, request)
+
+    assert payload.result.image_id is None
+    assert payload.artifact == b"deterministic-archive"
+
+
 def test_base64_transport_rehashes_materializes_and_rejects_trailing_bytes(
     tmp_path: Path,
 ) -> None:
     request = _request(tmp_path)
-    request.output_directory.mkdir()
     artifact = b"R0BF-program"
     companion = b"host-cli"
     raw = _runner_output(request, artifact, companion)
@@ -391,6 +531,209 @@ def test_base64_transport_rehashes_materializes_and_rejects_trailing_bytes(
             raw.replace(base64.b64encode(artifact), base64.b64encode(b"R0BF-tamper")),
             request,
         )
+
+
+def test_materialization_removes_first_output_when_second_output_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _request(tmp_path)
+    payload = runner_module._parse_runner_payload(
+        _runner_output(request, b"R0BF-position-603", b"host-position-607"),
+        request,
+    )
+    original = runner_module.runner_protocol.write_new_file
+    calls = 0
+
+    def fail_second(path: Path, raw: bytes, mode: int) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise ExecutionError("injected second-output failure")
+        original(path, raw, mode)
+
+    monkeypatch.setattr(runner_module.runner_protocol, "write_new_file", fail_second)
+
+    with pytest.raises(ExecutionError, match="injected second-output failure"):
+        runner_module._materialize_runner_payload(request, payload)
+
+    assert request.output_directory.exists() is False
+    assert (
+        request.output_directory.with_name(
+            f".{request.output_directory.name}.zrpf-staging"
+        ).exists()
+        is False
+    )
+
+
+def test_materialization_no_replace_race_preserves_foreign_destination(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _request(tmp_path)
+    payload = runner_module._parse_runner_payload(
+        _runner_output(request, b"R0BF-position-603", b"host-position-607"),
+        request,
+    )
+    real_rename = runner_module.runner_protocol._rename_noreplace
+    sentinel = b"position-distinct-foreign-destination-611"
+
+    def race(source: Path, destination: Path) -> None:
+        destination.mkdir(mode=0o700)
+        (destination / "sentinel").write_bytes(sentinel)
+        real_rename(source, destination)
+
+    monkeypatch.setattr(runner_module.runner_protocol, "_rename_noreplace", race)
+
+    with pytest.raises(ExecutionError, match="publication commit failed"):
+        runner_module._materialize_runner_payload(request, payload)
+
+    assert (request.output_directory / "sentinel").read_bytes() == sentinel
+    assert (
+        request.output_directory.with_name(
+            f".{request.output_directory.name}.zrpf-staging"
+        ).exists()
+        is False
+    )
+
+
+def test_finalize_rejection_never_publishes_verified_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _request(tmp_path)
+    request.source_snapshot.mkdir()
+    runner = object.__new__(runner_module.DockerBuildRunner)
+    monkeypatch.setattr(runner, "_require_external_inputs_unchanged", lambda _label: None)
+    monkeypatch.setattr(runner, "_require_container_absent", lambda _name: None)
+    monkeypatch.setattr(
+        runner,
+        "_docker_command",
+        lambda _request, _name, _wrapper, _cidfile: ["docker", "run"],
+    )
+    monkeypatch.setattr(
+        runner_module.process_runner,
+        "run_bounded",
+        lambda _request: subprocess.CompletedProcess(
+            ["docker", "run"],
+            0,
+            _runner_output(request, b"R0BF-position-603", b"host-position-607"),
+            b"",
+        ),
+    )
+
+    def reject_finalize(*_args: object) -> None:
+        raise ExecutionError("injected post-run identity rejection")
+
+    monkeypatch.setattr(runner, "_finalize_run", reject_finalize)
+
+    with pytest.raises(ExecutionError, match="injected post-run identity rejection"):
+        runner._run_with_host_lease(
+            request,
+            "zrpf-v6-finalize-witness",
+            request.target_directory / runner_module.CONTAINER_ID_FILE,
+            object(),  # type: ignore[arg-type]
+        )
+
+    assert request.output_directory.exists() is False
+
+
+def test_owned_container_cleanup_failure_poisoning_precedes_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _request(tmp_path)
+    request.source_snapshot.mkdir()
+    runner = object.__new__(runner_module.DockerBuildRunner)
+    monkeypatch.setattr(runner, "_require_external_inputs_unchanged", lambda _label: None)
+    monkeypatch.setattr(runner, "_require_container_absent", lambda _name: None)
+    monkeypatch.setattr(
+        runner,
+        "_docker_command",
+        lambda _request, _name, _wrapper, _cidfile: ["docker", "run"],
+    )
+    monkeypatch.setattr(
+        runner_module.process_runner,
+        "run_bounded",
+        lambda _request: subprocess.CompletedProcess(
+            ["docker", "run"],
+            0,
+            _runner_output(request, b"R0BF-position-603", b"host-position-607"),
+            b"",
+        ),
+    )
+
+    def reject_cleanup(_name: str, _cidfile: Path) -> None:
+        raise ExecutionError("injected owned-container cleanup failure")
+
+    class Lease:
+        poisoned = False
+
+        def mark_cleanup_incomplete(self) -> None:
+            self.poisoned = True
+
+    lease = Lease()
+    monkeypatch.setattr(runner, "_cleanup_owned_container", reject_cleanup)
+
+    with pytest.raises(
+        IncompleteContainerCleanupError,
+        match="cleanup is incomplete",
+    ):
+        runner._run_with_host_lease(
+            request,
+            "zrpf-v6-cleanup-witness",
+            request.target_directory / runner_module.CONTAINER_ID_FILE,
+            lease,  # type: ignore[arg-type]
+        )
+
+    assert lease.poisoned is True
+    _require_no_published_or_staging_output(request)
+
+
+def test_post_run_docker_identity_failure_precedes_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _request(tmp_path)
+    request.source_snapshot.mkdir()
+    runner = object.__new__(runner_module.DockerBuildRunner)
+    integrity_checks = 0
+
+    def check_integrity(_label: str) -> None:
+        nonlocal integrity_checks
+        integrity_checks += 1
+        if integrity_checks == 2:
+            raise ExecutionError("injected Docker client identity changed")
+
+    monkeypatch.setattr(runner, "_require_external_inputs_unchanged", check_integrity)
+    monkeypatch.setattr(runner, "_require_container_absent", lambda _name: None)
+    monkeypatch.setattr(runner, "_cleanup_owned_container", lambda _name, _cidfile: None)
+    monkeypatch.setattr(
+        runner,
+        "_docker_command",
+        lambda _request, _name, _wrapper, _cidfile: ["docker", "run"],
+    )
+    monkeypatch.setattr(
+        runner_module.process_runner,
+        "run_bounded",
+        lambda _request: subprocess.CompletedProcess(
+            ["docker", "run"],
+            0,
+            _runner_output(request, b"R0BF-position-603", b"host-position-607"),
+            b"",
+        ),
+    )
+
+    with pytest.raises(ExecutionError, match="Docker client identity changed"):
+        runner._run_with_host_lease(
+            request,
+            "zrpf-v6-integrity-witness",
+            request.target_directory / runner_module.CONTAINER_ID_FILE,
+            object(),  # type: ignore[arg-type]
+        )
+
+    assert integrity_checks == 2
+    _require_no_published_or_staging_output(request)
 
 
 def test_quota_exhaustion_rejects_and_runs_cleanup(
@@ -448,6 +791,7 @@ def test_primary_failure_and_cleanup_failure_preserve_recovery_identity(
     monkeypatch.setattr(runner, "_require_external_inputs_unchanged", lambda _label: None)
     monkeypatch.setattr(runner, "_require_container_absent", lambda _name: None)
     monkeypatch.setattr(resources, "require_host_memory_available", lambda: 2**63)
+
     class FakeLease:
         poisoned = False
 
@@ -487,9 +831,7 @@ def test_primary_failure_and_cleanup_failure_preserve_recovery_identity(
     ):
         runner.run(request)
 
-    assert (request.target_directory / runner_module.CONTAINER_ID_FILE).read_bytes() == (
-        b"a" * 64
-    )
+    assert (request.target_directory / runner_module.CONTAINER_ID_FILE).read_bytes() == (b"a" * 64)
     assert lease.poisoned is True
 
 
@@ -814,6 +1156,16 @@ def _registry(tmp_path: Path) -> Path:
     (registry / "index/config.json").write_bytes(b"index")
     (registry / "src/crate/lib.rs").write_bytes(b"lib")
     return registry
+
+
+def _require_no_published_or_staging_output(request: BuildRequest) -> None:
+    assert request.output_directory.exists() is False
+    assert (
+        request.output_directory.with_name(
+            f".{request.output_directory.name}.zrpf-staging"
+        ).exists()
+        is False
+    )
 
 
 def _request(tmp_path: Path) -> BuildRequest:

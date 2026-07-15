@@ -20,8 +20,7 @@ RUN_ROOT = "/external/zrpf-v6-identity-rebuild-candidate"
 def _image(stage_id: str) -> tuple[str, list[int]]:
     raw = hashlib.sha256(f"image:{stage_id}".encode()).digest()
     return raw.hex(), [
-        int.from_bytes(raw[index : index + 4], "little")
-        for index in range(0, 32, 4)
+        int.from_bytes(raw[index : index + 4], "little") for index in range(0, 32, 4)
     ]
 
 
@@ -30,9 +29,7 @@ def _program(spec: planner.StageSpec) -> dict:
     return {
         "artifact_file": spec.artifact_file,
         "program_binary_bytes": 1024 + spec.ordinal,
-        "program_binary_sha256": hashlib.sha256(
-            f"program:{spec.stage_id}".encode()
-        ).hexdigest(),
+        "program_binary_sha256": hashlib.sha256(f"program:{spec.stage_id}".encode()).hexdigest(),
         "image_id": image_id,
         "image_id_words": words,
     }
@@ -59,6 +56,7 @@ def _runner_security_posture() -> dict:
                 "bytes": 1,
             },
         },
+        "observed_docker_client_identity": {"sha256": "d" * 64, "bytes": 503},
         "cargo_registry_identity": {
             "schema": planner.CARGO_REGISTRY_IDENTITY_SCHEMA,
             "root_sha256": "a" * 64,
@@ -196,9 +194,7 @@ def test_plan_is_deterministic_acyclic_and_uses_pinned_build_contract() -> None:
         "acyclic": True,
         "downstream_policy_must_not_feed_upstream_program": True,
     }
-    positions = {
-        node: index for index, node in enumerate(first["topology"]["nodes"])
-    }
+    positions = {node: index for index, node in enumerate(first["topology"]["nodes"])}
     assert all(
         positions[source] < positions[destination]
         for source, destination in first["topology"]["edges"]
@@ -228,12 +224,8 @@ def test_plan_is_deterministic_acyclic_and_uses_pinned_build_contract() -> None:
     assert first["resource_policy"]["network_disabled"] is True
     assert first["resource_policy"]["build_image"] == planner.BUILD_IMAGE
     assert first["resource_policy"]["r0vm_path"] == planner.CANONICAL_R0VM
-    assert first["resource_policy"]["target_quota_bytes"] == (
-        planner.TARGET_TMPFS_QUOTA_BYTES
-    )
-    assert first["resource_policy"]["output_transport"] == (
-        "bounded_base64_stdout_v1"
-    )
+    assert first["resource_policy"]["target_quota_bytes"] == (planner.TARGET_TMPFS_QUOTA_BYTES)
+    assert first["resource_policy"]["output_transport"] == ("bounded_base64_stdout_v1")
     assert first["resource_policy"]["nested_cargo_wrapper_sha256"] == (
         planner.NESTED_CARGO_WRAPPER_SHA256
     )
@@ -243,28 +235,16 @@ def test_plan_is_deterministic_acyclic_and_uses_pinned_build_contract() -> None:
 def test_plan_preserves_historical_v1_and_uses_versioned_successor() -> None:
     plan = _plan()
     repin_paths = {
-        repin["path"]
-        for stage in plan["stages"]
-        for repin in stage["repins_after_success"]
+        repin["path"] for stage in plan["stages"] for repin in stage["repins_after_success"]
     }
 
-    assert (
-        "config/proof_profiles/zrpf_v1_retained_source_anchor_v1.json"
-        not in repin_paths
-    )
-    assert (
-        "config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v1.json"
-        not in repin_paths
-    )
+    assert "config/proof_profiles/zrpf_v1_retained_source_anchor_v1.json" not in repin_paths
+    assert "config/proof_profiles/zrpf_v1_leaf_adapter_source_policy_v1.json" not in repin_paths
     assert plan["stages"][0]["repins_after_success"][0]["path"] == (
         "zk/zrpf_risc0/shared/src/source_policy_v2.rs"
     )
-    assert plan["stages"][1]["guest_package"] == (
-        "zenodex-zrpf-risc0-v2-leaf-adapter"
-    )
-    assert plan["protected_historical_artifacts"] == list(
-        planner.PROTECTED_HISTORICAL_ARTIFACTS
-    )
+    assert plan["stages"][1]["guest_package"] == ("zenodex-zrpf-risc0-v2-leaf-adapter")
+    assert plan["protected_historical_artifacts"] == list(planner.PROTECTED_HISTORICAL_ARTIFACTS)
 
 
 def test_tracked_workspace_source_audit_includes_parallel_shard_sources() -> None:
@@ -278,9 +258,7 @@ def test_tracked_workspace_source_audit_includes_parallel_shard_sources() -> Non
     assert coverage["tracked_bytes"] > 0
     assert coverage["parallel_shard_epoch_v1_files"]
     assert all(
-        path.startswith(
-            "zk/zrpf_protocol/protocol/src/parallel_shard_epoch_v1/"
-        )
+        path.startswith("zk/zrpf_protocol/protocol/src/parallel_shard_epoch_v1/")
         for path in coverage["parallel_shard_epoch_v1_files"]
     )
 
@@ -329,15 +307,16 @@ def test_complete_observations_emit_candidate_only_report() -> None:
     assert "host_run_root" not in report
     candidates = report["governance_candidates"]
     assert all(value is False for value in candidates["authority"].values())
-    assert candidates["current_source_anchor_v2"]["document"]["source_closure"][
-        "inventory_root_sha256"
-    ] == plan["source_guest_source_coverage"]["inventory_root_sha256"]
+    assert (
+        candidates["current_source_anchor_v2"]["document"]["source_closure"][
+            "inventory_root_sha256"
+        ]
+        == plan["source_guest_source_coverage"]["inventory_root_sha256"]
+    )
     assert candidates["v2_adapter_source_policy"]["document"]["adapter_profile"] == (
         "zrpf_v2_leaf_adapter_compatibility_v2"
     )
-    assert report["observations_sha256"] == planner.canonical_sha256(
-        _observations(plan)
-    )
+    assert report["observations_sha256"] == planner.canonical_sha256(_observations(plan))
 
 
 def test_source_stage_repins_v2_image_program_hash_and_source_closure_root() -> None:
@@ -347,9 +326,7 @@ def test_source_stage_repins_v2_image_program_hash_and_source_closure_root() -> 
 
     planner.check_observations(plan, observations)
     values = {row["symbol"]: row["value"] for row in source["repins"]}
-    assert values["PINNED_CURRENT_SPOT_LEAF_IMAGE_ID_V2"] == source["program"][
-        "image_id_words"
-    ]
+    assert values["PINNED_CURRENT_SPOT_LEAF_IMAGE_ID_V2"] == source["program"]["image_id_words"]
     assert values["PINNED_CURRENT_SPOT_LEAF_PROGRAM_SHA256_V2"] == list(
         bytes.fromhex(source["program"]["program_binary_sha256"])
     )
@@ -380,9 +357,7 @@ def test_child_pin_substitution_rejects() -> None:
 def test_final_rebuild_detects_downstream_feedback_into_upstream_program() -> None:
     plan = _plan()
     observations = _observations(plan)
-    observations["final_clean_rebuild"]["programs"][0][
-        "program_binary_sha256"
-    ] = "1" * 64
+    observations["final_clean_rebuild"]["programs"][0]["program_binary_sha256"] = "1" * 64
 
     with pytest.raises(
         planner.RebuildPlanError,

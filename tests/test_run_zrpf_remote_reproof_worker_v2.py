@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import os
 import subprocess
 import time
@@ -342,21 +343,128 @@ def test_capture_digest_and_output_record_substitution_reject(
         )
 
 
-def test_unsupported_worker_build_stage_remains_blocked(tmp_path: Path) -> None:
-    repo, _chain, plan, artifact_root, _packet_path, packet = _stage_context(
+def _position_distinct_payload(role: str, ordinal: int) -> bytes:
+    size = 603 + 4 * ordinal
+    seed = hashlib.sha256(f"{ordinal}:{role}:active-witness".encode("ascii")).digest()
+    body = (seed * ((size // len(seed)) + 1))[:size]
+    payload = bytes((ordinal + 1,)) + body[1:-1] + bytes((0xE0 - ordinal,))
+    assert len(payload) == size
+    assert payload != payload[::-1]
+    return payload
+
+
+def test_worker_build_stage_resolves_exact_g_runtime_and_output_positions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, chain, plan, artifact_root, _packet_path, packet = _stage_context(
         tmp_path, "worker_prover_build"
     )
-    with pytest.raises(worker.WorkerError, match="execution adapter is not implemented"):
-        worker.execute_stage(plan, packet, repo, artifact_root, tmp_path / "run")
+    assert chain[0] != chain[3]
+    runtime = {
+        "risc0_home": tmp_path / "runtime/risc0-home",
+        "cargo_registry_dir": tmp_path / "runtime/cargo-registry",
+        "docker": tmp_path / "runtime/docker",
+    }
+    runtime["risc0_home"].mkdir(parents=True)
+    runtime["cargo_registry_dir"].mkdir(parents=True)
+    runtime["docker"].write_bytes(b"docker-client-active-witness")
+    runtime["docker"].chmod(0o500)
+    output_bindings = (
+        ("--v2-adapter-prover-out", "v2_adapter_prover", "worker/bin/prove_v2_leaf_adapter"),
+        ("--v6-leaf-prover-out", "v6_leaf_prover", "worker/bin/prove_spot_value_leaf_v6"),
+        (
+            "--v6-l1-prover-out",
+            "v6_l1_prover",
+            "worker/bin/prove_spot_value_aggregate_l1_v6",
+        ),
+        (
+            "--v6-l2-prover-out",
+            "v6_l2_prover",
+            "worker/bin/prove_spot_value_aggregate_l2_v6",
+        ),
+        (
+            "--v6-settlement-prover-out",
+            "v6_settlement_prover",
+            "worker/bin/prove_source_opened_spot_settlement_v6",
+        ),
+        (
+            "--v6-host-verifier-out",
+            "v6_host_verifier",
+            "worker/bin/source-opened-spot-settlement-verifier-v6",
+        ),
+        (
+            "--mutation-verifier-out",
+            "mutation_verifier",
+            "worker/bin/verify-spot-v7-remote-mutations",
+        ),
+        ("--v7-program-out", "v7_program", "worker/programs/spot_settlement_v7.bin"),
+        ("--v7-prover-out", "v7_prover", "worker/bin/prove_spot_settlement_v7"),
+        ("--worker-build-report-out", "worker_build_report", "worker/build-report.json"),
+    )
+    run_root = tmp_path / "worker-build-run"
+    seen: list[tuple[str, ...]] = []
+
+    def fake_worker_build(
+        command: worker.ResolvedCommand,
+        _policy: worker.ResourcePolicy,
+        _environment: dict[str, str],
+        _cwd: Path,
+    ) -> worker.ProcessResult:
+        seen.append(command.argv)
+        argv = list(command.argv)
+        assert argv[argv.index("--source-commit") + 1] == chain[3]
+        assert argv[argv.index("--post-pin-governance") + 1] == str(
+            run_root / "inputs/ancestry/post_pin_governance.json"
+        )
+        assert argv[argv.index("--packet-r0vm") + 1] == str(
+            run_root / "inputs/inputs/risc0-home/bin/r0vm"
+        )
+        assert argv[argv.index("--risc0-home") + 1] == str(runtime["risc0_home"])
+        assert argv[argv.index("--cargo-registry-dir") + 1] == str(runtime["cargo_registry_dir"])
+        assert argv[argv.index("--docker") + 1] == str(runtime["docker"])
+        for ordinal, (flag, role, relative) in enumerate(output_bindings):
+            expected = run_root / "outputs" / relative
+            assert argv[argv.index(flag) + 1] == str(expected)
+            expected.write_bytes(_position_distinct_payload(role, ordinal))
+        return worker.ProcessResult(b"", b"", 0, 11)
+
+    monkeypatch.setattr(worker, "_run_bounded_command", fake_worker_build)
+    capture = worker.execute_stage(
+        plan,
+        packet,
+        repo,
+        artifact_root,
+        run_root,
+        runtime_bindings=runtime,
+    )
+
+    assert len(seen) == 1
+    records = {row["role"]: row for row in cast(list[dict[str, Any]], capture["outputs"])}
+    for ordinal, (_flag, role, relative) in enumerate(output_bindings):
+        payload = _position_distinct_payload(role, ordinal)
+        assert records[role]["size_bytes"] == len(payload)
+        assert records[role]["sha256"] == hashlib.sha256(payload).hexdigest()
+        assert (run_root / "outputs" / relative).read_bytes() == payload
+    worker.validate_worker_capture(
+        plan,
+        packet,
+        capture,
+        repo,
+        artifact_root,
+        run_root,
+        runtime_bindings=runtime,
+    )
 
 
 def test_identity_stage_requires_exact_runtime_bindings_and_captures_all_outputs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    repo, _chain, plan, artifact_root, _packet_path, packet = _stage_context(
+    repo, chain, plan, artifact_root, _packet_path, packet = _stage_context(
         tmp_path, "identity_rebuild"
     )
+    assert chain[0] != chain[3]
     runtime = {
         "risc0_home": tmp_path / "runtime/risc0-home",
         "cargo_registry_dir": tmp_path / "runtime/cargo-registry",
@@ -370,7 +478,56 @@ def test_identity_stage_requires_exact_runtime_bindings_and_captures_all_outputs
     with pytest.raises(worker.WorkerError, match="runtime binding inventory"):
         worker.execute_stage(plan, packet, repo, artifact_root, tmp_path / "missing-runtime")
 
+    output_bindings = (
+        ("--identity-plan-out", "identity_plan", "identity/plan.json"),
+        (
+            "--identity-observations-out",
+            "identity_observations",
+            "identity/run/rebuild-observations.json",
+        ),
+        (
+            "--identity-candidate-report-out",
+            "identity_candidate_report",
+            "identity/run/rebuild-candidate-report.json",
+        ),
+        (
+            "--source-program-out",
+            "source_program",
+            "identity/run/outputs/01-source-spot/source_spot.bin",
+        ),
+        (
+            "--source-cli-out",
+            "source_cli",
+            "identity/run/outputs/01-source-spot/tau-state-proof-risc0-cli",
+        ),
+        (
+            "--v2-adapter-program-out",
+            "v2_adapter_program",
+            "identity/run/outputs/02-v2-adapter/v2_adapter.bin",
+        ),
+        (
+            "--v6-leaf-program-out",
+            "v6_leaf_program",
+            "identity/run/outputs/03-v6-leaf/spot_value_leaf_v6.bin",
+        ),
+        (
+            "--v6-l1-program-out",
+            "v6_l1_program",
+            "identity/run/outputs/04-v6-l1/spot_value_aggregate_l1_v6.bin",
+        ),
+        (
+            "--v6-l2-program-out",
+            "v6_l2_program",
+            "identity/run/outputs/05-v6-l2/spot_value_aggregate_l2_v6.bin",
+        ),
+        (
+            "--v6-settlement-program-out",
+            "v6_settlement_program",
+            "identity/run/outputs/06-v6-settlement/source_opened_spot_settlement_v6.bin",
+        ),
+    )
     seen: list[tuple[str, ...]] = []
+    run_root = tmp_path / "run"
 
     def fake_identity(
         command: worker.ResolvedCommand,
@@ -379,24 +536,15 @@ def test_identity_stage_requires_exact_runtime_bindings_and_captures_all_outputs
         _cwd: Path,
     ) -> worker.ProcessResult:
         seen.append(command.argv)
-        for flag in (
-            "--identity-plan-out",
-            "--identity-observations-out",
-            "--identity-candidate-report-out",
-            "--source-program-out",
-            "--source-cli-out",
-            "--v2-adapter-program-out",
-            "--v6-leaf-program-out",
-            "--v6-l1-program-out",
-            "--v6-l2-program-out",
-            "--v6-settlement-program-out",
-        ):
-            argv = list(command.argv)
-            Path(argv[argv.index(flag) + 1]).write_bytes(flag.encode("ascii"))
+        argv = list(command.argv)
+        assert argv[argv.index("--source-commit") + 1] == chain[0]
+        for ordinal, (flag, role, relative) in enumerate(output_bindings):
+            path = Path(argv[argv.index(flag) + 1])
+            assert path == run_root / "outputs" / relative
+            path.write_bytes(_position_distinct_payload(role, ordinal))
         return worker.ProcessResult(b"", b"", 0, 7)
 
     monkeypatch.setattr(worker, "_run_bounded_command", fake_identity)
-    run_root = tmp_path / "run"
     capture = worker.execute_stage(
         plan,
         packet,
@@ -407,7 +555,6 @@ def test_identity_stage_requires_exact_runtime_bindings_and_captures_all_outputs
     )
 
     assert len(seen) == 1
-    assert "--source-commit" in seen[0]
     assert [row["role"] for row in cast(list[dict[str, object]], capture["outputs"])] == [
         "identity_plan",
         "identity_observations",
@@ -420,6 +567,11 @@ def test_identity_stage_requires_exact_runtime_bindings_and_captures_all_outputs
         "v6_l2_program",
         "v6_settlement_program",
     ]
+    records = {row["role"]: row for row in cast(list[dict[str, Any]], capture["outputs"])}
+    for ordinal, (_flag, role, _relative) in enumerate(output_bindings):
+        payload = _position_distinct_payload(role, ordinal)
+        assert records[role]["size_bytes"] == len(payload)
+        assert records[role]["sha256"] == hashlib.sha256(payload).hexdigest()
     worker.validate_worker_capture(
         plan,
         packet,

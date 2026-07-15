@@ -1,7 +1,7 @@
 # ZRPF remote reproof worker V2 CBC specification
 
 Status: implemented authority-neutral, one-stage worker over the existing ZRPF
-remote reproof handoff V2 packet ABI for the nine supported stages below.
+remote reproof handoff V2 packet ABI for the eleven supported stages below.
 
 The worker may execute only a task already fixed by the governed handoff
 catalog. It does not accept an arbitrary executable, argv vector, resource
@@ -21,8 +21,8 @@ A successfully checked worker capture establishes these local metadata facts:
 4. The declared inputs were copied through bounded stable reads into a fresh
    private snapshot. Executables became mode `0500`; data became mode `0400`.
 5. The task used its exact catalog command template and one closed resource
-   policy. Placeholder resolution selected only declared input snapshots or
-   declared output paths.
+   policy. Placeholder resolution selected declared input snapshots, declared
+   output paths, exact C0 or worker commits, or the closed runtime-binding set.
 6. Each subprocess exited zero before the next command began. Standard output
    and standard error stayed within their declared byte bounds. The process
    group was killed on timeout or capture failure.
@@ -39,7 +39,9 @@ The first worker profile supports only templates whose inputs and outputs are
 already expressible through the packet ABI:
 
 ```text
+identity_rebuild
 ancestry_materialization
+worker_prover_build
 source_spot_proof
 v2_adapter_receipt
 v6_leaf_receipt
@@ -52,15 +54,9 @@ mutation_verification
 
 These stages become `execution_adapter_status = implemented` in the catalog.
 
-The following stages remain blocked:
+The following stage remains blocked:
 
 ```text
-identity_rebuild
-  requires unbound Docker, Cargo-registry, and fixed external run-root inputs
-
-worker_prover_build
-  requires a governed Cargo-output collector and clean target contract
-
 release_checks
   bundle-aware release adapter remains planned
 ```
@@ -86,6 +82,16 @@ and non-claim values are construction invariants committed by the report ID.
 Each generated mutation is capped at 16 MiB and the report at 64 KiB by its
 artifact contract in addition to the worker resource envelope.
 
+The identity stage resolves `--source-commit` to exact C0. The worker-build
+stage resolves it to the distinct exact worker/G commit. Worker build executes
+two clean, pinned, no-network Docker builds: one V6 host bundle and one V7
+program/host bundle. The adapter requires an exact ordered archive-member
+inventory, ELF or R0BF magic, packet/runtime r0vm equality, a V7 image ID
+recomputed by that r0vm, exact post-pin governance bytes, and a canonical
+authority-false build report. The report binds all nine extracted outputs.
+Ephemeral archive hashes are excluded from its reusable acceptance surface.
+Complete build-input closure and malicious same-UID resistance remain false.
+
 ## Process contract
 
 The one-shot CLI receives:
@@ -110,8 +116,11 @@ run-root/
 
 Commands use an argv vector directly. No shell parses template text. A token
 beginning with `@` must resolve to one declared input or output artifact role.
-Unknown placeholders reject. Fixed runner names resolve through a closed
-absolute-path table; artifact runners resolve to an executable input snapshot.
+`@c0_commit` and `@worker_commit` resolve to their distinct validated source
+commit fields. `@runtime_*` resolves only through the exact runtime-binding
+inventory required by the selected task. Unknown placeholders reject. Fixed
+runner names resolve through a closed absolute-path table; artifact runners
+resolve to an executable input snapshot.
 
 The subprocess environment is an allowlist:
 
@@ -200,6 +209,9 @@ oversized stdout or stderr
 nonzero exit status
 timeout with descendant cleanup
 capture-ID or output-record substitution
+C0 versus worker/G source-commit substitution
+any identity or worker-build output flag/role permutation
+worker-build report source, governance, output, image-ID, or authority substitution
 unsupported or planned stage
 ```
 

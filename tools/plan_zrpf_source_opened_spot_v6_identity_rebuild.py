@@ -30,12 +30,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PLAN_SCHEMA = "zenodex/zrpf_spot_v6_identity_rebuild_plan/v2"
 OBSERVATION_SCHEMA = "zenodex/zrpf_spot_v6_identity_rebuild_observations/v2"
 REPORT_SCHEMA = "zenodex/zrpf_spot_v6_identity_rebuild_candidate_report/v2"
-RUNNER_SECURITY_POSTURE_SCHEMA = (
-    "zenodex/zrpf_v6_identity_runner_security_posture/v1"
-)
-CARGO_REGISTRY_IDENTITY_SCHEMA = (
-    "zenodex/zrpf_bounded_cargo_registry_identity/v1"
-)
+RUNNER_SECURITY_POSTURE_SCHEMA = "zenodex/zrpf_v6_identity_runner_security_posture/v2"
+CARGO_REGISTRY_IDENTITY_SCHEMA = "zenodex/zrpf_bounded_cargo_registry_identity/v1"
 CANONICAL_SOURCE_ROOT = "/src/zenodex"
 CANONICAL_CARGO = "/risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/cargo"
 CANONICAL_RUSTC = "/risc0/toolchains/v1.94.1-rust-x86_64-unknown-linux-gnu/bin/rustc"
@@ -350,9 +346,7 @@ SOURCE_GUEST_WORKSPACE_ROOTS = ("zk/state_proof_risc0",)
 
 
 def canonical_bytes(document: Any) -> bytes:
-    return (
-        json.dumps(document, allow_nan=False, indent=2, sort_keys=True) + "\n"
-    ).encode("utf-8")
+    return (json.dumps(document, allow_nan=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
 def canonical_sha256(document: Any) -> str:
@@ -397,9 +391,7 @@ def build_plan(
             "cargo_home_quota_bytes": CARGO_TMPFS_QUOTA_BYTES,
             "home_quota_bytes": HOME_TMPFS_QUOTA_BYTES,
             "risc0_mountpoint_quota_bytes": RISC0_TMPFS_QUOTA_BYTES,
-            "minimum_process_memory_headroom_bytes": (
-                MINIMUM_PROCESS_MEMORY_HEADROOM_BYTES
-            ),
+            "minimum_process_memory_headroom_bytes": (MINIMUM_PROCESS_MEMORY_HEADROOM_BYTES),
             "minimum_host_mem_available_bytes": MINIMUM_HOST_MEM_AVAILABLE_BYTES,
             "host_build_lease": RUNNER_RESOURCE_POLICY["host_build_lease"],
             "host_memory_preflight": RUNNER_RESOURCE_POLICY["host_memory_preflight"],
@@ -577,24 +569,12 @@ def check_observations(
     _require_equal(observations["plan_sha256"], canonical_sha256(plan), "plan SHA-256")
     _require_equal(observations["source_commit"], plan["source_commit"], "source commit")
     _require_equal(observations["toolchain"], TOOLCHAIN, "toolchain")
-    runner_security_posture = check_runner_security_posture(
-        observations["runner_security_posture"]
-    )
-    expected_source_tree_root = plan["source_guest_source_coverage"][
-        "inventory_root_sha256"
-    ]
-    stage_programs = _check_stage_observations(
-        observations["stages"], expected_source_tree_root
-    )
-    _check_settlement_two_pass(
-        observations["settlement_self_image_two_pass"], stage_programs[-1]
-    )
-    final_root = _check_final_clean_rebuild(
-        observations["final_clean_rebuild"], stage_programs
-    )
-    host_binary = _check_host_verifier(
-        observations["host_verifier"], stage_programs[-1]
-    )
+    runner_security_posture = check_runner_security_posture(observations["runner_security_posture"])
+    expected_source_tree_root = plan["source_guest_source_coverage"]["inventory_root_sha256"]
+    stage_programs = _check_stage_observations(observations["stages"], expected_source_tree_root)
+    _check_settlement_two_pass(observations["settlement_self_image_two_pass"], stage_programs[-1])
+    final_root = _check_final_clean_rebuild(observations["final_clean_rebuild"], stage_programs)
+    host_binary = _check_host_verifier(observations["host_verifier"], stage_programs[-1])
     governance_candidates = _build_governance_candidates(
         plan,
         observations["stages"][0],
@@ -621,6 +601,7 @@ def check_runner_security_posture(value: Any) -> dict[str, Any]:
         {
             "schema",
             "tool_identities",
+            "observed_docker_client_identity",
             "cargo_registry_identity",
             "resource_policy",
             "same_uid_resistance",
@@ -653,6 +634,23 @@ def check_runner_security_posture(value: Any) -> dict[str, Any]:
             MAX_PINNED_TOOL_BYTES,
             f"runner tool {name} bytes",
         )
+
+    docker_client = value["observed_docker_client_identity"]
+    _require_exact_fields(
+        docker_client,
+        {"sha256", "bytes"},
+        "runner Docker client identity",
+    )
+    _require_hex(
+        docker_client["sha256"],
+        64,
+        "runner Docker client SHA-256",
+    )
+    _require_bounded_positive_int(
+        docker_client["bytes"],
+        MAX_PINNED_TOOL_BYTES,
+        "runner Docker client bytes",
+    )
 
     registry = value["cargo_registry_identity"]
     _require_exact_fields(
@@ -730,9 +728,7 @@ def _validate_plan(plan: dict[str, Any], *, repo_root: Path = REPO_ROOT) -> None
         raise RebuildPlanError("rebuild plan differs from the deterministic plan")
 
 
-def _check_stage_observations(
-    value: Any, expected_source_tree_root: str
-) -> list[dict[str, Any]]:
+def _check_stage_observations(value: Any, expected_source_tree_root: str) -> list[dict[str, Any]]:
     if type(value) is not list or len(value) != len(STAGES):
         raise RebuildPlanError("observations must contain exactly six ordered stages")
     programs: list[dict[str, Any]] = []
@@ -854,9 +850,7 @@ def _check_program(value: Any, expected_file: str) -> dict[str, Any]:
     return value
 
 
-def _check_child_pin(
-    spec: StageSpec, value: Any, preceding_programs: list[dict[str, Any]]
-) -> None:
+def _check_child_pin(spec: StageSpec, value: Any, preceding_programs: list[dict[str, Any]]) -> None:
     if spec.predecessor_stage is None:
         if value is not None:
             raise RebuildPlanError("source_spot must not declare a child pin")
@@ -938,9 +932,7 @@ def _check_settlement_two_pass(value: Any, settlement: dict[str, Any]) -> None:
     _require_equal(second, settlement, "settlement two-pass program identity")
 
 
-def _check_final_clean_rebuild(
-    value: Any, primary_programs: list[dict[str, Any]]
-) -> str:
+def _check_final_clean_rebuild(value: Any, primary_programs: list[dict[str, Any]]) -> str:
     _require_exact_fields(
         value,
         {
@@ -1114,9 +1106,7 @@ def build_current_source_anchor_candidate(
             "plan_sha256": canonical_sha256(plan),
             "source_commit": plan["source_commit"],
             "stage_id": "source_spot",
-            "source_snapshot_root_sha256": source_stage[
-                "source_snapshot_root_sha256"
-            ],
+            "source_snapshot_root_sha256": source_stage["source_snapshot_root_sha256"],
         },
         "source_closure": {
             "kind": "tracked_state_proof_workspace_superset_v1",

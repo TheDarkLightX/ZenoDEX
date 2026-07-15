@@ -19,6 +19,16 @@ class IncompleteContainerCleanupError(ExecutionError):
 class BuildKind(str, Enum):
     GUEST = "guest"
     HOST_VERIFIER = "host_verifier"
+    ARCHIVE = "archive"
+
+
+@dataclass(frozen=True)
+class ArchiveMember:
+    """One exact file copied into a deterministic build-result archive."""
+
+    source: str
+    name: str
+    executable: bool
 
 
 @dataclass(frozen=True)
@@ -37,6 +47,7 @@ class BuildRequest:
     extraction_source: str
     companion_artifact_file: str | None = None
     companion_extraction_source: str | None = None
+    archive_members: tuple[ArchiveMember, ...] = ()
 
 
 @dataclass(frozen=True)

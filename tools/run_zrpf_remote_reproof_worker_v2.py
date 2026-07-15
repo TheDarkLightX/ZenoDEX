@@ -377,6 +377,8 @@ def _resolve_argument(
     role = token[1:]
     if role == "c0_commit":
         return stage.c0_commit
+    if role == "worker_commit":
+        return stage.worker_commit
     if role.startswith("runtime_"):
         runtime_role = role.removeprefix("runtime_")
         try:
