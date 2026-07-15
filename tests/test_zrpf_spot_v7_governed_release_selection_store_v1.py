@@ -368,6 +368,54 @@ def test_every_revocation_record_byte_is_an_active_distinguishing_witness() -> N
         assert captured.value.code.startswith("revocation_"), index
 
 
+def test_zero_selector_nonce_rejects_after_identity_rebinding() -> None:
+    candidate = _checked_candidate(revision=1, parent_candidate_id=None, variant=0)
+    raw, _input_id = _selector_bytes(
+        operation=selector.SelectorOperationV1.SELECT,
+        candidate=candidate,
+        cursor=_position_distinct_wire_cursor(),
+        evaluation_epoch=0x0102_0304_0506,
+        nonce_index=200,
+        revocation_registry_root=_position_bytes(180),
+    )
+    rebound_raw = raw[:284] + selector.ZERO_DIGEST_V1 + raw[316:]
+    with pytest.raises(selector.SpotV7SelectorInputRejectV1) as captured:
+        selector.parse_exact_governed_release_selector_input_v1(
+            rebound_raw,
+            expected_input_id=selector.derive_governed_release_selector_input_id_v1(rebound_raw),
+        )
+    assert captured.value.code == "selector_nonce"
+
+
+@pytest.mark.parametrize(
+    ("start", "size", "expected_code"),
+    (
+        (136, 8, "revocation_record_revision"),
+        (144, 4, "revocation_reason_code"),
+        (152, 32, "revocation_issuer_set_root"),
+        (184, 32, "revocation_record_nonce"),
+    ),
+)
+def test_zero_revocation_semantic_fields_reject_after_identity_rebinding(
+    start: int,
+    size: int,
+    expected_code: str,
+) -> None:
+    candidate = _checked_candidate(revision=1, parent_candidate_id=None, variant=0)
+    raw, _record_id = _revocation_bytes(
+        candidate=candidate,
+        revocation_registry_root=_position_bytes(180),
+        effective_epoch=0x0102_0304_0506,
+    )
+    rebound_raw = raw[:start] + (b"\x00" * size) + raw[start + size :]
+    with pytest.raises(selector.SpotV7SelectorInputRejectV1) as captured:
+        selector.parse_exact_spot_v7_revocation_record_v1(
+            rebound_raw,
+            expected_record_id=selector.derive_spot_v7_revocation_record_id_v1(rebound_raw),
+        )
+    assert captured.value.code == expected_code
+
+
 @pytest.mark.parametrize(
     ("start", "replacement", "expected_code"),
     (
@@ -434,13 +482,21 @@ def test_selector_flags_reserved_endian_and_swaps_are_active() -> None:
                         mutated_raw
                     ),
                 )
-    for offset in (36, 44, 52):
+    for offset, field_name in (
+        (36, "expected_database_revision"),
+        (44, "evaluation_epoch"),
+        (52, "target_release_revision"),
+    ):
         endian_mutated = raw[:offset] + raw[offset : offset + 8][::-1] + raw[offset + 8 :]
         parsed = selector.parse_exact_governed_release_selector_input_v1(
             endian_mutated,
             expected_input_id=selector.derive_governed_release_selector_input_id_v1(endian_mutated),
         )
         assert parsed.input_id != baseline_id
+        assert getattr(parsed, field_name) == int.from_bytes(
+            endian_mutated[offset : offset + 8], "big"
+        )
+        assert getattr(parsed, field_name) != int.from_bytes(raw[offset : offset + 8], "big")
     swapped = bytearray(raw)
     swapped[156:188], swapped[188:220] = raw[188:220], raw[156:188]
     swapped_raw = bytes(swapped)
@@ -449,6 +505,8 @@ def test_selector_flags_reserved_endian_and_swaps_are_active() -> None:
         expected_input_id=selector.derive_governed_release_selector_input_id_v1(swapped_raw),
     )
     assert parsed.input_id != baseline_id
+    assert parsed.target_candidate_sha256 == raw[188:220]
+    assert parsed.rollback_policy_root == raw[156:188]
 
 
 def test_revocation_flags_reserved_endian_and_swaps_are_active() -> None:
@@ -469,13 +527,20 @@ def test_revocation_flags_reserved_endian_and_swaps_are_active() -> None:
                     mutated_raw,
                     expected_record_id=selector.derive_spot_v7_revocation_record_id_v1(mutated_raw),
                 )
-    for offset in (128, 136):
+    for offset, field_name in (
+        (128, "effective_epoch"),
+        (136, "record_revision"),
+    ):
         endian_mutated = raw[:offset] + raw[offset : offset + 8][::-1] + raw[offset + 8 :]
         parsed = selector.parse_exact_spot_v7_revocation_record_v1(
             endian_mutated,
             expected_record_id=selector.derive_spot_v7_revocation_record_id_v1(endian_mutated),
         )
         assert parsed.record_id != baseline_id
+        assert getattr(parsed, field_name) == int.from_bytes(
+            endian_mutated[offset : offset + 8], "big"
+        )
+        assert getattr(parsed, field_name) != int.from_bytes(raw[offset : offset + 8], "big")
     swapped = bytearray(raw)
     swapped[64:96], swapped[96:128] = raw[96:128], raw[64:96]
     swapped_raw = bytes(swapped)
@@ -484,6 +549,8 @@ def test_revocation_flags_reserved_endian_and_swaps_are_active() -> None:
         expected_record_id=selector.derive_spot_v7_revocation_record_id_v1(swapped_raw),
     )
     assert parsed.record_id != baseline_id
+    assert parsed.revocation_policy_root == raw[96:128]
+    assert parsed.revocation_registry_root == raw[64:96]
 
 
 def test_genesis_selection_commits_atomically_and_remains_authority_false(
@@ -951,6 +1018,43 @@ def test_revocation_is_terminal_precedent_and_exact_replay_is_idempotent(
     assert restarted.read_cursor() == revoked.cursor
 
 
+def test_select_then_revoke_at_same_epoch_uses_database_revision_total_order(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    current, _raw, _input_id, selected = _commit_genesis(store)
+    selected_root = selected.cursor.state_root
+    same_epoch = cast(int, selected.cursor.last_evaluation_epoch)
+    registry_root = _position_bytes(190)
+    record_raw, record_id = _revocation_bytes(
+        candidate=current,
+        revocation_registry_root=registry_root,
+        effective_epoch=same_epoch,
+    )
+    revoke_raw, revoke_id = _selector_bytes(
+        operation=selector.SelectorOperationV1.REVOKE,
+        candidate=current,
+        cursor=selected.cursor,
+        evaluation_epoch=same_epoch,
+        nonce_index=215,
+        revocation_registry_root=registry_root,
+        revocation_record_id=record_id,
+    )
+    revoked = store.revoke(
+        candidate=current,
+        selector_input_bytes=revoke_raw,
+        expected_selector_input_id=revoke_id,
+        revocation_record_bytes=record_raw,
+        expected_revocation_record_id=record_id,
+    )
+
+    assert revoked.disposition is store_module.ReleaseSelectionDispositionV1.COMMITTED
+    assert revoked.cursor.database_revision == selected.cursor.database_revision + 1
+    assert revoked.cursor.last_evaluation_epoch == same_epoch
+    assert revoked.cursor.state_root != selected_root
+    assert revoked.cursor.current_revoked is True
+
+
 def test_future_or_wrong_policy_revocation_rejects_without_mutation(tmp_path: Path) -> None:
     store = _store(tmp_path)
     current, _raw, _input_id, _result = _commit_genesis(store)
@@ -1016,6 +1120,60 @@ def test_future_or_wrong_policy_revocation_rejects_without_mutation(tmp_path: Pa
     assert store.read_cursor() == stable
 
 
+def test_rebound_wrong_revocation_candidate_and_selector_record_id_reject(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    current, _raw, _input_id, _result = _commit_genesis(store)
+    stable = store.read_cursor()
+    registry_root = _position_bytes(190)
+    record_raw, record_id = _revocation_bytes(
+        candidate=current,
+        revocation_registry_root=registry_root,
+        effective_epoch=0x0102_0304_0506,
+    )
+
+    wrong_candidate_record = record_raw[:32] + _position_bytes(247) + record_raw[64:]
+    wrong_candidate_id = selector.derive_spot_v7_revocation_record_id_v1(wrong_candidate_record)
+    wrong_candidate_selector, wrong_candidate_selector_id = _selector_bytes(
+        operation=selector.SelectorOperationV1.REVOKE,
+        candidate=current,
+        cursor=stable,
+        evaluation_epoch=0x0102_0304_0506,
+        nonce_index=213,
+        revocation_registry_root=registry_root,
+        revocation_record_id=wrong_candidate_id,
+    )
+    wrong_candidate = store.revoke(
+        candidate=current,
+        selector_input_bytes=wrong_candidate_selector,
+        expected_selector_input_id=wrong_candidate_selector_id,
+        revocation_record_bytes=wrong_candidate_record,
+        expected_revocation_record_id=wrong_candidate_id,
+    )
+    assert wrong_candidate.code == "REVOCATION_CANDIDATE_MISMATCH"
+
+    mismatched_record_id = _position_bytes(248)
+    mismatched_selector, mismatched_selector_id = _selector_bytes(
+        operation=selector.SelectorOperationV1.REVOKE,
+        candidate=current,
+        cursor=stable,
+        evaluation_epoch=0x0102_0304_0506,
+        nonce_index=214,
+        revocation_registry_root=registry_root,
+        revocation_record_id=mismatched_record_id,
+    )
+    mismatch = store.revoke(
+        candidate=current,
+        selector_input_bytes=mismatched_selector,
+        expected_selector_input_id=mismatched_selector_id,
+        revocation_record_bytes=record_raw,
+        expected_revocation_record_id=record_id,
+    )
+    assert mismatch.code == "REVOCATION_RECORD_INPUT_BINDING_MISMATCH"
+    assert store.read_cursor() == stable
+
+
 def test_two_concurrent_fork_candidates_commit_exactly_one(tmp_path: Path) -> None:
     store = _store(tmp_path)
     first, _raw, _input_id, _result = _commit_genesis(store)
@@ -1077,6 +1235,91 @@ def test_two_concurrent_fork_candidates_commit_exactly_one(tmp_path: Path) -> No
     assert store.read_cursor().database_revision == 2
 
 
+def test_read_cursor_uses_one_snapshot_across_meta_and_event_reads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path)
+    initial = store.read_cursor()
+    candidate = _checked_candidate(revision=1, parent_candidate_id=None, variant=0)
+    raw, input_id = _selector_bytes(
+        operation=selector.SelectorOperationV1.SELECT,
+        candidate=candidate,
+        cursor=initial,
+        evaluation_epoch=0x0102_0304_0506,
+        nonce_index=220,
+        revocation_registry_root=_position_bytes(200),
+    )
+    reader_between_queries = threading.Event()
+    writer_precommit = threading.Event()
+    writer_committed = threading.Event()
+    original_read_all_events = store_module._read_all_events
+    original_cas_meta = store_module._cas_meta
+    original_fsync_directory = store_module._fsync_directory
+    reader_results: list[store_module.SpotV7ReleaseSelectionCursorV1] = []
+    writer_results: list[store_module.SpotV7ReleaseSelectionResultV1] = []
+    errors: list[BaseException] = []
+
+    def interleaved_read_all_events(connection: sqlite3.Connection) -> list[sqlite3.Row]:
+        if threading.current_thread().name == "snapshot-reader":
+            reader_between_queries.set()
+            if not writer_precommit.wait(timeout=5):
+                raise AssertionError("writer did not reach precommit state")
+            if not connection.in_transaction and not writer_committed.wait(timeout=5):
+                raise AssertionError("writer did not commit in the non-snapshot control")
+        return original_read_all_events(connection)
+
+    def signal_precommit(
+        connection: sqlite3.Connection,
+        previous: store_module.SpotV7ReleaseSelectionCursorV1,
+        result: store_module.SpotV7ReleaseSelectionCursorV1,
+    ) -> None:
+        original_cas_meta(connection, previous, result)
+        writer_precommit.set()
+
+    def signal_committed(path: Path) -> None:
+        original_fsync_directory(path)
+        writer_committed.set()
+
+    monkeypatch.setattr(store_module, "_read_all_events", interleaved_read_all_events)
+    monkeypatch.setattr(store_module, "_cas_meta", signal_precommit)
+    monkeypatch.setattr(store_module, "_fsync_directory", signal_committed)
+
+    def reader() -> None:
+        try:
+            reader_results.append(store.read_cursor())
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    def writer() -> None:
+        try:
+            writer_results.append(
+                store.select(
+                    candidate=candidate,
+                    selector_input_bytes=raw,
+                    expected_selector_input_id=input_id,
+                )
+            )
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    reader_thread = threading.Thread(target=reader, name="snapshot-reader")
+    reader_thread.start()
+    assert reader_between_queries.wait(timeout=5)
+    writer_thread = threading.Thread(target=writer, name="snapshot-writer")
+    writer_thread.start()
+    reader_thread.join(timeout=5)
+    writer_thread.join(timeout=5)
+
+    assert not reader_thread.is_alive()
+    assert not writer_thread.is_alive()
+    assert errors == []
+    assert reader_results == [initial]
+    assert len(writer_results) == 1
+    assert writer_results[0].disposition is store_module.ReleaseSelectionDispositionV1.COMMITTED
+    assert store.read_cursor().database_revision == 1
+
+
 def test_failure_between_event_insert_and_meta_cas_rolls_back(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1111,6 +1354,100 @@ def test_failure_between_event_insert_and_meta_cas_rolls_back(
             ]
             == 0
         )
+
+
+def test_post_commit_directory_fsync_failure_resolves_exact_committed_event(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path)
+    candidate = _checked_candidate(revision=1, parent_candidate_id=None, variant=0)
+    raw, input_id = _selector_bytes(
+        operation=selector.SelectorOperationV1.SELECT,
+        candidate=candidate,
+        cursor=store.read_cursor(),
+        evaluation_epoch=0x0102_0304_0506,
+        nonce_index=221,
+        revocation_registry_root=_position_bytes(201),
+    )
+
+    def fail_directory_fsync(_path: Path) -> None:
+        raise OSError("injected directory fsync failure")
+
+    with monkeypatch.context() as context:
+        context.setattr(store_module, "_fsync_directory", fail_directory_fsync)
+        result = store.select(
+            candidate=candidate,
+            selector_input_bytes=raw,
+            expected_selector_input_id=input_id,
+        )
+
+    assert result.disposition is store_module.ReleaseSelectionDispositionV1.COMMITTED
+    assert result.code == "SELECT_COMMITTED_POST_COMMIT_RESOLVED"
+    assert result.cursor.database_revision == 1
+    replay = store.select(
+        candidate=candidate,
+        selector_input_bytes=raw,
+        expected_selector_input_id=input_id,
+    )
+    assert replay.disposition is store_module.ReleaseSelectionDispositionV1.IDEMPOTENT
+    assert replay.cursor == result.cursor
+
+
+def test_unresolved_post_commit_state_raises_typed_uncertainty_and_retry_resolves(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path)
+    candidate = _checked_candidate(revision=1, parent_candidate_id=None, variant=0)
+    raw, input_id = _selector_bytes(
+        operation=selector.SelectorOperationV1.SELECT,
+        candidate=candidate,
+        cursor=store.read_cursor(),
+        evaluation_epoch=0x0102_0304_0506,
+        nonce_index=222,
+        revocation_registry_root=_position_bytes(202),
+    )
+    original_validate_history = store_module._validate_complete_history
+    validation_calls = 0
+
+    def fail_post_commit_resolution(
+        connection: sqlite3.Connection,
+    ) -> store_module.SpotV7ReleaseSelectionCursorV1:
+        nonlocal validation_calls
+        validation_calls += 1
+        result = original_validate_history(connection)
+        if validation_calls == 2:
+            raise ValueError("injected post-commit replay failure")
+        return result
+
+    def fail_directory_fsync(_path: Path) -> None:
+        raise OSError("injected directory fsync failure")
+
+    with monkeypatch.context() as context:
+        context.setattr(store_module, "_validate_complete_history", fail_post_commit_resolution)
+        context.setattr(store_module, "_fsync_directory", fail_directory_fsync)
+        with pytest.raises(store_module.SpotV7ReleaseSelectionDurabilityUncertainV1) as captured:
+            store.select(
+                candidate=candidate,
+                selector_input_bytes=raw,
+                expected_selector_input_id=input_id,
+            )
+
+    assert captured.value.code == "POST_COMMIT_DURABILITY_UNCERTAIN"
+    assert captured.value.operation is selector.SelectorOperationV1.SELECT
+    assert captured.value.input_id == input_id
+    assert captured.value.candidate_selected is False
+    assert captured.value.revocation_authority is False
+    assert captured.value.release_authority is False
+    assert captured.value.production_authority is False
+    retry = store.select(
+        candidate=candidate,
+        selector_input_bytes=raw,
+        expected_selector_input_id=input_id,
+    )
+    assert retry.disposition is store_module.ReleaseSelectionDispositionV1.IDEMPOTENT
+    assert retry.cursor.database_revision == 1
 
 
 def test_restart_rejects_history_and_schema_corruption(tmp_path: Path) -> None:

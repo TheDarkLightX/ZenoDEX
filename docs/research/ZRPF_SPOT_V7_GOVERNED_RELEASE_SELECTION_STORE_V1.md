@@ -98,6 +98,10 @@ different candidates reject as a fork. Revision gaps reject. Expected database
 revision, current candidate, and current SELECT-input ID are independent CAS
 fields and all must match.
 
+Equal evaluation epochs are allowed. The strictly increasing database revision
+and chained state root provide the total order, so SELECT followed by REVOKE at
+the same externally governed epoch remains unambiguous.
+
 An exact previously committed input with the exact same candidate and optional
 revocation bytes is idempotent, even after a later event. A different input for
 the same release or revocation is a conflict.
@@ -132,6 +136,8 @@ The database uses:
 - one exact schema and application ID;
 - strict tables and fixed-width integer blobs;
 - `BEGIN IMMEDIATE` for each transition;
+- an explicit read transaction around schema, metadata, event, and history
+  validation, providing one SQLite snapshot to `read_cursor`;
 - append-only event insertion and metadata CAS in one transaction;
 - full deterministic history replay on open and read;
 - `quick_check`, schema SQL, event continuity, state-root chain, candidate,
@@ -140,6 +146,16 @@ The database uses:
 A failure after event insertion and before metadata CAS rolls back the complete
 transaction. Two competing candidates from the same head serialize, and only
 one can commit.
+
+The commit boundary is tracked separately from directory synchronization. If
+the database commit returns and the subsequent directory `fsync` fails, the
+store opens a fresh read snapshot and requires the exact input, candidate,
+optional revocation record, and complete replayed history to agree. A resolved
+event returns a typed `*_COMMITTED_POST_COMMIT_RESOLVED` result. If that exact
+read cannot resolve the state, the store raises
+`SpotV7ReleaseSelectionDurabilityUncertainV1` carrying the operation and input
+ID. It never reports an ordinary pre-commit failure for that state. Retrying the
+same exact input follows the normal idempotent replay path.
 
 ## Active distinguishing witnesses
 
@@ -155,12 +171,17 @@ interpretation. It establishes that:
 - policy, registry, candidate, and SHA field swaps remain distinguishable;
 - re-bound release revision, candidate identity, candidate-byte SHA-256, and
   rollback-policy mutations reach distinct semantic reject boundaries;
+- zero selector nonce, revocation revision, reason, issuer set, and record nonce
+  reach their exact typed codec rejects after identity rebinding;
+- wrong revocation candidate and selector-to-record ID substitution reach
+  distinct store rejects;
 - SELECT and REVOKE tags cannot cross public method boundaries;
 - database-revision, current-candidate, and current-selection CAS fields are
   independently load-bearing;
 - fork, release rollback, evaluation-epoch rollback, gap, activation, expiry,
   future revocation, conflicting revocation, restart corruption, schema
-  corruption, and transaction-failure branches have pinned negative tests.
+  corruption, read-snapshot interleaving, pre-commit failure, and post-commit
+  ambiguity branches have pinned tests.
 
 This mutation corpus is offline bug-finding and regression evidence. It is not
 a proof of codec, SQLite, filesystem, or governance correctness.

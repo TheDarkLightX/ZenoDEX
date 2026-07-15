@@ -65,6 +65,46 @@ class SpotV7ReleaseSelectionStoreErrorV1(RuntimeError):
         super().__init__(f"{code}: {detail}")
 
 
+@final
+class SpotV7ReleaseSelectionDurabilityUncertainV1(SpotV7ReleaseSelectionStoreErrorV1):
+    """A commit returned, but exact post-commit replay could not resolve it."""
+
+    def __init__(
+        self,
+        *,
+        operation: SelectorOperationV1,
+        input_id: bytes,
+        detail: str,
+    ) -> None:
+        self.operation = operation
+        self.input_id = input_id
+        super().__init__("POST_COMMIT_DURABILITY_UNCERTAIN", detail)
+
+    @property
+    def candidate_selected(self) -> bool:
+        return False
+
+    @property
+    def revocation_authority(self) -> bool:
+        return False
+
+    @property
+    def release_authority(self) -> bool:
+        return False
+
+    @property
+    def settlement_authority(self) -> bool:
+        return False
+
+    @property
+    def runtime_authority(self) -> bool:
+        return False
+
+    @property
+    def production_authority(self) -> bool:
+        return False
+
+
 class _SelectionRejectV1(ValueError):
     def __init__(self, code: str) -> None:
         self.code = code
@@ -253,12 +293,21 @@ class SQLiteSpotV7GovernedReleaseSelectionStoreV1:
         return self._path
 
     def read_cursor(self) -> SpotV7ReleaseSelectionCursorV1:
+        connection: sqlite3.Connection | None = None
         try:
-            with closing(self._connect()) as connection:
-                _validate_schema(connection)
-                return _validate_complete_history(connection)
+            connection = self._connect()
+            connection.execute("BEGIN")
+            _validate_schema(connection)
+            cursor = _validate_complete_history(connection)
+            connection.rollback()
+            return cursor
         except (OSError, sqlite3.Error, ValueError) as exc:
+            if connection is not None and connection.in_transaction:
+                connection.rollback()
             raise SpotV7ReleaseSelectionStoreErrorV1("STORE_READ_FAILED", str(exc)) from exc
+        finally:
+            if connection is not None:
+                connection.close()
 
     def select(
         self,
@@ -359,7 +408,15 @@ class SQLiteSpotV7GovernedReleaseSelectionStoreV1:
             _insert_event(connection, cursor, next_cursor, selector, facts, revocation)
             _cas_meta(connection, cursor, next_cursor)
             connection.commit()
-            _fsync_directory(self._path.parent)
+            try:
+                _fsync_directory(self._path.parent)
+            except OSError as durability_error:
+                return self._resolve_post_commit(
+                    selector=selector,
+                    facts=facts,
+                    revocation=revocation,
+                    durability_error=durability_error,
+                )
             return _result(
                 ReleaseSelectionDispositionV1.COMMITTED,
                 f"{selector.operation.name}_COMMITTED",
@@ -375,6 +432,53 @@ class SQLiteSpotV7GovernedReleaseSelectionStoreV1:
             if connection is not None and connection.in_transaction:
                 connection.rollback()
             raise SpotV7ReleaseSelectionStoreErrorV1("STORE_COMMIT_FAILED", str(exc)) from exc
+        finally:
+            if connection is not None:
+                connection.close()
+
+    def _resolve_post_commit(
+        self,
+        *,
+        selector: GovernedReleaseSelectorInputV1,
+        facts: _CandidateFactsV1,
+        revocation: SpotV7RevocationRecordV1 | None,
+        durability_error: OSError,
+    ) -> SpotV7ReleaseSelectionResultV1:
+        connection: sqlite3.Connection | None = None
+        try:
+            connection = self._connect()
+            connection.execute("BEGIN")
+            _validate_schema(connection)
+            cursor = _validate_complete_history(connection)
+            row = _read_event_by_input_id(connection, selector.input_id)
+            if row is None:
+                raise ValueError("post-commit selector event is absent")
+            _resolve_exact_replay(
+                row,
+                selector=selector,
+                facts=facts,
+                revocation=revocation,
+                cursor=cursor,
+            )
+            connection.rollback()
+            return _result(
+                ReleaseSelectionDispositionV1.COMMITTED,
+                f"{selector.operation.name}_COMMITTED_POST_COMMIT_RESOLVED",
+                selector.operation,
+                selector.input_id,
+                cursor,
+            )
+        except (OSError, sqlite3.Error, ValueError) as resolution_error:
+            if connection is not None and connection.in_transaction:
+                connection.rollback()
+            detail = (
+                f"directory_fsync={durability_error}; post_commit_resolution={resolution_error}"
+            )
+            raise SpotV7ReleaseSelectionDurabilityUncertainV1(
+                operation=selector.operation,
+                input_id=selector.input_id,
+                detail=detail,
+            ) from resolution_error
         finally:
             if connection is not None:
                 connection.close()
@@ -741,9 +845,7 @@ def _validate_complete_history(
     _validate_database_integrity(connection)
     meta = _read_meta(connection)
     cursor = _genesis_cursor()
-    rows = connection.execute(
-        "SELECT * FROM spot_v7_release_selection_events ORDER BY event_revision_be"
-    ).fetchall()
+    rows = _read_all_events(connection)
     if len(rows) > MAX_SELECTION_EVENTS_V1:
         raise ValueError("release selection event count exceeds maximum")
     for expected_revision, row in enumerate(rows, start=1):
@@ -892,6 +994,12 @@ def _read_meta(connection: sqlite3.Connection) -> sqlite3.Row:
     if row is None:
         raise ValueError("release selection metadata row missing")
     return row
+
+
+def _read_all_events(connection: sqlite3.Connection) -> list[sqlite3.Row]:
+    return connection.execute(
+        "SELECT * FROM spot_v7_release_selection_events ORDER BY event_revision_be"
+    ).fetchall()
 
 
 def _read_event_by_input_id(
