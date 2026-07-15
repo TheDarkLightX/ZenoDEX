@@ -5,9 +5,9 @@ Date: 2026-07-14
 Status: descriptor-retained artifact binding, one-shot descriptor-sourced
 launch snapshots, root-owned jail preparation, the data-only prepared Jailer
 lifecycle, an authority-false root-supervisor orchestration contract, and the
-Linux cgroup/Jailer composition adapter are implemented; concrete privileged
-namespace-kernel effects, live evidence, and Spot V7 runtime authority remain
-unavailable
+Linux cgroup/Jailer composition adapter, pinned namespace helper, and exact
+Linux candidate entrypoint are implemented; privileged execution evidence and
+Spot V7 runtime authority remain unavailable
 
 ## Purpose
 
@@ -210,10 +210,11 @@ The retained V3 replay guest is not a Spot V7 guest. Its raw profile digest and
 The V7 path now validates the exact proposed machine profile, strict runtime
 manifest semantics, every proposed artifact byte identity, input identity,
 outer request/output protocol, and descriptor-sourced launch preparation. The
-current work does not execute the private lifecycle handoff, authenticate a
-guest payload or receipt, prove governance selected the proposal, bind a
-release manifest, prove guest-init/rootfs inclusion, or establish a
-source-to-binary chain.
+current work supplies an exact code path capable of consuming the private
+lifecycle handoff, but no retained privileged run demonstrates that execution.
+It does not authenticate a guest payload or receipt, prove governance selected
+the proposal, bind a release manifest, prove guest-init/rootfs inclusion, or
+establish a source-to-binary chain.
 
 The high-level contract in
 `tools/zrpf_spot_v7_firecracker_root_supervisor.py` now spends the sealed
@@ -223,9 +224,12 @@ request-bound output, and requires cgroup absence plus namespace emptiness and
 destruction before closing launch resources. Deterministic ports cover the
 orchestration and disaster-state contract.
 `LinuxSpotV7RootSupervisorOsPortV1` now composes the exact descriptor-safe
-cgroup leaf, pinned namespace handle, and prepared Jailer lifecycle. Its
-persistent namespace create/inventory/destroy operations remain an injected
-privileged-kernel seam, so no live ownership or execution claim follows.
+cgroup leaf, pinned namespace handle, and prepared Jailer lifecycle. The
+lower-level port retains an injected namespace seam for deterministic tests.
+`run_exact_linux_spot_v7_root_supervisor_candidate_v1` closes that seam on the
+candidate execution route by requiring the exact pinned Linux namespace helper
+and constructing the exact Linux port internally. No privileged run evidence
+exists, so no live ownership or execution claim follows.
 
 ## Non-claims
 
@@ -236,6 +240,7 @@ live privileged Jailer or Firecracker execution
 live hostile staging or same-UID resistance evidence
 hostile same-interpreter capability resistance
 governed Spot V7 release artifact identity
+governed namespace-helper executable identity or one-shot helper reuse
 live consumption of the descriptor-sourced lifecycle handoff
 Spot V7 guest execution or payload authentication
 current V6/V7 image IDs or receipt evidence
@@ -257,8 +262,9 @@ production readiness
    stage or execute only from those retained descriptors or immutable snapshots.
 2. Build the authority-capable PID-1 guest from the final source closure and
    verify fresh V6/V7 receipts under the selected image IDs.
-3. Implement and review the concrete privileged namespace-kernel seam, then
-   execute the existing root supervisor and Linux composition adapter.
+3. Execute the exact Linux candidate entrypoint on a disposable privileged KVM
+   host and retain its complete request, output, lifecycle, and teardown
+   evidence.
 4. Run privileged hostile controls on a disposable KVM host.
 5. Decode and authenticate the exact V7 payload inside that lifecycle. Only
    then may the module-private governed execution capability gain a mint site.
