@@ -94,11 +94,10 @@ is fixed to false. An independent Python checker reopens the exact program,
 input, assumptions, and `r0vm` and rejects substitution, noncanonical JSON,
 reordered segment rows, integer/Boolean ambiguity, and authority promotion.
 
-The remote handoff schedules this profile before V7 proving and rechecks it as
-a V7 precondition. This is a bounded workload record. It is not yet a paid-run
-authorization gate for the complete chain because the source, V2, and V6
-stages are not execution-profiled, and CPU execution cycles do not measure
-Succinct CUDA proving time.
+The remote handoff schedules execution profiles before source and V7 proving
+and rechecks each profile as a proof-stage precondition. These are bounded
+workload records. CPU execution cycles do not measure Succinct CUDA proving
+time.
 
 ## CUDA r0vm build contract
 
@@ -186,25 +185,39 @@ Before the full chain, perform these bounded stages:
    per-segment `po2` values.
 4. Start one H100 pod from a digest-pinned image with one visible GPU.
 5. Verify compute capability 9.0, VRAM, driver, container, and exact r0vm hash.
-6. Run one minimal Succinct proof and require live GPU-use telemetry.
-7. Run the smallest representative ZRPF proof stage and measure wall time,
-   peak host memory, peak VRAM, proof bytes, cycles, and segments.
-8. Project the remaining chain from measured stages. Continue only when the
-   upper estimate plus a 25 percent reserve fits `T_budget`.
-9. Stop and preserve the completed stage artifacts when the gate fails.
+6. Run one source-leaf Succinct proof under the initial attempt deadline.
+7. Stop the pod and preserve artifacts whether the proof succeeds, fails, or
+   reaches the deadline.
 
-The fail-closed implementation target is a content-addressed
-`PaidRunQualificationV1`. It must remain `UNKNOWN` unless it binds all of:
+The implemented `zrpf_initial_paid_calibration_attempt/v1` checker permits one
+initial attempt only. It remains `UNKNOWN` unless it binds all of:
 
 ```text
 stage execution profiles
 CUDA r0vm source/build record
 single-H100 hardware and runtime preflight
-one independently verified representative Succinct calibration proof
-integer-only price, budget, reserve, and deadline arithmetic
+the exact source-proof execution packet
+integer-only price, budget, and deadline arithmetic
 ```
 
-A valid execution profile alone must never authorize a paid proving stage.
+The attempt budget is capped at 4,000,000 microusd and the proof deadline is
+capped at 1,800,000 milliseconds. The worker recomputes the qualification from
+its private packet and input snapshots, requires byte-exact agreement with the
+checker output, and applies the resulting deadline before launching the proof
+command. A valid execution profile alone cannot start paid proving.
+
+The checker does not authorize a continuation or additional spend. A later
+continuation design requires direct verification of the completed receipt and
+worker-owned live GPU telemetry. Caller-supplied booleans or projected
+remaining time are insufficient.
+
+Pod allocation, setup, and deallocation occur outside the checker. The cloud
+controller must enforce an independent pod TTL from allocation time. The
+30-minute proof deadline is not a bound on total cloud billing. The controller
+TTL also owns a process-launch or pre-exec stall because Python's subprocess
+timeout begins only after process creation returns. The worker rejects a
+completed command whose total measured elapsed time exceeds its bound, while
+the external TTL provides the active stop boundary during launch.
 
 The H100 worker environment is:
 

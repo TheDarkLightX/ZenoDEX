@@ -27,7 +27,11 @@ PROVING_STAGE_IDS = (
     "v6_settlement_receipt",
     "v7_receipt",
 )
-RISC0_COMPUTE_STAGE_IDS = (*PROVING_STAGE_IDS, "v7_execution_profile")
+RISC0_COMPUTE_STAGE_IDS = (
+    *PROVING_STAGE_IDS,
+    "source_execution_profile",
+    "v7_execution_profile",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,7 +225,49 @@ ARTIFACT_SPECS = (
         "external_operator",
     ),
     ArtifactSpec(
+        "cuda_r0vm_build_attestation",
+        "inputs/cuda_r0vm_build_attestation.json",
+        "build_attestation",
+        "external_operator",
+        2 * 1024 * 1024,
+    ),
+    ArtifactSpec(
+        "h100_preflight",
+        "inputs/h100_preflight.json",
+        "hardware_preflight",
+        "external_operator",
+        2 * 1024 * 1024,
+    ),
+    ArtifactSpec(
         "source_proof", "proofs/source_proof.json", "receipt", "source_spot_proof", 16 * 1024 * 1024
+    ),
+    ArtifactSpec(
+        "source_guest_input",
+        "profiles/source_guest_input.bin",
+        "guest_input",
+        "source_execution_profile",
+        16 * 1024 * 1024,
+    ),
+    ArtifactSpec(
+        "source_execution_profile",
+        "profiles/source_execution_profile.json",
+        "execution_profile",
+        "source_execution_profile",
+        2 * 1024 * 1024,
+    ),
+    ArtifactSpec(
+        "source_execution_profile_report",
+        "profiles/source_execution_profile_report.json",
+        "report",
+        "source_execution_profile",
+        64 * 1024,
+    ),
+    ArtifactSpec(
+        "source_calibration_qualification",
+        "profiles/source_calibration_qualification.json",
+        "attempt_qualification",
+        "source_spot_proof",
+        64 * 1024,
     ),
     ArtifactSpec(
         "v2_adapter_receipt",
@@ -479,10 +525,46 @@ TASK_SPECS = (
         execution_adapter_status="implemented",
     ),
     TaskSpec(
-        "source_spot_proof",
+        "source_execution_profile",
         ("worker_prover_build",),
         ("source_request", "source_cli", "source_program", "prover_r0vm"),
-        ("source_proof",),
+        (
+            "source_guest_input",
+            "source_execution_profile",
+            "source_execution_profile_report",
+        ),
+        "@source_cli",
+        (
+            "--profile-recursive-spot-leaf",
+            "--execution-profile-out",
+            "@source_execution_profile",
+            "--guest-input-out",
+            "@source_guest_input",
+        ),
+        (
+            "the exact source request is converted to the proving guest-input bytes",
+            "execution halts successfully with the independently recomposed source journal",
+            "the profile binds ordered segments and keeps every authority field false",
+        ),
+        "prover_light",
+        execution_adapter_status="implemented",
+        stdin_artifact_role="source_request",
+        stdout_artifact_role="source_execution_profile_report",
+    ),
+    TaskSpec(
+        "source_spot_proof",
+        ("source_execution_profile",),
+        (
+            "source_request",
+            "source_cli",
+            "source_program",
+            "source_guest_input",
+            "source_execution_profile",
+            "cuda_r0vm_build_attestation",
+            "h100_preflight",
+            "prover_r0vm",
+        ),
+        ("source_calibration_qualification", "source_proof"),
         "@source_cli",
         (),
         (
@@ -492,6 +574,45 @@ TASK_SPECS = (
         ),
         "prover_heavy",
         execution_adapter_status="implemented",
+        pre_commands=(
+            CommandSpec(
+                "python3",
+                (
+                    "tools/check_zrpf_initial_paid_calibration_attempt_v1.py",
+                    "--source-execution-profile",
+                    "@source_execution_profile",
+                    "--cuda-r0vm-build-attestation",
+                    "@cuda_r0vm_build_attestation",
+                    "--h100-preflight",
+                    "@h100_preflight",
+                    "--source-execution-packet",
+                    "@execution_packet_file",
+                    "--attempt-budget-and-price",
+                    "@runtime_attempt_budget_and_price",
+                    "--trusted-current-epoch-seconds",
+                    "@trusted_current_epoch_seconds",
+                ),
+                stdout_artifact_role="source_calibration_qualification",
+            ),
+            CommandSpec(
+                "python3",
+                (
+                    "tools/check_zrpf_stage_execution_profile_v1.py",
+                    "--profile",
+                    "@source_execution_profile",
+                    "--program",
+                    "@source_program",
+                    "--guest-input",
+                    "@source_guest_input",
+                    "--r0vm",
+                    "@prover_r0vm",
+                    "--expected-stage",
+                    "source_spot_proof",
+                    "--expected-compute-profile",
+                    "@prover_compute_profile_id",
+                ),
+            ),
+        ),
         stdin_artifact_role="source_request",
         stdout_artifact_role="source_proof",
     ),

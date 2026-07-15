@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+  "execution_profile",
   "shared",
   "methods",
   "methods/aggregate",

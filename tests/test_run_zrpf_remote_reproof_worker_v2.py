@@ -11,9 +11,12 @@ from typing import Any, cast
 
 import pytest
 
+from tests import test_check_zrpf_initial_paid_calibration_attempt_v1 as paid_fixture
 from tests import test_plan_zrpf_remote_reproof_handoff_v2 as handoff_fixture
+from tools import check_zrpf_initial_paid_calibration_attempt_v1 as paid_calibration
 from tools import plan_zrpf_remote_reproof_handoff_v2 as handoff
 from tools import run_zrpf_remote_reproof_worker_v2 as worker
+from tools import zrpf_paid_run_prerequisites_v1 as paid_shared
 
 
 def _stage_context(
@@ -66,7 +69,7 @@ def test_worker_executes_exact_packet_into_clean_output_stage(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
-    packet_path = tmp_path / "packets/06-v6_l1_receipt.json"
+    packet_path = tmp_path / "packets/07-v6_l1_receipt.json"
     packet = handoff.load_canonical_json(packet_path, "execution packet")
     assert isinstance(packet, dict)
     assert capture["capture_id"] == worker.derive_capture_id(capture)
@@ -90,18 +93,234 @@ def test_worker_executes_exact_packet_into_clean_output_stage(
     )
 
 
-def test_compute_profile_change_ratchets_worker_capture_and_rejects_v2(
+def test_worker_privately_snapshots_exact_execution_packet_and_rejects_rebinding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    snapshot = run_root / "inputs/execution-packet.json"
+    assert snapshot.read_bytes() == handoff.canonical_json_bytes(packet)
+
+    snapshot.chmod(0o600)
+    snapshot.write_bytes(handoff.canonical_json_bytes({**packet, "ordinal": 999}))
+    with pytest.raises(worker.WorkerError, match="execution packet snapshot changed"):
+        worker.validate_worker_capture(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+
+def _source_calibration_context(
+    tmp_path: Path,
+) -> tuple[
+    Path,
+    dict[str, Any],
+    Path,
+    dict[str, Any],
+    Path,
+    dict[str, Path],
+]:
+    repo, chain, plan, artifact_root, _packet_path, _stale_packet = _stage_context(
+        tmp_path,
+        stage_id="source_spot_proof",
+        prover_compute_profile_id=(handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID),
+    )
+    source_program = artifact_root / "identity/run/outputs/01-source-spot/source_spot.bin"
+    prover_r0vm = artifact_root / "inputs/prover-risc0-home/bin/r0vm"
+    source_guest_input = artifact_root / "profiles/source_guest_input.bin"
+    source_guest_input.write_bytes(b"source-calibration-position-distinct-guest-input\n")
+
+    profile = paid_fixture._profile()
+    source_program_raw = source_program.read_bytes()
+    prover_r0vm_raw = prover_r0vm.read_bytes()
+    guest_input_raw = source_guest_input.read_bytes()
+    profile["program"]["artifact"] = {
+        "sha256": hashlib.sha256(source_program_raw).hexdigest(),
+        "size_bytes": len(source_program_raw),
+    }
+    profile["r0vm"] = {
+        "sha256": hashlib.sha256(prover_r0vm_raw).hexdigest(),
+        "size_bytes": len(prover_r0vm_raw),
+    }
+    profile["guest_input"] = {
+        "sha256": hashlib.sha256(guest_input_raw).hexdigest(),
+        "size_bytes": len(guest_input_raw),
+    }
+    profile["profile_record_id"] = paid_fixture.execution_profile._derive_record_id(profile)
+    build = paid_fixture._build(profile)
+    preflight = paid_fixture._preflight(profile)
+    (artifact_root / "profiles/source_execution_profile.json").write_bytes(
+        paid_shared.canonical_bytes(profile)
+    )
+    (artifact_root / "inputs/cuda_r0vm_build_attestation.json").write_bytes(
+        paid_shared.canonical_bytes(build)
+    )
+    (artifact_root / "inputs/h100_preflight.json").write_bytes(
+        paid_shared.canonical_bytes(preflight)
+    )
+
+    packet = handoff.build_execution_packet(
+        plan,
+        "source_spot_proof",
+        artifact_root,
+        repo,
+        c0_commit=chain[0],
+        c1_commit=chain[1],
+        c2_commit=chain[2],
+        governance_commit=chain[3],
+    )
+    budget = paid_fixture._budget(profile, build, preflight, packet)
+    budget["execution_profile_sha256"] = hashlib.sha256(
+        paid_shared.canonical_bytes(profile)
+    ).hexdigest()
+    budget["attempt_budget_microusd"] = paid_calibration.MAX_ATTEMPT_BUDGET_MICROUSD
+    budget["price_microusd_per_hour"] = 2_890_000
+    budget["hard_attempt_cap_milliseconds"] = paid_calibration.MAX_HARD_ATTEMPT_CAP_MILLISECONDS
+    budget["attempt_budget_record_id"] = paid_calibration.derive_attempt_budget_record_id(budget)
+    budget_path = tmp_path / "runtime/attempt-budget-and-price.json"
+    budget_path.parent.mkdir(parents=True)
+    budget_path.write_bytes(paid_shared.canonical_bytes(budget))
+    runtime = {"attempt_budget_and_price": budget_path}
+    return repo, plan, artifact_root, packet, tmp_path / "run", runtime
+
+
+def test_source_proof_cpu_fallback_is_explicitly_disqualified(tmp_path: Path) -> None:
+    repo, _chain, plan, artifact_root, _packet_path, packet = _stage_context(
+        tmp_path, stage_id="source_spot_proof"
+    )
+
+    with pytest.raises(worker.WorkerError, match="execution adapter is not implemented"):
+        worker.execute_stage(plan, packet, repo, artifact_root, tmp_path / "run")
+
+
+def _run_paid_calibration_checker(command: worker.ResolvedCommand) -> bytes:
+    argv = list(command.argv)
+    result = paid_calibration.check_qualification(
+        Path(argv[argv.index("--source-execution-profile") + 1]),
+        Path(argv[argv.index("--cuda-r0vm-build-attestation") + 1]),
+        Path(argv[argv.index("--h100-preflight") + 1]),
+        Path(argv[argv.index("--source-execution-packet") + 1]),
+        Path(argv[argv.index("--attempt-budget-and-price") + 1]),
+        trusted_current_epoch_seconds=int(argv[argv.index("--trusted-current-epoch-seconds") + 1]),
+    )
+    return paid_calibration.canonical_bytes(result) + b"\n"
+
+
+def test_source_proof_runs_only_after_exact_paid_gate_and_uses_derived_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, packet, run_root, runtime = _source_calibration_context(tmp_path)
+    seen: list[tuple[str, int]] = []
+
+    def fake_source_calibration(
+        command: worker.ResolvedCommand,
+        policy: worker.ResourcePolicy,
+        _environment: dict[str, str],
+        _cwd: Path,
+    ) -> worker.ProcessResult:
+        argv = list(command.argv)
+        if "tools/check_zrpf_initial_paid_calibration_attempt_v1.py" in argv:
+            seen.append(("paid_gate", policy.timeout_seconds))
+            return worker.ProcessResult(_run_paid_calibration_checker(command), b"", 0, 1)
+        if "tools/check_zrpf_stage_execution_profile_v1.py" in argv:
+            seen.append(("profile_gate", policy.timeout_seconds))
+            return worker.ProcessResult(b"", b"", 0, 1)
+        seen.append(("source_proof", policy.timeout_seconds))
+        return worker.ProcessResult(b'{"candidate_receipt":"source"}\n', b"", 0, 2)
+
+    monkeypatch.setattr(worker, "_run_bounded_command", fake_source_calibration)
+    capture = worker.execute_stage(
+        plan,
+        packet,
+        repo,
+        artifact_root,
+        run_root,
+        runtime_bindings=runtime,
+        trusted_current_epoch_seconds=paid_fixture.CURRENT_EPOCH,
+    )
+
+    assert seen == [("paid_gate", 60), ("profile_gate", 60), ("source_proof", 1_800)]
+    outputs = {row["role"]: row for row in cast(list[dict[str, Any]], capture["outputs"])}
+    assert outputs["source_calibration_qualification"]["size_bytes"] > 0
+    assert outputs["source_proof"]["size_bytes"] > 0
+    assert (run_root / "inputs/runtime/attempt-budget-and-price.json").read_bytes() == runtime[
+        "attempt_budget_and_price"
+    ].read_bytes()
+
+    over_deadline = copy.deepcopy(capture)
+    over_deadline_commands = cast(list[dict[str, object]], over_deadline["commands"])
+    over_deadline_commands[-1]["duration_milliseconds"] = 1_800_001
+    over_deadline["capture_id"] = worker.derive_capture_id(over_deadline)
+    with pytest.raises(worker.WorkerError, match="duration exceeds"):
+        worker.validate_worker_capture(
+            plan,
+            packet,
+            over_deadline,
+            repo,
+            artifact_root,
+            run_root,
+            runtime_bindings=runtime,
+            trusted_current_epoch_seconds=paid_fixture.CURRENT_EPOCH,
+        )
+
+
+def test_source_proof_never_starts_when_paid_gate_output_is_rebound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, packet, run_root, runtime = _source_calibration_context(tmp_path)
+    proof_started = False
+
+    def rebound_paid_gate(
+        command: worker.ResolvedCommand,
+        _policy: worker.ResourcePolicy,
+        _environment: dict[str, str],
+        _cwd: Path,
+    ) -> worker.ProcessResult:
+        nonlocal proof_started
+        argv = list(command.argv)
+        if "tools/check_zrpf_initial_paid_calibration_attempt_v1.py" in argv:
+            raw = _run_paid_calibration_checker(command)
+            return worker.ProcessResult(
+                raw.replace(b'"qualified":true', b'"qualified":false'), b"", 0, 1
+            )
+        if "tools/check_zrpf_stage_execution_profile_v1.py" in argv:
+            return worker.ProcessResult(b"", b"", 0, 1)
+        proof_started = True
+        return worker.ProcessResult(b"unreachable", b"", 0, 1)
+
+    monkeypatch.setattr(worker, "_run_bounded_command", rebound_paid_gate)
+    with pytest.raises(worker.WorkerError, match="qualification output mismatch"):
+        worker.execute_stage(
+            plan,
+            packet,
+            repo,
+            artifact_root,
+            run_root,
+            runtime_bindings=runtime,
+            trusted_current_epoch_seconds=paid_fixture.CURRENT_EPOCH,
+        )
+    assert proof_started is False
+
+
+def test_effective_command_policy_ratchets_worker_capture_and_rejects_v3(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert worker.CAPTURE_SCHEMA.endswith("/v3")
+    assert worker.CAPTURE_SCHEMA.endswith("/v4")
     repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
     packet = handoff.load_canonical_json(
-        tmp_path / "packets/06-v6_l1_receipt.json", "execution packet"
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
     )
     assert isinstance(packet, dict)
     stale = copy.deepcopy(capture)
-    stale["schema"] = "zenodex/zrpf_remote_reproof_worker_capture/v2"
+    stale["schema"] = "zenodex/zrpf_remote_reproof_worker_capture/v3"
     stale["capture_id"] = worker.derive_capture_id(stale)
     stage = worker.validate_stage_packet(plan, packet, repo, artifact_root)
     with pytest.raises(worker.WorkerError, match="schema"):
@@ -439,6 +658,36 @@ def test_timeout_and_capture_bounds_fail_closed(tmp_path: Path) -> None:
         )
 
 
+def test_preexec_delay_rejects_after_total_elapsed_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    policy = replace(worker.RESOURCE_POLICIES["light"], timeout_seconds=1)
+    command = worker.ResolvedCommand(
+        argv=("/usr/bin/true",),
+        stdin_path=None,
+        stdout_artifact_role=None,
+        stdout_maximum_bytes=64,
+        command_template_sha256="9" * 64,
+    )
+
+    monkeypatch.setattr(worker, "_install_child_limits", lambda _policy: time.sleep(1.1))
+
+    with pytest.raises(worker.WorkerError, match="total elapsed-time bound"):
+        worker._run_bounded_command(
+            command,
+            policy,
+            worker.clean_environment(
+                home,
+                None,
+                worker.PROVER_COMPUTE_PROFILES[handoff.NO_PROVER_COMPUTE_PROFILE_ID],
+                None,
+            ),
+            tmp_path,
+        )
+
+
 def test_timeout_kills_descendant_that_retains_process_group_pipes(tmp_path: Path) -> None:
     home = tmp_path / "home"
     home.mkdir()
@@ -525,7 +774,7 @@ def test_capture_digest_and_output_record_substitution_reject(
 ) -> None:
     repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
     packet = handoff.load_canonical_json(
-        tmp_path / "packets/06-v6_l1_receipt.json", "execution packet"
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
     )
     assert isinstance(packet, dict)
 
@@ -867,7 +1116,7 @@ def test_worker_capture_authority_requires_exact_false_values(
 ) -> None:
     repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
     packet = handoff.load_canonical_json(
-        tmp_path / "packets/06-v6_l1_receipt.json", "execution packet"
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
     )
     assert isinstance(packet, dict)
     capture["authority"]["proof_authority"] = 0

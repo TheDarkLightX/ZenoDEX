@@ -1,22 +1,25 @@
 # ZRPF remote reproof handoff V2 CBC specification
 
 Status: implemented planner, per-stage exact-input packet builder, return
-checker, and bounded authority-neutral worker for eleven packet-expressible
-stages. The identity rebuild, worker prover-build, and exact mutation adapters
-are implemented. The bundle-aware release checker command template remains
-planned.
+checker, and bounded authority-neutral worker for thirteen packet-expressible
+stages. The identity rebuild, worker prover-build, source/V7 execution-profile,
+and exact mutation adapters are implemented. The bundle-aware release checker
+command template remains planned.
 
 ## Compute-profile protocol ratchet
 
 The implementation filenames retain `v2` so the focused worker stack remains
-one reviewable incremental change. Adding governed compute selection, the
-separate proving `r0vm`, and its exact byte expectation changes acceptance-
-relevant fields. The emitted handoff, task, execution-packet, task-capture,
-return, and worker-capture schemas and identity domains are therefore V3.
+one reviewable incremental change. Governed compute selection originally
+ratcheted the wire family to V3. Adding the source execution-profile stage and
+making it an exact predecessor of source proving changes the task topology and
+acceptance-relevant artifacts. The handoff, task, execution-packet,
+task-capture, and return schemas and identity domains are therefore V4. The
+worker-capture schema remains V3 because its own field set and identity
+construction are unchanged; it content-binds the V4 execution packet.
 
-All earlier V2 handoffs, packets, task captures, return bundles, and worker
-captures are revoked. They must be regenerated. V3 checkers reject V2 objects
-by schema before treating any content as current evidence.
+All earlier V2 and V3 handoffs, packets, task captures, and return bundles are
+revoked. They must be regenerated. V4 checkers reject those objects by schema
+before treating any content as current evidence.
 
 The closed task/artifact catalog lives in
 `tools/zrpf_remote_reproof_handoff_v2_catalog.py`. Parsing, content addressing,
@@ -131,21 +134,35 @@ The task order is fixed:
 identity_rebuild
   -> ancestry_materialization
   -> worker_prover_build
+  -> source_execution_profile
   -> source_spot_proof
   -> v2_adapter_receipt
   -> v6_leaf_receipt
   -> v6_l1_receipt
   -> v6_l2_receipt
   -> v6_settlement_receipt
+  -> v7_execution_profile
   -> v7_receipt
   -> mutation_verification
   -> release_checks
 ```
 
 This ordering closes the previous Mac handoff dependency gap. A source proof
-and V2 adapter receipt are explicit prerequisites. The V6 leaf cannot become
-ready when the adapter receipt is absent. After an execution packet has been
-created, its downstream task capture binds the exact packet input artifact IDs.
+and V2 adapter receipt are explicit prerequisites. Source proving additionally
+requires an execution-only profile over the exact source program, exact
+materialized guest input, exact expected journal, and exact packet-pinned
+`r0vm`. V7 proving has the corresponding exact profile predecessor. Each
+profile records ordered segment/cycle facts and generates no receipt. The V6
+leaf cannot become ready when the adapter receipt is absent. After an execution
+packet has been created, its downstream task capture binds the exact packet
+input artifact IDs.
+
+The source-proof task also binds exact CUDA-build and H100-preflight artifacts.
+Its first command evaluates one authority-false paid-calibration attempt over a
+worker-private copy of the source-proof packet. The integer budget document is
+provided after packet construction because it commits to the packet ID. The
+qualification output commits to those exact budget bytes. No continuation or
+additional-spend task exists.
 The packet is an unkeyed deterministic commitment. It does not authenticate an
 operator, prove freshness, detect external-input substitution that happened
 before packet creation, or distinguish a same-handoff replay of the same bytes.
@@ -191,12 +208,14 @@ The catalog marks these packet-expressible stages as implemented:
 identity_rebuild
 ancestry_materialization
 worker_prover_build
+source_execution_profile
 source_spot_proof
 v2_adapter_receipt
 v6_leaf_receipt
 v6_l1_receipt
 v6_l2_receipt
 v6_settlement_receipt
+v7_execution_profile
 v7_receipt
 mutation_verification
 ```
@@ -289,10 +308,14 @@ task ID
 ```
 
 The handoff fixes either `risc0_ipc_cpu_v1` or
-`risc0_ipc_cuda_single_visible_device_build_request_v1` for all seven proving
-stages. Every such
-stage also consumes the exact, separately content-addressed `prover_r0vm`
-input. The identity-rebuild r0vm remains separately pinned. This prevents an
+`risc0_ipc_cuda_single_visible_device_build_request_v1` for its RISC0 compute
+stages. Every such stage also consumes the exact, separately content-addressed
+`prover_r0vm` input. The default CPU handoff is a partial execution and testing
+plan: `source_spot_proof` is explicitly marked
+`blocked_cpu_source_proof_disqualified`, so it cannot complete the proof chain.
+The CUDA plan marks that adapter implemented only after an explicit non-CPU
+`prover_r0vm` identity is supplied. The identity-rebuild r0vm remains
+separately pinned. This prevents an
 operator environment from silently selecting an in-process prover, another
 `r0vm`, Bonsai, or another visible GPU. Compute selection
 changes the handoff and task IDs. It does not change proof semantics or grant
@@ -400,7 +423,7 @@ python3 tools/plan_zrpf_remote_reproof_handoff_v2.py prepare-task \
   --stage v2_adapter_receipt \
   --c0-commit "$C0" --c1-commit "$C1" --c2-commit "$C2" \
   --governance-commit "$G" \
-  --output /private/execution-packets/04-v2_adapter_receipt.json
+  --output /private/execution-packets/05-v2_adapter_receipt.json
 ```
 
 The governed filename is `<two-digit ordinal>-<stage ID>.json`. The final
@@ -413,10 +436,10 @@ Run one implemented stage into a fresh private root and a fresh capture path:
 python3 tools/run_zrpf_remote_reproof_worker_v2.py run-stage \
   --repository "$PWD" \
   --handoff /private/handoff.json \
-  --packet /private/execution-packets/06-v6_l1_receipt.json \
+  --packet /private/execution-packets/07-v6_l1_receipt.json \
   --artifact-root /private/zrpf-return \
-  --run-root /private/worker-runs/06-v6_l1_receipt \
-  --capture-output /private/worker-captures/06-v6_l1_receipt.json
+  --run-root /private/worker-runs/07-v6_l1_receipt \
+  --capture-output /private/worker-captures/07-v6_l1_receipt.json
 ```
 
 Recheck that local capture against its packet, checkout, input snapshots, and
@@ -426,11 +449,21 @@ output bytes:
 python3 tools/run_zrpf_remote_reproof_worker_v2.py check-capture \
   --repository "$PWD" \
   --handoff /private/handoff.json \
-  --packet /private/execution-packets/06-v6_l1_receipt.json \
+  --packet /private/execution-packets/07-v6_l1_receipt.json \
   --artifact-root /private/zrpf-return \
-  --run-root /private/worker-runs/06-v6_l1_receipt \
-  --capture-output /private/worker-captures/06-v6_l1_receipt.json
+  --run-root /private/worker-runs/07-v6_l1_receipt \
+  --capture-output /private/worker-captures/07-v6_l1_receipt.json
 ```
+
+The source-proof stage additionally requires:
+
+```text
+--attempt-budget-and-price <canonical absolute budget record>
+--trusted-current-epoch-seconds <explicit positive integer>
+```
+
+Those arguments are required for both `run-stage` and `check-capture` when the
+selected packet is `04-source_spot_proof.json`.
 
 The worker capture is an unkeyed local process observation with all authority
 false. Cryptographic proof and release verification remain separate gates.

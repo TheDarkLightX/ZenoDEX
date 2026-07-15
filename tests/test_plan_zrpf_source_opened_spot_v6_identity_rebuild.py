@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -279,6 +280,21 @@ def test_source_policy_uses_acyclic_state_proof_workspace_closure() -> None:
         "value_kind": "source_closure_root_bytes",
         "visibility": "v2_adapter_guest",
     }
+
+
+def test_source_cli_profiler_dependency_stays_inside_upstream_source_workspace() -> None:
+    state_workspace = planner.REPO_ROOT / "zk/state_proof_risc0"
+    cli_manifest = tomllib.loads((state_workspace / "cli/Cargo.toml").read_text())
+    dependency = cli_manifest["dependencies"][
+        "zenodex-zrpf-risc0-execution-profile"
+    ]
+
+    assert dependency == {"path": "../execution_profile"}
+    assert (state_workspace / "execution_profile/Cargo.toml").is_file()
+    zrpf_workspace = tomllib.loads(
+        (planner.REPO_ROOT / "zk/zrpf_risc0/Cargo.toml").read_text()
+    )
+    assert "execution_profile" not in zrpf_workspace["workspace"]["members"]
 
 
 def test_complete_observations_emit_candidate_only_report() -> None:

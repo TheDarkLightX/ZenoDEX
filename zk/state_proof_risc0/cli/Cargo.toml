@@ -14,3 +14,4 @@ serde_json = { version = "1.0.140", features = ["arbitrary_precision"] }
 sha2 = "0.10.9"
 tau-state-proof-risc0-methods = { path = "../methods" }
 tau-state-proof-risc0-shared = { path = "../shared" }
+zenodex-zrpf-risc0-execution-profile = { path = "../execution_profile" }

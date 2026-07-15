@@ -21,7 +21,7 @@ path = "src/bin/prove_spot_settlement_v7.rs"
 risc0-zkvm = { version = "=3.0.5", features = ["disable-dev-mode"] }
 serde_json = "=1.0.150"
 sha2 = "0.10.9"
-zenodex-zrpf-risc0-execution-profile = { path = "../../zrpf_risc0/execution_profile" }
+zenodex-zrpf-risc0-execution-profile = { path = "../../state_proof_risc0/execution_profile" }
 zenodex-zrpf-risc0-shared = { path = "../../zrpf_risc0/shared" }
 zenodex-zrpf-risc0-verifier = { path = "../../zrpf_risc0/verifier" }
 zenodex-zrpf-risc0-spot-settlement-v7-child-policy = { path = "../child_policy" }

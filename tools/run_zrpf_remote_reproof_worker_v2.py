@@ -13,14 +13,18 @@ import stat
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Mapping, Sequence
 
 if __package__ in {None, ""}:  # pragma: no cover - direct script execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from tools import check_zrpf_initial_paid_calibration_attempt_v1 as paid_calibration
 from tools import plan_zrpf_remote_reproof_handoff_v2 as handoff
+from tools.zrpf_remote_reproof_handoff_v2_catalog import (
+    CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID,
+)
 from tools.zrpf_remote_reproof_worker_v2_contract import (
     CAPTURE_SCHEMA,
     WORKER_NON_CLAIMS,
@@ -47,6 +51,8 @@ RESOURCE_POLICIES = _RESOURCE_POLICIES
 PROVER_COMPUTE_PROFILES = _PROVER_COMPUTE_PROFILES
 MAX_RUN_TREE_ENTRIES = 1024
 MAX_RUNNER_BYTES = 128 * 1024 * 1024
+MAX_EXECUTION_PACKET_BYTES = 4 * 1024 * 1024
+EXECUTION_PACKET_SNAPSHOT = "execution-packet.json"
 FIXED_RUNNERS = {"python3": Path("/usr/bin/python3")}
 
 
@@ -103,14 +109,19 @@ def execute_stage(
     run_root: Path,
     *,
     runtime_bindings: Mapping[str, Path] | None = None,
+    trusted_current_epoch_seconds: int | None = None,
 ) -> dict[str, object]:
     """Run one exact packet; return only an authority-false local capture."""
 
     stage = validate_stage_packet(document, packet, repo_root, artifact_root)
+    _require_stage_compute_eligibility(stage)
     repository = validate_worker_checkout(stage, repo_root)
     bound_runtime = _validate_runtime_bindings(stage, runtime_bindings)
+    bound_epoch = _validate_trusted_epoch_binding(stage, trusted_current_epoch_seconds)
     input_root, output_root, home = _create_private_run_root(run_root)
+    bound_runtime = _snapshot_runtime_file_bindings(bound_runtime, input_root)
     input_paths = _snapshot_inputs(stage, artifact_root, input_root)
+    input_paths["execution_packet_file"] = _snapshot_execution_packet(packet, input_root)
     output_paths = _prepare_output_paths(stage, output_root)
     r0vm = input_paths.get("prover_r0vm")
     risc0_home = r0vm.parent.parent if r0vm is not None else None
@@ -129,9 +140,18 @@ def execute_stage(
             input_paths,
             output_paths,
             bound_runtime,
+            bound_epoch,
         )
         runner_sha256, runner_bytes = _runner_identity(Path(command.argv[0]))
-        result = _run_bounded_command(command, stage.resource_policy, environment, repository)
+        command_policy = _command_resource_policy(
+            stage,
+            ordinal,
+            input_paths,
+            output_paths,
+            bound_runtime,
+            bound_epoch,
+        )
+        result = _run_bounded_command(command, command_policy, environment, repository)
         if command.stdout_artifact_role is not None:
             _write_new(
                 output_paths[command.stdout_artifact_role],
@@ -144,6 +164,8 @@ def execute_stage(
                 "ordinal": ordinal,
                 "command_template_sha256": command.command_template_sha256,
                 "resolved_argv_sha256": resolved_argv_sha256(command.argv),
+                "effective_resource_policy_id": command_policy.record()["policy_id"],
+                "effective_timeout_seconds": command_policy.timeout_seconds,
                 "runner_sha256": runner_sha256,
                 "runner_bytes": runner_bytes,
                 "stdout_sha256": hashlib.sha256(result.stdout).hexdigest(),
@@ -183,6 +205,7 @@ def execute_stage(
         artifact_root,
         run_root,
         runtime_bindings=bound_runtime,
+        trusted_current_epoch_seconds=bound_epoch,
     )
     return capture
 
@@ -196,26 +219,53 @@ def validate_worker_capture(
     run_root: Path,
     *,
     runtime_bindings: Mapping[str, Path] | None = None,
+    trusted_current_epoch_seconds: int | None = None,
 ) -> None:
     stage = validate_stage_packet(document, packet, repo_root, artifact_root)
+    _require_stage_compute_eligibility(stage)
     repository = validate_worker_checkout(stage, repo_root)
     bound_runtime = _validate_runtime_bindings(stage, runtime_bindings)
+    bound_epoch = _validate_trusted_epoch_binding(stage, trusted_current_epoch_seconds)
     input_root, output_root, _home = _existing_run_root(run_root)
+    bound_runtime = _validate_runtime_file_snapshots(bound_runtime, input_root)
     input_paths = _validate_input_snapshots(stage, input_root)
+    input_paths["execution_packet_file"] = _validate_execution_packet_snapshot(packet, input_root)
     output_paths = {item.role: output_root / item.path for item in stage.outputs}
     command_captures, captured_outputs = validate_capture_shape(capture, stage)
     observed_outputs = _exact_output_records(stage, output_root)
     if not handoff._canonical_values_equal(captured_outputs, observed_outputs):
         raise WorkerError("worker output artifact inventory differs from capture")
 
-    for command_capture, template in zip(command_captures, stage.commands, strict=True):
+    for ordinal, (command_capture, template) in enumerate(
+        zip(command_captures, stage.commands, strict=True)
+    ):
         resolved = _resolve_command(
             template,
             stage,
             input_paths,
             output_paths,
             bound_runtime,
+            bound_epoch,
         )
+        effective_policy = _command_resource_policy(
+            stage,
+            ordinal,
+            input_paths,
+            output_paths,
+            bound_runtime,
+            bound_epoch,
+        )
+        if (
+            command_capture["effective_resource_policy_id"]
+            != effective_policy.record()["policy_id"]
+            or command_capture["effective_timeout_seconds"] != effective_policy.timeout_seconds
+        ):
+            raise WorkerError("worker effective command resource policy mismatch")
+        if (
+            type(command_capture["duration_milliseconds"]) is not int
+            or command_capture["duration_milliseconds"] > effective_policy.timeout_seconds * 1_000
+        ):
+            raise WorkerError("worker command duration exceeds its effective deadline")
         runner_sha256, runner_bytes = _runner_identity(Path(resolved.argv[0]))
         if command_capture["resolved_argv_sha256"] != resolved_argv_sha256(resolved.argv):
             raise WorkerError("worker resolved argv digest mismatch")
@@ -309,6 +359,29 @@ def _validate_input_snapshots(stage: ValidatedStage, input_root: Path) -> dict[s
     return {contract.role: input_root / contract.path for contract in stage.inputs}
 
 
+def _snapshot_execution_packet(packet: Mapping[str, object], input_root: Path) -> Path:
+    destination = input_root / EXECUTION_PACKET_SNAPSHOT
+    _write_new(
+        destination,
+        handoff.canonical_json_bytes(packet),
+        "execution packet snapshot",
+        mode=0o400,
+    )
+    return destination
+
+
+def _validate_execution_packet_snapshot(packet: Mapping[str, object], input_root: Path) -> Path:
+    path = input_root / EXECUTION_PACKET_SNAPSHOT
+    observed = _stable_regular_read(
+        path,
+        "execution packet snapshot",
+        MAX_EXECUTION_PACKET_BYTES,
+    )
+    if observed != handoff.canonical_json_bytes(packet):
+        raise WorkerError("execution packet snapshot changed during execution")
+    return path
+
+
 def _prepare_output_paths(stage: ValidatedStage, output_root: Path) -> dict[str, Path]:
     paths: dict[str, Path] = {}
     for contract in stage.outputs:
@@ -342,10 +415,18 @@ def _resolve_command(
     input_paths: Mapping[str, Path],
     output_paths: Mapping[str, Path],
     runtime_bindings: Mapping[str, Path],
+    trusted_current_epoch_seconds: int | None = None,
 ) -> ResolvedCommand:
     runner = _resolve_runner(template.runner, stage, input_paths)
     arguments = tuple(
-        _resolve_argument(item, stage, input_paths, output_paths, runtime_bindings)
+        _resolve_argument(
+            item,
+            stage,
+            input_paths,
+            output_paths,
+            runtime_bindings,
+            trusted_current_epoch_seconds,
+        )
         for item in template.argv
     )
     stdin_path = (
@@ -398,6 +479,7 @@ def _resolve_argument(
     input_paths: Mapping[str, Path],
     output_paths: Mapping[str, Path],
     runtime_bindings: Mapping[str, Path],
+    trusted_current_epoch_seconds: int | None = None,
 ) -> str:
     if not token.startswith("@"):
         return token
@@ -408,6 +490,10 @@ def _resolve_argument(
         return stage.worker_commit
     if role == "prover_compute_profile_id":
         return stage.prover_compute_profile.profile_id
+    if role == "trusted_current_epoch_seconds":
+        if trusted_current_epoch_seconds is None:
+            raise WorkerError("trusted current epoch binding is unavailable")
+        return str(trusted_current_epoch_seconds)
     if role.startswith("runtime_"):
         runtime_role = role.removeprefix("runtime_")
         try:
@@ -447,6 +533,124 @@ def _validate_runtime_bindings(
             raise WorkerError("runtime binding must be one canonical non-symlink path")
         normalized[role] = resolved
     return normalized
+
+
+def _snapshot_runtime_file_bindings(
+    bindings: Mapping[str, Path], input_root: Path
+) -> dict[str, Path]:
+    result = dict(bindings)
+    budget = result.get("attempt_budget_and_price")
+    if budget is None:
+        return result
+    raw = _stable_regular_read(
+        budget,
+        "attempt budget and price runtime input",
+        paid_calibration.MAX_INPUT_BYTES,
+    )
+    runtime_root = input_root / "runtime"
+    os.mkdir(runtime_root, mode=0o700)
+    destination = runtime_root / "attempt-budget-and-price.json"
+    _write_new(destination, raw, "attempt budget and price snapshot", mode=0o400)
+    result["attempt_budget_and_price"] = destination
+    return result
+
+
+def _validate_runtime_file_snapshots(
+    bindings: Mapping[str, Path], input_root: Path
+) -> dict[str, Path]:
+    result = dict(bindings)
+    if "attempt_budget_and_price" not in result:
+        return result
+    snapshot = input_root / "runtime/attempt-budget-and-price.json"
+    _stable_regular_read(
+        snapshot,
+        "attempt budget and price snapshot",
+        paid_calibration.MAX_INPUT_BYTES,
+    )
+    result["attempt_budget_and_price"] = snapshot
+    return result
+
+
+def _validate_trusted_epoch_binding(stage: ValidatedStage, supplied: int | None) -> int | None:
+    required = any(
+        token == "@trusted_current_epoch_seconds"
+        for command in stage.commands
+        for token in command.argv
+    )
+    if not required:
+        if supplied is not None:
+            raise WorkerError("trusted current epoch binding is surplus")
+        return None
+    if isinstance(supplied, bool) or not isinstance(supplied, int):
+        raise WorkerError("trusted current epoch binding must be an integer")
+    if not 0 < supplied < 2**63:
+        raise WorkerError("trusted current epoch binding is outside its bound")
+    return supplied
+
+
+def _require_stage_compute_eligibility(stage: ValidatedStage) -> None:
+    if (
+        stage.stage_id == paid_calibration.SOURCE_STAGE_ID
+        and stage.prover_compute_profile.profile_id
+        != CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID
+    ):
+        raise WorkerError("source proof execution requires the governed CUDA compute profile")
+
+
+def _command_resource_policy(
+    stage: ValidatedStage,
+    ordinal: int,
+    input_paths: Mapping[str, Path],
+    output_paths: Mapping[str, Path],
+    runtime_bindings: Mapping[str, Path],
+    trusted_current_epoch_seconds: int | None,
+) -> ResourcePolicy:
+    policy = stage.resource_policy
+    if stage.stage_id != paid_calibration.SOURCE_STAGE_ID:
+        return policy
+    if ordinal < len(stage.commands) - 1:
+        return replace(policy, timeout_seconds=min(policy.timeout_seconds, 60))
+    required_inputs = {
+        "source_execution_profile",
+        "cuda_r0vm_build_attestation",
+        "h100_preflight",
+        "execution_packet_file",
+    }
+    if not required_inputs.issubset(input_paths):
+        raise WorkerError("source calibration input inventory is incomplete")
+    try:
+        budget_path = runtime_bindings["attempt_budget_and_price"]
+        qualification_path = output_paths["source_calibration_qualification"]
+    except KeyError as exc:
+        raise WorkerError("source calibration runtime binding is incomplete") from exc
+    if trusted_current_epoch_seconds is None:
+        raise WorkerError("source calibration trusted epoch is unavailable")
+    try:
+        expected = paid_calibration.check_qualification(
+            input_paths["source_execution_profile"],
+            input_paths["cuda_r0vm_build_attestation"],
+            input_paths["h100_preflight"],
+            input_paths["execution_packet_file"],
+            budget_path,
+            trusted_current_epoch_seconds=trusted_current_epoch_seconds,
+        )
+    except paid_calibration.AttemptQualificationError as exc:
+        raise WorkerError("source calibration qualification no longer validates") from exc
+    observed = _stable_regular_read(
+        qualification_path,
+        "source calibration qualification",
+        64 * 1024,
+    )
+    expected_bytes = paid_calibration.canonical_bytes(expected) + b"\n"
+    if observed != expected_bytes:
+        raise WorkerError("source calibration qualification output mismatch")
+    deadline = expected["hard_attempt_deadline_milliseconds"]
+    if (
+        type(deadline) is not int
+        or not 1_000 <= deadline <= paid_calibration.MAX_HARD_ATTEMPT_CAP_MILLISECONDS
+    ):
+        raise WorkerError("source calibration deadline cannot govern a proof command")
+    return replace(policy, timeout_seconds=deadline // 1_000)
 
 
 def _required_role(paths: Mapping[str, Path], role: str, label: str) -> Path:
@@ -505,6 +709,8 @@ def _run_bounded_command(
     if process.returncode != 0:
         raise WorkerError(f"governed command returned exit status {process.returncode}")
     duration = int((time.monotonic() - started) * 1000)
+    if duration > policy.timeout_seconds * 1_000:
+        raise WorkerError("governed command exceeded its total elapsed-time bound")
     return ProcessResult(stdout, stderr, process.returncode, duration)
 
 
@@ -721,6 +927,8 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         command.add_argument("--risc0-home", type=Path)
         command.add_argument("--cargo-registry-dir", type=Path)
         command.add_argument("--docker", type=Path)
+        command.add_argument("--attempt-budget-and-price", type=Path)
+        command.add_argument("--trusted-current-epoch-seconds", type=int)
     return parser.parse_args(argv)
 
 
@@ -738,6 +946,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ("risc0_home", args.risc0_home),
                 ("cargo_registry_dir", args.cargo_registry_dir),
                 ("docker", args.docker),
+                ("attempt_budget_and_price", args.attempt_budget_and_price),
             )
             if path is not None
         }
@@ -749,6 +958,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.artifact_root,
                 args.run_root,
                 runtime_bindings=runtime_bindings,
+                trusted_current_epoch_seconds=args.trusted_current_epoch_seconds,
             )
             handoff._write_new(
                 args.capture_output,
@@ -768,6 +978,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.artifact_root,
                 args.run_root,
                 runtime_bindings=runtime_bindings,
+                trusted_current_epoch_seconds=args.trusted_current_epoch_seconds,
             )
             sys.stdout.buffer.write(
                 handoff.canonical_json_bytes(

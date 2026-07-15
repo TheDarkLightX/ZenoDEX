@@ -16,10 +16,10 @@ from tools.zrpf_remote_reproof_handoff_v2_catalog import (
     RISC0_COMPUTE_STAGE_IDS,
 )
 
-CAPTURE_SCHEMA = "zenodex/zrpf_remote_reproof_worker_capture/v3"
+CAPTURE_SCHEMA = "zenodex/zrpf_remote_reproof_worker_capture/v4"
 RESOURCE_POLICY_SCHEMA = "zenodex/zrpf_remote_reproof_worker_resource_policy/v2"
 PROVER_COMPUTE_PROFILE_SCHEMA = "zenodex/zrpf_remote_prover_compute_profile/v1"
-CAPTURE_DOMAIN = b"zenodex/zrpf_remote_reproof_worker_capture_id/v3\0"
+CAPTURE_DOMAIN = b"zenodex/zrpf_remote_reproof_worker_capture_id/v4\0"
 RESOURCE_POLICY_DOMAIN = b"zenodex/zrpf_remote_reproof_worker_resource_policy_id/v2\0"
 PROVER_COMPUTE_PROFILE_DOMAIN = b"zenodex/zrpf_remote_prover_compute_profile_id/v1\0"
 COMMAND_TEMPLATE_DOMAIN = b"zenodex/zrpf_remote_reproof_worker_command_template/v2\0"
@@ -43,7 +43,10 @@ WORKER_NON_CLAIMS = (
     "worker_does_not_provide_a_network_mount_or_hardware_sandbox",
     "worker_does_not_resist_a_malicious_same_uid_host_process",
     "worker_does_not_install_a_kernel_cgroup_or_process_count_limit",
+    "worker_process_group_teardown_does_not_establish_pid_or_pgid_reuse_resistance",
     "prover_compute_profile_does_not_attest_accelerator_identity_or_performance",
+    "paid_calibration_epoch_price_and_total_pod_ttl_require_an_authenticated_external_controller",
+    "process_launch_blocking_and_cloud_deallocation_are_outside_the_subprocess_timeout",
     "worker_does_not_grant_data_availability_finality_ledger_settlement_release_or_production_authority",
     "worker_does_not_atomically_publish_a_multi_stage_reproof_chain",
 )
@@ -103,6 +106,8 @@ COMMAND_CAPTURE_FIELDS = {
     "ordinal",
     "command_template_sha256",
     "resolved_argv_sha256",
+    "effective_resource_policy_id",
+    "effective_timeout_seconds",
     "runner_sha256",
     "runner_bytes",
     "stdout_sha256",
@@ -472,12 +477,14 @@ def validate_capture_shape(
             raise WorkerError("worker command template digest mismatch")
         for name in (
             "resolved_argv_sha256",
+            "effective_resource_policy_id",
             "runner_sha256",
             "stdout_sha256",
             "stderr_sha256",
         ):
             _hex(command.get(name), f"worker command {name}")
         for name in (
+            "effective_timeout_seconds",
             "runner_bytes",
             "stdout_bytes",
             "stderr_bytes",

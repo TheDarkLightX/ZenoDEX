@@ -1,13 +1,14 @@
 # ZRPF remote reproof worker V2 CBC specification
 
 Status: implemented authority-neutral, one-stage worker over the ZRPF remote
-reproof handoff implementation for the eleven supported stages below.
+reproof handoff implementation for the thirteen supported stages below.
 
-The worker implementation filename remains V2, while its compute-aware capture
-wire schema and identity domain are V3. This ratchet revokes prior V2 worker
-captures and prevents the new compute-profile field from being interpreted
-under the older identity domain. The companion handoff specification records
-the complete V2-to-V3 family ratchet.
+The worker implementation filename remains V2. Its capture wire schema and
+identity domain are V4 after adding an effective resource-policy ID and timeout
+to every command capture. The companion handoff/task family is V4 after adding
+the source execution-profile predecessor. A V4 worker capture binds the exact
+V4 execution-packet ID and rejects older V3 captures whose transcript cannot
+establish the paid command deadline.
 
 The worker may execute only a task already fixed by the governed handoff
 catalog. It does not accept an arbitrary executable, argv vector, resource
@@ -24,8 +25,9 @@ A successfully checked worker capture establishes these local metadata facts:
    the validated handoff and current input bytes.
 3. The repository worktree was at the exact worker commit with no tracked or
    untracked status entries before execution.
-4. The declared inputs were copied through bounded stable reads into a fresh
-   private snapshot. Executables became mode `0500`; data became mode `0400`.
+4. The declared inputs and canonical execution packet were copied through
+   bounded stable reads into a fresh private snapshot. Executables became mode
+   `0500`; data and the packet became mode `0400`.
 5. The task used its exact catalog command template, one closed resource
    policy, and one content-bound prover-compute profile. Placeholder resolution
    selected declared input snapshots, declared output paths, exact C0 or worker
@@ -49,17 +51,33 @@ already expressible through the packet ABI:
 identity_rebuild
 ancestry_materialization
 worker_prover_build
+source_execution_profile
 source_spot_proof
 v2_adapter_receipt
 v6_leaf_receipt
 v6_l1_receipt
 v6_l2_receipt
 v6_settlement_receipt
+v7_execution_profile
 v7_receipt
 mutation_verification
 ```
 
-These stages become `execution_adapter_status = implemented` in the catalog.
+These stages become `execution_adapter_status = implemented` in CUDA handoffs.
+CPU handoffs keep `source_spot_proof` explicitly blocked because the observed
+CPU proving route exceeded the governed calibration envelope.
+
+The two execution-profile stages run the exact guest environment without
+generating a receipt. They bind exact program, guest-input, assumption, journal,
+segment, cycle, and `r0vm` identities while keeping accelerator, proof, release,
+settlement, and production authority false. The source and V7 proof stages each
+run the independent profile checker before starting their expensive prover.
+Source proving additionally runs the initial paid-calibration checker over the
+private execution-packet snapshot, exact CUDA build record, current H100
+preflight, explicit trusted epoch, and an external integer budget/price record.
+The worker independently recomputes that result and caps the source proof
+subprocess to the derived deadline. A valid execution profile alone cannot
+start paid proof generation.
 
 The following stage remains blocked:
 
@@ -110,13 +128,15 @@ exact repository worktree
 input artifact root
 fresh run root
 fresh capture-output path
+explicit trusted current epoch for a paid calibration stage
+canonical attempt budget/price path for a paid calibration stage
 ```
 
 It creates:
 
 ```text
 run-root/
-  inputs/     exact private snapshots of declared inputs
+  inputs/     exact private snapshots of declared inputs and execution packet
   outputs/    only declared stage outputs
   home/       empty private HOME
 ```
@@ -128,6 +148,16 @@ commit fields. `@runtime_*` resolves only through the exact runtime-binding
 inventory required by the selected task. Unknown placeholders reject. Fixed
 runner names resolve through a closed absolute-path table; artifact runners
 resolve to an executable input snapshot.
+
+`@execution_packet_file` resolves only to the worker-created mode-`0400`
+snapshot of the validated packet. `@trusted_current_epoch_seconds` requires one
+explicit positive integer and is bound into the resolved command digest. The
+attempt budget/price document is a runtime input because it commits to the
+packet ID; including it in that packet would create a circular
+content-addressing dependency. The worker copies it through a stable read into
+the private runtime-input snapshot before any command runs. The emitted
+qualification commits to those exact budget bytes, and the worker recomputes it
+before proof launch.
 
 The subprocess environment is an allowlist:
 
@@ -146,7 +176,7 @@ of two closed profiles:
 
 | Profile | Exact worker environment | Intended host |
 | --- | --- | --- |
-| `risc0_ipc_cpu_v1` | `RISC0_PROVER=ipc`, `RISC0_EXECUTOR=ipc`, `RISC0_SERVER_PATH=<packet-prover-r0vm>`, `CUDA_VISIBLE_DEVICES=-1` | bounded CPU fallback |
+| `risc0_ipc_cpu_v1` | `RISC0_PROVER=ipc`, `RISC0_EXECUTOR=ipc`, `RISC0_SERVER_PATH=<packet-prover-r0vm>`, `CUDA_VISIBLE_DEVICES=-1` | execution-only and worker tests; source proof is disqualified |
 | `risc0_ipc_cuda_single_visible_device_build_request_v1` | `RISC0_PROVER=ipc`, `RISC0_EXECUTOR=ipc`, `RISC0_SERVER_PATH=<packet-prover-r0vm>`, `CUDA_VISIBLE_DEVICES=0` | one visible NVIDIA device with a separately built CUDA r0vm |
 
 Both profiles use the exact external IPC prover path. RISC Zero 3.0.5 dispatches
@@ -154,6 +184,11 @@ both RV32IM and recursion proving through the CUDA HAL when that exact `r0vm`
 was compiled with the `cuda` feature. IPC avoids the actor manager's additional
 worker topology and wildcard listener. The IPC subprocess still uses a
 loopback socket, so the paid runner must retain an isolated network namespace.
+
+The planner retains the CPU profile for deterministic execution profiles and
+worker tests. The governed worker rejects `source_spot_proof` under that
+profile. This makes the observed Linux and Apple CPU nonqualification an
+explicit execution rule instead of relying on operator discipline.
 
 The CUDA profile is a build request. It does not assert that `prover_r0vm` was
 compiled with CUDA, that a GPU exists, that the visible device is an H100, or
@@ -167,6 +202,16 @@ ambient `-arch=native` on the local GTX 1060 is invalid for that purpose. The
 capture binds the selected profile, exact prover-r0vm bytes, and observed
 command duration. Separate preflight and benchmark evidence own hardware
 identity and performance.
+
+The initial paid attempt is capped at four dollars and 30 minutes. The worker
+limits both pre-proof checkers to 60 seconds and uses the qualification's
+integer deadline, rounded downward to whole seconds, for the source proof.
+There is no continuation or additional-spend gate. Pod setup and deallocation
+remain external, so a cloud controller must impose an independent allocation
+TTL. That TTL is also the active stop boundary for a process-launch or pre-exec
+stall. The worker rejects a completed command whose total measured elapsed time
+exceeds its effective deadline, but it cannot interrupt Python `Popen` before
+that call returns.
 
 The CUDA handoff cannot be created without explicit `--prover-r0vm-sha256` and
 `--prover-r0vm-bytes` values. It rejects the known official CPU-only binary
@@ -233,6 +278,7 @@ runner or host release authority
 network or filesystem sandboxing
 resistance to a malicious same-UID host process
 kernel cgroup or process-count isolation
+PID/PGID reuse resistance or cgroup-owned descendant teardown
 data availability, finality, ledger admission, settlement, or production
 atomic multi-stage publication
 ```

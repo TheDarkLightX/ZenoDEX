@@ -49,14 +49,14 @@ CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID = (
 DEFAULT_ARTIFACT_BYTES = catalog.DEFAULT_ARTIFACT_BYTES
 MAX_R0VM_EXECUTABLE_BYTES = catalog.MAX_R0VM_EXECUTABLE_BYTES
 
-HANDOFF_SCHEMA = "zenodex/zrpf_remote_reproof_handoff/v3"
-RETURN_SCHEMA = "zenodex/zrpf_remote_reproof_return/v3"
-TASK_SCHEMA = "zenodex/zrpf_remote_reproof_task/v3"
-EXECUTION_PACKET_SCHEMA = "zenodex/zrpf_remote_reproof_execution_packet/v3"
+HANDOFF_SCHEMA = "zenodex/zrpf_remote_reproof_handoff/v4"
+RETURN_SCHEMA = "zenodex/zrpf_remote_reproof_return/v4"
+TASK_SCHEMA = "zenodex/zrpf_remote_reproof_task/v4"
+EXECUTION_PACKET_SCHEMA = "zenodex/zrpf_remote_reproof_execution_packet/v4"
 ARTIFACT_CONTRACT_SCHEMA = "zenodex/zrpf_remote_reproof_artifact_contract/v2"
 ARTIFACT_RECORD_SCHEMA = "zenodex/zrpf_remote_reproof_artifact_record/v2"
 PROVER_R0VM_EXPECTATION_SCHEMA = "zenodex/zrpf_remote_prover_r0vm_expectation/v1"
-TASK_CAPTURE_SCHEMA = "zenodex/zrpf_remote_reproof_task_capture/v3"
+TASK_CAPTURE_SCHEMA = "zenodex/zrpf_remote_reproof_task_capture/v4"
 SOURCE_BINDING_SCHEMA = "zenodex/zrpf_remote_reproof_source_binding/v2"
 IDENTITY_BINDING_SCHEMA = "zenodex/zrpf_remote_reproof_identity_binding/v2"
 SUCCINCT_PROFILE_ID = "risc0_succinct_poseidon2_resolve_3_0_5_v1"
@@ -70,15 +70,15 @@ OFFICIAL_CPU_R0VM_BYTES = 108_998_816
 OFFICIAL_CPU_R0VM_SHA256 = "36c016a5bb2ded5bd1f8f92cc487e6ffaeb1e95ec05850c983081a0f716b515b"
 ZERO_SHA256 = "0" * 64
 
-HANDOFF_DOMAIN = b"zenodex/zrpf_remote_reproof_handoff_id/v3\0"
-TASK_DOMAIN = b"zenodex/zrpf_remote_reproof_task_id/v3\0"
+HANDOFF_DOMAIN = b"zenodex/zrpf_remote_reproof_handoff_id/v4\0"
+TASK_DOMAIN = b"zenodex/zrpf_remote_reproof_task_id/v4\0"
 ARTIFACT_CONTRACT_DOMAIN = b"zenodex/zrpf_remote_reproof_artifact_contract_id/v2\0"
 ARTIFACT_RECORD_DOMAIN = b"zenodex/zrpf_remote_reproof_artifact_id/v2\0"
 SOURCE_BINDING_DOMAIN = b"zenodex/zrpf_remote_reproof_source_binding_id/v2\0"
 IDENTITY_BINDING_DOMAIN = b"zenodex/zrpf_remote_reproof_identity_binding_id/v2\0"
-EXECUTION_PACKET_DOMAIN = b"zenodex/zrpf_remote_reproof_execution_packet_id/v3\0"
-TASK_CAPTURE_DOMAIN = b"zenodex/zrpf_remote_reproof_task_capture_id/v3\0"
-RETURN_DOMAIN = b"zenodex/zrpf_remote_reproof_return_id/v3\0"
+EXECUTION_PACKET_DOMAIN = b"zenodex/zrpf_remote_reproof_execution_packet_id/v4\0"
+TASK_CAPTURE_DOMAIN = b"zenodex/zrpf_remote_reproof_task_capture_id/v4\0"
+RETURN_DOMAIN = b"zenodex/zrpf_remote_reproof_return_id/v4\0"
 
 AUTHORITY_FIELDS = (
     "data_availability_authority",
@@ -133,6 +133,7 @@ TASK_ORDER = (
     "identity_rebuild",
     "ancestry_materialization",
     "worker_prover_build",
+    "source_execution_profile",
     "source_spot_proof",
     "v2_adapter_receipt",
     "v6_leaf_receipt",
@@ -442,6 +443,12 @@ def _task(
     contracts: Mapping[str, Mapping[str, object]],
     prover_compute_profile_id: str,
 ) -> dict[str, object]:
+    execution_adapter_status = spec.execution_adapter_status
+    if (
+        spec.stage_id == "source_spot_proof"
+        and prover_compute_profile_id == CPU_PROVER_COMPUTE_PROFILE_ID
+    ):
+        execution_adapter_status = "blocked_cpu_source_proof_disqualified"
     command_specs = (
         *spec.pre_commands,
         CommandSpec(
@@ -482,7 +489,7 @@ def _task(
         "success_predicates": list(spec.success_predicates),
         "resource_class": spec.resource_class,
         "command_status": spec.command_status,
-        "execution_adapter_status": spec.execution_adapter_status,
+        "execution_adapter_status": execution_adapter_status,
         "authority": false_authority(),
         "non_claims": list(NON_CLAIMS),
     }

@@ -2780,6 +2780,7 @@ dependencies = [
  "sha2",
  "tau-state-proof-risc0-methods",
  "tau-state-proof-risc0-shared",
+ "zenodex-zrpf-risc0-execution-profile",
 ]
 
 [[package]]
@@ -3589,6 +3590,17 @@ dependencies = [
  "quote",
  "syn 2.0.112",
  "synstructure",
+]
+
+[[package]]
+name = "zenodex-zrpf-risc0-execution-profile"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "risc0-zkvm",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

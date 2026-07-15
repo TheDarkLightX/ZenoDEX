@@ -1,15 +1,27 @@
-use std::io::{Read, Write};
+use std::{
+    env, fs,
+    fs::OpenOptions,
+    io::{Read, Write},
+    os::unix::fs::OpenOptionsExt,
+    path::Path,
+};
 
 use base64::Engine;
-use risc0_zkvm::{
-    compute_image_id, default_prover, Digest, ExecutorEnv, InnerReceipt, ProverOpts, Receipt,
-};
+use risc0_zkvm::{compute_image_id, default_prover, Digest, InnerReceipt, ProverOpts, Receipt};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
+use sha2::{Digest as _, Sha256};
+use zenodex_zrpf_risc0_execution_profile::{
+    build_exact_framed_executor_env_v1, encode_canonical_profile_v1, execute_exact_stage_v1,
+    ExactStageExecutionRequestV1, StageExecutionProfileV1, ZRPF_PROOF_PROFILE_ID_V1,
+};
 
+mod execution_profile_cli;
 mod recursive_wire;
 mod spot_authority;
 mod strict_json;
+
+use execution_profile_cli::{CommandV1, RecursiveSpotLeafProfileOptionsV1};
 
 use tau_state_proof_risc0_methods::{
     TAU_STATE_PROOF_RISC0_AGGREGATE_ELF as TAU_STATE_PROOF_AGGREGATE_ELF,
@@ -112,6 +124,15 @@ struct VerifiedSpotReceipt {
     security_profile: ReceiptSecurityProfile,
 }
 
+struct PreparedRecursiveSpotLeafV1 {
+    state_hash_hex: String,
+    state_hash: [u8; 32],
+    input: SpotRecursiveLeafInputV1,
+    input_bytes: Vec<u8>,
+    expected_summary: RecursiveEffectSummaryV1,
+    asset_delta_rows: Vec<RecursiveAssetDeltaRowV1>,
+}
+
 enum VerificationSuccess {
     Basic,
     Recursive(VerifiedRecursiveFacts),
@@ -145,6 +166,10 @@ impl ProofReceiptKind {
 }
 
 fn main() {
+    let command = match execution_profile_cli::parse_options(env::args().skip(1)) {
+        Ok(command) => command,
+        Err(error) => die(&error),
+    };
     let stdin = match read_bounded_utf8(std::io::stdin().lock()) {
         Ok(v) => v,
         Err(e) => {
@@ -159,6 +184,14 @@ fn main() {
             std::process::exit(2);
         }
     };
+
+    if let CommandV1::ProfileRecursiveSpotLeaf(options) = command {
+        if req.get("schema").and_then(Value::as_str) != Some("tau_state_proof_request") {
+            die("source execution profile requires tau_state_proof_request schema");
+        }
+        handle_profile_recursive_spot_leaf(&req, &options);
+        return;
+    }
 
     let schema = req.get("schema").and_then(Value::as_str).unwrap_or("");
     match schema {
@@ -629,78 +662,217 @@ fn handle_generate_recursive(req: &Value) {
 }
 
 fn handle_generate_recursive_spot_leaf(req: &Value) {
-    if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
-        die("unexpected schema_version (expected tau_state_proof_request v1)");
-    }
-    validate_spot_leaf_method();
-    require_requested_receipt_kind(req, ProofReceiptKind::Succinct).unwrap_or_else(|e| die(&e));
-
-    let state_hash_hex = require_str(req.get("state_hash"), "state_hash");
-    let state_hash = parse_hex32(&state_hash_hex).unwrap_or_else(|e| die(&e));
-    let input = parse_spot_recursive_leaf_input(req).unwrap_or_else(|e| die(&e));
-    if input.risc0_image_id != TAU_STATE_PROOF_SPOT_LEAF_ID {
-        die("spot_recursive_leaf_input.risc0_image_id must equal the spot leaf image ID");
-    }
-    if input.spot_input.state_hash != state_hash {
-        die("state_hash must equal spot_recursive_leaf_input.spot_input.state_hash");
-    }
-    let input_bytes = postcard::to_allocvec(&input)
-        .unwrap_or_else(|e| die(&format!("failed to encode recursive spot leaf input: {e}")));
-    if input_bytes.len() > RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES as usize {
-        die("recursive spot leaf input exceeds max bytes");
-    }
-    let expected_summary =
-        compose_spot_recursive_leaf_summary_v1(input.clone()).unwrap_or_else(|e| {
-            die(&format!(
-                "recursive spot leaf input rejected: {}",
-                transition_error_str(e)
-            ))
-        });
-    let asset_delta_rows =
-        spot_recursive_leaf_asset_delta_rows_v1(&input.spot_input, input.public_policy_hash)
-            .unwrap_or_else(|e| {
-                die(&format!(
-                    "recursive spot leaf asset deltas rejected: {}",
-                    transition_error_str(e)
-                ))
-            });
-    let asset_delta_root = recursive_asset_delta_root_v1(&asset_delta_rows).unwrap_or_else(|e| {
-        die(&format!(
-            "recursive spot leaf asset delta root rejected: {}",
-            transition_error_str(e)
-        ))
-    });
-    if asset_delta_root != expected_summary.asset_delta_root {
-        die("recursive spot leaf asset delta root mismatch");
-    }
+    let prepared = prepare_recursive_spot_leaf_v1(req).unwrap_or_else(|error| die(&error));
 
     let (receipt, journal): (Receipt, RecursiveEffectSummaryV1) = prove_direct_guest_input(
-        &input,
+        &prepared.input,
         TAU_STATE_PROOF_SPOT_LEAF_ELF,
         TAU_STATE_PROOF_SPOT_LEAF_ID,
         &[],
         ProofReceiptKind::Succinct,
     );
     let receipt_kind = receipt_kind(&receipt).unwrap_or_else(|e| die(&e));
-    if journal != expected_summary {
+    if journal != prepared.expected_summary {
         die("recursive spot leaf journal mismatch");
     }
-    if journal.post_state_root != state_hash {
+    if journal.post_state_root != prepared.state_hash {
         die("journal.post_state_root mismatch");
     }
 
     let out = json!({
         "schema": "tau_state_proof",
         "schema_version": 1,
-        "state_hash": normalize_hex64(&state_hash_hex),
+        "state_hash": normalize_hex64(&prepared.state_hash_hex),
         "proof_type": PROOF_TYPE_RECURSIVE_SPOT_LEAF,
         "proof": encode_receipt(&receipt),
         "meta": attach_receipt_security_meta(
-            recursive_spot_leaf_meta(&journal, &asset_delta_rows, receipt_kind),
+            recursive_spot_leaf_meta(&journal, &prepared.asset_delta_rows, receipt_kind),
             &receipt,
         ),
     });
     write_json_stdout(&out);
+}
+
+fn prepare_recursive_spot_leaf_v1(req: &Value) -> Result<PreparedRecursiveSpotLeafV1, String> {
+    if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
+        return Err("unexpected schema_version (expected tau_state_proof_request v1)".to_owned());
+    }
+    if req.get("proof_type").and_then(Value::as_str) != Some(PROOF_TYPE_RECURSIVE_SPOT_LEAF) {
+        return Err("source execution profile requires recursive Spot leaf proof_type".to_owned());
+    }
+    validate_embedded_method(
+        "spot leaf",
+        TAU_STATE_PROOF_SPOT_LEAF_ELF,
+        TAU_STATE_PROOF_SPOT_LEAF_ID,
+    )?;
+    require_requested_receipt_kind(req, ProofReceiptKind::Succinct)?;
+
+    let state_hash_hex = req
+        .get("state_hash")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "state_hash must be a string".to_owned())?
+        .to_owned();
+    let state_hash = parse_hex32(&state_hash_hex)?;
+    let input = parse_spot_recursive_leaf_input(req)?;
+    if input.risc0_image_id != TAU_STATE_PROOF_SPOT_LEAF_ID {
+        return Err(
+            "spot_recursive_leaf_input.risc0_image_id must equal the spot leaf image ID".to_owned(),
+        );
+    }
+    if input.spot_input.state_hash != state_hash {
+        return Err(
+            "state_hash must equal spot_recursive_leaf_input.spot_input.state_hash".to_owned(),
+        );
+    }
+    let input_bytes = postcard::to_allocvec(&input)
+        .map_err(|error| format!("failed to encode recursive spot leaf input: {error}"))?;
+    if input_bytes.len() > RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES as usize {
+        return Err("recursive spot leaf input exceeds max bytes".to_owned());
+    }
+    let expected_summary =
+        compose_spot_recursive_leaf_summary_v1(input.clone()).map_err(|error| {
+            format!(
+                "recursive spot leaf input rejected: {}",
+                transition_error_str(error)
+            )
+        })?;
+    let asset_delta_rows =
+        spot_recursive_leaf_asset_delta_rows_v1(&input.spot_input, input.public_policy_hash)
+            .map_err(|error| {
+                format!(
+                    "recursive spot leaf asset deltas rejected: {}",
+                    transition_error_str(error)
+                )
+            })?;
+    let asset_delta_root = recursive_asset_delta_root_v1(&asset_delta_rows).map_err(|error| {
+        format!(
+            "recursive spot leaf asset delta root rejected: {}",
+            transition_error_str(error)
+        )
+    })?;
+    if asset_delta_root != expected_summary.asset_delta_root {
+        return Err("recursive spot leaf asset delta root mismatch".to_owned());
+    }
+    Ok(PreparedRecursiveSpotLeafV1 {
+        state_hash_hex,
+        state_hash,
+        input,
+        input_bytes,
+        expected_summary,
+        asset_delta_rows,
+    })
+}
+
+fn handle_profile_recursive_spot_leaf(req: &Value, options: &RecursiveSpotLeafProfileOptionsV1) {
+    let result = profile_recursive_spot_leaf_v1(req, options).unwrap_or_else(|error| die(&error));
+    write_json_stdout(&result);
+}
+
+fn profile_recursive_spot_leaf_v1(
+    req: &Value,
+    options: &RecursiveSpotLeafProfileOptionsV1,
+) -> Result<Value, String> {
+    validate_create_new_target_v1(&options.execution_profile_out, "execution profile")?;
+    validate_create_new_target_v1(&options.guest_input_out, "guest input")?;
+    let prepared = prepare_recursive_spot_leaf_v1(req)?;
+    let expected_journal_bytes = postcard::to_allocvec(&prepared.expected_summary)
+        .map_err(|error| format!("encode expected recursive Spot leaf journal: {error}"))?;
+    let execution_request = ExactStageExecutionRequestV1::new(
+        "source_spot_proof",
+        ZRPF_PROOF_PROFILE_ID_V1,
+        TAU_STATE_PROOF_SPOT_LEAF_ELF,
+        TAU_STATE_PROOF_SPOT_LEAF_ID,
+        &prepared.input_bytes,
+        &[],
+        &expected_journal_bytes,
+    )
+    .map_err(|error| format!("construct source execution profile: {error}"))?;
+    let profile = execute_exact_stage_v1(&execution_request)
+        .map_err(|error| format!("execute source recursive Spot leaf: {error}"))?;
+    let profile_bytes = encode_canonical_profile_v1(&profile)
+        .map_err(|error| format!("encode source execution profile: {error}"))?;
+    persist_create_new_v1(
+        &options.guest_input_out,
+        &prepared.input_bytes,
+        "guest input",
+    )?;
+    persist_create_new_v1(
+        &options.execution_profile_out,
+        &profile_bytes,
+        "execution profile",
+    )?;
+    Ok(source_execution_profile_report_v1(
+        &profile,
+        &profile_bytes,
+        &prepared.input_bytes,
+        &prepared.state_hash_hex,
+    ))
+}
+
+fn source_execution_profile_report_v1(
+    profile: &StageExecutionProfileV1,
+    profile_bytes: &[u8],
+    guest_input_bytes: &[u8],
+    state_hash_hex: &str,
+) -> Value {
+    json!({
+        "schema": "zenodex/zrpf_source_spot_execution_profile_report/v1",
+        "status": "exact_source_spot_execution_observed_without_proof_or_accelerator_authority",
+        "profile_record_id": profile.profile_record_id(),
+        "stage_id": profile.stage_id(),
+        "prover_compute_profile_id": profile.prover_compute_profile_id(),
+        "execution_profile_sha256": sha256_hex_v1(profile_bytes),
+        "execution_profile_bytes": profile_bytes.len(),
+        "guest_input_sha256": sha256_hex_v1(guest_input_bytes),
+        "guest_input_bytes": guest_input_bytes.len(),
+        "state_hash": normalize_hex64(state_hash_hex),
+        "segment_count": profile.segment_count(),
+        "total_user_cycles": profile.total_user_cycles(),
+        "total_padded_cycle_capacity": profile.total_padded_cycle_capacity(),
+        "duration_milliseconds": profile.duration_milliseconds(),
+        "proof_generated": false,
+        "accelerator_execution_verified": false,
+        "release_authority": false,
+        "settlement_authority": false,
+        "production_authority": false,
+        "nonclaims": [
+            "source execution profiling generates no RISC0 receipt or proof",
+            "source execution profiling does not establish CUDA or other accelerator execution",
+            "source execution profiling grants no release settlement or production authority"
+        ]
+    })
+}
+
+fn validate_create_new_target_v1(path: &Path, label: &str) -> Result<(), String> {
+    if path.parent().is_none_or(|parent| !parent.is_dir()) {
+        return Err(format!("{label} parent directory is absent"));
+    }
+    match fs::symlink_metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Ok(_) => Err(format!("{label} output already exists")),
+        Err(error) => Err(format!("inspect {label} output: {error}")),
+    }
+}
+
+fn persist_create_new_v1(path: &Path, bytes: &[u8], label: &str) -> Result<(), String> {
+    if bytes.is_empty() {
+        return Err(format!("{label} bytes are empty"));
+    }
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)
+        .map_err(|error| format!("create {label} output: {error}"))?;
+    file.write_all(bytes)
+        .map_err(|error| format!("write {label} output: {error}"))?;
+    file.sync_all()
+        .map_err(|error| format!("sync {label} output: {error}"))?;
+    Ok(())
+}
+
+fn sha256_hex_v1(bytes: &[u8]) -> String {
+    hex::encode(Sha256::digest(bytes))
 }
 
 fn handle_generate_recursive_perps_np_leaf(req: &Value) {
@@ -2077,18 +2249,8 @@ where
     }
     let input_bytes = postcard::to_allocvec(input)
         .unwrap_or_else(|e| die(&format!("failed to encode postcard input: {e}")));
-    let input_len: u32 = input_bytes
-        .len()
-        .try_into()
-        .unwrap_or_else(|_| die("guest input too large"));
-    let mut builder = ExecutorEnv::builder();
-    builder.write_slice(&[input_len]).write_slice(&input_bytes);
-    for receipt in assumptions {
-        builder.add_assumption(receipt.clone());
-    }
-    let env = builder
-        .build()
-        .unwrap_or_else(|e| die(&format!("failed to build env: {e}")));
+    let env = build_exact_framed_executor_env_v1(&input_bytes, assumptions)
+        .unwrap_or_else(|error| die(&format!("failed to build exact prover env: {error}")));
 
     let prover = default_prover();
     let prover_opts = prover_opts(expected_receipt_kind).unwrap_or_else(|e| die(&e));
