@@ -81,11 +81,14 @@ def execute_stage(
     repo_root: Path,
     artifact_root: Path,
     run_root: Path,
+    *,
+    runtime_bindings: Mapping[str, Path] | None = None,
 ) -> dict[str, object]:
     """Run one exact packet; return only an authority-false local capture."""
 
     stage = validate_stage_packet(document, packet, repo_root, artifact_root)
     repository = validate_worker_checkout(stage, repo_root)
+    bound_runtime = _validate_runtime_bindings(stage, runtime_bindings)
     input_root, output_root, home = _create_private_run_root(run_root)
     input_paths = _snapshot_inputs(stage, artifact_root, input_root)
     output_paths = _prepare_output_paths(stage, output_root)
@@ -94,7 +97,13 @@ def execute_stage(
     command_captures: list[dict[str, object]] = []
 
     for ordinal, template in enumerate(stage.commands):
-        command = _resolve_command(template, stage, input_paths, output_paths)
+        command = _resolve_command(
+            template,
+            stage,
+            input_paths,
+            output_paths,
+            bound_runtime,
+        )
         runner_sha256, runner_bytes = _runner_identity(Path(command.argv[0]))
         result = _run_bounded_command(command, stage.resource_policy, environment, repository)
         if command.stdout_artifact_role is not None:
@@ -139,7 +148,15 @@ def execute_stage(
         "non_claims": list(WORKER_NON_CLAIMS),
     }
     capture["capture_id"] = derive_capture_id(capture)
-    validate_worker_capture(document, packet, capture, repository, artifact_root, run_root)
+    validate_worker_capture(
+        document,
+        packet,
+        capture,
+        repository,
+        artifact_root,
+        run_root,
+        runtime_bindings=bound_runtime,
+    )
     return capture
 
 
@@ -150,9 +167,12 @@ def validate_worker_capture(
     repo_root: Path,
     artifact_root: Path,
     run_root: Path,
+    *,
+    runtime_bindings: Mapping[str, Path] | None = None,
 ) -> None:
     stage = validate_stage_packet(document, packet, repo_root, artifact_root)
     repository = validate_worker_checkout(stage, repo_root)
+    bound_runtime = _validate_runtime_bindings(stage, runtime_bindings)
     input_root, output_root, _home = _existing_run_root(run_root)
     input_paths = _validate_input_snapshots(stage, input_root)
     output_paths = {item.role: output_root / item.path for item in stage.outputs}
@@ -162,7 +182,13 @@ def validate_worker_capture(
         raise WorkerError("worker output artifact inventory differs from capture")
 
     for command_capture, template in zip(command_captures, stage.commands, strict=True):
-        resolved = _resolve_command(template, stage, input_paths, output_paths)
+        resolved = _resolve_command(
+            template,
+            stage,
+            input_paths,
+            output_paths,
+            bound_runtime,
+        )
         runner_sha256, runner_bytes = _runner_identity(Path(resolved.argv[0]))
         if command_capture["resolved_argv_sha256"] != resolved_argv_sha256(resolved.argv):
             raise WorkerError("worker resolved argv digest mismatch")
@@ -288,9 +314,13 @@ def _resolve_command(
     stage: ValidatedStage,
     input_paths: Mapping[str, Path],
     output_paths: Mapping[str, Path],
+    runtime_bindings: Mapping[str, Path],
 ) -> ResolvedCommand:
     runner = _resolve_runner(template.runner, stage, input_paths)
-    arguments = tuple(_resolve_argument(item, input_paths, output_paths) for item in template.argv)
+    arguments = tuple(
+        _resolve_argument(item, stage, input_paths, output_paths, runtime_bindings)
+        for item in template.argv
+    )
     stdin_path = (
         None
         if template.stdin_artifact_role is None
@@ -336,16 +366,56 @@ def _resolve_runner(token: str, stage: ValidatedStage, input_paths: Mapping[str,
 
 
 def _resolve_argument(
-    token: str, input_paths: Mapping[str, Path], output_paths: Mapping[str, Path]
+    token: str,
+    stage: ValidatedStage,
+    input_paths: Mapping[str, Path],
+    output_paths: Mapping[str, Path],
+    runtime_bindings: Mapping[str, Path],
 ) -> str:
     if not token.startswith("@"):
         return token
     role = token[1:]
+    if role == "c0_commit":
+        return stage.c0_commit
+    if role.startswith("runtime_"):
+        runtime_role = role.removeprefix("runtime_")
+        try:
+            return str(runtime_bindings[runtime_role])
+        except KeyError as exc:
+            raise WorkerError("command contains an unbound runtime placeholder") from exc
     if role in input_paths:
         return str(input_paths[role])
     if role in output_paths:
         return str(output_paths[role])
     raise WorkerError("command contains an unknown or unbound placeholder")
+
+
+def _validate_runtime_bindings(
+    stage: ValidatedStage,
+    supplied: Mapping[str, Path] | None,
+) -> dict[str, Path]:
+    required = {
+        token.removeprefix("@runtime_")
+        for command in stage.commands
+        for token in command.argv
+        if token.startswith("@runtime_")
+    }
+    values = {} if supplied is None else dict(supplied)
+    if set(values) != required:
+        raise WorkerError("runtime binding inventory mismatch")
+    normalized: dict[str, Path] = {}
+    for role in sorted(required):
+        path = values[role]
+        if not isinstance(path, Path) or not path.is_absolute():
+            raise WorkerError("runtime binding must be an absolute pathlib.Path")
+        try:
+            resolved = path.resolve(strict=True)
+        except OSError as exc:
+            raise WorkerError("runtime binding is unavailable") from exc
+        if resolved != path or path.is_symlink():
+            raise WorkerError("runtime binding must be one canonical non-symlink path")
+        normalized[role] = resolved
+    return normalized
 
 
 def _required_role(paths: Mapping[str, Path], role: str, label: str) -> Path:
@@ -617,6 +687,9 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         command.add_argument("--artifact-root", type=Path, required=True)
         command.add_argument("--run-root", type=Path, required=True)
         command.add_argument("--capture-output", type=Path, required=True)
+        command.add_argument("--risc0-home", type=Path)
+        command.add_argument("--cargo-registry-dir", type=Path)
+        command.add_argument("--docker", type=Path)
     return parser.parse_args(argv)
 
 
@@ -628,6 +701,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             handoff.load_canonical_json(args.packet, "execution packet"),
             "execution packet",
         )
+        runtime_bindings = {
+            role: path
+            for role, path in (
+                ("risc0_home", args.risc0_home),
+                ("cargo_registry_dir", args.cargo_registry_dir),
+                ("docker", args.docker),
+            )
+            if path is not None
+        }
         if args.command == "run-stage":
             capture = execute_stage(
                 document,
@@ -635,6 +717,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.repository,
                 args.artifact_root,
                 args.run_root,
+                runtime_bindings=runtime_bindings,
             )
             handoff._write_new(
                 args.capture_output,
@@ -653,6 +736,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.repository,
                 args.artifact_root,
                 args.run_root,
+                runtime_bindings=runtime_bindings,
             )
             sys.stdout.buffer.write(
                 handoff.canonical_json_bytes(

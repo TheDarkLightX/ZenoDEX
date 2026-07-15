@@ -208,6 +208,7 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
         task["stage_id"] for task in tasks if task["execution_adapter_status"] == "implemented"
     ]
     assert implemented == [
+        "identity_rebuild",
         "ancestry_materialization",
         "source_spot_proof",
         "v2_adapter_receipt",
@@ -224,9 +225,9 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
         if task["stage_id"] not in implemented
     )
     identity_state = handoff.task_states(plan, [{"role": "r0vm"}])[0]
-    assert identity_state["status"] == "blocked"
+    assert identity_state["status"] == "ready"
     assert identity_state["command_template_available"] is True
-    assert identity_state["execution_adapter_available"] is False
+    assert identity_state["execution_adapter_available"] is True
     handoff.validate_handoff(plan, REPO_ROOT)
 
 

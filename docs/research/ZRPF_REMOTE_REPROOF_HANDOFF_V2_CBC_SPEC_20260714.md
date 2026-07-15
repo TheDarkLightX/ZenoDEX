@@ -1,10 +1,10 @@
 # ZRPF remote reproof handoff V2 CBC specification
 
 Status: implemented planner, per-stage exact-input packet builder, return
-checker, and bounded authority-neutral worker for nine packet-expressible
-stages. Identity rebuild and prover-build adapters remain missing. The exact
-mutation verifier is implemented. The bundle-aware release checker command
-template remains planned.
+checker, and bounded authority-neutral worker for ten packet-expressible
+stages. The identity rebuild adapter and exact mutation verifier are
+implemented. The prover-build adapter remains missing. The bundle-aware
+release checker command template remains planned.
 
 The closed task/artifact catalog lives in
 `tools/zrpf_remote_reproof_handoff_v2_catalog.py`. Parsing, content addressing,
@@ -161,6 +161,7 @@ declared task.
 The catalog marks these packet-expressible stages as implemented:
 
 ```text
+identity_rebuild
 ancestry_materialization
 source_spot_proof
 v2_adapter_receipt
@@ -172,13 +173,23 @@ v7_receipt
 mutation_verification
 ```
 
-The bounded worker resolves only typed declared-artifact placeholders, executes
-argv directly without a shell, stages exact outputs into a fresh private root,
-and emits an all-false authority capture. It does not provide a mount, network,
-container, VM, or hardware sandbox. `identity_rebuild` and
-`worker_prover_build` remain `execution_adapter_status = missing` because their
-current templates depend on inputs and output collection not yet expressed by
-the packet ABI. The release stage remains planned.
+The bounded worker resolves typed declared-artifact placeholders, the exact C0
+commit, and a closed runtime-binding set. It executes argv directly without a
+shell, stages exact outputs into a fresh private root, and emits an all-false
+authority capture. It does not provide a mount, network, container, VM, or
+hardware sandbox. `identity_rebuild` executes the existing pinned no-network
+Docker identity builder, verifies the packet r0vm equals the governed runtime
+r0vm, validates the candidate report against all produced bytes, exports the
+ten declared artifacts, and removes the completed staging root. Runtime path
+values enter the resolved-argv digest; the identity report separately binds
+the compiler tools and Cargo-registry inventory. Complete build-input closure
+and same-UID resistance remain false. The worker host must create the canonical
+private parent `/external/zrpf-remote-reproof-handoff-v2/identity` before the
+stage begins; the fixed child `run` must begin absent. The adapter rejects a
+missing, noncanonical, repository-contained, or already-existing run root.
+`worker_prover_build` remains
+`execution_adapter_status = missing` because its multi-workspace output
+collector is not yet implemented. The release stage remains planned.
 
 ## Artifact contract
 

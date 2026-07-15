@@ -342,12 +342,127 @@ def test_capture_digest_and_output_record_substitution_reject(
         )
 
 
-def test_unsupported_stage_remains_blocked(tmp_path: Path) -> None:
+def test_unsupported_worker_build_stage_remains_blocked(tmp_path: Path) -> None:
     repo, _chain, plan, artifact_root, _packet_path, packet = _stage_context(
-        tmp_path, "identity_rebuild"
+        tmp_path, "worker_prover_build"
     )
     with pytest.raises(worker.WorkerError, match="execution adapter is not implemented"):
         worker.execute_stage(plan, packet, repo, artifact_root, tmp_path / "run")
+
+
+def test_identity_stage_requires_exact_runtime_bindings_and_captures_all_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, _chain, plan, artifact_root, _packet_path, packet = _stage_context(
+        tmp_path, "identity_rebuild"
+    )
+    runtime = {
+        "risc0_home": tmp_path / "runtime/risc0-home",
+        "cargo_registry_dir": tmp_path / "runtime/cargo-registry",
+        "docker": tmp_path / "runtime/docker",
+    }
+    runtime["risc0_home"].mkdir(parents=True)
+    runtime["cargo_registry_dir"].mkdir(parents=True)
+    runtime["docker"].write_bytes(b"docker")
+    runtime["docker"].chmod(0o500)
+
+    with pytest.raises(worker.WorkerError, match="runtime binding inventory"):
+        worker.execute_stage(plan, packet, repo, artifact_root, tmp_path / "missing-runtime")
+
+    seen: list[tuple[str, ...]] = []
+
+    def fake_identity(
+        command: worker.ResolvedCommand,
+        _policy: worker.ResourcePolicy,
+        _environment: dict[str, str],
+        _cwd: Path,
+    ) -> worker.ProcessResult:
+        seen.append(command.argv)
+        for flag in (
+            "--identity-plan-out",
+            "--identity-observations-out",
+            "--identity-candidate-report-out",
+            "--source-program-out",
+            "--source-cli-out",
+            "--v2-adapter-program-out",
+            "--v6-leaf-program-out",
+            "--v6-l1-program-out",
+            "--v6-l2-program-out",
+            "--v6-settlement-program-out",
+        ):
+            argv = list(command.argv)
+            Path(argv[argv.index(flag) + 1]).write_bytes(flag.encode("ascii"))
+        return worker.ProcessResult(b"", b"", 0, 7)
+
+    monkeypatch.setattr(worker, "_run_bounded_command", fake_identity)
+    run_root = tmp_path / "run"
+    capture = worker.execute_stage(
+        plan,
+        packet,
+        repo,
+        artifact_root,
+        run_root,
+        runtime_bindings=runtime,
+    )
+
+    assert len(seen) == 1
+    assert "--source-commit" in seen[0]
+    assert [row["role"] for row in cast(list[dict[str, object]], capture["outputs"])] == [
+        "identity_plan",
+        "identity_observations",
+        "identity_candidate_report",
+        "source_program",
+        "source_cli",
+        "v2_adapter_program",
+        "v6_leaf_program",
+        "v6_l1_program",
+        "v6_l2_program",
+        "v6_settlement_program",
+    ]
+    worker.validate_worker_capture(
+        plan,
+        packet,
+        capture,
+        repo,
+        artifact_root,
+        run_root,
+        runtime_bindings=runtime,
+    )
+
+    substituted = dict(runtime)
+    substituted["surplus"] = tmp_path / "runtime/surplus"
+    with pytest.raises(worker.WorkerError, match="runtime binding inventory"):
+        worker.validate_worker_capture(
+            plan,
+            packet,
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+            runtime_bindings=substituted,
+        )
+
+    for role, original in runtime.items():
+        alternate = tmp_path / "alternate" / role
+        if original.is_dir():
+            alternate.mkdir(parents=True)
+        else:
+            alternate.parent.mkdir(parents=True, exist_ok=True)
+            alternate.write_bytes(original.read_bytes())
+            alternate.chmod(0o500)
+        rebound = dict(runtime)
+        rebound[role] = alternate
+        with pytest.raises(worker.WorkerError, match="resolved argv digest mismatch"):
+            worker.validate_worker_capture(
+                plan,
+                packet,
+                capture,
+                repo,
+                artifact_root,
+                run_root,
+                runtime_bindings=rebound,
+            )
 
 
 def test_mutation_stage_uses_exact_artifact_runner_and_complete_output_inventory(

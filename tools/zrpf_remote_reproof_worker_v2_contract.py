@@ -216,6 +216,7 @@ class ValidatedStage:
     ordinal: int
     worker_commit: str
     worker_tree: str
+    c0_commit: str
     resource_policy: ResourcePolicy
     commands: tuple[CommandTemplate, ...]
     inputs: tuple[ArtifactContract, ...]
@@ -325,6 +326,7 @@ def validate_stage_packet(
         ordinal=_bounded_nonnegative_int(task.get("ordinal"), "task ordinal"),
         worker_commit=_commit_id(source.get("worker_commit"), "worker commit"),
         worker_tree=_commit_id(source.get("worker_tree"), "worker tree"),
+        c0_commit=_commit_id(source.get("c0_commit"), "C0 commit"),
         resource_policy=resource_policy,
         commands=commands,
         inputs=inputs,
