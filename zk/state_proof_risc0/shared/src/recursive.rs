@@ -953,8 +953,18 @@ pub fn perps_np_recursive_leaf_asset_delta_rows_v1(
                 }
             }
             PerpsNpActionV1::DepositCollateral {
-                asset, amount_e8, ..
+                asset,
+                amount_e8,
+                collateral_binding,
+                ..
             } => {
+                // A deposit without a hash-bound external source proof would
+                // produce a self-balanced ordinary asset row (debit == credit)
+                // that passes aggregate conservation while inflating collateral
+                // with no external reference. Reject it at the leaf boundary.
+                if collateral_binding.is_none() {
+                    return Err(TransitionError::InvalidInput("collateral binding missing"));
+                }
                 let amount = positive_i128_to_u128_v1(*amount_e8, "deposit must be positive")?;
                 rows.push(ordinary_asset_delta_row_v1(asset, amount, amount));
             }
@@ -2189,12 +2199,13 @@ mod tests {
     use crate::{
         accepted_receipts_root_v1, execute_perps_np_transition_v1, execute_zusd_transition_v1,
         sha256_canonical_perps_np_snapshot_v1, sha256_canonical_zusd_snapshot_v1,
-        zusd_balance_root_hash_v1, ChainBalanceV1, DexBalanceEntryV1, DexStateV1, FaucetMintV1,
-        OracleBindingV1, PerpsAccountV1, PerpsMarketParamsV1, PerpsNpActionV1, PerpsNpSnapshotV1,
-        PerpsNpTransitionInputV1, StateProofInputV1, TauTxAppOpsV1, TauTxV1, TxIngressFactV1,
-        ZusdBalanceEntryV1, ZusdOperationV1, ZusdSnapshotV1, ZusdTransitionInputV1,
-        ZusdVaultEntryV1,
+        zusd_balance_root_hash_v1, ChainBalanceV1, CollateralBindingV1, DexBalanceEntryV1,
+        DexStateV1, FaucetMintV1, OracleBindingV1, PerpsAccountV1, PerpsMarketParamsV1,
+        PerpsNpActionV1, PerpsNpSnapshotV1, PerpsNpTransitionInputV1, StateProofInputV1,
+        TauTxAppOpsV1, TauTxV1, TxIngressFactV1, ZusdBalanceEntryV1, ZusdOperationV1,
+        ZusdSnapshotV1, ZusdTransitionInputV1, ZusdVaultEntryV1, PROOF_TYPE_ZUSD,
     };
+    use alloc::format;
     use alloc::string::ToString;
 
     fn h(byte: u8) -> [u8; 32] {
@@ -2203,6 +2214,15 @@ mod tests {
 
     fn image(byte: u32) -> [u32; 8] {
         [byte; 8]
+    }
+
+    fn collateral_binding(seed: u8) -> CollateralBindingV1 {
+        CollateralBindingV1 {
+            source_proof_type: PROOF_TYPE_ZUSD.to_string(),
+            source_state_hash: format!("{seed:02x}").repeat(32),
+            balance_root_hash: format!("{:02x}", seed.saturating_add(1)).repeat(32),
+            balance_delta_hash: format!("{:02x}", seed.saturating_add(2)).repeat(32),
+        }
     }
 
     fn spot_leaf_input() -> SpotRecursiveLeafInputV1 {
@@ -3299,7 +3319,109 @@ mod tests {
     }
 
     #[test]
-    fn perps_np_recursive_leaf_derives_deposit_rows_without_epoch_floor() {
+    fn perps_np_recursive_leaf_rejects_unbound_deposit_rows() {
+        let e8: i128 = 100_000_000;
+        let input = PerpsNpTransitionInputV1 {
+            state_hash: h(1),
+            chain_id: "tau-test".to_string(),
+            pre_app_hash_present: true,
+            pre_app_hash: h(2),
+            pre_state: perps_snapshot(0),
+            actions: alloc::vec![PerpsNpActionV1::DepositCollateral {
+                pubkey: "wallet-a".to_string(),
+                asset: "USDC".to_string(),
+                amount_e8: e8,
+                nonce: 2,
+                collateral_binding: None,
+            }],
+            expected_post_app_hash: h(3),
+            risc0_image_id: image(44),
+        };
+        assert!(matches!(
+            perps_np_recursive_leaf_asset_delta_rows_v1(&input),
+            Err(TransitionError::InvalidInput("collateral binding missing"))
+        ));
+    }
+
+    /// Formal property test (deterministic exhaustive enumeration over the
+    /// bounded `asset x binding-presence` space) for the recursive leaf
+    /// admission invariant:
+    ///
+    ///   forall collateral_asset in {zUSD, USDC}, forall amount > 0,
+    ///     collateral_binding = None
+    ///       => perps_np_recursive_leaf_asset_delta_rows_v1 rejects with
+    ///          "collateral binding missing" (no self-balanced row emitted)
+    ///     collateral_binding = Some(_)
+    ///       => exactly one ordinary asset delta row is emitted for the deposit
+    ///
+    /// This proves the recursive aggregation admission path can never conserve
+    /// a perps collateral increase that lacks a hash-bound external source
+    /// proof, regardless of the collateral asset.
+    #[test]
+    fn perps_np_recursive_leaf_binding_guard_is_total_over_asset_space() {
+        let e8: i128 = 100_000_000;
+        let assets = ["zUSD", "USDC"];
+        let amounts: [i128; 3] = [e8, 3 * e8, 2_000 * e8];
+        for asset in &assets {
+            for amount in &amounts {
+                // None => reject
+                let input_none = PerpsNpTransitionInputV1 {
+                    state_hash: h(1),
+                    chain_id: "tau-test".to_string(),
+                    pre_app_hash_present: true,
+                    pre_app_hash: h(2),
+                    pre_state: perps_snapshot(0),
+                    actions: alloc::vec![PerpsNpActionV1::DepositCollateral {
+                        pubkey: "wallet-a".to_string(),
+                        asset: asset.to_string(),
+                        amount_e8: *amount,
+                        nonce: 2,
+                        collateral_binding: None,
+                    }],
+                    expected_post_app_hash: h(3),
+                    risc0_image_id: image(44),
+                };
+                assert!(
+                    matches!(
+                        perps_np_recursive_leaf_asset_delta_rows_v1(&input_none),
+                        Err(TransitionError::InvalidInput("collateral binding missing"))
+                    ),
+                    "asset={asset} amount={amount}: unbound deposit must be rejected"
+                );
+
+                // Some(_) => exactly one row emitted
+                let input_bound = PerpsNpTransitionInputV1 {
+                    state_hash: h(1),
+                    chain_id: "tau-test".to_string(),
+                    pre_app_hash_present: true,
+                    pre_app_hash: h(2),
+                    pre_state: perps_snapshot(0),
+                    actions: alloc::vec![PerpsNpActionV1::DepositCollateral {
+                        pubkey: "wallet-a".to_string(),
+                        asset: asset.to_string(),
+                        amount_e8: *amount,
+                        nonce: 2,
+                        collateral_binding: Some(collateral_binding(5)),
+                    }],
+                    expected_post_app_hash: h(3),
+                    risc0_image_id: image(44),
+                };
+                let rows = perps_np_recursive_leaf_asset_delta_rows_v1(&input_bound)
+                    .expect("bound deposit must produce rows");
+                assert_eq!(
+                    rows.len(),
+                    1,
+                    "asset={asset} amount={amount}: bound deposit must emit one row"
+                );
+                assert_eq!(rows[0].asset_id, *asset);
+                assert_eq!(rows[0].debit_atoms, *amount as u128);
+                assert_eq!(rows[0].credit_atoms, *amount as u128);
+            }
+        }
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_derives_bound_deposit_rows_without_epoch_floor() {
         let e8 = 100_000_000i128;
         let mut pre_state = perps_snapshot(0);
         pre_state.collateral_asset = "USDC".to_string();
@@ -3329,7 +3451,7 @@ mod tests {
                     asset: "USDC".to_string(),
                     amount_e8: 3 * e8,
                     nonce: 2,
-                    collateral_binding: None,
+                    collateral_binding: Some(collateral_binding(90)),
                 }],
                 expected_post_app_hash: post_app_hash,
                 risc0_image_id: image(44),
