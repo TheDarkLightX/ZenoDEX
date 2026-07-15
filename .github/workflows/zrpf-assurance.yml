@@ -152,6 +152,12 @@ jobs:
             RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
             "${pinned_bin}/cargo" fetch --locked \
               --manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path tools/zrpf_firecracker_netns_helper/Cargo.toml
 
       - name: Run Python and evidence assurance
         run: |
@@ -284,6 +290,9 @@ jobs:
             tools/zrpf_spot_v7_release_schema.py \
             tools/zrpf_spot_v7_firecracker_jail_staging.py \
             tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py \
+            tools/zrpf_firecracker_linux_netns_process.py \
+            tools/zrpf_firecracker_linux_netns_protocol.py \
+            tools/zrpf_spot_v7_firecracker_linux_netns_adapter.py \
             tools/zrpf_spot_v7_firecracker_linux_namespace.py \
             tools/zrpf_spot_v7_firecracker_linux_port.py \
             tools/zrpf_spot_v7_firecracker_root_supervisor.py \
@@ -357,6 +366,7 @@ jobs:
             tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
             tests/test_zrpf_spot_v7_firecracker_artifact_binding.py \
             tests/test_zrpf_spot_v7_firecracker_descriptor_staging.py \
+            tests/test_zrpf_spot_v7_firecracker_linux_netns_adapter.py \
             tests/test_zrpf_spot_v7_firecracker_linux_port.py \
             tests/test_zrpf_spot_v7_firecracker_root_supervisor.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
@@ -551,6 +561,9 @@ jobs:
             tools/zrpf_spot_v7_release_schema.py \
             tools/zrpf_spot_v7_firecracker_jail_staging.py \
             tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py \
+            tools/zrpf_firecracker_linux_netns_process.py \
+            tools/zrpf_firecracker_linux_netns_protocol.py \
+            tools/zrpf_spot_v7_firecracker_linux_netns_adapter.py \
             tools/zrpf_spot_v7_firecracker_linux_namespace.py \
             tools/zrpf_spot_v7_firecracker_linux_port.py \
             tools/zrpf_spot_v7_firecracker_root_supervisor.py \
@@ -600,6 +613,7 @@ jobs:
             tests/test_zrpf_v3_source_closure.py \
             tests/test_zrpf_spot_v7_firecracker_artifact_binding.py \
             tests/test_zrpf_spot_v7_firecracker_descriptor_staging.py \
+            tests/test_zrpf_spot_v7_firecracker_linux_netns_adapter.py \
             tests/test_zrpf_spot_v7_firecracker_linux_port.py \
             tests/test_zrpf_spot_v7_firecracker_root_supervisor.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
@@ -667,6 +681,7 @@ jobs:
             tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py \
             tests/test_zrpf_spot_v7_firecracker_artifact_binding.py \
             tests/test_zrpf_spot_v7_firecracker_descriptor_staging.py \
+            tests/test_zrpf_spot_v7_firecracker_linux_netns_adapter.py \
             tests/test_zrpf_spot_v7_firecracker_linux_port.py \
             tests/test_zrpf_spot_v7_firecracker_root_supervisor.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
@@ -798,6 +813,31 @@ jobs:
           "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml \
             --locked --offline --all-targets -- -D warnings
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path tools/zrpf_firecracker_netns_helper/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test \
+            --manifest-path tools/zrpf_firecracker_netns_helper/Cargo.toml \
+            --locked --offline --all-targets
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path tools/zrpf_firecracker_netns_helper/Cargo.toml \
+            --locked --offline --all-targets -- -D warnings
+          RUSTFLAGS='-C target-feature=+crt-static' \
+            "${pinned_bin}/cargo" build \
+              --manifest-path tools/zrpf_firecracker_netns_helper/Cargo.toml \
+              --locked --offline --release
+          python3 - <<'PY'
+          from pathlib import Path
+
+          from tools.zrpf_firecracker_linux_netns_process import _require_static_host_elf
+
+          helper = Path(
+              "tools/zrpf_firecracker_netns_helper/target/release/"
+              "zrpf-firecracker-netns-helper-v1"
+          )
+          with helper.open("rb") as stream:
+              _require_static_host_elf(stream.fileno())
+          PY
           "${pinned_bin}/cargo" fmt \
             --manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml \
             --all -- --check

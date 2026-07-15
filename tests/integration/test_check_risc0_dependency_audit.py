@@ -358,3 +358,6 @@ def test_dependency_workflow_pins_actions_and_preserves_no_secret_posture() -> N
     assert "secrets." not in workflow
     assert "pull_request_target" not in workflow
     assert "--output internal/risc0_dependency_audit.json" in workflow
+    assert "--file tools/zrpf_firecracker_netns_helper/Cargo.lock" in workflow
+    assert "--deny warnings" in workflow
+    assert "internal/zrpf_firecracker_netns_helper_dependency_audit.json" in workflow

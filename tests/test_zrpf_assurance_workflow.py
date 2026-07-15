@@ -128,9 +128,19 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml" in (cargo_acquisition)
     assert "--manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml" in (cargo_acquisition)
     assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in cargo_acquisition
-    assert "--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml" in (cargo_acquisition)
-    assert 'replay_anchor_commit="ff76ff9c1dc307f0e7dc5afd009e2961f2e36f21"' in cargo_acquisition
-    assert 'anchor_checkout="${RUNNER_TEMP}/zrpf-v3-source-anchor-fetch"' in (cargo_acquisition)
+    assert "--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml" in (
+        cargo_acquisition
+    )
+    assert "--manifest-path tools/zrpf_firecracker_netns_helper/Cargo.toml" in (
+        cargo_acquisition
+    )
+    assert (
+        'replay_anchor_commit="ff76ff9c1dc307f0e7dc5afd009e2961f2e36f21"'
+        in cargo_acquisition
+    )
+    assert 'anchor_checkout="${RUNNER_TEMP}/zrpf-v3-source-anchor-fetch"' in (
+        cargo_acquisition
+    )
     assert (
         'git -c core.hooksPath=/dev/null worktree add --detach "${anchor_checkout}"'
         in cargo_acquisition
@@ -430,6 +440,9 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tools/zrpf_spot_v7_governed_release_selector_input_v1.py",
         "tools/zrpf_spot_v7_release_candidate_manifest_v1.py",
         "tools/zrpf_spot_v7_firecracker_runtime_protocol.py",
+        "tools/zrpf_firecracker_linux_netns_process.py",
+        "tools/zrpf_firecracker_linux_netns_protocol.py",
+        "tools/zrpf_spot_v7_firecracker_linux_netns_adapter.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
@@ -466,6 +479,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py",
         "tests/test_zrpf_spot_v7_firecracker_authority_input_parity.py",
         "tests/test_zrpf_spot_v7_firecracker_rust_parity.py",
+        "tests/test_zrpf_spot_v7_firecracker_linux_netns_adapter.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
@@ -521,7 +535,14 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         rust_assurance.count("--manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml")
         == 4
     )
-    assert rust_assurance.count("--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml") == 3
+    assert rust_assurance.count(
+        "--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml"
+    ) == 3
+    assert rust_assurance.count(
+        "--manifest-path tools/zrpf_firecracker_netns_helper/Cargo.toml"
+    ) == 4
+    assert "RUSTFLAGS='-C target-feature=+crt-static'" in rust_assurance
+    assert "_require_static_host_elf(stream.fileno())" in rust_assurance
     assert rust_assurance.count("--manifest-path zk/state_proof_risc0/Cargo.toml") == 3
     assert rust_assurance.count("-p tau-state-proof-risc0-cli --all-targets") == 2
     assert rust_assurance.count("--locked --offline -p tau-state-proof-risc0-cli") == 2
@@ -534,7 +555,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert rust_assurance.count("-p zenodex-zrpf-risc0-methods") == 2
     assert "--locked --all-targets" in rust_assurance
     assert rust_assurance.count("--no-default-features --test semantic_v2") == 2
-    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 13
+    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 14
     assert '"${pinned_bin}/cargo" clippy' not in rust_assurance
     host_packages, guest_packages = _zrpf_workspace_packages()
     host_package_args = _cargo_package_args(rust_assurance)

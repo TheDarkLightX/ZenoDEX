@@ -2,9 +2,9 @@
 
 Date: 2026-07-14
 
-Status: authority-false Linux composition adapter implemented; concrete
-namespace-kernel effects, live privileged evidence, and every authority claim
-remain unavailable
+Status: authority-false Linux composition adapter and concrete pinned
+namespace-kernel helper implemented; live privileged evidence and every
+authority claim remain unavailable
 
 ## Scope
 
@@ -34,10 +34,62 @@ properties.
 
 Persistent network-namespace creation, address and route inspection, unmount,
 and final absence require privileged kernel operations that deterministic unit
-tests cannot establish. V1 therefore injects one narrow namespace-kernel port.
-The Linux composition adapter still opens the result as the existing
+tests cannot establish. V1 injects one narrow namespace-kernel port and now has
+a concrete implementation behind that port. The Linux composition adapter
+still opens the result as the existing
 descriptor-pinned `PinnedNetworkNamespaceV1`, verifies exclusive process
 emptiness, and passes only that exact handle into the prepared lifecycle.
+
+## Concrete privileged helper
+
+The implementation is separated by authority boundary:
+
+```text
+zrpf_firecracker_linux_netns_protocol.py
+  fixed request/response bytes and strict canonical parsing
+
+zrpf_firecracker_linux_netns_process.py
+  sealed executable, static-ELF check, pre-exec limits, bounded process I/O
+
+zrpf_spot_v7_firecracker_linux_netns_adapter.py
+  exact namespace operation routing and retained identity binding
+
+tools/zrpf_firecracker_netns_helper
+  root-only Rust kernel effects, descriptor walks, nsfs checks,
+  process inventory, route-netlink inventory, unmount, and absence
+```
+
+The request is exactly 512 bytes and the response is exactly 256 bytes. Both
+use big-endian integers, fixed tags, zero flags, zero reserved regions, bounded
+root/name slots, and a final SHA-256 checksum. Successful responses additionally
+bind the complete request digest and the separate root and name digests. The
+helper emits no JSON. The fixed binary ABI removes duplicate-key, number-width,
+and canonical-JSON ambiguity from this privileged boundary.
+
+The helper accepts only effective UID zero. It walks the namespace root one
+component at a time with `O_NOFOLLOW`, requires root ownership, rejects
+group/other-writable ancestors, and requires the final namespace root to have
+no group/other permissions. Fresh targets use `O_EXCL` and mode `0600` before
+the namespace is bind-mounted. Open namespace objects must be root-owned nsfs
+regular objects with one link and no write bits. Unopened partial targets must
+remain exact root-owned mode-`0600` regular files before cleanup.
+
+Before returning success, create, inspect, destroy, and cleanup scan every
+visible process task for the target namespace identity. Inspection is repeated
+after `setns`, excluding only the helper's own thread. A route-netlink dump then
+rejects every non-loopback address and every route whose output is not the
+loopback interface. The helper installs `no_new_privs` and a seccomp program
+that denies `connect`, `socketpair`, and every socket except
+`AF_NETLINK/SOCK_RAW/NETLINK_ROUTE`. The same filter denies `clone`, `clone3`,
+`fork`, and `vfork`. It closes all inherited descriptors above standard input,
+output, and error.
+
+The Python launcher verifies an open, hash-pinned, static host ELF. A small
+isolated Python pre-exec process installs exact address-space, stack, CPU, core,
+file-size, descriptor, and process limits plus `no_new_privs` before executing
+the helper by its sealed descriptor. Standard output and standard error are
+captured into bounded files, timeouts kill the complete process group, and any
+nonzero exit or stderr rejects.
 
 ## Invariants
 
@@ -91,8 +143,10 @@ distinguishing witnesses for:
 - substituted cgroup and namespace objects;
 - wrong cgroup relative path or changed numeric limit;
 - wrong namespace path, process membership, address, or route;
+- untracked or reused namespace identity and cleanup of a tracked namespace;
 - request substitution and Boolean timeout substitution;
 - lifecycle rejection;
+- process-group teardown after the launcher leader has already exited;
 - whole-cgroup kill/removal and the exact already-absent natural-completion
   case;
 - namespace destroy and absence failures;
@@ -106,17 +160,51 @@ changed limits, and changed teardown outcomes must each alter acceptance at a
 named boundary. Round-trip survival or field presence alone is insufficient.
 
 The required ZRPF workflow must run Ruff, mypy, and the focused tests for this
-module.
+module. It also runs locked offline Rust formatting, tests, and Clippy for the
+helper crate.
+
+The shared position-distinct request fixture has SHA-256:
+
+```text
+4eaca7fc26901d5232b991b27ac0d79e1209ed8e482971542d25af7566b4561e
+```
+
+Rust and Python independently construct that exact fixture. The mutation
+corpus distinguishes all five operation tags, every request flag and trusted
+UID bit, every request padding and reserved bit, every request digest byte,
+every response flag/reserved/digest bit, exact Boolean encodings, length and
+endian substitutions, identity bytes, binding digests, field positions, and
+truncation or extension. Separate witnesses reject an over-limit netlink dump,
+an absence result with a substituted identity, an untracked namespace handle,
+and a surviving descendant process group after leader exit.
+
+Focused replay commands:
+
+```bash
+python3 -m pytest -q \
+  tests/test_zrpf_spot_v7_firecracker_linux_netns_adapter.py
+
+cd tools/zrpf_firecracker_netns_helper
+cargo fmt --all -- --check
+cargo test --locked --all-targets
+cargo clippy --locked --all-targets -- -D warnings
+RUSTFLAGS='-C target-feature=+crt-static' cargo build --locked --release
+cargo audit --file Cargo.lock --deny warnings --json
+```
+
+The Python launcher rejects dynamically linked helper binaries. The governed
+helper build therefore requires the static target feature shown above, followed
+by exact executable-byte hashing before adapter construction.
 
 ## Exact non-claims
 
-This slice does not establish live root ownership, live namespace creation,
-live address or route inspection, live cgroup membership, live Jailer or
-Firecracker execution, runtime authority, release authority, settlement
-authority, production authority, sandbox escape resistance, same-UID
-resistance, hardware attestation, side-channel resistance, covert-channel
-freedom, current V6/V7 proof identity, or integer-exact timeout enforcement at
-the lower lifecycle boundary.
+This slice does not establish a live privileged helper run, live root
+ownership, live namespace creation, live address or route inspection, live
+cgroup membership, live Jailer or Firecracker execution, runtime authority,
+release authority, settlement authority, production authority, sandbox escape
+resistance, same-UID resistance, hardware attestation, side-channel resistance,
+covert-channel freedom, current V6/V7 proof identity, or integer-exact timeout
+enforcement at the lower lifecycle boundary.
 
 The next evidence step is an opt-in run on a disposable privileged KVM host
 using a separately reviewed concrete namespace-kernel implementation. Until

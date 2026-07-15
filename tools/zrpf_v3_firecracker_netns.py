@@ -38,6 +38,14 @@ class PinnedNetworkNamespaceV1:
     def trusted_uid(self) -> int:
         return self._trusted_uid
 
+    @property
+    def pinned_device_and_inode(self) -> tuple[int, int]:
+        """Return the immutable identity retained by the open namespace handle."""
+
+        if self._closed:
+            raise JailerLauncherReject("jailer_netns_closed")
+        return self._identity.device, self._identity.inode
+
     def reverify_path(self) -> None:
         if self._closed:
             raise JailerLauncherReject("jailer_netns_closed")
