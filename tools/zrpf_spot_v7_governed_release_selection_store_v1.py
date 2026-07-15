@@ -509,7 +509,7 @@ def _reparse_candidate(
 
     if type(candidate) is not SpotV7ReleaseCandidateManifestV1:
         raise _SelectionRejectV1("CANDIDATE_NOMINAL_TYPE_REJECTED")
-    candidate_value = cast(SpotV7ReleaseCandidateManifestV1, candidate)
+    candidate_value = candidate
     try:
         raw = candidate_value.canonical_bytes
         nominal_id = candidate_value.candidate_id

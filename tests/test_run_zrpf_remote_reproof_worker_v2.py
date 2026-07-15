@@ -194,7 +194,8 @@ def test_prover_compute_environment_is_exact_and_capture_bound(
     )
     assert seen_environment.get("CUDA_VISIBLE_DEVICES") == expected_cuda_visible_devices
     assert "RISC0_DEFAULT_PROVER_NUM_GPUS" not in seen_environment
-    assert capture["prover_compute_profile"]["profile_id"] == profile_id
+    captured_profile = cast(dict[str, object], capture["prover_compute_profile"])
+    assert captured_profile["profile_id"] == profile_id
     worker.validate_worker_capture(
         plan,
         packet,
@@ -205,8 +206,9 @@ def test_prover_compute_environment_is_exact_and_capture_bound(
     )
 
     substituted = copy.deepcopy(capture)
-    substituted["prover_compute_profile"] = dict(capture["prover_compute_profile"])
-    substituted["prover_compute_profile"]["profile_id"] = (
+    substituted_profile = dict(captured_profile)
+    substituted["prover_compute_profile"] = substituted_profile
+    substituted_profile["profile_id"] = (
         handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID
         if profile_id == handoff.CPU_PROVER_COMPUTE_PROFILE_ID
         else handoff.CPU_PROVER_COMPUTE_PROFILE_ID
