@@ -367,13 +367,30 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Prepare package
+        id: package
         run: |
           set -euo pipefail
           cd packages/zeno-proof-client
           npm ci
           npm version --no-git-tag-version --allow-same-version "${{ needs.build-artifacts.outputs.version }}"
           npm test
-          npm pack --ignore-scripts
+          rm -f ./*.tgz
+          npm pack --ignore-scripts --json > npm-pack.json
+          tarball="$(node -e '
+            const fs = require("node:fs");
+            const pack = JSON.parse(fs.readFileSync("npm-pack.json", "utf8"));
+            if (!Array.isArray(pack) || pack.length !== 1 || typeof pack[0].filename !== "string") {
+              throw new Error("npm pack must produce exactly one tarball filename");
+            }
+            process.stdout.write(pack[0].filename);
+          ')"
+          case "$tarball" in
+            ""|/*|*/*|-*) echo "Unsafe npm tarball name: $tarball" >&2; exit 2 ;;
+            *.tgz) ;;
+            *) echo "Unexpected npm tarball extension: $tarball" >&2; exit 2 ;;
+          esac
+          test -f "$tarball"
+          printf 'tarball=%s\n' "$tarball" >> "$GITHUB_OUTPUT"
 
       - name: Publish package to npm
         env:
@@ -385,4 +402,11 @@ jobs:
             exit 2
           fi
           cd packages/zeno-proof-client
-          npm publish --access public --provenance --ignore-scripts *.tgz
+          tarball="${{ steps.package.outputs.tarball }}"
+          case "$tarball" in
+            ""|/*|*/*|-*) echo "Unsafe npm tarball name: $tarball" >&2; exit 2 ;;
+            *.tgz) ;;
+            *) echo "Unexpected npm tarball extension: $tarball" >&2; exit 2 ;;
+          esac
+          test -f "$tarball"
+          npm publish --access public --provenance --ignore-scripts -- "./$tarball"

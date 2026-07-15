@@ -117,8 +117,9 @@ def test_release_publication_workflow_rejects_npm_token_during_prepare(
 ) -> None:
     workflow = tmp_path / "release-publish.yml"
     text = DEFAULT_WORKFLOW.read_text(encoding="utf-8").replace(
-        "      - name: Prepare package\n" "        run: |",
+        "      - name: Prepare package\n" "        id: package\n" "        run: |",
         "      - name: Prepare package\n"
+        "        id: package\n"
         "        env:\n"
         "          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}\n"
         "        run: |",
@@ -205,8 +206,46 @@ def test_release_publication_workflow_rejects_publish_lifecycle_scripts(
 ) -> None:
     workflow = tmp_path / "release-publish.yml"
     text = DEFAULT_WORKFLOW.read_text(encoding="utf-8").replace(
-        "npm publish --access public --provenance --ignore-scripts *.tgz",
+        'npm publish --access public --provenance --ignore-scripts -- "./$tarball"',
         "npm publish --access public --provenance *.tgz",
+    )
+    workflow.write_text(text, encoding="utf-8")
+
+    report = check_release_publication_workflow(workflow)
+
+    assert report["ok"] is False
+    assert (
+        "NPM_TOKEN must only be exposed to the minimal npm publish step"
+        in report["errors"]
+    )
+
+
+def test_release_publication_workflow_rejects_glob_publish_with_token(
+    tmp_path: Path,
+) -> None:
+    workflow = tmp_path / "release-publish.yml"
+    text = DEFAULT_WORKFLOW.read_text(encoding="utf-8").replace(
+        'npm publish --access public --provenance --ignore-scripts -- "./$tarball"',
+        "npm publish --access public --provenance --ignore-scripts *.tgz",
+    )
+    workflow.write_text(text, encoding="utf-8")
+
+    report = check_release_publication_workflow(workflow)
+
+    assert report["ok"] is False
+    assert (
+        "NPM_TOKEN must only be exposed to the minimal npm publish step"
+        in report["errors"]
+    )
+
+
+def test_release_publication_workflow_rejects_pack_without_tarball_output(
+    tmp_path: Path,
+) -> None:
+    workflow = tmp_path / "release-publish.yml"
+    text = DEFAULT_WORKFLOW.read_text(encoding="utf-8").replace(
+        'printf \'tarball=%s\\n\' "$tarball" >> "$GITHUB_OUTPUT"',
+        'echo "packed $tarball"',
     )
     workflow.write_text(text, encoding="utf-8")
 
