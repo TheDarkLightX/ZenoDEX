@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -134,8 +134,12 @@ def test_exact_runner_rejects_substituted_boundary_objects_before_execution(
         unexpected,
     )
 
+    adversarial_call = cast(
+        Any,
+        linux_runner.run_exact_linux_spot_v7_root_supervisor_candidate_v1,
+    )
     with pytest.raises(SpotV7RootSupervisorRejectV1) as captured:
-        linux_runner.run_exact_linux_spot_v7_root_supervisor_candidate_v1(**kwargs)
+        adversarial_call(**kwargs)
 
     assert captured.value.code == expected_code
 
@@ -143,7 +147,9 @@ def test_exact_runner_rejects_substituted_boundary_objects_before_execution(
 def test_exact_runner_rejects_pinned_kernel_subclass(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    class _PinnedKernelSubclass(PinnedLinuxSpotV7NetworkNamespaceKernelV1):
+    class _PinnedKernelSubclass(  # type: ignore[misc]
+        PinnedLinuxSpotV7NetworkNamespaceKernelV1
+    ):
         pass
 
     kernel = _PinnedKernelSubclass(

@@ -15,7 +15,7 @@ from typing import NoReturn
 if __package__:
     from tools import check_zrpf_stage_execution_profile_v1 as execution_profile
 else:
-    import check_zrpf_stage_execution_profile_v1 as execution_profile
+    import check_zrpf_stage_execution_profile_v1 as execution_profile  # type: ignore[no-redef]
 
 BUILD_SCHEMA = "zenodex/zrpf_cuda_r0vm_build_attestation/v1"
 BUILD_STATUS = "cuda_r0vm_build_attested_without_release_authority"
