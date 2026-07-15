@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+import select
 import signal
 import struct
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import BinaryIO
 
@@ -22,6 +24,7 @@ _MAX_STDERR_BYTES_V1 = 4096
 _MAX_ADDRESS_SPACE_BYTES_V1 = 256 * 1024 * 1024
 _MAX_STACK_BYTES_V1 = 8 * 1024 * 1024
 _TIMEOUT_SECONDS_V1 = 5
+_TIMEOUT_NANOSECONDS_V1 = _TIMEOUT_SECONDS_V1 * 1_000_000_000
 _ELF_PROGRAM_HEADER_BYTES_V1 = 56
 _ELF_DYNAMIC_ENTRY_BYTES_V1 = 16
 _ELF_MAX_PROGRAM_HEADERS_V1 = 128
@@ -125,12 +128,17 @@ def execute_pinned_helper_once(
 
 def _run_sealed_helper(sealed: SealedExecutable, request: bytes) -> bytes:
     process: subprocess.Popen[bytes] | None = None
+    pidfd: int | None = None
     with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
         try:
             process = _start_helper(sealed, stdout_file, stderr_file)
-            process.communicate(input=request, timeout=_TIMEOUT_SECONDS_V1)
-            return_code = process.returncode
-            _terminate_process_group(process)
+            pidfd = _open_pidfd(process.pid)
+            _write_exact_request(process, request)
+            if not _wait_for_pidfd_exit(pidfd):
+                raise LinuxNetnsAdapterRejectedV1(
+                    LinuxNetnsAdapterRejectV1.PROCESS_TIMEOUT
+                )
+            return_code = _kill_process_group_before_reap(process)
             process = None
             stdout = _read_bounded(stdout_file, NETNS_HELPER_RESPONSE_BYTES_V1)
             stderr = _read_bounded(stderr_file, _MAX_STDERR_BYTES_V1)
@@ -139,13 +147,19 @@ def _run_sealed_helper(sealed: SealedExecutable, request: bytes) -> bytes:
                     LinuxNetnsAdapterRejectV1.PROCESS_FAILED
                 )
             return stdout
-        except subprocess.TimeoutExpired as exc:
+        except LinuxNetnsAdapterRejectedV1:
+            raise
+        except OSError as exc:
             raise LinuxNetnsAdapterRejectedV1(
-                LinuxNetnsAdapterRejectV1.PROCESS_TIMEOUT
+                LinuxNetnsAdapterRejectV1.PROCESS_FAILED
             ) from exc
         finally:
-            if process is not None:
-                _terminate_process_group(process)
+            try:
+                if process is not None:
+                    _kill_process_group_before_reap(process)
+            finally:
+                if pidfd is not None:
+                    os.close(pidfd)
 
 
 def _start_helper(
@@ -177,17 +191,73 @@ def _start_helper(
     )
 
 
-def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
-    # The leader may have exited while a descendant remains in the dedicated
-    # process group. Always target the group before accepting any output.
+def _open_pidfd(pid: int) -> int:
+    try:
+        return os.pidfd_open(pid, 0)
+    except (AttributeError, OSError) as exc:
+        raise LinuxNetnsAdapterRejectedV1(
+            LinuxNetnsAdapterRejectV1.PROCESS_FAILED
+        ) from exc
+
+
+def _write_exact_request(process: subprocess.Popen[bytes], request: bytes) -> None:
+    stream = process.stdin
+    if stream is None:
+        raise LinuxNetnsAdapterRejectedV1(LinuxNetnsAdapterRejectV1.PROCESS_FAILED)
+    try:
+        offset = 0
+        while offset < len(request):
+            written = os.write(stream.fileno(), request[offset:])
+            if written <= 0:
+                raise LinuxNetnsAdapterRejectedV1(
+                    LinuxNetnsAdapterRejectV1.PROCESS_FAILED
+                )
+            offset += written
+    finally:
+        stream.close()
+
+
+def _wait_for_pidfd_exit(pidfd: int) -> bool:
+    poller = select.poll()
+    poller.register(pidfd, select.POLLIN)
+    deadline = time.monotonic_ns() + _TIMEOUT_NANOSECONDS_V1
+    while True:
+        remaining = deadline - time.monotonic_ns()
+        if remaining <= 0:
+            return False
+        timeout_milliseconds = max(1, (remaining + 999_999) // 1_000_000)
+        try:
+            events = poller.poll(timeout_milliseconds)
+        except InterruptedError:
+            continue
+        if not events:
+            continue
+        if len(events) != 1 or events[0][0] != pidfd:
+            raise LinuxNetnsAdapterRejectedV1(
+                LinuxNetnsAdapterRejectV1.PROCESS_FAILED
+            )
+        if events[0][1] & select.POLLIN:
+            return True
+        raise LinuxNetnsAdapterRejectedV1(LinuxNetnsAdapterRejectV1.PROCESS_FAILED)
+
+
+def _kill_process_group_before_reap(process: subprocess.Popen[bytes]) -> int:
+    # Keeping the leader unreaped pins its numeric PID/PGID against reuse. Kill
+    # the complete dedicated group first, then reap the leader exactly once.
     try:
         os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
+    except OSError as exc:
+        raise LinuxNetnsAdapterRejectedV1(
+            LinuxNetnsAdapterRejectV1.PROCESS_FAILED
+        ) from exc
     try:
-        process.wait(timeout=1)
-    except (subprocess.TimeoutExpired, ProcessLookupError):
-        pass
+        return process.wait(timeout=1)
+    except (subprocess.TimeoutExpired, ProcessLookupError) as exc:
+        raise LinuxNetnsAdapterRejectedV1(
+            LinuxNetnsAdapterRejectV1.PROCESS_FAILED
+        ) from exc
 
 
 def _read_bounded(stream: BinaryIO, maximum: int) -> bytes:

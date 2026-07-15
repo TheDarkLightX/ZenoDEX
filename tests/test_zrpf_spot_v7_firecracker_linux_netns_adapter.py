@@ -6,9 +6,11 @@ import copy
 import hashlib
 import os
 import pickle
+import select
 import signal
 import struct
 import subprocess
+import sys
 from pathlib import Path
 from typing import cast
 
@@ -348,30 +350,117 @@ def test_adapter_rejects_untracked_or_reused_namespace_identity(
     assert len(calls) == 1
 
 
-def test_process_group_is_killed_even_after_leader_exit(
+def test_process_group_is_killed_before_exited_leader_is_reaped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    killed: list[tuple[int, signal.Signals]] = []
+    events: list[tuple[str, int, signal.Signals | None]] = []
 
-    class ExitedLeader:
+    class UnreapedExitedLeader:
         pid = 701
-
-        def poll(self) -> int:
-            return 0
 
         def wait(self, *, timeout: int) -> int:
             assert timeout == 1
+            events.append(("wait", self.pid, None))
             return 0
 
     monkeypatch.setattr(
         helper_process.os,
         "killpg",
-        lambda pid, sig: killed.append((pid, sig)),
+        lambda pid, sig: events.append(("killpg", pid, sig)),
     )
-    helper_process._terminate_process_group(
-        cast("subprocess.Popen[bytes]", ExitedLeader())
+    assert helper_process._kill_process_group_before_reap(
+        cast("subprocess.Popen[bytes]", UnreapedExitedLeader())
+    ) == 0
+    assert events == [
+        ("killpg", 701, signal.SIGKILL),
+        ("wait", 701, None),
+    ]
+
+
+@pytest.mark.skipif(
+    not hasattr(os, "pidfd_open") or not hasattr(signal, "pidfd_send_signal"),
+    reason="Linux pidfd lifecycle evidence is unavailable",
+)
+def test_real_unreaped_leader_pins_group_until_descendant_is_killed() -> None:
+    child_program = "import signal; signal.pause()"
+    leader_program = (
+        "import os,subprocess,sys\n"
+        f"child=subprocess.Popen([sys.executable,'-I','-S','-c',{child_program!r}])\n"
+        "os.write(1,(str(child.pid)+'\\n').encode('ascii'))\n"
     )
-    assert killed == [(701, signal.SIGKILL)]
+    leader = subprocess.Popen(
+        [sys.executable, "-I", "-S", "-c", leader_program],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+        close_fds=True,
+    )
+    leader_pidfd = os.pidfd_open(leader.pid, 0)
+    descendant_pidfd: int | None = None
+    leader_reaped = False
+    descendant_exited = False
+    try:
+        assert leader.stdout is not None
+        line = leader.stdout.readline(32)
+        assert line.endswith(b"\n") and line[:-1].isdigit()
+        descendant_pid = int(line)
+        descendant_pidfd = os.pidfd_open(descendant_pid, 0)
+
+        assert helper_process._wait_for_pidfd_exit(leader_pidfd) is True
+        assert leader.returncode is None
+        assert helper_process._kill_process_group_before_reap(leader) == 0
+        leader_reaped = True
+        assert helper_process._wait_for_pidfd_exit(descendant_pidfd) is True
+        descendant_exited = True
+    finally:
+        if not leader_reaped:
+            helper_process._kill_process_group_before_reap(leader)
+        if descendant_pidfd is not None:
+            if not descendant_exited:
+                signal.pidfd_send_signal(descendant_pidfd, signal.SIGKILL)
+            os.close(descendant_pidfd)
+        os.close(leader_pidfd)
+        if leader.stdout is not None:
+            leader.stdout.close()
+        if leader.stderr is not None:
+            leader.stderr.close()
+
+
+def test_pidfd_wait_requires_the_exact_pidfd_and_readable_exit_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Poller:
+        registered: tuple[int, int] | None = None
+
+        def register(self, descriptor: int, events: int) -> None:
+            self.registered = (descriptor, events)
+
+        def poll(self, timeout: int) -> list[tuple[int, int]]:
+            assert timeout > 0
+            assert self.registered == (73, select.POLLIN)
+            return [(73, select.POLLIN)]
+
+    poller = Poller()
+    monkeypatch.setattr(helper_process.select, "poll", lambda: poller)
+    assert helper_process._wait_for_pidfd_exit(73) is True
+
+    monkeypatch.setattr(
+        helper_process.select,
+        "poll",
+        lambda: _WrongPidfdPoller(),
+    )
+    with pytest.raises(adapter.LinuxNetnsAdapterRejectedV1):
+        helper_process._wait_for_pidfd_exit(73)
+
+
+class _WrongPidfdPoller:
+    def register(self, descriptor: int, events: int) -> None:
+        del descriptor, events
+
+    def poll(self, timeout: int) -> list[tuple[int, int]]:
+        assert timeout > 0
+        return [(74, select.POLLIN)]
 
 
 def test_static_elf_gate_accepts_no_interpreter_and_rejects_interp_or_needed(

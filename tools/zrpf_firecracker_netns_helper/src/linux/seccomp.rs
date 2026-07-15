@@ -152,6 +152,12 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn installed_filter_allows_real_kernel_route_dumps() -> Result<(), NetnsHelperErrorV1> {
+        install_netlink_only()?;
+        super::super::netlink::smoke_real_kernel_dumps_under_filter()
+    }
+
     fn evaluate(
         number: libc::c_long,
         architecture: u32,

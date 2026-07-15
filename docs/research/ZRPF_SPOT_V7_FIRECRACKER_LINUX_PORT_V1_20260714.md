@@ -78,8 +78,14 @@ Before returning success, create, inspect, destroy, and cleanup scan every
 visible process task for the target namespace identity. Inspection is repeated
 after `setns`, excluding only the helper's own thread. A route-netlink dump then
 rejects every non-loopback address and every route whose output is not the
-loopback interface. The helper installs `no_new_privs` and a seccomp program
-that denies `connect`, `socketpair`, and every socket except
+loopback interface. The helper discovers loopback through a direct
+`RTM_GETLINK` dump, binds every response header to the kernel-assigned local
+netlink port ID, and accepts datagrams only from the kernel netlink identity.
+Interrupted, filtered, wrong-type, wrong-port, and post-`NLMSG_DONE` records
+reject. Dump completion additionally requires the exact multipart marker and a
+single native-endian zero status. Missing, truncated, or nonzero completion
+status rejects. The helper installs `no_new_privs` and a seccomp program that denies
+`connect`, `socketpair`, and every socket except
 `AF_NETLINK/SOCK_RAW/NETLINK_ROUTE`. The same filter denies `clone`, `clone3`,
 `fork`, and `vfork`. It closes all inherited descriptors above standard input,
 output, and error.
@@ -88,8 +94,11 @@ The Python launcher verifies an open, hash-pinned, static host ELF. A small
 isolated Python pre-exec process installs exact address-space, stack, CPU, core,
 file-size, descriptor, and process limits plus `no_new_privs` before executing
 the helper by its sealed descriptor. Standard output and standard error are
-captured into bounded files, timeouts kill the complete process group, and any
-nonzero exit or stderr rejects.
+captured into bounded files. A pidfd observes helper exit without reaping the
+session leader. The launcher kills the complete process group while the
+unreaped leader still pins its numeric PID and process-group ID, then reaps the
+leader. Timeouts follow the same kill-before-reap order. Any nonzero exit or
+stderr rejects.
 
 ## Invariants
 
@@ -147,6 +156,10 @@ distinguishing witnesses for:
 - request substitution and Boolean timeout substitution;
 - lifecycle rejection;
 - process-group teardown after the launcher leader has already exited;
+- real-kernel link, address, and route dumps under the actually installed
+  seccomp filter;
+- kernel netlink sender identity, assigned response port ID, interrupted or
+  filtered dumps, unexpected response types, and trailing records after done;
 - whole-cgroup kill/removal and the exact already-absent natural-completion
   case;
 - namespace destroy and absence failures;
@@ -175,8 +188,13 @@ UID bit, every request padding and reserved bit, every request digest byte,
 every response flag/reserved/digest bit, exact Boolean encodings, length and
 endian substitutions, identity bytes, binding digests, field positions, and
 truncation or extension. Separate witnesses reject an over-limit netlink dump,
-an absence result with a substituted identity, an untracked namespace handle,
-and a surviving descendant process group after leader exit.
+an interrupted or filtered dump, a non-kernel sender, a response for another
+local netlink port, a nonzero or malformed dump-completion status, an absence
+result with a substituted identity, an untracked namespace handle, and a
+surviving descendant process group after leader exit.
+One Linux-only unit test installs the production seccomp filter and completes
+real kernel `RTM_GETLINK`, `RTM_GETADDR`, and `RTM_GETROUTE` dumps through the
+same parser.
 
 Focused replay commands:
 
