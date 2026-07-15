@@ -1,7 +1,13 @@
 # ZRPF remote reproof worker V2 CBC specification
 
-Status: implemented authority-neutral, one-stage worker over the existing ZRPF
-remote reproof handoff V2 packet ABI for the eleven supported stages below.
+Status: implemented authority-neutral, one-stage worker over the ZRPF remote
+reproof handoff implementation for the eleven supported stages below.
+
+The worker implementation filename remains V2, while its compute-aware capture
+wire schema and identity domain are V3. This ratchet revokes prior V2 worker
+captures and prevents the new compute-profile field from being interpreted
+under the older identity domain. The companion handoff specification records
+the complete V2-to-V3 family ratchet.
 
 The worker may execute only a task already fixed by the governed handoff
 catalog. It does not accept an arbitrary executable, argv vector, resource
@@ -20,9 +26,10 @@ A successfully checked worker capture establishes these local metadata facts:
    untracked status entries before execution.
 4. The declared inputs were copied through bounded stable reads into a fresh
    private snapshot. Executables became mode `0500`; data became mode `0400`.
-5. The task used its exact catalog command template and one closed resource
-   policy. Placeholder resolution selected declared input snapshots, declared
-   output paths, exact C0 or worker commits, or the closed runtime-binding set.
+5. The task used its exact catalog command template, one closed resource
+   policy, and one content-bound prover-compute profile. Placeholder resolution
+   selected declared input snapshots, declared output paths, exact C0 or worker
+   commits, or the closed runtime-binding set.
 6. Each subprocess exited zero before the next command began. Standard output
    and standard error stayed within their declared byte bounds. The process
    group was killed on timeout or capture failure.
@@ -30,8 +37,8 @@ A successfully checked worker capture establishes these local metadata facts:
    necessary parent directories. Every output was a bounded, nonempty,
    single-link regular file with no symlink path component.
 8. The capture ID commits to the handoff, packet, task, resource policy,
-   command transcript digests, output artifact records, false authority map,
-   and non-claims.
+   prover-compute profile, command transcript digests, output artifact records,
+   false authority map, and non-claims.
 
 ## Supported stages
 
@@ -132,9 +139,49 @@ PYTHONDONTWRITEBYTECODE=1
 TZ=UTC
 ```
 
-`RISC0_HOME` may be derived only when `r0vm` is a declared input. Ambient
-credentials, SSH agents, Cargo configuration, cloud variables, and arbitrary
-operator variables are not forwarded.
+`RISC0_HOME` may be derived only when a prover r0vm is a declared input. Every
+proving stage declares the exact, separately content-addressed `prover_r0vm`
+artifact as an input. The handoff selects one
+of two closed profiles:
+
+| Profile | Exact worker environment | Intended host |
+| --- | --- | --- |
+| `risc0_ipc_cpu_v1` | `RISC0_PROVER=ipc`, `RISC0_EXECUTOR=ipc`, `RISC0_SERVER_PATH=<packet-prover-r0vm>`, `CUDA_VISIBLE_DEVICES=-1` | bounded CPU fallback |
+| `risc0_ipc_cuda_single_visible_device_build_request_v1` | `RISC0_PROVER=ipc`, `RISC0_EXECUTOR=ipc`, `RISC0_SERVER_PATH=<packet-prover-r0vm>`, `CUDA_VISIBLE_DEVICES=0` | one visible NVIDIA device with a separately built CUDA r0vm |
+
+Both profiles use the exact external IPC prover path. RISC Zero 3.0.5 dispatches
+both RV32IM and recursion proving through the CUDA HAL when that exact `r0vm`
+was compiled with the `cuda` feature. IPC avoids the actor manager's additional
+worker topology and wildcard listener. The IPC subprocess still uses a
+loopback socket, so the paid runner must retain an isolated network namespace.
+
+The CUDA profile is a build request. It does not assert that `prover_r0vm` was
+compiled with CUDA, that a GPU exists, that the visible device is an H100, or
+that an accelerated run will satisfy a latency budget. The official installed
+RISC Zero 3.0.5 `r0vm` is CPU-only. The identity-rebuild r0vm therefore remains
+a separate artifact and is not silently reused as accelerator evidence. A
+governed CUDA build record must bind the exact prover-r0vm bytes before a paid
+accelerator run. For H100, that record must bind the RISC Zero 3.0.5 source,
+Rust toolchain, CUDA toolkit/container, and an explicit `sm_90` NVCC target;
+ambient `-arch=native` on the local GTX 1060 is invalid for that purpose. The
+capture binds the selected profile, exact prover-r0vm bytes, and observed
+command duration. Separate preflight and benchmark evidence own hardware
+identity and performance.
+
+The CUDA handoff cannot be created without explicit `--prover-r0vm-sha256` and
+`--prover-r0vm-bytes` values. It rejects the known official CPU-only binary
+identity. The worker then rehashes the staged executable and requires exact
+agreement with those values before starting a proving command. These checks
+bind the selected bytes. They do not establish how the executable was built or
+which hardware it exercised.
+
+The paid-run sequence and H100 go/no-go budget are specified in
+`ZRPF_PROVER_COMPUTE_QUALIFICATION_V1_20260714.md`.
+
+Non-proving stages use `no_risc0_prover_compute_v1` and receive no
+`RISC0_PROVER`, `RISC0_EXECUTOR`, `RISC0_SERVER_PATH`, or CUDA-device variable.
+Ambient credentials, SSH agents, Cargo configuration, cloud variables, and
+arbitrary operator variables are not forwarded.
 
 Each resource class fixes:
 

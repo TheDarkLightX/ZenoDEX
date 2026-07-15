@@ -4,9 +4,29 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
+DEFAULT_ARTIFACT_BYTES = 64 * 1024 * 1024
+MAX_R0VM_EXECUTABLE_BYTES = 512 * 1024 * 1024
+MAX_ARTIFACT_BYTES = MAX_R0VM_EXECUTABLE_BYTES
 MAX_IDENTITY_DOCUMENT_BYTES = 4 * 1024 * 1024
 IDENTITY_RUN_ROOT = "/external/zrpf-remote-reproof-handoff-v2/identity/run"
+NO_PROVER_COMPUTE_PROFILE_ID = "no_risc0_prover_compute_v1"
+CPU_PROVER_COMPUTE_PROFILE_ID = "risc0_ipc_cpu_v1"
+CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID = (
+    "risc0_ipc_cuda_single_visible_device_build_request_v1"
+)
+PROVER_COMPUTE_PROFILE_IDS = (
+    CPU_PROVER_COMPUTE_PROFILE_ID,
+    CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID,
+)
+PROVING_STAGE_IDS = (
+    "source_spot_proof",
+    "v2_adapter_receipt",
+    "v6_leaf_receipt",
+    "v6_l1_receipt",
+    "v6_l2_receipt",
+    "v6_settlement_receipt",
+    "v7_receipt",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,7 +35,7 @@ class ArtifactSpec:
     path: str
     kind: str
     producer_stage: str
-    maximum_bytes: int = MAX_ARTIFACT_BYTES
+    maximum_bytes: int = DEFAULT_ARTIFACT_BYTES
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,7 +99,20 @@ ARTIFACT_SPECS = (
         "identity_rebuild",
         MAX_IDENTITY_DOCUMENT_BYTES,
     ),
-    ArtifactSpec("r0vm", "inputs/risc0-home/bin/r0vm", "executable", "external_operator"),
+    ArtifactSpec(
+        "r0vm",
+        "inputs/risc0-home/bin/r0vm",
+        "executable",
+        "external_operator",
+        MAX_R0VM_EXECUTABLE_BYTES,
+    ),
+    ArtifactSpec(
+        "prover_r0vm",
+        "inputs/prover-risc0-home/bin/r0vm",
+        "executable",
+        "external_operator",
+        MAX_R0VM_EXECUTABLE_BYTES,
+    ),
     ArtifactSpec(
         "source_program",
         "identity/run/outputs/01-source-spot/source_spot.bin",
@@ -433,7 +466,7 @@ TASK_SPECS = (
     TaskSpec(
         "source_spot_proof",
         ("worker_prover_build",),
-        ("source_request", "source_cli", "source_program", "r0vm"),
+        ("source_request", "source_cli", "source_program", "prover_r0vm"),
         ("source_proof",),
         "@source_cli",
         (),
@@ -450,7 +483,13 @@ TASK_SPECS = (
     TaskSpec(
         "v2_adapter_receipt",
         ("source_spot_proof",),
-        ("source_proof", "source_program", "v2_adapter_program", "v2_adapter_prover"),
+        (
+            "source_proof",
+            "source_program",
+            "v2_adapter_program",
+            "v2_adapter_prover",
+            "prover_r0vm",
+        ),
         ("v2_adapter_receipt", "v2_adapter_report"),
         "@v2_adapter_prover",
         (
@@ -479,6 +518,7 @@ TASK_SPECS = (
             "v2_adapter_receipt",
             "v6_leaf_program",
             "v6_leaf_prover",
+            "prover_r0vm",
         ),
         ("v6_leaf_envelope", "v6_leaf_receipt", "v6_leaf_report"),
         "@v6_leaf_prover",
@@ -506,7 +546,7 @@ TASK_SPECS = (
     TaskSpec(
         "v6_l1_receipt",
         ("v6_leaf_receipt",),
-        ("v6_leaf_receipt", "v6_l1_program", "v6_l1_prover"),
+        ("v6_leaf_receipt", "v6_l1_program", "v6_l1_prover", "prover_r0vm"),
         ("v6_l1_receipt", "v6_l1_report"),
         "@v6_l1_prover",
         ("--receipt-out", "@v6_l1_receipt", "--child", "@v6_leaf_receipt"),
@@ -522,7 +562,7 @@ TASK_SPECS = (
     TaskSpec(
         "v6_l2_receipt",
         ("v6_l1_receipt",),
-        ("v6_l1_receipt", "v6_l2_program", "v6_l2_prover"),
+        ("v6_l1_receipt", "v6_l2_program", "v6_l2_prover", "prover_r0vm"),
         ("v6_l2_receipt", "v6_l2_report"),
         "@v6_l2_prover",
         ("--receipt-out", "@v6_l2_receipt", "--child", "@v6_l1_receipt"),
@@ -538,7 +578,13 @@ TASK_SPECS = (
     TaskSpec(
         "v6_settlement_receipt",
         ("v6_l2_receipt",),
-        ("v6_leaf_envelope", "v6_l2_receipt", "v6_settlement_program", "v6_settlement_prover"),
+        (
+            "v6_leaf_envelope",
+            "v6_l2_receipt",
+            "v6_settlement_program",
+            "v6_settlement_prover",
+            "prover_r0vm",
+        ),
         (
             "v6_settlement_receipt",
             "v6_settlement_journal",
@@ -579,7 +625,13 @@ TASK_SPECS = (
     TaskSpec(
         "v7_receipt",
         ("v6_settlement_receipt",),
-        ("v6_settlement_receipt", "v7_guest_input", "v7_program", "v7_prover"),
+        (
+            "v6_settlement_receipt",
+            "v7_guest_input",
+            "v7_program",
+            "v7_prover",
+            "prover_r0vm",
+        ),
         (
             "v7_receipt",
             "v7_seal_mutation",

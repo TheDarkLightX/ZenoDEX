@@ -17,11 +17,22 @@ from tools import run_zrpf_remote_worker_prover_build_stage_v2 as worker_build
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 C0 = subprocess.check_output(["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"], text=True).strip()
+FAKE_PROVER_R0VM_RAW = b"artifact:prover_r0vm\n"
+FAKE_PROVER_R0VM_SHA256 = hashlib.sha256(FAKE_PROVER_R0VM_RAW).hexdigest()
 
 
 @pytest.fixture(scope="module")
 def plan() -> dict[str, Any]:
-    return cast(dict[str, Any], handoff.build_handoff(REPO_ROOT, C0, C0))
+    return cast(
+        dict[str, Any],
+        handoff.build_handoff(
+            REPO_ROOT,
+            C0,
+            C0,
+            prover_r0vm_sha256=FAKE_PROVER_R0VM_SHA256,
+            prover_r0vm_bytes=len(FAKE_PROVER_R0VM_RAW),
+        ),
+    )
 
 
 def _git(repo: Path, *arguments: str) -> str:
@@ -87,8 +98,22 @@ def _program_image_ids() -> dict[str, str]:
     }
 
 
-def _plan_for_chain(repo: Path, chain: list[str]) -> dict[str, Any]:
-    return cast(dict[str, Any], handoff.build_handoff(repo, chain[0], chain[3]))
+def _plan_for_chain(
+    repo: Path,
+    chain: list[str],
+    prover_compute_profile_id: str = handoff.CPU_PROVER_COMPUTE_PROFILE_ID,
+) -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        handoff.build_handoff(
+            repo,
+            chain[0],
+            chain[3],
+            prover_compute_profile_id=prover_compute_profile_id,
+            prover_r0vm_sha256=FAKE_PROVER_R0VM_SHA256,
+            prover_r0vm_bytes=len(FAKE_PROVER_R0VM_RAW),
+        ),
+    )
 
 
 def _worker_governance(plan: dict[str, object], repository: Path) -> dict[str, object]:
@@ -237,7 +262,13 @@ def _write_execution_packets(
 def test_handoff_is_deterministic_content_addressed_and_topological(
     plan: dict[str, Any],
 ) -> None:
-    assert plan == handoff.build_handoff(REPO_ROOT, C0, C0)
+    assert plan == handoff.build_handoff(
+        REPO_ROOT,
+        C0,
+        C0,
+        prover_r0vm_sha256=FAKE_PROVER_R0VM_SHA256,
+        prover_r0vm_bytes=len(FAKE_PROVER_R0VM_RAW),
+    )
     assert plan["handoff_id"] == handoff.derive_handoff_id(plan)
     tasks = plan["tasks"]
     assert isinstance(tasks, list)
@@ -287,6 +318,151 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
     assert identity_state["command_template_available"] is True
     assert identity_state["execution_adapter_available"] is True
     handoff.validate_handoff(plan, REPO_ROOT)
+
+
+def test_compute_profile_change_ratchets_wire_family_and_rejects_v2_handoff(
+    plan: dict[str, Any],
+) -> None:
+    for schema in (
+        handoff.HANDOFF_SCHEMA,
+        handoff.RETURN_SCHEMA,
+        handoff.TASK_SCHEMA,
+        handoff.EXECUTION_PACKET_SCHEMA,
+        handoff.TASK_CAPTURE_SCHEMA,
+    ):
+        assert schema.endswith("/v3")
+
+    stale = copy.deepcopy(plan)
+    stale["schema"] = "zenodex/zrpf_remote_reproof_handoff/v2"
+    stale["handoff_id"] = handoff.derive_handoff_id(stale)
+    with pytest.raises(handoff.HandoffError, match="schema"):
+        handoff.validate_handoff(stale, REPO_ROOT)
+
+
+def test_prover_compute_profile_is_content_bound_and_every_prover_receives_r0vm(
+    tmp_path: Path,
+) -> None:
+    repo, chain = _ancestry_repo(tmp_path)
+    cpu = _plan_for_chain(repo, chain)
+    cuda = _plan_for_chain(
+        repo,
+        chain,
+        handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID,
+    )
+
+    assert cpu["prover_compute_profile_id"] == handoff.CPU_PROVER_COMPUTE_PROFILE_ID
+    assert cuda["prover_compute_profile_id"] == (
+        handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID
+    )
+    assert cpu["handoff_id"] != cuda["handoff_id"]
+    handoff.validate_handoff(cpu, repo)
+    handoff.validate_handoff(cuda, repo)
+
+    contracts = {
+        row["contract_id"]: row for row in cast(list[dict[str, Any]], cuda["artifact_contracts"])
+    }
+    for task in cast(list[dict[str, Any]], cuda["tasks"]):
+        input_roles = {
+            contracts[contract_id]["role"] for contract_id in task["input_artifact_contract_ids"]
+        }
+        if task["stage_id"] in handoff.PROVING_STAGE_IDS:
+            assert task["prover_compute_profile_id"] == (
+                handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID
+            )
+            assert "prover_r0vm" in input_roles
+        else:
+            assert task["prover_compute_profile_id"] == handoff.NO_PROVER_COMPUTE_PROFILE_ID
+
+    substituted = copy.deepcopy(cuda)
+    target = next(row for row in substituted["tasks"] if row["stage_id"] == "v6_l1_receipt")
+    target["prover_compute_profile_id"] = handoff.CPU_PROVER_COMPUTE_PROFILE_ID
+    target["task_id"] = handoff.derive_task_id(target)
+    substituted["handoff_id"] = handoff.derive_handoff_id(substituted)
+    with pytest.raises(handoff.HandoffError, match="governed source-derived plan"):
+        handoff.validate_handoff(substituted, repo)
+
+
+def test_cuda_profile_requires_one_explicit_non_cpu_prover_r0vm_identity(
+    tmp_path: Path,
+) -> None:
+    repo, chain = _ancestry_repo(tmp_path)
+    with pytest.raises(handoff.HandoffError, match="explicit prover r0vm"):
+        handoff.build_handoff(
+            repo,
+            chain[0],
+            chain[3],
+            prover_compute_profile_id=(
+                handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID
+            ),
+        )
+    with pytest.raises(handoff.HandoffError, match="CPU r0vm"):
+        handoff.build_handoff(
+            repo,
+            chain[0],
+            chain[3],
+            prover_compute_profile_id=(
+                handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID
+            ),
+            prover_r0vm_sha256=handoff.OFFICIAL_CPU_R0VM_SHA256,
+            prover_r0vm_bytes=handoff.OFFICIAL_CPU_R0VM_BYTES,
+        )
+
+
+def test_default_cpu_profile_binds_the_known_official_r0vm(tmp_path: Path) -> None:
+    repo, chain = _ancestry_repo(tmp_path)
+    candidate = handoff.build_handoff(repo, chain[0], chain[3])
+
+    assert candidate["prover_r0vm_expectation"] == {
+        "schema": handoff.PROVER_R0VM_EXPECTATION_SCHEMA,
+        "compute_profile_id": handoff.CPU_PROVER_COMPUTE_PROFILE_ID,
+        "sha256": handoff.OFFICIAL_CPU_R0VM_SHA256,
+        "size_bytes": handoff.OFFICIAL_CPU_R0VM_BYTES,
+        "source_to_binary_provenance_verified": False,
+        "live_accelerator_execution_verified": False,
+    }
+
+
+def test_prover_r0vm_bytes_must_match_the_handoff_expectation(tmp_path: Path) -> None:
+    repo, chain = _ancestry_repo(tmp_path)
+    expected_raw = b"different-expected-prover-r0vm"
+    candidate = handoff.build_handoff(
+        repo,
+        chain[0],
+        chain[3],
+        prover_compute_profile_id=handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID,
+        prover_r0vm_sha256=hashlib.sha256(expected_raw).hexdigest(),
+        prover_r0vm_bytes=len(expected_raw),
+    )
+    artifact_root = tmp_path / "artifacts"
+    _write_complete_artifacts(candidate, artifact_root, repo)
+
+    with pytest.raises(handoff.HandoffError, match="prover r0vm expectation"):
+        handoff.build_execution_packet(
+            candidate,
+            "source_spot_proof",
+            artifact_root,
+            repo,
+            c0_commit=chain[0],
+            c1_commit=chain[1],
+            c2_commit=chain[2],
+            governance_commit=chain[3],
+        )
+
+
+def test_r0vm_contracts_allow_real_binaries_without_broadening_default_artifacts(
+    plan: dict[str, Any],
+) -> None:
+    contracts = {row["role"]: row for row in cast(list[dict[str, Any]], plan["artifact_contracts"])}
+    known_official_r0vm_bytes = 108_998_816
+
+    assert contracts["r0vm"]["maximum_bytes"] == handoff.MAX_R0VM_EXECUTABLE_BYTES
+    assert contracts["prover_r0vm"]["maximum_bytes"] == handoff.MAX_R0VM_EXECUTABLE_BYTES
+    assert contracts["source_program"]["maximum_bytes"] == handoff.DEFAULT_ARTIFACT_BYTES
+    assert handoff._positive_int(known_official_r0vm_bytes, "known r0vm bytes") == (
+        known_official_r0vm_bytes
+    )
+    with pytest.raises(handoff.HandoffError, match="positive bound"):
+        handoff._positive_int(handoff.MAX_ARTIFACT_BYTES + 1, "oversized artifact")
 
 
 def test_mutation_task_binds_every_program_receipt_and_exact_runner(
@@ -455,6 +631,7 @@ def test_missing_adapter_receipt_blocks_v6_leaf(plan: dict[str, Any]) -> None:
             "identity_candidate_report",
             "identity_observations",
             "identity_plan",
+            "prover_r0vm",
             "r0vm",
             "source_cli",
             "source_program",

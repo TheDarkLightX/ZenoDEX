@@ -9,11 +9,19 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from tools import plan_zrpf_remote_reproof_handoff_v2 as handoff
+from tools.zrpf_remote_reproof_handoff_v2_catalog import (
+    CPU_PROVER_COMPUTE_PROFILE_ID,
+    CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID,
+    NO_PROVER_COMPUTE_PROFILE_ID,
+    PROVING_STAGE_IDS,
+)
 
-CAPTURE_SCHEMA = "zenodex/zrpf_remote_reproof_worker_capture/v2"
+CAPTURE_SCHEMA = "zenodex/zrpf_remote_reproof_worker_capture/v3"
 RESOURCE_POLICY_SCHEMA = "zenodex/zrpf_remote_reproof_worker_resource_policy/v2"
-CAPTURE_DOMAIN = b"zenodex/zrpf_remote_reproof_worker_capture_id/v2\0"
+PROVER_COMPUTE_PROFILE_SCHEMA = "zenodex/zrpf_remote_prover_compute_profile/v1"
+CAPTURE_DOMAIN = b"zenodex/zrpf_remote_reproof_worker_capture_id/v3\0"
 RESOURCE_POLICY_DOMAIN = b"zenodex/zrpf_remote_reproof_worker_resource_policy_id/v2\0"
+PROVER_COMPUTE_PROFILE_DOMAIN = b"zenodex/zrpf_remote_prover_compute_profile_id/v1\0"
 COMMAND_TEMPLATE_DOMAIN = b"zenodex/zrpf_remote_reproof_worker_command_template/v2\0"
 RESOLVED_ARGV_DOMAIN = b"zenodex/zrpf_remote_reproof_worker_resolved_argv/v2\0"
 ZERO_SHA256 = "0" * 64
@@ -35,6 +43,7 @@ WORKER_NON_CLAIMS = (
     "worker_does_not_provide_a_network_mount_or_hardware_sandbox",
     "worker_does_not_resist_a_malicious_same_uid_host_process",
     "worker_does_not_install_a_kernel_cgroup_or_process_count_limit",
+    "prover_compute_profile_does_not_attest_accelerator_identity_or_performance",
     "worker_does_not_grant_data_availability_finality_ledger_settlement_release_or_production_authority",
     "worker_does_not_atomically_publish_a_multi_stage_reproof_chain",
 )
@@ -83,6 +92,7 @@ CAPTURE_FIELDS = {
     "stage_id",
     "ordinal",
     "resource_policy",
+    "prover_compute_profile",
     "commands",
     "outputs",
     "authority",
@@ -134,6 +144,26 @@ class ResourcePolicy:
         return value
 
 
+@dataclass(frozen=True, slots=True)
+class ProverComputeProfile:
+    profile_id: str
+    risc0_prover: str | None
+    risc0_executor: str | None
+    cuda_visible_devices: str | None
+
+    def record(self) -> dict[str, object]:
+        value: dict[str, object] = {
+            "schema": PROVER_COMPUTE_PROFILE_SCHEMA,
+            "policy_id": ZERO_SHA256,
+            "profile_id": self.profile_id,
+            "risc0_prover": self.risc0_prover,
+            "risc0_executor": self.risc0_executor,
+            "cuda_visible_devices": self.cuda_visible_devices,
+        }
+        value["policy_id"] = _domain_digest(PROVER_COMPUTE_PROFILE_DOMAIN, value)
+        return value
+
+
 RESOURCE_POLICIES = {
     "light": ResourcePolicy(
         "light",
@@ -182,6 +212,27 @@ RESOURCE_POLICIES = {
     ),
 }
 
+PROVER_COMPUTE_PROFILES = {
+    NO_PROVER_COMPUTE_PROFILE_ID: ProverComputeProfile(
+        NO_PROVER_COMPUTE_PROFILE_ID,
+        risc0_prover=None,
+        risc0_executor=None,
+        cuda_visible_devices=None,
+    ),
+    CPU_PROVER_COMPUTE_PROFILE_ID: ProverComputeProfile(
+        CPU_PROVER_COMPUTE_PROFILE_ID,
+        risc0_prover="ipc",
+        risc0_executor="ipc",
+        cuda_visible_devices="-1",
+    ),
+    CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID: ProverComputeProfile(
+        CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID,
+        risc0_prover="ipc",
+        risc0_executor="ipc",
+        cuda_visible_devices="0",
+    ),
+}
+
 
 @dataclass(frozen=True, slots=True)
 class ArtifactContract:
@@ -218,6 +269,7 @@ class ValidatedStage:
     worker_tree: str
     c0_commit: str
     resource_policy: ResourcePolicy
+    prover_compute_profile: ProverComputeProfile
     commands: tuple[CommandTemplate, ...]
     inputs: tuple[ArtifactContract, ...]
     input_records: tuple[Mapping[str, object], ...]
@@ -289,6 +341,7 @@ def validate_stage_packet(
     root = _canonical_directory(artifact_root, "input artifact root")
     input_records = tuple(handoff._artifact_record(item.raw, root) for item in inputs)
     handoff._require_aggregate_artifact_bound(input_records)
+    handoff._require_task_prover_r0vm_expectation(document, task, input_records)
     expected_packet = handoff._execution_packet(
         task,
         source,
@@ -312,6 +365,28 @@ def validate_stage_packet(
         resource_policy = RESOURCE_POLICIES[resource_class]
     except KeyError as exc:
         raise WorkerError("task resource class is not governed") from exc
+    compute_profile_id = _bounded_string(
+        task.get("prover_compute_profile_id"),
+        "task prover compute profile",
+    )
+    try:
+        compute_profile = PROVER_COMPUTE_PROFILES[compute_profile_id]
+    except KeyError as exc:
+        raise WorkerError("task prover compute profile is not governed") from exc
+    expected_compute_profile_id = (
+        _bounded_string(
+            document.get("prover_compute_profile_id"),
+            "handoff prover compute profile",
+        )
+        if stage_id in PROVING_STAGE_IDS
+        else NO_PROVER_COMPUTE_PROFILE_ID
+    )
+    if compute_profile_id != expected_compute_profile_id:
+        raise WorkerError("task prover compute profile binding mismatch")
+    if compute_profile.risc0_prover is not None and not any(
+        contract.role == "prover_r0vm" and contract.kind == "executable" for contract in inputs
+    ):
+        raise WorkerError("prover task lacks the packet-bound prover r0vm executable")
     commands = tuple(
         _command_template(row)
         for row in _object_list(task.get("commands"), "task command templates")
@@ -328,6 +403,7 @@ def validate_stage_packet(
         worker_tree=_commit_id(source.get("worker_tree"), "worker tree"),
         c0_commit=_commit_id(source.get("c0_commit"), "C0 commit"),
         resource_policy=resource_policy,
+        prover_compute_profile=compute_profile,
         commands=commands,
         inputs=inputs,
         input_records=input_records,
@@ -377,6 +453,11 @@ def validate_capture_shape(
         capture.get("resource_policy"), stage.resource_policy.record()
     ):
         raise WorkerError("worker capture resource policy mismatch")
+    if not handoff._canonical_values_equal(
+        capture.get("prover_compute_profile"),
+        stage.prover_compute_profile.record(),
+    ):
+        raise WorkerError("worker capture prover compute profile mismatch")
     _require_false_authority(capture.get("authority"), "worker capture authority")
     if not handoff._canonical_values_equal(capture.get("non_claims"), list(WORKER_NON_CLAIMS)):
         raise WorkerError("worker capture non-claims mismatch")

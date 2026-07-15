@@ -29,22 +29,34 @@ if __package__ in {None, ""}:  # pragma: no cover - direct script execution
 
 from tools import plan_zrpf_source_opened_spot_v6_identity_rebuild as identity
 from tools import run_zrpf_remote_worker_prover_build_stage_v2 as worker_build
+from tools import zrpf_remote_reproof_handoff_v2_catalog as catalog
 from tools.zrpf_remote_reproof_handoff_v2_catalog import (
     ARTIFACT_SPECS,
+    CPU_PROVER_COMPUTE_PROFILE_ID,
     IDENTITY_RUN_ROOT,
     MAX_ARTIFACT_BYTES,
+    NO_PROVER_COMPUTE_PROFILE_ID,
+    PROVER_COMPUTE_PROFILE_IDS,
+    PROVING_STAGE_IDS,
     TASK_SPECS,
     CommandSpec,
     TaskSpec,
 )
 
-HANDOFF_SCHEMA = "zenodex/zrpf_remote_reproof_handoff/v2"
-RETURN_SCHEMA = "zenodex/zrpf_remote_reproof_return/v2"
-TASK_SCHEMA = "zenodex/zrpf_remote_reproof_task/v2"
-EXECUTION_PACKET_SCHEMA = "zenodex/zrpf_remote_reproof_execution_packet/v2"
+CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID = (
+    catalog.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID
+)
+DEFAULT_ARTIFACT_BYTES = catalog.DEFAULT_ARTIFACT_BYTES
+MAX_R0VM_EXECUTABLE_BYTES = catalog.MAX_R0VM_EXECUTABLE_BYTES
+
+HANDOFF_SCHEMA = "zenodex/zrpf_remote_reproof_handoff/v3"
+RETURN_SCHEMA = "zenodex/zrpf_remote_reproof_return/v3"
+TASK_SCHEMA = "zenodex/zrpf_remote_reproof_task/v3"
+EXECUTION_PACKET_SCHEMA = "zenodex/zrpf_remote_reproof_execution_packet/v3"
 ARTIFACT_CONTRACT_SCHEMA = "zenodex/zrpf_remote_reproof_artifact_contract/v2"
 ARTIFACT_RECORD_SCHEMA = "zenodex/zrpf_remote_reproof_artifact_record/v2"
-TASK_CAPTURE_SCHEMA = "zenodex/zrpf_remote_reproof_task_capture/v2"
+PROVER_R0VM_EXPECTATION_SCHEMA = "zenodex/zrpf_remote_prover_r0vm_expectation/v1"
+TASK_CAPTURE_SCHEMA = "zenodex/zrpf_remote_reproof_task_capture/v3"
 SOURCE_BINDING_SCHEMA = "zenodex/zrpf_remote_reproof_source_binding/v2"
 IDENTITY_BINDING_SCHEMA = "zenodex/zrpf_remote_reproof_identity_binding/v2"
 SUCCINCT_PROFILE_ID = "risc0_succinct_poseidon2_resolve_3_0_5_v1"
@@ -53,18 +65,20 @@ MAX_JSON_DEPTH = 48
 MAX_JSON_NODES = 65_536
 MAX_JSON_STRING_CHARS = 8_192
 MAX_JSON_INTEGER_DIGITS = 20
-MAX_TOTAL_ARTIFACT_BYTES = 512 * 1024 * 1024
+MAX_TOTAL_ARTIFACT_BYTES = 1024 * 1024 * 1024
+OFFICIAL_CPU_R0VM_BYTES = 108_998_816
+OFFICIAL_CPU_R0VM_SHA256 = "36c016a5bb2ded5bd1f8f92cc487e6ffaeb1e95ec05850c983081a0f716b515b"
 ZERO_SHA256 = "0" * 64
 
-HANDOFF_DOMAIN = b"zenodex/zrpf_remote_reproof_handoff_id/v2\0"
-TASK_DOMAIN = b"zenodex/zrpf_remote_reproof_task_id/v2\0"
+HANDOFF_DOMAIN = b"zenodex/zrpf_remote_reproof_handoff_id/v3\0"
+TASK_DOMAIN = b"zenodex/zrpf_remote_reproof_task_id/v3\0"
 ARTIFACT_CONTRACT_DOMAIN = b"zenodex/zrpf_remote_reproof_artifact_contract_id/v2\0"
 ARTIFACT_RECORD_DOMAIN = b"zenodex/zrpf_remote_reproof_artifact_id/v2\0"
 SOURCE_BINDING_DOMAIN = b"zenodex/zrpf_remote_reproof_source_binding_id/v2\0"
 IDENTITY_BINDING_DOMAIN = b"zenodex/zrpf_remote_reproof_identity_binding_id/v2\0"
-EXECUTION_PACKET_DOMAIN = b"zenodex/zrpf_remote_reproof_execution_packet_id/v2\0"
-TASK_CAPTURE_DOMAIN = b"zenodex/zrpf_remote_reproof_task_capture_id/v2\0"
-RETURN_DOMAIN = b"zenodex/zrpf_remote_reproof_return_id/v2\0"
+EXECUTION_PACKET_DOMAIN = b"zenodex/zrpf_remote_reproof_execution_packet_id/v3\0"
+TASK_CAPTURE_DOMAIN = b"zenodex/zrpf_remote_reproof_task_capture_id/v3\0"
+RETURN_DOMAIN = b"zenodex/zrpf_remote_reproof_return_id/v3\0"
 
 AUTHORITY_FIELDS = (
     "data_availability_authority",
@@ -85,6 +99,8 @@ NON_CLAIMS = (
     "command_templates_do_not_implement_a_bounded_remote_worker_or_output_stager",
     "inherited_identity_planner_git_capture_is_post_hoc_bounded_and_not_lazy_fetch_hardened",
     "worker_reported_program_image_ids_require_separate_governed_recomputation",
+    "prover_compute_profile_does_not_attest_accelerator_identity_or_performance",
+    "prover_r0vm_expectation_does_not_establish_source_to_binary_provenance_or_gpu_use",
     "literal_ancestry_does_not_grant_release_authority",
     "no_data_availability_finality_ledger_settlement_release_or_production_authority",
 )
@@ -330,10 +346,24 @@ def load_canonical_json(path: Path, label: str) -> object:
     return strict_json_loads(_stable_read(path, label, MAX_JSON_BYTES))
 
 
-def build_handoff(repo_root: Path, c0_commit: str, worker_commit: str) -> dict[str, object]:
+def build_handoff(
+    repo_root: Path,
+    c0_commit: str,
+    worker_commit: str,
+    *,
+    prover_compute_profile_id: str = CPU_PROVER_COMPUTE_PROFILE_ID,
+    prover_r0vm_sha256: str | None = None,
+    prover_r0vm_bytes: int | None = None,
+) -> dict[str, object]:
     root = repo_root.resolve(strict=True)
     c0 = _commit_id(c0_commit, "C0")
     worker = _commit_id(worker_commit, "worker commit")
+    compute_profile = _prover_compute_profile_id(prover_compute_profile_id)
+    prover_r0vm_expectation = _prover_r0vm_expectation(
+        compute_profile,
+        prover_r0vm_sha256,
+        prover_r0vm_bytes,
+    )
     rebuild = identity.build_plan(c0, IDENTITY_RUN_ROOT, repo_root=root)
     source = {
         "schema": SOURCE_BINDING_SCHEMA,
@@ -366,7 +396,7 @@ def build_handoff(repo_root: Path, c0_commit: str, worker_commit: str) -> dict[s
     contracts = _artifact_contracts()
     by_role: dict[str, Mapping[str, object]] = {str(row["role"]): row for row in contracts}
     tasks = [
-        _task(index, spec, source["source_binding_id"], by_role)
+        _task(index, spec, source["source_binding_id"], by_role, compute_profile)
         for index, spec in enumerate(TASK_SPECS)
     ]
     document: dict[str, object] = {
@@ -375,6 +405,8 @@ def build_handoff(repo_root: Path, c0_commit: str, worker_commit: str) -> dict[s
         "handoff_id": ZERO_SHA256,
         "source": source,
         "proof_profile_id": SUCCINCT_PROFILE_ID,
+        "prover_compute_profile_id": compute_profile,
+        "prover_r0vm_expectation": prover_r0vm_expectation,
         "required_literal_ancestry": ["C0", "C1", "C2", "G"],
         "artifact_contracts": contracts,
         "tasks": tasks,
@@ -407,6 +439,7 @@ def _task(
     spec: TaskSpec,
     source_binding_id: object,
     contracts: Mapping[str, Mapping[str, object]],
+    prover_compute_profile_id: str,
 ) -> dict[str, object]:
     command_specs = (
         *spec.pre_commands,
@@ -437,6 +470,11 @@ def _task(
         "depends_on": list(spec.depends_on),
         "source_binding_id": source_binding_id,
         "proof_profile_id": SUCCINCT_PROFILE_ID,
+        "prover_compute_profile_id": (
+            prover_compute_profile_id
+            if spec.stage_id in PROVING_STAGE_IDS
+            else NO_PROVER_COMPUTE_PROFILE_ID
+        ),
         "input_artifact_contract_ids": [contracts[role]["contract_id"] for role in spec.inputs],
         "output_artifact_contract_ids": [contracts[role]["contract_id"] for role in spec.outputs],
         "commands": commands,
@@ -482,7 +520,22 @@ def validate_handoff(document: Mapping[str, object], repo_root: Path) -> None:
         "worker_tree"
     ):
         raise HandoffError("worker source tree mismatch")
-    expected = build_handoff(root, str(source["c0_commit"]), str(source["worker_commit"]))
+    compute_profile = _prover_compute_profile_id(document.get("prover_compute_profile_id"))
+    prover_r0vm_expectation = _validated_prover_r0vm_expectation(
+        document.get("prover_r0vm_expectation")
+    )
+    expected = build_handoff(
+        root,
+        str(source["c0_commit"]),
+        str(source["worker_commit"]),
+        prover_compute_profile_id=compute_profile,
+        prover_r0vm_sha256=_hex(
+            prover_r0vm_expectation["sha256"], 64, "prover r0vm expectation SHA-256"
+        ),
+        prover_r0vm_bytes=_positive_int(
+            prover_r0vm_expectation["size_bytes"], "prover r0vm expectation bytes"
+        ),
+    )
     if not _canonical_values_equal(document, expected):
         tasks = document.get("tasks")
         if not isinstance(tasks, list) or [
@@ -578,6 +631,7 @@ def build_execution_packet(
         )
     ]
     _require_aggregate_artifact_bound(inputs)
+    _require_task_prover_r0vm_expectation(handoff, matching[0], inputs)
     row = _execution_packet(matching[0], source, ancestry, inputs)
     row["handoff_id"] = handoff["handoff_id"]
     row["execution_packet_id"] = derive_execution_packet_id(row)
@@ -626,6 +680,7 @@ def _execution_packets_from_records(
                 task.get("input_artifact_contract_ids"), "task input contract IDs"
             )
         ]
+        _require_task_prover_r0vm_expectation(handoff, task, inputs)
         row = _execution_packet(task, source, ancestry, inputs)
         row["handoff_id"] = handoff["handoff_id"]
         row["execution_packet_id"] = derive_execution_packet_id(row)
@@ -1426,6 +1481,88 @@ def _hex(value: object, length: int, label: str) -> str:
     return value
 
 
+def _prover_compute_profile_id(value: object) -> str:
+    if type(value) is not str or value not in PROVER_COMPUTE_PROFILE_IDS:
+        raise HandoffError("prover compute profile is not governed")
+    return value
+
+
+def _prover_r0vm_expectation(
+    compute_profile_id: str,
+    sha256: str | None,
+    size_bytes: int | None,
+) -> dict[str, object]:
+    if sha256 is None and size_bytes is None:
+        if compute_profile_id != CPU_PROVER_COMPUTE_PROFILE_ID:
+            raise HandoffError("CUDA compute profile requires one explicit prover r0vm identity")
+        sha256 = OFFICIAL_CPU_R0VM_SHA256
+        size_bytes = OFFICIAL_CPU_R0VM_BYTES
+    elif sha256 is None or size_bytes is None:
+        raise HandoffError("prover r0vm identity requires SHA-256 and byte length together")
+    digest = _hex(sha256, 64, "prover r0vm SHA-256")
+    bounded_size = _positive_int(size_bytes, "prover r0vm bytes")
+    if (
+        compute_profile_id == CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID
+        and digest == OFFICIAL_CPU_R0VM_SHA256
+        and bounded_size == OFFICIAL_CPU_R0VM_BYTES
+    ):
+        raise HandoffError("CUDA compute profile cannot select the known official CPU r0vm")
+    return {
+        "schema": PROVER_R0VM_EXPECTATION_SCHEMA,
+        "compute_profile_id": compute_profile_id,
+        "sha256": digest,
+        "size_bytes": bounded_size,
+        "source_to_binary_provenance_verified": False,
+        "live_accelerator_execution_verified": False,
+    }
+
+
+def _validated_prover_r0vm_expectation(value: object) -> Mapping[str, object]:
+    row = _object(value, "prover r0vm expectation")
+    _require_exact_fields(
+        row,
+        {
+            "schema",
+            "compute_profile_id",
+            "sha256",
+            "size_bytes",
+            "source_to_binary_provenance_verified",
+            "live_accelerator_execution_verified",
+        },
+        "prover r0vm expectation",
+    )
+    if row.get("schema") != PROVER_R0VM_EXPECTATION_SCHEMA:
+        raise HandoffError("prover r0vm expectation schema mismatch")
+    profile_id = _prover_compute_profile_id(row.get("compute_profile_id"))
+    expected = _prover_r0vm_expectation(
+        profile_id,
+        _hex(row.get("sha256"), 64, "prover r0vm expectation SHA-256"),
+        _positive_int(row.get("size_bytes"), "prover r0vm expectation bytes"),
+    )
+    if not _canonical_values_equal(row, expected):
+        raise HandoffError("prover r0vm expectation is not canonical and authority-false")
+    return row
+
+
+def _require_task_prover_r0vm_expectation(
+    document: Mapping[str, object],
+    task: Mapping[str, object],
+    inputs: Sequence[Mapping[str, object]],
+) -> None:
+    stage_id = _nonempty_string(task.get("stage_id"), "task stage ID")
+    if stage_id not in PROVING_STAGE_IDS:
+        return
+    expectation = _validated_prover_r0vm_expectation(document.get("prover_r0vm_expectation"))
+    matches = [row for row in inputs if row.get("role") == "prover_r0vm"]
+    if len(matches) != 1:
+        raise HandoffError("proving task lacks one exact prover r0vm record")
+    observed = matches[0]
+    if observed.get("sha256") != expectation.get("sha256") or observed.get(
+        "size_bytes"
+    ) != expectation.get("size_bytes"):
+        raise HandoffError("prover r0vm expectation differs from exact task input bytes")
+
+
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1433,6 +1570,13 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     plan.add_argument("--repository", type=Path, required=True)
     plan.add_argument("--c0-commit", required=True)
     plan.add_argument("--worker-commit", required=True)
+    plan.add_argument(
+        "--prover-compute-profile",
+        choices=PROVER_COMPUTE_PROFILE_IDS,
+        default=CPU_PROVER_COMPUTE_PROFILE_ID,
+    )
+    plan.add_argument("--prover-r0vm-sha256")
+    plan.add_argument("--prover-r0vm-bytes", type=int)
     plan.add_argument("--output", type=Path, required=True)
     prepare = subparsers.add_parser("prepare-task")
     prepare.add_argument("--repository", type=Path, required=True)
@@ -1467,7 +1611,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
     try:
         if args.command == "plan":
-            document = build_handoff(args.repository, args.c0_commit, args.worker_commit)
+            document = build_handoff(
+                args.repository,
+                args.c0_commit,
+                args.worker_commit,
+                prover_compute_profile_id=args.prover_compute_profile,
+                prover_r0vm_sha256=args.prover_r0vm_sha256,
+                prover_r0vm_bytes=args.prover_r0vm_bytes,
+            )
             _write_new(args.output, canonical_json_bytes(document), "handoff output")
         elif args.command == "prepare-task":
             handoff = _object(load_canonical_json(args.handoff, "handoff"), "handoff")

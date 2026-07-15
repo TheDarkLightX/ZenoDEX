@@ -25,6 +25,7 @@ from tools.zrpf_remote_reproof_worker_v2_contract import (
     CAPTURE_SCHEMA,
     WORKER_NON_CLAIMS,
     CommandTemplate,
+    ProverComputeProfile,
     ResourcePolicy,
     ValidatedStage,
     WorkerError,
@@ -36,10 +37,14 @@ from tools.zrpf_remote_reproof_worker_v2_contract import (
     validate_worker_checkout,
 )
 from tools.zrpf_remote_reproof_worker_v2_contract import (
+    PROVER_COMPUTE_PROFILES as _PROVER_COMPUTE_PROFILES,
+)
+from tools.zrpf_remote_reproof_worker_v2_contract import (
     RESOURCE_POLICIES as _RESOURCE_POLICIES,
 )
 
 RESOURCE_POLICIES = _RESOURCE_POLICIES
+PROVER_COMPUTE_PROFILES = _PROVER_COMPUTE_PROFILES
 MAX_RUN_TREE_ENTRIES = 1024
 MAX_RUNNER_BYTES = 128 * 1024 * 1024
 FIXED_RUNNERS = {"python3": Path("/usr/bin/python3")}
@@ -62,7 +67,12 @@ class ProcessResult:
     duration_milliseconds: int
 
 
-def clean_environment(home: Path, risc0_home: Path | None) -> dict[str, str]:
+def clean_environment(
+    home: Path,
+    risc0_home: Path | None,
+    compute_profile: ProverComputeProfile,
+    r0vm: Path | None,
+) -> dict[str, str]:
     environment = {
         "HOME": str(home),
         "LC_ALL": "C",
@@ -72,6 +82,16 @@ def clean_environment(home: Path, risc0_home: Path | None) -> dict[str, str]:
     }
     if risc0_home is not None:
         environment["RISC0_HOME"] = str(risc0_home)
+    if compute_profile.risc0_prover is not None:
+        if r0vm is None or not r0vm.is_absolute() or not r0vm.is_file():
+            raise WorkerError("prover compute profile requires one packet-bound r0vm")
+        environment["RISC0_PROVER"] = compute_profile.risc0_prover
+        if compute_profile.risc0_executor is None:
+            raise WorkerError("prover compute profile lacks an executor")
+        environment["RISC0_EXECUTOR"] = compute_profile.risc0_executor
+        environment["RISC0_SERVER_PATH"] = str(r0vm)
+        if compute_profile.cuda_visible_devices is not None:
+            environment["CUDA_VISIBLE_DEVICES"] = compute_profile.cuda_visible_devices
     return environment
 
 
@@ -92,8 +112,14 @@ def execute_stage(
     input_root, output_root, home = _create_private_run_root(run_root)
     input_paths = _snapshot_inputs(stage, artifact_root, input_root)
     output_paths = _prepare_output_paths(stage, output_root)
-    risc0_home = input_paths["r0vm"].parent.parent if "r0vm" in input_paths else None
-    environment = clean_environment(home, risc0_home)
+    r0vm = input_paths.get("prover_r0vm")
+    risc0_home = r0vm.parent.parent if r0vm is not None else None
+    environment = clean_environment(
+        home,
+        risc0_home,
+        stage.prover_compute_profile,
+        r0vm,
+    )
     command_captures: list[dict[str, object]] = []
 
     for ordinal, template in enumerate(stage.commands):
@@ -142,6 +168,7 @@ def execute_stage(
         "stage_id": stage.stage_id,
         "ordinal": stage.ordinal,
         "resource_policy": stage.resource_policy.record(),
+        "prover_compute_profile": stage.prover_compute_profile.record(),
         "commands": command_captures,
         "outputs": output_records,
         "authority": false_authority(),

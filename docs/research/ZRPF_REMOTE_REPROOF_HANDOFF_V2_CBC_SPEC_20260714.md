@@ -6,6 +6,18 @@ stages. The identity rebuild, worker prover-build, and exact mutation adapters
 are implemented. The bundle-aware release checker command template remains
 planned.
 
+## Compute-profile protocol ratchet
+
+The implementation filenames retain `v2` so the focused worker stack remains
+one reviewable incremental change. Adding governed compute selection, the
+separate proving `r0vm`, and its exact byte expectation changes acceptance-
+relevant fields. The emitted handoff, task, execution-packet, task-capture,
+return, and worker-capture schemas and identity domains are therefore V3.
+
+All earlier V2 handoffs, packets, task captures, return bundles, and worker
+captures are revoked. They must be regenerated. V3 checkers reject V2 objects
+by schema before treating any content as current evidence.
+
 The closed task/artifact catalog lives in
 `tools/zrpf_remote_reproof_handoff_v2_catalog.py`. Parsing, content addressing,
 Git ancestry, capture, and return validation live in
@@ -103,6 +115,13 @@ exact C0 source identity
 The task packet, worker, artifact paths, reports, commit messages, and supplied
 program image IDs can propose facts. None can grant proof or settlement
 authority.
+
+The default single-artifact ceiling is 64 MiB. The separately declared
+identity and proving `r0vm` executables each allow at most 512 MiB because the
+official RISC Zero 3.0.5 release binary is 108,998,816 bytes and a CUDA build
+may be larger. Collection and return checking retain a 1 GiB aggregate ceiling.
+The real final bundle must be measured before dispatch; fitting the individual
+contracts does not imply that the aggregate cap is satisfied.
 
 ## Bounded task DAG
 
@@ -255,6 +274,7 @@ stage and ordinal
 dependency stages
 source-binding ID
 proof-profile ID
+prover-compute-profile ID
 input artifact-contract IDs
 output artifact-contract IDs
 ordered command invocations
@@ -267,6 +287,32 @@ false authority map
 non-claims
 task ID
 ```
+
+The handoff fixes either `risc0_ipc_cpu_v1` or
+`risc0_ipc_cuda_single_visible_device_build_request_v1` for all seven proving
+stages. Every such
+stage also consumes the exact, separately content-addressed `prover_r0vm`
+input. The identity-rebuild r0vm remains separately pinned. This prevents an
+operator environment from silently selecting an in-process prover, another
+`r0vm`, Bonsai, or another visible GPU. Compute selection
+changes the handoff and task IDs. It does not change proof semantics or grant
+performance, proof, release, settlement, or production authority.
+
+The CUDA selection records intent and exact environment only. It is not
+accelerator evidence. A paid H100 run additionally requires a governed CUDA
+`r0vm` build record and a bounded live GPU-use preflight. Until those exist,
+CPU execution under the CUDA request remains possible and the performance
+claim remains false.
+
+The handoff also commits one exact `prover_r0vm` SHA-256 and byte length. The
+CPU profile defaults to the reviewed official RISC Zero 3.0.5 CPU binary. The
+CUDA profile requires both values explicitly and rejects that known CPU-binary
+identity. Task preparation and worker validation rehash the actual input bytes
+and require them to equal the handoff expectation. This closes accidental
+binary substitution. A different digest does not prove that the binary was
+built from the governed CUDA source or that it used a GPU, so both provenance
+and accelerator-use claims remain false until their separate evidence gates
+pass.
 
 The command records are execution templates. `@name` values are typed
 substitutions interpreted only by the bounded worker for a stage whose

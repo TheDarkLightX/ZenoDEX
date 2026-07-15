@@ -17,11 +17,13 @@ from tools import run_zrpf_remote_reproof_worker_v2 as worker
 
 
 def _stage_context(
-    tmp_path: Path, stage_id: str = "v6_l1_receipt"
+    tmp_path: Path,
+    stage_id: str = "v6_l1_receipt",
+    prover_compute_profile_id: str = handoff.CPU_PROVER_COMPUTE_PROFILE_ID,
 ) -> tuple[Path, list[str], dict[str, Any], Path, Path, dict[str, Any]]:
     repo, chain = handoff_fixture._ancestry_repo(tmp_path)
     subprocess.run(["git", "-C", str(repo), "reset", "--hard", "-q", chain[3]], check=True)
-    plan = handoff_fixture._plan_for_chain(repo, chain)
+    plan = handoff_fixture._plan_for_chain(repo, chain, prover_compute_profile_id)
     artifact_root = tmp_path / "artifacts"
     handoff_fixture._write_complete_artifacts(plan, artifact_root, repo)
     packet_directory = tmp_path / "packets"
@@ -69,6 +71,9 @@ def test_worker_executes_exact_packet_into_clean_output_stage(
     assert isinstance(packet, dict)
     assert capture["capture_id"] == worker.derive_capture_id(capture)
     assert capture["authority"] == worker.false_authority()
+    assert capture["prover_compute_profile"]["profile_id"] == (
+        handoff.CPU_PROVER_COMPUTE_PROFILE_ID
+    )
     assert [row["role"] for row in capture["outputs"]] == [
         "v6_l1_receipt",
         "v6_l1_report",
@@ -83,6 +88,25 @@ def test_worker_executes_exact_packet_into_clean_output_stage(
         artifact_root,
         run_root,
     )
+
+
+def test_compute_profile_change_ratchets_worker_capture_and_rejects_v2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert worker.CAPTURE_SCHEMA.endswith("/v3")
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/06-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    stale = copy.deepcopy(capture)
+    stale["schema"] = "zenodex/zrpf_remote_reproof_worker_capture/v2"
+    stale["capture_id"] = worker.derive_capture_id(stale)
+    stage = worker.validate_stage_packet(plan, packet, repo, artifact_root)
+    with pytest.raises(worker.WorkerError, match="schema"):
+        worker.validate_capture_shape(stale, stage)
+    assert (run_root / "outputs/proofs/v6_l1_receipt.json").is_file()
 
 
 def test_cli_writes_one_content_addressed_capture(
@@ -129,6 +153,132 @@ def test_command_and_resource_class_substitution_reject(tmp_path: Path) -> None:
     substituted["handoff_id"] = handoff.derive_handoff_id(substituted)
     with pytest.raises(handoff.HandoffError, match="governed source-derived plan"):
         worker.execute_stage(substituted, packet, repo, artifact_root, tmp_path / "run")
+
+
+@pytest.mark.parametrize(
+    ("profile_id", "expected_cuda_visible_devices"),
+    (
+        (handoff.CPU_PROVER_COMPUTE_PROFILE_ID, "-1"),
+        (handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID, "0"),
+    ),
+)
+def test_prover_compute_environment_is_exact_and_capture_bound(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    profile_id: str,
+    expected_cuda_visible_devices: str | None,
+) -> None:
+    repo, _chain, plan, artifact_root, _packet_path, packet = _stage_context(
+        tmp_path,
+        prover_compute_profile_id=profile_id,
+    )
+    run_root = tmp_path / "run"
+    seen_environment: dict[str, str] = {}
+
+    def capture_environment(
+        command: worker.ResolvedCommand,
+        policy: worker.ResourcePolicy,
+        environment: dict[str, str],
+        cwd: Path,
+    ) -> worker.ProcessResult:
+        seen_environment.update(environment)
+        return _fake_v6_l1_success(command, policy, environment, cwd)
+
+    monkeypatch.setattr(worker, "_run_bounded_command", capture_environment)
+    capture = worker.execute_stage(plan, packet, repo, artifact_root, run_root)
+
+    assert seen_environment["RISC0_PROVER"] == "ipc"
+    assert seen_environment["RISC0_EXECUTOR"] == "ipc"
+    assert seen_environment["RISC0_SERVER_PATH"] == str(
+        run_root / "inputs/inputs/prover-risc0-home/bin/r0vm"
+    )
+    assert seen_environment.get("CUDA_VISIBLE_DEVICES") == expected_cuda_visible_devices
+    assert "RISC0_DEFAULT_PROVER_NUM_GPUS" not in seen_environment
+    assert capture["prover_compute_profile"]["profile_id"] == profile_id
+    worker.validate_worker_capture(
+        plan,
+        packet,
+        capture,
+        repo,
+        artifact_root,
+        run_root,
+    )
+
+    substituted = copy.deepcopy(capture)
+    substituted["prover_compute_profile"] = dict(capture["prover_compute_profile"])
+    substituted["prover_compute_profile"]["profile_id"] = (
+        handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID
+        if profile_id == handoff.CPU_PROVER_COMPUTE_PROFILE_ID
+        else handoff.CPU_PROVER_COMPUTE_PROFILE_ID
+    )
+    substituted["capture_id"] = worker.derive_capture_id(substituted)
+    with pytest.raises(worker.WorkerError, match="compute profile"):
+        worker.validate_worker_capture(
+            plan,
+            packet,
+            substituted,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+
+@pytest.mark.parametrize(
+    ("profile_id", "expected_cuda_visible_devices"),
+    (
+        (handoff.CPU_PROVER_COMPUTE_PROFILE_ID, "-1"),
+        (handoff.CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID, "0"),
+    ),
+)
+def test_ambient_cuda_device_selection_never_enters_worker_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    profile_id: str,
+    expected_cuda_visible_devices: str,
+) -> None:
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "7")
+    monkeypatch.setenv("RISC0_PROVER", "bonsai")
+    monkeypatch.setenv("RISC0_EXECUTOR", "local")
+    monkeypatch.setenv("RISC0_SERVER_PATH", "/bin/true")
+    monkeypatch.setenv("RISC0_DEFAULT_PROVER_NUM_GPUS", "8")
+    monkeypatch.setenv("RISC0_DEV_MODE", "1")
+    monkeypatch.setenv("BONSAI_API_URL", "https://example.invalid")
+    monkeypatch.setenv("BONSAI_API_KEY", "must-not-cross-boundary")
+    home = tmp_path / "home"
+    home.mkdir()
+    r0vm = tmp_path / "r0vm"
+    r0vm.write_bytes(b"packet-bound-r0vm")
+
+    environment = worker.clean_environment(
+        home,
+        None,
+        worker.PROVER_COMPUTE_PROFILES[profile_id],
+        r0vm,
+    )
+
+    assert environment["CUDA_VISIBLE_DEVICES"] == expected_cuda_visible_devices
+    assert environment["RISC0_PROVER"] == "ipc"
+    assert environment["RISC0_EXECUTOR"] == "ipc"
+    assert environment["RISC0_SERVER_PATH"] == str(r0vm)
+    for forbidden in (
+        "RISC0_DEFAULT_PROVER_NUM_GPUS",
+        "RISC0_DEV_MODE",
+        "BONSAI_API_URL",
+        "BONSAI_API_KEY",
+    ):
+        assert forbidden not in environment
+
+
+def test_prover_profile_rejects_missing_packet_r0vm(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    with pytest.raises(worker.WorkerError, match="r0vm"):
+        worker.clean_environment(
+            home,
+            None,
+            worker.PROVER_COMPUTE_PROFILES[handoff.CPU_PROVER_COMPUTE_PROFILE_ID],
+            None,
+        )
 
 
 def test_packet_boolean_integer_aliasing_rejects(tmp_path: Path) -> None:
@@ -226,7 +376,12 @@ def test_timeout_and_capture_bounds_fail_closed(tmp_path: Path) -> None:
         worker._run_bounded_command(
             sleeping,
             timeout_policy,
-            worker.clean_environment(home, None),
+            worker.clean_environment(
+                home,
+                None,
+                worker.PROVER_COMPUTE_PROFILES[handoff.NO_PROVER_COMPUTE_PROFILE_ID],
+                None,
+            ),
             tmp_path,
         )
 
@@ -242,7 +397,12 @@ def test_timeout_and_capture_bounds_fail_closed(tmp_path: Path) -> None:
         worker._run_bounded_command(
             noisy,
             noisy_policy,
-            worker.clean_environment(home, None),
+            worker.clean_environment(
+                home,
+                None,
+                worker.PROVER_COMPUTE_PROFILES[handoff.NO_PROVER_COMPUTE_PROFILE_ID],
+                None,
+            ),
             tmp_path,
         )
 
@@ -274,7 +434,12 @@ def test_timeout_kills_descendant_that_retains_process_group_pipes(tmp_path: Pat
         worker._run_bounded_command(
             command,
             policy,
-            worker.clean_environment(home, None),
+            worker.clean_environment(
+                home,
+                None,
+                worker.PROVER_COMPUTE_PROFILES[handoff.NO_PROVER_COMPUTE_PROFILE_ID],
+                None,
+            ),
             tmp_path,
         )
 
@@ -313,7 +478,12 @@ def test_nonzero_exit_rejects(tmp_path: Path) -> None:
         worker._run_bounded_command(
             command,
             worker.RESOURCE_POLICIES["light"],
-            worker.clean_environment(home, None),
+            worker.clean_environment(
+                home,
+                None,
+                worker.PROVER_COMPUTE_PROFILES[handoff.NO_PROVER_COMPUTE_PROFILE_ID],
+                None,
+            ),
             tmp_path,
         )
 
