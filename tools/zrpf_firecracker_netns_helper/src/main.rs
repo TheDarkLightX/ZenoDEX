@@ -23,6 +23,10 @@ fn run() -> Result<(), zenodex_zrpf_firecracker_netns_helper_v1::NetnsHelperErro
         .map_err(|_| zenodex_zrpf_firecracker_netns_helper_v1::NetnsHelperErrorV1::IoRejected)?;
     let mut kernel = LinuxNetnsKernelV1::new()?;
     let response = execute_request_with_kernel_v1(&request, &mut kernel)?;
+    // This fixed 256-byte binary protocol response contains only bounded
+    // observations and SHA-256 commitments. It contains no namespace path or
+    // name bytes, and stdout is the helper ABI rather than a diagnostic log.
+    // codeql[rust/cleartext-logging]
     std::io::stdout()
         .write_all(&response)
         .and_then(|()| std::io::stdout().flush())

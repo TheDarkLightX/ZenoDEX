@@ -13,7 +13,7 @@ import stat
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, cast, final
 
 from tools import zrpf_v3_firecracker_cgroup_io as cgroup_io
 from tools.zrpf_v3_firecracker_cgroup_contract import (
@@ -38,9 +38,16 @@ __all__ = [
     "authority_nonclaims",
     "create_cgroup_leaf",
     "create_cgroup_leaf_from_request",
+    "is_canonical_absolute_path_v1",
     "require_cgroup_leaf_absent_from_request",
+    "snapshot_cgroup_create_request_v1",
+    "validate_cgroup_create_request_v1",
     "validate_jailer_cgroup_arguments",
 ]
+
+_HOST_PATH_CHARACTERS_V1 = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +57,7 @@ class CgroupLeafIdentityV1:
     inode: int
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class CgroupCreateRequestV1:
     cgroup_mount: Path
@@ -59,6 +67,86 @@ class CgroupCreateRequestV1:
     mountinfo_path: Path = Path("/proc/self/mountinfo")
     proc_root: Path = Path("/proc")
     trusted_uid: int = 0
+
+    def __post_init__(self) -> None:
+        validate_cgroup_create_request_v1(self)
+
+
+def validate_cgroup_create_request_v1(request: object) -> CgroupCreateRequestV1:
+    """Revalidate one exact immutable request before any filesystem effect.
+
+    Frozen dataclasses are a useful ordinary-code boundary, but hostile code in
+    the same interpreter can still use ``object.__setattr__``.  Every effectful
+    entrypoint therefore calls this function again before opening a path.
+    """
+
+    if type(request) is not CgroupCreateRequestV1:
+        raise CgroupV2Reject("cgroup_request_type_invalid")
+    for path in (request.cgroup_mount, request.mountinfo_path, request.proc_root):
+        if not is_canonical_absolute_path_v1(path):
+            raise CgroupV2Reject("cgroup_request_path_invalid")
+    if type(request.parent_relative_path) is not str:
+        raise CgroupV2Reject("cgroup_parent_path_invalid")
+    relative_components(request.parent_relative_path)
+    if type(request.leaf_name) is not str:
+        raise CgroupV2Reject("cgroup_leaf_name_invalid")
+    require_leaf_name(request.leaf_name)
+    _snapshot_cgroup_limits_v1(request.limits)
+    if type(request.trusted_uid) is not int or not 0 <= request.trusted_uid < (1 << 31):
+        raise CgroupV2Reject("cgroup_request_trusted_uid_invalid")
+    return request
+
+
+def snapshot_cgroup_create_request_v1(request: object) -> CgroupCreateRequestV1:
+    """Copy one revalidated request so later caller mutation cannot reach effects."""
+
+    validated = validate_cgroup_create_request_v1(request)
+    return CgroupCreateRequestV1(
+        cgroup_mount=validated.cgroup_mount,
+        parent_relative_path=validated.parent_relative_path,
+        leaf_name=validated.leaf_name,
+        limits=_snapshot_cgroup_limits_v1(validated.limits),
+        mountinfo_path=validated.mountinfo_path,
+        proc_root=validated.proc_root,
+        trusted_uid=validated.trusted_uid,
+    )
+
+
+def _snapshot_cgroup_limits_v1(limits: object) -> CgroupLimitsV1:
+    if not isinstance(limits, CgroupLimitsV1) or limits.__class__ is not CgroupLimitsV1:
+        raise CgroupV2Reject("cgroup_request_limits_invalid")
+    exact = cast(CgroupLimitsV1, limits)
+    return CgroupLimitsV1(
+        cpu_quota_us=exact.cpu_quota_us,
+        cpu_period_us=exact.cpu_period_us,
+        cpuset_cpus=exact.cpuset_cpus,
+        cpuset_mems=exact.cpuset_mems,
+        io_max=exact.io_max,
+        memory_high_bytes=exact.memory_high_bytes,
+        memory_max_bytes=exact.memory_max_bytes,
+        memory_swap_max_bytes=exact.memory_swap_max_bytes,
+        pids_max=exact.pids_max,
+    )
+
+
+def is_canonical_absolute_path_v1(value: object) -> bool:
+    """Recognize one bounded, ASCII-safe host-native absolute path."""
+
+    if type(value) is not type(Path()):
+        return False
+    checked = value
+    rendered = checked.as_posix()
+    return (
+        checked.is_absolute()
+        and 1 <= len(rendered) <= 4096
+        and not rendered.startswith("//")
+        and all(
+            part not in {".", ".."}
+            and 1 <= len(part) <= 255
+            and all(character in _HOST_PATH_CHARACTERS_V1 for character in part)
+            for part in checked.parts[1:]
+        )
+    )
 
 
 class CgroupLeafV1:
@@ -285,7 +373,7 @@ def create_cgroup_leaf(
 def create_cgroup_leaf_from_request(request: CgroupCreateRequestV1) -> CgroupLeafV1:
     """Create and verify one exact fresh leaf under a prepared cgroup-v2 parent."""
 
-    require_leaf_name(request.leaf_name)
+    request = snapshot_cgroup_create_request_v1(request)
     components = relative_components(request.parent_relative_path)
     mount_fd = cgroup_io.open_trusted_directory(
         request.cgroup_mount,
@@ -311,9 +399,7 @@ def create_cgroup_leaf_from_request(request: CgroupCreateRequestV1) -> CgroupLea
 def require_cgroup_leaf_absent_from_request(request: CgroupCreateRequestV1) -> None:
     """Require descriptor-safely that one exact requested leaf is absent."""
 
-    if type(request) is not CgroupCreateRequestV1:
-        raise CgroupV2Reject("cgroup_absence_request_invalid")
-    require_leaf_name(request.leaf_name)
+    request = snapshot_cgroup_create_request_v1(request)
     components = relative_components(request.parent_relative_path)
     mount_fd = cgroup_io.open_trusted_directory(
         request.cgroup_mount,

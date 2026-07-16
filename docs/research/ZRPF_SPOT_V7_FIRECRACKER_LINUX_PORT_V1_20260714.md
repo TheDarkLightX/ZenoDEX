@@ -63,8 +63,10 @@ The request is exactly 512 bytes and the response is exactly 256 bytes. Both
 use big-endian integers, fixed tags, zero flags, zero reserved regions, bounded
 root/name slots, and a final SHA-256 checksum. Successful responses additionally
 bind the complete request digest and the separate root and name digests. The
-helper emits no JSON. The fixed binary ABI removes duplicate-key, number-width,
-and canonical-JSON ambiguity from this privileged boundary.
+helper emits no JSON and emits no cleartext namespace root or namespace name.
+An active fixture checks both omissions. The fixed binary ABI removes
+duplicate-key, number-width, and canonical-JSON ambiguity from this privileged
+boundary.
 
 The helper accepts only effective UID zero. It walks the namespace root one
 component at a time with `O_NOFOLLOW`, requires root ownership, rejects

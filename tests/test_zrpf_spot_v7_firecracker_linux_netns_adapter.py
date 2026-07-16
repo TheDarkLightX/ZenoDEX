@@ -25,6 +25,24 @@ DEVICE = 0x0102030405060708
 INODE = 0x1112131415161718
 
 
+@pytest.mark.parametrize(
+    "executable",
+    (
+        Path("relative/netns-helper"),
+        Path("/opt/zenodex/../attacker/netns-helper"),
+        Path("/opt/zenodex/unsafe helper"),
+    ),
+)
+def test_adapter_rejects_noncanonical_executable_path(executable: Path) -> None:
+    with pytest.raises(adapter.LinuxNetnsAdapterRejectedV1) as captured:
+        adapter.PinnedLinuxSpotV7NetworkNamespaceKernelV1(
+            executable=executable,
+            expected_sha256="a7" * 32,
+        )
+
+    assert captured.value.code is adapter.LinuxNetnsAdapterRejectV1.EXECUTABLE_INVALID
+
+
 def _fixture_request() -> bytes:
     return adapter._encode_request_v1(
         operation=adapter.NetnsHelperOperationV1.INSPECT,
@@ -368,9 +386,12 @@ def test_process_group_is_killed_before_exited_leader_is_reaped(
         "killpg",
         lambda pid, sig: events.append(("killpg", pid, sig)),
     )
-    assert helper_process._kill_process_group_before_reap(
-        cast("subprocess.Popen[bytes]", UnreapedExitedLeader())
-    ) == 0
+    assert (
+        helper_process._kill_process_group_before_reap(
+            cast("subprocess.Popen[bytes]", UnreapedExitedLeader())
+        )
+        == 0
+    )
     assert events == [
         ("killpg", 701, signal.SIGKILL),
         ("wait", 701, None),
@@ -476,9 +497,7 @@ def test_static_elf_gate_accepts_no_interpreter_and_rejects_interp_or_needed(
         ("needed.elf", 2, 1),
     ):
         rejected = tmp_path / name
-        rejected.write_bytes(
-            _elf_fixture(program_type=program_type, dynamic_tag=dynamic_tag)
-        )
+        rejected.write_bytes(_elf_fixture(program_type=program_type, dynamic_tag=dynamic_tag))
         with rejected.open("rb") as stream:
             with pytest.raises(adapter.LinuxNetnsAdapterRejectedV1):
                 helper_process._require_static_host_elf(stream.fileno())
@@ -498,9 +517,7 @@ def _assert_response_rejected(response: bytes, request: bytes) -> None:
 def _elf_fixture(*, program_type: int, dynamic_tag: int) -> bytes:
     header = bytearray(64)
     header[0:6] = b"\x7fELF\x02\x01"
-    header[18:20] = (62 if os.uname().machine == "x86_64" else 183).to_bytes(
-        2, "little"
-    )
+    header[18:20] = (62 if os.uname().machine == "x86_64" else 183).to_bytes(2, "little")
     header[32:40] = (64).to_bytes(8, "little")
     header[54:56] = (56).to_bytes(2, "little")
     header[56:58] = (1).to_bytes(2, "little")

@@ -31,6 +31,7 @@ from tools.zrpf_firecracker_linux_netns_protocol import (
 from tools.zrpf_firecracker_linux_netns_protocol import (
     parse_response_v1 as _parse_response_v1,
 )
+from tools.zrpf_v3_firecracker_cgroup_v2 import is_canonical_absolute_path_v1
 from tools.zrpf_v3_firecracker_netns import PinnedNetworkNamespaceV1
 
 LINUX_NETNS_HELPER_LIVE_EXECUTION_VERIFIED_V1 = False
@@ -49,10 +50,8 @@ class PinnedLinuxSpotV7NetworkNamespaceKernelV1:
     __slots__ = ("_executable", "_expected_sha256", "_identities")
 
     def __init__(self, *, executable: Path, expected_sha256: str) -> None:
-        if not isinstance(executable, Path) or not executable.is_absolute():
-            raise LinuxNetnsAdapterRejectedV1(
-                LinuxNetnsAdapterRejectV1.EXECUTABLE_INVALID
-            )
+        if not is_canonical_absolute_path_v1(executable):
+            raise LinuxNetnsAdapterRejectedV1(LinuxNetnsAdapterRejectV1.EXECUTABLE_INVALID)
         _require_sha256_hex(expected_sha256)
         self._executable = executable
         self._expected_sha256 = expected_sha256
@@ -80,9 +79,7 @@ class PinnedLinuxSpotV7NetworkNamespaceKernelV1:
         _require_root(trusted_uid)
         path = _namespace_path(namespace_root, namespace_name)
         if path in self._identities:
-            raise LinuxNetnsAdapterRejectedV1(
-                LinuxNetnsAdapterRejectV1.BINDING_MISMATCH
-            )
+            raise LinuxNetnsAdapterRejectedV1(LinuxNetnsAdapterRejectV1.BINDING_MISMATCH)
         result = self._execute(
             operation=NetnsHelperOperationV1.CREATE,
             namespace_root=namespace_root,
@@ -91,9 +88,7 @@ class PinnedLinuxSpotV7NetworkNamespaceKernelV1:
             expected_inode=0,
         )
         if result.device <= 0 or result.inode <= 0:
-            raise LinuxNetnsAdapterRejectedV1(
-                LinuxNetnsAdapterRejectV1.RESPONSE_INVALID
-            )
+            raise LinuxNetnsAdapterRejectedV1(LinuxNetnsAdapterRejectV1.RESPONSE_INVALID)
         self._identities[path] = (result.device, result.inode)
 
     def require_empty_network_inventory(
@@ -136,9 +131,7 @@ class PinnedLinuxSpotV7NetworkNamespaceKernelV1:
         _require_root(trusted_uid)
         _namespace_path(namespace_path.parent, namespace_path.name)
         if namespace_path in self._identities:
-            raise LinuxNetnsAdapterRejectedV1(
-                LinuxNetnsAdapterRejectV1.BINDING_MISMATCH
-            )
+            raise LinuxNetnsAdapterRejectedV1(LinuxNetnsAdapterRejectV1.BINDING_MISMATCH)
         self._execute(
             operation=NetnsHelperOperationV1.CLEANUP,
             namespace_root=namespace_path.parent,
@@ -188,9 +181,7 @@ class PinnedLinuxSpotV7NetworkNamespaceKernelV1:
 
     def _require_tracked_identity(self, path: Path, device: int, inode: int) -> None:
         if self._identities.get(path) != (device, inode):
-            raise LinuxNetnsAdapterRejectedV1(
-                LinuxNetnsAdapterRejectV1.BINDING_MISMATCH
-            )
+            raise LinuxNetnsAdapterRejectedV1(LinuxNetnsAdapterRejectV1.BINDING_MISMATCH)
 
     def _execute(
         self,
@@ -225,9 +216,7 @@ class PinnedLinuxSpotV7NetworkNamespaceKernelV1:
         except LinuxNetnsAdapterRejectedV1:
             raise
         except (OSError, TypeError, ValueError) as exc:
-            raise LinuxNetnsAdapterRejectedV1(
-                LinuxNetnsAdapterRejectV1.PROCESS_FAILED
-            ) from exc
+            raise LinuxNetnsAdapterRejectedV1(LinuxNetnsAdapterRejectV1.PROCESS_FAILED) from exc
 
 
 def _namespace_identity(namespace: PinnedNetworkNamespaceV1) -> tuple[Path, int, int]:
@@ -255,12 +244,12 @@ def _require_running_as_root() -> None:
 
 
 def _require_sha256_hex(value: str) -> None:
-    if type(value) is not str or len(value) != 64 or any(
-        character not in "0123456789abcdef" for character in value
+    if (
+        type(value) is not str
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
     ):
-        raise LinuxNetnsAdapterRejectedV1(
-            LinuxNetnsAdapterRejectV1.EXECUTABLE_HASH_MISMATCH
-        )
+        raise LinuxNetnsAdapterRejectedV1(LinuxNetnsAdapterRejectV1.EXECUTABLE_HASH_MISMATCH)
 
 
 __all__ = [

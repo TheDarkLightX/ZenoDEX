@@ -38,7 +38,11 @@ from tools.zrpf_v3_firecracker_cgroup_contract import (
     relative_components,
     require_leaf_name,
 )
-from tools.zrpf_v3_firecracker_cgroup_v2 import CgroupCreateRequestV1
+from tools.zrpf_v3_firecracker_cgroup_v2 import (
+    CgroupCreateRequestV1,
+    is_canonical_absolute_path_v1,
+    snapshot_cgroup_create_request_v1,
+)
 
 ROOT_SUPERVISOR_LIVE_EXECUTION_VERIFIED_V1 = False
 ROOT_SUPERVISOR_LIVE_OWNERSHIP_VERIFIED_V1 = False
@@ -71,27 +75,21 @@ class SpotV7RootSupervisorPlanV1:
 
     def __post_init__(self) -> None:
         if type(self.cgroup_request) is not CgroupCreateRequestV1:
-            raise SpotV7RootSupervisorRejectV1(
-                "root_supervisor_cgroup_request_invalid"
-            )
+            raise SpotV7RootSupervisorRejectV1("root_supervisor_cgroup_request_invalid")
+        try:
+            request = snapshot_cgroup_create_request_v1(self.cgroup_request)
+        except CgroupV2Reject as exc:
+            raise SpotV7RootSupervisorRejectV1("root_supervisor_cgroup_request_invalid") from exc
+        object.__setattr__(self, "cgroup_request", request)
         try:
             require_leaf_name(self.network_namespace_name)
             relative_components(self.cgroup_request.parent_relative_path)
         except (TypeError, ValueError, CgroupV2Reject) as exc:
-            raise SpotV7RootSupervisorRejectV1(
-                "root_supervisor_control_name_invalid"
-            ) from exc
+            raise SpotV7RootSupervisorRejectV1("root_supervisor_control_name_invalid") from exc
         if self.network_namespace_name != self.cgroup_request.leaf_name:
-            raise SpotV7RootSupervisorRejectV1(
-                "root_supervisor_control_name_mismatch"
-            )
-        if (
-            not self.network_namespace_root.is_absolute()
-            or not self.cgroup_request.cgroup_mount.is_absolute()
-        ):
-            raise SpotV7RootSupervisorRejectV1(
-                "root_supervisor_namespace_root_invalid"
-            )
+            raise SpotV7RootSupervisorRejectV1("root_supervisor_control_name_mismatch")
+        if not is_canonical_absolute_path_v1(self.network_namespace_root):
+            raise SpotV7RootSupervisorRejectV1("root_supervisor_namespace_root_invalid")
         _require_timeout_ns(
             self.process_timeout_ns,
             maximum=300_000_000_000,
@@ -251,6 +249,22 @@ class CompletedSpotV7RootSupervisorRunV1:
         return self._payload_sha256
 
     @property
+    def request_sha256(self) -> bytes:
+        return self._request_sha256
+
+    @property
+    def prepare_observation_sha256(self) -> bytes:
+        return self._prepare_observation_sha256
+
+    @property
+    def launch_observation_sha256(self) -> bytes:
+        return self._launch_observation_sha256
+
+    @property
+    def finish_observation_sha256(self) -> bytes:
+        return self._finish_observation_sha256
+
+    @property
     def cgroup_relative_path(self) -> str:
         return self._cgroup_relative_path
 
@@ -326,6 +340,16 @@ def run_spot_v7_root_supervisor_contract_v1(
         raise TypeError("prepared_launch must be the exact sealed launch")
     if type(plan) is not SpotV7RootSupervisorPlanV1:
         raise TypeError("plan must be exact SpotV7RootSupervisorPlanV1")
+    try:
+        plan = SpotV7RootSupervisorPlanV1(
+            cgroup_request=plan.cgroup_request,
+            network_namespace_root=plan.network_namespace_root,
+            network_namespace_name=plan.network_namespace_name,
+            process_timeout_ns=plan.process_timeout_ns,
+            teardown_timeout_ns=plan.teardown_timeout_ns,
+        )
+    except (CgroupV2Reject, SpotV7RootSupervisorRejectV1) as exc:
+        raise SpotV7RootSupervisorRejectV1("root_supervisor_plan_invalid") from exc
     handoff = _take_handoff(prepared_launch)
     state = _RunStateV1(handoff=handoff)
     try:
@@ -337,9 +361,7 @@ def run_spot_v7_root_supervisor_contract_v1(
             plan=plan,
         )
         if teardown_error is not None:
-            raise SpotV7RootSupervisorRejectV1(
-                "root_supervisor_teardown_uncertain"
-            ) from original
+            raise SpotV7RootSupervisorRejectV1("root_supervisor_teardown_uncertain") from original
         if isinstance(original, SpotV7RootSupervisorRejectV1):
             raise
         raise _normalize_reject(original) from original
@@ -398,13 +420,9 @@ def _take_handoff(
     prepared_launch: _PreparedDescriptorBoundSpotV7LaunchV1,
 ) -> _DescriptorBoundSpotV7LifecycleHandoffV1:
     try:
-        return prepared_launch._take_for_lifecycle_v1(
-            _LIFECYCLE_HANDOFF_REQUEST_SEAL_V1
-        )
+        return prepared_launch._take_for_lifecycle_v1(_LIFECYCLE_HANDOFF_REQUEST_SEAL_V1)
     except (SpotV7DescriptorStagingRejectV1, TypeError) as exc:
-        raise SpotV7RootSupervisorRejectV1(
-            "root_supervisor_handoff_rejected"
-        ) from exc
+        raise SpotV7RootSupervisorRejectV1("root_supervisor_handoff_rejected") from exc
 
 
 def _require_plan_matches_handoff(
@@ -414,12 +432,9 @@ def _require_plan_matches_handoff(
     if (
         handoff.launch_spec.jail_id != plan.cgroup_request.leaf_name
         or handoff.launch_spec.jail_id != plan.network_namespace_name
-        or handoff.prepared_jail.spec.trusted_uid
-        != plan.cgroup_request.trusted_uid
+        or handoff.prepared_jail.spec.trusted_uid != plan.cgroup_request.trusted_uid
     ):
-        raise SpotV7RootSupervisorRejectV1(
-            "root_supervisor_launch_control_binding_mismatch"
-        )
+        raise SpotV7RootSupervisorRejectV1("root_supervisor_launch_control_binding_mismatch")
 
 
 def _require_exact_completed_lifecycle(
@@ -433,9 +448,7 @@ def _require_exact_completed_lifecycle(
         or type(completed.launch_observation) is not dict
         or type(completed.finish_observation) is not dict
     ):
-        raise SpotV7RootSupervisorRejectV1(
-            "root_supervisor_lifecycle_result_invalid"
-        )
+        raise SpotV7RootSupervisorRejectV1("root_supervisor_lifecycle_result_invalid")
 
 
 def _complete_control_teardown(
@@ -445,9 +458,7 @@ def _complete_control_teardown(
     plan: SpotV7RootSupervisorPlanV1,
 ) -> None:
     if state.cgroup is None or state.network_namespace is None:
-        raise SpotV7RootSupervisorRejectV1(
-            "root_supervisor_control_allocation_incomplete"
-        )
+        raise SpotV7RootSupervisorRejectV1("root_supervisor_control_allocation_incomplete")
     os_port.terminate_cgroup(
         state.cgroup,
         timeout_ns=plan.teardown_timeout_ns,
@@ -511,9 +522,7 @@ def _finish_network_namespace_teardown(
 ) -> None:
     network_namespace = state.network_namespace
     if network_namespace is None:
-        raise SpotV7RootSupervisorRejectV1(
-            "root_supervisor_namespace_allocation_missing"
-        )
+        raise SpotV7RootSupervisorRejectV1("root_supervisor_namespace_allocation_missing")
     if state.namespace_destroy_attempted:
         try:
             os_port.require_network_namespace_absent(network_namespace)
@@ -569,13 +578,9 @@ def _observation_sha256(document: dict[str, Any]) -> bytes:
             + "\n"
         ).encode("ascii")
     except (TypeError, UnicodeEncodeError, ValueError) as exc:
-        raise SpotV7RootSupervisorRejectV1(
-            "root_supervisor_observation_invalid"
-        ) from exc
+        raise SpotV7RootSupervisorRejectV1("root_supervisor_observation_invalid") from exc
     if len(raw) > 1024 * 1024:
-        raise SpotV7RootSupervisorRejectV1(
-            "root_supervisor_observation_too_large"
-        )
+        raise SpotV7RootSupervisorRejectV1("root_supervisor_observation_too_large")
     return hashlib.sha256(raw).digest()
 
 

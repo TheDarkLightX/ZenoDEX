@@ -32,6 +32,7 @@ from tools.zrpf_v3_firecracker_cgroup_v2 import (
     CgroupLeafV1,
     create_cgroup_leaf_from_request,
     require_cgroup_leaf_absent_from_request,
+    snapshot_cgroup_create_request_v1,
 )
 from tools.zrpf_v3_firecracker_netns import PinnedNetworkNamespaceV1
 from tools.zrpf_v3_firecracker_trusted_runtime import JailerLauncherReject
@@ -61,9 +62,7 @@ class LinuxSpotV7RootSupervisorOsPortV1:
         self,
         network_namespace_kernel: LinuxSpotV7NetworkNamespaceKernelPortV1,
     ) -> None:
-        self._namespace_control = _LinuxSpotV7NetworkNamespaceControlV1(
-            network_namespace_kernel
-        )
+        self._namespace_control = _LinuxSpotV7NetworkNamespaceControlV1(network_namespace_kernel)
         self._cgroup_request: CgroupCreateRequestV1 | None = None
         self._cgroup: CgroupLeafV1 | None = None
         self._prelaunch_verified = False
@@ -111,30 +110,25 @@ class LinuxSpotV7RootSupervisorOsPortV1:
 
         if self._cgroup_request is not None:
             raise SpotV7RootSupervisorRejectV1("linux_port_already_used")
-        if type(request) is not CgroupCreateRequestV1:
-            raise SpotV7RootSupervisorRejectV1("linux_port_cgroup_request_invalid")
+        try:
+            request = snapshot_cgroup_create_request_v1(request)
+        except CgroupV2Reject as exc:
+            raise SpotV7RootSupervisorRejectV1("linux_port_cgroup_request_invalid") from exc
         _require_root_effective_uid()
-        if request.trusted_uid != 0:
+        if type(request.trusted_uid) is not int or request.trusted_uid != 0:
             raise SpotV7RootSupervisorRejectV1("linux_port_trusted_uid_not_root")
         try:
             leaf = create_cgroup_leaf_from_request(request)
         except (CgroupV2Reject, OSError) as exc:
-            raise SpotV7RootSupervisorRejectV1(
-                "linux_port_cgroup_create_rejected"
-            ) from exc
+            raise SpotV7RootSupervisorRejectV1("linux_port_cgroup_create_rejected") from exc
         if type(leaf) is not CgroupLeafV1:
             raise SpotV7RootSupervisorRejectV1("linux_port_cgroup_type_invalid")
         self._cgroup_request = request
         self._cgroup = leaf
         expected_path = _expected_cgroup_relative_path(request)
-        if (
-            leaf.identity.relative_path != expected_path
-            or leaf.trusted_uid != request.trusted_uid
-        ):
+        if leaf.identity.relative_path != expected_path or leaf.trusted_uid != request.trusted_uid:
             self._cleanup_new_cgroup_after_reject()
-            raise SpotV7RootSupervisorRejectV1(
-                "linux_port_cgroup_binding_mismatch"
-            )
+            raise SpotV7RootSupervisorRejectV1("linux_port_cgroup_binding_mismatch")
         return leaf
 
     def create_network_namespace(
@@ -148,7 +142,7 @@ class LinuxSpotV7RootSupervisorOsPortV1:
 
         _require_root_effective_uid()
         request = self._require_cgroup_request()
-        if trusted_uid != request.trusted_uid:
+        if type(trusted_uid) is not int or trusted_uid != 0 or trusted_uid != request.trusted_uid:
             raise SpotV7RootSupervisorRejectV1("linux_port_trusted_uid_not_root")
         return self._namespace_control.create_and_verify(
             namespace_root=namespace_root,
@@ -173,20 +167,17 @@ class LinuxSpotV7RootSupervisorOsPortV1:
         namespace = self._namespace_control.require_exact(network_namespace)
         request = self._require_cgroup_request()
         if (
-            expected_trusted_uid != 0
+            type(expected_trusted_uid) is not int
+            or expected_trusted_uid != 0
             or expected_trusted_uid != request.trusted_uid
             or expected_cgroup_relative_path != _expected_cgroup_relative_path(request)
             or leaf.identity.relative_path != expected_cgroup_relative_path
         ):
-            raise SpotV7RootSupervisorRejectV1(
-                "linux_port_cgroup_binding_mismatch"
-            )
+            raise SpotV7RootSupervisorRejectV1("linux_port_cgroup_binding_mismatch")
         try:
             leaf.verify_prelaunch()
         except (CgroupV2Reject, OSError) as exc:
-            raise SpotV7RootSupervisorRejectV1(
-                "linux_port_cgroup_prelaunch_rejected"
-            ) from exc
+            raise SpotV7RootSupervisorRejectV1("linux_port_cgroup_prelaunch_rejected") from exc
         self._namespace_control.require_binding(
             namespace,
             expected_path=expected_network_namespace_path,
@@ -223,9 +214,7 @@ class LinuxSpotV7RootSupervisorOsPortV1:
                 "linux_port_handoff_reverification_rejected"
             ) from exc
         if retained_request != exact_request_bytes:
-            raise SpotV7RootSupervisorRejectV1(
-                "linux_port_request_binding_mismatch"
-            )
+            raise SpotV7RootSupervisorRejectV1("linux_port_request_binding_mismatch")
         self._lifecycle_started = True
         try:
             self._namespace_control.require_inventory(namespace)
@@ -241,13 +230,9 @@ class LinuxSpotV7RootSupervisorOsPortV1:
         except SpotV7RootSupervisorRejectV1:
             raise
         except (CgroupV2Reject, JailerLauncherReject, OSError, RuntimeError) as exc:
-            raise SpotV7RootSupervisorRejectV1(
-                "linux_port_lifecycle_rejected"
-            ) from exc
+            raise SpotV7RootSupervisorRejectV1("linux_port_lifecycle_rejected") from exc
         if type(completed) is not CompletedPreparedSpotV7JailerRunV1:
-            raise SpotV7RootSupervisorRejectV1(
-                "linux_port_lifecycle_result_invalid"
-            )
+            raise SpotV7RootSupervisorRejectV1("linux_port_lifecycle_result_invalid")
         return completed
 
     def terminate_cgroup(self, cgroup: object, *, timeout_ns: int) -> None:
@@ -295,18 +280,14 @@ class LinuxSpotV7RootSupervisorOsPortV1:
 
     def _require_exact_cgroup(self, value: object) -> CgroupLeafV1:
         if type(value) is not CgroupLeafV1 or value is not self._cgroup:
-            raise SpotV7RootSupervisorRejectV1(
-                "linux_port_cgroup_object_substituted"
-            )
+            raise SpotV7RootSupervisorRejectV1("linux_port_cgroup_object_substituted")
         return value
 
     def _require_cgroup_absence(self, request: CgroupCreateRequestV1) -> None:
         try:
             require_cgroup_leaf_absent_from_request(request)
         except (CgroupV2Reject, OSError) as exc:
-            raise SpotV7RootSupervisorRejectV1(
-                "linux_port_cgroup_absence_unverified"
-            ) from exc
+            raise SpotV7RootSupervisorRejectV1("linux_port_cgroup_absence_unverified") from exc
 
     def _cleanup_new_cgroup_after_reject(self) -> None:
         leaf = self._cgroup
@@ -317,10 +298,9 @@ class LinuxSpotV7RootSupervisorOsPortV1:
             leaf.terminate_and_remove(timeout_ns=5_000_000_000)
             require_cgroup_leaf_absent_from_request(request)
         except Exception as exc:
-            raise SpotV7RootSupervisorRejectV1(
-                "linux_port_cgroup_partial_cleanup_failed"
-            ) from exc
+            raise SpotV7RootSupervisorRejectV1("linux_port_cgroup_partial_cleanup_failed") from exc
         self._cgroup_absent = True
+
 
 def _expected_cgroup_relative_path(request: CgroupCreateRequestV1) -> str:
     parent = request.parent_relative_path.strip("/")

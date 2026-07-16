@@ -94,6 +94,18 @@ fn position_distinct_nonpalindromic_request_is_exact_and_routed_once() {
     let response =
         execute_request_with_kernel_v1(&bytes, &mut kernel).expect("exact request must execute");
     assert_eq!(response.len(), 256);
+    assert!(
+        !response
+            .windows(ROOT.len())
+            .any(|window| window == ROOT.as_bytes()),
+        "response must not disclose the cleartext namespace root"
+    );
+    assert!(
+        !response
+            .windows(NAME.len())
+            .any(|window| window == NAME.as_bytes()),
+        "response must not disclose the cleartext namespace name"
+    );
     assert_eq!(kernel.calls, vec![NetnsOperationV1::Inspect]);
 }
 

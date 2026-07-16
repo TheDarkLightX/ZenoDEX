@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import pickle
 from pathlib import Path
 
@@ -54,9 +55,7 @@ class _FakeRootSupervisorPort:
     def create_cgroup_leaf(self, request: CgroupCreateRequestV1) -> object:
         self.events.append("create_cgroup")
         if self.failure == "cgroup_absent":
-            raise supervisor.SpotV7RootSupervisorRejectV1(
-                "root_supervisor_cgroup_absent"
-            )
+            raise supervisor.SpotV7RootSupervisorRejectV1("root_supervisor_cgroup_absent")
         return self.cgroup_token
 
     def create_network_namespace(
@@ -99,35 +98,39 @@ class _FakeRootSupervisorPort:
     ) -> CompletedPreparedSpotV7JailerRunV1:
         self.events.append("run_lifecycle")
         if self.failure == "timeout":
-            raise supervisor.SpotV7RootSupervisorRejectV1(
-                "root_supervisor_lifecycle_timeout"
-            )
+            raise supervisor.SpotV7RootSupervisorRejectV1("root_supervisor_lifecycle_timeout")
         if self.failure == "process_remains":
-            raise supervisor.SpotV7RootSupervisorRejectV1(
-                "root_supervisor_processes_remain"
-            )
+            raise supervisor.SpotV7RootSupervisorRejectV1("root_supervisor_processes_remain")
         request = supervisor.decode_exact_request_v1(exact_request_bytes)
         output = self._output(request)
         prepared_jail = handoff.prepared_jail
         prepared_jail.cleanup_after_teardown()
         prepare_observation: dict[str, object] = {
-            "authority": {"production_authority": False}
+            "authority": {"production_authority": False},
+            "phase": "prepare",
+            "sequence": 17,
         }
         if self.output_mode == "invalid_observation":
             prepare_observation = {"unencodable": object()}
         return CompletedPreparedSpotV7JailerRunV1(
             prepare_observation=prepare_observation,
-            launch_observation={"authority": {"production_authority": False}},
-            finish_observation={"authority": {"production_authority": False}},
+            launch_observation={
+                "authority": {"production_authority": False},
+                "phase": "launch",
+                "sequence": 29,
+            },
+            finish_observation={
+                "authority": {"production_authority": False},
+                "phase": "finish",
+                "sequence": 43,
+            },
             output_device_bytes=output,
         )
 
     def terminate_cgroup(self, cgroup: object, *, timeout_ns: int) -> None:
         self.events.append("terminate_cgroup")
         if self.teardown_failure == "cgroup":
-            raise supervisor.SpotV7RootSupervisorRejectV1(
-                "root_supervisor_cgroup_teardown_failed"
-            )
+            raise supervisor.SpotV7RootSupervisorRejectV1("root_supervisor_cgroup_teardown_failed")
 
     def require_cgroup_absent(self, cgroup: object) -> None:
         self.events.append("require_cgroup_absent")
@@ -208,6 +211,13 @@ def _prepared(
     return fixture, fixture.prepare(fixture.open_bound())
 
 
+def _observation_sha256(value: dict[str, object]) -> bytes:
+    encoded = (
+        json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True) + "\n"
+    ).encode("ascii")
+    return hashlib.sha256(encoded).digest()
+
+
 def test_success_consumes_handoff_validates_output_and_destroys_controls(
     tmp_path: Path,
 ) -> None:
@@ -222,6 +232,38 @@ def test_success_consumes_handoff_validates_output_and_destroys_controls(
 
     assert result.payload_bytes == _valid_v7_payload()
     assert result.payload_sha256 == hashlib.sha256(result.payload_bytes).digest()
+    assert result.request_sha256 == hashlib.sha256(fixture.request).digest()
+    assert result.prepare_observation_sha256 == _observation_sha256(
+        {
+            "authority": {"production_authority": False},
+            "phase": "prepare",
+            "sequence": 17,
+        }
+    )
+    assert result.launch_observation_sha256 == _observation_sha256(
+        {
+            "authority": {"production_authority": False},
+            "phase": "launch",
+            "sequence": 29,
+        }
+    )
+    assert result.finish_observation_sha256 == _observation_sha256(
+        {
+            "authority": {"production_authority": False},
+            "phase": "finish",
+            "sequence": 43,
+        }
+    )
+    assert (
+        len(
+            {
+                result.prepare_observation_sha256,
+                result.launch_observation_sha256,
+                result.finish_observation_sha256,
+            }
+        )
+        == 3
+    )
     assert result.cgroup_relative_path == "/zenodex01/zrpf0001/run00001"
     assert result.network_namespace_path == tmp_path / "netns" / "run00001"
     assert result.live_execution_verified is False
@@ -411,6 +453,64 @@ def test_plan_rejects_control_name_drift_and_boolean_timeout(tmp_path: Path) -> 
             teardown_timeout_ns=valid.teardown_timeout_ns,
         )
     assert boolean.value.code == "root_supervisor_process_timeout_invalid"
+
+
+def test_plan_revalidates_mutated_cgroup_request(tmp_path: Path) -> None:
+    valid = _plan(tmp_path, trusted_uid=0)
+    object.__setattr__(valid.cgroup_request, "trusted_uid", False)
+
+    with pytest.raises(supervisor.SpotV7RootSupervisorRejectV1) as captured:
+        supervisor.SpotV7RootSupervisorPlanV1(
+            cgroup_request=valid.cgroup_request,
+            network_namespace_root=valid.network_namespace_root,
+            network_namespace_name=valid.network_namespace_name,
+            process_timeout_ns=valid.process_timeout_ns,
+            teardown_timeout_ns=valid.teardown_timeout_ns,
+        )
+
+    assert captured.value.code == "root_supervisor_cgroup_request_invalid"
+
+
+def test_mutated_plan_rejects_before_handoff_or_control_allocation(
+    tmp_path: Path,
+) -> None:
+    fixture, prepared = _prepared(tmp_path)
+    plan = _plan(tmp_path, trusted_uid=fixture.trusted_uid)
+    object.__setattr__(plan.cgroup_request.limits, "pids_max", False)
+    port = _FakeRootSupervisorPort()
+
+    with pytest.raises(supervisor.SpotV7RootSupervisorRejectV1) as captured:
+        supervisor.run_spot_v7_root_supervisor_contract_v1(
+            prepared_launch=prepared,
+            plan=plan,
+            os_port=port,
+        )
+
+    assert captured.value.code == "root_supervisor_plan_invalid"
+    assert port.events == []
+    assert prepared.snapshot_root_path.exists()
+
+
+@pytest.mark.parametrize(
+    "namespace_root",
+    (Path("relative/netns"), Path("/run/../tmp/netns"), "/run/netns"),
+)
+def test_plan_rejects_noncanonical_namespace_root(
+    tmp_path: Path,
+    namespace_root: object,
+) -> None:
+    valid = _plan(tmp_path, trusted_uid=0)
+
+    with pytest.raises(supervisor.SpotV7RootSupervisorRejectV1) as captured:
+        supervisor.SpotV7RootSupervisorPlanV1(
+            cgroup_request=valid.cgroup_request,
+            network_namespace_root=namespace_root,  # type: ignore[arg-type]
+            network_namespace_name=valid.network_namespace_name,
+            process_timeout_ns=valid.process_timeout_ns,
+            teardown_timeout_ns=valid.teardown_timeout_ns,
+        )
+
+    assert captured.value.code == "root_supervisor_namespace_root_invalid"
 
 
 @pytest.mark.parametrize(

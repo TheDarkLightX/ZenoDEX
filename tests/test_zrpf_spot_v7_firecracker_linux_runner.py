@@ -20,6 +20,8 @@ from tools.zrpf_spot_v7_firecracker_root_supervisor import (
     SpotV7RootSupervisorRejectV1,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def _exact_prepared_launch_token() -> _PreparedDescriptorBoundSpotV7LaunchV1:
     """Return an unspent exact-type token without exercising privileged effects."""
@@ -42,7 +44,7 @@ def _pinned_kernel() -> PinnedLinuxSpotV7NetworkNamespaceKernelV1:
 
 def test_exact_runner_has_no_injected_os_port_parameter() -> None:
     parameters = inspect.signature(
-        linux_runner.run_exact_linux_spot_v7_root_supervisor_candidate_v1
+        linux_runner._run_exact_linux_spot_v7_root_supervisor_candidate_v1
     ).parameters
 
     assert tuple(parameters) == (
@@ -70,7 +72,7 @@ def test_exact_runner_constructs_the_exact_linux_port(monkeypatch: pytest.Monkey
         capture,
     )
 
-    result = linux_runner.run_exact_linux_spot_v7_root_supervisor_candidate_v1(
+    result = linux_runner._run_exact_linux_spot_v7_root_supervisor_candidate_v1(
         prepared_launch=prepared_launch,
         plan=plan,
         network_namespace_kernel=kernel,
@@ -136,7 +138,7 @@ def test_exact_runner_rejects_substituted_boundary_objects_before_execution(
 
     adversarial_call = cast(
         Any,
-        linux_runner.run_exact_linux_spot_v7_root_supervisor_candidate_v1,
+        linux_runner._run_exact_linux_spot_v7_root_supervisor_candidate_v1,
     )
     with pytest.raises(SpotV7RootSupervisorRejectV1) as captured:
         adversarial_call(**kwargs)
@@ -163,7 +165,7 @@ def test_exact_runner_rejects_pinned_kernel_subclass(
     )
 
     with pytest.raises(SpotV7RootSupervisorRejectV1) as captured:
-        linux_runner.run_exact_linux_spot_v7_root_supervisor_candidate_v1(
+        linux_runner._run_exact_linux_spot_v7_root_supervisor_candidate_v1(
             prepared_launch=_exact_prepared_launch_token(),
             plan=_exact_plan_token(),
             network_namespace_kernel=kernel,
@@ -179,3 +181,31 @@ def test_exact_runner_claims_remain_false() -> None:
     assert linux_runner.LINUX_RUNNER_SETTLEMENT_AUTHORITY_V1 is False
     assert linux_runner.LINUX_RUNNER_RELEASE_AUTHORITY_V1 is False
     assert linux_runner.LINUX_RUNNER_PRODUCTION_AUTHORITY_V1 is False
+
+
+def test_low_level_effectful_runner_is_not_publicly_exported() -> None:
+    assert "run_exact_linux_spot_v7_root_supervisor_candidate_v1" not in linux_runner.__all__
+    assert "_run_exact_linux_spot_v7_root_supervisor_candidate_v1" not in linux_runner.__all__
+
+
+def test_production_modules_cannot_reach_private_effectful_or_mint_surfaces() -> None:
+    protected_names = (
+        "_run_exact_linux_spot_v7_root_supervisor_candidate_v1",
+        "_GovernedCandidateBoundSpotV7ExecutionV1",
+        "_GOVERNED_CANDIDATE_EXECUTION_SEAL_V1",
+    )
+    runner_path = Path(linux_runner.__file__).resolve()
+    violations: list[str] = []
+    for relative_root in ("src", "tools", "bin", "scripts"):
+        root = ROOT / relative_root
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.py")):
+            if path.resolve() == runner_path:
+                continue
+            source = path.read_text(encoding="utf-8")
+            for name in protected_names:
+                if name in source:
+                    violations.append(f"{path.relative_to(ROOT)}:{name}")
+
+    assert violations == []

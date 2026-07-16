@@ -105,6 +105,26 @@ def _request(tmp_path: Path, *, trusted_uid: int = 0) -> cgroup_v2.CgroupCreateR
     )
 
 
+def test_boolean_root_uid_cannot_cross_the_linux_port_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _request(tmp_path)
+    object.__setattr__(request, "trusted_uid", False)
+    port = linux_port.LinuxSpotV7RootSupervisorOsPortV1(_FakeNamespaceKernel())
+    monkeypatch.setattr(linux_port.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(
+        linux_port,
+        "create_cgroup_leaf_from_request",
+        lambda _request: pytest.fail("invalid UID reached cgroup creation"),
+    )
+
+    with pytest.raises(SpotV7RootSupervisorRejectV1) as captured:
+        port.create_cgroup_leaf(request)
+
+    assert captured.value.code == "linux_port_cgroup_request_invalid"
+
+
 def _leaf(
     request: cgroup_v2.CgroupCreateRequestV1,
     events: list[str],
@@ -177,9 +197,9 @@ def _namespace(
     def close() -> None:
         events.append("namespace_close")
 
-    value.reverify_path = reverify_path  # type: ignore[method-assign]
-    value.verify_empty = verify_empty  # type: ignore[method-assign]
-    value.close = close  # type: ignore[method-assign]
+    value.reverify_path = reverify_path
+    value.verify_empty = verify_empty
+    value.close = close
     return value
 
 
@@ -230,7 +250,9 @@ def _install_linux_dependencies(
         observed: cgroup_v2.CgroupCreateRequestV1,
     ) -> cgroup_v2.CgroupLeafV1:
         events.append("create_cgroup")
-        assert observed is request
+        assert observed == request
+        assert observed is not request
+        assert observed.limits is not request.limits
         return leaf
 
     def open_namespace(**kwargs: Any) -> PinnedNetworkNamespaceV1:
@@ -247,6 +269,12 @@ def _install_linux_dependencies(
         assert kwargs["process_timeout_seconds"] == 2.0
         return completed
 
+    def require_absent(observed: cgroup_v2.CgroupCreateRequestV1) -> None:
+        assert observed == request
+        assert observed is not request
+        assert observed.limits is not request.limits
+        events.append("require_cgroup_absent")
+
     monkeypatch.setattr(linux_port.os, "geteuid", lambda: 0)
     monkeypatch.setattr(linux_port, "create_cgroup_leaf_from_request", create)
     monkeypatch.setattr(
@@ -262,9 +290,7 @@ def _install_linux_dependencies(
     monkeypatch.setattr(
         linux_port,
         "require_cgroup_leaf_absent_from_request",
-        lambda observed: events.append("require_cgroup_absent")
-        if observed is request
-        else pytest.fail("wrong cgroup request"),
+        require_absent,
     )
     _patch_handoff_request(monkeypatch)
     return completed
@@ -426,9 +452,7 @@ def test_prelaunch_distinguishing_witnesses_reject_exact_drift(
             if drift == "cgroup_path"
             else "/zenodex01/zrpf0001/run00001"
         ),
-        prelaunch_reject=(
-            "cgroup_numeric_limit_mismatch" if drift == "cgroup_limit" else None
-        ),
+        prelaunch_reject=("cgroup_numeric_limit_mismatch" if drift == "cgroup_limit" else None),
     )
     namespace = _namespace(
         tmp_path,
@@ -443,9 +467,7 @@ def test_prelaunch_distinguishing_witnesses_reject_exact_drift(
         namespace=namespace,
         events=events,
     )
-    kernel = _FakeNamespaceKernel(
-        failure="inventory" if drift == "namespace_inventory" else None
-    )
+    kernel = _FakeNamespaceKernel(failure="inventory" if drift == "namespace_inventory" else None)
     port = linux_port.LinuxSpotV7RootSupervisorOsPortV1(kernel)
     if drift == "cgroup_path":
         with pytest.raises(SpotV7RootSupervisorRejectV1) as captured:
@@ -728,9 +750,7 @@ def test_namespace_teardown_failures_are_typed(
         namespace=namespace,
         events=events,
     )
-    port = linux_port.LinuxSpotV7RootSupervisorOsPortV1(
-        _FakeNamespaceKernel(failure=failure)
-    )
+    port = linux_port.LinuxSpotV7RootSupervisorOsPortV1(_FakeNamespaceKernel(failure=failure))
     port.create_cgroup_leaf(request)
     port.create_network_namespace(
         namespace_root=tmp_path / "netns",

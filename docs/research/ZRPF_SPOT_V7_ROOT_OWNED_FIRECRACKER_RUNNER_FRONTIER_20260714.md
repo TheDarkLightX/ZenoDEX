@@ -226,10 +226,12 @@ orchestration and disaster-state contract.
 `LinuxSpotV7RootSupervisorOsPortV1` now composes the exact descriptor-safe
 cgroup leaf, pinned namespace handle, and prepared Jailer lifecycle. The
 lower-level port retains an injected namespace seam for deterministic tests.
-`run_exact_linux_spot_v7_root_supervisor_candidate_v1` closes that seam on the
-candidate execution route by requiring the exact pinned Linux namespace helper
-and constructing the exact Linux port internally. No privileged run evidence
-exists, so no live ownership or execution claim follows.
+The private `_run_exact_linux_spot_v7_root_supervisor_candidate_v1` test seam
+requires the exact pinned Linux namespace helper and constructs the exact Linux
+port internally. It is intentionally absent from the public export surface.
+The public candidate-bound route accepts only the private sealed join. No
+privileged run evidence or independently governed join exists, so no live
+ownership, execution, or runtime-authority claim follows.
 
 ## Non-claims
 

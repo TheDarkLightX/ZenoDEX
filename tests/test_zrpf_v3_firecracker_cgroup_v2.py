@@ -10,6 +10,104 @@ import pytest
 from tools import zrpf_v3_firecracker_cgroup_v2 as cgroup
 
 
+def _valid_limits() -> cgroup.CgroupLimitsV1:
+    return cgroup.CgroupLimitsV1(
+        cpu_quota_us=100_000,
+        cpu_period_us=100_000,
+        cpuset_cpus="0",
+        cpuset_mems="0",
+        io_max="8:0 rbps=1048576 wbps=1048576 riops=1024 wiops=1024",
+        memory_high_bytes=256 * 1024 * 1024,
+        memory_max_bytes=512 * 1024 * 1024,
+        memory_swap_max_bytes=0,
+        pids_max=64,
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "code"),
+    (
+        ("cgroup_mount", Path("relative/cgroup"), "cgroup_request_path_invalid"),
+        ("cgroup_mount", Path("/sys/fs/../cgroup"), "cgroup_request_path_invalid"),
+        ("cgroup_mount", Path("/sys/fs/unsafe path"), "cgroup_request_path_invalid"),
+        ("cgroup_mount", Path("/sys/fs/unsafe\npath"), "cgroup_request_path_invalid"),
+        ("cgroup_mount", "/sys/fs/cgroup", "cgroup_request_path_invalid"),
+        ("mountinfo_path", Path("relative/mountinfo"), "cgroup_request_path_invalid"),
+        ("proc_root", Path("relative/proc"), "cgroup_request_path_invalid"),
+        ("parent_relative_path", 7, "cgroup_parent_path_invalid"),
+        ("leaf_name", 7, "cgroup_leaf_name_invalid"),
+        ("limits", object(), "cgroup_request_limits_invalid"),
+        ("trusted_uid", False, "cgroup_request_trusted_uid_invalid"),
+        ("trusted_uid", -1, "cgroup_request_trusted_uid_invalid"),
+        ("trusted_uid", 1 << 31, "cgroup_request_trusted_uid_invalid"),
+    ),
+)
+def test_create_request_rejects_ambiguous_or_noncanonical_fields(
+    field: str,
+    value: object,
+    code: str,
+) -> None:
+    kwargs: dict[str, object] = {
+        "cgroup_mount": Path("/sys/fs/cgroup"),
+        "parent_relative_path": "zenodex01/zrpf0001",
+        "leaf_name": "run00001",
+        "limits": _valid_limits(),
+        "mountinfo_path": Path("/proc/self/mountinfo"),
+        "proc_root": Path("/proc"),
+        "trusted_uid": 0,
+    }
+    kwargs[field] = value
+
+    with pytest.raises(cgroup.CgroupV2Reject) as captured:
+        cgroup.CgroupCreateRequestV1(**kwargs)  # type: ignore[arg-type]
+
+    assert captured.value.code == code
+
+
+def test_mutated_request_rejects_before_any_cgroup_path_is_opened(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = cgroup.CgroupCreateRequestV1(
+        cgroup_mount=Path("/sys/fs/cgroup"),
+        parent_relative_path="zenodex01/zrpf0001",
+        leaf_name="run00001",
+        limits=_valid_limits(),
+    )
+    object.__setattr__(request, "trusted_uid", False)
+    monkeypatch.setattr(
+        cgroup.cgroup_io,
+        "open_trusted_directory",
+        lambda *_args, **_kwargs: pytest.fail("invalid request reached filesystem effects"),
+    )
+
+    with pytest.raises(cgroup.CgroupV2Reject) as captured:
+        cgroup.create_cgroup_leaf_from_request(request)
+
+    assert captured.value.code == "cgroup_request_trusted_uid_invalid"
+
+
+def test_mutated_nested_limits_reject_before_any_cgroup_path_is_opened(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = cgroup.CgroupCreateRequestV1(
+        cgroup_mount=Path("/sys/fs/cgroup"),
+        parent_relative_path="zenodex01/zrpf0001",
+        leaf_name="run00001",
+        limits=_valid_limits(),
+    )
+    object.__setattr__(request.limits, "pids_max", False)
+    monkeypatch.setattr(
+        cgroup.cgroup_io,
+        "open_trusted_directory",
+        lambda *_args, **_kwargs: pytest.fail("invalid limits reached filesystem effects"),
+    )
+
+    with pytest.raises(cgroup.CgroupV2Reject) as captured:
+        cgroup.create_cgroup_leaf_from_request(request)
+
+    assert captured.value.code == "cgroup_numeric_limit_type_invalid"
+
+
 def test_fresh_leaf_installs_and_rechecks_exact_finite_limits(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
