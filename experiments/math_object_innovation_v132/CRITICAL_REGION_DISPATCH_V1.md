@@ -84,11 +84,12 @@ The dispatcher itself is an advisory search policy.
 Lean now binds an arbitrary Bernstein combination to the scalar produced by
 recursively reducing all de Casteljau levels at an evaluation point. It also
 proves that Julia's lower-triangular power-to-Bernstein coefficient formula
-preserves every degree-bounded power-basis polynomial. The remaining unproved
-compiler transformation is the construction of left/right coefficient arrays
-for affine subinterval restriction. That transformation uses exact arithmetic
-and participates in 12 differential checks against the power-basis reference.
-A full affine subdivision theorem remains open.
+preserves every degree-bounded power-basis polynomial. The left subdivision
+array is now proved to represent the parameter substitution `u ↦ t * u`; each
+emitted coefficient is also identified with its de Casteljau prefix value, and
+source-coefficient nonnegativity is preserved. The right subdivision array
+remains outside Lean. Both arrays use exact arithmetic and participate in 12
+differential checks against the power-basis reference.
 
 No DEX state, Tau policy, oracle decision, settlement transition, or runtime
 claim depends on this code. Exhausting a budget, finding a malformed cover, or

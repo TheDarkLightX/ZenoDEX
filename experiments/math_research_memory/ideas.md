@@ -18,12 +18,12 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
   - equal baseline: `3592` pieces, maximum `16`, and `4076028` bytes.
   - at six leaves, midpoint adaptive leaves `5` `UNKNOWN` versus `240` for
     equal subdivision.
-  - Lean bridge: arbitrary-degree Bernstein-combination nonnegativity and
-    finite-cover lifting check in
+  - Lean bridge: arbitrary-degree Bernstein-combination nonnegativity, exact
+    power-basis conversion, recursive de Casteljau evaluation, affine
+    left-subdivision correctness, and finite-cover lifting check in
     `Proofs/AdaptiveBernsteinRegionCertificates.lean`.
   - residual proof boundary: the exact Julia compiler has 12 differential
-    binding checks, not a general Lean proof of its basis conversion and
-    de Casteljau implementation.
+    binding checks; its right subdivision array remains outside Lean.
 
 - `derivative_landmark_dispatch_negative_knowledge_v1`
   - uses exact derivative Bernstein sign variations to propose a critical

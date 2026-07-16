@@ -27,9 +27,10 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
   ordinary Bernstein certificates. Critical-point local models remain a
   separate future lane requiring a corpus where they beat this simpler policy.
 - `AdaptiveBernsteinRegionCertificates.lean` now proves arbitrary-degree
-  Bernstein-combination nonnegativity and adaptive-cover lifting. The Julia
-  compiler binding has 12 exact differential checks and is not yet a general
-  Lean proof of power-to-Bernstein conversion or de Casteljau subdivision.
+  Bernstein-combination nonnegativity, exact power-to-Bernstein conversion,
+  recursive de Casteljau evaluation, affine left-subdivision correctness, and
+  adaptive-cover lifting. The Julia compiler binding has 12 exact differential
+  checks. The remaining affine Lean gap is the right subdivision array.
 
 ## Updated lesson from the approximation-defect receipt bridge
 
