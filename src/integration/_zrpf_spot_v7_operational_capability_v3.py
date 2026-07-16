@@ -51,6 +51,11 @@ from src.integration._zrpf_spot_v7_settlement_replay_packet import (
 )
 from src.integration._zrpf_spot_v7_zeno_ledger_finality_contract import _ZERO_ROOT
 from src.integration.zeno_ledger_v0 import canonical_header_hash_v0
+from src.integration.zrpf_spot_v7_checkpoint_finality_checker_adapter import (
+    PinnedSpotV7CheckpointFinalityCheckerV1,
+    _CheckpointFinalityCheckerInvocationArtifactsV1,
+    _CrossCheckedAuthenticatedCheckpointFinalityTransitionV1,
+)
 from src.integration.zrpf_spot_v7_governed_da_prerequisite_v2 import (
     _GovernedSpotV7DataAvailabilityPrerequisiteV2,
 )
@@ -81,6 +86,7 @@ class _SpotV7OperationalCommitPacketV3:
     exact_source_finality_certificate_bytes: bytes
     exact_source_finality_evidence_bytes: bytes
     finality: _AuthenticatedCheckpointFinalityProjectionV3
+    checkpoint_finality_checker_invocation: _CheckpointFinalityCheckerInvocationArtifactsV1
     exact_finality_certificate_bytes: bytes
     exact_finality_evidence_bytes: bytes
     durable_replay_packet: _DurableSpotV7SettlementReplayPacketV2
@@ -115,9 +121,7 @@ class _NonTransferableSpotV7AtomicOperationalCapabilityV3:
 
 
 @final
-class _SpotV7AtomicEconomicCommitCapabilityV3(
-    _NonTransferableSpotV7AtomicOperationalCapabilityV3
-):
+class _SpotV7AtomicEconomicCommitCapabilityV3(_NonTransferableSpotV7AtomicOperationalCapabilityV3):
     """Private recomposable packet for one authority-neutral atomic commit."""
 
     __slots__ = (
@@ -133,7 +137,7 @@ class _SpotV7AtomicEconomicCommitCapabilityV3(
     _settlement: _GovernedFirecrackerSpotV7SettlementV1
     _policy: _GovernedSpotV7OperationalPolicyV3
     _data_availability: _GovernedSpotV7DataAvailabilityPrerequisiteV2
-    _finality: _AuthenticatedExactCheckpointFinalityTransitionV3
+    _finality: _CrossCheckedAuthenticatedCheckpointFinalityTransitionV1
     _durable_replay: _DurablyReverifiedSpotV7SettlementReplayV2
     _exact_parent_header_bytes: bytes | None
     _seal: _SpotV7AtomicEconomicCommitSealV3
@@ -144,7 +148,7 @@ class _SpotV7AtomicEconomicCommitCapabilityV3(
         settlement: _GovernedFirecrackerSpotV7SettlementV1,
         policy: _GovernedSpotV7OperationalPolicyV3,
         data_availability: _GovernedSpotV7DataAvailabilityPrerequisiteV2,
-        finality: _AuthenticatedExactCheckpointFinalityTransitionV3,
+        finality: _CrossCheckedAuthenticatedCheckpointFinalityTransitionV1,
         durable_replay: _DurablyReverifiedSpotV7SettlementReplayV2,
         exact_parent_header_bytes: bytes | None,
         seal: _SpotV7AtomicEconomicCommitSealV3,
@@ -201,6 +205,19 @@ class _SpotV7AtomicEconomicCommitCapabilityV3(
         return True
 
     @property
+    def manifest_pinned_checkpoint_finality_cross_check_executed(self) -> bool:
+        self._packet_for_atomic_store_v4()
+        return True
+
+    @property
+    def release_governed_checkpoint_finality_checker_identity_verified(self) -> bool:
+        return False
+
+    @property
+    def hostile_same_interpreter_resistance_established(self) -> bool:
+        return False
+
+    @property
     def public_future_availability_verified(self) -> bool:
         return False
 
@@ -222,23 +239,41 @@ def _bind_spot_v7_operational_commit_capability_v3(
     settlement: object,
     policy: object,
     data_availability: object,
+    checkpoint_finality_checker: object,
     finality: object,
     durable_replay: object,
     exact_parent_header_bytes: bytes | None = None,
 ) -> _SpotV7AtomicEconomicCommitCapabilityV3:
+    """Execute the exact finality checker, then bind all V3 prerequisites."""
+
+    settlement_value = _require_settlement_capability(settlement)
+    policy_value = _require_governed_operational_policy_v3(policy)
+    data_availability_value = _require_governed_da_v2(data_availability)
+    durable_replay_value = _require_durably_reverified_spot_v7_settlement_replay_v2(durable_replay)
+    parent_header_bytes = _require_optional_parent_header_bytes(exact_parent_header_bytes)
+    checker = _require_checkpoint_finality_checker_v1(checkpoint_finality_checker)
+    checked_finality = PinnedSpotV7CheckpointFinalityCheckerV1.cross_check_authenticated(
+        checker,
+        policy=policy_value,
+        finality=finality,
+    )
     return _SpotV7AtomicEconomicCommitCapabilityV3(
-        settlement=_require_settlement_capability(settlement),
-        policy=_require_governed_operational_policy_v3(policy),
-        data_availability=_require_governed_da_v2(data_availability),
-        finality=_require_finality_v3(finality),
-        durable_replay=_require_durably_reverified_spot_v7_settlement_replay_v2(
-            durable_replay
-        ),
-        exact_parent_header_bytes=_require_optional_parent_header_bytes(
-            exact_parent_header_bytes
-        ),
+        settlement=settlement_value,
+        policy=policy_value,
+        data_availability=data_availability_value,
+        finality=_require_cross_checked_finality_v1(checked_finality),
+        durable_replay=durable_replay_value,
+        exact_parent_header_bytes=parent_header_bytes,
         seal=_SPOT_V7_ATOMIC_ECONOMIC_COMMIT_SEAL_V3,
     )
+
+
+def _require_checkpoint_finality_checker_v1(
+    value: object,
+) -> PinnedSpotV7CheckpointFinalityCheckerV1:
+    if type(value) is not PinnedSpotV7CheckpointFinalityCheckerV1:
+        raise TypeError("operational V3 join requires exact pinned finality checker V1")
+    return value
 
 
 def _require_governed_da_v2(
@@ -256,6 +291,20 @@ def _require_governed_da_v2(
     return typed
 
 
+def _require_cross_checked_finality_v1(
+    value: object,
+) -> _CrossCheckedAuthenticatedCheckpointFinalityTransitionV1:
+    if (
+        not isinstance(value, _CrossCheckedAuthenticatedCheckpointFinalityTransitionV1)
+        or type(value) is not _CrossCheckedAuthenticatedCheckpointFinalityTransitionV1
+    ):
+        raise TypeError("operational V3 join requires exact Rust-cross-checked finality")
+    typed = value
+    if not typed._has_private_seal():
+        raise TypeError("operational V3 join requires sealed Rust-cross-checked finality")
+    return typed
+
+
 def _require_finality_v3(
     value: object,
 ) -> _AuthenticatedExactCheckpointFinalityTransitionV3:
@@ -263,10 +312,10 @@ def _require_finality_v3(
         not isinstance(value, _AuthenticatedExactCheckpointFinalityTransitionV3)
         or type(value) is not _AuthenticatedExactCheckpointFinalityTransitionV3
     ):
-        raise TypeError("operational V3 join requires exact finality V3")
+        raise TypeError("operational V3 join retained the wrong authenticated finality type")
     typed = value
     if not typed._has_private_seal():
-        raise TypeError("operational V3 join requires sealed finality V3")
+        raise TypeError("operational V3 join retained unsealed authenticated finality")
     if "0x" + hashlib.sha256(typed._exact_finality_evidence_bytes).hexdigest() != (
         typed._projection.finality_evidence_root
     ):
@@ -287,17 +336,21 @@ def _build_operational_commit_packet_v3(
     settlement: _GovernedFirecrackerSpotV7SettlementV1,
     policy: _GovernedSpotV7OperationalPolicyV3,
     data_availability: _GovernedSpotV7DataAvailabilityPrerequisiteV2,
-    finality: _AuthenticatedExactCheckpointFinalityTransitionV3,
+    finality: _CrossCheckedAuthenticatedCheckpointFinalityTransitionV1,
     durable_replay: _DurablyReverifiedSpotV7SettlementReplayV2,
     exact_parent_header_bytes: bytes | None,
 ) -> _SpotV7OperationalCommitPacketV3:
     settlement_value = _require_settlement_capability(settlement)
     policy_value = _require_governed_operational_policy_v3(policy)
     da_value = _require_governed_da_v2(data_availability)
-    finality_value = _require_finality_v3(finality)
-    replay_value = _require_durably_reverified_spot_v7_settlement_replay_v2(
-        durable_replay
+    checked_finality = _require_cross_checked_finality_v1(finality)
+    finality_value = _require_finality_v3(
+        checked_finality._finality_for_operational_join_v3(policy_value)
     )
+    finality_checker_invocation = checked_finality._invocation_artifacts_for_operational_join_v3(
+        policy_value
+    )
+    replay_value = _require_durably_reverified_spot_v7_settlement_replay_v2(durable_replay)
     if da_value._policy is not policy_value:
         _mismatch("DA_POLICY_CAPABILITY_MISMATCH")
     candidate = settlement_value._candidate_for_atomic_store()
@@ -336,6 +389,7 @@ def _build_operational_commit_packet_v3(
         exact_source_finality_certificate_bytes=source_finality_certificate,
         exact_source_finality_evidence_bytes=source_finality_evidence,
         finality=finality_projection,
+        checkpoint_finality_checker_invocation=finality_checker_invocation,
         exact_finality_certificate_bytes=finality_value._exact_certificate_bytes,
         exact_finality_evidence_bytes=finality_value._exact_finality_evidence_bytes,
         durable_replay_packet=replay_packet,
@@ -395,8 +449,7 @@ def _require_join_bindings(
             "FINALITY_PARENT_MISMATCH",
         ),
         (
-            projection.candidate_settlement_commitment
-            == _derive_capability_commitment(candidate),
+            projection.candidate_settlement_commitment == _derive_capability_commitment(candidate),
             "REPLAY_SETTLEMENT_MISMATCH",
         ),
         (projection.pre_state_root == candidate.pre_state_root, "REPLAY_PRE_STATE_MISMATCH"),

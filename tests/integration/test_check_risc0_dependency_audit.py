@@ -27,8 +27,7 @@ def _payload(
 ) -> dict[str, object]:
     vulnerability_rows = [_entry(*row) for row in vulnerabilities]
     warning_rows = {
-        category: [_entry(*row) for row in rows]
-        for category, rows in (warnings or {}).items()
+        category: [_entry(*row) for row in rows] for category, rows in (warnings or {}).items()
     }
     return {
         "database": {"advisory-count": 1159, "last-commit": None, "last-updated": None},
@@ -74,6 +73,7 @@ def _policy_payloads() -> dict[str, object]:
         "zrpf_risc0": current_risc0_payload,
         "zrpf_protocol": _payload(),
         "zrpf_full_blob_da_checker": _payload(),
+        "zrpf_checkpoint_finality_checker": _payload(),
         "spot_state_root_v5_bridge_shared": _payload(),
         "spot_state_root_v7_semantic_shared": _payload(),
         "spot_settlement_v7_effect_binding_shared": _payload(),
@@ -124,17 +124,13 @@ def test_rejects_empty_or_malformed_audit(payload: object) -> None:
 
 def test_rejects_vulnerability_without_exact_disposition() -> None:
     report = checker.evaluate_audit_payload(
-        _payload(
-            vulnerabilities=(("RUSTSEC-2026-0185", "quinn-proto", "0.11.14"),)
-        ),
+        _payload(vulnerabilities=(("RUSTSEC-2026-0185", "quinn-proto", "0.11.14"),)),
         workspace_id="state_proof_risc0",
         dispositions=_dispositions(),
     )
 
     assert report["ok"] is False
-    assert report["errors"] == [
-        "undisposed vulnerability: RUSTSEC-2026-0185 quinn-proto 0.11.14"
-    ]
+    assert report["errors"] == ["undisposed vulnerability: RUSTSEC-2026-0185 quinn-proto 0.11.14"]
 
 
 def test_accepts_only_workspace_package_and_version_exact_disposition() -> None:
@@ -166,15 +162,11 @@ def test_accepts_only_workspace_package_and_version_exact_disposition() -> None:
 @pytest.mark.parametrize("category", ["unsound", "yanked"])
 def test_denied_warning_categories_fail_closed(category: str) -> None:
     if category == "yanked":
-        warning: dict[str, object] = {
-            "package": {"name": "removed-crate", "version": "1.0.0"}
-        }
+        warning: dict[str, object] = {"package": {"name": "removed-crate", "version": "1.0.0"}}
         payload = _payload()
         payload["warnings"] = {category: [warning]}
     else:
-        payload = _payload(
-            warnings={category: (("RUSTSEC-2026-0190", "anyhow", "1.0.101"),)}
-        )
+        payload = _payload(warnings={category: (("RUSTSEC-2026-0190", "anyhow", "1.0.101"),)})
 
     report = checker.evaluate_audit_payload(
         payload,
@@ -188,11 +180,7 @@ def test_denied_warning_categories_fail_closed(category: str) -> None:
 
 def test_unmaintained_warning_is_recorded_without_authority() -> None:
     report = checker.evaluate_audit_payload(
-        _payload(
-            warnings={
-                "unmaintained": (("RUSTSEC-2025-0141", "bincode", "1.3.3"),)
-            }
-        ),
+        _payload(warnings={"unmaintained": (("RUSTSEC-2025-0141", "bincode", "1.3.3"),)}),
         workspace_id="state_proof_risc0",
         dispositions=_dispositions(),
     )
@@ -226,9 +214,7 @@ def test_policy_pins_exact_workspaces_and_scoped_advisories() -> None:
     assert policy["workspaces"] == checker._workspace_rows()
     assert checker._disposition_keys(policy) == checker.PERMITTED_DISPOSITION_KEYS
     assert len(policy["dispositions"]) == 10
-    assert {row["category"] for row in policy["dispositions"]} == {
-        "vulnerability"
-    }
+    assert {row["category"] for row in policy["dispositions"]} == {"vulnerability"}
     assert policy["production_authority"] is False
     assert len(policy_sha256) == 64
 
@@ -267,15 +253,13 @@ def test_policy_rejects_control_or_boolean_drift(
 def test_active_risc0_workspaces_pin_patched_anyhow(lockfile: str) -> None:
     document = tomllib.loads((ROOT / lockfile).read_text(encoding="utf-8"))
     versions = {
-        package["version"]
-        for package in document["package"]
-        if package["name"] == "anyhow"
+        package["version"] for package in document["package"] if package["name"] == "anyhow"
     }
 
     assert versions == {"1.0.103"}
 
 
-def test_ten_workspace_report_records_lock_hashes_and_database_revision() -> None:
+def test_eleven_workspace_report_records_lock_hashes_and_database_revision() -> None:
     revision = "1" * 40
     report = checker.check_audit_payloads(
         _policy_payloads(),
@@ -305,6 +289,7 @@ def test_ten_workspace_report_records_lock_hashes_and_database_revision() -> Non
             "zrpf_risc0",
             "zrpf_protocol",
             "zrpf_full_blob_da_checker",
+            "zrpf_checkpoint_finality_checker",
             "spot_state_root_v5_bridge_shared",
             "spot_state_root_v7_semantic_shared",
             "spot_settlement_v7_effect_binding_shared",

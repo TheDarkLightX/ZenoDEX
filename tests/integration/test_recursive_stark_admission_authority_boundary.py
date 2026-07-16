@@ -49,6 +49,9 @@ SPOT_V7_OPERATIONAL_STORE = ROOT / "src/integration/_zrpf_spot_v7_operational_st
 SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER = (
     ROOT / "src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py"
 )
+SPOT_V7_CHECKPOINT_FINALITY_CHECKER_ADAPTER = (
+    ROOT / "src/integration/zrpf_spot_v7_checkpoint_finality_checker_adapter.py"
+)
 SAMPLED_RETRIEVABILITY_VERIFIER = (
     ROOT / "src/integration/zrpf_sampled_retrievability_v1/verifier.py"
 )
@@ -74,6 +77,12 @@ SPOT_V7_ATOMIC_HISTORY_V5 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlem
 SPOT_V7_ATOMIC_SCHEMA_V5 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_schema_v5.py"
 SPOT_V7_ATOMIC_OPERATIONAL_STORE_V5 = (
     ROOT / "src/integration/zrpf_spot_v7_atomic_operational_store_v5.py"
+)
+SPOT_V7_ATOMIC_ENGINE_V6 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_engine_v6.py"
+SPOT_V7_ATOMIC_HISTORY_V6 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_history_v6.py"
+SPOT_V7_ATOMIC_SCHEMA_V6 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_schema_v6.py"
+SPOT_V7_ATOMIC_OPERATIONAL_STORE_V6 = (
+    ROOT / "src/integration/zrpf_spot_v7_atomic_operational_store_v6.py"
 )
 SPOT_V7_ATOMIC_STORE = ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
 PRIVATE_CAPABILITY_TYPE = "_AuthenticatedRecursiveStarkRootFacts"
@@ -197,6 +206,24 @@ PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES = frozenset(
         "_derive_exact_finality_capability_v3",
     }
 )
+PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_AUTHORITY_NAMES = frozenset(
+    {
+        "_CheckpointFinalityCheckerInvocationEvidenceV1",
+        "_CheckpointFinalityCheckerInvocationArtifactsV1",
+        "_CrossCheckedAuthenticatedCheckpointFinalityTransitionV1",
+        "_finality_for_operational_join_v3",
+        "_invocation_artifacts_for_operational_join_v3",
+        "_revalidate_cross_checked_transition_v1",
+    }
+)
+PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_CONSUMER_NAMES = frozenset(
+    {
+        "_CheckpointFinalityCheckerInvocationArtifactsV1",
+        "_CrossCheckedAuthenticatedCheckpointFinalityTransitionV1",
+        "_finality_for_operational_join_v3",
+        "_invocation_artifacts_for_operational_join_v3",
+    }
+)
 PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES = frozenset(
     {
         "_SpotV7OperationalCommitPacketV3",
@@ -243,6 +270,34 @@ PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES = frozenset(
         "_append_resolved_operational_history_v5",
     }
 )
+PRIVATE_SPOT_V7_FINALITY_INVOCATION_V6_AUTHORITY_NAMES = frozenset(
+    {
+        "_finality_invocation_v6_reject_reason_locked",
+        "_persist_finality_invocation_v6",
+        "_stored_finality_invocation_matches_v6",
+        "_validate_finality_invocation_row_v6",
+        "_stored_invocation_artifacts_v6",
+        "_invocation_artifacts_for_packet_v6",
+        "_checker_input_from_packet_v6",
+        "_checker_policy_v6",
+        "_checker_binding_v6",
+    }
+)
+PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V6_AUTHORITY_NAMES = frozenset(
+    {
+        "_SpotV7OperationalHistoryChangedV6",
+        "_SpotV7OperationalHistoryAnchorV6",
+        "_ResolvedSpotV7OperationalHistoryV6",
+        "_capture_operational_history_anchor_locked_v6",
+        "_resolve_operational_history_outside_transaction_v6",
+        "_empty_resolved_operational_history_locked_v6",
+        "_append_resolved_operational_history_v6",
+        "_validate_complete_spot_v7_operational_history_v6",
+    }
+)
+PRIVATE_SPOT_V7_OPERATIONAL_STORE_V6_AUTHORITY_NAMES = frozenset(
+    {"_commit_authority_prerequisites_v6"}
+)
 PRIVATE_AUTHORITY_NAMES = frozenset(
     {
         PRIVATE_CAPABILITY_TYPE,
@@ -269,10 +324,14 @@ PROTECTED_AUTHORITY_NAMES = (
     | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_NAMES
     | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+    | PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
     | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_FINALITY_INVOCATION_V6_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V6_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_OPERATIONAL_STORE_V6_AUTHORITY_NAMES
 )
 PRIVATE_ADAPTER_IMPORTS = frozenset(
     {
@@ -368,6 +427,11 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
                 | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
             ),
+            SPOT_V7_CHECKPOINT_FINALITY_CHECKER_ADAPTER: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_AUTHORITY_NAMES
+            ),
             SAMPLED_RETRIEVABILITY_VERIFIER: (PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES),
             SPOT_V7_GOVERNED_DA_PREREQUISITE: (
                 PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
@@ -389,6 +453,7 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
                 | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
                 | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_CONSUMER_NAMES
                 | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
             ),
             SPOT_V7_ATOMIC_SCHEMA_V4: PRIVATE_OPERATIONAL_POLICY_V3_NAMES,
@@ -420,6 +485,27 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 PRIVATE_OPERATIONAL_POLICY_V3_NAMES
                 | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
                 | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_ENGINE_V6: (
+                PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_FINALITY_INVOCATION_V6_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_HISTORY_V6: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_FINALITY_INVOCATION_V6_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V6_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_SCHEMA_V6: PRIVATE_OPERATIONAL_POLICY_V3_NAMES,
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V6: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+                | PRIVATE_SPOT_V7_FINALITY_INVOCATION_V6_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V6_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_STORE_V6_AUTHORITY_NAMES
             ),
         }.get(path, frozenset())
         tree = _parse(path)
@@ -567,9 +653,71 @@ def test_operational_v3_store_packet_projection_has_exact_consumers() -> None:
         "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
         "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
         "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
+        "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
         "src/integration/zrpf_spot_v7_atomic_operational_store_v4.py",
         "src/integration/zrpf_spot_v7_atomic_operational_store_v4.py",
     ]
+
+
+def test_cross_checked_finality_mint_follows_one_verified_execution() -> None:
+    tree = _parse(SPOT_V7_CHECKPOINT_FINALITY_CHECKER_ADAPTER)
+    checker = _class(tree, "PinnedSpotV7CheckpointFinalityCheckerV1")
+    cross_check = _method(checker, "cross_check_authenticated")
+    ordered_calls = {
+        name: [
+            node
+            for node in ast.walk(cross_check)
+            if isinstance(node, ast.Call) and _call_name(node) == name
+        ]
+        for name in (
+            "_execute_checker",
+            "_parse_checker_response_v1",
+        )
+    }
+
+    assert {name: len(nodes) for name, nodes in ordered_calls.items()} == {
+        "_execute_checker": 1,
+        "_parse_checker_response_v1": 1,
+    }
+    allocations = [
+        node
+        for node in ast.walk(cross_check)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "object"
+        and node.func.attr == "__new__"
+    ]
+    assert len(allocations) == 1
+    assert (
+        _line(ordered_calls["_execute_checker"][0])
+        < _line(ordered_calls["_parse_checker_response_v1"][0])
+        < _line(allocations[0])
+    )
+    assert not any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "_seal_cross_checked_result_after_execution"
+        for node in ast.walk(checker)
+    )
+
+
+def test_operational_join_uses_exact_unbound_checkpoint_checker_method() -> None:
+    tree = _parse(SPOT_V7_OPERATIONAL_CAPABILITY_V3)
+    binder = _function(tree, "_bind_spot_v7_operational_commit_capability_v3")
+    calls = [
+        node
+        for node in ast.walk(binder)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "PinnedSpotV7CheckpointFinalityCheckerV1"
+        and node.func.attr == "cross_check_authenticated"
+    ]
+
+    assert len(calls) == 1
+    assert len(calls[0].args) == 1
+    assert isinstance(calls[0].args[0], ast.Name)
+    assert calls[0].args[0].id == "checker"
 
 
 def test_v4_settlement_resolver_is_only_invoked_outside_sqlite_transactions() -> None:
@@ -607,10 +755,13 @@ def test_v4_settlement_resolver_is_only_invoked_outside_sqlite_transactions() ->
     assert "settlement_resolver" not in validator_arguments
     assert "actual_anchor" not in validator_arguments
     assert "resolved_history" in validator_arguments
-    assert _direct_name_call_count(
-        validator,
-        "_capture_operational_history_anchor_locked_v4",
-    ) == 1
+    assert (
+        _direct_name_call_count(
+            validator,
+            "_capture_operational_history_anchor_locked_v4",
+        )
+        == 1
+    )
 
     store_tree = _parse(SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4)
     outside_method = _method(
@@ -700,6 +851,10 @@ def test_v3_governed_da_authority_has_exact_public_reachability(
                 "SpotV7ZenoLedgerCheckpointFinalityAdapterV3.authenticate",
             ],
         ),
+        (
+            SPOT_V7_CHECKPOINT_FINALITY_CHECKER_ADAPTER,
+            ["PinnedSpotV7CheckpointFinalityCheckerV1.cross_check_authenticated"],
+        ),
         (SPOT_V7_OPERATIONAL_CAPABILITY_V3, []),
         (SPOT_V7_ATOMIC_SCHEMA_V4, []),
         (SPOT_V7_ATOMIC_RECORDS_V4, []),
@@ -722,6 +877,19 @@ def test_v3_governed_da_authority_has_exact_public_reachability(
                 "SQLiteSpotV7AtomicOperationalStoreV5.get_receipt",
                 "SQLiteSpotV7AtomicOperationalStoreV5.read_cells",
                 "SQLiteSpotV7AtomicOperationalStoreV5.read_cursor",
+            ],
+        ),
+        (SPOT_V7_ATOMIC_ENGINE_V6, []),
+        (SPOT_V7_ATOMIC_HISTORY_V6, []),
+        (SPOT_V7_ATOMIC_SCHEMA_V6, []),
+        (
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V6,
+            [
+                "SQLiteSpotV7AtomicOperationalStoreV6.get_receipt",
+                "SQLiteSpotV7AtomicOperationalStoreV6."
+                "manifest_pinned_checkpoint_finality_cross_check_executed",
+                "SQLiteSpotV7AtomicOperationalStoreV6.read_cells",
+                "SQLiteSpotV7AtomicOperationalStoreV6.read_cursor",
             ],
         ),
     ),
@@ -760,6 +928,27 @@ def test_operational_v5_public_reads_reach_only_the_outside_transaction_resolver
         "get_receipt": ("_resolve_operational_history_outside_transaction_v5",),
         "read_cells": ("_resolve_operational_history_outside_transaction_v5",),
         "read_cursor": ("_resolve_operational_history_outside_transaction_v5",),
+    }
+
+
+def test_operational_v6_public_reads_reach_only_the_outside_transaction_resolver() -> None:
+    tree = _parse(SPOT_V7_ATOMIC_OPERATIONAL_STORE_V6)
+
+    assert _public_method_protected_symbol_reachability(
+        tree,
+        class_name="SQLiteSpotV7AtomicOperationalStoreV6",
+    ) == {
+        name: (
+            "_capture_operational_history_anchor_locked_v6",
+            "_resolve_operational_history_outside_transaction_v6",
+            "_validate_complete_spot_v7_operational_history_v6",
+        )
+        for name in (
+            "get_receipt",
+            "manifest_pinned_checkpoint_finality_cross_check_executed",
+            "read_cells",
+            "read_cursor",
+        )
     }
 
 
@@ -1466,11 +1655,7 @@ def _public_method_protected_symbol_reachability(
     }
     method_reach = {
         name: set(calls & PROTECTED_AUTHORITY_NAMES)
-        | {
-            protected
-            for called in calls
-            for protected in top_level_reach.get(called, frozenset())
-        }
+        | {protected for called in calls for protected in top_level_reach.get(called, frozenset())}
         for name, calls in method_graph.items()
     }
     while True:
@@ -1478,9 +1663,7 @@ def _public_method_protected_symbol_reachability(
         for name, calls in method_graph.items():
             before = len(method_reach[name])
             method_reach[name].update(
-                protected
-                for called in calls
-                for protected in method_reach.get(called, set())
+                protected for called in calls for protected in method_reach.get(called, set())
             )
             changed = changed or len(method_reach[name]) != before
         if not changed:
@@ -1494,18 +1677,13 @@ def _public_method_protected_symbol_reachability(
 def _protected_symbol_reachability(
     call_graph: dict[str, set[str]],
 ) -> dict[str, frozenset[str]]:
-    reachable = {
-        name: set(calls & PROTECTED_AUTHORITY_NAMES)
-        for name, calls in call_graph.items()
-    }
+    reachable = {name: set(calls & PROTECTED_AUTHORITY_NAMES) for name, calls in call_graph.items()}
     while True:
         changed = False
         for name, calls in call_graph.items():
             before = len(reachable[name])
             reachable[name].update(
-                protected
-                for called in calls
-                for protected in reachable.get(called, set())
+                protected for called in calls for protected in reachable.get(called, set())
             )
             changed = changed or len(reachable[name]) != before
         if not changed:

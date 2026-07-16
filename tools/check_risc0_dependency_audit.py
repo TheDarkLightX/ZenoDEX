@@ -67,6 +67,11 @@ REVIEWED_WORKSPACES: tuple[WorkspaceSpec, ...] = (
         "zk/zrpf_full_blob_da_checker/Cargo.lock",
     ),
     WorkspaceSpec(
+        "zrpf_checkpoint_finality_checker",
+        "zk/zrpf_checkpoint_finality_checker",
+        "zk/zrpf_checkpoint_finality_checker/Cargo.lock",
+    ),
+    WorkspaceSpec(
         "spot_state_root_v5_bridge_shared",
         "zk/spot_state_root_v5_bridge_shared",
         "zk/spot_state_root_v5_bridge_shared/Cargo.lock",
@@ -135,6 +140,8 @@ DISPOSITION_FIELDS = frozenset(
         "workspace_id",
     }
 )
+
+
 class AuditInputError(ValueError):
     """A local policy, lockfile, database, or cargo-audit report is unsafe."""
 
@@ -524,9 +531,7 @@ def evaluate_audit_payload(
     applied.update(warning_applied)
     errors.extend(vulnerability_errors)
     errors.extend(warning_errors)
-    vulnerabilities.sort(
-        key=lambda item: (item["advisory_id"], item["package"], item["version"])
-    )
+    vulnerabilities.sort(key=lambda item: (item["advisory_id"], item["package"], item["version"]))
     warnings.sort(
         key=lambda item: (
             item["category"],
@@ -558,7 +563,9 @@ def _discover_workspace_locks(root: Path) -> list[str]:
         except OSError as exc:
             raise AuditInputError("cannot inspect workspace lockfile inventory") from exc
         if not stat.S_ISREG(lock_stat.st_mode):
-            raise AuditInputError(f"workspace lockfile is not regular: {lockfile.relative_to(root)}")
+            raise AuditInputError(
+                f"workspace lockfile is not regular: {lockfile.relative_to(root)}"
+            )
         paths.append(lockfile.relative_to(root).as_posix())
     return paths
 
@@ -628,7 +635,10 @@ def check_audit_payloads(
     if GIT_REVISION_RE.fullmatch(advisory_database_revision) is None:
         errors.append("advisory database revision must be lowercase Git SHA-1")
     expected_version = str(policy["cargo_audit_version"])
-    if re.search(rf"(?<![0-9.]){re.escape(expected_version)}(?![0-9.])", cargo_audit_version) is None:
+    if (
+        re.search(rf"(?<![0-9.]){re.escape(expected_version)}(?![0-9.])", cargo_audit_version)
+        is None
+    ):
         errors.append("cargo-audit executable version mismatch")
 
     dispositions = _disposition_keys(policy)

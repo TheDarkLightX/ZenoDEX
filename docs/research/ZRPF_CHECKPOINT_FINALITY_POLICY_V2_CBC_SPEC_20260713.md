@@ -190,9 +190,15 @@ zenodex.zrpf.checkpoint_finality.policy_root.v2
 
 Each hash preimage starts with a big-endian `u16` domain length. Version and
 application-checkpoint sequence fields are big-endian. Existing ZRPF
-application, domain, and commitment types enforce nonzero 32-byte values. The
-certificate root is derived directly from its typed input fields before the
-certificate object is constructed; there is no placeholder-root state.
+application, domain, and commitment types enforce nonzero 32-byte values.
+The governed genesis checkpoint hash and every candidate checkpoint identity
+remain nonzero `CommitmentV3` values. The checker's fixed-width request ABI
+encodes an absent proposed prior cursor with tag zero followed by a reserved,
+zero-filled record slot. Those reserved bytes are framing and never decode as a
+typed checkpoint hash. A present record uses tag one and every typed hash must
+be nonzero. The certificate root is derived directly from its typed input fields
+before the certificate object is constructed; there is no placeholder-root
+state.
 
 The certificate uses exact Postcard encoding with a 576-byte ceiling. Decoding
 rejects:
@@ -212,9 +218,59 @@ proposal is a typed local input. Durable integration must define and enforce its
 own versioned storage codec, stable scope key, rollback protection, and atomic
 compare-and-swap before it can supply authority.
 
+## Standalone exact checker process
+
+`zk/zrpf_checkpoint_finality_checker` exposes the proof-neutral V2 check through
+one bounded native process ABI. Its request consists of an 885-byte fixed
+header followed by exactly one canonical certificate of at most 576 bytes. The
+header carries:
+
+```text
+16-byte request magic
+u16 checker protocol version
+complete governed V2 policy
+complete supplied V2 binding
+u8 prior-cursor tag
+264-byte fixed prior-record slot
+u16 certificate length
+```
+
+An empty prior-cursor tag requires every byte in the prior-record slot to be
+zero. A record tag requires the complete application, domain, finality scope,
+local policy root, sequence, and checkpoint hash. Unknown tags, noncanonical
+empty slots, zero values in nonzero typed fields, truncated input, trailing
+input, or an inconsistent declared length reject before the protocol check.
+
+On success the checker emits exactly 330 bytes containing the application and
+domain, epoch, policy root, certificate root, effective prior cursor, derived
+successor cursor, certificate SHA-256, request SHA-256, and a domain-separated
+response commitment. It emits no caller verdict, release flag, settlement
+flag, or production flag. Invalid input produces no success bytes and a
+nonzero process exit. The response commitment provides framing integrity; it
+is not a signature or execution attestation.
+
+The current Spot V7 adapter supplies that bounded process boundary. It accepts
+only the exact private V3 operational-policy capability and exact sealed
+BLS-authenticated finality transition, reconstructs the 885-byte request
+independently, executes the manifest-pinned static checker exactly once through
+the pre-exec verifier shell, and compares all 330 response bytes with the local
+expected response. It retains exact request/response bytes plus their hashes
+inside a private nontransferable cross-checked value. The operational V3 join
+accepts raw BLS-authenticated finality only with the exact checker and performs
+the cross-check itself. It rejects a caller-supplied preconstructed
+cross-checked value and carries the exact manifest, request, response, and
+digest evidence in the live operational packet.
+
+The authority manifest and executable digest remain caller-pinned and are not
+selected by a release-governance capability. The V4 atomic record does not yet
+persist the checker invocation evidence even though the live packet retains it.
+This closes the normal local typed cross-check path while preserving release,
+settlement, and production authority as false. Hostile code already executing
+inside the same Python interpreter remains outside this capability claim.
+
 ## Fail-closed check order
 
-The checker performs four stages:
+The checker performs five stages:
 
 1. validate certificate version and root consistency;
 2. compare certificate scope and local policy root with the governed policy;
@@ -263,6 +319,9 @@ Focused tests cover:
 - unknown caller verdict fields, stale version, and forged certificate root;
 - absence of caller authority Booleans;
 - empty-proposal genesis-anchor acceptance;
+- canonical tag-zero absent-prior encoding with a completely zero-filled
+  reserved record slot;
+- rejection of zero values in every typed checkpoint-hash position;
 - empty-proposal arbitrary-sequence and wrong-parent rejection;
 - proposed prior-record exact next-sequence and parent-hash acceptance;
 - proposed records below genesis and at-genesis wrong-hash rejection;
@@ -292,6 +351,18 @@ cargo +1.94.1 test \
 cargo +1.94.1 clippy \
   --manifest-path zk/zrpf_protocol/protocol/Cargo.toml \
   --test checkpoint_finality_v2 --locked -- -D warnings
+
+cargo +1.94.1 fmt \
+  --manifest-path zk/zrpf_checkpoint_finality_checker/Cargo.toml \
+  --all -- --check
+
+cargo +1.94.1 test \
+  --manifest-path zk/zrpf_checkpoint_finality_checker/Cargo.toml \
+  --locked --all-targets
+
+cargo +1.94.1 clippy \
+  --manifest-path zk/zrpf_checkpoint_finality_checker/Cargo.toml \
+  --locked --all-targets -- -D warnings
 ```
 
 ## Explicit nonclaims
@@ -302,6 +373,10 @@ This V2 primitive does not establish:
 - Tau checkpoint acceptance or Tau state assignment;
 - validator rotation, liveness, slashing, or adversarial network finality;
 - that the supplied binding came from an authenticated finality adapter;
+- that the standalone checker identity was selected by release governance;
+- durable persistence of the checker request, response, manifest, and
+  executable identity in the atomic operational record;
+- hostile same-interpreter resistance for Python private capability objects;
 - that the cursor proposal came from rollback-resistant durable state;
 - protection against resetting a persisted cursor to an empty proposal;
 - ancestry of a proposed prior record above the governed genesis anchor;

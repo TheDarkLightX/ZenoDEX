@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
+import src.integration.zrpf_spot_v7_checkpoint_finality_checker_adapter as checker_adapter
 import src.integration.zrpf_spot_v7_governed_da_prerequisite_v2 as da_module
 import tests.integration.test_zrpf_spot_v7_governed_da_prerequisite_v2 as da_test
 import tests.integration.test_zrpf_spot_v7_operational_policy_v3 as policy_test
@@ -33,10 +34,16 @@ from src.integration.dex_engine import DexEngineConfig
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.zeno_ledger_replay import replay_engine_config_document_v0
 from src.integration.zeno_ledger_v0 import canonical_header_hash_v0, canonical_json_bytes_v0
+from src.integration.zrpf_spot_v7_checkpoint_finality_checker_adapter import (
+    CheckpointFinalityCheckerAdapterRejectedV1,
+)
 from src.integration.zrpf_spot_v7_zeno_ledger_finality_adapter import (
     _AUTHENTICATED_CHECKPOINT_FINALITY_SEAL_V3,
     _AuthenticatedCheckpointFinalityProjectionV3,
     _AuthenticatedExactCheckpointFinalityTransitionV3,
+)
+from tests.integration.test_zrpf_spot_v7_checkpoint_finality_checker_adapter import (
+    _checker_for_downstream_tests,
 )
 
 
@@ -70,9 +77,7 @@ def _valid_prerequisites() -> tuple[object, object, object, object, object, byte
         exact_v7_journal_bytes=replay_test._v7_journal(partial),
     )
     settlement = replay_test._settlement(candidate)
-    config = replay_engine_config_document_v0(
-        DexEngineConfig(chain_id=replay_test._CHAIN_ID)
-    )
+    config = replay_engine_config_document_v0(DexEngineConfig(chain_id=replay_test._CHAIN_ID))
     envelope = replay_test.build_spot_v7_settlement_envelope_v1(settlement)
     body = replay_test._body(candidate, envelope)
     parent_candidate = replace(
@@ -83,20 +88,47 @@ def _valid_prerequisites() -> tuple[object, object, object, object, object, byte
     parent_header = replay_test._header(parent_candidate, body, config)
     header = replay_test._header(candidate, body, config)
     header["prev_header_hash"] = canonical_header_hash_v0(parent_header)
+    governed_genesis_hash = canonical_header_hash_v0(parent_header)
+    with patch.object(policy_test, "CHAIN_ID", replay_test._CHAIN_ID):
+        governed_base = replace(
+            policy_test._base_material(),
+            genesis_application_checkpoint_hash=governed_genesis_hash,
+        )
+        governed_material = policy_test._material(base=governed_base)
+        governed_registry = policy_test._registry()
+        policy = policy_test._load(
+            policy_test._manifest(governed_registry, material=governed_material),
+            governed_registry,
+            pin_material=governed_material,
+        )
+    with (
+        patch.object(da_test, "EPOCH_ID", epoch),
+        patch.object(da_test, "RETENTION_THROUGH_EPOCH", epoch + 15),
+    ):
+        beacon = da_test._beacon(policy)
+        sampled = da_test._sampled(policy, beacon)
+        governed_sample = da_module._bind_governed_spot_v7_sampled_response_v1(
+            operational_policy=policy,
+            governed_beacon=beacon,
+            sampled_response=sampled,
+        )
+        data_availability = da_module._bind_governed_spot_v7_da_prerequisite_v2(
+            operational_policy=policy,
+            exact_full_blob=da_test._full_blob(policy),
+            governed_sampled_response=governed_sample,
+        )
+    rebound_da = data_availability._projection_for_downstream_binding_v2().base
+    assert rebound_da.certificate_root == candidate.data_availability_certificate_root
+    assert rebound_da.data_root == candidate.data_root
     pre_state, _post_state = replay_test._states()
-    observation = replay_test.SpotV7SettlementEnvelopeReplayAdapterV2(
-        config
-    ).authenticate(
+    observation = replay_test.SpotV7SettlementEnvelopeReplayAdapterV2(config).authenticate(
         settlement=settlement,
         header=header,
         body=body,
         pre_snapshot=snapshot_from_state(pre_state).data,
         parent_header=parent_header,
     )
-    persisted = (
-        observation._durable_replay_packet_for_history_reverification()
-        ._persisted_inputs_for_storage()
-    )
+    persisted = observation._durable_replay_packet_for_history_reverification()._persisted_inputs_for_storage()
     durable_replay = _reverify_persisted_spot_v7_settlement_replay_v2(
         settlement=settlement,
         persisted=persisted,
@@ -118,9 +150,12 @@ def _finality(policy: object, candidate: object, observation: object) -> object:
     replay_projection = observation._projection_for_finality_adapter()  # type: ignore[attr-defined]
     evidence = b'{"schema":"test-only-finality-v3-evidence"}'
     evidence_root = "0x" + hashlib.sha256(evidence).hexdigest()
-    journal_hash = "0x" + hashlib.sha256(
-        candidate.exact_v7_journal_bytes  # type: ignore[attr-defined]
-    ).hexdigest()
+    journal_hash = (
+        "0x"
+        + hashlib.sha256(
+            candidate.exact_v7_journal_bytes  # type: ignore[attr-defined]
+        ).hexdigest()
+    )
     parent_hash = replay_projection.parent_header_hash or _ZERO_ROOT
     certificate_root = _finality_certificate_root_v2(
         policy=store_policy,
@@ -168,14 +203,13 @@ def _finality(policy: object, candidate: object, observation: object) -> object:
 
 
 def test_v3_join_recomposes_all_exact_prerequisites_and_preserves_nonclaims() -> None:
-    settlement, policy, data_availability, finality, durable_replay, parent = (
-        _valid_prerequisites()
-    )
+    settlement, policy, data_availability, finality, durable_replay, parent = _valid_prerequisites()
 
     capability = _bind_spot_v7_operational_commit_capability_v3(
         settlement=settlement,
         policy=policy,
         data_availability=data_availability,
+        checkpoint_finality_checker=_checker_for_downstream_tests(),
         finality=finality,
         durable_replay=durable_replay,
         exact_parent_header_bytes=parent,
@@ -188,13 +222,97 @@ def test_v3_join_recomposes_all_exact_prerequisites_and_preserves_nonclaims() ->
     assert packet.finality.next_application_checkpoint_hash == (
         packet.durable_replay_packet._projection_for_history_reverification().header_hash
     )
+    invocation = packet.checkpoint_finality_checker_invocation
+    assert hashlib.sha256(invocation.exact_authority_manifest_bytes).hexdigest() == (
+        invocation.evidence.authority_manifest_sha256
+    )
+    assert hashlib.sha256(invocation.exact_request_bytes).hexdigest() == (
+        invocation.evidence.request_sha256
+    )
+    assert hashlib.sha256(invocation.exact_response_bytes).hexdigest() == (
+        invocation.evidence.response_sha256
+    )
     assert capability.durable_settlement_replay_reverified is True
     assert capability.sampled_policy_governance_provenance_verified is True
     assert capability.governed_beacon_provenance_verified is True
+    assert capability.manifest_pinned_checkpoint_finality_cross_check_executed is True
+    assert capability.release_governed_checkpoint_finality_checker_identity_verified is False
+    assert capability.hostile_same_interpreter_resistance_established is False
     assert capability.public_future_availability_verified is False
     assert capability.release_authority is False
     assert capability.settlement_authority is False
     assert capability.production_authority is False
+
+
+def test_v3_join_executes_checkpoint_checker_exactly_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settlement, policy, data_availability, finality, durable_replay, parent = _valid_prerequisites()
+    calls = 0
+    original = checker_adapter.execute_pinned_verifier_once
+
+    def counted(**kwargs: object) -> bytes:
+        nonlocal calls
+        calls += 1
+        return original(**kwargs)
+
+    monkeypatch.setattr(checker_adapter, "execute_pinned_verifier_once", counted)
+    _bind_spot_v7_operational_commit_capability_v3(
+        settlement=settlement,
+        policy=policy,
+        data_availability=data_availability,
+        checkpoint_finality_checker=_checker_for_downstream_tests(),
+        finality=finality,
+        durable_replay=durable_replay,
+        exact_parent_header_bytes=parent,
+    )
+
+    assert calls == 1
+
+
+def test_v3_join_rejects_invalid_prerequisite_before_checker_execution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _settlement, policy, data_availability, finality, durable_replay, parent = (
+        _valid_prerequisites()
+    )
+    called = False
+
+    def forbidden(**_kwargs: object) -> bytes:
+        nonlocal called
+        called = True
+        raise AssertionError("checkpoint checker must not execute")
+
+    monkeypatch.setattr(checker_adapter, "execute_pinned_verifier_once", forbidden)
+    with pytest.raises(TypeError):
+        _bind_spot_v7_operational_commit_capability_v3(
+            settlement={"verified": True},
+            policy=policy,
+            data_availability=data_availability,
+            checkpoint_finality_checker=_checker_for_downstream_tests(),
+            finality=finality,
+            durable_replay=durable_replay,
+            exact_parent_header_bytes=parent,
+        )
+
+    assert called is False
+
+
+def test_v3_join_rejects_preconstructed_cross_checked_finality() -> None:
+    settlement, policy, data_availability, finality, durable_replay, parent = _valid_prerequisites()
+    checker = _checker_for_downstream_tests()
+    preconstructed = checker.cross_check_authenticated(policy=policy, finality=finality)
+
+    with pytest.raises(CheckpointFinalityCheckerAdapterRejectedV1):
+        _bind_spot_v7_operational_commit_capability_v3(
+            settlement=settlement,
+            policy=policy,
+            data_availability=data_availability,
+            checkpoint_finality_checker=checker,
+            finality=preconstructed,
+            durable_replay=durable_replay,
+            exact_parent_header_bytes=parent,
+        )
 
 
 @pytest.mark.parametrize(
@@ -203,6 +321,7 @@ def test_v3_join_recomposes_all_exact_prerequisites_and_preserves_nonclaims() ->
         "settlement",
         "policy",
         "data_availability",
+        "checkpoint_finality_checker",
         "finality",
         "durable_replay",
     ),
@@ -212,6 +331,7 @@ def test_v3_join_rejects_unsealed_plain_objects(field: str) -> None:
         "settlement": object(),
         "policy": object(),
         "data_availability": object(),
+        "checkpoint_finality_checker": object(),
         "finality": object(),
         "durable_replay": object(),
     }
@@ -222,6 +342,7 @@ def test_v3_join_rejects_unsealed_plain_objects(field: str) -> None:
             settlement=values["settlement"],
             policy=values["policy"],
             data_availability=values["data_availability"],
+            checkpoint_finality_checker=values["checkpoint_finality_checker"],
             finality=values["finality"],
             durable_replay=values["durable_replay"],
         )
@@ -237,6 +358,7 @@ def test_v3_join_rejects_missing_parent_header() -> None:
             settlement=settlement,
             policy=policy,
             data_availability=data_availability,
+            checkpoint_finality_checker=_checker_for_downstream_tests(),
             finality=finality,
             durable_replay=durable_replay,
         )
@@ -245,9 +367,7 @@ def test_v3_join_rejects_missing_parent_header() -> None:
 
 
 def test_v3_join_rejects_parent_header_with_wrong_hash() -> None:
-    settlement, policy, data_availability, finality, durable_replay, parent = (
-        _valid_prerequisites()
-    )
+    settlement, policy, data_availability, finality, durable_replay, parent = _valid_prerequisites()
     mutated_parent = parent.replace(b'"height":', b'"height":1', 1)
 
     with pytest.raises(SpotV7OperationalCapabilityBindingErrorV3) as error:
@@ -255,6 +375,7 @@ def test_v3_join_rejects_parent_header_with_wrong_hash() -> None:
             settlement=settlement,
             policy=policy,
             data_availability=data_availability,
+            checkpoint_finality_checker=_checker_for_downstream_tests(),
             finality=finality,
             durable_replay=durable_replay,
             exact_parent_header_bytes=mutated_parent,
@@ -277,13 +398,12 @@ def test_v3_join_rejects_parent_header_with_wrong_hash() -> None:
 def test_v3_capability_is_nontransferable(
     operation: Callable[[object], object],
 ) -> None:
-    settlement, policy, data_availability, finality, durable_replay, parent = (
-        _valid_prerequisites()
-    )
+    settlement, policy, data_availability, finality, durable_replay, parent = _valid_prerequisites()
     capability = _bind_spot_v7_operational_commit_capability_v3(
         settlement=settlement,
         policy=policy,
         data_availability=data_availability,
+        checkpoint_finality_checker=_checker_for_downstream_tests(),
         finality=finality,
         durable_replay=durable_replay,
         exact_parent_header_bytes=parent,

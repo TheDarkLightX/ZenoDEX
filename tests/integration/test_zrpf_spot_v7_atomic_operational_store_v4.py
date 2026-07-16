@@ -93,6 +93,9 @@ from src.integration.zrpf_spot_v7_zeno_ledger_finality_adapter import (
     ZenoLedgerCheckpointFinalityCursorV1,
     derive_zeno_ledger_external_finality_policy_hash_v2,
 )
+from tests.integration.test_zrpf_spot_v7_checkpoint_finality_checker_adapter import (
+    _checker_for_downstream_tests,
+)
 
 _SOURCE_EPOCH = 19
 _CURRENT_EPOCH = 20
@@ -484,6 +487,7 @@ def _build_genuine_v4_fixture() -> _GenuineV4Fixture:
             settlement=settlement,
             policy=policy,
             data_availability=data_availability,
+            checkpoint_finality_checker=_checker_for_downstream_tests(),
             finality=finality,
             durable_replay=durable_replay,
             exact_parent_header_bytes=canonical_json_bytes_v0(source_header),
@@ -591,9 +595,7 @@ def _acquire_immediate_noop_write_and_rollback(path: Path) -> None:
     with sqlite3.connect(path, timeout=0.05, isolation_level=None) as connection:
         connection.execute("PRAGMA busy_timeout = 50")
         connection.execute("BEGIN IMMEDIATE")
-        connection.execute(
-            "UPDATE spot_v7_store_meta SET revision = revision WHERE singleton = 1"
-        )
+        connection.execute("UPDATE spot_v7_store_meta SET revision = revision WHERE singleton = 1")
         connection.rollback()
 
 
@@ -1061,10 +1063,7 @@ def test_given_commit_resolver_exception_then_typed_commit_failure_preserves_sta
     assert captured.value.detail == "Spot V7 V4 settlement resolver failed"
     reopened = _open_existing(initial_store.path, genuine_v4_fixture)
     assert reopened.read_cursor() == committed.head_cursor
-    assert (
-        reopened.get_receipt(genuine_v4_fixture.settlement_commitment)
-        == committed.receipt
-    )
+    assert reopened.get_receipt(genuine_v4_fixture.settlement_commitment) == committed.receipt
 
 
 def test_given_operational_anchor_drift_during_resolution_then_stale_retry_rejects_without_partial_write(
