@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import fields, replace
 from typing import cast
 
 import pytest
@@ -101,7 +101,6 @@ def _state(
     target_reserve_atoms: int = LIQUITY_V1_GAS_RESERVE_ATOMS,
     gas_pool_atoms: int = 2 * LIQUITY_V1_GAS_RESERVE_ATOMS,
     total_supply_atoms: int = 4_000 * Q,
-    cumulative_burn_atoms: int = 0,
     sequence: int = 0,
 ) -> OwnerCloseState:
     vault = active or _active()
@@ -125,7 +124,6 @@ def _state(
         ),
         supply=SupplyProjection(
             total_zusd_supply_atoms=ZUSDAtoms(total_supply_atoms),
-            cumulative_zusd_burn_atoms=ZUSDAtoms(cumulative_burn_atoms),
         ),
         transition_sequence=SequenceNumber(sequence),
     )
@@ -567,17 +565,48 @@ def test_substituted_candidate_aggregate_cannot_authorize_a_different_close() ->
     )
 
 
-def test_candidate_credit_or_burn_overflow_is_a_typed_noop() -> None:
-    active = _active()
+def test_historical_burn_is_not_acceptance_critical_state() -> None:
+    assert tuple(field.name for field in fields(SupplyProjection)) == (
+        "total_zusd_supply_atoms",
+    )
+    pre = _state()
+    result = run_owner_close(pre, _request(pre))
+    assert type(result) is OwnerCloseAccepted
+    assert result.effects.total_zusd_burn_atoms.value == 2_000 * Q
+
+
+def test_candidate_aggregate_requires_positive_collateral_for_every_remaining_vault() -> None:
+    active = _active(collateral_atoms=1, stake_atoms=0)
     pre = _state(
         active=active,
-        cumulative_burn_atoms=U256_MAX - active.composite_debt_atoms.value + 1,
+        system_collateral_atoms=2,
+        system_debt_atoms=6_000 * Q,
+        total_stake_atoms=0,
+        active_count=3,
+        gas_pool_atoms=3 * LIQUITY_V1_GAS_RESERVE_ATOMS,
+        total_supply_atoms=6_000 * Q,
     )
     _assert_reject(
-        run_owner_close(pre, _request(pre)),
+        run_owner_close(pre, _request(pre, price_e18=6 * 10**39)),
         pre,
-        OwnerCloseReject.CANDIDATE_ACCOUNTING_OVERFLOW,
+        OwnerCloseReject.CANDIDATE_AGGREGATE_INCONSISTENT,
     )
+
+
+def test_candidate_aggregate_accepts_exact_positive_collateral_floor() -> None:
+    active = _active(collateral_atoms=1, stake_atoms=0)
+    pre = _state(
+        active=active,
+        system_collateral_atoms=3,
+        system_debt_atoms=6_000 * Q,
+        total_stake_atoms=0,
+        active_count=3,
+        gas_pool_atoms=3 * LIQUITY_V1_GAS_RESERVE_ATOMS,
+        total_supply_atoms=6_000 * Q,
+    )
+    result = run_owner_close(pre, _request(pre, price_e18=3 * 10**39))
+    assert type(result) is OwnerCloseAccepted
+    assert committed_state(result).system.collateral_atoms.value == 2
 
 
 def test_candidate_collateral_credit_and_reserve_count_overflows_are_noops() -> None:
@@ -833,11 +862,6 @@ def test_bounded_acceptance_preserves_supply_debt_custody_and_stake(
         == target_collateral * Q
     )
     assert post.system.active_vault_and_index_count.value == 1
-    assert (
-        post.supply.cumulative_zusd_burn_atoms.value
-        - pre.supply.cumulative_zusd_burn_atoms.value
-        == composite
-    )
 
 
 def test_extra_owner_balance_is_metamorphic_and_does_not_change_effects() -> None:
@@ -1115,7 +1139,6 @@ def test_every_accepted_guard_is_total_and_passed() -> None:
     tcr_cushion_collateral=st.integers(min_value=0, max_value=20),
     extra_owner_zusd=st.integers(min_value=0, max_value=1_000),
     owner_collateral=st.integers(min_value=0, max_value=100),
-    cumulative_burn=st.integers(min_value=0, max_value=10_000),
 )
 def test_generated_acceptance_conserves_every_owned_quantity(
     net_debt: int,
@@ -1124,7 +1147,6 @@ def test_generated_acceptance_conserves_every_owned_quantity(
     tcr_cushion_collateral: int,
     extra_owner_zusd: int,
     owner_collateral: int,
-    cumulative_burn: int,
 ) -> None:
     price = 200
     composite_debt = net_debt + 200
@@ -1151,7 +1173,6 @@ def test_generated_acceptance_conserves_every_owned_quantity(
         owner_zusd_atoms=(net_debt + extra_owner_zusd) * Q,
         owner_collateral_atoms=owner_collateral * Q,
         total_supply_atoms=composite + other_debt * Q,
-        cumulative_burn_atoms=cumulative_burn * Q,
     )
     result = run_owner_close(
         pre,

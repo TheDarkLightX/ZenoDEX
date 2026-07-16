@@ -268,19 +268,21 @@ class GasReserveProjection:
 
 @dataclass(frozen=True, slots=True)
 class SupplyProjection:
+    """Acceptance-critical live zUSD supply.
+
+    Exact per-transition burns are emitted in ``OwnerCloseEffects``. Historical
+    zUSD burn totals are replay/chunk-derived audit data and cannot gate a
+    Liquity V1 owner close, so no finite cumulative counter is represented
+    here.
+    """
+
     total_zusd_supply_atoms: ZUSDAtoms
-    cumulative_zusd_burn_atoms: ZUSDAtoms
 
     def __post_init__(self) -> None:
         _require_exact_type(
             self.total_zusd_supply_atoms,
             ZUSDAtoms,
             name="total_zusd_supply_atoms",
-        )
-        _require_exact_type(
-            self.cumulative_zusd_burn_atoms,
-            ZUSDAtoms,
-            name="cumulative_zusd_burn_atoms",
         )
 
 
@@ -848,8 +850,6 @@ def _has_accounting_overflow(state: OwnerCloseState, active: ActiveWithComposite
         (
             state.owner_wallet.collateral_balance_atoms.value
             > U256_MAX - active.collateral_atoms.value,
-            state.supply.cumulative_zusd_burn_atoms.value
-            > U256_MAX - active.composite_debt_atoms.value,
             state.system.active_vault_and_index_count.value
             > U256_MAX // LIQUITY_V1_GAS_RESERVE_ATOMS,
         )
@@ -870,6 +870,7 @@ def _candidate_aggregate_is_exact(
     active_count = state.system.active_vault_and_index_count.value
     if active_count == 0:
         return False
+    minimum_remaining_collateral = active_count - 1
     minimum_remaining_debt = (
         active_count - 1
     ) * LIQUITY_V1_MIN_COMPOSITE_DEBT_ATOMS
@@ -877,6 +878,7 @@ def _candidate_aggregate_is_exact(
         (
             candidate.candidate_system_collateral_atoms.value == expected_collateral,
             candidate.candidate_system_composite_debt_atoms.value == expected_debt,
+            expected_collateral >= minimum_remaining_collateral,
             expected_debt >= minimum_remaining_debt,
             supply == state.system.composite_debt_atoms.value,
             wallet <= supply,
@@ -1100,10 +1102,6 @@ def _build_post_state(
             total_zusd_supply_atoms=ZUSDAtoms(
                 state.supply.total_zusd_supply_atoms.value
                 - active.composite_debt_atoms.value
-            ),
-            cumulative_zusd_burn_atoms=ZUSDAtoms(
-                state.supply.cumulative_zusd_burn_atoms.value
-                + active.composite_debt_atoms.value
             ),
         ),
         transition_sequence=close_occurrence,
