@@ -157,6 +157,12 @@ jobs:
             RUSTC="${pinned_bin}/rustc" \
             RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
             "${pinned_bin}/cargo" fetch --locked \
+              --manifest-path zk/zrpf_checkpoint_finality_checker/Cargo.toml
+          env \
+            PATH="${pinned_bin}:/usr/bin:/bin" \
+            RUSTC="${pinned_bin}/rustc" \
+            RUSTDOC="${pinned_bin}/rustdoc_tool_binary" \
+            "${pinned_bin}/cargo" fetch --locked \
               --manifest-path tools/zrpf_firecracker_netns_helper/Cargo.toml
 
       - name: Run Python and evidence assurance
@@ -191,6 +197,12 @@ jobs:
             src/integration/_zrpf_spot_v7_operational_gate.py \
             src/integration/_zrpf_spot_v7_operational_capability_v2.py \
             src/integration/_zrpf_spot_v7_operational_capability_v3.py \
+            src/integration/_zrpf_spot_v7_checkpoint_finality_checker_codec.py \
+            src/integration/zrpf_spot_v7_checkpoint_finality_checker_adapter.py \
+            src/integration/_zrpf_spot_v7_release_selection_envelope_v1.py \
+            src/integration/zrpf_spot_v7_authenticated_release_selection_v1.py \
+            src/integration/_zrpf_spot_v7_release_revocation_envelope_v1.py \
+            src/integration/zrpf_spot_v7_authenticated_release_revocation_v1.py \
             src/integration/_zrpf_spot_v7_operational_policy_v3.py \
             src/integration/zrpf_spot_v7_operational_policy_provenance.py \
             src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py \
@@ -226,6 +238,10 @@ jobs:
             src/integration/_zrpf_spot_v7_atomic_settlement_history_v5.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_schema_v5.py \
             src/integration/zrpf_spot_v7_atomic_operational_store_v5.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_engine_v6.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_history_v6.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_schema_v6.py \
+            src/integration/zrpf_spot_v7_atomic_operational_store_v6.py \
             src/integration/zrpf_spot_v7_atomic_settlement_types.py \
             src/integration/_zeno_ledger_pinned_verifier_process_v1.py \
             src/integration/zeno_ledger_authenticated_proof_verification_v1.py \
@@ -279,6 +295,9 @@ jobs:
             tools/run_zrpf_remote_identity_rebuild_stage_v2.py \
             tools/run_zrpf_remote_worker_prover_build_stage_v2.py \
             tools/run_zrpf_remote_reproof_worker_v2.py \
+            tools/zrpf_remote_reproof_worker_v2_publication.py \
+            tools/zrpf_remote_reproof_stage_publication_marker_v1.py \
+            tools/zrpf_remote_release_checks_stage_v2.py \
             tools/zrpf_remote_reproof_handoff_v2_catalog.py \
             tools/zrpf_remote_reproof_worker_v2_contract.py \
             tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
@@ -299,6 +318,7 @@ jobs:
             tools/zrpf_spot_v7_firecracker_linux_namespace.py \
             tools/zrpf_spot_v7_firecracker_linux_port.py \
             tools/zrpf_spot_v7_firecracker_linux_runner.py \
+            tools/zrpf_spot_v7_firecracker_root_supervisor_candidate_policy_v1.py \
             tools/zrpf_spot_v7_firecracker_root_supervisor.py \
             tools/zrpf_spot_v7_firecracker_artifact_binding.py \
             tools/_zrpf_spot_v7_firecracker_descriptor_handoff.py \
@@ -307,6 +327,13 @@ jobs:
             tools/zrpf_spot_v7_firecracker_runtime_binding.py \
             tools/zrpf_spot_v7_firecracker_runtime_manifest.py \
             tools/zrpf_spot_v7_governed_release_selection_store_v1.py \
+            tools/zrpf_spot_v7_authenticated_release_selection_store_v2.py \
+            tools/zrpf_spot_v7_authenticated_release_state_store_v3.py \
+            tools/zrpf_spot_v7_current_release_execution_binding_v1.py \
+            tools/zrpf_spot_v7_execution_authority_manifest_v1.py \
+            tools/zrpf_spot_v7_release_state_checkpoint_v1.py \
+            tools/zrpf_spot_v7_store_derived_release_checkpoint_v1.py \
+            tools/zrpf_spot_v7_highest_observed_release_event_watermark_v1.py \
             tools/zrpf_spot_v7_governed_release_selector_input_v1.py \
             tools/zrpf_spot_v7_release_candidate_manifest_v1.py \
             tools/zrpf_spot_v7_firecracker_runtime_protocol.py \
@@ -367,6 +394,8 @@ jobs:
             tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py \
             tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
+            tests/test_zrpf_remote_reproof_stage_publication_marker_v1.py \
+            tests/test_zrpf_remote_release_checks_stage_v2.py \
             tests/test_zrpf_remote_mutation_verifier_source_contract.py \
             tests/test_zrpf_remote_mutation_dependency_closure.py \
             tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
@@ -376,10 +405,19 @@ jobs:
             tests/test_zrpf_spot_v7_firecracker_linux_netns_adapter.py \
             tests/test_zrpf_spot_v7_firecracker_linux_port.py \
             tests/test_zrpf_spot_v7_firecracker_linux_runner.py \
+            tests/test_zrpf_spot_v7_firecracker_linux_candidate_bound_runner_v1.py \
+            tests/test_zrpf_spot_v7_firecracker_root_supervisor_candidate_policy_v1.py \
             tests/test_zrpf_spot_v7_firecracker_root_supervisor.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \
             tests/test_zrpf_spot_v7_governed_release_selection_store_v1.py \
+            tests/test_zrpf_spot_v7_authenticated_release_selection_store_v2.py \
+            tests/test_zrpf_spot_v7_authenticated_release_state_store_v3.py \
+            tests/test_zrpf_spot_v7_current_release_execution_binding_v1.py \
+            tests/test_zrpf_spot_v7_execution_authority_manifest_v1.py \
+            tests/test_zrpf_spot_v7_release_state_checkpoint_v1.py \
+            tests/test_zrpf_spot_v7_store_derived_release_checkpoint_v1.py \
+            tests/test_zrpf_spot_v7_highest_observed_release_event_watermark_v1.py \
             tests/test_zrpf_spot_v7_release_candidate_manifest_v1.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
             tests/test_zrpf_spot_v7_firecracker_authority_input_parity.py \
@@ -415,6 +453,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_settlement_durable_replay.py \
             tests/integration/test_zrpf_spot_v7_atomic_operational_store_v4.py \
             tests/integration/test_zrpf_spot_v7_atomic_operational_store_v5.py \
+            tests/integration/test_zrpf_spot_v7_atomic_operational_store_v6.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_sampled_retrievability_v1.py \
@@ -424,6 +463,10 @@ jobs:
             tests/integration/test_zrpf_spot_v7_longitudinal_retrievability.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zrpf_spot_v7_operational_capability_v3.py \
+            tests/integration/test_zrpf_checkpoint_finality_checker_parity.py \
+            tests/integration/test_zrpf_spot_v7_checkpoint_finality_checker_adapter.py \
+            tests/integration/test_zrpf_spot_v7_authenticated_release_selection_v1.py \
+            tests/integration/test_zrpf_spot_v7_authenticated_release_revocation_v1.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_v3.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \
@@ -472,6 +515,12 @@ jobs:
             src/integration/_zrpf_spot_v7_operational_gate.py \
             src/integration/_zrpf_spot_v7_operational_capability_v2.py \
             src/integration/_zrpf_spot_v7_operational_capability_v3.py \
+            src/integration/_zrpf_spot_v7_checkpoint_finality_checker_codec.py \
+            src/integration/zrpf_spot_v7_checkpoint_finality_checker_adapter.py \
+            src/integration/_zrpf_spot_v7_release_selection_envelope_v1.py \
+            src/integration/zrpf_spot_v7_authenticated_release_selection_v1.py \
+            src/integration/_zrpf_spot_v7_release_revocation_envelope_v1.py \
+            src/integration/zrpf_spot_v7_authenticated_release_revocation_v1.py \
             src/integration/_zrpf_spot_v7_operational_policy_v3.py \
             src/integration/zrpf_spot_v7_operational_policy_provenance.py \
             src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py \
@@ -507,6 +556,10 @@ jobs:
             src/integration/_zrpf_spot_v7_atomic_settlement_history_v5.py \
             src/integration/_zrpf_spot_v7_atomic_settlement_schema_v5.py \
             src/integration/zrpf_spot_v7_atomic_operational_store_v5.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_engine_v6.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_history_v6.py \
+            src/integration/_zrpf_spot_v7_atomic_settlement_schema_v6.py \
+            src/integration/zrpf_spot_v7_atomic_operational_store_v6.py \
             src/integration/zrpf_spot_v7_atomic_settlement_types.py \
             src/integration/_zeno_ledger_pinned_verifier_process_v1.py \
             src/integration/zeno_ledger_authenticated_proof_verification_v1.py \
@@ -558,6 +611,9 @@ jobs:
             tools/run_zrpf_remote_identity_rebuild_stage_v2.py \
             tools/run_zrpf_remote_worker_prover_build_stage_v2.py \
             tools/run_zrpf_remote_reproof_worker_v2.py \
+            tools/zrpf_remote_reproof_worker_v2_publication.py \
+            tools/zrpf_remote_reproof_stage_publication_marker_v1.py \
+            tools/zrpf_remote_release_checks_stage_v2.py \
             tools/zrpf_remote_reproof_handoff_v2_catalog.py \
             tools/zrpf_remote_reproof_worker_v2_contract.py \
             tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
@@ -578,6 +634,7 @@ jobs:
             tools/zrpf_spot_v7_firecracker_linux_namespace.py \
             tools/zrpf_spot_v7_firecracker_linux_port.py \
             tools/zrpf_spot_v7_firecracker_linux_runner.py \
+            tools/zrpf_spot_v7_firecracker_root_supervisor_candidate_policy_v1.py \
             tools/zrpf_spot_v7_firecracker_root_supervisor.py \
             tools/zrpf_spot_v7_firecracker_artifact_binding.py \
             tools/_zrpf_spot_v7_firecracker_descriptor_handoff.py \
@@ -586,6 +643,13 @@ jobs:
             tools/zrpf_spot_v7_firecracker_runtime_binding.py \
             tools/zrpf_spot_v7_firecracker_runtime_manifest.py \
             tools/zrpf_spot_v7_governed_release_selection_store_v1.py \
+            tools/zrpf_spot_v7_authenticated_release_selection_store_v2.py \
+            tools/zrpf_spot_v7_authenticated_release_state_store_v3.py \
+            tools/zrpf_spot_v7_current_release_execution_binding_v1.py \
+            tools/zrpf_spot_v7_execution_authority_manifest_v1.py \
+            tools/zrpf_spot_v7_release_state_checkpoint_v1.py \
+            tools/zrpf_spot_v7_store_derived_release_checkpoint_v1.py \
+            tools/zrpf_spot_v7_highest_observed_release_event_watermark_v1.py \
             tools/zrpf_spot_v7_governed_release_selector_input_v1.py \
             tools/zrpf_spot_v7_release_candidate_manifest_v1.py \
             tools/zrpf_spot_v7_firecracker_runtime_protocol.py \
@@ -628,10 +692,19 @@ jobs:
             tests/test_zrpf_spot_v7_firecracker_linux_netns_adapter.py \
             tests/test_zrpf_spot_v7_firecracker_linux_port.py \
             tests/test_zrpf_spot_v7_firecracker_linux_runner.py \
+            tests/test_zrpf_spot_v7_firecracker_linux_candidate_bound_runner_v1.py \
+            tests/test_zrpf_spot_v7_firecracker_root_supervisor_candidate_policy_v1.py \
             tests/test_zrpf_spot_v7_firecracker_root_supervisor.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \
             tests/test_zrpf_spot_v7_governed_release_selection_store_v1.py \
+            tests/test_zrpf_spot_v7_authenticated_release_selection_store_v2.py \
+            tests/test_zrpf_spot_v7_authenticated_release_state_store_v3.py \
+            tests/test_zrpf_spot_v7_current_release_execution_binding_v1.py \
+            tests/test_zrpf_spot_v7_execution_authority_manifest_v1.py \
+            tests/test_zrpf_spot_v7_release_state_checkpoint_v1.py \
+            tests/test_zrpf_spot_v7_store_derived_release_checkpoint_v1.py \
+            tests/test_zrpf_spot_v7_highest_observed_release_event_watermark_v1.py \
             tests/test_zrpf_spot_v7_release_candidate_manifest_v1.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
             tests/test_zrpf_spot_v7_firecracker_authority_input_parity.py \
@@ -640,6 +713,8 @@ jobs:
             tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py \
             tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
+            tests/test_zrpf_remote_reproof_stage_publication_marker_v1.py \
+            tests/test_zrpf_remote_release_checks_stage_v2.py \
             tests/test_check_zrpf_stage_execution_profile_v1.py \
             tests/test_zrpf_paid_run_prerequisites_v1.py \
             tests/test_check_zrpf_initial_paid_calibration_attempt_v1.py \
@@ -656,6 +731,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_settlement_durable_replay.py \
             tests/integration/test_zrpf_spot_v7_atomic_operational_store_v4.py \
             tests/integration/test_zrpf_spot_v7_atomic_operational_store_v5.py \
+            tests/integration/test_zrpf_spot_v7_atomic_operational_store_v6.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_sampled_retrievability_v1.py \
@@ -665,6 +741,10 @@ jobs:
             tests/integration/test_zrpf_spot_v7_longitudinal_retrievability.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zrpf_spot_v7_operational_capability_v3.py \
+            tests/integration/test_zrpf_checkpoint_finality_checker_parity.py \
+            tests/integration/test_zrpf_spot_v7_checkpoint_finality_checker_adapter.py \
+            tests/integration/test_zrpf_spot_v7_authenticated_release_selection_v1.py \
+            tests/integration/test_zrpf_spot_v7_authenticated_release_revocation_v1.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_v3.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \
@@ -694,6 +774,8 @@ jobs:
             tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py \
             tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py \
             tests/test_run_zrpf_remote_reproof_worker_v2.py \
+            tests/test_zrpf_remote_reproof_stage_publication_marker_v1.py \
+            tests/test_zrpf_remote_release_checks_stage_v2.py \
             tests/test_zrpf_remote_mutation_verifier_source_contract.py \
             tests/test_zrpf_remote_mutation_dependency_closure.py \
             tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py \
@@ -703,10 +785,19 @@ jobs:
             tests/test_zrpf_spot_v7_firecracker_linux_netns_adapter.py \
             tests/test_zrpf_spot_v7_firecracker_linux_port.py \
             tests/test_zrpf_spot_v7_firecracker_linux_runner.py \
+            tests/test_zrpf_spot_v7_firecracker_linux_candidate_bound_runner_v1.py \
+            tests/test_zrpf_spot_v7_firecracker_root_supervisor_candidate_policy_v1.py \
             tests/test_zrpf_spot_v7_firecracker_root_supervisor.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_binding.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py \
             tests/test_zrpf_spot_v7_governed_release_selection_store_v1.py \
+            tests/test_zrpf_spot_v7_authenticated_release_selection_store_v2.py \
+            tests/test_zrpf_spot_v7_authenticated_release_state_store_v3.py \
+            tests/test_zrpf_spot_v7_current_release_execution_binding_v1.py \
+            tests/test_zrpf_spot_v7_execution_authority_manifest_v1.py \
+            tests/test_zrpf_spot_v7_release_state_checkpoint_v1.py \
+            tests/test_zrpf_spot_v7_store_derived_release_checkpoint_v1.py \
+            tests/test_zrpf_spot_v7_highest_observed_release_event_watermark_v1.py \
             tests/test_zrpf_spot_v7_release_candidate_manifest_v1.py \
             tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py \
             tests/test_zrpf_spot_v7_firecracker_authority_input_parity.py \
@@ -760,6 +851,7 @@ jobs:
             tests/integration/test_zrpf_spot_v7_settlement_durable_replay.py \
             tests/integration/test_zrpf_spot_v7_atomic_operational_store_v4.py \
             tests/integration/test_zrpf_spot_v7_atomic_operational_store_v5.py \
+            tests/integration/test_zrpf_spot_v7_atomic_operational_store_v6.py \
             tests/integration/test_zrpf_spot_v7_operational_atomic_store.py \
             tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py \
             tests/integration/test_zrpf_sampled_retrievability_v1.py \
@@ -769,6 +861,10 @@ jobs:
             tests/integration/test_zrpf_spot_v7_longitudinal_retrievability.py \
             tests/integration/test_zrpf_spot_v7_operational_gate.py \
             tests/integration/test_zrpf_spot_v7_operational_capability_v3.py \
+            tests/integration/test_zrpf_checkpoint_finality_checker_parity.py \
+            tests/integration/test_zrpf_spot_v7_checkpoint_finality_checker_adapter.py \
+            tests/integration/test_zrpf_spot_v7_authenticated_release_selection_v1.py \
+            tests/integration/test_zrpf_spot_v7_authenticated_release_revocation_v1.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_v3.py \
             tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py \
             tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py \
@@ -832,6 +928,15 @@ jobs:
             --locked --offline --all-targets
           "${pinned_bin}/cargo-clippy" clippy \
             --manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml \
+            --locked --offline --all-targets -- -D warnings
+          "${pinned_bin}/cargo" fmt \
+            --manifest-path zk/zrpf_checkpoint_finality_checker/Cargo.toml \
+            --all -- --check
+          "${pinned_bin}/cargo" test \
+            --manifest-path zk/zrpf_checkpoint_finality_checker/Cargo.toml \
+            --locked --offline --all-targets
+          "${pinned_bin}/cargo-clippy" clippy \
+            --manifest-path zk/zrpf_checkpoint_finality_checker/Cargo.toml \
             --locked --offline --all-targets -- -D warnings
           "${pinned_bin}/cargo" fmt \
             --manifest-path tools/zrpf_firecracker_netns_helper/Cargo.toml \

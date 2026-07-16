@@ -276,6 +276,35 @@ transaction before durable atomic value-moving admission can be claimed. Fresh
 V2 receipt evidence and governed live release configuration also remain
 required.
 
+Status update, 2026-07-15: checkpoint-finality V2 preserves its original
+nonzero `CommitmentV3` semantics for the governed genesis hash, certificate
+parent hash, prior cursor hash, and derived next cursor hash. All-zero values
+reject during typed request, certificate, cursor, or response decoding. A
+future protocol that needs a zero genesis sentinel must use a distinct
+version, hash domain, and compatibility contract rather than broadening V2.
+
+The standalone `zk/zrpf_checkpoint_finality_checker` executable performs a
+bounded, proof-neutral V2 consistency check over exact policy bytes, supplied
+checkpoint binding, optional prior cursor, and canonical certificate bytes. Its
+fixed response binds the policy root, certificate root, prior and next cursor,
+certificate SHA-256, and exact request SHA-256. The response commitment is
+unkeyed framing integrity. It does not authenticate governance, quorum
+signatures, external finality, rollback-resistant storage, release identity, or
+settlement authority. The additive
+`zrpf_spot_v7_checkpoint_finality_checker_adapter` constructs the exact request
+from the governed operational-policy capability and the BLS-authenticated V3
+finality transition, executes one manifest-pinned static checker, compares
+every response field with an independently constructed expectation, and mints
+a separate private cross-checked capability. The Spot V7 operational V3 join
+accepts the raw BLS-authenticated transition only alongside the exact checker,
+executes that checker itself, and retains the exact manifest, request, response,
+and their digests in its live commit packet. A preconstructed cross-checked
+object cannot enter that join. The additive V6 atomic store persists and
+restart-replays those exact invocation artifacts in the same transaction as the
+existing V5 operational packet. The checker identity remains manifest-pinned
+rather than selected by the authenticated release state, so release,
+settlement, and production authority remain false.
+
 The additive `zk/zrpf_risc0` workspace contains the pure Spot V1-to-V3 mapping,
 a receipt-authenticated adapter guest, a private-construction host verifier,
 and an evidence harness. The guest verifies the exact governed Spot receipt
