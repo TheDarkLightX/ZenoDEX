@@ -62,6 +62,10 @@ SPOT_V7_GOVERNED_DA_PREREQUISITE_V2 = (
 SPOT_V7_LONGITUDINAL_RETRIEVABILITY = (
     ROOT / "src/integration/zrpf_spot_v7_longitudinal_retrievability.py"
 )
+SPOT_V7_FINALIZED_DA_RESPONSE_INCLUSION = (
+    ROOT / "src/integration/zrpf_spot_v7_finalized_da_response_inclusion.py"
+)
+SPOT_V7_PINNED_PROOF_OBSERVATION = ROOT / "src/integration/_zrpf_spot_v7_authenticated_proof_v1.py"
 SPOT_V7_OPERATIONAL_CAPABILITY_V3 = (
     ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v3.py"
 )
@@ -197,6 +201,23 @@ PRIVATE_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_NAMES = frozenset(
         "_projection_for_longitudinal_downstream_binding_v1",
     }
 )
+PRIVATE_SPOT_V7_FINALIZED_DA_RESPONSE_INCLUSION_NAMES = frozenset(
+    {
+        "_FinalizedSampledResponseInclusionProjectionV1",
+        "_FinalizedSampledResponseInclusionSealV1",
+        "_FINALIZED_SAMPLED_RESPONSE_INCLUSION_SEAL_V1",
+        "_AuthenticatedFinalizedSampledResponseInclusionV1",
+        "_projection_for_da_store_v5",
+    }
+)
+PRIVATE_SPOT_V7_PINNED_PROOF_OBSERVATION_NAMES = frozenset(
+    {
+        "_PinnedSpotV7ProofProjectionDataV1",
+        "_PinnedSpotV7SemanticProofObservationSealV1",
+        "_PINNED_SPOT_V7_SEMANTIC_PROOF_OBSERVATION_SEAL_V1",
+        "_PinnedSpotV7SemanticProofObservationV1",
+    }
+)
 PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES = frozenset(
     {
         "_AuthenticatedCheckpointFinalityProjectionV3",
@@ -323,6 +344,8 @@ PROTECTED_AUTHORITY_NAMES = (
     | PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_NAMES
+    | PRIVATE_SPOT_V7_FINALIZED_DA_RESPONSE_INCLUSION_NAMES
+    | PRIVATE_SPOT_V7_PINNED_PROOF_OBSERVATION_NAMES
     | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
     | PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_AUTHORITY_NAMES
     | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
@@ -448,6 +471,12 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
                 | PRIVATE_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_NAMES
             ),
+            SPOT_V7_FINALIZED_DA_RESPONSE_INCLUSION: (
+                PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_FINALIZED_DA_RESPONSE_INCLUSION_NAMES
+            ),
+            SPOT_V7_PINNED_PROOF_OBSERVATION: (PRIVATE_SPOT_V7_PINNED_PROOF_OBSERVATION_NAMES),
             SPOT_V7_OPERATIONAL_CAPABILITY_V3: (
                 PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
                 | PRIVATE_OPERATIONAL_POLICY_V3_NAMES

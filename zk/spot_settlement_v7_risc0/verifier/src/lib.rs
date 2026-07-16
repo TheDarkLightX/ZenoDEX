@@ -238,6 +238,12 @@ impl VerifiedSpotSettlementV7ReceiptV1 {
         self.opening.plan_b()
     }
 
+    /// Root of the four typed account/reserve transitions derived inside the
+    /// authenticated V7 relation.  The host cannot propose this value.
+    pub const fn cell_transitions_root(&self) -> CommitmentV3 {
+        self.opening.bound_state().opening().cell_transitions_root()
+    }
+
     /// Freeze the data-only payload consumed after Firecracker validates the
     /// VM execution record. Plan B is encoded once inside `journal_bytes`; the
     /// decoder exposes its exact canonical bytes from that validated journal.

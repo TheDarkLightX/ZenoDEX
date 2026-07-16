@@ -97,7 +97,9 @@ must compare those identities with the retained invocation.
 
 ```text
 untrusted V7 receipt bytes
-  -> one governed verifier execution
+  -> one caller-pinned verifier execution
+  -> _PinnedSpotV7SemanticProofObservationV1
+  -> transaction-locked current-release verifier binding
   -> _AuthenticatedSpotV7SemanticProofV1
 
 privileged Jailer execution over the selected release
@@ -129,7 +131,9 @@ from its authoritative source when durable history is replayed.
 
 ### `_AuthenticatedSpotV7SemanticProofV1`
 
-Mint location: the exact successful Spot V7 receipt-verifier path.
+Mint location: the atomic store after it rechecks one successful pinned-verifier
+observation against the exact verifier manifest and executable selected by the
+transaction-locked current release.
 
 Projection:
 
@@ -163,6 +167,10 @@ proof_verification_response_sha256
 
 No public constructor. The Spot projection must be derived from the already
 authenticated journal. The host must not supply the projected values again.
+The current pinned-verifier observation deliberately omits `asset_effects_root`
+because that value is not present in the exact V7 verifier-output frame. A
+future authoritative mint must either extend the exact frame or independently
+decode Plan B and derive that root before including it.
 
 ### `_AuthenticatedLiveSpotV7FirecrackerExecutionV1`
 

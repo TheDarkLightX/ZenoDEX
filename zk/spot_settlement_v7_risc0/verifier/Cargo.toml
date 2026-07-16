@@ -13,6 +13,10 @@ autobenches = false
 [lib]
 path = "src/lib.rs"
 
+[[bin]]
+name = "spot_settlement_v7_proof_verifier"
+path = "src/bin/spot_settlement_v7_proof_verifier.rs"
+
 [dependencies]
 risc0-zkvm = { version = "=3.0.5", features = ["disable-dev-mode"] }
 serde = { version = "1.0.219", features = ["derive"] }
