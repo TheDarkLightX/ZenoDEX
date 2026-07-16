@@ -22,7 +22,11 @@ def test_lean_adaptive_bernstein_region_certificates_typecheck() -> None:
     source = (lean_dir / target).read_text(encoding="utf-8")
     required_theorems = (
         "bernsteinCombination_deCasteljauStep",
+        "bernstein_choose_moment",
+        "powerToBernsteinCoefficient_eq_lowerRange",
+        "powerBasisCombination_eq_bernsteinCombination",
         "bernsteinCombination_eq_deCasteljauValue",
+        "powerBasisCombination_eq_deCasteljauValue",
         "deCasteljauStep_nonneg",
         "representedTarget_eq_deCasteljauValue",
         "bernsteinCombination_nonneg",

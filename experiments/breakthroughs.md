@@ -19,9 +19,9 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
     (`3466` basis points) relative to equal subdivision,
   - and its per-case piece and byte cost is lower on `322` obligations and
     equal on the remaining `450`.
-  - Lean checks arbitrary-degree Bernstein-combination nonnegativity, exact
-    recursive de Casteljau scalar evaluation, and the finite-cover acceptance
-    spine.
+  - Lean checks arbitrary-degree Bernstein-combination nonnegativity, the exact
+    power-to-Bernstein coefficient formula, recursive de Casteljau scalar
+    evaluation, and the finite-cover acceptance spine.
 - Practical consequence:
   - a Bernstein certificate generator should refine only failing leaves before
     increasing a global equal partition,
@@ -34,9 +34,9 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
     denominator growth depends on input coefficient height,
   - and no runtime, Tau, settlement, or general special-function claim is
     promoted from this research compiler.
-  - Lean now proves one-step and recursive de Casteljau evaluation identities,
-    while power-to-Bernstein conversion and the full left/right affine
-    subdivision identity remain differentially checked Julia obligations.
+  - Lean now proves power-to-Bernstein conversion plus one-step and recursive
+    de Casteljau evaluation identities, while the full left/right affine
+    subdivision identity remains a differentially checked Julia obligation.
 
 ## Non-promotion note from the approximation-defect receipt bridge
 

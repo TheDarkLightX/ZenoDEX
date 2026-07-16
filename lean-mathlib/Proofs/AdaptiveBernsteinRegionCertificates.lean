@@ -5,14 +5,17 @@ import Proofs.TauFragmentCertificates
 # Adaptive Bernstein Region Certificates
 
 This module states the arbitrary-degree acceptance theorem used by the
-critical-region dispatcher experiment. Region selection is outside the theorem:
-once a checker binds the target to a Bernstein combination with nonnegative
-coefficients, the target is nonnegative on the normalized interval.
+critical-region dispatcher experiment. It also verifies the compiler's exact
+power-to-Bernstein coefficient formula and recursive de Casteljau point
+evaluation. Region selection and affine left/right subdivision arrays remain
+outside these theorems. Once a checker binds the target to a Bernstein
+combination with nonnegative coefficients, the target is nonnegative on the
+normalized interval.
 -/
 
 namespace AdaptiveBernsteinRegionCertificates
 
-open scoped BigOperators unitInterval
+open scoped BigOperators Polynomial unitInterval
 
 noncomputable section
 
@@ -128,6 +131,170 @@ theorem bernsteinCombination_deCasteljauStep
     simp
   exact hleft.trans (hstep.trans hright.symm)
 
+private theorem bernsteinPolynomial_choose_moment
+    (n j : ℕ) (hj : j ≤ n) :
+    (∑ i ∈ Finset.range (n + 1),
+        (i.choose j : ℝ[X]) * bernsteinPolynomial ℝ n i) =
+      (n.choose j : ℝ[X]) * Polynomial.X ^ j := by
+  calc
+    (∑ i ∈ Finset.range (n + 1),
+        (i.choose j : ℝ[X]) * bernsteinPolynomial ℝ n i) =
+        ∑ i ∈ Finset.Ico j (n + 1),
+          (i.choose j : ℝ[X]) * bernsteinPolynomial ℝ n i := by
+      symm
+      apply Finset.sum_subset
+      · intro i hi
+        simp only [Finset.mem_Ico, Finset.mem_range] at hi ⊢
+        omega
+      · intro i hiRange hiIco
+        have hij : i < j := by
+          simp only [Finset.mem_range] at hiRange
+          simp only [Finset.mem_Ico, not_and_or, not_lt] at hiIco
+          omega
+        simp [Nat.choose_eq_zero_of_lt hij]
+    _ = ∑ k ∈ Finset.range (n + 1 - j),
+          ((j + k).choose j : ℝ[X]) * bernsteinPolynomial ℝ n (j + k) := by
+      rw [Finset.sum_Ico_eq_sum_range]
+    _ = (n.choose j : ℝ[X]) * Polynomial.X ^ j *
+          ∑ k ∈ Finset.range ((n - j) + 1),
+            bernsteinPolynomial ℝ (n - j) k := by
+      rw [show n + 1 - j = (n - j) + 1 by omega, Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro k hk
+      have hk_le : k ≤ n - j := by
+        simpa [Finset.mem_range] using Finset.mem_range.mp hk
+      have hjk_le : j + k ≤ n := by omega
+      have hchoose :
+          n.choose (j + k) * (j + k).choose j =
+            n.choose j * (n - j).choose k := by
+        simpa using Nat.choose_mul (n := n) (k := j + k) (s := j) (by omega)
+      have hchooseCast :
+          (n.choose (j + k) : ℝ[X]) * ((j + k).choose j : ℝ[X]) =
+            (n.choose j : ℝ[X]) * ((n - j).choose k : ℝ[X]) := by
+        exact_mod_cast hchoose
+      rw [bernsteinPolynomial, bernsteinPolynomial]
+      rw [pow_add, show n - (j + k) = n - j - k by omega]
+      calc
+        _ = ((n.choose (j + k) : ℝ[X]) * ((j + k).choose j : ℝ[X])) *
+              (Polynomial.X ^ j * Polynomial.X ^ k *
+                (1 - Polynomial.X) ^ (n - j - k)) := by ring
+        _ = ((n.choose j : ℝ[X]) * ((n - j).choose k : ℝ[X])) *
+              (Polynomial.X ^ j * Polynomial.X ^ k *
+                (1 - Polynomial.X) ^ (n - j - k)) := by rw [hchooseCast]
+        _ = _ := by ring
+    _ = (n.choose j : ℝ[X]) * Polynomial.X ^ j := by
+      rw [bernsteinPolynomial.sum]
+      ring
+
+/-- The `j`-th binomial moment of degree-`n` Bernstein basis values. -/
+theorem bernstein_choose_moment
+    (n j : ℕ) (hj : j ≤ n) (x : Set.Icc (0 : ℝ) 1) :
+    (∑ i ∈ Finset.range (n + 1), (i.choose j : ℝ) * bernstein n i x) =
+      (n.choose j : ℝ) * (x : ℝ) ^ j := by
+  have hpoly := bernsteinPolynomial_choose_moment n j hj
+  apply_fun Polynomial.evalRingHom (x : ℝ) at hpoly
+  simpa [bernsteinPolynomial, bernstein_apply] using hpoly
+
+/-- A degree-bounded polynomial evaluated in the power basis. -/
+def powerBasisCombination (n : ℕ) (powerCoeff : ℕ → ℝ) (x : ℝ) : ℝ :=
+  ∑ j ∈ Finset.range (n + 1), powerCoeff j * x ^ j
+
+/--
+The exact power-to-Bernstein coefficient formula used by the Julia compiler.
+Terms above `i` vanish because `i.choose j = 0` there.
+-/
+def powerToBernsteinCoefficient
+    (n : ℕ) (powerCoeff : ℕ → ℝ) (i : ℕ) : ℝ :=
+  ∑ j ∈ Finset.range (n + 1),
+    powerCoeff j * (i.choose j : ℝ) / (n.choose j : ℝ)
+
+/-- The padded formula equals Julia's lower-triangular `j = 0..i` loop. -/
+theorem powerToBernsteinCoefficient_eq_lowerRange
+    (n i : ℕ) (hi : i ≤ n) (powerCoeff : ℕ → ℝ) :
+    powerToBernsteinCoefficient n powerCoeff i =
+      ∑ j ∈ Finset.range (i + 1),
+        powerCoeff j * (i.choose j : ℝ) / (n.choose j : ℝ) := by
+  unfold powerToBernsteinCoefficient
+  symm
+  apply Finset.sum_subset
+  · intro j hj
+    simp only [Finset.mem_range] at hj ⊢
+    omega
+  · intro j hjLarge hjSmall
+    have hij : i < j := by
+      simp only [Finset.mem_range] at hjLarge
+      simp only [Finset.mem_range, not_lt] at hjSmall
+      omega
+    simp [Nat.choose_eq_zero_of_lt hij]
+
+/-- The compiler coefficient function indexed by `Fin (n + 1)`. -/
+def powerToBernsteinCoefficients
+    (n : ℕ) (powerCoeff : ℕ → ℝ) : Fin (n + 1) → ℝ :=
+  fun i ↦ powerToBernsteinCoefficient n powerCoeff i
+
+private theorem powerBasisCombination_eq_bernsteinRange
+    (n : ℕ) (powerCoeff : ℕ → ℝ) (x : Set.Icc (0 : ℝ) 1) :
+    powerBasisCombination n powerCoeff x =
+      ∑ i ∈ Finset.range (n + 1),
+        powerToBernsteinCoefficient n powerCoeff i * bernstein n i x := by
+  unfold powerBasisCombination powerToBernsteinCoefficient
+  symm
+  calc
+    (∑ i ∈ Finset.range (n + 1),
+        (∑ j ∈ Finset.range (n + 1),
+          powerCoeff j * (i.choose j : ℝ) / (n.choose j : ℝ)) * bernstein n i x) =
+        ∑ i ∈ Finset.range (n + 1),
+          ∑ j ∈ Finset.range (n + 1),
+            (powerCoeff j * (i.choose j : ℝ) / (n.choose j : ℝ)) *
+              bernstein n i x := by
+      apply Finset.sum_congr rfl
+      intro i _hi
+      rw [Finset.sum_mul]
+    _ = ∑ j ∈ Finset.range (n + 1),
+          ∑ i ∈ Finset.range (n + 1),
+            (powerCoeff j * (i.choose j : ℝ) / (n.choose j : ℝ)) *
+              bernstein n i x := by
+      rw [Finset.sum_comm]
+    _ = ∑ j ∈ Finset.range (n + 1), powerCoeff j * (x : ℝ) ^ j := by
+      apply Finset.sum_congr rfl
+      intro j hjRange
+      have hj_le : j ≤ n := by
+        simpa [Finset.mem_range] using Finset.mem_range.mp hjRange
+      have hden : (n.choose j : ℝ) ≠ 0 := by
+        exact_mod_cast Nat.choose_ne_zero hj_le
+      calc
+        (∑ i ∈ Finset.range (n + 1),
+            (powerCoeff j * (i.choose j : ℝ) / (n.choose j : ℝ)) *
+              bernstein n i x) =
+            (powerCoeff j / (n.choose j : ℝ)) *
+              ∑ i ∈ Finset.range (n + 1),
+                (i.choose j : ℝ) * bernstein n i x := by
+          rw [Finset.mul_sum]
+          apply Finset.sum_congr rfl
+          intro i _hi
+          ring
+        _ = (powerCoeff j / (n.choose j : ℝ)) *
+              ((n.choose j : ℝ) * (x : ℝ) ^ j) := by
+          rw [bernstein_choose_moment n j hj_le x]
+        _ = powerCoeff j * (x : ℝ) ^ j := by
+          field_simp
+
+/--
+The exact power-to-Bernstein compiler preserves the represented polynomial on
+the normalized interval.
+-/
+theorem powerBasisCombination_eq_bernsteinCombination
+    (n : ℕ) (powerCoeff : ℕ → ℝ) (x : Set.Icc (0 : ℝ) 1) :
+    powerBasisCombination n powerCoeff x =
+      bernsteinCombination n (powerToBernsteinCoefficients n powerCoeff) x := by
+  rw [powerBasisCombination_eq_bernsteinRange]
+  unfold bernsteinCombination
+  rw [Finset.sum_fin_eq_sum_range]
+  apply Finset.sum_congr rfl
+  intro i hi
+  have hi' : i < n + 1 := Finset.mem_range.mp hi
+  simp [powerToBernsteinCoefficients, hi']
+
 /-- The scalar returned after recursively reducing every de Casteljau level. -/
 def deCasteljauValue : (n : ℕ) → (Fin (n + 1) → ℝ) → ℝ → ℝ
   | 0, coeff, _t => coeff 0
@@ -143,6 +310,14 @@ theorem bernsteinCombination_eq_deCasteljauValue
   | succ n ih =>
       rw [bernsteinCombination_deCasteljauStep n coeff x]
       exact ih (deCasteljauStep n coeff x)
+
+/-- The power-basis compiler and recursive de Casteljau evaluator agree end to end. -/
+theorem powerBasisCombination_eq_deCasteljauValue
+    (n : ℕ) (powerCoeff : ℕ → ℝ) (x : Set.Icc (0 : ℝ) 1) :
+    powerBasisCombination n powerCoeff x =
+      deCasteljauValue n (powerToBernsteinCoefficients n powerCoeff) x := by
+  rw [powerBasisCombination_eq_bernsteinCombination,
+    bernsteinCombination_eq_deCasteljauValue]
 
 /-- One de Casteljau level preserves coefficient nonnegativity on `[0,1]`. -/
 theorem deCasteljauStep_nonneg

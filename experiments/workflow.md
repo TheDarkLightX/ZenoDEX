@@ -28,11 +28,11 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
   separate future lane requiring a corpus where they beat this simpler policy.
 - `AdaptiveBernsteinRegionCertificates.lean` now proves arbitrary-degree
   Bernstein-combination nonnegativity, one-step de Casteljau evaluation
-  invariance, recursive de Casteljau scalar evaluation, and adaptive-cover
-  lifting. The Julia compiler has 12 exact differential checks. Its remaining
-  Lean gaps are power-to-Bernstein conversion and the full affine theorem that
-  binds emitted left/right subdivision coefficients to reparameterized
-  subinterval polynomials.
+  invariance, recursive de Casteljau scalar evaluation, the exact
+  power-to-Bernstein coefficient formula, and adaptive-cover lifting. The Julia
+  compiler has 12 exact differential checks. Its remaining Lean gap is the full
+  affine theorem that binds emitted left/right subdivision coefficients to
+  reparameterized subinterval polynomials.
 
 ## Updated lesson from the approximation-defect receipt bridge
 
