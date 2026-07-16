@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,6 +19,23 @@ def test_lean_adaptive_bernstein_region_certificates_typecheck() -> None:
     if not (root / "external" / "mathlib4").exists():
         pytest.skip("mathlib4 checkout missing")
 
+    source = (lean_dir / target).read_text(encoding="utf-8")
+    required_theorems = (
+        "bernsteinCombination_deCasteljauStep",
+        "bernsteinCombination_eq_deCasteljauValue",
+        "deCasteljauStep_nonneg",
+        "representedTarget_eq_deCasteljauValue",
+        "bernsteinCombination_nonneg",
+        "representedTarget_nonneg",
+        "adaptiveCover_nonneg",
+    )
+    for theorem in required_theorems:
+        assert re.search(
+            rf"^theorem\s+{re.escape(theorem)}\b",
+            source,
+            re.MULTILINE,
+        ), f"{theorem} theorem is missing from {target}"
+
     proc = subprocess.run(
         [lake, "env", "lean", target],
         cwd=lean_dir,
@@ -27,3 +45,7 @@ def test_lean_adaptive_bernstein_region_certificates_typecheck() -> None:
         timeout=120,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
+    combined = (proc.stdout + proc.stderr).lower()
+    assert "sorry" not in combined, f"sorry placeholder found in {target}"
+    assert "error:" not in combined, f"error in {target}: {proc.stderr}"
+    assert "warning:" not in combined, f"warning in {target}: {proc.stderr}"

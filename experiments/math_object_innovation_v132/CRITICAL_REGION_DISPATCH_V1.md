@@ -76,14 +76,17 @@ Jacobi/Gegenbauer families.
 
 This experiment generates ordinary Bernstein interval certificates.
 `Proofs/AdaptiveBernsteinRegionCertificates.lean` proves arbitrary-degree
-nonnegative Bernstein combinations and reuses the finite-cover lifting theorem.
-The dispatcher itself is an advisory search policy.
+nonnegative Bernstein combinations, one-step de Casteljau evaluation
+invariance, recursive de Casteljau scalar evaluation, and the finite-cover
+lifting theorem. The dispatcher itself is an advisory search policy.
 
-The current Lean theorem assumes that the checker has bound the target to the
-emitted Bernstein combination. The Julia backend computes that binding in exact
-arithmetic and passes 12 differential checks against the power-basis reference;
-the general power-to-Bernstein and de Casteljau transformations are not yet
-proved in Lean.
+Lean now binds an arbitrary Bernstein combination to the scalar produced by
+recursively reducing all de Casteljau levels at an evaluation point. The Julia
+backend still computes two unproved compiler transformations: power-basis to
+Bernstein coefficients, and the left/right coefficient arrays for affine
+subinterval restriction. Those transformations use exact arithmetic and pass
+12 differential checks against the power-basis reference. A general
+power-to-Bernstein theorem and a full affine subdivision theorem remain open.
 
 No DEX state, Tau policy, oracle decision, settlement transition, or runtime
 claim depends on this code. Exhausting a budget, finding a malformed cover, or
