@@ -137,6 +137,154 @@ def test_current_release_projection_is_transaction_bound_and_authority_false(
         connection.close()
 
 
+def test_current_release_projection_cannot_revive_in_a_later_transaction(
+    tmp_path: Path,
+) -> None:
+    store, _selection, _revocation, destination, _watermark = _cutover_selected_store(tmp_path)
+    connection = _open(destination, store.identity)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        release = engine_v7._current_release_for_atomic_join_locked_v7(
+            connection,
+            identity=store.identity,
+        )
+        connection.rollback()
+        connection.execute("BEGIN IMMEDIATE")
+        with pytest.raises(
+            engine_v7.SpotV7ReleaseStateEngineRejectV7,
+            match="RELEASE_TRANSACTION_GENERATION_ENDED",
+        ):
+            engine_v7._require_current_release_still_locked_v7(
+                connection,
+                identity=store.identity,
+                release=release,
+            )
+        connection.rollback()
+    finally:
+        connection.close()
+
+
+def test_current_release_supports_subjoins_and_one_final_consume(tmp_path: Path) -> None:
+    store, _selection, _revocation, destination, _watermark = _cutover_selected_store(tmp_path)
+    connection = _open(destination, store.identity)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        release = engine_v7._current_release_for_atomic_join_locked_v7(
+            connection,
+            identity=store.identity,
+        )
+        for _subjoin in range(4):
+            assert (
+                engine_v7._require_current_release_still_locked_v7(
+                    connection,
+                    identity=store.identity,
+                    release=release,
+                )
+                is release
+            )
+        assert (
+            engine_v7._consume_current_release_for_atomic_commit_locked_v7(
+                connection,
+                identity=store.identity,
+                release=release,
+            )
+            is release
+        )
+        with pytest.raises(
+            engine_v7.SpotV7ReleaseStateEngineRejectV7,
+            match="RELEASE_PROJECTION_CONSUMED",
+        ):
+            engine_v7._require_current_release_still_locked_v7(
+                connection,
+                identity=store.identity,
+                release=release,
+            )
+        with pytest.raises(
+            engine_v7.SpotV7ReleaseStateEngineRejectV7,
+            match="RELEASE_PROJECTION_CONSUMED",
+        ):
+            engine_v7._consume_current_release_for_atomic_commit_locked_v7(
+                connection,
+                identity=store.identity,
+                release=release,
+            )
+        connection.rollback()
+    finally:
+        connection.close()
+
+
+def test_release_subjoin_database_write_rejects_and_rolls_back(tmp_path: Path) -> None:
+    store, _selection, _revocation, destination, _watermark = _cutover_selected_store(tmp_path)
+    connection = _open(destination, store.identity)
+    try:
+        connection.execute("CREATE TEMP TABLE harmless_subjoin_probe(value INTEGER)")
+        connection.execute("BEGIN IMMEDIATE")
+        release = engine_v7._current_release_for_atomic_join_locked_v7(
+            connection,
+            identity=store.identity,
+        )
+        connection.execute("INSERT INTO temp.harmless_subjoin_probe VALUES (1)")
+        with pytest.raises(
+            engine_v7.SpotV7ReleaseStateEngineRejectV7,
+            match="RELEASE_SUBJOIN_DATABASE_WRITE",
+        ):
+            engine_v7._require_current_release_still_locked_v7(
+                connection,
+                identity=store.identity,
+                release=release,
+            )
+        count = connection.execute("SELECT count(*) FROM temp.harmless_subjoin_probe").fetchone()
+        assert count is not None and int(count[0]) == 0
+        connection.rollback()
+    finally:
+        connection.close()
+
+
+def test_temp_shadow_cannot_restore_a_revoked_release_projection(tmp_path: Path) -> None:
+    store, _selection, revocation, destination, _watermark = _cutover_selected_store(tmp_path)
+    stale_connection = _open(destination, store.identity)
+    governed_tables = (
+        "spot_v7_release_state_v7",
+        "spot_v7_release_events_v7",
+        "spot_v7_release_cutover_v7",
+        "spot_v7_release_observations_v7",
+    )
+    try:
+        for table in governed_tables:
+            schema = stale_connection.execute(
+                "SELECT sql FROM main.sqlite_master WHERE type = 'table' AND name = ?",
+                (table,),
+            ).fetchone()
+            assert schema is not None
+            stale_connection.execute(
+                str(schema[0]).replace("CREATE TABLE ", "CREATE TEMP TABLE ", 1)
+            )
+            stale_connection.execute(f"INSERT INTO temp.{table} SELECT * FROM main.{table}")
+
+        revocation_connection = _open(destination, store.identity)
+        try:
+            revocation_connection.execute("BEGIN IMMEDIATE")
+            revoked = engine_v7._apply_authenticated_release_event_locked_v7(
+                revocation_connection,
+                identity=store.identity,
+                capability=revocation,
+            )
+            assert revoked.current_revoked is True
+            revocation_connection.commit()
+        finally:
+            revocation_connection.close()
+
+        stale_connection.execute("BEGIN IMMEDIATE")
+        with pytest.raises(ValueError, match="TEMP object"):
+            engine_v7._current_release_for_atomic_join_locked_v7(
+                stale_connection,
+                identity=store.identity,
+            )
+        stale_connection.rollback()
+    finally:
+        stale_connection.close()
+
+
 def test_native_selection_requires_new_observation_before_current_projection(
     tmp_path: Path,
 ) -> None:

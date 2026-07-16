@@ -226,6 +226,115 @@ def test_injected_failure_before_commit_leaves_source_live_and_no_destination(
     assert store.read_cursor().database_revision == 1
 
 
+def test_post_commit_fsync_failure_has_an_explicit_committed_disposition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store, _selection, _revocation = _selected_v3_store(tmp_path)
+    destination = (tmp_path / "v7.sqlite3").resolve()
+
+    def fail_fsync(_path: Path) -> None:
+        raise OSError("injected destination fsync failure")
+
+    monkeypatch.setattr(cutover_v1, "_fsync_file", fail_fsync)
+    with pytest.raises(cutover_v1.SpotV7ReleaseStoreCutoverRejectV1) as captured:
+        cutover_v1.cutover_spot_v7_release_store_v1(
+            store,
+            destination_path=destination,
+            exact_watermark_bytes=_watermark_for_store(store),
+        )
+
+    assert captured.value.code == "CUTOVER_COMMITTED_SYNC_UNCERTAIN"
+    assert captured.value.cutover_committed is True
+    assert captured.value.durability_sync_complete is False
+    assert destination.exists()
+    assert cutover_v1._cutover_committed(destination) is True
+    with sqlite3.connect(store.path) as source:
+        assert int(source.execute("PRAGMA user_version").fetchone()[0]) == 307
+
+
+def test_commit_error_after_visible_commit_has_an_explicit_committed_disposition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store, _selection, _revocation = _selected_v3_store(tmp_path)
+    destination = (tmp_path / "v7.sqlite3").resolve()
+    original_commit = cutover_v1._commit_cutover_transaction
+
+    def commit_then_report_error(connection: sqlite3.Connection) -> None:
+        original_commit(connection)
+        raise sqlite3.OperationalError("injected error after visible commit")
+
+    monkeypatch.setattr(
+        cutover_v1,
+        "_commit_cutover_transaction",
+        commit_then_report_error,
+    )
+    with pytest.raises(cutover_v1.SpotV7ReleaseStoreCutoverRejectV1) as captured:
+        cutover_v1.cutover_spot_v7_release_store_v1(
+            store,
+            destination_path=destination,
+            exact_watermark_bytes=_watermark_for_store(store),
+        )
+
+    assert captured.value.code == "CUTOVER_COMMITTED_SYNC_UNCERTAIN"
+    assert captured.value.cutover_committed is True
+    assert captured.value.durability_sync_complete is False
+    assert destination.exists()
+    assert cutover_v1._cutover_committed(destination) is True
+    with sqlite3.connect(store.path) as source:
+        assert int(source.execute("PRAGMA user_version").fetchone()[0]) == 307
+
+
+def test_source_inode_substitution_before_commit_rejects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store, _selection, _revocation = _selected_v3_store(tmp_path)
+    destination = (tmp_path / "v7.sqlite3").resolve()
+    backup = (tmp_path / "source-backup.sqlite3").resolve()
+    original = cutover_v1.engine_v7._cutover_attached_v3_history_locked_v7
+
+    def substitute_source(
+        connection: sqlite3.Connection,
+        *,
+        source_alias: str,
+        identity: store_v3.SpotV7AuthenticatedReleaseStateStoreIdentityV3,
+        exact_watermark_bytes: bytes,
+    ) -> object:
+        result = original(
+            connection,
+            source_alias=source_alias,
+            identity=identity,
+            exact_watermark_bytes=exact_watermark_bytes,
+        )
+        os.replace(store.path, backup)
+        store.path.write_bytes(b"attacker replacement")
+        os.chmod(store.path, 0o600)
+        return result
+
+    monkeypatch.setattr(
+        cutover_v1.engine_v7,
+        "_cutover_attached_v3_history_locked_v7",
+        substitute_source,
+    )
+    try:
+        with pytest.raises(
+            cutover_v1.SpotV7ReleaseStoreCutoverRejectV1,
+            match="STORE_INODE_CHANGED",
+        ):
+            cutover_v1.cutover_spot_v7_release_store_v1(
+                store,
+                destination_path=destination,
+                exact_watermark_bytes=_watermark_for_store(store),
+            )
+        assert not destination.exists()
+    finally:
+        if backup.exists():
+            store.path.unlink(missing_ok=True)
+            os.replace(backup, store.path)
+
+
 def test_older_valid_snapshot_cannot_match_newer_watermark(tmp_path: Path) -> None:
     store, selection, _revocation = _selected_v3_store(tmp_path)
     old_snapshot = (tmp_path / "old.sqlite3").resolve()

@@ -54,6 +54,14 @@ class _ReplayedReleaseHistoryV7:
         return self.cursors[-1]
 
 
+@dataclass(frozen=True, slots=True)
+class _CurrentReleaseSnapshotV7:
+    cursor: store_v3.SpotV7AuthenticatedReleaseStateCursorV3
+    candidate_bytes: bytes
+    external_anchor_position: int
+    external_anchor_commitment: bytes
+
+
 class _CutoverResultSealV7:
     __slots__ = ()
 
@@ -207,6 +215,9 @@ class _TransactionBoundSpotV7CurrentReleaseV7:
         "_external_anchor_position",
         "_release_state_root",
         "_store_identity_sha256",
+        "_transaction_guard_consumed",
+        "_transaction_expected_total_changes",
+        "_transaction_savepoint",
     )
     _connection: sqlite3.Connection
     _current_candidate_bytes: bytes
@@ -219,6 +230,9 @@ class _TransactionBoundSpotV7CurrentReleaseV7:
     _external_anchor_position: int
     _release_state_root: bytes
     _store_identity_sha256: bytes
+    _transaction_guard_consumed: bool
+    _transaction_expected_total_changes: int
+    _transaction_savepoint: str
 
     def __new__(cls) -> _TransactionBoundSpotV7CurrentReleaseV7:
         raise TypeError("transaction-bound release requires verified locked construction")
@@ -270,6 +284,15 @@ class _TransactionBoundSpotV7CurrentReleaseV7:
         object.__setattr__(value, "_current_candidate_bytes", candidate_bytes)
         object.__setattr__(value, "_external_anchor_position", external_anchor_position)
         object.__setattr__(value, "_external_anchor_commitment", external_anchor_commitment)
+        savepoint = f"zrpf_spot_v7_release_{id(value):x}"
+        object.__setattr__(value, "_transaction_savepoint", savepoint)
+        object.__setattr__(value, "_transaction_guard_consumed", False)
+        connection.execute(f'SAVEPOINT "{savepoint}"')
+        object.__setattr__(
+            value,
+            "_transaction_expected_total_changes",
+            connection.total_changes,
+        )
         return value
 
     def __init_subclass__(cls, **_kwargs: object) -> NoReturn:
@@ -427,7 +450,7 @@ def _apply_authenticated_release_event_locked_v7(
         code = getattr(exc, "code", "AUTHENTICATED_RELEASE_EVENT_REJECTED")
         raise _reject(str(code), str(exc)) from exc
     existing = connection.execute(
-        "SELECT 1 FROM spot_v7_release_events_v7 WHERE selector_input_id = ?",
+        "SELECT 1 FROM main.spot_v7_release_events_v7 WHERE selector_input_id = ?",
         (artifacts.selector_input_id,),
     ).fetchone()
     if existing is not None:
@@ -443,7 +466,7 @@ def _apply_authenticated_release_event_locked_v7(
     )
     updated = connection.execute(
         """
-        UPDATE spot_v7_release_state_v7
+        UPDATE main.spot_v7_release_state_v7
         SET database_revision_be = ?, release_state_root = ?, event_count = ?,
             last_evaluation_epoch_be = ?, current_candidate_id = ?,
             current_candidate_sha256 = ?, current_release_revision_be = ?,
@@ -499,7 +522,7 @@ def _record_authority_neutral_watermark_locked_v7(
     )
     connection.execute(
         """
-        UPDATE spot_v7_release_state_v7
+        UPDATE main.spot_v7_release_state_v7
         SET external_backend_id = ?, external_anchor_position_be = ?,
             external_anchor_commitment = ?, external_anchor_parent_commitment = ?,
             external_anchor_watermark_hash = ?
@@ -522,13 +545,34 @@ def _current_release_for_atomic_join_locked_v7(
 ) -> _TransactionBoundSpotV7CurrentReleaseV7:
     """Project the exact nonrevoked head while the caller holds the write lock."""
 
+    snapshot = _read_current_release_snapshot_locked_v7(connection, identity=identity)
+    cursor = snapshot.cursor
+    return _TransactionBoundSpotV7CurrentReleaseV7._from_locked_history(
+        connection=connection,
+        identity=identity,
+        cursor=cursor,
+        candidate_bytes=snapshot.candidate_bytes,
+        external_anchor_position=snapshot.external_anchor_position,
+        external_anchor_commitment=snapshot.external_anchor_commitment,
+        seal=_CURRENT_RELEASE_SEAL_V7,
+    )
+
+
+def _read_current_release_snapshot_locked_v7(
+    connection: sqlite3.Connection,
+    *,
+    identity: store_v3.SpotV7AuthenticatedReleaseStateStoreIdentityV3,
+) -> _CurrentReleaseSnapshotV7:
+    """Recompute the current projection without minting a transaction guard."""
+
     _require_locked_connection(connection)
     cursor = _validate_complete_release_history_locked_v7(connection, identity=identity)
     if cursor.database_revision == 0 or cursor.current_revoked:
         raise _reject("CURRENT_RELEASE_UNAVAILABLE", "current release is empty or revoked")
     state = _read_state(connection)
     latest_observation = connection.execute(
-        "SELECT * FROM spot_v7_release_observations_v7 ORDER BY external_anchor_position_be DESC LIMIT 1"
+        "SELECT * FROM main.spot_v7_release_observations_v7 "
+        "ORDER BY external_anchor_position_be DESC LIMIT 1"
     ).fetchone()
     if latest_observation is None:
         raise _reject("RELEASE_OBSERVATION_MISSING", "release watermark history is empty")
@@ -540,19 +584,17 @@ def _current_release_for_atomic_join_locked_v7(
         raise _reject("RELEASE_OBSERVATION_STALE", "latest watermark does not bind current head")
     select_id = _require_digest(cursor.current_select_input_id, "current_select_input_id")
     row = connection.execute(
-        "SELECT candidate_bytes FROM spot_v7_release_events_v7 WHERE selector_input_id = ? AND event_kind = 'SELECT'",
+        "SELECT candidate_bytes FROM main.spot_v7_release_events_v7 "
+        "WHERE selector_input_id = ? AND event_kind = 'SELECT'",
         (select_id,),
     ).fetchone()
     if row is None:
         raise _reject("CURRENT_SELECTION_MISSING", "current SELECT event is absent")
-    return _TransactionBoundSpotV7CurrentReleaseV7._from_locked_history(
-        connection=connection,
-        identity=identity,
+    return _CurrentReleaseSnapshotV7(
         cursor=cursor,
         candidate_bytes=bytes(row["candidate_bytes"]),
         external_anchor_position=_u64_from_be(state["external_anchor_position_be"]),
         external_anchor_commitment=bytes(state["external_anchor_commitment"]),
-        seal=_CURRENT_RELEASE_SEAL_V7,
     )
 
 
@@ -562,13 +604,60 @@ def _require_current_release_still_locked_v7(
     identity: store_v3.SpotV7AuthenticatedReleaseStateStoreIdentityV3,
     release: _TransactionBoundSpotV7CurrentReleaseV7,
 ) -> _TransactionBoundSpotV7CurrentReleaseV7:
-    """Recheck a private projection immediately before the economic write."""
+    """Recheck one projection for a read-only sub-join in the same transaction."""
 
+    _require_release_scope_connection_v7(connection, release)
+    _require_release_transaction_guard_active_v7(connection, release)
+    current = _read_current_release_snapshot_locked_v7(connection, identity=identity)
+    _require_release_matches_snapshot_v7(release, current)
+    object.__setattr__(
+        release,
+        "_transaction_expected_total_changes",
+        connection.total_changes,
+    )
+    return release
+
+
+def _consume_current_release_for_atomic_commit_locked_v7(
+    connection: sqlite3.Connection,
+    *,
+    identity: store_v3.SpotV7AuthenticatedReleaseStateStoreIdentityV3,
+    release: _TransactionBoundSpotV7CurrentReleaseV7,
+) -> _TransactionBoundSpotV7CurrentReleaseV7:
+    """Recheck and consume one release immediately before economic writes."""
+
+    _require_release_scope_connection_v7(connection, release)
+    _require_release_transaction_guard_active_v7(connection, release)
+    current = _read_current_release_snapshot_locked_v7(connection, identity=identity)
+    _require_release_matches_snapshot_v7(release, current)
+    try:
+        connection.execute(f'RELEASE SAVEPOINT "{release._transaction_savepoint}"')
+    except sqlite3.Error as exc:
+        object.__setattr__(release, "_transaction_guard_consumed", True)
+        raise _reject(
+            "RELEASE_TRANSACTION_GENERATION_ENDED",
+            "release projection belongs to an earlier transaction generation",
+        ) from exc
+    object.__setattr__(release, "_transaction_guard_consumed", True)
+    return release
+
+
+def _require_release_scope_connection_v7(
+    connection: sqlite3.Connection,
+    release: _TransactionBoundSpotV7CurrentReleaseV7,
+) -> None:
     if type(release) is not _TransactionBoundSpotV7CurrentReleaseV7:
         raise TypeError("atomic join requires the exact transaction-bound release type")
     if connection is not release._connection or not connection.in_transaction:
         raise _reject("RELEASE_TRANSACTION_ENDED", "release projection escaped its transaction")
-    current = _current_release_for_atomic_join_locked_v7(connection, identity=identity)
+    if release._transaction_guard_consumed:
+        raise _reject("RELEASE_PROJECTION_CONSUMED", "release projection was already consumed")
+
+
+def _require_release_matches_snapshot_v7(
+    release: _TransactionBoundSpotV7CurrentReleaseV7,
+    current: _CurrentReleaseSnapshotV7,
+) -> None:
     observed = (
         release.database_revision,
         release.release_state_root,
@@ -581,19 +670,52 @@ def _require_current_release_still_locked_v7(
         release._external_anchor_commitment,
     )
     expected = (
-        current.database_revision,
-        current.release_state_root,
-        current.current_candidate_id,
-        current.current_candidate_sha256,
-        current.current_release_revision,
-        current.current_select_input_id,
-        current.current_candidate_bytes,
-        current._external_anchor_position,
-        current._external_anchor_commitment,
+        current.cursor.database_revision,
+        current.cursor.state_root,
+        current.cursor.current_candidate_id,
+        current.cursor.current_candidate_sha256,
+        current.cursor.current_release_revision,
+        current.cursor.current_select_input_id,
+        current.candidate_bytes,
+        current.external_anchor_position,
+        current.external_anchor_commitment,
     )
     if observed != expected:
         raise _reject("RELEASE_PROJECTION_STALE", "release projection changed in transaction")
-    return release
+
+
+def _require_release_transaction_guard_active_v7(
+    connection: sqlite3.Connection,
+    release: _TransactionBoundSpotV7CurrentReleaseV7,
+) -> None:
+    """Probe the projection savepoint without consuming it.
+
+    This rolls back only work performed after the projection.  Sub-join binders
+    must therefore remain database-write-free.  The final consumer releases
+    the savepoint before applying the atomic economic writes.
+    """
+
+    if connection.total_changes != release._transaction_expected_total_changes:
+        try:
+            connection.execute(f'ROLLBACK TO SAVEPOINT "{release._transaction_savepoint}"')
+        except sqlite3.Error as exc:
+            object.__setattr__(release, "_transaction_guard_consumed", True)
+            raise _reject(
+                "RELEASE_TRANSACTION_GENERATION_ENDED",
+                "release projection belongs to an earlier transaction generation",
+            ) from exc
+        object.__setattr__(release, "_transaction_guard_consumed", True)
+        raise _reject(
+            "RELEASE_SUBJOIN_DATABASE_WRITE",
+            "release sub-joins must not write database state before final consumption",
+        )
+    try:
+        connection.execute(f'ROLLBACK TO SAVEPOINT "{release._transaction_savepoint}"')
+    except sqlite3.Error as exc:
+        raise _reject(
+            "RELEASE_TRANSACTION_GENERATION_ENDED",
+            "release projection belongs to an earlier transaction generation",
+        ) from exc
 
 
 def _validate_complete_release_history_locked_v7(
@@ -609,7 +731,7 @@ def _validate_complete_release_history_locked_v7(
     state = _read_state(connection)
     _validate_state_identity_and_nonclaims(state, identity)
     cutover = connection.execute(
-        "SELECT * FROM spot_v7_release_cutover_v7 WHERE singleton = 1"
+        "SELECT * FROM main.spot_v7_release_cutover_v7 WHERE singleton = 1"
     ).fetchone()
     if cutover is None:
         raise _reject("CUTOVER_ROW_MISSING", "V7 release cutover row is absent")
@@ -620,7 +742,7 @@ def _validate_complete_release_history_locked_v7(
     cursor = store_v3._genesis_cursor(identity)
     cursors = [cursor]
     rows = connection.execute(
-        "SELECT * FROM spot_v7_release_events_v7 ORDER BY event_revision_be"
+        "SELECT * FROM main.spot_v7_release_events_v7 ORDER BY event_revision_be"
     ).fetchall()
     if len(rows) > store_v3.MAX_AUTHENTICATED_RELEASE_EVENTS_V3:
         raise _reject("EVENT_LIMIT", "V7 release event limit exceeded")
@@ -752,7 +874,7 @@ def _insert_cutover(
     )
     connection.execute(
         """
-        INSERT INTO spot_v7_release_cutover_v7 (
+        INSERT INTO main.spot_v7_release_cutover_v7 (
             singleton, cutover_id, source_schema_version,
             retired_source_user_version, source_store_identity_sha256,
             imported_final_revision_be, imported_release_state_root,
@@ -804,7 +926,7 @@ def _insert_cutover(
         )
     connection.execute(
         """
-        INSERT INTO spot_v7_release_state_v7 (
+        INSERT INTO main.spot_v7_release_state_v7 (
             singleton, schema_version, store_identity_bytes,
             store_identity_sha256, database_revision_be, release_state_root,
             event_count, last_evaluation_epoch_be, current_candidate_id,
@@ -857,7 +979,7 @@ def _insert_event_row(
     values = store_v3._artifact_storage_values(artifacts, identity)
     connection.execute(
         """
-        INSERT INTO spot_v7_release_events_v7 (
+        INSERT INTO main.spot_v7_release_events_v7 (
             event_revision_be, event_origin, imported_cutover_id, event_kind,
             selector_input_id, selector_input_bytes, candidate_id,
             candidate_sha256, candidate_bytes, release_revision_be,
@@ -898,7 +1020,7 @@ def _insert_observation(
     parsed = checkpoint_v1.parse_exact_spot_v7_release_state_checkpoint_v1(checkpoint_bytes)
     connection.execute(
         """
-        INSERT INTO spot_v7_release_observations_v7 (
+        INSERT INTO main.spot_v7_release_observations_v7 (
             external_anchor_position_be, external_backend_id,
             external_anchor_commitment, external_anchor_parent_commitment,
             watermark_hash, watermark_sha256, exact_watermark_bytes,
@@ -940,7 +1062,7 @@ def _validate_observations(
     state: sqlite3.Row,
 ) -> None:
     rows = connection.execute(
-        "SELECT * FROM spot_v7_release_observations_v7 ORDER BY external_anchor_position_be"
+        "SELECT * FROM main.spot_v7_release_observations_v7 ORDER BY external_anchor_position_be"
     ).fetchall()
     if not rows:
         raise _reject("OBSERVATION_HISTORY_EMPTY", "V7 release observations are absent")
@@ -1213,7 +1335,7 @@ def _cursor_history_v7(
     cursor = store_v3._genesis_cursor(identity)
     output = [cursor]
     rows = connection.execute(
-        "SELECT * FROM spot_v7_release_events_v7 ORDER BY event_revision_be"
+        "SELECT * FROM main.spot_v7_release_events_v7 ORDER BY event_revision_be"
     ).fetchall()
     for row in rows:
         artifacts = _revalidate_event_row(row)
@@ -1280,7 +1402,7 @@ def _cutover_id(
 
 def _read_state(connection: sqlite3.Connection) -> sqlite3.Row:
     row = connection.execute(
-        "SELECT * FROM spot_v7_release_state_v7 WHERE singleton = 1"
+        "SELECT * FROM main.spot_v7_release_state_v7 WHERE singleton = 1"
     ).fetchone()
     if row is None:
         raise _reject("STATE_ROW_MISSING", "V7 release state row is absent")
@@ -1330,7 +1452,7 @@ def _acquire_release_write_lock(connection: sqlite3.Connection) -> None:
     """Upgrade even a deferred transaction before deriving currentness."""
 
     updated = connection.execute(
-        "UPDATE spot_v7_release_state_v7 SET singleton = singleton WHERE singleton = 1"
+        "UPDATE main.spot_v7_release_state_v7 SET singleton = singleton WHERE singleton = 1"
     )
     if updated.rowcount != 1:
         raise _reject("RELEASE_WRITE_LOCK", "release state singleton is absent")

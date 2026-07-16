@@ -26,9 +26,20 @@ MAX_CUTOVER_BUSY_TIMEOUT_MS_V1: Final = 60_000
 class SpotV7ReleaseStoreCutoverRejectV1(RuntimeError):
     """Stable fail-closed cutover error."""
 
-    def __init__(self, code: str, detail: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        detail: str,
+        *,
+        cutover_committed: bool = False,
+        cutover_outcome_known: bool = True,
+        durability_sync_complete: bool = False,
+    ) -> None:
         self.code = code
         self.detail = detail
+        self.cutover_committed = cutover_committed
+        self.cutover_outcome_known = cutover_outcome_known
+        self.durability_sync_complete = durability_sync_complete
         super().__init__(f"{code}: {detail}")
 
 
@@ -47,21 +58,47 @@ def cutover_spot_v7_release_store_v1(
         raise TypeError("release cutover watermark must be exact bytes")
     timeout = _require_timeout(busy_timeout_ms)
     source_path = source_store.path
-    _validate_existing_private_file(source_path, name="source Store V3")
-    destination = _validate_new_destination(destination_path)
+    source_descriptor = _open_stable_private_file(source_path, name="source Store V3")
+    try:
+        destination = _validate_new_destination(destination_path)
+    except Exception:
+        os.close(source_descriptor)
+        raise
     if source_path == destination:
+        os.close(source_descriptor)
         raise _reject("PATH_ALIAS", "source and destination paths must differ")
-    if source_path.parent.stat().st_dev != destination.parent.stat().st_dev:
+    try:
+        same_filesystem = os.fstat(source_descriptor).st_dev == destination.parent.stat().st_dev
+    except OSError:
+        os.close(source_descriptor)
+        raise
+    if not same_filesystem:
+        os.close(source_descriptor)
         raise _reject(
             "FILESYSTEM_MISMATCH",
             "source and destination must share one filesystem for atomic cutover",
         )
     try:
+        _require_path_matches_descriptor(source_path, source_descriptor, name="source Store V3")
         source_store.read_cursor()
     except store_v3.SpotV7AuthenticatedReleaseStateStoreErrorV3 as exc:
+        os.close(source_descriptor)
         raise _reject("SOURCE_REPLAY_REJECTED", str(exc)) from exc
-    created = _create_private_database_file(destination)
+    except Exception:
+        os.close(source_descriptor)
+        raise
+    try:
+        _require_path_matches_descriptor(
+            source_path,
+            source_descriptor,
+            name="source Store V3",
+        )
+        created = _create_private_database_file(destination)
+    except Exception:
+        os.close(source_descriptor)
+        raise
     connection: sqlite3.Connection | None = None
+    preserve_destination_on_exit = False
     try:
         connection = sqlite3.connect(
             destination,
@@ -74,7 +111,11 @@ def cutover_spot_v7_release_store_v1(
         connection.execute("PRAGMA journal_mode = DELETE")
         connection.execute("PRAGMA synchronous = EXTRA")
         connection.execute(f"PRAGMA busy_timeout = {timeout}")
-        connection.execute("ATTACH DATABASE ? AS source_v3", (os.fspath(source_path),))
+        connection.execute(
+            "ATTACH DATABASE ? AS source_v3",
+            (f"/proc/self/fd/{source_descriptor}",),
+        )
+        _require_attached_source_matches_descriptor(connection, source_descriptor)
         _require_delete_journal(connection, "main")
         _require_delete_journal(connection, "source_v3")
         connection.execute("BEGIN IMMEDIATE")
@@ -95,12 +136,54 @@ def cutover_spot_v7_release_store_v1(
             identity=source_store.identity,
             exact_watermark_bytes=exact_watermark_bytes,
         )
-        connection.execute("PRAGMA user_version = 7")
-        connection.commit()
-        _fsync_file(destination)
-        _fsync_directory(destination.parent)
-        if source_path.parent != destination.parent:
-            _fsync_directory(source_path.parent)
+        _require_path_matches_descriptor(source_path, source_descriptor, name="source Store V3")
+        connection.execute("PRAGMA main.user_version = 7")
+        try:
+            _commit_cutover_transaction(connection)
+        except (OSError, sqlite3.Error) as exc:
+            if connection.in_transaction:
+                raise
+            committed = _committed_cutover_visible_on_connection(connection)
+            if committed is True:
+                raise _reject(
+                    "CUTOVER_COMMITTED_SYNC_UNCERTAIN",
+                    f"commit completed before an error was reported: {exc}",
+                    cutover_committed=True,
+                    durability_sync_complete=False,
+                ) from exc
+            preserve_destination_on_exit = True
+            raise _reject(
+                "CUTOVER_COMMIT_OUTCOME_UNCERTAIN",
+                f"commit ended without a conclusive committed-state probe: {exc}",
+                cutover_outcome_known=False,
+                durability_sync_complete=False,
+            ) from exc
+        try:
+            _require_path_matches_descriptor(
+                source_path,
+                source_descriptor,
+                name="source Store V3",
+            )
+        except SpotV7ReleaseStoreCutoverRejectV1 as exc:
+            raise _reject(
+                "CUTOVER_COMMITTED_SOURCE_IDENTITY_CHANGED",
+                exc.detail,
+                cutover_committed=True,
+                durability_sync_complete=False,
+            ) from exc
+        try:
+            os.fsync(source_descriptor)
+            _fsync_file(destination)
+            _fsync_directory(destination.parent)
+            if source_path.parent != destination.parent:
+                _fsync_directory(source_path.parent)
+        except OSError as exc:
+            raise _reject(
+                "CUTOVER_COMMITTED_SYNC_UNCERTAIN",
+                str(exc),
+                cutover_committed=True,
+                durability_sync_complete=False,
+            ) from exc
         return result
     except engine_v7.SpotV7ReleaseStateEngineRejectV7 as exc:
         if connection is not None and connection.in_transaction:
@@ -119,7 +202,12 @@ def cutover_spot_v7_release_store_v1(
             except sqlite3.Error:
                 pass
             connection.close()
-        if created and not _cutover_committed(destination):
+        os.close(source_descriptor)
+        if (
+            created
+            and not preserve_destination_on_exit
+            and not _cutover_committed(destination)
+        ):
             destination.unlink(missing_ok=True)
 
 
@@ -164,11 +252,35 @@ def _cutover_committed(path: Path) -> bool:
         with closing(sqlite3.connect(path)) as connection:
             row = connection.execute(
                 "SELECT old_store_retired, new_release_writer_active "
-                "FROM spot_v7_release_cutover_v7 WHERE singleton = 1"
+                "FROM main.spot_v7_release_cutover_v7 WHERE singleton = 1"
             ).fetchone()
             return row is not None and tuple(row) == (1, 1)
     except sqlite3.Error:
         return False
+
+
+def _commit_cutover_transaction(connection: sqlite3.Connection) -> None:
+    """Commit seam retained for deterministic outcome-boundary fault injection."""
+
+    connection.commit()
+
+
+def _committed_cutover_visible_on_connection(
+    connection: sqlite3.Connection,
+) -> bool | None:
+    """Classify an ended transaction without converting uncertainty to rollback."""
+
+    try:
+        cutover = connection.execute(
+            "SELECT old_store_retired, new_release_writer_active "
+            "FROM main.spot_v7_release_cutover_v7 WHERE singleton = 1"
+        ).fetchone()
+        source_version = connection.execute("PRAGMA source_v3.user_version").fetchone()
+    except sqlite3.Error:
+        return None
+    if cutover is None or source_version is None:
+        return False
+    return tuple(cutover) == (1, 1) and int(source_version[0]) == 307
 
 
 def _validate_new_destination(path: Path) -> Path:
@@ -198,6 +310,64 @@ def _validate_existing_private_file(path: Path, *, name: str) -> None:
     parent = path.parent.stat()
     if parent.st_uid != os.getuid() or stat.S_IMODE(parent.st_mode) != 0o700:
         raise _reject("STORE_PARENT_MODE", f"{name} parent must be owned mode 0700")
+
+
+def _open_stable_private_file(path: Path, *, name: str) -> int:
+    """Open and retain the exact inode used by SQLite ATTACH."""
+
+    _validate_existing_private_file(path, name=name)
+    try:
+        descriptor = os.open(path, os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise _reject("STORE_OPEN", f"{name} could not be opened safely") from exc
+    try:
+        _require_private_descriptor(descriptor, name=name)
+        _require_path_matches_descriptor(path, descriptor, name=name)
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
+def _require_private_descriptor(descriptor: int, *, name: str) -> None:
+    value = os.fstat(descriptor)
+    if not stat.S_ISREG(value.st_mode) or value.st_nlink != 1:
+        raise _reject("STORE_FILE_TYPE", f"{name} must be one regular file with one link")
+    if value.st_uid != os.getuid() or stat.S_IMODE(value.st_mode) != 0o600:
+        raise _reject("STORE_FILE_MODE", f"{name} must be owned mode 0600")
+
+
+def _require_path_matches_descriptor(path: Path, descriptor: int, *, name: str) -> None:
+    """Reject persistent source-path substitution around the locked cutover."""
+
+    _require_private_descriptor(descriptor, name=name)
+    try:
+        observed = path.lstat()
+    except OSError as exc:
+        raise _reject("STORE_INODE_CHANGED", f"{name} path disappeared") from exc
+    expected = os.fstat(descriptor)
+    if not stat.S_ISREG(observed.st_mode) or (
+        observed.st_dev,
+        observed.st_ino,
+    ) != (expected.st_dev, expected.st_ino):
+        raise _reject("STORE_INODE_CHANGED", f"{name} path changed inode")
+
+
+def _require_attached_source_matches_descriptor(
+    connection: sqlite3.Connection,
+    descriptor: int,
+) -> None:
+    rows = connection.execute("PRAGMA database_list").fetchall()
+    attached = [str(row[2]) for row in rows if str(row[1]) == "source_v3"]
+    if len(attached) != 1:
+        raise _reject("SOURCE_ATTACHMENT", "source_v3 attachment is absent or ambiguous")
+    try:
+        observed = os.stat(attached[0])
+    except OSError as exc:
+        raise _reject("SOURCE_ATTACHMENT", "source_v3 attachment cannot be inspected") from exc
+    expected = os.fstat(descriptor)
+    if (observed.st_dev, observed.st_ino) != (expected.st_dev, expected.st_ino):
+        raise _reject("SOURCE_ATTACHMENT", "source_v3 differs from the pinned source inode")
 
 
 def _create_private_database_file(path: Path) -> bool:
@@ -238,8 +408,21 @@ def _require_timeout(value: object) -> int:
     return value
 
 
-def _reject(code: str, detail: str) -> SpotV7ReleaseStoreCutoverRejectV1:
-    return SpotV7ReleaseStoreCutoverRejectV1(code, detail)
+def _reject(
+    code: str,
+    detail: str,
+    *,
+    cutover_committed: bool = False,
+    cutover_outcome_known: bool = True,
+    durability_sync_complete: bool = False,
+) -> SpotV7ReleaseStoreCutoverRejectV1:
+    return SpotV7ReleaseStoreCutoverRejectV1(
+        code,
+        detail,
+        cutover_committed=cutover_committed,
+        cutover_outcome_known=cutover_outcome_known,
+        durability_sync_complete=durability_sync_complete,
+    )
 
 
 __all__ = [

@@ -15,7 +15,7 @@ SPOT_V7_RELEASE_STATE_SCHEMA_VERSION_V7: Final = 7
 SPOT_V7_RETIRED_SOURCE_USER_VERSION_V7: Final = 307
 
 _RELEASE_STATE_SCHEMA_V7: Final = """
-    CREATE TABLE spot_v7_release_state_v7 (
+    CREATE TABLE main.spot_v7_release_state_v7 (
         singleton INTEGER NOT NULL PRIMARY KEY CHECK (singleton = 1),
         schema_version INTEGER NOT NULL CHECK (schema_version = 7),
         store_identity_bytes BLOB NOT NULL CHECK (typeof(store_identity_bytes) = 'blob' AND length(store_identity_bytes) BETWEEN 1 AND 32768),
@@ -57,7 +57,7 @@ _RELEASE_STATE_SCHEMA_V7: Final = """
 """
 
 _RELEASE_EVENTS_SCHEMA_V7: Final = """
-    CREATE TABLE spot_v7_release_events_v7 (
+    CREATE TABLE main.spot_v7_release_events_v7 (
         event_revision_be BLOB NOT NULL PRIMARY KEY CHECK (typeof(event_revision_be) = 'blob' AND length(event_revision_be) = 8),
         event_origin TEXT NOT NULL CHECK (event_origin IN ('IMPORTED_V3', 'NATIVE_V7')),
         imported_cutover_id BLOB CHECK (imported_cutover_id IS NULL OR (typeof(imported_cutover_id) = 'blob' AND length(imported_cutover_id) = 32)),
@@ -103,7 +103,7 @@ _RELEASE_EVENTS_SCHEMA_V7: Final = """
 """
 
 _RELEASE_CUTOVER_SCHEMA_V7: Final = """
-    CREATE TABLE spot_v7_release_cutover_v7 (
+    CREATE TABLE main.spot_v7_release_cutover_v7 (
         singleton INTEGER NOT NULL PRIMARY KEY CHECK (singleton = 1),
         cutover_id BLOB NOT NULL UNIQUE CHECK (typeof(cutover_id) = 'blob' AND length(cutover_id) = 32),
         source_schema_version INTEGER NOT NULL CHECK (source_schema_version = 3),
@@ -132,7 +132,7 @@ _RELEASE_CUTOVER_SCHEMA_V7: Final = """
 """
 
 _RELEASE_OBSERVATIONS_SCHEMA_V7: Final = """
-    CREATE TABLE spot_v7_release_observations_v7 (
+    CREATE TABLE main.spot_v7_release_observations_v7 (
         external_anchor_position_be BLOB NOT NULL PRIMARY KEY CHECK (typeof(external_anchor_position_be) = 'blob' AND length(external_anchor_position_be) = 8),
         external_backend_id TEXT NOT NULL CHECK (typeof(external_backend_id) = 'text' AND length(external_backend_id) BETWEEN 1 AND 128),
         external_anchor_commitment BLOB NOT NULL UNIQUE CHECK (typeof(external_anchor_commitment) = 'blob' AND length(external_anchor_commitment) = 32),
@@ -173,10 +173,11 @@ def _install_spot_v7_release_schema_v7(connection: sqlite3.Connection) -> None:
         raise TypeError("V7 release schema requires an exact SQLite connection")
     if not connection.in_transaction:
         raise ValueError("V7 release schema installation requires a transaction")
+    _reject_temp_release_schema_collisions_v7(connection)
     existing = {
         str(row[0])
         for row in connection.execute(
-            "SELECT name FROM sqlite_master WHERE name LIKE 'spot_v7_release_%_v7'"
+            "SELECT name FROM main.sqlite_master WHERE name LIKE 'spot_v7_release_%_v7'"
         ).fetchall()
     }
     if existing:
@@ -191,8 +192,10 @@ def _validate_spot_v7_release_schema_v7(connection: sqlite3.Connection) -> None:
 
     if type(connection) is not sqlite3.Connection:
         raise TypeError("V7 release schema requires an exact SQLite connection")
+    _reject_temp_release_schema_collisions_v7(connection)
     rows = connection.execute(
-        "SELECT name, sql FROM sqlite_master WHERE name LIKE 'spot_v7_release_%_v7' ORDER BY name"
+        "SELECT name, sql FROM main.sqlite_master "
+        "WHERE name LIKE 'spot_v7_release_%_v7' ORDER BY name"
     ).fetchall()
     observed = {str(row[0]): str(row[1]) for row in rows}
     if frozenset(observed) != frozenset(_RELEASE_SCHEMA_SQL_V7):
@@ -202,7 +205,7 @@ def _validate_spot_v7_release_schema_v7(connection: sqlite3.Connection) -> None:
             raise ValueError(f"V7 release schema SQL mismatch for {name}")
     placeholders = ",".join("?" for _name in _RELEASE_SCHEMA_SQL_V7)
     attached_objects = connection.execute(
-        f"SELECT type, name FROM sqlite_master "
+        f"SELECT type, name FROM main.sqlite_master "
         f"WHERE tbl_name IN ({placeholders}) "
         "AND (type = 'trigger' OR (type = 'index' AND sql IS NOT NULL))",
         tuple(_RELEASE_SCHEMA_SQL_V7),
@@ -211,8 +214,25 @@ def _validate_spot_v7_release_schema_v7(connection: sqlite3.Connection) -> None:
         raise ValueError("V7 release tables have unexpected triggers or explicit indexes")
 
 
+def _reject_temp_release_schema_collisions_v7(connection: sqlite3.Connection) -> None:
+    """Reject TEMP objects that could shadow a governed ``main`` object."""
+
+    placeholders = ",".join("?" for _name in _RELEASE_SCHEMA_SQL_V7)
+    collisions = connection.execute(
+        f"SELECT type, name, tbl_name FROM temp.sqlite_master "
+        f"WHERE name IN ({placeholders}) OR tbl_name IN ({placeholders}) "
+        "ORDER BY type, name, tbl_name",
+        tuple(_RELEASE_SCHEMA_SQL_V7) + tuple(_RELEASE_SCHEMA_SQL_V7),
+    ).fetchall()
+    if collisions:
+        raise ValueError("V7 release schema collides with a TEMP object")
+
+
 def _normalize_sql(value: str) -> str:
-    return " ".join(value.strip().removesuffix(";").split())
+    normalized = " ".join(value.strip().removesuffix(";").split())
+    # SQLite records a main-qualified CREATE TABLE statement without the
+    # ``main.`` qualifier in main.sqlite_master.
+    return normalized.replace("CREATE TABLE main.", "CREATE TABLE ", 1)
 
 
 __all__ = ()
