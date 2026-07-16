@@ -16,7 +16,7 @@ concurrency:
 jobs:
   zrpf-assurance:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Checkout full source history
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -204,6 +204,10 @@ jobs:
             src/integration/_zrpf_spot_v7_release_revocation_envelope_v1.py \
             src/integration/zrpf_spot_v7_authenticated_release_revocation_v1.py \
             src/integration/_zrpf_spot_v7_authenticated_proof_v1.py \
+            src/integration/_zrpf_spot_v7_release_bound_proof_v1.py \
+            src/integration/_zrpf_spot_v7_release_bound_finality_v1.py \
+            src/integration/_zrpf_spot_v7_release_bound_firecracker_v1.py \
+            src/integration/_zrpf_spot_v7_release_bound_da_v1.py \
             src/integration/_zrpf_spot_v7_release_state_schema_v7.py \
             src/integration/_zrpf_spot_v7_release_state_engine_v7.py \
             src/integration/_zrpf_spot_v7_operational_policy_v3.py \
@@ -451,6 +455,10 @@ jobs:
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
             tests/integration/test_zrpf_spot_v7_authenticated_proof_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_proof_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_finality_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_firecracker_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_da_v1.py \
             tests/integration/test_zrpf_spot_v7_finalized_da_response_inclusion.py \
             tests/integration/test_zrpf_spot_v7_release_state_v7.py \
             tests/test_zrpf_spot_v7_release_store_cutover_v1.py \
@@ -532,6 +540,10 @@ jobs:
             src/integration/_zrpf_spot_v7_release_revocation_envelope_v1.py \
             src/integration/zrpf_spot_v7_authenticated_release_revocation_v1.py \
             src/integration/_zrpf_spot_v7_authenticated_proof_v1.py \
+            src/integration/_zrpf_spot_v7_release_bound_proof_v1.py \
+            src/integration/_zrpf_spot_v7_release_bound_finality_v1.py \
+            src/integration/_zrpf_spot_v7_release_bound_firecracker_v1.py \
+            src/integration/_zrpf_spot_v7_release_bound_da_v1.py \
             src/integration/_zrpf_spot_v7_release_state_schema_v7.py \
             src/integration/_zrpf_spot_v7_release_state_engine_v7.py \
             src/integration/_zrpf_spot_v7_operational_policy_v3.py \
@@ -739,6 +751,10 @@ jobs:
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
             tests/integration/test_zrpf_spot_v7_authenticated_proof_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_proof_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_finality_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_firecracker_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_da_v1.py \
             tests/integration/test_zrpf_spot_v7_finalized_da_response_inclusion.py \
             tests/integration/test_zrpf_spot_v7_release_state_v7.py \
             tests/test_zrpf_spot_v7_release_store_cutover_v1.py \
@@ -863,6 +879,10 @@ jobs:
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
             tests/integration/test_zrpf_spot_v7_authenticated_proof_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_proof_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_finality_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_firecracker_v1.py \
+            tests/integration/test_zrpf_spot_v7_release_bound_da_v1.py \
             tests/integration/test_zrpf_spot_v7_finalized_da_response_inclusion.py \
             tests/integration/test_zrpf_spot_v7_release_state_v7.py \
             tests/test_zrpf_spot_v7_release_store_cutover_v1.py \

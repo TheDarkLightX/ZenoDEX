@@ -40,6 +40,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
 
     assert document["permissions"] == {"contents": "read"}
     assert document["jobs"].keys() == {"zrpf-assurance"}
+    assert job["timeout-minutes"] >= 120
     assert workflow_events["pull_request"] is None
     assert "paths" not in workflow_events
     assert "pull_request_target" not in raw
@@ -271,6 +272,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/_zrpf_spot_v7_atomic_settlement_schema_v6.py",
         "src/integration/zrpf_spot_v7_atomic_operational_store_v6.py",
         "src/integration/zrpf_spot_v7_atomic_settlement_types.py",
+        "src/integration/_zrpf_spot_v7_release_bound_proof_v1.py",
+        "src/integration/_zrpf_spot_v7_release_bound_finality_v1.py",
+        "src/integration/_zrpf_spot_v7_release_bound_firecracker_v1.py",
+        "src/integration/_zrpf_spot_v7_release_bound_da_v1.py",
         "src/integration/_zeno_ledger_pinned_verifier_process_v1.py",
         "src/integration/zeno_ledger_authenticated_proof_verification_v1.py",
         "src/integration/zeno_ledger_proof_authority_consumer_v1.py",
@@ -350,6 +355,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_zrpf_spot_v7_atomic_operational_store_v4.py",
         "tests/integration/test_zrpf_spot_v7_atomic_operational_store_v5.py",
         "tests/integration/test_zrpf_spot_v7_atomic_operational_store_v6.py",
+        "tests/integration/test_zrpf_spot_v7_release_bound_proof_v1.py",
+        "tests/integration/test_zrpf_spot_v7_release_bound_finality_v1.py",
+        "tests/integration/test_zrpf_spot_v7_release_bound_firecracker_v1.py",
+        "tests/integration/test_zrpf_spot_v7_release_bound_da_v1.py",
         "tests/integration/test_zrpf_spot_v7_operational_atomic_store.py",
         "tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py",
         "tests/integration/test_zrpf_spot_v7_governed_da_prerequisite_v2.py",

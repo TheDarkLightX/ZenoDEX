@@ -69,6 +69,7 @@ def _build_rust_checker(target: Path) -> Path:
         "HOME": home,
         "PATH": f"{cargo_path.parent}:/usr/bin:/bin",
         "RUSTUP_HOME": os.environ.get("RUSTUP_HOME", f"{home}/.rustup"),
+        "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
     }
     subprocess.run(
         (
