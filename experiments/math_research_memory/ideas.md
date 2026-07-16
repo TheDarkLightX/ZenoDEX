@@ -20,10 +20,12 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
     equal subdivision.
   - Lean bridge: arbitrary-degree Bernstein-combination nonnegativity, exact
     power-basis conversion, recursive de Casteljau evaluation, affine
-    left-subdivision correctness, and finite-cover lifting check in
+    left/right subdivision correctness, direct `[lo, hi]` restriction, and
+    finite-cover lifting check in
     `Proofs/AdaptiveBernsteinRegionCertificates.lean`.
   - residual proof boundary: the exact Julia compiler has 12 differential
-    binding checks; its right subdivision array remains outside Lean.
+    binding checks; Julia-source binding to the Lean definitions remains
+    differential evidence.
 
 - `derivative_landmark_dispatch_negative_knowledge_v1`
   - uses exact derivative Bernstein sign variations to propose a critical

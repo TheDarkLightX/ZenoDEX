@@ -30,9 +30,11 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
   Bernstein-combination nonnegativity, one-step de Casteljau evaluation
   invariance, recursive de Casteljau scalar evaluation, the exact
   power-to-Bernstein coefficient formula, affine left-subdivision correctness,
-  left-coefficient nonnegativity preservation, and adaptive-cover lifting. The
-  Julia compiler has 12 exact differential checks. Its remaining affine Lean
-  gap is the right subdivision array used for a nonzero lower endpoint.
+  affine right-subdivision correctness, their composition into the direct
+  `[lo, hi]` restriction map, coefficient nonnegativity preservation, and
+  adaptive-cover lifting. The Julia compiler has 12 exact differential checks.
+  Remaining compiler risk is source-to-definition binding rather than an open
+  affine mathematical identity.
 
 ## Updated lesson from the approximation-defect receipt bridge
 

@@ -7,10 +7,11 @@ import Proofs.TauFragmentCertificates
 This module states the arbitrary-degree acceptance theorem used by the
 critical-region dispatcher experiment. It also verifies the compiler's exact
 power-to-Bernstein coefficient formula, recursive de Casteljau point
-evaluation, and affine left-subdivision coefficient array. Region selection
-and affine right-subdivision arrays remain outside these theorems. Once a
-checker binds the target to a Bernstein combination with nonnegative
-coefficients, the target is nonnegative on the normalized interval.
+evaluation, both affine subdivision arrays, and their composition into the
+general `[lo, hi]` restriction transform. Region selection remains outside
+these theorems. Once a checker binds the target to a Bernstein combination
+with nonnegative coefficients, the target is nonnegative on the normalized
+interval.
 -/
 
 namespace AdaptiveBernsteinRegionCertificates
@@ -206,6 +207,53 @@ def unitIntervalMul
       _ = (u : ℝ) := one_mul _
       _ ≤ 1 := u.property.2⟩
 
+/-- The affine map from the unit interval onto the right segment `[t, 1]`. -/
+def unitIntervalRight
+    (t u : Set.Icc (0 : ℝ) 1) : Set.Icc (0 : ℝ) 1 :=
+  ⟨(t : ℝ) + (1 - (t : ℝ)) * (u : ℝ),
+    add_nonneg t.property.1
+      (mul_nonneg (sub_nonneg.mpr t.property.2) u.property.1),
+    calc
+      (t : ℝ) + (1 - (t : ℝ)) * (u : ℝ) ≤
+          (t : ℝ) + (1 - (t : ℝ)) * 1 := by
+        exact add_le_add (le_refl (t : ℝ))
+          (mul_le_mul_of_nonneg_left u.property.2
+            (sub_nonneg.mpr t.property.2))
+      _ = 1 := by ring⟩
+
+/-- The normalized local lower endpoint `lo / hi` used by interval restriction. -/
+def unitIntervalRatio
+    (lo hi : Set.Icc (0 : ℝ) 1) (hlohi : (lo : ℝ) ≤ (hi : ℝ))
+    (hhi : 0 < (hi : ℝ)) : Set.Icc (0 : ℝ) 1 :=
+  ⟨(lo : ℝ) / (hi : ℝ),
+    div_nonneg lo.property.1 (le_of_lt hhi),
+    (div_le_one hhi).2 hlohi⟩
+
+/-- The affine map from the unit interval onto `[lo, hi]`. -/
+def unitIntervalAffine
+    (lo hi : Set.Icc (0 : ℝ) 1) (hlohi : (lo : ℝ) ≤ (hi : ℝ))
+    (u : Set.Icc (0 : ℝ) 1) : Set.Icc (0 : ℝ) 1 :=
+  ⟨(lo : ℝ) + ((hi : ℝ) - (lo : ℝ)) * (u : ℝ),
+    add_nonneg lo.property.1
+      (mul_nonneg (sub_nonneg.mpr hlohi) u.property.1),
+    calc
+      (lo : ℝ) + ((hi : ℝ) - (lo : ℝ)) * (u : ℝ) ≤
+          (lo : ℝ) + ((hi : ℝ) - (lo : ℝ)) * 1 := by
+        exact add_le_add (le_refl (lo : ℝ))
+          (mul_le_mul_of_nonneg_left u.property.2 (sub_nonneg.mpr hlohi))
+      _ = (hi : ℝ) := by ring
+      _ ≤ 1 := hi.property.2⟩
+
+/-- Julia's `hi`-then-`lo / hi` parameterization equals the direct `[lo, hi]` map. -/
+theorem unitIntervalMul_ratio_right_eq_affine
+    (lo hi : Set.Icc (0 : ℝ) 1) (hlohi : (lo : ℝ) ≤ (hi : ℝ))
+    (hhi : 0 < (hi : ℝ)) (u : Set.Icc (0 : ℝ) 1) :
+    unitIntervalMul hi (unitIntervalRight (unitIntervalRatio lo hi hlohi hhi) u) =
+      unitIntervalAffine lo hi hlohi u := by
+  apply Subtype.ext
+  simp only [unitIntervalMul, unitIntervalRight, unitIntervalRatio, unitIntervalAffine]
+  field_simp [ne_of_gt hhi]
+
 private theorem bernstein_left_subdivision_kernel
     (n i : ℕ) (hi : i ≤ n) (t u : Set.Icc (0 : ℝ) 1) :
     (∑ k ∈ Finset.range (n + 1), bernstein k i t * bernstein n k u) =
@@ -273,6 +321,93 @@ private theorem bernstein_left_subdivision_kernel
       congr 1
       ring
 
+private theorem bernstein_right_subdivision_kernel
+    (n i : ℕ) (hi : i ≤ n) (t u : Set.Icc (0 : ℝ) 1) :
+    (∑ k ∈ Finset.range (n + 1),
+        (if k ≤ i then bernstein (n - k) (i - k) t else 0) * bernstein n k u) =
+      bernstein n i (unitIntervalRight t u) := by
+  calc
+    (∑ k ∈ Finset.range (n + 1),
+        (if k ≤ i then bernstein (n - k) (i - k) t else 0) * bernstein n k u) =
+        ∑ k ∈ Finset.range (i + 1),
+          (if k ≤ i then bernstein (n - k) (i - k) t else 0) *
+            bernstein n k u := by
+      symm
+      apply Finset.sum_subset
+      · intro k hk
+        simp only [Finset.mem_range] at hk ⊢
+        omega
+      · intro k hkLarge hkSmall
+        have hik : i < k := by
+          simp only [Finset.mem_range] at hkLarge
+          simp only [Finset.mem_range, not_lt] at hkSmall
+          omega
+        simp [not_le.mpr hik]
+    _ = ∑ k ∈ Finset.range (i + 1),
+          bernstein (n - k) (i - k) t * bernstein n k u := by
+      apply Finset.sum_congr rfl
+      · intro k hk
+        have hki : k ≤ i := Nat.le_of_lt_succ (Finset.mem_range.mp hk)
+        simp [hki]
+    _ = (n.choose i : ℝ) * (1 - (t : ℝ)) ^ (n - i) *
+          (1 - (u : ℝ)) ^ (n - i) *
+          ∑ k ∈ Finset.range (i + 1),
+            (u : ℝ) ^ k * ((t : ℝ) * (1 - (u : ℝ))) ^ (i - k) * i.choose k := by
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro k hk
+      have hki : k ≤ i := Nat.le_of_lt_succ (Finset.mem_range.mp hk)
+      have hchoose :
+          n.choose k * (n - k).choose (i - k) =
+            n.choose i * i.choose k := by
+        simpa using (Nat.choose_mul (n := n) (k := i) (s := k) hki).symm
+      have hchooseCast :
+          (n.choose k : ℝ) * ((n - k).choose (i - k) : ℝ) =
+            (n.choose i : ℝ) * (i.choose k : ℝ) := by
+        exact_mod_cast hchoose
+      rw [bernstein_apply, bernstein_apply]
+      rw [show n - k - (i - k) = n - i by omega]
+      have hpowU :
+          (1 - (u : ℝ)) ^ (n - k) =
+            (1 - (u : ℝ)) ^ (n - i) * (1 - (u : ℝ)) ^ (i - k) := by
+        rw [show n - k = (n - i) + (i - k) by omega, pow_add]
+      have hpow :
+          (((t : ℝ) * (1 - (u : ℝ))) ^ (i - k)) =
+            (t : ℝ) ^ (i - k) * (1 - (u : ℝ)) ^ (i - k) :=
+        mul_pow (t : ℝ) (1 - (u : ℝ)) (i - k)
+      calc
+        _ = ((n.choose k : ℝ) * ((n - k).choose (i - k) : ℝ)) *
+              ((1 - (t : ℝ)) ^ (n - i) * (1 - (u : ℝ)) ^ (n - i) *
+                ((u : ℝ) ^ k * ((t : ℝ) * (1 - (u : ℝ))) ^ (i - k))) := by
+            rw [hpowU, hpow]
+            ring
+        _ = ((n.choose i : ℝ) * (i.choose k : ℝ)) *
+              ((1 - (t : ℝ)) ^ (n - i) * (1 - (u : ℝ)) ^ (n - i) *
+                ((u : ℝ) ^ k * ((t : ℝ) * (1 - (u : ℝ))) ^ (i - k))) := by
+            rw [hchooseCast]
+        _ = _ := by ring
+    _ = (n.choose i : ℝ) * (1 - (t : ℝ)) ^ (n - i) *
+          (1 - (u : ℝ)) ^ (n - i) *
+          ((u : ℝ) + (t : ℝ) * (1 - (u : ℝ))) ^ i := by
+      rw [add_pow]
+    _ = bernstein n i (unitIntervalRight t u) := by
+      rw [bernstein_apply]
+      simp only [unitIntervalRight]
+      have hpoint :
+          (u : ℝ) + (t : ℝ) * (1 - (u : ℝ)) =
+            (t : ℝ) + (1 - (t : ℝ)) * (u : ℝ) := by ring
+      have hcomplement :
+          (1 - (t : ℝ)) * (1 - (u : ℝ)) =
+            1 - ((t : ℝ) + (1 - (t : ℝ)) * (u : ℝ)) := by ring
+      rw [hpoint]
+      calc
+        _ = (n.choose i : ℝ) *
+              ((t : ℝ) + (1 - (t : ℝ)) * (u : ℝ)) ^ i *
+              (((1 - (t : ℝ)) * (1 - (u : ℝ))) ^ (n - i)) := by
+            rw [mul_pow]
+            ring
+        _ = _ := by rw [hcomplement]
+
 /--
 The padded formula for the `k`-th left-subdivision coefficient. Basis terms
 above `k` vanish, so this equals the lower-triangular de Casteljau prefix loop.
@@ -285,6 +420,20 @@ def leftSubdivisionCoefficient
 def leftSubdivisionCoefficients
     (n : ℕ) (coeff : ℕ → ℝ) (t : Set.Icc (0 : ℝ) 1) : Fin (n + 1) → ℝ :=
   fun k ↦ leftSubdivisionCoefficient n coeff t k
+
+/--
+The padded formula for the `k`-th right-subdivision coefficient. It evaluates
+the source suffix beginning at `k` at the split point.
+-/
+def rightSubdivisionCoefficient
+    (n : ℕ) (coeff : ℕ → ℝ) (t : Set.Icc (0 : ℝ) 1) (k : ℕ) : ℝ :=
+  ∑ i ∈ Finset.range (n + 1),
+    if k ≤ i then coeff i * bernstein (n - k) (i - k) t else 0
+
+/-- The affine right-subdivision coefficient array indexed by `Fin (n + 1)`. -/
+def rightSubdivisionCoefficients
+    (n : ℕ) (coeff : ℕ → ℝ) (t : Set.Icc (0 : ℝ) 1) : Fin (n + 1) → ℝ :=
+  fun k ↦ rightSubdivisionCoefficient n coeff t k
 
 /-- The padded left-subdivision formula equals its lower-triangular prefix. -/
 theorem leftSubdivisionCoefficient_eq_lowerRange
@@ -303,6 +452,45 @@ theorem leftSubdivisionCoefficient_eq_lowerRange
       simp only [Finset.mem_range, not_lt] at hiSmall
       omega
     simp [bernstein_apply, Nat.choose_eq_zero_of_lt hki]
+
+/-- The padded right-subdivision formula equals Julia's suffix loop. -/
+theorem rightSubdivisionCoefficient_eq_suffixRange
+    (n k : ℕ) (hk : k ≤ n) (coeff : ℕ → ℝ) (t : Set.Icc (0 : ℝ) 1) :
+    rightSubdivisionCoefficient n coeff t k =
+      ∑ r ∈ Finset.range ((n - k) + 1),
+        coeff (k + r) * bernstein (n - k) r t := by
+  unfold rightSubdivisionCoefficient
+  calc
+    (∑ i ∈ Finset.range (n + 1),
+        if k ≤ i then coeff i * bernstein (n - k) (i - k) t else 0) =
+        ∑ i ∈ Finset.Ico k (n + 1),
+          if k ≤ i then coeff i * bernstein (n - k) (i - k) t else 0 := by
+      symm
+      apply Finset.sum_subset
+      · intro i hi
+        simp only [Finset.mem_Ico, Finset.mem_range] at hi ⊢
+        omega
+      · intro i hiRange hiIco
+        have hik : i < k := by
+          simp only [Finset.mem_range] at hiRange
+          simp only [Finset.mem_Ico, not_and_or, not_lt] at hiIco
+          omega
+        simp [not_le.mpr hik]
+    _ = ∑ i ∈ Finset.Ico k (n + 1),
+          coeff i * bernstein (n - k) (i - k) t := by
+      apply Finset.sum_congr rfl
+      intro i hi
+      have hki : k ≤ i := (Finset.mem_Ico.mp hi).1
+      simp [hki]
+    _ = ∑ r ∈ Finset.range (n + 1 - k),
+          coeff (k + r) * bernstein (n - k) (k + r - k) t := by
+      rw [Finset.sum_Ico_eq_sum_range]
+    _ = ∑ r ∈ Finset.range ((n - k) + 1),
+          coeff (k + r) * bernstein (n - k) r t := by
+      rw [show n + 1 - k = (n - k) + 1 by omega]
+      apply Finset.sum_congr rfl
+      intro r _hr
+      rw [Nat.add_sub_cancel_left]
 
 private theorem bernsteinRange_leftSubdivision
     (n : ℕ) (coeff : ℕ → ℝ) (t u : Set.Icc (0 : ℝ) 1) :
@@ -335,6 +523,51 @@ private theorem bernsteinRange_leftSubdivision
       apply Finset.sum_congr rfl
       intro k _hk
       ring
+
+private theorem bernsteinRange_rightSubdivision
+    (n : ℕ) (coeff : ℕ → ℝ) (t u : Set.Icc (0 : ℝ) 1) :
+    (∑ k ∈ Finset.range (n + 1),
+        rightSubdivisionCoefficient n coeff t k * bernstein n k u) =
+      ∑ i ∈ Finset.range (n + 1),
+        coeff i * bernstein n i (unitIntervalRight t u) := by
+  unfold rightSubdivisionCoefficient
+  calc
+    (∑ k ∈ Finset.range (n + 1),
+        (∑ i ∈ Finset.range (n + 1),
+          if k ≤ i then coeff i * bernstein (n - k) (i - k) t else 0) *
+            bernstein n k u) =
+        ∑ k ∈ Finset.range (n + 1),
+          ∑ i ∈ Finset.range (n + 1),
+            (if k ≤ i then coeff i * bernstein (n - k) (i - k) t else 0) *
+              bernstein n k u := by
+      apply Finset.sum_congr rfl
+      intro k _hk
+      rw [Finset.sum_mul]
+    _ = ∑ i ∈ Finset.range (n + 1),
+          ∑ k ∈ Finset.range (n + 1),
+            (if k ≤ i then coeff i * bernstein (n - k) (i - k) t else 0) *
+              bernstein n k u := by
+      rw [Finset.sum_comm]
+    _ = ∑ i ∈ Finset.range (n + 1),
+          coeff i * ∑ k ∈ Finset.range (n + 1),
+            (if k ≤ i then bernstein (n - k) (i - k) t else 0) *
+              bernstein n k u := by
+      apply Finset.sum_congr rfl
+      intro i _hi
+      rw [Finset.mul_sum]
+      apply Finset.sum_congr rfl
+      intro k _hk
+      by_cases hki : k ≤ i
+      · simp [hki]
+        ring
+      · simp [hki]
+    _ = ∑ i ∈ Finset.range (n + 1),
+          coeff i * bernstein n i (unitIntervalRight t u) := by
+      apply Finset.sum_congr rfl
+      intro i hiRange
+      have hi : i ≤ n := by
+        simpa [Finset.mem_range] using Finset.mem_range.mp hiRange
+      rw [bernstein_right_subdivision_kernel n i hi t u]
 
 /-- A degree-bounded polynomial evaluated in the power basis. -/
 def powerBasisCombination (n : ℕ) (powerCoeff : ℕ → ℝ) (x : ℝ) : ℝ :=
@@ -470,6 +703,28 @@ theorem leftSubdivisionCoefficient_eq_deCasteljauValue
     _ = deCasteljauValue k (fun i : Fin (k + 1) ↦ coeff i) t :=
       bernsteinCombination_eq_deCasteljauValue k _ t
 
+/-- Every right-subdivision coefficient is the de Casteljau value of its suffix. -/
+theorem rightSubdivisionCoefficient_eq_deCasteljauValue
+    (n k : ℕ) (hk : k ≤ n) (coeff : ℕ → ℝ) (t : Set.Icc (0 : ℝ) 1) :
+    rightSubdivisionCoefficient n coeff t k =
+      deCasteljauValue (n - k)
+        (fun r : Fin ((n - k) + 1) ↦ coeff (k + r)) t := by
+  rw [rightSubdivisionCoefficient_eq_suffixRange n k hk]
+  calc
+    (∑ r ∈ Finset.range ((n - k) + 1),
+        coeff (k + r) * bernstein (n - k) r t) =
+        bernsteinCombination (n - k)
+          (fun r : Fin ((n - k) + 1) ↦ coeff (k + r)) t := by
+      unfold bernsteinCombination
+      rw [Finset.sum_fin_eq_sum_range]
+      apply Finset.sum_congr rfl
+      intro r hr
+      have hr' : r < (n - k) + 1 := Finset.mem_range.mp hr
+      simp [hr']
+    _ = deCasteljauValue (n - k)
+          (fun r : Fin ((n - k) + 1) ↦ coeff (k + r)) t :=
+      bernsteinCombination_eq_deCasteljauValue (n - k) _ t
+
 /--
 The affine left-subdivision coefficient array represents the original
 Bernstein polynomial after the parameter substitution `u ↦ t * u`.
@@ -501,6 +756,37 @@ theorem bernsteinCombination_leftSubdivisionCoefficients
       have hi' : i < n + 1 := Finset.mem_range.mp hi
       simp [hi']
 
+/--
+The affine right-subdivision coefficient array represents the original
+Bernstein polynomial after the parameter substitution `u ↦ t + (1 - t) * u`.
+-/
+theorem bernsteinCombination_rightSubdivisionCoefficients
+    (n : ℕ) (coeff : ℕ → ℝ) (t u : Set.Icc (0 : ℝ) 1) :
+    bernsteinCombination n (rightSubdivisionCoefficients n coeff t) u =
+      bernsteinCombination n (fun i : Fin (n + 1) ↦ coeff i)
+        (unitIntervalRight t u) := by
+  calc
+    bernsteinCombination n (rightSubdivisionCoefficients n coeff t) u =
+        ∑ k ∈ Finset.range (n + 1),
+          rightSubdivisionCoefficient n coeff t k * bernstein n k u := by
+      unfold bernsteinCombination
+      rw [Finset.sum_fin_eq_sum_range]
+      apply Finset.sum_congr rfl
+      intro k hk
+      have hk' : k < n + 1 := Finset.mem_range.mp hk
+      simp [rightSubdivisionCoefficients, hk']
+    _ = ∑ i ∈ Finset.range (n + 1),
+          coeff i * bernstein n i (unitIntervalRight t u) :=
+      bernsteinRange_rightSubdivision n coeff t u
+    _ = bernsteinCombination n (fun i : Fin (n + 1) ↦ coeff i)
+          (unitIntervalRight t u) := by
+      unfold bernsteinCombination
+      rw [Finset.sum_fin_eq_sum_range]
+      apply Finset.sum_congr rfl
+      intro i hi
+      have hi' : i < n + 1 := Finset.mem_range.mp hi
+      simp [hi']
+
 /-- Left subdivision preserves nonnegativity of every source coefficient. -/
 theorem leftSubdivisionCoefficient_nonneg
     (n k : ℕ) (coeff : ℕ → ℝ) (hcoeff : ∀ i, 0 ≤ coeff i)
@@ -516,6 +802,99 @@ theorem leftSubdivisionCoefficients_nonneg
     ∀ k, 0 ≤ leftSubdivisionCoefficients n coeff t k := by
   intro k
   exact leftSubdivisionCoefficient_nonneg n k coeff hcoeff t
+
+/-- Right subdivision preserves nonnegativity of every source coefficient. -/
+theorem rightSubdivisionCoefficient_nonneg
+    (n k : ℕ) (coeff : ℕ → ℝ) (hcoeff : ∀ i, 0 ≤ coeff i)
+    (t : Set.Icc (0 : ℝ) 1) :
+    0 ≤ rightSubdivisionCoefficient n coeff t k := by
+  unfold rightSubdivisionCoefficient
+  apply Finset.sum_nonneg
+  intro i _hi
+  by_cases hki : k ≤ i
+  · simp [hki]
+    exact mul_nonneg (hcoeff i) bernstein_nonneg
+  · simp [hki]
+
+/-- The entire affine right-subdivision coefficient array stays nonnegative. -/
+theorem rightSubdivisionCoefficients_nonneg
+    (n : ℕ) (coeff : ℕ → ℝ) (hcoeff : ∀ i, 0 ≤ coeff i)
+    (t : Set.Icc (0 : ℝ) 1) :
+    ∀ k, 0 ≤ rightSubdivisionCoefficients n coeff t k := by
+  intro k
+  exact rightSubdivisionCoefficient_nonneg n k coeff hcoeff t
+
+/--
+The two-stage coefficient array used by interval restriction: first keep the
+left segment ending at `hi`, then keep the right segment beginning at `localLo`.
+-/
+def intervalSubdivisionCoefficients
+    (n : ℕ) (coeff : ℕ → ℝ) (hi localLo : Set.Icc (0 : ℝ) 1) :
+    Fin (n + 1) → ℝ :=
+  rightSubdivisionCoefficients n
+    (fun i ↦ leftSubdivisionCoefficient n coeff hi i) localLo
+
+/-- The exact two-stage coefficient transform used for restriction to `[lo, hi]`. -/
+def restrictedSubdivisionCoefficients
+    (n : ℕ) (coeff : ℕ → ℝ) (lo hi : Set.Icc (0 : ℝ) 1)
+    (hlohi : (lo : ℝ) ≤ (hi : ℝ)) (hhi : 0 < (hi : ℝ)) :
+    Fin (n + 1) → ℝ :=
+  intervalSubdivisionCoefficients n coeff hi (unitIntervalRatio lo hi hlohi hhi)
+
+/--
+Two-stage subdivision represents the source polynomial under
+`u ↦ hi * (localLo + (1 - localLo) * u)`.
+-/
+theorem bernsteinCombination_intervalSubdivisionCoefficients
+    (n : ℕ) (coeff : ℕ → ℝ)
+    (hi localLo u : Set.Icc (0 : ℝ) 1) :
+    bernsteinCombination n
+        (intervalSubdivisionCoefficients n coeff hi localLo) u =
+      bernsteinCombination n (fun i : Fin (n + 1) ↦ coeff i)
+        (unitIntervalMul hi (unitIntervalRight localLo u)) := by
+  rw [show intervalSubdivisionCoefficients n coeff hi localLo =
+      rightSubdivisionCoefficients n
+        (fun i ↦ leftSubdivisionCoefficient n coeff hi i) localLo by rfl]
+  rw [bernsteinCombination_rightSubdivisionCoefficients]
+  change bernsteinCombination n (leftSubdivisionCoefficients n coeff hi)
+    (unitIntervalRight localLo u) = _
+  rw [bernsteinCombination_leftSubdivisionCoefficients]
+
+/-- Two-stage interval subdivision preserves coefficient nonnegativity. -/
+theorem intervalSubdivisionCoefficients_nonneg
+    (n : ℕ) (coeff : ℕ → ℝ) (hcoeff : ∀ i, 0 ≤ coeff i)
+    (hi localLo : Set.Icc (0 : ℝ) 1) :
+    ∀ k, 0 ≤ intervalSubdivisionCoefficients n coeff hi localLo k := by
+  apply rightSubdivisionCoefficients_nonneg
+  intro i
+  exact leftSubdivisionCoefficient_nonneg n i coeff hcoeff hi
+
+/--
+The complete two-stage coefficient transform represents the source Bernstein
+polynomial under the direct affine map from `[0, 1]` onto `[lo, hi]`.
+-/
+theorem bernsteinCombination_restrictedSubdivisionCoefficients
+    (n : ℕ) (coeff : ℕ → ℝ) (lo hi : Set.Icc (0 : ℝ) 1)
+    (hlohi : (lo : ℝ) ≤ (hi : ℝ)) (hhi : 0 < (hi : ℝ))
+    (u : Set.Icc (0 : ℝ) 1) :
+    bernsteinCombination n
+        (restrictedSubdivisionCoefficients n coeff lo hi hlohi hhi) u =
+      bernsteinCombination n (fun i : Fin (n + 1) ↦ coeff i)
+        (unitIntervalAffine lo hi hlohi u) := by
+  rw [show restrictedSubdivisionCoefficients n coeff lo hi hlohi hhi =
+      intervalSubdivisionCoefficients n coeff hi
+        (unitIntervalRatio lo hi hlohi hhi) by rfl]
+  rw [bernsteinCombination_intervalSubdivisionCoefficients]
+  rw [unitIntervalMul_ratio_right_eq_affine lo hi hlohi hhi u]
+
+/-- Restriction to `[lo, hi]` preserves coefficient nonnegativity. -/
+theorem restrictedSubdivisionCoefficients_nonneg
+    (n : ℕ) (coeff : ℕ → ℝ) (hcoeff : ∀ i, 0 ≤ coeff i)
+    (lo hi : Set.Icc (0 : ℝ) 1) (hlohi : (lo : ℝ) ≤ (hi : ℝ))
+    (hhi : 0 < (hi : ℝ)) :
+    ∀ k, 0 ≤ restrictedSubdivisionCoefficients n coeff lo hi hlohi hhi k := by
+  exact intervalSubdivisionCoefficients_nonneg n coeff hcoeff hi
+    (unitIntervalRatio lo hi hlohi hhi)
 
 /-- The power-basis compiler and recursive de Casteljau evaluator agree end to end. -/
 theorem powerBasisCombination_eq_deCasteljauValue
@@ -540,6 +919,66 @@ theorem powerBasisCombination_mul_eq_leftSubdivision
   simpa [powerToBernsteinCoefficients] using
     (bernsteinCombination_leftSubdivisionCoefficients n
       (fun i ↦ powerToBernsteinCoefficient n powerCoeff i) t u).symm
+
+/--
+The power-to-Bernstein compiler followed by right subdivision represents the
+source power-basis polynomial at `t + (1 - t) * u`.
+-/
+theorem powerBasisCombination_rightAffine_eq_rightSubdivision
+    (n : ℕ) (powerCoeff : ℕ → ℝ) (t u : Set.Icc (0 : ℝ) 1) :
+    powerBasisCombination n powerCoeff
+        ((t : ℝ) + (1 - (t : ℝ)) * (u : ℝ)) =
+      bernsteinCombination n
+        (rightSubdivisionCoefficients n
+          (fun i ↦ powerToBernsteinCoefficient n powerCoeff i) t) u := by
+  change powerBasisCombination n powerCoeff (unitIntervalRight t u) = _
+  rw [powerBasisCombination_eq_bernsteinCombination n powerCoeff (unitIntervalRight t u)]
+  simpa [powerToBernsteinCoefficients] using
+    (bernsteinCombination_rightSubdivisionCoefficients n
+      (fun i ↦ powerToBernsteinCoefficient n powerCoeff i) t u).symm
+
+/--
+The complete power-basis compiler and two-stage interval subdivision pipeline
+represents the source polynomial at
+`hi * (localLo + (1 - localLo) * u)`.
+-/
+theorem powerBasisCombination_intervalAffine_eq_intervalSubdivision
+    (n : ℕ) (powerCoeff : ℕ → ℝ)
+    (hi localLo u : Set.Icc (0 : ℝ) 1) :
+    powerBasisCombination n powerCoeff
+        ((hi : ℝ) * ((localLo : ℝ) + (1 - (localLo : ℝ)) * (u : ℝ))) =
+      bernsteinCombination n
+        (intervalSubdivisionCoefficients n
+          (fun i ↦ powerToBernsteinCoefficient n powerCoeff i) hi localLo) u := by
+  change powerBasisCombination n powerCoeff
+    (unitIntervalMul hi (unitIntervalRight localLo u)) = _
+  rw [powerBasisCombination_eq_bernsteinCombination n powerCoeff
+    (unitIntervalMul hi (unitIntervalRight localLo u))]
+  simpa [powerToBernsteinCoefficients] using
+    (bernsteinCombination_intervalSubdivisionCoefficients n
+      (fun i ↦ powerToBernsteinCoefficient n powerCoeff i) hi localLo u).symm
+
+/--
+The complete power-basis compiler and `[lo, hi]` restriction transform
+represents the source polynomial at `lo + (hi - lo) * u`.
+-/
+theorem powerBasisCombination_affine_eq_restrictedSubdivision
+    (n : ℕ) (powerCoeff : ℕ → ℝ) (lo hi : Set.Icc (0 : ℝ) 1)
+    (hlohi : (lo : ℝ) ≤ (hi : ℝ)) (hhi : 0 < (hi : ℝ))
+    (u : Set.Icc (0 : ℝ) 1) :
+    powerBasisCombination n powerCoeff
+        ((lo : ℝ) + ((hi : ℝ) - (lo : ℝ)) * (u : ℝ)) =
+      bernsteinCombination n
+        (restrictedSubdivisionCoefficients n
+          (fun i ↦ powerToBernsteinCoefficient n powerCoeff i)
+          lo hi hlohi hhi) u := by
+  change powerBasisCombination n powerCoeff (unitIntervalAffine lo hi hlohi u) = _
+  rw [powerBasisCombination_eq_bernsteinCombination n powerCoeff
+    (unitIntervalAffine lo hi hlohi u)]
+  simpa [powerToBernsteinCoefficients] using
+    (bernsteinCombination_restrictedSubdivisionCoefficients n
+      (fun i ↦ powerToBernsteinCoefficient n powerCoeff i)
+      lo hi hlohi hhi u).symm
 
 /-- One de Casteljau level preserves coefficient nonnegativity on `[0,1]`. -/
 theorem deCasteljauStep_nonneg

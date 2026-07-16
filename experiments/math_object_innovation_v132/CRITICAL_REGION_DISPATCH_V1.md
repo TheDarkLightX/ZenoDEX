@@ -87,9 +87,12 @@ proves that Julia's lower-triangular power-to-Bernstein coefficient formula
 preserves every degree-bounded power-basis polynomial. The left subdivision
 array is now proved to represent the parameter substitution `u ↦ t * u`; each
 emitted coefficient is also identified with its de Casteljau prefix value, and
-source-coefficient nonnegativity is preserved. The right subdivision array
-remains outside Lean. Both arrays use exact arithmetic and participate in 12
-differential checks against the power-basis reference.
+source-coefficient nonnegativity is preserved. The right array is proved to
+represent `u ↦ t + (1 - t) * u`, with every coefficient identified with its
+de Casteljau suffix value. Their two-stage composition is proved to represent
+the direct affine restriction `u ↦ lo + (hi - lo) * u` for
+`0 ≤ lo ≤ hi ≤ 1` and `hi > 0`. Both arrays use exact arithmetic and
+participate in 12 differential checks against the power-basis reference.
 
 No DEX state, Tau policy, oracle decision, settlement transition, or runtime
 claim depends on this code. Exhausting a budget, finding a malformed cover, or
