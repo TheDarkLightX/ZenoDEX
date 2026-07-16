@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 from dataclasses import dataclass
-from typing import NoReturn, SupportsIndex, cast, final
+from typing import NoReturn, SupportsIndex, final
 
 from src.integration import _zrpf_spot_v7_release_state_engine_v7 as release_v7
 from src.integration._zrpf_spot_v7_operational_policy_v3 import (
@@ -685,9 +685,12 @@ def _checked_execution_manifest(
 
 
 def _require_policy(value: object) -> _GovernedSpotV7OperationalPolicyV3:
-    if type(value) is not _GovernedSpotV7OperationalPolicyV3:
+    if (
+        not isinstance(value, _GovernedSpotV7OperationalPolicyV3)
+        or type(value) is not _GovernedSpotV7OperationalPolicyV3
+    ):
         raise TypeError("release-bound DA requires exact Spot V7 operational policy V3")
-    policy = cast(_GovernedSpotV7OperationalPolicyV3, value)
+    policy = value
     if not policy._has_private_seal():
         raise TypeError("release-bound DA requires sealed Spot V7 operational policy V3")
     policy._require_live_integrity()
@@ -697,9 +700,12 @@ def _require_policy(value: object) -> _GovernedSpotV7OperationalPolicyV3:
 def _require_governed_da(
     value: object,
 ) -> _GovernedSpotV7DataAvailabilityPrerequisiteV2:
-    if type(value) is not _GovernedSpotV7DataAvailabilityPrerequisiteV2:
+    if (
+        not isinstance(value, _GovernedSpotV7DataAvailabilityPrerequisiteV2)
+        or type(value) is not _GovernedSpotV7DataAvailabilityPrerequisiteV2
+    ):
         raise TypeError("release-bound DA requires exact governed DA V2")
-    governed_da = cast(_GovernedSpotV7DataAvailabilityPrerequisiteV2, value)
+    governed_da = value
     if not governed_da._has_private_seal():
         raise TypeError("release-bound DA requires sealed governed DA V2")
     governed_da._projection_for_downstream_binding_v2()
@@ -709,9 +715,12 @@ def _require_governed_da(
 def _require_finalized_inclusion(
     value: object,
 ) -> _AuthenticatedFinalizedSampledResponseInclusionV1:
-    if type(value) is not _AuthenticatedFinalizedSampledResponseInclusionV1:
+    if (
+        not isinstance(value, _AuthenticatedFinalizedSampledResponseInclusionV1)
+        or type(value) is not _AuthenticatedFinalizedSampledResponseInclusionV1
+    ):
         raise TypeError("release-bound DA requires exact finalized inclusion V1")
-    inclusion = cast(_AuthenticatedFinalizedSampledResponseInclusionV1, value)
+    inclusion = value
     if not inclusion._has_private_seal():
         raise TypeError("release-bound DA requires sealed finalized inclusion V1")
     inclusion._projection_for_da_store_v5()

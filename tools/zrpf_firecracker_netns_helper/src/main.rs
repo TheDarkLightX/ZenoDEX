@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::{ErrorKind, Read, Write};
 
 use zenodex_zrpf_firecracker_netns_helper_v1::{
     execute_request_with_kernel_v1, linux::close_unexpected_descriptors_v1,
@@ -23,17 +23,39 @@ fn run() -> Result<(), zenodex_zrpf_firecracker_netns_helper_v1::NetnsHelperErro
         .map_err(|_| zenodex_zrpf_firecracker_netns_helper_v1::NetnsHelperErrorV1::IoRejected)?;
     let mut kernel = LinuxNetnsKernelV1::new()?;
     let response = execute_request_with_kernel_v1(&request, &mut kernel)?;
-    // This fixed 256-byte binary protocol response contains only bounded
-    // observations and SHA-256 commitments. It contains no namespace path or
-    // name bytes, and stdout is the helper ABI rather than a diagnostic log.
-    let mut stdout = std::io::stdout().lock();
-    let write_result = {
-        // codeql[rust/cleartext-logging]
-        stdout.write_all(&response)
-    };
-    write_result
-        .map_err(|_| zenodex_zrpf_firecracker_netns_helper_v1::NetnsHelperErrorV1::IoRejected)?;
-    stdout
-        .flush()
-        .map_err(|_| zenodex_zrpf_firecracker_netns_helper_v1::NetnsHelperErrorV1::IoRejected)
+    write_protocol_response_v1(&response)
+}
+
+fn write_protocol_response_v1(
+    response: &[u8],
+) -> Result<(), zenodex_zrpf_firecracker_netns_helper_v1::NetnsHelperErrorV1> {
+    // Stdout is the fixed binary helper ABI. A direct descriptor write keeps
+    // this transport distinct from the diagnostic logging path on stderr.
+    let mut offset = 0_usize;
+    while offset < response.len() {
+        let remaining = &response[offset..];
+        let written = unsafe {
+            libc::write(
+                libc::STDOUT_FILENO,
+                remaining.as_ptr().cast(),
+                remaining.len(),
+            )
+        };
+        if written < 0 {
+            if std::io::Error::last_os_error().kind() == ErrorKind::Interrupted {
+                continue;
+            }
+            return Err(zenodex_zrpf_firecracker_netns_helper_v1::NetnsHelperErrorV1::IoRejected);
+        }
+        let written = usize::try_from(written).map_err(|_| {
+            zenodex_zrpf_firecracker_netns_helper_v1::NetnsHelperErrorV1::IoRejected
+        })?;
+        if written == 0 || written > remaining.len() {
+            return Err(zenodex_zrpf_firecracker_netns_helper_v1::NetnsHelperErrorV1::IoRejected);
+        }
+        offset = offset
+            .checked_add(written)
+            .ok_or(zenodex_zrpf_firecracker_netns_helper_v1::NetnsHelperErrorV1::IoRejected)?;
+    }
+    Ok(())
 }
