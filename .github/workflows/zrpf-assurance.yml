@@ -203,6 +203,9 @@ jobs:
             src/integration/zrpf_spot_v7_authenticated_release_selection_v1.py \
             src/integration/_zrpf_spot_v7_release_revocation_envelope_v1.py \
             src/integration/zrpf_spot_v7_authenticated_release_revocation_v1.py \
+            src/integration/_zrpf_spot_v7_authenticated_proof_v1.py \
+            src/integration/_zrpf_spot_v7_release_state_schema_v7.py \
+            src/integration/_zrpf_spot_v7_release_state_engine_v7.py \
             src/integration/_zrpf_spot_v7_operational_policy_v3.py \
             src/integration/zrpf_spot_v7_operational_policy_provenance.py \
             src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py \
@@ -215,8 +218,10 @@ jobs:
             src/integration/zrpf_sampled_retrievability_v1/model.py \
             src/integration/zrpf_sampled_retrievability_v1/projection.py \
             src/integration/zrpf_sampled_retrievability_v1/response_verifier.py \
+            src/integration/zrpf_sampled_retrievability_v1/ledger_inclusion.py \
             src/integration/zrpf_sampled_retrievability_v1/validation.py \
             src/integration/zrpf_sampled_retrievability_v1/verifier.py \
+            src/integration/zrpf_spot_v7_finalized_da_response_inclusion.py \
             src/integration/_zrpf_spot_v7_governed_da_projection.py \
             src/integration/_zrpf_spot_v7_governed_da_projection_v2.py \
             src/integration/zrpf_spot_v7_governed_da_prerequisite.py \
@@ -284,6 +289,7 @@ jobs:
             tools/check_zrpf_spot_settlement_v7_local_evidence.py \
             tools/check_zrpf_v6_v7_post_pin_governance.py \
             tools/check_zrpf_spot_v7_release_closure.py \
+            tools/zrpf_spot_v7_release_store_cutover_v1.py \
             tools/execute_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tools/materialize_zrpf_v6_settlement_child_into_v7.py \
             tools/materialize_zrpf_source_opened_spot_v6_identity.py \
@@ -444,6 +450,10 @@ jobs:
             tests/test_zrpf_assurance_workflow.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
+            tests/integration/test_zrpf_spot_v7_authenticated_proof_v1.py \
+            tests/integration/test_zrpf_spot_v7_finalized_da_response_inclusion.py \
+            tests/integration/test_zrpf_spot_v7_release_state_v7.py \
+            tests/test_zrpf_spot_v7_release_store_cutover_v1.py \
             tests/integration/test_recursive_stark_durable_admission_store.py \
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
@@ -521,6 +531,9 @@ jobs:
             src/integration/zrpf_spot_v7_authenticated_release_selection_v1.py \
             src/integration/_zrpf_spot_v7_release_revocation_envelope_v1.py \
             src/integration/zrpf_spot_v7_authenticated_release_revocation_v1.py \
+            src/integration/_zrpf_spot_v7_authenticated_proof_v1.py \
+            src/integration/_zrpf_spot_v7_release_state_schema_v7.py \
+            src/integration/_zrpf_spot_v7_release_state_engine_v7.py \
             src/integration/_zrpf_spot_v7_operational_policy_v3.py \
             src/integration/zrpf_spot_v7_operational_policy_provenance.py \
             src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py \
@@ -533,8 +546,10 @@ jobs:
             src/integration/zrpf_sampled_retrievability_v1/model.py \
             src/integration/zrpf_sampled_retrievability_v1/projection.py \
             src/integration/zrpf_sampled_retrievability_v1/response_verifier.py \
+            src/integration/zrpf_sampled_retrievability_v1/ledger_inclusion.py \
             src/integration/zrpf_sampled_retrievability_v1/validation.py \
             src/integration/zrpf_sampled_retrievability_v1/verifier.py \
+            src/integration/zrpf_spot_v7_finalized_da_response_inclusion.py \
             src/integration/_zrpf_spot_v7_governed_da_projection.py \
             src/integration/_zrpf_spot_v7_governed_da_projection_v2.py \
             src/integration/zrpf_spot_v7_governed_da_prerequisite.py \
@@ -600,6 +615,7 @@ jobs:
             tools/check_zrpf_spot_settlement_v7_local_evidence.py \
             tools/check_zrpf_v6_v7_post_pin_governance.py \
             tools/check_zrpf_spot_v7_release_closure.py \
+            tools/zrpf_spot_v7_release_store_cutover_v1.py \
             tools/execute_zrpf_source_opened_spot_v6_identity_rebuild.py \
             tools/materialize_zrpf_v6_settlement_child_into_v7.py \
             tools/materialize_zrpf_source_opened_spot_v6_identity.py \
@@ -722,6 +738,10 @@ jobs:
             tests/test_zrpf_remote_mutation_dependency_closure.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
+            tests/integration/test_zrpf_spot_v7_authenticated_proof_v1.py \
+            tests/integration/test_zrpf_spot_v7_finalized_da_response_inclusion.py \
+            tests/integration/test_zrpf_spot_v7_release_state_v7.py \
+            tests/test_zrpf_spot_v7_release_store_cutover_v1.py \
             tests/integration/test_recursive_stark_durable_admission_store.py \
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
@@ -842,6 +862,10 @@ jobs:
             tests/test_check_zrpf_v3_structural_tree_temporary_evidence.py \
             tests/core/test_recursive_stark_exact_once_admission.py \
             tests/integration/test_recursive_stark_admission_authority_boundary.py \
+            tests/integration/test_zrpf_spot_v7_authenticated_proof_v1.py \
+            tests/integration/test_zrpf_spot_v7_finalized_da_response_inclusion.py \
+            tests/integration/test_zrpf_spot_v7_release_state_v7.py \
+            tests/test_zrpf_spot_v7_release_store_cutover_v1.py \
             tests/integration/test_recursive_stark_durable_admission_store.py \
             tests/integration/test_recursive_stark_replay_manifest.py \
             tests/integration/test_recursive_stark_verifier_adapter.py \
