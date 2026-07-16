@@ -243,7 +243,9 @@ class OwnerWalletProjection:
 
 
 @dataclass(frozen=True, slots=True)
-class GasReserveProjection:
+class BoundTargetGasReserve:
+    """Gas Pool custody with one exact active-vault reserve attribution."""
+
     target_vault_identity: VaultIdentity
     target_reserve_atoms: ZUSDAtoms
     gas_pool_custody_atoms: ZUSDAtoms
@@ -264,6 +266,25 @@ class GasReserveProjection:
             ZUSDAtoms,
             name="gas_pool_custody_atoms",
         )
+
+
+@dataclass(frozen=True, slots=True)
+class GasPoolCustodyWithoutTarget:
+    """Gas Pool custody after this lifecycle no longer owns a reserve."""
+
+    gas_pool_custody_atoms: ZUSDAtoms
+
+    def __post_init__(self) -> None:
+        _require_exact_type(
+            self.gas_pool_custody_atoms,
+            ZUSDAtoms,
+            name="gas_pool_custody_atoms",
+        )
+
+
+GasReserveProjection: TypeAlias = (
+    BoundTargetGasReserve | GasPoolCustodyWithoutTarget
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -302,7 +323,23 @@ class OwnerCloseState:
             raise TypeError("lifecycle must be ActiveWithCompositeDebt or ClosedByOwner")
         _require_exact_type(self.system, SystemAggregateProjection, name="system")
         _require_exact_type(self.owner_wallet, OwnerWalletProjection, name="owner_wallet")
-        _require_exact_type(self.gas_reserve, GasReserveProjection, name="gas_reserve")
+        if type(self.gas_reserve) not in (
+            BoundTargetGasReserve,
+            GasPoolCustodyWithoutTarget,
+        ):
+            raise TypeError(
+                "gas_reserve must be BoundTargetGasReserve or "
+                "GasPoolCustodyWithoutTarget"
+            )
+        if type(self.lifecycle) is ActiveWithCompositeDebt:
+            if type(self.gas_reserve) is not BoundTargetGasReserve:
+                raise TypeError(
+                    "an active lifecycle requires a bound target gas reserve"
+                )
+        elif type(self.gas_reserve) is not GasPoolCustodyWithoutTarget:
+            raise TypeError(
+                "a closed lifecycle requires gas custody without a target"
+            )
         _require_exact_type(self.supply, SupplyProjection, name="supply")
         _require_exact_type(
             self.transition_sequence,
@@ -893,6 +930,8 @@ def _reserve_projection_matches(
     active: ActiveWithCompositeDebt,
 ) -> bool:
     reserve = state.gas_reserve
+    if type(reserve) is not BoundTargetGasReserve:
+        return False
     if reserve.target_vault_identity != active.vault_identity:
         return False
     if reserve.target_reserve_atoms != active.reserve_debt_atoms:
@@ -1090,9 +1129,7 @@ def _build_post_state(
                 + active.collateral_atoms.value
             ),
         ),
-        gas_reserve=GasReserveProjection(
-            target_vault_identity=active.vault_identity,
-            target_reserve_atoms=ZUSDAtoms(0),
+        gas_reserve=GasPoolCustodyWithoutTarget(
             gas_pool_custody_atoms=ZUSDAtoms(
                 state.gas_reserve.gas_pool_custody_atoms.value
                 - active.reserve_debt_atoms.value

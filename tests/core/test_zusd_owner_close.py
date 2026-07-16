@@ -22,13 +22,14 @@ from src.core.zusd_owner_close import (
     ActiveVaultCount,
     ActiveWithCompositeDebt,
     AuthenticatedOwnerCapability,
+    BoundTargetGasReserve,
     CandidateTCRAtOrAboveCCR,
     CandidateTCRBelowCCR,
     ClosedByOwner,
     CloseVaultRequest,
     CollateralAtoms,
     CommitmentDigest,
-    GasReserveProjection,
+    GasPoolCustodyWithoutTarget,
     GuardBlocked,
     GuardFailed,
     GuardOutcome,
@@ -117,7 +118,7 @@ def _state(
             zusd_balance_atoms=ZUSDAtoms(owner_zusd_atoms),
             collateral_balance_atoms=CollateralAtoms(owner_collateral_atoms),
         ),
-        gas_reserve=GasReserveProjection(
+        gas_reserve=BoundTargetGasReserve(
             target_vault_identity=vault.vault_identity,
             target_reserve_atoms=ZUSDAtoms(target_reserve_atoms),
             gas_pool_custody_atoms=ZUSDAtoms(gas_pool_atoms),
@@ -221,6 +222,9 @@ def test_given_source_valid_close_when_evaluated_then_every_leg_commits_atomical
     assert post.supply.total_zusd_supply_atoms.value == 2_000 * Q
     assert post.owner_wallet.zusd_balance_atoms.value == 0
     assert post.gas_reserve.gas_pool_custody_atoms.value == 200 * Q
+    assert type(post.gas_reserve) is GasPoolCustodyWithoutTarget
+    assert not hasattr(post.gas_reserve, "target_vault_identity")
+    assert not hasattr(post.gas_reserve, "target_reserve_atoms")
     assert post.owner_wallet.collateral_balance_atoms.value == 15 * Q
     assert result.effects.total_zusd_burn_atoms.value == 2_000 * Q
     assert result.effects.owner_net_debt_burn_atoms.value == 1_800 * Q
@@ -256,6 +260,26 @@ def test_closed_lifecycle_structurally_has_no_active_value_or_index_fields() -> 
         "stake_atoms",
     ):
         assert not hasattr(closed, active_field)
+
+
+def test_lifecycle_and_reserve_variants_are_coupled_by_construction() -> None:
+    active_state = _state()
+    active = active_state.lifecycle
+    assert type(active) is ActiveWithCompositeDebt
+    closed = ClosedByOwner(
+        active.vault_identity,
+        active.owner_identity,
+        SequenceNumber(1),
+    )
+    with pytest.raises(TypeError, match="closed lifecycle requires"):
+        replace(active_state, lifecycle=closed)
+    with pytest.raises(TypeError, match="active lifecycle requires"):
+        replace(
+            active_state,
+            gas_reserve=GasPoolCustodyWithoutTarget(
+                active_state.gas_reserve.gas_pool_custody_atoms
+            ),
+        )
 
 
 def test_authenticated_owner_capability_requires_a_positive_occurrence() -> None:
@@ -403,6 +427,9 @@ def test_inactive_target_blocks_dependent_guards_without_dereference() -> None:
             active.vault_identity,
             active.owner_identity,
             SequenceNumber(1),
+        ),
+        gas_reserve=GasPoolCustodyWithoutTarget(
+            active_pre.gas_reserve.gas_pool_custody_atoms
         ),
     )
     result = _assert_reject(
@@ -846,7 +873,9 @@ def test_bounded_acceptance_preserves_supply_debt_custody_and_stake(
         == LIQUITY_V1_GAS_RESERVE_ATOMS
     )
     assert post.gas_reserve.gas_pool_custody_atoms.value == 200 * Q
-    assert post.gas_reserve.target_reserve_atoms.value == 0
+    assert type(post.gas_reserve) is GasPoolCustodyWithoutTarget
+    assert not hasattr(post.gas_reserve, "target_vault_identity")
+    assert not hasattr(post.gas_reserve, "target_reserve_atoms")
     assert (
         pre.system.collateral_atoms.value - post.system.collateral_atoms.value
         == target_collateral * Q
@@ -1077,9 +1106,8 @@ def test_result_constructors_kill_guard_and_lifecycle_shape_mutations() -> None:
     )
     with pytest.raises(ValueError, match="advance its sequence once"):
         _reconstruct_accepted(accepted, post_state=wrong_sequence_post)
-    active_post = replace(accepted.post_state, lifecycle=pre.lifecycle)
-    with pytest.raises(TypeError, match="construct ClosedByOwner"):
-        _reconstruct_accepted(accepted, post_state=active_post)
+    with pytest.raises(TypeError, match="active lifecycle requires"):
+        replace(accepted.post_state, lifecycle=pre.lifecycle)
     closed = accepted.post_state.lifecycle
     assert type(closed) is ClosedByOwner
     wrong_close_post = replace(
@@ -1121,6 +1149,24 @@ def test_wrong_target_reserve_identity_and_result_type_fail_closed() -> None:
         committed_state(cast(OwnerCloseAccepted, object()))
     with pytest.raises(TypeError, match="pre_state must be"):
         run_owner_close(cast(OwnerCloseState, object()), request)
+
+
+def test_forged_accepted_post_cannot_retain_a_stale_target_reserve() -> None:
+    pre = _state()
+    accepted = run_owner_close(pre, _request(pre))
+    assert type(accepted) is OwnerCloseAccepted
+    forged_post = replace(accepted.post_state)
+    object.__setattr__(
+        forged_post,
+        "gas_reserve",
+        BoundTargetGasReserve(
+            target_vault_identity=accepted.effects.vault_identity,
+            target_reserve_atoms=accepted.effects.gas_reserve_burn_atoms,
+            gas_pool_custody_atoms=forged_post.gas_reserve.gas_pool_custody_atoms,
+        ),
+    )
+    with pytest.raises(ValueError, match="deterministic transition construction"):
+        _reconstruct_accepted(accepted, post_state=forged_post)
 
 
 def test_every_accepted_guard_is_total_and_passed() -> None:
