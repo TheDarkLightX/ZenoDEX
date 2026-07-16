@@ -6,6 +6,69 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
 
 # Ideas
 
+## Adaptive Bernstein region compiler
+
+- `failing_region_midpoint_refinement_v1`
+  - exact `Rational{BigInt}` de Casteljau compiler that refines only a failing
+    interval and emits an ordinary complete Bernstein cover.
+  - bounded corpus: `240` Gegenbauer, `154` Jacobi envelope, and `378` oriented
+    Jacobi Turan obligations, plus seven negative controls.
+  - result: `772/772` positives accepted, `0/7` false accepts, `2928` total
+    pieces, maximum `8` pieces, and `2663176` canonical bytes.
+  - equal baseline: `3592` pieces, maximum `16`, and `4076028` bytes.
+  - at six leaves, midpoint adaptive leaves `5` `UNKNOWN` versus `240` for
+    equal subdivision.
+  - Lean bridge: arbitrary-degree Bernstein-combination nonnegativity and
+    finite-cover lifting check in
+    `Proofs/AdaptiveBernsteinRegionCertificates.lean`.
+  - residual proof boundary: the exact Julia compiler has 12 differential
+    binding checks, not a general Lean proof of its basis conversion and
+    de Casteljau implementation.
+
+- `derivative_landmark_dispatch_negative_knowledge_v1`
+  - uses exact derivative Bernstein sign variations to propose a critical
+    landmark, snapped to a global `1/64` grid before splitting.
+  - result: `2943` pieces and `4270358` bytes. This is worse than midpoint
+    adaptive on both measures and worse than equal subdivision in encoded bytes.
+  - a prior coefficient-interpolated landmark is dropped because exact
+    recursive denominators grow with coefficient height.
+  - acceptance never depends on the heuristic; only the emitted Bernstein
+    cover can produce `ACCEPT`.
+
+## Region-adaptive analytic certificate compiler
+
+- `region_adaptive_analytic_certificate_v1`
+  - paper source: Deift-Zhou nonlinear steepest descent, refined by the
+    Wang-Ma dbar extension.
+  - decomposes an analytic inequality into certified regular, critical-point,
+    transition, and outer regions.
+  - each region carries a model proof, residual bound, and overlap contract;
+    global acceptance requires complete coverage and every model margin to
+    dominate its typed error budget.
+  - completed first experiment: normalized Jacobi/Gegenbauer corpus versus the
+    equal-subdivision Bernstein lane; failing-region midpoint refinement wins,
+    while derivative-landmark selection is retained as negative knowledge.
+  - promotion metrics: zero false accepts, lower certificate-piece count or
+    lower `UNKNOWN` rate, exact-rational replay, and a checked Lean gluing
+    theorem.
+
+- `approximation_defect_receipt_v1`
+  - carries `region_id`, `model_id`, `model_certificate`, `defect_bound`,
+    `interaction_bound`, `reconstruction_bound`, and `coverage_root`.
+  - derives from the dbar split between a solvable local RHP and a separately
+    bounded nonanalytic interpolation defect.
+  - remains offchain and fail-closed. Numerical approximation may propose the
+    receipt; a deterministic verifier checks rational bounds and otherwise
+    returns `UNKNOWN`.
+  - executable status: the v1 schema and checker now validate canonical
+    rationals, typed certified-versus-allocated bounds, exact finite coverage,
+    overlap agreement, and a receipt-body root.
+  - Lean status: componentwise budget composition, local target
+    nonnegativity, finite-cover lifting, and overlap mismatch bounds check in
+    `Proofs.ApproximationDefectCertificates`.
+  - remaining trust boundary: `certificate_id` values are opaque references;
+    promotion requires replayable upstream model and error-bound verifiers.
+
 ## v197 proof-gated gamification budget
 
 - `proof_gated_gamification_budget_v1`

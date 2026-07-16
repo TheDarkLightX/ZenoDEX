@@ -6,6 +6,68 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
 
 # Workflow
 
+## Updated lesson from critical-region dispatch v1
+
+- On the bounded exact corpus of `772` Jacobi/Gegenbauer obligations, adaptive
+  regionalization mattered and derivative-root guidance did not.
+- Refining only failing Bernstein leaves preserved `772/772` positive accepts
+  and `0/7` false accepts while reducing total pieces from `3592` to `2928`,
+  maximum pieces from `16` to `8`, and canonical bytes from `4076028` to
+  `2663176`.
+- The six-leaf budget is the clearest decision metric: equal subdivision leaves
+  `240` `UNKNOWN`, while midpoint adaptive refinement leaves `5`.
+- A derivative sign-variation landmark snapped to the `1/64` grid uses `2943`
+  pieces and `4270358` bytes. It remains a falsified comparator because it is
+  larger than midpoint refinement and slightly larger in bytes than equal
+  subdivision.
+- Exact coefficient-interpolated split points are an arithmetic resource risk:
+  recursive denominators depend on coefficient height. Certificate compilers
+  should bind denominator geometry independently of input coefficient height.
+- The promoted research method is failing-region midpoint refinement backed by
+  ordinary Bernstein certificates. Critical-point local models remain a
+  separate future lane requiring a corpus where they beat this simpler policy.
+- `AdaptiveBernsteinRegionCertificates.lean` now proves arbitrary-degree
+  Bernstein-combination nonnegativity and adaptive-cover lifting. The Julia
+  compiler binding has 12 exact differential checks and is not yet a general
+  Lean proof of power-to-Bernstein conversion or de Casteljau subdivision.
+
+## Updated lesson from the approximation-defect receipt bridge
+
+- A paper-derived local-model architecture becomes executable only after its
+  error components, region coverage, and overlap ownership have canonical
+  machine-checkable representations.
+- Separate `certified_bound` from `allocated_bound`. The allocation must
+  dominate its upstream certificate before the total allocation can be
+  compared with the model margin.
+- Bind the whole receipt body, including certificate identifiers, regions, and
+  overlaps, under one deterministic root. Arithmetic acceptance still depends
+  on the external validity of those upstream certificate identifiers.
+- The formal core is small: componentwise budget monotonicity, local absolute
+  error gluing, finite-cover lifting, and overlap model mismatch by triangle
+  inequality.
+- The follow-on dispatcher experiment resolved the open algorithmic question:
+  failing-region midpoint refinement reduces piece count and bounded
+  `UNKNOWN`, while derivative-landmark selection does not improve the selected
+  compiler.
+
+## Updated lesson from the Deift-Zhou and Wang-Ma steepest-descent pass
+
+- Nonlinear steepest descent transfers to ZenoDEX as a certificate-decomposition
+  architecture: global factorization, decay-oriented deformation, localization
+  at critical points, universal local models, explicit interaction bounds, and
+  matched reconstruction.
+- The dbar extension adds a weaker-regularity pattern: replace analytic
+  continuation with an explicit interpolation defect and certify that defect
+  through a separate norm/error budget.
+- The first credible ZenoDEX seam is the existing high-degree
+  Jacobi/Gegenbauer/Bernstein certificate menu. The papers do not establish any
+  AMM, oracle, liquidation, or routing theorem.
+- Promotion requires finite, verifier-checkable remainder constants. Asymptotic
+  `O(...)` notation and floating-point local solves remain suggestion evidence.
+- The follow-on cycle completed both targets: the local-model residual gluing
+  theorem checks in Lean, and the dispatcher benchmark selects failing-region
+  midpoint refinement over derivative-landmark splitting.
+
 ## Updated lesson from v197
 
 - Gamification should split token rewards from non-token progress.

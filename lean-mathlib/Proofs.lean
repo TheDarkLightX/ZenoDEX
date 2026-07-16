@@ -1,9 +1,11 @@
 import Proofs.AcyclicRouting
 import Proofs.ADLSolvency
+import Proofs.AdaptiveBernsteinRegionCertificates
 import Proofs.AdvisoryPokayokeBridge
 import Proofs.AgentCapabilityBounds
 import Proofs.AllocationTotality
 import Proofs.AmendmentLivenessGuarantee
+import Proofs.ApproximationDefectCertificates
 import Proofs.AMMCriticalBoundaryInterval
 import Proofs.AMMFunctionalAnalysisFrontier
 import Proofs.AMMGlobalBoundaryCountermodels

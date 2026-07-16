@@ -6,6 +6,53 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
 
 # Breakthroughs
 
+## Method promotion from critical-region dispatch v1
+
+- `failing_region_midpoint_refinement_v1` is promoted as a bounded
+  certificate-compiler optimization.
+- Reason:
+  - it reuses the existing exact Bernstein acceptance rule and complete-cover
+    proof boundary,
+  - it accepts `772/772` positive Jacobi/Gegenbauer obligations and `0/7`
+    negative controls,
+  - it saves `664` pieces (`1848` basis points) and `1412852` canonical bytes
+    (`3466` basis points) relative to equal subdivision,
+  - and its per-case piece and byte cost is lower on `322` obligations and
+    equal on the remaining `450`.
+  - Lean checks arbitrary-degree Bernstein-combination nonnegativity and the
+    finite-cover acceptance spine.
+- Practical consequence:
+  - a Bernstein certificate generator should refine only failing leaves before
+    increasing a global equal partition,
+  - and a six-leaf budget leaves only `5` bounded positives `UNKNOWN` instead
+    of `240` under equal subdivision.
+- Non-promotion:
+  - `derivative_landmark_dispatch_v1` uses `15` more pieces and `1607182` more
+    bytes than midpoint refinement, so it remains negative knowledge,
+  - coefficient-interpolated critical points are rejected because their exact
+    denominator growth depends on input coefficient height,
+  - and no runtime, Tau, settlement, or general special-function claim is
+    promoted from this research compiler.
+  - the exact Julia compiler binding has differential checks but is not yet a
+    general Lean proof of power-to-Bernstein conversion or de Casteljau.
+
+## Non-promotion note from the approximation-defect receipt bridge
+
+- `approximation_defect_receipt_v1` survives as a proof-relevant executable
+  bridge, but it is not promoted as a runtime certificate.
+- Reason:
+  - it gives the Deift-Zhou / Wang-Ma transfer an exact-rational receipt shape,
+  - it fails closed on the four named composition attacks,
+  - and Lean checks the local gluing and finite-cover theorem used by
+    `ACCEPT`,
+  - but upstream analytic certificate identifiers remain opaque assumptions.
+- Current measured result:
+  - focused checker tests: `11/11` pass
+  - built-in replay: `1` accepted, `4` `UNKNOWN`
+  - required adversarial witnesses: missing region, underestimated defect,
+    omitted interaction, and overlap mismatch
+  - runtime/Tau/settlement authority: none
+
 ## Non-promotion note from v197
 
 - `proof_gated_gamification_budget_v1` survives as a useful mechanism-design

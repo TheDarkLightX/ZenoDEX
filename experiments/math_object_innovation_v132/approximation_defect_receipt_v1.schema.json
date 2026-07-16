@@ -1,0 +1,174 @@
+{
+  "$defs": {
+    "component": {
+      "additionalProperties": false,
+      "properties": {
+        "allocated_bound": {
+          "$ref": "#/$defs/rational"
+        },
+        "certificate_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "certified_bound": {
+          "$ref": "#/$defs/rational"
+        }
+      },
+      "required": [
+        "allocated_bound",
+        "certificate_id",
+        "certified_bound"
+      ],
+      "type": "object"
+    },
+    "identifier": {
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "type": "string"
+    },
+    "interval": {
+      "additionalProperties": false,
+      "properties": {
+        "hi": {
+          "$ref": "#/$defs/rational"
+        },
+        "lo": {
+          "$ref": "#/$defs/rational"
+        }
+      },
+      "required": [
+        "hi",
+        "lo"
+      ],
+      "type": "object"
+    },
+    "rational": {
+      "maxLength": 128,
+      "pattern": "^(?:0|-?[1-9][0-9]*)(?:/[1-9][0-9]*)?$",
+      "type": "string"
+    }
+  },
+  "$id": "https://zenodex.invalid/schemas/approximation_defect_receipt_v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Research-only exact-rational local-model plus defect receipt. Semantic arithmetic, coverage, canonical reduction, overlap, and hash rules are enforced by approximation_defect_receipt.py.",
+  "properties": {
+    "claim_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "coverage_root": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "domain": {
+      "$ref": "#/$defs/interval"
+    },
+    "overlaps": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "interval": {
+            "$ref": "#/$defs/interval"
+          },
+          "left_contract_id": {
+            "$ref": "#/$defs/identifier"
+          },
+          "left_region_id": {
+            "$ref": "#/$defs/identifier"
+          },
+          "right_contract_id": {
+            "$ref": "#/$defs/identifier"
+          },
+          "right_region_id": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "required": [
+          "interval",
+          "left_contract_id",
+          "left_region_id",
+          "right_contract_id",
+          "right_region_id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 255,
+      "type": "array"
+    },
+    "regions": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "errors": {
+            "additionalProperties": false,
+            "properties": {
+              "defect": {
+                "$ref": "#/$defs/component"
+              },
+              "interaction": {
+                "$ref": "#/$defs/component"
+              },
+              "reconstruction": {
+                "$ref": "#/$defs/component"
+              }
+            },
+            "required": [
+              "defect",
+              "interaction",
+              "reconstruction"
+            ],
+            "type": "object"
+          },
+          "interval": {
+            "$ref": "#/$defs/interval"
+          },
+          "model": {
+            "additionalProperties": false,
+            "properties": {
+              "certificate_id": {
+                "$ref": "#/$defs/identifier"
+              },
+              "certified_margin": {
+                "$ref": "#/$defs/rational"
+              },
+              "model_id": {
+                "$ref": "#/$defs/identifier"
+              }
+            },
+            "required": [
+              "certificate_id",
+              "certified_margin",
+              "model_id"
+            ],
+            "type": "object"
+          },
+          "region_id": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "required": [
+          "errors",
+          "interval",
+          "model",
+          "region_id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema": {
+      "const": "zenodex-approximation-defect-receipt/v1"
+    }
+  },
+  "required": [
+    "claim_id",
+    "coverage_root",
+    "domain",
+    "overlaps",
+    "regions",
+    "schema"
+  ],
+  "title": "ZenoDEX Approximation Defect Receipt v1",
+  "type": "object"
+}
