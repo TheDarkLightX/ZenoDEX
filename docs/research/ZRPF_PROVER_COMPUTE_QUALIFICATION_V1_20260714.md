@@ -206,6 +206,13 @@ its private packet and input snapshots, requires byte-exact agreement with the
 checker output, and applies the resulting deadline before launching the proof
 command. A valid execution profile alone cannot start paid proving.
 
+The checker result is a public, canonical protocol record. Its inputs must
+contain no credentials or secret workload data. The result carries governed
+content identities and selected public hardware, price, and deadline facts; it
+does not carry input filesystem paths or raw input-file contents. A dedicated
+negative test uses a unique private-path sentinel and requires it to remain
+absent from stdout.
+
 The checker does not authorize a continuation or additional spend. A later
 continuation design requires direct verification of the completed receipt and
 worker-owned live GPU telemetry. Caller-supplied booleans or projected

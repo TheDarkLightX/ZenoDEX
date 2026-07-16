@@ -6,6 +6,7 @@ import json
 import os
 import select
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, cast
 
@@ -14,6 +15,7 @@ import pytest
 from tests import test_plan_zrpf_source_opened_spot_v6_identity_rebuild as identity_fixture
 from tools import plan_zrpf_remote_reproof_handoff_v2 as handoff
 from tools import run_zrpf_remote_worker_prover_build_stage_v2 as worker_build
+from tools import zrpf_remote_reproof_stage_publication_marker_v1 as publication_marker
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 C0 = subprocess.check_output(["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"], text=True).strip()
@@ -247,16 +249,42 @@ def _write_execution_packets(
 ) -> None:
     packet_directory.mkdir(mode=0o700)
     handoff.validate_handoff(plan, repository)
-    ancestry = handoff.validate_literal_ancestry(repository, *chain)
-    contracts = cast(list[dict[str, object]], plan["artifact_contracts"])
-    records = {
-        str(contract["role"]): handoff._artifact_record(contract, artifact_root)
-        for contract in contracts
+    tasks = cast(list[dict[str, object]], plan["tasks"])
+    contracts = {
+        str(contract["contract_id"]): contract
+        for contract in cast(list[dict[str, object]], plan["artifact_contracts"])
     }
-    packets = handoff._execution_packets_from_records(plan, ancestry, records)
-    for ordinal, (stage_id, packet) in enumerate(zip(handoff.TASK_ORDER, packets, strict=True)):
+    for ordinal, (stage_id, task) in enumerate(zip(handoff.TASK_ORDER, tasks, strict=True)):
+        packet = handoff.build_execution_packet(
+            plan,
+            stage_id,
+            artifact_root,
+            repository,
+            c0_commit=chain[0],
+            c1_commit=chain[1],
+            c2_commit=chain[2],
+            governance_commit=chain[3],
+        )
         name = f"{ordinal:02d}-{stage_id}.json"
         (packet_directory / name).write_bytes(handoff.canonical_json_bytes(packet))
+        outputs = [
+            handoff._artifact_record(contracts[str(contract_id)], artifact_root)
+            for contract_id in cast(list[str], task["output_artifact_contract_ids"])
+        ]
+        marker = publication_marker.build_stage_publication_marker_v1(
+            handoff_id=str(plan["handoff_id"]),
+            execution_packet_id=str(packet["execution_packet_id"]),
+            task_id=str(task["task_id"]),
+            stage_id=stage_id,
+            ordinal=ordinal,
+            capture_id=hashlib.sha256(f"fixture-capture:{stage_id}".encode("ascii")).hexdigest(),
+            outputs=outputs,
+        )
+        marker_path = artifact_root / publication_marker.stage_publication_marker_relative_path_v1(
+            ordinal, stage_id
+        )
+        marker_path.parent.mkdir(parents=True, exist_ok=True)
+        marker_path.write_bytes(publication_marker.canonical_json_bytes_v1(marker))
 
 
 def test_handoff_is_deterministic_content_addressed_and_topological(
@@ -291,7 +319,7 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
             if command["stdout_artifact_role"] is not None:
                 assert command["stdout_artifact_role"] in output_roles
     planned = [task["stage_id"] for task in tasks if task["command_status"] == "template_planned"]
-    assert planned == ["release_checks"]
+    assert planned == []
     implemented = [
         task["stage_id"] for task in tasks if task["execution_adapter_status"] == "implemented"
     ]
@@ -308,6 +336,7 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
         "v7_execution_profile",
         "v7_receipt",
         "mutation_verification",
+        "release_checks",
     ]
     source_proof = next(task for task in tasks if task["stage_id"] == "source_spot_proof")
     assert source_proof["execution_adapter_status"] == "blocked_cpu_source_proof_disqualified"
@@ -323,17 +352,17 @@ def test_handoff_is_deterministic_content_addressed_and_topological(
     handoff.validate_handoff(plan, REPO_ROOT)
 
 
-def test_source_profile_change_ratchets_wire_family_and_rejects_v3_handoff(
+def test_source_profile_change_ratchets_wire_family_and_rejects_stale_handoff(
     plan: dict[str, Any],
 ) -> None:
     for schema in (
         handoff.HANDOFF_SCHEMA,
-        handoff.RETURN_SCHEMA,
         handoff.TASK_SCHEMA,
-        handoff.EXECUTION_PACKET_SCHEMA,
         handoff.TASK_CAPTURE_SCHEMA,
     ):
         assert schema.endswith("/v4")
+    for schema in (handoff.RETURN_SCHEMA, handoff.EXECUTION_PACKET_SCHEMA):
+        assert schema.endswith("/v5")
 
     stale = copy.deepcopy(plan)
     stale["schema"] = "zenodex/zrpf_remote_reproof_handoff/v3"
@@ -788,10 +817,11 @@ def test_missing_adapter_receipt_blocks_v6_leaf(plan: dict[str, Any]) -> None:
     states = handoff.task_states(plan, completed)
     leaf = next(row for row in states if row["stage_id"] == "v6_leaf_receipt")
     assert leaf["status"] == "blocked"
-    assert leaf["missing_input_artifacts"] == ["v2_adapter_receipt"]
+    assert "v2_adapter_receipt" in leaf["missing_input_artifacts"]
+    assert "source_proof" in leaf["missing_input_artifacts"]
 
 
-def test_stale_mac_bundle_and_task_substitution_reject(tmp_path: Path) -> None:
+def test_stale_return_bundle_and_task_substitution_reject(tmp_path: Path) -> None:
     repo, chain = _ancestry_repo(tmp_path)
     plan = _plan_for_chain(repo, chain)
     artifact_root = tmp_path / "artifacts"
@@ -820,6 +850,23 @@ def test_stale_mac_bundle_and_task_substitution_reject(tmp_path: Path) -> None:
     substituted["bundle_id"] = handoff.derive_bundle_id(substituted)
     with pytest.raises(handoff.HandoffError, match="task capture inventory"):
         handoff.validate_return_bundle(plan, substituted, artifact_root, repo)
+
+    stale_packet = copy.deepcopy(bundle)
+    stale_packet["execution_packets"][0]["schema"] = (
+        "zenodex/zrpf_remote_reproof_execution_packet/v4"
+    )
+    stale_packet["execution_packets"][0]["execution_packet_id"] = (
+        handoff.derive_execution_packet_id(stale_packet["execution_packets"][0])
+    )
+    stale_packet["bundle_id"] = handoff.derive_bundle_id(stale_packet)
+    with pytest.raises(handoff.HandoffError, match="execution packet inventory"):
+        handoff.validate_return_bundle(plan, stale_packet, artifact_root, repo)
+
+    stale_return = copy.deepcopy(bundle)
+    stale_return["schema"] = "zenodex/zrpf_remote_reproof_return/v4"
+    stale_return["bundle_id"] = handoff.derive_bundle_id(stale_return)
+    with pytest.raises(handoff.HandoffError, match="return schema"):
+        handoff.validate_return_bundle(plan, stale_return, artifact_root, repo)
 
 
 def test_integer_boolean_substitution_rejects_handoff_and_task(tmp_path: Path) -> None:
@@ -1210,7 +1257,10 @@ def test_execution_packet_input_substitution_rejects(tmp_path: Path) -> None:
     contracts = cast(list[dict[str, Any]], plan["artifact_contracts"])
     source_request = next(row for row in contracts if row["role"] == "source_request")
     (artifact_root / source_request["path"]).write_bytes(b"substituted request\n")
-    with pytest.raises(handoff.HandoffError, match="exact current input artifacts"):
+    with pytest.raises(
+        handoff.HandoffError,
+        match="marker execution_packet_id mismatch|exact current input artifacts",
+    ):
         handoff.capture_return_bundle(
             plan,
             artifact_root,
@@ -1222,6 +1272,198 @@ def test_execution_packet_input_substitution_rejects(tmp_path: Path) -> None:
             governance_commit=chain[3],
             program_image_ids=_program_image_ids(),
         )
+
+
+def test_partial_producer_outputs_without_completion_marker_block_downstream_packet(
+    tmp_path: Path,
+) -> None:
+    repo, chain = _ancestry_repo(tmp_path)
+    plan = _plan_for_chain(repo, chain)
+    artifact_root = tmp_path / "artifacts"
+    _write_complete_artifacts(plan, artifact_root, repo)
+    packet_directory = tmp_path / "packets"
+    _write_execution_packets(plan, artifact_root, repo, chain, packet_directory)
+    marker_path = artifact_root / publication_marker.stage_publication_marker_relative_path_v1(
+        7, "v6_l1_receipt"
+    )
+    marker_path.unlink()
+    (artifact_root / "proofs/v6_l1_report.json").unlink()
+
+    assert (artifact_root / "proofs/v6_l1_receipt.json").is_file()
+    with pytest.raises(handoff.HandoffError, match="publication marker could not be read"):
+        handoff.build_execution_packet(
+            plan,
+            "v6_l2_receipt",
+            artifact_root,
+            repo,
+            c0_commit=chain[0],
+            c1_commit=chain[1],
+            c2_commit=chain[2],
+            governance_commit=chain[3],
+        )
+
+
+def test_tampered_producer_completion_marker_blocks_downstream_packet(
+    tmp_path: Path,
+) -> None:
+    repo, chain = _ancestry_repo(tmp_path)
+    plan = _plan_for_chain(repo, chain)
+    artifact_root = tmp_path / "artifacts"
+    _write_complete_artifacts(plan, artifact_root, repo)
+    packet_directory = tmp_path / "packets"
+    _write_execution_packets(plan, artifact_root, repo, chain, packet_directory)
+    marker_path = artifact_root / publication_marker.stage_publication_marker_relative_path_v1(
+        7, "v6_l1_receipt"
+    )
+    marker = handoff.load_canonical_json(marker_path, "publication marker")
+    assert isinstance(marker, dict)
+    marker["execution_packet_id"] = "f" * 64
+    marker["content_id"] = publication_marker.derive_stage_publication_content_id_v1(marker)
+    marker_path.write_bytes(publication_marker.canonical_json_bytes_v1(marker))
+
+    with pytest.raises(handoff.HandoffError, match="marker execution_packet_id mismatch"):
+        handoff.build_execution_packet(
+            plan,
+            "v6_l2_receipt",
+            artifact_root,
+            repo,
+            c0_commit=chain[0],
+            c1_commit=chain[1],
+            c2_commit=chain[2],
+            governance_commit=chain[3],
+        )
+
+
+def test_noncanonical_producer_marker_bytes_block_downstream_packet(tmp_path: Path) -> None:
+    repo, chain = _ancestry_repo(tmp_path)
+    plan = _plan_for_chain(repo, chain)
+    artifact_root = tmp_path / "artifacts"
+    _write_complete_artifacts(plan, artifact_root, repo)
+    packet_directory = tmp_path / "packets"
+    _write_execution_packets(plan, artifact_root, repo, chain, packet_directory)
+    marker_path = artifact_root / publication_marker.stage_publication_marker_relative_path_v1(
+        7, "v6_l1_receipt"
+    )
+    marker = handoff.load_canonical_json(marker_path, "publication marker")
+    assert isinstance(marker, dict)
+    marker_path.write_text(json.dumps(marker, indent=2) + "\n", encoding="ascii")
+
+    with pytest.raises(handoff.HandoffError, match="JSON input is not canonical"):
+        handoff.build_execution_packet(
+            plan,
+            "v6_l2_receipt",
+            artifact_root,
+            repo,
+            c0_commit=chain[0],
+            c1_commit=chain[1],
+            c2_commit=chain[2],
+            governance_commit=chain[3],
+        )
+
+
+def test_complete_return_requires_final_stage_publication_marker(tmp_path: Path) -> None:
+    repo, chain = _ancestry_repo(tmp_path)
+    plan = _plan_for_chain(repo, chain)
+    artifact_root = tmp_path / "artifacts"
+    _write_complete_artifacts(plan, artifact_root, repo)
+    packet_directory = tmp_path / "packets"
+    _write_execution_packets(plan, artifact_root, repo, chain, packet_directory)
+    final_ordinal = len(handoff.TASK_ORDER) - 1
+    marker_path = artifact_root / publication_marker.stage_publication_marker_relative_path_v1(
+        final_ordinal, "release_checks"
+    )
+    marker_path.unlink()
+
+    with pytest.raises(handoff.HandoffError, match="release_checks publication marker"):
+        handoff.capture_return_bundle(
+            plan,
+            artifact_root,
+            repo,
+            execution_packet_directory=packet_directory,
+            c0_commit=chain[0],
+            c1_commit=chain[1],
+            c2_commit=chain[2],
+            governance_commit=chain[3],
+            program_image_ids=_program_image_ids(),
+        )
+
+
+def test_return_bundle_binds_terminal_stage_publication_marker_id(tmp_path: Path) -> None:
+    repo, chain = _ancestry_repo(tmp_path)
+    plan = _plan_for_chain(repo, chain)
+    artifact_root = tmp_path / "artifacts"
+    _write_complete_artifacts(plan, artifact_root, repo)
+    packet_directory = tmp_path / "packets"
+    _write_execution_packets(plan, artifact_root, repo, chain, packet_directory)
+    capture_arguments: dict[str, Any] = {
+        "execution_packet_directory": packet_directory,
+        "c0_commit": chain[0],
+        "c1_commit": chain[1],
+        "c2_commit": chain[2],
+        "governance_commit": chain[3],
+        "program_image_ids": _program_image_ids(),
+    }
+    first = handoff.capture_return_bundle(
+        plan,
+        artifact_root,
+        repo,
+        **capture_arguments,
+    )
+    marker_ids = cast(list[str], first["stage_publication_marker_ids"])
+    assert len(marker_ids) == len(handoff.TASK_ORDER)
+
+    final_ordinal = len(handoff.TASK_ORDER) - 1
+    marker_path = artifact_root / publication_marker.stage_publication_marker_relative_path_v1(
+        final_ordinal, "release_checks"
+    )
+    marker = handoff.load_canonical_json(marker_path, "publication marker")
+    assert isinstance(marker, dict)
+    marker["capture_id"] = hashlib.sha256(b"alternate-final-capture").hexdigest()
+    marker["content_id"] = publication_marker.derive_stage_publication_content_id_v1(marker)
+    marker_path.write_bytes(publication_marker.canonical_json_bytes_v1(marker))
+
+    second = handoff.capture_return_bundle(
+        plan,
+        artifact_root,
+        repo,
+        **capture_arguments,
+    )
+    second_marker_ids = cast(list[str], second["stage_publication_marker_ids"])
+    assert marker_ids[:-1] == second_marker_ids[:-1]
+    assert marker_ids[-1] != second_marker_ids[-1]
+    assert first["bundle_id"] != second["bundle_id"]
+    with pytest.raises(handoff.HandoffError, match="marker inventory mismatch"):
+        handoff.validate_return_bundle(plan, first, artifact_root, repo)
+    assert handoff.validate_return_bundle(plan, second, artifact_root, repo) == second
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFO witness requires POSIX")
+def test_descriptor_beneath_read_rejects_fifo_without_blocking(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    artifact_root.mkdir()
+    os.mkfifo(artifact_root / "marker.json", mode=0o600)
+    script = """
+import sys
+from pathlib import Path
+from tools import plan_zrpf_remote_reproof_handoff_v2 as handoff
+
+try:
+    handoff._stable_read_beneath(Path(sys.argv[1]), "marker.json", "FIFO marker", 4096)
+except handoff.HandoffError as exc:
+    if "bounded regular file" not in str(exc):
+        raise
+    raise SystemExit(0)
+raise SystemExit("FIFO marker unexpectedly accepted")
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(artifact_root)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=2,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_missing_and_surplus_execution_packets_reject(tmp_path: Path) -> None:
@@ -1269,6 +1511,7 @@ def test_prepare_task_cli_writes_only_the_governed_packet_name(tmp_path: Path) -
     plan = _plan_for_chain(repo, chain)
     artifact_root = tmp_path / "artifacts"
     _write_complete_artifacts(plan, artifact_root, repo)
+    _write_execution_packets(plan, artifact_root, repo, chain, tmp_path / "seed-packets")
     handoff_path = tmp_path / "handoff.json"
     handoff_path.write_bytes(handoff.canonical_json_bytes(plan))
     packet_directory = tmp_path / "packets"

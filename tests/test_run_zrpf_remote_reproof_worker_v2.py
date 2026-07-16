@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import ast
 import copy
 import hashlib
 import os
 import subprocess
+import sys
 import time
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Sequence, cast
 
 import pytest
 
@@ -17,6 +19,8 @@ from tools import check_zrpf_initial_paid_calibration_attempt_v1 as paid_calibra
 from tools import plan_zrpf_remote_reproof_handoff_v2 as handoff
 from tools import run_zrpf_remote_reproof_worker_v2 as worker
 from tools import zrpf_paid_run_prerequisites_v1 as paid_shared
+from tools import zrpf_remote_reproof_stage_publication_marker_v1 as publication_marker
+from tools import zrpf_remote_reproof_worker_v2_publication as publication
 
 
 def _stage_context(
@@ -35,6 +39,10 @@ def _stage_context(
     packet_path = packet_directory / f"{task['ordinal']:02d}-{stage_id}.json"
     packet = handoff.load_canonical_json(packet_path, "execution packet")
     assert isinstance(packet, dict)
+    marker_path = artifact_root / publication_marker.stage_publication_marker_relative_path_v1(
+        int(task["ordinal"]), stage_id
+    )
+    marker_path.unlink()
     return repo, chain, plan, artifact_root, packet_path, cast(dict[str, Any], packet)
 
 
@@ -65,6 +73,47 @@ def _capture_v6_l1(
     return repo, plan, artifact_root, run_root, capture
 
 
+def _remove_captured_artifacts(artifact_root: Path, capture: dict[str, Any]) -> list[Path]:
+    paths = [artifact_root / str(row["path"]) for row in capture["outputs"]]
+    for path in paths:
+        path.unlink()
+    return paths
+
+
+def _refresh_fixture_publication_marker(
+    plan: dict[str, Any],
+    artifact_root: Path,
+    packet_directory: Path,
+    stage_id: str,
+) -> None:
+    task = next(row for row in plan["tasks"] if row["stage_id"] == stage_id)
+    packet = handoff.load_canonical_json(
+        packet_directory / f"{task['ordinal']:02d}-{stage_id}.json",
+        "execution packet",
+    )
+    assert isinstance(packet, dict)
+    contracts = {
+        row["contract_id"]: row for row in cast(list[dict[str, Any]], plan["artifact_contracts"])
+    }
+    outputs = [
+        handoff._artifact_record(contracts[contract_id], artifact_root)
+        for contract_id in task["output_artifact_contract_ids"]
+    ]
+    marker = publication_marker.build_stage_publication_marker_v1(
+        handoff_id=str(plan["handoff_id"]),
+        execution_packet_id=str(packet["execution_packet_id"]),
+        task_id=str(task["task_id"]),
+        stage_id=stage_id,
+        ordinal=int(task["ordinal"]),
+        capture_id=hashlib.sha256(f"refreshed:{stage_id}".encode("ascii")).hexdigest(),
+        outputs=outputs,
+    )
+    marker_path = artifact_root / publication_marker.stage_publication_marker_relative_path_v1(
+        int(task["ordinal"]), stage_id
+    )
+    marker_path.write_bytes(publication_marker.canonical_json_bytes_v1(marker))
+
+
 def test_worker_executes_exact_packet_into_clean_output_stage(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -91,6 +140,763 @@ def test_worker_executes_exact_packet_into_clean_output_stage(
         artifact_root,
         run_root,
     )
+
+
+def test_publish_stage_validates_capture_and_commits_exact_declared_outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+
+    records, marker = worker.publish_stage_outputs(
+        plan,
+        cast(dict[str, Any], packet),
+        capture,
+        repo,
+        artifact_root,
+        run_root,
+    )
+
+    assert records == capture["outputs"]
+    marker_path = artifact_root / publication_marker.stage_publication_marker_relative_path_v1(
+        7, "v6_l1_receipt"
+    )
+    assert marker_path.read_bytes() == publication_marker.canonical_json_bytes_v1(marker)
+    assert marker["execution_packet_id"] == packet["execution_packet_id"]
+    assert [path.read_bytes() for path in published_paths] == [
+        b"receipt\n",
+        b'{"status":"candidate"}\n',
+    ]
+    assert [path.stat().st_mode & 0o777 for path in published_paths] == [0o400, 0o400]
+
+
+def test_publication_effect_module_does_not_import_worker_orchestrator() -> None:
+    module_file = publication.__file__
+    assert module_file is not None
+    source_path = Path(module_file)
+    syntax = ast.parse(source_path.read_text(encoding="utf-8"))
+    imported_modules: set[str] = set()
+    for node in ast.walk(syntax):
+        if isinstance(node, ast.Import):
+            imported_modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            imported_modules.update(f"{module}.{alias.name}" for alias in node.names)
+
+    assert "tools.run_zrpf_remote_reproof_worker_v2" not in imported_modules
+
+
+def test_publish_stage_rejects_invalid_capture_before_filesystem_effect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+    invalid = copy.deepcopy(capture)
+    invalid["capture_id"] = "0" * 64
+
+    with pytest.raises(worker.WorkerError, match="capture ID"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            invalid,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert all(not path.exists() for path in published_paths)
+
+
+def test_publish_stage_rejects_existing_destination_without_overwrite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+    published_paths[0].write_bytes(b"preexisting\n")
+
+    with pytest.raises(worker.WorkerError, match="destination must begin absent"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert published_paths[0].read_bytes() == b"preexisting\n"
+    assert not published_paths[1].exists()
+
+
+def test_publish_stage_atomic_no_replace_rejects_destination_race(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+    link_noreplace = publication._link_fd_noreplace
+    raced = False
+
+    def race_destination(file_fd: int, directory_fd: int, destination_name: str) -> None:
+        nonlocal raced
+        if not raced:
+            raced = True
+            descriptor = os.open(
+                destination_name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+                dir_fd=directory_fd,
+            )
+            try:
+                os.write(descriptor, b"racer\n")
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        link_noreplace(file_fd, directory_fd, destination_name)
+
+    monkeypatch.setattr(publication, "_link_fd_noreplace", race_destination)
+
+    with pytest.raises(worker.WorkerError, match="destination must begin absent"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert published_paths[0].read_bytes() == b"racer\n"
+    assert not published_paths[1].exists()
+
+
+def test_publish_stage_rejects_output_mutation_after_temporary_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+    write_temporaries = publication._write_output_temporaries
+    captured_output = run_root / "outputs/proofs/v6_l1_receipt.json"
+
+    def mutate_after_temporary_write(
+        prepared: Sequence[publication.PreparedPublication],
+        stage: publication.ValidatedStage,
+        output_root: Path,
+        expected_outputs: Sequence[dict[str, object]],
+    ) -> None:
+        write_temporaries(prepared, stage, output_root, expected_outputs)
+        captured_output.unlink()
+        captured_output.write_bytes(b"substituted\n")
+
+    monkeypatch.setattr(
+        publication,
+        "_write_output_temporaries",
+        mutate_after_temporary_write,
+    )
+
+    with pytest.raises(worker.WorkerError, match="stage output bytes differ"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert all(not path.exists() for path in published_paths)
+
+
+def test_publish_stage_recomputes_published_records_before_accepting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+    validate_published = publication._validate_published_records
+
+    def reject_after_published_revalidation(
+        stage: publication.ValidatedStage,
+        root: Path,
+        expected_outputs: Sequence[dict[str, object]],
+    ) -> None:
+        validate_published(stage, root, expected_outputs)
+        raise worker.WorkerError("published artifact records differ from validated capture")
+
+    monkeypatch.setattr(
+        publication,
+        "_validate_published_records",
+        reject_after_published_revalidation,
+    )
+
+    with pytest.raises(worker.WorkerError, match="differ from validated capture"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert all(path.is_file() for path in published_paths)
+    assert not (
+        artifact_root
+        / publication_marker.stage_publication_marker_relative_path_v1(7, "v6_l1_receipt")
+    ).exists()
+
+
+def test_cli_publish_stage_emits_authority_false_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet_path = tmp_path / "packets/07-v6_l1_receipt.json"
+    handoff_path = tmp_path / "handoff.json"
+    capture_path = tmp_path / "capture.json"
+    handoff_path.write_bytes(handoff.canonical_json_bytes(plan))
+    capture_path.write_bytes(handoff.canonical_json_bytes(capture))
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+
+    assert (
+        worker.main(
+            [
+                "publish-stage",
+                "--repository",
+                str(repo),
+                "--handoff",
+                str(handoff_path),
+                "--packet",
+                str(packet_path),
+                "--artifact-root",
+                str(artifact_root),
+                "--run-root",
+                str(run_root),
+                "--capture-output",
+                str(capture_path),
+            ]
+        )
+        == 0
+    )
+    result = handoff.strict_json_loads(capsys.readouterr().out.encode("ascii"))
+    expected_marker = publication_marker.build_stage_publication_marker_v1(
+        handoff_id=str(capture["handoff_id"]),
+        execution_packet_id=str(capture["execution_packet_id"]),
+        task_id=str(capture["task_id"]),
+        stage_id=str(capture["stage_id"]),
+        ordinal=int(capture["ordinal"]),
+        capture_id=str(capture["capture_id"]),
+        outputs=cast(list[dict[str, object]], capture["outputs"]),
+    )
+
+    assert result == {
+        "accepted": True,
+        "authority": worker.false_authority(),
+        "capture_id": capture["capture_id"],
+        "published_artifact_ids": [row["artifact_id"] for row in capture["outputs"]],
+        "publication_marker_id": expected_marker["content_id"],
+    }
+    assert all(path.is_file() for path in published_paths)
+
+
+def test_partial_multi_output_commit_never_exposes_completion_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+
+    def fail_after_first_output(
+        prepared: Sequence[publication.PreparedPublication],
+    ) -> None:
+        publication._link_owned_temporary(prepared[0])
+        publication._fsync_directory(prepared[0].directory_fd)
+        raise worker.WorkerError("injected crash after first output")
+
+    monkeypatch.setattr(publication, "_commit_output_publications", fail_after_first_output)
+    with pytest.raises(worker.WorkerError, match="injected crash"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert published_paths[0].is_file()
+    assert not published_paths[1].exists()
+    assert not (
+        artifact_root
+        / publication_marker.stage_publication_marker_relative_path_v1(7, "v6_l1_receipt")
+    ).exists()
+
+
+def test_publication_uses_only_unnamed_temporaries_and_never_unlinks_a_competitor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    _remove_captured_artifacts(artifact_root, capture)
+    competitor = artifact_root / "proofs/.competitor-owned"
+    competitor.write_bytes(b"other-publisher-owned\n")
+    link_noreplace = publication._link_fd_noreplace
+    observed_directory_names: list[list[str]] = []
+
+    def record_unnamed_source(file_fd: int, directory_fd: int, destination_name: str) -> None:
+        source = os.fstat(file_fd)
+        assert source.st_nlink == 0
+        observed_directory_names.append(sorted(os.listdir(directory_fd)))
+        link_noreplace(file_fd, directory_fd, destination_name)
+
+    monkeypatch.setattr(publication, "_link_fd_noreplace", record_unnamed_source)
+    worker.publish_stage_outputs(
+        plan,
+        cast(dict[str, Any], packet),
+        capture,
+        repo,
+        artifact_root,
+        run_root,
+    )
+
+    assert observed_directory_names
+    assert all(
+        all(not name.startswith(".zrpf-publish-") for name in names)
+        for names in observed_directory_names
+    )
+    assert competitor.read_bytes() == b"other-publisher-owned\n"
+
+
+def test_publication_marker_is_the_final_exact_descriptor_link(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    _remove_captured_artifacts(artifact_root, capture)
+    link_noreplace = publication._link_fd_noreplace
+    destinations: list[str] = []
+
+    def record_link(file_fd: int, directory_fd: int, destination_name: str) -> None:
+        destinations.append(destination_name)
+        link_noreplace(file_fd, directory_fd, destination_name)
+
+    monkeypatch.setattr(publication, "_link_fd_noreplace", record_link)
+    worker.publish_stage_outputs(
+        plan,
+        cast(dict[str, Any], packet),
+        capture,
+        repo,
+        artifact_root,
+        run_root,
+    )
+
+    assert destinations == [
+        "v6_l1_receipt.json",
+        "v6_l1_report.json",
+        "07-v6_l1_receipt.json",
+    ]
+
+
+def test_unavailable_no_replace_primitive_leaves_marker_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+
+    def unavailable(*_args: object) -> None:
+        raise worker.WorkerError("atomic no-replace publication is unavailable")
+
+    monkeypatch.setattr(publication, "_link_fd_noreplace", unavailable)
+    with pytest.raises(worker.WorkerError, match="no-replace publication is unavailable"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert all(not path.exists() for path in published_paths)
+    assert not (
+        artifact_root
+        / publication_marker.stage_publication_marker_relative_path_v1(7, "v6_l1_receipt")
+    ).exists()
+
+
+def test_final_marker_link_failure_leaves_complete_outputs_without_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+    link_noreplace = publication._link_fd_noreplace
+    calls = 0
+
+    def fail_marker_link(file_fd: int, directory_fd: int, destination_name: str) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            raise worker.WorkerError("injected final marker link failure")
+        link_noreplace(file_fd, directory_fd, destination_name)
+
+    monkeypatch.setattr(publication, "_link_fd_noreplace", fail_marker_link)
+    with pytest.raises(worker.WorkerError, match="final marker link failure"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert all(path.is_file() for path in published_paths)
+    assert not (
+        artifact_root
+        / publication_marker.stage_publication_marker_relative_path_v1(7, "v6_l1_receipt")
+    ).exists()
+
+
+def test_directory_fsync_failure_after_first_output_leaves_marker_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+    calls = 0
+
+    def fail_first_directory_fsync(_directory_fd: int) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise worker.WorkerError("published artifact directory fsync failed")
+
+    monkeypatch.setattr(publication, "_fsync_directory", fail_first_directory_fsync)
+    with pytest.raises(worker.WorkerError, match="directory fsync failed"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert published_paths[0].is_file()
+    assert not published_paths[1].exists()
+    assert not (
+        artifact_root
+        / publication_marker.stage_publication_marker_relative_path_v1(7, "v6_l1_receipt")
+    ).exists()
+
+
+def test_file_fsync_failure_leaves_outputs_and_marker_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+
+    def fail_fsync(_descriptor: int) -> None:
+        raise OSError("injected file fsync failure")
+
+    monkeypatch.setattr(publication.os, "fsync", fail_fsync)
+    with pytest.raises(worker.WorkerError, match="temporary write failed"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert all(not path.exists() for path in published_paths)
+    assert not (
+        artifact_root
+        / publication_marker.stage_publication_marker_relative_path_v1(7, "v6_l1_receipt")
+    ).exists()
+
+
+def test_late_repo_mutation_blocks_marker_after_output_revalidation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    published_paths = _remove_captured_artifacts(artifact_root, capture)
+    validate_published = publication._validate_published_records
+
+    def dirty_repo_after_published_validation(
+        stage: publication.ValidatedStage,
+        root: Path,
+        expected_outputs: Sequence[dict[str, object]],
+    ) -> None:
+        validate_published(stage, root, expected_outputs)
+        (repo / "untracked-after-validation").write_bytes(b"mutation\n")
+
+    monkeypatch.setattr(
+        publication,
+        "_validate_published_records",
+        dirty_repo_after_published_validation,
+    )
+    with pytest.raises(worker.WorkerError, match="repository must be clean"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert all(path.is_file() for path in published_paths)
+    assert not (
+        artifact_root
+        / publication_marker.stage_publication_marker_relative_path_v1(7, "v6_l1_receipt")
+    ).exists()
+
+
+def test_marker_parent_fsync_failure_is_indeterminate_and_exact_retry_reconciles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    _remove_captured_artifacts(artifact_root, capture)
+    marker_path = artifact_root / publication_marker.stage_publication_marker_relative_path_v1(
+        7, "v6_l1_receipt"
+    )
+    fsync_directory = publication._fsync_directory
+    calls = 0
+
+    def fail_marker_parent_fsync(directory_fd: int) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            raise worker.WorkerError("injected marker parent fsync failure")
+        fsync_directory(directory_fd)
+
+    monkeypatch.setattr(publication, "_fsync_directory", fail_marker_parent_fsync)
+    with pytest.raises(publication.PublicationCommitIndeterminate, match="indeterminate"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    assert marker_path.is_file()
+    monkeypatch.setattr(publication, "_fsync_directory", fsync_directory)
+    records, marker = worker.publish_stage_outputs(
+        plan,
+        cast(dict[str, Any], packet),
+        capture,
+        repo,
+        artifact_root,
+        run_root,
+    )
+    assert records == capture["outputs"]
+    assert marker_path.read_bytes() == publication_marker.canonical_json_bytes_v1(marker)
+
+
+@pytest.mark.parametrize("destination_name", ("published-output.json", "stage-marker.json"))
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFO witness requires POSIX")
+def test_publication_reconciliation_rejects_fifo_without_blocking(
+    tmp_path: Path,
+    destination_name: str,
+) -> None:
+    publication_root = tmp_path / "publication"
+    publication_root.mkdir()
+    os.mkfifo(publication_root / destination_name, mode=0o600)
+    script = """
+import os
+import sys
+from pathlib import Path
+from tools import zrpf_remote_reproof_worker_v2_publication as publication
+from tools.zrpf_remote_reproof_worker_v2_contract import WorkerError
+
+root = Path(sys.argv[1])
+directory_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+item = publication.PreparedPublication(directory_fd, (), sys.argv[2])
+try:
+    publication._fsync_linked_publications([item])
+except WorkerError as exc:
+    if "linked regular file" not in str(exc):
+        raise
+    raise SystemExit(0)
+finally:
+    os.close(directory_fd)
+raise SystemExit("FIFO publication unexpectedly reconciled")
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(publication_root), destination_name],
+        cwd=handoff_fixture.REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=2,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+
+def test_marker_parent_namespace_replacement_cannot_report_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet = handoff.load_canonical_json(
+        tmp_path / "packets/07-v6_l1_receipt.json", "execution packet"
+    )
+    assert isinstance(packet, dict)
+    _remove_captured_artifacts(artifact_root, capture)
+    marker_parent = artifact_root / ".zrpf-stage-publications/v1"
+    displaced_parent = artifact_root / ".zrpf-stage-publications/displaced-v1"
+    link_owned = publication._link_owned_temporary
+    calls = 0
+
+    def replace_parent_before_marker_link(
+        prepared: publication.PreparedPublication,
+    ) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            marker_parent.rename(displaced_parent)
+            marker_parent.mkdir(mode=0o700)
+        link_owned(prepared)
+
+    monkeypatch.setattr(publication, "_link_owned_temporary", replace_parent_before_marker_link)
+    with pytest.raises(publication.PublicationCommitIndeterminate, match="indeterminate"):
+        worker.publish_stage_outputs(
+            plan,
+            cast(dict[str, Any], packet),
+            capture,
+            repo,
+            artifact_root,
+            run_root,
+        )
+
+    marker_name = "07-v6_l1_receipt.json"
+    assert not (marker_parent / marker_name).exists()
+    assert (displaced_parent / marker_name).is_file()
+
+
+def test_descriptor_cleanup_is_nonthrowing(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_close(_descriptor: int) -> None:
+        raise OSError("injected close failure")
+
+    monkeypatch.setattr(publication.os, "close", fail_close)
+    publication._best_effort_close(123)
+
+
+def test_cli_output_failure_after_commit_is_indeterminate_and_retry_reconciles(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, plan, artifact_root, run_root, capture = _capture_v6_l1(tmp_path, monkeypatch)
+    packet_path = tmp_path / "packets/07-v6_l1_receipt.json"
+    handoff_path = tmp_path / "handoff.json"
+    capture_path = tmp_path / "capture.json"
+    handoff_path.write_bytes(handoff.canonical_json_bytes(plan))
+    capture_path.write_bytes(handoff.canonical_json_bytes(capture))
+    _remove_captured_artifacts(artifact_root, capture)
+    marker_path = artifact_root / publication_marker.stage_publication_marker_relative_path_v1(
+        7, "v6_l1_receipt"
+    )
+    argv = [
+        "publish-stage",
+        "--repository",
+        str(repo),
+        "--handoff",
+        str(handoff_path),
+        "--packet",
+        str(packet_path),
+        "--artifact-root",
+        str(artifact_root),
+        "--run-root",
+        str(run_root),
+        "--capture-output",
+        str(capture_path),
+    ]
+    emit = worker._emit_committed_publication_result
+
+    def fail_output(_raw: bytes) -> None:
+        raise publication.PublicationCommitIndeterminate("injected committed-result output failure")
+
+    monkeypatch.setattr(worker, "_emit_committed_publication_result", fail_output)
+    assert worker.main(argv) == 3
+    assert "indeterminate:" in capsys.readouterr().err
+    assert marker_path.is_file()
+
+    monkeypatch.setattr(worker, "_emit_committed_publication_result", emit)
+    assert worker.main(argv) == 0
+    retried = handoff.strict_json_loads(capsys.readouterr().out.encode("ascii"))
+    assert isinstance(retried, dict)
+    assert retried["accepted"] is True
+    decoded_marker = handoff.strict_json_loads(marker_path.read_bytes())
+    assert isinstance(decoded_marker, dict)
+    assert retried["publication_marker_id"] == decoded_marker["content_id"]
+
+
+def test_publication_roots_must_be_pairwise_disjoint(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    artifact_root = repository / "artifacts"
+    run_root = tmp_path / "run"
+    artifact_root.mkdir(parents=True)
+    run_root.mkdir()
+
+    with pytest.raises(worker.WorkerError, match="must be disjoint"):
+        worker._require_disjoint_roots(repository, artifact_root, run_root)
 
 
 def test_worker_privately_snapshots_exact_execution_packet_and_rejects_rebinding(
@@ -164,6 +970,12 @@ def _source_calibration_context(
     )
     (artifact_root / "inputs/h100_preflight.json").write_bytes(
         paid_shared.canonical_bytes(preflight)
+    )
+    _refresh_fixture_publication_marker(
+        plan,
+        artifact_root,
+        tmp_path / "packets",
+        "source_execution_profile",
     )
 
     packet = handoff.build_execution_packet(

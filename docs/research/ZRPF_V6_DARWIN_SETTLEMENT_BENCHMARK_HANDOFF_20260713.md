@@ -1,5 +1,9 @@
 # ZRPF V6 Apple Silicon settlement benchmark handoff
 
+Historical status: this is retained Apple Silicon benchmark tooling. It is not
+the current CUDA/RunPod proving path and is not required for direct SSH RunPod
+execution.
+
 This handoff runs the same source-opened Spot V6 settlement stage that remained
 active for more than twelve hours on the four-logical-CPU Linux host. It uses
 the exact completed local L2 receipt, exact source envelope, and exact prebuilt

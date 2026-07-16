@@ -15,7 +15,7 @@ from typing import Sequence
 if __package__:
     from tools import zrpf_paid_run_prerequisites_v1 as shared
 else:
-    import zrpf_paid_run_prerequisites_v1 as shared  # type: ignore[no-redef]
+    import zrpf_paid_run_prerequisites_v1 as shared
 
 SCHEMA = "zenodex/zrpf_initial_paid_calibration_attempt/v1"
 QUALIFIED_STATUS = "qualified_to_attempt_one_bounded_h100_source_calibration"
@@ -31,9 +31,9 @@ MAX_INPUT_BYTES = 2 * 1024 * 1024
 MAX_PRICE_VALIDITY_SECONDS = 3_600
 MAX_U64 = (1 << 64) - 1
 ZERO_SHA256 = "0" * 64
-EXECUTION_PACKET_SCHEMA = "zenodex/zrpf_remote_reproof_execution_packet/v4"
+EXECUTION_PACKET_SCHEMA = "zenodex/zrpf_remote_reproof_execution_packet/v5"
 EXECUTION_PACKET_STATUS = "exact_inputs_bound_without_execution_provenance"
-EXECUTION_PACKET_ID_DOMAIN = b"zenodex/zrpf_remote_reproof_execution_packet_id/v4\0"
+EXECUTION_PACKET_ID_DOMAIN = b"zenodex/zrpf_remote_reproof_execution_packet_id/v5\0"
 
 ATTEMPT_BUDGET_ID_DOMAIN = b"zenodex/zrpf-initial-paid-calibration-budget-id/v1\0"
 QUALIFICATION_ID_DOMAIN = b"zenodex/zrpf-initial-paid-calibration-attempt-id/v1\0"
@@ -90,6 +90,7 @@ PACKET_FIELDS = {
     "worker_tree",
     "proof_profile_id",
     "input_artifact_ids",
+    "input_publication_marker_ids",
     "authority",
     "non_claims",
 }
@@ -359,6 +360,21 @@ def _validate_packet(document: dict[str, object]) -> None:
                 "execution_packet_invalid", "execution packet input IDs contain a duplicate"
             )
         seen.add(artifact_id)
+    markers = document["input_publication_marker_ids"]
+    if type(markers) is not list or not 1 <= len(markers) <= 64:
+        raise AttemptQualificationError(
+            "execution_packet_invalid",
+            "source execution packet publication marker set is empty or oversized",
+        )
+    seen_markers: set[str] = set()
+    for ordinal, value in enumerate(markers):
+        marker_id = _sha256(value, f"packet publication marker {ordinal}", nonzero=True)
+        if marker_id in seen_markers:
+            raise AttemptQualificationError(
+                "execution_packet_invalid",
+                "execution packet publication marker IDs contain a duplicate",
+            )
+        seen_markers.add(marker_id)
     packet_authority = document["authority"]
     if (
         type(packet_authority) is not dict
@@ -593,7 +609,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.attempt_budget_and_price,
         trusted_current_epoch_seconds=args.trusted_current_epoch_seconds,
     )
-    sys.stdout.write(json.dumps(result, ensure_ascii=False, separators=(",", ":")) + "\n")
+    # Qualification inputs are governed public evidence. This bounded canonical
+    # record carries their content IDs and selected public hardware/budget facts;
+    # it never emits input paths or file contents. Stdout is the checker ABI.
+    # codeql[py/clear-text-logging-sensitive-data]
+    sys.stdout.buffer.write(canonical_bytes(result) + b"\n")
     return 0 if result["qualified"] is True else 1
 
 

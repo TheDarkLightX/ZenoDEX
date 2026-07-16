@@ -22,6 +22,7 @@ if __package__ in {None, ""}:  # pragma: no cover - direct script execution
 
 from tools import check_zrpf_initial_paid_calibration_attempt_v1 as paid_calibration
 from tools import plan_zrpf_remote_reproof_handoff_v2 as handoff
+from tools import zrpf_remote_reproof_worker_v2_publication as publication
 from tools.zrpf_remote_reproof_handoff_v2_catalog import (
     CUDA_SINGLE_VISIBLE_DEVICE_PROVER_COMPUTE_PROFILE_ID,
 )
@@ -290,6 +291,73 @@ def validate_worker_capture(
             ):
                 raise WorkerError("worker stdout artifact binding mismatch")
     validate_worker_checkout(stage, repository)
+
+
+def publish_stage_outputs(
+    document: Mapping[str, object],
+    packet: Mapping[str, object],
+    capture: Mapping[str, object],
+    repo_root: Path,
+    artifact_root: Path,
+    run_root: Path,
+    *,
+    runtime_bindings: Mapping[str, Path] | None = None,
+    trusted_current_epoch_seconds: int | None = None,
+) -> tuple[list[dict[str, object]], dict[str, object]]:
+    """Publish one validated stage capture without granting proof or release authority."""
+
+    _require_disjoint_roots(repo_root, artifact_root, run_root)
+    validate_worker_capture(
+        document,
+        packet,
+        capture,
+        repo_root,
+        artifact_root,
+        run_root,
+        runtime_bindings=runtime_bindings,
+        trusted_current_epoch_seconds=trusted_current_epoch_seconds,
+    )
+    stage = validate_stage_packet(document, packet, repo_root, artifact_root)
+    _require_stage_compute_eligibility(stage)
+    _input_root, output_root, _home = _existing_run_root(run_root)
+    _commands, captured_outputs = validate_capture_shape(capture, stage)
+    capture_id = capture.get("capture_id")
+    if type(capture_id) is not str:
+        raise WorkerError("worker capture ID must be a string")
+
+    def recheck_worker_checkout() -> None:
+        validate_worker_checkout(stage, repo_root)
+
+    return publication.publish_validated_capture_outputs(
+        stage,
+        capture_id,
+        captured_outputs,
+        output_root,
+        artifact_root,
+        precommit_check=recheck_worker_checkout,
+    )
+
+
+def _require_disjoint_roots(repo_root: Path, artifact_root: Path, run_root: Path) -> None:
+    roots: list[tuple[str, Path]] = []
+    for label, path in (
+        ("worker repository", repo_root),
+        ("artifact root", artifact_root),
+        ("run root", run_root),
+    ):
+        if not path.is_absolute():
+            raise WorkerError(f"{label} must be absolute")
+        try:
+            resolved = path.resolve(strict=True)
+        except OSError as exc:
+            raise WorkerError(f"{label} is unavailable") from exc
+        if resolved != path or path.is_symlink() or not path.is_dir():
+            raise WorkerError(f"{label} must be one real canonical directory")
+        roots.append((label, resolved))
+    for index, (left_label, left) in enumerate(roots):
+        for right_label, right in roots[index + 1 :]:
+            if left == right or left in right.parents or right in left.parents:
+                raise WorkerError(f"{left_label} and {right_label} must be disjoint")
 
 
 def _create_private_run_root(run_root: Path) -> tuple[Path, Path, Path]:
@@ -916,7 +984,7 @@ def _write_new(path: Path, raw: bytes, label: str, *, mode: int) -> None:
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for name in ("run-stage", "check-capture"):
+    for name in ("run-stage", "check-capture", "publish-stage"):
         command = subparsers.add_parser(name)
         command.add_argument("--repository", type=Path, required=True)
         command.add_argument("--handoff", type=Path, required=True)
@@ -930,6 +998,22 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         command.add_argument("--attempt-budget-and-price", type=Path)
         command.add_argument("--trusted-current-epoch-seconds", type=int)
     return parser.parse_args(argv)
+
+
+def _emit_committed_publication_result(raw: bytes) -> None:
+    """Emit a committed result or require exact marker reconciliation."""
+
+    try:
+        written = sys.stdout.buffer.write(raw)
+        sys.stdout.buffer.flush()
+    except OSError as exc:
+        raise publication.PublicationCommitIndeterminate(
+            "stage publication committed but result output failed; reconcile the exact marker"
+        ) from exc
+    if written != len(raw):
+        raise publication.PublicationCommitIndeterminate(
+            "stage publication committed but result output was incomplete; reconcile the exact marker"
+        )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -965,7 +1049,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 handoff.canonical_json_bytes(capture),
                 "worker capture output",
             )
-        else:
+        elif args.command == "check-capture":
             capture = handoff._object(
                 handoff.load_canonical_json(args.capture_output, "worker capture"),
                 "worker capture",
@@ -989,6 +1073,38 @@ def main(argv: Sequence[str] | None = None) -> int:
                     }
                 )
             )
+        else:
+            capture = handoff._object(
+                handoff.load_canonical_json(args.capture_output, "worker capture"),
+                "worker capture",
+            )
+            published, publication_marker = publish_stage_outputs(
+                document,
+                packet,
+                capture,
+                args.repository,
+                args.artifact_root,
+                args.run_root,
+                runtime_bindings=runtime_bindings,
+                trusted_current_epoch_seconds=args.trusted_current_epoch_seconds,
+            )
+            _emit_committed_publication_result(
+                handoff.canonical_json_bytes(
+                    {
+                        "accepted": True,
+                        "capture_id": capture["capture_id"],
+                        "published_artifact_ids": [row["artifact_id"] for row in published],
+                        "publication_marker_id": publication_marker["content_id"],
+                        "authority": false_authority(),
+                    }
+                )
+            )
+    except publication.PublicationCommitIndeterminate as exc:
+        try:
+            print(f"indeterminate: {exc}", file=sys.stderr)
+        except OSError:
+            pass
+        return 3
     except (WorkerError, handoff.HandoffError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

@@ -30,6 +30,7 @@ if __package__ in {None, ""}:  # pragma: no cover - direct script execution
 from tools import plan_zrpf_source_opened_spot_v6_identity_rebuild as identity
 from tools import run_zrpf_remote_worker_prover_build_stage_v2 as worker_build
 from tools import zrpf_remote_reproof_handoff_v2_catalog as catalog
+from tools import zrpf_remote_reproof_stage_publication_marker_v1 as publication_marker
 from tools.zrpf_remote_reproof_handoff_v2_catalog import (
     ARTIFACT_SPECS,
     CPU_PROVER_COMPUTE_PROFILE_ID,
@@ -50,9 +51,9 @@ DEFAULT_ARTIFACT_BYTES = catalog.DEFAULT_ARTIFACT_BYTES
 MAX_R0VM_EXECUTABLE_BYTES = catalog.MAX_R0VM_EXECUTABLE_BYTES
 
 HANDOFF_SCHEMA = "zenodex/zrpf_remote_reproof_handoff/v4"
-RETURN_SCHEMA = "zenodex/zrpf_remote_reproof_return/v4"
+RETURN_SCHEMA = "zenodex/zrpf_remote_reproof_return/v5"
 TASK_SCHEMA = "zenodex/zrpf_remote_reproof_task/v4"
-EXECUTION_PACKET_SCHEMA = "zenodex/zrpf_remote_reproof_execution_packet/v4"
+EXECUTION_PACKET_SCHEMA = "zenodex/zrpf_remote_reproof_execution_packet/v5"
 ARTIFACT_CONTRACT_SCHEMA = "zenodex/zrpf_remote_reproof_artifact_contract/v2"
 ARTIFACT_RECORD_SCHEMA = "zenodex/zrpf_remote_reproof_artifact_record/v2"
 PROVER_R0VM_EXPECTATION_SCHEMA = "zenodex/zrpf_remote_prover_r0vm_expectation/v1"
@@ -76,9 +77,9 @@ ARTIFACT_CONTRACT_DOMAIN = b"zenodex/zrpf_remote_reproof_artifact_contract_id/v2
 ARTIFACT_RECORD_DOMAIN = b"zenodex/zrpf_remote_reproof_artifact_id/v2\0"
 SOURCE_BINDING_DOMAIN = b"zenodex/zrpf_remote_reproof_source_binding_id/v2\0"
 IDENTITY_BINDING_DOMAIN = b"zenodex/zrpf_remote_reproof_identity_binding_id/v2\0"
-EXECUTION_PACKET_DOMAIN = b"zenodex/zrpf_remote_reproof_execution_packet_id/v4\0"
+EXECUTION_PACKET_DOMAIN = b"zenodex/zrpf_remote_reproof_execution_packet_id/v5\0"
 TASK_CAPTURE_DOMAIN = b"zenodex/zrpf_remote_reproof_task_capture_id/v4\0"
-RETURN_DOMAIN = b"zenodex/zrpf_remote_reproof_return_id/v4\0"
+RETURN_DOMAIN = b"zenodex/zrpf_remote_reproof_return_id/v5\0"
 
 AUTHORITY_FIELDS = (
     "data_availability_authority",
@@ -115,6 +116,7 @@ RETURN_FIELDS = {
     "ancestry",
     "identity_binding",
     "execution_packets",
+    "stage_publication_marker_ids",
     "tasks",
     "artifacts",
     "authority",
@@ -554,16 +556,46 @@ def validate_handoff(document: Mapping[str, object], repo_root: Path) -> None:
 
 
 def task_states(
-    document: Mapping[str, object], completed_artifacts: Sequence[Mapping[str, object]]
+    document: Mapping[str, object],
+    completed_artifacts: Sequence[Mapping[str, object]],
+    publication_markers: Sequence[Mapping[str, object]] = (),
 ) -> list[dict[str, Any]]:
-    roles = [row.get("role") for row in completed_artifacts]
+    rows = list(completed_artifacts)
+    if any(type(row) is not dict for row in rows):
+        raise HandoffError("completed artifacts must be objects")
+    roles = [row.get("role") for row in rows]
     if any(type(role) is not str for role in roles) or len(roles) != len(set(roles)):
         raise HandoffError("completed artifact roles must be unique strings")
-    completed_roles = set(roles)
+    observed_by_role = {str(row["role"]): row for row in rows}
     artifact_contracts = _object_list(document.get("artifact_contracts"), "artifact contracts")
     task_rows = _object_list(document.get("tasks"), "tasks")
     contracts = {str(row["contract_id"]): row for row in artifact_contracts}
+    contracts_by_role = {str(row["role"]): row for row in artifact_contracts}
+    task_stage_ids = {_nonempty_string(row.get("stage_id"), "task stage ID") for row in task_rows}
+    marker_rows = list(publication_markers)
+    if any(type(row) is not dict for row in marker_rows):
+        raise HandoffError("publication markers must be objects")
+    marker_by_stage: dict[str, Mapping[str, object]] = {}
+    for row in marker_rows:
+        stage_id = _nonempty_string(row.get("stage_id"), "publication marker stage ID")
+        if stage_id in marker_by_stage:
+            raise HandoffError("publication marker stages must be unique")
+        marker_by_stage[stage_id] = row
+    if set(marker_by_stage) - task_stage_ids:
+        raise HandoffError("publication marker references an unknown stage")
+    available_roles = {
+        role
+        for role in observed_by_role
+        if role in contracts_by_role
+        and str(contracts_by_role[role].get("producer_stage")) not in task_stage_ids
+    }
+    source = _object(document.get("source"), "source")
+    packet_ancestry = {
+        "governance_commit": source["worker_commit"],
+        "governance_tree": source["worker_tree"],
+    }
     completed_stages: set[str] = set()
+    validated_marker_ids: dict[str, str] = {}
     states: list[dict[str, Any]] = []
     for task in task_rows:
         stage_id = _nonempty_string(task.get("stage_id"), "task stage ID")
@@ -575,14 +607,65 @@ def task_states(
         )
         input_roles = [str(contracts[item]["role"]) for item in input_contract_ids]
         output_roles = [str(contracts[item]["role"]) for item in output_contract_ids]
-        missing_inputs = sorted(set(input_roles) - completed_roles)
+        missing_inputs = sorted(set(input_roles) - available_roles)
         missing_dependencies = sorted(
             set(_string_list(task.get("depends_on"), "task dependencies")) - completed_stages
         )
-        outputs_complete = set(output_roles).issubset(completed_roles)
-        if outputs_complete and not missing_dependencies:
+        outputs_observed = set(output_roles).issubset(observed_by_role)
+        marker_row = marker_by_stage.get(stage_id)
+        marker_valid = False
+        if marker_row is not None:
+            if not outputs_observed:
+                raise HandoffError("publication marker lacks its complete stage outputs")
+            if missing_inputs or missing_dependencies:
+                raise HandoffError("publication marker prerequisites are incomplete")
+            producer_tasks = _required_internal_producer_tasks(task, task_rows, contracts)
+            try:
+                input_marker_ids = [
+                    validated_marker_ids[
+                        _nonempty_string(producer.get("stage_id"), "producer task stage ID")
+                    ]
+                    for producer in producer_tasks
+                ]
+            except KeyError as exc:
+                raise HandoffError("publication marker producer is not validated") from exc
+            input_records = [observed_by_role[role] for role in input_roles]
+            expected_packet = _execution_packet(
+                task,
+                source,
+                packet_ancestry,
+                input_records,
+                input_marker_ids,
+            )
+            expected_packet["handoff_id"] = document["handoff_id"]
+            expected_packet["execution_packet_id"] = derive_execution_packet_id(expected_packet)
+            expected_outputs = [observed_by_role[role] for role in output_roles]
+            try:
+                publication_marker.validate_stage_publication_marker_v1(
+                    marker_row,
+                    expected_handoff_id=_hex(document.get("handoff_id"), 64, "handoff ID"),
+                    expected_execution_packet_id=_hex(
+                        expected_packet.get("execution_packet_id"),
+                        64,
+                        "expected execution packet ID",
+                    ),
+                    expected_task_id=_hex(task.get("task_id"), 64, "task ID"),
+                    expected_stage_id=stage_id,
+                    expected_ordinal=_positive_ordinal(task.get("ordinal"), "task ordinal"),
+                    expected_outputs=expected_outputs,
+                )
+            except publication_marker.StagePublicationMarkerError as exc:
+                raise HandoffError(str(exc)) from exc
+            marker_valid = True
+            validated_marker_ids[stage_id] = _hex(
+                marker_row.get("content_id"), 64, "publication marker ID"
+            )
+        if outputs_observed and marker_valid and not missing_dependencies:
             status = "artifacts_observed"
             completed_stages.add(stage_id)
+            available_roles.update(output_roles)
+        elif outputs_observed and not marker_valid:
+            status = "artifacts_observed_without_publication_marker"
         elif (
             not missing_inputs
             and not missing_dependencies
@@ -629,21 +712,150 @@ def build_execution_packet(
     matching = [task for task in tasks if task.get("stage_id") == stage_id]
     if len(matching) != 1:
         raise HandoffError("execution packet stage is not one governed task")
-    contracts = _object_list(handoff.get("artifact_contracts"), "artifact contracts")
-    contract_by_id = {str(row["contract_id"]): row for row in contracts}
     root = artifact_root.resolve(strict=True)
-    inputs = [
-        _artifact_record(contract_by_id[contract_id], root)
+    row, _inputs = _expected_execution_packet_for_task(
+        handoff,
+        matching[0],
+        root,
+        source,
+        ancestry,
+    )
+    return row
+
+
+def _expected_execution_packet_for_task(
+    document: Mapping[str, object],
+    task: Mapping[str, object],
+    artifact_root: Path,
+    source: Mapping[str, object],
+    ancestry: Mapping[str, object],
+    *,
+    memo: dict[str, tuple[dict[str, object], list[dict[str, object]]]] | None = None,
+    visiting: set[str] | None = None,
+) -> tuple[dict[str, object], list[dict[str, object]]]:
+    """Recompose one packet and every required producer publication marker."""
+
+    packets = {} if memo is None else memo
+    active = set() if visiting is None else visiting
+    stage_id = _nonempty_string(task.get("stage_id"), "task stage ID")
+    if stage_id in packets:
+        return packets[stage_id]
+    if stage_id in active:
+        raise HandoffError("task dependency graph contains a cycle")
+    active.add(stage_id)
+    try:
+        tasks = _object_list(document.get("tasks"), "tasks")
+        contracts = _object_list(document.get("artifact_contracts"), "artifact contracts")
+        contract_by_id = {str(row["contract_id"]): row for row in contracts}
+        inputs = [
+            _artifact_record(contract_by_id[contract_id], artifact_root)
+            for contract_id in _string_list(
+                task.get("input_artifact_contract_ids"), "task input contract IDs"
+            )
+        ]
+        _require_aggregate_artifact_bound(inputs)
+        _require_task_prover_r0vm_expectation(document, task, inputs)
+        marker_ids: list[str] = []
+        for producer in _required_internal_producer_tasks(task, tasks, contract_by_id):
+            producer_packet, _producer_inputs = _expected_execution_packet_for_task(
+                document,
+                producer,
+                artifact_root,
+                source,
+                ancestry,
+                memo=packets,
+                visiting=active,
+            )
+            marker_document = _load_and_validate_stage_publication_marker(
+                document,
+                producer,
+                producer_packet,
+                contract_by_id,
+                artifact_root,
+            )
+            marker_ids.append(_hex(marker_document.get("content_id"), 64, "publication marker ID"))
+        row = _execution_packet(task, source, ancestry, inputs, marker_ids)
+        row["handoff_id"] = document["handoff_id"]
+        row["execution_packet_id"] = derive_execution_packet_id(row)
+        packets[stage_id] = (row, inputs)
+        return row, inputs
+    finally:
+        active.remove(stage_id)
+
+
+def _required_internal_producer_tasks(
+    task: Mapping[str, object],
+    tasks: Sequence[Mapping[str, object]],
+    contracts_by_id: Mapping[str, Mapping[str, object]],
+) -> list[Mapping[str, object]]:
+    task_by_stage = {_nonempty_string(row.get("stage_id"), "task stage ID"): row for row in tasks}
+    required = set(_string_list(task.get("depends_on"), "task dependencies"))
+    for contract_id in _string_list(
+        task.get("input_artifact_contract_ids"), "task input contract IDs"
+    ):
+        try:
+            producer_stage = _nonempty_string(
+                contracts_by_id[contract_id].get("producer_stage"),
+                "artifact producer stage",
+            )
+        except KeyError as exc:
+            raise HandoffError("task input references an unknown artifact contract") from exc
+        if producer_stage in task_by_stage:
+            required.add(producer_stage)
+    unknown = required - set(task_by_stage)
+    if unknown:
+        raise HandoffError("task depends on an unknown producer stage")
+    return [
+        row for row in tasks if _nonempty_string(row.get("stage_id"), "task stage ID") in required
+    ]
+
+
+def _load_and_validate_stage_publication_marker(
+    document: Mapping[str, object],
+    producer: Mapping[str, object],
+    producer_packet: Mapping[str, object],
+    contracts_by_id: Mapping[str, Mapping[str, object]],
+    artifact_root: Path,
+) -> dict[str, object]:
+    ordinal = _positive_ordinal(producer.get("ordinal"), "producer task ordinal")
+    stage_id = _nonempty_string(producer.get("stage_id"), "producer task stage ID")
+    relative_path = publication_marker.stage_publication_marker_relative_path_v1(ordinal, stage_id)
+    marker_document = _object(
+        strict_json_loads(
+            _stable_read_beneath(
+                artifact_root,
+                relative_path,
+                f"{stage_id} publication marker",
+                publication_marker.MAX_MARKER_BYTES,
+            )
+        ),
+        f"{stage_id} publication marker",
+    )
+    expected_outputs = [
+        _artifact_record(contracts_by_id[contract_id], artifact_root)
         for contract_id in _string_list(
-            matching[0].get("input_artifact_contract_ids"), "task input contract IDs"
+            producer.get("output_artifact_contract_ids"),
+            "producer output contract IDs",
         )
     ]
-    _require_aggregate_artifact_bound(inputs)
-    _require_task_prover_r0vm_expectation(handoff, matching[0], inputs)
-    row = _execution_packet(matching[0], source, ancestry, inputs)
-    row["handoff_id"] = handoff["handoff_id"]
-    row["execution_packet_id"] = derive_execution_packet_id(row)
-    return row
+    _require_aggregate_artifact_bound(expected_outputs)
+    try:
+        publication_marker.validate_stage_publication_marker_v1(
+            marker_document,
+            expected_handoff_id=_hex(document.get("handoff_id"), 64, "handoff ID"),
+            expected_execution_packet_id=_hex(
+                producer_packet.get("execution_packet_id"),
+                64,
+                "producer execution packet ID",
+            ),
+            expected_task_id=_hex(producer.get("task_id"), 64, "producer task ID"),
+            expected_stage_id=stage_id,
+            expected_ordinal=ordinal,
+            expected_outputs=expected_outputs,
+        )
+    except publication_marker.StagePublicationMarkerError as exc:
+        raise HandoffError(str(exc)) from exc
+    return marker_document
 
 
 def _execution_packet(
@@ -651,6 +863,7 @@ def _execution_packet(
     source: Mapping[str, object],
     ancestry: Mapping[str, object],
     inputs: Sequence[Mapping[str, object]],
+    input_publication_marker_ids: Sequence[str],
 ) -> dict[str, object]:
     row: dict[str, object] = {
         "schema": EXECUTION_PACKET_SCHEMA,
@@ -665,6 +878,7 @@ def _execution_packet(
         "worker_tree": ancestry["governance_tree"],
         "proof_profile_id": SUCCINCT_PROFILE_ID,
         "input_artifact_ids": [item["artifact_id"] for item in inputs],
+        "input_publication_marker_ids": list(input_publication_marker_ids),
         "authority": false_authority(),
         "non_claims": list(NON_CLAIMS),
     }
@@ -672,16 +886,28 @@ def _execution_packet(
     return row
 
 
-def _execution_packets_from_records(
+def _execution_packets_and_marker_ids_from_records(
     handoff: Mapping[str, object],
     ancestry: Mapping[str, object],
     records: Mapping[str, Mapping[str, object]],
-) -> list[dict[str, object]]:
+    artifact_root: Path,
+) -> tuple[list[dict[str, object]], list[str]]:
     source = _object(handoff.get("source"), "source")
     contracts = _object_list(handoff.get("artifact_contracts"), "artifact contracts")
     contract_by_id = {str(row["contract_id"]): row for row in contracts}
+    tasks = _object_list(handoff.get("tasks"), "tasks")
     rows: list[dict[str, object]] = []
-    for task in _object_list(handoff.get("tasks"), "tasks"):
+    stage_marker_ids: list[str] = []
+    marker_by_stage: dict[str, dict[str, object]] = {}
+    for task in tasks:
+        marker_ids: list[str] = []
+        for producer in _required_internal_producer_tasks(task, tasks, contract_by_id):
+            producer_stage = _nonempty_string(producer.get("stage_id"), "producer task stage ID")
+            try:
+                marker_document = marker_by_stage[producer_stage]
+            except KeyError as exc:
+                raise HandoffError("task order is not topological") from exc
+            marker_ids.append(_hex(marker_document.get("content_id"), 64, "publication marker ID"))
         inputs = [
             records[str(contract_by_id[contract_id]["role"])]
             for contract_id in _string_list(
@@ -689,11 +915,23 @@ def _execution_packets_from_records(
             )
         ]
         _require_task_prover_r0vm_expectation(handoff, task, inputs)
-        row = _execution_packet(task, source, ancestry, inputs)
+        row = _execution_packet(task, source, ancestry, inputs, marker_ids)
         row["handoff_id"] = handoff["handoff_id"]
         row["execution_packet_id"] = derive_execution_packet_id(row)
         rows.append(row)
-    return rows
+        current_stage = _nonempty_string(task.get("stage_id"), "task stage ID")
+        marker_document = _load_and_validate_stage_publication_marker(
+            handoff,
+            task,
+            row,
+            contract_by_id,
+            artifact_root,
+        )
+        marker_by_stage[current_stage] = marker_document
+        stage_marker_ids.append(
+            _hex(marker_document.get("content_id"), 64, "stage publication marker ID")
+        )
+    return rows, stage_marker_ids
 
 
 def _execution_packet_filename(ordinal: int, stage_id: str) -> str:
@@ -794,7 +1032,12 @@ def capture_return_bundle(
         "program_image_ids_governed_recomputation_verified": False,
     }
     identity_binding["identity_binding_id"] = _derive_identity_binding_id(identity_binding)
-    expected_packets = _execution_packets_from_records(handoff, ancestry, by_role)
+    expected_packets, stage_marker_ids = _execution_packets_and_marker_ids_from_records(
+        handoff,
+        ancestry,
+        by_role,
+        root,
+    )
     execution_packets = _load_execution_packets(execution_packet_directory, expected_packets)
     captures = _task_captures(handoff, execution_packets, identity_binding, by_role)
     document: dict[str, object] = {
@@ -807,6 +1050,7 @@ def capture_return_bundle(
         "ancestry": ancestry,
         "identity_binding": identity_binding,
         "execution_packets": execution_packets,
+        "stage_publication_marker_ids": stage_marker_ids,
         "tasks": captures,
         "artifacts": records,
         "authority": false_authority(),
@@ -992,9 +1236,16 @@ def validate_return_bundle(
         ancestry,
         program_images,
     )
-    expected_packets = _execution_packets_from_records(handoff, ancestry, by_role)
+    expected_packets, expected_marker_ids = _execution_packets_and_marker_ids_from_records(
+        handoff,
+        ancestry,
+        by_role,
+        artifact_root.resolve(strict=True),
+    )
     if not _canonical_values_equal(bundle.get("execution_packets"), expected_packets):
         raise HandoffError("return execution packet inventory mismatch")
+    if not _canonical_values_equal(bundle.get("stage_publication_marker_ids"), expected_marker_ids):
+        raise HandoffError("return stage publication marker inventory mismatch")
     captures = _task_captures(handoff, expected_packets, identity_binding, by_role)
     if not _canonical_values_equal(bundle.get("tasks"), captures):
         raise HandoffError("return task capture inventory mismatch")
@@ -1304,6 +1555,7 @@ def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
 
 
 def _stable_read(path: Path, label: str, maximum: int) -> bytes:
+    descriptor: int | None = None
     try:
         before = path.lstat()
         if (
@@ -1312,12 +1564,36 @@ def _stable_read(path: Path, label: str, maximum: int) -> bytes:
             or not 0 < before.st_size <= maximum
         ):
             raise HandoffError(f"{label} must be one bounded regular file")
-        with path.open("rb") as handle:
-            opened = os.fstat(handle.fileno())
-            raw = handle.read(maximum + 1)
-            after = os.fstat(handle.fileno())
+        descriptor = os.open(
+            path,
+            os.O_RDONLY
+            | getattr(os, "O_NONBLOCK", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0),
+        )
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode):
+            raise HandoffError(f"{label} must be one bounded regular file")
+        chunks: list[bytes] = []
+        remaining = maximum + 1
+        while remaining:
+            chunk = os.read(descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        after = os.fstat(descriptor)
+    except HandoffError:
+        raise
     except OSError as exc:
         raise HandoffError(f"{label} could not be read") from exc
+    finally:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
 
     def identity_tuple(value: os.stat_result) -> tuple[int, int, int, int, int, int]:
         return (
@@ -1348,7 +1624,14 @@ def _stable_read_beneath(root: Path, relative: str, label: str, maximum: int) ->
         | getattr(os, "O_NOFOLLOW", 0)
         | getattr(os, "O_CLOEXEC", 0)
     )
-    file_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    # O_NONBLOCK prevents a raced or hostile FIFO leaf from blocking before
+    # the post-open regular-file check can reject it.
+    file_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_NONBLOCK", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
     descriptors: list[int] = []
     try:
         root_before = root.lstat()

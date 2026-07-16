@@ -150,7 +150,7 @@ def _packet() -> dict[str, Any]:
         "schema": handoff.EXECUTION_PACKET_SCHEMA,
         "status": "exact_inputs_bound_without_execution_provenance",
         "execution_packet_id": checker.ZERO_SHA256,
-        "handoff_id": _sha("exact-handoff-v4"),
+        "handoff_id": _sha("exact-handoff-v5"),
         "source_binding_id": _sha("exact-source-binding"),
         "task_id": _sha("source-spot-proof-task"),
         "stage_id": checker.SOURCE_STAGE_ID,
@@ -163,6 +163,12 @@ def _packet() -> dict[str, Any]:
             _sha("source-program-artifact"),
             _sha("source-profile-artifact"),
             _sha("cuda-r0vm-artifact"),
+        ],
+        "input_publication_marker_ids": [
+            _sha("identity-publication-marker"),
+            _sha("ancestry-publication-marker"),
+            _sha("worker-build-publication-marker"),
+            _sha("source-profile-publication-marker"),
         ],
         "authority": handoff.false_authority(),
         "non_claims": list(handoff.NON_CLAIMS),
@@ -453,4 +459,33 @@ def test_cli_without_inputs_emits_unknown(capsys: Any) -> None:
     result = json.loads(capsys.readouterr().out)
     assert result["status"] == checker.UNKNOWN_STATUS
     assert result["reason_code"] == "required_input_missing"
+    assert result["authority"] == checker.AUTHORITY_FALSE
+
+
+def test_cli_protocol_output_does_not_disclose_input_paths(tmp_path: Path, capsys: Any) -> None:
+    private_root = tmp_path / "private-path-sentinel-should-never-be-emitted"
+    _documents, paths = _fixture(private_root)
+    assert (
+        checker.main(
+            [
+                "--source-execution-profile",
+                str(paths["profile"]),
+                "--cuda-r0vm-build-attestation",
+                str(paths["build"]),
+                "--h100-preflight",
+                str(paths["preflight"]),
+                "--source-execution-packet",
+                str(paths["packet"]),
+                "--attempt-budget-and-price",
+                str(paths["budget"]),
+                "--trusted-current-epoch-seconds",
+                str(CURRENT_EPOCH),
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert str(private_root) not in output
+    result = json.loads(output)
+    assert result["qualified"] is True
     assert result["authority"] == checker.AUTHORITY_FALSE

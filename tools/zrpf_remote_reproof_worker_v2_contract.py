@@ -64,6 +64,7 @@ EXECUTION_PACKET_FIELDS = {
     "worker_tree",
     "proof_profile_id",
     "input_artifact_ids",
+    "input_publication_marker_ids",
     "authority",
     "non_claims",
 }
@@ -344,22 +345,19 @@ def validate_stage_packet(
         )
     )
     root = _canonical_directory(artifact_root, "input artifact root")
-    input_records = tuple(handoff._artifact_record(item.raw, root) for item in inputs)
-    handoff._require_aggregate_artifact_bound(input_records)
-    handoff._require_task_prover_r0vm_expectation(document, task, input_records)
-    expected_packet = handoff._execution_packet(
+    expected_packet, expected_input_records = handoff._expected_execution_packet_for_task(
+        document,
         task,
+        root,
         source,
         {
             "governance_commit": source["worker_commit"],
             "governance_tree": source["worker_tree"],
         },
-        input_records,
     )
-    expected_packet["handoff_id"] = document["handoff_id"]
-    expected_packet["execution_packet_id"] = handoff.derive_execution_packet_id(expected_packet)
     if not handoff._canonical_values_equal(packet, expected_packet):
         raise WorkerError("execution packet differs from exact current input artifacts")
+    input_records = tuple(expected_input_records)
 
     if task.get("command_status") != "template_available":
         raise WorkerError("task command template is not executable")

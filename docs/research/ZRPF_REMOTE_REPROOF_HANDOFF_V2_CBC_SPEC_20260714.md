@@ -1,10 +1,9 @@
 # ZRPF remote reproof handoff V2 CBC specification
 
 Status: implemented planner, per-stage exact-input packet builder, return
-checker, and bounded authority-neutral worker for thirteen packet-expressible
+checker, and bounded authority-neutral worker for fourteen packet-expressible
 stages. The identity rebuild, worker prover-build, source/V7 execution-profile,
-and exact mutation adapters are implemented. The bundle-aware release checker
-command template remains planned.
+exact mutation, and packet-bound release-check adapters are implemented.
 
 ## Compute-profile protocol ratchet
 
@@ -12,14 +11,15 @@ The implementation filenames retain `v2` so the focused worker stack remains
 one reviewable incremental change. Governed compute selection originally
 ratcheted the wire family to V3. Adding the source execution-profile stage and
 making it an exact predecessor of source proving changes the task topology and
-acceptance-relevant artifacts. The handoff, task, execution-packet,
-task-capture, and return schemas and identity domains are therefore V4. The
-worker-capture schema remains V3 because its own field set and identity
-construction are unchanged; it content-binds the V4 execution packet.
+acceptance-relevant artifacts. The handoff, task, and task-capture schemas and
+identity domains are therefore V4. Adding producer-stage completion-marker IDs
+ratchets the execution packet and return bundle to V5. The worker-capture
+schema is V4 and content-binds the V5 execution packet.
 
-All earlier V2 and V3 handoffs, packets, task captures, and return bundles are
-revoked. They must be regenerated. V4 checkers reject those objects by schema
-before treating any content as current evidence.
+All earlier V2 and V3 handoffs remain revoked. V4 execution packets and return
+bundles are also revoked because they cannot distinguish a complete
+multi-output producer stage from a crash-published prefix. Current checkers
+reject those objects by schema before treating any content as current evidence.
 
 The closed task/artifact catalog lives in
 `tools/zrpf_remote_reproof_handoff_v2_catalog.py`. Parsing, content addressing,
@@ -147,8 +147,8 @@ identity_rebuild
   -> release_checks
 ```
 
-This ordering closes the previous Mac handoff dependency gap. A source proof
-and V2 adapter receipt are explicit prerequisites. Source proving additionally
+This ordering closes the previous cross-host handoff dependency gap. A source
+proof and V2 adapter receipt are explicit prerequisites. Source proving additionally
 requires an execution-only profile over the exact source program, exact
 materialized guest input, exact expected journal, and exact packet-pinned
 `r0vm`. V7 proving has the corresponding exact profile predecessor. Each
@@ -196,11 +196,39 @@ and requires the report ID to change. The same matrix proves the fixed
 construction invariants are committed while excluding only the
 self-referential report-ID field.
 
-`release_checks` remains `template_planned`: the existing release checker
-operates on repository paths and does not yet consume this returned
-proof/mutation bundle. Manually supplied bytes can still be captured as
-authority-neutral metadata; capture does not prove they were produced by the
-declared task.
+`release_checks` consumes the exact packet-bound identities, build outputs,
+proof artifacts, mutation artifacts, runtime identity, and the ordered unique
+predecessor-marker digest list. The worker separately validates the thirteen
+marker records and their stage, packet, capture, and output bindings before it
+executes this command. The release evidence commits the digest list but does
+not independently reopen those marker records. An externally supplied
+canonical plan expectation fixes the one accepted release-closure plan digest
+without entering the self-referential execution-packet identity. The adapter validates
+the worker-build report, reopens every declared artifact under its exact
+contract, rechecks the V7 program/image/profile/manifest bridge, validates the
+five-stage mutation report, derives every exact word-one XOR-one relation from
+the returned receipt and mutation bytes, rebuilds the release-closure plan, and
+emits one canonical authority-false evidence object.
+Mutation decoding applies the 65,536-byte V6 value-node journal bound to the
+leaf and aggregate stages, the governed V6 settlement-journal bound to the V6
+settlement stage, and the V7 output envelope bound to the V7 journal. It does
+not inherit the older 4,096-byte structural-journal ceiling for the V6
+settlement receipt. Every positive and mutated receipt also inherits the Rust
+mutation verifier's 16 MiB total receipt cap. The decoded positive receipt's
+claimed image ID must equal the exact image ID already bound to its stage.
+
+The release checker deliberately does not consume Return V5 or the terminal
+`release_checks` publication marker. Either input would create a dependency
+cycle because Return V5 binds that terminal marker. After the adapter exits,
+the worker publishes its two outputs and terminal marker; Return V5 validation
+then binds the complete fourteen-stage marker inventory. This ordering proves
+the acyclic packet and publication relations. It does not mint proof, release,
+settlement, ledger, or production authority.
+
+Direct adapter invocation creates the plan before the evidence output and does
+not claim pair-atomic publication. Under the governed worker, neither output is
+usable downstream until capture validation and terminal-marker-last
+publication commit the complete two-output set.
 
 The catalog marks these packet-expressible stages as implemented:
 
@@ -218,6 +246,7 @@ v6_settlement_receipt
 v7_execution_profile
 v7_receipt
 mutation_verification
+release_checks
 ```
 
 The bounded worker resolves typed declared-artifact placeholders, the exact C0
@@ -241,7 +270,9 @@ computes the candidate V7 image ID through the packet-pinned r0vm, and emits a
 canonical build report that binds canonically validated G governance and all
 extracted bytes. The return checker binds that governance to the handoff
 ancestry and validated V6 identity. Ephemeral archive hashes are excluded from
-the reusable report. The release stage remains planned.
+the reusable report. The release stage revalidates that report together with
+all nine extracted outputs, including the raw V7 program used for independent
+image-ID recomputation.
 
 ## Artifact contract
 
@@ -360,6 +391,37 @@ because these records do not prove historical command execution.
 The capture also does not prove who created or preserved the packet, operator
 intent, or packet freshness.
 
+After `check-capture` succeeds, `publish-stage` revalidates the complete capture
+before filesystem effects, reopens each declared output through a stable
+descriptor-relative no-follow read, and requires its recomputed record to equal
+the capture. It writes each bounded output into an unnamed Linux `O_TMPFILE`,
+fsyncs that exact open descriptor, and publishes the same descriptor with
+`linkat(AT_EMPTY_PATH)`. Existing or raced destinations reject without
+overwrite. Parent directories are fsynced, the complete published artifact set
+must equal the capture, and the repository is rechecked as clean immediately
+before the marker commit. A content-bound, authority-false stage-publication
+marker is linked from its own exact unnamed descriptor last. The marker parent
+is fsynced and the canonical marker/output namespace is revalidated before the
+worker reports success.
+
+Execution-packet V5 binds the exact publication-marker IDs of every internal
+producer stage. Downstream packet construction rederives each producer packet,
+reopens every declared producer output, and validates the complete marker in
+its unique canonical JSON byte representation. Return V5 additionally binds
+the complete task-ordered publication-marker ID inventory, including the
+terminal `release_checks` marker that has no downstream packet.
+Output files without that marker remain unusable, including a strict prefix
+left by a crash after one of several destination links. A retry reconciles an
+exact already-visible marker and its complete output set. A partial prefix
+without a marker still requires an operator-audited fresh artifact root. A
+failure after marker visibility is a typed indeterminate result and requires
+that exact reconciliation. Reconciliation reopens leaf files with nonblocking
+no-follow flags, rejects FIFOs and other special files, fsyncs the exact linked
+regular files and their unique parent directories, and then reports success.
+The marker proves only complete byte publication under this authority-neutral
+worker contract. It grants no proof, release, settlement, or production
+authority.
+
 ## Literal ancestry
 
 The ancestry checker reads raw commit objects with:
@@ -455,6 +517,33 @@ python3 tools/run_zrpf_remote_reproof_worker_v2.py check-capture \
   --capture-output /private/worker-captures/07-v6_l1_receipt.json
 ```
 
+Publish that validated stage into the shared artifact root before preparing its
+dependent task:
+
+```bash
+python3 tools/run_zrpf_remote_reproof_worker_v2.py publish-stage \
+  --repository "$PWD" \
+  --handoff /private/handoff.json \
+  --packet /private/execution-packets/07-v6_l1_receipt.json \
+  --artifact-root /private/zrpf-return \
+  --run-root /private/worker-runs/07-v6_l1_receipt \
+  --capture-output /private/worker-captures/07-v6_l1_receipt.json
+```
+
+For RunPod, the controller connects directly with OpenSSH, stages inputs with
+SSH/SCP, invokes the worker over SSH, retrieves the bounded evidence, and then
+terminates the pod. No GitHub handoff or Darwin transfer bundle is required.
+The object named `handoff` is the content-bound execution contract used by the
+remote worker; it is not a transport mechanism. Before the worker starts, the
+remote host must contain one exact clean checkout with all required C0/C1/C2/G
+objects plus the declared external artifacts. Transport is outside the
+authority claim; the execution contract, packet, capture, and publication
+checks rebind the local bytes after transfer. Keep contract, packet, artifact,
+run, and capture paths outside the checkout. The clean-checkout gate rejects
+tracked changes and non-ignored untracked entries; Git-ignored paths are not
+part of that status inventory. Root disjointness is canonical-path based and
+does not claim detection of privileged bind-mount aliases.
+
 The source-proof stage additionally requires:
 
 ```text
@@ -538,11 +627,12 @@ aggregate artifact bytes above the governed cap
    output-inventory, resource, timeout, and capture negative controls pass.
 3. Validate identity and worker-build source/output distinguishing witnesses.
 4. Validate the bounded unified V6/V7 mutation worker.
-5. Implement a bundle-aware release checker that consumes the exact returned
-   identity, proof, mutation, and runtime artifacts.
+5. Validate the packet-bound release checker against the exact returned
+   identity, build, proof, mutation, runtime, and predecessor-marker artifacts.
 6. Generate a handoff from the final integration C0 and worker G commit.
-7. Run the expensive tasks on the Mac or a remote host.
-8. Check the returned bundle independently.
+7. Run the expensive proving tasks on a supported Linux NVIDIA worker, such as
+   a RunPod instance reached directly over SSH.
+8. Publish the terminal release-check marker and check Return V5 independently.
 9. Run exact cryptographic replay, program identity recomputation, release
    closure, production-boundary, DA, finality, and atomic-admission gates.
 

@@ -1,13 +1,19 @@
 # ZRPF remote reproof worker V2 CBC specification
 
-Status: implemented authority-neutral, one-stage worker over the ZRPF remote
-reproof handoff implementation for the thirteen supported stages below.
+Status: implemented authority-neutral, one-stage worker plus validated
+publication boundary over the ZRPF remote reproof handoff implementation for
+the fourteen supported stages below.
 
-The worker implementation filename remains V2. Its capture wire schema and
-identity domain are V4 after adding an effective resource-policy ID and timeout
+The worker orchestration filename remains V2. Authority-neutral filesystem
+publication is isolated in `tools/zrpf_remote_reproof_worker_v2_publication.py`,
+which depends only on the handoff and worker-contract modules and never imports
+the worker. The capture wire schema and identity domain are V4 after adding an
+effective resource-policy ID and timeout
 to every command capture. The companion handoff/task family is V4 after adding
-the source execution-profile predecessor. A V4 worker capture binds the exact
-V4 execution-packet ID and rejects older V3 captures whose transcript cannot
+the source execution-profile predecessor. Execution-packet V5 additionally
+binds the content IDs of every required internal producer-stage publication
+marker. A V4 worker capture binds the exact V5 execution-packet ID and rejects
+older V3 captures whose transcript cannot
 establish the paid command deadline.
 
 The worker may execute only a task already fixed by the governed handoff
@@ -41,6 +47,20 @@ A successfully checked worker capture establishes these local metadata facts:
 8. The capture ID commits to the handoff, packet, task, resource policy,
    prover-compute profile, command transcript digests, output artifact records,
    false authority map, and non-claims.
+9. `publish-stage` validates that complete capture before any publication
+   effect, reopens only its declared outputs through stable no-follow reads,
+   requires their records to match the capture, writes bounded unnamed
+   `O_TMPFILE` descriptors, fsyncs them, and links each exact descriptor to an
+   absent destination with `linkat(AT_EMPTY_PATH)`.
+10. Each published parent directory is fsynced, and records recomputed from the
+    shared artifact root must exactly equal the capture.
+11. The repository and publication namespaces are rechecked, then a
+    content-bound authority-false stage marker is linked from its exact unnamed
+    descriptor after every output succeeds. Its parent is fsynced and the
+    canonical marker/output set is revalidated. Its content ID is bound into
+    every dependent execution packet, and the complete ordered marker-ID
+    inventory is bound into Return V5 so the terminal marker is distinguished.
+    All authority remains false.
 
 ## Supported stages
 
@@ -61,6 +81,7 @@ v6_settlement_receipt
 v7_execution_profile
 v7_receipt
 mutation_verification
+release_checks
 ```
 
 These stages become `execution_adapter_status = implemented` in CUDA handoffs.
@@ -79,14 +100,30 @@ The worker independently recomputes that result and caps the source proof
 subprocess to the derived deadline. A valid execution profile alone cannot
 start paid proof generation.
 
-The following stage remains blocked:
+The release-check stage uses one unique artifact flag for each of its forty
+returned-artifact roles plus one externally supplied canonical plan
+expectation. Worker stage validation first authenticates the marker record for
+each of the thirteen predecessors. The adapter then commits their ordered unique
+digest list, validates the worker-build and mutation reports, derives every
+exact word-one XOR-one relation from the returned receipt pairs, rechecks the
+exact V7 program/image/profile/manifest bridge, reconstructs the release-closure
+plan, and writes only the declared plan and authority-false evidence outputs. It
+cannot consume Return V5 or its own terminal publication marker without making
+the task graph cyclic. The worker publishes that marker after successful
+execution, and the independent Return V5 checker binds it afterward.
 
-```text
-release_checks
-  bundle-aware release adapter remains planned
-```
+The worker rejects a missing, planned, or unsupported execution adapter. The
+current closed catalog has no planned stage.
 
-The worker rejects a missing, planned, or unsupported execution adapter.
+The receipt relation checker uses the governed stage-specific journal bounds:
+65,536 bytes for V6 value-node leaf and aggregate journals, the larger V6
+settlement-admission bound for the settlement receipt, and the V7 output bound
+for the V7 receipt. This prevents the 4,096-byte legacy structural bound from
+silently rejecting a valid large V6 settlement journal. Each receipt is also
+capped at the Rust verifier's 16 MiB receipt limit, and the claimed image ID in
+each positive receipt must equal the stage's exact expected program image.
+Direct adapter output creation is sequential; the worker capture and terminal
+publication marker are the completion boundary for the two-file output set.
 
 The mutation stage uses one declared executable artifact from a dedicated
 workspace package rather than an ambient binary or shell command. Its exact
@@ -140,6 +177,33 @@ run-root/
   outputs/    only declared stage outputs
   home/       empty private HOME
 ```
+
+`publish-stage` consumes that existing run root and capture. It first executes
+the complete `check-capture` validation path. It then publishes only the
+stage's closed output-contract paths into the existing shared artifact root.
+Every destination must begin absent on an initial publication. Exact retry
+reconciliation instead requires every existing output and marker byte to match
+the original capture. Linux `O_TMPFILE` plus
+`linkat(AT_EMPTY_PATH)` is the per-file commit primitive; an unavailable exact
+descriptor primitive is a typed reject. Each output file and destination
+parent is fsynced before the completion marker is committed. The marker's exact
+unnamed descriptor is fsynced before linking, and its parent is fsynced after
+linking. The worker then reopens the canonical marker and complete output set.
+Every leaf reopen uses nonblocking no-follow flags before the regular-file
+check, so a hostile FIFO or other special-file substitution rejects instead of
+blocking reconciliation.
+A failure after marker visibility is reported as `indeterminate` and requires
+exact reconciliation. A retry accepts only the identical marker and outputs,
+fsyncs every exact linked file and unique parent directory, and revalidates the
+canonical namespace before acknowledging completion.
+The final response carries the capture ID, published artifact IDs,
+publication-marker ID, and the unchanged all-false authority map.
+
+Per-file publication is no-overwrite and the marker supplies logical atomicity
+for downstream stages. A crash or external race can leave a published strict
+prefix, but packet preparation requires the absent marker even when the one
+output it consumes already exists. Automatic retry cannot overwrite the
+prefix. Explicit operator audit and a fresh artifact root are required.
 
 Commands use an argv vector directly. No shell parses template text. A token
 beginning with `@` must resolve to one declared input or output artifact role.
@@ -250,6 +314,15 @@ Every malformed, substituted, stale, missing, surplus, oversized, timed-out,
 nonzero-exit, path-escaping, symlinked, hard-linked, or type-ambiguous input
 rejects. The capture output remains absent.
 
+Publication additionally rejects an invalid capture before creating any
+destination, a changed source output, a noncanonical or symlinked parent, a
+pre-existing or concurrently raced destination, an unavailable unnamed-file or
+exact-descriptor link primitive, a write or fsync failure, and any final
+published-record mismatch. It never overwrites an existing artifact.
+Repository, artifact, and run roots must be pairwise disjoint. No named
+temporary is created, and cleanup closes descriptors without unlinking a
+pathname that another publisher could replace.
+
 A failed run may leave its private run root for diagnosis. Reusing that root
 rejects. The caller must choose a new path or explicitly remove the failed
 root. The worker never silently cleans and reuses stale output.
@@ -277,6 +350,7 @@ source-to-binary provenance
 runner or host release authority
 network or filesystem sandboxing
 resistance to a malicious same-UID host process
+bind-mount alias detection beyond canonical pathname disjointness
 kernel cgroup or process-count isolation
 PID/PGID reuse resistance or cgroup-owned descendant teardown
 data availability, finality, ledger admission, settlement, or production
@@ -305,7 +379,18 @@ capture-ID or output-record substitution
 C0 versus worker/G source-commit substitution
 any identity or worker-build output flag/role permutation
 worker-build report source, governance, output, image-ID, or authority substitution
-unsupported or planned stage
+unsupported stage or execution-adapter mismatch
+invalid capture before publication effects
+changed captured output during publication
+pre-existing or concurrently raced publication destination
+publication unnamed-file, fsync, or exact-descriptor link failure
+published artifact record differing from the validated capture
+partial multi-output prefix without a completion marker
+completion-marker content, producer-packet, task, or output substitution
+competing publisher pathname substitution or cleanup deletion
+post-marker failure requiring exact indeterminate reconciliation
+repository mutation between capture validation and publication commit
+FIFO or special-file marker/output substitution before stable read or reconciliation
 ```
 
 ## Promotion rule
