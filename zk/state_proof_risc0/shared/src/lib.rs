@@ -15,8 +15,10 @@ use sha2::{Digest, Sha256};
 
 mod recursive;
 mod surfaces;
+mod zusd_runtime_refinement;
 pub use recursive::*;
 pub use surfaces::*;
+pub use zusd_runtime_refinement::*;
 
 pub const PROOF_TYPE: &str = "risc0.zenodex_spot_transition.v1";
 pub const JOURNAL_VERSION: u32 = 1;
