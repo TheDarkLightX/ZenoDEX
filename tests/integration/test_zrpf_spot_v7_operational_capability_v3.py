@@ -251,7 +251,7 @@ def test_v3_join_executes_checkpoint_checker_exactly_once(
     calls = 0
     original = checker_adapter.execute_pinned_verifier_once
 
-    def counted(**kwargs: object) -> bytes:
+    def counted(**kwargs: Any) -> bytes:
         nonlocal calls
         calls += 1
         return original(**kwargs)

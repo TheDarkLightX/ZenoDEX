@@ -791,9 +791,9 @@ def _typed_identity_atom(value: object) -> tuple[type[object], object]:
 
 
 def _cgroup_limits_identity(value: object) -> tuple[object, ...]:
-    if type(value) is not CgroupLimitsV1:
+    if not isinstance(value, CgroupLimitsV1) or type(value) is not CgroupLimitsV1:
         return (_typed_identity_atom(value),)
-    limits = cast(CgroupLimitsV1, value)
+    limits = value
     return (
         CgroupLimitsV1,
         _typed_identity_atom(limits.cpu_quota_us),

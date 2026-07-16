@@ -14,7 +14,7 @@ import json
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import NoReturn, SupportsIndex, cast, final
+from typing import NoReturn, SupportsIndex, final
 
 from src.integration._zeno_ledger_pinned_verifier_process_v1 import (
     PinnedVerifierProcessError,
@@ -465,9 +465,12 @@ def _checker_input_v1(
 def _require_authenticated_finality_v3(
     value: object,
 ) -> _AuthenticatedExactCheckpointFinalityTransitionV3:
-    if type(value) is not _AuthenticatedExactCheckpointFinalityTransitionV3:
+    if (
+        not isinstance(value, _AuthenticatedExactCheckpointFinalityTransitionV3)
+        or type(value) is not _AuthenticatedExactCheckpointFinalityTransitionV3
+    ):
         raise TypeError("checkpoint checker requires exact authenticated finality V3")
-    typed = cast(_AuthenticatedExactCheckpointFinalityTransitionV3, value)
+    typed = value
     if not typed._has_private_seal():
         raise TypeError("checkpoint checker requires sealed authenticated finality V3")
     return typed

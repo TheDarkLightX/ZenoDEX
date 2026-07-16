@@ -13,7 +13,7 @@ import stat
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, cast, final
+from typing import Callable, final
 
 from tools import zrpf_v3_firecracker_cgroup_io as cgroup_io
 from tools.zrpf_v3_firecracker_cgroup_contract import (
@@ -115,7 +115,7 @@ def snapshot_cgroup_create_request_v1(request: object) -> CgroupCreateRequestV1:
 def _snapshot_cgroup_limits_v1(limits: object) -> CgroupLimitsV1:
     if not isinstance(limits, CgroupLimitsV1) or limits.__class__ is not CgroupLimitsV1:
         raise CgroupV2Reject("cgroup_request_limits_invalid")
-    exact = cast(CgroupLimitsV1, limits)
+    exact = limits
     return CgroupLimitsV1(
         cpu_quota_us=exact.cpu_quota_us,
         cpu_period_us=exact.cpu_period_us,

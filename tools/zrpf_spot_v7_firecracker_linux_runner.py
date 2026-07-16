@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NoReturn, SupportsIndex, cast, final
+from typing import NoReturn, SupportsIndex, final
 
 from tools._zrpf_spot_v7_firecracker_descriptor_handoff import (
     _PreparedDescriptorBoundSpotV7LaunchV1,
@@ -384,7 +384,10 @@ def _run_exact_linux_spot_v7_root_supervisor_candidate_v1(
     does not promote that operational expectation to authority.
     """
 
-    if type(prepared_launch) is not _PreparedDescriptorBoundSpotV7LaunchV1:
+    if (
+        not isinstance(prepared_launch, _PreparedDescriptorBoundSpotV7LaunchV1)
+        or type(prepared_launch) is not _PreparedDescriptorBoundSpotV7LaunchV1
+    ):
         raise SpotV7RootSupervisorRejectV1("linux_runner_prepared_launch_invalid")
     if type(plan) is not SpotV7RootSupervisorPlanV1:
         raise SpotV7RootSupervisorRejectV1("linux_runner_plan_invalid")
@@ -427,19 +430,23 @@ def _snapshot_governed_execution(
     value: object,
 ) -> _GovernedExecutionSnapshotV1:
     if (
-        type(value) is not _GovernedCandidateBoundSpotV7ExecutionV1
+        not isinstance(value, _GovernedCandidateBoundSpotV7ExecutionV1)
+        or type(value) is not _GovernedCandidateBoundSpotV7ExecutionV1
         or getattr(value, "_seal", None) is not _GOVERNED_CANDIDATE_EXECUTION_SEAL_V1
     ):
         raise SpotV7RootSupervisorRejectV1("linux_runner_governed_execution_invalid")
     execution = value
-    prepared_launch = getattr(execution, "_prepared_launch", None)
-    candidate_bound_plan = getattr(execution, "_candidate_bound_plan", None)
-    helper_path = getattr(execution, "_helper_executable_path", None)
+    prepared_launch = execution._prepared_launch
+    candidate_bound_plan = execution._candidate_bound_plan
+    helper_path = execution._helper_executable_path
     if type(prepared_launch) is not _PreparedDescriptorBoundSpotV7LaunchV1:
         raise SpotV7RootSupervisorRejectV1("linux_runner_governed_execution_invalid")
-    if type(candidate_bound_plan) is not CandidateBoundSpotV7RootSupervisorPlanV1:
+    if (
+        not isinstance(candidate_bound_plan, CandidateBoundSpotV7RootSupervisorPlanV1)
+        or type(candidate_bound_plan) is not CandidateBoundSpotV7RootSupervisorPlanV1
+    ):
         raise SpotV7RootSupervisorRejectV1("linux_runner_governed_execution_invalid")
-    checked_launch = cast(_PreparedDescriptorBoundSpotV7LaunchV1, prepared_launch)
+    checked_launch = prepared_launch
     checked_plan = candidate_bound_plan
     if not checked_plan._has_private_plan_seal():
         raise SpotV7RootSupervisorRejectV1("linux_runner_governed_execution_invalid")
@@ -447,13 +454,13 @@ def _snapshot_governed_execution(
         raise SpotV7RootSupervisorRejectV1("linux_runner_governed_execution_invalid")
     checked_helper_path = helper_path
     governed_identities = (
-        getattr(execution, "_selected_candidate_id", None),
-        getattr(execution, "_selected_candidate_manifest_sha256", None),
-        getattr(execution, "_selected_evidence_inventory_root", None),
-        getattr(execution, "_governed_host_control_policy_sha256", None),
-        getattr(execution, "_governed_runtime_manifest_sha256", None),
-        getattr(execution, "_governed_firecracker_profile_sha256", None),
-        getattr(execution, "_governed_helper_sha256", None),
+        execution._selected_candidate_id,
+        execution._selected_candidate_manifest_sha256,
+        execution._selected_evidence_inventory_root,
+        execution._governed_host_control_policy_sha256,
+        execution._governed_runtime_manifest_sha256,
+        execution._governed_firecracker_profile_sha256,
+        execution._governed_helper_sha256,
     )
     if any(type(identity) is not bytes or len(identity) != 32 for identity in governed_identities):
         raise SpotV7RootSupervisorRejectV1("linux_runner_governed_execution_invalid")

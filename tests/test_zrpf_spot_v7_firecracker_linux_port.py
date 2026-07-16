@@ -6,7 +6,7 @@ import copy
 import pickle
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -197,9 +197,10 @@ def _namespace(
     def close() -> None:
         events.append("namespace_close")
 
-    value.reverify_path = reverify_path
-    value.verify_empty = verify_empty
-    value.close = close
+    mutable = cast(Any, value)
+    mutable.reverify_path = reverify_path
+    mutable.verify_empty = verify_empty
+    mutable.close = close
     return value
 
 

@@ -15,7 +15,9 @@ from typing import Sequence
 if __package__:
     from tools import zrpf_paid_run_prerequisites_v1 as shared
 else:
-    import zrpf_paid_run_prerequisites_v1 as shared
+    import zrpf_paid_run_prerequisites_v1 as _standalone_shared
+
+    shared = _standalone_shared
 
 SCHEMA = "zenodex/zrpf_initial_paid_calibration_attempt/v1"
 QUALIFIED_STATUS = "qualified_to_attempt_one_bounded_h100_source_calibration"

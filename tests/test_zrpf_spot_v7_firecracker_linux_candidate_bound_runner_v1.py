@@ -58,6 +58,15 @@ def _candidate_policy_for_launch(
     )
 
 
+def _close_prepared_launch(value: object) -> None:
+    if (
+        not isinstance(value, _PreparedDescriptorBoundSpotV7LaunchV1)
+        or type(value) is not _PreparedDescriptorBoundSpotV7LaunchV1
+    ):
+        raise TypeError("test retained an invalid prepared launch")
+    value.close_before_launch()
+
+
 def _governed_execution_for_test(
     prepared_launch: _PreparedDescriptorBoundSpotV7LaunchV1,
     prepared_policy: policy.PreparedCandidateBoundSpotV7RootSupervisorPolicyV1,
@@ -163,7 +172,7 @@ def test_candidate_bound_plan_retains_candidate_launch_and_helper_identities(
         assert candidate_bound_plan.release_authority is False
         assert candidate_bound_plan.production_authority is False
     finally:
-        cast(_PreparedDescriptorBoundSpotV7LaunchV1, prepared_launch).close_before_launch()
+        _close_prepared_launch(prepared_launch)
 
 
 def test_governed_execution_and_typed_plan_are_nontransferable(
@@ -185,7 +194,7 @@ def test_governed_execution_and_typed_plan_are_nontransferable(
             with pytest.raises(TypeError):
                 cast(Any, value)._seal = object()
     finally:
-        prepared_launch.close_before_launch()
+        _close_prepared_launch(prepared_launch)
 
 
 def test_candidate_bound_runner_uses_only_governed_bound_inputs(
@@ -248,7 +257,7 @@ def test_candidate_bound_runner_uses_only_governed_bound_inputs(
         assert result.settlement_authority is False
         assert result.production_authority is False
     finally:
-        cast(_PreparedDescriptorBoundSpotV7LaunchV1, prepared_launch).close_before_launch()
+        _close_prepared_launch(prepared_launch)
 
 
 @pytest.mark.parametrize(
@@ -295,7 +304,7 @@ def test_governed_capability_rejects_each_independent_identity_substitution(
         assert captured.value.code == "linux_runner_governed_identity_mismatch"
         prepared_launch.verify_prelaunch()
     finally:
-        cast(_PreparedDescriptorBoundSpotV7LaunchV1, prepared_launch).close_before_launch()
+        _close_prepared_launch(prepared_launch)
 
 
 def test_distinct_candidates_with_same_runtime_cannot_collapse_to_same_typed_plan(
@@ -330,7 +339,7 @@ def test_distinct_candidates_with_same_runtime_cannot_collapse_to_same_typed_pla
             != second_plan.candidate_bound_identity_sha256
         )
     finally:
-        cast(_PreparedDescriptorBoundSpotV7LaunchV1, prepared_launch).close_before_launch()
+        _close_prepared_launch(prepared_launch)
 
 
 def test_plan_derivation_uses_fresh_reparsed_policy_snapshot(
@@ -361,7 +370,7 @@ def test_plan_derivation_uses_fresh_reparsed_policy_snapshot(
         )
         assert candidate_bound_plan.root_supervisor_plan.process_timeout_ns == 30_000_000_000
     finally:
-        cast(_PreparedDescriptorBoundSpotV7LaunchV1, prepared_launch).close_before_launch()
+        prepared_launch.close_before_launch()
 
 
 def test_candidate_bound_runner_rejects_raw_or_forged_capability_before_effects(

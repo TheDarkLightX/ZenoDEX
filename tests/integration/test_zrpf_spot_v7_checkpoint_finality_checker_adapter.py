@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 from dataclasses import replace
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Any, Callable, Iterator
 
 import pytest
 
@@ -22,6 +22,9 @@ import tests.integration.test_zrpf_spot_v7_operational_policy_v3 as policy_test
 from src.integration._zrpf_spot_v7_operational_mechanics import (
     _encode_checkpoint_finality_certificate_v2,
     _finality_certificate_root_v2,
+)
+from src.integration._zrpf_spot_v7_operational_policy_v3 import (
+    _GovernedSpotV7OperationalPolicyV3,
 )
 from src.integration.zrpf_spot_v7_checkpoint_finality_checker_adapter import (
     CHECKPOINT_FINALITY_CHECKER_AUTHORITY_SCHEMA_V1,
@@ -93,7 +96,7 @@ def _build_rust_checker(target: Path) -> Path:
     return executable
 
 
-def _governed_policy() -> object:
+def _governed_policy() -> _GovernedSpotV7OperationalPolicyV3:
     registry = policy_test._registry()
     raw = policy_test._manifest(registry)
     return policy_test._load(raw, registry)
@@ -208,7 +211,7 @@ def test_pinned_checker_cross_checks_exact_bls_transition_once(
     calls = 0
     original = checker_adapter.execute_pinned_verifier_once
 
-    def counted(**kwargs: object) -> bytes:
+    def counted(**kwargs: Any) -> bytes:
         nonlocal calls
         calls += 1
         return original(**kwargs)
