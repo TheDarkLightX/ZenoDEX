@@ -9,7 +9,10 @@ use tau_state_proof_risc0_shared::{
     execute_perps_np_transition_v1, execute_state_proof_input_v1, execute_zusd_transition_v1,
     ZenoProofInputV1, RECURSIVE_AGGREGATE_MAX_INPUT_BYTES,
 };
-use tau_state_proof_risc0_zusd_policy::validate_zusd_scoped_snapshot_conservation_v1;
+
+#[path = "../../common/zusd_proof_policy.rs"]
+mod zusd_proof_policy;
+use zusd_proof_policy::validate_zusd_scoped_snapshot_conservation_v1;
 
 risc0_zkvm::guest::entry!(main);
 
