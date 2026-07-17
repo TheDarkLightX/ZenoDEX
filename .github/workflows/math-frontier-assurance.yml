@@ -58,7 +58,7 @@ jobs:
           cat /tmp/mathlib-cache.log
           exit "$status"
 
-      - name: Compile both frontier modules directly
+      - name: Build both frontier modules with dependencies
         id: compile
         continue-on-error: true
         working-directory: lean-mathlib
@@ -67,15 +67,15 @@ jobs:
           log_dir=/tmp/math-frontier-lean-logs
           mkdir -p "$log_dir"
           status=0
-          for file in \
-            Proofs/FeeAwareRoutingNonconcavity.lean \
-            Proofs/RoutingAffineEnvelopeCertificate.lean; do
-            log="$log_dir/$(basename "$file").log"
-            echo "== compiling $file =="
-            lake env lean "$file" >"$log" 2>&1
-            file_status=$?
+          for target in \
+            Proofs.FeeAwareRoutingNonconcavity \
+            Proofs.RoutingAffineEnvelopeCertificate; do
+            log="$log_dir/${target##*.}.log"
+            echo "== building $target =="
+            lake --wfail build "$target" >"$log" 2>&1
+            target_status=$?
             cat "$log"
-            if [[ $file_status -ne 0 ]]; then
+            if [[ $target_status -ne 0 ]]; then
               status=1
             fi
           done
