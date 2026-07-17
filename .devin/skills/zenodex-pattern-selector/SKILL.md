@@ -66,32 +66,68 @@ Dependencies point inward. A shell function may call pure core functions.
 A pure core function never calls shell or I/O. If one function contains both,
 extract the deterministic decision into a separate pure function.
 
-The core's responsibilities are **semantic**, not merely structural:
-authorization, admission, signatures/proofs, freshness, replay, AND economics
-(amounts, fees, ordering, conservation). Moving authoritative semantic checks
-out of the core into the shell is a bug. The shell acquires input and commits
-effects; it never decides settlement semantics.
+Keep decisions in the core, represent required effects as values, and
+restrict the shell to evidence acquisition, atomic commit, and external
+execution.
 
-The validation boundary has three layers:
+## Decision rule: concern → location
 
-1. **Shell:** acquire bytes/evidence, enforce transport/resource limits.
-2. **Pure decoder/smart constructors:** canonical syntax and domain types.
-   A parser that takes already-acquired bytes and returns a typed result
-   without IO is functional core, not shell.
-3. **Authoritative core:** authorization, admission, signatures/proofs,
-   freshness, replay, and economics.
+| Concern | Location |
+|---|---|
+| Decode framing, impose resource limits | Shell/boundary |
+| Acquire clock, oracle, signatures, state snapshot | Shell |
+| Validate canonical syntax and construct domain values | Pure boundary parser (core) |
+| Authorization, nonce, phase, and economic eligibility | Core |
+| Rounding, fees, liquidation, and conservation semantics | Core |
+| Describe transfers, postings, receipts, and notifications | Core as effect values |
+| CAS/transaction, storage, network, and effect execution | Shell |
+| Infrastructure retry and transport failure | Shell |
+| Domain rejection and committed-failure semantics | Core |
+
+Two dependency violations the skill prohibits explicitly:
+
+```text
+PROHIBITED: core → repository/oracle/clock/network
+```
+This reverses the dependency direction. The core never acquires external
+input or executes external effects.
+
+```text
+PROHIBITED: shell decides liquidation eligibility, rounding, or compensation
+```
+This leaves authoritative domain logic in the imperative layer. The shell
+acquires input and commits effects; it never decides settlement semantics.
 
 The rule: `src/core/**` must not import from `src/integration/**`.
 
 ## The transition interface
 
 ```python
-def step(
-    pre_state: State,
+# Functional core
+def transition(
+    state: State,
     command: Command,
     evidence: Evidence,
 ) -> Decision:
-    ...
+    # authorization, economic admission, rounding,
+    # conservation and state-transition semantics
+    return Decision(post_state, effects, receipt)
+
+
+# Imperative shell
+def handle(raw_request: bytes) -> Response:
+    command = decode_and_resource_bound(raw_request)
+    evidence = acquire_clock_oracle_and_auth_evidence()
+    pre_state, expected_root = repository.read()
+
+    decision = transition(pre_state, command, evidence)
+
+    repository.atomic_commit(
+        expected_root=expected_root,
+        decision=decision,
+    )
+    outbox.dispatch_idempotently()
+    return encode_response(decision)
 ```
 
 `Evidence` carries time, oracle observations, signatures, block information,
@@ -209,12 +245,28 @@ replayable evidence.
 6. **Canonical encoding independently of in-memory representation.** If data
    is hashed or signed, require a single canonical encoding per semantic
    value via a versioned protocol encoder. The canonical encoding is an ABI.
-7. **Effect plans are first-class.** An accepted transition returns a
-   transitively immutable, canonical, asset-qualified effect plan. Deltas
-   are aggregated by `(principal, asset, custody-domain)` before commitment.
-   Conservation is checked across the complete plan. The transition binds
-   pre-root, command, post-root, effect-plan hash, and replay identity.
-   External effects require a transactional outbox plus idempotent delivery.
+7. **Effects are values, decided by the core, executed by the shell.** The
+   core decides that a transfer, posting, receipt, or notification is
+   required and returns it as a transitively immutable, canonical,
+   asset-qualified effect value. The shell possesses the authority to
+   execute it but does not recalculate the amount or decide whether it
+   should occur. Deltas are aggregated by `(principal, asset,
+   custody-domain)` before commitment. Conservation is checked across the
+   complete plan. The transition binds pre-root, command, post-root,
+   effect-plan hash, and replay identity. External effects require a
+   transactional outbox plus idempotent delivery.
+
+   ```python
+   @dataclass(frozen=True)
+   class TransferEffect:
+       asset: AssetId
+       source: AccountId
+       destination: AccountId
+       amount: Amount
+   ```
+
+   The core returns this as data. The shell executes it. The shell must not
+   reconstruct economic amounts from the effect plan.
 
 ## Representation rules
 
@@ -328,6 +380,11 @@ decode/resource-bound input
     effect plan/outbox
 → idempotently deliver effects
 ```
+
+A nominally thin shell can accumulate substantial domain logic over time
+([Functional Core, Imperative Shell — Shortcomings](https://functional-architecture.org/functional_core_imperative_shell/)).
+Watch for this drift. Represent effectful interactions as pure values and
+separate their description (core) from their execution (shell).
 
 1. **Parse-don't-validate at the boundary.** Convert raw input into typed
    domain objects once, then pass typed objects to the core.
@@ -488,11 +545,18 @@ When generating code, ask yourself:
     for external effects.
 14. **Am I moving an authoritative semantic check into the shell?** → Do
     not commit this form. Authorization, admission, economics, freshness,
-    and replay are core responsibilities.
+    and replay are core responsibilities. The shell acquires input and
+    commits effects; it never decides settlement semantics.
 15. **Am I treating `frozen=True` as a correctness proof?** → It is not.
     Surface immutability is a representation property. The assurance
     comes from the specification, invariant checks, and replayable
     evidence.
+16. **Is the core calling the repository, oracle, clock, or network?** → Do
+    not commit this form. This reverses the dependency direction. Extract
+    the external acquisition into the shell and pass it as `Evidence`.
+17. **Is the shell recalculating amounts or deciding whether an effect
+    occurs?** → Do not commit this form. The core decides and returns
+    effects as values. The shell executes them without reconstruction.
 
 ## Reference files
 
