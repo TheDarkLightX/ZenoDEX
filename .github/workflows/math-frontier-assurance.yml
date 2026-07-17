@@ -33,13 +33,20 @@ jobs:
           test "$(cat external/mathlib4/lean-toolchain)" = "$(cat lean-mathlib/lean-toolchain)"
 
       - name: Install pinned Lean toolchain
-        uses: leanprover/lean-action@v1
-        with:
-          lake-package-directory: lean-mathlib
-          auto-config: false
-          build: false
-          test: false
-          use-mathlib-cache: false
+        env:
+          ELAN_INIT_VERSION: v4.2.1
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/leanprover/elan/${ELAN_INIT_VERSION}/elan-init.sh" \
+            --output /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain leanprover/lean4:v4.27.0
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Verify exact Lean and Lake versions
+        run: |
+          lean --version
+          lake --version
+          test "$(lean --version | awk '{print $3}')" = "4.27.0"
 
       - name: Retrieve pinned mathlib cache
         working-directory: lean-mathlib
