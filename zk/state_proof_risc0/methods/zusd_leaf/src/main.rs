@@ -9,7 +9,10 @@ use tau_state_proof_risc0_shared::{
     compose_zusd_recursive_leaf_summary_v1, ZusdRecursiveLeafInputV1,
     RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
 };
-use tau_state_proof_risc0_zusd_policy::validate_zusd_recursive_baseline_input_v1;
+
+#[path = "../../common/zusd_proof_policy.rs"]
+mod zusd_proof_policy;
+use zusd_proof_policy::validate_zusd_recursive_baseline_input_v1;
 
 risc0_zkvm::guest::entry!(main);
 
