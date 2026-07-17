@@ -30,6 +30,11 @@ generated/batch_auction_settler_v1/python_ref/*
 !generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py
 !generated/perp_python/
 !generated/perp_python/*_ref.py
+!generated/zusd_generic_token_admission_v1/
+generated/zusd_generic_token_admission_v1/*
+!generated/zusd_generic_token_admission_v1/python_ref/
+generated/zusd_generic_token_admission_v1/python_ref/*
+!generated/zusd_generic_token_admission_v1/python_ref/zusd_generic_token_admission_v1_ref.py
 
 # Local dev scratch (not part of repo)
 .claude/
