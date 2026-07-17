@@ -1,13 +1,19 @@
 import pytest
 
 from src.core.zusd_liability_cover import (
+    MAX_U256,
     ZUSDFreeDebtLiabilityBreakdown,
     ZUSDLiabilityCoverCode,
     evaluate_zusd_free_debt_liability_cover,
 )
 
 
-def _breakdown(*, wallet_e8: int = 11, dex_pool_e8: int = 13) -> ZUSDFreeDebtLiabilityBreakdown:
+def _breakdown(
+    *,
+    wallet_e8: int = 11,
+    dex_pool_e8: int = 13,
+    gas_pool_reserve_e8: int = 31,
+) -> ZUSDFreeDebtLiabilityBreakdown:
     return ZUSDFreeDebtLiabilityBreakdown(
         wallet_e8=wallet_e8,
         dex_pool_e8=dex_pool_e8,
@@ -15,6 +21,7 @@ def _breakdown(*, wallet_e8: int = 11, dex_pool_e8: int = 13) -> ZUSDFreeDebtLia
         protocol_fee_reserve_e8=19,
         staking_fee_pool_e8=23,
         host_fee_pool_e8=29,
+        gas_pool_reserve_e8=gas_pool_reserve_e8,
     )
 
 
@@ -55,6 +62,17 @@ def test_wallet_to_pool_transfer_preserves_total(amount: int) -> None:
     assert after.total_e8 == before.total_e8
 
 
+@pytest.mark.parametrize("amount", range(12))
+def test_gas_pool_to_keeper_wallet_transfer_preserves_total(amount: int) -> None:
+    before = _breakdown(wallet_e8=11, gas_pool_reserve_e8=13)
+    after = _breakdown(
+        wallet_e8=before.wallet_e8 + amount,
+        gas_pool_reserve_e8=before.gas_pool_reserve_e8 - amount,
+    )
+
+    assert after.total_e8 == before.total_e8
+
+
 @pytest.mark.parametrize("invalid", [True, 1.0, "1", None])
 def test_breakdown_rejects_non_exact_integers(invalid: object) -> None:
     with pytest.raises(TypeError):
@@ -65,9 +83,28 @@ def test_breakdown_rejects_non_exact_integers(invalid: object) -> None:
             protocol_fee_reserve_e8=0,
             staking_fee_pool_e8=0,
             host_fee_pool_e8=0,
+            gas_pool_reserve_e8=0,
         )
 
 
 def test_breakdown_rejects_negative_domain_amount() -> None:
     with pytest.raises(ValueError, match="dex_pool_e8 must be non-negative"):
         _breakdown(dex_pool_e8=-1)
+
+
+def test_breakdown_rejects_component_above_u256() -> None:
+    with pytest.raises(ValueError, match="wallet_e8 exceeds U256"):
+        _breakdown(wallet_e8=MAX_U256 + 1)
+
+
+def test_breakdown_rejects_total_above_u256() -> None:
+    with pytest.raises(ValueError, match="free_debt_liability_total_e8 exceeds U256"):
+        ZUSDFreeDebtLiabilityBreakdown(
+            wallet_e8=MAX_U256,
+            dex_pool_e8=1,
+            perps_e8=0,
+            protocol_fee_reserve_e8=0,
+            staking_fee_pool_e8=0,
+            host_fee_pool_e8=0,
+            gas_pool_reserve_e8=0,
+        )
