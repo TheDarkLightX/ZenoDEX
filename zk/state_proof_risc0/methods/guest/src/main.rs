@@ -5,6 +5,7 @@ extern crate alloc;
 
 use alloc::vec;
 use risc0_zkvm::guest::{abort, env};
+use tau_state_proof_risc0_guest::validate_zusd_minimum_profile_input_v1;
 use tau_state_proof_risc0_shared::{
     execute_perps_np_transition_v1, execute_state_proof_input_v1, execute_zusd_transition_v1,
     ZenoProofInputV1, RECURSIVE_AGGREGATE_MAX_INPUT_BYTES,
@@ -40,6 +41,9 @@ pub fn main() {
             commit_journal(&journal);
         }
         ZenoProofInputV1::Zusd(input) => {
+            if validate_zusd_minimum_profile_input_v1(&input).is_err() {
+                abort("zusd minimum-profile admission rejected");
+            }
             let journal = match execute_zusd_transition_v1(input) {
                 Ok(value) => value,
                 Err(_) => abort("zusd proof transition rejected"),
