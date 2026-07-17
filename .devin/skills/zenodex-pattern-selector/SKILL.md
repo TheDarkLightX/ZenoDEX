@@ -3,14 +3,15 @@ name: zenodex-pattern-selector
 description: >-
   Concrete, agent-facing pattern-selection guide for ZenoDEX code generation.
   Answers "which code pattern do I use right now, and what does it look like?"
-  Covers: pure immutable deterministic functions (what they are, when to use
-  them, when not to), mutable local builders (when mutation is honest),
-  railway-oriented programming (when to use Result vs exceptions), KISS vs FP
-  vs OOP (which is better and when), and the frozen-dataclass immutability
-  rules that prevent the mutability bugs found in the immutability audit.
-  Use BEFORE writing or editing any value-moving, state-carrying, or
-  transition code in any language in the repo. Routes to zenodex-design-principles
-  for the underlying rationale and zenodex-style-map for the directory routing.
+  Uses three independent axes (authority, lifetime/ownership, failure semantics)
+  instead of a mutually-exclusive taxonomy. Covers: pure deterministic
+  authoritative core, transitively immutable state, mutable local builders,
+  typed rejections, imperative shell, effect plans, refactoring preflight,
+  representation rules, and Rust guidance. Use BEFORE writing or editing any
+  value-moving, state-carrying, or transition code in any language in the repo.
+  Routes to zenodex-design-principles for the underlying rationale,
+  zenodex-style-map for directory routing, and the reference files in this
+  skill for before/after examples and migration guardrails.
 ---
 
 # ZenoDEX Pattern Selector
@@ -19,612 +20,348 @@ This skill answers a single question: **which code pattern do I use right now,
 and what does it look like?** It is written for agents that generate code, to
 prevent the mutability and stringly-typed bugs found in the immutability audit.
 
-For the underlying "why" behind each pattern, read
-`zenodex-design-principles`. For "which directory am I in and what style
-applies there", read `zenodex-style-map`. This skill is the concrete "what to
-type" layer.
+For the underlying "why", read `zenodex-design-principles`. For "which
+directory am I in", read `zenodex-style-map`. For before/after examples and
+migration guardrails, read `reference/before-after-examples.md` and
+`reference/refactoring-preflight.md`.
 
-## The four patterns
+## Three independent axes
 
-Every piece of code in this repo falls into exactly one of four patterns. Pick
-the pattern by answering two questions:
+Every piece of code has three independent properties. Decide each one
+separately.
 
-1. **Does this code move value, decide settlement, or carry committed state?**
-   (Yes = Pattern A. No = continue.)
-2. **Is this a short-lived computation buffer inside a single batch/transaction?**
-   (Yes = Pattern B. No = continue.)
-3. **Is this a fallible boundary or transition step that can reject?**
-   (Yes = Pattern C. No = continue.)
-4. **None of the above** (parsing, IO, tooling, UI, research) = Pattern D.
+### Axis 1: Authority — does this code decide or bind value?
 
 ```text
-Does it move value or carry committed state?
-├── YES → Pattern A: Pure Immutable Deterministic Function
-└── NO
-    └── Is it a short-lived computation buffer?
-        ├── YES → Pattern B: Local Mutable Builder (honestly mutable)
-        └── NO
-            └── Is it a fallible boundary or transition step?
-                ├── YES → Pattern C: Railway/Result
-                └── NO → Pattern D: Imperative Shell
+Does it decide or bind admission, authorization, amounts, fees, ordering,
+freshness, replay, roots, or an effect plan?
+→ Pure deterministic authoritative core.
+  No IO, no wall clock, no randomness, no network, no filesystem, no
+  global mutable state, no floats. Integer-only arithmetic with explicit
+  rounding and dust policy. Output depends only on inputs.
+
+Does it acquire external input or execute an already-decided effect?
+→ Imperative shell.
+  Parsing, validation, subprocess calls, network, filesystem, clock.
+  The shell never decides settlement semantics. It validates at the
+  boundary, calls the core, and emits effects.
 ```
+
+A single function can be pure core in its arithmetic but call into shell for
+IO. The boundary between them is what matters: `src/core/**` must not import
+from `src/integration/**`.
+
+### Axis 2: Lifetime and ownership — does this value escape?
+
+```text
+Does the value escape, persist, hash, sign, cache, or enter a receipt?
+→ Transitively immutable.
+  @dataclass(frozen=True) with only immutable field types: int, bool, str,
+  Enum, tuple, frozenset, or other frozen dataclasses. No Dict, no List,
+  no mutable class fields. Transitions return a new value via replace().
+
+Is it fresh, exclusively owned, function-local scratch space?
+→ Mutable builder permitted inside either core or shell.
+  Honestly mutable (@dataclass without frozen=True, or a plain class).
+  Freshly constructed per computation. Never aliased with committed state.
+  Discarded on rejection. Produces immutable output at the boundary.
+```
+
+The key question is not "is this a builder?" but "does this value escape to a
+context where someone else holds a reference?" If yes, it must be transitively
+immutable. If no, honest mutation is fine.
+
+### Axis 3: Failure semantics — what kind of failure is this?
+
+```text
+Expected protocol rejection (stale oracle, expired intent, violated
+invariant, wrong proof binding)?
+→ Typed outcome. Return a discriminated result with a RejectCode enum
+  and immutable structured details. The caller handles both tracks.
+
+Operational I/O failure (network down, file missing, subprocess crash)?
+→ Shell error/retry policy. Retry must be idempotent or explicitly
+  non-idempotent with a safe replay rule.
+
+Violated internal invariant after trusted construction (out-of-domain
+int after a validated type was already constructed)?
+→ Exception. This is a programmer error, not a protocol path. Raise
+  ValueError/TypeError (survives python -O). Never use assert for
+  runtime validation. In Rust, panic is acceptable for internal
+  invariant violations but never for attacker-reachable inputs.
+```
+
+Whether a range failure is a rejection or an exception depends on the trust
+boundary: malformed transaction input is a rejection; the same value after
+construction of a validated domain type is an internal invariant failure.
+
+### Common compositions
+
+These are the most frequent combinations in the codebase:
+
+- **Authoritative core + typed rejection (A1+C1):** A value-moving transition
+  that can reject. This is the most common pattern in `src/core/`. Example:
+  `src/core/zusd.py` `step()` returns `ZUSDStepResult` with `ok`, `state`,
+  `error` fields.
+- **Authoritative core with internal mutable builder (A1+B):** A pure function
+  that uses local mutable scratch space internally. Example:
+  `src/state/support_root.py` `_SupportAccumulator` builds an immutable
+  `BatchStateSupport` at the boundary.
+- **Shell + typed rejection (D+C1):** A shell handler that parses, validates,
+  calls core, and returns a typed result. Example: `src/integration/zusd_api.py`
+  HTTP handlers.
 
 ---
 
-## Pattern A: Pure Immutable Deterministic Function
+## Mandatory invariants for authoritative state
 
-### What it is
+These apply to every type that escapes, persists, hashes, signs, or enters a
+receipt. They are safety requirements, not style preferences.
 
-A function that:
+### 1. Transitive immutability
 
-1. **Pure** — no side effects. No IO, no network, no filesystem, no wall clock,
-   no randomness, no environment variables, no global mutable state, no logging.
-   The function's output depends only on its inputs.
-2. **Immutable** — every state value is a frozen dataclass whose fields are all
-   immutable types (`int`, `bool`, `str`, `Enum`, `tuple`, `frozenset`, or
-   other frozen dataclasses). No `Dict`, no `List`, no mutable class fields.
-   The function does not mutate its inputs. It returns a new state.
-3. **Deterministic** — same inputs always produce the same output. No hidden
-   state, no mutation, no side effects. The function can be replayed with the
-   same inputs and the output is guaranteed identical.
+`@dataclass(frozen=True)` with only immutable field types. `frozen=True` is one
+Python mechanism, not the definition. The actual requirement is: no retained
+mutable aliases, no mutable contents, no mutation after construction.
 
-### Signature shape
+`MappingProxyType` is a read-only view, not an immutable value — if the
+backing dict is retained elsewhere, it can still be mutated. A canonical sorted
+tuple or purpose-built immutable map is stronger.
 
-```python
-@dataclass(frozen=True)
-class MyState:
-    field_a: int
-    field_b: str
-    accounts: tuple[tuple[str, AccountState], ...]  # sorted, immutable
+### 2. No stringly-typed state bags
 
-@dataclass(frozen=True)
-class MyCommand:
-    action: MyAction  # Enum
-    amount: int
+Every field is a named, typed field on a frozen dataclass. No
+`Dict[str, Any]` or `Dict[str, Value]` as a state representation. Missing keys
+silently return `None` or a default; named fields are visible at construction
+time and checkable by the type system.
 
-@dataclass(frozen=True)
-class MyResult:
-    state: MyState
-    effect: MyEffect
+### 3. Transitions return a new state, never mutate in place
 
-def step(state: MyState, command: MyCommand) -> MyResult:
-    # guards
-    # compute new state
-    new_state = replace(state, field_a=state.field_a + command.amount)
-    return MyResult(state=new_state, effect=MyEffect(...))
-```
+Use `dataclasses.replace(state, field=value)`. Never write `state.field = value`
+or `state.balances.add(...)` on committed state.
 
-### When to use it
+When refactoring a mutable API (e.g., `BalanceTable.add() -> None`) to an
+immutable API, use a deliberately different method name (e.g., `with_delta()`)
+to prevent silent value-loss at existing call sites that ignore the return
+value. See `reference/before-after-examples.md` for the migration pattern.
 
-- **Value-moving state transitions**: settlement, mint/burn/redeem, swap math,
-  liquidation, funding, margin checks, conservation invariants.
-- **Committed state types**: any type that represents a snapshot of system
-  state that will be hashed, signed, persisted, or replayed.
-- **Core math**: AMM output amounts, fee splits, LP ratios, funding rates,
-  liquidation penalties, compensation splits.
-- **Proof witnesses and receipt bodies**: anything that feeds a hash or
-  signature.
+### 4. Integer-only arithmetic
 
-### When NOT to use it
+No floats in consensus, accounting, settlement, core state, proof, or verifier
+paths. Use integer base units with explicit scale, rounding, and dust policy.
 
-- When the code does IO (file, network, subprocess, clock) — that is Pattern D.
-- When the code is a short-lived computation buffer that is freshly constructed,
-  never aliased with committed state, and discarded after use — that is
-  Pattern B.
-- When the code is at a fallible boundary that must return a typed rejection —
-  that is Pattern C (which is Pattern A plus a Result return type).
+### 5. No assert for runtime validation
 
-### Rules
+`assert` vanishes under `python -O`. Use explicit guards that return typed
+rejections or raise `ValueError`/`TypeError`.
 
-1. **Every state type is `@dataclass(frozen=True)` with only immutable field
-   types.** Allowed: `int`, `bool`, `str`, `Enum`, `tuple`, `frozenset`,
-   other frozen dataclasses. Forbidden: `Dict`, `List`, `set`, mutable classes.
-   A `Mapping` annotation is acceptable only if the backing object is a
-   copied-and-frozen dict that is never retained elsewhere; a canonical sorted
-   tuple is stronger.
+### 6. Canonical encoding independently of in-memory representation
 
-2. **Transitions return a new state, never mutate in place.** Use
-   `dataclasses.replace(state, field=value)` to produce a new state. Never
-   write `state.field = value` or `state.balances.add(...)`.
+If data is hashed or signed, require a single canonical encoding per semantic
+value. Define normalization rules (ordering, trimming, sentinel
+representations). The canonical encoding is an ABI — changing it breaks
+signatures and state roots.
 
-3. **Collections are sorted tuples, not dicts.**
-   ```python
-   # BAD: mutable, non-deterministic iteration
-   accounts: Dict[str, AccountState]
+### 7. Effect plans are first-class
 
-   # GOOD: immutable, canonical iteration
-   accounts: tuple[tuple[str, AccountState], ...]  # sorted by key
-   ```
+An accepted authoritative transition returns a transitively immutable,
+canonical, asset-qualified effect plan. Deltas are aggregated by
+`(principal, asset, custody-domain)` before commitment. Conservation is checked
+across the complete plan. The transition binds pre-root, command, post-root,
+effect-plan hash, and replay identity.
 
-4. **No stringly-typed state bags.** Every field is a named, typed field on a
-   frozen dataclass. No `Dict[str, Any]` or `Dict[str, Value]` as a state
-   representation.
-   ```python
-   # BAD: missing keys silently return None
-   global_state: Dict[str, Value]
-
-   # GOOD: every field is named and typed
-   global_state: PerpGlobalState  # frozen dataclass with named fields
-   ```
-
-5. **Integer-only arithmetic.** No floats in consensus, accounting, settlement,
-   core state, proof, or verifier paths. Use integer base units with explicit
-   scale, rounding, and dust policy.
-
-6. **No `assert` for runtime validation.** Use explicit guards that return
-   typed rejections or raise `ValueError`/`TypeError` (which survive
-   `python -O`).
-
-### Repository examples
-
-- `src/core/perp_v2/types.py` — `PerpState` is a frozen dataclass with only
-  `int`, `bool`, `Enum` fields. The correct reference model.
-- `src/core/zusd.py` — `ZUSDState` and `ZUSDMultiState` are frozen dataclasses
-  with only `int` and `bool` fields.
-- `src/core/perp_v4/` — all types frozen, all math pure, transitions via
-  `replace()`.
-- `src/core/cross_shard_decision_certificate.py` — frozen dataclasses with
-  `str`, `int`, `Enum`, `tuple` fields only.
-- `src/core/cpmm.py` — pure CPMM math over integer reserves.
-
-### What goes wrong when you don't use it
-
-The immutability audit (`IMMUTABILITY_AUDIT.md`) found 22 findings caused by
-violating these rules:
-
-- `PoolState` was mutable (`@dataclass` not frozen) — reserves mutated in place
-  during settlement, risking snapshot corruption.
-- `BalanceTable` was a mutable class with `set`/`add`/`subtract` — balances
-  mutated in place, risking aliasing bugs.
-- `PerpMarketState.global_state` was a `Dict[str, Value]` — missing keys
-  silently returned defaults, hiding incomplete state construction.
-- `Intent.fields` was a `Dict[str, Any]` — stringly-typed bag with no
-  compile-time field checking.
-- `Settlement` was mutable — fills and deltas could be mutated after validation.
+The shell applies the core's exact effects once; it must not reconstruct
+economic amounts.
 
 ---
 
-## Pattern B: Local Mutable Builder (honestly mutable)
+## Representation rules
 
-### What it is
+"Use sorted tuples instead of dicts" is too mechanical. Choose by semantics:
 
-A mutable object that accumulates results during a computation, then produces
-an immutable output at the boundary. The builder is freshly constructed for
-each computation, never aliased with committed state, and discarded after the
-immutable output is produced.
+| Semantic type | Representation rule |
+|---|---|
+| Ordered sequence | Immutable tuple in protocol-defined order. Never sort automatically. |
+| Set (no duplicates) | Define duplicate policy and canonical total order. `frozenset` is immutable but not canonically ordered across languages. |
+| Dynamic map | Persistent/immutable map, canonical tuple, or privately owned map behind an immutable API. For large hot state, preserve complexity — benchmark before replacing maps with tuples. |
+| Hash/signature encoding | Canonicalize by specified bytes, independently of in-memory representation. |
+| Large hot state | Preserve O(1) lookup complexity. Benchmark before replacing maps with linear-scan tuples. |
 
-### Signature shape
-
-```python
-@dataclass  # honestly mutable — no frozen=True
-class _SettlementBuffers:
-    fills: list[Fill]
-    balance_deltas: list[BalanceDelta]
-    reserve_deltas: list[ReserveDelta]
-
-def compute_settlement(...) -> Settlement:
-    buffers = _SettlementBuffers(fills=[], balance_deltas=[], ...)
-    # ... accumulate into buffers ...
-    return Settlement(
-        fills=tuple(buffers.fills),           # immutable at boundary
-        balance_deltas=tuple(buffers.balance_deltas),
-        ...
-    )
-```
-
-### When to use it
-
-- **Batch clearing internals**: accumulating fills, deltas, and events during
-  a single batch computation.
-- **Support root derivation**: accumulating keys and IDs while scanning intents.
-- **Settlement application**: applying deltas to a working copy of state before
-  producing the committed post-state.
-- **Any computation where the intermediate accumulator is short-lived, freshly
-  owned, and never shared with committed state.**
-
-### When NOT to use it
-
-- When the builder's state is committed state (use Pattern A).
-- When the builder escapes its construction scope (use Pattern A).
-- When the builder is aliased with a prior snapshot (use Pattern A).
-- When the builder is retained after a rejection (use Pattern A — the builder
-  must be discarded, and the pre-state must be untouched).
-
-### Rules
-
-1. **The builder is honestly mutable.** Do not write `@dataclass(frozen=True)`
-   on a builder. The `frozen=True` flag is a lie if the fields are `list` or
-   `dict`. Either make it `@dataclass` (honestly mutable) or refactor to
-   functional accumulation.
-
-2. **The builder is freshly constructed per computation.** Never reuse a
-   builder across batches, transactions, or requests.
-
-3. **The builder is never aliased with committed state.** If the builder holds
-   a `BalanceTable`, it must be a copy, not the original.
-
-4. **The builder is discarded on rejection.** If the computation fails, the
-   builder is thrown away. The pre-state is untouched.
-
-5. **The output at the boundary is immutable.** The builder produces a frozen
-   `Settlement`, frozen `BatchStateSupport`, or other immutable type. The
-   caller never sees the mutable builder.
-
-6. **The observationally pure boundary is preserved.** From the caller's
-   perspective, the function is pure: same inputs always produce the same
-   output. The internal mutation is an implementation detail.
-
-### Repository examples
-
-- `src/state/support_root.py:58-63` — `_SupportAccumulator` with mutable `set`
-  fields, produces immutable `BatchStateSupport` (frozen dataclass with sorted
-  tuples) at the boundary. Correct builder pattern.
-- `src/core/batch_clearing_compute.py:30-37` — `_SettlementBuffers` is
-  honestly `@dataclass` (not frozen), accumulates fills/deltas, feeds into
-  `Settlement` at the boundary. Correct builder pattern.
-- `src/core/batch_clearing_single_pool.py:70-76` — `_SinglePoolRuntime` is
-  honestly mutable, accumulates fills and reserves, feeds into the fill list
-  at the boundary. Correct builder pattern.
-- `src/core/batch_clearing.py:496-512` — `apply_settlement_pure` copies state
-  before mutating, returns the copy. The original is untouched. Correct
-  copy-then-mutate-then-return pattern.
-
-### What goes wrong when you lie about it
-
-- `src/core/batch_clearing_compute.py:40-45` — `_SettlementExecutionState` is
-  `@dataclass(frozen=True)` but holds `Dict`, `BalanceTable`, and
-  `_SettlementBuffers` (mutable). The `frozen=True` flag is misleading. It
-  should be `@dataclass` (honestly mutable) since it is a builder.
+A tuple permits duplicate keys, can contain mutable elements, and turns balance
+lookups into O(n) operations. For a 10-key market config, a sorted tuple is
+fine. For a 100,000-entry balance table, a tuple is quadratic. Choose by the
+actual access pattern and size.
 
 ---
 
-## Pattern C: Railway / Result
+## Typed rejections
 
-### What it is
-
-A function that returns a typed result: either a success carrying a value, or
-a failure carrying a typed rejection reason. The caller handles both tracks
-explicitly. Failures short-circuit the pipeline without exceptions or nested
-`if` ladders.
-
-### Signature shape
+For new authoritative code, use a discriminated result with a `RejectCode`
+enum and immutable structured details:
 
 ```python
+class RejectCode(Enum):
+    NEGATIVE_AMOUNT = "negative_amount"
+    INSUFFICIENT_BALANCE = "insufficient_balance"
+    STALE_ORACLE = "stale_oracle"
+    EXPIRED_INTENT = "expired_intent"
+    # ...
+
 @dataclass(frozen=True)
 class StepOk:
     state: MyState
     effect: MyEffect
 
 @dataclass(frozen=True)
-class StepError:
-    code: str   # stable rejection code
-    message: str
+class StepReject:
+    code: RejectCode
+    details: RejectDetails  # frozen dataclass, not str
 
-def step(state: MyState, command: MyCommand) -> StepOk | StepError:
+def step(state: MyState, command: MyCommand) -> StepOk | StepReject:
     if command.amount < 0:
-        return StepError(code="negative_amount", message="amount must be non-negative")
-    # ... compute ...
-    return StepOk(state=new_state, effect=MyEffect(...))
+        return StepReject(code=RejectCode.NEGATIVE_AMOUNT, details=...)
+    return StepOk(state=new_state, effect=...)
 ```
 
-### When to use it
+Legacy boolean/string results (`rejection: str | None`, `(ok, reason)` tuples)
+can remain behind compatibility adapters. Do not mix Result APIs in the same
+function — the shell example in `reference/before-after-examples.md` shows the
+correct exhaustive handling pattern.
 
-- **Fallible boundaries**: parsing, validation, command acceptance.
-- **Transition steps that can reject**: deposit, withdraw, swap, liquidate,
-  mint, burn, redeem.
-- **Anywhere the rejection reason is part of the protocol contract** and tests
-  must assert *why* it failed.
-- **Anywhere a failure should short-circuit a pipeline** without exceptions.
-
-### When NOT to use it
-
-- **Inside a pure core function guarding a precondition** that the type system
-  cannot express (e.g., `require_int_range` raising `ValueError` on an
-  out-of-domain int — a contract violation, not a protocol path). Use
-  exceptions here.
-- **For programmer errors or tool/infrastructure failures** (misconfiguration,
-  missing binary, bug). Use exceptions or `panic!` in Rust.
-- **In UI code** — errors are surfaced as UI state, not Result types.
-- **As a blanket framework** — do not wrap every simple value in a custom
-  result type. Do not build a monad framework in Python.
-
-### Rules
-
-1. **Use Result/railway for domain errors, not for everything.** A domain error
-   is a protocol outcome the system must handle and tests must assert. A
-   programmer error is a bug that should surface loudly.
-
-2. **Rejection reasons are typed and stable.** Use an `Enum` or a frozen
-   dataclass with a `code` field. Do not use generic `ValueError` or
-   `RuntimeError` to drive protocol behavior on critical paths.
-
-3. **Negative tests assert the rejection class/code.** Do not assert on error
-   message strings (they change). Assert on the typed rejection.
-
-4. **In Rust, use native `Result<T, E>` and `Option<T>`.** The `?` operator is
-   railway propagation. Do not build a custom result type.
-
-5. **In Python, use small typed results or `(ok, reason)` tuples.** Do not
-   build a monad framework. Do not wrap every value in a result type.
-
-### Repository examples
-
-- `src/core/perp_v2/types.py:156-158` — `StepResult` is a frozen dataclass
-  with `state` and `effect` fields. The engine returns `StepResult` or raises
-  `ValueError` for contract violations.
-- `src/core/zusd.py` — `step()` returns `ZUSDStepResult` with `ok`, `state`,
-  `error` fields. Rejection reasons are typed strings.
-- `src/kernels/python/*_native_adapter.py` — ESSO adapters return `StepOk` /
-  `StepError` from the interpreter.
-- `zk/state_proof_risc0/**` — native Rust `Result<T, E>` and `Option<T>`.
+Negative tests assert the rejection enum, not the error message string.
 
 ---
 
-## Pattern D: Imperative Shell
+## Mutable builder rules
 
-### What it is
+A mutable builder is acceptable inside either core or shell when:
 
-Code that performs IO, parsing, subprocess calls, network access, filesystem
-operations, clock reads, and other side effects. The shell validates and
-translates external input into typed commands, calls the functional core, and
-emits effects. The shell never decides settlement semantics.
+1. **Honestly mutable.** `@dataclass` without `frozen=True`, or a plain class.
+   Never `@dataclass(frozen=True)` on a mutable builder — the `frozen=True` flag
+   is a lie if the fields are `list` or `dict`.
+2. **Freshly constructed per computation.** Never reused across batches,
+   transactions, or requests.
+3. **Never aliased with committed state.** If the builder holds a
+   `BalanceTable`, it must be a deep copy, not the original. Copying the outer
+   container is not enough — nested mutable values must also be copied.
+4. **Discarded on rejection.** If the computation fails, the builder is thrown
+   away. The pre-state is untouched.
+5. **Output at the boundary is transitively immutable.** The builder produces
+   a frozen dataclass with tuple fields, not a mutable list or dict.
 
-### Signature shape
+### Repository exemplars
 
-```python
-def handle_request(raw_input: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-    # 1. Parse and validate at the boundary
-    command = parse_command(raw_input)  # Pattern C: returns typed result
-    if not command.ok:
-        return 400, {"error": command.reason}
+**Correct builder pattern:**
+- `src/state/support_root.py:58-63` — `_SupportAccumulator` with mutable `set`
+  fields, produces immutable `BatchStateSupport` (frozen dataclass with sorted
+  tuples) at the boundary.
+- `src/core/settlement.py:336-360` — `Settlement` is
+  `@dataclass(frozen=True, init=False)` with `tuple[Fill, ...]` fields. `Fill`,
+  `BalanceDelta`, `ReserveDelta`, `LPDelta` are all `@dataclass(frozen=True)`
+  with immutable fields. This is a transitively immutable boundary type.
 
-    # 2. Load state (IO)
-    state = load_state_from_snapshot()
+**Transitional exemplars (not yet safe, do not copy as templates):**
+- `src/core/batch_clearing_compute.py:30-37` — `_SettlementBuffers` is honestly
+  mutable, but its output path must convert lists to tuples at the Settlement
+  boundary (this is done correctly today, but the builder itself is not a
+  general-purpose safe template).
+- `src/core/batch_clearing_single_pool.py:71-76` — `_SinglePoolRuntime` is
+  honestly mutable and returns `runtime.fills` (a mutable `List[Fill]`) directly.
+  The caller converts to tuple when building `Settlement`, but the runtime
+  itself does not enforce the immutable-boundary contract.
+- `src/integration/perp_engine.py:7396-7428` — `_build_perp_apply_ctx` copies
+  the outer `markets` dict but nested `PerpMarketState` values remain aliased
+  to the original state. Operationally careful today (frozen dataclass prevents
+  field reassignment), but `global_state: Dict[str, Value]` inside
+  `PerpMarketState` is still mutable and aliased. Do not copy as a general
+  ownership template.
+- `src/core/batch_clearing.py:496-512` — `apply_settlement_pure` copies before
+  mutating, but returns mutable `BalanceTable`, `dict`, and `LPTable`. The
+  copy-then-mutate pattern is correct in spirit, but the return types are not
+  transitively immutable.
 
-    # 3. Call functional core (Pattern A)
-    result = step(state, command.value)
+---
 
-    # 4. Persist state (IO)
-    if result.ok:
-        save_state(result.state)
+## Imperative shell rules
 
-    # 5. Return response
-    return 200, {"state": serialize(result.state)}
-```
-
-### When to use it
-
-- **API handlers**: HTTP request parsing, response formatting.
-- **Snapshot serialization**: loading and saving state from disk/database.
-- **Subprocess invocation**: calling Tau, RISC0, ESSO tools.
-- **Oracle ingestion**: reading external price feeds.
-- **Wallet/signature surfaces**: signing and verifying transactions.
-- **Demo/audit harnesses**: in-memory state for testing.
-
-### When NOT to use it
-
-- **In the functional core.** The core must not import from the shell.
-  `src/core/**` must not import from `src/integration/**`.
-- **For value-moving math.** Use Pattern A.
-- **For committed state types.** Use Pattern A.
-
-### Rules
-
-1. **The shell validates at the boundary.** Parse-don't-validate: convert raw
-   input into typed domain objects once, then pass typed objects to the core.
-
+1. **Parse-don't-validate at the boundary.** Convert raw input into typed
+   domain objects once, then pass typed objects to the core.
 2. **The shell never decides settlement semantics.** Business rules belong in
-   the core. The shell is an adapter.
-
-3. **The shell captures external time, randomness, and IO once, labels them,
-   and passes them explicitly inward.** The core never reads the clock or
-   environment.
-
-4. **The shell may use mutable context objects** as long as they are freshly
-   owned, transaction-local, non-escaping, and discarded on rejection. The
-   committed state produced at the boundary must be immutable (Pattern A).
-
-5. **Retries must be idempotent** or explicitly non-idempotent with a safe
+   the core.
+3. **Capture external time, randomness, and IO once, label them, pass them
+   explicitly inward.** The core never reads the clock or environment.
+4. **Exhaustive result handling.** The shell must handle both success and
+   rejection from the core. See `reference/before-after-examples.md` for the
+   correct shell template.
+5. **Atomic commit.** The shell must atomically commit: expected pre-root/
+   version, post-state, complete typed effect plan, nonce/replay record, and
+   receipt or effect-plan hash. Persisting only state and dropping the effect
+   plan is a bug.
+6. **Retries must be idempotent** or explicitly non-idempotent with a safe
    replay rule.
-
-6. **Demo paths must never become authority.** Module-level mutable state in
+7. **Demo paths must never become authority.** Module-level mutable state in
    demo/audit code is acceptable for testing but must not be promoted to
    production.
 
-### Repository examples
+---
 
-- `src/integration/perp_engine.py` — `_PerpApplyCtx` is a mutable context
-  object used for transaction-local state. Acceptable as shell.
-- `src/integration/zusd_api.py` — HTTP handler that parses requests, calls the
-  zUSD core, and returns responses.
-- `src/integration/zusd_monetary_bridge.py` — production monetary bridge that
-  calls the zUSD core with shutdown extension.
-- `src/integration/validation.py` — shell-side acceptance gate that returns
-  `(ok, reason)` then delegates to the core.
+## Refactoring preflight
+
+Before editing existing value-moving or state-carrying code, record:
+
+1. **Exact artifact being changed** — not merely its directory.
+2. **Authority and commit boundaries** — what does this code decide or bind?
+3. **Constructors, mutation sites, and retained aliases** — who constructs,
+   who mutates, who holds a reference?
+4. **Public APIs and callers** — what breaks if the API changes?
+5. **Snapshot/wire serialization** — does changing the representation break
+   canonical encoding?
+6. **State-root, hash, signature, and proof consumers** — does changing the
+   representation break any hash or signature?
+7. **Python/Rust parity consumers** — does changing one side break parity?
+8. **Existing order, duplicate, rounding, and rejection semantics** — must
+   be preserved unless the change is intentionally semantic.
+9. **Current complexity and performance budget** — does the refactor change
+   Big-O? Benchmark before replacing maps with tuples on hot paths.
+10. **Representation-only or intentionally semantic?** Representation and
+    semantic changes should be separate patches. No opportunistic neighboring
+    refactors.
+
+Committed or wire-visible changes require a schema version/migration and
+golden vectors. See `reference/refactoring-preflight.md` for the full
+checklist.
 
 ---
 
-## KISS vs FP vs OOP — which is better?
+## Rust guidance
 
-**None is universally better. The right pattern depends on the authority and
-risk surface of the code, not on taste.**
+The skill applies to Rust code in `zk/state_proof_risc0/**` and any future
+Rust surfaces. Rust-specific rules:
 
-### KISS (Keep It Simple, Stupid)
-
-KISS is a tiebreaker, not a pattern. It says: when two patterns are equally
-safe for the authority surface, pick the simpler one. It does not say: always
-pick the simplest code regardless of risk.
-
-- **Use KISS as a tiebreaker** when Pattern A and Pattern B are both safe for
-  the surface and Pattern B is simpler.
-- **Do not use KISS to justify mutable state in the functional core.** A
-  mutable `BalanceTable` is simpler than an immutable sorted-tuple
-  `BalanceTable`, but it is not safe for committed state. KISS does not
-  override the authority surface.
-- **Do not use KISS to justify stringly-typed state bags.** A
-  `Dict[str, Value]` is simpler than a frozen dataclass with named fields, but
-  it hides missing fields and weakens the type system. KISS does not override
-  make-invalid-states-unrepresentable.
-
-### Functional Programming (FP)
-
-FP is the correct style for the functional core (Pattern A). Pure functions,
-immutable data, no side effects. This is not a preference — it is a safety
-requirement for value-moving code.
-
-- **Use FP for**: value-moving state transitions, committed state types, core
-  math, proof witnesses, receipt bodies.
-- **Do not use FP for**: IO, parsing, subprocess calls, network access (use
-  Pattern D).
-- **Do not use FP as a blanket framework**: do not build a monad framework in
-  Python, do not wrap every value in a custom result type, do not force
-  railway-oriented programming where a simple exception is clearer.
-
-### Railway-Oriented Programming (ROP)
-
-ROP is a specific FP technique for error handling. It is Pattern C. Use it at
-fallible boundaries and transition steps where a typed rejection improves
-auditability and negative testing.
-
-- **Use ROP for**: domain errors that the protocol must handle and tests must
-  assert.
-- **Do not use ROP for**: programmer errors, tool failures, UI errors, or as a
-  blanket framework.
-
-### Object-Oriented Programming (OOP)
-
-OOP is the correct style for the imperative shell (Pattern D) and for builders
-(Pattern B). Mutable objects with methods are honest about their mutability.
-
-- **Use OOP for**: API handlers, snapshot serializers, subprocess wrappers,
-  wallet/signature surfaces, demo harnesses.
-- **Do not use OOP for**: the functional core. Mutable objects with methods
-  that mutate internal state are not safe for committed state.
-- **Do not use OOP to hide mutation behind a frozen facade.** A
-  `@dataclass(frozen=True)` with `Dict` fields is OOP pretending to be FP. It
-  is the worst of both worlds: the immutability is a lie, and the mutation is
-  hidden.
-
-### Decision table
-
-| Code surface | Pattern | Style | KISS applies? |
-|---|---|---|---|
-| Value-moving transition | A | FP (pure, immutable) | No — safety requirement |
-| Committed state type | A | FP (frozen dataclass) | No — safety requirement |
-| Core math | A | FP (pure function) | Yes — pick simplest safe formula |
-| Proof witness / receipt body | A | FP (frozen, hash-bound) | No — safety requirement |
-| Batch computation buffer | B | OOP (honestly mutable) | Yes — pick simplest accumulator |
-| Support root derivation | B | OOP (honestly mutable) | Yes |
-| Fallible boundary | C | ROP (typed Result) | Yes — pick simplest result type |
-| Transition step that can reject | C | ROP (typed Result) | No — rejection reason is a contract |
-| API handler | D | OOP (imperative shell) | Yes |
-| Snapshot serialization | D | OOP (imperative shell) | Yes |
-| Subprocess invocation | D | OOP (imperative shell) | Yes |
-| Demo/audit harness | D | OOP (imperative shell) | Yes |
-
----
-
-## The frozen-dataclass immutability rules
-
-These rules prevent the mutability bugs found in the immutability audit. They
-apply to every state type in Pattern A.
-
-### Rule 1: Every state type is `@dataclass(frozen=True)`
-
-```python
-# BAD
-@dataclass
-class PoolState:
-    reserve0: int
-    reserve1: int
-
-# GOOD
-@dataclass(frozen=True)
-class PoolState:
-    reserve0: int
-    reserve1: int
-```
-
-### Rule 2: Every field is an immutable type
-
-```python
-# BAD: Dict is mutable even inside a frozen dataclass
-@dataclass(frozen=True)
-class DexState:
-    pools: Dict[str, PoolState]       # frozen lie
-    balances: BalanceTable             # mutable class
-
-# GOOD: tuple and frozen dataclass only
-@dataclass(frozen=True)
-class DexState:
-    pools: tuple[tuple[str, PoolState], ...]    # sorted, immutable
-    balances: BalanceTable                       # after BalanceTable is made frozen
-```
-
-### Rule 3: Collections are sorted tuples, not dicts
-
-```python
-# BAD: mutable, non-deterministic iteration
-accounts: Dict[str, AccountState]
-
-# GOOD: immutable, canonical iteration
-accounts: tuple[tuple[str, AccountState], ...]  # sorted by key
-```
-
-### Rule 4: No stringly-typed state bags
-
-```python
-# BAD: missing keys silently return None
-global_state: Dict[str, Value]
-
-# GOOD: every field is named and typed
-@dataclass(frozen=True)
-class PerpGlobalState:
-    now_epoch: int
-    fee_pool_quote: int
-    insurance_balance: int
-    # ... every key that was in the Dict
-```
-
-### Rule 5: Transitions return a new state, never mutate in place
-
-```python
-# BAD: mutates in place
-pool.reserve0 += amount
-balances.add(pubkey, asset, delta)
-
-# GOOD: returns a new state
-new_pool = replace(pool, reserve0=pool.reserve0 + amount)
-new_balances = balances.add(pubkey, asset, delta)  # returns new BalanceTable
-```
-
-### Rule 6: Local mutable builders are honestly mutable
-
-```python
-# BAD: frozen lie on a mutable builder
-@dataclass(frozen=True)
-class _SettlementBuffers:
-    fills: list[Fill]
-
-# GOOD: honestly mutable builder
-@dataclass
-class _SettlementBuffers:
-    fills: list[Fill]
-```
-
-### Rule 7: The output at the boundary is immutable
-
-```python
-# BAD: returns mutable lists
-def compute_settlement(...) -> Settlement:
-    ...
-    return Settlement(fills=buffers.fills, ...)  # mutable list escapes
-
-# GOOD: returns immutable tuples
-def compute_settlement(...) -> Settlement:
-    ...
-    return Settlement(fills=tuple(buffers.fills), ...)  # frozen at boundary
-```
+- **Maps:** Use `BTreeMap` for canonically ordered key-value state. Use
+  `Vec` only for ordered sequences where order is protocol-defined. Do not
+  use `HashMap` for state that will be hashed or serialized canonically
+  (iteration order is non-deterministic).
+- **Interior mutability:** `Cell`/`RefCell` for single-threaded scratch space
+  is acceptable inside a builder. `Mutex`/`RwLock` for shared state is shell
+  territory. Neither belongs in the authoritative core.
+- **Checked arithmetic:** Use `checked_add`, `checked_sub`, `checked_mul`
+  for all value-moving arithmetic. Python/Rust integer-domain parity must be
+  verified — Python ints are arbitrary precision, Rust ints overflow.
+- **Stable enum discriminants:** Enum discriminants are part of the canonical
+  encoding. Do not reorder variants. New variants are trailing.
+- **Canonical Serde encoding:** Derive `Serialize`/`Deserialize` with
+  explicit field order. Use `#[serde(rename_all = "snake_case")]` for
+  stable wire names. Do not rely on struct field order for canonical bytes.
+- **`#[must_use]` on returned transitions and effect plans:** Prevents
+  silently ignoring a returned state or effect.
+- **No panic for attacker-reachable inputs:** Return `Result<T, E>` for
+  any input that crosses a trust boundary. `panic!`/`unwrap`/`expect` are
+  for internal invariant violations only, never for attacker-controlled data.
+- **Ownership moves preserve replayable pre-state:** The pre-state must not
+  be consumed by the transition. Take `&State`, return `State` (owned new
+  value), or take `State` by value and return a new `State` (the caller
+  retains the old one if they cloned it before the call).
 
 ---
 
@@ -632,26 +369,44 @@ def compute_settlement(...) -> Settlement:
 
 When generating code, ask yourself:
 
-1. **Am I moving value or carrying committed state?** → Pattern A. Frozen
-   dataclass, immutable fields, pure function, `replace()` transitions.
-2. **Am I accumulating intermediate results?** → Pattern B. Honestly mutable
-   builder, freshly constructed, discarded after use, immutable output at
+1. **Does this code decide or bind value?** → Pure deterministic core. No IO,
+   no floats, no hidden state.
+2. **Does this value escape, persist, hash, or sign?** → Transitively
+   immutable. Frozen dataclass with immutable field types.
+3. **Is this fresh, function-local scratch space?** → Mutable builder
+   permitted. Honestly mutable, discarded after use, immutable output at
    boundary.
-3. **Can this step reject with a typed reason?** → Pattern C. Typed Result,
-   stable rejection codes, negative tests assert the code.
-4. **Am I doing IO, parsing, or shell work?** → Pattern D. Imperative shell,
-   parse-don't-validate, never decides settlement semantics.
+4. **Can this step reject with a typed reason?** → Typed result with
+   `RejectCode` enum. Negative tests assert the enum.
 5. **Am I using `Dict` or `List` inside a `@dataclass(frozen=True)`?** → Stop.
    This is the frozen lie. Use `tuple` or make the builder honestly mutable.
 6. **Am I using `Dict[str, Any]` as a state type?** → Stop. This is a
    stringly-typed bag. Use a frozen dataclass with named fields.
 7. **Am I mutating a state object in place?** → Stop. Use `replace()` to
-   return a new state. The only exception is a local builder (Pattern B) that
-   is discarded after use.
-8. **Am I using `assert` for runtime validation?** → Stop. Use explicit guards
-   that return typed rejections or raise `ValueError`/`TypeError`.
-9. **Am I using floats in value-moving math?** → Stop. Use integer base units
-   with explicit scale, rounding, and dust policy.
-10. **Am I adding a pattern because it is familiar?** → Stop. Use the smallest
-    pattern that makes the boundary clearer. Pattern cargo-culting makes code
-    harder to audit.
+   return a new state. The only exception is a local builder that is
+   discarded after use.
+8. **Am I using `assert` for runtime validation?** → Stop. Use explicit
+   guards that return typed rejections or raise `ValueError`/`TypeError`.
+9. **Am I using floats in value-moving math?** → Stop. Use integer base
+   units with explicit scale, rounding, and dust policy.
+10. **Am I refactoring an existing mutable API to immutable?** → Use a
+    deliberately different method name (e.g., `with_delta()` not `add()`).
+    Existing call sites that ignore the return value would silently stop
+    moving value. Run the refactoring preflight (see above).
+11. **Am I persisting only state and dropping the effect plan?** → Stop.
+    The shell must atomically commit state + effect plan + nonce/replay
+    record + receipt hash.
+12. **Am I adding a pattern because it is familiar?** → Stop. Use the
+    smallest pattern that makes the boundary clearer. Judge observable
+    properties (purity, immutability, ownership, authority), not style
+    labels (FP, OOP, KISS).
+
+---
+
+## Reference files
+
+- `reference/before-after-examples.md` — concrete before/after code for each
+  pattern, including the correct shell template, BalanceTable migration with
+  `with_delta()` API, and anti-patterns.
+- `reference/refactoring-preflight.md` — full preflight checklist for
+  refactoring value-moving code.
