@@ -9,6 +9,7 @@ use tau_state_proof_risc0_shared::{
     execute_perps_np_transition_v1, execute_state_proof_input_v1, execute_zusd_transition_v1,
     ZenoProofInputV1, RECURSIVE_AGGREGATE_MAX_INPUT_BYTES,
 };
+use tau_state_proof_risc0_zusd_policy::validate_zusd_scoped_snapshot_conservation_v1;
 
 risc0_zkvm::guest::entry!(main);
 
@@ -40,6 +41,9 @@ pub fn main() {
             commit_journal(&journal);
         }
         ZenoProofInputV1::Zusd(input) => {
+            if let Err(error) = validate_zusd_scoped_snapshot_conservation_v1(&input) {
+                abort(error.as_str());
+            }
             let journal = match execute_zusd_transition_v1(input) {
                 Ok(value) => value,
                 Err(_) => abort("zusd proof transition rejected"),
