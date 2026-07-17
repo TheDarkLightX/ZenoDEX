@@ -32,14 +32,23 @@ jobs:
             external/mathlib4
           test "$(cat external/mathlib4/lean-toolchain)" = "$(cat lean-mathlib/lean-toolchain)"
 
-      - name: Install pinned Lean and retrieve mathlib cache
+      - name: Install pinned Lean toolchain
         uses: leanprover/lean-action@v1
         with:
           lake-package-directory: lean-mathlib
           auto-config: false
           build: false
           test: false
-          use-mathlib-cache: true
+          use-mathlib-cache: false
+
+      - name: Retrieve pinned mathlib cache
+        working-directory: lean-mathlib
+        run: |
+          set +e
+          lake exe cache get > /tmp/mathlib-cache.log 2>&1
+          status=$?
+          cat /tmp/mathlib-cache.log
+          exit "$status"
 
       - name: Compile both frontier modules directly
         working-directory: lean-mathlib
