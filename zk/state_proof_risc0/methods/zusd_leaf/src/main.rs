@@ -9,6 +9,7 @@ use tau_state_proof_risc0_shared::{
     compose_zusd_recursive_leaf_summary_v1, ZusdRecursiveLeafInputV1,
     RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
 };
+use tau_state_proof_risc0_zusd_policy::validate_zusd_recursive_baseline_input_v1;
 
 risc0_zkvm::guest::entry!(main);
 
@@ -24,6 +25,9 @@ pub fn main() {
         Ok(value) => value,
         Err(_) => abort("failed to decode recursive zUSD leaf input"),
     };
+    if let Err(error) = validate_zusd_recursive_baseline_input_v1(&input) {
+        abort(error.as_str());
+    }
     let summary = match compose_zusd_recursive_leaf_summary_v1(input) {
         Ok(value) => value,
         Err(_) => abort("recursive zUSD leaf transition rejected"),
