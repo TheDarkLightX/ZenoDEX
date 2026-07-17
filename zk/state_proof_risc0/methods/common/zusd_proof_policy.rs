@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use tau_state_proof_risc0_shared::{
     ZusdOperationV1, ZusdRecursiveLeafInputV1, ZusdTransitionInputV1,
 };
