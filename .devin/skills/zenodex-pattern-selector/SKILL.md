@@ -292,6 +292,149 @@ A privately owned map with canonical serialization may be safer and faster
 than an immutable tuple with linear updates. Using a dictionary should
 trigger classification and verification, not an automatic tuple rewrite.
 
+## Source order as auditability
+
+Source code is a serialized projection of a dependency graph. Choose the
+serialization that best communicates provenance and causality. This is an
+auditability and perspicuity pattern — it makes bugs easier to see and
+reviews less cognitively expensive. It is not proof evidence and must never
+upgrade an assurance claim by itself.
+
+([Google Testing Blog — Arrange Your Code to Communicate Data Flow](https://testing.googleblog.com/2025/01/arrange-your-code-to-communicate-data.html))
+
+### Core vs shell: different ordering rules
+
+| Location | Meaning of source order | Rule |
+|---|---|---|
+| Pure functional core | Usually explanatory; independent nodes have multiple equivalent topological orders | Choose the order that minimizes cognitive distance and exposes the proof narrative |
+| Imperative shell | Often authoritative protocol semantics | Preserve happens-before, atomicity, retry, journaling, and recovery order |
+
+Purity creates the freedom to reorder for comprehension. Independent
+calculations in a genuinely pure core may be reordered without changing
+behavior. The shell is different: reordering `journal → commit → publish →
+acknowledge` may change crash recovery, duplication, or loss semantics. The
+shell should communicate its effect state machine, not merely produce
+attractive dataflow grouping.
+
+### Transition shape: read like a proof
+
+A value-moving function should read approximately like a proof:
+
+```text
+authoritative snapshot and evidence
+    ↓
+canonicalization and typed validation
+    ↓
+eligibility and local preconditions
+    ↓
+debt / collateral / fee calculations
+    ↓
+explicit join into bounded deltas
+    ↓
+conservation and post-state invariants
+    ↓
+Decision(next_state, effects, receipt)
+```
+
+### Parallel economic flows: deliberately parallel structure
+
+Independent economic flows should be visibly grouped with deliberately
+parallel structure so omissions and semantic asymmetries become conspicuous:
+
+```python
+liquidated_debt_e8 = ...
+sp_offset_debt_e8 = ...
+redistributed_debt_e8 = ...
+
+liquidated_collateral_e8 = ...
+liquidator_compensation_e8 = ...
+sp_collateral_e8 = ...
+redistributed_collateral_e8 = ...
+
+deltas = LiquidationDeltas(...)
+assert_liquidation_conservation(state, deltas)
+```
+
+This could have made the multi-vault gas-compensation divergence easier to
+notice. It would not, by itself, prove that the omitted behavior was required.
+
+### Dataflow shape classification
+
+Classify the shape before recommending a refactoring:
+
+- **Linear dependency chain:** single-assignment locals in topological order.
+- **Independent branches followed by a join:** group each branch, make the
+  join explicit.
+- **Reused derived facts:** introduce a typed semantic record rather than
+  recomputing or passing loose values.
+- **Large fan-in:** extract a named invariant-bearing aggregation boundary.
+- **Cyclic behavior:** model a state machine or reducer; do not manufacture
+  a misleading linear pipeline.
+- **External effects:** return an effect plan from the core and execute an
+  explicit protocol in the shell.
+
+### Conditional method extraction
+
+Extract when the new function names a genuine domain operation, invariant,
+or semantic phase with a small complete contract. Do not extract merely to
+shorten a function if doing so:
+
+- scatters a comprehensible proof narrative;
+- hides required evidence or rounding assumptions;
+- creates a large parameter bundle;
+- conceals reads of ambient state;
+- increases the distance between a derived value and its invariant check.
+
+An unextractable tangled function is still useful evidence: it may indicate
+missing domain types, mixed authorities, or a state transition that has not
+been decomposed semantically.
+
+### Strengthened rule for critical code
+
+Within each semantic phase, order single-assignment bindings to expose the
+dependency and provenance graph. Keep checks adjacent to the exact values
+they justify, use named invariant-bearing boundaries, and never reorder
+across authority or effect phases without establishing observational
+equivalence.
+
+Additional requirements:
+
+- Bind one authoritative snapshot first; "declare near use" must not cause
+  repeated reads from changing state.
+- Use distinct names or types for semantic transformations:
+  `RawOracleQuote → ValidatedOracleQuote → PriceE8 → CollateralValueE8 →
+  CollateralRatioBps`.
+- Make units, rounding policy, epoch, and version visible in types or names.
+- Avoid shadowing when the old and new values have different semantic status.
+- Keep definition-to-use distance short, especially for bounds and witnesses.
+- Represent joins and fan-outs explicitly.
+
+### Logging and metrics are side effects
+
+The article's logging example should not be copied literally into the
+functional core. Logging and metrics are side effects. The core should
+return them as declared data:
+
+```python
+return CommitSuccess(
+    state=next_state,
+    effect_plan=(
+        TransferEffect(...),
+        EmitLiquidationMetric(...),
+        AppendAuditFact(...),
+    ),
+)
+```
+
+The shell executes them through the appropriate journal or outbox.
+
+### What this pattern cannot establish
+
+A visually excellent dataflow can still conceal incomplete economics, stale
+evidence, incompatible rounding, shared mutable state, authorization gaps,
+cycles or concurrency races, or incorrect crash semantics. This pattern
+makes bugs easier to see. It does not prove their absence.
+
 ## Typed rejections and commit semantics
 
 For new authoritative code, use a discriminated `Decision` with a `RejectCode`
