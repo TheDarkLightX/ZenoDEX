@@ -1,50 +1,96 @@
 # Pattern Selector — Before/After Examples
 
-Concrete before/after examples for agents generating code.
+Concrete before/after examples for agents generating code. These examples
+use the specification-first `Decision` type with explicit commit semantics
+and `Evidence` as an explicit input.
 
-## Pattern: Authoritative core + typed rejection
+## Pattern: Authoritative core + typed Decision
 
-### Example 1: A value-moving transition that can reject
+### Example 1: A value-moving transition with explicit commit semantics
 
 ```python
 class RejectCode(Enum):
     NEGATIVE_AMOUNT = "negative_amount"
     INSUFFICIENT_BALANCE = "insufficient_balance"
+    STALE_ORACLE = "stale_oracle"
 
 @dataclass(frozen=True)
-class StepOk:
+class Evidence:
+    """Explicit inputs that are not ambient reads."""
+    block_timestamp: int
+    oracle_price_e8: int
+    oracle_timestamp: int
+    signatures: tuple[Signature, ...]
+    governance_epoch: int
+    randomness_seed: int
+
+@dataclass(frozen=True)
+class CommitSuccess:
     state: MyState
     effect_plan: MyEffectPlan
 
 @dataclass(frozen=True)
-class StepReject:
+class RejectNoCommit:
+    """Pre-state and effects remain untouched."""
     code: RejectCode
     details: RejectDetails  # frozen dataclass, not str
 
-def step(state: MyState, command: MyCommand) -> StepOk | StepReject:
+@dataclass(frozen=True)
+class CommitProtocolFailure:
+    """State was committed (nonce consumed, fee charged) despite economic failure."""
+    state: MyState
+    code: RejectCode
+    details: RejectDetails
+
+Decision = CommitSuccess | RejectNoCommit | CommitProtocolFailure
+
+def step(
+    pre_state: MyState,
+    command: MyCommand,
+    evidence: Evidence,
+) -> Decision:
     if command.amount < 0:
-        return StepReject(
+        return RejectNoCommit(
             code=RejectCode.NEGATIVE_AMOUNT,
             details=RejectDetails(field="amount", value=command.amount),
         )
-    new_balance = state.balance + command.amount
-    new_state = replace(state, balance=new_balance)
-    return StepOk(state=new_state, effect_plan=MyEffectPlan(delta=command.amount))
+    if evidence.oracle_timestamp < pre_state.last_oracle_timestamp:
+        return RejectNoCommit(
+            code=RejectCode.STALE_ORACLE,
+            details=RejectDetails(
+                field="oracle_timestamp",
+                value=evidence.oracle_timestamp,
+            ),
+        )
+    new_balance = pre_state.balance + command.amount
+    new_state = replace(pre_state, balance=new_balance)
+    return CommitSuccess(
+        state=new_state,
+        effect_plan=MyEffectPlan(delta=command.amount),
+    )
 ```
 
-Negative tests assert the rejection enum:
+Negative tests assert the rejection enum AND the commit semantics:
 
 ```python
-def test_negative_amount_rejected():
-    result = step(state, MyCommand(amount=-1))
-    assert isinstance(result, StepReject)
+def test_negative_amount_rejected_no_commit():
+    result = step(pre_state, MyCommand(amount=-1), evidence)
+    assert isinstance(result, RejectNoCommit)
     assert result.code == RejectCode.NEGATIVE_AMOUNT
+    # Verify pre-state is untouched — no mutable alias survived
+    assert pre_state.balance == original_balance
+
+def test_stale_oracle_rejected_no_commit():
+    result = step(pre_state, command, stale_evidence)
+    assert isinstance(result, RejectNoCommit)
+    assert result.code == RejectCode.STALE_ORACLE
 ```
 
 ### When to use exceptions instead
 
 ```python
 # Contract violation after trusted construction — programmer error, not protocol.
+# The input crossed a trust boundary and was already validated.
 def require_int_range(value: object, name: str, lo: int, hi: int) -> int:
     if not isinstance(value, int) or isinstance(value, bool):
         raise TypeError(f"{name} must be an int")
@@ -52,6 +98,31 @@ def require_int_range(value: object, name: str, lo: int, hi: int) -> int:
         raise ValueError(f"{name} must be in [{lo}, {hi}]")
     return value
 ```
+
+### Committed-failure example
+
+Some protocols consume a nonce or charge a fee even on rejection:
+
+```python
+def step_with_nonce(
+    pre_state: MyState,
+    command: MyCommand,
+    evidence: Evidence,
+) -> Decision:
+    # Nonce is consumed regardless of economic outcome
+    new_nonce_state = advance_nonce(pre_state, command.nonce)
+    if command.amount < 0:
+        return CommitProtocolFailure(
+            state=new_nonce_state,
+            code=RejectCode.NEGATIVE_AMOUNT,
+            details=RejectDetails(field="amount", value=command.amount),
+        )
+    # ... economic logic ...
+    return CommitSuccess(state=new_state, effect_plan=...)
+```
+
+The shell must handle `CommitProtocolFailure` by committing the state (the
+nonce was consumed), not by discarding it.
 
 ---
 
@@ -65,14 +136,25 @@ class _SettlementBuffers:
     fills: list[Fill]
     balance_deltas: list[BalanceDelta]
 
-def compute_settlement(...) -> Settlement:
+def compute_settlement(
+    pre_state: MyState,
+    command: MyCommand,
+    evidence: Evidence,
+) -> Decision:
     buffers = _SettlementBuffers(fills=[], balance_deltas=[])
     # ... accumulate into buffers ...
-    # Boundary: convert to immutable tuples
-    return Settlement(
+    # Boundary: convert to immutable tuples, seal validates invariants
+    settlement = Settlement(
         fills=tuple(buffers.fills),
         balance_deltas=tuple(buffers.balance_deltas),
     )
+    # Postcondition: conservation check before returning
+    if not _check_conservation(pre_state, settlement):
+        return RejectNoCommit(
+            code=RejectCode.CONSERVATION_VIOLATION,
+            details=RejectDetails(field="settlement", value=...),
+        )
+    return CommitSuccess(state=..., effect_plan=...)
 ```
 
 The builder is honestly mutable, freshly constructed, discarded after use,
@@ -188,9 +270,10 @@ data structure. Benchmark before choosing the representation.
 
 ### Example 4: Correct shell template
 
-The shell must use compare-and-swap on the expected pre-root, handle both
-success and rejection exhaustively, and return a receipt from the successful
-commit.
+The shell must capture evidence once, run the pure transition, check
+postconditions, use compare-and-swap on the expected pre-root, handle all
+three Decision variants exhaustively, and return a receipt from the
+successful commit.
 
 ```python
 @dataclass(frozen=True)
@@ -206,22 +289,58 @@ def handle_request(
     raw_input: dict[str, Any],
     snapshot: Snapshot,  # loaded by outer shell, contains root + version
 ) -> tuple[int, dict[str, Any]]:
-    # 1. Parse and validate at the boundary (typed rejection)
+    # 1. Decode and resource-bound input at the boundary
     command = parse_command(raw_input)
     if isinstance(command, ParseReject):
         return 400, {"error": {"code": command.code.value, "details": ...}}
 
-    # 2. Call functional core (pure — returns typed result)
-    result = step(snapshot.state, command.value)
+    # 2. Capture authenticated evidence once
+    evidence = capture_evidence(
+        block_timestamp=get_block_timestamp(),
+        oracle_price_e8=get_oracle_price(),
+        oracle_timestamp=get_oracle_timestamp(),
+        signatures=extract_signatures(raw_input),
+        governance_epoch=get_governance_epoch(),
+        randomness_seed=get_randomness_seed(),
+    )
 
-    # 3. Exhaustive result handling — do not assume non-reject is success
-    if isinstance(result, StepReject):
+    # 3. Run pure transition
+    result = step(snapshot.state, command.value, evidence)
+
+    # 4. Exhaustive result handling — three Decision variants
+    if isinstance(result, RejectNoCommit):
         # No-commit rejection: do NOT persist. Pre-state is untouched.
         return 422, {"error": {"code": result.code.value, "details": ...}}
 
-    # result is StepOk — proceed to commit
+    if isinstance(result, CommitProtocolFailure):
+        # Committed failure: nonce consumed, fee charged. Must commit the state.
+        commit_result = commit_transition(
+            expected_pre_root=snapshot.root,
+            expected_version=snapshot.version,
+            post_state=result.state,
+            effect_plan=EffectPlan.empty(),  # no economic effects
+            replay_record=ReplayRecord(
+                pre_root=snapshot.root,
+                post_root=result.state.root,
+                command_hash=hash_command(command.value),
+                effect_plan_hash=hash_effect_plan(EffectPlan.empty()),
+            ),
+        )
+        if isinstance(commit_result, CommitConflict):
+            return 409, {"error": {"code": "commit_conflict", ...}}
+        return 422, {
+            "error": {"code": result.code.value, "details": ...},
+            "receipt": {"post_root": commit_result.receipt.post_root.hex()},
+        }
 
-    # 4. Atomic commit with compare-and-swap
+    # result is CommitSuccess — proceed to commit
+
+    # 5. Check postconditions before commit
+    if not check_conservation(snapshot.state, result.state, result.effect_plan):
+        # Internal invariant failure — do not commit, raise
+        raise RuntimeError("conservation postcondition violated")
+
+    # 6. Atomic commit with compare-and-swap
     #    External effects go through a transactional outbox for idempotent delivery.
     commit_result = commit_transition(
         expected_pre_root=snapshot.root,
@@ -244,7 +363,10 @@ def handle_request(
             "actual_pre_root": commit_result.actual_pre_root.hex(),
         }}
 
-    # 5. Return response with receipt from the successful commit
+    # 7. Idempotently deliver external effects via outbox
+    deliver_effects(result.effect_plan, commit_result.receipt)
+
+    # 8. Return response with receipt from the successful commit
     return 200, {
         "state": serialize(result.state),
         "effect_plan": serialize(result.effect_plan),
@@ -261,12 +383,16 @@ def handle_request(
 - `expected_version` was unused.
 - `save_state()` received neither expected pre-root nor version.
 - No compare-and-swap conflict result.
+- No postcondition check before commit.
 - Receipt was constructed optimistically instead of returned by the commit.
 - Persisting the effect plan was conflated with executing it (external effects
   need a transactional outbox).
-- "Exhaustive" handling assumed every non-`StepReject` was `StepOk`.
+- "Exhaustive" handling assumed every non-reject was success.
 - Every protocol rejection became HTTP 402 (should be 422 for semantic
   rejection, 409 for conflict).
+- No `CommitProtocolFailure` handling (committed failures were silently
+  dropped).
+- No `Evidence` capture — time and oracle data were ambient reads.
 
 ---
 
@@ -282,7 +408,8 @@ class MyState:
 ```
 
 **Fix:** Use `tuple` for collections, or make the builder honestly
-`@dataclass` (not frozen).
+`@dataclass` (not frozen). Surface immutability is a representation property,
+not an assurance result.
 
 ### Anti-example 2: Stringly-typed state bag
 
@@ -314,7 +441,7 @@ def step(state: MyState, amount: int) -> MyState:
 ```
 
 **Fix:** Use `if amount < 0: raise ValueError(...)` or return a typed
-`StepReject`.
+`RejectNoCommit`.
 
 ### Anti-example 5: Float in value-moving math
 
@@ -324,7 +451,7 @@ def compute_output_amount(r_in: float, r_out: float, a_in: float) -> float:
     return a_in * r_out / (r_in + a_in)
 ```
 
-**Fix:** Use integer base units with explicit scale, rounding, and dust policy.
+**Fix:** Use integer base units with named rounding operations and dust policy.
 
 ### Anti-example 6: Silent value-loss on immutable refactor
 
@@ -349,7 +476,7 @@ def handle_request(raw_input):
 ```
 
 **Fix:** See Example 4 above — compare-and-swap commit with effect plan,
-nonce, receipt, and outbox for external effects.
+nonce, receipt, postcondition checks, and outbox for external effects.
 
 ### Anti-example 8: Pattern cargo-culting
 
@@ -384,3 +511,40 @@ def build_ctx(state: DexState) -> Ctx:
 
 **Fix:** Deep-copy nested mutable values, or make `PerpMarketState`
 transitively immutable so aliasing is safe.
+
+### Anti-example 10: Moving semantic checks to the shell
+
+```python
+# DO NOT GENERATE THIS
+def handle_request(raw_input, snapshot):
+    command = parse_command(raw_input)
+    # WRONG: economic check in the shell, not the core
+    if command.amount > snapshot.state.balance:
+        return 422, {"error": "insufficient balance"}
+    result = step(snapshot.state, command.value)
+    ...
+```
+
+**Fix:** Authorization, admission, economics, freshness, and replay are core
+responsibilities. The shell acquires input and commits effects; it never
+decides settlement semantics. Move the check into `step()` and return
+`RejectNoCommit` from the core.
+
+### Anti-example 11: Treating frozen=True as a correctness proof
+
+```python
+# DO NOT GENERATE THIS
+@dataclass(frozen=True)
+class LiquidationResult:
+    # frozen=True does not prove the liquidation semantics are correct.
+    # It only proves the fields cannot be reassigned.
+    # The assurance comes from the specification, invariant checks,
+    # and replayable evidence — not from the frozen decorator.
+    state: MyState
+    effect_plan: MyEffectPlan
+```
+
+**Fix:** `frozen=True` is a representation property. The assurance comes from
+the specification, the refinement steps, and the replayable evidence. Write
+the specification, check the invariants (conservation, monotonicity, etc.),
+and produce replayable evidence (differential vectors, property tests, proofs).
