@@ -1,0 +1,75 @@
+name: math-frontier-assurance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/math-frontier-assurance.yml'
+      - 'lean-mathlib/MathFrontier.lean'
+      - 'lean-mathlib/Proofs/FeeAwareRoutingNonconcavity.lean'
+      - 'lean-mathlib/Proofs/RoutingAffineEnvelopeCertificate.lean'
+      - 'lean-mathlib/lakefile.lean'
+      - 'tests/formal/test_lean_math_frontier.py'
+      - 'tests/test_fee_aware_routing_nonconcavity.py'
+      - 'tools/check_fee_aware_routing_nonconcavity.py'
+      - 'experiments/math_research_memory/fee_aware_routing_nonconcavity_evidence_20260717.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  math-frontier-assurance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@v4
+
+      - name: Materialize pinned mathlib source
+        run: |
+          git clone --depth 1 --branch v4.27.0 \
+            https://github.com/leanprover-community/mathlib4.git \
+            external/mathlib4
+          test "$(cat external/mathlib4/lean-toolchain)" = "$(cat lean-mathlib/lean-toolchain)"
+
+      - name: Build pinned Lean project with mathlib cache
+        uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: lean-mathlib
+          build: true
+          test: false
+          use-mathlib-cache: true
+
+      - name: Compile both frontier modules directly
+        working-directory: lean-mathlib
+        run: |
+          lake env lean Proofs/FeeAwareRoutingNonconcavity.lean
+          lake env lean Proofs/RoutingAffineEnvelopeCertificate.lean
+
+      - name: Reject incomplete or trust-expanding declarations
+        run: |
+          if grep -En '\b(sorry|admit|axiom|unsafe)\b' \
+            lean-mathlib/Proofs/FeeAwareRoutingNonconcavity.lean \
+            lean-mathlib/Proofs/RoutingAffineEnvelopeCertificate.lean; then
+            echo 'forbidden Lean declaration or placeholder found' >&2
+            exit 1
+          fi
+
+      - name: Replay bounded fee-aware falsification evidence
+        run: |
+          python3 tools/check_fee_aware_routing_nonconcavity.py --max-grade 10000 \
+            > /tmp/fee-aware-routing-replay.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          replayed = json.loads(Path('/tmp/fee-aware-routing-replay.json').read_text())
+          retained = json.loads(
+              Path(
+                  'experiments/math_research_memory/'
+                  'fee_aware_routing_nonconcavity_evidence_20260717.json'
+              ).read_text()
+          )
+          if replayed != retained:
+              raise SystemExit('retained fee-aware routing evidence drifted')
+          PY
