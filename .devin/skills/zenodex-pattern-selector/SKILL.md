@@ -46,6 +46,14 @@ specification and the implementation).
 
 ## FCIS foundation
 
+FCIS separates pure, testable business logic (the core) from side effects
+like database calls and network requests (the shell). The core operates only
+on the data it is given; the shell acquires external input and executes
+effects. This makes the core testable in isolation and the shell swappable.
+See Gary Bernhardt's [Boundaries](https://www.destroyallsoftware.com/talks/boundaries),
+[Google Testing Blog — Simplify Your Code: Functional Core](https://testing.googleblog.com/2025/10/simplify-your-code-functional-core.html),
+and [Functional Core, Imperative Shell — Shortcomings](https://functional-architecture.org/functional_core_imperative_shell/).
+
 The system is many small core/shell pairs, not one enormous core and shell.
 
 ```text
