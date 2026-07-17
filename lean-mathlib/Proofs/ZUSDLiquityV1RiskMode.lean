@@ -51,8 +51,14 @@ def riskMode (p : SystemPools) (priceE18 : Nat) : RiskMode :=
 
 theorem riskMode_total (p : SystemPools) (priceE18 : Nat) :
     riskMode p priceE18 = .normal ∨ riskMode p priceE18 = .recovery := by
-  unfold riskMode
-  split <;> split <;> simp_all
+  by_cases hDebt : totalDebt p = 0
+  · left
+    simp [riskMode, hDebt]
+  · by_cases hRecovery : tcrE18 p priceE18 < ccrE18
+    · right
+      simp [riskMode, hDebt, hRecovery]
+    · left
+      simp [riskMode, hDebt, hRecovery]
 
 
 theorem zero_debt_is_normal (p : SystemPools) (priceE18 : Nat)
