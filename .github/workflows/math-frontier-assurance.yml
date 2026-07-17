@@ -59,14 +59,18 @@ jobs:
           exit "$status"
 
       - name: Compile both frontier modules directly
+        id: compile
+        continue-on-error: true
         working-directory: lean-mathlib
         run: |
           set +e
+          log_dir=/tmp/math-frontier-lean-logs
+          mkdir -p "$log_dir"
           status=0
           for file in \
             Proofs/FeeAwareRoutingNonconcavity.lean \
             Proofs/RoutingAffineEnvelopeCertificate.lean; do
-            log="/tmp/$(basename "$file").log"
+            log="$log_dir/$(basename "$file").log"
             echo "== compiling $file =="
             lake env lean "$file" >"$log" 2>&1
             file_status=$?
@@ -75,6 +79,7 @@ jobs:
               status=1
             fi
           done
+          printf '%s\n' "$status" > "$log_dir/exit-status.txt"
           exit "$status"
 
       - name: Reject incomplete or trust-expanding declarations
@@ -104,3 +109,21 @@ jobs:
           if replayed != retained:
               raise SystemExit('retained fee-aware routing evidence drifted')
           PY
+
+      - name: Retain Lean compiler logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: math-frontier-lean-logs
+          path: /tmp/math-frontier-lean-logs
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce Lean compilation success
+        if: always()
+        run: |
+          status="$(cat /tmp/math-frontier-lean-logs/exit-status.txt)"
+          if [[ "$status" != "0" ]]; then
+            echo 'one or more frontier Lean modules failed to compile' >&2
+            exit 1
+          fi
