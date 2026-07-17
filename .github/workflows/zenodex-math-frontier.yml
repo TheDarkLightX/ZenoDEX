@@ -1,0 +1,79 @@
+name: zenodex-math-frontier
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/zenodex-math-frontier.yml"
+      - "lean-mathlib/Proofs/ZenoDEXExactOutDualCertificate.lean"
+      - "lean-mathlib/Proofs/CommitRevealIncentiveCompatibilityBoundary.lean"
+      - "tests/formal/test_lean_zenodex_exact_out_dual_certificate.py"
+      - "tests/formal/test_lean_commit_reveal_incentive_compatibility_boundary.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zenodex-math-frontier-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lean:
+    name: Lean theorem packets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout ZenoDEX
+        uses: actions/checkout@v4
+
+      - name: Install elan and pinned Lean
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install leanprover/lean4:v4.27.0
+
+      - name: Checkout pinned mathlib
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v4.27.0 \
+            https://github.com/leanprover-community/mathlib4.git \
+            external/mathlib4
+
+      - name: Restore mathlib cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.elan/bin:$PATH"
+          cd external/mathlib4
+          lake exe cache get
+
+      - name: Compile exact-out dual certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.elan/bin:$PATH"
+          cd lean-mathlib
+          lake env lean Proofs/ZenoDEXExactOutDualCertificate.lean
+
+      - name: Compile commit-reveal boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.elan/bin:$PATH"
+          cd lean-mathlib
+          lake env lean Proofs/CommitRevealIncentiveCompatibilityBoundary.lean
+
+      - name: Run focused formal tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.elan/bin:$PATH"
+          python3 -m pip install --disable-pip-version-check pytest
+          python3 -m pytest -q \
+            tests/formal/test_lean_zenodex_exact_out_dual_certificate.py \
+            tests/formal/test_lean_commit_reveal_incentive_compatibility_boundary.py
