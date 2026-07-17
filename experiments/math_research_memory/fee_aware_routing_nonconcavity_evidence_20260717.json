@@ -1,0 +1,83 @@
+{
+  "authority": {
+    "claim": "bounded regression evidence only; Lean carries the universal theorem candidate",
+    "production_authority": false,
+    "settlement_authority": false
+  },
+  "decreasing_threshold_witness": {
+    "minimum_gross_for_output_quota_0_to_2": [
+      0,
+      2,
+      3
+    ],
+    "reserve_in": 1,
+    "reserve_out": 3,
+    "strictly_decreasing": true,
+    "threshold_increments": [
+      2,
+      1
+    ]
+  },
+  "fee_semantics": {
+    "fee_bps": 1,
+    "fee_denominator": 10000,
+    "formula": "fee(g)=ceil(g*fee_bps/10000); net=g-fee(g); out=floor(y*net/(x+net))"
+  },
+  "ok": true,
+  "schema_version": 1,
+  "unbounded_family_regression": {
+    "all_checked": true,
+    "checked_grade_max": 10000,
+    "checked_grade_min": 0,
+    "gross_inputs": [
+      0,
+      1,
+      2
+    ],
+    "outputs_formula": [
+      "0",
+      "0",
+      "grade+1"
+    ],
+    "positive_second_difference_formula": "grade+1",
+    "reserve_in": 1,
+    "reserve_out_formula": "2*(grade+1)"
+  },
+  "unit_greedy_counterexample": {
+    "global_allocation": [
+      3,
+      3
+    ],
+    "global_total_gross": 4,
+    "gross_gap": 2,
+    "minimum_gross_cost_table_for_quota_0_to_6": [
+      0,
+      2,
+      2,
+      2,
+      3,
+      4,
+      7
+    ],
+    "pools": [
+      {
+        "fee_bps": 1,
+        "reserve_in": 1,
+        "reserve_out": 7
+      },
+      {
+        "fee_bps": 1,
+        "reserve_in": 1,
+        "reserve_out": 7
+      }
+    ],
+    "relative_excess_bps": 5000,
+    "target_output_quota": 6,
+    "unit_greedy_allocation": [
+      5,
+      1
+    ],
+    "unit_greedy_tie_break": "lowest_pool_index",
+    "unit_greedy_total_gross": 6
+  }
+}
