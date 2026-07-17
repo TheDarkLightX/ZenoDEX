@@ -40,16 +40,29 @@ freshness, replay, roots, or an effect plan?
   global mutable state, no floats. Integer-only arithmetic with explicit
   rounding and dust policy. Output depends only on inputs.
 
+  This includes pure parsing and normalization of already-acquired domain
+  values (e.g., normalize_intents in src/core/intent_normal_form.py). A
+  parser that takes bytes and returns a typed result or rejection without
+  IO is functional core, not shell.
+
 Does it acquire external input or execute an already-decided effect?
 → Imperative shell.
-  Parsing, validation, subprocess calls, network, filesystem, clock.
-  The shell never decides settlement semantics. It validates at the
-  boundary, calls the core, and emits effects.
+  Acquiring bytes from the network, deserializing raw JSON, subprocess
+  calls, filesystem, clock. The shell never decides settlement semantics.
+  It acquires input, passes it to the core, and commits the core's effects.
 ```
 
-A single function can be pure core in its arithmetic but call into shell for
-IO. The boundary between them is what matters: `src/core/**` must not import
-from `src/integration/**`.
+The FCIS boundary is about where decisions and effects live, not about
+paradigm labels. A Python `def` doing filesystem access is still imperative
+shell. An immutable value object with pure methods is functional core. A
+local mutable builder inside a pure computation is core when it is
+exclusively owned, never escapes, and the function remains observationally
+pure.
+
+Large systems are many small core/shell pairs, not one enormous core and
+shell. A perps engine, a zUSD vault, and a spot DEX each have their own
+core/shell boundary. The rule is: `src/core/**` must not import from
+`src/integration/**`.
 
 ### Axis 2: Lifetime and ownership — does this value escape?
 
@@ -99,17 +112,27 @@ construction of a validated domain type is an internal invariant failure.
 
 These are the most frequent combinations in the codebase:
 
-- **Authoritative core + typed rejection (A1+C1):** A value-moving transition
+- **Impure-pure-impure sandwich (D → A+C → D):** The canonical ZenoDEX flow.
+  Shell acquires bytes and loads snapshot → core decides acceptance, computes
+  amounts, produces post-state + effect plan → shell atomically commits state
+  + effects + nonce + receipt. Example: `src/integration/dex_engine.py`
+  `apply_ops` (shell) calls `src/core/dex.py` `step` (core) and commits the
+  result.
+- **Authoritative core + typed rejection (A+C):** A value-moving transition
   that can reject. This is the most common pattern in `src/core/`. Example:
   `src/core/zusd.py` `step()` returns `ZUSDStepResult` with `ok`, `state`,
   `error` fields.
-- **Authoritative core with internal mutable builder (A1+B):** A pure function
+- **Authoritative core with internal mutable builder (A+B):** A pure function
   that uses local mutable scratch space internally. Example:
   `src/state/support_root.py` `_SupportAccumulator` builds an immutable
   `BatchStateSupport` at the boundary.
-- **Shell + typed rejection (D+C1):** A shell handler that parses, validates,
-  calls core, and returns a typed result. Example: `src/integration/zusd_api.py`
-  HTTP handlers.
+- **Pure parser + typed rejection (A+C):** A parser that takes already-acquired
+  bytes and returns a typed domain value or rejection. This is core, not shell,
+  because it does no IO. Example: `src/core/intent_normal_form.py`
+  `normalize_intents` takes `Sequence[Intent]` and returns `NormalizedBatch`.
+- **Shell + typed rejection (D+C):** A shell handler that acquires raw input,
+  validates, calls core, and returns a typed result. Example:
+  `src/integration/zusd_api.py` HTTP handlers.
 
 ---
 
