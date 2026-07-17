@@ -98,9 +98,52 @@ silently drop effects, or create value-loss migration traps.
 - What parity tests verify Python/Rust equivalence?
 - Will the existing tests catch a silent value-loss bug?
 
-## 12. Rollback plan
+## 12. CAS/concurrency
 
-- If the refactor is wrong, can the previous state be restored?
-- Are there snapshots or receipts that would be invalid under the new
-  representation?
-- Is there a feature flag or compatibility adapter?
+- What happens on concurrent commits to the same pre-root?
+- Is there a compare-and-swap on the expected pre-root and version?
+- Does the commit return `CommitOk` or `CommitConflict`?
+- Can two transactions read the same snapshot and both try to commit?
+
+## 13. Crash points
+
+- What happens if the process crashes between persisting state and delivering
+  external effects?
+- Is there a write-ahead log or transactional outbox?
+- What is the recovery procedure for each crash point?
+
+## 14. Outbox/idempotence
+
+- Are external effects delivered exactly-once?
+- What is the replay key? (effect-plan hash, nonce, tx-id)
+- Can a crashed delivery be safely retried?
+- Is the outbox persisted in the same atomic commit as the state?
+
+## 15. Conservation postconditions
+
+- Does the transition verify that `sum(post) == sum(pre) + sum(external_in)
+  - sum(external_out)`?
+- Is conservation checked across the complete effect plan, not per-delta?
+- Are there property tests that verify conservation over random sequences?
+
+## 16. Retained-alias tests
+
+- Is there a test that verifies no mutable alias from the pre-state survives
+  into the post-state?
+- Is there a test that mutating the pre-state after the transition does not
+  affect the post-state?
+
+## 17. Deterministic activation/versioning
+
+- Does the commit record the exact code version and activation epoch?
+- Can the transition be replayed with the same code version and produce the
+  same result?
+
+## 18. Forward recovery
+
+- If new consensus state was committed and the process crashed, what is the
+- recovery procedure?
+- "Rollback" is unsafe once new state is committed — the committed state is
+  now the pre-state for the next transaction.
+- Is there a forward-recovery procedure that replays the outbox from the
+  last committed state?
