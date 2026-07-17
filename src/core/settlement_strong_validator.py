@@ -30,6 +30,7 @@ from .liquidity import add_liquidity, create_pool, remove_liquidity
 from .quote_receipts import pool_state_fingerprint
 from .route_settlement import (
     ROUTE_REJECT_POOL_STATE_DRIFT,
+    ROUTE_REJECT_PROTOCOL_FEE_UNSUPPORTED_CURVE,
     ROUTE_RESERVED_FIELDS,
     is_route_intent_kind,
     parse_route_binding_fields,
@@ -445,6 +446,9 @@ def _validate_settlement_strong_impl(
                     return fail(
                         f"route reject missing engine binding: intent_id={intent_id}"
                     )
+                reject_fill = fill_by_id.get(intent_id)
+                if reject_fill is None:
+                    return fail(f"route reject missing Fill: intent_id={intent_id}")
                 binding, parse_err = parse_route_binding_fields(it)
                 if binding is None:
                     return fail(
@@ -464,24 +468,37 @@ def _validate_settlement_strong_impl(
                         "route reject binding does not pin the pre-state snapshot "
                         f"for intent_id={intent_id}"
                     )
-                replay = replay_route_legs(binding=binding, pools=pools)
+                replay = replay_route_legs(
+                    binding=binding,
+                    pools=pools,
+                    protocol_fee_share_bps=protocol_fee_share_bps,
+                )
+                canonical_reject_reason: str | None = None
                 if replay.ok:
                     # Legs replayed exactly and totals are satisfiable (the
                     # binding matches the signed route), so the only canonical
                     # reason this route would not fill is the sender cannot
                     # afford the route total. Anything else means a FILL was
                     # due and the REJECT is a lie.
-                    if route_totals_violation(it, replay) is not None:
-                        return fail(
-                            f"route reject totals inconsistent for intent_id={intent_id}"
-                        )
+                    totals_reject_reason = route_totals_violation(it, replay)
+                    if totals_reject_reason is not None:
+                        canonical_reject_reason = totals_reject_reason
                     reject_sender: PubKey = it.sender_pubkey
-                    if balances.get(reject_sender, binding.asset_in) >= int(replay.total_amount_in):
+                    if (
+                        canonical_reject_reason is None
+                        and balances.get(reject_sender, binding.asset_in)
+                        < int(replay.total_amount_in)
+                    ):
+                        canonical_reject_reason = "INSUFFICIENT_BALANCE"
+                    if canonical_reject_reason is None:
                         return fail(
                             "route reject not justified — canonical clearing "
                             f"would fill intent_id={intent_id}"
                         )
-                elif replay.reject_reason != ROUTE_REJECT_POOL_STATE_DRIFT:
+                elif replay.reject_reason not in (
+                    ROUTE_REJECT_POOL_STATE_DRIFT,
+                    ROUTE_REJECT_PROTOCOL_FEE_UNSUPPORTED_CURVE,
+                ):
                     # Replay failed for a reason OTHER than genuine snapshot
                     # drift (fingerprints still match the current pools but the
                     # kernel disagrees with the claimed leg amounts, or the
@@ -494,7 +511,14 @@ def _validate_settlement_strong_impl(
                         "route reject binding inconsistent with pinned snapshot "
                         f"for intent_id={intent_id}: {replay.reject_reason}"
                     )
-                # else: genuine ROUTE_POOL_STATE_DRIFT — a canonical reject.
+                else:
+                    canonical_reject_reason = replay.reject_reason
+                if reject_fill.reason != canonical_reject_reason:
+                    return fail(
+                        "route reject reason mismatch for intent_id="
+                        f"{intent_id}: {reject_fill.reason!r} != "
+                        f"{canonical_reject_reason!r}"
+                    )
             continue
 
         f = fill_by_id[intent_id]
@@ -613,7 +637,11 @@ def _validate_settlement_strong_impl(
                     f"for intent_id={intent_id}"
                 )
 
-            replay = replay_route_legs(binding=binding, pools=pools)
+            replay = replay_route_legs(
+                binding=binding,
+                pools=pools,
+                protocol_fee_share_bps=protocol_fee_share_bps,
+            )
             if not replay.ok:
                 return fail(
                     f"route replay failed for intent_id={intent_id}: {replay.reject_reason}"
@@ -628,11 +656,30 @@ def _validate_settlement_strong_impl(
                 return fail(f"route amount_out_filled mismatch for intent_id={intent_id}")
             if int(f.fee_paid or 0) != int(replay.total_fee_paid):
                 return fail(f"route fee_paid mismatch for intent_id={intent_id}")
+            if int(f.protocol_fee_paid or 0) != int(replay.total_protocol_fee_paid):
+                return fail(
+                    f"route protocol_fee_paid mismatch for intent_id={intent_id}"
+                )
 
+            protocol_recipient = protocol_fee_recipient_pubkey
+            if replay.total_protocol_fee_paid > 0 and protocol_recipient is None:
+                return fail(
+                    f"route protocol fee present without recipient for intent_id={intent_id}"
+                )
             try:
                 for leg in replay.legs:
                     balances.subtract(sender, leg.asset_in, int(leg.amount_in))
                     balances.add(recipient, leg.asset_out, int(leg.amount_out))
+                    if leg.protocol_fee_paid:
+                        if protocol_recipient is None:
+                            return fail(
+                                f"route protocol fee present without recipient for intent_id={intent_id}"
+                            )
+                        balances.add(
+                            protocol_recipient,
+                            leg.asset_in,
+                            int(leg.protocol_fee_paid),
+                        )
             except Exception as exc:
                 return fail(f"route apply error for intent_id={intent_id}: {exc}")
 
@@ -646,8 +693,26 @@ def _validate_settlement_strong_impl(
                 bal_deltas.append(
                     BalanceDelta(pubkey=recipient, asset=leg.asset_out, delta_add=int(leg.amount_out), delta_sub=0)
                 )
+                if leg.protocol_fee_paid:
+                    if protocol_recipient is None:
+                        return fail(
+                            f"route protocol fee present without recipient for intent_id={intent_id}"
+                        )
+                    bal_deltas.append(
+                        BalanceDelta(
+                            pubkey=protocol_recipient,
+                            asset=leg.asset_in,
+                            delta_add=int(leg.protocol_fee_paid),
+                            delta_sub=0,
+                        )
+                    )
                 res_deltas.append(
-                    ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_in, delta_add=int(leg.amount_in), delta_sub=0)
+                    ReserveDelta(
+                        pool_id=leg.pool_id,
+                        asset=leg.asset_in,
+                        delta_add=int(leg.amount_in) - int(leg.protocol_fee_paid),
+                        delta_sub=0,
+                    )
                 )
                 res_deltas.append(
                     ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_out, delta_add=0, delta_sub=int(leg.amount_out))
