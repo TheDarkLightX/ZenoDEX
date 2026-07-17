@@ -27,7 +27,7 @@ then integer output forces every feasible competitor to have output at most
 jumps, or completeness of the optimizer's candidate enumeration.
 -/
 
-open scoped Classical BigOperators
+open scoped BigOperators
 
 namespace Proofs
 namespace RoutingAffineEnvelopeCertificate
