@@ -1,0 +1,298 @@
+{
+  "artifacts": [
+    {
+      "id": "A1",
+      "path": "lean-mathlib/Proofs/FeeAwareRoutingNonconcavity.lean",
+      "status": "formal_candidate"
+    },
+    {
+      "id": "A2",
+      "path": "lean-mathlib/Proofs/RoutingAffineEnvelopeCertificate.lean",
+      "status": "formal_candidate"
+    },
+    {
+      "id": "A3",
+      "path": "tools/check_fee_aware_routing_nonconcavity.py",
+      "status": "replayable_bounded"
+    },
+    {
+      "id": "A4",
+      "path": "experiments/math_research_memory/fee_aware_routing_nonconcavity_evidence_20260717.json",
+      "status": "retained_bounded_evidence"
+    },
+    {
+      "id": "A5",
+      "path": "docs/research/ZENODEX_MATH_FRONTIER_RESEARCH_20260717.md",
+      "status": "research_report"
+    }
+  ],
+  "authority": {
+    "production_authority": false,
+    "release_authority": false,
+    "settlement_authority": false
+  },
+  "baseline": {
+    "branch": "main",
+    "commit": "44d7f0d2a36b2141b553af1df734926c9d559bca",
+    "repository": "TheDarkLightX/ZenoDEX"
+  },
+  "claims": [
+    {
+      "evidence": [
+        "A1"
+      ],
+      "id": "C1",
+      "statement": "For production-style 1 bp ceiling fees, no reserve-independent natural near-concavity grade bounds gross-input CPMM output even on gross inputs 0, 1, and 2.",
+      "status": "formal_candidate"
+    },
+    {
+      "evidence": [
+        "A1",
+        "A3",
+        "A4"
+      ],
+      "id": "C2",
+      "statement": "The exact-out threshold increments for reserves (1,3) at 1 bp are 2 then 1, so gross-space jump costs can decrease.",
+      "status": "formal_candidate_and_replayed_bounded"
+    },
+    {
+      "evidence": [
+        "A3",
+        "A4"
+      ],
+      "id": "C3",
+      "statement": "A unit-at-a-time marginal-cost greedy allocator is suboptimal on two identical (1,7,1 bp) pools for quota 6: gross cost 6 versus global cost 4.",
+      "status": "replayed_bounded"
+    },
+    {
+      "evidence": [
+        "A2"
+      ],
+      "id": "C4",
+      "statement": "Valid per-pool affine output envelopes sum to a global weak-duality bound; a strict one-integer-output gap certifies exact global optimality.",
+      "status": "formal_candidate"
+    },
+    {
+      "evidence": [
+        "S4",
+        "R5",
+        "R6"
+      ],
+      "id": "C5",
+      "statement": "The current uniform batch relation verifies uniform-price fills and aggregate k-safety but does not yet establish FM-AMM post-batch function maximization.",
+      "status": "implemented_semantic_distinction"
+    },
+    {
+      "evidence": [
+        "R7"
+      ],
+      "id": "C6",
+      "statement": "Within the implemented power curve family and coefficient convention, improving local slippage curvature worsens local impermanent-loss curvature and vice versa.",
+      "status": "compiled_main"
+    }
+  ],
+  "edges": [
+    {
+      "from": "R1",
+      "to": "C1",
+      "type": "scope_contrast"
+    },
+    {
+      "from": "C1",
+      "to": "H1",
+      "type": "refutes"
+    },
+    {
+      "from": "C2",
+      "to": "H1",
+      "type": "refutes"
+    },
+    {
+      "from": "C3",
+      "to": "H1",
+      "type": "bounded_counterexample"
+    },
+    {
+      "from": "S1",
+      "to": "H2",
+      "type": "supports"
+    },
+    {
+      "from": "S2",
+      "to": "H2",
+      "type": "supports"
+    },
+    {
+      "from": "S3",
+      "to": "H2",
+      "type": "supports"
+    },
+    {
+      "from": "C4",
+      "to": "H2",
+      "type": "formalizes_authority_bridge"
+    },
+    {
+      "from": "S4",
+      "to": "H3",
+      "type": "motivates"
+    },
+    {
+      "from": "C5",
+      "to": "H3",
+      "type": "identifies_gap"
+    },
+    {
+      "from": "S7",
+      "to": "H4",
+      "type": "supports_research_only"
+    },
+    {
+      "from": "C6",
+      "to": "H5",
+      "type": "motivates"
+    }
+  ],
+  "evidence_order": [
+    "proved",
+    "contract",
+    "implemented",
+    "replayed_test",
+    "hypothesis"
+  ],
+  "hypotheses": [
+    {
+      "falsifier": "Find a valid theorem over the production fee formula proving reserve-independent nondecreasing gross-space jump costs, or a unit-marginal greedy proof that survives C3.",
+      "id": "H1",
+      "statement": "A reserve-independent local concavity or unit-marginal rule is sufficient for exact production routing.",
+      "status": "refuted"
+    },
+    {
+      "falsifier": "Produce a feasible allocation whose exact integer output exceeds a winner even though every envelope and strict-gap check passes.",
+      "id": "H2",
+      "statement": "Fast continuous or heuristic routing can be made authoritative through exact affine or piecewise dual-envelope certificates.",
+      "status": "supported_formal_candidate"
+    },
+    {
+      "falsifier": "Show that internal crossing followed by certified net-residual function maximization cannot preserve user limits, conservation, and one canonical batch price under exact integer semantics.",
+      "id": "H3",
+      "statement": "A CrossThenFM batch profile can combine low reserve movement with function-maximizing authority.",
+      "status": "open"
+    },
+    {
+      "falsifier": "Demonstrate manipulation, stale-data, replay, or discontinuity behavior that violates user limits or worsens the governed LP objective under the bounded controller.",
+      "id": "H4",
+      "statement": "Lagged volatility-feedback fees can improve LP outcomes inside constitutional bounds.",
+      "status": "open_research_only"
+    },
+    {
+      "falsifier": "Exhibit a static curve profile with a proved governed objective improvement that dominates the mechanism-level improvements after integer fees, routing, and LP risk are included.",
+      "id": "H5",
+      "statement": "Mechanism and certificate research currently has higher expected value than adding static curve variants.",
+      "status": "supported_strategy"
+    }
+  ],
+  "repository_evidence": [
+    {
+      "id": "R1",
+      "path": "lean-mathlib/Proofs/CPMMConcavity.lean",
+      "role": "zero-fee near-concavity theorem"
+    },
+    {
+      "id": "R2",
+      "path": "lean-mathlib/Proofs/GaloisSplitCertificate.lean",
+      "role": "local-to-global approximate certificate from finite defect grade"
+    },
+    {
+      "id": "R3",
+      "path": "lean-mathlib/Proofs/KPoolStaircase.lean",
+      "role": "k-pool staircase theorem and explicit scope limits"
+    },
+    {
+      "id": "R4",
+      "path": "src/core/split_routing_kpool_staircase.py",
+      "role": "experimental exact staircase and DP implementation"
+    },
+    {
+      "id": "R5",
+      "path": "src/core/uniform_batch_clearing.py",
+      "role": "implemented uniform-price fill and aggregate k-safety verifier"
+    },
+    {
+      "id": "R6",
+      "path": "lean-mathlib/Proofs/UniformBatchOptimality.lean",
+      "role": "fixed-price and finite-audit-set optimality theorem"
+    },
+    {
+      "id": "R7",
+      "path": "lean-mathlib/Proofs/ImpossibilityTheoremV2.lean",
+      "role": "power-family local slippage and impermanent-loss trade-off"
+    }
+  ],
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "S1",
+      "title": "Optimal Routing for Constant Function Market Makers",
+      "type": "primary_literature",
+      "url": "https://arxiv.org/abs/2204.05238"
+    },
+    {
+      "id": "S2",
+      "title": "An Efficient Algorithm for Optimal Routing Through Constant Function Market Makers",
+      "type": "primary_literature",
+      "url": "https://arxiv.org/abs/2302.04938"
+    },
+    {
+      "id": "S3",
+      "title": "Optimal Routing across Constant Function Market Makers with Gas Fees",
+      "type": "primary_literature",
+      "url": "https://arxiv.org/abs/2603.02844"
+    },
+    {
+      "id": "S4",
+      "title": "Batching Trades on Automated Market Makers",
+      "type": "peer_reviewed_primary_literature",
+      "url": "https://doi.org/10.4230/LIPIcs.AFT.2023.24"
+    },
+    {
+      "id": "S5",
+      "title": "Towards a Theory of Maximal Extractable Value I: Constant Function Market Makers",
+      "type": "primary_literature",
+      "url": "https://arxiv.org/abs/2207.11835"
+    },
+    {
+      "id": "S6",
+      "title": "Automated Market Making and Loss-Versus-Rebalancing",
+      "type": "primary_literature",
+      "url": "https://arxiv.org/abs/2208.06046"
+    },
+    {
+      "id": "S7",
+      "title": "Optimal Dynamic Fees for Automated Market Makers: A Stochastic Control Approach to Loss-Versus-Rebalancing",
+      "type": "current_preprint",
+      "url": "https://arxiv.org/abs/2606.21769"
+    },
+    {
+      "id": "S8",
+      "title": "Formalizing Automated Market Makers in the Lean 4 Theorem Prover",
+      "type": "primary_literature",
+      "url": "https://arxiv.org/abs/2402.06064"
+    },
+    {
+      "id": "S9",
+      "title": "Semantic Search over 9 Million Mathematical Theorems",
+      "type": "primary_literature",
+      "url": "https://arxiv.org/abs/2602.05216"
+    }
+  ],
+  "tool_boundary": {
+    "direct_external_esso_mcp": false,
+    "direct_external_morph_mcp": false,
+    "direct_external_research_kernel_mcp": false,
+    "direct_theoremsearch_post": false,
+    "repo_native_bounded_falsifier": true,
+    "repo_native_research_memory": true,
+    "theoremsearch_public_docs_consulted": true
+  }
+}
