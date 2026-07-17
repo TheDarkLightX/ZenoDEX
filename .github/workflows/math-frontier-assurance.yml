@@ -46,7 +46,8 @@ jobs:
         run: |
           lean --version
           lake --version
-          test "$(lean --version | awk '{print $3}')" = "4.27.0"
+          version="$(lean --version | sed -n 's/^Lean (version \([^,]*\),.*/\1/p')"
+          test "$version" = "4.27.0"
 
       - name: Retrieve pinned mathlib cache
         working-directory: lean-mathlib
