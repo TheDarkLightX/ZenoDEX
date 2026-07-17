@@ -32,19 +32,33 @@ jobs:
             external/mathlib4
           test "$(cat external/mathlib4/lean-toolchain)" = "$(cat lean-mathlib/lean-toolchain)"
 
-      - name: Build pinned Lean project with mathlib cache
+      - name: Install pinned Lean and retrieve mathlib cache
         uses: leanprover/lean-action@v1
         with:
           lake-package-directory: lean-mathlib
-          build: true
+          auto-config: false
+          build: false
           test: false
           use-mathlib-cache: true
 
       - name: Compile both frontier modules directly
         working-directory: lean-mathlib
         run: |
-          lake env lean Proofs/FeeAwareRoutingNonconcavity.lean
-          lake env lean Proofs/RoutingAffineEnvelopeCertificate.lean
+          set +e
+          status=0
+          for file in \
+            Proofs/FeeAwareRoutingNonconcavity.lean \
+            Proofs/RoutingAffineEnvelopeCertificate.lean; do
+            log="/tmp/$(basename "$file").log"
+            echo "== compiling $file =="
+            lake env lean "$file" >"$log" 2>&1
+            file_status=$?
+            cat "$log"
+            if [[ $file_status -ne 0 ]]; then
+              status=1
+            fi
+          done
+          exit "$status"
 
       - name: Reject incomplete or trust-expanding declarations
         run: |
