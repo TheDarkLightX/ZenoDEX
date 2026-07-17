@@ -1,0 +1,189 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_oracle_ingress_admission_v1"
+  created_by: "zenodex"
+  notes: |
+    Finite control abstraction for the versioned zUSD oracle-ingress evidence
+    matrix.  The six evidence bits are normalized conjunctions produced by
+    trusted shell verifiers.  aggregate_proposal_bound compresses proposal
+    authenticity, F01 profile/chain/asset/source-set binding, price and round
+    validity, exact pre-state/sequence, and source-nullifier uniqueness.
+    pending_snapshot_bound and committed_active_snapshot_bound likewise
+    compress their full snapshot-provenance obligation families.  The effects
+    are lossless only at this port level.  Individual external-verifier failure
+    reasons are outside the abstraction.  This is not the complete F03 oracle
+    FSM and does not establish external consensus finality, oracle truth,
+    receipt authenticity, or Python refinement by itself.
+
+    Bounds are exhaustive for the control relation: two policy profiles, six
+    actions, and every assignment of the six Boolean evidence facts (768 cases).
+
+observables:
+  state_vars:
+    - "profile_code"
+    - "action_code"
+    - "configured_sender_bound"
+    - "finalized_context_bound"
+    - "aggregate_proposal_bound"
+    - "pending_snapshot_bound"
+    - "committed_active_snapshot_bound"
+    - "critical_action_authorization_bound"
+  effects:
+    - "configured_sender_required"
+    - "finalized_context_required"
+    - "aggregate_proposal_required"
+    - "exact_pending_snapshot_required"
+    - "committed_active_snapshot_required"
+    - "critical_action_authorization_required"
+    - "admitted"
+
+types: []
+
+state_vars:
+  - id: "profile_code"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "action_code"
+    role: "control"
+    type: { kind: "int", min: 0, max: 5 }
+  - id: "configured_sender_bound"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "finalized_context_bound"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "aggregate_proposal_bound"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "pending_snapshot_bound"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "committed_active_snapshot_bound"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "critical_action_authorization_bound"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - var: "profile_code"
+    expr: { const: 1 }
+  - var: "action_code"
+    expr: { const: 0 }
+  - var: "configured_sender_bound"
+    expr: { const: 0 }
+  - var: "finalized_context_bound"
+    expr: { const: 0 }
+  - var: "aggregate_proposal_bound"
+    expr: { const: 0 }
+  - var: "pending_snapshot_bound"
+    expr: { const: 0 }
+  - var: "committed_active_snapshot_bound"
+    expr: { const: 0 }
+  - var: "critical_action_authorization_bound"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_control_domain"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "profile_code" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "profile_code" }, { const: 1 }] }
+        - { op: ">=", args: [{ var: "action_code" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "action_code" }, { const: 5 }] }
+
+actions:
+  - id: "evaluate_oracle_ingress"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      configured_sender_required:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "profile_code" }, { const: 0 }] }
+          - { op: "<=", args: [{ var: "action_code" }, { const: 3 }] }
+          - { op: "=", args: [{ var: "configured_sender_bound" }, { const: 0 }] }
+      finalized_context_required:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "profile_code" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "finalized_context_bound" }, { const: 0 }] }
+      aggregate_proposal_required:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "profile_code" }, { const: 1 }] }
+          - op: "or"
+            args:
+              - { op: "=", args: [{ var: "action_code" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "action_code" }, { const: 2 }] }
+          - { op: "=", args: [{ var: "aggregate_proposal_bound" }, { const: 0 }] }
+      exact_pending_snapshot_required:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "profile_code" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "action_code" }, { const: 3 }] }
+          - { op: "=", args: [{ var: "pending_snapshot_bound" }, { const: 0 }] }
+      committed_active_snapshot_required:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "profile_code" }, { const: 1 }] }
+          - op: "or"
+            args:
+              - { op: "=", args: [{ var: "action_code" }, { const: 4 }] }
+              - { op: "=", args: [{ var: "action_code" }, { const: 5 }] }
+          - { op: "=", args: [{ var: "committed_active_snapshot_bound" }, { const: 0 }] }
+      critical_action_authorization_required:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "profile_code" }, { const: 1 }] }
+          - op: "or"
+            args:
+              - { op: "=", args: [{ var: "action_code" }, { const: 4 }] }
+              - { op: "=", args: [{ var: "action_code" }, { const: 5 }] }
+          - { op: "=", args: [{ var: "critical_action_authorization_bound" }, { const: 0 }] }
+      admitted:
+        op: "not"
+        args:
+          - op: "or"
+            args:
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ var: "profile_code" }, { const: 0 }] }
+                  - { op: "<=", args: [{ var: "action_code" }, { const: 3 }] }
+                  - { op: "=", args: [{ var: "configured_sender_bound" }, { const: 0 }] }
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ var: "profile_code" }, { const: 1 }] }
+                  - { op: "=", args: [{ var: "finalized_context_bound" }, { const: 0 }] }
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ var: "profile_code" }, { const: 1 }] }
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ var: "action_code" }, { const: 1 }] }
+                      - { op: "=", args: [{ var: "action_code" }, { const: 2 }] }
+                  - { op: "=", args: [{ var: "aggregate_proposal_bound" }, { const: 0 }] }
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ var: "profile_code" }, { const: 1 }] }
+                  - { op: "=", args: [{ var: "action_code" }, { const: 3 }] }
+                  - { op: "=", args: [{ var: "pending_snapshot_bound" }, { const: 0 }] }
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ var: "profile_code" }, { const: 1 }] }
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ var: "action_code" }, { const: 4 }] }
+                      - { op: "=", args: [{ var: "action_code" }, { const: 5 }] }
+                  - { op: "=", args: [{ var: "committed_active_snapshot_bound" }, { const: 0 }] }
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ var: "profile_code" }, { const: 1 }] }
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ var: "action_code" }, { const: 4 }] }
+                      - { op: "=", args: [{ var: "action_code" }, { const: 5 }] }
+                  - { op: "=", args: [{ var: "critical_action_authorization_bound" }, { const: 0 }] }
