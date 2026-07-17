@@ -62,9 +62,13 @@ theorem no_reserve_independent_concavity_grade (grade : ℕ) :
     ¬ NatNearlyDiscreteConcave grade
       (feeAwareOut ((grade + 1) * 2)) 2 := by
   intro h
-  have hAtZero := h 0 (by omega)
+  have hAtZero :
+      feeAwareOut ((grade + 1) * 2) 2 +
+          feeAwareOut ((grade + 1) * 2) 0 ≤
+        2 * feeAwareOut ((grade + 1) * 2) 1 + grade := by
+    simpa using h 0 (by omega)
   have hBad := fee_aware_gross_second_difference_unbounded grade
-  omega
+  exact (not_lt_of_ge hAtZero) hBad
 
 /-- Concrete threshold witness: for `(x,y,fee) = (1,3,1 bp)`, the minimal gross
 costs of output levels one and two are two and three. The threshold increments
