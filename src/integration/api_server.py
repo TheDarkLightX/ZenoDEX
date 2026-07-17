@@ -1953,23 +1953,36 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._demo_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
-        from src.integration.confidential_attestation_api import handle_confidential_attestation_request
+        from src.integration.confidential_attestation_api import (
+            handle_confidential_attestation_request,
+        )
 
-        request_table = getattr(self.server, "confidential_request_table", None)  # type: ignore[attr-defined]
         request_lock = getattr(self.server, "confidential_request_lock", None)  # type: ignore[attr-defined]
-        if path in {
+        stateful_paths = {
             "/api/confidential/attestation/admit",
             "/api/confidential/attestation/execute",
-        } and request_lock is not None:
+        }
+        if path in stateful_paths:
+            if request_lock is None:
+                self._write_json(
+                    503,
+                    {"ok": False, "error": "confidential_request_lock_unavailable"},
+                    cors_origin=cors_origin,
+                )
+                return True
             with request_lock:
-                status, resp = handle_confidential_attestation_request(
+                request_table = getattr(self.server, "confidential_request_table", None)  # type: ignore[attr-defined]
+                status, resp, updated_request_table = handle_confidential_attestation_request(
                     method,
                     path,
                     raw_body,
                     request_table=request_table,
                 )
+                if updated_request_table is not None:
+                    self.server.confidential_request_table = updated_request_table  # type: ignore[attr-defined]
         else:
-            status, resp = handle_confidential_attestation_request(
+            request_table = getattr(self.server, "confidential_request_table", None)  # type: ignore[attr-defined]
+            status, resp, _updated_request_table = handle_confidential_attestation_request(
                 method,
                 path,
                 raw_body,

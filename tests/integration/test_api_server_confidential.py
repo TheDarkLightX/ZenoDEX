@@ -5,7 +5,6 @@ import sys
 import threading
 from http.client import HTTPConnection
 
-
 NITRO_PCR0 = "a" * 96
 NITRO_PCR8 = "b" * 96
 AZURE_HOSTDATA = "c" * 64
@@ -16,7 +15,9 @@ PRIVATE_ROUTE_HINT = "private-route-alpha-do-not-echo"
 
 def _start_test_server():
     from src.integration import api_server
-    from src.integration.confidential_feature_status import load_confidential_feature_status_from_env
+    from src.integration.confidential_feature_status import (
+        load_confidential_feature_status_from_env,
+    )
     from src.state.confidential_requests import ConfidentialRequestTable
 
     httpd = api_server.ThreadingHTTPServer(("127.0.0.1", 0), api_server._Handler)
@@ -48,7 +49,9 @@ def _stop_test_server(httpd, thread: threading.Thread) -> None:
     thread.join(timeout=2.0)
 
 
-def _verifier_cmd_json(*, measurement: str = MEASUREMENT, policy_digest: str = POLICY_DIGEST, epoch: int = 9) -> str:
+def _verifier_cmd_json(
+    *, measurement: str = MEASUREMENT, policy_digest: str = POLICY_DIGEST, epoch: int = 9
+) -> str:
     code = (
         "import json,sys;"
         "json.load(sys.stdin);"
@@ -85,7 +88,9 @@ def _attestation_request() -> dict[str, object]:
     }
 
 
-def _runtime_request(*, request_id: str = "req-runtime", execution_id: str = "exec-runtime") -> dict[str, object]:
+def _runtime_request(
+    *, request_id: str = "req-runtime", execution_id: str = "exec-runtime"
+) -> dict[str, object]:
     return {
         **_attestation_request(),
         "request_id": request_id,
@@ -96,7 +101,9 @@ def _runtime_request(*, request_id: str = "req-runtime", execution_id: str = "ex
     }
 
 
-def _post_json(host: str, port: int, path: str, body: dict[str, object]) -> tuple[int, dict[str, object]]:
+def _post_json(
+    host: str, port: int, path: str, body: dict[str, object]
+) -> tuple[int, dict[str, object]]:
     conn = HTTPConnection(host, port, timeout=3.0)
     conn.request("POST", path, body=json.dumps(body), headers={"Content-Type": "application/json"})
     resp = conn.getresponse()
@@ -151,7 +158,10 @@ def test_api_server_confidential_status_endpoint(monkeypatch) -> None:
         assert status["operator_contact"] == "confidential@zenodex.test"
         assert "response redaction" in status["claim_scope"]
         assert "no in-repo proof of TEE hardware confidentiality" in status["non_claims"]
-        assert "cryptographic attestation verification remains external-only" in status["readiness_gaps"]
+        assert (
+            "cryptographic attestation verification remains external-only"
+            in status["readiness_gaps"]
+        )
     finally:
         _stop_test_server(httpd, t)
 
@@ -183,14 +193,18 @@ def test_api_server_confidential_attestation_status_reports_verifier_posture(mon
         _stop_test_server(httpd, t)
 
 
-def test_api_server_confidential_attestation_verify_accepts_allowlisted_external_verifier(monkeypatch) -> None:
+def test_api_server_confidential_attestation_verify_accepts_allowlisted_external_verifier(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
 
     httpd, t, host, port = _start_test_server()
     try:
-        status, body = _post_json(host, port, "/api/confidential/attestation/verify", _attestation_request())
+        status, body = _post_json(
+            host, port, "/api/confidential/attestation/verify", _attestation_request()
+        )
         assert status == 200
         assert body["ok"] is True
         assert body["receipt_admissible"] is True
@@ -208,7 +222,9 @@ def test_api_server_confidential_attestation_verify_accepts_allowlisted_external
         _stop_test_server(httpd, t)
 
 
-def test_api_server_confidential_attestation_admit_consumes_request_and_rejects_replay(monkeypatch) -> None:
+def test_api_server_confidential_attestation_admit_consumes_request_and_rejects_replay(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
@@ -243,7 +259,73 @@ def test_api_server_confidential_attestation_admit_consumes_request_and_rejects_
         _stop_test_server(httpd, t)
 
 
-def test_api_server_confidential_attestation_admit_policy_mismatch_does_not_consume(monkeypatch) -> None:
+def test_api_server_confidential_attestation_concurrent_consume_has_one_winner(
+    monkeypatch,
+) -> None:
+    class _CoordinatedLock:
+        def __init__(self) -> None:
+            self._inner = threading.Lock()
+            self._attempt_guard = threading.Lock()
+            self._second_attempted = threading.Event()
+            self._attempts = 0
+
+        def __enter__(self):
+            with self._attempt_guard:
+                self._attempts += 1
+                first = self._attempts == 1
+                if self._attempts == 2:
+                    self._second_attempted.set()
+            self._inner.acquire()
+            if first and not self._second_attempted.wait(timeout=2.0):
+                self._inner.release()
+                raise AssertionError("second request did not reach replay-table lock")
+            return self
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            del exc_type, exc, traceback
+            self._inner.release()
+
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
+
+    request = {**_attestation_request(), "expected_policy_digest": POLICY_DIGEST}
+    httpd, t, host, port = _start_test_server()
+    httpd.confidential_request_lock = _CoordinatedLock()  # type: ignore[attr-defined]
+    start = threading.Barrier(3)
+    results: list[tuple[int, dict[str, object]]] = []
+    errors: list[BaseException] = []
+
+    def submit() -> None:
+        try:
+            start.wait(timeout=2.0)
+            results.append(
+                _post_json(host, port, "/api/confidential/attestation/admit", request)
+            )
+        except BaseException as exc:  # pragma: no cover - retained for deterministic failure reporting
+            errors.append(exc)
+
+    workers = [threading.Thread(target=submit), threading.Thread(target=submit)]
+    try:
+        for worker in workers:
+            worker.start()
+        start.wait(timeout=2.0)
+        for worker in workers:
+            worker.join(timeout=5.0)
+
+        assert all(not worker.is_alive() for worker in workers)
+        assert errors == []
+        assert sorted(status for status, _body in results) == [200, 400]
+        rejected = next(body for status, body in results if status == 400)
+        assert rejected["error"] == "request_replay"
+        assert len(httpd.confidential_request_table.get_all()) == 1  # type: ignore[attr-defined]
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_confidential_attestation_admit_policy_mismatch_does_not_consume(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
@@ -252,21 +334,59 @@ def test_api_server_confidential_attestation_admit_policy_mismatch_does_not_cons
     good_request = {**_attestation_request(), "expected_policy_digest": POLICY_DIGEST}
     httpd, t, host, port = _start_test_server()
     try:
-        status, rejected = _post_json(host, port, "/api/confidential/attestation/admit", bad_request)
+        initial_table = httpd.confidential_request_table  # type: ignore[attr-defined]
+        status, rejected = _post_json(
+            host, port, "/api/confidential/attestation/admit", bad_request
+        )
         assert status == 400
         assert rejected["ok"] is False
         assert rejected["error"] == "policy_digest_mismatch"
         assert rejected["request_consumed"] is False
+        assert httpd.confidential_request_table is initial_table  # type: ignore[attr-defined]
+        assert initial_table.get_all() == {}
 
-        status, accepted = _post_json(host, port, "/api/confidential/attestation/admit", good_request)
+        status, accepted = _post_json(
+            host, port, "/api/confidential/attestation/admit", good_request
+        )
         assert status == 200
         assert accepted["ok"] is True
         assert accepted["request_consumed"] is True
+        committed_table = httpd.confidential_request_table  # type: ignore[attr-defined]
+        assert committed_table is not initial_table
+        assert initial_table.get_all() == {}
+        assert len(committed_table.get_all()) == 1
     finally:
         _stop_test_server(httpd, t)
 
 
-def test_api_server_confidential_attestation_execute_returns_bounded_runtime_receipt(monkeypatch) -> None:
+def test_api_server_confidential_attestation_stateful_request_fails_closed_without_lock(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
+    monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
+
+    request = {**_attestation_request(), "expected_policy_digest": POLICY_DIGEST}
+    httpd, t, host, port = _start_test_server()
+    try:
+        initial_table = httpd.confidential_request_table  # type: ignore[attr-defined]
+        httpd.confidential_request_lock = None  # type: ignore[attr-defined]
+
+        status, rejected = _post_json(
+            host, port, "/api/confidential/attestation/admit", request
+        )
+
+        assert status == 503
+        assert rejected == {"ok": False, "error": "confidential_request_lock_unavailable"}
+        assert httpd.confidential_request_table is initial_table  # type: ignore[attr-defined]
+        assert initial_table.get_all() == {}
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_confidential_attestation_execute_returns_bounded_runtime_receipt(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
@@ -279,7 +399,9 @@ def test_api_server_confidential_attestation_execute_returns_bounded_runtime_rec
         status_body = json.loads(status_resp.read().decode("utf-8"))
         assert status_resp.status == 200
         status_payload = status_body["status"]
-        status, body = _post_json(host, port, "/api/confidential/attestation/execute", _runtime_request())
+        status, body = _post_json(
+            host, port, "/api/confidential/attestation/execute", _runtime_request()
+        )
         assert status == 200
         assert body["ok"] is True
         assert body["admission_ok"] is True
@@ -293,13 +415,22 @@ def test_api_server_confidential_attestation_execute_returns_bounded_runtime_rec
         assert runtime_receipt["body"]["measurement_provider"] == "nitro"
         assert runtime_receipt["body"]["result_redacted"] is True
         assert runtime_receipt["body"]["operator_status_hash"] == status_payload["status_hash"]
-        assert runtime_receipt["body"]["approved_measurements_hash"] == status_payload["approved_measurements_hash"]
-        assert runtime_receipt["body"]["external_verifier_binding_hash"] == status_payload["external_verifier_binding_hash"]
+        assert (
+            runtime_receipt["body"]["approved_measurements_hash"]
+            == status_payload["approved_measurements_hash"]
+        )
+        assert (
+            runtime_receipt["body"]["external_verifier_binding_hash"]
+            == status_payload["external_verifier_binding_hash"]
+        )
         assert runtime_receipt["body"]["public_summary"]["execution_admitted"] is True
         assert body["runtime_receipt_hash"] == runtime_receipt["receipt_hash"]
         assert body["operator_status_hash"] == status_payload["status_hash"]
         assert body["approved_measurements_hash"] == status_payload["approved_measurements_hash"]
-        assert body["external_verifier_binding_hash"] == status_payload["external_verifier_binding_hash"]
+        assert (
+            body["external_verifier_binding_hash"]
+            == status_payload["external_verifier_binding_hash"]
+        )
         response_text = json.dumps(body, sort_keys=True)
         assert "attestation_payload" not in body
         assert "attestation_payload" not in response_text
@@ -312,7 +443,9 @@ def test_api_server_confidential_attestation_execute_returns_bounded_runtime_rec
         _stop_test_server(httpd, t)
 
 
-def test_api_server_confidential_attestation_execute_rejects_replay_without_second_receipt(monkeypatch) -> None:
+def test_api_server_confidential_attestation_execute_rejects_replay_without_second_receipt(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
@@ -336,26 +469,39 @@ def test_api_server_confidential_attestation_execute_rejects_replay_without_seco
         _stop_test_server(httpd, t)
 
 
-def test_api_server_confidential_attestation_execute_bad_runtime_request_does_not_consume(monkeypatch) -> None:
+def test_api_server_confidential_attestation_execute_bad_runtime_request_does_not_consume(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
 
     bad_request = _runtime_request(execution_id="exec runtime")
-    good_request = _runtime_request(request_id="req-runtime-good", execution_id="exec-runtime-good")
+    good_request = _runtime_request(execution_id="exec-runtime-good")
     httpd, t, host, port = _start_test_server()
     try:
-        status, rejected = _post_json(host, port, "/api/confidential/attestation/execute", bad_request)
+        initial_table = httpd.confidential_request_table  # type: ignore[attr-defined]
+        status, rejected = _post_json(
+            host, port, "/api/confidential/attestation/execute", bad_request
+        )
         assert status == 400
         assert rejected["ok"] is False
         assert rejected["error"] == "bad_runtime_request"
         assert rejected["admission_ok"] is True
         assert rejected["request_consumed"] is False
+        assert httpd.confidential_request_table is initial_table  # type: ignore[attr-defined]
+        assert initial_table.get_all() == {}
 
-        status, accepted = _post_json(host, port, "/api/confidential/attestation/execute", good_request)
+        status, accepted = _post_json(
+            host, port, "/api/confidential/attestation/execute", good_request
+        )
         assert status == 200
         assert accepted["ok"] is True
         assert accepted["request_consumed"] is True
+        committed_table = httpd.confidential_request_table  # type: ignore[attr-defined]
+        assert committed_table is not initial_table
+        assert initial_table.get_all() == {}
+        assert len(committed_table.get_all()) == 1
     finally:
         _stop_test_server(httpd, t)
 
@@ -383,7 +529,9 @@ def test_api_server_confidential_attestation_verify_rejects_bad_receipt_inputs(m
         _stop_test_server(httpd, t)
 
 
-def test_api_server_confidential_attestation_verify_rejects_unapproved_measurement(monkeypatch) -> None:
+def test_api_server_confidential_attestation_verify_rejects_unapproved_measurement(
+    monkeypatch,
+) -> None:
     other_measurement = f"nitro:pcr0:{'e' * 96}:pcr8:{'f' * 96}"
     monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "true")
@@ -394,7 +542,9 @@ def test_api_server_confidential_attestation_verify_rejects_unapproved_measureme
 
     httpd, t, host, port = _start_test_server()
     try:
-        status, body = _post_json(host, port, "/api/confidential/attestation/verify", _attestation_request())
+        status, body = _post_json(
+            host, port, "/api/confidential/attestation/verify", _attestation_request()
+        )
         assert status == 400
         assert body["ok"] is False
         assert body["error"] == "measurement_not_approved"
@@ -404,14 +554,18 @@ def test_api_server_confidential_attestation_verify_rejects_unapproved_measureme
         _stop_test_server(httpd, t)
 
 
-def test_api_server_confidential_attestation_verify_fails_closed_when_verifier_disabled(monkeypatch) -> None:
+def test_api_server_confidential_attestation_verify_fails_closed_when_verifier_disabled(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("CONFIDENTIAL_APPROVED_MEASUREMENTS", MEASUREMENT)
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_ENABLED", "false")
     monkeypatch.setenv("CONFIDENTIAL_ATTESTATION_VERIFIER_CMD_JSON", _verifier_cmd_json())
 
     httpd, t, host, port = _start_test_server()
     try:
-        status, body = _post_json(host, port, "/api/confidential/attestation/verify", _attestation_request())
+        status, body = _post_json(
+            host, port, "/api/confidential/attestation/verify", _attestation_request()
+        )
         assert status == 502
         assert body["ok"] is False
         assert body["error"] == "attestation_verifier_rejected"

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Mapping
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Any
 
 
 def _require_text(value: object, *, name: str) -> str:
@@ -30,7 +32,9 @@ class ConfidentialRequestKey:
     request_id: str
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "extension_id", _require_text(self.extension_id, name="extension_id"))
+        object.__setattr__(
+            self, "extension_id", _require_text(self.extension_id, name="extension_id")
+        )
         object.__setattr__(self, "provider_id", _require_text(self.provider_id, name="provider_id"))
         object.__setattr__(self, "request_id", _require_text(self.request_id, name="request_id"))
 
@@ -66,29 +70,69 @@ def evaluate_confidential_request_use_transition(
     )
 
 
-@dataclass
+ConfidentialRequestEntry = tuple[ConfidentialRequestKey, bool]
+ConfidentialRequestEntries = (
+    Mapping[ConfidentialRequestKey, bool] | Iterable[ConfidentialRequestEntry]
+)
+
+
+def _canonical_used_entries(
+    entries: ConfidentialRequestEntries,
+) -> tuple[ConfidentialRequestEntry, ...]:
+    raw_entries = entries.items() if isinstance(entries, Mapping) else entries
+    seen_keys: set[ConfidentialRequestKey] = set()
+    used_keys: set[ConfidentialRequestKey] = set()
+    for index, raw_entry in enumerate(raw_entries):
+        if not isinstance(raw_entry, tuple) or len(raw_entry) != 2:
+            raise TypeError(f"entries[{index}] must be a (ConfidentialRequestKey, bool) tuple")
+        key, raw_used = raw_entry
+        if not isinstance(key, ConfidentialRequestKey):
+            raise TypeError(f"entries[{index}] key must be a ConfidentialRequestKey")
+        if key in seen_keys:
+            raise ValueError(f"entries[{index}] duplicates a confidential request key")
+        seen_keys.add(key)
+        used = _require_flag(raw_used, name=f"entries[{index}].used")
+        if used:
+            used_keys.add(key)
+    return tuple(
+        (key, True)
+        for key in sorted(
+            used_keys,
+            key=lambda item: (item.extension_id, item.provider_id, item.request_id),
+        )
+    )
+
+
+@dataclass(frozen=True, slots=True, init=False)
 class ConfidentialRequestTable:
-    _used: Dict[ConfidentialRequestKey, bool] = field(default_factory=dict)
+    """Canonical immutable snapshot of consumed confidential request keys."""
+
+    entries: tuple[ConfidentialRequestEntry, ...]
+
+    def __init__(self, entries: ConfidentialRequestEntries = ()) -> None:
+        object.__setattr__(self, "entries", _canonical_used_entries(entries))
 
     def is_used(self, key: ConfidentialRequestKey) -> bool:
         if not isinstance(key, ConfidentialRequestKey):
             raise TypeError("key must be a ConfidentialRequestKey")
-        return bool(self._used.get(key, False))
+        return any(entry_key == key for entry_key, _used in self.entries)
 
-    def mark_used(self, key: ConfidentialRequestKey) -> None:
+    def consume(self, key: ConfidentialRequestKey) -> ConfidentialRequestTable:
+        """Return a new snapshot with ``key`` consumed; reject replay atomically."""
+
         if not isinstance(key, ConfidentialRequestKey):
             raise TypeError("key must be a ConfidentialRequestKey")
-        self._used[key] = True
+        if self.is_used(key):
+            raise ValueError("request already used")
+        return ConfidentialRequestTable((*self.entries, (key, True)))
 
     def get_all(self) -> Mapping[ConfidentialRequestKey, bool]:
-        return dict(self._used)
+        return MappingProxyType(dict(self.entries))
 
 
-def copy_confidential_request_table(request_table: ConfidentialRequestTable) -> ConfidentialRequestTable:
+def copy_confidential_request_table(
+    request_table: ConfidentialRequestTable,
+) -> ConfidentialRequestTable:
     if not isinstance(request_table, ConfidentialRequestTable):
         raise TypeError("request_table must be a ConfidentialRequestTable")
-    copied = ConfidentialRequestTable()
-    for key, used in request_table.get_all().items():
-        if bool(used):
-            copied.mark_used(key)
-    return copied
+    return ConfidentialRequestTable(request_table.entries)

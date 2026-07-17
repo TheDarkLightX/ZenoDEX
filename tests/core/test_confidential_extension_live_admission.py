@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from src.core.confidential_extension_live_admission import validate_confidential_extension_live_admission
+from src.core.confidential_extension_live_admission import (
+    validate_confidential_extension_live_admission,
+)
 from src.core.confidential_extension_receipts import make_confidential_extension_receipt
 from src.integration.confidential_attestation import (
     VerifiedConfidentialAttestation,
     make_confidential_extension_receipt_from_verified_attestation,
 )
 from src.state.confidential_requests import ConfidentialRequestKey, ConfidentialRequestTable
-
 
 NITRO_PCR0 = "a" * 96
 NITRO_PCR8 = "b" * 96
@@ -47,11 +48,12 @@ def _receipt(*, do_execute: int = 1) -> dict:
 
 
 def test_confidential_extension_live_admission_accepts_verified_fresh_unused_request() -> None:
+    before = ConfidentialRequestTable()
     ok, err, updated = validate_confidential_extension_live_admission(
         receipt=_receipt(),
         approved_measurements=APPROVED,
         expected_policy_digest=POLICY_DIGEST,
-        request_table=ConfidentialRequestTable(),
+        request_table=before,
     )
     assert ok is True
     assert err is None
@@ -63,29 +65,31 @@ def test_confidential_extension_live_admission_accepts_verified_fresh_unused_req
             request_id="req-1",
         )
     )
+    assert before.get_all() == {}
 
 
 def test_confidential_extension_live_admission_rejects_policy_digest_mismatch() -> None:
+    before = ConfidentialRequestTable()
     ok, err, updated = validate_confidential_extension_live_admission(
         receipt=_receipt(),
         approved_measurements=APPROVED,
         expected_policy_digest=OTHER_POLICY_DIGEST,
-        request_table=ConfidentialRequestTable(),
+        request_table=before,
     )
     assert ok is False
     assert err == "policy_digest_mismatch"
     assert updated is None
+    assert before.get_all() == {}
 
 
 def test_confidential_extension_live_admission_rejects_request_replay() -> None:
-    request_table = ConfidentialRequestTable()
-    request_table.mark_used(
-        ConfidentialRequestKey(
-            extension_id="route-premium-v1",
-            provider_id="provider-1",
-            request_id="req-1",
-        )
+    key = ConfidentialRequestKey(
+        extension_id="route-premium-v1",
+        provider_id="provider-1",
+        request_id="req-1",
     )
+    request_table = ConfidentialRequestTable({key: True})
+    before_entries = request_table.entries
     ok, err, updated = validate_confidential_extension_live_admission(
         receipt=_receipt(),
         approved_measurements=APPROVED,
@@ -95,6 +99,7 @@ def test_confidential_extension_live_admission_rejects_request_replay() -> None:
     assert ok is False
     assert err == "request_replay"
     assert updated is None
+    assert request_table.entries == before_entries
 
 
 def test_confidential_extension_live_admission_rejects_non_executing_receipt() -> None:
@@ -144,7 +149,9 @@ def test_confidential_extension_live_admission_accepts_receipt_from_verified_att
     assert updated is not None
 
 
-def test_confidential_extension_live_admission_rejects_verified_attestation_policy_snapshot_mismatch() -> None:
+def test_confidential_extension_live_admission_rejects_verified_attestation_policy_snapshot_mismatch() -> (
+    None
+):
     receipt = make_confidential_extension_receipt_from_verified_attestation(
         verified_attestation=VerifiedConfidentialAttestation(
             measurement=f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}",
@@ -179,7 +186,9 @@ def test_confidential_extension_live_admission_rejects_verified_attestation_poli
     assert updated is None
 
 
-def test_confidential_extension_live_admission_rejects_verified_attestation_request_replay() -> None:
+def test_confidential_extension_live_admission_rejects_verified_attestation_request_replay() -> (
+    None
+):
     receipt = make_confidential_extension_receipt_from_verified_attestation(
         verified_attestation=VerifiedConfidentialAttestation(
             measurement=f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}",
@@ -203,13 +212,14 @@ def test_confidential_extension_live_admission_rejects_verified_attestation_requ
         provider_balance_before=9,
         provider_balance_after=16,
     )
-    request_table = ConfidentialRequestTable()
-    request_table.mark_used(
-        ConfidentialRequestKey(
-            extension_id="route-premium-v1",
-            provider_id="provider-1",
-            request_id="req-attested-replay",
-        )
+    request_table = ConfidentialRequestTable(
+        {
+            ConfidentialRequestKey(
+                extension_id="route-premium-v1",
+                provider_id="provider-1",
+                request_id="req-attested-replay",
+            ): True
+        }
     )
     ok, err, updated = validate_confidential_extension_live_admission(
         receipt=receipt,
@@ -222,7 +232,9 @@ def test_confidential_extension_live_admission_rejects_verified_attestation_requ
     assert updated is None
 
 
-def test_confidential_extension_live_admission_rejects_verified_attestation_request_projection_drift() -> None:
+def test_confidential_extension_live_admission_rejects_verified_attestation_request_projection_drift() -> (
+    None
+):
     receipt = make_confidential_extension_receipt_from_verified_attestation(
         verified_attestation=VerifiedConfidentialAttestation(
             measurement=f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}",
@@ -259,7 +271,9 @@ def test_confidential_extension_live_admission_rejects_verified_attestation_requ
     assert updated is None
 
 
-def test_confidential_extension_live_admission_rejects_verified_attestation_missing_measurement_allowlist() -> None:
+def test_confidential_extension_live_admission_rejects_verified_attestation_missing_measurement_allowlist() -> (
+    None
+):
     receipt = make_confidential_extension_receipt_from_verified_attestation(
         verified_attestation=VerifiedConfidentialAttestation(
             measurement=f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}",

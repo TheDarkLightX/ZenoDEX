@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from src.state.confidential_requests import (
@@ -71,19 +73,55 @@ def test_confidential_request_use_transition_rejects_noncanonical_flag() -> None
         )
 
 
-def test_copy_confidential_request_table_preserves_used_entries_without_aliasing() -> None:
+def test_confidential_request_table_constructor_owns_and_canonicalizes_entries() -> None:
     key = _key()
-    table = ConfidentialRequestTable()
-    table.mark_used(key)
-
-    copied = copy_confidential_request_table(table)
-    assert copied.is_used(key) is True
-
     other = ConfidentialRequestKey(
         extension_id="ext-2",
         provider_id="provider-1",
         request_id="req-2",
     )
-    copied.mark_used(other)
-    assert copied.is_used(other) is True
-    assert table.is_used(other) is False
+    source = {other: True, key: True}
+
+    table = ConfidentialRequestTable(source)
+    source.clear()
+
+    assert table.entries == ((key, True), (other, True))
+    assert table.is_used(key) is True
+    assert table.is_used(other) is True
+
+
+def test_confidential_request_table_exposes_only_structurally_immutable_state() -> None:
+    key = _key()
+    table = ConfidentialRequestTable({key: True})
+
+    assert isinstance(table.entries, tuple)
+    assert isinstance(table.entries[0], tuple)
+    with pytest.raises(FrozenInstanceError):
+        table.entries = ()  # type: ignore[misc]
+    with pytest.raises(TypeError):
+        table.get_all()[key] = False  # type: ignore[index]
+
+    assert table.is_used(key) is True
+
+
+def test_confidential_request_table_consume_is_atomic_and_replay_is_no_op() -> None:
+    key = _key()
+    before = ConfidentialRequestTable()
+
+    after = before.consume(key)
+
+    assert after is not before
+    assert before.get_all() == {}
+    assert after.get_all() == {key: True}
+    with pytest.raises(ValueError, match="request already used"):
+        after.consume(key)
+    assert after.get_all() == {key: True}
+
+
+def test_copy_confidential_request_table_preserves_immutable_snapshot() -> None:
+    key = _key()
+    table = ConfidentialRequestTable({key: True})
+
+    copied = copy_confidential_request_table(table)
+    assert copied == table
+    assert copied.is_used(key) is True

@@ -7,7 +7,6 @@ from ..state.canonical import canonical_hex_fixed_allow_0x
 from ..state.confidential_requests import (
     ConfidentialRequestKey,
     ConfidentialRequestTable,
-    copy_confidential_request_table,
     evaluate_confidential_request_use_transition,
 )
 from .confidential_extension_receipts import verify_confidential_extension_receipt
@@ -51,10 +50,7 @@ def evaluate_confidential_extension_live_admission_gate(
     request_used = _require_flag(request_used_before, name="request_used_before")
     request_unused_ok = not request_used
     admission_ok = bool(
-        do_execute_ok
-        and receipt_verified_ok
-        and policy_digest_match_ok
-        and request_unused_ok
+        do_execute_ok and receipt_verified_ok and policy_digest_match_ok and request_unused_ok
     )
     request_used_after = bool(request_used or admission_ok)
     return ConfidentialExtensionLiveAdmissionOutcome(
@@ -103,8 +99,7 @@ def validate_confidential_extension_live_admission(
         provider_id=str(body["provider_id"]),
         request_id=str(body["request_id"]),
     )
-    updated = copy_confidential_request_table(request_table)
-    request_used_before = updated.is_used(key)
+    request_used_before = request_table.is_used(key)
     gate = evaluate_confidential_extension_live_admission_gate(
         do_execute=host.get("do_execute"),
         receipt_verified=True,
@@ -121,6 +116,6 @@ def validate_confidential_extension_live_admission(
         return False, "policy_digest_mismatch", None
     if not request_transition.request_unused_ok:
         return False, "request_replay", None
-    if request_transition.consume_applied:
-        updated.mark_used(key)
-    return True, None, updated
+    if not request_transition.consume_applied:
+        return False, "request_replay", None
+    return True, None, request_table.consume(key)
