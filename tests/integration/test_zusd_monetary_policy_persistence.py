@@ -324,6 +324,11 @@ def test_first_fee_stake_activation_uses_sparse_zero_reward_debt() -> None:
     assert result.zusd_state.active_fee_stakes == {ACTOR: 2}
     assert result.zusd_state.pending_fee_stakes == {}
     assert result.zusd_state.fee_stake_reward_debt_e8 == {}
+    explicit_zero = replace(
+        result.zusd_state,
+        fee_stake_reward_debt_e8={ACTOR: 0},
+    )
+    assert explicit_zero.fee_stake_reward_debt_e8 == {}
     assert (
         zusd_monetary_state_from_obj(
             zusd_monetary_state_to_obj(result.zusd_state)

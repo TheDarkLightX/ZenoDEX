@@ -257,7 +257,7 @@ class ZUSDMonetaryState:
             self.pending_fee_stake_activation_epochs,
             name="pending_fee_stake_activation_epochs",
         )
-        reward_debt = _owned_positive_account_map(
+        reward_debt = _owned_sparse_nonnegative_account_map(
             self.fee_stake_reward_debt_e8,
             name="fee_stake_reward_debt_e8",
         )
@@ -1543,6 +1543,28 @@ def _owned_positive_account_map(
         if amount == 0:
             raise ValueError(f"{name}[{pubkey}] amount must be positive")
         owned[pubkey] = amount
+    return owned
+
+
+def _owned_sparse_nonnegative_account_map(
+    value: Mapping[str, int] | None,
+    *,
+    name: str,
+) -> dict[str, int]:
+    """Own a semantic nonnegative map using absent entries for exact zero."""
+
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{name} must be a mapping")
+    owned: dict[str, int] = {}
+    for raw_pubkey, raw_amount in value.items():
+        pubkey = _canonical_pubkey(raw_pubkey, name=f"{name}.pubkey")
+        if pubkey in owned:
+            raise ValueError(f"{name} contains a canonical pubkey collision")
+        amount = _require_nonnegative_int(raw_amount, name=f"{name}[{pubkey}]")
+        if amount > 0:
+            owned[pubkey] = amount
     return owned
 
 
