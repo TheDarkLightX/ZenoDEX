@@ -1386,10 +1386,17 @@ def apply_app_tx(
     except (TypeError, ValueError) as exc:
         return False, app_state_json, "", None, str(exc)
 
-    policy_sensitive_ops_present = (
-        faucet_op is not None or bool(token_ops) or bool(zusd_monetary_ops)
+    state_changing_ops_present = any(
+        (
+            faucet_op is not None,
+            bool(dex_ops),
+            bool(perp_ops),
+            bool(token_ops),
+            bool(proof_mining_ops),
+            bool(zusd_monetary_ops),
+        )
     )
-    if zusd_monetary_state is None and policy_sensitive_ops_present:
+    if zusd_monetary_state is None and state_changing_ops_present:
         return (
             False,
             app_state_json,
@@ -1399,9 +1406,7 @@ def apply_app_tx(
             "install a policy-bound genesis or governed migration first",
         )
 
-    if generic_token_authority is None and (
-        faucet_op is not None or bool(token_ops)
-    ):
+    if generic_token_authority is None and state_changing_ops_present:
         return (
             False,
             app_state_json,

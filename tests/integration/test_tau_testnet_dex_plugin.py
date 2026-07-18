@@ -167,6 +167,52 @@ def test_apply_app_tx_rejects_policy_sensitive_ops_before_policy_bound_genesis(
     )
 
 
+def test_apply_app_tx_rejects_zusd_transition_from_v1_app_state(
+    monkeypatch,
+) -> None:
+    from src.core.dex import DexState
+    from src.core.zusd import E8
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.state import BalanceTable, LPTable
+
+    chain_id = "tau-v1-zusd-reject"
+    oracle = "0x" + "03" * 48
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", oracle)
+    config = plugin._build_zusd_monetary_config(chain_id=chain_id)
+    legacy_json, _legacy_hash = plugin._canonical_state_and_hash(
+        DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()),
+        zusd_monetary_state=plugin.init_monetary_state(config),
+    )
+    assert json.loads(legacy_json)["version"] == 1
+
+    ok, returned_state, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json=legacy_json,
+        chain_balances={},
+        operations={
+            "11": [
+                {
+                    "module": "ZUSDFinance",
+                    "action": "bootstrap_oracle",
+                    "price_e8": 100 * E8,
+                    "nonce": 1,
+                }
+            ]
+        },
+        tx_sender_pubkey=oracle,
+        block_timestamp=1,
+    )
+
+    assert ok is False
+    assert returned_state == legacy_json
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == (
+        "generic token authority is absent from app state; "
+        "install a v2 genesis or governed migration first"
+    )
+
+
 def test_apply_app_tx_replay_uses_committed_economics_across_environment_drift(
     monkeypatch,
 ) -> None:
