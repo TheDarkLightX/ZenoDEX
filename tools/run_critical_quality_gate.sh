@@ -67,6 +67,7 @@ CRITICAL_TESTS=(
   tests/core/test_batch_clearing_global_refinement.py
   tests/core/test_dex_step.py
   tests/core/test_dex_step_candidate_settlement.py
+  tests/core/test_fees_bva.py
   tests/core/test_quote_receipts.py
   tests/core/test_settlement.py
   tests/core/test_settlement_strong_validator.py
@@ -89,6 +90,7 @@ CRITICAL_TESTS=(
 COVERAGE_TARGETS=(
   --cov=src.core.domain_limits
   --cov=src.core.cpmm
+  --cov=src.core.fees
   --cov=src.core.liquidity
   --cov=src.core.batch_clearing
   --cov=src.core.batch_clearing_requests
@@ -119,6 +121,7 @@ echo "== critical: ruff =="
   tools/check_acceptance_tcb_coverage.py \
   src/core/domain_limits.py \
   src/core/cpmm.py \
+  src/core/fees.py \
   src/core/liquidity.py \
   src/core/batch_clearing.py \
   src/core/batch_clearing_requests.py \
@@ -147,6 +150,7 @@ echo "== critical: ruff =="
   tests/core/test_batch_auction_settler_v1_ref_parity.py \
   tests/core/test_batch_auction_settler_v1_witness.py \
   tests/core/test_settlement_swap_runtime_v1.py \
+  tests/core/test_fees_bva.py \
   tests/core/test_quote_receipts.py \
   tests/core/test_quote_receipts_fuzz.py \
   tests/core/test_settlement.py \
