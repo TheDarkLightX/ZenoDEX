@@ -14,6 +14,10 @@ from typing import Any, Iterable, Mapping, Sequence
 from src.core.dex import DexState
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.dex_snapshot import snapshot_from_state
+from src.integration.generic_token_authority_bridge import (
+    generic_token_authority_from_obj,
+    generic_token_authority_to_obj,
+)
 from src.integration.risc0_tx_order_body_summary import tx_execution_order_for_body_v1
 from src.state.app_root import APP_ROOT_LANE_KINDS, AppRootLeaf, compute_required_app_root
 from src.state.canonical import (
@@ -112,8 +116,11 @@ APP_HASH_ROOT_FIELDS_V0 = (
 
 TAU_APP_STATE_SCHEMA_V1 = "zenodex/tau_app_state/v1"
 TAU_APP_STATE_VERSION_V1 = 1
+TAU_APP_STATE_SCHEMA_V2 = "zenodex/tau_app_state/v2"
+TAU_APP_STATE_VERSION_V2 = 2
 
 APP_ROOT_SPOT_LANE_SCHEMA_V0 = "zenodex/zeno_ledger/app_root/spot_lane/v0"
+APP_ROOT_TAU_SPOT_LANE_SCHEMA_V0 = "zenodex/zeno_ledger/app_root/tau_spot_lane/v0"
 APP_ROOT_SINGLETON_LANE_SCHEMA_V0 = "zenodex/zeno_ledger/app_root/singleton_lane/v0"
 
 APP_ROOT_SPOT_KEYS_V0 = (
@@ -473,13 +480,24 @@ def compute_dex_state_app_root_v0(
 
 
 def _tau_app_state_version_for_app_root_v0(app_state: Mapping[str, Any]) -> int:
-    version = _require_positive_int(
-        app_state.get("version", TAU_APP_STATE_VERSION_V1),
-        name="app_state.version",
-    )
-    if version != TAU_APP_STATE_VERSION_V1:
-        raise ValueError(f"unsupported app_state version: {version}")
-    return version
+    schema = app_state.get("schema")
+    if schema == TAU_APP_STATE_SCHEMA_V1:
+        version = _require_positive_int(
+            app_state.get("version", TAU_APP_STATE_VERSION_V1),
+            name="app_state.version",
+        )
+        if version != TAU_APP_STATE_VERSION_V1:
+            raise ValueError(f"unsupported app_state version: {version}")
+        return version
+    if schema == TAU_APP_STATE_SCHEMA_V2:
+        version = _require_positive_int(
+            app_state.get("version"),
+            name="app_state.version",
+        )
+        if version != TAU_APP_STATE_VERSION_V2:
+            raise ValueError(f"unsupported app_state version: {version}")
+        return version
+    raise ValueError("app_state schema mismatch")
 
 
 def _clob_lane_source_and_state_v0(app_state: Mapping[str, Any]) -> tuple[str, object]:
@@ -514,19 +532,38 @@ def app_root_lanes_from_tau_app_state_v0(app_state: Mapping[str, Any]) -> tuple[
         "cross_shard",
         "governance",
     }
+    version = _tau_app_state_version_for_app_root_v0(obj)
+    if version == TAU_APP_STATE_VERSION_V2:
+        allowed_keys.add("generic_token_authority")
     extra = sorted(set(obj) - allowed_keys)
     if extra:
         raise ValueError(f"unsupported app_state app-root field(s): {', '.join(extra)}")
-    if obj.get("schema") != TAU_APP_STATE_SCHEMA_V1:
-        raise ValueError("app_state schema mismatch")
-    version = _tau_app_state_version_for_app_root_v0(obj)
     dex_snapshot = _require_mapping(obj.get("dex_state"), name="app_state.dex_state")
+    generic_authority_obj: dict[str, Any] | None = None
+    if version == TAU_APP_STATE_VERSION_V2:
+        generic_authority_obj = generic_token_authority_to_obj(
+            generic_token_authority_from_obj(obj.get("generic_token_authority"))
+        )
     clob_source_key, clob_state = _clob_lane_source_and_state_v0(obj)
-    leaves = [
-        leaf
-        for leaf in app_root_lanes_from_dex_snapshot_v0(dex_snapshot)
-        if leaf.lane_kind in APP_ROOT_DEX_LANE_KINDS_V0
-    ]
+    leaves: list[AppRootLeaf] = []
+    for leaf in app_root_lanes_from_dex_snapshot_v0(dex_snapshot):
+        if leaf.lane_kind not in APP_ROOT_DEX_LANE_KINDS_V0:
+            continue
+        if leaf.lane_kind == "spot" and generic_authority_obj is not None:
+            leaves.append(
+                AppRootLeaf.from_json(
+                    lane_kind="spot",
+                    lane_id="global",
+                    payload={
+                        "schema": APP_ROOT_TAU_SPOT_LANE_SCHEMA_V0,
+                        "app_state_version": version,
+                        "dex_spot": _spot_lane_payload_from_snapshot_v0(dex_snapshot),
+                        "generic_token_authority": generic_authority_obj,
+                    },
+                )
+            )
+        else:
+            leaves.append(leaf)
     leaves.extend(
         (
             AppRootLeaf.from_json(
@@ -876,11 +913,10 @@ def apply_body_transactions_v0(
             rejection_receipts.append(receipt)
         receipts_by_index[index] = receipt
 
-    receipts = []
-    for index, receipt in enumerate(receipts_by_index):
-        if receipt is None:
+    for index, indexed_receipt in enumerate(receipts_by_index):
+        if indexed_receipt is None:
             raise ValueError(f"transactions[{index}] was not executed")
-        receipts.append(receipt)
+        receipts.append(indexed_receipt)
 
     validate_body_v0(executed_body)
     return working_state, executed_body, receipts

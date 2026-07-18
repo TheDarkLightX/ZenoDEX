@@ -28,11 +28,11 @@ class TokenWriterRole(str, Enum):
     ZUSD_MONETARY_AUTHORITY = "zusd_monetary_authority"
 
 
-class CanonicalZUSDCustodyClass(str, Enum):
-    """Destination classes that could carry internal zUSD liabilities.
+class CanonicalZUSDRecipientClass(str, Enum):
+    """Destination classes that could carry protocol-accounted zUSD units.
 
     Stability Pool escrow is the only currently addressable live class. The
-    other internal-ledger classes make future custody additions explicit and
+    other internal-ledger classes make future balance locations explicit and
     fail closed before any address is added to the authoritative registry.
     """
 
@@ -43,12 +43,12 @@ class CanonicalZUSDCustodyClass(str, Enum):
     STAKING_FEE_POOL_LEDGER = "staking_fee_pool_ledger"
     HOST_FEE_POOL_LEDGER = "host_fee_pool_ledger"
     PERPS_QUOTE_LIABILITY_LEDGER = "perps_quote_liability_ledger"
-    DEX_POOL_CUSTODY = "dex_pool_custody"
+    DEX_POOL_RESERVE = "dex_pool_reserve"
     BRIDGE_ESCROW = "bridge_escrow"
 
     @property
-    def is_reserved_internal_custody(self) -> bool:
-        return self is not CanonicalZUSDCustodyClass.ORDINARY_ACCOUNT
+    def is_reserved_protocol_location(self) -> bool:
+        return self is not CanonicalZUSDRecipientClass.ORDINARY_ACCOUNT
 
 
 class GenericTokenAdmissionCode(IntEnum):
@@ -57,63 +57,65 @@ class GenericTokenAdmissionCode(IntEnum):
     ADMITTED = 0
     CANONICAL_ZUSD_MINT_REQUIRES_MONETARY_AUTHORITY = 1
     CANONICAL_ZUSD_BURN_REQUIRES_MONETARY_AUTHORITY = 2
-    CANONICAL_ZUSD_RESERVED_CUSTODY_REQUIRES_MONETARY_AUTHORITY = 3
+    CANONICAL_ZUSD_RESERVED_PROTOCOL_ADDRESS_REQUIRES_MONETARY_AUTHORITY = 3
     ROUTE_TO_ZUSD_MONETARY_KERNEL = 4
 
 
 @dataclass(frozen=True, slots=True)
-class ReservedCanonicalZUSDCustodyPrincipal:
-    """One exact canonical pubkey and its reserved custody classification."""
+class ReservedCanonicalZUSDPrincipal:
+    """One exact canonical pubkey and its reserved recipient classification."""
 
     recipient_pubkey: str
-    custody_class: CanonicalZUSDCustodyClass
+    recipient_class: CanonicalZUSDRecipientClass
 
     def __post_init__(self) -> None:
         if type(self.recipient_pubkey) is not str or not self.recipient_pubkey:
             raise TypeError("recipient_pubkey must be a non-empty str")
-        if not isinstance(self.custody_class, CanonicalZUSDCustodyClass):
-            raise TypeError("custody_class must be a CanonicalZUSDCustodyClass")
-        if not self.custody_class.is_reserved_internal_custody:
+        if not isinstance(self.recipient_class, CanonicalZUSDRecipientClass):
+            raise TypeError(
+                "recipient_class must be a CanonicalZUSDRecipientClass"
+            )
+        if not self.recipient_class.is_reserved_protocol_location:
             raise ValueError("ordinary accounts must not appear in the reserved registry")
 
 
 @dataclass(frozen=True, slots=True)
-class CanonicalZUSDCustodyRegistry:
+class CanonicalZUSDProtocolAddressRegistry:
     """Immutable, canonical registry for exact recipient-role classification."""
 
-    principals: tuple[ReservedCanonicalZUSDCustodyPrincipal, ...]
+    principals: tuple[ReservedCanonicalZUSDPrincipal, ...]
 
     def __post_init__(self) -> None:
         if type(self.principals) is not tuple:
             raise TypeError("principals must be a tuple")
         previous_pubkey: str | None = None
         for principal in self.principals:
-            if type(principal) is not ReservedCanonicalZUSDCustodyPrincipal:
+            if type(principal) is not ReservedCanonicalZUSDPrincipal:
                 raise TypeError(
-                    "principals must contain ReservedCanonicalZUSDCustodyPrincipal values"
+                    "principals must contain ReservedCanonicalZUSDPrincipal values"
                 )
             if previous_pubkey is not None and principal.recipient_pubkey <= previous_pubkey:
                 raise ValueError(
-                    "reserved custody principals must have unique, strictly sorted pubkeys"
+                    "reserved protocol principals must have unique, strictly sorted pubkeys"
                 )
             previous_pubkey = principal.recipient_pubkey
 
-    def classify(self, recipient_pubkey: str) -> CanonicalZUSDCustodyClass:
+    def classify(self, recipient_pubkey: str) -> CanonicalZUSDRecipientClass:
         """Classify one canonical pubkey by exact equality."""
 
         if type(recipient_pubkey) is not str or not recipient_pubkey:
             raise TypeError("recipient_pubkey must be a non-empty str")
         for principal in self.principals:
             if principal.recipient_pubkey == recipient_pubkey:
-                return principal.custody_class
-        return CanonicalZUSDCustodyClass.ORDINARY_ACCOUNT
+                return principal.recipient_class
+        return CanonicalZUSDRecipientClass.ORDINARY_ACCOUNT
 
 
 @dataclass(frozen=True, slots=True)
 class GenericTokenAdmissionCommand:
     """Typed facts needed to decide the generic-writer authority boundary.
 
-    The four enums form a closed decision space. Custody is semantically
+    The four enums form a closed decision space. Recipient classification is
     relevant only to transfers, which makes its irrelevance explicit and
     exhaustively testable for mint and burn.
     """
@@ -121,7 +123,7 @@ class GenericTokenAdmissionCommand:
     action: GenericTokenAction
     asset_class: TokenAssetClass
     writer_role: TokenWriterRole
-    recipient_custody_class: CanonicalZUSDCustodyClass
+    recipient_class: CanonicalZUSDRecipientClass
 
     def __post_init__(self) -> None:
         if not isinstance(self.action, GenericTokenAction):
@@ -131,10 +133,10 @@ class GenericTokenAdmissionCommand:
         if not isinstance(self.writer_role, TokenWriterRole):
             raise TypeError("writer_role must be a TokenWriterRole")
         if not isinstance(
-            self.recipient_custody_class, CanonicalZUSDCustodyClass
+            self.recipient_class, CanonicalZUSDRecipientClass
         ):
             raise TypeError(
-                "recipient_custody_class must be a CanonicalZUSDCustodyClass"
+                "recipient_class must be a CanonicalZUSDRecipientClass"
             )
 
 
@@ -179,7 +181,7 @@ class GenericTokenAdmissionTransition:
     """Pure admission result over the supply projection.
 
     This kernel decides authority only. It never applies account-balance or
-    custody effects. The imperative shell may execute an admitted operation
+    balance effects. The imperative shell may execute an admitted operation
     after its independent balance, amount, signature, and atomic-commit checks.
     """
 
@@ -216,9 +218,9 @@ def evaluate_generic_token_admission(
         return GenericTokenAdmissionDecision(
             GenericTokenAdmissionCode.CANONICAL_ZUSD_BURN_REQUIRES_MONETARY_AUTHORITY
         )
-    if command.recipient_custody_class.is_reserved_internal_custody:
+    if command.recipient_class.is_reserved_protocol_location:
         return GenericTokenAdmissionDecision(
-            GenericTokenAdmissionCode.CANONICAL_ZUSD_RESERVED_CUSTODY_REQUIRES_MONETARY_AUTHORITY
+            GenericTokenAdmissionCode.CANONICAL_ZUSD_RESERVED_PROTOCOL_ADDRESS_REQUIRES_MONETARY_AUTHORITY
         )
     return GenericTokenAdmissionDecision(GenericTokenAdmissionCode.ADMITTED)
 

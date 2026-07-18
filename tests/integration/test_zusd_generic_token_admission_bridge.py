@@ -38,7 +38,7 @@ def test_live_bridge_rejects_every_generic_canonical_zusd_supply_change() -> Non
         assert generic_token_admission_reject_code(decision) == expected.name.lower()
 
 
-def test_live_bridge_binds_chain_specific_stability_pool_custody() -> None:
+def test_live_bridge_binds_chain_specific_stability_pool_protocol_address() -> None:
     chain_id = "tau-live-admission-sp"
     zusd_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
 
@@ -58,7 +58,7 @@ def test_live_bridge_binds_chain_specific_stability_pool_custody() -> None:
     )
 
     assert rejected.code is (
-        GenericTokenAdmissionCode.CANONICAL_ZUSD_RESERVED_CUSTODY_REQUIRES_MONETARY_AUTHORITY
+        GenericTokenAdmissionCode.CANONICAL_ZUSD_RESERVED_PROTOCOL_ADDRESS_REQUIRES_MONETARY_AUTHORITY
     )
     assert admitted_other_chain.code is GenericTokenAdmissionCode.ADMITTED
 

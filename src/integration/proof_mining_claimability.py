@@ -21,7 +21,8 @@ from .proof_mining_runtime import (
 )
 from .tau_native_identity import TauChainKeyIndex
 
-_APP_STATE_SCHEMA = "zenodex/tau_app_state/v1"
+_APP_STATE_SCHEMA_V1 = "zenodex/tau_app_state/v1"
+_APP_STATE_SCHEMA_V2 = "zenodex/tau_app_state/v2"
 
 
 @dataclass(frozen=True)
@@ -117,7 +118,15 @@ def _load_proof_mining_state_from_app_state(
         raise ValueError(f"invalid app_state_json: {exc}") from exc
     if not isinstance(obj, Mapping):
         raise ValueError("app_state_json must decode to an object")
-    if obj.get("schema") != _APP_STATE_SCHEMA:
+    schema = obj.get("schema")
+    version = obj.get("version")
+    if schema == _APP_STATE_SCHEMA_V1:
+        if version not in (None, 1):
+            return None
+    elif schema == _APP_STATE_SCHEMA_V2:
+        if version != 2 or not isinstance(obj.get("generic_token_authority"), Mapping):
+            return None
+    else:
         return None
     proof_obj = obj.get("proof_mining")
     if proof_obj is None:

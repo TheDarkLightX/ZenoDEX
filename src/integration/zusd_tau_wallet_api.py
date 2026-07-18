@@ -11,17 +11,33 @@ from __future__ import annotations
 import json
 import os
 import time
+from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
 from urllib.parse import urlsplit
 
-from ..core.zusd_monetary_policy_binding import ZUSDMonetaryPolicyBinding
+from ..core.dex import DexState
+from ..core.generic_token_authority import (
+    GenericTokenAuthorityState,
+    GenericTokenSupplyAction,
+    GenericTokenSupplyCommand,
+    apply_generic_token_supply_command,
+)
+from ..core.zusd import E8
 from ..state.canonical import canonical_hex_fixed_allow_0x
+from .dex_snapshot import state_from_snapshot
+from .generic_token_accounting import generic_token_accounting_error
+from .generic_token_authority_bridge import generic_token_authority_from_obj
 from .tau_net_client import TauNetRpcError, TauNetTcpClient, TauNetTcpConfig
 from .zusd_generic_token_admission_bridge import (
     evaluate_live_generic_token_writer_admission,
     generic_token_admission_reject_code,
 )
-from .zusd_monetary_bridge import zusd_monetary_state_from_obj
+from .zusd_monetary_bridge import (
+    ZUSDMonetaryState,
+    zusd_global_ledger_consistency_error,
+    zusd_monetary_config_from_policy_binding,
+    zusd_monetary_state_from_obj,
+)
 from .zusd_tau_token import (
     ZUSDTauTokenConfig,
     derive_zusd_tau_asset_id,
@@ -31,6 +47,15 @@ from .zusd_tau_token import (
 
 MAX_POST_BODY = 65_536
 ResponseT = Tuple[int, Dict[str, Any]]
+_APP_STATE_SCHEMA_V2 = "zenodex/tau_app_state/v2"
+_APP_STATE_VERSION_V2 = 2
+
+
+@dataclass(frozen=True, slots=True)
+class _CommittedTokenState:
+    dex_state: DexState
+    monetary_state: ZUSDMonetaryState
+    generic_authority: GenericTokenAuthorityState
 
 
 def _env_str(name: str, default: str) -> str:
@@ -167,72 +192,76 @@ def _load_app_state(client: TauNetTcpClient) -> Tuple[Dict[str, Any], Optional[s
     return app_state, str(app_hash) if isinstance(app_hash, str) and app_hash else None
 
 
-def _dex_state_view(app_state: Mapping[str, Any]) -> Mapping[str, Any]:
-    dex_state = app_state.get("dex_state")
-    if isinstance(dex_state, Mapping):
-        return dex_state
-    return app_state
-
-
-def _committed_zusd_policy_binding(
+def _committed_token_state(
     app_state: Mapping[str, Any],
-) -> ZUSDMonetaryPolicyBinding:
+) -> _CommittedTokenState:
+    if app_state.get("schema") != _APP_STATE_SCHEMA_V2:
+        raise TauNetRpcError("authoritative app state must use schema v2")
+    if app_state.get("version") != _APP_STATE_VERSION_V2:
+        raise TauNetRpcError("authoritative app state must use version 2")
+    dex_obj = app_state.get("dex_state")
+    if not isinstance(dex_obj, Mapping):
+        raise TauNetRpcError("app_state.dex_state must be an object")
+    dex_state = state_from_snapshot(dex_obj)
     raw = app_state.get("zusd_monetary")
     if raw is None:
         raise TauNetRpcError("zUSD monetary policy is absent from authoritative app state")
     if not isinstance(raw, Mapping):
         raise TauNetRpcError("app_state.zusd_monetary must be an object")
-    return zusd_monetary_state_from_obj(raw).policy_binding
+    monetary_state = zusd_monetary_state_from_obj(raw)
+    generic_authority = generic_token_authority_from_obj(
+        app_state.get("generic_token_authority")
+    )
+    config = zusd_monetary_config_from_policy_binding(
+        monetary_state.policy_binding
+    )
+    zusd_error = zusd_global_ledger_consistency_error(
+        config=config,
+        state=dex_state,
+        monetary_state=monetary_state,
+    )
+    if zusd_error is not None:
+        raise TauNetRpcError(f"global zUSD accounting mismatch: {zusd_error}")
+    generic_error = generic_token_accounting_error(
+        authority_state=generic_authority,
+        dex_state=dex_state,
+        monetary_state=monetary_state,
+        canonical_zusd_asset=monetary_state.policy_binding.canonical_zusd_asset,
+    )
+    if generic_error is not None:
+        raise TauNetRpcError(
+            f"global generic-token accounting mismatch: {generic_error}"
+        )
+    return _CommittedTokenState(
+        dex_state=dex_state,
+        monetary_state=monetary_state,
+        generic_authority=generic_authority,
+    )
 
 
-def _balances_for_asset(app_state: Mapping[str, Any], *, asset_id: str) -> Dict[str, int]:
-    state_view = _dex_state_view(app_state)
-    raw = state_view.get("balances") or []
-    if not isinstance(raw, list):
-        raise TauNetRpcError("app_state.balances must be a list")
-    out: Dict[str, int] = {}
-    for index, entry in enumerate(raw):
-        if not isinstance(entry, Mapping):
-            raise TauNetRpcError(f"app_state.balances[{index}] must be an object")
-        pubkey = entry.get("pubkey")
-        asset = entry.get("asset")
-        amount = entry.get("amount")
-        if not isinstance(pubkey, str) or not isinstance(asset, str):
-            raise TauNetRpcError(f"app_state.balances[{index}] has invalid keys")
-        if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
-            raise TauNetRpcError(f"app_state.balances[{index}] amount invalid")
-        if asset.strip().lower() != asset_id.strip().lower():
-            continue
-        out[pubkey.strip().lower()] = int(amount)
-    return out
+def _balances_for_asset(
+    committed_state: _CommittedTokenState,
+    *,
+    asset_id: str,
+) -> Dict[str, int]:
+    return dict(
+        committed_state.dex_state.balances.get_balances_for_asset(asset_id)
+    )
 
 
-def _last_used_token_nonce(app_state: Mapping[str, Any], *, actor_pubkey: str) -> int:
-    state_view = _dex_state_view(app_state)
-    raw = state_view.get("nonces") or []
-    if not isinstance(raw, list):
-        raise TauNetRpcError("app_state.nonces must be a list")
+def _last_used_token_nonce(
+    committed_state: _CommittedTokenState,
+    *,
+    actor_pubkey: str,
+) -> int:
     token_key = token_sender_nonce_key(actor_pubkey)
-    last_nonce = 0
-    for index, entry in enumerate(raw):
-        if not isinstance(entry, Mapping):
-            raise TauNetRpcError(f"app_state.nonces[{index}] must be an object")
-        pubkey = entry.get("pubkey")
-        if not isinstance(pubkey, str):
-            raise TauNetRpcError(f"app_state.nonces[{index}].pubkey invalid")
-        if pubkey.strip().lower() != token_key.strip().lower():
-            continue
-        nonce = entry.get("last_nonce", 0)
-        if not isinstance(nonce, int) or isinstance(nonce, bool) or nonce < 0:
-            raise TauNetRpcError(f"app_state.nonces[{index}].last_nonce invalid")
-        last_nonce = int(nonce)
-    return last_nonce
+    return int(committed_state.dex_state.nonces.get_last(token_key))
 
 
 def _transport_context(
     *,
     client: TauNetTcpClient,
-    app_state: Mapping[str, Any],
+    committed_state: _CommittedTokenState,
     app_hash: Optional[str],
     action: str,
     sender_pubkey: Optional[str],
@@ -240,8 +269,18 @@ def _transport_context(
     operator_pubkey: Optional[str],
     asset_id: str,
 ) -> Dict[str, Any]:
-    balances = _balances_for_asset(app_state, asset_id=asset_id)
-    total_supply_before = int(sum(int(v) for v in balances.values()))
+    balances = _balances_for_asset(committed_state, asset_id=asset_id)
+    monetary_state = committed_state.monetary_state
+    if asset_id == monetary_state.policy_binding.canonical_zusd_asset:
+        debt_e8 = int(monetary_state.core.debt_e8)
+        if debt_e8 % E8 != 0:
+            raise TauNetRpcError("canonical zUSD debt must be whole-token aligned")
+        total_supply_before = debt_e8 // E8
+    else:
+        registered_asset = committed_state.generic_authority.get_asset(asset_id)
+        if registered_asset is None:
+            raise TauNetRpcError("asset is not registered in committed token authority")
+        total_supply_before = registered_asset.total_supply_units
 
     actor_pubkey: Optional[str]
     if action == "mint":
@@ -250,7 +289,10 @@ def _transport_context(
         actor_pubkey = sender_pubkey
     if actor_pubkey is None:
         raise ValueError("missing actor pubkey")
-    last_used_nonce = _last_used_token_nonce(app_state, actor_pubkey=actor_pubkey)
+    last_used_nonce = _last_used_token_nonce(
+        committed_state,
+        actor_pubkey=actor_pubkey,
+    )
     tx_sequence_number = int(client.get_sequence(_pubkey_for_rpc(actor_pubkey)))
 
     sender_balance_before = int(balances.get((sender_pubkey or "").strip().lower(), 0))
@@ -269,10 +311,109 @@ def _transport_context(
 
 
 def _request_action(body: Mapping[str, Any]) -> str:
-    action = str(body.get("action", "")).strip().lower()
+    action = body.get("action")
+    if type(action) is not str:
+        raise ValueError("unsupported_action")
     if action not in {"transfer", "mint", "burn"}:
         raise ValueError("unsupported_action")
     return action
+
+
+def _assert_exact_request_fields(
+    body: Mapping[str, Any],
+    *,
+    action: str,
+    endpoint: str,
+) -> None:
+    if action == "transfer":
+        action_fields = frozenset(("sender_pubkey", "recipient_pubkey"))
+    elif action == "mint":
+        action_fields = frozenset(("operator_pubkey", "recipient_pubkey"))
+    else:
+        action_fields = frozenset(("sender_pubkey",))
+
+    common_fields = frozenset(("action", "chain_id", "asset_id"))
+    if endpoint == "inspect":
+        endpoint_fields: frozenset[str] = frozenset()
+    elif endpoint == "prepare":
+        endpoint_fields = frozenset(("amount", "deadline"))
+    elif endpoint == "submit":
+        endpoint_fields = frozenset(("amount", "deadline", "signer_privkey"))
+    else:
+        raise ValueError("unsupported_wallet_endpoint")
+
+    allowed_fields = common_fields | action_fields | endpoint_fields
+    if set(body) - allowed_fields:
+        raise ValueError("unexpected_request_fields")
+
+
+def _request_chain_id(
+    body: Mapping[str, Any],
+    *,
+    committed_chain_id: str,
+) -> str:
+    if "chain_id" not in body:
+        return committed_chain_id
+    requested_chain_id = body.get("chain_id")
+    if type(requested_chain_id) is not str or not requested_chain_id:
+        raise ValueError("bad_chain_id")
+    if requested_chain_id != committed_chain_id:
+        raise ValueError("chain_id does not match committed zUSD policy")
+    return committed_chain_id
+
+
+def _request_asset_id(
+    body: Mapping[str, Any],
+    *,
+    default_asset_id: str,
+) -> str:
+    if "asset_id" not in body:
+        return default_asset_id
+    explicit_asset_id = body.get("asset_id")
+    if (
+        type(explicit_asset_id) is not str
+        or not explicit_asset_id
+        or explicit_asset_id != explicit_asset_id.strip()
+    ):
+        raise ValueError("bad_asset_id")
+    return canonical_hex_fixed_allow_0x(
+        explicit_asset_id,
+        nbytes=32,
+        name="asset_id",
+    )
+
+
+def _assert_committed_generic_authority_allows(
+    committed_state: _CommittedTokenState,
+    *,
+    action: str,
+    asset_id: str,
+    amount: int,
+    sender_pubkey: str | None,
+    recipient_pubkey: str | None,
+    operator_pubkey: str | None,
+) -> None:
+    if asset_id == committed_state.monetary_state.policy_binding.canonical_zusd_asset:
+        return
+    actor_pubkey = operator_pubkey if action == "mint" else sender_pubkey
+    if actor_pubkey is None:
+        raise ValueError("missing actor pubkey")
+    decision = apply_generic_token_supply_command(
+        committed_state.generic_authority,
+        GenericTokenSupplyCommand(
+            action=GenericTokenSupplyAction(action),
+            asset_id=asset_id,
+            actor_pubkey=actor_pubkey,
+            amount_units=amount,
+            recipient_pubkey=recipient_pubkey,
+        ),
+    )
+    if decision.accepted:
+        return
+    reject_code = (
+        "unknown" if decision.reject_code is None else decision.reject_code.value
+    )
+    raise ValueError(f"generic token authority rejected: {reject_code}")
 
 
 def _request_int(body: Mapping[str, Any], *, name: str, default: Optional[int] = None) -> int:
@@ -288,6 +429,11 @@ def _request_int(body: Mapping[str, Any], *, name: str, default: Optional[int] =
 
 def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
     action = _request_action(body)
+    _assert_exact_request_fields(
+        body,
+        action=action,
+        endpoint="submit" if for_submit else "prepare",
+    )
     amount = _request_int(body, name="amount", default=None)
     deadline = _request_int(body, name="deadline", default=_default_deadline())
     sender_pubkey = None
@@ -309,17 +455,16 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
 
     client = _tau_client()
     app_state, app_hash = _load_app_state(client)
-    committed_policy = _committed_zusd_policy_binding(app_state)
-    requested_chain_id = body.get("chain_id")
-    if requested_chain_id is not None and requested_chain_id != committed_policy.chain_id:
-        raise ValueError("chain_id does not match committed zUSD policy")
-    chain_id = committed_policy.chain_id
+    committed_state = _committed_token_state(app_state)
+    committed_policy = committed_state.monetary_state.policy_binding
+    chain_id = _request_chain_id(
+        body,
+        committed_chain_id=committed_policy.chain_id,
+    )
     canonical_zusd_asset = committed_policy.canonical_zusd_asset
-    explicit_asset_id = body.get("asset_id")
-    asset_id = (
-        canonical_hex_fixed_allow_0x(explicit_asset_id, nbytes=32, name="asset_id")
-        if isinstance(explicit_asset_id, str) and explicit_asset_id.strip()
-        else canonical_zusd_asset
+    asset_id = _request_asset_id(
+        body,
+        default_asset_id=canonical_zusd_asset,
     )
     admission = evaluate_live_generic_token_writer_admission(
         chain_id=chain_id,
@@ -331,9 +476,18 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     reject_code = generic_token_admission_reject_code(admission)
     if reject_code is not None:
         raise ValueError(f"generic zUSD token operation rejected: {reject_code}")
+    _assert_committed_generic_authority_allows(
+        committed_state,
+        action=action,
+        asset_id=asset_id,
+        amount=amount,
+        sender_pubkey=sender_pubkey,
+        recipient_pubkey=recipient_pubkey,
+        operator_pubkey=operator_pubkey,
+    )
     context = _transport_context(
         client=client,
-        app_state=app_state,
+        committed_state=committed_state,
         app_hash=app_hash,
         action=action,
         sender_pubkey=sender_pubkey,
@@ -416,9 +570,13 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             submission["createblock_response"] = client.createblock()
         payload["submission"] = submission
         app_state_after, app_hash_after = _load_app_state(client)
+        committed_state_after = _committed_token_state(app_state_after)
         payload["post_submit"] = {
             "app_hash": app_hash_after,
-            "balances": _balances_for_asset(app_state_after, asset_id=asset_id),
+            "balances": _balances_for_asset(
+                committed_state_after,
+                asset_id=asset_id,
+            ),
         }
     return payload
 
@@ -428,7 +586,6 @@ def _status_payload() -> Dict[str, Any]:
     configured_asset_id = _canonical_zusd_asset_id(chain_id=configured_chain_id)
     chain_id = configured_chain_id
     asset_id = configured_asset_id
-    token_operator_pubkey = os.environ.get("TAU_DEX_TOKEN_OPERATOR_PUBKEY", "").strip() or None
     status: Dict[str, Any] = {
         "enabled": True,
         "chain_id": chain_id,
@@ -437,13 +594,13 @@ def _status_payload() -> Dict[str, Any]:
         "tau_port": _env_int("ZUSD_TAU_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
         "allow_local_signing": _allow_signing(),
         "auto_mine": _auto_mine(),
-        "token_operator_pubkey": token_operator_pubkey,
     }
     try:
         client = _tau_client()
         hello = client.rpc("hello version=1").strip()
         app_state, app_hash = _load_app_state(client)
-        committed_policy = _committed_zusd_policy_binding(app_state)
+        committed_state = _committed_token_state(app_state)
+        committed_policy = committed_state.monetary_state.policy_binding
         chain_id = committed_policy.chain_id
         asset_id = committed_policy.canonical_zusd_asset
         status.update(
@@ -455,13 +612,22 @@ def _status_payload() -> Dict[str, Any]:
                 "policy_binding_ok": (
                     configured_chain_id == chain_id and configured_asset_id == asset_id
                 ),
+                "generic_mint_authorities": [
+                    {
+                        "asset_id": asset.asset_id,
+                        "mint_authority_pubkey": asset.mint_authority_pubkey,
+                    }
+                    for asset in committed_state.generic_authority.assets
+                ],
             }
         )
         status["node_reachable"] = True
         status["hello"] = hello
         status["app_hash"] = app_hash
         status["app_bridge_available"] = bool(app_state or app_hash)
-        status["holder_count"] = len(_balances_for_asset(app_state, asset_id=asset_id))
+        status["holder_count"] = len(
+            _balances_for_asset(committed_state, asset_id=asset_id)
+        )
     except Exception as exc:
         status["node_reachable"] = False
         status["error"] = f"{type(exc).__name__}: {exc}"
@@ -492,6 +658,11 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
             return 400, {"ok": False, "error": "bad_json"}
         if rest == ["inspect"]:
             action = _request_action(parsed)
+            _assert_exact_request_fields(
+                parsed,
+                action=action,
+                endpoint="inspect",
+            )
             sender_pubkey = (
                 _canonical_pubkey(parsed.get("sender_pubkey"), name="sender_pubkey")
                 if "sender_pubkey" in parsed
@@ -509,20 +680,19 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
             )
             client = _tau_client()
             app_state, app_hash = _load_app_state(client)
-            committed_policy = _committed_zusd_policy_binding(app_state)
-            requested_chain_id = parsed.get("chain_id")
-            if requested_chain_id is not None and requested_chain_id != committed_policy.chain_id:
-                raise ValueError("chain_id does not match committed zUSD policy")
-            chain_id = committed_policy.chain_id
-            explicit_asset_id = parsed.get("asset_id")
-            asset_id = (
-                canonical_hex_fixed_allow_0x(explicit_asset_id, nbytes=32, name="asset_id")
-                if isinstance(explicit_asset_id, str) and explicit_asset_id.strip()
-                else committed_policy.canonical_zusd_asset
+            committed_state = _committed_token_state(app_state)
+            committed_policy = committed_state.monetary_state.policy_binding
+            chain_id = _request_chain_id(
+                parsed,
+                committed_chain_id=committed_policy.chain_id,
+            )
+            asset_id = _request_asset_id(
+                parsed,
+                default_asset_id=committed_policy.canonical_zusd_asset,
             )
             context = _transport_context(
                 client=client,
-                app_state=app_state,
+                committed_state=committed_state,
                 app_hash=app_hash,
                 action=action,
                 sender_pubkey=sender_pubkey,

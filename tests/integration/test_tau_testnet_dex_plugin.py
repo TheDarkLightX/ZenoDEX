@@ -11,6 +11,41 @@ def _policy_bound_empty_state(plugin) -> str:
     return app_state_json
 
 
+def _policy_bound_generic_state(
+    plugin,
+    *,
+    assets: tuple[str, ...],
+    mint_authority_pubkey: str,
+) -> str:
+    from src.core.generic_token_authority import (
+        GenericTokenAssetAuthority,
+        GenericTokenAuthorityState,
+    )
+
+    chain_id = plugin.os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or "tau-local"
+    config = plugin._build_zusd_monetary_config(chain_id=chain_id)
+    registrations = tuple(
+        sorted(
+            (
+                GenericTokenAssetAuthority(
+                    asset_id=asset,
+                    total_supply_units=0,
+                    mint_authority_pubkey=mint_authority_pubkey,
+                )
+                for asset in assets
+            ),
+            key=lambda registration: registration.asset_id,
+        )
+    )
+    app_state_json, _app_hash = plugin.build_zusd_policy_bound_genesis_app_state(
+        config=config,
+        generic_token_authority=GenericTokenAuthorityState(
+            assets=registrations
+        ),
+    )
+    return app_state_json
+
+
 def _dex_snapshot_from_app_state_json(app_state_json: str) -> dict:
     payload = json.loads(app_state_json)
     nested = payload.get("dex_state")
@@ -196,6 +231,7 @@ def test_apply_app_tx_create_pool_unsigned_intent(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 
     sender_pubkey = "00" * 48
+    canonical_sender_pubkey = "0x" + sender_pubkey
     asset0 = "0x" + "11" * 32
     asset1 = "0x" + "22" * 32
 
@@ -220,10 +256,19 @@ def test_apply_app_tx_create_pool_unsigned_intent(monkeypatch):
     }
 
     ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=_policy_bound_generic_state(
+            plugin,
+            assets=(asset0, asset1),
+            mint_authority_pubkey=canonical_sender_pubkey,
+        ),
         chain_balances={sender_pubkey: 123},
         operations={
-            "7": {"mint": [[sender_pubkey, asset0, 10_000], [sender_pubkey, asset1, 10_000]]},
+            "7": {
+                "mint": [
+                    [canonical_sender_pubkey, asset0, 10_000],
+                    [canonical_sender_pubkey, asset1, 10_000],
+                ]
+            },
             "5": [intent],
         },
         tx_sender_pubkey=sender_pubkey,
@@ -270,10 +315,19 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
         "amount1": 2000,
     }
     ok, app_state_json, app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=_policy_bound_generic_state(
+            plugin,
+            assets=(asset0, asset1),
+            mint_authority_pubkey=canonical_sender_pubkey,
+        ),
         chain_balances={sender_pubkey: 123},
         operations={
-            "7": {"mint": [[sender_pubkey, asset0, 10_000], [sender_pubkey, asset1, 10_000]]},
+            "7": {
+                "mint": [
+                    [canonical_sender_pubkey, asset0, 10_000],
+                    [canonical_sender_pubkey, asset1, 10_000],
+                ]
+            },
             "5": [create_pool_intent],
         },
         tx_sender_pubkey=sender_pubkey,
@@ -363,9 +417,16 @@ def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkey
     }
 
     ok, app_state_json, _app_hash_hex, balances_patch, err = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=_policy_bound_generic_state(
+            plugin,
+            assets=(token,),
+            mint_authority_pubkey=canonical_sender_pubkey,
+        ),
         chain_balances={sender_pubkey: 10_000},
-        operations={"7": {"mint": [[sender_pubkey, token, 10_000]]}, "5": [intent]},
+        operations={
+            "7": {"mint": [[canonical_sender_pubkey, token, 10_000]]},
+            "5": [intent],
+        },
         tx_sender_pubkey=sender_pubkey,
         block_timestamp=123,
     )
@@ -398,6 +459,7 @@ def test_apply_app_tx_native_output_uses_raw_tau_key_for_absent_recipient(monkey
     from src.state.balances import NATIVE_ASSET
 
     sender_pubkey = "00" * 48
+    canonical_sender = "0x" + sender_pubkey
     recipient_pubkey = "11" * 48
     canonical_recipient = "0x" + recipient_pubkey
     token = "0x" + "12" * 32
@@ -422,10 +484,14 @@ def test_apply_app_tx_native_output_uses_raw_tau_key_for_absent_recipient(monkey
         "amount1": 2000,
     }
     created, app_state_json, _app_hash, create_patch, create_error = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=_policy_bound_generic_state(
+            plugin,
+            assets=(token,),
+            mint_authority_pubkey=canonical_sender,
+        ),
         chain_balances={sender_pubkey: 10_000},
         operations={
-            "7": {"mint": [[sender_pubkey, token, 10_000]]},
+            "7": {"mint": [[canonical_sender, token, 10_000]]},
             "5": [create_pool],
         },
         tx_sender_pubkey=sender_pubkey,
@@ -578,7 +644,11 @@ def test_apply_app_tx_token_transfer_updates_balances_and_nonce(monkeypatch):
     monkeypatch.delenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", raising=False)
 
     ok, app_state_json, _app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=_policy_bound_generic_state(
+            plugin,
+            assets=(token,),
+            mint_authority_pubkey=sender,
+        ),
         chain_balances={},
         operations={
             "7": {"mint": [[sender, token, 1000]]},
@@ -588,9 +658,11 @@ def test_apply_app_tx_token_transfer_updates_balances_and_nonce(monkeypatch):
                     "version": "0.1",
                     "action": "transfer",
                     "asset": token,
+                    "sender_pubkey": sender,
                     "to_pubkey": recipient,
                     "amount": 250,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ],
         },
@@ -612,11 +684,14 @@ def test_apply_app_tx_token_transfer_updates_balances_and_nonce(monkeypatch):
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "transfer",
                     "asset": token,
+                    "sender_pubkey": sender,
                     "to_pubkey": recipient,
                     "amount": 1,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ]
         },
@@ -635,19 +710,27 @@ def test_apply_app_tx_token_self_transfer_rejects_atomically(monkeypatch) -> Non
     monkeypatch.setenv("TAU_DEX_FAUCET", "1")
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-token-self-transfer")
 
+    genesis = _policy_bound_generic_state(
+        plugin,
+        assets=(token,),
+        mint_authority_pubkey=sender,
+    )
     ok, app_state_json, _app_hash, _balances_patch, err = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=genesis,
         chain_balances={},
         operations={
             "7": {"mint": [[sender, token, 100]]},
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "transfer",
                     "asset": token,
+                    "sender_pubkey": sender,
                     "to_pubkey": sender,
                     "amount": 40,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ],
         },
@@ -656,8 +739,63 @@ def test_apply_app_tx_token_self_transfer_rejects_atomically(monkeypatch) -> Non
     )
 
     assert ok is False
-    assert app_state_json == _policy_bound_empty_state(plugin)
-    assert err == "token op[0] self-transfer is not supported"
+    assert app_state_json == genesis
+    assert err == "token op[0] authority transition rejected: self_transfer"
+
+
+def test_apply_app_tx_token_unhashable_action_rejects_atomically(monkeypatch) -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    sender = "0x" + "12" * 48
+    token = "0x" + "35" * 32
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-token-malformed-action")
+
+    genesis = _policy_bound_generic_state(
+        plugin,
+        assets=(token,),
+        mint_authority_pubkey=sender,
+    )
+    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json=genesis,
+        chain_balances={},
+        operations={"9": [{"action": []}]},
+        tx_sender_pubkey=sender,
+        block_timestamp=1,
+    )
+
+    assert ok is False
+    assert app_state_json == genesis
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == "token op[0] action unsupported: []"
+
+
+def test_apply_app_tx_faucet_extra_field_rejects_atomically(monkeypatch) -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    sender = "0x" + "13" * 48
+    token = "0x" + "36" * 32
+    monkeypatch.setenv("TAU_DEX_FAUCET", "1")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-faucet-extra-field")
+
+    genesis = _policy_bound_generic_state(
+        plugin,
+        assets=(token,),
+        mint_authority_pubkey=sender,
+    )
+    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json=genesis,
+        chain_balances={},
+        operations={"7": {"mint": [[sender, token, 1]], "extra": 1}},
+        tx_sender_pubkey=sender,
+        block_timestamp=1,
+    )
+
+    assert ok is False
+    assert app_state_json == genesis
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == "faucet op fields must match exactly"
 
 
 def test_apply_app_tx_token_recipient_overflow_rejects_atomically(monkeypatch) -> None:
@@ -669,8 +807,13 @@ def test_apply_app_tx_token_recipient_overflow_rejects_atomically(monkeypatch) -
     monkeypatch.setenv("TAU_DEX_FAUCET", "1")
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-token-overflow")
 
+    genesis = _policy_bound_generic_state(
+        plugin,
+        assets=(token,),
+        mint_authority_pubkey=sender,
+    )
     ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=genesis,
         chain_balances={},
         operations={
             "7": {
@@ -682,11 +825,14 @@ def test_apply_app_tx_token_recipient_overflow_rejects_atomically(monkeypatch) -
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "transfer",
                     "asset": token,
+                    "sender_pubkey": sender,
                     "to_pubkey": recipient,
                     "amount": 1,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ],
         },
@@ -695,10 +841,10 @@ def test_apply_app_tx_token_recipient_overflow_rejects_atomically(monkeypatch) -
     )
 
     assert ok is False
-    assert app_state_json == _policy_bound_empty_state(plugin)
+    assert app_state_json == genesis
     assert app_hash == ""
     assert balances_patch is None
-    assert err == "token op[0].recipient_balance overflow"
+    assert err == "faucet.mint[1] authority transition rejected: supply_overflow"
 
 
 def test_apply_app_tx_token_mint_recipient_overflow_rejects_atomically(
@@ -714,7 +860,11 @@ def test_apply_app_tx_token_mint_recipient_overflow_rejects_atomically(
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
 
     setup_ok, app_state_json, _setup_hash, _setup_patch, setup_error = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=_policy_bound_generic_state(
+            plugin,
+            assets=(token,),
+            mint_authority_pubkey=operator,
+        ),
         chain_balances={},
         operations={"7": {"mint": [[recipient, token, 0xFFFFFFFF]]}},
         tx_sender_pubkey=operator,
@@ -729,11 +879,14 @@ def test_apply_app_tx_token_mint_recipient_overflow_rejects_atomically(
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "mint",
                     "asset": token,
+                    "operator_pubkey": operator,
                     "to_pubkey": recipient,
                     "amount": 1,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ]
         },
@@ -745,7 +898,7 @@ def test_apply_app_tx_token_mint_recipient_overflow_rejects_atomically(
     assert rejected_state == app_state_json
     assert app_hash == ""
     assert balances_patch is None
-    assert err == "token op[0].recipient_balance overflow"
+    assert err == "token op[0] authority transition rejected: supply_overflow"
 
 
 def test_apply_app_tx_faucet_recipient_overflow_rejects_atomically(
@@ -758,8 +911,13 @@ def test_apply_app_tx_faucet_recipient_overflow_rejects_atomically(
     monkeypatch.setenv("TAU_DEX_FAUCET", "1")
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-faucet-overflow")
 
+    genesis = _policy_bound_generic_state(
+        plugin,
+        assets=(token,),
+        mint_authority_pubkey=recipient,
+    )
     ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=genesis,
         chain_balances={},
         operations={
             "7": {
@@ -774,13 +932,13 @@ def test_apply_app_tx_faucet_recipient_overflow_rejects_atomically(
     )
 
     assert ok is False
-    assert app_state_json == _policy_bound_empty_state(plugin)
+    assert app_state_json == genesis
     assert app_hash == ""
     assert balances_patch is None
-    assert err == "faucet.mint[1].recipient_balance overflow"
+    assert err == "faucet.mint[1] authority transition rejected: supply_overflow"
 
 
-def test_apply_app_tx_token_mint_requires_operator(monkeypatch):
+def test_apply_app_tx_token_mint_requires_committed_signer(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 
     operator = "0x" + "aa" * 48
@@ -789,20 +947,25 @@ def test_apply_app_tx_token_mint_requires_operator(monkeypatch):
     token = "0x" + "44" * 32
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
-    monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
-
     ok, _app_state_json, _app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=_policy_bound_generic_state(
+            plugin,
+            assets=(token,),
+            mint_authority_pubkey=operator,
+        ),
         chain_balances={},
         operations={
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "mint",
                     "asset": token,
+                    "operator_pubkey": non_operator,
                     "to_pubkey": recipient,
                     "amount": 100,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ]
         },
@@ -810,7 +973,62 @@ def test_apply_app_tx_token_mint_requires_operator(monkeypatch):
         block_timestamp=123,
     )
     assert ok is False
-    assert err == "token mint requires operator sender"
+    assert err == "token op[0] authority transition rejected: unauthorized_mint"
+
+
+def test_apply_app_tx_later_token_failure_rolls_back_supply_balance_and_nonce(
+    monkeypatch,
+) -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    operator = "0x" + "ad" * 48
+    recipient = "0x" + "ce" * 48
+    token = "0x" + "56" * 32
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-token-multi-op-rollback")
+    genesis = _policy_bound_generic_state(
+        plugin,
+        assets=(token,),
+        mint_authority_pubkey=operator,
+    )
+
+    ok, rejected_state, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json=genesis,
+        chain_balances={},
+        operations={
+            "9": [
+                {
+                    "module": "TauToken",
+                    "version": "0.1",
+                    "action": "mint",
+                    "asset": token,
+                    "operator_pubkey": operator,
+                    "to_pubkey": recipient,
+                    "amount": 1,
+                    "nonce": 1,
+                    "deadline": 1_000,
+                },
+                {
+                    "module": "TauToken",
+                    "version": "0.1",
+                    "action": "mint",
+                    "asset": token,
+                    "operator_pubkey": operator,
+                    "to_pubkey": recipient,
+                    "amount": 0xFFFFFFFF,
+                    "nonce": 2,
+                    "deadline": 1_000,
+                },
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=1,
+    )
+
+    assert ok is False
+    assert rejected_state == genesis
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == "token op[1] authority transition rejected: supply_overflow"
 
 
 def test_apply_app_tx_token_mint_and_burn(monkeypatch):
@@ -821,28 +1039,36 @@ def test_apply_app_tx_token_mint_and_burn(monkeypatch):
     token = "0x" + "55" * 32
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
-    monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
-
     ok, app_state_json, _app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=_policy_bound_generic_state(
+            plugin,
+            assets=(token,),
+            mint_authority_pubkey=operator,
+        ),
         chain_balances={},
         operations={
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "mint",
                     "asset": token,
+                    "operator_pubkey": operator,
                     "to_pubkey": user,
                     "amount": 500,
                     "nonce": 1,
+                    "deadline": 1_000,
                 },
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "mint",
                     "asset": token,
+                    "operator_pubkey": operator,
                     "to_pubkey": user,
                     "amount": 100,
                     "nonce": 2,
+                    "deadline": 1_000,
                 },
             ]
         },
@@ -859,10 +1085,13 @@ def test_apply_app_tx_token_mint_and_burn(monkeypatch):
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "burn",
                     "asset": token,
+                    "sender_pubkey": user,
                     "amount": 150,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ]
         },
@@ -884,6 +1113,7 @@ def _mint_one_canonical_zusd_app_state(
     owner: str,
     collateral_e8: int | None = None,
     mint_e8: int | None = None,
+    generic_assets: tuple[str, ...] = (),
 ) -> str:
     from src.core.zusd import E8
     from src.integration import tau_testnet_dex_plugin as plugin
@@ -893,8 +1123,17 @@ def _mint_one_canonical_zusd_app_state(
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", owner)
+    genesis = (
+        _policy_bound_empty_state(plugin)
+        if not generic_assets
+        else _policy_bound_generic_state(
+            plugin,
+            assets=generic_assets,
+            mint_authority_pubkey=owner,
+        )
+    )
     ok, app_state_json, _app_hash, balances_patch, err = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=genesis,
         chain_balances={owner: collateral_e8},
         operations={
             "11": [
@@ -992,14 +1231,14 @@ def test_apply_app_tx_uses_committed_fee_stake_asset_when_environment_drifts(
     assert err is None
 
 
-def test_apply_app_tx_zusd_pool_custody_remains_live_for_later_repay(
+def test_apply_app_tx_zusd_pool_balance_remains_live_for_later_repay(
     monkeypatch,
 ) -> None:
     from src.core.zusd import E8
     from src.integration import tau_testnet_dex_plugin as plugin
     from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 
-    chain_id = "tau-zusd-pool-custody-live"
+    chain_id = "tau-zusd-pool-balance-live"
     owner = "0x" + "5a" * 48
     zusd_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
     other_asset = "0x" + "f1" * 32
@@ -1009,6 +1248,7 @@ def test_apply_app_tx_zusd_pool_custody_remains_live_for_later_repay(
         owner=owner,
         collateral_e8=3 * E8,
         mint_e8=200 * E8,
+        generic_assets=(other_asset,),
     )
     monkeypatch.setenv("TAU_DEX_FAUCET", "1")
     monkeypatch.setenv("TAU_DEX_REQUIRE_INTENT_SIGS", "0")
@@ -1093,11 +1333,14 @@ def test_apply_app_tx_rejects_generic_canonical_zusd_mint_without_state_change(m
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "mint",
                     "asset": zusd_asset,
+                    "operator_pubkey": operator,
                     "to_pubkey": recipient,
                     "amount": 1,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ]
         },
@@ -1136,11 +1379,14 @@ def test_apply_app_tx_binds_custom_canonical_zusd_asset_to_generic_writer_policy
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "mint",
                     "asset": custom_zusd_asset,
+                    "operator_pubkey": operator,
                     "to_pubkey": recipient,
                     "amount": 1,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ]
         },
@@ -1158,14 +1404,14 @@ def test_apply_app_tx_binds_custom_canonical_zusd_asset_to_generic_writer_policy
     )
 
 
-def test_apply_app_tx_rejects_generic_canonical_zusd_transfer_to_sp_without_state_change(
+def test_apply_app_tx_rejects_generic_zusd_transfer_to_protocol_address_without_state_change(
     monkeypatch,
 ):
     from src.integration import tau_testnet_dex_plugin as plugin
     from src.integration.zusd_monetary_bridge import stability_pool_pubkey
     from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 
-    chain_id = "tau-canonical-zusd-sp-custody"
+    chain_id = "tau-canonical-zusd-sp-address"
     sender = "0x" + "63" * 48
     zusd_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
     sp_pubkey = stability_pool_pubkey(chain_id=chain_id)
@@ -1180,11 +1426,14 @@ def test_apply_app_tx_rejects_generic_canonical_zusd_transfer_to_sp_without_stat
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "transfer",
                     "asset": zusd_asset,
+                    "sender_pubkey": sender,
                     "to_pubkey": sp_pubkey,
                     "amount": 1,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ]
         },
@@ -1198,7 +1447,7 @@ def test_apply_app_tx_rejects_generic_canonical_zusd_transfer_to_sp_without_stat
     assert balances_patch is None
     assert err == (
         "token op[0] rejected by zUSD authority policy: "
-        "canonical_zusd_reserved_custody_requires_monetary_authority"
+        "canonical_zusd_reserved_protocol_address_requires_monetary_authority"
     )
 
 
@@ -1220,10 +1469,13 @@ def test_apply_app_tx_rejects_generic_canonical_zusd_burn_without_state_change(m
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "burn",
                     "asset": zusd_asset,
+                    "sender_pubkey": sender,
                     "amount": 1,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ]
         },
@@ -1346,11 +1598,14 @@ def test_apply_app_tx_token_ops_reject_native_and_expired(monkeypatch):
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "transfer",
                     "asset": NATIVE_ASSET,
+                    "sender_pubkey": sender,
                     "to_pubkey": recipient,
                     "amount": 1,
                     "nonce": 1,
+                    "deadline": 1_000,
                 }
             ]
         },
@@ -1368,8 +1623,10 @@ def test_apply_app_tx_token_ops_reject_native_and_expired(monkeypatch):
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "transfer",
                     "asset": token,
+                    "sender_pubkey": sender,
                     "to_pubkey": recipient,
                     "amount": 1,
                     "nonce": 1,
@@ -1403,12 +1660,14 @@ def test_apply_app_tx_perps_rejects_generic_zusd_quote_collateral_issuance(monke
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "mint",
                     "asset": zusd_asset,
                     "to_pubkey": alice,
                     "amount": 1_000,
                     "nonce": 1,
                     "operator_pubkey": operator,
+                    "deadline": 1_000,
                 }
             ]
         },
@@ -1516,6 +1775,7 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "transfer",
                     "asset": zusd_asset,
                     "sender_pubkey": alice,
@@ -1608,7 +1868,9 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     assert ok6 is True, err6
 
     parsed = json.loads(app_state_json6)
-    assert parsed["schema"] == "zenodex/tau_app_state/v1"
+    assert parsed["schema"] == "zenodex/tau_app_state/v2"
+    assert parsed["version"] == 2
+    assert "generic_token_authority" in parsed
     balances = {
         (b["pubkey"], b["asset"]): int(b["amount"]) for b in parsed["dex_state"].get("balances", [])
     }
@@ -1985,6 +2247,7 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     from src.state.state_root import compute_state_root
 
     sender = "11" * 48
+    canonical_sender = "0x" + sender
     reward_pool = "99" * 48
     canonical_reward_pool = "0x" + reward_pool
     asset0 = "0x" + "11" * 32
@@ -2005,9 +2268,20 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
 
     ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=_policy_bound_generic_state(
+            plugin,
+            assets=(asset0, asset1),
+            mint_authority_pubkey=canonical_sender,
+        ),
         chain_balances={sender: 123, reward_pool: 20},
-        operations={"7": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]}},
+        operations={
+            "7": {
+                "mint": [
+                    [canonical_sender, asset0, 10_000],
+                    [canonical_sender, asset1, 10_000],
+                ]
+            }
+        },
         tx_sender_pubkey=sender,
         block_timestamp=1,
     )
@@ -2113,7 +2387,9 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     assert balances_patch1 == {reward_pool: 16, sender: 127}
 
     parsed = json.loads(app_state_json1)
-    assert parsed["schema"] == "zenodex/tau_app_state/v1"
+    assert parsed["schema"] == "zenodex/tau_app_state/v2"
+    assert parsed["version"] == 2
+    assert "generic_token_authority" in parsed
     assert parsed["proof_mining"]["schema"] == "zenodex/proof_mining_runtime_state/v1"
     assert parsed["proof_mining"]["reward_pool_pubkey"] == canonical_reward_pool
     assert parsed["proof_mining"]["reward_pool_balance"] == 16
@@ -2132,7 +2408,10 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     assert ok2 is True
     assert err2 is None
     assert synced_patch is None
-    assert json.loads(synced_json)["schema"] == "zenodex/tau_app_state/v1"
+    synced = json.loads(synced_json)
+    assert synced["schema"] == "zenodex/tau_app_state/v2"
+    assert synced["version"] == 2
+    assert synced["generic_token_authority"] == parsed["generic_token_authority"]
 
     ok3, synced_drift_json, _hash3, drift_patch, err3 = plugin.apply_app_tx(
         app_state_json=app_state_json1,
@@ -2350,9 +2629,20 @@ def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
     monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
 
     ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
-        app_state_json=_policy_bound_empty_state(plugin),
+        app_state_json=_policy_bound_generic_state(
+            plugin,
+            assets=(asset0, asset1),
+            mint_authority_pubkey=sender,
+        ),
         chain_balances={sender: 50, reward_pool: 20},
-        operations={"7": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]}},
+        operations={
+            "7": {
+                "mint": [
+                    [sender, asset0, 10_000],
+                    [sender, asset1, 10_000],
+                ]
+            }
+        },
         tx_sender_pubkey=sender,
         block_timestamp=1,
     )

@@ -8,7 +8,7 @@ wire fields before invoking it, then execute only an ``ADMITTED`` decision.
 from __future__ import annotations
 
 from ..core.zusd_generic_token_admission import (
-    CanonicalZUSDCustodyClass,
+    CanonicalZUSDRecipientClass,
     GenericTokenAction,
     GenericTokenAdmissionCommand,
     GenericTokenAdmissionDecision,
@@ -16,7 +16,9 @@ from ..core.zusd_generic_token_admission import (
     TokenWriterRole,
     evaluate_generic_token_admission,
 )
-from .zusd_custody_registry import build_live_canonical_zusd_custody_registry
+from .zusd_protocol_address_registry import (
+    build_live_canonical_zusd_protocol_address_registry,
+)
 
 
 def evaluate_live_generic_token_writer_admission(
@@ -30,7 +32,7 @@ def evaluate_live_generic_token_writer_admission(
     """Classify one authenticated generic-token operation and decide admission.
 
     Mechanical guarantee: canonical zUSD mint, burn, and transfer into a live
-    reserved custody principal are rejected by the same pure decision function
+    reserved protocol address are rejected by the same pure decision function
     used by Lean and generated-reference parity tests.
 
     Non-guarantees: this function does not authenticate the sender, validate
@@ -48,20 +50,20 @@ def evaluate_live_generic_token_writer_admission(
     asset_class = (
         TokenAssetClass.CANONICAL_ZUSD if asset == canonical_zusd_asset else TokenAssetClass.OTHER
     )
-    custody_class = CanonicalZUSDCustodyClass.ORDINARY_ACCOUNT
+    recipient_class = CanonicalZUSDRecipientClass.ORDINARY_ACCOUNT
     if recipient_pubkey is not None:
         if type(recipient_pubkey) is not str or not recipient_pubkey:
             raise TypeError("recipient_pubkey must be a non-empty str when present")
-        custody_class = build_live_canonical_zusd_custody_registry(chain_id=chain_id).classify(
-            recipient_pubkey
-        )
+        recipient_class = build_live_canonical_zusd_protocol_address_registry(
+            chain_id=chain_id
+        ).classify(recipient_pubkey)
 
     return evaluate_generic_token_admission(
         GenericTokenAdmissionCommand(
             action=typed_action,
             asset_class=asset_class,
             writer_role=TokenWriterRole.GENERIC_TOKEN_WRITER,
-            recipient_custody_class=custody_class,
+            recipient_class=recipient_class,
         )
     )
 

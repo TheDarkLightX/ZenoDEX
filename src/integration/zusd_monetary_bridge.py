@@ -22,12 +22,7 @@ from types import MappingProxyType
 from typing import Any, Mapping, Optional
 
 from ..core.dex import DexState
-from ..core.perps import (
-    PerpClearinghouse2pMarketState,
-    PerpClearinghouse3pTransferMarketState,
-    PerpClearinghouseNpMarketState,
-    PerpMarketState,
-)
+from ..core.perps_token_accounting import perps_market_locked_quote_e8
 from ..core.zusd import BPS_SCALE, E8, ZUSDCommand, ZUSDState, check_invariants, init_state, step
 from ..core.zusd_liability_cover import (
     ZUSDFreeDebtLiabilityBreakdown,
@@ -1849,20 +1844,11 @@ def _perps_quote_liability_e8(state: DexState, *, zusd_asset: str) -> int:
         return 0
 
     total = 0
-    for market in perps.markets.values():
+    for market_id in sorted(perps.markets):
+        market = perps.markets[market_id]
         if market.quote_asset != zusd_asset:
             continue
-        if isinstance(market, PerpMarketState):
-            total += sum(int(account.collateral_quote) for account in market.accounts.values()) * E8
-            total += int(market.global_state.get("fee_pool_quote", 0)) * E8
-            total += int(market.global_state.get("insurance_balance", 0)) * E8
-        elif isinstance(
-            market, (PerpClearinghouse2pMarketState, PerpClearinghouse3pTransferMarketState)
-        ):
-            total += int(market.state.get("net_deposited_e8", 0))
-        elif isinstance(market, PerpClearinghouseNpMarketState):
-            total += int(market.global_state.get("net_deposited_e8", 0))
-            total += int(market.global_state.get("insurance_ext_e8", 0))
+        total += perps_market_locked_quote_e8(market)
     return total
 
 
@@ -1933,10 +1919,10 @@ def zusd_global_ledger_consistency_error(
     state: DexState,
     monetary_state: ZUSDMonetaryState | None,
 ) -> str | None:
-    """Return the deterministic global zUSD custody/liability error, if any.
+    """Return the deterministic global zUSD balance-location/liability error, if any.
 
     This app-composition postcondition checks every currently addressable zUSD
-    custody domain and performs no mutation. The calling shell remains
+    balance location and performs no mutation. The calling shell remains
     responsible for checking it before and after composing transaction streams.
     """
 

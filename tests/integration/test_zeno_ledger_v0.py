@@ -998,6 +998,54 @@ def test_tau_app_state_app_root_binds_wrapper_only_lanes() -> None:
         zv.compute_tau_app_state_app_root_v0(ambiguous_clob)
 
 
+def test_tau_app_state_v2_app_root_binds_generic_token_authority() -> None:
+    snapshot = zv.snapshot_from_state(
+        DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    ).data
+    asset = "0x" + "12" * 32
+    signer = "0x" + "34" * 48
+    authority = {
+        "schema": "zenodex/generic_token_authority/v1",
+        "version": 1,
+        "assets": [
+            {
+                "asset_id": asset,
+                "total_supply_units": 7,
+                "mint_authority_pubkey": signer,
+            }
+        ],
+    }
+    wrapper = {
+        "schema": zv.TAU_APP_STATE_SCHEMA_V2,
+        "version": zv.TAU_APP_STATE_VERSION_V2,
+        "dex_state": snapshot,
+        "proof_mining": None,
+        "zusd_monetary": None,
+        "generic_token_authority": authority,
+    }
+    root = zv.compute_tau_app_state_app_root_v0(wrapper)
+
+    supply_mutation = deepcopy(wrapper)
+    supply_mutation["generic_token_authority"]["assets"][0]["total_supply_units"] = 8
+    assert zv.compute_tau_app_state_app_root_v0(supply_mutation) != root
+
+    v1_wrapper = deepcopy(wrapper)
+    v1_wrapper["schema"] = zv.TAU_APP_STATE_SCHEMA_V1
+    v1_wrapper["version"] = zv.TAU_APP_STATE_VERSION_V1
+    with pytest.raises(ValueError, match="unsupported app_state app-root field"):
+        zv.compute_tau_app_state_app_root_v0(v1_wrapper)
+
+    missing_authority = deepcopy(wrapper)
+    missing_authority.pop("generic_token_authority")
+    with pytest.raises(TypeError, match="generic_token_authority must be an object"):
+        zv.compute_tau_app_state_app_root_v0(missing_authority)
+
+    wrong_version = deepcopy(wrapper)
+    wrong_version["version"] = zv.TAU_APP_STATE_VERSION_V1
+    with pytest.raises(ValueError, match="unsupported app_state version"):
+        zv.compute_tau_app_state_app_root_v0(wrong_version)
+
+
 def test_proof_metadata_schema_and_kind_boundaries() -> None:
     header = _header()
     metadata = _proof_metadata(header=header)

@@ -106,6 +106,7 @@ import Proofs.GamifiedRefundFairQueue
 import Proofs.GeneralizedSettlementCertificates
 import Proofs.GracefulDegradation
 import Proofs.GrossMarginSafety
+import Proofs.GenericTokenAuthority
 import Proofs.HybridCurveProperties
 import Proofs.HostInterfaceFeeAccounting
 import Proofs.ILFuturesSafety
@@ -362,6 +363,7 @@ import Proofs.ZUSDDualConservation
 import Proofs.ZUSDFeePipeline
 import Proofs.ZUSDMCRHeadroom
 import Proofs.ZUSDMonetarySubmitClassifier
+import Proofs.ZUSDGenericTokenAdmission
 import Proofs.ZUSDMultiRedeemSelector
 import Proofs.ZUSDFeeStakingAccounting
 import Proofs.ZUSDRedemptionDrainGuards

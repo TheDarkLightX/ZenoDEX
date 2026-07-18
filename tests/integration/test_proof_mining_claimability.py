@@ -59,14 +59,20 @@ def _context_from_claim(claim: dict) -> ProofMiningContext:
     )
 
 
-def _wrapped_app_state(proof_state) -> str:
+def _wrapped_app_state(proof_state, *, version: int = 1) -> str:
     dex_state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
     payload = {
-        "schema": "zenodex/tau_app_state/v1",
-        "version": 1,
+        "schema": f"zenodex/tau_app_state/v{version}",
+        "version": version,
         "dex_state": snapshot_from_state(dex_state).data,
         "proof_mining": proof_mining_runtime_state_to_obj(proof_state),
     }
+    if version == 2:
+        payload["generic_token_authority"] = {
+            "schema": "zenodex/generic_token_authority/v1",
+            "version": 1,
+            "assets": [],
+        }
     return json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
 
@@ -287,7 +293,10 @@ def test_claimability_rejects_proposal_hash_mismatch() -> None:
     assert status.checks["proposal_hash_matches_context"] is False
 
 
-def test_claimability_rejects_reward_pool_balance_drift_with_runtime_state() -> None:
+@pytest.mark.parametrize("app_state_version", (1, 2))
+def test_claimability_rejects_reward_pool_balance_drift_with_runtime_state(
+    app_state_version: int,
+) -> None:
     sender = "0x" + "33" * 48
     reward_pool = "0x" + "77" * 48
     claim = _claim(miner_id=sender, reward_pool_before=20)
@@ -307,7 +316,7 @@ def test_claimability_rejects_reward_pool_balance_drift_with_runtime_state() -> 
 
     status = evaluate_proof_mining_claimability(
         reward_pool_pubkey=reward_pool,
-        app_state_json=_wrapped_app_state(next_state),
+        app_state_json=_wrapped_app_state(next_state, version=app_state_version),
         chain_balances={reward_pool: 15, sender: 4},
         claim_artifact=claim,
         tx_sender_pubkey=sender,
