@@ -13,13 +13,20 @@ from typing import Callable
 
 import pytest
 
-from src.core.perp_v2 import Action, ActionParams, EpochPhase, PerpState, initial_state
+from src.core.perp_v2 import (
+    Action,
+    ActionParams,
+    EpochPhase,
+    PerpState,
+    StepResult,
+    initial_state,
+)
 from src.core.perp_v2.engine import step as step_v2
 from src.core.perp_v2.state import state_from_dict, state_to_dict
 from src.core.perp_v4.engine import step as step_v4
 
-Engine = Callable[[PerpState, ActionParams], object]
-_ENGINES = (step_v2, step_v4)
+Engine = Callable[[PerpState, ActionParams], StepResult]
+_ENGINES: tuple[Engine, ...] = (step_v2, step_v4)
 
 
 def _published_state(**changes: object) -> PerpState:
