@@ -648,7 +648,10 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
             explicit_timestamp_payload,
         )
         assert explicit_timestamp_status == 200
-        assert explicit_timestamp_body["tx"]["block_timestamp"] == 456
+        assert "block_timestamp" not in explicit_timestamp_body["tx"]
+        assert explicit_timestamp_body["execution_context_requirements"] == {
+            "block_time_seconds": 456
+        }
 
         missing_timestamp_payload = dict(explicit_timestamp_payload)
         missing_timestamp_payload.pop("block_timestamp")
@@ -663,7 +666,8 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
 
         tx = body["tx"]
         assert set(tx["operations"]) == {"5", "6", "7", "10"}
-        assert tx["block_timestamp"] == 123
+        assert "block_timestamp" not in tx
+        assert body["execution_context_requirements"] == {"block_time_seconds": 123}
         assert tx["tx_id"].startswith("proof-mining-payout:0x")
         assert "signature" in tx["operations"]["5"][0]
         assert "signature" not in tx["operations"]["6"]["proof"]["operations"]["5"][0]
@@ -705,6 +709,8 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
         )
         from src.integration import tau_testnet_dex_plugin as plugin
         from tests.consensus_clock import execution_clock_v1
+        from tests.integration.test_zeno_ledger_v0 import _body
+        from tools.zeno_ledger_run_local import _execute_tau_app_body_v0
 
         registrations = tuple(
             sorted(
@@ -750,19 +756,27 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
             separators=(",", ":"),
         )
         claim = json.loads(json.dumps(tx["operations"]["10"]["claim"]))
-        ok, next_app_state, app_hash, _native, err = plugin.apply_app_tx(
+        (
+            _pre_state_root,
+            _post_state_root,
+            next_app_state,
+            _executed_body,
+            receipts,
+        ) = _execute_tau_app_body_v0(
             app_state_json=app_state_json,
             chain_balances={reward_pool: 20, sender: 0},
-            operations=json.loads(json.dumps(tx["operations"])),
-            tx_sender_pubkey=sender,
-            block_timestamp=int(tx["block_timestamp"]),
+            body=_body(txs=[json.loads(json.dumps(tx))]),
+            tau_chain_id=chain_id,
+            allow_missing_settlement=False,
+            require_intent_signatures=False,
+            enable_faucet=True,
+            block_time_seconds=int(intent["created_at"]),
             execution_clock=execution_clock_v1(
                 chain_id=chain_id,
-                height=int(tx["block_timestamp"]),
+                height=1,
             ),
         )
-        assert ok is True, err
-        assert len(app_hash) in {64, 66}
+        assert receipts[0]["accepted"] is True
 
         first_state = json.loads(next_app_state)
         proposal_hash = claim["body"]["proposal_hash"]
@@ -779,10 +793,10 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
                 chain_balances={reward_pool: 20 - reward_amount, sender: reward_amount},
                 operations=json.loads(json.dumps(tx["operations"])),
                 tx_sender_pubkey=sender,
-                block_timestamp=int(tx["block_timestamp"]),
+                block_timestamp=int(intent["created_at"]),
                 execution_clock=execution_clock_v1(
                     chain_id=chain_id,
-                    height=int(tx["block_timestamp"]),
+                    height=1,
                 ),
             )
         )

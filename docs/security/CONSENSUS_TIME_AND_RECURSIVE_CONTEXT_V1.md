@@ -126,7 +126,9 @@ finality certificate is excluded from the hash that it authenticates.
 The mounted bridge requires an exact `VerifiedExecutionClockV1`. Before any
 user operation, it deterministically advances internal zUSD epoch state to the
 epoch derived from the block height. Epoch regression rejects without changing
-the pre-state.
+the pre-state. The clock value owns the immutable governed schedule, validates
+its schedule hash during construction, and is re-derived against the schedule
+hash committed in monetary state at the bridge boundary.
 
 The public operation grammar and wallet surface exclude `advance_epoch`.
 Advisory wallet preview uses a separately typed preview clock and explicitly
@@ -139,9 +141,11 @@ This preserves the immediate invariant:
 UserOperationCannotAdvanceItsOwnEconomicEpoch
 ```
 
-The legacy field named `block_timestamp` currently carries height through some
-compatibility adapters. That naming and ABI are migration debt. No wall-clock
-authority is claimed.
+Compatibility adapters keep consensus height and legacy wall-clock seconds as
+separate inputs. Mounted zUSD consumes only the verified height-derived epoch;
+DEX, LP-age, and perps compatibility paths retain their existing seconds-based
+contracts. The local runner still receives legacy header `time_ms` as an outer
+input, so no production wall-clock authority is claimed.
 
 ## Recursive proof requirement
 
@@ -154,6 +158,7 @@ consensus_domain_id
 height
 derived_epoch
 clock_policy_hash
+clock_policy_schedule_hash
 pre_state_root
 post_state_root
 effect_plan_hash
@@ -188,9 +193,16 @@ must reject.
 - activation and epoch-boundary arithmetic with overflow rejection;
 - policy-upgrade continuity and epoch-boundary activation checks;
 - typed verified execution clock and execution-context construction;
+- construction-time and bridge-boundary re-verification of every derived clock
+  fact against the complete committed schedule;
 - acyclic execution-header-core and final-header value objects;
-- explicit finality verifier boundary and parent-derived child height;
+- execution-header binding of the schedule hash, validator-set root, and
+  finality-policy hash;
+- explicit finality verifier boundary, signer/policy binding, and
+  parent-derived child height;
 - mounted zUSD epoch admission before user operations;
+- pending Oracle observation epochs, with stale commit and liquidation
+  rejection at the exact configured boundary;
 - removal of public wallet, bridge, and UI `advance_epoch` actions;
 - fail-closed rejection of zero-epoch staking activation delay;
 - rejection of transaction timestamp substitution in the local runner;
@@ -219,8 +231,11 @@ must reject.
    ordered-range vector remain absent.
 6. **Runtime coverage:** other value-moving streams still consume legacy raw
    time or epoch fields and need the same typed boundary.
-7. **Oracle semantics:** strict zUSD wallet flows still lack complete finalized
-   Oracle evidence in ordinary user previews and submissions.
+7. **Oracle semantics:** pending price observations now retain their occurrence
+   epoch, and stale observations cannot commit or liquidate. Strict zUSD wallet
+   flows still lack complete finalized Oracle evidence in ordinary user
+   previews and submissions, and the legacy monotone-down price rule remains a
+   separate mechanism decision.
 8. **Fee liabilities:** the protocol zUSD reserve has a configured-recipient
    claim, while terminal system exit and redemption-collateral disposition are
    incomplete. Ordinary exact repay cannot substitute for the specified
@@ -254,6 +269,7 @@ pytest -q tests/core/test_consensus_time_context.py \
 
 cd lean-mathlib
 lake env lean Proofs/ZUSDMonetaryPolicyBinding.lean
+lake env lean Proofs/ZUSDPendingObservationFreshness.lean
 ```
 
 Passing these tests supports only the implemented containment and typed Python

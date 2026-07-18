@@ -316,6 +316,8 @@ class VerifiedExecutionClockV1:
     height: int
     derived_epoch: int
     clock_policy_hash: str
+    clock_policy_schedule_hash: str
+    clock_policy_schedule: ClockPolicyScheduleV1
 
     def __post_init__(self) -> None:
         _require_nonempty_str(self.chain_id, name="chain_id")
@@ -325,6 +327,27 @@ class VerifiedExecutionClockV1:
         _require_u64(self.height, name="height")
         _require_u64(self.derived_epoch, name="derived_epoch")
         _require_root(self.clock_policy_hash, name="clock_policy_hash", allow_zero=False)
+        _require_root(
+            self.clock_policy_schedule_hash,
+            name="clock_policy_schedule_hash",
+            allow_zero=False,
+        )
+        if type(self.clock_policy_schedule) is not ClockPolicyScheduleV1:
+            raise TypeError("clock_policy_schedule must be ClockPolicyScheduleV1")
+        observed_schedule_hash = clock_policy_schedule_hash_v1(self.clock_policy_schedule)
+        if self.clock_policy_schedule_hash != observed_schedule_hash:
+            raise ValueError("clock_policy_schedule_hash mismatch")
+        policy = self.clock_policy_schedule.active_policy_at_height(self.height)
+        if self.chain_id != policy.chain_id:
+            raise ValueError("chain_id mismatch")
+        if self.consensus_domain_id != policy.consensus_domain_id:
+            raise ValueError("consensus_domain_id mismatch")
+        if self.deployment_profile is not policy.deployment_profile:
+            raise ValueError("deployment_profile mismatch")
+        if self.clock_policy_hash != clock_policy_hash_v1(policy):
+            raise ValueError("clock_policy_hash mismatch")
+        if self.derived_epoch != policy.epoch_at_height(self.height):
+            raise ValueError("derived_epoch mismatch")
 
 
 def verify_execution_clock_v1(
@@ -357,6 +380,8 @@ def verify_execution_clock_v1(
         height=height_v,
         derived_epoch=policy.epoch_at_height(height_v),
         clock_policy_hash=clock_policy_hash_v1(policy),
+        clock_policy_schedule_hash=expected_hash,
+        clock_policy_schedule=schedule,
     )
 
 
@@ -382,6 +407,8 @@ class ExecutionHeaderCoreV1:
     body_root: str
     data_availability_root: str
     clock_policy_hash: str
+    clock_policy_schedule_hash: str
+    finality_policy_hash: str
     config_digest: str
     module_versions_digest: str
 
@@ -408,6 +435,8 @@ class ExecutionHeaderCoreV1:
             "body_root",
             "data_availability_root",
             "clock_policy_hash",
+            "clock_policy_schedule_hash",
+            "finality_policy_hash",
             "config_digest",
             "module_versions_digest",
         ):
@@ -434,6 +463,8 @@ class ExecutionHeaderCoreV1:
             "body_root": self.body_root,
             "data_availability_root": self.data_availability_root,
             "clock_policy_hash": self.clock_policy_hash,
+            "clock_policy_schedule_hash": self.clock_policy_schedule_hash,
+            "finality_policy_hash": self.finality_policy_hash,
             "config_digest": self.config_digest,
             "module_versions_digest": self.module_versions_digest,
         }
@@ -485,6 +516,8 @@ def verify_execution_context_v1(
     )
     if clock_policy_schedule_hash_v1(schedule) != expected_hash:
         raise ValueError("clock policy schedule hash mismatch")
+    if core.clock_policy_schedule_hash != expected_hash:
+        raise ValueError("execution context clock_policy_schedule_hash mismatch")
     policy = schedule.active_policy_at_height(core.height)
     if core.chain_id != policy.chain_id:
         raise ValueError("execution context chain_id mismatch")
@@ -562,6 +595,28 @@ class FinalizedBlockContextV1:
     final_header_hash: str
     _finality_facts: _VerifiedFinalityFactsV1
 
+    def __post_init__(self) -> None:
+        if type(self.verified_execution_context) is not VerifiedExecutionContextV1:
+            raise TypeError("verified_execution_context must be VerifiedExecutionContextV1")
+        if type(self.final_header) is not FinalHeaderV1:
+            raise TypeError("final_header must be FinalHeaderV1")
+        _require_root(self.final_header_hash, name="final_header_hash", allow_zero=False)
+        if type(self._finality_facts) is not _VerifiedFinalityFactsV1:
+            raise TypeError("finality facts must be verified facts")
+        if self.final_header_hash != final_header_hash_v1(self.final_header):
+            raise ValueError("final_header_hash mismatch")
+        if self.final_header.execution_context_hash != (
+            self.verified_execution_context.execution_context_hash
+        ):
+            raise ValueError("finalized context execution_context_hash mismatch")
+        if self._finality_facts.final_header_hash != self.final_header_hash:
+            raise ValueError("finality facts final_header_hash mismatch")
+        core = self.final_header.execution_header_core
+        if self._finality_facts.signer_set_root != core.sequencer_or_validator_set_hash:
+            raise ValueError("finality facts signer_set_root mismatch")
+        if self._finality_facts.finality_policy_hash != core.finality_policy_hash:
+            raise ValueError("finality facts finality_policy_hash mismatch")
+
     @property
     def finality_certificate_hash(self) -> str:
         return self._finality_facts.certificate_hash
@@ -628,6 +683,11 @@ def verify_finalized_block_context_v1(
         name="finality_facts.signer_set_root",
         allow_zero=False,
     )
+    core = final_header.execution_header_core
+    if finality_policy_hash != core.finality_policy_hash:
+        raise ValueError("finality certificate finality_policy_hash mismatch")
+    if signer_set_root != core.sequencer_or_validator_set_hash:
+        raise ValueError("finality certificate signer_set_root mismatch")
     signed_power = _require_u64(
         raw_facts["signed_power"],
         name="finality_facts.signed_power",
@@ -680,6 +740,13 @@ def derive_child_execution_clock_v1(
 
     if type(finalized_parent) is not FinalizedBlockContextV1:
         raise TypeError("finalized_parent must be FinalizedBlockContextV1")
+    expected_hash = _require_root(
+        expected_schedule_hash,
+        name="expected_schedule_hash",
+        allow_zero=False,
+    )
+    if finalized_parent.verified_execution_context.core.clock_policy_schedule_hash != expected_hash:
+        raise ValueError("parent clock policy schedule hash mismatch")
     parent_height = finalized_parent.verified_execution_context.core.height
     if parent_height == U64_MAX:
         raise ValueError("candidate height overflows u64")
@@ -687,5 +754,5 @@ def derive_child_execution_clock_v1(
         chain_id=finalized_parent.verified_execution_context.core.chain_id,
         height=parent_height + 1,
         schedule=schedule,
-        expected_schedule_hash=expected_schedule_hash,
+        expected_schedule_hash=expected_hash,
     )

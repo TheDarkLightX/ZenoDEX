@@ -980,6 +980,125 @@ def test_run_local_tau_app_derives_epoch_from_anchored_height(tmp_path: Path) ->
     assert post_state["zusd_monetary"]["core"]["now_epoch"] == 1
 
 
+def test_run_local_tau_app_uses_header_time_for_legacy_deadlines(tmp_path: Path) -> None:
+    from src.core.generic_token_authority import (
+        GenericTokenAssetAuthority,
+        GenericTokenAuthorityState,
+    )
+    from src.integration.tau_testnet_dex_plugin import (
+        build_zusd_policy_bound_genesis_app_state,
+    )
+    from src.integration.zusd_monetary_bridge import ZUSDMonetaryConfig
+    from tools.zeno_ledger_run_local import build_local_block_v0
+
+    chain_id = "zeno-ledger-devnet-0"
+    sender = "0x" + "31" * 48
+    recipient = "0x" + "32" * 48
+    token = "0x" + "33" * 32
+    block_time_seconds = 1_778_730_000
+    authority = GenericTokenAuthorityState(
+        assets=(
+            GenericTokenAssetAuthority(
+                asset_id=token,
+                total_supply_units=0,
+                mint_authority_pubkey=sender,
+            ),
+        )
+    )
+    app_state_json, _app_hash = build_zusd_policy_bound_genesis_app_state(
+        config=ZUSDMonetaryConfig(chain_id=chain_id),
+        generic_token_authority=authority,
+    )
+    app_state_path = tmp_path / "app-state.json"
+    app_state_path.write_text(app_state_json, encoding="utf-8")
+    body_path = tmp_path / "body.json"
+    body_path.write_text(
+        json.dumps(
+            _body(
+                txs=[
+                    {
+                        "tx_sender_pubkey": sender,
+                        "operations": {
+                            "7": {"mint": [[sender, token, 10]]},
+                            "9": [
+                                {
+                                    "module": "TauToken",
+                                    "version": "0.1",
+                                    "action": "transfer",
+                                    "asset": token,
+                                    "sender_pubkey": sender,
+                                    "to_pubkey": recipient,
+                                    "amount": 1,
+                                    "nonce": 1,
+                                    "deadline": block_time_seconds - 1,
+                                }
+                            ],
+                        },
+                    }
+                ]
+            ),
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    report = build_local_block_v0(
+        body_path=body_path,
+        out_dir=tmp_path / "ledger",
+        time_ms=block_time_seconds * 1_000,
+        tau_app_state_path=app_state_path,
+        tau_enable_faucet=True,
+        trusted_prev_header_hash=_root("trusted-parent"),
+        trusted_prev_height=0,
+        sequencer_set_hash=_root("sequencer-set"),
+        data_availability_root=_root("da"),
+        proof_journal_hash=ZERO_ROOT,
+        config_digest=_root("config"),
+        module_versions_digest=_root("modules"),
+        signature_set_root=ZERO_ROOT,
+    )
+
+    receipts = json.loads(Path(str(report["receipts_path"])).read_text(encoding="utf-8"))
+    assert receipts[0]["accepted"] is False
+    assert receipts[0]["error_code"] == "token_op_0_deadline_expired"
+    post_state = json.loads(
+        Path(str(report["post_app_state_path"])).read_text(encoding="utf-8")
+    )
+    assert post_state["zusd_monetary"]["core"]["now_epoch"] == 1
+
+
+def test_tau_app_runner_rejects_transaction_time_override() -> None:
+    from src.integration.tau_testnet_dex_plugin import (
+        build_zusd_policy_bound_genesis_app_state,
+    )
+    from src.integration.zusd_monetary_bridge import ZUSDMonetaryConfig
+    from tests.consensus_clock import execution_clock_v1
+    from tools.zeno_ledger_run_local import _execute_tau_app_body_v0
+
+    chain_id = "zeno-ledger-devnet-0"
+    app_state_json, _app_hash = build_zusd_policy_bound_genesis_app_state(
+        config=ZUSDMonetaryConfig(chain_id=chain_id)
+    )
+
+    _pre_root, _post_root, post_state_json, _body_after, receipts = (
+        _execute_tau_app_body_v0(
+            app_state_json=app_state_json,
+            body=_body(txs=[{"operations": {}, "block_timestamp": 7}]),
+            chain_balances={},
+            tau_chain_id=chain_id,
+            allow_missing_settlement=False,
+            require_intent_signatures=True,
+            enable_faucet=False,
+            block_time_seconds=1_778_730_000,
+            execution_clock=execution_clock_v1(chain_id=chain_id, height=1),
+        )
+    )
+
+    assert receipts[0]["accepted"] is False
+    assert receipts[0]["error_code"] == "transactions_0_block_timestamp_is_forbidden"
+    assert json.loads(post_state_json)["zusd_monetary"]["core"]["now_epoch"] == 1
+
+
 def test_run_local_tau_app_rejects_unanchored_non_genesis_height(
     tmp_path: Path,
 ) -> None:

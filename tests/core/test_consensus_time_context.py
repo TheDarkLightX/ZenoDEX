@@ -51,6 +51,7 @@ def _schedule(*policies: ClockPolicyV1) -> ClockPolicyScheduleV1:
 
 
 def _core(policy: ClockPolicyV1, *, height: int = 10) -> ExecutionHeaderCoreV1:
+    schedule = _schedule(policy)
     return ExecutionHeaderCoreV1(
         schema_version=1,
         chain_id="zenodex-testnet-1",
@@ -70,6 +71,8 @@ def _core(policy: ClockPolicyV1, *, height: int = 10) -> ExecutionHeaderCoreV1:
         body_root=_root(9),
         data_availability_root=_root(10),
         clock_policy_hash=clock_policy_hash_v1(policy),
+        clock_policy_schedule_hash=clock_policy_schedule_hash_v1(schedule),
+        finality_policy_hash=_root(14),
         config_digest=_root(11),
         module_versions_digest=_root(12),
     )
@@ -159,6 +162,24 @@ def test_execution_clock_rejects_uncommitted_schedule_substitution() -> None:
         )
 
 
+def test_verified_execution_clock_rejects_forged_derived_facts() -> None:
+    policy = _policy()
+    schedule = _schedule(policy)
+    clock = verify_execution_clock_v1(
+        chain_id=policy.chain_id,
+        height=15,
+        schedule=schedule,
+        expected_schedule_hash=clock_policy_schedule_hash_v1(schedule),
+    )
+
+    with pytest.raises(ValueError, match="derived_epoch mismatch"):
+        replace(clock, derived_epoch=clock.derived_epoch + 100)
+    with pytest.raises(ValueError, match="consensus_domain_id mismatch"):
+        replace(clock, consensus_domain_id="attacker-domain")
+    with pytest.raises(ValueError, match="deployment_profile mismatch"):
+        replace(clock, deployment_profile=ClockAuthorityProfileV1.TAU_NATIVE_V1)
+
+
 def test_clock_policy_schedule_decoder_is_strict_and_roundtrips() -> None:
     schedule = _schedule(_policy())
     assert ClockPolicyScheduleV1.from_obj(schedule.to_obj()) == schedule
@@ -227,6 +248,8 @@ def test_context_hash_binds_every_execution_field_and_excludes_proof_cycle() -> 
         "body_root": _root(30),
         "data_availability_root": _root(31),
         "clock_policy_hash": _root(32),
+        "clock_policy_schedule_hash": _root(35),
+        "finality_policy_hash": _root(36),
         "config_digest": _root(33),
         "module_versions_digest": _root(34),
     }
@@ -249,6 +272,36 @@ def test_context_hash_binds_every_execution_field_and_excludes_proof_cycle() -> 
     assert "finality_certificate" not in final_a.to_obj()
 
 
+def test_execution_context_binds_the_complete_schedule_hash() -> None:
+    current = _policy(activation_height=0, epoch_base=0, blocks_per_epoch=5)
+    successor_a = _policy(activation_height=10, epoch_base=2, blocks_per_epoch=5)
+    successor_b = _policy(activation_height=10, epoch_base=2, blocks_per_epoch=10)
+    schedule_a = _schedule(current, successor_a)
+    schedule_b = _schedule(current, successor_b)
+    core_a = replace(
+        _core(current, height=5),
+        clock_policy_schedule_hash=clock_policy_schedule_hash_v1(schedule_a),
+    )
+
+    verified_a = verify_execution_context_v1(
+        core=core_a,
+        schedule=schedule_a,
+        expected_schedule_hash=clock_policy_schedule_hash_v1(schedule_a),
+    )
+    with pytest.raises(ValueError, match="clock_policy_schedule_hash mismatch"):
+        verify_execution_context_v1(
+            core=core_a,
+            schedule=schedule_b,
+            expected_schedule_hash=clock_policy_schedule_hash_v1(schedule_b),
+        )
+
+    core_b = replace(
+        core_a,
+        clock_policy_schedule_hash=clock_policy_schedule_hash_v1(schedule_b),
+    )
+    assert execution_context_hash_v1(core_b) != verified_a.execution_context_hash
+
+
 def test_clock_and_context_hash_vectors_are_stable() -> None:
     policy = _policy()
     schedule = _schedule(policy)
@@ -266,15 +319,23 @@ def test_clock_and_context_hash_vectors_are_stable() -> None:
     assert clock_policy_schedule_hash_v1(schedule) == (
         "0x1c3a8c85d0a5610b1086e9b8cbe4a84f13f3525ec1ab3b1de8e9870d309d603d"
     )
-    assert context_hash == ("0x21cd4601d23c1c8cee32d9bd1bbf724c35e688c43e7f83b036247e894c58d81a")
+    assert context_hash == ("0xc7344d1c2ca0edcceca6b13af6c8ae61e61e1a4224f1b19d1918e866146b314e")
     assert final_header_hash_v1(final_header) == (
-        "0x1ff2c794de28ea12368a8696b8f1e907aa7994eae22f6301f99d8629ab679c4d"
+        "0xcbcd50b2cc32848199558ff15e4cfede58d6771eec56eadfbd7e17440a1a6363"
     )
 
 
 class _FinalityVerifier:
-    def __init__(self, *, bind_wrong_header: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        bind_wrong_header: bool = False,
+        signer_set_root: str = _root(2),
+        finality_policy_hash: str = _root(14),
+    ) -> None:
         self._bind_wrong_header = bind_wrong_header
+        self._signer_set_root = signer_set_root
+        self._finality_policy_hash = finality_policy_hash
 
     def verify_finality_certificate_v1(
         self,
@@ -288,8 +349,8 @@ class _FinalityVerifier:
             "certificate_hash": sha256_hex(
                 domain_sep_bytes("finality_certificate", version=1) + encode_bytes(certificate)
             ),
-            "finality_policy_hash": _root(29),
-            "signer_set_root": _root(30),
+            "finality_policy_hash": self._finality_policy_hash,
+            "signer_set_root": self._signer_set_root,
             "signed_power": 3,
             "total_power": 4,
         }
@@ -329,4 +390,37 @@ def test_finalized_context_requires_verified_certificate_bound_to_header() -> No
             final_header=final_header,
             certificate=b"certificate for another header",
             verifier=_FinalityVerifier(bind_wrong_header=True),
+        )
+
+
+@pytest.mark.parametrize(
+    ("verifier", "error"),
+    (
+        (_FinalityVerifier(signer_set_root=_root(30)), "signer_set_root mismatch"),
+        (_FinalityVerifier(finality_policy_hash=_root(29)), "finality_policy_hash mismatch"),
+    ),
+)
+def test_finalized_context_binds_signer_set_and_finality_policy(
+    verifier: _FinalityVerifier,
+    error: str,
+) -> None:
+    policy = _policy()
+    schedule = _schedule(policy)
+    verified = verify_execution_context_v1(
+        core=_core(policy),
+        schedule=schedule,
+        expected_schedule_hash=clock_policy_schedule_hash_v1(schedule),
+    )
+    final_header = FinalHeaderV1(
+        execution_header_core=verified.core,
+        execution_context_hash=verified.execution_context_hash,
+        proof_journal_hash=_root(15),
+    )
+
+    with pytest.raises(ValueError, match=error):
+        verify_finalized_block_context_v1(
+            verified_execution_context=verified,
+            final_header=final_header,
+            certificate=b"certificate",
+            verifier=verifier,
         )

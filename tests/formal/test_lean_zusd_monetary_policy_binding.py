@@ -84,7 +84,7 @@ def _binding_for_mask(mask: int) -> ZUSDMonetaryPolicyBinding:
         "borrow_fee_max_bps": 101,
         "host_protocol_fee_share_bps": 1,
         "fee_stake_asset_id": STAKE_ASSET,
-        "staking_activation_delay_epochs": 1,
+        "staking_activation_delay_epochs": 2,
     }
     return replace(
         base,
@@ -118,6 +118,19 @@ def test_zusd_monetary_policy_binding_claim_surface_is_explicit_and_clean() -> N
         assert re.search(rf"\b{re.escape(token)}\b", lowered) is None
     for claim in CLAIMS:
         assert re.search(rf"\btheorem\s+{re.escape(claim)}\b", source) is not None
+
+
+def test_staking_activation_delay_mismatch_bit_is_observable() -> None:
+    field_name = "staking_activation_delay_epochs"
+    bit = 1 << ZUSD_MONETARY_POLICY_FIELDS.index(field_name)
+    committed = _base_binding()
+    configured = _binding_for_mask(bit)
+
+    assert configured.staking_activation_delay_epochs != committed.staking_activation_delay_epochs
+    assert evaluate_zusd_policy_binding(
+        committed=committed,
+        configured=configured,
+    ).mismatch_fields == (field_name,)
 
 
 def test_lean_mismatch_vector_matches_executable_python_core(tmp_path: Path) -> None:

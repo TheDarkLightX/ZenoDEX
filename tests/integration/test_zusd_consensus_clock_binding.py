@@ -7,7 +7,6 @@ from src.core.consensus_time import (
     ClockAuthorityProfileV1,
     ClockPolicyScheduleV1,
     ClockPolicyV1,
-    clock_policy_hash_v1,
     clock_policy_schedule_hash_v1,
     verify_execution_clock_v1,
 )
@@ -46,9 +45,10 @@ def _clock(*, height: int):
 
 
 def _config() -> ZUSDMonetaryConfig:
+    schedule = ClockPolicyScheduleV1(policies=(_policy(),))
     return ZUSDMonetaryConfig(
         chain_id="zenodex-testnet-1",
-        clock_policy_hash=clock_policy_hash_v1(_policy()),
+        clock_policy_hash=clock_policy_schedule_hash_v1(schedule),
         oracle_pubkey=SENDER,
     )
 
@@ -101,6 +101,49 @@ def test_consensus_height_advances_epoch_even_without_user_operations() -> None:
     assert result.zusd_state.core.now_epoch == 8
     assert monetary.core.now_epoch == 0
     assert result.effects == ()
+
+
+def test_governed_schedule_activation_does_not_freeze_mounted_zusd() -> None:
+    previous = _policy(blocks_per_epoch=5)
+    successor = ClockPolicyV1(
+        clock_policy_id="HEIGHT_ONLY_V1",
+        clock_policy_version=1,
+        chain_id=previous.chain_id,
+        deployment_profile=previous.deployment_profile,
+        consensus_domain_id=previous.consensus_domain_id,
+        activation_height=20,
+        epoch_base=9,
+        blocks_per_epoch=8,
+    )
+    schedule = ClockPolicyScheduleV1(policies=(previous, successor))
+    schedule_hash = clock_policy_schedule_hash_v1(schedule)
+    config = ZUSDMonetaryConfig(
+        chain_id=previous.chain_id,
+        clock_policy_hash=schedule_hash,
+        oracle_pubkey=SENDER,
+    )
+    monetary = init_monetary_state(config)
+    clock = verify_execution_clock_v1(
+        chain_id=previous.chain_id,
+        height=successor.activation_height,
+        schedule=schedule,
+        expected_schedule_hash=schedule_hash,
+    )
+
+    result = apply_zusd_monetary_ops(
+        config=config,
+        state=_state(),
+        zusd_state=monetary,
+        operations=[],
+        tx_sender_pubkey=SENDER,
+        block_timestamp=clock.height,
+        execution_clock=clock,
+    )
+
+    assert result.ok is True, result.error
+    assert result.zusd_state is not None
+    assert result.zusd_state.core.now_epoch == successor.epoch_base
+    assert result.zusd_state.policy_binding.clock_policy_hash == schedule_hash
 
 
 def test_public_advance_epoch_is_rejected_without_mutating_prestate() -> None:

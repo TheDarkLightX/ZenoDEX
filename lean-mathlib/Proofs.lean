@@ -363,6 +363,7 @@ import Proofs.ZUSDDualConservation
 import Proofs.ZUSDFeePipeline
 import Proofs.ZUSDMCRHeadroom
 import Proofs.ZUSDMonetarySubmitClassifier
+import Proofs.ZUSDPendingObservationFreshness
 import Proofs.ZUSDGenericTokenAdmission
 import Proofs.ZUSDMultiRedeemSelector
 import Proofs.ZUSDFeeStakingAccounting

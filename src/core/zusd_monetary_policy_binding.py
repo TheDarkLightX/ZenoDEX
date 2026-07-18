@@ -67,6 +67,7 @@ class ZUSDMonetaryPolicyBinding:
 
     chain_id: str
     canonical_zusd_asset: str
+    # Retained wire name; the value binds the full clock-policy schedule.
     clock_policy_hash: str
     oracle_pubkey: str | None
     protocol_fee_recipient_pubkey: str | None

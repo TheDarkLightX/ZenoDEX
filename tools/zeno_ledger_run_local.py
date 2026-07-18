@@ -1637,6 +1637,7 @@ def _execute_tau_app_body_v0(
     require_intent_signatures: bool,
     allow_unsigned_intents_if_tx_sender_matches: bool = False,
     enable_faucet: bool,
+    block_time_seconds: int,
     execution_clock: VerifiedExecutionClockV1,
 ) -> tuple[str, str, str, dict[str, Any], list[dict[str, Any]]]:
     # Keep the Tau bridge optional. Sovereign ZenoLedger modes must not fail to
@@ -1656,14 +1657,19 @@ def _execute_tau_app_body_v0(
     rejection_receipts = executed_body["evidence"]["rejection_receipts"]
     receipts: list[dict[str, Any]] = []
     height = int(executed_body["height"])
+    if type(block_time_seconds) is not int or block_time_seconds < 0:
+        raise ValueError("block_time_seconds must be a non-negative int")
+    # This value is derived from the candidate header. Transactions cannot
+    # override it. zUSD height and epoch remain bound to execution_clock.
+    working_chain_balances = dict(chain_balances)
 
     with _temporary_env(env):
         ok, canonical_state, pre_app_hash, _patch, err = apply_app_tx(
             app_state_json=app_state_json,
-            chain_balances=chain_balances,
+            chain_balances=working_chain_balances,
             operations={},
             tx_sender_pubkey="",
-            block_timestamp=execution_clock.height,
+            block_timestamp=block_time_seconds,
             execution_clock=execution_clock,
         )
         if not ok:
@@ -1709,16 +1715,18 @@ def _execute_tau_app_body_v0(
                 raise TypeError(f"transactions[{index}].tx_sender_pubkey must be a string")
 
             before_state_json = app_state_json
-            ok, next_state_json, _app_hash, _patch, err = apply_app_tx(
+            ok, next_state_json, _app_hash, balances_patch, err = apply_app_tx(
                 app_state_json=app_state_json,
-                chain_balances=chain_balances,
+                chain_balances=working_chain_balances,
                 operations=dict(operations),
                 tx_sender_pubkey=sender,
-                block_timestamp=execution_clock.height,
+                block_timestamp=block_time_seconds,
                 execution_clock=execution_clock,
             )
             if ok:
                 app_state_json = next_state_json
+                if balances_patch is not None:
+                    working_chain_balances.update(balances_patch)
                 receipt = build_tx_receipt_v0(
                     tx_hash=tx_hash,
                     height=height,
@@ -1741,10 +1749,10 @@ def _execute_tau_app_body_v0(
 
         ok, canonical_state, post_app_hash, _patch, err = apply_app_tx(
             app_state_json=app_state_json,
-            chain_balances=chain_balances,
+            chain_balances=working_chain_balances,
             operations={},
             tx_sender_pubkey="",
-            block_timestamp=execution_clock.height,
+            block_timestamp=block_time_seconds,
             execution_clock=execution_clock,
         )
         if not ok:
@@ -1812,6 +1820,9 @@ def build_local_block_v0(
 ) -> dict[str, Any]:
     body = dict(_load_json_object(body_path))
     validate_body_v0(body)
+    if type(time_ms) is not int or time_ms < 0:
+        raise ValueError("time_ms must be a non-negative int")
+    block_time_seconds = time_ms // 1_000
     route_order_receipt_attached = apply_route_order_receipt_policy_to_body_v1(body)
     if route_order_receipt_attached:
         validate_body_v0(body)
@@ -1958,6 +1969,7 @@ def build_local_block_v0(
             require_intent_signatures=require_intent_signatures,
             allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_intents_if_tx_sender_matches,
             enable_faucet=tau_enable_faucet,
+            block_time_seconds=block_time_seconds,
             execution_clock=execution_clock,
         )
 

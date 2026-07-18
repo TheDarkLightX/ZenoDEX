@@ -57,6 +57,19 @@ def test_oracle_commit_requires_both_vaults_above_mcr_at_pending() -> None:
     assert "below MCR" in (r.error or "")
 
 
+def test_multi_oracle_commit_rejects_stale_pending_observation() -> None:
+    s = ZUSDMultiState(max_oracle_staleness_epochs=2)
+    s = _bootstrap(s)
+    s = _ok(s, "oracle_report", price_e8=90 * E8, auth_ok=True)
+    s = _ok(s, "advance_epoch", delta=3)
+
+    r = step_multi(s, ZUSDMultiCommand(tag="oracle_commit", args={"auth_ok": True}))
+
+    assert not r.ok
+    assert r.state is None
+    assert r.error == "oracle_commit blocked: pending observation is stale"
+
+
 def test_recovery_mode_blocks_risky_ops_multi() -> None:
     s = init_multi_state()
     s = _bootstrap(s)

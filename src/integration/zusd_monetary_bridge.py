@@ -19,17 +19,27 @@ import json
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, cast
 
 from ..core.consensus_time import (
     U64_MAX,
     VerifiedExecutionClockV1,
-    clock_policy_hash_v1,
-    default_height_only_clock_policy_v1,
+    clock_policy_schedule_hash_v1,
+    default_height_only_clock_schedule_v1,
+    verify_execution_clock_v1,
 )
 from ..core.dex import DexState
 from ..core.perps_token_accounting import perps_market_locked_quote_e8
-from ..core.zusd import BPS_SCALE, E8, ZUSDCommand, ZUSDState, check_invariants, init_state, step
+from ..core.zusd import (
+    BPS_SCALE,
+    E8,
+    ZUSDCommand,
+    ZUSDCommandTag,
+    ZUSDState,
+    check_invariants,
+    init_state,
+    step,
+)
 from ..core.zusd_liability_cover import (
     ZUSDFreeDebtLiabilityBreakdown,
     evaluate_zusd_free_debt_liability_cover,
@@ -93,6 +103,7 @@ _ZUSD_MONETARY_CORE_FIELDS = (
     "now_epoch",
     "oracle_seen",
     "oracle_last_update_epoch",
+    "oracle_pending_report_epoch",
     "price_e8",
     "price_pending_e8",
     "max_oracle_staleness_epochs",
@@ -158,12 +169,16 @@ class ZUSDMonetaryConfig:
 
     @property
     def committed_clock_policy_hash(self) -> str:
+        """Return the schedule hash stored in the legacy-named policy field."""
+
         if self.clock_policy_hash is not None:
             return _canonical_nonzero_hash(
                 self.clock_policy_hash,
                 name="clock_policy_hash",
             )
-        return clock_policy_hash_v1(default_height_only_clock_policy_v1(chain_id=self.chain_id))
+        return clock_policy_schedule_hash_v1(
+            default_height_only_clock_schedule_v1(chain_id=self.chain_id)
+        )
 
 
 def _policy_binding_from_config(
@@ -745,7 +760,7 @@ class _PreviewExecutionClockV1:
     chain_id: str
     height: int
     derived_epoch: int
-    clock_policy_hash: str
+    clock_policy_schedule_hash: str
 
 
 def _admit_consensus_epoch(
@@ -845,7 +860,7 @@ def preview_zusd_monetary_ops(
             chain_id=config.chain_id,
             height=height,
             derived_epoch=epoch,
-            clock_policy_hash=config.committed_clock_policy_hash,
+            clock_policy_schedule_hash=config.committed_clock_policy_hash,
         ),
     )
 
@@ -899,8 +914,20 @@ def _apply_zusd_monetary_ops_with_clock(
         )
         if policy_error is not None:
             raise ValueError(policy_error)
-        if execution_clock.clock_policy_hash != working.policy_binding.clock_policy_hash:
-            raise ValueError("execution clock policy hash mismatch")
+        if type(execution_clock) is VerifiedExecutionClockV1:
+            reverified_clock = verify_execution_clock_v1(
+                chain_id=execution_clock.chain_id,
+                height=execution_clock.height,
+                schedule=execution_clock.clock_policy_schedule,
+                expected_schedule_hash=working.policy_binding.clock_policy_hash,
+            )
+            if reverified_clock != execution_clock:
+                raise ValueError("execution clock re-verification mismatch")
+        elif (
+            execution_clock.clock_policy_schedule_hash
+            != working.policy_binding.clock_policy_hash
+        ):
+            raise ValueError("preview clock policy schedule hash mismatch")
         working = _admit_consensus_epoch(
             monetary_state=working,
             execution_clock=execution_clock,
@@ -1039,7 +1066,7 @@ def _apply_one(
             args["price_e8"] = _require_int(
                 op.get("price_e8"), name=f"{action}.price_e8", minimum=1
             )
-        result = step(core, ZUSDCommand(tag=action, args=args))
+        result = step(core, ZUSDCommand(tag=cast(ZUSDCommandTag, action), args=args))
         if not result.ok or result.state is None:
             raise ValueError(result.error or f"{action} rejected")
         next_state = replace(
@@ -1070,7 +1097,10 @@ def _apply_one(
         )
         if balances.get(native_sender, NATIVE_ASSET) < amount_e8:
             raise ValueError("insufficient native collateral balance")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
+        result = step(
+            core,
+            ZUSDCommand(tag=cast(ZUSDCommandTag, action), args={"amount_e8": amount_e8}),
+        )
         if not result.ok or result.state is None:
             raise ValueError(result.error or "deposit_collateral rejected")
         balances.subtract(native_sender, NATIVE_ASSET, amount_e8)
@@ -1089,7 +1119,10 @@ def _apply_one(
         amount_e8 = _require_int(
             op.get("amount_e8"), name="withdraw_collateral.amount_e8", minimum=1
         )
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
+        result = step(
+            core,
+            ZUSDCommand(tag=cast(ZUSDCommandTag, action), args={"amount_e8": amount_e8}),
+        )
         if not result.ok or result.state is None:
             raise ValueError(result.error or "withdraw_collateral rejected")
         balances.add(native_sender, NATIVE_ASSET, amount_e8)
@@ -1106,7 +1139,10 @@ def _apply_one(
 
     if action == "mint_zusd":
         amount_e8 = _require_whole_zusd_amount(op.get("amount_e8"), name="mint_zusd.amount_e8")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
+        result = step(
+            core,
+            ZUSDCommand(tag=cast(ZUSDCommandTag, action), args={"amount_e8": amount_e8}),
+        )
         if not result.ok or result.state is None:
             raise ValueError(result.error or "mint_zusd rejected")
         effects = dict(result.effects or {})
@@ -1136,7 +1172,10 @@ def _apply_one(
         units = _e8_to_whole_units(amount_e8, name="repay_zusd.amount_e8")
         if balances.get(sender, zusd_asset) < units:
             raise ValueError("insufficient zUSD balance")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
+        result = step(
+            core,
+            ZUSDCommand(tag=cast(ZUSDCommandTag, action), args={"amount_e8": amount_e8}),
+        )
         if not result.ok or result.state is None:
             raise ValueError(result.error or "repay_zusd rejected")
         balances.subtract(sender, zusd_asset, units)
@@ -1157,7 +1196,10 @@ def _apply_one(
         units = _e8_to_whole_units(amount_e8, name="deposit_sp.amount_e8")
         if balances.get(account, zusd_asset) < units:
             raise ValueError("insufficient zUSD balance")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
+        result = step(
+            core,
+            ZUSDCommand(tag=cast(ZUSDCommandTag, action), args={"amount_e8": amount_e8}),
+        )
         if not result.ok or result.state is None:
             raise ValueError(result.error or "deposit_sp rejected")
         balances.subtract(account, zusd_asset, units)
@@ -1187,7 +1229,10 @@ def _apply_one(
         units = _e8_to_whole_units(amount_e8, name="withdraw_sp.amount_e8")
         if balances.get(sp_pubkey, zusd_asset) < units:
             raise ValueError("stability pool escrow balance too low")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
+        result = step(
+            core,
+            ZUSDCommand(tag=cast(ZUSDCommandTag, action), args={"amount_e8": amount_e8}),
+        )
         if not result.ok or result.state is None:
             raise ValueError(result.error or "withdraw_sp rejected")
         balances.subtract(sp_pubkey, zusd_asset, units)
@@ -1214,7 +1259,10 @@ def _apply_one(
         units = _e8_to_whole_units(amount_e8, name="redeem_zusd.amount_e8")
         if balances.get(account, zusd_asset) < units:
             raise ValueError("insufficient zUSD balance")
-        result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
+        result = step(
+            core,
+            ZUSDCommand(tag=cast(ZUSDCommandTag, action), args={"amount_e8": amount_e8}),
+        )
         if not result.ok or result.state is None or result.effects is None:
             raise ValueError(result.error or "redeem_zusd rejected")
         collateral_out = _require_int(
@@ -1242,7 +1290,7 @@ def _apply_one(
 
     if action == "liquidate":
         pre_deposits = dict(deposits)
-        result = step(core, ZUSDCommand(tag=action, args={}))
+        result = step(core, ZUSDCommand(tag=cast(ZUSDCommandTag, action), args={}))
         if not result.ok or result.state is None or result.effects is None:
             raise ValueError(result.error or "liquidate rejected")
         liquidated_debt = _require_whole_zusd_amount(

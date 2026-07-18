@@ -1461,13 +1461,17 @@ def apply_app_tx(
     if zusd_monetary_state is not None:
         if zusd_cfg is None:
             return False, app_state_json, "", None, "committed zUSD policy unavailable"
+        if execution_clock is None:
+            return False, app_state_json, "", None, "verified execution clock is required"
+        # zUSD's compatibility field carries verified height. The outer
+        # block_timestamp remains Unix seconds for legacy expiry adapters.
         epoch_result = apply_zusd_monetary_ops(
             config=zusd_cfg,
             state=next_state,
             zusd_state=zusd_monetary_state,
             operations=[],
             tx_sender_pubkey="",
-            block_timestamp=block_timestamp,
+            block_timestamp=execution_clock.height,
             execution_clock=execution_clock,
         )
         if not epoch_result.ok or epoch_result.state is None or epoch_result.zusd_state is None:
@@ -1547,13 +1551,16 @@ def apply_app_tx(
     if zusd_monetary_ops:
         if zusd_cfg is None:
             return False, app_state_json, "", None, "committed zUSD policy unavailable"
+        if execution_clock is None:
+            return False, app_state_json, "", None, "verified execution clock is required"
+        # Keep the zUSD height domain separate from legacy wall-time deadlines.
         zusd_res = apply_zusd_monetary_ops(
             config=zusd_cfg,
             state=next_state,
             zusd_state=zusd_monetary_state,
             operations=zusd_monetary_ops.get(_ZUSD_MONETARY_OPS_KEY),
             tx_sender_pubkey=canonical_tx_sender_pubkey,
-            block_timestamp=block_timestamp,
+            block_timestamp=execution_clock.height,
             execution_clock=execution_clock,
         )
         if not zusd_res.ok or zusd_res.state is None or zusd_res.zusd_state is None:

@@ -2,8 +2,7 @@
 
 **Date:** 2026-07-18
 **PR:** #453
-**Observed PR head:** `83545e1f0e901b8b34260ffeb0288ac31d92220a`
-**Revalidated pre-remediation head:** `ed89092d501d3f5ae8f0ff152220578ac6b1b147`
+**Reviewed input head:** `81fdad2b8ea177e9c291bdc2ea3d357eaaed3a40`
 **Disposition:** **production release blocked**
 
 ## Implementation status in this PR update
@@ -13,9 +12,11 @@ reserve claim path:
 
 - ZenoLedger candidate height constructs a governed
   `VerifiedExecutionClockV1`;
-- the committed zUSD policy binds the active clock-policy hash;
+- the committed zUSD policy binds the complete clock-policy schedule hash;
 - the Tau application bridge requires that typed clock for any state carrying
   zUSD monetary policy;
+- the bridge re-derives clock facts from the committed schedule instead of
+  trusting a nominal Python object;
 - internal epoch admission occurs before user operations;
 - public bridge, wallet, and UI grammars reject `advance_epoch`;
 - the wallet labels local simulation as an unverified advisory preview and
@@ -29,6 +30,8 @@ reserve claim path:
 - fee accumulator events that would create unattributed residue reject
   atomically, and active-account stake top-ups preserve existing entitlement
   exactly across floor boundaries.
+- pending Oracle prices retain their observation epoch, and stale commit or
+  liquidation attempts reject without changing pre-state.
 
 This closes the reported same-transaction epoch-advance trace and makes the
 ordinary protocol zUSD reserve reachable when the outer transaction boundary
@@ -113,9 +116,11 @@ fields, and `proof_journal_hash` in the header. Current validation only requires
 consecutive height, and parent hash, but not parent/child timestamp relations.
 
 The local runner now derives a height-only zUSD execution clock from a governed
-policy schedule and requires parent height/hash linkage above genesis. The
-legacy v0 final header still lacks a committed V1 execution-context hash and
-clock-policy schedule hash. Deterministic wall-clock rules also remain open.
+policy schedule and requires parent height/hash linkage above genesis. The V1
+execution-header core binds the complete schedule hash, validator-set root,
+and finality-policy hash. The mounted legacy v0 final header still lacks the V1
+execution-context hash and does not yet connect those commitments to its proof
+journal. Deterministic wall-clock rules also remain open.
 
 Remaining additions:
 
@@ -160,11 +165,12 @@ authenticity. The missing independent context commitment must be added.
 
 ### Tau application bridge
 
-The app bridge now passes `VerifiedExecutionClockV1` for mounted zUSD
-execution and rejects a transaction-level timestamp override. The legacy field
-named `block_timestamp` transports the same verified height through older DEX
-and perps adapters. Full V1 context binding still requires parent/context
-commitments and proof-journal integration.
+The app bridge now passes `VerifiedExecutionClockV1` for mounted zUSD execution
+and rejects a transaction-level timestamp override. Compatibility execution
+keeps the verified height separate from seconds-based DEX, LP-age, and perps
+contracts. Full V1 context binding still requires parent/context commitments,
+a consensus-governed wall-clock profile where seconds are required, and
+proof-journal integration.
 
 ## Execution/finality separation
 
