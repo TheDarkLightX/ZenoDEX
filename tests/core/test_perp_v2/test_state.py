@@ -14,7 +14,7 @@ from src.core.perp_v2.types import EpochPhase, PerpState
 class TestInitialState:
     def test_returns_perp_state(self):
         s = initial_state()
-        assert isinstance(s, PerpState)
+        assert type(s) is PerpState
 
     def test_default_values(self):
         s = initial_state()
@@ -93,10 +93,16 @@ class TestRoundTrip:
 
 
 class TestStateFromDict:
-    def test_missing_key_raises(self):
+    def test_missing_key_rejects_exact_schema(self):
         d = state_to_dict(initial_state())
         del d["now_epoch"]
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError, match="fields must match exactly"):
+            state_from_dict(d)
+
+    def test_unknown_key_rejects_exact_schema(self):
+        d = state_to_dict(initial_state())
+        d["future_state_field"] = 0
+        with pytest.raises(ValueError, match="fields must match exactly"):
             state_from_dict(d)
 
     def test_wrong_type_raises(self):
