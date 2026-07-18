@@ -285,6 +285,101 @@ def test_accepted_transition_preserves_committed_policy_identity() -> None:
     assert result.zusd_state.core.collateral_e8 == E8
 
 
+def test_first_fee_stake_activation_uses_sparse_zero_reward_debt() -> None:
+    config = _config(staking_activation_delay_epochs=1)
+    balances = BalanceTable()
+    balances.set(ACTOR, STAKE_A, 2)
+    prestate = DexState(balances=balances, pools={}, lp_balances=LPTable())
+
+    result = apply_zusd_monetary_ops(
+        config=config,
+        state=prestate,
+        zusd_state=init_monetary_state(config),
+        operations=[
+            {
+                "module": "ZUSDFinance",
+                "version": "0.1",
+                "action": "stake_fee_shares",
+                "amount": 2,
+                "nonce": 1,
+                "deadline": 100,
+            },
+            {
+                "module": "ZUSDFinance",
+                "version": "0.1",
+                "action": "advance_epoch",
+                "delta": 1,
+                "nonce": 2,
+                "deadline": 100,
+            },
+        ],
+        tx_sender_pubkey=ACTOR,
+        block_timestamp=0,
+    )
+
+    assert result.ok is True, result.error
+    assert result.state is not None
+    assert result.zusd_state is not None
+    assert result.state.balances.get(ACTOR, STAKE_A) == 0
+    assert result.zusd_state.active_fee_stakes == {ACTOR: 2}
+    assert result.zusd_state.pending_fee_stakes == {}
+    assert result.zusd_state.fee_stake_reward_debt_e8 == {}
+    assert (
+        zusd_monetary_state_from_obj(
+            zusd_monetary_state_to_obj(result.zusd_state)
+        )
+        == result.zusd_state
+    )
+
+
+def test_partial_unstake_preserves_sparse_zero_reward_debt() -> None:
+    config = _config(staking_activation_delay_epochs=0)
+    balances = BalanceTable()
+    balances.set(ACTOR, STAKE_A, 2)
+    prestate = DexState(balances=balances, pools={}, lp_balances=LPTable())
+
+    result = apply_zusd_monetary_ops(
+        config=config,
+        state=prestate,
+        zusd_state=init_monetary_state(config),
+        operations=[
+            {
+                "module": "ZUSDFinance",
+                "version": "0.1",
+                "action": "stake_fee_shares",
+                "amount": 2,
+                "nonce": 1,
+                "deadline": 100,
+            },
+            {
+                "module": "ZUSDFinance",
+                "version": "0.1",
+                "action": "advance_epoch",
+                "delta": 1,
+                "nonce": 2,
+                "deadline": 100,
+            },
+            {
+                "module": "ZUSDFinance",
+                "version": "0.1",
+                "action": "unstake_fee_shares",
+                "amount": 1,
+                "nonce": 3,
+                "deadline": 100,
+            },
+        ],
+        tx_sender_pubkey=ACTOR,
+        block_timestamp=0,
+    )
+
+    assert result.ok is True, result.error
+    assert result.state is not None
+    assert result.zusd_state is not None
+    assert result.state.balances.get(ACTOR, STAKE_A) == 1
+    assert result.zusd_state.active_fee_stakes == {ACTOR: 1}
+    assert result.zusd_state.fee_stake_reward_debt_e8 == {}
+
+
 def test_accepted_result_effects_are_transitively_immutable() -> None:
     config = _config()
     monetary = init_monetary_state(config)

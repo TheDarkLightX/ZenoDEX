@@ -1204,8 +1204,13 @@ def _apply_one(
         active = _set_or_drop(active, sender, current - amount)
         reward_debt = dict(fee_fields["fee_stake_reward_debt_e8"])
         if sender in active:
-            reward_debt[sender] = _fee_stake_debt_for(
-                active[sender], int(fee_fields["staking_zusd_fee_acc_per_share_e8"])
+            reward_debt = _set_or_drop(
+                reward_debt,
+                sender,
+                _fee_stake_debt_for(
+                    active[sender],
+                    int(fee_fields["staking_zusd_fee_acc_per_share_e8"]),
+                ),
             )
         else:
             reward_debt.pop(sender, None)
@@ -1711,7 +1716,12 @@ def _activate_ready_fee_stakes(fee_fields: Mapping[str, Any], *, now_epoch: int)
         if activation_epoch > now_epoch:
             continue
         active[pk] = int(active.get(pk, 0)) + int(amount)
-        reward_debt[pk] = int(reward_debt.get(pk, 0)) + _fee_stake_debt_for(int(amount), acc)
+        reward_debt = _set_or_drop(
+            reward_debt,
+            pk,
+            int(reward_debt.get(pk, 0))
+            + _fee_stake_debt_for(int(amount), acc),
+        )
         pending.pop(pk, None)
         pending_epochs.pop(pk, None)
     out["active_fee_stakes"] = active
