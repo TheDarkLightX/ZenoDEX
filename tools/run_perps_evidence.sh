@@ -7,7 +7,7 @@ set -euo pipefail
 # evidence gates in this repo:
 # - pytest correctness/determinism checks
 # - YAML kernel inductiveness checks (via the optional external toolchain)
-# - Lean proofs for math claims
+# - Lean proofs for math and lifecycle claims
 #
 # Notes:
 # - This script is fail-closed: missing toolchains are treated as errors.
@@ -46,10 +46,12 @@ echo "== perps: pytest =="
   "$ROOT_DIR/tests/core/test_perp_submission_auth_gate.py" \
   "$ROOT_DIR/tests/core/test_perp_apply_funding_auto_gate.py" \
   "$ROOT_DIR/tests/core/test_perp_v2" \
+  "$ROOT_DIR/tests/core/test_perp_functional_core_fail_closed.py" \
   "$ROOT_DIR/tests/core/test_perp_math_hazards.py" \
   "$ROOT_DIR/tests/core/test_perp_incentive_hazards.py" \
   "$ROOT_DIR/tests/core/test_perp_clearinghouse_2p" \
   "$ROOT_DIR/tests/core/test_perp_clearinghouse_3p_transfer" \
+  "$ROOT_DIR/tests/formal/test_lean_perp_epoch_lifecycle.py" \
   "$ROOT_DIR/tests/formal/test_perp_epoch_scheduler_ltlf.py::test_ltlf_scheduler_can_reach_epoch_2_settled" \
   "$ROOT_DIR/tests/integration/test_perp_engine.py" \
   "$ROOT_DIR/tests/integration/test_perp_engine_auth_guards.py" \
@@ -131,6 +133,14 @@ if [[ ! -d "$ROOT_DIR/lean-mathlib" ]]; then
 fi
 
 echo "== perps: Lean proofs =="
-(cd "$ROOT_DIR/lean-mathlib" && lake build Proofs.PerpEpochSafety Proofs.PerpFundingRateSafety Proofs.PerpInsuranceSafety Proofs.PerpGameTheory)
+(
+  cd "$ROOT_DIR/lean-mathlib"
+  lake build \
+    Proofs.PerpEpochSafety \
+    Proofs.PerpEpochLifecycle \
+    Proofs.PerpFundingRateSafety \
+    Proofs.PerpInsuranceSafety \
+    Proofs.PerpGameTheory
+)
 
 echo "ok"
