@@ -1,0 +1,28 @@
+name: bva-production-promotion
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  value-moving-bva-production-closure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout immutable promotion candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dev tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Require complete executed value-moving BVA evidence
+        run: bash tools/run_zenodex_bva_gate.sh promotion
