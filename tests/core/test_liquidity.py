@@ -98,6 +98,27 @@ def test_add_liquidity_rejects_empty_pool() -> None:
         )
 
 
+def test_add_liquidity_rejects_orphaned_reserves_with_zero_supply() -> None:
+    orphaned = _make_pool(
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        lp_supply=0,
+    )
+
+    with pytest.raises(ValueError, match="nonempty pool with zero LP supply"):
+        add_liquidity(
+            orphaned,
+            amount0_desired=1_000_000,
+            amount1_desired=1_000_000,
+            amount0_min=0,
+            amount1_min=0,
+        )
+
+    assert orphaned.reserve0 == 1_000_000
+    assert orphaned.reserve1 == 1_000_000
+    assert orphaned.lp_supply == 0
+
+
 def test_add_liquidity_enforces_minimums() -> None:
     pool = _make_pool()
 
