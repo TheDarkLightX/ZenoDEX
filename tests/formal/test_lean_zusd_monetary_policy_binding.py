@@ -22,7 +22,9 @@ CLAIMS = (
     "mismatches_nodup",
     "chain_id_only_projection",
     "canonical_zusd_asset_only_projection",
+    "clock_policy_hash_only_projection",
     "oracle_pubkey_only_projection",
+    "protocol_fee_recipient_only_projection",
     "liquidation_gas_comp_fixed_only_projection",
     "liquidation_gas_comp_bps_only_projection",
     "borrow_fee_floor_only_projection",
@@ -37,6 +39,8 @@ ASSET_A = "0x" + "11" * 32
 ASSET_B = "0x" + "22" * 32
 STAKE_ASSET = "0x" + "33" * 32
 ORACLE = "0x" + "44" * 48
+CLOCK_HASH = "0x" + "55" * 32
+PROTOCOL_RECIPIENT = "0x" + "66" * 48
 
 
 def _paths() -> tuple[str, Path, Path]:
@@ -53,14 +57,16 @@ def _base_binding() -> ZUSDMonetaryPolicyBinding:
     return ZUSDMonetaryPolicyBinding(
         chain_id="tau-policy-base",
         canonical_zusd_asset=ASSET_A,
+        clock_policy_hash=CLOCK_HASH,
         oracle_pubkey=None,
+        protocol_fee_recipient_pubkey=None,
         liquidation_gas_comp_fixed_collateral_e8=0,
         liquidation_gas_comp_bps=0,
         borrow_fee_floor_bps=0,
         borrow_fee_max_bps=100,
         host_protocol_fee_share_bps=0,
         fee_stake_asset_id=None,
-        staking_activation_delay_epochs=0,
+        staking_activation_delay_epochs=1,
     )
 
 
@@ -69,7 +75,9 @@ def _binding_for_mask(mask: int) -> ZUSDMonetaryPolicyBinding:
     replacements: dict[str, object] = {
         "chain_id": "tau-policy-other",
         "canonical_zusd_asset": ASSET_B,
+        "clock_policy_hash": "0x" + "77" * 32,
         "oracle_pubkey": ORACLE,
+        "protocol_fee_recipient_pubkey": PROTOCOL_RECIPIENT,
         "liquidation_gas_comp_fixed_collateral_e8": 1,
         "liquidation_gas_comp_bps": 1,
         "borrow_fee_floor_bps": 1,
@@ -158,5 +166,5 @@ def test_lean_mismatch_vector_matches_executable_python_core(tmp_path: Path) -> 
         )
         python_masks.append(observed_mask)
 
-    assert len(lean_masks) == len(python_masks) == 1024
-    assert lean_masks == python_masks == list(range(1024))
+    assert len(lean_masks) == len(python_masks) == 4096
+    assert lean_masks == python_masks == list(range(4096))

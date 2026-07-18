@@ -44,7 +44,7 @@ from .tau_net_client import (
 from .zusd_monetary_bridge import (
     ZUSDMonetaryConfig,
     ZUSDMonetaryState,
-    apply_zusd_monetary_ops,
+    preview_zusd_monetary_ops,
     stability_pool_pubkey,
     zusd_monetary_policy_binding_error,
     zusd_monetary_sender_nonce_key,
@@ -56,6 +56,7 @@ MAX_POST_BODY = 65_536
 ResponseT = Tuple[int, Dict[str, Any]]
 _STREAM_KEY = "11"
 _U32_MAX = 0xFFFFFFFF
+_U64_MAX = 0xFFFFFFFFFFFFFFFF
 _ZUSD_PROOF_PROFILE_ID = "zusd_stream11_live_monetary_v0"
 _ZUSD_PROOF_PROFILE_SCHEMA = "zenodex/zusd_monetary_wallet/proof_profile/v1"
 _ZUSD_PROOF_INTENT_SCHEMA = "zenodex/zusd_monetary_wallet/proof_intent_receipt/v1"
@@ -63,7 +64,6 @@ _ZUSD_PROOF_INTENT_HASH_DOMAIN = "zenodex.zusd_monetary_wallet.proof_intent_rece
 _ZUSD_ZK_PROOF_ENV_PREFIX = "ZUSD_MONETARY_WALLET"
 _ZUSD_ZK_PROOF_REQUIRED_ENV = "ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF"
 _ACTIONS = {
-    "advance_epoch",
     "bootstrap_oracle",
     "oracle_report",
     "oracle_commit",
@@ -76,6 +76,11 @@ _ACTIONS = {
     "redeem_zusd",
     "liquidate",
     "claim_sp_collateral",
+    "stake_fee_shares",
+    "unstake_fee_shares",
+    "claim_protocol_fees",
+    "claim_host_fees",
+    "claim_staking_fees",
 }
 
 
@@ -323,8 +328,12 @@ def _runtime_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
         staking_activation_delay_epochs=_env_int(
             "TAU_DEX_ZUSD_STAKING_ACTIVATION_DELAY_EPOCHS",
             1,
-            lo=0,
+            lo=1,
             hi=10_000,
+        ),
+        clock_policy_hash=(os.environ.get("TAU_DEX_ZUSD_CLOCK_POLICY_HASH", "").strip() or None),
+        protocol_fee_recipient_pubkey=(
+            os.environ.get("TAU_DEX_ZUSD_PROTOCOL_FEE_RECIPIENT_PUBKEY", "").strip() or None
         ),
     )
 
@@ -472,6 +481,25 @@ def _request_u32(body: Mapping[str, Any], *, name: str, default: Optional[int] =
     return int(value)
 
 
+def _request_u64(body: Mapping[str, Any], *, name: str, default: Optional[int] = None) -> int:
+    if name not in body:
+        if default is None:
+            raise ValueError(f"missing_{name}")
+        return int(default)
+    raw = body.get(name)
+    if type(raw) is int:
+        value = raw
+    elif type(raw) is str and raw and raw.isascii() and raw.isdigit():
+        if len(raw) > 1 and raw.startswith("0"):
+            raise ValueError(f"bad_{name}")
+        value = int(raw, 10)
+    else:
+        raise ValueError(f"bad_{name}")
+    if value < 0 or value > _U64_MAX:
+        raise ValueError(f"bad_{name}")
+    return value
+
+
 def _request_tx_fee_limit(body: Mapping[str, Any]) -> int:
     raw = body.get("tx_fee_limit", 0)
     if isinstance(raw, bool):
@@ -607,8 +635,7 @@ def _actor_pubkey_for_action(body: Mapping[str, Any], *, action: str) -> str:
     ):
         candidates.append(body.get("account_pubkey"))
     if (
-        action
-        in {"advance_epoch", "bootstrap_oracle", "oracle_report", "oracle_commit", "liquidate"}
+        action in {"bootstrap_oracle", "oracle_report", "oracle_commit", "liquidate"}
         and "actor_pubkey" in body
     ):
         candidates.append(body.get("actor_pubkey"))
@@ -631,9 +658,6 @@ def _build_operation(
         "nonce": int(nonce),
         "deadline": int(deadline),
     }
-    if action == "advance_epoch":
-        op["delta"] = _request_u32(body, name="delta", default=None)
-        return op
     if action in {"bootstrap_oracle", "oracle_report"}:
         price_e8 = body.get("price_e8")
         if not isinstance(price_e8, int) or isinstance(price_e8, bool) or price_e8 <= 0:
@@ -649,6 +673,21 @@ def _build_operation(
     if action in {"deposit_sp", "withdraw_sp", "redeem_zusd", "claim_sp_collateral"}:
         op["account_pubkey"] = actor_pubkey
         op["amount_e8"] = _request_amount_e8(body, required=True)
+        return op
+    if action in {"stake_fee_shares", "unstake_fee_shares"}:
+        amount = body.get("amount")
+        if type(amount) is not int or amount <= 0:
+            raise ValueError("bad_amount")
+        op["amount"] = amount
+        return op
+    if action in {
+        "claim_protocol_fees",
+        "claim_host_fees",
+        "claim_staking_fees",
+    }:
+        amount_e8 = _request_amount_e8(body, required=False)
+        if amount_e8 is not None:
+            op["amount_e8"] = amount_e8
         return op
     raise ValueError("unsupported_action")
 
@@ -679,34 +718,55 @@ def _preflight(
     config: ZUSDMonetaryConfig,
     operation: Mapping[str, Any],
     actor_pubkey: str,
-    block_timestamp: int,
     native_balance: int | None,
 ) -> dict[str, Any]:
     try:
         state = _state_from_app_state(
             app_state, actor_pubkey=actor_pubkey, native_balance=native_balance
         )
-        res = apply_zusd_monetary_ops(
+        monetary_state = _zusd_state_view(app_state)
+        preview_epoch = int(monetary_state.core.now_epoch) if monetary_state is not None else 0
+        res = preview_zusd_monetary_ops(
             config=config,
             state=state,
-            zusd_state=_zusd_state_view(app_state),
+            zusd_state=monetary_state,
             operations=[dict(operation)],
             tx_sender_pubkey=actor_pubkey,
-            block_timestamp=int(block_timestamp),
+            preview_height=preview_epoch,
+            preview_epoch=preview_epoch,
         )
         return {
             "ok": bool(res.ok),
             "error": res.error,
             "effects": [effect.to_obj() for effect in (res.effects or ())],
+            "authority": "advisory_unverified_preview",
+            "consensus_clock_bound": False,
         }
     except Exception as exc:
-        return {"ok": False, "error": str(exc), "effects": []}
+        return {
+            "ok": False,
+            "error": str(exc),
+            "effects": [],
+            "authority": "advisory_unverified_preview",
+            "consensus_clock_bound": False,
+        }
 
 
 def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
     action = _request_action(body)
     actor_pubkey = _actor_pubkey_for_action(body, action=action)
-    deadline = _request_u32(body, name="deadline", default=_default_deadline())
+    if "deadline" in body:
+        raise ValueError("ambiguous deadline; use valid_until_height and tx_expiration_time")
+    valid_until_height = _request_u64(
+        body,
+        name="valid_until_height",
+        default=_U64_MAX,
+    )
+    tx_expiration_time = _request_u32(
+        body,
+        name="tx_expiration_time",
+        default=_default_deadline(),
+    )
     chain_id = _tau_chain_id()
     requested_chain_id = body.get("chain_id")
     if requested_chain_id is not None and requested_chain_id != chain_id:
@@ -733,22 +793,20 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     tx_fee_limit = _request_tx_fee_limit(body)
     fee_limit_posture = _fee_limit_posture(tx_fee_limit=tx_fee_limit, native_balance=native_balance)
     operation = _build_operation(
-        body, action=action, actor_pubkey=actor_pubkey, nonce=nonce, deadline=deadline
+        body,
+        action=action,
+        actor_pubkey=actor_pubkey,
+        nonce=nonce,
+        deadline=valid_until_height,
     )
     operations = {_STREAM_KEY: [operation]}
-    raw_block_timestamp = body.get("block_timestamp")
-    if raw_block_timestamp is None:
-        block_timestamp = int(time.time())
-    elif type(raw_block_timestamp) is not int or raw_block_timestamp < 0:
-        raise ValueError("bad_block_timestamp")
-    else:
-        block_timestamp = raw_block_timestamp
+    if "block_timestamp" in body:
+        raise ValueError("block_timestamp is consensus-owned")
     preflight = _preflight(
         app_state=app_state,
         config=config,
         operation=operation,
         actor_pubkey=actor_pubkey,
-        block_timestamp=block_timestamp,
         native_balance=native_balance,
     )
     if not _preflight_ok(preflight):
@@ -764,7 +822,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             external_payload,
             actor_pubkey=actor_pubkey,
             tx_sequence_number=tx_sequence_number,
-            deadline=deadline,
+            deadline=tx_expiration_time,
             operations=operations,
             tx_fee_limit=tx_fee_limit,
         )
@@ -780,7 +838,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         tau_tx_payload = build_signed_tau_transaction(
             privkey=cast(Any, signer_privkey),
             sequence_number=tx_sequence_number,
-            expiration_time=deadline,
+            expiration_time=tx_expiration_time,
             operations=operations,
             fee_limit=tx_fee_limit,
         )
@@ -810,6 +868,10 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "host_protocol_fee_share_bps": config.host_protocol_fee_share_bps,
             "fee_stake_asset_id": config.fee_stake_asset_id,
             "staking_activation_delay_epochs": config.staking_activation_delay_epochs,
+            "clock_policy_hash": config.committed_clock_policy_hash,
+            "protocol_fee_recipient_pubkey": config.protocol_fee_recipient_pubkey,
+            "valid_until_height": valid_until_height,
+            "tx_expiration_time": tx_expiration_time,
             "allow_local_signing": _allow_signing(),
             "signing_mode": signing_mode,
             "auto_mine": _auto_mine(),
@@ -923,6 +985,8 @@ def _status_payload() -> Dict[str, Any]:
         "host_protocol_fee_share_bps": config.host_protocol_fee_share_bps,
         "fee_stake_asset_id": config.fee_stake_asset_id,
         "staking_activation_delay_epochs": config.staking_activation_delay_epochs,
+        "clock_policy_hash": config.committed_clock_policy_hash,
+        "protocol_fee_recipient_pubkey": config.protocol_fee_recipient_pubkey,
         "proof_profile": _zusd_proof_profile(),
     }
     try:
@@ -966,6 +1030,8 @@ def _status_payload() -> Dict[str, Any]:
                     "host_protocol_fee_share_bps": (committed.host_protocol_fee_share_bps),
                     "fee_stake_asset_id": committed.fee_stake_asset_id,
                     "staking_activation_delay_epochs": (committed.staking_activation_delay_epochs),
+                    "clock_policy_hash": committed.clock_policy_hash,
+                    "protocol_fee_recipient_pubkey": (committed.protocol_fee_recipient_pubkey),
                 }
             )
         else:

@@ -21,6 +21,12 @@ from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Any, Mapping, Optional
 
+from ..core.consensus_time import (
+    U64_MAX,
+    VerifiedExecutionClockV1,
+    clock_policy_hash_v1,
+    default_height_only_clock_policy_v1,
+)
 from ..core.dex import DexState
 from ..core.perps_token_accounting import perps_market_locked_quote_e8
 from ..core.zusd import BPS_SCALE, E8, ZUSDCommand, ZUSDState, check_invariants, init_state, step
@@ -44,8 +50,13 @@ from ..state.lp import LPTable
 from ..state.nonces import NonceTable
 from .zusd_tau_token import derive_zusd_tau_asset_id
 
-ZUSD_MONETARY_SCHEMA = "zenodex/zusd_monetary_state/v2"
-_LEGACY_ZUSD_MONETARY_SCHEMA = "zenodex/zusd_monetary_state/v1"
+ZUSD_MONETARY_SCHEMA = "zenodex/zusd_monetary_state/v3"
+_LEGACY_ZUSD_MONETARY_SCHEMAS = frozenset(
+    {
+        "zenodex/zusd_monetary_state/v1",
+        "zenodex/zusd_monetary_state/v2",
+    }
+)
 ZUSD_MONETARY_MODULE = "ZUSDFinance"
 ZUSD_MONETARY_VERSION = "0.1"
 
@@ -76,7 +87,7 @@ _ZUSD_MONETARY_STATE_FIELDS = frozenset(
     }
 )
 
-# This tuple is the v2 persistence ABI. Keep it explicit so adding a defaulted
+# This tuple is the v3 persistence ABI. Keep it explicit so adding a defaulted
 # core field cannot silently change or reinterpret an existing wire version.
 _ZUSD_MONETARY_CORE_FIELDS = (
     "now_epoch",
@@ -118,7 +129,9 @@ _ZUSD_MONETARY_CORE_FIELD_SET = frozenset(_ZUSD_MONETARY_CORE_FIELDS)
 @dataclass(frozen=True)
 class ZUSDMonetaryConfig:
     chain_id: str = "tau-local"
+    clock_policy_hash: Optional[str] = None
     oracle_pubkey: Optional[str] = None
+    protocol_fee_recipient_pubkey: Optional[str] = None
     asset_id: Optional[str] = None
     liquidation_gas_comp_fixed_collateral_e8: int = 0
     liquidation_gas_comp_bps: int = 0
@@ -143,6 +156,15 @@ class ZUSDMonetaryConfig:
             return None
         return _canonical_asset(self.fee_stake_asset_id, name="fee_stake_asset_id")
 
+    @property
+    def committed_clock_policy_hash(self) -> str:
+        if self.clock_policy_hash is not None:
+            return _canonical_nonzero_hash(
+                self.clock_policy_hash,
+                name="clock_policy_hash",
+            )
+        return clock_policy_hash_v1(default_height_only_clock_policy_v1(chain_id=self.chain_id))
+
 
 def _policy_binding_from_config(
     config: ZUSDMonetaryConfig,
@@ -154,10 +176,20 @@ def _policy_binding_from_config(
         if config.oracle_pubkey is None
         else _canonical_pubkey(config.oracle_pubkey, name="oracle_pubkey")
     )
+    protocol_fee_recipient_pubkey = (
+        None
+        if config.protocol_fee_recipient_pubkey is None
+        else _canonical_pubkey(
+            config.protocol_fee_recipient_pubkey,
+            name="protocol_fee_recipient_pubkey",
+        )
+    )
     return ZUSDMonetaryPolicyBinding(
         chain_id=config.chain_id,
         canonical_zusd_asset=config.zusd_asset,
+        clock_policy_hash=config.committed_clock_policy_hash,
         oracle_pubkey=oracle_pubkey,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
         liquidation_gas_comp_fixed_collateral_e8=(config.liquidation_gas_comp_fixed_collateral_e8),
         liquidation_gas_comp_bps=config.liquidation_gas_comp_bps,
         borrow_fee_floor_bps=config.borrow_fee_floor_bps,
@@ -182,7 +214,9 @@ def zusd_monetary_config_from_policy_binding(
         raise TypeError("binding must be a ZUSDMonetaryPolicyBinding")
     return ZUSDMonetaryConfig(
         chain_id=binding.chain_id,
+        clock_policy_hash=binding.clock_policy_hash,
         oracle_pubkey=binding.oracle_pubkey,
+        protocol_fee_recipient_pubkey=(binding.protocol_fee_recipient_pubkey),
         asset_id=binding.canonical_zusd_asset,
         liquidation_gas_comp_fixed_collateral_e8=(binding.liquidation_gas_comp_fixed_collateral_e8),
         liquidation_gas_comp_bps=binding.liquidation_gas_comp_bps,
@@ -439,7 +473,7 @@ def _policy_binding_to_obj(
         raise TypeError("binding must be a ZUSDMonetaryPolicyBinding")
     return {
         "schema": ZUSD_MONETARY_POLICY_SCHEMA,
-        "version": 1,
+        "version": 2,
         **{field_name: getattr(binding, field_name) for field_name in ZUSD_MONETARY_POLICY_FIELDS},
     }
 
@@ -453,7 +487,7 @@ def _policy_binding_from_obj(obj: object) -> ZUSDMonetaryPolicyBinding:
         *ZUSD_MONETARY_POLICY_FIELDS,
     }
     if set(obj) != required_keys:
-        raise ValueError("zusd_monetary.policy_binding fields must match the v1 schema exactly")
+        raise ValueError("zusd_monetary.policy_binding fields must match the v2 schema exactly")
     schema = _require_str(
         obj.get("schema"),
         name="zusd_monetary.policy_binding.schema",
@@ -465,7 +499,7 @@ def _policy_binding_from_obj(obj: object) -> ZUSDMonetaryPolicyBinding:
         name="zusd_monetary.policy_binding.version",
         minimum=1,
     )
-    if version != 1:
+    if version != 2:
         raise ValueError(f"unsupported zUSD monetary policy version: {version}")
     chain_id = _require_str(
         obj.get("chain_id"),
@@ -474,6 +508,7 @@ def _policy_binding_from_obj(obj: object) -> ZUSDMonetaryPolicyBinding:
     if chain_id != chain_id.strip():
         raise ValueError("zusd_monetary.policy_binding.chain_id must be canonical")
     oracle_raw = obj.get("oracle_pubkey")
+    protocol_fee_recipient_raw = obj.get("protocol_fee_recipient_pubkey")
     fee_stake_raw = obj.get("fee_stake_asset_id")
     return ZUSDMonetaryPolicyBinding(
         chain_id=chain_id,
@@ -481,12 +516,24 @@ def _policy_binding_from_obj(obj: object) -> ZUSDMonetaryPolicyBinding:
             obj.get("canonical_zusd_asset"),
             name="zusd_monetary.policy_binding.canonical_zusd_asset",
         ),
+        clock_policy_hash=_canonical_nonzero_hash_wire(
+            obj.get("clock_policy_hash"),
+            name="zusd_monetary.policy_binding.clock_policy_hash",
+        ),
         oracle_pubkey=(
             None
             if oracle_raw is None
             else _canonical_pubkey_wire(
                 oracle_raw,
                 name="zusd_monetary.policy_binding.oracle_pubkey",
+            )
+        ),
+        protocol_fee_recipient_pubkey=(
+            None
+            if protocol_fee_recipient_raw is None
+            else _canonical_pubkey_wire(
+                protocol_fee_recipient_raw,
+                name=("zusd_monetary.policy_binding.protocol_fee_recipient_pubkey"),
             )
         ),
         liquidation_gas_comp_fixed_collateral_e8=_require_nonnegative_int(
@@ -525,9 +572,10 @@ def _policy_binding_from_obj(obj: object) -> ZUSDMonetaryPolicyBinding:
                 name="zusd_monetary.policy_binding.fee_stake_asset_id",
             )
         ),
-        staking_activation_delay_epochs=_require_nonnegative_int(
+        staking_activation_delay_epochs=_require_int(
             obj.get("staking_activation_delay_epochs"),
             name="zusd_monetary.policy_binding.staking_activation_delay_epochs",
+            minimum=1,
         ),
     )
 
@@ -559,7 +607,7 @@ def zusd_monetary_state_to_obj(state: ZUSDMonetaryState) -> dict[str, Any]:
     reward_debt = _account_amount_entries(state.fee_stake_reward_debt_e8, amount_key="amount_e8")
     return {
         "schema": ZUSD_MONETARY_SCHEMA,
-        "version": 2,
+        "version": 3,
         "policy_binding": _policy_binding_to_obj(state.policy_binding),
         "core": {
             field_name: getattr(state.core, field_name) for field_name in _ZUSD_MONETARY_CORE_FIELDS
@@ -583,23 +631,23 @@ def zusd_monetary_state_from_obj(obj: Mapping[str, Any]) -> ZUSDMonetaryState:
     if not isinstance(obj, Mapping):
         raise TypeError("zusd_monetary must be an object")
     schema = _require_str(obj.get("schema"), name="zusd_monetary.schema")
-    if schema == _LEGACY_ZUSD_MONETARY_SCHEMA:
+    if schema in _LEGACY_ZUSD_MONETARY_SCHEMAS:
         raise ValueError(
             "legacy unbound zUSD monetary state requires an explicit governed migration"
         )
     if schema != ZUSD_MONETARY_SCHEMA:
         raise ValueError(f"unsupported zusd_monetary schema: {schema!r}")
     if set(obj) != _ZUSD_MONETARY_STATE_FIELDS:
-        raise ValueError("zusd_monetary fields must match the v2 schema exactly")
+        raise ValueError("zusd_monetary fields must match the v3 schema exactly")
     version = _require_int(obj.get("version"), name="zusd_monetary.version", minimum=1)
-    if version != 2:
+    if version != 3:
         raise ValueError(f"unsupported zusd_monetary version: {version}")
     policy_binding = _policy_binding_from_obj(obj.get("policy_binding"))
     core_obj = obj.get("core")
     if not isinstance(core_obj, Mapping):
         raise TypeError("zusd_monetary.core must be an object")
     if set(core_obj) != _ZUSD_MONETARY_CORE_FIELD_SET:
-        raise ValueError("zusd_monetary.core fields must match the v2 schema exactly")
+        raise ValueError("zusd_monetary.core fields must match the v3 schema exactly")
     for field_name in _ZUSD_MONETARY_CORE_FIELDS:
         value = core_obj.get(field_name)
         if field_name == "oracle_seen":
@@ -692,6 +740,47 @@ def zusd_monetary_policy_binding_error(
     return "zUSD monetary policy binding mismatch: " + ",".join(decision.mismatch_fields)
 
 
+@dataclass(frozen=True, slots=True)
+class _PreviewExecutionClockV1:
+    chain_id: str
+    height: int
+    derived_epoch: int
+    clock_policy_hash: str
+
+
+def _admit_consensus_epoch(
+    *,
+    monetary_state: ZUSDMonetaryState,
+    execution_clock: VerifiedExecutionClockV1 | _PreviewExecutionClockV1,
+) -> ZUSDMonetaryState:
+    current_epoch = int(monetary_state.core.now_epoch)
+    target_epoch = int(execution_clock.derived_epoch)
+    if target_epoch < current_epoch:
+        raise ValueError("verified consensus epoch regressed")
+    if target_epoch == current_epoch:
+        return monetary_state
+    result = step(
+        monetary_state.core,
+        ZUSDCommand(
+            tag="advance_epoch",
+            args={"delta": target_epoch - current_epoch},
+        ),
+    )
+    if not result.ok or result.state is None:
+        raise ValueError(result.error or "consensus epoch admission rejected")
+    fee_fields = _activate_ready_fee_stakes(
+        _fee_state_fields(monetary_state),
+        now_epoch=int(result.state.now_epoch),
+    )
+    next_state = replace(
+        monetary_state,
+        core=result.state,
+        **fee_fields,
+    )
+    _raise_if_bad_state(next_state)
+    return next_state
+
+
 def apply_zusd_monetary_ops(
     *,
     config: ZUSDMonetaryConfig,
@@ -700,8 +789,92 @@ def apply_zusd_monetary_ops(
     operations: Any,
     tx_sender_pubkey: str,
     block_timestamp: int,
+    execution_clock: VerifiedExecutionClockV1 | None = None,
+) -> ZUSDMonetaryTxResult:
+    """Apply authoritative operations under a consensus-verified clock."""
+
+    if type(execution_clock) is not VerifiedExecutionClockV1:
+        return ZUSDMonetaryTxResult(
+            ok=False,
+            error="verified execution clock is required",
+        )
+    return _apply_zusd_monetary_ops_with_clock(
+        config=config,
+        state=state,
+        zusd_state=zusd_state,
+        operations=operations,
+        tx_sender_pubkey=tx_sender_pubkey,
+        block_timestamp=block_timestamp,
+        execution_clock=execution_clock,
+    )
+
+
+def preview_zusd_monetary_ops(
+    *,
+    config: ZUSDMonetaryConfig,
+    state: DexState,
+    zusd_state: ZUSDMonetaryState | None,
+    operations: Any,
+    tx_sender_pubkey: str,
+    preview_height: int,
+    preview_epoch: int,
+) -> ZUSDMonetaryTxResult:
+    """Run advisory wallet simulation without claiming consensus authority."""
+
+    try:
+        height = _require_int(
+            preview_height,
+            name="preview_height",
+            minimum=0,
+        )
+        epoch = _require_int(
+            preview_epoch,
+            name="preview_epoch",
+            minimum=0,
+        )
+    except (TypeError, ValueError) as exc:
+        return ZUSDMonetaryTxResult(ok=False, error=_safe_error_str(exc))
+    return _apply_zusd_monetary_ops_with_clock(
+        config=config,
+        state=state,
+        zusd_state=zusd_state,
+        operations=operations,
+        tx_sender_pubkey=tx_sender_pubkey,
+        block_timestamp=height,
+        execution_clock=_PreviewExecutionClockV1(
+            chain_id=config.chain_id,
+            height=height,
+            derived_epoch=epoch,
+            clock_policy_hash=config.committed_clock_policy_hash,
+        ),
+    )
+
+
+def _apply_zusd_monetary_ops_with_clock(
+    *,
+    config: ZUSDMonetaryConfig,
+    state: DexState,
+    zusd_state: ZUSDMonetaryState | None,
+    operations: Any,
+    tx_sender_pubkey: str,
+    block_timestamp: int,
+    execution_clock: VerifiedExecutionClockV1 | _PreviewExecutionClockV1,
 ) -> ZUSDMonetaryTxResult:
     try:
+        if type(execution_clock) not in {
+            VerifiedExecutionClockV1,
+            _PreviewExecutionClockV1,
+        }:
+            raise ValueError("verified execution clock is required")
+        if execution_clock.chain_id != config.chain_id:
+            raise ValueError("execution clock chain_id mismatch")
+        legacy_height = _require_int(
+            block_timestamp,
+            name="block_timestamp",
+            minimum=0,
+        )
+        if legacy_height != execution_clock.height:
+            raise ValueError("block_timestamp must equal verified consensus height")
         ops = _parse_ops(operations)
         if zusd_state is None:
             if ops:
@@ -726,6 +899,12 @@ def apply_zusd_monetary_ops(
         )
         if policy_error is not None:
             raise ValueError(policy_error)
+        if execution_clock.clock_policy_hash != working.policy_binding.clock_policy_hash:
+            raise ValueError("execution clock policy hash mismatch")
+        working = _admit_consensus_epoch(
+            monetary_state=working,
+            execution_clock=execution_clock,
+        )
         if not ops:
             return ZUSDMonetaryTxResult(
                 ok=True,
@@ -734,7 +913,7 @@ def apply_zusd_monetary_ops(
                     balances=_copy_balance_table(state.balances),
                     nonces=_copy_nonce_table(state.nonces),
                 ),
-                zusd_state=zusd_state,
+                zusd_state=working,
                 effects=(),
             )
 
@@ -863,23 +1042,6 @@ def _apply_one(
         result = step(core, ZUSDCommand(tag=action, args=args))
         if not result.ok or result.state is None:
             raise ValueError(result.error or f"{action} rejected")
-        next_state = replace(
-            monetary_state,
-            core=result.state,
-            vault_owner_pubkey=owner,
-            sp_deposits_e8=deposits,
-            sp_collateral_claims_e8=claims,
-            **fee_fields,
-        )
-        _raise_if_bad_state(next_state)
-        return next_state, dict(result.effects or {})
-
-    if action == "advance_epoch":
-        delta = _require_int(op.get("delta"), name="advance_epoch.delta", minimum=1)
-        result = step(core, ZUSDCommand(tag=action, args={"delta": delta}))
-        if not result.ok or result.state is None:
-            raise ValueError(result.error or "advance_epoch rejected")
-        fee_fields = _activate_ready_fee_stakes(fee_fields, now_epoch=int(result.state.now_epoch))
         next_state = replace(
             monetary_state,
             core=result.state,
@@ -1231,6 +1393,50 @@ def _apply_one(
         _raise_if_bad_state(next_state)
         return next_state, {"event": "fee_shares_unstaked", "amount": amount}
 
+    if action == "claim_protocol_fees":
+        recipient_raw = config.protocol_fee_recipient_pubkey
+        if recipient_raw is None:
+            raise ValueError("protocol fee recipient not configured")
+        recipient = _canonical_pubkey(
+            recipient_raw,
+            name="protocol_fee_recipient_pubkey",
+        )
+        if sender != recipient:
+            raise ValueError("claim_protocol_fees recipient only")
+        current = int(fee_fields["protocol_zusd_fee_reserve_e8"])
+        requested_amount_e8 = _optional_whole_zusd_amount(
+            op.get("amount_e8"),
+            name="claim_protocol_fees.amount_e8",
+        )
+        claim_e8 = current if requested_amount_e8 is None else requested_amount_e8
+        if claim_e8 <= 0:
+            raise ValueError("no protocol fees claimable")
+        if claim_e8 > current:
+            raise ValueError("claim_protocol_fees exceeds reserve")
+        units = _e8_to_whole_units(
+            claim_e8,
+            name="claim_protocol_fees.amount_e8",
+        )
+        balances.add(sender, zusd_asset, units)
+        fee_fields = {
+            **fee_fields,
+            "protocol_zusd_fee_reserve_e8": current - claim_e8,
+        }
+        next_state = replace(
+            monetary_state,
+            core=core,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            **fee_fields,
+        )
+        _raise_if_bad_state(next_state)
+        return next_state, {
+            "event": "protocol_zusd_fees_claimed",
+            "amount_e8": claim_e8,
+            "zusd_balance_delta": units,
+        }
+
     if action == "claim_host_fees":
         requested_amount_e8 = _optional_whole_zusd_amount(
             op.get("amount_e8"), name="claim_host_fees.amount_e8"
@@ -1331,7 +1537,6 @@ def _require_action(op: Mapping[str, Any], *, index: int) -> str:
         raise ValueError(f"zusd op[{index}] version unsupported: {version!r}")
     action = str(op.get("action", "")).strip().lower()
     if action not in {
-        "advance_epoch",
         "bootstrap_oracle",
         "oracle_report",
         "oracle_commit",
@@ -1346,6 +1551,7 @@ def _require_action(op: Mapping[str, Any], *, index: int) -> str:
         "claim_sp_collateral",
         "stake_fee_shares",
         "unstake_fee_shares",
+        "claim_protocol_fees",
         "claim_host_fees",
         "claim_staking_fees",
     }:
@@ -1355,8 +1561,6 @@ def _require_action(op: Mapping[str, Any], *, index: int) -> str:
 
 def _allowed_fields_for_action(action: str) -> set[str]:
     base = {"module", "version", "action", "nonce", "deadline"}
-    if action == "advance_epoch":
-        return base | {"delta"}
     if action in {"bootstrap_oracle", "oracle_report"}:
         return base | {"price_e8"}
     if action == "oracle_commit":
@@ -1369,7 +1573,11 @@ def _allowed_fields_for_action(action: str) -> set[str]:
         return base | {"account_pubkey", "amount_e8"}
     if action in {"stake_fee_shares", "unstake_fee_shares"}:
         return base | {"amount"}
-    if action in {"claim_host_fees", "claim_staking_fees"}:
+    if action in {
+        "claim_protocol_fees",
+        "claim_host_fees",
+        "claim_staking_fees",
+    }:
         return base | {"amount_e8"}
     if action == "liquidate":
         return base
@@ -1470,6 +1678,22 @@ def _canonical_asset_wire(value: Any, *, name: str) -> str:
     if value != asset:
         raise ValueError(f"{name} must be canonical 0x-prefixed lowercase hex")
     return asset
+
+
+def _canonical_nonzero_hash(value: Any, *, name: str) -> str:
+    if type(value) is not str:
+        raise TypeError(f"{name} must be a 32-byte hex hash string")
+    canonical = canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)
+    if canonical == NATIVE_ASSET:
+        raise ValueError(f"{name} must be non-zero")
+    return canonical
+
+
+def _canonical_nonzero_hash_wire(value: Any, *, name: str) -> str:
+    canonical = _canonical_nonzero_hash(value, name=name)
+    if value != canonical:
+        raise ValueError(f"{name} must be canonical 0x-prefixed lowercase hex")
+    return canonical
 
 
 def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
@@ -1611,7 +1835,7 @@ def _parse_account_amount_entries(
         if not isinstance(entry, Mapping):
             raise TypeError(f"{name}[{i}] must be an object")
         if set(entry) != expected_fields:
-            raise ValueError(f"{name}[{i}] fields must match the v2 schema exactly")
+            raise ValueError(f"{name}[{i}] fields must match the v3 schema exactly")
         pk = _canonical_pubkey_wire(
             entry.get("pubkey"),
             name=f"{name}[{i}].pubkey",
@@ -1638,7 +1862,7 @@ def _parse_pending_fee_stake_entries(value: Any) -> tuple[dict[str, int], dict[s
             raise TypeError(f"zusd_monetary.pending_fee_stakes[{i}] must be an object")
         if set(entry) != expected_fields:
             raise ValueError(
-                f"zusd_monetary.pending_fee_stakes[{i}] fields must match the v2 schema exactly"
+                f"zusd_monetary.pending_fee_stakes[{i}] fields must match the v3 schema exactly"
             )
         pk = _canonical_pubkey_wire(
             entry.get("pubkey"), name=f"zusd_monetary.pending_fee_stakes[{i}].pubkey"
@@ -1665,7 +1889,12 @@ def _deadline_error(*, op: Mapping[str, Any], block_timestamp: int, index: int) 
     raw = op.get("deadline")
     if raw is None:
         return None
-    deadline = _require_int(raw, name=f"zusd op[{index}].deadline", minimum=1, maximum=_U32_MAX)
+    deadline = _require_int(
+        raw,
+        name=f"zusd op[{index}].deadline",
+        minimum=1,
+        maximum=U64_MAX,
+    )
     if int(block_timestamp) > int(deadline):
         return f"zusd op[{index}].deadline expired"
     return None
@@ -1737,12 +1966,15 @@ def _activate_ready_fee_stakes(fee_fields: Mapping[str, Any], *, now_epoch: int)
         activation_epoch = int(pending_epochs.get(pk, 0))
         if activation_epoch > now_epoch:
             continue
-        active[pk] = int(active.get(pk, 0)) + int(amount)
+        previous_shares = int(active.get(pk, 0))
+        next_shares = previous_shares + int(amount)
+        previous_accrued = _fee_stake_debt_for(previous_shares, acc)
+        next_accrued = _fee_stake_debt_for(next_shares, acc)
+        active[pk] = next_shares
         reward_debt = _set_or_drop(
             reward_debt,
             pk,
-            int(reward_debt.get(pk, 0))
-            + _fee_stake_debt_for(int(amount), acc),
+            int(reward_debt.get(pk, 0)) + next_accrued - previous_accrued,
         )
         pending.pop(pk, None)
         pending_epochs.pop(pk, None)
@@ -1764,12 +1996,16 @@ def _route_mint_fee(
     out = dict(fee_fields)
     if fee_e8 == 0:
         return out, {"mint_fee_host_e8": 0, "mint_fee_staking_e8": 0, "mint_fee_protocol_e8": 0}
+    if fee_e8 % E8 != 0:
+        raise ValueError("mint fee is not representable by whole-zUSD transport")
 
     host_fee_e8 = 0
     host: str | None = None
     if host_pubkey is not None:
         host = _canonical_pubkey(host_pubkey, name="mint_zusd.host_pubkey")
         host_fee_e8 = (fee_e8 * int(config.host_protocol_fee_share_bps)) // BPS_SCALE
+        if host_fee_e8 % E8 != 0:
+            raise ValueError("host mint fee is not representable by whole-zUSD transport")
     non_host_fee_e8 = fee_e8 - host_fee_e8
 
     if host is not None and host_fee_e8 > 0:
@@ -1784,13 +2020,17 @@ def _route_mint_fee(
     protocol_fee_e8 = 0
     if active_total > 0 and non_host_fee_e8 > 0:
         staking_fee_e8 = non_host_fee_e8
+        accumulator_numerator = staking_fee_e8 * _FEE_ACC_SCALE
+        if accumulator_numerator % active_total != 0:
+            raise ValueError("staking fee accumulator would create unattributed residue")
         out["staking_zusd_fee_pool_e8"] = int(out["staking_zusd_fee_pool_e8"]) + staking_fee_e8
         out["staking_zusd_fee_acc_per_share_e8"] = (
-            int(out["staking_zusd_fee_acc_per_share_e8"])
-            + (staking_fee_e8 * _FEE_ACC_SCALE) // active_total
+            int(out["staking_zusd_fee_acc_per_share_e8"]) + accumulator_numerator // active_total
         )
     else:
         protocol_fee_e8 = non_host_fee_e8
+        if protocol_fee_e8 > 0 and config.protocol_fee_recipient_pubkey is None:
+            raise ValueError("protocol fee recipient not configured")
         out["protocol_zusd_fee_reserve_e8"] = (
             int(out["protocol_zusd_fee_reserve_e8"]) + protocol_fee_e8
         )
@@ -1849,14 +2089,26 @@ def _state_invariant_error(state: ZUSDMonetaryState) -> str | None:
         return "stability pool collateral claims exceed core sp_coll_e8"
     if sum(host_fees.values()) != int(state.host_zusd_fee_pool_e8):
         return "host zUSD fee claims do not match host_zusd_fee_pool_e8"
+    if any(amount % E8 != 0 for amount in host_fees.values()):
+        return "host zUSD fee claim is not representable by whole-zUSD transport"
     if int(state.host_zusd_fee_pool_e8) > int(state.host_zusd_fee_cum_e8):
         return "host_zusd_fee_pool_e8 exceeds host_zusd_fee_cum_e8"
+    if int(state.protocol_zusd_fee_reserve_e8) % E8 != 0:
+        return "protocol zUSD fee reserve is not representable by whole-zUSD transport"
+    if (
+        int(state.protocol_zusd_fee_reserve_e8) > 0
+        and state.policy_binding.protocol_fee_recipient_pubkey is None
+    ):
+        return "protocol zUSD fee reserve requires a committed recipient"
     if set(pending_epochs) != set(pending_stakes):
         return "pending fee stake activation keys mismatch"
     fee_fields = _fee_state_fields(state)
-    total_claimable = sum(_fee_stake_claimable_e8(fee_fields, pk) for pk in active_stakes)
-    if total_claimable > int(state.staking_zusd_fee_pool_e8):
-        return "staking zUSD fee claimables exceed staking_zusd_fee_pool_e8"
+    claimables = tuple(_fee_stake_claimable_e8(fee_fields, pk) for pk in sorted(active_stakes))
+    if any(amount % E8 != 0 for amount in claimables):
+        return "staking zUSD fee claim is not representable by whole-zUSD transport"
+    total_claimable = sum(claimables)
+    if total_claimable != int(state.staking_zusd_fee_pool_e8):
+        return "staking zUSD fee claimables do not match staking_zusd_fee_pool_e8"
     if state.vault_owner_pubkey is None and (
         state.core.collateral_e8 > 0 or state.core.debt_e8 > 0
     ):

@@ -3,6 +3,20 @@ import sys
 
 import pytest
 
+from tests.consensus_clock import execution_clock_v1
+
+
+def _apply_app_tx(plugin, **kwargs):
+    chain_id = plugin.os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or "tau-local"
+    height = kwargs["block_timestamp"]
+    return plugin.apply_app_tx(
+        **kwargs,
+        execution_clock=execution_clock_v1(
+            chain_id=chain_id,
+            height=height,
+        ),
+    )
+
 
 def _policy_bound_empty_state(plugin) -> str:
     chain_id = plugin.os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or "tau-local"
@@ -39,9 +53,7 @@ def _policy_bound_generic_state(
     )
     app_state_json, _app_hash = plugin.build_zusd_policy_bound_genesis_app_state(
         config=config,
-        generic_token_authority=GenericTokenAuthorityState(
-            assets=registrations
-        ),
+        generic_token_authority=GenericTokenAuthorityState(assets=registrations),
     )
     return app_state_json
 
@@ -50,6 +62,19 @@ def _dex_snapshot_from_app_state_json(app_state_json: str) -> dict:
     payload = json.loads(app_state_json)
     nested = payload.get("dex_state")
     return nested if isinstance(nested, dict) else payload
+
+
+def _assert_only_zusd_epoch_changed(
+    before_json: str,
+    after_json: str,
+    *,
+    expected_epoch: int,
+) -> None:
+    before = json.loads(before_json)
+    after = json.loads(after_json)
+    assert after["zusd_monetary"]["core"]["now_epoch"] == expected_epoch
+    after["zusd_monetary"]["core"]["now_epoch"] = before["zusd_monetary"]["core"]["now_epoch"]
+    assert after == before
 
 
 def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
@@ -112,7 +137,8 @@ def test_apply_app_tx_sync_only(monkeypatch):
     monkeypatch.delenv("TAU_DEX_REQUIRE_INTENT_SIGS", raising=False)
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
 
-    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash_hex, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances={"00" * 48: 123},
         operations={},
@@ -130,6 +156,29 @@ def test_apply_app_tx_sync_only(monkeypatch):
     assert parsed.get("version") == DEX_SNAPSHOT_VERSION
 
 
+def test_apply_app_tx_rejects_missing_verified_clock_without_state_change(
+    monkeypatch,
+) -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+    genesis = _policy_bound_empty_state(plugin)
+    ok, returned_state, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json=genesis,
+        chain_balances={},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=1,
+        execution_clock=None,
+    )
+
+    assert ok is False
+    assert returned_state == genesis
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == "verified execution clock is required"
+
+
 def test_apply_app_tx_rejects_policy_sensitive_ops_before_policy_bound_genesis(
     monkeypatch,
 ) -> None:
@@ -139,7 +188,8 @@ def test_apply_app_tx_rejects_policy_sensitive_ops_before_policy_bound_genesis(
     token = "0x" + "02" * 32
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-unbound-policy")
 
-    ok, returned_state, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, returned_state, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json="",
         chain_balances={},
         operations={
@@ -186,7 +236,8 @@ def test_apply_app_tx_rejects_zusd_transition_from_v1_app_state(
     )
     assert json.loads(legacy_json)["version"] == 1
 
-    ok, returned_state, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, returned_state, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=legacy_json,
         chain_balances={},
         operations={
@@ -250,7 +301,8 @@ def test_apply_app_tx_replay_uses_committed_economics_across_environment_drift(
         ]
     }
 
-    first = plugin.apply_app_tx(
+    first = _apply_app_tx(
+        plugin,
         app_state_json=genesis,
         chain_balances={actor: 2 * E8},
         operations=operations,
@@ -258,7 +310,8 @@ def test_apply_app_tx_replay_uses_committed_economics_across_environment_drift(
         block_timestamp=1,
     )
     monkeypatch.setenv("TAU_DEX_ZUSD_BORROW_FEE_FLOOR_BPS", "100")
-    second = plugin.apply_app_tx(
+    second = _apply_app_tx(
+        plugin,
         app_state_json=genesis,
         chain_balances={actor: 2 * E8},
         operations=operations,
@@ -301,7 +354,8 @@ def test_apply_app_tx_create_pool_unsigned_intent(monkeypatch):
         "amount1": 2000,
     }
 
-    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash_hex, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_generic_state(
             plugin,
             assets=(asset0, asset1),
@@ -360,7 +414,8 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
         "amount0": 1000,
         "amount1": 2000,
     }
-    ok, app_state_json, app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash_hex, _balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_generic_state(
             plugin,
             assets=(asset0, asset1),
@@ -411,7 +466,8 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
         "min_amount_out": 1,
         "recipient": sender_pubkey,
     }
-    ok, app_state_json2, _app_hash_hex2, _balances_patch2, err = plugin.apply_app_tx(
+    ok, app_state_json2, _app_hash_hex2, _balances_patch2, err = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances={sender_pubkey: 123},
         operations={"5": [swap_intent]},
@@ -462,7 +518,8 @@ def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkey
         "amount1": 2000,
     }
 
-    ok, app_state_json, _app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, _app_hash_hex, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_generic_state(
             plugin,
             assets=(token,),
@@ -480,7 +537,8 @@ def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkey
     assert err is None
     assert balances_patch == {sender_pubkey: 9000}
 
-    ok2, synced_json, _synced_hash, synced_patch, err2 = plugin.apply_app_tx(
+    ok2, synced_json, _synced_hash, synced_patch, err2 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances=balances_patch,
         operations={},
@@ -529,7 +587,8 @@ def test_apply_app_tx_native_output_uses_raw_tau_key_for_absent_recipient(monkey
         "amount0": 1000,
         "amount1": 2000,
     }
-    created, app_state_json, _app_hash, create_patch, create_error = plugin.apply_app_tx(
+    created, app_state_json, _app_hash, create_patch, create_error = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_generic_state(
             plugin,
             assets=(token,),
@@ -562,7 +621,8 @@ def test_apply_app_tx_native_output_uses_raw_tau_key_for_absent_recipient(monkey
         "min_amount_out": 1,
         "recipient": recipient_pubkey,
     }
-    accepted, _next_json, _next_hash, patch, error = plugin.apply_app_tx(
+    accepted, _next_json, _next_hash, patch, error = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances=create_patch,
         operations={"5": [swap]},
@@ -602,7 +662,8 @@ def test_apply_app_tx_routes_upstream_streams_to_internal_engines(monkeypatch):
     monkeypatch.setattr(plugin, "apply_ops", _fake_apply_ops)
     monkeypatch.setattr(plugin, "apply_perp_ops", _fake_apply_perp_ops)
 
-    ok, _app_state_json, _app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
+    ok, _app_state_json, _app_hash_hex, _balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances={},
         operations={
@@ -648,7 +709,8 @@ def test_apply_app_tx_legacy_stream_5_perps_fallback(monkeypatch):
     monkeypatch.setattr(plugin, "apply_ops", _fake_apply_ops)
     monkeypatch.setattr(plugin, "apply_perp_ops", _fake_apply_perp_ops)
 
-    ok, _app_state_json, _app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
+    ok, _app_state_json, _app_hash_hex, _balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances={},
         operations={"5": [{"action": "apply_funding_auto"}]},
@@ -665,7 +727,8 @@ def test_apply_app_tx_rejects_non_object_operations(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
-    ok, _app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+    ok, _app_state_json, app_hash_hex, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances={},
         operations=[],  # type: ignore[arg-type]
@@ -689,7 +752,8 @@ def test_apply_app_tx_token_transfer_updates_balances_and_nonce(monkeypatch):
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
     monkeypatch.delenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", raising=False)
 
-    ok, app_state_json, _app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, _app_hash_hex, _balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_generic_state(
             plugin,
             assets=(token,),
@@ -723,7 +787,8 @@ def test_apply_app_tx_token_transfer_updates_balances_and_nonce(monkeypatch):
     assert balances.get((sender, token)) == 750
     assert balances.get((recipient, token)) == 250
 
-    ok2, _app_state2, _app_hash2, _balances2, err2 = plugin.apply_app_tx(
+    ok2, _app_state2, _app_hash2, _balances2, err2 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances={},
         operations={
@@ -761,7 +826,8 @@ def test_apply_app_tx_token_self_transfer_rejects_atomically(monkeypatch) -> Non
         assets=(token,),
         mint_authority_pubkey=sender,
     )
-    ok, app_state_json, _app_hash, _balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, _app_hash, _balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=genesis,
         chain_balances={},
         operations={
@@ -801,7 +867,8 @@ def test_apply_app_tx_token_unhashable_action_rejects_atomically(monkeypatch) ->
         assets=(token,),
         mint_authority_pubkey=sender,
     )
-    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=genesis,
         chain_balances={},
         operations={"9": [{"action": []}]},
@@ -829,7 +896,8 @@ def test_apply_app_tx_faucet_extra_field_rejects_atomically(monkeypatch) -> None
         assets=(token,),
         mint_authority_pubkey=sender,
     )
-    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=genesis,
         chain_balances={},
         operations={"7": {"mint": [[sender, token, 1]], "extra": 1}},
@@ -869,7 +937,8 @@ def test_apply_app_tx_faucet_only_postcheck_rejects_atomically(monkeypatch) -> N
         forced_second_accounting_failure,
     )
 
-    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=genesis,
         chain_balances={},
         operations={"7": {"mint": [[sender, token, 1]]}},
@@ -882,9 +951,7 @@ def test_apply_app_tx_faucet_only_postcheck_rejects_atomically(monkeypatch) -> N
     assert app_state_json == genesis
     assert app_hash == ""
     assert balances_patch is None
-    assert err == (
-        "generic token accounting postcheck failed: forced_postcheck_failure"
-    )
+    assert err == ("generic token accounting postcheck failed: forced_postcheck_failure")
 
 
 def test_apply_app_tx_token_recipient_overflow_rejects_atomically(monkeypatch) -> None:
@@ -901,7 +968,8 @@ def test_apply_app_tx_token_recipient_overflow_rejects_atomically(monkeypatch) -
         assets=(token,),
         mint_authority_pubkey=sender,
     )
-    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=genesis,
         chain_balances={},
         operations={
@@ -948,7 +1016,8 @@ def test_apply_app_tx_token_mint_recipient_overflow_rejects_atomically(
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-token-mint-overflow")
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
 
-    setup_ok, app_state_json, _setup_hash, _setup_patch, setup_error = plugin.apply_app_tx(
+    setup_ok, app_state_json, _setup_hash, _setup_patch, setup_error = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_generic_state(
             plugin,
             assets=(token,),
@@ -961,7 +1030,8 @@ def test_apply_app_tx_token_mint_recipient_overflow_rejects_atomically(
     )
     assert setup_ok is True, setup_error
 
-    ok, rejected_state, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, rejected_state, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances={},
         operations={
@@ -1005,7 +1075,8 @@ def test_apply_app_tx_faucet_recipient_overflow_rejects_atomically(
         assets=(token,),
         mint_authority_pubkey=recipient,
     )
-    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=genesis,
         chain_balances={},
         operations={
@@ -1036,7 +1107,8 @@ def test_apply_app_tx_token_mint_requires_committed_signer(monkeypatch):
     token = "0x" + "44" * 32
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
-    ok, _app_state_json, _app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
+    ok, _app_state_json, _app_hash_hex, _balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_generic_state(
             plugin,
             assets=(token,),
@@ -1080,7 +1152,8 @@ def test_apply_app_tx_later_token_failure_rolls_back_supply_balance_and_nonce(
         mint_authority_pubkey=operator,
     )
 
-    ok, rejected_state, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, rejected_state, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=genesis,
         chain_balances={},
         operations={
@@ -1128,7 +1201,8 @@ def test_apply_app_tx_token_mint_and_burn(monkeypatch):
     token = "0x" + "55" * 32
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
-    ok, app_state_json, _app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, _app_hash_hex, _balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_generic_state(
             plugin,
             assets=(token,),
@@ -1167,7 +1241,8 @@ def test_apply_app_tx_token_mint_and_burn(monkeypatch):
     assert ok is True
     assert err is None
 
-    ok2, app_state_json2, _app_hash_hex2, _balances_patch2, err2 = plugin.apply_app_tx(
+    ok2, app_state_json2, _app_hash_hex2, _balances_patch2, err2 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances={},
         operations={
@@ -1221,7 +1296,8 @@ def _mint_one_canonical_zusd_app_state(
             mint_authority_pubkey=owner,
         )
     )
-    ok, app_state_json, _app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, _app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=genesis,
         chain_balances={owner: collateral_e8},
         operations={
@@ -1273,7 +1349,8 @@ def test_apply_app_tx_uses_committed_canonical_asset_when_environment_drifts(
     )
 
     monkeypatch.setenv("TAU_DEX_ZUSD_ASSET_ID", asset_b)
-    ok, replayed_state, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, replayed_state, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances={},
         operations={},
@@ -1282,7 +1359,11 @@ def test_apply_app_tx_uses_committed_canonical_asset_when_environment_drifts(
     )
 
     assert ok is True
-    assert replayed_state == app_state_json
+    _assert_only_zusd_epoch_changed(
+        app_state_json,
+        replayed_state,
+        expected_epoch=2,
+    )
     assert len(app_hash) == 64
     assert balances_patch is None
     assert err is None
@@ -1305,7 +1386,8 @@ def test_apply_app_tx_uses_committed_fee_stake_asset_when_environment_drifts(
     )
 
     monkeypatch.setenv("TAU_DEX_ZUSD_FEE_STAKE_ASSET_ID", stake_b)
-    ok, replayed_state, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, replayed_state, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances={},
         operations={},
@@ -1314,7 +1396,11 @@ def test_apply_app_tx_uses_committed_fee_stake_asset_when_environment_drifts(
     )
 
     assert ok is True
-    assert replayed_state == app_state_json
+    _assert_only_zusd_epoch_changed(
+        app_state_json,
+        replayed_state,
+        expected_epoch=2,
+    )
     assert len(app_hash) == 64
     assert balances_patch is None
     assert err is None
@@ -1346,7 +1432,8 @@ def test_apply_app_tx_zusd_pool_balance_remains_live_for_later_repay(
     asset0, asset1 = sorted((zusd_asset, other_asset))
     amount0 = 50 if asset0 == zusd_asset else 100_000
     amount1 = 50 if asset1 == zusd_asset else 100_000
-    created, pooled_state, _pool_hash, _pool_patch, pool_error = plugin.apply_app_tx(
+    created, pooled_state, _pool_hash, _pool_patch, pool_error = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances={},
         operations={
@@ -1373,7 +1460,8 @@ def test_apply_app_tx_zusd_pool_balance_remains_live_for_later_repay(
     )
     assert created is True, pool_error
 
-    repaid, repaid_state, _repay_hash, _repay_patch, repay_error = plugin.apply_app_tx(
+    repaid, repaid_state, _repay_hash, _repay_patch, repay_error = _apply_app_tx(
+        plugin,
         app_state_json=pooled_state,
         chain_balances={},
         operations={
@@ -1415,7 +1503,8 @@ def test_apply_app_tx_rejects_generic_canonical_zusd_mint_without_state_change(m
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
 
-    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances={},
         operations={
@@ -1461,7 +1550,8 @@ def test_apply_app_tx_binds_custom_canonical_zusd_asset_to_generic_writer_policy
     monkeypatch.setenv("TAU_DEX_ZUSD_ASSET_ID", custom_zusd_asset)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
 
-    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances={},
         operations={
@@ -1508,7 +1598,8 @@ def test_apply_app_tx_rejects_generic_zusd_transfer_to_protocol_address_without_
         monkeypatch, chain_id=chain_id, owner=sender
     )
 
-    ok, rejected_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, rejected_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances={},
         operations={
@@ -1551,7 +1642,8 @@ def test_apply_app_tx_rejects_generic_canonical_zusd_burn_without_state_change(m
         monkeypatch, chain_id=chain_id, owner=sender
     )
 
-    ok, rejected_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, rejected_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances={},
         operations={
@@ -1593,7 +1685,8 @@ def test_apply_app_tx_rejects_faucet_canonical_zusd_mint_without_state_change(mo
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_FAUCET", "1")
 
-    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances={},
         operations={"7": {"mint": [[recipient, zusd_asset, 1]]}},
@@ -1680,7 +1773,8 @@ def test_apply_app_tx_token_ops_reject_native_and_expired(monkeypatch):
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
 
-    ok, _app_state_json, _app_hash_hex, _balances_patch, err = plugin.apply_app_tx(
+    ok, _app_state_json, _app_hash_hex, _balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances={sender: 1000},
         operations={
@@ -1705,7 +1799,8 @@ def test_apply_app_tx_token_ops_reject_native_and_expired(monkeypatch):
     assert err == "token stream does not support native asset"
 
     token = "0x" + "66" * 32
-    ok2, _state2, _hash2, _patch2, err2 = plugin.apply_app_tx(
+    ok2, _state2, _hash2, _patch2, err2 = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances={},
         operations={
@@ -1742,7 +1837,8 @@ def test_apply_app_tx_perps_rejects_generic_zusd_quote_collateral_issuance(monke
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
 
-    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances={},
         operations={
@@ -1796,7 +1892,8 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", oracle)
 
-    ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
+    ok0, app_state_json0, _hash0, _patch0, err0 = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances=chain_balances,
         operations={
@@ -1815,7 +1912,8 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     )
     assert ok0 is True, err0
 
-    ok1, app_state_json1, _hash1, patch1, err1 = plugin.apply_app_tx(
+    ok1, app_state_json1, _hash1, patch1, err1 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json0,
         chain_balances=chain_balances,
         operations={
@@ -1837,7 +1935,8 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     assert patch1 == {alice: 0}
     chain_balances = {alice: 0}
 
-    ok2, app_state_json2, _hash2, _patch2, err2 = plugin.apply_app_tx(
+    ok2, app_state_json2, _hash2, _patch2, err2 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json1,
         chain_balances=chain_balances,
         operations={
@@ -1857,7 +1956,8 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     )
     assert ok2 is True, err2
 
-    ok3, app_state_json3, _hash3, _patch3, err3 = plugin.apply_app_tx(
+    ok3, app_state_json3, _hash3, _patch3, err3 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json2,
         chain_balances=chain_balances,
         operations={
@@ -1907,7 +2007,8 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
         nonce=1,
     )
 
-    ok4, app_state_json4, _hash4, _patch4, err4 = plugin.apply_app_tx(
+    ok4, app_state_json4, _hash4, _patch4, err4 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json3,
         chain_balances=chain_balances,
         operations={"8": [init_market]},
@@ -1916,7 +2017,8 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     )
     assert ok4 is True, err4
 
-    ok5, app_state_json5, _hash5, _patch5, err5 = plugin.apply_app_tx(
+    ok5, app_state_json5, _hash5, _patch5, err5 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json4,
         chain_balances=chain_balances,
         operations={
@@ -1936,7 +2038,8 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     )
     assert ok5 is True, err5
 
-    ok6, app_state_json6, _hash6, _patch6, err6 = plugin.apply_app_tx(
+    ok6, app_state_json6, _hash6, _patch6, err6 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json5,
         chain_balances=chain_balances,
         operations={
@@ -1989,7 +2092,8 @@ def test_apply_app_tx_zusd_monetary_accepts_tau_raw_sender_native_balance(monkey
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", alice)
 
-    ok, app_state_json, _hash, patch, err = plugin.apply_app_tx(
+    ok, app_state_json, _hash, patch, err = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances={alice_raw: 1000},
         operations={
@@ -2044,7 +2148,8 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", oracle)
 
-    ok0, app_state_json, _hash0, _patch0, err0 = plugin.apply_app_tx(
+    ok0, app_state_json, _hash0, _patch0, err0 = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_empty_state(plugin),
         chain_balances=chain_balances,
         operations={
@@ -2079,7 +2184,8 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
             body["owner_pubkey"] = alice
         else:
             body["account_pubkey"] = alice
-        ok, next_json, _hash, patch, err = plugin.apply_app_tx(
+        ok, next_json, _hash, patch, err = _apply_app_tx(
+            plugin,
             app_state_json=app_state_json,
             chain_balances=chain_balances,
             operations={"11": [body]},
@@ -2100,7 +2206,8 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
     assert balances_after_sp[(sp_account, zusd_asset)] == 150
     assert parsed_after_sp["zusd_monetary"]["core"]["sp_debt_e8"] == 150 * E8
 
-    ok4, app_state_json4, _hash4, _patch4, err4 = plugin.apply_app_tx(
+    ok4, app_state_json4, _hash4, _patch4, err4 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances=chain_balances,
         operations={
@@ -2119,7 +2226,8 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
     )
     assert ok4 is True, err4
 
-    ok5, app_state_json5, _hash5, _patch5, err5 = plugin.apply_app_tx(
+    ok5, app_state_json5, _hash5, _patch5, err5 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json4,
         chain_balances=chain_balances,
         operations={
@@ -2148,7 +2256,8 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
         {"amount_e8": 2 * E8, "pubkey": alice}
     ]
 
-    ok6, app_state_json6, _hash6, patch6, err6 = plugin.apply_app_tx(
+    ok6, app_state_json6, _hash6, patch6, err6 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json5,
         chain_balances=chain_balances,
         operations={
@@ -2280,7 +2389,8 @@ def test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper(monkeyp
             },
         ),
     ):
-        ok, next_json, _hash, patch, err = plugin.apply_app_tx(
+        ok, next_json, _hash, patch, err = _apply_app_tx(
+            plugin,
             app_state_json=app_state_json,
             chain_balances=chain_balances,
             operations={"11": [body]},
@@ -2292,7 +2402,8 @@ def test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper(monkeyp
         for pk, amount in (patch or {}).items():
             chain_balances[pk] = int(amount)
 
-    ok, app_state_json, _hash, patch, err = plugin.apply_app_tx(
+    ok, app_state_json, _hash, patch, err = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json,
         chain_balances=chain_balances,
         operations={
@@ -2356,7 +2467,8 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", json.dumps(verifier_cmd))
     monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
 
-    ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
+    ok0, app_state_json0, _hash0, _patch0, err0 = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_generic_state(
             plugin,
             assets=(asset0, asset1),
@@ -2460,7 +2572,8 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
         dex_hash_after=ctx.dex_hash_after,
     )
 
-    ok1, app_state_json1, _hash1, balances_patch1, err1 = plugin.apply_app_tx(
+    ok1, app_state_json1, _hash1, balances_patch1, err1 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json0,
         chain_balances={sender: 123, reward_pool: 20},
         operations={
@@ -2487,7 +2600,8 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     assert isinstance(claimed_slots, list) and len(claimed_slots) == 1
     assert claimed_slots[0]["proposal_hash"] == ctx.proposal_hash
 
-    ok2, synced_json, _hash2, synced_patch, err2 = plugin.apply_app_tx(
+    ok2, synced_json, _hash2, synced_patch, err2 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json1,
         chain_balances=balances_patch1,
         operations={},
@@ -2502,7 +2616,8 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     assert synced["version"] == 2
     assert synced["generic_token_authority"] == parsed["generic_token_authority"]
 
-    ok3, synced_drift_json, _hash3, drift_patch, err3 = plugin.apply_app_tx(
+    ok3, synced_drift_json, _hash3, drift_patch, err3 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json1,
         chain_balances={reward_pool: 15, sender: 127},
         operations={},
@@ -2598,7 +2713,8 @@ def test_apply_app_tx_rejects_duplicate_tau_spellings_before_state_load(monkeypa
         raise AssertionError("ambiguous Tau identities must reject before manager application")
 
     monkeypatch.setattr(plugin, "apply_proof_mining_claim", fail_if_manager_called)
-    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+    ok, app_state_json, app_hash, balances_patch, err = _apply_app_tx(
+        plugin,
         app_state_json="opaque-prestate",
         chain_balances={raw_pubkey: 20, canonical_pubkey: 20},
         operations={},
@@ -2717,7 +2833,8 @@ def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
     monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", json.dumps(verifier_cmd))
     monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
 
-    ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
+    ok0, app_state_json0, _hash0, _patch0, err0 = _apply_app_tx(
+        plugin,
         app_state_json=_policy_bound_generic_state(
             plugin,
             assets=(asset0, asset1),
@@ -2817,7 +2934,8 @@ def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
         dex_hash_after="sha256:wrong",
     )
 
-    ok1, _state1, _hash1, _patch1, err1 = plugin.apply_app_tx(
+    ok1, _state1, _hash1, _patch1, err1 = _apply_app_tx(
+        plugin,
         app_state_json=app_state_json0,
         chain_balances={sender: 50, reward_pool: 20},
         operations={

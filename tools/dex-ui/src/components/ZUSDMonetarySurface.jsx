@@ -12,8 +12,8 @@ const EMPTY_FORM = {
   amount: '100',
   zk_proof_json: '',
   price_e8: String(100 * E8),
-  delta: '1',
-  deadline: '',
+  valid_until_height: '',
+  tx_expiration_time: '',
   tx_fee_limit: '0',
   signed_tau_tx_payload: '',
 };
@@ -26,18 +26,16 @@ const ACTIONS = [
   ['deposit_sp', 'Deposit Stability Pool'],
   ['withdraw_sp', 'Withdraw Stability Pool'],
   ['redeem_zusd', 'Redeem zUSD'],
-  ['claim_shutdown_collateral', 'Claim Shutdown Collateral'],
-  ['claim_sp_shutdown_collateral', 'Claim SP Shutdown Collateral'],
   ['claim_sp_collateral', 'Claim SP Collateral'],
   ['stake_fee_shares', 'Stake Fee Shares'],
-  ['activate_fee_stake', 'Activate Fee Stake'],
-  ['claim_fee_rewards', 'Claim Fee Rewards'],
   ['unstake_fee_shares', 'Unstake Fee Shares'],
+  ['claim_protocol_fees', 'Claim Protocol Fees'],
+  ['claim_host_fees', 'Claim Host Fees'],
+  ['claim_staking_fees', 'Claim Staking Fees'],
   ['liquidate', 'Liquidate Vault'],
   ['bootstrap_oracle', 'Bootstrap Oracle'],
   ['oracle_report', 'Oracle Report'],
   ['oracle_commit', 'Oracle Commit'],
-  ['advance_epoch', 'Advance Epoch'],
 ];
 
 function readSmokeConfig() {
@@ -56,8 +54,8 @@ function readSmokeConfig() {
     amount_e8: params.get('zusdAmountE8') || '',
     zk_proof_json: params.get('zusdZkProofJson') || params.get('zkProofJson') || '',
     price_e8: params.get('zusdPriceE8') || String(100 * E8),
-    delta: params.get('zusdDelta') || '1',
-    deadline: params.get('zusdDeadline') || '',
+    valid_until_height: params.get('zusdValidUntilHeight') || '',
+    tx_expiration_time: params.get('zusdTxExpirationTime') || '',
     tx_fee_limit: params.get('zusdTxFeeLimit') || params.get('txFeeLimit') || '0',
     signed_tau_tx_payload:
       params.get('signedTauTxPayload') || params.get('signed_tau_tx_payload') || params.get('zusdSignedTauTxPayload') || '',
@@ -129,8 +127,11 @@ function buildPayload(form) {
   const actor = form.actor_pubkey.trim();
   const payload = { action };
 
-  if (form.deadline.trim()) {
-    payload.deadline = Number.parseInt(form.deadline.trim(), 10);
+  if (form.valid_until_height.trim()) {
+    payload.valid_until_height = form.valid_until_height.trim();
+  }
+  if (form.tx_expiration_time.trim()) {
+    payload.tx_expiration_time = Number.parseInt(form.tx_expiration_time.trim(), 10);
   }
   if (actor) {
     payload.sender_pubkey = actor;
@@ -157,25 +158,18 @@ function buildPayload(form) {
       'withdraw_sp',
       'redeem_zusd',
       'claim_sp_collateral',
-      'claim_shutdown_collateral',
-      'claim_sp_shutdown_collateral',
       'stake_fee_shares',
-      'activate_fee_stake',
-      'claim_fee_rewards',
       'unstake_fee_shares',
     ].includes(action)
   ) {
     payload.account_pubkey = actor;
   }
-  if (['bootstrap_oracle', 'oracle_report', 'oracle_commit', 'liquidate', 'advance_epoch'].includes(action)) {
+  if (['bootstrap_oracle', 'oracle_report', 'oracle_commit', 'liquidate'].includes(action)) {
     payload.actor_pubkey = actor;
   }
 
   if (['bootstrap_oracle', 'oracle_report'].includes(action)) {
     payload.price_e8 = parsePositiveInt(form.price_e8) || 0;
-  }
-  if (action === 'advance_epoch') {
-    payload.delta = parsePositiveInt(form.delta) || 0;
   }
   if (
     [
@@ -187,8 +181,6 @@ function buildPayload(form) {
       'withdraw_sp',
       'redeem_zusd',
       'claim_sp_collateral',
-      'claim_shutdown_collateral',
-      'claim_sp_shutdown_collateral',
     ].includes(action)
   ) {
     const explicitE8 = parsePositiveInt(form.amount_e8);
@@ -290,15 +282,12 @@ function ZUSDMonetarySurface() {
       'withdraw_sp',
       'redeem_zusd',
       'claim_sp_collateral',
-      'claim_shutdown_collateral',
-      'claim_sp_shutdown_collateral',
       'stake_fee_shares',
       'unstake_fee_shares',
     ].includes(form.action),
     [form.action],
   );
   const needsPrice = form.action === 'bootstrap_oracle' || form.action === 'oracle_report';
-  const needsDelta = form.action === 'advance_epoch';
 
   async function loadStatus() {
     try {
@@ -377,7 +366,8 @@ function ZUSDMonetarySurface() {
       const common = {
         actor_pubkey: form.actor_pubkey,
         signer_privkey: form.signer_privkey,
-        deadline: form.deadline,
+        valid_until_height: form.valid_until_height,
+        tx_expiration_time: form.tx_expiration_time,
         tx_fee_limit: form.tx_fee_limit,
         signed_tau_tx_payload: form.signed_tau_tx_payload,
       };
@@ -1010,20 +1000,6 @@ function ZUSDMonetarySurface() {
                   </>
                 ) : null}
 
-                {needsDelta ? (
-                  <>
-                    <label className="label" htmlFor="zusd-monetary-delta">Epoch Delta</label>
-                    <input
-                      id="zusd-monetary-delta"
-                      className="input"
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={form.delta}
-                      onChange={(event) => setForm((current) => ({ ...current, delta: event.target.value }))}
-                    />
-                  </>
-                ) : null}
               </>
             )}
 
@@ -1040,15 +1016,27 @@ function ZUSDMonetarySurface() {
                   placeholder="0x..."
                 />
 
-                <label className="label" htmlFor="zusd-monetary-deadline">Deadline Epoch Or Unix Time</label>
+                <label className="label" htmlFor="zusd-monetary-height-deadline">Valid Through Height</label>
                 <input
-                  id="zusd-monetary-deadline"
+                  id="zusd-monetary-height-deadline"
                   className="input"
                   type="number"
                   min="1"
                   step="1"
-                  value={form.deadline}
-                  onChange={(event) => setForm((current) => ({ ...current, deadline: event.target.value }))}
+                  value={form.valid_until_height}
+                  onChange={(event) => setForm((current) => ({ ...current, valid_until_height: event.target.value }))}
+                  placeholder="optional"
+                />
+
+                <label className="label" htmlFor="zusd-monetary-tx-expiration">Tau Transaction Expiration (Unix seconds)</label>
+                <input
+                  id="zusd-monetary-tx-expiration"
+                  className="input"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={form.tx_expiration_time}
+                  onChange={(event) => setForm((current) => ({ ...current, tx_expiration_time: event.target.value }))}
                   placeholder="optional"
                 />
 

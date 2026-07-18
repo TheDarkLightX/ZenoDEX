@@ -16,6 +16,8 @@ ASSET_A = "0x" + "11" * 32
 ASSET_B = "0x" + "22" * 32
 STAKE_ASSET = "0x" + "33" * 32
 ORACLE = "0x" + "44" * 48
+CLOCK_HASH = "0x" + "55" * 32
+PROTOCOL_RECIPIENT = "0x" + "66" * 48
 NATIVE_ASSET = "0x" + "00" * 32
 
 
@@ -23,7 +25,9 @@ def _binding() -> ZUSDMonetaryPolicyBinding:
     return ZUSDMonetaryPolicyBinding(
         chain_id="tau-local",
         canonical_zusd_asset=ASSET_A,
+        clock_policy_hash=CLOCK_HASH,
         oracle_pubkey=None,
+        protocol_fee_recipient_pubkey=None,
         liquidation_gas_comp_fixed_collateral_e8=7,
         liquidation_gas_comp_bps=20,
         borrow_fee_floor_bps=10,
@@ -39,7 +43,9 @@ def _binding() -> ZUSDMonetaryPolicyBinding:
     (
         ("chain_id", "tau-other"),
         ("canonical_zusd_asset", ASSET_B),
+        ("clock_policy_hash", "0x" + "77" * 32),
         ("oracle_pubkey", ORACLE),
+        ("protocol_fee_recipient_pubkey", PROTOCOL_RECIPIENT),
         ("liquidation_gas_comp_fixed_collateral_e8", 8),
         ("liquidation_gas_comp_bps", 21),
         ("borrow_fee_floor_bps", 11),
@@ -71,7 +77,9 @@ def test_policy_binding_reports_multiple_mismatches_in_schema_order() -> None:
     configured = replace(
         committed,
         chain_id="tau-other",
+        clock_policy_hash="0x" + "77" * 32,
         oracle_pubkey=ORACLE,
+        protocol_fee_recipient_pubkey=PROTOCOL_RECIPIENT,
         fee_stake_asset_id=STAKE_ASSET,
     )
 
@@ -82,7 +90,9 @@ def test_policy_binding_reports_multiple_mismatches_in_schema_order() -> None:
 
     assert decision.mismatch_fields == (
         "chain_id",
+        "clock_policy_hash",
         "oracle_pubkey",
+        "protocol_fee_recipient_pubkey",
         "fee_stake_asset_id",
     )
     assert (
@@ -142,6 +152,11 @@ def test_policy_decision_rejects_unrepresentable_shapes(
         ({"chain_id": "tau-e\u0301"}, "NFC-normalized"),
         ({"chain_id": "x" * 129}, "at most 128 UTF-8 bytes"),
         ({"canonical_zusd_asset": NATIVE_ASSET}, "must be non-native"),
+        ({"clock_policy_hash": NATIVE_ASSET}, "must be non-zero"),
+        (
+            {"protocol_fee_recipient_pubkey": "0x" + "66" * 47},
+            "must be canonical",
+        ),
         ({"fee_stake_asset_id": NATIVE_ASSET}, "must be non-native"),
         ({"fee_stake_asset_id": ASSET_A}, "must differ"),
         ({"borrow_fee_floor_bps": 101}, "bounds are inverted"),
@@ -150,6 +165,7 @@ def test_policy_decision_rejects_unrepresentable_shapes(
             "must be in",
         ),
         ({"staking_activation_delay_epochs": 10**30 + 1}, "must be in"),
+        ({"staking_activation_delay_epochs": 0}, "must be in"),
     ),
 )
 def test_policy_binding_rejects_ambiguous_or_unsafe_identity_shapes(

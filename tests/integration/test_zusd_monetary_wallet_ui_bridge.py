@@ -29,6 +29,7 @@ from src.integration.zusd_monetary_bridge import (
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
 from tests.chaos.conftest import requires_toxiproxy
+from tests.consensus_clock import execution_clock_v1
 from tests.integration.tau_rpc_fault_proxy import TauRpcFaultProxy
 from tools.chaos.toxiproxy_harness import ToxiproxyHarness
 
@@ -200,6 +201,7 @@ class _TauRpcState:
         self.sequences: dict[str, int] = {self.owner_pubkey[2:]: 7}
         self.native_balances: dict[str, int] = {self.owner_pubkey: 5 * E8}
         self.command_counts: dict[str, int] = {}
+        self.block_height = 0
         self.lock = threading.Lock()
 
     def app_state_payload(self) -> dict[str, object]:
@@ -223,12 +225,17 @@ class _TauRpcState:
             os.environ["TAU_DEX_CHAIN_ID"] = self.chain_id
             os.environ["TAU_DEX_ZUSD_ORACLE_PUBKEY"] = self.owner_pubkey
             try:
+                height = self.block_height
                 ok, next_json, app_hash, _patch, err = plugin.apply_app_tx(
                     app_state_json=self.app_state_json,
                     chain_balances=dict(self.native_balances),
                     operations=ops,
                     tx_sender_pubkey=sender,
-                    block_timestamp=int(time.time()),
+                    block_timestamp=height,
+                    execution_clock=execution_clock_v1(
+                        chain_id=self.chain_id,
+                        height=height,
+                    ),
                 )
             finally:
                 if old_chain_id is None:
@@ -242,6 +249,7 @@ class _TauRpcState:
             assert ok, err
             self.app_state_json = next_json
             self.app_hash = app_hash
+            self.block_height += 1
             if isinstance(_patch, dict):
                 for pubkey, amount in _patch.items():
                     self.native_balances[str(pubkey).strip().lower()] = int(amount)

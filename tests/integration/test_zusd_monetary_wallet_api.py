@@ -4,6 +4,8 @@ import json
 import sys
 from dataclasses import replace
 
+import pytest
+
 import src.integration.zusd_monetary_wallet_api as monetary_api
 from src.core.dex import DexState
 from src.core.zusd import E8, ZUSDCommand, step
@@ -172,8 +174,8 @@ def test_prepare_rejects_environment_policy_drift_before_building_intent(
                 "action": "mint_zusd",
                 "owner_pubkey": ALICE,
                 "amount": 1000,
-                "deadline": 123456789,
-                "block_timestamp": 10,
+                "valid_until_height": 123456789,
+                "tx_expiration_time": 123456789,
                 "tx_fee_limit": "2",
             }
         ).encode("utf-8"),
@@ -195,8 +197,8 @@ def test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11(monkeypatch) 
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "tx_fee_limit": "2",
     }
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
@@ -217,6 +219,8 @@ def test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11(monkeypatch) 
     assert report["operation"]["amount_e8"] == 1000 * E8
     assert "11" in report["operations"]
     assert report["preflight"]["ok"] is True
+    assert report["preflight"]["authority"] == "advisory_unverified_preview"
+    assert report["preflight"]["consensus_clock_bound"] is False
     assert report["fee_limit"]["tx_fee_limit"] == "2"
     assert report["fee_limit"]["native_balance_covers_fee_limit"] is False
     assert report["fee_limit"]["warning"] == "native balance is below requested Tau fee limit"
@@ -231,7 +235,7 @@ def test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11(monkeypatch) 
     assert payload["proof"]["zk_wrapper"]["zk_proof_verified"] is False
 
 
-def test_prepare_rejects_boolean_block_timestamp(monkeypatch) -> None:
+def test_prepare_rejects_transaction_supplied_block_timestamp(monkeypatch) -> None:
     chain_id = "tau-test-zusd-monetary"
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
@@ -241,7 +245,8 @@ def test_prepare_rejects_boolean_block_timestamp(monkeypatch) -> None:
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "block_timestamp": True,
     }
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
@@ -251,7 +256,7 @@ def test_prepare_rejects_boolean_block_timestamp(monkeypatch) -> None:
     )
 
     assert status_code == 400
-    assert payload == {"ok": False, "error": "bad_block_timestamp"}
+    assert payload == {"ok": False, "error": "block_timestamp is consensus-owned"}
 
 
 def test_prepare_mint_requires_zk_proof_when_enabled(monkeypatch) -> None:
@@ -271,8 +276,8 @@ def test_prepare_mint_requires_zk_proof_when_enabled(monkeypatch) -> None:
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
     }
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
         "POST",
@@ -305,8 +310,8 @@ def test_prepare_mint_accepts_verified_zk_wrapper(monkeypatch) -> None:
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "zk_proof": {"system": "test-zk", "proof_bytes": "fixture"},
     }
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
@@ -374,8 +379,8 @@ def test_prepare_mint_accepts_artifact_bound_zk_wrapper(monkeypatch) -> None:
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "zk_proof": {"system": "test-zk", "proof_bytes": "fixture"},
     }
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
@@ -424,8 +429,8 @@ def test_submit_mint_rejected_zk_proof_blocks_sendtx(monkeypatch) -> None:
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "signer_privkey": str(ALICE_PRIVKEY),
         "zk_proof": {"system": "test-zk", "proof_bytes": "bad-fixture"},
     }
@@ -449,8 +454,8 @@ def test_submit_mint_requires_local_signing_and_returns_sendtx(monkeypatch) -> N
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "signer_privkey": str(ALICE_PRIVKEY),
         "tx_fee_limit": "2",
     }
@@ -477,8 +482,8 @@ def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkey
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "tx_fee_limit": "2",
     }
     status_code, prepared = monetary_api.handle_zusd_monetary_wallet_request(
@@ -526,8 +531,8 @@ def test_submit_rejects_external_signed_tau_payload_operation_mismatch(monkeypat
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "tx_fee_limit": "2",
     }
     status_code, prepared = monetary_api.handle_zusd_monetary_wallet_request(
@@ -566,8 +571,8 @@ def test_submit_rejects_external_signed_tau_payload_sender_mismatch(monkeypatch)
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "tx_fee_limit": "2",
     }
     status_code, prepared = monetary_api.handle_zusd_monetary_wallet_request(
@@ -604,8 +609,8 @@ def test_submit_rejects_external_signed_tau_payload_sequence_mismatch(monkeypatc
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "tx_fee_limit": "2",
     }
     status_code, prepared = monetary_api.handle_zusd_monetary_wallet_request(
@@ -642,8 +647,8 @@ def test_submit_rejects_external_signed_tau_payload_bad_signature(monkeypatch) -
         "action": "mint_zusd",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "tx_fee_limit": "2",
     }
     status_code, prepared = monetary_api.handle_zusd_monetary_wallet_request(
@@ -678,11 +683,11 @@ def test_submit_rejects_preflight_failure_before_broadcast(monkeypatch) -> None:
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 
     body = {
-        "action": "mint_zusd",
+        "action": "withdraw_collateral",
         "owner_pubkey": ALICE,
         "amount": 1000,
-        "deadline": 1,
-        "block_timestamp": 10,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "tx_fee_limit": "2",
     }
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
@@ -696,7 +701,7 @@ def test_submit_rejects_preflight_failure_before_broadcast(monkeypatch) -> None:
     assert str(payload["error"]).startswith("preflight_failed:")
 
 
-def test_prepare_rejects_bad_tx_fee_limit(monkeypatch) -> None:
+def test_prepare_rejects_ambiguous_legacy_deadline(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
@@ -706,7 +711,49 @@ def test_prepare_rejects_bad_tx_fee_limit(monkeypatch) -> None:
         "owner_pubkey": ALICE,
         "amount": 1000,
         "deadline": 123456789,
-        "block_timestamp": 10,
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {
+        "ok": False,
+        "error": ("ambiguous deadline; use valid_until_height and tx_expiration_time"),
+    }
+
+
+def test_height_deadline_parser_accepts_canonical_u64_decimal() -> None:
+    u64_max = (1 << 64) - 1
+    assert (
+        monetary_api._request_u64(
+            {"valid_until_height": str(u64_max)},
+            name="valid_until_height",
+        )
+        == u64_max
+    )
+
+    for invalid in (True, "01", str(u64_max + 1)):
+        with pytest.raises(ValueError, match="bad_valid_until_height"):
+            monetary_api._request_u64(
+                {"valid_until_height": invalid},
+                name="valid_until_height",
+            )
+
+
+def test_prepare_rejects_bad_tx_fee_limit(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "valid_until_height": 123456789,
+        "tx_expiration_time": 123456789,
         "tx_fee_limit": "1.5",
     }
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(

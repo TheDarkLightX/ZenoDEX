@@ -11,7 +11,7 @@ import unicodedata
 from dataclasses import dataclass
 from enum import IntEnum
 
-ZUSD_MONETARY_POLICY_SCHEMA = "zenodex/zusd-monetary-policy/v1"
+ZUSD_MONETARY_POLICY_SCHEMA = "zenodex/zusd-monetary-policy/v2"
 _BPS_SCALE = 10_000
 _CHAIN_ID_MAX_UTF8_BYTES = 128
 _MAX_AMOUNT_E8 = 10**30
@@ -20,7 +20,9 @@ _NATIVE_ASSET_ID = "0x" + "00" * 32
 ZUSD_MONETARY_POLICY_FIELDS = (
     "chain_id",
     "canonical_zusd_asset",
+    "clock_policy_hash",
     "oracle_pubkey",
+    "protocol_fee_recipient_pubkey",
     "liquidation_gas_comp_fixed_collateral_e8",
     "liquidation_gas_comp_bps",
     "borrow_fee_floor_bps",
@@ -65,7 +67,9 @@ class ZUSDMonetaryPolicyBinding:
 
     chain_id: str
     canonical_zusd_asset: str
+    clock_policy_hash: str
     oracle_pubkey: str | None
+    protocol_fee_recipient_pubkey: str | None
     liquidation_gas_comp_fixed_collateral_e8: int
     liquidation_gas_comp_bps: int
     borrow_fee_floor_bps: int
@@ -92,8 +96,21 @@ class ZUSDMonetaryPolicyBinding:
         )
         if self.canonical_zusd_asset == _NATIVE_ASSET_ID:
             raise ValueError("canonical_zusd_asset must be non-native")
+        _require_canonical_hex(
+            self.clock_policy_hash,
+            name="clock_policy_hash",
+            nbytes=32,
+        )
+        if self.clock_policy_hash == _NATIVE_ASSET_ID:
+            raise ValueError("clock_policy_hash must be non-zero")
         if self.oracle_pubkey is not None:
             _require_canonical_hex(self.oracle_pubkey, name="oracle_pubkey", nbytes=48)
+        if self.protocol_fee_recipient_pubkey is not None:
+            _require_canonical_hex(
+                self.protocol_fee_recipient_pubkey,
+                name="protocol_fee_recipient_pubkey",
+                nbytes=48,
+            )
         if self.fee_stake_asset_id is not None:
             _require_canonical_hex(
                 self.fee_stake_asset_id,
@@ -134,6 +151,7 @@ class ZUSDMonetaryPolicyBinding:
         _require_int(
             self.staking_activation_delay_epochs,
             name="staking_activation_delay_epochs",
+            minimum=1,
             maximum=_MAX_AMOUNT_E8,
         )
 

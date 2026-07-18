@@ -5,7 +5,7 @@ import Mathlib.Tactic
 
 This module formalizes the equality kernel used to bind runtime configuration
 to the policy committed in zUSD monetary state.  A decision is matched exactly
-when all ten authority/economic fields agree.  A mismatch decision carries a
+when all twelve authority/economic fields agree.  A mismatch decision carries a
 nonempty, duplicate-free list drawn from the canonical field order.
 
 The model proves the pure comparison contract.  Runtime parsing, canonical
@@ -18,7 +18,9 @@ namespace ZenoDEX.ZUSDMonetaryPolicyBinding
 structure Policy where
   chainId : Nat
   canonicalZUSDAsset : Nat
+  clockPolicyHash : Nat
   oraclePubkey : Option Nat
+  protocolFeeRecipientPubkey : Option Nat
   liquidationGasCompFixedCollateralE8 : Nat
   liquidationGasCompBps : Nat
   borrowFeeFloorBps : Nat
@@ -31,7 +33,9 @@ structure Policy where
 inductive Field where
   | chainId
   | canonicalZUSDAsset
+  | clockPolicyHash
   | oraclePubkey
+  | protocolFeeRecipientPubkey
   | liquidationGasCompFixedCollateralE8
   | liquidationGasCompBps
   | borrowFeeFloorBps
@@ -45,7 +49,9 @@ def allFields : List Field :=
   [
     .chainId,
     .canonicalZUSDAsset,
+    .clockPolicyHash,
     .oraclePubkey,
+    .protocolFeeRecipientPubkey,
     .liquidationGasCompFixedCollateralE8,
     .liquidationGasCompBps,
     .borrowFeeFloorBps,
@@ -59,7 +65,12 @@ def Field.differs (committed configured : Policy) : Field → Bool
   | .chainId => committed.chainId != configured.chainId
   | .canonicalZUSDAsset =>
       committed.canonicalZUSDAsset != configured.canonicalZUSDAsset
+  | .clockPolicyHash =>
+      committed.clockPolicyHash != configured.clockPolicyHash
   | .oraclePubkey => committed.oraclePubkey != configured.oraclePubkey
+  | .protocolFeeRecipientPubkey =>
+      committed.protocolFeeRecipientPubkey !=
+        configured.protocolFeeRecipientPubkey
   | .liquidationGasCompFixedCollateralE8 =>
       committed.liquidationGasCompFixedCollateralE8 !=
         configured.liquidationGasCompFixedCollateralE8
@@ -99,7 +110,7 @@ theorem mismatches_eq_nil_iff (committed configured : Policy) :
   constructor
   · intro h
     simp [mismatches, allFields, Field.differs] at h
-    rcases h with ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩
+    rcases h with ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩
     cases committed
     cases configured
     simp_all
@@ -138,20 +149,24 @@ theorem mismatches_nodup (committed configured : Policy) :
 def Field.toNat : Field → Nat
   | .chainId => 0
   | .canonicalZUSDAsset => 1
-  | .oraclePubkey => 2
-  | .liquidationGasCompFixedCollateralE8 => 3
-  | .liquidationGasCompBps => 4
-  | .borrowFeeFloorBps => 5
-  | .borrowFeeMaxBps => 6
-  | .hostProtocolFeeShareBps => 7
-  | .feeStakeAssetId => 8
-  | .stakingActivationDelayEpochs => 9
+  | .clockPolicyHash => 2
+  | .oraclePubkey => 3
+  | .protocolFeeRecipientPubkey => 4
+  | .liquidationGasCompFixedCollateralE8 => 5
+  | .liquidationGasCompBps => 6
+  | .borrowFeeFloorBps => 7
+  | .borrowFeeMaxBps => 8
+  | .hostProtocolFeeShareBps => 9
+  | .feeStakeAssetId => 10
+  | .stakingActivationDelayEpochs => 11
 
 def basePolicy : Policy :=
   {
     chainId := 0
     canonicalZUSDAsset := 0
+    clockPolicyHash := 0
     oraclePubkey := none
+    protocolFeeRecipientPubkey := none
     liquidationGasCompFixedCollateralE8 := 0
     liquidationGasCompBps := 0
     borrowFeeFloorBps := 0
@@ -174,9 +189,20 @@ theorem canonical_zusd_asset_only_projection :
       [.canonicalZUSDAsset] := by
   decide
 
+theorem clock_policy_hash_only_projection :
+    mismatches basePolicy { basePolicy with clockPolicyHash := 1 } =
+      [.clockPolicyHash] := by
+  decide
+
 theorem oracle_pubkey_only_projection :
     mismatches basePolicy { basePolicy with oraclePubkey := some 1 } =
       [.oraclePubkey] := by
+  decide
+
+theorem protocol_fee_recipient_only_projection :
+    mismatches basePolicy
+        { basePolicy with protocolFeeRecipientPubkey := some 1 } =
+      [.protocolFeeRecipientPubkey] := by
   decide
 
 theorem liquidation_gas_comp_fixed_only_projection :
@@ -219,14 +245,16 @@ def policyForMask (mask : Nat) : Policy :=
   {
     chainId := if mask.testBit 0 then 1 else 0
     canonicalZUSDAsset := if mask.testBit 1 then 1 else 0
-    oraclePubkey := if mask.testBit 2 then some 1 else none
-    liquidationGasCompFixedCollateralE8 := if mask.testBit 3 then 1 else 0
-    liquidationGasCompBps := if mask.testBit 4 then 1 else 0
-    borrowFeeFloorBps := if mask.testBit 5 then 1 else 0
-    borrowFeeMaxBps := if mask.testBit 6 then 1 else 0
-    hostProtocolFeeShareBps := if mask.testBit 7 then 1 else 0
-    feeStakeAssetId := if mask.testBit 8 then some 1 else none
-    stakingActivationDelayEpochs := if mask.testBit 9 then 1 else 0
+    clockPolicyHash := if mask.testBit 2 then 1 else 0
+    oraclePubkey := if mask.testBit 3 then some 1 else none
+    protocolFeeRecipientPubkey := if mask.testBit 4 then some 1 else none
+    liquidationGasCompFixedCollateralE8 := if mask.testBit 5 then 1 else 0
+    liquidationGasCompBps := if mask.testBit 6 then 1 else 0
+    borrowFeeFloorBps := if mask.testBit 7 then 1 else 0
+    borrowFeeMaxBps := if mask.testBit 8 then 1 else 0
+    hostProtocolFeeShareBps := if mask.testBit 9 then 1 else 0
+    feeStakeAssetId := if mask.testBit 10 then some 1 else none
+    stakingActivationDelayEpochs := if mask.testBit 11 then 1 else 0
   }
 
 def mismatchMask (committed configured : Policy) : Nat :=
@@ -235,7 +263,7 @@ def mismatchMask (committed configured : Policy) : Nat :=
     0
 
 def exhaustiveMismatchMasks : List Nat :=
-  (List.range 1024).map (fun mask => mismatchMask basePolicy (policyForMask mask))
+  (List.range 4096).map (fun mask => mismatchMask basePolicy (policyForMask mask))
 
 def exhaustiveMismatchMaskCSV : String :=
   String.intercalate "," (exhaustiveMismatchMasks.map toString)

@@ -17,6 +17,7 @@ from src.integration.zusd_monetary_bridge import (
 from src.state.balances import NATIVE_ASSET, BalanceTable
 from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus
+from tests.consensus_clock import execution_clock_v1
 
 ACTOR = "0x" + "41" * 48
 ASSET_A = "0x" + "51" * 32
@@ -48,26 +49,26 @@ def _dex_state(*, native_balance: int = 0) -> DexState:
     return DexState(balances=balances, pools={}, lp_balances=LPTable())
 
 
-def test_v2_roundtrip_preserves_exact_committed_policy() -> None:
+def test_v3_roundtrip_preserves_exact_committed_policy() -> None:
     state = init_monetary_state(_config())
 
     encoded = zusd_monetary_state_to_obj(state)
     decoded = zusd_monetary_state_from_obj(encoded)
 
-    assert encoded["schema"] == "zenodex/zusd_monetary_state/v2"
-    assert encoded["version"] == 2
+    assert encoded["schema"] == "zenodex/zusd_monetary_state/v3"
+    assert encoded["version"] == 3
     assert decoded == state
     assert decoded.policy_binding == state.policy_binding
 
 
-def test_v2_core_schema_registry_matches_runtime_state_fields() -> None:
+def test_v3_core_schema_registry_matches_runtime_state_fields() -> None:
     state = init_monetary_state(_config())
     encoded = zusd_monetary_state_to_obj(state)
 
     assert tuple(encoded["core"]) == tuple(state.core.__dict__)
 
 
-def test_v2_decoder_rejects_legacy_unbound_state() -> None:
+def test_v3_decoder_rejects_legacy_unbound_state() -> None:
     encoded = zusd_monetary_state_to_obj(init_monetary_state(_config()))
     encoded["schema"] = "zenodex/zusd_monetary_state/v1"
     encoded["version"] = 1
@@ -78,7 +79,7 @@ def test_v2_decoder_rejects_legacy_unbound_state() -> None:
 
 
 @pytest.mark.parametrize("missing_field", ("oracle_pubkey", "fee_stake_asset_id"))
-def test_v2_decoder_requires_nullable_policy_fields_explicitly(
+def test_v3_decoder_requires_nullable_policy_fields_explicitly(
     missing_field: str,
 ) -> None:
     encoded = zusd_monetary_state_to_obj(init_monetary_state(_config()))
@@ -86,27 +87,27 @@ def test_v2_decoder_requires_nullable_policy_fields_explicitly(
     policy.pop(missing_field)
     encoded["policy_binding"] = policy
 
-    with pytest.raises(ValueError, match="fields must match the v1 schema exactly"):
+    with pytest.raises(ValueError, match="fields must match the v2 schema exactly"):
         zusd_monetary_state_from_obj(encoded)
 
 
-def test_v2_decoder_rejects_unknown_policy_and_state_fields() -> None:
+def test_v3_decoder_rejects_unknown_policy_and_state_fields() -> None:
     state_obj = zusd_monetary_state_to_obj(init_monetary_state(_config()))
     policy_obj = dict(state_obj["policy_binding"])
     policy_obj["future_policy"] = 1
     state_obj["policy_binding"] = policy_obj
 
-    with pytest.raises(ValueError, match="fields must match the v1 schema exactly"):
+    with pytest.raises(ValueError, match="fields must match the v2 schema exactly"):
         zusd_monetary_state_from_obj(state_obj)
 
     state_obj = zusd_monetary_state_to_obj(init_monetary_state(_config()))
     state_obj["future_state"] = 1
-    with pytest.raises(ValueError, match="fields must match the v2 schema exactly"):
+    with pytest.raises(ValueError, match="fields must match the v3 schema exactly"):
         zusd_monetary_state_from_obj(state_obj)
 
 
 @pytest.mark.parametrize("mutation", ("missing", "unknown"))
-def test_v2_decoder_requires_exact_core_field_set(mutation: str) -> None:
+def test_v3_decoder_requires_exact_core_field_set(mutation: str) -> None:
     state_obj = zusd_monetary_state_to_obj(init_monetary_state(_config()))
     core_obj = dict(state_obj["core"])
     if mutation == "missing":
@@ -117,7 +118,7 @@ def test_v2_decoder_requires_exact_core_field_set(mutation: str) -> None:
 
     with pytest.raises(
         ValueError,
-        match="zusd_monetary.core fields must match the v2 schema exactly",
+        match="zusd_monetary.core fields must match the v3 schema exactly",
     ):
         zusd_monetary_state_from_obj(state_obj)
 
@@ -140,19 +141,19 @@ def test_v2_decoder_requires_exact_core_field_set(mutation: str) -> None:
         ),
     ),
 )
-def test_v2_decoder_rejects_unknown_nested_record_fields(
+def test_v3_decoder_rejects_unknown_nested_record_fields(
     field_name: str,
     entry: dict[str, object],
 ) -> None:
     state_obj = zusd_monetary_state_to_obj(init_monetary_state(_config()))
     state_obj[field_name] = [entry]
 
-    with pytest.raises(ValueError, match="fields must match the v2 schema exactly"):
+    with pytest.raises(ValueError, match="fields must match the v3 schema exactly"):
         zusd_monetary_state_from_obj(state_obj)
 
 
 @pytest.mark.parametrize("field_name", ("sp_deposits", "pending_fee_stakes"))
-def test_v2_decoder_rejects_null_nested_tables(field_name: str) -> None:
+def test_v3_decoder_rejects_null_nested_tables(field_name: str) -> None:
     state_obj = zusd_monetary_state_to_obj(init_monetary_state(_config()))
     state_obj[field_name] = None
 
@@ -160,7 +161,7 @@ def test_v2_decoder_rejects_null_nested_tables(field_name: str) -> None:
         zusd_monetary_state_from_obj(state_obj)
 
 
-def test_v2_decoder_rejects_zero_and_unsorted_account_records() -> None:
+def test_v3_decoder_rejects_zero_and_unsorted_account_records() -> None:
     state_obj = zusd_monetary_state_to_obj(init_monetary_state(_config()))
     state_obj["active_fee_stakes"] = [{"pubkey": ACTOR, "amount": 0}]
     with pytest.raises(ValueError, match="amount must be positive"):
@@ -184,7 +185,7 @@ def test_v2_decoder_rejects_zero_and_unsorted_account_records() -> None:
         ("oracle_seen", 1),
     ),
 )
-def test_v2_decoder_rejects_core_numeric_coercions(
+def test_v3_decoder_rejects_core_numeric_coercions(
     field_name: str,
     invalid_value: object,
 ) -> None:
@@ -244,6 +245,10 @@ def test_runtime_configuration_rebinding_rejects_without_state_change(
         operations=[],
         tx_sender_pubkey=ACTOR,
         block_timestamp=0,
+        execution_clock=execution_clock_v1(
+            chain_id=committed_config.chain_id,
+            height=0,
+        ),
     )
 
     assert result.ok is False
@@ -277,6 +282,7 @@ def test_accepted_transition_preserves_committed_policy_identity() -> None:
         ],
         tx_sender_pubkey=ACTOR,
         block_timestamp=0,
+        execution_clock=execution_clock_v1(chain_id=config.chain_id, height=0),
     )
 
     assert result.ok is True, result.error
@@ -291,7 +297,7 @@ def test_first_fee_stake_activation_uses_sparse_zero_reward_debt() -> None:
     balances.set(ACTOR, STAKE_A, 2)
     prestate = DexState(balances=balances, pools={}, lp_balances=LPTable())
 
-    result = apply_zusd_monetary_ops(
+    staked = apply_zusd_monetary_ops(
         config=config,
         state=prestate,
         zusd_state=init_monetary_state(config),
@@ -303,47 +309,54 @@ def test_first_fee_stake_activation_uses_sparse_zero_reward_debt() -> None:
                 "amount": 2,
                 "nonce": 1,
                 "deadline": 100,
-            },
-            {
-                "module": "ZUSDFinance",
-                "version": "0.1",
-                "action": "advance_epoch",
-                "delta": 1,
-                "nonce": 2,
-                "deadline": 100,
-            },
+            }
         ],
         tx_sender_pubkey=ACTOR,
         block_timestamp=0,
+        execution_clock=execution_clock_v1(chain_id=config.chain_id, height=0),
     )
 
-    assert result.ok is True, result.error
-    assert result.state is not None
-    assert result.zusd_state is not None
-    assert result.state.balances.get(ACTOR, STAKE_A) == 0
-    assert result.zusd_state.active_fee_stakes == {ACTOR: 2}
-    assert result.zusd_state.pending_fee_stakes == {}
-    assert result.zusd_state.fee_stake_reward_debt_e8 == {}
+    assert staked.ok is True, staked.error
+    assert staked.state is not None
+    assert staked.zusd_state is not None
+    assert staked.zusd_state.active_fee_stakes == {}
+    assert staked.zusd_state.pending_fee_stakes == {ACTOR: 2}
+
+    activated = apply_zusd_monetary_ops(
+        config=config,
+        state=staked.state,
+        zusd_state=staked.zusd_state,
+        operations=[],
+        tx_sender_pubkey=ACTOR,
+        block_timestamp=1,
+        execution_clock=execution_clock_v1(chain_id=config.chain_id, height=1),
+    )
+
+    assert activated.ok is True, activated.error
+    assert activated.state is not None
+    assert activated.zusd_state is not None
+    assert activated.state.balances.get(ACTOR, STAKE_A) == 0
+    assert activated.zusd_state.active_fee_stakes == {ACTOR: 2}
+    assert activated.zusd_state.pending_fee_stakes == {}
+    assert activated.zusd_state.fee_stake_reward_debt_e8 == {}
     explicit_zero = replace(
-        result.zusd_state,
+        activated.zusd_state,
         fee_stake_reward_debt_e8={ACTOR: 0},
     )
     assert explicit_zero.fee_stake_reward_debt_e8 == {}
     assert (
-        zusd_monetary_state_from_obj(
-            zusd_monetary_state_to_obj(result.zusd_state)
-        )
-        == result.zusd_state
+        zusd_monetary_state_from_obj(zusd_monetary_state_to_obj(activated.zusd_state))
+        == activated.zusd_state
     )
 
 
 def test_partial_unstake_preserves_sparse_zero_reward_debt() -> None:
-    config = _config(staking_activation_delay_epochs=0)
+    config = _config(staking_activation_delay_epochs=1)
     balances = BalanceTable()
     balances.set(ACTOR, STAKE_A, 2)
     prestate = DexState(balances=balances, pools={}, lp_balances=LPTable())
 
-    result = apply_zusd_monetary_ops(
+    staked = apply_zusd_monetary_ops(
         config=config,
         state=prestate,
         zusd_state=init_monetary_state(config),
@@ -355,26 +368,33 @@ def test_partial_unstake_preserves_sparse_zero_reward_debt() -> None:
                 "amount": 2,
                 "nonce": 1,
                 "deadline": 100,
-            },
-            {
-                "module": "ZUSDFinance",
-                "version": "0.1",
-                "action": "advance_epoch",
-                "delta": 1,
-                "nonce": 2,
-                "deadline": 100,
-            },
+            }
+        ],
+        tx_sender_pubkey=ACTOR,
+        block_timestamp=0,
+        execution_clock=execution_clock_v1(chain_id=config.chain_id, height=0),
+    )
+    assert staked.ok is True, staked.error
+    assert staked.state is not None
+    assert staked.zusd_state is not None
+
+    result = apply_zusd_monetary_ops(
+        config=config,
+        state=staked.state,
+        zusd_state=staked.zusd_state,
+        operations=[
             {
                 "module": "ZUSDFinance",
                 "version": "0.1",
                 "action": "unstake_fee_shares",
                 "amount": 1,
-                "nonce": 3,
+                "nonce": 2,
                 "deadline": 100,
             },
         ],
         tx_sender_pubkey=ACTOR,
-        block_timestamp=0,
+        block_timestamp=1,
+        execution_clock=execution_clock_v1(chain_id=config.chain_id, height=1),
     )
 
     assert result.ok is True, result.error
@@ -407,6 +427,7 @@ def test_accepted_result_effects_are_transitively_immutable() -> None:
         ],
         tx_sender_pubkey=ACTOR,
         block_timestamp=0,
+        execution_clock=execution_clock_v1(chain_id=config.chain_id, height=0),
     )
 
     assert result.ok is True
@@ -420,6 +441,7 @@ def test_accepted_result_effects_are_transitively_immutable() -> None:
 
 
 def test_accepted_result_detaches_mutable_dex_children_from_prestate() -> None:
+    config = _config()
     pool = PoolState(
         pool_id="pool-a",
         asset0=ASSET_B,
@@ -444,9 +466,9 @@ def test_accepted_result_detaches_mutable_dex_children_from_prestate() -> None:
     )
 
     result = apply_zusd_monetary_ops(
-        config=_config(),
+        config=config,
         state=prestate,
-        zusd_state=init_monetary_state(_config()),
+        zusd_state=init_monetary_state(config),
         operations=[
             {
                 "module": "ZUSDFinance",
@@ -460,6 +482,7 @@ def test_accepted_result_detaches_mutable_dex_children_from_prestate() -> None:
         ],
         tx_sender_pubkey=ACTOR,
         block_timestamp=0,
+        execution_clock=execution_clock_v1(chain_id=config.chain_id, height=0),
     )
 
     assert result.ok is True

@@ -25,6 +25,7 @@ import os
 from dataclasses import replace
 from typing import Any, Dict, Mapping, Optional, Tuple
 
+from ..core.consensus_time import VerifiedExecutionClockV1
 from ..core.dex import DexState
 from ..core.generic_token_authority import (
     GenericTokenAuthorityState,
@@ -111,9 +112,7 @@ def _canonical_state_and_hash(
     generic_token_authority: GenericTokenAuthorityState | None = None,
 ) -> Tuple[str, str]:
     if generic_token_authority is not None and zusd_monetary_state is None:
-        raise ValueError(
-            "generic token authority requires committed zUSD monetary policy"
-        )
+        raise ValueError("generic token authority requires committed zUSD monetary policy")
     snap = snapshot_from_state(state)
     if (
         proof_mining_state is None
@@ -135,9 +134,7 @@ def _canonical_state_and_hash(
         ),
     }
     if generic_token_authority is not None:
-        payload["generic_token_authority"] = generic_token_authority_to_obj(
-            generic_token_authority
-        )
+        payload["generic_token_authority"] = generic_token_authority_to_obj(generic_token_authority)
     canonical = canonical_json_bytes(payload)
     return canonical.decode("utf-8"), hashlib.sha256(canonical).hexdigest()
 
@@ -173,9 +170,7 @@ def build_zusd_policy_bound_genesis_app_state(
         canonical_zusd_asset=config.zusd_asset,
     )
     if accounting_error is not None:
-        raise ValueError(
-            "generic token genesis accounting failed: " + accounting_error
-        )
+        raise ValueError("generic token genesis accounting failed: " + accounting_error)
     return _canonical_state_and_hash(
         dex_state,
         zusd_monetary_state=monetary_state,
@@ -350,9 +345,7 @@ def _load_state(
             if version == _APP_STATE_VERSION:
                 expected_fields.add("generic_token_authority")
             if set(obj) != expected_fields:
-                raise ValueError(
-                    f"app_state fields must match the v{version} schema exactly"
-                )
+                raise ValueError(f"app_state fields must match the v{version} schema exactly")
             dex_state = state_from_snapshot(
                 _require_mapping(obj.get("dex_state"), name="app_state.dex_state")
             )
@@ -375,9 +368,7 @@ def _load_state(
             generic_authority = (
                 None
                 if version == _APP_STATE_LEGACY_VERSION
-                else generic_token_authority_from_obj(
-                    obj.get("generic_token_authority")
-                )
+                else generic_token_authority_from_obj(obj.get("generic_token_authority"))
             )
             return dex_state, proof_state, zusd_state, generic_authority
         return state_from_snapshot(obj), None, None, None
@@ -714,9 +705,7 @@ def _apply_token_ops(
         if action in {"transfer", "mint"}:
             expected_fields.add("to_pubkey")
         if set(op) != expected_fields:
-            return rejected(
-                f"{op_name} fields must match the {action} schema exactly"
-            )
+            return rejected(f"{op_name} fields must match the {action} schema exactly")
         if op.get("module") != "TauToken":
             return rejected(f"{op_name} module must be TauToken")
         if op.get("version") != "0.1":
@@ -739,9 +728,7 @@ def _apply_token_ops(
             return rejected(str(exc))
         expected = int(nonces.get_last(nonce_key)) + 1
         if nonce != expected:
-            return rejected(
-                f"{op_name} nonce invalid (expected {expected}, got {nonce})"
-            )
+            return rejected(f"{op_name} nonce invalid (expected {expected}, got {nonce})")
 
         deadline_err = _enforce_deadline(
             op=op,
@@ -787,18 +774,13 @@ def _apply_token_ops(
                         recipient_pubkey=to_pubkey,
                     ),
                 )
-                if (
-                    not supply_decision.accepted
-                    or supply_decision.next_state is None
-                ):
+                if not supply_decision.accepted or supply_decision.next_state is None:
                     reject_code = (
                         "unknown"
                         if supply_decision.reject_code is None
                         else supply_decision.reject_code.value
                     )
-                    return rejected(
-                        f"{op_name} authority transition rejected: {reject_code}"
-                    )
+                    return rejected(f"{op_name} authority transition rejected: {reject_code}")
                 next_authority = supply_decision.next_state
             try:
                 sender_balance = _require_u32_balance(
@@ -861,9 +843,7 @@ def _apply_token_ops(
                     if supply_decision.reject_code is None
                     else supply_decision.reject_code.value
                 )
-                return rejected(
-                    f"{op_name} authority transition rejected: {reject_code}"
-                )
+                return rejected(f"{op_name} authority transition rejected: {reject_code}")
             try:
                 recipient_balance = _checked_u32_balance_add(
                     balances.get(to_pubkey, asset),
@@ -910,9 +890,7 @@ def _apply_token_ops(
                     if supply_decision.reject_code is None
                     else supply_decision.reject_code.value
                 )
-                return rejected(
-                    f"{op_name} authority transition rejected: {reject_code}"
-                )
+                return rejected(f"{op_name} authority transition rejected: {reject_code}")
             try:
                 sender_balance = _require_u32_balance(
                     balances.get(sender, asset),
@@ -933,6 +911,7 @@ def _apply_token_ops(
         working_authority,
         None,
     )
+
 
 def _looks_like_dex_intents(raw: Any) -> bool:
     if not isinstance(raw, list):
@@ -1265,7 +1244,15 @@ def _build_zusd_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
     fee_stake_asset_id = os.environ.get("TAU_DEX_ZUSD_FEE_STAKE_ASSET_ID", "").strip() or None
     return ZUSDMonetaryConfig(
         chain_id=chain_id,
+        clock_policy_hash=(os.environ.get("TAU_DEX_ZUSD_CLOCK_POLICY_HASH", "").strip() or None),
         oracle_pubkey=(oracle_pubkey or "").strip() or None,
+        protocol_fee_recipient_pubkey=(
+            os.environ.get(
+                "TAU_DEX_ZUSD_PROTOCOL_FEE_RECIPIENT_PUBKEY",
+                "",
+            ).strip()
+            or None
+        ),
         asset_id=asset_id,
         liquidation_gas_comp_fixed_collateral_e8=_int_env_alias(
             "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8",
@@ -1295,6 +1282,7 @@ def _build_zusd_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
             "TAU_DEX_ZUSD_STAKING_ACTIVATION_DELAY_EPOCHS",
             "",
             default=1,
+            minimum=1,
         ),
     )
 
@@ -1306,11 +1294,16 @@ def apply_app_tx(
     operations: Any,
     tx_sender_pubkey: str,
     block_timestamp: int,
+    execution_clock: VerifiedExecutionClockV1 | None = None,
 ) -> Tuple[bool, str, str, Optional[Dict[str, int]], Optional[str]]:
     if not isinstance(operations, dict):
         return False, app_state_json, "", None, "operations must be an object"
     if not isinstance(chain_balances, dict):
         return False, app_state_json, "", None, "chain_balances must be an object"
+    if type(block_timestamp) is not int or block_timestamp < 0:
+        return False, app_state_json, "", None, "block_timestamp must be a non-negative int"
+    if execution_clock is not None and type(execution_clock) is not VerifiedExecutionClockV1:
+        return False, app_state_json, "", None, "execution_clock must be VerifiedExecutionClockV1"
 
     decoded_ops: Dict[str, Any] = {}
     for k, v in operations.items():
@@ -1386,6 +1379,11 @@ def apply_app_tx(
     except (TypeError, ValueError) as exc:
         return False, app_state_json, "", None, str(exc)
 
+    if (zusd_monetary_state is not None or bool(zusd_monetary_ops)) and type(
+        execution_clock
+    ) is not VerifiedExecutionClockV1:
+        return False, app_state_json, "", None, "verified execution clock is required"
+
     state_changing_ops_present = any(
         (
             faucet_op is not None,
@@ -1456,9 +1454,32 @@ def apply_app_tx(
                 app_state_json,
                 "",
                 None,
-                "generic token accounting precheck failed: "
-                + generic_precheck_error,
+                "generic token accounting precheck failed: " + generic_precheck_error,
             )
+
+    next_state = state
+    if zusd_monetary_state is not None:
+        if zusd_cfg is None:
+            return False, app_state_json, "", None, "committed zUSD policy unavailable"
+        epoch_result = apply_zusd_monetary_ops(
+            config=zusd_cfg,
+            state=next_state,
+            zusd_state=zusd_monetary_state,
+            operations=[],
+            tx_sender_pubkey="",
+            block_timestamp=block_timestamp,
+            execution_clock=execution_clock,
+        )
+        if not epoch_result.ok or epoch_result.state is None or epoch_result.zusd_state is None:
+            return (
+                False,
+                app_state_json,
+                "",
+                None,
+                epoch_result.error or "zUSD consensus epoch admission rejected",
+            )
+        next_state = epoch_result.state
+        zusd_monetary_state = epoch_result.zusd_state
 
     if faucet_op is not None:
         if zusd_cfg is None:
@@ -1471,8 +1492,8 @@ def apply_app_tx(
                 None,
                 "generic token authority unavailable",
             )
-        ok, state, generic_token_authority, err = _apply_faucet(
-            state,
+        ok, next_state, generic_token_authority, err = _apply_faucet(
+            next_state,
             generic_token_authority,
             faucet_op,
             allow=allow_faucet,
@@ -1493,14 +1514,13 @@ def apply_app_tx(
         and not zusd_monetary_ops
     ):
         canonical, app_hash = _canonical_state_and_hash(
-            state,
+            next_state,
             proof_mining_state=proof_mining_state,
             zusd_monetary_state=zusd_monetary_state,
             generic_token_authority=generic_token_authority,
         )
         return True, canonical, app_hash, None, None
 
-    next_state = state
     if token_ops:
         if zusd_cfg is None:
             return False, app_state_json, "", None, "committed zUSD policy unavailable"
@@ -1519,7 +1539,7 @@ def apply_app_tx(
             chain_id=zusd_cfg.chain_id,
             canonical_zusd_asset=zusd_cfg.zusd_asset,
             tx_sender_pubkey=canonical_tx_sender_pubkey,
-            block_timestamp=int(block_timestamp),
+            block_timestamp=block_timestamp,
         )
         if not ok:
             return False, app_state_json, "", None, token_err or "token op rejected"
@@ -1533,7 +1553,8 @@ def apply_app_tx(
             zusd_state=zusd_monetary_state,
             operations=zusd_monetary_ops.get(_ZUSD_MONETARY_OPS_KEY),
             tx_sender_pubkey=canonical_tx_sender_pubkey,
-            block_timestamp=int(block_timestamp),
+            block_timestamp=block_timestamp,
+            execution_clock=execution_clock,
         )
         if not zusd_res.ok or zusd_res.state is None or zusd_res.zusd_state is None:
             return False, app_state_json, "", None, zusd_res.error or "zUSD monetary op rejected"
@@ -1636,8 +1657,7 @@ def apply_app_tx(
                 app_state_json,
                 "",
                 None,
-                "generic token accounting postcheck failed: "
-                + generic_postcheck_error,
+                "generic token accounting postcheck failed: " + generic_postcheck_error,
             )
 
     balances_patch = _balances_patch_for_native(

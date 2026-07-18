@@ -938,6 +938,138 @@ def test_run_local_pre_snapshot_header_binds_dex_app_root(tmp_path: Path) -> Non
     assert zv.dex_state_root_v0(state_from_snapshot(snapshot)) == expected
 
 
+def test_run_local_tau_app_derives_epoch_from_anchored_height(tmp_path: Path) -> None:
+    from src.integration.tau_testnet_dex_plugin import (
+        build_zusd_policy_bound_genesis_app_state,
+    )
+    from src.integration.zusd_monetary_bridge import ZUSDMonetaryConfig
+    from tools.zeno_ledger_run_local import build_local_block_v0
+
+    chain_id = "zeno-ledger-devnet-0"
+    app_state_json, _app_hash = build_zusd_policy_bound_genesis_app_state(
+        config=ZUSDMonetaryConfig(chain_id=chain_id)
+    )
+    app_state_path = tmp_path / "app-state.json"
+    app_state_path.write_text(app_state_json, encoding="utf-8")
+    body_path = tmp_path / "body.json"
+    body_path.write_text(
+        json.dumps(_body(txs=[]), sort_keys=True),
+        encoding="utf-8",
+    )
+
+    report = build_local_block_v0(
+        body_path=body_path,
+        out_dir=tmp_path / "ledger",
+        time_ms=1_778_730_000_000,
+        tau_app_state_path=app_state_path,
+        trusted_prev_header_hash=_root("trusted-parent"),
+        trusted_prev_height=0,
+        sequencer_set_hash=_root("sequencer-set"),
+        data_availability_root=_root("da"),
+        proof_journal_hash=ZERO_ROOT,
+        config_digest=_root("config"),
+        module_versions_digest=_root("modules"),
+        signature_set_root=ZERO_ROOT,
+    )
+
+    assert report["execution_clock"]["height"] == 1
+    assert report["execution_clock"]["derived_epoch"] == 1
+    post_state = json.loads(
+        Path(str(report["post_app_state_path"])).read_text(encoding="utf-8")
+    )
+    assert post_state["zusd_monetary"]["core"]["now_epoch"] == 1
+
+
+def test_run_local_tau_app_rejects_unanchored_non_genesis_height(
+    tmp_path: Path,
+) -> None:
+    from src.integration.tau_testnet_dex_plugin import (
+        build_zusd_policy_bound_genesis_app_state,
+    )
+    from src.integration.zusd_monetary_bridge import ZUSDMonetaryConfig
+    from tools.zeno_ledger_run_local import build_local_block_v0
+
+    chain_id = "zeno-ledger-devnet-0"
+    app_state_json, _app_hash = build_zusd_policy_bound_genesis_app_state(
+        config=ZUSDMonetaryConfig(chain_id=chain_id)
+    )
+    app_state_path = tmp_path / "app-state.json"
+    app_state_path.write_text(app_state_json, encoding="utf-8")
+    body_path = tmp_path / "body.json"
+    body_path.write_text(
+        json.dumps(_body(txs=[]), sort_keys=True),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Tau app execution above genesis requires --prev-header",
+    ):
+        build_local_block_v0(
+            body_path=body_path,
+            out_dir=tmp_path / "ledger",
+            time_ms=1_778_730_000_000,
+            tau_app_state_path=app_state_path,
+            sequencer_set_hash=_root("sequencer-set"),
+            data_availability_root=_root("da"),
+            proof_journal_hash=ZERO_ROOT,
+            config_digest=_root("config"),
+            module_versions_digest=_root("modules"),
+            signature_set_root=ZERO_ROOT,
+        )
+
+
+def test_run_local_custom_clock_schedule_requires_expected_hash(
+    tmp_path: Path,
+) -> None:
+    from src.core.consensus_time import default_height_only_clock_schedule_v1
+    from src.integration.tau_testnet_dex_plugin import (
+        build_zusd_policy_bound_genesis_app_state,
+    )
+    from src.integration.zusd_monetary_bridge import ZUSDMonetaryConfig
+    from tools.zeno_ledger_run_local import build_local_block_v0
+
+    chain_id = "zeno-ledger-devnet-0"
+    app_state_json, _app_hash = build_zusd_policy_bound_genesis_app_state(
+        config=ZUSDMonetaryConfig(chain_id=chain_id)
+    )
+    app_state_path = tmp_path / "app-state.json"
+    app_state_path.write_text(app_state_json, encoding="utf-8")
+    schedule_path = tmp_path / "clock-schedule.json"
+    schedule_path.write_text(
+        json.dumps(
+            default_height_only_clock_schedule_v1(chain_id=chain_id).to_obj(),
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    body_path = tmp_path / "body.json"
+    body_path.write_text(
+        json.dumps(_body(txs=[]), sort_keys=True),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="custom --clock-policy-schedule requires",
+    ):
+        build_local_block_v0(
+            body_path=body_path,
+            out_dir=tmp_path / "ledger",
+            time_ms=1_778_730_000_000,
+            clock_policy_schedule_path=schedule_path,
+            tau_app_state_path=app_state_path,
+            trusted_prev_header_hash=_root("trusted-parent"),
+            trusted_prev_height=0,
+            sequencer_set_hash=_root("sequencer-set"),
+            data_availability_root=_root("da"),
+            proof_journal_hash=ZERO_ROOT,
+            config_digest=_root("config"),
+            module_versions_digest=_root("modules"),
+            signature_set_root=ZERO_ROOT,
+        )
+
+
 def test_tau_app_state_app_root_binds_wrapper_only_lanes() -> None:
     snapshot = zv.snapshot_from_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())).data
     wrapper = {
