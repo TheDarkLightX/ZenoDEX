@@ -73,6 +73,7 @@ CRITICAL_TESTS=(
   tests/core/test_volatility_tier.py
   tests/core/test_volatility_tier_ref_parity.py
   tests/core/test_perp_v2
+  tests/core/test_perp_v4_parity.py
   tests/core/test_perp_functional_core_fail_closed.py
   tests/core/test_perps_token_accounting.py
   tests/core/test_protocol_fee_policy.py
@@ -90,6 +91,7 @@ COVERAGE_TARGETS=(
   --cov=src.core.cpmm
   --cov=src.core.liquidity
   --cov=src.core.batch_clearing
+  --cov=src.core.batch_clearing_requests
   --cov=src.core.dex
   --cov=src.core.protocol_fee_policy
   --cov=src.core.quote_receipts
@@ -119,6 +121,7 @@ echo "== critical: ruff =="
   src/core/cpmm.py \
   src/core/liquidity.py \
   src/core/batch_clearing.py \
+  src/core/batch_clearing_requests.py \
   src/core/dex.py \
   src/core/protocol_fee_policy.py \
   src/core/quote_receipts.py \
@@ -149,6 +152,7 @@ echo "== critical: ruff =="
   tests/core/test_settlement.py \
   tests/core/test_liquidity.py \
   tests/core/test_perp_v2/test_submodules.py \
+  tests/core/test_perp_v4_parity.py \
   tests/core/test_perp_functional_core_fail_closed.py \
   tests/core/test_perps_token_accounting.py \
   tests/core/test_protocol_fee_policy.py \
