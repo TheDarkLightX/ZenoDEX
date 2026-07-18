@@ -54,6 +54,10 @@ def _validate_active_liquidity_pool(pool_state: PoolState) -> None:
     require_int_range("pool_state.lp_supply", pool_state.lp_supply, minimum=0, maximum=DEX_LP_SUPPLY_MAX)
     if pool_state.reserve0 == 0 or pool_state.reserve1 == 0:
         raise ValueError("Cannot add liquidity to empty pool")
+    if pool_state.lp_supply == 0:
+        raise ValueError(
+            "Cannot add liquidity to nonempty pool with zero LP supply"
+        )
 
 
 def _validate_add_liquidity_amounts(
@@ -159,22 +163,10 @@ def remove_liquidity(
 ) -> Tuple[Amount, Amount]:
     """
     Remove liquidity from a pool.
-    
+
     Outputs:
         amount0_out = floor(lp_amount * reserve0 / lp_supply)
         amount1_out = floor(lp_amount * reserve1 / lp_supply)
-    
-    Args:
-        pool_state: Current pool state
-        lp_amount: Amount of LP tokens to burn
-        amount0_min: Minimum acceptable amount0
-        amount1_min: Minimum acceptable amount1
-        
-    Returns:
-        Tuple of (amount0_out, amount1_out)
-        
-    Raises:
-        ValueError: If inputs are invalid
     """
     if pool_state.status != PoolStatus.ACTIVE:
         raise ValueError(f"Pool is not active: {pool_state.status}")
@@ -190,16 +182,14 @@ def remove_liquidity(
         raise ValueError(
             f"Cannot burn more LP than supply: {lp_amount} > {pool_state.lp_supply}"
         )
-    
-    # Compute output amounts
+
     amount0_out, amount1_out = compute_lp_burn(
         lp_amount,
         pool_state.reserve0,
         pool_state.reserve1,
         pool_state.lp_supply,
     )
-    
-    # Check minimums
+
     if amount0_out < amount0_min:
         raise ValueError(
             f"amount0_out ({amount0_out}) < amount0_min ({amount0_min})"
@@ -208,5 +198,5 @@ def remove_liquidity(
         raise ValueError(
             f"amount1_out ({amount1_out}) < amount1_min ({amount1_min})"
         )
-    
+
     return amount0_out, amount1_out
