@@ -8,7 +8,7 @@ from itertools import product
 from pathlib import Path
 
 from src.core.zusd_generic_token_admission import (
-    CanonicalZUSDCustodyClass,
+    CanonicalZUSDRecipientClass,
     GenericTokenAction,
     GenericTokenAdmissionCommand,
     TokenAssetClass,
@@ -20,7 +20,7 @@ CLAIMS = (
     "generic_canonical_mint_rejected",
     "generic_canonical_burn_rejected",
     "stability_pool_transfer_rejected",
-    "every_reserved_custody_rejects_generic_canonical_transfer",
+    "every_reserved_protocol_location_rejects_generic_canonical_transfer",
     "ordinary_canonical_transfer_admitted",
     "generic_canonical_admission_iff_ordinary_transfer",
     "monetary_authority_routes_to_separate_kernel",
@@ -102,18 +102,18 @@ def test_lean_decision_vector_matches_executable_python_core(tmp_path: Path) -> 
 
     python_transition_values: list[int] = []
     for supply in (0, 1, (1 << 32) - 1):
-        for action, asset, writer_role, custody in product(
+        for action, asset, writer_role, recipient_class in product(
             GenericTokenAction,
             TokenAssetClass,
             TokenWriterRole,
-            CanonicalZUSDCustodyClass,
+            CanonicalZUSDRecipientClass,
         ):
             decision = evaluate_generic_token_admission(
                 GenericTokenAdmissionCommand(
                     action=action,
                     asset_class=asset,
                     writer_role=writer_role,
-                    recipient_custody_class=custody,
+                    recipient_class=recipient_class,
                 )
             )
             python_transition_values.extend((int(decision.code), supply))

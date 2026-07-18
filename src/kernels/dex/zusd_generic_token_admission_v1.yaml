@@ -3,9 +3,9 @@ meta:
   model_id: "zusd_generic_token_admission_v1"
   created_by: "zenodex"
   notes: |
-    Dual-authority and reserved-custody policy for canonical zUSD.
+    Dual-authority and reserved-address policy for canonical zUSD.
 
-    The generic token writer may transfer canonical zUSD only to custody
+    The generic token writer may transfer canonical zUSD only to a recipient
     classified as ordinary by the authoritative recipient registry. It may not
     mint or burn canonical zUSD. A zUSD monetary-authority command receives a
     route-to-monetary-kernel result instead of generic-writer admission. Every
@@ -13,9 +13,9 @@ meta:
     projection. Every rejection or routing result is a no-op at this stage.
 
     The executable typed core expands the bounded flags into action, asset,
-    writer-role, and custody-class enums. The live registry currently binds the
+    writer-role, and recipient-class enums. The live registry currently binds the
     chain-derived Stability Pool escrow pubkey. Gas reserve, fee pools, perps
-    liabilities, and DEX custody are internal ledgers without addressable
+    liabilities, and DEX reserve are internal ledgers without addressable
     recipient pubkeys in the current bridge. A future addressable principal
     must be added to that registry before admission.
 
@@ -31,7 +31,7 @@ observables:
       "operation_code",
       "actor_is_monetary_authority",
       "asset_is_canonical_zusd",
-      "recipient_is_reserved_internal_custody",
+      "recipient_is_reserved_protocol_address",
       "admitted",
       "decision_code",
       "canonical_zusd_supply_delta",
@@ -57,7 +57,7 @@ init:
     expr: { const: 0 }
 
 invariants:
-  - id: "inv_authority_and_custody_partition_complete"
+  - id: "inv_authority_and_recipient_partition_complete"
     kind: "safety"
     expr: { op: "=", args: [{ var: "violation_found" }, { const: 0 }] }
 
@@ -68,7 +68,7 @@ actions:
         type: { kind: "bool" }
       - id: "asset_is_canonical_zusd"
         type: { kind: "bool" }
-      - id: "recipient_is_reserved_internal_custody"
+      - id: "recipient_is_reserved_protocol_address"
         type: { kind: "bool" }
     guard: { bool: true }
     updates:
@@ -87,14 +87,14 @@ actions:
                       - op: "or"
                         args:
                           - { op: "not", args: [{ param: "asset_is_canonical_zusd" }] }
-                          - { op: "not", args: [{ param: "recipient_is_reserved_internal_custody" }] }
+                          - { op: "not", args: [{ param: "recipient_is_reserved_protocol_address" }] }
                   - op: "and"
                     args:
                       - { op: "not", args: [{ param: "actor_is_monetary_authority" }] }
                       - op: "or"
                         args:
                           - { op: "not", args: [{ param: "asset_is_canonical_zusd" }] }
-                          - { op: "not", args: [{ param: "recipient_is_reserved_internal_custody" }] }
+                          - { op: "not", args: [{ param: "recipient_is_reserved_protocol_address" }] }
               - op: "="
                 args:
                   - &transfer_decision_code
@@ -123,8 +123,8 @@ actions:
       operation_code: { const: 0 }
       actor_is_monetary_authority: { param: "actor_is_monetary_authority" }
       asset_is_canonical_zusd: { param: "asset_is_canonical_zusd" }
-      recipient_is_reserved_internal_custody:
-        { param: "recipient_is_reserved_internal_custody" }
+      recipient_is_reserved_protocol_address:
+        { param: "recipient_is_reserved_protocol_address" }
       admitted: *transfer_admitted
       decision_code: *transfer_decision_code
       canonical_zusd_supply_delta: { const: 0 }
@@ -185,8 +185,8 @@ actions:
       operation_code: { const: 1 }
       actor_is_monetary_authority: { param: "actor_is_monetary_authority" }
       asset_is_canonical_zusd: { param: "asset_is_canonical_zusd" }
-      recipient_is_reserved_internal_custody:
-        { param: "recipient_is_reserved_internal_custody" }
+      recipient_is_reserved_protocol_address:
+        { param: "recipient_is_reserved_protocol_address" }
       admitted: *mint_admitted
       decision_code: *mint_decision_code
       canonical_zusd_supply_delta: { const: 0 }
@@ -247,8 +247,8 @@ actions:
       operation_code: { const: 2 }
       actor_is_monetary_authority: { param: "actor_is_monetary_authority" }
       asset_is_canonical_zusd: { param: "asset_is_canonical_zusd" }
-      recipient_is_reserved_internal_custody:
-        { param: "recipient_is_reserved_internal_custody" }
+      recipient_is_reserved_protocol_address:
+        { param: "recipient_is_reserved_protocol_address" }
       admitted: *burn_admitted
       decision_code: *burn_decision_code
       canonical_zusd_supply_delta: { const: 0 }

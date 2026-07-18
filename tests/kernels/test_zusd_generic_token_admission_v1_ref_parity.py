@@ -12,7 +12,7 @@ import pytest
 
 from src.core.zusd_generic_token_admission import (
     MAX_TOKEN_UNITS,
-    CanonicalZUSDCustodyClass,
+    CanonicalZUSDRecipientClass,
     CanonicalZUSDSupplyState,
     GenericTokenAction,
     GenericTokenAdmissionCommand,
@@ -31,9 +31,9 @@ ACTION_CODE = {
     GenericTokenAction.MINT: 1,
     GenericTokenAction.BURN: 2,
 }
-EXPECTED_IR_HASH = "sha256:5c397e970673e80bb75d4461cf2af65f5f6294b7438cf0b2936528c0d9461492"
+EXPECTED_IR_HASH = "sha256:afa6cd228a6e4a181f4de1281fbba7ee27aa72c2a66291425349fef6e547555e"
 EXPECTED_MODEL_SOURCE_SHA256 = (
-    "4f542927d11c48a44d29904715b3c6140889a49bb1602b0308746298700639fd"
+    "a04848c94baa4009c4c6fb06d49d890b337ff6647df91e890b115a871bc1bdee"
 )
 
 
@@ -80,17 +80,17 @@ def test_pure_core_matches_generated_reference_for_every_typed_case(supply: int)
             GenericTokenAction,
             TokenAssetClass,
             TokenWriterRole,
-            CanonicalZUSDCustodyClass,
+            CanonicalZUSDRecipientClass,
         )
     )
     assert len(cases) == 108
 
-    for action, asset_class, writer_role, custody_class in cases:
+    for action, asset_class, writer_role, recipient_class in cases:
         command = GenericTokenAdmissionCommand(
             action=action,
             asset_class=asset_class,
             writer_role=writer_role,
-            recipient_custody_class=custody_class,
+            recipient_class=recipient_class,
         )
         core = evaluate_generic_token_admission_transition(
             CanonicalZUSDSupplyState(supply),
@@ -100,7 +100,7 @@ def test_pure_core_matches_generated_reference_for_every_typed_case(supply: int)
             writer_role is TokenWriterRole.ZUSD_MONETARY_AUTHORITY
         )
         asset_is_canonical_zusd = asset_class is TokenAssetClass.CANONICAL_ZUSD
-        recipient_is_reserved = custody_class.is_reserved_internal_custody
+        recipient_is_reserved = recipient_class.is_reserved_protocol_location
         result = reference.step(
             reference.State(canonical_supply_units=supply, violation_found=0),
             reference.Command(
@@ -108,7 +108,7 @@ def test_pure_core_matches_generated_reference_for_every_typed_case(supply: int)
                 args={
                     "actor_is_monetary_authority": actor_is_monetary_authority,
                     "asset_is_canonical_zusd": asset_is_canonical_zusd,
-                    "recipient_is_reserved_internal_custody": recipient_is_reserved,
+                    "recipient_is_reserved_protocol_address": recipient_is_reserved,
                 },
             ),
         )
@@ -127,7 +127,7 @@ def test_pure_core_matches_generated_reference_for_every_typed_case(supply: int)
             "exhaustive_case_ok": True,
             "operation_code": ACTION_CODE[action],
             "post_canonical_supply_units": core.post_state.total_supply_units,
-            "recipient_is_reserved_internal_custody": recipient_is_reserved,
+            "recipient_is_reserved_protocol_address": recipient_is_reserved,
             "decision_code": int(core.decision.code),
             "rejection_noop": True,
         }
@@ -138,7 +138,7 @@ def test_generated_reference_rejects_out_of_domain_or_ambiguous_inputs() -> None
     args = {
         "actor_is_monetary_authority": False,
         "asset_is_canonical_zusd": True,
-        "recipient_is_reserved_internal_custody": False,
+        "recipient_is_reserved_protocol_address": False,
     }
     command = reference.Command(tag="evaluate_transfer", args=args)
     assert reference.step(

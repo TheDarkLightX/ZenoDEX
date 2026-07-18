@@ -19,12 +19,13 @@ pub const PROOF_TYPE_RECURSIVE_SUMMARY_LEAF: &str = "risc0.zenodex_recursive_sum
 pub const PROOF_TYPE_RECURSIVE_SPOT_LEAF: &str = "risc0.zenodex_recursive_spot_leaf.v1";
 pub const PROOF_TYPE_RECURSIVE_PERPS_NP_LEAF: &str = "risc0.zenodex_recursive_perps_np_leaf.v1";
 pub const PROOF_TYPE_RECURSIVE_ZUSD_LEAF: &str = "risc0.zenodex_recursive_zusd_leaf.v1";
-pub const RECURSIVE_EFFECT_SUMMARY_VERSION_V1: u32 = 1;
-pub const RECURSIVE_STATEMENT_VERSION_V1: u32 = 1;
-pub const RECURSIVE_JOURNAL_VERSION_V1: u32 = 1;
+pub const RECURSIVE_EFFECT_SUMMARY_VERSION_V1: u32 = 2;
+pub const RECURSIVE_STATEMENT_VERSION_V1: u32 = 2;
+pub const RECURSIVE_JOURNAL_VERSION_V1: u32 = 2;
 pub const RECURSIVE_STRICT_CROSS_SHARD_MODE_V1: &str = "strict";
 pub const RECURSIVE_DOMAIN_SEPARATOR_V1: &str = "zenodex.risc0.recursive_epoch.v1";
 pub const RECURSIVE_EPOCH_PROFILE_V1: &str = "recursive_epoch_v1";
+pub const RECURSIVE_AGGREGATION_SCOPE_SINGLE_BLOCK_V2: &str = "single_block";
 pub const RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1: &str = "recursive_summary_leaf_test_v1";
 pub const RECURSIVE_SPOT_LEAF_PROFILE_V1: &str = "recursive_spot_leaf_v1";
 pub const RECURSIVE_PERPS_NP_LEAF_PROFILE_V1: &str = "recursive_perps_np_leaf_v1";
@@ -43,6 +44,7 @@ pub struct RecursiveCompositionStatementV1 {
     pub chain_id: String,
     pub epoch_id: u64,
     pub proof_profile: String,
+    pub aggregation_scope: String,
     pub verifier_set_root: [u8; 32],
     pub allowed_authority_roots_root: [u8; 32],
     pub public_policy_hash: [u8; 32],
@@ -63,6 +65,7 @@ pub struct RecursiveCompositionStatementV1 {
     pub max_cross_shard_messages: u32,
     pub max_receipt_ids: u32,
     pub cross_shard_mode: String,
+    pub execution_context_hash: [u8; 32],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,6 +104,7 @@ pub struct RecursiveEffectSummaryV1 {
     pub feature_suite_hash: [u8; 32],
     pub dependency_lock_hash: [u8; 32],
     pub toolchain_lock_hash: [u8; 32],
+    pub execution_context_hash: [u8; 32],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -194,6 +198,7 @@ pub struct RecursiveEpochJournalV1 {
     pub chain_id: String,
     pub epoch_id: u64,
     pub proof_profile: String,
+    pub aggregation_scope: String,
     pub statement_hash: [u8; 32],
     pub verifier_set_root: [u8; 32],
     pub allowed_authority_roots_root: [u8; 32],
@@ -219,6 +224,7 @@ pub struct RecursiveEpochJournalV1 {
     pub feature_suite_hash: [u8; 32],
     pub dependency_lock_hash: [u8; 32],
     pub toolchain_lock_hash: [u8; 32],
+    pub execution_context_hash: [u8; 32],
 }
 
 pub fn compose_recursive_epoch_journal_v1(
@@ -448,6 +454,7 @@ pub fn compose_recursive_epoch_journal_v1(
         chain_id: input.statement.chain_id.clone(),
         epoch_id: input.statement.epoch_id,
         proof_profile: input.statement.proof_profile.clone(),
+        aggregation_scope: input.statement.aggregation_scope.clone(),
         statement_hash,
         verifier_set_root: input.statement.verifier_set_root,
         allowed_authority_roots_root: input.statement.allowed_authority_roots_root,
@@ -488,6 +495,7 @@ pub fn compose_recursive_epoch_journal_v1(
         feature_suite_hash: input.statement.feature_suite_hash,
         dependency_lock_hash: input.statement.dependency_lock_hash,
         toolchain_lock_hash: input.statement.toolchain_lock_hash,
+        execution_context_hash: input.statement.execution_context_hash,
     })
 }
 
@@ -499,6 +507,7 @@ pub fn recursive_statement_hash_v1(statement: &RecursiveCompositionStatementV1) 
     write_str(&mut hasher, &statement.chain_id);
     write_u64(&mut hasher, statement.epoch_id);
     write_str(&mut hasher, &statement.proof_profile);
+    write_str(&mut hasher, &statement.aggregation_scope);
     write_bytes32(&mut hasher, &statement.verifier_set_root);
     write_bytes32(&mut hasher, &statement.allowed_authority_roots_root);
     write_bytes32(&mut hasher, &statement.public_policy_hash);
@@ -519,6 +528,7 @@ pub fn recursive_statement_hash_v1(statement: &RecursiveCompositionStatementV1) 
     write_u32(&mut hasher, statement.max_cross_shard_messages);
     write_u32(&mut hasher, statement.max_receipt_ids);
     write_str(&mut hasher, &statement.cross_shard_mode);
+    write_bytes32(&mut hasher, &statement.execution_context_hash);
     hasher.finalize().into()
 }
 
@@ -595,6 +605,7 @@ pub fn recursive_effect_summary_hash_v1(summary: &RecursiveEffectSummaryV1) -> [
     write_bytes32(&mut hasher, &summary.feature_suite_hash);
     write_bytes32(&mut hasher, &summary.dependency_lock_hash);
     write_bytes32(&mut hasher, &summary.toolchain_lock_hash);
+    write_bytes32(&mut hasher, &summary.execution_context_hash);
     hasher.finalize().into()
 }
 
@@ -677,6 +688,7 @@ pub fn compose_spot_recursive_leaf_summary_v1(
         feature_suite_hash: input.feature_suite_hash,
         dependency_lock_hash: input.dependency_lock_hash,
         toolchain_lock_hash: input.toolchain_lock_hash,
+        execution_context_hash: journal.execution_context_hash,
     };
     validate_recursive_effect_summary_shape_v1(&summary)?;
     Ok(summary)
@@ -713,6 +725,11 @@ pub fn compose_zusd_recursive_leaf_summary_v1(
     )?;
     if input.risc0_image_id.iter().all(|word| *word == 0) {
         return Err(TransitionError::InvalidInput("zUSD leaf image id zero"));
+    }
+    if input.zusd_input.chain_id != input.chain_id {
+        return Err(TransitionError::InvalidInput(
+            "zUSD recursive leaf chain_id mismatch",
+        ));
     }
 
     let journal = execute_zusd_transition_v1(input.zusd_input)?;
@@ -766,6 +783,7 @@ pub fn compose_zusd_recursive_leaf_summary_v1(
         feature_suite_hash: input.feature_suite_hash,
         dependency_lock_hash: input.dependency_lock_hash,
         toolchain_lock_hash: input.toolchain_lock_hash,
+        execution_context_hash: journal.execution_context_hash,
     };
     validate_recursive_effect_summary_shape_v1(&summary)?;
     Ok(summary)
@@ -991,6 +1009,11 @@ pub fn compose_perps_np_recursive_leaf_summary_v1(
     if input.risc0_image_id.iter().all(|word| *word == 0) {
         return Err(TransitionError::InvalidInput("perps NP leaf image id zero"));
     }
+    if input.perps_input.chain_id != input.chain_id {
+        return Err(TransitionError::InvalidInput(
+            "perps NP recursive leaf chain_id mismatch",
+        ));
+    }
     let has_run_epoch = input
         .perps_input
         .actions
@@ -1057,6 +1080,7 @@ pub fn compose_perps_np_recursive_leaf_summary_v1(
         feature_suite_hash: input.feature_suite_hash,
         dependency_lock_hash: input.dependency_lock_hash,
         toolchain_lock_hash: input.toolchain_lock_hash,
+        execution_context_hash: journal.execution_context_hash,
     };
     validate_recursive_effect_summary_shape_v1(&summary)?;
     Ok(summary)
@@ -1094,6 +1118,7 @@ pub fn spot_recursive_leaf_statement_hash_v1(
     write_bytes32(&mut hasher, &feature_suite_hash);
     write_bytes32(&mut hasher, &dependency_lock_hash);
     write_bytes32(&mut hasher, &toolchain_lock_hash);
+    write_bytes32(&mut hasher, &journal.execution_context_hash);
     hasher.finalize().into()
 }
 
@@ -1127,6 +1152,7 @@ pub fn zusd_recursive_leaf_statement_hash_v1(
     write_bytes32(&mut hasher, &feature_suite_hash);
     write_bytes32(&mut hasher, &dependency_lock_hash);
     write_bytes32(&mut hasher, &toolchain_lock_hash);
+    write_bytes32(&mut hasher, &journal.execution_context_hash);
     hasher.finalize().into()
 }
 
@@ -1162,6 +1188,7 @@ pub fn perps_np_recursive_leaf_statement_hash_v1(
     write_bytes32(&mut hasher, &feature_suite_hash);
     write_bytes32(&mut hasher, &dependency_lock_hash);
     write_bytes32(&mut hasher, &toolchain_lock_hash);
+    write_bytes32(&mut hasher, &journal.execution_context_hash);
     hasher.finalize().into()
 }
 
@@ -1306,6 +1333,10 @@ pub fn validate_recursive_effect_summary_shape_v1(
         &summary.toolchain_lock_hash,
         "summary toolchain_lock_hash zero",
     )?;
+    require_nonzero_root(
+        &summary.execution_context_hash,
+        "summary execution_context_hash zero",
+    )?;
     Ok(())
 }
 
@@ -1387,6 +1418,11 @@ fn validate_recursive_statement_v1(
             "recursive proof_profile unsupported",
         ));
     }
+    if statement.aggregation_scope != RECURSIVE_AGGREGATION_SCOPE_SINGLE_BLOCK_V2 {
+        return Err(TransitionError::Unsupported(
+            "recursive aggregation_scope unsupported",
+        ));
+    }
     if statement.cross_shard_mode != RECURSIVE_STRICT_CROSS_SHARD_MODE_V1 {
         return Err(TransitionError::Unsupported(
             "recursive cross_shard_mode unsupported",
@@ -1428,6 +1464,10 @@ fn validate_recursive_statement_v1(
     require_nonzero_root(
         &statement.data_availability_root,
         "recursive data_availability_root zero",
+    )?;
+    require_nonzero_root(
+        &statement.execution_context_hash,
+        "recursive execution_context_hash zero",
     )?;
     if statement.expected_child_count == 0 {
         return Err(TransitionError::InvalidInput(
@@ -1542,6 +1582,11 @@ fn validate_child_effect_v1(
     }
     if summary.epoch_id != statement.epoch_id {
         return Err(TransitionError::InvalidInput("child epoch_id mismatch"));
+    }
+    if summary.execution_context_hash != statement.execution_context_hash {
+        return Err(TransitionError::InvalidInput(
+            "child execution_context_hash mismatch",
+        ));
     }
     if summary.public_policy_hash != statement.public_policy_hash {
         return Err(TransitionError::InvalidInput("child policy hash mismatch"));
@@ -1936,6 +1981,7 @@ mod tests {
             dependency_lock_hash: h(12),
             toolchain_lock_hash: h(13),
             spot_input: StateProofInputV1 {
+                execution_context_hash: [0xEC; 32],
                 state_hash: app_hash,
                 block_timestamp: 1,
                 pre_app_hash_present: true,
@@ -2035,6 +2081,7 @@ mod tests {
             dependency_lock_hash: h(12),
             toolchain_lock_hash: h(13),
             zusd_input: ZusdTransitionInputV1 {
+                execution_context_hash: [0xEC; 32],
                 state_hash: post_app_hash,
                 chain_id: "tau-test".to_string(),
                 pre_app_hash_present: true,
@@ -2092,6 +2139,7 @@ mod tests {
             dependency_lock_hash: h(12),
             toolchain_lock_hash: h(13),
             perps_input: PerpsNpTransitionInputV1 {
+                execution_context_hash: [0xEC; 32],
                 state_hash: post_app_hash,
                 chain_id: "tau-test".to_string(),
                 pre_app_hash_present: true,
@@ -2169,6 +2217,7 @@ mod tests {
         let rejected: Vec<[u8; 32]> = Vec::new();
         let rejected_root = recursive_receipt_ids_root_v1(&rejected).unwrap();
         let summary = RecursiveEffectSummaryV1 {
+            execution_context_hash: [0xEC; 32],
             summary_version: RECURSIVE_EFFECT_SUMMARY_VERSION_V1,
             lane_id: lane.to_string(),
             lane_kind: "spot".to_string(),
@@ -2261,11 +2310,13 @@ mod tests {
         .unwrap();
         RecursiveCompositionInputV1 {
             statement: RecursiveCompositionStatementV1 {
+                execution_context_hash: [0xEC; 32],
                 domain_separator: RECURSIVE_DOMAIN_SEPARATOR_V1.to_string(),
                 schema_version: RECURSIVE_STATEMENT_VERSION_V1,
                 chain_id: "tau-test".to_string(),
                 epoch_id: 7,
                 proof_profile: RECURSIVE_EPOCH_PROFILE_V1.to_string(),
+                aggregation_scope: RECURSIVE_AGGREGATION_SCOPE_SINGLE_BLOCK_V2.to_string(),
                 verifier_set_root: recursive_verifier_set_root_v1(&verifier_ids).unwrap(),
                 allowed_authority_roots_root: recursive_authority_set_root_v1(&authority_roots)
                     .unwrap(),
@@ -2358,6 +2409,38 @@ mod tests {
             input.statement.expected_post_state_root
         );
         assert_eq!(journal.verifier_set_root, input.statement.verifier_set_root);
+        assert_eq!(
+            journal.execution_context_hash,
+            input.statement.execution_context_hash
+        );
+    }
+
+    #[test]
+    fn recursive_composition_rejects_missing_execution_context() {
+        let mut input = valid_input();
+        input.statement.execution_context_hash = [0u8; 32];
+
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&input),
+            Err(TransitionError::InvalidInput(
+                "recursive execution_context_hash zero"
+            ))
+        ));
+    }
+
+    #[test]
+    fn recursive_composition_rejects_child_replayed_under_different_context() {
+        let mut input = valid_input();
+        input.children[0].summary.execution_context_hash = h(99);
+        input.children[0].descriptor.child_effect_summary_hash =
+            recursive_effect_summary_hash_v1(&input.children[0].summary);
+
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&input),
+            Err(TransitionError::InvalidInput(
+                "child execution_context_hash mismatch"
+            ))
+        ));
     }
 
     #[test]
@@ -2383,6 +2466,19 @@ mod tests {
             compose_recursive_epoch_journal_v1(&input),
             Err(TransitionError::Unsupported(
                 "recursive proof_profile unsupported"
+            ))
+        ));
+    }
+
+    #[test]
+    fn recursive_composition_rejects_multi_block_epoch_scope() {
+        let mut input = valid_input();
+        input.statement.aggregation_scope = "ordered_epoch_range".to_string();
+
+        assert!(matches!(
+            compose_recursive_epoch_journal_v1(&input),
+            Err(TransitionError::Unsupported(
+                "recursive aggregation_scope unsupported"
             ))
         ));
     }
@@ -2476,11 +2572,13 @@ mod tests {
         .unwrap();
         let input = RecursiveCompositionInputV1 {
             statement: RecursiveCompositionStatementV1 {
+                execution_context_hash: [0xEC; 32],
                 domain_separator: RECURSIVE_DOMAIN_SEPARATOR_V1.to_string(),
                 schema_version: RECURSIVE_STATEMENT_VERSION_V1,
                 chain_id: "tau-test".to_string(),
                 epoch_id: 7,
                 proof_profile: RECURSIVE_EPOCH_PROFILE_V1.to_string(),
+                aggregation_scope: RECURSIVE_AGGREGATION_SCOPE_SINGLE_BLOCK_V2.to_string(),
                 verifier_set_root: recursive_verifier_set_root_v1(&verifier_ids).unwrap(),
                 allowed_authority_roots_root: recursive_authority_set_root_v1(&authority_roots)
                     .unwrap(),
@@ -2819,6 +2917,18 @@ mod tests {
     }
 
     #[test]
+    fn zusd_recursive_leaf_rejects_wrapper_chain_substitution() {
+        let mut input = zusd_leaf_input();
+        input.chain_id = "substituted-chain".to_string();
+        assert!(matches!(
+            compose_zusd_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "zUSD recursive leaf chain_id mismatch"
+            ))
+        ));
+    }
+
+    #[test]
     fn perps_np_recursive_leaf_derives_summary_from_checked_transition() {
         let input = perps_leaf_input();
         let journal = execute_perps_np_transition_v1(input.perps_input.clone()).unwrap();
@@ -2883,6 +2993,7 @@ mod tests {
             dependency_lock_hash: h(12),
             toolchain_lock_hash: h(13),
             perps_input: PerpsNpTransitionInputV1 {
+                execution_context_hash: [0xEC; 32],
                 state_hash: post_app_hash,
                 chain_id: "tau-test".to_string(),
                 pre_app_hash_present: true,
@@ -2934,6 +3045,7 @@ mod tests {
             dependency_lock_hash: h(12),
             toolchain_lock_hash: h(13),
             perps_input: PerpsNpTransitionInputV1 {
+                execution_context_hash: [0xEC; 32],
                 state_hash: post_app_hash,
                 chain_id: "tau-test".to_string(),
                 pre_app_hash_present: true,
@@ -2985,6 +3097,7 @@ mod tests {
             dependency_lock_hash: h(12),
             toolchain_lock_hash: h(13),
             perps_input: PerpsNpTransitionInputV1 {
+                execution_context_hash: [0xEC; 32],
                 state_hash: post_app_hash,
                 chain_id: "tau-test".to_string(),
                 pre_app_hash_present: true,
@@ -3035,6 +3148,18 @@ mod tests {
             compose_perps_np_recursive_leaf_summary_v1(input),
             Err(TransitionError::InvalidInput(
                 "perps NP recursive leaf state_hash must equal post_app_hash"
+            ))
+        ));
+    }
+
+    #[test]
+    fn perps_np_recursive_leaf_rejects_wrapper_chain_substitution() {
+        let mut input = perps_leaf_input();
+        input.chain_id = "substituted-chain".to_string();
+        assert!(matches!(
+            compose_perps_np_recursive_leaf_summary_v1(input),
+            Err(TransitionError::InvalidInput(
+                "perps NP recursive leaf chain_id mismatch"
             ))
         ));
     }

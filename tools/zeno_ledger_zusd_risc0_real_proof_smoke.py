@@ -329,6 +329,7 @@ def _generate_request(name: str, case_input: dict[str, Any]) -> dict[str, Any]:
         "chain_id": CHAIN_ID,
         "context": {
             "chain_id": CHAIN_ID,
+            "execution_context_hash": _hex(f"{name}:execution_context"),
             "app_hash_pre": case_input["pre_app_hash"],
             "zusd_state_pre": case_input["pre_state"],
         },
@@ -367,8 +368,19 @@ def _run_cli(*, repo: Path, request: dict[str, Any], target_dir: Path, timeout: 
     cli_bin = target_dir / "release" / "tau-state-proof-risc0-cli"
     if not cli_bin.exists():
         return 2, "", f"missing built RISC0 CLI: {cli_bin}"
+    command = [str(cli_bin)]
+    if request.get("schema") == "tau_state_proof_verify":
+        context = request.get("context")
+        if not isinstance(context, dict):
+            return 2, "", "verify context must be an object"
+        expected_context_hash = context.get("execution_context_hash")
+        if not isinstance(expected_context_hash, str) or not expected_context_hash:
+            return 2, "", "verify execution_context_hash missing"
+        command.extend(
+            ["--expected-execution-context-hash", expected_context_hash]
+        )
     proc = subprocess.run(
-        [str(cli_bin)],
+        command,
         cwd=repo,
         env=env,
         input=json.dumps(request, separators=(",", ":")),
@@ -402,6 +414,7 @@ def _verify(
 ) -> dict[str, Any]:
     context = {
         "chain_id": expected["chain_id"],
+        "execution_context_hash": expected["execution_context_hash"],
         "app_hash_pre": expected["pre_app_hash"],
         "operation_hash": expected["operation_hash"],
         "state_delta_hash": expected["state_delta_hash"],
@@ -452,6 +465,7 @@ def _assert_verify_rejects(
 
 def _expected_from_meta(meta: dict[str, Any]) -> dict[str, Any]:
     return {
+        "execution_context_hash": meta["execution_context_hash"],
         "chain_id": meta["chain_id"],
         "pre_app_hash": meta["pre_app_hash"],
         "post_app_hash": meta["post_app_hash"],

@@ -8,7 +8,10 @@ use core::cmp::Ordering;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{RecursiveCompositionInputV1, StateProofInputV1, TransitionError, JOURNAL_VERSION};
+use crate::{
+    validate_execution_context_hash_v1, RecursiveCompositionInputV1, StateProofInputV1,
+    TransitionError, JOURNAL_VERSION,
+};
 
 pub const PROOF_TYPE_PERPS_NP: &str = "risc0.zenodex_perps_np_transition.v1";
 pub const PROOF_TYPE_ZUSD: &str = "risc0.zenodex_zusd_transition.v1";
@@ -198,6 +201,7 @@ pub struct PerpsNpTransitionInputV1 {
     pub actions: Vec<PerpsNpActionV1>,
     pub expected_post_app_hash: [u8; 32],
     pub risc0_image_id: [u32; 8],
+    pub execution_context_hash: [u8; 32],
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -221,6 +225,7 @@ pub struct PerpsNpTransitionJournalV1 {
     pub total_collateral_e8: i128,
     pub funding_residual_e8: i128,
     pub matched_base_volume: i128,
+    pub execution_context_hash: [u8; 32],
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -282,6 +287,7 @@ pub struct ZusdTransitionInputV1 {
     pub operation: ZusdOperationV1,
     pub expected_post_app_hash: [u8; 32],
     pub risc0_image_id: [u32; 8],
+    pub execution_context_hash: [u8; 32],
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -303,11 +309,13 @@ pub struct ZusdTransitionJournalV1 {
     pub minted_zusd_e8: u128,
     pub collateral_value_e8: u128,
     pub mcr_bps: u32,
+    pub execution_context_hash: [u8; 32],
 }
 
 pub fn execute_perps_np_transition_v1(
     input: PerpsNpTransitionInputV1,
 ) -> Result<PerpsNpTransitionJournalV1, TransitionError> {
+    validate_execution_context_hash_v1(&input.execution_context_hash)?;
     if input.chain_id.is_empty() {
         return Err(TransitionError::InvalidInput("chain_id empty"));
     }
@@ -422,12 +430,14 @@ pub fn execute_perps_np_transition_v1(
         total_collateral_e8: state.total_collateral(),
         funding_residual_e8: funding_residual,
         matched_base_volume: matched_volume,
+        execution_context_hash: input.execution_context_hash,
     })
 }
 
 pub fn execute_zusd_transition_v1(
     input: ZusdTransitionInputV1,
 ) -> Result<ZusdTransitionJournalV1, TransitionError> {
+    validate_execution_context_hash_v1(&input.execution_context_hash)?;
     if input.chain_id.is_empty() {
         return Err(TransitionError::InvalidInput("chain_id empty"));
     }
@@ -466,6 +476,7 @@ pub fn execute_zusd_transition_v1(
         minted_zusd_e8,
         collateral_value_e8,
         mcr_bps,
+        execution_context_hash: input.execution_context_hash,
     })
 }
 
@@ -2591,6 +2602,7 @@ mod tests {
             perps_np_collateral_bindings_hash_v1(&actions).unwrap();
         let expected_oracle_binding_hash = perps_np_oracle_bindings_hash_v1(&actions).unwrap();
         let input = PerpsNpTransitionInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: H,
             chain_id: "devnet".to_string(),
             pre_app_hash_present: false,
@@ -2600,8 +2612,9 @@ mod tests {
             expected_post_app_hash: expected_post,
             risc0_image_id: IMAGE_ID,
         };
-        let journal = execute_perps_np_transition_v1(input).unwrap();
+        let journal = execute_perps_np_transition_v1(input.clone()).unwrap();
         assert_eq!(journal.proof_type, PROOF_TYPE_PERPS_NP);
+        assert_eq!(journal.execution_context_hash, input.execution_context_hash);
         assert_eq!(journal.participant_count, 5);
         assert_eq!(journal.net_position_base, 0);
         assert!(journal.matched_base_volume >= 5);
@@ -2610,6 +2623,15 @@ mod tests {
             expected_collateral_binding_hash
         );
         assert_eq!(journal.oracle_binding_hash, expected_oracle_binding_hash);
+
+        let mut missing_context = input;
+        missing_context.execution_context_hash = [0u8; 32];
+        assert!(matches!(
+            execute_perps_np_transition_v1(missing_context),
+            Err(TransitionError::InvalidInput(
+                "execution_context_hash all-zero"
+            ))
+        ));
     }
 
     #[test]
@@ -2670,6 +2692,7 @@ mod tests {
             },
         ];
         let input = PerpsNpTransitionInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: H,
             chain_id: "devnet".to_string(),
             pre_app_hash_present: false,
@@ -2700,6 +2723,7 @@ mod tests {
             },
         ];
         let input = PerpsNpTransitionInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: H,
             chain_id: "devnet".to_string(),
             pre_app_hash_present: false,
@@ -2943,6 +2967,7 @@ mod tests {
         let mut stale = oracle(100 * E8_I128);
         stale.observed_at = 20;
         let input = PerpsNpTransitionInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: H,
             chain_id: "devnet".to_string(),
             pre_app_hash_present: false,
@@ -2983,6 +3008,7 @@ mod tests {
         let expected_balance_root = state.balance_root_hash();
         let expected_vault_root = state.vault_root_hash();
         let input = ZusdTransitionInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: H,
             chain_id: "devnet".to_string(),
             pre_app_hash_present: false,
@@ -2992,17 +3018,28 @@ mod tests {
             expected_post_app_hash: expected_post,
             risc0_image_id: IMAGE_ID,
         };
-        let journal = execute_zusd_transition_v1(input).unwrap();
+        let journal = execute_zusd_transition_v1(input.clone()).unwrap();
         assert_eq!(journal.proof_type, PROOF_TYPE_ZUSD);
+        assert_eq!(journal.execution_context_hash, input.execution_context_hash);
         assert_eq!(journal.minted_zusd_e8, 1_000 * E8_U128);
         assert_eq!(journal.mcr_bps, 11_000);
         assert_eq!(journal.zusd_balance_root_hash, expected_balance_root);
         assert_eq!(journal.zusd_vault_root_hash, expected_vault_root);
+
+        let mut missing_context = input;
+        missing_context.execution_context_hash = [0u8; 32];
+        assert!(matches!(
+            execute_zusd_transition_v1(missing_context),
+            Err(TransitionError::InvalidInput(
+                "execution_context_hash all-zero"
+            ))
+        ));
     }
 
     #[test]
     fn zusd_rejects_mcr_violation() {
         let input = ZusdTransitionInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: H,
             chain_id: "devnet".to_string(),
             pre_app_hash_present: false,

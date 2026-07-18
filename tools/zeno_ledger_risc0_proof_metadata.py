@@ -86,6 +86,13 @@ def _require_u32(obj: Mapping[str, Any], key: str) -> int:
     return value
 
 
+def _require_optional_u32(obj: Mapping[str, Any], key: str) -> int | None:
+    value = obj.get(key)
+    if value is None:
+        return None
+    return _require_u32(obj, key)
+
+
 def _require_optional_str(obj: Mapping[str, Any], key: str) -> str | None:
     value = obj.get(key)
     if value is None:
@@ -141,6 +148,7 @@ def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, An
         raise TypeError("meta must be a JSON object")
     required_meta = {
         "risc0_image_id",
+        "execution_context_hash",
         "txs_commitment",
         "tx_execution_order_commitment",
         "ingress_commitment",
@@ -156,11 +164,26 @@ def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, An
         "shared_pool_frontier_signature_certificate_count",
         "shared_pool_frontier_signature_certificates_root",
     }
+    required_route_price_meta = {
+        "route_price_interval_count",
+        "route_price_intervals_root",
+        "route_price_interval_authority_root",
+        "route_price_interval_authority_policy_root",
+        "route_price_interval_max_width_bps",
+    }
     meta_keys = set(meta.keys())
-    if not required_meta.issubset(meta_keys) or not meta_keys.issubset(required_meta | optional_frontier_meta):
+    if not (required_meta | required_route_price_meta).issubset(
+        meta_keys
+    ) or not meta_keys.issubset(
+        required_meta | required_route_price_meta | optional_frontier_meta
+    ):
         raise ValueError("risc0 meta keys mismatch")
 
     image_id = _normalize_hex32(_require_str(meta, "risc0_image_id"), name="meta.risc0_image_id")
+    execution_context_hash = _normalize_hex32(
+        _require_str(meta, "execution_context_hash"),
+        name="meta.execution_context_hash",
+    )
     txs_commitment = _normalize_hex32(_require_str(meta, "txs_commitment"), name="meta.txs_commitment")
     tx_execution_order_commitment = _normalize_hex32(
         _require_str(meta, "tx_execution_order_commitment"),
@@ -188,6 +211,32 @@ def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, An
     protocol_fee_recipient_pubkey = _require_optional_str(meta, "protocol_fee_recipient_pubkey")
     if protocol_fee_share_bps > 0 and protocol_fee_recipient_pubkey is None:
         raise ValueError("meta.protocol_fee_recipient_pubkey required when share_bps > 0")
+    route_price_interval_count = _require_u32(meta, "route_price_interval_count")
+    route_price_intervals_root = _normalize_hex32(
+        _require_str(meta, "route_price_intervals_root"),
+        name="meta.route_price_intervals_root",
+    )
+    route_price_interval_authority_root = _normalize_hex32(
+        _require_str(meta, "route_price_interval_authority_root"),
+        name="meta.route_price_interval_authority_root",
+    )
+    route_price_interval_authority_policy_root = _normalize_hex32(
+        _require_str(meta, "route_price_interval_authority_policy_root"),
+        name="meta.route_price_interval_authority_policy_root",
+    )
+    route_price_interval_max_width_bps = _require_optional_u32(
+        meta,
+        "route_price_interval_max_width_bps",
+    )
+    if (
+        route_price_interval_max_width_bps is not None
+        and route_price_interval_max_width_bps > 10_000
+    ):
+        raise ValueError("meta.route_price_interval_max_width_bps must be <= 10000")
+    if route_price_interval_count > 0 and route_price_interval_max_width_bps is None:
+        raise ValueError(
+            "meta.route_price_interval_max_width_bps required when intervals exist"
+        )
     frontier_count, frontier_root = _frontier_signature_meta_from_risc0_meta(meta)
     return {
         "schema": TAU_STATE_PROOF_SCHEMA,
@@ -197,6 +246,7 @@ def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, An
         "proof": proof_b64,
         "meta": {
             "risc0_image_id": image_id,
+            "execution_context_hash": execution_context_hash,
             "txs_commitment": txs_commitment,
             "tx_execution_order_commitment": tx_execution_order_commitment,
             "ingress_commitment": ingress_commitment,
@@ -207,6 +257,17 @@ def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, An
             "post_app_hash": post_app_hash,
             "protocol_fee_share_bps": protocol_fee_share_bps,
             "protocol_fee_recipient_pubkey": protocol_fee_recipient_pubkey,
+            "route_price_interval_count": route_price_interval_count,
+            "route_price_intervals_root": route_price_intervals_root,
+            "route_price_interval_authority_root": (
+                route_price_interval_authority_root
+            ),
+            "route_price_interval_authority_policy_root": (
+                route_price_interval_authority_policy_root
+            ),
+            "route_price_interval_max_width_bps": (
+                route_price_interval_max_width_bps
+            ),
             "shared_pool_frontier_signature_certificate_count": frontier_count,
             "shared_pool_frontier_signature_certificates_root": frontier_root,
         },
@@ -221,6 +282,7 @@ def build_risc0_proof_metadata_v0(
     feature_suite_hash: str,
     dependency_lock_hash: str,
     toolchain_lock_hash: str,
+    expected_execution_context_hash: str,
 ) -> dict[str, Any]:
     """Convert a Risc0 Tau proof envelope into ZenoLedger proof metadata."""
 
@@ -228,9 +290,16 @@ def build_risc0_proof_metadata_v0(
     validate_header_v0(dict(header))
     meta = proof["meta"]
     assert isinstance(meta, Mapping)
+    trusted_execution_context_hash = _normalize_hex32(
+        expected_execution_context_hash,
+        name="expected_execution_context_hash",
+    )
+    if meta["execution_context_hash"] != trusted_execution_context_hash:
+        raise ValueError("risc0 execution_context_hash mismatch")
 
     public_input = {
         "proof_type": proof["proof_type"],
+        "execution_context_hash": trusted_execution_context_hash,
         "state_hash": proof["state_hash"],
         "txs_commitment": meta["txs_commitment"],
         "tx_execution_order_commitment": meta["tx_execution_order_commitment"],
@@ -243,6 +312,17 @@ def build_risc0_proof_metadata_v0(
         "post_app_hash": meta["post_app_hash"],
         "protocol_fee_share_bps": meta["protocol_fee_share_bps"],
         "protocol_fee_recipient_pubkey": meta["protocol_fee_recipient_pubkey"],
+        "route_price_interval_count": meta["route_price_interval_count"],
+        "route_price_intervals_root": meta["route_price_intervals_root"],
+        "route_price_interval_authority_root": (
+            meta["route_price_interval_authority_root"]
+        ),
+        "route_price_interval_authority_policy_root": (
+            meta["route_price_interval_authority_policy_root"]
+        ),
+        "route_price_interval_max_width_bps": (
+            meta["route_price_interval_max_width_bps"]
+        ),
         "shared_pool_frontier_signature_certificate_count": (
             meta["shared_pool_frontier_signature_certificate_count"]
         ),
@@ -251,7 +331,7 @@ def build_risc0_proof_metadata_v0(
         ),
     }
     journal = {
-        "journal_version": 1,
+        "journal_version": 2,
         **public_input,
     }
 
@@ -260,10 +340,13 @@ def build_risc0_proof_metadata_v0(
         height=int(header["height"]),
         proof_kind="risc0_zkvm_v0",
         program_id=f"risc0:{proof['proof_type']}:{meta['risc0_image_id']}",
-        verifier_id=f"risc0:receipt-verifier:v1:{proof['proof_type']}",
+        verifier_id=f"risc0:receipt-verifier:v2:{proof['proof_type']}",
         proof_commitment=hash_v0("risc0_tau_state_proof_envelope_v0", proof),
         public_input_hash=hash_v0("risc0_tau_state_proof_public_input_v0", public_input),
-        journal_hash=hash_v0("risc0_tau_state_proof_journal_v0", journal),
+        journal_hash=hash_v0(
+            "risc0_tau_state_proof_public_journal_projection_v1",
+            journal,
+        ),
         pre_state_root=str(header["pre_state_root"]),
         post_state_root=str(header["post_state_root"]),
         tx_root=str(header["tx_root"]),
@@ -276,7 +359,12 @@ def build_risc0_proof_metadata_v0(
     )
 
 
-def _run_risc0_verifier_cmd(*, command: Path, proof: Mapping[str, Any]) -> None:
+def _run_risc0_verifier_cmd(
+    *,
+    command: Path,
+    proof: Mapping[str, Any],
+    expected_execution_context_hash: str,
+) -> None:
     if not command.is_file():
         raise ValueError("risc0 verifier command missing")
     request = {
@@ -285,10 +373,17 @@ def _run_risc0_verifier_cmd(*, command: Path, proof: Mapping[str, Any]) -> None:
         "state_hash": proof["state_hash"],
         "proof": dict(proof),
         "tau_state": {"app_hash": proof["meta"]["post_app_hash"]},
-        "context": {"app_hash_pre": proof["meta"]["pre_app_hash"]},
+        "context": {
+            "app_hash_pre": proof["meta"]["pre_app_hash"],
+            "execution_context_hash": expected_execution_context_hash,
+        },
     }
     proc = subprocess.run(
-        [str(command)],
+        [
+            str(command),
+            "--expected-execution-context-hash",
+            expected_execution_context_hash,
+        ],
         input=json.dumps(request, sort_keys=True, separators=(",", ":")),
         text=True,
         capture_output=True,
@@ -396,6 +491,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--feature-suite-hash", default=ZERO_ROOT_V0)
     parser.add_argument("--dependency-lock-hash", default=ZERO_ROOT_V0)
     parser.add_argument(
+        "--expected-execution-context-hash",
+        required=True,
+        help="Consensus-reconstructed execution context hash, independent of the proof envelope.",
+    )
+    parser.add_argument(
         "--toolchain-lock-hash",
         help="Proof toolchain lock hash. Defaults to the local repo manifest hash.",
     )
@@ -447,6 +547,15 @@ def main(argv: list[str] | None = None) -> int:
             body_checked = True
 
         normalized_proof = _validate_risc0_tau_state_proof(proof)
+        expected_execution_context_hash = _normalize_hex32(
+            args.expected_execution_context_hash,
+            name="expected_execution_context_hash",
+        )
+        if (
+            normalized_proof["meta"]["execution_context_hash"]
+            != expected_execution_context_hash
+        ):
+            raise ValueError("risc0 execution_context_hash mismatch")
         body_tx_execution_order_commitment_checked = _validate_body_tx_execution_order_commitment_v0(
             body=body,
             proof=normalized_proof,
@@ -456,7 +565,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.require_risc0_verifier and args.risc0_verify_cmd is None:
             raise ValueError("--require-risc0-verifier requires --risc0-verify-cmd")
         if args.risc0_verify_cmd is not None:
-            _run_risc0_verifier_cmd(command=args.risc0_verify_cmd, proof=normalized_proof)
+            _run_risc0_verifier_cmd(
+                command=args.risc0_verify_cmd,
+                proof=normalized_proof,
+                expected_execution_context_hash=expected_execution_context_hash,
+            )
             risc0_verified = True
         if args.require_post_app_hash_header_app_hash:
             post_app_hash = normalized_proof["meta"]["post_app_hash"]
@@ -482,6 +595,7 @@ def main(argv: list[str] | None = None) -> int:
             feature_suite_hash=args.feature_suite_hash,
             dependency_lock_hash=args.dependency_lock_hash,
             toolchain_lock_hash=args.toolchain_lock_hash or proof_toolchain_lock_hash_v0(ROOT),
+            expected_execution_context_hash=expected_execution_context_hash,
         )
         metadata_hash = proof_metadata_hash_v0(metadata)
         header_bound = header["proof_journal_hash"] == metadata_hash

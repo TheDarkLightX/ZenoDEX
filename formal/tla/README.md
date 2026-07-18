@@ -13,6 +13,44 @@ This folder contains small, bounded TLA+ models for two different jobs:
 
 These models complement the repo’s safety invariants and mechanized math proofs.
 
+## Generic-token authority composition
+
+Files:
+
+- `formal/tla/GenericTokenAuthorityComposition.tla`
+- `formal/tla/GenericTokenAuthorityComposition.cfg`
+
+What it models:
+
+- exact per-asset registration and mint-actor binding;
+- wallet, pool, perps, pending-stake, and active-stake token locations;
+- mint, faucet mint, burn, transfer, and location moves;
+- private transaction staging followed by one checked commit or exact rejection;
+- a late-failure batch and an adversarial unbalanced candidate;
+- bounded nonce exhaustion without wraparound;
+- weak-fair resolution of every staged transaction.
+
+The checked safety properties include per-asset supply equality, immutable
+registration and authority, exact nonce deltas, other-asset and other-actor
+locality, unauthorized and unregistered rejection, reject-is-no-op, and the
+inability of an unbalanced staged candidate to commit. The test suite also
+removes the commit-time accounting guard and requires TLC to produce a
+counterexample, demonstrating that the guard is material to the claim.
+
+The finite quotient uses two registered assets, one unknown asset, two actors,
+`MaxSupply = 2`, and `MaxNonce = 2`. Transitions operate on one distinguished
+asset while requiring the other asset to remain unchanged; this removes a
+symmetric duplicate state space while retaining the cross-asset locality
+obligation.
+
+This model does not establish full `u32` arithmetic, parser or signature
+correctness, completeness of the runtime token-location projection,
+serialization or root binding, concurrent commit behavior, AMM or perps
+economics, staking reward correctness, canonical zUSD semantics, arbitrary
+batch length, or progress after nonce exhaustion. Lean covers unbounded local
+arithmetic obligations, and generated-reference/runtime tests cover selected
+implementation refinement claims.
+
 ## Perp epoch scheduler
 
 Files:

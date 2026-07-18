@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import copy
 import json
+from dataclasses import replace
 from typing import Any
 
+import src.integration.perps_wallet_api as perps_wallet_api
+import src.integration.zusd_monetary_wallet_api as monetary_api
 from src.core.dex import DexState
-from src.core.zusd import E8, ZUSDCommand, init_state, step
+from src.core.zusd import E8, ZUSDCommand, step
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 from src.integration.tau_net_client import (
@@ -14,12 +17,13 @@ from src.integration.tau_net_client import (
     build_signed_tau_transaction,
     sign_perp_op_for_engine,
 )
-from src.integration.zusd_monetary_bridge import ZUSDMonetaryState, zusd_monetary_state_to_obj
+from src.integration.zusd_monetary_bridge import (
+    ZUSDMonetaryConfig,
+    init_monetary_state,
+    zusd_monetary_state_to_obj,
+)
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
-import src.integration.perps_wallet_api as perps_wallet_api
-import src.integration.zusd_monetary_wallet_api as monetary_api
-
 
 CHAIN_ID = "tau-test-live-surface-network-chaos"
 ALICE_PRIVKEY = 82
@@ -41,20 +45,22 @@ def _zusd_ok(core: Any, tag: str, **kwargs: object) -> Any:
 
 
 def _zusd_app_state() -> dict[str, object]:
-    core = init_state()
+    monetary = init_monetary_state(ZUSDMonetaryConfig(chain_id=CHAIN_ID, oracle_pubkey=ORACLE))
+    core = monetary.core
     core = _zusd_ok(core, "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
     core = _zusd_ok(core, "deposit_collateral", amount_e8=20 * E8)
     return {
         "schema": "zenodex/tau_app_state/v1",
         "version": 1,
-        "dex_state": snapshot_from_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())).data,
+        "dex_state": snapshot_from_state(
+            DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+        ).data,
         "proof_mining": None,
         "zusd_monetary": zusd_monetary_state_to_obj(
-            ZUSDMonetaryState(
+            replace(
+                monetary,
                 core=core,
                 vault_owner_pubkey=ALICE,
-                sp_deposits_e8={},
-                sp_collateral_claims_e8={},
             )
         ),
     }
@@ -131,7 +137,9 @@ class _PacketLossMonetaryClient:
 
     def getappstate(self, *, full: bool = False) -> str:
         assert full is True
-        return json.dumps({"app_hash": "sha256:" + "11" * 32, "app_state": self.app_state}, sort_keys=True)
+        return json.dumps(
+            {"app_hash": "sha256:" + "11" * 32, "app_state": self.app_state}, sort_keys=True
+        )
 
     def get_sequence(self, sender_pubkey_hex: str) -> int:
         return 7 if sender_pubkey_hex == ALICE[2:] else 0
@@ -162,7 +170,9 @@ class _JitterPerpsClient:
 
     def getappstate(self, *, full: bool = False) -> str:
         assert full is True
-        return json.dumps({"app_hash": "sha256:" + "22" * 32, "app_state": self.app_state}, sort_keys=True)
+        return json.dumps(
+            {"app_hash": "sha256:" + "22" * 32, "app_state": self.app_state}, sort_keys=True
+        )
 
     def get_sequence(self, sender_pubkey_hex: str) -> int:
         return 9 if sender_pubkey_hex == ALICE[2:] else 0

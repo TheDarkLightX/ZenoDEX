@@ -26,6 +26,12 @@ from ..core.zusd import (
     init_multi_state,
     init_state,
 )
+from ..state.canonical import canonical_json_bytes
+from .zeno_oracle_authorization import (
+    RuntimeActionFacts,
+    check_critical_consumer_authorization,
+    semantic_hash,
+)
 from .zusd_oracle_contracts import (
     ZUSDCrossModuleOracleSyncContract,
     ZUSDOraclePendingGateContract,
@@ -39,12 +45,6 @@ from .zusd_oracle_recovery_lifecycle import (
     verify_zusd_oracle_recovery_lifecycle_packet_payload,
 )
 from .zusd_tau_gate import ZUSDTauGateConfig, step_multi_with_tau, step_with_tau
-from ..state.canonical import canonical_json_bytes
-from .zeno_oracle_authorization import (
-    RuntimeActionFacts,
-    check_critical_consumer_authorization,
-    semantic_hash,
-)
 
 MAX_POST_BODY: int = 65_536
 
@@ -176,7 +176,7 @@ def _planned_single_oracle_sync_target(*, state: ZUSDState, tag: str, args: Mapp
         return None
     if tag == "oracle_commit":
         if state.price_pending_e8 > 0:
-            return int(state.price_pending_e8), int(state.now_epoch)
+            return int(state.price_pending_e8), int(state.oracle_pending_report_epoch)
         return None
     return None
 
@@ -190,7 +190,7 @@ def _planned_multi_oracle_sync_target(*, state: ZUSDMultiState, tag: str, args: 
         return None
     if tag == "oracle_commit":
         if state.price_pending_e8 > 0:
-            return int(state.price_pending_e8), int(state.now_epoch)
+            return int(state.price_pending_e8), int(state.oracle_pending_report_epoch)
         return None
     return None
 
@@ -379,6 +379,7 @@ def _zusd_runtime_oracle_action_id(
         "price_e8": int(state.price_e8),
         "price_pending_e8": int(state.price_pending_e8),
         "oracle_last_update_epoch": int(state.oracle_last_update_epoch),
+        "oracle_pending_report_epoch": int(state.oracle_pending_report_epoch),
     }
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
@@ -539,6 +540,7 @@ def _zusd_critical_action_facts_hash(
             "mode": mode,
             "now_epoch": int(state.now_epoch),
             "oracle_last_update_epoch": int(state.oracle_last_update_epoch),
+            "oracle_pending_report_epoch": int(state.oracle_pending_report_epoch),
             "price_e8": int(state.price_e8),
             "price_pending_e8": int(state.price_pending_e8),
             "query_id": query_id,

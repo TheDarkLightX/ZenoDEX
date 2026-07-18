@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -17,7 +18,25 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.core.consensus_time import (
+    ClockPolicyScheduleV1,
+    ExecutionHeaderCoreV1,
+    ProofJournalBindingV1,
+    VerifiedExecutionClockV1,
+    clock_policy_schedule_hash_v1,
+    default_height_only_clock_schedule_v1,
+    proof_journal_binding_hash_v1,
+    verify_execution_clock_v1,
+    verify_execution_context_v1,
+)
 from src.core.dex import DexConfig, DexState
+from src.core.execution_effect_plan import (
+    CommittedEffectReferenceV1,
+    ExecutionEffectPlanV1,
+    NativeBalanceEffectV1,
+    NativeBalanceWriteV1,
+    execution_effect_plan_hash_v1,
+)
 from src.integration.dex_engine import DexEngineConfig
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0
@@ -37,16 +56,19 @@ from src.integration.zeno_ledger_tau_export import (
     CROSS_SHARD_POSTING_SUMMARY_FORBIDDEN_V0,
     CROSS_SHARD_POSTING_SUMMARY_REQUIRED_V0,
     CrossShardPostingSummaryBodyEvidenceV0,
-    infer_cross_shard_posting_summary_body_evidence_detail_v0,
     cross_shard_terminal_admission_set_hash_v0,
+    infer_cross_shard_posting_summary_body_evidence_detail_v0,
     validate_cross_shard_posting_summary_export_v0,
 )
 from src.integration.zeno_ledger_v0 import (
+    TAU_APP_STATE_SCHEMA_V1,
+    TAU_APP_STATE_SCHEMA_V2,
+    TAU_APP_STATE_VERSION_V1,
     apply_body_transactions_v0,
-    build_proof_metadata_v0,
-    build_tx_receipt_v0,
     build_checkpoint_v0,
     build_header_v0,
+    build_proof_metadata_v0,
+    build_tx_receipt_v0,
     canonical_body_root_v0,
     canonical_header_hash_v0,
     compute_app_hash_v0,
@@ -58,14 +80,14 @@ from src.integration.zeno_ledger_v0 import (
     hash_v0,
     proof_metadata_hash_v0,
     stable_error_code_v0,
-    TAU_APP_STATE_SCHEMA_V1,
-    TAU_APP_STATE_VERSION_V1,
     tx_hash_v0,
     validate_body_v0,
+    validate_header_chain_linkage_v0,
+    validate_header_v0,
     validate_proof_metadata_header_binding_v0,
 )
-from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 from src.state.balances import BalanceTable
+from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 from src.state.lp import LPTable
 
 ZERO_ROOT = "0x" + "00" * 32
@@ -198,7 +220,10 @@ def _load_cross_shard_writer_terminal_admissions_v0(
         raise ValueError("duplicate cross-shard terminal admission posting summary hash")
     sorted_admissions = tuple(
         admission
-        for _, admission in sorted(zip(admission_hashes, admissions), key=lambda row: row[0])
+        for _, admission in sorted(
+            zip(admission_hashes, admissions, strict=True),
+            key=lambda row: row[0],
+        )
     )
     expected_hashes = tuple(
         str(posting_summary["posting_summary_hash"])
@@ -371,13 +396,40 @@ def _tau_app_state_obj_from_json_v0(app_state_json: str) -> dict[str, Any]:
         obj = json.loads(raw)
     if not isinstance(obj, Mapping):
         raise TypeError("tau app state must decode to a JSON object")
-    if obj.get("schema") == TAU_APP_STATE_SCHEMA_V1:
+    if obj.get("schema") in {
+        TAU_APP_STATE_SCHEMA_V1,
+        TAU_APP_STATE_SCHEMA_V2,
+    }:
         return dict(obj)
     return {
         "schema": TAU_APP_STATE_SCHEMA_V1,
         "version": TAU_APP_STATE_VERSION_V1,
         "dex_state": dict(obj),
     }
+
+
+def _tau_app_state_root_v0(app_state_json: str) -> str:
+    return compute_tau_app_state_app_root_v0(
+        _tau_app_state_obj_from_json_v0(app_state_json)
+    )
+
+
+def _validate_tau_adapter_app_hash_v0(
+    *,
+    app_state_json: str,
+    app_hash: str,
+) -> None:
+    state_obj = json.loads(app_state_json)
+    if not isinstance(state_obj, Mapping):
+        raise TypeError("Tau adapter app state must decode to a JSON object")
+    expected = "0x" + hashlib.sha256(canonical_json_bytes(state_obj)).hexdigest()
+    supplied = canonical_hex_fixed_allow_0x(
+        app_hash,
+        nbytes=32,
+        name="Tau adapter app_hash",
+    )
+    if supplied != expected:
+        raise ValueError("Tau adapter app_hash does not match canonical app state")
 
 
 def _preserve_tau_wrapper_lanes_v0(
@@ -917,7 +969,9 @@ def _execute_oracle_reporter_body_v0(
     body: dict[str, Any],
 ) -> tuple[str, str, dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
     from tools.zenodex_oracle_reporter_lifecycle import verify_lifecycle_trace
-    from tools.zenodex_oracle_reporter_token_settlement_replay import verify_reporter_token_settlement
+    from tools.zenodex_oracle_reporter_token_settlement_replay import (
+        verify_reporter_token_settlement,
+    )
 
     executed_body = json.loads(json.dumps(body))
     rejection_receipts = executed_body["evidence"]["rejection_receipts"]
@@ -1464,7 +1518,9 @@ def _execute_confidential_body_v0(
     confidential_state: Mapping[str, Any],
     body: dict[str, Any],
 ) -> tuple[str, str, dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
-    from src.core.confidential_extension_live_admission import validate_confidential_extension_live_admission
+    from src.core.confidential_extension_live_admission import (
+        validate_confidential_extension_live_admission,
+    )
     from src.core.fhe_sealed_bid_alpha import verify_fhe_sealed_bid_alpha_plan
 
     executed_body = json.loads(json.dumps(body))
@@ -1595,10 +1651,6 @@ def _execute_confidential_body_v0(
     return pre_state_root, post_state_root, working_state, executed_body, receipts
 
 
-def _root_from_app_hash(app_hash_hex: str) -> str:
-    return canonical_hex_fixed_allow_0x(app_hash_hex, nbytes=32, name="app_hash")
-
-
 @contextmanager
 def _temporary_env(updates: Mapping[str, str]):
     prior: dict[str, str | None] = {key: os.environ.get(key) for key in updates}
@@ -1614,6 +1666,63 @@ def _temporary_env(updates: Mapping[str, str]):
                 os.environ[key] = value
 
 
+def _apply_native_balance_patch_v1(
+    *,
+    working_balances: dict[str, int],
+    patch: object,
+) -> tuple[NativeBalanceWriteV1, ...]:
+    if patch is None:
+        return ()
+    if not isinstance(patch, Mapping):
+        raise TypeError("Tau native balance patch must be an object")
+    from src.integration.tau_native_identity import (
+        TauNativeBalanceSnapshot,
+        canonical_tau_pubkey,
+        tau_egress_pubkey,
+    )
+
+    before = TauNativeBalanceSnapshot.from_chain_balances(working_balances)
+    before_by_canonical = {
+        binding.canonical_pubkey: binding for binding in before.entries
+    }
+    pending: dict[str, tuple[str, NativeBalanceWriteV1]] = {}
+    for chain_key, amount in patch.items():
+        canonical = canonical_tau_pubkey(
+            chain_key,
+            name="Tau native balance patch key",
+        )
+        if canonical in pending:
+            raise ValueError("Tau native balance patch has canonical principal aliases")
+        prior = before_by_canonical.get(canonical)
+        if prior is None:
+            expected_chain_key = tau_egress_pubkey(
+                canonical,
+                name="Tau native balance patch key",
+            )
+            expected_amount = 0
+        else:
+            expected_chain_key = prior.chain_key
+            expected_amount = prior.balance
+        if chain_key != expected_chain_key:
+            raise ValueError(
+                "Tau native balance patch key does not use the existing canonical "
+                "chain spelling"
+            )
+        pending[canonical] = (
+            expected_chain_key,
+            NativeBalanceWriteV1(
+                pubkey=canonical,
+                expected_amount=expected_amount,
+                amount=amount,
+            ),
+        )
+    ordered = tuple(pending[key] for key in sorted(pending))
+    writes = tuple(write for _chain_key, write in ordered)
+    for chain_key, write in ordered:
+        working_balances[chain_key] = write.amount
+    return writes
+
+
 def _execute_tau_app_body_v0(
     *,
     app_state_json: str,
@@ -1624,11 +1733,22 @@ def _execute_tau_app_body_v0(
     require_intent_signatures: bool,
     allow_unsigned_intents_if_tx_sender_matches: bool = False,
     enable_faucet: bool,
-    default_block_timestamp: int,
-) -> tuple[str, str, str, dict[str, Any], list[dict[str, Any]]]:
+    block_time_seconds: int,
+    execution_clock: VerifiedExecutionClockV1,
+) -> tuple[
+    str,
+    str,
+    str,
+    dict[str, Any],
+    list[dict[str, Any]],
+    tuple[NativeBalanceEffectV1, ...],
+]:
     # Keep the Tau bridge optional. Sovereign ZenoLedger modes must not fail to
     # import just because a Tau adapter is absent or rejected upstream.
-    from src.integration.tau_testnet_dex_plugin import apply_app_tx
+    from src.integration.tau_testnet_dex_plugin import (
+        apply_app_tx,
+        derive_native_balance_patch_v1,
+    )
 
     env = {
         "TAU_DEX_ALLOW_MISSING_SETTLEMENT": "1" if allow_missing_settlement else "0",
@@ -1642,20 +1762,36 @@ def _execute_tau_app_body_v0(
     executed_body = json.loads(json.dumps(body))
     rejection_receipts = executed_body["evidence"]["rejection_receipts"]
     receipts: list[dict[str, Any]] = []
+    native_balance_effects: list[NativeBalanceEffectV1] = []
+    working_chain_balances = dict(chain_balances)
     height = int(executed_body["height"])
+    if type(block_time_seconds) is not int or block_time_seconds < 0:
+        raise ValueError("block_time_seconds must be a non-negative int")
+    # This value is derived from the candidate header. Transactions cannot
+    # override it. zUSD height and epoch remain bound to execution_clock.
+    pre_state_root = _tau_app_state_root_v0(app_state_json)
 
     with _temporary_env(env):
-        ok, canonical_state, pre_app_hash, _patch, err = apply_app_tx(
+        ok, canonical_state, _pre_sync_app_hash, pre_sync_patch, err = apply_app_tx(
             app_state_json=app_state_json,
-            chain_balances=chain_balances,
+            chain_balances=working_chain_balances,
             operations={},
             tx_sender_pubkey="",
-            block_timestamp=int(default_block_timestamp),
+            block_timestamp=block_time_seconds,
+            execution_clock=execution_clock,
         )
         if not ok:
             raise ValueError(err or "Tau app state pre-sync rejected")
+        if _apply_native_balance_patch_v1(
+            working_balances=working_chain_balances,
+            patch=pre_sync_patch,
+        ):
+            raise ValueError("Tau app pre-sync produced native balance effects")
+        _validate_tau_adapter_app_hash_v0(
+            app_state_json=canonical_state,
+            app_hash=_pre_sync_app_hash,
+        )
         app_state_json = canonical_state
-        pre_state_root = _root_from_app_hash(pre_app_hash)
 
         for index, tx in enumerate(executed_body["transactions"]):
             if not isinstance(tx, Mapping):
@@ -1663,7 +1799,20 @@ def _execute_tau_app_body_v0(
             tx_hash = tx_hash_v0(tx)
             operations = tx.get("operations")
             sender = tx.get("tx_sender_pubkey")
-            block_timestamp = tx.get("block_timestamp", default_block_timestamp)
+            if "block_timestamp" in tx:
+                receipt = build_tx_receipt_v0(
+                    tx_hash=tx_hash,
+                    height=height,
+                    index=index,
+                    accepted=False,
+                    error_code=stable_error_code_v0(
+                        f"transactions[{index}].block_timestamp is forbidden"
+                    ),
+                    state_changed=False,
+                )
+                rejection_receipts.append(receipt)
+                receipts.append(receipt)
+                continue
             if not isinstance(operations, Mapping):
                 receipt = build_tx_receipt_v0(
                     tx_hash=tx_hash,
@@ -1680,18 +1829,42 @@ def _execute_tau_app_body_v0(
                 sender = ""
             if not isinstance(sender, str):
                 raise TypeError(f"transactions[{index}].tx_sender_pubkey must be a string")
-            if not isinstance(block_timestamp, int) or isinstance(block_timestamp, bool) or block_timestamp < 0:
-                raise ValueError(f"transactions[{index}].block_timestamp must be a non-negative int")
 
             before_state_json = app_state_json
-            ok, next_state_json, _app_hash, _patch, err = apply_app_tx(
+            ok, next_state_json, next_app_hash, balance_patch, err = apply_app_tx(
                 app_state_json=app_state_json,
-                chain_balances=chain_balances,
+                chain_balances=working_chain_balances,
                 operations=dict(operations),
                 tx_sender_pubkey=sender,
-                block_timestamp=int(block_timestamp),
+                block_timestamp=block_time_seconds,
+                execution_clock=execution_clock,
             )
             if ok:
+                _validate_tau_adapter_app_hash_v0(
+                    app_state_json=next_state_json,
+                    app_hash=next_app_hash,
+                )
+                expected_balance_patch = derive_native_balance_patch_v1(
+                    chain_balances=working_chain_balances,
+                    app_state_json=next_state_json,
+                )
+                if balance_patch != expected_balance_patch:
+                    raise ValueError(
+                        "Tau native balance patch does not match the committed "
+                        "app-state transition"
+                    )
+                writes = _apply_native_balance_patch_v1(
+                    working_balances=working_chain_balances,
+                    patch=balance_patch,
+                )
+                if writes:
+                    native_balance_effects.append(
+                        NativeBalanceEffectV1(
+                            tx_index=index,
+                            tx_hash=tx_hash,
+                            writes=writes,
+                        )
+                    )
                 app_state_json = next_state_json
                 receipt = build_tx_receipt_v0(
                     tx_hash=tx_hash,
@@ -1702,6 +1875,8 @@ def _execute_tau_app_body_v0(
                     state_changed=app_state_json != before_state_json,
                 )
             else:
+                if balance_patch:
+                    raise ValueError("rejected Tau app transaction returned balance effects")
                 receipt = build_tx_receipt_v0(
                     tx_hash=tx_hash,
                     height=height,
@@ -1713,20 +1888,37 @@ def _execute_tau_app_body_v0(
                 rejection_receipts.append(receipt)
             receipts.append(receipt)
 
-        ok, canonical_state, post_app_hash, _patch, err = apply_app_tx(
+        ok, canonical_state, post_app_hash, post_sync_patch, err = apply_app_tx(
             app_state_json=app_state_json,
-            chain_balances=chain_balances,
+            chain_balances=working_chain_balances,
             operations={},
             tx_sender_pubkey="",
-            block_timestamp=int(default_block_timestamp),
+            block_timestamp=block_time_seconds,
+            execution_clock=execution_clock,
         )
         if not ok:
             raise ValueError(err or "Tau app state post-sync rejected")
+        if _apply_native_balance_patch_v1(
+            working_balances=working_chain_balances,
+            patch=post_sync_patch,
+        ):
+            raise ValueError("Tau app post-sync produced native balance effects")
+        _validate_tau_adapter_app_hash_v0(
+            app_state_json=canonical_state,
+            app_hash=post_app_hash,
+        )
         app_state_json = canonical_state
-        post_state_root = _root_from_app_hash(post_app_hash)
+        post_state_root = _tau_app_state_root_v0(app_state_json)
 
     validate_body_v0(executed_body)
-    return pre_state_root, post_state_root, app_state_json, executed_body, receipts
+    return (
+        pre_state_root,
+        post_state_root,
+        app_state_json,
+        executed_body,
+        receipts,
+        tuple(native_balance_effects),
+    )
 
 
 def build_local_block_v0(
@@ -1734,6 +1926,8 @@ def build_local_block_v0(
     body_path: Path,
     out_dir: Path,
     time_ms: int,
+    clock_policy_schedule_path: Path | None = None,
+    expected_clock_policy_schedule_hash: str | None = None,
     pre_snapshot_path: Path | None = None,
     tau_app_state_path: Path | None = None,
     zusd_state_path: Path | None = None,
@@ -1749,6 +1943,7 @@ def build_local_block_v0(
     tau_enable_faucet: bool = False,
     prev_header_path: Path | None = None,
     trusted_prev_header_hash: str = ZERO_ROOT,
+    trusted_prev_height: int | None = None,
     pre_state_root: str | None = None,
     post_state_root: str | None = None,
     sequencer_set_hash: str,
@@ -1760,6 +1955,7 @@ def build_local_block_v0(
     proof_commitment: str | None = None,
     proof_public_input_hash: str | None = None,
     proof_raw_journal_hash: str | None = None,
+    proof_execution_context_hash: str | None = None,
     conflict_schedule_hash: str = ZERO_ROOT,
     feature_suite_hash: str = ZERO_ROOT,
     dependency_lock_hash: str = ZERO_ROOT,
@@ -1769,6 +1965,7 @@ def build_local_block_v0(
     config_digest: str,
     module_versions_digest: str,
     signature_set_root: str,
+    finality_policy_hash: str = ZERO_ROOT,
     cross_shard_posting_summary_path: Path | None = None,
     cross_shard_posting_summary_paths: Sequence[Path] | None = None,
     cross_shard_terminal_admission_paths: Sequence[Path] | None = None,
@@ -1782,14 +1979,55 @@ def build_local_block_v0(
 ) -> dict[str, Any]:
     body = dict(_load_json_object(body_path))
     validate_body_v0(body)
+    if type(time_ms) is not int or time_ms < 0:
+        raise ValueError("time_ms must be a non-negative int")
+    block_time_seconds = time_ms // 1_000
     route_order_receipt_attached = apply_route_order_receipt_policy_to_body_v1(body)
     if route_order_receipt_attached:
         validate_body_v0(body)
     height = int(body["height"])
     chain_id = str(body["chain_id"])
+    prev_header: dict[str, Any] | None = None
+    if prev_header_path is not None:
+        prev_header = dict(_load_json_object(prev_header_path))
+        validate_header_v0(prev_header)
+        prev_header_hash = canonical_header_hash_v0(prev_header)
+        if prev_header["chain_id"] != chain_id:
+            raise ValueError("current chain_id must equal previous header chain_id")
+        if int(prev_header["height"]) == (1 << 64) - 1:
+            raise ValueError("candidate height overflows u64")
+        if height != int(prev_header["height"]) + 1:
+            raise ValueError("current height must immediately follow previous header height")
+    else:
+        prev_header_hash = canonical_hex_fixed_allow_0x(
+            trusted_prev_header_hash,
+            nbytes=32,
+            name="trusted_prev_header_hash",
+        )
+        if tau_app_state_path is not None and height != 0:
+            if trusted_prev_height is None:
+                raise ValueError(
+                    "Tau app execution above genesis requires --prev-header "
+                    "or --trusted-prev-height"
+                )
+            if prev_header_hash == ZERO_ROOT:
+                raise ValueError("trusted previous header hash must be non-zero")
+            if (
+                type(trusted_prev_height) is not int
+                or trusted_prev_height < 0
+                or trusted_prev_height >= (1 << 64) - 1
+            ):
+                raise ValueError("trusted previous height must be a valid u64 parent")
+            if height != trusted_prev_height + 1:
+                raise ValueError("current height must follow trusted previous height")
     receipts: list[dict[str, Any]] = []
     post_snapshot: dict[str, Any] | None = None
     pre_tau_app_state_obj: dict[str, Any] | None = None
+    mounted_execution_clock: VerifiedExecutionClockV1 | None = None
+    mounted_clock_schedule_hash: str | None = None
+    mounted_clock_schedule: ClockPolicyScheduleV1 | None = None
+    mounted_expected_schedule_hash: str | None = None
+    native_balance_effects: tuple[NativeBalanceEffectV1, ...] = ()
     cross_shard_application_results: list[Any] = []
     cross_shard_global_conservation_receipts: list[dict[str, Any]] = []
 
@@ -1846,9 +2084,62 @@ def build_local_block_v0(
 
     post_app_state_json: str | None = None
     if tau_app_state_path is not None:
+        if clock_policy_schedule_path is None:
+            clock_schedule = default_height_only_clock_schedule_v1(
+                chain_id=chain_id
+            )
+        else:
+            clock_schedule = ClockPolicyScheduleV1.from_obj(
+                _load_json_object(clock_policy_schedule_path)
+            )
+            if expected_clock_policy_schedule_hash is None:
+                raise ValueError(
+                    "custom --clock-policy-schedule requires "
+                    "--clock-policy-schedule-hash"
+                )
+        computed_schedule_hash = clock_policy_schedule_hash_v1(clock_schedule)
+        if expected_clock_policy_schedule_hash is None:
+            expected_schedule_hash = computed_schedule_hash
+        else:
+            expected_schedule_hash = canonical_hex_fixed_allow_0x(
+                expected_clock_policy_schedule_hash,
+                nbytes=32,
+                name="expected_clock_policy_schedule_hash",
+            )
+        execution_clock = verify_execution_clock_v1(
+            chain_id=chain_id,
+            height=height,
+            schedule=clock_schedule,
+            expected_schedule_hash=expected_schedule_hash,
+        )
+        if execution_clock.deployment_profile.immediate_clock_authority != (
+            "zeno_ledger_consensus"
+        ):
+            raise ValueError(
+                "Tau app execution requires a ZenoLedger clock authority profile"
+            )
+        mounted_execution_clock = execution_clock
+        mounted_clock_schedule_hash = computed_schedule_hash
+        mounted_clock_schedule = clock_schedule
+        mounted_expected_schedule_hash = expected_schedule_hash
         pre_app_state_json = tau_app_state_path.read_text(encoding="utf-8")
         pre_tau_app_state_obj = _tau_app_state_obj_from_json_v0(pre_app_state_json)
-        pre_state_root, post_state_root, post_app_state_json, body, receipts = _execute_tau_app_body_v0(
+        supplied_tau_pre_state_root = _tau_app_state_root_v0(pre_app_state_json)
+        if (
+            prev_header is not None
+            and supplied_tau_pre_state_root != prev_header["post_state_root"]
+        ):
+            raise ValueError(
+                "pre_state_root must equal previous header post_state_root"
+            )
+        (
+            pre_state_root,
+            post_state_root,
+            post_app_state_json,
+            body,
+            receipts,
+            native_balance_effects,
+        ) = _execute_tau_app_body_v0(
             app_state_json=pre_app_state_json,
             body=body,
             chain_balances=_load_chain_balances(tau_chain_balances_path),
@@ -1857,8 +2148,11 @@ def build_local_block_v0(
             require_intent_signatures=require_intent_signatures,
             allow_unsigned_intents_if_tx_sender_matches=allow_unsigned_intents_if_tx_sender_matches,
             enable_faucet=tau_enable_faucet,
-            default_block_timestamp=max(0, time_ms // 1000),
+            block_time_seconds=block_time_seconds,
+            execution_clock=execution_clock,
         )
+        if pre_state_root != supplied_tau_pre_state_root:
+            raise AssertionError("Tau pre-state root changed during execution setup")
 
     post_zusd_state: dict[str, Any] | None = None
     if zusd_state_path is not None:
@@ -1986,12 +2280,10 @@ def build_local_block_v0(
         raise ValueError("pre_state_root is required when --pre-snapshot is not supplied")
     if post_state_root is None:
         raise ValueError("post_state_root is required when --pre-snapshot is not supplied")
-
-    if prev_header_path is not None:
-        prev_header = dict(_load_json_object(prev_header_path))
-        prev_header_hash = canonical_header_hash_v0(prev_header)
-    else:
-        prev_header_hash = trusted_prev_header_hash
+    if prev_header is not None and pre_state_root != prev_header["post_state_root"]:
+        raise ValueError(
+            "pre_state_root must equal previous header post_state_root"
+        )
 
     evidence_root = compute_evidence_root_v0(body["evidence"])  # type: ignore[arg-type]
     ingress_root = compute_ingress_root_v0(body["ingress"])  # type: ignore[arg-type]
@@ -2008,7 +2300,85 @@ def build_local_block_v0(
         }
     )
 
+    committed_effect_references = tuple(
+        CommittedEffectReferenceV1(
+            effect_kind="cross_shard_ledger_effect",
+            effect_id=f"cross_shard:{index:08d}",
+            artifact_hash=str(effects_artifact["ledger_effects_hash"]),
+        )
+        for index, effects_artifact in enumerate(cross_shard_ledger_effects_artifacts)
+    )
+    effect_plan = ExecutionEffectPlanV1(
+        chain_id=chain_id,
+        height=height,
+        native_balance_effects=native_balance_effects,
+        committed_effect_references=committed_effect_references,
+    )
+    effect_plan_hash = execution_effect_plan_hash_v1(effect_plan)
+
+    verified_execution_context = None
+    execution_header_core = None
+    parent_authority_status: str | None = None
+    if mounted_execution_clock is not None:
+        if (
+            mounted_clock_schedule is None
+            or mounted_clock_schedule_hash is None
+            or mounted_expected_schedule_hash is None
+        ):
+            raise AssertionError("mounted execution clock lost its policy schedule")
+        if height == 0:
+            parent_header_hash = ZERO_ROOT
+            parent_authority_status = "genesis"
+        else:
+            parent_header_hash = prev_header_hash
+            if parent_header_hash == ZERO_ROOT:
+                raise ValueError("Tau app parent header hash must be non-zero")
+            parent_authority_status = (
+                "linked_header_unfinalized"
+                if prev_header is not None
+                else "trusted_hash_unverified"
+            )
+
+        execution_header_core = ExecutionHeaderCoreV1(
+            schema_version=1,
+            chain_id=chain_id,
+            consensus_domain_id=mounted_execution_clock.consensus_domain_id,
+            deployment_profile=mounted_execution_clock.deployment_profile,
+            height=height,
+            derived_epoch=mounted_execution_clock.derived_epoch,
+            parent_header_hash=parent_header_hash,
+            sequencer_or_validator_set_hash=sequencer_set_hash,
+            ingress_root=ingress_root,
+            tx_root=tx_root,
+            pre_state_root=pre_state_root,
+            post_state_root=post_state_root,
+            app_hash=app_hash,
+            effect_plan_hash=effect_plan_hash,
+            evidence_root=evidence_root,
+            body_root=body_root,
+            data_availability_root=data_availability_root,
+            clock_policy_hash=mounted_execution_clock.clock_policy_hash,
+            clock_policy_schedule_hash=mounted_clock_schedule_hash,
+            finality_policy_hash=canonical_hex_fixed_allow_0x(
+                finality_policy_hash,
+                nbytes=32,
+                name="finality_policy_hash",
+            ),
+            config_digest=config_digest,
+            module_versions_digest=module_versions_digest,
+        )
+        verified_execution_context = verify_execution_context_v1(
+            core=execution_header_core,
+            schedule=mounted_clock_schedule,
+            expected_schedule_hash=mounted_expected_schedule_hash,
+        )
+    elif proof_execution_context_hash is not None:
+        raise ValueError(
+            "--proof-execution-context-hash requires a mounted execution context"
+        )
+
     proof_metadata: dict[str, Any] | None = None
+    proof_journal_binding: ProofJournalBindingV1 | None = None
     if proof_kind is not None:
         if proof_journal_hash != ZERO_ROOT:
             raise ValueError("--proof-kind cannot be combined with --proof-journal-hash")
@@ -2020,11 +2390,23 @@ def build_local_block_v0(
                 ("--proof-commitment", proof_commitment),
                 ("--proof-public-input-hash", proof_public_input_hash),
                 ("--proof-raw-journal-hash", proof_raw_journal_hash),
+                ("--proof-execution-context-hash", proof_execution_context_hash),
             )
             if value is None
         ]
         if missing:
             raise ValueError(f"{', '.join(missing)} required when --proof-kind is supplied")
+        if verified_execution_context is None:
+            raise ValueError("--proof-kind requires a mounted execution context")
+        supplied_execution_context_hash = canonical_hex_fixed_allow_0x(
+            str(proof_execution_context_hash),
+            nbytes=32,
+            name="proof_execution_context_hash",
+        )
+        if supplied_execution_context_hash != (
+            verified_execution_context.execution_context_hash
+        ):
+            raise ValueError("proof execution_context_hash mismatch")
         resolved_toolchain_lock_hash = toolchain_lock_hash or proof_toolchain_lock_hash_v0(ROOT)
         proof_metadata = build_proof_metadata_v0(
             chain_id=chain_id,
@@ -2047,7 +2429,14 @@ def build_local_block_v0(
             tee_measurement_hash=tee_measurement_hash,
             child_receipts_root=child_receipts_root,
         )
-        proof_journal_hash = proof_metadata_hash_v0(proof_metadata)
+        proof_metadata_hash = proof_metadata_hash_v0(proof_metadata)
+        proof_journal_binding = ProofJournalBindingV1(
+            schema_version=1,
+            execution_context_hash=verified_execution_context.execution_context_hash,
+            proof_metadata_hash=proof_metadata_hash,
+            raw_journal_hash=str(proof_raw_journal_hash),
+        )
+        proof_journal_hash = proof_metadata_hash
 
     header = build_header_v0(
         chain_id=chain_id,
@@ -2068,6 +2457,8 @@ def build_local_block_v0(
         module_versions_digest=module_versions_digest,
         signature_set_root=signature_set_root,
     )
+    if prev_header is not None:
+        validate_header_chain_linkage_v0([prev_header, header])
     if proof_metadata is not None:
         validate_proof_metadata_header_binding_v0(proof_metadata, header)
     checkpoint = build_checkpoint_v0(header)
@@ -2078,6 +2469,10 @@ def build_local_block_v0(
     checkpoint_path = out_dir / "checkpoints" / f"{height}.json"
     receipts_path = out_dir / "receipts" / f"{height}.json"
     proof_metadata_path = out_dir / "proof_metadata" / f"{height}.json"
+    effect_plan_path = out_dir / "effect_plans" / f"{height}.json"
+    execution_header_core_path = out_dir / "execution_header_cores" / f"{height}.json"
+    execution_context_path = out_dir / "execution_contexts" / f"{height}.json"
+    proof_journal_binding_path = out_dir / "proof_journal_bindings" / f"{height}.json"
     cross_shard_artifact_count = len(cross_shard_posting_summaries)
     cross_shard_posting_summary_output_paths = tuple(
         _cross_shard_writer_output_path_v0(
@@ -2133,6 +2528,7 @@ def build_local_block_v0(
     _write_json(output_body_path, body)
     _write_json(checkpoint_path, checkpoint)
     _write_json(receipts_path, receipts)
+    _write_json(effect_plan_path, effect_plan.to_obj())
     for path, posting_summary in zip(
         cross_shard_posting_summary_output_paths,
         cross_shard_posting_summaries,
@@ -2159,6 +2555,11 @@ def build_local_block_v0(
         _write_json(path, receipt)
     if proof_metadata is not None:
         _write_json(proof_metadata_path, proof_metadata)
+    if verified_execution_context is not None and execution_header_core is not None:
+        _write_json(execution_header_core_path, execution_header_core.to_obj())
+        _write_json(execution_context_path, verified_execution_context.to_obj())
+    if proof_journal_binding is not None:
+        _write_json(proof_journal_binding_path, proof_journal_binding.to_obj())
     if post_snapshot is not None:
         _write_json(post_snapshot_path, post_snapshot)
     if post_app_state_json is not None:
@@ -2184,6 +2585,22 @@ def build_local_block_v0(
         "schema": REPORT_SCHEMA,
         "ok": True,
         "status": "accepted",
+        "status_scope": "local_execution_only",
+        "execution_status": "executed",
+        "proof_material_status": (
+            "metadata_bound_unverified"
+            if proof_metadata is not None
+            else (
+                "external_journal_hash_unverified"
+                if proof_journal_hash != ZERO_ROOT
+                else "not_supplied"
+            )
+        ),
+        "proof_verification_status": (
+            "not_performed" if proof_journal_hash != ZERO_ROOT else "not_applicable"
+        ),
+        "finality_status": "not_performed",
+        "production_security_claim": False,
         "chain_id": chain_id,
         "height": height,
         "header_hash": header_hash,
@@ -2191,12 +2608,37 @@ def build_local_block_v0(
         "body_path": str(output_body_path),
         "checkpoint_path": str(checkpoint_path),
         "receipts_path": str(receipts_path),
+        "effect_plan_path": str(effect_plan_path),
+        "effect_plan_hash": effect_plan_hash,
         "post_state_root": post_state_root,
         "app_hash": app_hash,
     }
+    if mounted_execution_clock is not None:
+        report["execution_clock"] = {
+            "chain_id": mounted_execution_clock.chain_id,
+            "consensus_domain_id": mounted_execution_clock.consensus_domain_id,
+            "deployment_profile": mounted_execution_clock.deployment_profile.value,
+            "height": mounted_execution_clock.height,
+            "derived_epoch": mounted_execution_clock.derived_epoch,
+            "clock_policy_hash": mounted_execution_clock.clock_policy_hash,
+            "clock_policy_schedule_hash": mounted_clock_schedule_hash,
+        }
+        report["execution_header_core_path"] = str(execution_header_core_path)
+        report["execution_context_path"] = str(execution_context_path)
+        report["execution_context_hash"] = (
+            verified_execution_context.execution_context_hash
+        )
+        report["parent_authority_status"] = parent_authority_status
     if proof_metadata is not None:
         report["proof_metadata_path"] = str(proof_metadata_path)
-        report["proof_journal_hash"] = proof_journal_hash
+        report["legacy_v0_proof_metadata_hash"] = proof_journal_hash
+    if proof_journal_binding is not None:
+        report["proof_journal_binding_path"] = str(proof_journal_binding_path)
+        report["v1_proof_journal_binding_hash"] = proof_journal_binding_hash_v1(
+            proof_journal_binding
+        )
+        report["proof_journal_binding_status"] = "unverified"
+        report["final_header_v1_status"] = "not_constructed_proof_unverified"
     if route_order_receipt_attached:
         report["body_tx_execution_order_commitment_receipt_attached"] = True
     if cross_shard_posting_summaries:
@@ -2324,6 +2766,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--body", required=True, type=Path)
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--time-ms", required=True, type=int)
+    parser.add_argument("--clock-policy-schedule", type=Path)
+    parser.add_argument("--clock-policy-schedule-hash")
     parser.add_argument("--pre-snapshot", type=Path)
     parser.add_argument("--tau-app-state", type=Path)
     parser.add_argument("--zusd-state", type=Path)
@@ -2339,6 +2783,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tau-enable-faucet", action="store_true")
     parser.add_argument("--prev-header", type=Path)
     parser.add_argument("--trusted-prev-header-hash", default=ZERO_ROOT)
+    parser.add_argument("--trusted-prev-height", type=int)
     parser.add_argument("--pre-state-root")
     parser.add_argument("--post-state-root")
     parser.add_argument("--sequencer-set-hash", required=True)
@@ -2350,6 +2795,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--proof-commitment")
     parser.add_argument("--proof-public-input-hash")
     parser.add_argument("--proof-raw-journal-hash")
+    parser.add_argument("--proof-execution-context-hash")
     parser.add_argument("--conflict-schedule-hash", default=ZERO_ROOT)
     parser.add_argument("--feature-suite-hash", default=ZERO_ROOT)
     parser.add_argument("--dependency-lock-hash", default=ZERO_ROOT)
@@ -2359,6 +2805,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config-digest", required=True)
     parser.add_argument("--module-versions-digest", required=True)
     parser.add_argument("--signature-set-root", default=ZERO_ROOT)
+    parser.add_argument("--finality-policy-hash", default=ZERO_ROOT)
     parser.add_argument("--cross-shard-posting-summary", type=Path, action="append")
     parser.add_argument("--cross-shard-terminal-admission", type=Path, action="append")
     parser.add_argument("--allow-missing-settlement", action="store_true")
@@ -2370,6 +2817,8 @@ def main(argv: list[str] | None = None) -> int:
             body_path=args.body,
             out_dir=args.out_dir,
             time_ms=args.time_ms,
+            clock_policy_schedule_path=args.clock_policy_schedule,
+            expected_clock_policy_schedule_hash=args.clock_policy_schedule_hash,
             pre_snapshot_path=args.pre_snapshot,
             tau_app_state_path=args.tau_app_state,
             zusd_state_path=args.zusd_state,
@@ -2385,6 +2834,7 @@ def main(argv: list[str] | None = None) -> int:
             tau_enable_faucet=args.tau_enable_faucet,
             prev_header_path=args.prev_header,
             trusted_prev_header_hash=args.trusted_prev_header_hash,
+            trusted_prev_height=args.trusted_prev_height,
             pre_state_root=args.pre_state_root,
             post_state_root=args.post_state_root,
             sequencer_set_hash=args.sequencer_set_hash,
@@ -2396,6 +2846,7 @@ def main(argv: list[str] | None = None) -> int:
             proof_commitment=args.proof_commitment,
             proof_public_input_hash=args.proof_public_input_hash,
             proof_raw_journal_hash=args.proof_raw_journal_hash,
+            proof_execution_context_hash=args.proof_execution_context_hash,
             conflict_schedule_hash=args.conflict_schedule_hash,
             feature_suite_hash=args.feature_suite_hash,
             dependency_lock_hash=args.dependency_lock_hash,
@@ -2405,6 +2856,7 @@ def main(argv: list[str] | None = None) -> int:
             config_digest=args.config_digest,
             module_versions_digest=args.module_versions_digest,
             signature_set_root=args.signature_set_root,
+            finality_policy_hash=args.finality_policy_hash,
             cross_shard_posting_summary_paths=args.cross_shard_posting_summary,
             cross_shard_terminal_admission_paths=args.cross_shard_terminal_admission,
             allow_missing_settlement=args.allow_missing_settlement,

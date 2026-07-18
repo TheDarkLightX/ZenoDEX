@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from tools.esso_gpu_semantics import ensure_esso_on_path
 
 
@@ -42,7 +43,13 @@ def _resolve_model_path(raw: str) -> Path:
 @pytest.mark.skipif(not _esso_available(), reason="ESSO interpreter is not installed")
 def test_ml_bva_v3_cases_replay_and_native_parity() -> None:
     from ESSO.ir.schema import CandidateIR  # type: ignore
-    from ESSO.kernel.interpreter import Command, StepError, prepare_step_context, step_ctx  # type: ignore
+    from ESSO.kernel.interpreter import (  # type: ignore
+        Command,
+        StepError,
+        prepare_step_context,
+        step_ctx,
+    )
+
     from src.core.perp_epoch import perp_epoch_isolated_v3_native_apply
 
     cases_path = Path("tests/kernels/data/perp_epoch_isolated_v3_ml_bva_cases.json")
@@ -95,3 +102,44 @@ def test_ml_bva_v3_cases_replay_and_native_parity() -> None:
         else:
             assert native_res.ok is False, f"row {i}: native expected failure"
             assert str(native_res.code) == str(expected.get("code", "")), f"row {i}: native error code mismatch"
+
+
+def test_v3_native_settlement_rejects_unusable_oracle_boundaries() -> None:
+    """Minimized regression for ML-BVA vector 112 and adjacent oracle edges."""
+
+    from src.core.perp_epoch import (
+        perp_epoch_isolated_v3_native_apply,
+        perp_epoch_isolated_v3_native_initial_state,
+    )
+
+    base = perp_epoch_isolated_v3_native_initial_state()
+    base.update(
+        {
+            "now_epoch": 5,
+            "epoch_phase": 1,
+            "clearing_price_seen": True,
+            "clearing_price_epoch": 5,
+            "clearing_price_e8": 100_000_000,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 4,
+            "index_price_e8": 100_000_000,
+            "max_oracle_staleness_epochs": 2,
+        }
+    )
+
+    cases = {
+        "unseen": {"oracle_seen": False},
+        "zero_index": {"index_price_e8": 0},
+        "stale_by_one": {"oracle_last_update_epoch": 2},
+    }
+    for patch in cases.values():
+        state = {**base, **patch}
+        result = perp_epoch_isolated_v3_native_apply(
+            state=state,
+            action="settle_epoch",
+            params={},
+        )
+        assert result.ok is False
+        assert result.code == "GuardFalse"
+        assert result.state is None
+        assert result.effects is None

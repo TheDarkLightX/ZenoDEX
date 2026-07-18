@@ -1,4 +1,4 @@
-"""Parity check: `src/core/perp_v2` vs a generated Python reference model for the YAML spec.
+"""Parity check: the v3 native adapter vs its generated Python reference.
 
 The reference model is generated from `src/kernels/dex/perp_epoch_isolated_v3.yaml`
 by an optional kernel-spec toolchain (validator/verifier/codegen) vendored under
@@ -16,17 +16,28 @@ the spec/codegen artifact.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import random
+import re
 import sys
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from src.core.perp_v2 import Action, ActionParams, initial_state, step
-from src.core.perp_v2.state import state_to_dict
+from src.core.perp_epoch import (
+    perp_epoch_isolated_v3_native_apply,
+    perp_epoch_isolated_v3_native_initial_state,
+)
+from src.core.perp_v2 import Action, ActionParams
+
+EXPECTED_MODEL_SOURCE_SHA256 = (
+    "1bf50a8693f7b83a846b9c6bacf918e604be3657e7138691b0a0aaf8fa3a8990"
+)
+EXPECTED_IR_HASH = (
+    "sha256:23a9b8ec0233f3514301be3d347c6f3623db0876559efc00d904d5b0786a0cfe"
+)
 
 
 def _import_generated_ref() -> Any:
@@ -47,18 +58,20 @@ def _import_generated_ref() -> Any:
 REF = _import_generated_ref()
 
 
-def _state_dict_for_ref(s) -> dict[str, Any]:
-    """Convert our state_to_dict to the ref model's encoding."""
-    d = state_to_dict(s)
-    ep = d.get("epoch_phase")
-    if isinstance(ep, str):
-        # Ref model uses int encoding: Open=0, PricePublished=1, Settled=2.
-        d["epoch_phase"] = {"Open": 0, "PricePublished": 1, "Settled": 2}[ep]
-    return d
+def test_v3_generated_reference_is_bound_to_current_esso_source() -> None:
+    root = Path(__file__).resolve().parents[3]
+    model = root / "src" / "kernels" / "dex" / "perp_epoch_isolated_v3.yaml"
+    reference = (
+        root / "generated" / "perp_python" / "perp_epoch_isolated_v3_ref.py"
+    )
+    source = reference.read_text(encoding="utf-8")
+    match = re.search(r"^IR hash: (sha256:[0-9a-f]{64})$", source, re.MULTILINE)
 
-
-def _to_ref_state(s) -> Any:
-    return REF.State(**_state_dict_for_ref(s))
+    assert hashlib.sha256(model.read_bytes()).hexdigest() == (
+        EXPECTED_MODEL_SOURCE_SHA256
+    )
+    assert match is not None
+    assert match.group(1) == EXPECTED_IR_HASH
 
 
 def _to_ref_cmd(params: ActionParams) -> Any:
@@ -94,23 +107,6 @@ def _to_ref_cmd(params: ActionParams) -> Any:
         raise AssertionError(f"unhandled action in parity test: {params.action}")
 
     return REF.Command(tag=tag, args=args)
-
-
-def _effect_as_dict(our_effect) -> dict[str, Any]:
-    assert our_effect is not None
-    return {
-        "event": our_effect.event.value,
-        "oracle_fresh": bool(our_effect.oracle_fresh),
-        "notional_quote": int(our_effect.notional_quote),
-        "effective_maint_bps": int(our_effect.effective_maint_bps),
-        "maint_req_quote": int(our_effect.maint_req_quote),
-        "init_req_quote": int(our_effect.init_req_quote),
-        "margin_ok": bool(our_effect.margin_ok),
-        "liquidated": bool(our_effect.liquidated),
-        "collateral_after": int(our_effect.collateral_after),
-        "fee_pool_after": int(our_effect.fee_pool_after),
-        "insurance_after": int(our_effect.insurance_after),
-    }
 
 
 def _random_action_params(rng: random.Random) -> ActionParams:
@@ -156,38 +152,55 @@ def _random_action_params(rng: random.Random) -> ActionParams:
     raise AssertionError("unreachable")
 
 
-class TestPerpV2ParityWithGeneratedRef:
+class TestPerpV3AdapterParityWithGeneratedRef:
     def test_initial_state_matches(self) -> None:
-        ours = initial_state()
+        ours = perp_epoch_isolated_v3_native_initial_state()
         ref = REF.init_state()
-        assert _state_dict_for_ref(ours) == vars(ref)
+        assert ours == vars(ref)
 
     def test_random_trace_parity(self) -> None:
         rng = random.Random(0)
-        ours = initial_state()
+        ours = perp_epoch_isolated_v3_native_initial_state()
         ref = REF.init_state()
 
         # Make sure oracle is seen early so we exercise more actions.
-        ours = replace(ours, oracle_seen=True, oracle_last_update_epoch=0, index_price_e8=100_000_000)
-        ref = replace(ref, oracle_seen=True, oracle_last_update_epoch=0, index_price_e8=100_000_000)
+        ours = {
+            **ours,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 0,
+            "index_price_e8": 100_000_000,
+        }
+        ref = REF.State(
+            **{
+                **vars(ref),
+                "oracle_seen": True,
+                "oracle_last_update_epoch": 0,
+                "index_price_e8": 100_000_000,
+            }
+        )
 
         for _ in range(500):
             params = _random_action_params(rng)
-            our_res = step(ours, params)
-            ref_res = REF.step(ref, _to_ref_cmd(params))
+            command = _to_ref_cmd(params)
+            our_res = perp_epoch_isolated_v3_native_apply(
+                state=ours,
+                action=command.tag,
+                params=command.args,
+            )
+            ref_res = REF.step(ref, command)
 
-            assert our_res.accepted == ref_res.ok
+            assert our_res.ok == ref_res.ok
 
-            if not our_res.accepted:
+            if not our_res.ok:
                 continue
 
             assert our_res.state is not None
-            assert our_res.effect is not None
+            assert our_res.effects is not None
             assert ref_res.state is not None
             assert ref_res.effects is not None
 
-            assert _state_dict_for_ref(our_res.state) == vars(ref_res.state)
-            assert _effect_as_dict(our_res.effect) == dict(ref_res.effects)
+            assert our_res.state == vars(ref_res.state)
+            assert our_res.effects == dict(ref_res.effects)
 
             ours = our_res.state
             ref = ref_res.state

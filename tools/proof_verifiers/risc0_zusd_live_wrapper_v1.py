@@ -105,7 +105,12 @@ def _operation_from_proof(proof: Mapping[str, Any], expected: Mapping[str, Any])
     return _mapping(operation, name="proof.operation")
 
 
-def _run_cli_verify(proof: Mapping[str, Any], expected: Mapping[str, Any], operation: Mapping[str, Any]) -> Mapping[str, Any]:
+def _run_cli_verify(
+    proof: Mapping[str, Any],
+    expected: Mapping[str, Any],
+    operation: Mapping[str, Any],
+    trusted_execution_context_hash: str,
+) -> Mapping[str, Any]:
     state_hash = _normalize_hex(_str(proof.get("state_hash"), name="proof.state_hash"))
     chain_id = _str(expected.get("chain_id"), name="proof.expected.chain_id")
     pre_app_hash = _required_hash(expected, "pre_app_hash")
@@ -119,6 +124,7 @@ def _run_cli_verify(proof: Mapping[str, Any], expected: Mapping[str, Any], opera
         "tau_state": {"app_hash": post_app_hash},
         "context": {
             "chain_id": chain_id,
+            "execution_context_hash": trusted_execution_context_hash,
             "app_hash_pre": pre_app_hash,
             "operation_hash": _required_hash(expected, "operation_hash"),
             "state_delta_hash": _required_hash(expected, "state_delta_hash"),
@@ -132,7 +138,11 @@ def _run_cli_verify(proof: Mapping[str, Any], expected: Mapping[str, Any], opera
     timeout = float(os.environ.get("RISC0_ZUSD_VERIFY_TIMEOUT_S", "60"))
     try:
         proc = subprocess.run(
-            _cli_cmd(),
+            _cli_cmd()
+            + [
+                "--expected-execution-context-hash",
+                trusted_execution_context_hash,
+            ],
             input=json.dumps(request, separators=(",", ":")),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -236,10 +246,23 @@ def main() -> None:
     _str(proof.get("proof"), name="proof.proof")
 
     expected = _expected_from_proof(proof)
+    trusted_execution_context_hash = _normalize_hex(
+        _str(
+            req.get("expected_execution_context_hash"),
+            name="expected_execution_context_hash",
+        )
+    )
+    if _required_hash(expected, "execution_context_hash") != trusted_execution_context_hash:
+        _fail("proof execution_context_hash mismatch")
     _bind_runtime_receipt(expected, receipt)
     operation = _operation_from_proof(proof, expected)
     _bind_operation_to_runtime_receipt(expected, operation)
-    verify_out = _run_cli_verify(proof, expected, operation)
+    verify_out = _run_cli_verify(
+        proof,
+        expected,
+        operation,
+        trusted_execution_context_hash,
+    )
     if verify_out.get("ok") is not True:
         _fail(f"RISC0 zUSD proof rejected: {verify_out.get('error') or 'unknown error'}")
 

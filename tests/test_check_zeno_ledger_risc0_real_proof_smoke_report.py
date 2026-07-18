@@ -8,6 +8,9 @@ import pytest
 
 from src.core.risc0_tx_execution_order import (
     build_tx_execution_order_certificate_v1,
+    route_price_interval_authority_policy_root_hex_v1,
+    route_price_interval_authority_root_hex_v1,
+    route_price_intervals_root_hex_v1,
 )
 from src.integration.risc0_route_body_projection import (
     project_route_body_transactions_to_proof_v1,
@@ -58,6 +61,20 @@ def _projection_contract_fields() -> dict[str, object]:
     }
 
 
+def _empty_route_price_meta() -> dict[str, object]:
+    return {
+        "route_price_interval_count": 0,
+        "route_price_intervals_root": route_price_intervals_root_hex_v1([]),
+        "route_price_interval_authority_root": (
+            route_price_interval_authority_root_hex_v1(None)
+        ),
+        "route_price_interval_authority_policy_root": (
+            route_price_interval_authority_policy_root_hex_v1(None)
+        ),
+        "route_price_interval_max_width_bps": None,
+    }
+
+
 def _case(name: str) -> dict[str, object]:
     return {
         "case": name,
@@ -68,6 +85,7 @@ def _case(name: str) -> dict[str, object]:
         "pre_app_hash": "" if name == "empty" else _hex(f"pre-{name}"),
         "txs_commitment": _hex(f"txs-{name}"),
         "risc0_image_id": _hex("image"),
+        "execution_context_hash": _hex(f"execution-context-{name}"),
         "proof_base64_len": 128,
         "proof_path": f"/tmp/{name}_tau_state_proof.json",
         "ledger_binding": {
@@ -176,6 +194,7 @@ def _artifact_report(tmp_path: Path) -> dict[str, object]:
         "proof": "cmlzYzAtcmVjZWlwdA==",
         "meta": {
             "risc0_image_id": _hex("image"),
+            "execution_context_hash": _hex("execution-context-empty"),
             "txs_commitment": _hex("txs-empty"),
             "tx_execution_order_commitment": _hex("tx-order-empty"),
             "ingress_commitment": _hex("ingress-empty"),
@@ -186,6 +205,7 @@ def _artifact_report(tmp_path: Path) -> dict[str, object]:
             "post_app_hash": post_state_root[2:],
             "protocol_fee_share_bps": 0,
             "protocol_fee_recipient_pubkey": None,
+            **_empty_route_price_meta(),
         },
     }
     body = {
@@ -251,6 +271,9 @@ def _artifact_report(tmp_path: Path) -> dict[str, object]:
         feature_suite_hash=_root("features"),
         dependency_lock_hash=_root("dependency"),
         toolchain_lock_hash=_root("toolchain"),
+        expected_execution_context_hash=str(
+            proof["meta"]["execution_context_hash"]
+        ),
     )
     proof_journal_hash = proof_metadata_hash_v0(metadata)
     header = {**header_unbound, "proof_journal_hash": proof_journal_hash}
@@ -415,6 +438,7 @@ def _route_order_proof(*, tx_execution_order_commitment: str) -> dict[str, objec
         "proof": "cmlzYzAtcmVjZWlwdA==",
         "meta": {
             "risc0_image_id": _hex("image"),
+            "execution_context_hash": _hex("route-order-execution-context"),
             "txs_commitment": _hex("route-order-txs"),
             "tx_execution_order_commitment": tx_execution_order_commitment,
             "ingress_commitment": _hex("route-order-ingress"),
@@ -425,6 +449,7 @@ def _route_order_proof(*, tx_execution_order_commitment: str) -> dict[str, objec
             "post_app_hash": post_state_root[2:],
             "protocol_fee_share_bps": 0,
             "protocol_fee_recipient_pubkey": None,
+            **_empty_route_price_meta(),
         },
     }
 

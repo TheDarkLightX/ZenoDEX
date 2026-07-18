@@ -137,6 +137,7 @@ class ZUSDState:
     now_epoch: int = 0
     oracle_seen: bool = False
     oracle_last_update_epoch: int = 0
+    oracle_pending_report_epoch: int = 0
     price_e8: int = 0
     price_pending_e8: int = 0
     max_oracle_staleness_epochs: int = 100
@@ -179,6 +180,7 @@ class ZUSDState:
         for name in (
             "now_epoch",
             "oracle_last_update_epoch",
+            "oracle_pending_report_epoch",
             "price_e8",
             "price_pending_e8",
             "max_oracle_staleness_epochs",
@@ -210,6 +212,8 @@ class ZUSDState:
             _check_bounded_nonneg(int(getattr(self, name)), name=name)
         if self.oracle_last_update_epoch > self.now_epoch:
             raise ValueError("oracle_last_update_epoch cannot be in the future")
+        if self.oracle_pending_report_epoch > self.now_epoch:
+            raise ValueError("oracle_pending_report_epoch cannot be in the future")
         if self.base_rate_last_epoch > self.now_epoch:
             raise ValueError("base_rate_last_epoch cannot be in the future")
         if self.oracle_seen:
@@ -218,7 +222,12 @@ class ZUSDState:
             if self.price_pending_e8 > self.price_e8:
                 raise ValueError("require price_pending_e8 <= price_e8")
         else:
-            if self.price_e8 != 0 or self.price_pending_e8 != 0 or self.oracle_last_update_epoch != 0:
+            if (
+                self.price_e8 != 0
+                or self.price_pending_e8 != 0
+                or self.oracle_last_update_epoch != 0
+                or self.oracle_pending_report_epoch != 0
+            ):
                 raise ValueError("oracle-not-seen state must be zeroed")
         if not (0 < self.mcr_bps <= self.ccr_bps):
             raise ValueError("require 0 < mcr_bps <= ccr_bps")
@@ -279,7 +288,12 @@ def check_invariants(state: ZUSDState) -> list[str]:
         failed.append("inv_oracle_seen_positive_prices")
     if state.oracle_seen and state.price_pending_e8 > state.price_e8:
         failed.append("inv_pending_le_active")
-    if not state.oracle_seen and (state.price_e8 != 0 or state.price_pending_e8 != 0 or state.oracle_last_update_epoch != 0):
+    if not state.oracle_seen and (
+        state.price_e8 != 0
+        or state.price_pending_e8 != 0
+        or state.oracle_last_update_epoch != 0
+        or state.oracle_pending_report_epoch != 0
+    ):
         failed.append("inv_oracle_unseen_zeroed")
     if (state.free_debt_e8 + state.sp_debt_e8) != state.debt_e8:
         failed.append("inv_supply_conservation")
@@ -331,6 +345,7 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
                     **state.__dict__,
                     "oracle_seen": True,
                     "oracle_last_update_epoch": state.now_epoch,
+                    "oracle_pending_report_epoch": state.now_epoch,
                     "price_e8": p,
                     "price_pending_e8": p,
                 }
@@ -345,14 +360,31 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
             p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
             if p > state.price_pending_e8:
                 return ZUSDStepResult(ok=False, error="oracle_report requires non-increasing pending price")
-            ns = ZUSDState(**{**state.__dict__, "price_pending_e8": p})
-            eff = {"event": "oracle_reported", "price_pending_e8": p}
+            ns = ZUSDState(
+                **{
+                    **state.__dict__,
+                    "price_pending_e8": p,
+                    "oracle_pending_report_epoch": state.now_epoch,
+                }
+            )
+            eff = {
+                "event": "oracle_reported",
+                "price_pending_e8": p,
+                "observed_epoch": state.now_epoch,
+            }
 
         elif tag == "oracle_commit":
             if not state.oracle_seen:
                 return ZUSDStepResult(ok=False, error="oracle not bootstrapped")
             if not _auth_ok(cmd.args):
                 return ZUSDStepResult(ok=False, error="oracle_commit requires auth_ok=true")
+            if not _is_oracle_fresh(
+                now_epoch=state.now_epoch,
+                last_update_epoch=state.oracle_pending_report_epoch,
+                max_staleness_epochs=state.max_oracle_staleness_epochs,
+                oracle_seen=state.oracle_seen,
+            ):
+                return ZUSDStepResult(ok=False, error="oracle_commit blocked: pending observation is stale")
             # Commit only when vault remains above MCR at pending price.
             if not _mcr_ok(
                 collateral_e8=state.collateral_e8,
@@ -365,10 +397,14 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
                 **{
                     **state.__dict__,
                     "price_e8": state.price_pending_e8,
-                    "oracle_last_update_epoch": state.now_epoch,
+                    "oracle_last_update_epoch": state.oracle_pending_report_epoch,
                 }
             )
-            eff = {"event": "oracle_committed", "price_e8": state.price_pending_e8}
+            eff = {
+                "event": "oracle_committed",
+                "price_e8": state.price_pending_e8,
+                "observed_epoch": state.oracle_pending_report_epoch,
+            }
 
         elif tag == "deposit_collateral":
             amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
@@ -573,6 +609,13 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
         elif tag == "liquidate":
             if not state.oracle_seen or state.price_pending_e8 <= 0:
                 return ZUSDStepResult(ok=False, error="liquidation requires initialized pending oracle price")
+            if not _is_oracle_fresh(
+                now_epoch=state.now_epoch,
+                last_update_epoch=state.oracle_pending_report_epoch,
+                max_staleness_epochs=state.max_oracle_staleness_epochs,
+                oracle_seen=state.oracle_seen,
+            ):
+                return ZUSDStepResult(ok=False, error="liquidation blocked: pending observation is stale")
             if state.debt_e8 <= 0:
                 return ZUSDStepResult(ok=False, error="no debt to liquidate")
             under_mcr = not _mcr_ok(
@@ -650,6 +693,7 @@ class ZUSDMultiState:
     now_epoch: int = 0
     oracle_seen: bool = False
     oracle_last_update_epoch: int = 0
+    oracle_pending_report_epoch: int = 0
     price_e8: int = 0
     price_pending_e8: int = 0
     max_oracle_staleness_epochs: int = 100
@@ -689,6 +733,7 @@ class ZUSDMultiState:
         for name in (
             "now_epoch",
             "oracle_last_update_epoch",
+            "oracle_pending_report_epoch",
             "price_e8",
             "price_pending_e8",
             "max_oracle_staleness_epochs",
@@ -715,6 +760,8 @@ class ZUSDMultiState:
             _check_bounded_nonneg(int(getattr(self, name)), name=name)
         if self.oracle_last_update_epoch > self.now_epoch:
             raise ValueError("oracle_last_update_epoch cannot be in the future")
+        if self.oracle_pending_report_epoch > self.now_epoch:
+            raise ValueError("oracle_pending_report_epoch cannot be in the future")
         if self.base_rate_last_epoch > self.now_epoch:
             raise ValueError("base_rate_last_epoch cannot be in the future")
         if self.oracle_seen:
@@ -723,7 +770,12 @@ class ZUSDMultiState:
             if self.price_pending_e8 > self.price_e8:
                 raise ValueError("require price_pending_e8 <= price_e8")
         else:
-            if self.price_e8 != 0 or self.price_pending_e8 != 0 or self.oracle_last_update_epoch != 0:
+            if (
+                self.price_e8 != 0
+                or self.price_pending_e8 != 0
+                or self.oracle_last_update_epoch != 0
+                or self.oracle_pending_report_epoch != 0
+            ):
                 raise ValueError("oracle-not-seen state must be zeroed")
         if not (0 < self.mcr_bps <= self.ccr_bps):
             raise ValueError("require 0 < mcr_bps <= ccr_bps")
@@ -807,7 +859,12 @@ def check_multi_invariants(state: ZUSDMultiState) -> list[str]:
         failed.append("inv_oracle_seen_positive_prices")
     if state.oracle_seen and state.price_pending_e8 > state.price_e8:
         failed.append("inv_pending_le_active")
-    if not state.oracle_seen and (state.price_e8 != 0 or state.price_pending_e8 != 0 or state.oracle_last_update_epoch != 0):
+    if not state.oracle_seen and (
+        state.price_e8 != 0
+        or state.price_pending_e8 != 0
+        or state.oracle_last_update_epoch != 0
+        or state.oracle_pending_report_epoch != 0
+    ):
         failed.append("inv_oracle_unseen_zeroed")
 
     td = _total_debt(state)
@@ -876,6 +933,7 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
                     **state.__dict__,
                     "oracle_seen": True,
                     "oracle_last_update_epoch": state.now_epoch,
+                    "oracle_pending_report_epoch": state.now_epoch,
                     "price_e8": p,
                     "price_pending_e8": p,
                 }
@@ -890,14 +948,31 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
             p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
             if p > state.price_pending_e8:
                 return ZUSDMultiStepResult(ok=False, error="oracle_report requires non-increasing pending price")
-            ns = ZUSDMultiState(**{**state.__dict__, "price_pending_e8": p})
-            eff = {"event": "oracle_reported", "price_pending_e8": p}
+            ns = ZUSDMultiState(
+                **{
+                    **state.__dict__,
+                    "price_pending_e8": p,
+                    "oracle_pending_report_epoch": state.now_epoch,
+                }
+            )
+            eff = {
+                "event": "oracle_reported",
+                "price_pending_e8": p,
+                "observed_epoch": state.now_epoch,
+            }
 
         elif tag == "oracle_commit":
             if not state.oracle_seen:
                 return ZUSDMultiStepResult(ok=False, error="oracle not bootstrapped")
             if not _auth_ok(cmd.args):
                 return ZUSDMultiStepResult(ok=False, error="oracle_commit requires auth_ok=true")
+            if not _is_oracle_fresh(
+                now_epoch=state.now_epoch,
+                last_update_epoch=state.oracle_pending_report_epoch,
+                max_staleness_epochs=state.max_oracle_staleness_epochs,
+                oracle_seen=state.oracle_seen,
+            ):
+                return ZUSDMultiStepResult(ok=False, error="oracle_commit blocked: pending observation is stale")
             mcr_pending = check_multi_oracle_commit_mcr(
                 price_pending_e8=state.price_pending_e8,
                 mcr_bps=state.mcr_bps,
@@ -914,10 +989,14 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
                 **{
                     **state.__dict__,
                     "price_e8": state.price_pending_e8,
-                    "oracle_last_update_epoch": state.now_epoch,
+                    "oracle_last_update_epoch": state.oracle_pending_report_epoch,
                 }
             )
-            eff = {"event": "oracle_committed", "price_e8": state.price_pending_e8}
+            eff = {
+                "event": "oracle_committed",
+                "price_e8": state.price_pending_e8,
+                "observed_epoch": state.oracle_pending_report_epoch,
+            }
 
         elif tag == "deposit_collateral":
             amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
@@ -1162,6 +1241,13 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
         elif tag == "liquidate":
             if not state.oracle_seen or state.price_pending_e8 <= 0:
                 return ZUSDMultiStepResult(ok=False, error="liquidation requires initialized pending oracle price")
+            if not _is_oracle_fresh(
+                now_epoch=state.now_epoch,
+                last_update_epoch=state.oracle_pending_report_epoch,
+                max_staleness_epochs=state.max_oracle_staleness_epochs,
+                oracle_seen=state.oracle_seen,
+            ):
+                return ZUSDMultiStepResult(ok=False, error="liquidation blocked: pending observation is stale")
             vid = _parse_vault_id(cmd.args)
             v = _get_vault(state, vid)
             if v.debt_e8 <= 0:

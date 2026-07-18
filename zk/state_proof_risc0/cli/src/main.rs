@@ -40,12 +40,12 @@ use tau_state_proof_risc0_shared::{
     ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE,
     PROOF_TYPE_PERPS_NP, PROOF_TYPE_RECURSIVE, PROOF_TYPE_RECURSIVE_PERPS_NP_LEAF,
     PROOF_TYPE_RECURSIVE_SPOT_LEAF, PROOF_TYPE_RECURSIVE_SUMMARY_LEAF,
-    PROOF_TYPE_RECURSIVE_ZUSD_LEAF, PROOF_TYPE_ZUSD, RECURSIVE_DOMAIN_SEPARATOR_V1,
-    RECURSIVE_EPOCH_PROFILE_V1, RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_PERPS_NP_LEAF_PROFILE_V1, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_SPOT_LEAF_PROFILE_V1, RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1, RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_ZUSD_LEAF_PROFILE_V1,
+    PROOF_TYPE_RECURSIVE_ZUSD_LEAF, PROOF_TYPE_ZUSD, RECURSIVE_AGGREGATION_SCOPE_SINGLE_BLOCK_V2,
+    RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_EPOCH_PROFILE_V1,
+    RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES, RECURSIVE_PERPS_NP_LEAF_PROFILE_V1,
+    RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES, RECURSIVE_SPOT_LEAF_PROFILE_V1,
+    RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES, RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
+    RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES, RECURSIVE_ZUSD_LEAF_PROFILE_V1,
 };
 
 #[derive(Clone, Copy)]
@@ -75,6 +75,8 @@ struct RouteTotals {
 }
 
 fn main() {
+    let trusted_expected_execution_context_hash =
+        parse_expected_execution_context_hash_arg().unwrap_or_else(|e| die(&e));
     let mut stdin = String::new();
     if std::io::stdin().read_to_string(&mut stdin).is_err() {
         eprintln!("failed to read stdin");
@@ -91,14 +93,48 @@ fn main() {
 
     let schema = req.get("schema").and_then(Value::as_str).unwrap_or("");
     match schema {
-        "tau_state_proof_request" => handle_generate(&req),
-        "tau_state_proof_verify" => handle_verify(&req),
-        "tau_state_proof_txs_commitment" => handle_txs_commitment(&req),
+        "tau_state_proof_request" => {
+            if trusted_expected_execution_context_hash.is_some() {
+                die("--expected-execution-context-hash is verify-only");
+            }
+            handle_generate(&req)
+        }
+        "tau_state_proof_verify" => handle_verify(
+            &req,
+            trusted_expected_execution_context_hash.unwrap_or_else(|| {
+                die("--expected-execution-context-hash is required for verification")
+            }),
+        ),
+        "tau_state_proof_txs_commitment" => {
+            if trusted_expected_execution_context_hash.is_some() {
+                die("--expected-execution-context-hash is verify-only");
+            }
+            handle_txs_commitment(&req)
+        }
         _ => {
             eprintln!("unexpected schema");
             std::process::exit(2);
         }
     }
+}
+
+fn parse_expected_execution_context_hash_arg() -> Result<Option<[u8; 32]>, String> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.is_empty() {
+        return Ok(None);
+    }
+    if args.len() != 2 || args[0] != "--expected-execution-context-hash" {
+        return Err(
+            "usage: tau-state-proof-risc0-cli [--expected-execution-context-hash HEX32]"
+                .to_string(),
+        );
+    }
+    let parsed = parse_hex32(&args[1])
+        .map_err(|e| format!("--expected-execution-context-hash invalid: {e}"))?;
+    if parsed == [0u8; 32] {
+        return Err("--expected-execution-context-hash all-zero".to_string());
+    }
+    Ok(Some(parsed))
 }
 
 fn handle_txs_commitment(req: &Value) {
@@ -188,6 +224,8 @@ fn handle_generate_spot(req: &Value) {
         die("context must be an object (required for risc0 proof)");
     }
     let context_obj = context.as_object().expect("checked object");
+    let execution_context_hash =
+        parse_execution_context_hash(context_obj).unwrap_or_else(|e| die(&e));
 
     let pre_app_state_json = context
         .get("app_state_pre")
@@ -242,6 +280,7 @@ fn handle_generate_spot(req: &Value) {
         parse_frontier_signature_certificates_context(context_obj).unwrap_or_else(|e| die(&e));
 
     let input = StateProofInputV1 {
+        execution_context_hash,
         state_hash,
         block_timestamp,
         pre_app_hash_present,
@@ -277,6 +316,10 @@ fn handle_generate_spot(req: &Value) {
     meta.insert(
         "risc0_image_id".to_string(),
         Value::String(hex_u32_words(TAU_STATE_PROOF_GUEST_ID)),
+    );
+    meta.insert(
+        "execution_context_hash".to_string(),
+        Value::String(hex_lower(&journal.execution_context_hash)),
     );
     meta.insert(
         "txs_commitment".to_string(),
@@ -387,6 +430,7 @@ fn handle_generate_perps_np(req: &Value) {
         die("context must be an object (required for perps np risc0 proof)");
     }
     let context = context.as_object().expect("checked object");
+    let execution_context_hash = parse_execution_context_hash(context).unwrap_or_else(|e| die(&e));
     let chain_id = chain_id_from_request(req, &Value::Object(context.clone()));
     let (pre_app_hash_present, pre_app_hash) = parse_pre_app_hash_context(context);
     let pre_state = parse_perps_pre_state(req, &Value::Object(context.clone()));
@@ -401,6 +445,7 @@ fn handle_generate_perps_np(req: &Value) {
     }
 
     let input = PerpsNpTransitionInputV1 {
+        execution_context_hash,
         state_hash,
         chain_id,
         pre_app_hash_present,
@@ -451,6 +496,7 @@ fn handle_generate_zusd(req: &Value) {
         die("context must be an object (required for zUSD risc0 proof)");
     }
     let context = context.as_object().expect("checked object");
+    let execution_context_hash = parse_execution_context_hash(context).unwrap_or_else(|e| die(&e));
     let chain_id = chain_id_from_request(req, &Value::Object(context.clone()));
     let (pre_app_hash_present, pre_app_hash) = parse_pre_app_hash_context(context);
     let pre_state = parse_zusd_pre_state(req, &Value::Object(context.clone()));
@@ -462,6 +508,7 @@ fn handle_generate_zusd(req: &Value) {
         .unwrap_or_else(|e| die(&format!("operation schema mismatch: {e}")));
 
     let input = ZusdTransitionInputV1 {
+        execution_context_hash,
         state_hash,
         chain_id,
         pre_app_hash_present,
@@ -797,15 +844,26 @@ fn handle_generate_recursive_summary_leaf(req: &Value) {
     write_json_stdout(&out);
 }
 
-fn handle_verify(req: &Value) {
-    let out = match try_verify(req) {
-        Ok(()) => json!({ "ok": true }),
-        Err(err) => json!({ "ok": false, "error": err }),
-    };
+fn handle_verify(req: &Value, trusted_expected_execution_context_hash: [u8; 32]) {
+    let (out, exit_code) =
+        verification_response(try_verify(req, trusted_expected_execution_context_hash));
     write_json_stdout(&out);
+    if exit_code != 0 {
+        std::process::exit(exit_code);
+    }
 }
 
-fn try_verify(req: &Value) -> Result<(), String> {
+fn verification_response(result: Result<(), String>) -> (Value, i32) {
+    match result {
+        Ok(()) => (json!({ "ok": true }), 0),
+        Err(err) => (json!({ "ok": false, "error": err }), 1),
+    }
+}
+
+fn try_verify(
+    req: &Value,
+    trusted_expected_execution_context_hash: [u8; 32],
+) -> Result<(), String> {
     if req.get("schema_version").and_then(Value::as_i64) != Some(1) {
         return Err("unexpected schema_version (expected tau_state_proof_verify v1)".into());
     }
@@ -827,25 +885,60 @@ fn try_verify(req: &Value) -> Result<(), String> {
         .and_then(Value::as_str)
         .unwrap_or("");
     if proof_type == PROOF_TYPE_PERPS_NP {
-        return try_verify_perps_np(req, proof, expected_state_hash);
+        return try_verify_perps_np(
+            req,
+            proof,
+            expected_state_hash,
+            trusted_expected_execution_context_hash,
+        );
     }
     if proof_type == PROOF_TYPE_ZUSD {
-        return try_verify_zusd(req, proof, expected_state_hash);
+        return try_verify_zusd(
+            req,
+            proof,
+            expected_state_hash,
+            trusted_expected_execution_context_hash,
+        );
     }
     if proof_type == PROOF_TYPE_RECURSIVE {
-        return try_verify_recursive(req, proof, expected_state_hash);
+        return try_verify_recursive(
+            req,
+            proof,
+            expected_state_hash,
+            trusted_expected_execution_context_hash,
+        );
     }
     if proof_type == PROOF_TYPE_RECURSIVE_PERPS_NP_LEAF {
-        return try_verify_recursive_perps_np_leaf(proof, expected_state_hash);
+        return try_verify_recursive_perps_np_leaf(
+            req,
+            proof,
+            expected_state_hash,
+            trusted_expected_execution_context_hash,
+        );
     }
     if proof_type == PROOF_TYPE_RECURSIVE_SPOT_LEAF {
-        return try_verify_recursive_spot_leaf(proof, expected_state_hash);
+        return try_verify_recursive_spot_leaf(
+            req,
+            proof,
+            expected_state_hash,
+            trusted_expected_execution_context_hash,
+        );
     }
     if proof_type == PROOF_TYPE_RECURSIVE_ZUSD_LEAF {
-        return try_verify_recursive_zusd_leaf(proof, expected_state_hash);
+        return try_verify_recursive_zusd_leaf(
+            req,
+            proof,
+            expected_state_hash,
+            trusted_expected_execution_context_hash,
+        );
     }
     if proof_type == PROOF_TYPE_RECURSIVE_SUMMARY_LEAF {
-        return try_verify_recursive_summary_leaf(proof, expected_state_hash);
+        return try_verify_recursive_summary_leaf(
+            req,
+            proof,
+            expected_state_hash,
+            trusted_expected_execution_context_hash,
+        );
     }
     if proof_type != PROOF_TYPE {
         return Err("unsupported proof_type".into());
@@ -872,6 +965,12 @@ fn try_verify(req: &Value) -> Result<(), String> {
     if journal.state_hash != expected_state_hash {
         return Err("journal.state_hash mismatch".into());
     }
+    verify_execution_context_binding(
+        req,
+        proof,
+        journal.execution_context_hash,
+        trusted_expected_execution_context_hash,
+    )?;
     check_spot_protocol_fee_bindings(req, proof, &journal)?;
     expect_meta_hash(
         proof,
@@ -981,6 +1080,7 @@ fn try_verify_perps_np(
     req: &Value,
     proof: &Value,
     expected_state_hash: [u8; 32],
+    trusted_expected_execution_context_hash: [u8; 32],
 ) -> Result<(), String> {
     check_proof_meta_image_id(proof)?;
     let receipt = decode_verified_receipt_from_proof(proof)?;
@@ -995,6 +1095,12 @@ fn try_verify_perps_np(
     if journal.risc0_image_id != TAU_STATE_PROOF_GUEST_ID {
         return Err("journal.risc0_image_id mismatch".into());
     }
+    verify_execution_context_binding(
+        req,
+        proof,
+        journal.execution_context_hash,
+        trusted_expected_execution_context_hash,
+    )?;
     if journal.participant_count < 4 {
         return Err("participant_count below multi-party floor".into());
     }
@@ -1050,6 +1156,7 @@ fn try_verify_zusd(
     req: &Value,
     proof: &Value,
     expected_state_hash: [u8; 32],
+    trusted_expected_execution_context_hash: [u8; 32],
 ) -> Result<(), String> {
     check_proof_meta_image_id(proof)?;
     let receipt = decode_verified_receipt_from_proof(proof)?;
@@ -1063,6 +1170,12 @@ fn try_verify_zusd(
     if journal.risc0_image_id != TAU_STATE_PROOF_GUEST_ID {
         return Err("journal.risc0_image_id mismatch".into());
     }
+    verify_execution_context_binding(
+        req,
+        proof,
+        journal.execution_context_hash,
+        trusted_expected_execution_context_hash,
+    )?;
     if journal.minted_zusd_e8 == 0 {
         return Err("journal minted_zusd_e8 must be positive".into());
     }
@@ -1111,9 +1224,10 @@ fn try_verify_zusd(
 }
 
 fn try_verify_recursive(
-    _req: &Value,
+    req: &Value,
     proof: &Value,
     expected_state_hash: [u8; 32],
+    trusted_expected_execution_context_hash: [u8; 32],
 ) -> Result<(), String> {
     check_proof_meta_image_id(proof)?;
     let receipt = decode_verified_receipt_from_proof(proof)?;
@@ -1130,11 +1244,22 @@ fn try_verify_recursive(
     if journal.post_state_root != expected_state_hash {
         return Err("journal.post_state_root mismatch".into());
     }
+    verify_execution_context_binding(
+        req,
+        proof,
+        journal.execution_context_hash,
+        trusted_expected_execution_context_hash,
+    )?;
     expect_meta_str(proof, "proof_type", PROOF_TYPE_RECURSIVE)?;
     expect_meta_str(proof, "domain_separator", RECURSIVE_DOMAIN_SEPARATOR_V1)?;
     expect_meta_str(proof, "chain_id", &journal.chain_id)?;
     expect_meta_u64(proof, "epoch_id", journal.epoch_id)?;
     expect_meta_str(proof, "proof_profile", RECURSIVE_EPOCH_PROFILE_V1)?;
+    expect_meta_str(
+        proof,
+        "aggregation_scope",
+        RECURSIVE_AGGREGATION_SCOPE_SINGLE_BLOCK_V2,
+    )?;
     expect_meta_hash(proof, "statement_hash", journal.statement_hash)?;
     expect_meta_hash(proof, "verifier_set_root", journal.verifier_set_root)?;
     expect_meta_hash(
@@ -1208,8 +1333,10 @@ fn try_verify_recursive(
 }
 
 fn try_verify_recursive_summary_leaf(
+    req: &Value,
     proof: &Value,
     expected_state_hash: [u8; 32],
+    trusted_expected_execution_context_hash: [u8; 32],
 ) -> Result<(), String> {
     check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_SUMMARY_LEAF_ID)?;
     let receipt = decode_receipt_from_proof(proof)?;
@@ -1227,6 +1354,12 @@ fn try_verify_recursive_summary_leaf(
     if journal.post_state_root != expected_state_hash {
         return Err("journal.post_state_root mismatch".into());
     }
+    verify_execution_context_binding(
+        req,
+        proof,
+        journal.execution_context_hash,
+        trusted_expected_execution_context_hash,
+    )?;
     validate_recursive_effect_summary_shape_v1(&journal).map_err(transition_error_str)?;
     expect_meta_hash(proof, "statement_hash", journal.statement_hash)?;
     expect_meta_hash(proof, "pre_state_root", journal.pre_state_root)?;
@@ -1237,8 +1370,10 @@ fn try_verify_recursive_summary_leaf(
 }
 
 fn try_verify_recursive_spot_leaf(
+    req: &Value,
     proof: &Value,
     expected_state_hash: [u8; 32],
+    trusted_expected_execution_context_hash: [u8; 32],
 ) -> Result<(), String> {
     check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_SPOT_LEAF_ID)?;
     let receipt = decode_receipt_from_proof(proof)?;
@@ -1259,6 +1394,12 @@ fn try_verify_recursive_spot_leaf(
     if journal.post_state_root != expected_state_hash {
         return Err("journal.post_state_root mismatch".into());
     }
+    verify_execution_context_binding(
+        req,
+        proof,
+        journal.execution_context_hash,
+        trusted_expected_execution_context_hash,
+    )?;
     validate_recursive_effect_summary_shape_v1(&journal).map_err(transition_error_str)?;
     expect_meta_hash(proof, "statement_hash", journal.statement_hash)?;
     expect_meta_hash(proof, "pre_state_root", journal.pre_state_root)?;
@@ -1272,8 +1413,10 @@ fn try_verify_recursive_spot_leaf(
 }
 
 fn try_verify_recursive_perps_np_leaf(
+    req: &Value,
     proof: &Value,
     expected_state_hash: [u8; 32],
+    trusted_expected_execution_context_hash: [u8; 32],
 ) -> Result<(), String> {
     check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_PERPS_NP_LEAF_ID)?;
     let receipt = decode_receipt_from_proof(proof)?;
@@ -1294,6 +1437,12 @@ fn try_verify_recursive_perps_np_leaf(
     if journal.post_state_root != expected_state_hash {
         return Err("journal.post_state_root mismatch".into());
     }
+    verify_execution_context_binding(
+        req,
+        proof,
+        journal.execution_context_hash,
+        trusted_expected_execution_context_hash,
+    )?;
     validate_recursive_effect_summary_shape_v1(&journal).map_err(transition_error_str)?;
     expect_meta_hash(proof, "statement_hash", journal.statement_hash)?;
     expect_meta_hash(proof, "pre_state_root", journal.pre_state_root)?;
@@ -1307,8 +1456,10 @@ fn try_verify_recursive_perps_np_leaf(
 }
 
 fn try_verify_recursive_zusd_leaf(
+    req: &Value,
     proof: &Value,
     expected_state_hash: [u8; 32],
+    trusted_expected_execution_context_hash: [u8; 32],
 ) -> Result<(), String> {
     check_proof_meta_image_id_for(proof, TAU_STATE_PROOF_ZUSD_LEAF_ID)?;
     let receipt = decode_receipt_from_proof(proof)?;
@@ -1329,6 +1480,12 @@ fn try_verify_recursive_zusd_leaf(
     if journal.post_state_root != expected_state_hash {
         return Err("journal.post_state_root mismatch".into());
     }
+    verify_execution_context_binding(
+        req,
+        proof,
+        journal.execution_context_hash,
+        trusted_expected_execution_context_hash,
+    )?;
     validate_recursive_effect_summary_shape_v1(&journal).map_err(transition_error_str)?;
     expect_meta_hash(proof, "statement_hash", journal.statement_hash)?;
     expect_meta_hash(proof, "pre_state_root", journal.pre_state_root)?;
@@ -2351,6 +2508,7 @@ fn decode_receipt_b64(proof_b64: &str) -> Result<Receipt, String> {
 fn perps_np_meta(journal: &PerpsNpTransitionJournalV1) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(journal.risc0_image_id),
+        "execution_context_hash": hex_lower(&journal.execution_context_hash),
         "chain_id": journal.chain_id,
         "pre_app_hash": if journal.pre_app_hash_present { hex_lower(&journal.pre_app_hash) } else { String::new() },
         "post_app_hash": hex_lower(&journal.post_app_hash),
@@ -2371,6 +2529,7 @@ fn perps_np_meta(journal: &PerpsNpTransitionJournalV1) -> Value {
 fn zusd_meta(journal: &ZusdTransitionJournalV1) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(journal.risc0_image_id),
+        "execution_context_hash": hex_lower(&journal.execution_context_hash),
         "chain_id": journal.chain_id,
         "pre_app_hash": if journal.pre_app_hash_present { hex_lower(&journal.pre_app_hash) } else { String::new() },
         "post_app_hash": hex_lower(&journal.post_app_hash),
@@ -2389,11 +2548,13 @@ fn zusd_meta(journal: &ZusdTransitionJournalV1) -> Value {
 fn recursive_meta(journal: &RecursiveEpochJournalV1) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_GUEST_ID),
+        "execution_context_hash": hex_lower(&journal.execution_context_hash),
         "proof_type": journal.proof_type,
         "domain_separator": journal.domain_separator,
         "chain_id": journal.chain_id,
         "epoch_id": journal.epoch_id,
         "proof_profile": journal.proof_profile,
+        "aggregation_scope": journal.aggregation_scope,
         "statement_hash": hex_lower(&journal.statement_hash),
         "verifier_set_root": hex_lower(&journal.verifier_set_root),
         "allowed_authority_roots_root": hex_lower(&journal.allowed_authority_roots_root),
@@ -2425,6 +2586,7 @@ fn recursive_meta(journal: &RecursiveEpochJournalV1) -> Value {
 fn recursive_summary_leaf_meta(journal: &RecursiveEffectSummaryV1) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_SUMMARY_LEAF_ID),
+        "execution_context_hash": hex_lower(&journal.execution_context_hash),
         "proof_type": PROOF_TYPE_RECURSIVE_SUMMARY_LEAF,
         "summary_version": journal.summary_version,
         "lane_id": journal.lane_id,
@@ -2458,6 +2620,7 @@ fn recursive_spot_leaf_meta(
 ) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_SPOT_LEAF_ID),
+        "execution_context_hash": hex_lower(&journal.execution_context_hash),
         "proof_type": PROOF_TYPE_RECURSIVE_SPOT_LEAF,
         "summary_version": journal.summary_version,
         "lane_id": journal.lane_id,
@@ -2492,6 +2655,7 @@ fn recursive_perps_np_leaf_meta(
 ) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_PERPS_NP_LEAF_ID),
+        "execution_context_hash": hex_lower(&journal.execution_context_hash),
         "proof_type": PROOF_TYPE_RECURSIVE_PERPS_NP_LEAF,
         "summary_version": journal.summary_version,
         "lane_id": journal.lane_id,
@@ -2543,6 +2707,7 @@ fn recursive_zusd_leaf_meta(
 ) -> Value {
     json!({
         "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_ZUSD_LEAF_ID),
+        "execution_context_hash": hex_lower(&journal.execution_context_hash),
         "proof_type": PROOF_TYPE_RECURSIVE_ZUSD_LEAF,
         "summary_version": journal.summary_version,
         "lane_id": journal.lane_id,
@@ -2909,6 +3074,38 @@ fn strict_context_obj(req: &Value) -> Result<&serde_json::Map<String, Value>, St
     req.get("context")
         .and_then(Value::as_object)
         .ok_or_else(|| "context must be an object for strict surface verification".to_string())
+}
+
+fn parse_execution_context_hash(
+    context: &serde_json::Map<String, Value>,
+) -> Result<[u8; 32], String> {
+    let raw = context
+        .get("execution_context_hash")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "context.execution_context_hash missing".to_string())?;
+    let hash =
+        parse_hex32(raw).map_err(|e| format!("context.execution_context_hash invalid: {e}"))?;
+    if hash.iter().all(|byte| *byte == 0) {
+        return Err("context.execution_context_hash all-zero".to_string());
+    }
+    Ok(hash)
+}
+
+fn verify_execution_context_binding(
+    req: &Value,
+    proof: &Value,
+    journal_hash: [u8; 32],
+    trusted_expected_hash: [u8; 32],
+) -> Result<(), String> {
+    let context = strict_context_obj(req)?;
+    let request_expected = parse_execution_context_hash(context)?;
+    if request_expected != trusted_expected_hash {
+        return Err("trusted execution_context_hash mismatch".to_string());
+    }
+    if trusted_expected_hash != journal_hash {
+        return Err("execution_context_hash mismatch".to_string());
+    }
+    expect_meta_hash(proof, "execution_context_hash", journal_hash)
 }
 
 fn expect_meta_hash(proof: &Value, key: &str, expected: [u8; 32]) -> Result<(), String> {
@@ -3728,7 +3925,7 @@ mod tests {
         recursive_effect_summary_hash_v1, recursive_receipt_ids_root_v1, recursive_vector_root_v1,
         recursive_verifier_set_root_v1, RecursiveAssetDeltaRowV1, RecursiveChildDescriptorV1,
         RecursiveChildEffectV1, RecursiveCrossShardMessageV1, RecursiveEffectSummaryV1,
-        RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_EPOCH_PROFILE_V1,
+        JOURNAL_VERSION, RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_EPOCH_PROFILE_V1,
         RECURSIVE_SPOT_LEAF_PROFILE_V1, RECURSIVE_STATEMENT_VERSION_V1,
         RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
     };
@@ -3774,6 +3971,7 @@ mod tests {
         let accepted_receipts_root = recursive_receipt_ids_root_v1(&accepted_receipt_ids).unwrap();
         let rejected_receipts_root = recursive_receipt_ids_root_v1(&rejected_receipt_ids).unwrap();
         let summary = RecursiveEffectSummaryV1 {
+            execution_context_hash: h(0xEC),
             summary_version: RECURSIVE_EFFECT_SUMMARY_VERSION_V1,
             lane_id: lane_id.to_string(),
             lane_kind: "spot".to_string(),
@@ -3870,11 +4068,13 @@ mod tests {
         .unwrap();
         RecursiveCompositionInputV1 {
             statement: tau_state_proof_risc0_shared::RecursiveCompositionStatementV1 {
+                execution_context_hash: h(0xEC),
                 domain_separator: RECURSIVE_DOMAIN_SEPARATOR_V1.to_string(),
                 schema_version: RECURSIVE_STATEMENT_VERSION_V1,
                 chain_id: "tau-test".to_string(),
                 epoch_id: 7,
                 proof_profile: RECURSIVE_EPOCH_PROFILE_V1.to_string(),
+                aggregation_scope: RECURSIVE_AGGREGATION_SCOPE_SINGLE_BLOCK_V2.to_string(),
                 verifier_set_root: recursive_verifier_set_root_v1(&verifier_ids).unwrap(),
                 allowed_authority_roots_root: recursive_authority_set_root_v1(&authority_roots)
                     .unwrap(),
@@ -3941,6 +4141,7 @@ mod tests {
             "state_hash": hx(1),
             "tau_state": {"app_hash": hx(2)},
             "context": {
+                "execution_context_hash": hx(0xEC),
                 "app_hash_pre": "",
                 "operation_hash": hx(3),
                 "state_delta_hash": hx(4),
@@ -3956,6 +4157,7 @@ mod tests {
             "proof": "unused",
             "meta": {
                 "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_GUEST_ID),
+                "execution_context_hash": hx(0xEC),
                 "pre_app_hash": "",
                 "post_app_hash": hx(2),
                 "operation_hash": hx(3),
@@ -3964,6 +4166,67 @@ mod tests {
                 "participant_set_hash": hx(6)
             }
         })
+    }
+
+    #[test]
+    fn execution_context_binding_accepts_exact_consensus_context() {
+        assert!(verify_execution_context_binding(
+            &strict_req(),
+            &strict_proof_meta(),
+            h(0xEC),
+            h(0xEC),
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn execution_context_binding_rejects_missing_context() {
+        let mut req = strict_req();
+        req["context"]
+            .as_object_mut()
+            .unwrap()
+            .remove("execution_context_hash");
+
+        assert_eq!(
+            verify_execution_context_binding(&req, &strict_proof_meta(), h(0xEC), h(0xEC),)
+                .unwrap_err(),
+            "context.execution_context_hash missing"
+        );
+    }
+
+    #[test]
+    fn execution_context_binding_rejects_zero_context() {
+        let mut req = strict_req();
+        req["context"]["execution_context_hash"] = Value::String(hx(0));
+
+        assert_eq!(
+            verify_execution_context_binding(&req, &strict_proof_meta(), h(0xEC), h(0xEC),)
+                .unwrap_err(),
+            "context.execution_context_hash all-zero"
+        );
+    }
+
+    #[test]
+    fn execution_context_binding_rejects_replayed_receipt() {
+        let mut req = strict_req();
+        req["context"]["execution_context_hash"] = Value::String(hx(0xED));
+
+        assert_eq!(
+            verify_execution_context_binding(&req, &strict_proof_meta(), h(0xEC), h(0xEC),)
+                .unwrap_err(),
+            "trusted execution_context_hash mismatch"
+        );
+    }
+
+    #[test]
+    fn execution_context_binding_rejects_tampered_metadata() {
+        let mut proof = strict_proof_meta();
+        proof["meta"]["execution_context_hash"] = Value::String(hx(0xED));
+
+        assert_eq!(
+            verify_execution_context_binding(&strict_req(), &proof, h(0xEC), h(0xEC),).unwrap_err(),
+            "proof.meta.execution_context_hash mismatch"
+        );
     }
 
     fn strict_binding_expectations(journal_chain_id: &str) -> SurfaceBindingExpectations<'_> {
@@ -3987,6 +4250,10 @@ mod tests {
         assert_eq!(
             meta["proof_profile"],
             Value::String(RECURSIVE_EPOCH_PROFILE_V1.to_string())
+        );
+        assert_eq!(
+            meta["aggregation_scope"],
+            Value::String(RECURSIVE_AGGREGATION_SCOPE_SINGLE_BLOCK_V2.to_string())
         );
         assert_eq!(
             meta["child_verification_claims_root"],
@@ -4052,7 +4319,7 @@ mod tests {
             meta["child_image_id"],
             Value::String(hex_u32_words(TAU_STATE_PROOF_SUMMARY_LEAF_ID))
         );
-        assert!(validate_recursive_effect_summary_shape_v1(&summary).is_ok());
+        validate_recursive_effect_summary_shape_v1(&summary).unwrap();
     }
 
     #[test]
@@ -4076,7 +4343,7 @@ mod tests {
             Value::String(RECURSIVE_SPOT_LEAF_PROFILE_V1.to_string())
         );
         assert_eq!(meta["asset_delta_rows"], Value::Array(vec![]));
-        assert!(validate_recursive_effect_summary_shape_v1(&summary).is_ok());
+        validate_recursive_effect_summary_shape_v1(&summary).unwrap();
     }
 
     #[test]
@@ -4101,7 +4368,7 @@ mod tests {
         );
         assert_eq!(meta["lane_kind"], Value::String("perps_np".to_string()));
         assert_eq!(meta["asset_delta_rows"], Value::Array(vec![]));
-        assert!(validate_recursive_effect_summary_shape_v1(&summary).is_ok());
+        validate_recursive_effect_summary_shape_v1(&summary).unwrap();
     }
 
     #[test]
@@ -4125,7 +4392,7 @@ mod tests {
             Value::String(RECURSIVE_ZUSD_LEAF_PROFILE_V1.to_string())
         );
         assert_eq!(meta["lane_kind"], Value::String("zusd".to_string()));
-        assert!(validate_recursive_effect_summary_shape_v1(&summary).is_ok());
+        validate_recursive_effect_summary_shape_v1(&summary).unwrap();
     }
 
     #[test]
@@ -4246,7 +4513,8 @@ mod tests {
         protocol_fee_recipient_pubkey: Option<&str>,
     ) -> StateProofJournalV1 {
         StateProofJournalV1 {
-            journal_version: 1,
+            execution_context_hash: h(0xEC),
+            journal_version: JOURNAL_VERSION,
             state_hash: h(1),
             txs_commitment: h(2),
             tx_execution_order_commitment: h(3),
@@ -5495,4 +5763,17 @@ mod tests {
             "proof.meta.protocol_fee_recipient_pubkey required when share_bps > 0"
         );
     }
+}
+#[test]
+fn verifier_process_status_matches_semantic_result() {
+    let (accepted, accepted_code) = verification_response(Ok(()));
+    assert_eq!(accepted, json!({ "ok": true }));
+    assert_eq!(accepted_code, 0);
+
+    let (rejected, rejected_code) = verification_response(Err("context mismatch".to_string()));
+    assert_eq!(
+        rejected,
+        json!({ "ok": false, "error": "context mismatch" })
+    );
+    assert_eq!(rejected_code, 1);
 }

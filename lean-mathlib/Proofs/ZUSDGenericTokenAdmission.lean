@@ -1,16 +1,16 @@
 import Mathlib.Tactic
 
 /-!
-# Canonical zUSD writer-role and custody admission
+# Canonical zUSD writer-role and recipient admission
 
 This module formalizes the complete authority-only policy for canonical zUSD.
 Generic token authority cannot mint or burn canonical zUSD. A generic canonical
-zUSD transfer cannot target any custody class marked internal and reserved. An
+zUSD transfer cannot target any recipient class marked internal and reserved. An
 ordinary user transfer is admitted and preserves canonical supply. Every
 rejection returns the exact immutable prestate.
 
-Stability Pool escrow is the only currently addressable live internal custody
-principal. The additional custody constructors make future addressable reserve,
+Stability Pool escrow is the only currently addressable live internal protocol
+principal. The additional recipient constructors make future addressable reserve,
 fee, perps, DEX, and bridge principals fail closed at the policy level. Runtime
 registry completeness remains a separate binding obligation.
 
@@ -39,7 +39,7 @@ inductive WriterRole where
   | zusdMonetaryAuthority
   deriving DecidableEq, Repr
 
-inductive CustodyClass where
+inductive RecipientClass where
   | ordinaryAccount
   | stabilityPoolEscrow
   | gasReserveLedger
@@ -47,7 +47,7 @@ inductive CustodyClass where
   | stakingFeePoolLedger
   | hostFeePoolLedger
   | perpsQuoteLiabilityLedger
-  | dexPoolCustody
+  | dexPoolReserve
   | bridgeEscrow
   deriving DecidableEq, Repr
 
@@ -55,7 +55,7 @@ inductive AdmissionCode where
   | admitted
   | canonicalMintRequiresMonetaryAuthority
   | canonicalBurnRequiresMonetaryAuthority
-  | canonicalReservedCustodyRequiresMonetaryAuthority
+  | canonicalReservedProtocolAddressRequiresMonetaryAuthority
   | routeToZUSDMonetaryKernel
   deriving DecidableEq, Repr
 
@@ -63,7 +63,7 @@ structure Command where
   action : GenericTokenAction
   asset : AssetClass
   writerRole : WriterRole
-  recipientCustody : CustodyClass
+  recipientClass : RecipientClass
   deriving DecidableEq, Repr
 
 structure CanonicalSupplyState where
@@ -75,14 +75,14 @@ structure Transition where
   code : AdmissionCode
   deriving DecidableEq, Repr
 
-def CustodyClass.isReserved : CustodyClass → Bool
+def RecipientClass.isReserved : RecipientClass → Bool
   | .ordinaryAccount => false
   | _ => true
 
-/-- Complete authority decision for all writer, asset, action, and custody cases. -/
+/-- Complete authority decision for all writer, asset, action, and recipient cases. -/
 def decide (command : Command) : AdmissionCode :=
   match command.writerRole, command.asset, command.action,
-      command.recipientCustody with
+      command.recipientClass with
   | .zusdMonetaryAuthority, _, _, _ => .routeToZUSDMonetaryKernel
   | .genericTokenWriter, .other, _, _ => .admitted
   | .genericTokenWriter, .canonicalZUSD, .mint, _ =>
@@ -91,7 +91,7 @@ def decide (command : Command) : AdmissionCode :=
       .canonicalBurnRequiresMonetaryAuthority
   | .genericTokenWriter, .canonicalZUSD, .transfer, .ordinaryAccount => .admitted
   | .genericTokenWriter, .canonicalZUSD, .transfer, _ =>
-      .canonicalReservedCustodyRequiresMonetaryAuthority
+      .canonicalReservedProtocolAddressRequiresMonetaryAuthority
 
 /-- Admission is pure: account effects remain outside this policy kernel. -/
 def step (preState : CanonicalSupplyState) (command : Command) : Transition :=
@@ -106,7 +106,7 @@ def AdmissionCode.toNat : AdmissionCode → Nat
   | .admitted => 0
   | .canonicalMintRequiresMonetaryAuthority => 1
   | .canonicalBurnRequiresMonetaryAuthority => 2
-  | .canonicalReservedCustodyRequiresMonetaryAuthority => 3
+  | .canonicalReservedProtocolAddressRequiresMonetaryAuthority => 3
   | .routeToZUSDMonetaryKernel => 4
 
 def allActions : List GenericTokenAction := [.transfer, .mint, .burn]
@@ -116,7 +116,7 @@ def allAssets : List AssetClass := [.canonicalZUSD, .other]
 def allWriterRoles : List WriterRole :=
   [.genericTokenWriter, .zusdMonetaryAuthority]
 
-def allCustodyClasses : List CustodyClass :=
+def allRecipientClasses : List RecipientClass :=
   [
     .ordinaryAccount,
     .stabilityPoolEscrow,
@@ -125,7 +125,7 @@ def allCustodyClasses : List CustodyClass :=
     .stakingFeePoolLedger,
     .hostFeePoolLedger,
     .perpsQuoteLiabilityLedger,
-    .dexPoolCustody,
+    .dexPoolReserve,
     .bridgeEscrow,
   ]
 
@@ -133,8 +133,8 @@ def exhaustiveCommands : List Command :=
   allActions.flatMap fun action =>
     allAssets.flatMap fun asset =>
       allWriterRoles.flatMap fun writerRole =>
-        allCustodyClasses.map fun recipientCustody =>
-          ⟨action, asset, writerRole, recipientCustody⟩
+        allRecipientClasses.map fun recipientClass =>
+          ⟨action, asset, writerRole, recipientClass⟩
 
 /-- Stable executable vector consumed by the cross-language refinement test. -/
 def exhaustiveDecisionVector : List Nat :=
@@ -161,12 +161,12 @@ def exhaustiveTransitionVector : List Nat :=
 def exhaustiveTransitionCSV : String :=
   String.intercalate "," (exhaustiveTransitionVector.map toString)
 
-theorem generic_canonical_mint_rejected (recipient : CustodyClass) :
+theorem generic_canonical_mint_rejected (recipient : RecipientClass) :
     decide ⟨.mint, .canonicalZUSD, .genericTokenWriter, recipient⟩ =
       .canonicalMintRequiresMonetaryAuthority := by
   cases recipient <;> rfl
 
-theorem generic_canonical_burn_rejected (recipient : CustodyClass) :
+theorem generic_canonical_burn_rejected (recipient : RecipientClass) :
     decide ⟨.burn, .canonicalZUSD, .genericTokenWriter, recipient⟩ =
       .canonicalBurnRequiresMonetaryAuthority := by
   cases recipient <;> rfl
@@ -174,26 +174,26 @@ theorem generic_canonical_burn_rejected (recipient : CustodyClass) :
 theorem stability_pool_transfer_rejected :
     decide ⟨.transfer, .canonicalZUSD, .genericTokenWriter,
       .stabilityPoolEscrow⟩ =
-      .canonicalReservedCustodyRequiresMonetaryAuthority := rfl
+      .canonicalReservedProtocolAddressRequiresMonetaryAuthority := rfl
 
-theorem every_reserved_custody_rejects_generic_canonical_transfer
-    (recipient : CustodyClass) (reserved : recipient.isReserved = true) :
+theorem every_reserved_protocol_location_rejects_generic_canonical_transfer
+    (recipient : RecipientClass) (reserved : recipient.isReserved = true) :
     decide ⟨.transfer, .canonicalZUSD, .genericTokenWriter, recipient⟩ =
-      .canonicalReservedCustodyRequiresMonetaryAuthority := by
-  cases recipient <;> simp [CustodyClass.isReserved, decide] at reserved ⊢
+      .canonicalReservedProtocolAddressRequiresMonetaryAuthority := by
+  cases recipient <;> simp [RecipientClass.isReserved, decide] at reserved ⊢
 
 theorem ordinary_canonical_transfer_admitted :
     decide ⟨.transfer, .canonicalZUSD, .genericTokenWriter,
       .ordinaryAccount⟩ = .admitted := rfl
 
 theorem generic_canonical_admission_iff_ordinary_transfer
-    (action : GenericTokenAction) (recipient : CustodyClass) :
+    (action : GenericTokenAction) (recipient : RecipientClass) :
     decide ⟨action, .canonicalZUSD, .genericTokenWriter, recipient⟩ = .admitted ↔
       action = .transfer ∧ recipient = .ordinaryAccount := by
   cases action <;> cases recipient <;> simp [decide]
 
 theorem monetary_authority_routes_to_separate_kernel
-    (action : GenericTokenAction) (asset : AssetClass) (recipient : CustodyClass) :
+    (action : GenericTokenAction) (asset : AssetClass) (recipient : RecipientClass) :
     decide ⟨action, asset, .zusdMonetaryAuthority, recipient⟩ =
       .routeToZUSDMonetaryKernel := by
   cases action <;> cases asset <;> cases recipient <;> rfl
@@ -216,7 +216,7 @@ theorem decision_cases_exhaustive (command : Command) :
     decide command = .admitted ∨
       decide command = .canonicalMintRequiresMonetaryAuthority ∨
       decide command = .canonicalBurnRequiresMonetaryAuthority ∨
-      decide command = .canonicalReservedCustodyRequiresMonetaryAuthority ∨
+      decide command = .canonicalReservedProtocolAddressRequiresMonetaryAuthority ∨
       decide command = .routeToZUSDMonetaryKernel := by
   cases command with
   | mk action asset writerRole recipient =>

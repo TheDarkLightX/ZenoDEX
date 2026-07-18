@@ -17,9 +17,15 @@ from urllib.parse import urlsplit
 
 from ..core.dex import DexState
 from ..core.zusd import E8
+from ..core.zusd_monetary_policy_binding import ZUSD_MONETARY_POLICY_FIELDS
+from ..state.balances import NATIVE_ASSET, BalanceTable
+from ..state.canonical import (
+    canonical_hex_fixed_allow_0x,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 from .dex_snapshot import state_from_snapshot
-from ..state.balances import BalanceTable, NATIVE_ASSET
-from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .live_proof_wrapper import (
     live_zk_proof_required,
     proof_from_request,
@@ -38,18 +44,19 @@ from .tau_net_client import (
 from .zusd_monetary_bridge import (
     ZUSDMonetaryConfig,
     ZUSDMonetaryState,
-    apply_zusd_monetary_ops,
+    preview_zusd_monetary_ops,
     stability_pool_pubkey,
+    zusd_monetary_policy_binding_error,
     zusd_monetary_sender_nonce_key,
     zusd_monetary_state_from_obj,
 )
 from .zusd_tau_token import derive_zusd_tau_asset_id
 
-
 MAX_POST_BODY = 65_536
 ResponseT = Tuple[int, Dict[str, Any]]
 _STREAM_KEY = "11"
 _U32_MAX = 0xFFFFFFFF
+_U64_MAX = 0xFFFFFFFFFFFFFFFF
 _ZUSD_PROOF_PROFILE_ID = "zusd_stream11_live_monetary_v0"
 _ZUSD_PROOF_PROFILE_SCHEMA = "zenodex/zusd_monetary_wallet/proof_profile/v1"
 _ZUSD_PROOF_INTENT_SCHEMA = "zenodex/zusd_monetary_wallet/proof_intent_receipt/v1"
@@ -57,7 +64,6 @@ _ZUSD_PROOF_INTENT_HASH_DOMAIN = "zenodex.zusd_monetary_wallet.proof_intent_rece
 _ZUSD_ZK_PROOF_ENV_PREFIX = "ZUSD_MONETARY_WALLET"
 _ZUSD_ZK_PROOF_REQUIRED_ENV = "ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF"
 _ACTIONS = {
-    "advance_epoch",
     "bootstrap_oracle",
     "oracle_report",
     "oracle_commit",
@@ -70,6 +76,11 @@ _ACTIONS = {
     "redeem_zusd",
     "liquidate",
     "claim_sp_collateral",
+    "stake_fee_shares",
+    "unstake_fee_shares",
+    "claim_protocol_fees",
+    "claim_host_fees",
+    "claim_staking_fees",
 }
 
 
@@ -176,7 +187,9 @@ def _zusd_proof_intent_receipt(
 ) -> dict[str, Any]:
     tau_tx_hash = None
     if tau_tx_payload is not None:
-        tau_tx_hash = _hash_payload("zenodex.zusd_monetary_wallet.tau_tx_payload/v1", tau_tx_payload)
+        tau_tx_hash = _hash_payload(
+            "zenodex.zusd_monetary_wallet.tau_tx_payload/v1", tau_tx_payload
+        )
     body = {
         "schema": _ZUSD_PROOF_INTENT_SCHEMA,
         "profile_id": _ZUSD_PROOF_PROFILE_ID,
@@ -242,7 +255,9 @@ def _bind_live_zk_wrapper(
 def _tau_client() -> TauNetTcpClient:
     return TauNetTcpClient(
         TauNetTcpConfig(
-            host=_env_str("ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")),
+            host=_env_str(
+                "ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")
+            ),
             port=_env_int(
                 "ZUSD_MONETARY_WALLET_TAU_PORT",
                 _env_int("ZUSD_TAU_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
@@ -263,12 +278,77 @@ def _tau_chain_id() -> str:
     return _env_str("ZUSD_MONETARY_WALLET_CHAIN_ID", _env_str("TAU_DEX_CHAIN_ID", "tau-local"))
 
 
+def _canonical_zusd_asset_id(*, chain_id: str) -> str:
+    configured = os.environ.get("TAU_DEX_ZUSD_ASSET_ID", "").strip()
+    if configured:
+        return _canonical_asset(configured, name="TAU_DEX_ZUSD_ASSET_ID")
+    return derive_zusd_tau_asset_id(chain_id=chain_id)
+
+
+def _runtime_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
+    return ZUSDMonetaryConfig(
+        chain_id=chain_id,
+        oracle_pubkey=(
+            os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
+        ),
+        asset_id=_canonical_zusd_asset_id(chain_id=chain_id),
+        liquidation_gas_comp_fixed_collateral_e8=_env_int_alias(
+            "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8",
+            "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8",
+            0,
+            lo=0,
+            hi=10**30,
+        ),
+        liquidation_gas_comp_bps=_env_int_alias(
+            "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS",
+            "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS",
+            0,
+            lo=0,
+            hi=10_000,
+        ),
+        borrow_fee_floor_bps=_env_int(
+            "TAU_DEX_ZUSD_BORROW_FEE_FLOOR_BPS",
+            0,
+            lo=0,
+            hi=10_000,
+        ),
+        borrow_fee_max_bps=_env_int(
+            "TAU_DEX_ZUSD_BORROW_FEE_MAX_BPS",
+            1_000,
+            lo=0,
+            hi=10_000,
+        ),
+        host_protocol_fee_share_bps=_env_int(
+            "TAU_DEX_ZUSD_HOST_PROTOCOL_FEE_SHARE_BPS",
+            0,
+            lo=0,
+            hi=10_000,
+        ),
+        fee_stake_asset_id=(os.environ.get("TAU_DEX_ZUSD_FEE_STAKE_ASSET_ID", "").strip() or None),
+        staking_activation_delay_epochs=_env_int(
+            "TAU_DEX_ZUSD_STAKING_ACTIVATION_DELAY_EPOCHS",
+            1,
+            lo=1,
+            hi=10_000,
+        ),
+        clock_policy_hash=(os.environ.get("TAU_DEX_ZUSD_CLOCK_POLICY_HASH", "").strip() or None),
+        protocol_fee_recipient_pubkey=(
+            os.environ.get("TAU_DEX_ZUSD_PROTOCOL_FEE_RECIPIENT_PUBKEY", "").strip() or None
+        ),
+    )
+
+
 def _allow_signing() -> bool:
-    return _env_bool("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", _env_bool("ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", False))
+    return _env_bool(
+        "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING",
+        _env_bool("ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", False),
+    )
 
 
 def _auto_mine() -> bool:
-    return _env_bool("ZUSD_MONETARY_WALLET_AUTO_MINE", _env_bool("ZUSD_TAU_WALLET_AUTO_MINE", False))
+    return _env_bool(
+        "ZUSD_MONETARY_WALLET_AUTO_MINE", _env_bool("ZUSD_TAU_WALLET_AUTO_MINE", False)
+    )
 
 
 def _default_deadline() -> int:
@@ -401,6 +481,25 @@ def _request_u32(body: Mapping[str, Any], *, name: str, default: Optional[int] =
     return int(value)
 
 
+def _request_u64(body: Mapping[str, Any], *, name: str, default: Optional[int] = None) -> int:
+    if name not in body:
+        if default is None:
+            raise ValueError(f"missing_{name}")
+        return int(default)
+    raw = body.get(name)
+    if type(raw) is int:
+        value = raw
+    elif type(raw) is str and raw and raw.isascii() and raw.isdigit():
+        if len(raw) > 1 and raw.startswith("0"):
+            raise ValueError(f"bad_{name}")
+        value = int(raw, 10)
+    else:
+        raise ValueError(f"bad_{name}")
+    if value < 0 or value > _U64_MAX:
+        raise ValueError(f"bad_{name}")
+    return value
+
+
 def _request_tx_fee_limit(body: Mapping[str, Any]) -> int:
     raw = body.get("tx_fee_limit", 0)
     if isinstance(raw, bool):
@@ -525,11 +624,20 @@ def _actor_pubkey_for_action(body: Mapping[str, Any], *, action: str) -> str:
     candidates: list[object] = []
     if "sender_pubkey" in body:
         candidates.append(body.get("sender_pubkey"))
-    if action in {"deposit_collateral", "withdraw_collateral", "mint_zusd", "repay_zusd"} and "owner_pubkey" in body:
+    if (
+        action in {"deposit_collateral", "withdraw_collateral", "mint_zusd", "repay_zusd"}
+        and "owner_pubkey" in body
+    ):
         candidates.append(body.get("owner_pubkey"))
-    if action in {"deposit_sp", "withdraw_sp", "redeem_zusd", "claim_sp_collateral"} and "account_pubkey" in body:
+    if (
+        action in {"deposit_sp", "withdraw_sp", "redeem_zusd", "claim_sp_collateral"}
+        and "account_pubkey" in body
+    ):
         candidates.append(body.get("account_pubkey"))
-    if action in {"advance_epoch", "bootstrap_oracle", "oracle_report", "oracle_commit", "liquidate"} and "actor_pubkey" in body:
+    if (
+        action in {"bootstrap_oracle", "oracle_report", "oracle_commit", "liquidate"}
+        and "actor_pubkey" in body
+    ):
         candidates.append(body.get("actor_pubkey"))
     if not candidates:
         raise ValueError("missing_sender_pubkey")
@@ -540,7 +648,9 @@ def _actor_pubkey_for_action(body: Mapping[str, Any], *, action: str) -> str:
     return first
 
 
-def _build_operation(body: Mapping[str, Any], *, action: str, actor_pubkey: str, nonce: int, deadline: int) -> dict[str, Any]:
+def _build_operation(
+    body: Mapping[str, Any], *, action: str, actor_pubkey: str, nonce: int, deadline: int
+) -> dict[str, Any]:
     op: dict[str, Any] = {
         "module": "ZUSDFinance",
         "version": "0.1",
@@ -548,9 +658,6 @@ def _build_operation(body: Mapping[str, Any], *, action: str, actor_pubkey: str,
         "nonce": int(nonce),
         "deadline": int(deadline),
     }
-    if action == "advance_epoch":
-        op["delta"] = _request_u32(body, name="delta", default=None)
-        return op
     if action in {"bootstrap_oracle", "oracle_report"}:
         price_e8 = body.get("price_e8")
         if not isinstance(price_e8, int) or isinstance(price_e8, bool) or price_e8 <= 0:
@@ -567,10 +674,27 @@ def _build_operation(body: Mapping[str, Any], *, action: str, actor_pubkey: str,
         op["account_pubkey"] = actor_pubkey
         op["amount_e8"] = _request_amount_e8(body, required=True)
         return op
+    if action in {"stake_fee_shares", "unstake_fee_shares"}:
+        amount = body.get("amount")
+        if type(amount) is not int or amount <= 0:
+            raise ValueError("bad_amount")
+        op["amount"] = amount
+        return op
+    if action in {
+        "claim_protocol_fees",
+        "claim_host_fees",
+        "claim_staking_fees",
+    }:
+        amount_e8 = _request_amount_e8(body, required=False)
+        if amount_e8 is not None:
+            op["amount_e8"] = amount_e8
+        return op
     raise ValueError("unsupported_action")
 
 
-def _state_from_app_state(app_state: Mapping[str, Any], *, actor_pubkey: str, native_balance: int | None) -> DexState:
+def _state_from_app_state(
+    app_state: Mapping[str, Any], *, actor_pubkey: str, native_balance: int | None
+) -> DexState:
     state = state_from_snapshot(_dex_state_view(app_state))
     if native_balance is None:
         return state
@@ -594,68 +718,69 @@ def _preflight(
     config: ZUSDMonetaryConfig,
     operation: Mapping[str, Any],
     actor_pubkey: str,
-    block_timestamp: int,
     native_balance: int | None,
 ) -> dict[str, Any]:
     try:
-        state = _state_from_app_state(app_state, actor_pubkey=actor_pubkey, native_balance=native_balance)
-        res = apply_zusd_monetary_ops(
+        state = _state_from_app_state(
+            app_state, actor_pubkey=actor_pubkey, native_balance=native_balance
+        )
+        monetary_state = _zusd_state_view(app_state)
+        preview_epoch = int(monetary_state.core.now_epoch) if monetary_state is not None else 0
+        res = preview_zusd_monetary_ops(
             config=config,
             state=state,
-            zusd_state=_zusd_state_view(app_state),
+            zusd_state=monetary_state,
             operations=[dict(operation)],
             tx_sender_pubkey=actor_pubkey,
-            block_timestamp=int(block_timestamp),
+            preview_height=preview_epoch,
+            preview_epoch=preview_epoch,
         )
         return {
             "ok": bool(res.ok),
             "error": res.error,
-            "effects": list(res.effects or []),
+            "effects": [effect.to_obj() for effect in (res.effects or ())],
+            "authority": "advisory_unverified_preview",
+            "consensus_clock_bound": False,
         }
     except Exception as exc:
-        return {"ok": False, "error": str(exc), "effects": []}
+        return {
+            "ok": False,
+            "error": str(exc),
+            "effects": [],
+            "authority": "advisory_unverified_preview",
+            "consensus_clock_bound": False,
+        }
 
 
 def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
     action = _request_action(body)
     actor_pubkey = _actor_pubkey_for_action(body, action=action)
-    deadline = _request_u32(body, name="deadline", default=_default_deadline())
-    chain_id = str(body.get("chain_id") or _tau_chain_id())
+    if "deadline" in body:
+        raise ValueError("ambiguous deadline; use valid_until_height and tx_expiration_time")
+    valid_until_height = _request_u64(
+        body,
+        name="valid_until_height",
+        default=_U64_MAX,
+    )
+    tx_expiration_time = _request_u32(
+        body,
+        name="tx_expiration_time",
+        default=_default_deadline(),
+    )
+    chain_id = _tau_chain_id()
+    requested_chain_id = body.get("chain_id")
+    if requested_chain_id is not None and requested_chain_id != chain_id:
+        raise ValueError("chain_id does not match configured monetary chain")
+    canonical_asset_id = _canonical_zusd_asset_id(chain_id=chain_id)
     explicit_asset_id = body.get("asset_id")
     asset_id = (
         _canonical_asset(explicit_asset_id, name="asset_id")
         if isinstance(explicit_asset_id, str) and explicit_asset_id.strip()
-        else derive_zusd_tau_asset_id(chain_id=chain_id)
+        else canonical_asset_id
     )
-    config = ZUSDMonetaryConfig(
-        chain_id=chain_id,
-        oracle_pubkey=os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY"),
-        asset_id=asset_id,
-        liquidation_gas_comp_fixed_collateral_e8=_env_int_alias(
-            "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8",
-            "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8",
-            0,
-            lo=0,
-            hi=10**30,
-        ),
-        liquidation_gas_comp_bps=_env_int_alias(
-            "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS",
-            "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS",
-            0,
-            lo=0,
-            hi=10_000,
-        ),
-        borrow_fee_floor_bps=_env_int("TAU_DEX_ZUSD_BORROW_FEE_FLOOR_BPS", 0, lo=0, hi=10_000),
-        borrow_fee_max_bps=_env_int("TAU_DEX_ZUSD_BORROW_FEE_MAX_BPS", 1_000, lo=0, hi=10_000),
-        host_protocol_fee_share_bps=_env_int("TAU_DEX_ZUSD_HOST_PROTOCOL_FEE_SHARE_BPS", 0, lo=0, hi=10_000),
-        fee_stake_asset_id=os.environ.get("TAU_DEX_ZUSD_FEE_STAKE_ASSET_ID", "").strip() or None,
-        staking_activation_delay_epochs=_env_int(
-            "TAU_DEX_ZUSD_STAKING_ACTIVATION_DELAY_EPOCHS",
-            1,
-            lo=0,
-            hi=10_000,
-        ),
-    )
+    if asset_id != canonical_asset_id:
+        raise ValueError("asset_id does not match configured canonical zUSD")
+    config = _runtime_monetary_config(chain_id=chain_id)
 
     client = _tau_client()
     app_state, app_hash = _load_app_state(client)
@@ -667,18 +792,24 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     native_balance = _safe_native_balance(client, actor_pubkey)
     tx_fee_limit = _request_tx_fee_limit(body)
     fee_limit_posture = _fee_limit_posture(tx_fee_limit=tx_fee_limit, native_balance=native_balance)
-    operation = _build_operation(body, action=action, actor_pubkey=actor_pubkey, nonce=nonce, deadline=deadline)
+    operation = _build_operation(
+        body,
+        action=action,
+        actor_pubkey=actor_pubkey,
+        nonce=nonce,
+        deadline=valid_until_height,
+    )
     operations = {_STREAM_KEY: [operation]}
-    block_timestamp = int(body.get("block_timestamp") if isinstance(body.get("block_timestamp"), int) else int(time.time()))
+    if "block_timestamp" in body:
+        raise ValueError("block_timestamp is consensus-owned")
     preflight = _preflight(
         app_state=app_state,
         config=config,
         operation=operation,
         actor_pubkey=actor_pubkey,
-        block_timestamp=block_timestamp,
         native_balance=native_balance,
     )
-    if for_submit and not _preflight_ok(preflight):
+    if not _preflight_ok(preflight):
         raise ValueError(f"preflight_failed: {preflight.get('error') or 'unknown'}")
 
     tau_tx_payload: dict[str, Any] | None = None
@@ -691,7 +822,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             external_payload,
             actor_pubkey=actor_pubkey,
             tx_sequence_number=tx_sequence_number,
-            deadline=deadline,
+            deadline=tx_expiration_time,
             operations=operations,
             tx_fee_limit=tx_fee_limit,
         )
@@ -707,7 +838,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         tau_tx_payload = build_signed_tau_transaction(
             privkey=cast(Any, signer_privkey),
             sequence_number=tx_sequence_number,
-            expiration_time=deadline,
+            expiration_time=tx_expiration_time,
             operations=operations,
             fee_limit=tx_fee_limit,
         )
@@ -737,10 +868,16 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "host_protocol_fee_share_bps": config.host_protocol_fee_share_bps,
             "fee_stake_asset_id": config.fee_stake_asset_id,
             "staking_activation_delay_epochs": config.staking_activation_delay_epochs,
+            "clock_policy_hash": config.committed_clock_policy_hash,
+            "protocol_fee_recipient_pubkey": config.protocol_fee_recipient_pubkey,
+            "valid_until_height": valid_until_height,
+            "tx_expiration_time": tx_expiration_time,
             "allow_local_signing": _allow_signing(),
             "signing_mode": signing_mode,
             "auto_mine": _auto_mine(),
-            "tau_host": _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")),
+            "tau_host": _env_str(
+                "ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")
+            ),
             "tau_port": _env_int(
                 "ZUSD_MONETARY_WALLET_TAU_PORT",
                 _env_int("ZUSD_TAU_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
@@ -817,37 +954,16 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
 
 def _status_payload() -> Dict[str, Any]:
     chain_id = _tau_chain_id()
-    asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
+    config = _runtime_monetary_config(chain_id=chain_id)
+    asset_id = config.zusd_asset
     sp_pubkey = stability_pool_pubkey(chain_id=chain_id)
-    liquidation_fee_comp_fixed_collateral_e8 = _env_int_alias(
-        "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8",
-        "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8",
-        0,
-        lo=0,
-        hi=10**30,
-    )
-    liquidation_fee_comp_bps = _env_int_alias(
-        "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_BPS",
-        "TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS",
-        0,
-        lo=0,
-        hi=10_000,
-    )
-    borrow_fee_floor_bps = _env_int("TAU_DEX_ZUSD_BORROW_FEE_FLOOR_BPS", 0, lo=0, hi=10_000)
-    borrow_fee_max_bps = _env_int("TAU_DEX_ZUSD_BORROW_FEE_MAX_BPS", 1_000, lo=0, hi=10_000)
-    host_protocol_fee_share_bps = _env_int("TAU_DEX_ZUSD_HOST_PROTOCOL_FEE_SHARE_BPS", 0, lo=0, hi=10_000)
-    fee_stake_asset_id = os.environ.get("TAU_DEX_ZUSD_FEE_STAKE_ASSET_ID", "").strip() or None
-    staking_activation_delay_epochs = _env_int(
-        "TAU_DEX_ZUSD_STAKING_ACTIVATION_DELAY_EPOCHS",
-        1,
-        lo=0,
-        hi=10_000,
-    )
     status: Dict[str, Any] = {
         "enabled": True,
         "chain_id": chain_id,
         "asset_id": asset_id,
-        "tau_host": _env_str("ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")),
+        "tau_host": _env_str(
+            "ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")
+        ),
         "tau_port": _env_int(
             "ZUSD_MONETARY_WALLET_TAU_PORT",
             _env_int("ZUSD_TAU_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
@@ -857,24 +973,71 @@ def _status_payload() -> Dict[str, Any]:
         "allow_local_signing": _allow_signing(),
         "auto_mine": _auto_mine(),
         "stability_pool_pubkey": sp_pubkey,
-        "oracle_pubkey": os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY") or None,
-        "liquidation_fee_comp_fixed_collateral_e8": liquidation_fee_comp_fixed_collateral_e8,
-        "liquidation_fee_comp_bps": liquidation_fee_comp_bps,
-        "liquidation_gas_comp_fixed_collateral_e8": liquidation_fee_comp_fixed_collateral_e8,
-        "liquidation_gas_comp_bps": liquidation_fee_comp_bps,
-        "borrow_fee_floor_bps": borrow_fee_floor_bps,
-        "borrow_fee_max_bps": borrow_fee_max_bps,
-        "host_protocol_fee_share_bps": host_protocol_fee_share_bps,
-        "fee_stake_asset_id": fee_stake_asset_id,
-        "staking_activation_delay_epochs": staking_activation_delay_epochs,
+        "oracle_pubkey": os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY")
+        or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
+        or None,
+        "liquidation_fee_comp_fixed_collateral_e8": config.liquidation_gas_comp_fixed_collateral_e8,
+        "liquidation_fee_comp_bps": config.liquidation_gas_comp_bps,
+        "liquidation_gas_comp_fixed_collateral_e8": config.liquidation_gas_comp_fixed_collateral_e8,
+        "liquidation_gas_comp_bps": config.liquidation_gas_comp_bps,
+        "borrow_fee_floor_bps": config.borrow_fee_floor_bps,
+        "borrow_fee_max_bps": config.borrow_fee_max_bps,
+        "host_protocol_fee_share_bps": config.host_protocol_fee_share_bps,
+        "fee_stake_asset_id": config.fee_stake_asset_id,
+        "staking_activation_delay_epochs": config.staking_activation_delay_epochs,
+        "clock_policy_hash": config.committed_clock_policy_hash,
+        "protocol_fee_recipient_pubkey": config.protocol_fee_recipient_pubkey,
         "proof_profile": _zusd_proof_profile(),
     }
     try:
         client = _tau_client()
         hello = client.rpc("hello version=1").strip()
         app_state, app_hash = _load_app_state(client)
-        balances = _balances_for_asset(app_state, asset_id=asset_id)
         zusd_state = _zusd_state_view(app_state)
+        if zusd_state is not None:
+            committed = zusd_state.policy_binding
+            policy_error = zusd_monetary_policy_binding_error(
+                config=config,
+                state=zusd_state,
+            )
+            status["configured_chain_id"] = chain_id
+            status["configured_asset_id"] = asset_id
+            status["policy_binding_ok"] = policy_error is None
+            status["policy_binding_error"] = policy_error
+            status["committed_policy_binding"] = {
+                field_name: getattr(committed, field_name)
+                for field_name in ZUSD_MONETARY_POLICY_FIELDS
+            }
+            chain_id = committed.chain_id
+            asset_id = committed.canonical_zusd_asset
+            sp_pubkey = stability_pool_pubkey(chain_id=chain_id)
+            status.update(
+                {
+                    "chain_id": chain_id,
+                    "asset_id": asset_id,
+                    "stability_pool_pubkey": sp_pubkey,
+                    "oracle_pubkey": committed.oracle_pubkey,
+                    "liquidation_fee_comp_fixed_collateral_e8": (
+                        committed.liquidation_gas_comp_fixed_collateral_e8
+                    ),
+                    "liquidation_fee_comp_bps": committed.liquidation_gas_comp_bps,
+                    "liquidation_gas_comp_fixed_collateral_e8": (
+                        committed.liquidation_gas_comp_fixed_collateral_e8
+                    ),
+                    "liquidation_gas_comp_bps": committed.liquidation_gas_comp_bps,
+                    "borrow_fee_floor_bps": committed.borrow_fee_floor_bps,
+                    "borrow_fee_max_bps": committed.borrow_fee_max_bps,
+                    "host_protocol_fee_share_bps": (committed.host_protocol_fee_share_bps),
+                    "fee_stake_asset_id": committed.fee_stake_asset_id,
+                    "staking_activation_delay_epochs": (committed.staking_activation_delay_epochs),
+                    "clock_policy_hash": committed.clock_policy_hash,
+                    "protocol_fee_recipient_pubkey": (committed.protocol_fee_recipient_pubkey),
+                }
+            )
+        else:
+            status["policy_binding_ok"] = None
+            status["policy_binding_error"] = None
+        balances = _balances_for_asset(app_state, asset_id=asset_id)
         status["node_reachable"] = True
         status["hello"] = hello
         status["app_hash"] = app_hash
@@ -896,7 +1059,12 @@ def _status_payload() -> Dict[str, Any]:
 def handle_zusd_monetary_wallet_request(method: str, path: str, body: Optional[bytes]) -> ResponseT:
     parsed_path = urlsplit(path)
     segments = [segment for segment in parsed_path.path.split("/") if segment]
-    if len(segments) < 4 or segments[0] != "api" or segments[1] != "zusd" or segments[2] != "monetary":
+    if (
+        len(segments) < 4
+        or segments[0] != "api"
+        or segments[1] != "zusd"
+        or segments[2] != "monetary"
+    ):
         return 404, {"ok": False, "error": "not_found"}
 
     rest = segments[3:]
@@ -920,4 +1088,8 @@ def handle_zusd_monetary_wallet_request(method: str, path: str, body: Optional[b
     except TauNetRpcError as exc:
         return 502, {"ok": False, "error": "tau_rpc_error", "detail": str(exc)}
     except Exception as exc:
-        return 500, {"ok": False, "error": "internal_error", "detail": f"{type(exc).__name__}: {exc}"}
+        return 500, {
+            "ok": False,
+            "error": "internal_error",
+            "detail": f"{type(exc).__name__}: {exc}",
+        }

@@ -40,7 +40,7 @@
     },
     {
       "path": "src/integration/zeno_ledger_v0.py",
-      "sha256": "fc6676d66eb2928a7d6f3b096223da7df349d088c409566b8197ad77a5276937"
+      "sha256": "df8e171ee1d2c4f20db2536e5ad4fb97a847ba86ca37daecfaaa4e7013dcf805"
     },
     {
       "path": "src/integration/zeno_ledger_rejections_v0.py",
@@ -92,7 +92,7 @@
     },
     {
       "path": "tests/integration/test_zeno_ledger_v0.py",
-      "sha256": "1509b9a0e6f5ec22a20ae508e3f5beebcd9b96abe47d0cf6ae8b164406331556"
+      "sha256": "74eaa10b65b85ecc5d69c8ef72c74a1d191084283e2fce68abda563d1e8e74a7"
     },
     {
       "path": "tests/integration/test_zeno_ledger_rejections_v0.py",
@@ -116,7 +116,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "93c96e4741714a11d8b489fea620c42457033b8e226d070f71eb2a2f8db4d699"
+      "sha256": "84680fad18c63d44625b3e2cf315348998f34070b37c4ea15bffe030f518ebb6"
     },
     {
       "path": ".github/workflows/release-integrity.yml",
@@ -136,7 +136,7 @@
     },
     {
       "path": "lean-mathlib/Proofs.lean",
-      "sha256": "2b29bba0214ef8889afb48183085a8cee83e096ad7311dae3cc51cd52d92be26"
+      "sha256": "578408dc5d469dbdd897b0291d6fe90e7bb6ef4a34d419a01956573061704af1"
     },
     {
       "path": "tools/dex-ui/src/sdk/zenoProofClient.js",

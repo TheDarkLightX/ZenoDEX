@@ -8,12 +8,12 @@ from pathlib import Path
 
 from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 
-
 ROOT = Path(__file__).resolve().parents[2]
 WRAPPER = ROOT / "tools" / "proof_verifiers" / "risc0_perps_np_live_wrapper_v1.py"
 SURFACE = "risc0.zenodex_perps_np_transition.v1"
 LIVE_WALLET_SURFACE = "perps_stream8"
 RECEIPT_HASH_DOMAIN = "zenodex.perps_wallet.proof_intent_receipt/v1"
+EXECUTION_CONTEXT_HASH = "ec" * 32
 
 
 def _receipt_hash(body: dict[str, object]) -> str:
@@ -75,6 +75,7 @@ def _request(*, surface: str = SURFACE, action: str = "run_epoch", proof_type: s
                 }
             ],
             "meta": {
+                "execution_context_hash": EXECUTION_CONTEXT_HASH,
                 "proof_type": proof_type,
                 "chain_id": "zenodex-local-1",
                 "market_id": "perp:chnp:ETH-PERP",
@@ -88,6 +89,7 @@ def _request(*, surface: str = SURFACE, action: str = "run_epoch", proof_type: s
                 "receipt_root": "aa" * 32,
             },
         },
+        "expected_execution_context_hash": EXECUTION_CONTEXT_HASH,
         "verifier_request_hash": "wrapper-request-hash",
     }
 
@@ -124,12 +126,14 @@ def test_risc0_perps_np_wrapper_binds_runtime_receipt_to_cli_request() -> None:
     fake_cli = """
 import json, sys
 obj = json.load(sys.stdin)
+assert sys.argv[1:] == ["--expected-execution-context-hash", "ec" * 32]
 assert obj["schema"] == "tau_state_proof_verify"
 assert obj["state_hash"] == "aa" * 32
 assert obj["chain_id"] == "zenodex-local-1"
 assert obj["proof"]["proof_type"] == "risc0.zenodex_perps_np_transition.v1"
 assert obj["tau_state"]["app_hash"] == "22" * 32
 context = obj["context"]
+assert context["execution_context_hash"] == "ec" * 32
 assert context["chain_id"] == "zenodex-local-1"
 assert context["app_hash_pre"] == "11" * 32
 assert context["operation_hash"] == "33" * 32
@@ -147,6 +151,26 @@ print('{"ok": true}')
     assert out["verified_surface"] == SURFACE
     assert out["proof_type"] == SURFACE
     assert out["production_security_claim"] is False
+
+
+def test_risc0_perps_np_wrapper_requires_independent_execution_context() -> None:
+    req = _request()
+    req.pop("expected_execution_context_hash")
+    out = _run(req, fake_cli="raise AssertionError('CLI must not run')")
+    assert out["ok"] is False
+    assert out["error"] == "expected_execution_context_hash must be a non-empty string"
+
+
+def test_risc0_perps_np_wrapper_rejects_proof_context_substitution() -> None:
+    req = _request()
+    proof = req["proof"]
+    assert isinstance(proof, dict)
+    meta = proof["meta"]
+    assert isinstance(meta, dict)
+    meta["execution_context_hash"] = "ed" * 32
+    out = _run(req, fake_cli="raise AssertionError('CLI must not run')")
+    assert out["ok"] is False
+    assert out["error"] == "proof execution_context_hash mismatch"
 
 
 def test_risc0_perps_np_wrapper_accepts_live_wallet_surface_alias() -> None:

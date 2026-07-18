@@ -1,4 +1,4 @@
-"""Oracle equivalence tests: perp_v2 hand-written engine vs generated reference model.
+"""Oracle equivalence tests: v3 native adapter vs generated v3 reference.
 
 Uses Hypothesis to fuzz random action sequences and verify that both engines
 agree on accept/reject, post-state, and effects for every step.
@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from dataclasses import fields as dc_fields
 from pathlib import Path
 from typing import Any
 
@@ -20,8 +19,12 @@ if importlib.util.find_spec("hypothesis") is None:  # pragma: no cover
 import hypothesis.strategies as st
 from hypothesis import given, settings
 
-from src.core.perp_v2 import Action, ActionParams, initial_state, step
-from src.core.perp_v2.state import state_to_dict
+from src.core.perp_epoch import (
+    PerpStepResult,
+    perp_epoch_isolated_v3_native_apply,
+    perp_epoch_isolated_v3_native_initial_state,
+)
+from src.core.perp_v2 import Action, ActionParams
 
 # ---------------------------------------------------------------------------
 # Import the generated reference oracle (importlib, no sys.path mutation)
@@ -51,17 +54,7 @@ ref = _import_generated_ref()
 
 
 def ref_state_to_dict(s) -> dict[str, bool | int]:
-    return {f.name: getattr(s, f.name) for f in dc_fields(s)}
-
-
-def _our_state_dict_for_ref(s) -> dict[str, Any]:
-    """Convert our state_to_dict to the ref model's encoding."""
-    d = state_to_dict(s)
-    ep = d.get("epoch_phase")
-    if isinstance(ep, str):
-        # Ref model uses int encoding: Open=0, PricePublished=1, Settled=2.
-        d["epoch_phase"] = {"Open": 0, "PricePublished": 1, "Settled": 2}[ep]
-    return d
+    return vars(s)
 
 
 def params_to_command(params: ActionParams):
@@ -90,20 +83,47 @@ def params_to_command(params: ActionParams):
     return ref.Command(tag=tag, args=args)
 
 
-def our_effect_to_dict(effect) -> dict[str, bool | int | str]:
-    return {
-        "event": effect.event.value,
-        "oracle_fresh": effect.oracle_fresh,
-        "notional_quote": effect.notional_quote,
-        "effective_maint_bps": effect.effective_maint_bps,
-        "maint_req_quote": effect.maint_req_quote,
-        "init_req_quote": effect.init_req_quote,
-        "margin_ok": effect.margin_ok,
-        "liquidated": effect.liquidated,
-        "collateral_after": effect.collateral_after,
-        "fee_pool_after": effect.fee_pool_after,
-        "insurance_after": effect.insurance_after,
+def apply_native(state: dict[str, bool | int], command) -> PerpStepResult:
+    return perp_epoch_isolated_v3_native_apply(
+        state=state,
+        action=command.tag,
+        params=command.args,
+    )
+
+
+def assert_result_parity(
+    native_result: PerpStepResult,
+    ref_result,
+    *,
+    context: str,
+) -> None:
+    assert native_result.ok == ref_result.ok, (
+        f"{context}: accept/reject mismatch: "
+        f"native={native_result.ok} (error={native_result.error}), "
+        f"ref={ref_result.ok} (error={ref_result.error})"
+    )
+    if not native_result.ok:
+        assert native_result.state is None
+        assert native_result.effects is None
+        return
+
+    assert native_result.state is not None
+    assert native_result.effects is not None
+    assert ref_result.state is not None
+    assert ref_result.effects is not None
+    assert native_result.state == ref_state_to_dict(ref_result.state), context
+    assert native_result.effects == dict(ref_result.effects), context
+
+
+def oracle_bound_initial_states() -> tuple[dict[str, bool | int], Any]:
+    native = {
+        **perp_epoch_isolated_v3_native_initial_state(),
+        "oracle_seen": True,
+        "oracle_last_update_epoch": 0,
+        "index_price_e8": 100_000_000,
     }
+    generated = ref.State(**native)
+    return native, generated
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +201,7 @@ def action_params_strategy() -> st.SearchStrategy[ActionParams]:
 
 class TestInitialStateEquivalence:
     def test_initial_states_match(self):
-        our = _our_state_dict_for_ref(initial_state())
+        our = perp_epoch_isolated_v3_native_initial_state()
         theirs = ref_state_to_dict(ref.init_state())
         assert our == theirs
 
@@ -192,32 +212,17 @@ class TestSingleActionEquivalence:
     @given(params=action_params_strategy())
     @settings(max_examples=500, deadline=2000)
     def test_single_step(self, params: ActionParams):
-        our_state = initial_state()
+        our_state = perp_epoch_isolated_v3_native_initial_state()
         ref_state = ref.init_state()
 
-        our_result = step(our_state, params)
-        ref_result = ref.step(ref_state, params_to_command(params))
-
-        assert our_result.accepted == ref_result.ok, (
-            f"accept/reject mismatch on {params.action.value}: "
-            f"ours={our_result.accepted} (rejection={our_result.rejection}), "
-            f"ref={ref_result.ok} (error={ref_result.error})"
+        command = params_to_command(params)
+        our_result = apply_native(our_state, command)
+        ref_result = ref.step(ref_state, command)
+        assert_result_parity(
+            our_result,
+            ref_result,
+            context=f"single {params.action.value}",
         )
-
-        if our_result.accepted and ref_result.ok:
-            our_post = _our_state_dict_for_ref(our_result.state)
-            ref_post = ref_state_to_dict(ref_result.state)
-            for key in sorted(ref_post):
-                assert our_post[key] == ref_post[key], (
-                    f"state mismatch on {key}: ours={our_post[key]}, ref={ref_post[key]}"
-                )
-
-            our_eff = our_effect_to_dict(our_result.effect)
-            ref_eff = dict(ref_result.effects)
-            for key in sorted(ref_eff):
-                assert our_eff[key] == ref_eff[key], (
-                    f"effect mismatch on {key}: ours={our_eff[key]}, ref={ref_eff[key]}"
-                )
 
 
 class TestActionSequenceEquivalence:
@@ -226,56 +231,38 @@ class TestActionSequenceEquivalence:
     @given(actions=st.lists(action_params_strategy(), min_size=1, max_size=30))
     @settings(max_examples=200, deadline=5000)
     def test_sequence(self, actions: list[ActionParams]):
-        our_state = initial_state()
+        our_state = perp_epoch_isolated_v3_native_initial_state()
         ref_state = ref.init_state()
 
         for i, params in enumerate(actions):
-            our_result = step(our_state, params)
-            ref_result = ref.step(ref_state, params_to_command(params))
-
-            assert our_result.accepted == ref_result.ok, (
-                f"step {i} ({params.action.value}): "
-                f"accept/reject mismatch: "
-                f"ours={our_result.accepted} (rejection={our_result.rejection}), "
-                f"ref={ref_result.ok} (error={ref_result.error})"
+            command = params_to_command(params)
+            our_result = apply_native(our_state, command)
+            ref_result = ref.step(ref_state, command)
+            assert_result_parity(
+                our_result,
+                ref_result,
+                context=f"step {i} ({params.action.value})",
             )
 
-            if our_result.accepted and ref_result.ok:
-                our_post = _our_state_dict_for_ref(our_result.state)
-                ref_post = ref_state_to_dict(ref_result.state)
-                for key in sorted(ref_post):
-                    assert our_post[key] == ref_post[key], (
-                        f"step {i} ({params.action.value}): "
-                        f"state mismatch on {key}: ours={our_post[key]}, ref={ref_post[key]}"
-                    )
-
-                our_eff = our_effect_to_dict(our_result.effect)
-                ref_eff = dict(ref_result.effects)
-                for key in sorted(ref_eff):
-                    assert our_eff[key] == ref_eff[key], (
-                        f"step {i} ({params.action.value}): "
-                        f"effect mismatch on {key}: ours={our_eff[key]}, ref={ref_eff[key]}"
-                    )
-
+            if our_result.ok:
+                assert our_result.state is not None
+                assert ref_result.state is not None
                 our_state = our_result.state
                 ref_state = ref_result.state
-            else:
-                # Both rejected — state doesn't advance.
-                pass
 
 
 class TestLifecycleEquivalence:
     """Deterministic lifecycle: advance -> price -> deposit -> position -> settle."""
 
     def test_full_lifecycle(self):
-        our_s = initial_state()
-        ref_s = ref.init_state()
+        our_s, ref_s = oracle_bound_initial_states()
 
         actions = [
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
-            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000),
             ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1_000_000, auth_ok=True),
             ActionParams(action=Action.SET_POSITION, new_position_base=100, auth_ok=True),
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000),
+            ActionParams(action=Action.SETTLE_EPOCH),
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
             ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=105_000_000),
             ActionParams(action=Action.SETTLE_EPOCH),
@@ -287,38 +274,18 @@ class TestLifecycleEquivalence:
         ]
 
         for i, params in enumerate(actions):
-            our_result = step(our_s, params)
-            ref_result = ref.step(ref_s, params_to_command(params))
-
-            assert our_result.accepted == ref_result.ok, (
-                f"step {i} ({params.action.value}): "
-                f"ours={our_result.accepted} ({our_result.rejection}), "
-                f"ref={ref_result.ok} ({ref_result.error})"
+            command = params_to_command(params)
+            our_result = apply_native(our_s, command)
+            ref_result = ref.step(ref_s, command)
+            assert_result_parity(
+                our_result,
+                ref_result,
+                context=f"lifecycle step {i} ({params.action.value})",
             )
 
-            if our_result.accepted:
-                our_post = _our_state_dict_for_ref(our_result.state)
-                ref_post = ref_state_to_dict(ref_result.state)
-                assert our_post == ref_post, (
-                    f"step {i}: state diverged: "
-                    + ", ".join(
-                        f"{k}: {our_post[k]} vs {ref_post[k]}"
-                        for k in sorted(ref_post)
-                        if our_post[k] != ref_post[k]
-                    )
-                )
-
-                our_eff = our_effect_to_dict(our_result.effect)
-                ref_eff = dict(ref_result.effects)
-                assert our_eff == ref_eff, (
-                    f"step {i}: effects diverged: "
-                    + ", ".join(
-                        f"{k}: {our_eff[k]} vs {ref_eff[k]}"
-                        for k in sorted(ref_eff)
-                        if our_eff.get(k) != ref_eff.get(k)
-                    )
-                )
-
+            if our_result.ok:
+                assert our_result.state is not None
+                assert ref_result.state is not None
                 our_s = our_result.state
                 ref_s = ref_result.state
 
@@ -343,17 +310,18 @@ def test_regression_stale_oracle_settle_epoch_accept_reject_parity() -> None:
         ActionParams(action=Action.SETTLE_EPOCH),
     ]
 
-    our_s = initial_state()
-    ref_s = ref.init_state()
+    our_s, ref_s = oracle_bound_initial_states()
     for i, params in enumerate(actions):
-        our_result = step(our_s, params)
-        ref_result = ref.step(ref_s, params_to_command(params))
-        assert our_result.accepted == ref_result.ok, (
-            f"step {i} ({params.action.value}): "
-            f"accept/reject mismatch: "
-            f"ours={our_result.accepted} (rejection={our_result.rejection}), "
-            f"ref={ref_result.ok} (error={ref_result.error})"
+        command = params_to_command(params)
+        our_result = apply_native(our_s, command)
+        ref_result = ref.step(ref_s, command)
+        assert_result_parity(
+            our_result,
+            ref_result,
+            context=f"stale regression step {i} ({params.action.value})",
         )
-        if our_result.accepted and ref_result.ok:
+        if our_result.ok:
+            assert our_result.state is not None
+            assert ref_result.state is not None
             our_s = our_result.state
             ref_s = ref_result.state

@@ -126,6 +126,23 @@ def test_prepare_zusd_tau_transfer_success_builds_receipts_and_tx_payload() -> N
     assert report.tau_tx_payload["sequence_number"] == 7
 
 
+def test_prepare_zusd_tau_transfer_rejects_aliasing_accounts() -> None:
+    sender = "0x" + bls_pubkey_hex_from_privkey(35)
+
+    with pytest.raises(ValueError, match="self-transfer is not supported"):
+        prepare_zusd_tau_token_operation(
+            action="transfer",
+            amount=1,
+            deadline=99,
+            last_used_nonce=0,
+            total_supply_before=100,
+            sender_balance_before=100,
+            recipient_balance_before=100,
+            sender_pubkey=sender,
+            recipient_pubkey=sender,
+        )
+
+
 def test_prepare_zusd_tau_token_covers_mint_and_burn() -> None:
     operator = "0x" + bls_pubkey_hex_from_privkey(36)
     recipient = "0x" + bls_pubkey_hex_from_privkey(37)

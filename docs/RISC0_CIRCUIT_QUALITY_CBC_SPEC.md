@@ -7,8 +7,10 @@ Status: design and implementation policy
 
 This document defines the correct-by-construction quality contract for ZenoDEX
 RISC0 circuits, journals, proof metadata, recursive aggregation, and verifier
-admission. It is a design and implementation policy. It does not claim that
-recursive RISC0 aggregation is already implemented.
+admission. It is a design and implementation policy. Experimental single-block
+recursive composition exists for scoped spot, zUSD, and perps-NP leaves.
+Production header-projection admission, complete lifecycle coverage, and
+multi-block range aggregation remain unimplemented.
 
 The spec applies to:
 
@@ -41,7 +43,7 @@ The prover may propose data. The guest and verifier decide what is trusted.
 
 This spec does not claim:
 
-- current RISC0 code already uses recursive composition;
+- current recursive composition proves an authenticated multi-block range;
 - current proof profiles are production-ready;
 - every ZenoDEX transition has a RISC0 leaf proof;
 - data availability is solved by proof recursion;
@@ -169,6 +171,7 @@ Minimum fields:
 Risc0JournalV1 {
   journal_version
   domain_separator
+  execution_context_hash
   chain_id
   config_hash
   proof_profile
@@ -191,6 +194,8 @@ Recursive journals additionally require:
 
 ```text
 RecursiveJournalV1 {
+  aggregation_scope
+  execution_context_hash
   verifier_set_root
   child_verification_claims_root
   child_journals_root
@@ -211,11 +216,18 @@ journal.risc0_image_id == expected_image_id
 hash(canonical_journal) == expected_journal_hash
 statement_hash == expected_statement_hash
 metadata roots == journal roots == block/header/body roots
+request execution_context_hash == decoded journal execution_context_hash
+proof metadata execution_context_hash == decoded journal execution_context_hash
+independent expected execution_context_hash == decoded journal execution_context_hash
+recomputed authoritative header context hash == decoded journal execution_context_hash
+authenticated journal roots == authoritative header/body/effect projections
 proof_profile == expected_profile
 ```
 
 Proof generation is never enough. A generated receipt must be verified against
 the expected image ID and expected journal before it is used by a higher layer.
+The verifier CLI must also return a nonzero process status for every semantic
+rejection while preserving its canonical structured rejection payload.
 
 ## Tau-Unavailable Fallback
 
@@ -316,8 +328,11 @@ For v1, the aggregate profile is `recursive_epoch_v1`. Child leaves may use
 different profiles, such as `recursive_spot_leaf_v1`,
 `recursive_zusd_leaf_v1`, and `recursive_perps_np_leaf_v1`, as long as each
 child descriptor binds its own `child_profile`, `child_image_id`, verifier ID,
-journal hash, statement hash, and effect summary hash. The root still requires
-common chain, epoch, policy, feature, dependency, and toolchain hashes.
+journal hash, statement hash, effect summary hash, and execution-context hash.
+The root still requires common chain, epoch, policy, feature, dependency, and
+toolchain hashes. The current version-2 recursive ABI also requires
+`aggregation_scope = "single_block"`; any multi-block or epoch-range scope
+rejects until an ordered range commitment and continuity proof exist.
 
 The `risc0.zenodex_recursive_summary_leaf.v1` method is a dedicated
 summary-leaf image for recursive plumbing and smoke tests. It accepts only
@@ -331,7 +346,8 @@ that verifies the source receipt and proves the summary binding.
 The `risc0.zenodex_recursive_spot_leaf.v1` method is the first
 transition-specific recursive leaf. It accepts `SpotRecursiveLeafInputV1`,
 executes the checked spot transition, requires `pre_app_hash` to be present,
-requires the leaf `state_hash` to equal the checked post app root, and derives
+requires the leaf `state_hash` to equal the checked post app root, requires a
+nonzero execution context, and derives
 `EffectSummaryV1` from the resulting `StateProofJournalV1`. Its
 `receipt_root` is the native spot accepted-receipts root. Its recursive
 accepted/rejected receipt ID sets and cross-shard message sets are empty in v1.
@@ -348,7 +364,8 @@ The `risc0.zenodex_recursive_zusd_leaf.v1` method is the second
 transition-specific recursive leaf. It accepts `ZusdRecursiveLeafInputV1`,
 executes the checked zUSD transition, requires `pre_app_hash` to be present,
 requires the leaf `state_hash` to equal the checked post app root, requires the
-inner zUSD journal image ID to match the zUSD-leaf image ID, and derives
+inner zUSD journal image ID to match the zUSD-leaf image ID, requires a nonzero
+execution context, and derives
 `EffectSummaryV1` from `ZusdTransitionJournalV1`. Its `tx_root` is the zUSD
 operation hash. Its `evidence_root` binds the oracle binding, zUSD balance root,
 zUSD vault root, participant set, minted amount, collateral value, and MCR. Its
@@ -365,8 +382,8 @@ The `risc0.zenodex_recursive_perps_np_leaf.v1` method is the third
 transition-specific recursive leaf. It accepts `PerpsNpRecursiveLeafInputV1`,
 executes the checked perps NP transition, requires `pre_app_hash` to be present,
 requires the leaf `state_hash` to equal the checked post app root, requires the
-inner perps journal image ID to match the perps-NP-leaf image ID, requires net
-base position zero, and derives
+inner perps journal image ID to match the perps-NP-leaf image ID, requires a
+nonzero execution context, requires net base position zero, and derives
 `EffectSummaryV1` from `PerpsNpTransitionJournalV1`. Its `tx_root` is the perps
 operation hash. Its `evidence_root` binds oracle bindings, collateral bindings,
 participant set, receipt root, participant count, net position, total
@@ -441,7 +458,8 @@ proves a checked local spot transition. The zUSD-leaf smoke proves a checked
 local zUSD deposit-mint transition. The perps-NP-leaf smoke proves a checked
 four-participant local perps epoch transition. These transition-specific smokes
 verify child receipts through recursive roots. The multi-leaf smoke verifies
-spot, zUSD, and perps child receipts under one `recursive_epoch_v1` root. These
+spot, zUSD, and perps child receipts under one historically named
+`recursive_epoch_v1` root with `aggregation_scope = "single_block"`. These
 smokes do not upgrade cross-shard, native-ledger, complete stablecoin or perps
 lifecycle, or production-validator claims.
 
@@ -458,6 +476,13 @@ ChildDescriptorV1 {
   child_profile
 }
 ```
+
+The child effect summary and root statement also carry the same
+`execution_context_hash`. A child receipt with a different tag rejects even
+when its chain, epoch, policy, and state roots otherwise match. This agreement
+does not itself establish that the tag is the hash of the consensus-authorized
+header preimage. Production admission must reconstruct that preimage outside
+the proof request and compare authenticated journal roots with it.
 
 The root guest must reject:
 
@@ -664,7 +689,8 @@ hold:
 4. Admission verifier checks image ID, journal hash, proof profile, and metadata
    root equality.
 5. Negative tests cover wrong image ID, wrong journal hash, wrong chain/config,
-   wrong profile, stale verifier, malformed journal, and reject-is-no-op.
+   wrong execution context, wrong profile, stale verifier, malformed journal,
+   and reject-is-no-op.
 6. Python/Rust parity exists for any shared economic or settlement semantics.
 7. Public docs name remaining gaps.
 
@@ -679,6 +705,9 @@ Before a recursive proof lane can be described as implemented, add:
    duplicate message, unbalanced aggregate delta, missing DA root, and metadata
    drift.
 6. At least one real proof smoke produces and verifies a root proof.
+7. Multi-block aggregation remains disabled until the statement binds ordered
+   block contexts and proves height, parent-hash, state-root, epoch, and policy
+   continuity.
 
 Before any production-ready claim, add:
 
@@ -720,6 +749,7 @@ Use this checklist before merging or promoting a circuit change:
 - Which image ID is expected, and where is it bound?
 - Which receipt profile is accepted?
 - Which metadata roots must equal journal roots?
+- Which independently reconstructed execution context must equal the journal?
 - What rejects are typed and stable?
 - Is reject-is-no-op tested?
 - Are all rows bounded?

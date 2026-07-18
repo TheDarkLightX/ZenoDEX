@@ -76,7 +76,11 @@ def derive_zusd_tau_asset_id(*, chain_id: str = "tau-net-alpha", symbol: str = "
         raise ValueError("chain_id must be a non-empty string")
     if not isinstance(symbol, str) or not symbol.strip():
         raise ValueError("symbol must be a non-empty string")
-    payload = domain_sep_bytes("dex_asset_id", version=1) + symbol.strip().encode("utf-8") + chain_id.strip().encode("utf-8")
+    payload = (
+        domain_sep_bytes("dex_asset_id", version=1)
+        + symbol.strip().encode("utf-8")
+        + chain_id.strip().encode("utf-8")
+    )
     return "0x" + hashlib.sha256(payload).hexdigest()
 
 
@@ -150,7 +154,11 @@ def _verify_tau_receipt(
     config: ZUSDTauTokenConfig,
     receipt: TokenTauReceipt,
 ) -> str | None:
-    spec_path = PROTOCOL_TOKEN_V1.path if receipt.spec_id == PROTOCOL_TOKEN_V1.spec_id else ZUSD_TRANSFER_GUARD_V1.path
+    spec_path = (
+        PROTOCOL_TOKEN_V1.path
+        if receipt.spec_id == PROTOCOL_TOKEN_V1.spec_id
+        else ZUSD_TRANSFER_GUARD_V1.path
+    )
     try:
         outputs = run_tau_spec_steps(
             tau_bin=tau_bin,
@@ -200,7 +208,11 @@ def prepare_zusd_tau_token_operation(
     if (tx_sequence_number is None) != (tx_expiration_time is None):
         raise ValueError("tx_sequence_number and tx_expiration_time must be provided together")
 
-    asset = _canonical_asset_id(asset_id, name="asset_id") if asset_id is not None else derive_zusd_tau_asset_id(chain_id=chain_id)
+    asset = (
+        _canonical_asset_id(asset_id, name="asset_id")
+        if asset_id is not None
+        else derive_zusd_tau_asset_id(chain_id=chain_id)
+    )
     nonce = nonce_before + 1
     if nonce > _U32_MAX:
         raise ValueError("next token nonce exceeds u32")
@@ -210,6 +222,8 @@ def prepare_zusd_tau_token_operation(
             raise ValueError("transfer requires sender_pubkey and recipient_pubkey")
         sender = _canonical_pubkey(sender_pubkey, name="sender_pubkey")
         recipient = _canonical_pubkey(recipient_pubkey, name="recipient_pubkey")
+        if sender == recipient:
+            raise ValueError("self-transfer is not supported")
         if sender_before < amount:
             raise ValueError("sender_balance_before insufficient for transfer")
         if recipient_before + amount > _U32_MAX:
@@ -271,7 +285,10 @@ def prepare_zusd_tau_token_operation(
                     build_zusd_transfer_guard_v1_step(
                         amount_positive=1,
                         sender_has_balance=1 if sender_before >= amount else 0,
-                        transfer_deltas_match=1 if sender_after + amount == sender_before and recipient_after - amount == recipient_before else 0,
+                        transfer_deltas_match=1
+                        if sender_after + amount == sender_before
+                        and recipient_after - amount == recipient_before
+                        else 0,
                         sender_auth_ok=1 if auth_ok else 0,
                         recipient_valid=1,
                         paused=1 if paused else 0,
@@ -308,7 +325,9 @@ def prepare_zusd_tau_token_operation(
         if not ok or tau_bin is None:
             raise ValueError(f"tau_tool_unavailable:{err}")
         for receipt in tau_receipts:
-            tau_error = _verify_tau_receipt(tau_bin=tau_bin, config=resolved_tau_config, receipt=receipt)
+            tau_error = _verify_tau_receipt(
+                tau_bin=tau_bin, config=resolved_tau_config, receipt=receipt
+            )
             if tau_error is not None:
                 raise ValueError(tau_error)
 
