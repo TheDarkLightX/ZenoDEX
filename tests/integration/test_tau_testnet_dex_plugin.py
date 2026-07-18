@@ -798,6 +798,49 @@ def test_apply_app_tx_faucet_extra_field_rejects_atomically(monkeypatch) -> None
     assert err == "faucet op fields must match exactly"
 
 
+def test_apply_app_tx_faucet_only_postcheck_rejects_atomically(monkeypatch) -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    sender = "0x" + "13" * 48
+    token = "0x" + "37" * 32
+    monkeypatch.setenv("TAU_DEX_FAUCET", "1")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-faucet-postcheck")
+    genesis = _policy_bound_generic_state(
+        plugin,
+        assets=(token,),
+        mint_authority_pubkey=sender,
+    )
+    accounting_checks = 0
+
+    def forced_second_accounting_failure(**_kwargs: object) -> str | None:
+        nonlocal accounting_checks
+        accounting_checks += 1
+        return None if accounting_checks == 1 else "forced_postcheck_failure"
+
+    monkeypatch.setattr(
+        plugin,
+        "generic_token_accounting_error",
+        forced_second_accounting_failure,
+    )
+
+    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json=genesis,
+        chain_balances={},
+        operations={"7": {"mint": [[sender, token, 1]]}},
+        tx_sender_pubkey=sender,
+        block_timestamp=1,
+    )
+
+    assert accounting_checks == 2
+    assert ok is False
+    assert app_state_json == genesis
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == (
+        "generic token accounting postcheck failed: forced_postcheck_failure"
+    )
+
+
 def test_apply_app_tx_token_recipient_overflow_rejects_atomically(monkeypatch) -> None:
     from src.integration import tau_testnet_dex_plugin as plugin
 

@@ -1480,7 +1480,8 @@ def apply_app_tx(
 
     # Sync-only call: no ops, but we still update the snapshot/hash so native balances stay consistent.
     if (
-        not dex_ops
+        faucet_op is None
+        and not dex_ops
         and not perp_ops
         and not token_ops
         and not proof_mining_ops
