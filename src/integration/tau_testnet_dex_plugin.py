@@ -550,6 +550,26 @@ def _balances_patch_for_native(
     return out
 
 
+def derive_native_balance_patch_v1(
+    *,
+    chain_balances: Mapping[object, object],
+    app_state_json: str,
+) -> Dict[str, int]:
+    """Independently derive the native-ledger patch committed by app state.
+
+    The local runner uses this projection as an adapter-refinement check.  A
+    successful adapter response is not allowed to return balance effects that
+    disagree with the canonical post-state it also returned.
+    """
+
+    native_balances = TauNativeBalanceSnapshot.from_chain_balances(chain_balances)
+    state, _proof_mining, _zusd, _generic_token_authority = _load_state(
+        app_state_json
+    )
+    state = canonicalize_legacy_tau_state_principals(state)
+    return _balances_patch_for_native(before=native_balances, after_state=state)
+
+
 def _canonical_pubkey(value: Any, *, name: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{name} must be a 48-byte hex pubkey string")

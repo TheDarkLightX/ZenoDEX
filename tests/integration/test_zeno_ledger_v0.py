@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -7,9 +8,10 @@ from pathlib import Path
 import pytest
 
 from src.core.dex import DexState
+from src.core.execution_effect_plan import NativeBalanceWriteV1
 from src.integration import zeno_ledger_v0 as zv
 from src.integration.dex_engine import DexEngineConfig
-from src.integration.dex_snapshot import state_from_snapshot
+from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.integration.proof_toolchain_lock import (
     build_proof_toolchain_lock_manifest_v0,
     proof_toolchain_lock_hash_v0,
@@ -54,7 +56,8 @@ from src.integration.zeno_ledger_v0 import (
     validate_validator_set_v0,
     validator_set_hash_v0,
 )
-from src.state.balances import BalanceTable
+from src.state.balances import NATIVE_ASSET, BalanceTable
+from src.state.canonical import canonical_json_bytes
 from src.state.lp import LPTable
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -974,10 +977,365 @@ def test_run_local_tau_app_derives_epoch_from_anchored_height(tmp_path: Path) ->
 
     assert report["execution_clock"]["height"] == 1
     assert report["execution_clock"]["derived_epoch"] == 1
+    assert report["execution_context_hash"] != ZERO_ROOT
+    effect_plan = json.loads(
+        Path(str(report["effect_plan_path"])).read_text(encoding="utf-8")
+    )
+    execution_context = json.loads(
+        Path(str(report["execution_context_path"])).read_text(encoding="utf-8")
+    )
+    assert effect_plan["native_balance_effects"] == []
+    assert execution_context["execution_context_hash"] == report["execution_context_hash"]
+    assert (
+        execution_context["execution_header_core"]["effect_plan_hash"]
+        == report["effect_plan_hash"]
+    )
     post_state = json.loads(
         Path(str(report["post_app_state_path"])).read_text(encoding="utf-8")
     )
     assert post_state["zusd_monetary"]["core"]["now_epoch"] == 1
+    assert report["status_scope"] == "local_execution_only"
+    assert report["execution_status"] == "executed"
+    assert report["proof_material_status"] == "not_supplied"
+    assert report["proof_verification_status"] == "not_applicable"
+    assert report["finality_status"] == "not_performed"
+    assert report["parent_authority_status"] == "trusted_hash_unverified"
+    assert report["production_security_claim"] is False
+
+    proof_report = build_local_block_v0(
+        body_path=body_path,
+        out_dir=tmp_path / "ledger-with-proof",
+        time_ms=1_778_730_000_000,
+        tau_app_state_path=app_state_path,
+        trusted_prev_header_hash=_root("trusted-parent"),
+        trusted_prev_height=0,
+        sequencer_set_hash=_root("sequencer-set"),
+        data_availability_root=_root("da"),
+        proof_journal_hash=ZERO_ROOT,
+        proof_kind="risc0_zkvm_v0",
+        proof_program_id="risc0:zenodex-spot-transition-v1",
+        proof_verifier_id="risc0:receipt-verifier-v1",
+        proof_commitment=_root("proof-commitment"),
+        proof_public_input_hash=_root("public-input"),
+        proof_raw_journal_hash=_root("raw-journal"),
+        proof_execution_context_hash=str(report["execution_context_hash"]),
+        conflict_schedule_hash=_root("conflict-schedule"),
+        feature_suite_hash=_root("feature-suite"),
+        dependency_lock_hash=_root("dependency-lock"),
+        toolchain_lock_hash=_root("toolchain-lock"),
+        config_digest=_root("config"),
+        module_versions_digest=_root("modules"),
+        signature_set_root=ZERO_ROOT,
+    )
+    proof_binding = json.loads(
+        Path(str(proof_report["proof_journal_binding_path"])).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert proof_binding["execution_context_hash"] == report["execution_context_hash"]
+    assert proof_report["v1_proof_journal_binding_hash"] != proof_report[
+        "legacy_v0_proof_metadata_hash"
+    ]
+    assert proof_report["proof_journal_binding_status"] == "unverified"
+    assert proof_report["proof_material_status"] == "metadata_bound_unverified"
+    assert proof_report["proof_verification_status"] == "not_performed"
+    assert proof_report["finality_status"] == "not_performed"
+    assert proof_report["final_header_v1_status"] == (
+        "not_constructed_proof_unverified"
+    )
+    assert "final_header_v1_path" not in proof_report
+    assert "final_header_v1_hash" not in proof_report
+    assert proof_report["production_security_claim"] is False
+
+    with pytest.raises(ValueError, match="proof execution_context_hash mismatch"):
+        build_local_block_v0(
+            body_path=body_path,
+            out_dir=tmp_path / "ledger-wrong-proof-context",
+            time_ms=1_778_730_000_000,
+            tau_app_state_path=app_state_path,
+            trusted_prev_header_hash=_root("trusted-parent"),
+            trusted_prev_height=0,
+            sequencer_set_hash=_root("sequencer-set"),
+            data_availability_root=_root("da"),
+            proof_journal_hash=ZERO_ROOT,
+            proof_kind="risc0_zkvm_v0",
+            proof_program_id="risc0:zenodex-spot-transition-v1",
+            proof_verifier_id="risc0:receipt-verifier-v1",
+            proof_commitment=_root("proof-commitment"),
+            proof_public_input_hash=_root("public-input"),
+            proof_raw_journal_hash=_root("raw-journal"),
+            proof_execution_context_hash=_root("wrong-execution-context"),
+            conflict_schedule_hash=_root("conflict-schedule"),
+            feature_suite_hash=_root("feature-suite"),
+            dependency_lock_hash=_root("dependency-lock"),
+            toolchain_lock_hash=_root("toolchain-lock"),
+            config_digest=_root("config"),
+            module_versions_digest=_root("modules"),
+            signature_set_root=ZERO_ROOT,
+        )
+
+
+def test_run_local_tau_app_preserves_parent_state_root_continuity(tmp_path: Path) -> None:
+    from src.integration.tau_testnet_dex_plugin import (
+        build_zusd_policy_bound_genesis_app_state,
+    )
+    from src.integration.zusd_monetary_bridge import ZUSDMonetaryConfig
+    from tools.zeno_ledger_run_local import build_local_block_v0
+
+    chain_id = "zeno-ledger-devnet-0"
+    app_state_json, _app_hash = build_zusd_policy_bound_genesis_app_state(
+        config=ZUSDMonetaryConfig(chain_id=chain_id)
+    )
+    genesis_state_path = tmp_path / "genesis-app-state.json"
+    genesis_state_path.write_text(app_state_json, encoding="utf-8")
+    parent_body_path = tmp_path / "parent-body.json"
+    parent_body_path.write_text(
+        json.dumps(_body(txs=[]), sort_keys=True),
+        encoding="utf-8",
+    )
+    parent_report = build_local_block_v0(
+        body_path=parent_body_path,
+        out_dir=tmp_path / "parent-ledger",
+        time_ms=1_778_730_000_000,
+        tau_app_state_path=genesis_state_path,
+        trusted_prev_header_hash=_root("trusted-genesis-parent"),
+        trusted_prev_height=0,
+        sequencer_set_hash=_root("sequencer-set"),
+        data_availability_root=_root("da"),
+        proof_journal_hash=ZERO_ROOT,
+        config_digest=_root("config"),
+        module_versions_digest=_root("modules"),
+        signature_set_root=ZERO_ROOT,
+    )
+
+    child_body = _body(txs=[])
+    child_body["height"] = 2
+    child_ingress = child_body["ingress"]
+    assert isinstance(child_ingress, dict)
+    child_cutoff = child_ingress["batch_cutoff"]
+    assert isinstance(child_cutoff, dict)
+    child_cutoff["height"] = 2
+    child_receipts = child_ingress["ingress_receipts"]
+    assert isinstance(child_receipts, list)
+    assert isinstance(child_receipts[0], dict)
+    child_receipts[0]["height"] = 2
+    child_body_path = tmp_path / "child-body.json"
+    child_body_path.write_text(json.dumps(child_body, sort_keys=True), encoding="utf-8")
+
+    child_report = build_local_block_v0(
+        body_path=child_body_path,
+        out_dir=tmp_path / "child-ledger",
+        time_ms=1_778_730_001_000,
+        tau_app_state_path=Path(str(parent_report["post_app_state_path"])),
+        prev_header_path=Path(str(parent_report["header_path"])),
+        sequencer_set_hash=_root("sequencer-set"),
+        data_availability_root=_root("da-child"),
+        proof_journal_hash=ZERO_ROOT,
+        config_digest=_root("config"),
+        module_versions_digest=_root("modules"),
+        signature_set_root=ZERO_ROOT,
+    )
+    parent_header = json.loads(
+        Path(str(parent_report["header_path"])).read_text(encoding="utf-8")
+    )
+    child_header = json.loads(
+        Path(str(child_report["header_path"])).read_text(encoding="utf-8")
+    )
+    assert child_header["pre_state_root"] == parent_header["post_state_root"]
+    assert child_report["parent_authority_status"] == "linked_header_unfinalized"
+
+    tampered_state = json.loads(
+        Path(str(parent_report["post_app_state_path"])).read_text(encoding="utf-8")
+    )
+    tampered_state["zusd_monetary"]["core"]["now_epoch"] = 0
+    tampered_state_path = tmp_path / "tampered-parent-state.json"
+    tampered_state_path.write_text(
+        json.dumps(tampered_state, sort_keys=True),
+        encoding="utf-8",
+    )
+    rejected_out_dir = tmp_path / "rejected-child-ledger"
+    with pytest.raises(
+        ValueError,
+        match="pre_state_root must equal previous header post_state_root",
+    ):
+        build_local_block_v0(
+            body_path=child_body_path,
+            out_dir=rejected_out_dir,
+            time_ms=1_778_730_001_000,
+            tau_app_state_path=tampered_state_path,
+            prev_header_path=Path(str(parent_report["header_path"])),
+            sequencer_set_hash=_root("sequencer-set"),
+            data_availability_root=_root("da-child"),
+            proof_journal_hash=ZERO_ROOT,
+            config_digest=_root("config"),
+            module_versions_digest=_root("modules"),
+            signature_set_root=ZERO_ROOT,
+        )
+    assert not rejected_out_dir.exists()
+
+
+def test_tau_app_block_threads_native_balance_effects_between_transactions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.core.consensus_time import (
+        clock_policy_schedule_hash_v1,
+        default_height_only_clock_schedule_v1,
+        verify_execution_clock_v1,
+    )
+    from src.integration import tau_testnet_dex_plugin
+    from tools.zeno_ledger_run_local import _execute_tau_app_body_v0
+
+    schedule = default_height_only_clock_schedule_v1(
+        chain_id="zeno-ledger-devnet-0"
+    )
+    clock = verify_execution_clock_v1(
+        chain_id="zeno-ledger-devnet-0",
+        height=1,
+        schedule=schedule,
+        expected_schedule_hash=clock_policy_schedule_hash_v1(schedule),
+    )
+    seen_balances: list[dict[str, int]] = []
+    canonical_pubkey = "0x" + "11" * 48
+    chain_key = canonical_pubkey[2:]
+
+    def state_json_with_native_balance(amount: int) -> tuple[str, str]:
+        balances = BalanceTable()
+        balances.set(canonical_pubkey, NATIVE_ASSET, amount)
+        state_json = snapshot_from_state(
+            DexState(balances=balances, pools={}, lp_balances=LPTable())
+        ).canonical_bytes().decode("utf-8")
+        state_hash = hashlib.sha256(
+            canonical_json_bytes(json.loads(state_json))
+        ).hexdigest()
+        return state_json, state_hash
+
+    canonical_state_json, _ = state_json_with_native_balance(0)
+    synced_state_json, synced_state_hash = state_json_with_native_balance(100)
+    first_state_json, first_state_hash = state_json_with_native_balance(60)
+    second_state_json, second_state_hash = state_json_with_native_balance(20)
+
+    def fake_apply_app_tx(**kwargs: object) -> tuple[bool, str, str, object, None]:
+        balances = dict(kwargs["chain_balances"])  # type: ignore[arg-type]
+        seen_balances.append(balances)
+        call_index = len(seen_balances)
+        if call_index == 1:
+            return True, synced_state_json, synced_state_hash, None, None
+        if call_index == 2:
+            return True, first_state_json, first_state_hash, {chain_key: 60}, None
+        if call_index == 3:
+            return True, second_state_json, second_state_hash, {chain_key: 20}, None
+        if call_index == 4:
+            return True, second_state_json, second_state_hash, None, None
+        raise AssertionError("unexpected Tau app call")
+
+    monkeypatch.setattr(tau_testnet_dex_plugin, "apply_app_tx", fake_apply_app_tx)
+    body = _body(
+        txs=[
+            {"tx_sender_pubkey": "alice", "operations": {"step": 1}},
+            {"tx_sender_pubkey": "alice", "operations": {"step": 2}},
+        ]
+    )
+
+    _, _, _, _, receipts, effects = _execute_tau_app_body_v0(
+        app_state_json=canonical_state_json,
+        body=body,
+        chain_balances={chain_key: 100},
+        tau_chain_id="zeno-ledger-devnet-0",
+        allow_missing_settlement=False,
+        require_intent_signatures=True,
+        allow_unsigned_intents_if_tx_sender_matches=False,
+        enable_faucet=False,
+        block_time_seconds=1_778_730_000,
+        execution_clock=clock,
+    )
+
+    assert seen_balances == [
+        {chain_key: 100},
+        {chain_key: 100},
+        {chain_key: 60},
+        {chain_key: 20},
+    ]
+    assert [receipt["accepted"] for receipt in receipts] == [True, True]
+    assert [effect.tx_index for effect in effects] == [0, 1]
+    assert effects[0].writes == (
+        NativeBalanceWriteV1(
+            pubkey=canonical_pubkey,
+            expected_amount=100,
+            amount=60,
+        ),
+    )
+    assert effects[1].writes == (
+        NativeBalanceWriteV1(
+            pubkey=canonical_pubkey,
+            expected_amount=60,
+            amount=20,
+        ),
+    )
+
+
+def test_tau_app_block_rejects_balance_patch_that_disagrees_with_app_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.core.consensus_time import (
+        clock_policy_schedule_hash_v1,
+        default_height_only_clock_schedule_v1,
+        verify_execution_clock_v1,
+    )
+    from src.integration import tau_testnet_dex_plugin
+    from tools.zeno_ledger_run_local import _execute_tau_app_body_v0
+
+    canonical_pubkey = "0x" + "22" * 48
+    chain_key = canonical_pubkey[2:]
+    balances = BalanceTable()
+    balances.set(canonical_pubkey, NATIVE_ASSET, 100)
+    canonical_state_json = snapshot_from_state(
+        DexState(balances=balances, pools={}, lp_balances=LPTable())
+    ).canonical_bytes().decode("utf-8")
+    canonical_state_hash = hashlib.sha256(
+        canonical_json_bytes(json.loads(canonical_state_json))
+    ).hexdigest()
+    calls = 0
+
+    def fake_apply_app_tx(**_kwargs: object) -> tuple[bool, str, str, object, None]:
+        nonlocal calls
+        calls += 1
+        patch = None if calls == 1 else {chain_key: 60}
+        return True, canonical_state_json, canonical_state_hash, patch, None
+
+    monkeypatch.setattr(tau_testnet_dex_plugin, "apply_app_tx", fake_apply_app_tx)
+    schedule = default_height_only_clock_schedule_v1(
+        chain_id="zeno-ledger-devnet-0"
+    )
+    clock = verify_execution_clock_v1(
+        chain_id="zeno-ledger-devnet-0",
+        height=1,
+        schedule=schedule,
+        expected_schedule_hash=clock_policy_schedule_hash_v1(schedule),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="balance patch does not match the committed app-state transition",
+    ):
+        _execute_tau_app_body_v0(
+            app_state_json=canonical_state_json,
+            body=_body(
+                txs=[
+                    {
+                        "tx_sender_pubkey": canonical_pubkey,
+                        "operations": {"step": 1},
+                    }
+                ]
+            ),
+            chain_balances={chain_key: 100},
+            tau_chain_id="zeno-ledger-devnet-0",
+            allow_missing_settlement=False,
+            require_intent_signatures=True,
+            allow_unsigned_intents_if_tx_sender_matches=False,
+            enable_faucet=False,
+            block_time_seconds=1_778_730_000,
+            execution_clock=clock,
+        )
 
 
 def test_run_local_tau_app_uses_header_time_for_legacy_deadlines(tmp_path: Path) -> None:
@@ -1080,7 +1438,7 @@ def test_tau_app_runner_rejects_transaction_time_override() -> None:
         config=ZUSDMonetaryConfig(chain_id=chain_id)
     )
 
-    _pre_root, _post_root, post_state_json, _body_after, receipts = (
+    _pre_root, _post_root, post_state_json, _body_after, receipts, _effects = (
         _execute_tau_app_body_v0(
             app_state_json=app_state_json,
             body=_body(txs=[{"operations": {}, "block_timestamp": 7}]),

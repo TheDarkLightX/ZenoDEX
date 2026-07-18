@@ -2,13 +2,14 @@
 
 **Date:** 2026-07-18
 **PR:** #453
-**Reviewed input head:** `81fdad2b8ea177e9c291bdc2ea3d357eaaed3a40`
+**Reviewed upstream head:** `ecc10d139d023cb2976346f37db3375509371b1d`
+**Execution-context remediation base:** `81fdad2b8ea177e9c291bdc2ea3d357eaaed3a40`
 **Disposition:** **production release blocked**
 
 ## Implementation status in this PR update
 
-This update contains the mounted zUSD containment and a mounted protocol-zUSD
-reserve claim path:
+This update contains the mounted zUSD containment, a mounted protocol-zUSD
+reserve claim path, and the first scoped execution-context/proof binding:
 
 - ZenoLedger candidate height constructs a governed
   `VerifiedExecutionClockV1`;
@@ -32,14 +33,27 @@ reserve claim path:
   exactly across floor boundaries.
 - pending Oracle prices retain their observation epoch, and stale commit or
   liquidation attempts reject without changing pre-state.
+- the local Tau-app runner commits an immutable effect plan and executes each
+  transaction against all earlier accepted balance effects in block order;
+- the runner constructs an execution-header core and independently hashed
+  execution context, and may emit an explicitly unverified proof-journal
+  binding candidate; it does not construct a V1 final header;
+- proof-bearing local blocks require the supplied proof context to equal the
+  independently reconstructed execution context;
+- RISC0 spot, perps-NP, and zUSD transition journals carry a nonzero execution
+  context tag under journal ABI version 2;
+- RISC0 semantic verification rejection preserves its structured payload and
+  exits with status 1 for shell and CI callers;
+- one-block recursive composition requires the same context for every child and
+  rejects any aggregation scope other than `single_block`.
 
 This closes the reported same-transaction epoch-advance trace and makes the
 ordinary protocol zUSD reserve reachable when the outer transaction boundary
 authenticates the committed sender. End-to-end claimant authentication remains
-an outer admission obligation. This update does not close final-header,
-RISC0-journal, recursive-range, Tau-checkpoint, host-entitlement,
-redemption-collateral, confidential-request lifecycle, or system-shutdown
-liabilities.
+an outer admission obligation. This update does not close consensus admission
+of the V1 final header, all-lane RISC0 context coverage, multi-block recursive
+range, Tau checkpoint, host-entitlement, redemption-collateral,
+confidential-request lifecycle, or system-shutdown liabilities.
 
 The fee fixes are fail-closed containment. Until E8 transport and an explicit
 accumulator carry are mounted, a fractional fee or a stake topology that would
@@ -116,11 +130,14 @@ fields, and `proof_journal_hash` in the header. Current validation only requires
 consecutive height, and parent hash, but not parent/child timestamp relations.
 
 The local runner now derives a height-only zUSD execution clock from a governed
-policy schedule and requires parent height/hash linkage above genesis. The V1
-execution-header core binds the complete schedule hash, validator-set root,
-and finality-policy hash. The mounted legacy v0 final header still lacks the V1
-execution-context hash and does not yet connect those commitments to its proof
-journal. Deterministic wall-clock rules also remain open.
+policy schedule and requires parent height/hash linkage above genesis. It emits
+the compatibility v0 header plus a V1 execution-header core and context
+candidate. The core binds the complete schedule hash, validator-set root, and
+finality-policy hash. Supplied proof metadata produces only an unverified
+journal-binding candidate. `FinalHeaderV1` construction requires a verified
+proof capability and is therefore unavailable in the runner. Production
+consensus still lacks certificate-verified V1 parent custody and V1
+final-header admission. Deterministic wall-clock rules also remain open.
 
 Remaining additions:
 
@@ -135,9 +152,10 @@ only one validator's local wall clock.
 
 ### Recursive proof fabric
 
-`zk/state_proof_risc0/shared/src/recursive.rs` carries `epoch_id`, chain ID,
-policy and state roots, but lacks an independently authorized per-block context
-or an ordered block-context range.
+`zk/state_proof_risc0/shared/src/recursive.rs` now binds a nonzero
+`execution_context_hash` through the statement, every child summary, and the
+root journal. Its version-2 validation admits only
+`aggregation_scope = "single_block"`.
 
 One-block recursive composition must bind one `execution_context_hash` across
 all lane children. Multi-block epoch composition must additionally bind:
@@ -152,25 +170,35 @@ start/end time when enabled
 ```
 
 and prove height, parent-hash, state-root, time, and epoch-derivation continuity.
+That multi-block range object remains unimplemented and fail-closed.
 
 ### zUSD proof and refinement projection
 
-`zk/state_proof_risc0/shared/src/surfaces.rs` zUSD transition input and journal
-lack height, timestamp, header/context hash, and derived epoch.
+`zk/state_proof_risc0/shared/src/surfaces.rs` zUSD and perps-NP transition input
+and journals, plus the shared spot transition surface, now carry the exact
+nonzero `execution_context_hash`. Host checking compares a separately supplied
+expected context tag, decoded journal context, and proof metadata context. This
+prevents request-local substitution. It does not yet prove that the tag is the
+hash of the consensus-authorized `ExecutionHeaderCoreV1`, nor that every
+journal root equals the corresponding header projection. Height, epoch, policy,
+and root authority therefore remain outer admission obligations.
 
 `zk/state_proof_risc0/shared/src/zusd_runtime_refinement.rs` includes
 `block_timestamp` as caller-supplied operation projection data and explicitly
 acknowledges that caller-supplied matching hashes do not establish external
-authenticity. The missing independent context commitment must be added.
+authenticity. Caller-supplied projection data alone still has no authority; it
+is usable only when checked against the independently reconstructed context.
 
 ### Tau application bridge
 
 The app bridge now passes `VerifiedExecutionClockV1` for mounted zUSD execution
 and rejects a transaction-level timestamp override. Compatibility execution
 keeps the verified height separate from seconds-based DEX, LP-age, and perps
-contracts. Full V1 context binding still requires parent/context commitments,
-a consensus-governed wall-clock profile where seconds are required, and
-proof-journal integration.
+contracts. The local runner constructs parent/context commitments and an
+unverified proof-journal-binding candidate for the Tau-app path. Full V1
+context binding still requires a consensus-governed wall-clock profile where
+seconds are required, authenticated proof-journal projection, other mounted
+value-moving paths, and production consensus admission.
 
 ## Execution/finality separation
 
@@ -206,7 +234,8 @@ Use:
 
 ```text
 execution_context_hash = H(canonical execution-header core excluding proof and finality)
-proof journal binds execution_context_hash
+verified proof journal binding commits execution_context_hash,
+proof_metadata_hash, and raw_journal_hash
 final header binds proof_journal_hash
 finality certificate binds final_header_hash
 ```
@@ -223,17 +252,26 @@ still need the same typed context and proof binding.
 
 ### TIME-CONTEXT-002
 
-Every value-moving transition and journal does not yet bind one independently
-reconstructed execution-context hash.
+**Partially remediated.** The local Tau-app runner reconstructs a context hash,
+and scoped RISC0 spot, perps-NP, and zUSD journals carry a separately supplied
+matching tag. Production proof admission still needs to reconstruct the header
+preimage and compare authenticated journal projections against it. Other
+value-moving runtime and proof lanes remain outside that claim.
 
 ### TIME-RECURSION-003
 
-Recursive epoch composition does not prove ordered per-block context continuity.
+**Fail-closed containment added.** Recursive composition binds one block context
+and rejects multi-block scopes. Ordered per-block context continuity remains
+unimplemented.
 
 ### TIME-HASH-CYCLE-004
 
-No versioned execution-header-core commitment currently separates proof input
-context from the final header that contains `proof_journal_hash`.
+**Remediated at the typed commitment level.** The V1 execution-header core
+excludes proof material, the verified proof-journal binding commits the context,
+metadata, and raw journal hashes, and a final header can commit that binding
+without a cycle. The local runner does not verify the proof or construct that
+final header. Production ZenoLedger consensus does not yet admit or finalize
+V1 headers.
 
 ## BVA requirements
 
@@ -259,20 +297,36 @@ At minimum, release evidence must cover:
 1. **Implemented for mounted zUSD:** disable user `advance_epoch`.
 2. **Implemented for mounted zUSD:** introduce and commit a
    `HEIGHT_ONLY_V1` clock policy.
-3. **Pure value objects implemented; runtime binding open:** add a typed
-   execution context and execution-context hash.
-4. Thread height/derived epoch/context hash through mounted transitions and leaf
-   journals.
-5. Add the unsigned execution-header-core/final-header split.
-6. Add ordered block-context range binding to recursive epoch proofs.
-7. Add a wall-clock profile only after deterministic consensus timestamp rules
+3. **Partially implemented for the local Tau-app runner:** construct the typed
+   execution context and immutable effect-plan candidate. Proof verification
+   and final-header construction remain outside the runner.
+4. **Implemented for scoped RISC0 spot, perps-NP, and zUSD journals:** bind and
+   admit the exact execution-context hash.
+5. **Implemented as containment:** require a common context across one-block
+   recursive children and reject multi-block scopes.
+6. Add the ordered block-context range object and continuity proof before
+   enabling multi-block recursive aggregation.
+7. Mount V1 header admission, parent finality verification, and Tau checkpoint
+   verification in production consensus.
+8. Add a wall-clock profile only after deterministic consensus timestamp rules
    and their BVA/sequence proofs exist.
 
 ```text
 MountedZUSDHeightAuthorityContained = true
 ProtocolZUSDFeeClaimantReachable = true
 ProtocolClaimantAuthenticationEndToEnd = false
+LocalTauRunnerExecutionContextConstruction = true
+VerifiedProofJournalCapabilityType = true
+ConcreteProductionProofJournalVerifier = false
+LocalTauRunnerAcyclicFinalHeaderBinding = false
+ScopedRisc0SpotPerpsZUSDContextTagPropagation = true
+Risc0IndependentExpectedTagAdmission = true
+Risc0SemanticRejectExitNonzero = true
+Risc0AuthoritativeHeaderProjectionAdmission = false
+RecursiveSingleBlockScopeGate = true
 AllValueMovingContextBinding = false
+OrderedRecursiveRangeBinding = false
+ProductionFinalityAdmissionBinding = false
 AllFeeLiabilityLifecyclesClosed = false
 ProductionReleaseAllowed = false
 ```

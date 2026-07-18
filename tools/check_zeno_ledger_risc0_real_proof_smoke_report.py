@@ -426,6 +426,9 @@ def _validate_artifact_binding(
             feature_suite_hash=str(metadata.get("feature_suite_hash")),
             dependency_lock_hash=str(metadata.get("dependency_lock_hash")),
             toolchain_lock_hash=str(metadata.get("toolchain_lock_hash")),
+            expected_execution_context_hash=str(
+                proof.get("meta", {}).get("execution_context_hash", "")
+            ),
         )
         if rebuilt != dict(metadata):
             errors.append(f"{prefix}.metadata does not match proof/header rebuild")

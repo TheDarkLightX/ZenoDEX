@@ -762,6 +762,7 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
             next_app_state,
             _executed_body,
             receipts,
+            _native_balance_effects,
         ) = _execute_tau_app_body_v0(
             app_state_json=app_state_json,
             chain_balances={reward_pool: 20, sender: 0},

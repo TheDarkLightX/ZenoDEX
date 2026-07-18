@@ -13,11 +13,12 @@ use tau_state_proof_risc0_shared::{
     RecursiveChildEffectV1, RecursiveCompositionInputV1, RecursiveCompositionStatementV1,
     RecursiveEffectSummaryV1, SpotRecursiveLeafInputV1, StateProofInputV1, ZusdBalanceEntryV1,
     ZusdOperationV1, ZusdRecursiveLeafInputV1, ZusdSnapshotV1, ZusdTransitionInputV1,
-    ZusdVaultEntryV1, RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_EFFECT_SUMMARY_VERSION_V1,
-    RECURSIVE_EPOCH_PROFILE_V1, RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES, RECURSIVE_STATEMENT_VERSION_V1,
-    RECURSIVE_STRICT_CROSS_SHARD_MODE_V1, RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1, RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
+    ZusdVaultEntryV1, RECURSIVE_AGGREGATION_SCOPE_SINGLE_BLOCK_V2, RECURSIVE_DOMAIN_SEPARATOR_V1,
+    RECURSIVE_EFFECT_SUMMARY_VERSION_V1, RECURSIVE_EPOCH_PROFILE_V1,
+    RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
+    RECURSIVE_STATEMENT_VERSION_V1, RECURSIVE_STRICT_CROSS_SHARD_MODE_V1,
+    RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES, RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
+    RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
 };
 
 fn root(byte: u8) -> [u8; 32] {
@@ -52,6 +53,7 @@ fn summary(image_id_hex: &str) -> Result<RecursiveEffectSummaryV1, String> {
     let empty_messages = Vec::new();
     let empty_receipts = Vec::new();
     Ok(RecursiveEffectSummaryV1 {
+        execution_context_hash: root(0xEC),
         summary_version: RECURSIVE_EFFECT_SUMMARY_VERSION_V1,
         lane_id: "summary-leaf-root-child-0001".to_string(),
         lane_kind: "recursive_summary_leaf_smoke".to_string(),
@@ -118,6 +120,7 @@ fn print_spot_request(image_id_hex: &str) -> Result<(), String> {
         dependency_lock_hash: root(10),
         toolchain_lock_hash: root(11),
         spot_input: StateProofInputV1 {
+            execution_context_hash: root(0xEC),
             state_hash: app_hash,
             block_timestamp: 1,
             pre_app_hash_present: true,
@@ -210,6 +213,7 @@ fn print_zusd_request(image_id_hex: &str) -> Result<(), String> {
         dependency_lock_hash: root(10),
         toolchain_lock_hash: root(11),
         zusd_input: ZusdTransitionInputV1 {
+            execution_context_hash: root(0xEC),
             state_hash: post_app_hash,
             chain_id: "tau-devnet-recursive-smoke".to_string(),
             pre_app_hash_present: true,
@@ -284,6 +288,7 @@ fn print_perps_request(image_id_hex: &str) -> Result<(), String> {
         dependency_lock_hash: root(10),
         toolchain_lock_hash: root(11),
         perps_input: PerpsNpTransitionInputV1 {
+            execution_context_hash: root(0xEC),
             state_hash: post_app_hash,
             chain_id: "tau-devnet-recursive-smoke".to_string(),
             pre_app_hash_present: true,
@@ -320,6 +325,11 @@ fn print_perps_request(image_id_hex: &str) -> Result<(), String> {
 
 fn summary_from_meta(meta: &Value) -> Result<RecursiveEffectSummaryV1, String> {
     Ok(RecursiveEffectSummaryV1 {
+        execution_context_hash: parse_hex32(
+            meta["execution_context_hash"]
+                .as_str()
+                .ok_or("execution_context_hash missing")?,
+        )?,
         summary_version: meta["summary_version"]
             .as_u64()
             .ok_or("summary_version missing")? as u32,
@@ -540,6 +550,9 @@ fn print_root_request(proof_paths: &[String]) -> Result<(), String> {
         if child.summary.epoch_id != summary.epoch_id {
             return Err("child epoch_id mismatch".to_string());
         }
+        if child.summary.execution_context_hash != summary.execution_context_hash {
+            return Err("child execution_context_hash mismatch".to_string());
+        }
         if child.summary.public_policy_hash != summary.public_policy_hash {
             return Err("child public_policy_hash mismatch".to_string());
         }
@@ -590,11 +603,13 @@ fn print_root_request(proof_paths: &[String]) -> Result<(), String> {
     .map_err(|e| format!("{e:?}"))?;
     let input = RecursiveCompositionInputV1 {
         statement: RecursiveCompositionStatementV1 {
+            execution_context_hash: summary.execution_context_hash,
             domain_separator: RECURSIVE_DOMAIN_SEPARATOR_V1.to_string(),
             schema_version: RECURSIVE_STATEMENT_VERSION_V1,
             chain_id: summary.chain_id.clone(),
             epoch_id: summary.epoch_id,
             proof_profile: RECURSIVE_EPOCH_PROFILE_V1.to_string(),
+            aggregation_scope: RECURSIVE_AGGREGATION_SCOPE_SINGLE_BLOCK_V2.to_string(),
             verifier_set_root: recursive_verifier_set_root_v1(&verifier_ids)
                 .map_err(|e| format!("{e:?}"))?,
             allowed_authority_roots_root: recursive_authority_set_root_v1(&authority_roots)

@@ -22,9 +22,11 @@ from src.state.canonical import (
 
 U64_MAX: Final[int] = (1 << 64) - 1
 ROOT_NBYTES: Final[int] = 32
+ZERO_ROOT_V1: Final[str] = "0x" + "00" * ROOT_NBYTES
 CLOCK_POLICY_ID_HEIGHT_ONLY_V1: Final[str] = "HEIGHT_ONLY_V1"
 CLOCK_POLICY_VERSION_V1: Final[int] = 1
 EXECUTION_HEADER_CORE_VERSION_V1: Final[int] = 1
+PROOF_JOURNAL_BINDING_VERSION_V1: Final[int] = 1
 
 
 class ClockAuthorityProfileV1(str, Enum):
@@ -63,6 +65,8 @@ def _require_root(value: object, *, name: str, allow_zero: bool = True) -> str:
     if type(value) is not str:
         raise TypeError(f"{name} must be a str")
     canonical = canonical_hex_fixed_allow_0x(value, nbytes=ROOT_NBYTES, name=name)
+    if type(canonical) is not str:
+        raise TypeError(f"{name} canonicalizer must return a str")
     if value != canonical:
         raise ValueError(f"{name} must be canonical lowercase 0x-prefixed hex")
     if not allow_zero and canonical == "0x" + "00" * ROOT_NBYTES:
@@ -72,7 +76,10 @@ def _require_root(value: object, *, name: str, allow_zero: bool = True) -> str:
 
 def _hash_canonical(*, domain: str, value: object) -> str:
     payload = domain_sep_bytes(domain, version=1) + encode_bytes(canonical_json_bytes(value))
-    return sha256_hex(payload)
+    digest = sha256_hex(payload)
+    if type(digest) is not str:
+        raise TypeError("sha256_hex must return a str")
+    return digest
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,7 +307,7 @@ def default_height_only_clock_schedule_v1(
     )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class VerifiedExecutionClockV1:
     """Policy-checked pre-execution height and epoch from one consensus domain.
 
@@ -373,16 +380,17 @@ def verify_execution_clock_v1(
     policy = schedule.active_policy_at_height(height_v)
     if policy.chain_id != chain_id_v:
         raise ValueError("clock policy chain_id mismatch")
-    return VerifiedExecutionClockV1(
-        chain_id=chain_id_v,
-        consensus_domain_id=policy.consensus_domain_id,
-        deployment_profile=policy.deployment_profile,
-        height=height_v,
-        derived_epoch=policy.epoch_at_height(height_v),
-        clock_policy_hash=clock_policy_hash_v1(policy),
-        clock_policy_schedule_hash=expected_hash,
-        clock_policy_schedule=schedule,
-    )
+    verified = object.__new__(VerifiedExecutionClockV1)
+    object.__setattr__(verified, "chain_id", chain_id_v)
+    object.__setattr__(verified, "consensus_domain_id", policy.consensus_domain_id)
+    object.__setattr__(verified, "deployment_profile", policy.deployment_profile)
+    object.__setattr__(verified, "height", height_v)
+    object.__setattr__(verified, "derived_epoch", policy.epoch_at_height(height_v))
+    object.__setattr__(verified, "clock_policy_hash", clock_policy_hash_v1(policy))
+    object.__setattr__(verified, "clock_policy_schedule_hash", expected_hash)
+    object.__setattr__(verified, "clock_policy_schedule", schedule)
+    verified.__post_init__()
+    return verified
 
 
 @dataclass(frozen=True, slots=True)
@@ -395,7 +403,7 @@ class ExecutionHeaderCoreV1:
     deployment_profile: ClockAuthorityProfileV1
     height: int
     derived_epoch: int
-    parent_final_header_hash: str
+    parent_header_hash: str
     sequencer_or_validator_set_hash: str
     ingress_root: str
     tx_root: str
@@ -423,7 +431,7 @@ class ExecutionHeaderCoreV1:
         _require_u64(self.height, name="height")
         _require_u64(self.derived_epoch, name="derived_epoch")
         for name in (
-            "parent_final_header_hash",
+            "parent_header_hash",
             "sequencer_or_validator_set_hash",
             "ingress_root",
             "tx_root",
@@ -441,6 +449,15 @@ class ExecutionHeaderCoreV1:
             "module_versions_digest",
         ):
             _require_root(getattr(self, name), name=name)
+        _require_root(self.effect_plan_hash, name="effect_plan_hash", allow_zero=False)
+        _require_root(self.clock_policy_hash, name="clock_policy_hash", allow_zero=False)
+        if self.height == 0:
+            if self.parent_header_hash != ZERO_ROOT_V1:
+                raise ValueError("genesis execution context parent_header_hash must be zero")
+        elif self.parent_header_hash == ZERO_ROOT_V1:
+            raise ValueError(
+                "non-genesis execution context parent_header_hash must be non-zero"
+            )
 
     def to_obj(self) -> dict[str, object]:
         return {
@@ -451,7 +468,7 @@ class ExecutionHeaderCoreV1:
             "deployment_profile": self.deployment_profile.value,
             "height": self.height,
             "derived_epoch": self.derived_epoch,
-            "parent_final_header_hash": self.parent_final_header_hash,
+            "parent_header_hash": self.parent_header_hash,
             "sequencer_or_validator_set_hash": self.sequencer_or_validator_set_hash,
             "ingress_root": self.ingress_root,
             "tx_root": self.tx_root,
@@ -477,6 +494,94 @@ def execution_context_hash_v1(core: ExecutionHeaderCoreV1) -> str:
 
 
 @dataclass(frozen=True, slots=True)
+class ProofJournalBindingV1:
+    """Acyclic proof commitment tied to one execution context.
+
+    The backend verifier remains responsible for proving that
+    ``raw_journal_hash`` names an authenticated journal whose decoded
+    ``execution_context_hash`` equals this value.
+    """
+
+    schema_version: int
+    execution_context_hash: str
+    proof_metadata_hash: str
+    raw_journal_hash: str
+
+    def __post_init__(self) -> None:
+        _require_u64(self.schema_version, name="proof journal binding schema_version")
+        if self.schema_version != PROOF_JOURNAL_BINDING_VERSION_V1:
+            raise ValueError("proof journal binding schema_version must equal 1")
+        _require_root(
+            self.execution_context_hash,
+            name="proof journal binding execution_context_hash",
+            allow_zero=False,
+        )
+        _require_root(
+            self.proof_metadata_hash,
+            name="proof journal binding proof_metadata_hash",
+            allow_zero=False,
+        )
+        _require_root(
+            self.raw_journal_hash,
+            name="proof journal binding raw_journal_hash",
+            allow_zero=False,
+        )
+
+    def to_obj(self) -> dict[str, object]:
+        return {
+            "schema": "zenodex/proof_journal_binding/v1",
+            "schema_version": self.schema_version,
+            "execution_context_hash": self.execution_context_hash,
+            "proof_metadata_hash": self.proof_metadata_hash,
+            "raw_journal_hash": self.raw_journal_hash,
+        }
+
+
+def proof_journal_binding_hash_v1(binding: ProofJournalBindingV1) -> str:
+    if type(binding) is not ProofJournalBindingV1:
+        raise TypeError("binding must be ProofJournalBindingV1")
+    return _hash_canonical(domain="proof_journal_binding", value=binding.to_obj())
+
+
+class ProofJournalVerifierV1(Protocol):
+    """Trusted port that authenticates a proof receipt and decodes its journal."""
+
+    def verify_proof_journal_v1(
+        self,
+        *,
+        proof_artifact: bytes,
+        expected_execution_context_hash: str,
+    ) -> Mapping[str, object]: ...
+
+
+@dataclass(frozen=True, slots=True, init=False)
+class VerifiedProofJournalBindingV1:
+    """Proof binding returned only after backend receipt admission succeeds."""
+
+    binding: ProofJournalBindingV1
+    binding_hash: str
+    proof_artifact_hash: str
+    proof_verifier_policy_hash: str
+
+    def __post_init__(self) -> None:
+        if type(self.binding) is not ProofJournalBindingV1:
+            raise TypeError("binding must be ProofJournalBindingV1")
+        expected_binding_hash = proof_journal_binding_hash_v1(self.binding)
+        if self.binding_hash != expected_binding_hash:
+            raise ValueError("verified proof binding_hash mismatch")
+        _require_root(
+            self.proof_artifact_hash,
+            name="verified proof artifact hash",
+            allow_zero=False,
+        )
+        _require_root(
+            self.proof_verifier_policy_hash,
+            name="verified proof verifier policy hash",
+            allow_zero=False,
+        )
+
+
+@dataclass(frozen=True, slots=True, init=False)
 class VerifiedExecutionContextV1:
     """Post-execution, pre-proof admission context for a candidate block."""
 
@@ -495,6 +600,13 @@ class VerifiedExecutionContextV1:
     @property
     def derived_epoch(self) -> int:
         return self.core.derived_epoch
+
+    def to_obj(self) -> dict[str, object]:
+        return {
+            "schema": "zenodex/verified_execution_context/v1",
+            "execution_header_core": self.core.to_obj(),
+            "execution_context_hash": self.execution_context_hash,
+        }
 
 
 def verify_execution_context_v1(
@@ -530,13 +642,110 @@ def verify_execution_context_v1(
     expected_epoch = policy.epoch_at_height(core.height)
     if core.derived_epoch != expected_epoch:
         raise ValueError("execution context derived_epoch mismatch")
-    return VerifiedExecutionContextV1(
-        core=core,
-        execution_context_hash=execution_context_hash_v1(core),
+    verified = object.__new__(VerifiedExecutionContextV1)
+    object.__setattr__(verified, "core", core)
+    object.__setattr__(
+        verified,
+        "execution_context_hash",
+        execution_context_hash_v1(core),
     )
+    verified.__post_init__()
+    return verified
 
 
-@dataclass(frozen=True, slots=True)
+def verify_proof_journal_binding_v1(
+    *,
+    verified_execution_context: VerifiedExecutionContextV1,
+    proof_artifact: bytes,
+    verifier: ProofJournalVerifierV1,
+    expected_proof_verifier_policy_hash: str,
+) -> VerifiedProofJournalBindingV1:
+    """Authenticate one proof artifact and bind its decoded journal to context."""
+
+    if type(verified_execution_context) is not VerifiedExecutionContextV1:
+        raise TypeError("verified_execution_context must be VerifiedExecutionContextV1")
+    if type(proof_artifact) is not bytes or not proof_artifact:
+        raise ValueError("proof_artifact must be non-empty bytes")
+    expected_policy_hash = _require_root(
+        expected_proof_verifier_policy_hash,
+        name="expected_proof_verifier_policy_hash",
+        allow_zero=False,
+    )
+    artifact_hash = sha256_hex(
+        domain_sep_bytes("proof_artifact", version=1) + encode_bytes(proof_artifact)
+    )
+    raw_facts = verifier.verify_proof_journal_v1(
+        proof_artifact=proof_artifact,
+        expected_execution_context_hash=(
+            verified_execution_context.execution_context_hash
+        ),
+    )
+    if not isinstance(raw_facts, Mapping):
+        raise TypeError("proof journal verifier facts must be a mapping")
+    expected_keys = {
+        "execution_context_hash",
+        "proof_metadata_hash",
+        "raw_journal_hash",
+        "proof_artifact_hash",
+        "proof_verifier_policy_hash",
+    }
+    if set(raw_facts) != expected_keys:
+        raise ValueError("proof journal verifier facts fields mismatch")
+    execution_context_hash = _require_root(
+        raw_facts["execution_context_hash"],
+        name="proof verifier execution_context_hash",
+        allow_zero=False,
+    )
+    if execution_context_hash != verified_execution_context.execution_context_hash:
+        raise ValueError("proof verifier execution_context_hash mismatch")
+    proof_metadata_hash = _require_root(
+        raw_facts["proof_metadata_hash"],
+        name="proof verifier proof_metadata_hash",
+        allow_zero=False,
+    )
+    raw_journal_hash = _require_root(
+        raw_facts["raw_journal_hash"],
+        name="proof verifier raw_journal_hash",
+        allow_zero=False,
+    )
+    bound_artifact_hash = _require_root(
+        raw_facts["proof_artifact_hash"],
+        name="proof verifier proof_artifact_hash",
+        allow_zero=False,
+    )
+    if bound_artifact_hash != artifact_hash:
+        raise ValueError("proof verifier proof_artifact_hash mismatch")
+    verifier_policy_hash = _require_root(
+        raw_facts["proof_verifier_policy_hash"],
+        name="proof verifier policy hash",
+        allow_zero=False,
+    )
+    if verifier_policy_hash != expected_policy_hash:
+        raise ValueError("proof verifier policy hash mismatch")
+    binding = ProofJournalBindingV1(
+        schema_version=PROOF_JOURNAL_BINDING_VERSION_V1,
+        execution_context_hash=execution_context_hash,
+        proof_metadata_hash=proof_metadata_hash,
+        raw_journal_hash=raw_journal_hash,
+    )
+    verified = object.__new__(VerifiedProofJournalBindingV1)
+    object.__setattr__(verified, "binding", binding)
+    object.__setattr__(
+        verified,
+        "binding_hash",
+        proof_journal_binding_hash_v1(binding),
+    )
+    object.__setattr__(verified, "proof_artifact_hash", artifact_hash)
+    object.__setattr__(
+        verified,
+        "proof_verifier_policy_hash",
+        verifier_policy_hash,
+    )
+    verified.__post_init__()
+    return verified
+
+
+@dataclass(frozen=True, slots=True, init=False)
 class FinalHeaderV1:
     """Final candidate header; signatures and finality stay outside this value."""
 
@@ -546,7 +755,11 @@ class FinalHeaderV1:
 
     def __post_init__(self) -> None:
         _require_root(self.execution_context_hash, name="execution_context_hash")
-        _require_root(self.proof_journal_hash, name="proof_journal_hash")
+        _require_root(
+            self.proof_journal_hash,
+            name="proof_journal_hash",
+            allow_zero=False,
+        )
         if self.execution_context_hash != execution_context_hash_v1(self.execution_header_core):
             raise ValueError("final header execution_context_hash mismatch")
 
@@ -557,6 +770,41 @@ class FinalHeaderV1:
             "execution_context_hash": self.execution_context_hash,
             "proof_journal_hash": self.proof_journal_hash,
         }
+
+
+def build_final_header_v1(
+    *,
+    verified_execution_context: VerifiedExecutionContextV1,
+    verified_proof_binding: VerifiedProofJournalBindingV1,
+) -> FinalHeaderV1:
+    """Build a final-header candidate only from verified context and proof facts."""
+
+    if type(verified_execution_context) is not VerifiedExecutionContextV1:
+        raise TypeError("verified_execution_context must be VerifiedExecutionContextV1")
+    if type(verified_proof_binding) is not VerifiedProofJournalBindingV1:
+        raise TypeError("verified_proof_binding must be VerifiedProofJournalBindingV1")
+    if verified_proof_binding.binding.execution_context_hash != (
+        verified_execution_context.execution_context_hash
+    ):
+        raise ValueError("verified proof binding execution_context_hash mismatch")
+    header = object.__new__(FinalHeaderV1)
+    object.__setattr__(
+        header,
+        "execution_header_core",
+        verified_execution_context.core,
+    )
+    object.__setattr__(
+        header,
+        "execution_context_hash",
+        verified_execution_context.execution_context_hash,
+    )
+    object.__setattr__(
+        header,
+        "proof_journal_hash",
+        verified_proof_binding.binding_hash,
+    )
+    header.__post_init__()
+    return header
 
 
 def final_header_hash_v1(header: FinalHeaderV1) -> str:
@@ -585,49 +833,74 @@ class _VerifiedFinalityFactsV1:
     signed_power: int
     total_power: int
 
+    def __post_init__(self) -> None:
+        _require_root(self.final_header_hash, name="finality facts final_header_hash")
+        _require_root(self.certificate_hash, name="finality facts certificate_hash")
+        _require_root(self.finality_policy_hash, name="finality facts finality_policy_hash")
+        _require_root(self.signer_set_root, name="finality facts signer_set_root")
+        _require_u64(self.signed_power, name="finality facts signed_power")
+        _require_u64(self.total_power, name="finality facts total_power")
 
-@dataclass(frozen=True, slots=True)
+
+@dataclass(frozen=True, slots=True, init=False)
 class FinalizedBlockContextV1:
     """Block context returned only after the configured verifier accepts."""
 
     verified_execution_context: VerifiedExecutionContextV1
+    verified_proof_binding: VerifiedProofJournalBindingV1
     final_header: FinalHeaderV1
     final_header_hash: str
     _finality_facts: _VerifiedFinalityFactsV1
-
-    def __post_init__(self) -> None:
-        if type(self.verified_execution_context) is not VerifiedExecutionContextV1:
-            raise TypeError("verified_execution_context must be VerifiedExecutionContextV1")
-        if type(self.final_header) is not FinalHeaderV1:
-            raise TypeError("final_header must be FinalHeaderV1")
-        _require_root(self.final_header_hash, name="final_header_hash", allow_zero=False)
-        if type(self._finality_facts) is not _VerifiedFinalityFactsV1:
-            raise TypeError("finality facts must be verified facts")
-        if self.final_header_hash != final_header_hash_v1(self.final_header):
-            raise ValueError("final_header_hash mismatch")
-        if self.final_header.execution_context_hash != (
-            self.verified_execution_context.execution_context_hash
-        ):
-            raise ValueError("finalized context execution_context_hash mismatch")
-        if self._finality_facts.final_header_hash != self.final_header_hash:
-            raise ValueError("finality facts final_header_hash mismatch")
-        core = self.final_header.execution_header_core
-        if self._finality_facts.signer_set_root != core.sequencer_or_validator_set_hash:
-            raise ValueError("finality facts signer_set_root mismatch")
-        if self._finality_facts.finality_policy_hash != core.finality_policy_hash:
-            raise ValueError("finality facts finality_policy_hash mismatch")
 
     @property
     def finality_certificate_hash(self) -> str:
         return self._finality_facts.certificate_hash
 
+    def __post_init__(self) -> None:
+        if type(self.verified_execution_context) is not VerifiedExecutionContextV1:
+            raise TypeError(
+                "verified_execution_context must be VerifiedExecutionContextV1"
+            )
+        if type(self.final_header) is not FinalHeaderV1:
+            raise TypeError("final_header must be FinalHeaderV1")
+        if type(self.verified_proof_binding) is not VerifiedProofJournalBindingV1:
+            raise TypeError(
+                "verified_proof_binding must be VerifiedProofJournalBindingV1"
+            )
+        if type(self._finality_facts) is not _VerifiedFinalityFactsV1:
+            raise TypeError("_finality_facts must be _VerifiedFinalityFactsV1")
+        expected_hash = final_header_hash_v1(self.final_header)
+        if self.final_header_hash != expected_hash:
+            raise ValueError("finalized context final_header_hash mismatch")
+        if self._finality_facts.final_header_hash != expected_hash:
+            raise ValueError("finalized context finality facts hash mismatch")
+        if self.final_header.execution_header_core != self.verified_execution_context.core:
+            raise ValueError("finalized context execution header core mismatch")
+        if self.final_header.execution_context_hash != (
+            self.verified_execution_context.execution_context_hash
+        ):
+            raise ValueError("finalized context execution_context_hash mismatch")
+        if self.final_header.proof_journal_hash != (
+            self.verified_proof_binding.binding_hash
+        ):
+            raise ValueError("finalized context proof binding mismatch")
+        core = self.final_header.execution_header_core
+        if self._finality_facts.signer_set_root != (
+            core.sequencer_or_validator_set_hash
+        ):
+            raise ValueError("finality facts signer_set_root mismatch")
+        if self._finality_facts.finality_policy_hash != core.finality_policy_hash:
+            raise ValueError("finality facts finality_policy_hash mismatch")
+
 
 def verify_finalized_block_context_v1(
     *,
     verified_execution_context: VerifiedExecutionContextV1,
+    verified_proof_binding: VerifiedProofJournalBindingV1,
     final_header: FinalHeaderV1,
     certificate: bytes,
     verifier: FinalityCertificateVerifierV1,
+    expected_finality_policy_hash: str,
 ) -> FinalizedBlockContextV1:
     """Verify finality evidence and bind it to the exact final-header hash."""
 
@@ -635,10 +908,19 @@ def verify_finalized_block_context_v1(
         raise TypeError("verified_execution_context must be VerifiedExecutionContextV1")
     if type(final_header) is not FinalHeaderV1:
         raise TypeError("final_header must be FinalHeaderV1")
+    if type(verified_proof_binding) is not VerifiedProofJournalBindingV1:
+        raise TypeError("verified_proof_binding must be VerifiedProofJournalBindingV1")
     if type(certificate) is not bytes or not certificate:
         raise ValueError("certificate must be non-empty bytes")
     if final_header.execution_context_hash != (verified_execution_context.execution_context_hash):
         raise ValueError("finalized context execution_context_hash mismatch")
+    if final_header.proof_journal_hash != verified_proof_binding.binding_hash:
+        raise ValueError("finalized context proof binding mismatch")
+    expected_policy_hash = _require_root(
+        expected_finality_policy_hash,
+        name="expected_finality_policy_hash",
+        allow_zero=False,
+    )
     final_hash = final_header_hash_v1(final_header)
     raw_facts = verifier.verify_finality_certificate_v1(
         final_header_hash=final_hash,
@@ -678,6 +960,8 @@ def verify_finalized_block_context_v1(
         name="finality_facts.finality_policy_hash",
         allow_zero=False,
     )
+    if finality_policy_hash != expected_policy_hash:
+        raise ValueError("finality certificate policy hash mismatch")
     signer_set_root = _require_root(
         raw_facts["signer_set_root"],
         name="finality_facts.signer_set_root",
@@ -706,12 +990,22 @@ def verify_finalized_block_context_v1(
         signed_power=signed_power,
         total_power=total_power,
     )
-    return FinalizedBlockContextV1(
-        verified_execution_context=verified_execution_context,
-        final_header=final_header,
-        final_header_hash=final_hash,
-        _finality_facts=facts,
+    finalized = object.__new__(FinalizedBlockContextV1)
+    object.__setattr__(
+        finalized,
+        "verified_execution_context",
+        verified_execution_context,
     )
+    object.__setattr__(
+        finalized,
+        "verified_proof_binding",
+        verified_proof_binding,
+    )
+    object.__setattr__(finalized, "final_header", final_header)
+    object.__setattr__(finalized, "final_header_hash", final_hash)
+    object.__setattr__(finalized, "_finality_facts", facts)
+    finalized.__post_init__()
+    return finalized
 
 
 def derive_genesis_execution_clock_v1(

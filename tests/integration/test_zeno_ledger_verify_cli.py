@@ -3808,7 +3808,7 @@ def test_make_core_feature_suite_runs_spot_and_tau_adapter_lanes(tmp_path: Path)
     assert status["feature_suite"]["feature_count"] == 10
     assert status["feature_suite_run"]["covered_feature_count"] == 10
 
-    tau_app_state = json.loads((out_dir / "tau_app_bridge_spot" / "ledger" / "app_states" / "1.json").read_text(encoding="utf-8"))
+    tau_app_state = json.loads((out_dir / "tau_app_bridge_spot" / "ledger" / "app_states" / "0.json").read_text(encoding="utf-8"))
     assert len(tau_app_state["pools"]) == 1
     zusd_state = json.loads((out_dir / "zusd_core" / "ledger" / "zusd_states" / "4.json").read_text(encoding="utf-8"))
     zusd_receipts = json.loads((out_dir / "zusd_core" / "ledger" / "receipts" / "4.json").read_text(encoding="utf-8"))

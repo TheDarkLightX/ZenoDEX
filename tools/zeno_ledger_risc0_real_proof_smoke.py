@@ -434,6 +434,9 @@ def _ledger_binding_for_case(
         feature_suite_hash=_root("feature-suite", name),
         dependency_lock_hash=_root("dependency-lock", name),
         toolchain_lock_hash=proof_toolchain_lock_hash_v0(repo),
+        expected_execution_context_hash=str(
+            proof["meta"]["execution_context_hash"]
+        ),
     )
     proof_journal_hash = proof_metadata_hash_v0(metadata)
     header = _ledger_header_for_case(
@@ -842,6 +845,17 @@ def _run_cli(
         ]
         if release:
             command.append("--release")
+        command.append("--")
+    if request.get("schema") == "tau_state_proof_verify":
+        context = request.get("context")
+        if not isinstance(context, dict):
+            raise RuntimeError("verify context must be an object")
+        expected_context_hash = context.get("execution_context_hash")
+        if not isinstance(expected_context_hash, str) or not expected_context_hash:
+            raise RuntimeError("verify execution_context_hash missing")
+        command.extend(
+            ["--expected-execution-context-hash", expected_context_hash]
+        )
     proc = subprocess.run(
         command,
         input=json.dumps(request, separators=(",", ":")),
@@ -880,11 +894,13 @@ def _run_case(
     release: bool,
 ) -> dict[str, Any]:
     state_hash = "11" * 32
+    execution_context_hash = _root("execution-context", name)
     app_state_pre = ""
     if case["pre_snapshot"] is not None:
         app_state_pre = _canonical_json_bytes(case["pre_snapshot"]).decode("utf-8")
 
     generate_context: dict[str, Any] = {
+        "execution_context_hash": execution_context_hash,
         "app_state_pre": app_state_pre,
         "app_hash_pre": case["pre_hash"],
         "chain_balances_post": {},
@@ -913,6 +929,7 @@ def _run_case(
     proof_path.write_text(json.dumps(proof, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
     verify_context: dict[str, Any] = {
+        "execution_context_hash": execution_context_hash,
         "app_hash_pre": case["pre_hash"],
         "block_timestamp": 1,
     }

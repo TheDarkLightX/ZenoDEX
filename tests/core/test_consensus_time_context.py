@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import fields, replace
 
 import pytest
 
@@ -11,14 +11,22 @@ from src.core.consensus_time import (
     ClockPolicyV1,
     ExecutionHeaderCoreV1,
     FinalHeaderV1,
+    FinalizedBlockContextV1,
+    ProofJournalBindingV1,
+    VerifiedExecutionClockV1,
+    VerifiedExecutionContextV1,
+    VerifiedProofJournalBindingV1,
+    build_final_header_v1,
     clock_policy_hash_v1,
     clock_policy_schedule_hash_v1,
     derive_child_execution_clock_v1,
     execution_context_hash_v1,
     final_header_hash_v1,
+    proof_journal_binding_hash_v1,
     verify_execution_clock_v1,
     verify_execution_context_v1,
     verify_finalized_block_context_v1,
+    verify_proof_journal_binding_v1,
 )
 from src.state.canonical import domain_sep_bytes, encode_bytes, sha256_hex
 
@@ -59,7 +67,7 @@ def _core(policy: ClockPolicyV1, *, height: int = 10) -> ExecutionHeaderCoreV1:
         deployment_profile=policy.deployment_profile,
         height=height,
         derived_epoch=policy.epoch_at_height(height),
-        parent_final_header_hash=_root(1),
+        parent_header_hash=_root(1),
         sequencer_or_validator_set_hash=_root(2),
         ingress_root=_root(3),
         tx_root=_root(4),
@@ -75,6 +83,70 @@ def _core(policy: ClockPolicyV1, *, height: int = 10) -> ExecutionHeaderCoreV1:
         finality_policy_hash=_root(14),
         config_digest=_root(11),
         module_versions_digest=_root(12),
+    )
+
+
+class _ProofVerifier:
+    def __init__(
+        self,
+        *,
+        raw_journal_hash: str = _root(41),
+        bind_wrong_context: bool = False,
+        bind_wrong_artifact: bool = False,
+        bind_wrong_policy: bool = False,
+    ) -> None:
+        self._raw_journal_hash = raw_journal_hash
+        self._bind_wrong_context = bind_wrong_context
+        self._bind_wrong_artifact = bind_wrong_artifact
+        self._bind_wrong_policy = bind_wrong_policy
+
+    def verify_proof_journal_v1(
+        self,
+        *,
+        proof_artifact: bytes,
+        expected_execution_context_hash: str,
+    ) -> dict[str, object]:
+        artifact_hash = sha256_hex(
+            domain_sep_bytes("proof_artifact", version=1)
+            + encode_bytes(proof_artifact)
+        )
+        return {
+            "execution_context_hash": (
+                _root(45)
+                if self._bind_wrong_context
+                else expected_execution_context_hash
+            ),
+            "proof_metadata_hash": _root(40),
+            "raw_journal_hash": self._raw_journal_hash,
+            "proof_artifact_hash": (
+                _root(46) if self._bind_wrong_artifact else artifact_hash
+            ),
+            "proof_verifier_policy_hash": (
+                _root(47) if self._bind_wrong_policy else _root(44)
+            ),
+        }
+
+
+def _verified_context(policy: ClockPolicyV1) -> VerifiedExecutionContextV1:
+    schedule = _schedule(policy)
+    return verify_execution_context_v1(
+        core=_core(policy),
+        schedule=schedule,
+        expected_schedule_hash=clock_policy_schedule_hash_v1(schedule),
+    )
+
+
+def _verified_proof(
+    verified_context: VerifiedExecutionContextV1,
+    *,
+    proof_artifact: bytes = b"authenticated proof artifact",
+    verifier: _ProofVerifier | None = None,
+) -> VerifiedProofJournalBindingV1:
+    return verify_proof_journal_binding_v1(
+        verified_execution_context=verified_context,
+        proof_artifact=proof_artifact,
+        verifier=verifier or _ProofVerifier(),
+        expected_proof_verifier_policy_hash=_root(44),
     )
 
 
@@ -172,12 +244,22 @@ def test_verified_execution_clock_rejects_forged_derived_facts() -> None:
         expected_schedule_hash=clock_policy_schedule_hash_v1(schedule),
     )
 
+    def validate_forged(**changes: object) -> None:
+        forged = object.__new__(VerifiedExecutionClockV1)
+        for field in fields(clock):
+            object.__setattr__(
+                forged,
+                field.name,
+                changes.get(field.name, getattr(clock, field.name)),
+            )
+        forged.__post_init__()
+
     with pytest.raises(ValueError, match="derived_epoch mismatch"):
-        replace(clock, derived_epoch=clock.derived_epoch + 100)
+        validate_forged(derived_epoch=clock.derived_epoch + 100)
     with pytest.raises(ValueError, match="consensus_domain_id mismatch"):
-        replace(clock, consensus_domain_id="attacker-domain")
+        validate_forged(consensus_domain_id="attacker-domain")
     with pytest.raises(ValueError, match="deployment_profile mismatch"):
-        replace(clock, deployment_profile=ClockAuthorityProfileV1.TAU_NATIVE_V1)
+        validate_forged(deployment_profile=ClockAuthorityProfileV1.TAU_NATIVE_V1)
 
 
 def test_clock_policy_schedule_decoder_is_strict_and_roundtrips() -> None:
@@ -211,6 +293,25 @@ def test_verified_execution_context_rejects_caller_epoch() -> None:
     assert "time_ms_or_zero" not in core.to_obj()
 
 
+def test_execution_context_rejects_zero_parent_outside_genesis() -> None:
+    policy = _policy()
+    with pytest.raises(ValueError, match="non-genesis.*must be non-zero"):
+        replace(_core(policy), parent_header_hash=_root(0))
+
+    genesis_policy = _policy(
+        activation_height=0,
+        epoch_base=0,
+        blocks_per_epoch=5,
+    )
+    with pytest.raises(ValueError, match="genesis.*must be zero"):
+        replace(
+            _core(genesis_policy, height=1),
+            height=0,
+            derived_epoch=0,
+            parent_header_hash=_root(1),
+        )
+
+
 def test_pre_execution_clock_is_height_derived_and_has_no_finality_claim() -> None:
     policy = _policy()
     clock = verify_execution_clock_v1(
@@ -236,7 +337,7 @@ def test_context_hash_binds_every_execution_field_and_excludes_proof_cycle() -> 
         "deployment_profile": ClockAuthorityProfileV1.ZENO_LEDGER_SOVEREIGN_V1,
         "height": 11,
         "derived_epoch": 8,
-        "parent_final_header_hash": _root(21),
+        "parent_header_hash": _root(21),
         "sequencer_or_validator_set_hash": _root(22),
         "ingress_root": _root(23),
         "tx_root": _root(24),
@@ -257,12 +358,25 @@ def test_context_hash_binds_every_execution_field_and_excludes_proof_cycle() -> 
         mutated = replace(core, **{field_name: value})
         assert execution_context_hash_v1(mutated) != context_hash, field_name
 
-    final_a = FinalHeaderV1(
-        execution_header_core=core,
-        execution_context_hash=context_hash,
-        proof_journal_hash=_root(14),
+    verified = _verified_context(policy)
+    proof_a = _verified_proof(
+        verified,
+        proof_artifact=b"proof-a",
+        verifier=_ProofVerifier(raw_journal_hash=_root(41)),
     )
-    final_b = replace(final_a, proof_journal_hash=_root(15))
+    proof_b = _verified_proof(
+        verified,
+        proof_artifact=b"proof-b",
+        verifier=_ProofVerifier(raw_journal_hash=_root(42)),
+    )
+    final_a = build_final_header_v1(
+        verified_execution_context=verified,
+        verified_proof_binding=proof_a,
+    )
+    final_b = build_final_header_v1(
+        verified_execution_context=verified,
+        verified_proof_binding=proof_b,
+    )
 
     assert execution_context_hash_v1(final_a.execution_header_core) == context_hash
     assert execution_context_hash_v1(final_b.execution_header_core) == context_hash
@@ -302,15 +416,85 @@ def test_execution_context_binds_the_complete_schedule_hash() -> None:
     assert execution_context_hash_v1(core_b) != verified_a.execution_context_hash
 
 
+def test_execution_and_final_headers_reject_missing_effect_or_proof_commitments() -> None:
+    policy = _policy()
+    core = _core(policy)
+    with pytest.raises(ValueError, match="effect_plan_hash must be non-zero"):
+        replace(core, effect_plan_hash=_root(0))
+    with pytest.raises(TypeError):
+        FinalHeaderV1(
+            execution_header_core=core,
+            execution_context_hash=execution_context_hash_v1(core),
+            proof_journal_hash=_root(0),
+        )  # type: ignore[call-arg]
+
+
+def test_proof_journal_binding_is_acyclic_and_context_specific() -> None:
+    context_hash = execution_context_hash_v1(_core(_policy()))
+    binding = ProofJournalBindingV1(
+        schema_version=1,
+        execution_context_hash=context_hash,
+        proof_metadata_hash=_root(40),
+        raw_journal_hash=_root(41),
+    )
+    binding_hash = proof_journal_binding_hash_v1(binding)
+
+    assert binding_hash != proof_journal_binding_hash_v1(
+        replace(binding, execution_context_hash=_root(42))
+    )
+    assert binding_hash != proof_journal_binding_hash_v1(
+        replace(binding, raw_journal_hash=_root(43))
+    )
+    assert "proof_journal_hash" not in binding.to_obj()
+    assert "final_header_hash" not in binding.to_obj()
+
+
+def test_proof_journal_binding_rejects_zero_or_bool_aliases() -> None:
+    with pytest.raises(ValueError, match="raw_journal_hash must be non-zero"):
+        ProofJournalBindingV1(
+            schema_version=1,
+            execution_context_hash=_root(1),
+            proof_metadata_hash=_root(2),
+            raw_journal_hash=_root(0),
+        )
+    with pytest.raises(TypeError, match="schema_version must be an int"):
+        ProofJournalBindingV1(
+            schema_version=True,  # type: ignore[arg-type]
+            execution_context_hash=_root(1),
+            proof_metadata_hash=_root(2),
+            raw_journal_hash=_root(3),
+        )
+
+
+def test_verified_proof_binding_rejects_substituted_authority_facts() -> None:
+    verified = _verified_context(_policy())
+    with pytest.raises(ValueError, match="execution_context_hash mismatch"):
+        _verified_proof(
+            verified,
+            verifier=_ProofVerifier(bind_wrong_context=True),
+        )
+    with pytest.raises(ValueError, match="proof_artifact_hash mismatch"):
+        _verified_proof(
+            verified,
+            verifier=_ProofVerifier(bind_wrong_artifact=True),
+        )
+    with pytest.raises(ValueError, match="policy hash mismatch"):
+        _verified_proof(
+            verified,
+            verifier=_ProofVerifier(bind_wrong_policy=True),
+        )
+
+
 def test_clock_and_context_hash_vectors_are_stable() -> None:
     policy = _policy()
     schedule = _schedule(policy)
     core = _core(policy)
     context_hash = execution_context_hash_v1(core)
-    final_header = FinalHeaderV1(
-        execution_header_core=core,
-        execution_context_hash=context_hash,
-        proof_journal_hash=_root(14),
+    verified = _verified_context(policy)
+    verified_proof = _verified_proof(verified)
+    final_header = build_final_header_v1(
+        verified_execution_context=verified,
+        verified_proof_binding=verified_proof,
     )
 
     assert clock_policy_hash_v1(policy) == (
@@ -319,9 +503,9 @@ def test_clock_and_context_hash_vectors_are_stable() -> None:
     assert clock_policy_schedule_hash_v1(schedule) == (
         "0x1c3a8c85d0a5610b1086e9b8cbe4a84f13f3525ec1ab3b1de8e9870d309d603d"
     )
-    assert context_hash == ("0xc7344d1c2ca0edcceca6b13af6c8ae61e61e1a4224f1b19d1918e866146b314e")
+    assert context_hash == ("0x34b42c51a3809d59e19c7c6b8bbaa473565fc2771b9df00082a51e109f6f49ac")
     assert final_header_hash_v1(final_header) == (
-        "0xcbcd50b2cc32848199558ff15e4cfede58d6771eec56eadfbd7e17440a1a6363"
+        "0x6874ebdc432369b1970dce6068cd65181cf7164eaf8d284dd94749b50a1364a7"
     )
 
 
@@ -330,10 +514,14 @@ class _FinalityVerifier:
         self,
         *,
         bind_wrong_header: bool = False,
+        bind_wrong_signer_set: bool = False,
+        bind_wrong_policy: bool = False,
         signer_set_root: str = _root(2),
         finality_policy_hash: str = _root(14),
     ) -> None:
         self._bind_wrong_header = bind_wrong_header
+        self._bind_wrong_signer_set = bind_wrong_signer_set
+        self._bind_wrong_policy = bind_wrong_policy
         self._signer_set_root = signer_set_root
         self._finality_policy_hash = finality_policy_hash
 
@@ -349,8 +537,12 @@ class _FinalityVerifier:
             "certificate_hash": sha256_hex(
                 domain_sep_bytes("finality_certificate", version=1) + encode_bytes(certificate)
             ),
-            "finality_policy_hash": self._finality_policy_hash,
-            "signer_set_root": self._signer_set_root,
+            "finality_policy_hash": (
+                _root(28) if self._bind_wrong_policy else self._finality_policy_hash
+            ),
+            "signer_set_root": (
+                _root(30) if self._bind_wrong_signer_set else self._signer_set_root
+            ),
             "signed_power": 3,
             "total_power": 4,
         }
@@ -364,17 +556,19 @@ def test_finalized_context_requires_verified_certificate_bound_to_header() -> No
         schedule=schedule,
         expected_schedule_hash=clock_policy_schedule_hash_v1(schedule),
     )
-    final_header = FinalHeaderV1(
-        execution_header_core=verified.core,
-        execution_context_hash=verified.execution_context_hash,
-        proof_journal_hash=_root(14),
+    verified_proof = _verified_proof(verified)
+    final_header = build_final_header_v1(
+        verified_execution_context=verified,
+        verified_proof_binding=verified_proof,
     )
 
     finalized = verify_finalized_block_context_v1(
         verified_execution_context=verified,
+        verified_proof_binding=verified_proof,
         final_header=final_header,
         certificate=b"verified quorum certificate",
         verifier=_FinalityVerifier(),
+        expected_finality_policy_hash=_root(14),
     )
     assert finalized.final_header_hash == final_header_hash_v1(final_header)
     child_clock = derive_child_execution_clock_v1(
@@ -387,9 +581,71 @@ def test_finalized_context_requires_verified_certificate_bound_to_header() -> No
     with pytest.raises(ValueError, match="final_header_hash mismatch"):
         verify_finalized_block_context_v1(
             verified_execution_context=verified,
+            verified_proof_binding=verified_proof,
             final_header=final_header,
             certificate=b"certificate for another header",
             verifier=_FinalityVerifier(bind_wrong_header=True),
+            expected_finality_policy_hash=_root(14),
+        )
+
+    with pytest.raises(ValueError, match="signer_set_root mismatch"):
+        verify_finalized_block_context_v1(
+            verified_execution_context=verified,
+            verified_proof_binding=verified_proof,
+            final_header=final_header,
+            certificate=b"certificate for another signer set",
+            verifier=_FinalityVerifier(bind_wrong_signer_set=True),
+            expected_finality_policy_hash=_root(14),
+        )
+
+    with pytest.raises(ValueError, match="policy hash mismatch"):
+        verify_finalized_block_context_v1(
+            verified_execution_context=verified,
+            verified_proof_binding=verified_proof,
+            final_header=final_header,
+            certificate=b"certificate under another policy",
+            verifier=_FinalityVerifier(bind_wrong_policy=True),
+            expected_finality_policy_hash=_root(14),
+        )
+
+
+def test_verified_authority_values_cannot_be_constructed_directly() -> None:
+    policy = _policy()
+    core = _core(policy)
+    with pytest.raises(TypeError):
+        VerifiedExecutionClockV1(  # type: ignore[call-arg]
+            chain_id=policy.chain_id,
+            consensus_domain_id=policy.consensus_domain_id,
+            deployment_profile=policy.deployment_profile,
+            height=core.height,
+            derived_epoch=core.derived_epoch,
+            clock_policy_hash=core.clock_policy_hash,
+        )
+    with pytest.raises(TypeError):
+        VerifiedExecutionContextV1(  # type: ignore[call-arg]
+            core=core,
+            execution_context_hash=execution_context_hash_v1(core),
+        )
+    with pytest.raises(TypeError):
+        VerifiedProofJournalBindingV1(  # type: ignore[call-arg]
+            binding=object(),
+            binding_hash=_root(1),
+            proof_artifact_hash=_root(2),
+            proof_verifier_policy_hash=_root(3),
+        )
+    with pytest.raises(TypeError):
+        FinalHeaderV1(  # type: ignore[call-arg]
+            execution_header_core=core,
+            execution_context_hash=execution_context_hash_v1(core),
+            proof_journal_hash=_root(4),
+        )
+    with pytest.raises(TypeError):
+        FinalizedBlockContextV1(  # type: ignore[call-arg]
+            verified_execution_context=object(),
+            verified_proof_binding=object(),
+            final_header=object(),
+            final_header_hash=_root(1),
+            _finality_facts=object(),
         )
 
 
@@ -397,7 +653,7 @@ def test_finalized_context_requires_verified_certificate_bound_to_header() -> No
     ("verifier", "error"),
     (
         (_FinalityVerifier(signer_set_root=_root(30)), "signer_set_root mismatch"),
-        (_FinalityVerifier(finality_policy_hash=_root(29)), "finality_policy_hash mismatch"),
+        (_FinalityVerifier(finality_policy_hash=_root(29)), "policy hash mismatch"),
     ),
 )
 def test_finalized_context_binds_signer_set_and_finality_policy(
@@ -411,16 +667,18 @@ def test_finalized_context_binds_signer_set_and_finality_policy(
         schedule=schedule,
         expected_schedule_hash=clock_policy_schedule_hash_v1(schedule),
     )
-    final_header = FinalHeaderV1(
-        execution_header_core=verified.core,
-        execution_context_hash=verified.execution_context_hash,
-        proof_journal_hash=_root(15),
+    verified_proof = _verified_proof(verified)
+    final_header = build_final_header_v1(
+        verified_execution_context=verified,
+        verified_proof_binding=verified_proof,
     )
 
     with pytest.raises(ValueError, match=error):
         verify_finalized_block_context_v1(
             verified_execution_context=verified,
+            verified_proof_binding=verified_proof,
             final_header=final_header,
             certificate=b"certificate",
             verifier=verifier,
+            expected_finality_policy_hash=_root(14),
         )

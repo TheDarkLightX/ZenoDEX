@@ -21,7 +21,7 @@ pub use surfaces::*;
 pub use zusd_runtime_refinement::*;
 
 pub const PROOF_TYPE: &str = "risc0.zenodex_spot_transition.v1";
-pub const JOURNAL_VERSION: u32 = 1;
+pub const JOURNAL_VERSION: u32 = 2;
 
 pub const MIN_LP_LOCK: u128 = 1000;
 pub const MAX_PRESTATE_TX_ORDER_ORACLE_TXS: usize = 8;
@@ -443,6 +443,7 @@ pub struct StateProofInputV1 {
     pub route_price_interval_max_width_bps: Option<u64>,
     #[serde(default)]
     pub shared_pool_frontier_signature_certificates: Vec<SharedPoolFrontierSignatureCertificateV1>,
+    pub execution_context_hash: [u8; 32],
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -467,11 +468,13 @@ pub struct StateProofJournalV1 {
     pub route_price_interval_max_width_bps: Option<u64>,
     pub shared_pool_frontier_signature_certificate_count: u32,
     pub shared_pool_frontier_signature_certificates_root: [u8; 32],
+    pub execution_context_hash: [u8; 32],
 }
 
 pub fn execute_state_proof_input_v1(
     input: StateProofInputV1,
 ) -> Result<StateProofJournalV1, TransitionError> {
+    validate_execution_context_hash_v1(&input.execution_context_hash)?;
     let mut state = DexStateV1::from_snapshot(input.pre_state)?;
     let mut nonce_state = NonceStateV1::from_entries(input.pre_nonces)?;
 
@@ -576,6 +579,7 @@ pub fn execute_state_proof_input_v1(
         route_price_interval_max_width_bps: input.route_price_interval_max_width_bps,
         shared_pool_frontier_signature_certificate_count,
         shared_pool_frontier_signature_certificates_root,
+        execution_context_hash: input.execution_context_hash,
     })
 }
 
@@ -584,6 +588,17 @@ pub enum TransitionError {
     InvalidInput(&'static str),
     Unsupported(&'static str),
     Arithmetic(&'static str),
+}
+
+pub fn validate_execution_context_hash_v1(
+    execution_context_hash: &[u8; 32],
+) -> Result<(), TransitionError> {
+    if execution_context_hash.iter().all(|byte| *byte == 0) {
+        return Err(TransitionError::InvalidInput(
+            "execution_context_hash all-zero",
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Default)]
@@ -7929,6 +7944,7 @@ mod tests {
         }];
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [7u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: true,
@@ -7958,6 +7974,7 @@ mod tests {
 
         let journal = execute_state_proof_input_v1(input.clone()).unwrap();
         assert_eq!(journal.journal_version, JOURNAL_VERSION);
+        assert_eq!(journal.execution_context_hash, input.execution_context_hash);
         assert_eq!(journal.state_hash, [7u8; 32]);
         assert_eq!(journal.txs_commitment, txs_commitment_v1(&txs));
         assert_eq!(
@@ -8001,6 +8018,15 @@ mod tests {
             execute_state_proof_input_v1(bad_nonce),
             Err(TransitionError::InvalidInput("ingress nonce mismatch"))
         ));
+
+        let mut missing_context = input;
+        missing_context.execution_context_hash = [0u8; 32];
+        assert!(matches!(
+            execute_state_proof_input_v1(missing_context),
+            Err(TransitionError::InvalidInput(
+                "execution_context_hash all-zero"
+            ))
+        ));
     }
 
     #[test]
@@ -8014,6 +8040,7 @@ mod tests {
             frontier_signature_certificates_root_v1(&[certificate.clone()]).unwrap();
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [11u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -8068,6 +8095,7 @@ mod tests {
             route_price_interval_authority_policy_root_v1(Some(&policy)).unwrap();
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [13u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -8122,6 +8150,7 @@ mod tests {
         let policy = route_price_interval_authority_policy_for(&authority);
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [14u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -8163,6 +8192,7 @@ mod tests {
         let policy = route_price_interval_authority_policy_for(&authority);
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [15u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -8205,6 +8235,7 @@ mod tests {
         }];
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [13u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -8248,6 +8279,7 @@ mod tests {
         let authority = route_price_interval_authority_for(&intervals, 1);
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [13u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -8293,6 +8325,7 @@ mod tests {
         policy.sources[0].source_root = [9u8; 32];
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [13u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -8338,6 +8371,7 @@ mod tests {
         let policy = route_price_interval_authority_policy_for(&authority);
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [13u8; 32],
             block_timestamp: 62,
             pre_app_hash_present: false,
@@ -8383,6 +8417,7 @@ mod tests {
         let policy = route_price_interval_authority_policy_for(&authority);
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [13u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -8443,6 +8478,7 @@ mod tests {
             .apply_tx_with_frontier_binding(&frontier_route_tx, 1, &fee_config, 1, &frontier_root)
             .expect("frontier-bound route hash should execute");
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [17u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -8493,6 +8529,7 @@ mod tests {
         certificate.signatures[0].suffix_signature_masks = alloc::vec![1];
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [12u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -8557,6 +8594,7 @@ mod tests {
         let expected_post_app_hash = expected_state.canonical_app_hash_sha256();
 
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [9u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -9536,6 +9574,7 @@ mod tests {
     fn protocol_fee_share_bps_over_10000_rejects_at_execute() {
         let snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [0u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
@@ -10758,6 +10797,7 @@ mod tests {
     fn protocol_fee_share_bps_positive_without_recipient_rejects_at_execute() {
         let snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
         let input = StateProofInputV1 {
+            execution_context_hash: [0xEC; 32],
             state_hash: [0u8; 32],
             block_timestamp: 1,
             pre_app_hash_present: false,
