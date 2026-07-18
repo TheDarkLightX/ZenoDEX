@@ -2,10 +2,12 @@
 
 ``step(state, params)`` is the single entry point. It:
 
-1. Validates parameter domains (from YAML type bounds).
-2. Dispatches to the correct guard / update / effect functions.
-3. Checks all invariants on the post-state.
-4. Returns a ``StepResult`` (accepted or rejected with reason).
+1. Validates the exact pre-state domain and invariants.
+2. Validates parameter domains (from YAML type bounds).
+3. Applies the shared cross-action epoch lifecycle guard.
+4. Dispatches to the correct action guard / update / effect functions.
+5. Checks all invariants on the post-state.
+6. Returns a ``StepResult`` (accepted or rejected with reason).
 
 The authoritative spec is `src/kernels/dex/perp_epoch_isolated_v4.yaml`; keep
 this module in sync and use parity tests against generated refs when updating.
@@ -22,6 +24,7 @@ from ..domain_limits import (
     PERP_RATE_BPS_MAX,
     is_strict_int,
 )
+from ..perp_epoch_lifecycle import epoch_lifecycle_reject_reason
 from ..perp_v2.errors import PerpGuardError, PerpInvariantError, PerpOverflowError
 from ..perp_v2.types import Action, ActionParams, Effect, PerpState, StepResult
 from .effects import (
@@ -151,9 +154,12 @@ _AUTH_ACTIONS: set[Action] = {
     Action.PARTIAL_LIQUIDATE,
 }
 
+
 def _validate_params(params: ActionParams) -> str | None:
-    """Check parameter domain bounds. Returns rejection reason or None."""
-    if params.action in _AUTH_ACTIONS and not isinstance(params.auth_ok, bool):
+    """Check exact command shape and parameter domain bounds."""
+    if type(params) is not ActionParams or type(params.action) is not Action:
+        return "param_shape:action_params"
+    if params.action in _AUTH_ACTIONS and type(params.auth_ok) is not bool:
         return "param_domain:auth_ok"
 
     bounds = _PARAM_BOUNDS.get(params.action)
@@ -169,26 +175,34 @@ def _validate_params(params: ActionParams) -> str | None:
 
 
 def step(state: PerpState, params: ActionParams) -> StepResult:
-    """Execute one action against the given state.
+    """Execute one action against an exact valid pre-state.
 
-    Returns ``StepResult`` with ``accepted=True`` on success,
-    or ``accepted=False`` with a ``rejection`` reason string.
+    Rejection never carries a candidate state or effect, so malformed pre-state,
+    lifecycle, guard, and post-invariant failures are complete no-ops.
     """
-    entry = _DISPATCH.get(params.action)
-    if entry is None:
-        return StepResult(accepted=False, rejection=f"unknown_action:{params.action}")
+    pre_violations = check_all(state)
+    if pre_violations:
+        return StepResult(
+            accepted=False,
+            rejection=f"pre_invariant:{','.join(pre_violations)}",
+        )
 
     domain_err = _validate_params(params)
     if domain_err is not None:
         return StepResult(accepted=False, rejection=domain_err)
 
-    guard_fn, update_fn, effect_fn = entry
+    entry = _DISPATCH.get(params.action)
+    if entry is None:
+        return StepResult(accepted=False, rejection=f"unknown_action:{params.action}")
 
+    if epoch_lifecycle_reject_reason(state, params.action) is not None:
+        return StepResult(accepted=False, rejection="guard")
+
+    guard_fn, update_fn, effect_fn = entry
     if not guard_fn(state, params):
         return StepResult(accepted=False, rejection="guard")
 
     new_state = update_fn(state, params)
-
     violations = check_all(new_state)
     if violations:
         return StepResult(
@@ -205,8 +219,8 @@ def step_or_raise(state: PerpState, params: ActionParams) -> StepResult:
 
     Raises:
         PerpOverflowError: Parameter outside YAML domain bounds.
-        PerpGuardError: Guard condition not satisfied.
-        PerpInvariantError: Post-state violates one or more invariants.
+        PerpGuardError: Command shape or guard condition not satisfied.
+        PerpInvariantError: Pre-state or post-state violates an invariant.
     """
     result = step(state, params)
     if result.accepted:
@@ -215,6 +229,9 @@ def step_or_raise(state: PerpState, params: ActionParams) -> StepResult:
     reason = result.rejection or ""
     if reason.startswith("param_domain:"):
         raise PerpOverflowError(reason)
+    if reason.startswith("pre_invariant:"):
+        violations = reason.removeprefix("pre_invariant:").split(",")
+        raise PerpInvariantError(violations)
     if reason.startswith("invariant:"):
         violations = reason.removeprefix("invariant:").split(",")
         raise PerpInvariantError(violations)
