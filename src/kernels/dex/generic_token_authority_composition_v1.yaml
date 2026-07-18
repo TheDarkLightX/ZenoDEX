@@ -1,0 +1,414 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "generic_token_authority_composition_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded one-asset quotient of generic-token authority and global accounting.
+
+    The committed mint authority is actor code 0. Supply must equal the sum of
+    wallet, AMM-pool, perps, pending-stake, and active-stake units after every
+    admitted transition. Mint and faucet admission bind the exact actor code;
+    burn and transfer consume one target-actor nonce; location moves preserve
+    supply. Rejection actions are exact state self-loops.
+
+    The bound of two units reaches zero, ordinary, exact-maximum, overflow,
+    underflow, and full-move cases. The production u32 arithmetic, exact asset
+    and public-key identities, per-account balance authorization, multi-asset
+    locality, complete runtime projection, batch rollback, serialization, and
+    outer commit are refinement obligations owned by Lean, TLA+, and runtime
+    tests. This model does not change Liquity, Uniswap-style AMM, oracle, or
+    perps economic semantics.
+
+observables:
+  state_vars:
+    [
+      "registered",
+      "mint_authority_code",
+      "supply_units",
+      "wallet_units",
+      "pool_units",
+      "perps_units",
+      "pending_stake_units",
+      "active_stake_units",
+      "token_nonce",
+    ]
+  effects:
+    [
+      "action_code",
+      "actor_code",
+      "amount_units",
+      "accepted",
+      "reject_code",
+      "supply_delta_code",
+      "nonce_delta",
+      "rejection_noop",
+    ]
+
+types: []
+
+state_vars:
+  - id: "registered"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "mint_authority_code"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "supply_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "wallet_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "pool_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "perps_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "pending_stake_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "active_stake_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "token_nonce"
+    role: "control"
+    type: { kind: "int", min: 0, max: 2 }
+
+init:
+  - var: "registered"
+    expr: { const: 1 }
+  - var: "mint_authority_code"
+    expr: { const: 0 }
+  - var: "supply_units"
+    expr: { const: 0 }
+  - var: "wallet_units"
+    expr: { const: 0 }
+  - var: "pool_units"
+    expr: { const: 0 }
+  - var: "perps_units"
+    expr: { const: 0 }
+  - var: "pending_stake_units"
+    expr: { const: 0 }
+  - var: "active_stake_units"
+    expr: { const: 0 }
+  - var: "token_nonce"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_registration_stable"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "registered" }, { const: 1 }] }
+  - id: "inv_mint_authority_stable"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "mint_authority_code" }, { const: 0 }] }
+  - id: "inv_supply_equals_accounted_units"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "supply_units" }
+        - op: "+"
+          args:
+            - { var: "wallet_units" }
+            - op: "+"
+              args:
+                - { var: "pool_units" }
+                - op: "+"
+                  args:
+                    - { var: "perps_units" }
+                    - op: "+"
+                      args:
+                        - { var: "pending_stake_units" }
+                        - { var: "active_stake_units" }
+
+actions:
+  - id: "mint"
+    params: &actor_amount_params
+      - id: "actor_code"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "amount_units"
+        type: { kind: "int", min: 1, max: 2 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "registered" }, { const: 1 }] }
+        - { op: "=", args: [{ param: "actor_code" }, { var: "mint_authority_code" }] }
+        - { op: "<", args: [{ var: "token_nonce" }, { const: 2 }] }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "supply_units" }, { param: "amount_units" }] }
+            - { const: 2 }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+            - { const: 2 }
+    updates:
+      - var: "supply_units"
+        expr: { op: "+", args: [{ var: "supply_units" }, { param: "amount_units" }] }
+      - var: "wallet_units"
+        expr: { op: "+", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+      - var: "token_nonce"
+        expr: { op: "+", args: [{ var: "token_nonce" }, { const: 1 }] }
+    effects: &mint_effects
+      action_code: { const: 1 }
+      actor_code: { param: "actor_code" }
+      amount_units: { param: "amount_units" }
+      accepted: { bool: true }
+      reject_code: { const: 0 }
+      supply_delta_code: { const: 1 }
+      nonce_delta: { const: 1 }
+      rejection_noop: { bool: false }
+
+  - id: "faucet_mint"
+    params: *actor_amount_params
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "registered" }, { const: 1 }] }
+        - { op: "=", args: [{ param: "actor_code" }, { var: "mint_authority_code" }] }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "supply_units" }, { param: "amount_units" }] }
+            - { const: 2 }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+            - { const: 2 }
+    updates:
+      - var: "supply_units"
+        expr: { op: "+", args: [{ var: "supply_units" }, { param: "amount_units" }] }
+      - var: "wallet_units"
+        expr: { op: "+", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+    effects:
+      action_code: { const: 2 }
+      actor_code: { param: "actor_code" }
+      amount_units: { param: "amount_units" }
+      accepted: { bool: true }
+      reject_code: { const: 0 }
+      supply_delta_code: { const: 1 }
+      nonce_delta: { const: 0 }
+      rejection_noop: { bool: false }
+
+  - id: "burn"
+    params:
+      - id: "amount_units"
+        type: { kind: "int", min: 1, max: 2 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "registered" }, { const: 1 }] }
+        - { op: "<", args: [{ var: "token_nonce" }, { const: 2 }] }
+        - { op: ">=", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+        - { op: ">=", args: [{ var: "supply_units" }, { param: "amount_units" }] }
+    updates:
+      - var: "supply_units"
+        expr: { op: "-", args: [{ var: "supply_units" }, { param: "amount_units" }] }
+      - var: "wallet_units"
+        expr: { op: "-", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+      - var: "token_nonce"
+        expr: { op: "+", args: [{ var: "token_nonce" }, { const: 1 }] }
+    effects:
+      action_code: { const: 3 }
+      actor_code: { const: 0 }
+      amount_units: { param: "amount_units" }
+      accepted: { bool: true }
+      reject_code: { const: 0 }
+      supply_delta_code: { const: -1 }
+      nonce_delta: { const: 1 }
+      rejection_noop: { bool: false }
+
+  - id: "transfer"
+    params:
+      - id: "amount_units"
+        type: { kind: "int", min: 1, max: 2 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "registered" }, { const: 1 }] }
+        - { op: "<", args: [{ var: "token_nonce" }, { const: 2 }] }
+        - { op: ">=", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+    updates:
+      - var: "token_nonce"
+        expr: { op: "+", args: [{ var: "token_nonce" }, { const: 1 }] }
+    effects:
+      action_code: { const: 4 }
+      actor_code: { const: 0 }
+      amount_units: { param: "amount_units" }
+      accepted: { bool: true }
+      reject_code: { const: 0 }
+      supply_delta_code: { const: 0 }
+      nonce_delta: { const: 1 }
+      rejection_noop: { bool: false }
+
+  - id: "wallet_to_pool"
+    params: &amount_params
+      - id: "amount_units"
+        type: { kind: "int", min: 1, max: 2 }
+    guard: &wallet_to_pool_guard
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "pool_units" }, { param: "amount_units" }] }
+            - { const: 2 }
+    updates:
+      - var: "wallet_units"
+        expr: { op: "-", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+      - var: "pool_units"
+        expr: { op: "+", args: [{ var: "pool_units" }, { param: "amount_units" }] }
+    effects: &move_effects
+      action_code: { const: 5 }
+      actor_code: { const: 0 }
+      amount_units: { param: "amount_units" }
+      accepted: { bool: true }
+      reject_code: { const: 0 }
+      supply_delta_code: { const: 0 }
+      nonce_delta: { const: 0 }
+      rejection_noop: { bool: false }
+
+  - id: "pool_to_wallet"
+    params: *amount_params
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "pool_units" }, { param: "amount_units" }] }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+            - { const: 2 }
+    updates:
+      - var: "pool_units"
+        expr: { op: "-", args: [{ var: "pool_units" }, { param: "amount_units" }] }
+      - var: "wallet_units"
+        expr: { op: "+", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+    effects:
+      <<: *move_effects
+      action_code: { const: 6 }
+
+  - id: "wallet_to_perps"
+    params: *amount_params
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "perps_units" }, { param: "amount_units" }] }
+            - { const: 2 }
+    updates:
+      - var: "wallet_units"
+        expr: { op: "-", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+      - var: "perps_units"
+        expr: { op: "+", args: [{ var: "perps_units" }, { param: "amount_units" }] }
+    effects:
+      <<: *move_effects
+      action_code: { const: 7 }
+
+  - id: "perps_to_wallet"
+    params: *amount_params
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "perps_units" }, { param: "amount_units" }] }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+            - { const: 2 }
+    updates:
+      - var: "perps_units"
+        expr: { op: "-", args: [{ var: "perps_units" }, { param: "amount_units" }] }
+      - var: "wallet_units"
+        expr: { op: "+", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+    effects:
+      <<: *move_effects
+      action_code: { const: 8 }
+
+  - id: "wallet_to_pending_stake"
+    params: *amount_params
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "pending_stake_units" }, { param: "amount_units" }] }
+            - { const: 2 }
+    updates:
+      - var: "wallet_units"
+        expr: { op: "-", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+      - var: "pending_stake_units"
+        expr: { op: "+", args: [{ var: "pending_stake_units" }, { param: "amount_units" }] }
+    effects:
+      <<: *move_effects
+      action_code: { const: 9 }
+
+  - id: "activate_stake"
+    params: *amount_params
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "pending_stake_units" }, { param: "amount_units" }] }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "active_stake_units" }, { param: "amount_units" }] }
+            - { const: 2 }
+    updates:
+      - var: "pending_stake_units"
+        expr: { op: "-", args: [{ var: "pending_stake_units" }, { param: "amount_units" }] }
+      - var: "active_stake_units"
+        expr: { op: "+", args: [{ var: "active_stake_units" }, { param: "amount_units" }] }
+    effects:
+      <<: *move_effects
+      action_code: { const: 10 }
+
+  - id: "unstake"
+    params: *amount_params
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "active_stake_units" }, { param: "amount_units" }] }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+            - { const: 2 }
+    updates:
+      - var: "active_stake_units"
+        expr: { op: "-", args: [{ var: "active_stake_units" }, { param: "amount_units" }] }
+      - var: "wallet_units"
+        expr: { op: "+", args: [{ var: "wallet_units" }, { param: "amount_units" }] }
+    effects:
+      <<: *move_effects
+      action_code: { const: 11 }
+
+  - id: "reject_unauthorized_mint"
+    params: *actor_amount_params
+    guard:
+      op: "not"
+      args:
+        - { op: "=", args: [{ param: "actor_code" }, { var: "mint_authority_code" }] }
+    updates: []
+    effects:
+      action_code: { const: 12 }
+      actor_code: { param: "actor_code" }
+      amount_units: { param: "amount_units" }
+      accepted: { bool: false }
+      reject_code: { const: 1 }
+      supply_delta_code: { const: 0 }
+      nonce_delta: { const: 0 }
+      rejection_noop: { bool: true }
+
+  - id: "reject_invalid_projection"
+    params: *amount_params
+    guard: { bool: true }
+    updates: []
+    effects:
+      action_code: { const: 13 }
+      actor_code: { const: 0 }
+      amount_units: { param: "amount_units" }
+      accepted: { bool: false }
+      reject_code: { const: 2 }
+      supply_delta_code: { const: 0 }
+      nonce_delta: { const: 0 }
+      rejection_noop: { bool: true }

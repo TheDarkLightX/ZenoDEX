@@ -9,12 +9,18 @@ validity, registration, transfer recipient rules, mint authority, then bounded
 mint or burn arithmetic.
 
 The model proves exact supply deltas, u32 closure, rejection no-op, mint
-authorization prerequisites, and locality of an accepted update to one asset.
-An exhaustive boundary vector is compared with the Python implementation by a
-focused formal regression test.
+authorization prerequisites, exact asset-to-actor registry binding, and
+locality of an accepted update to one asset. An exhaustive boundary vector is
+compared with the Python implementation by a focused formal regression test.
+
+The final theorem gives an unbounded composition rule for global accounted
+units: exact pre-state equality plus equal supply and location deltas implies
+exact post-state equality. Its subtraction-free cross-sum premise covers both
+increases and decreases over natural numbers.
 
 This module does not prove asset/pubkey text canonicalization, signatures,
-global balance-location accounting, serialization, or atomic shell commit.
+runtime projection completeness, non-overlap of represented locations,
+serialization, or atomic shell commit.
 -/
 
 namespace ZenoDEX.GenericTokenAuthority
@@ -192,6 +198,53 @@ theorem accepted_mint_requires_committed_authority
   split at accepted <;> simp_all
   split at accepted <;> simp_all
 
+abbrev ExactAssetId := Nat
+abbrev ActorId := Nat
+abbrev AuthorityRegistry := ExactAssetId → Option ActorId
+
+/-- Exact subject-bound mint request used to derive the abstract guard flags. -/
+structure ExactMintCommand where
+  asset : ExactAssetId
+  actor : ActorId
+  amount : Nat
+  deriving DecidableEq, Repr
+
+/--
+Build the existing arithmetic command from one exact registry lookup. The
+registration, enablement, and authorization flags are derived facts rather
+than caller-supplied witnesses.
+-/
+def exactMintAbstractCommand
+    (authorityRegistry : AuthorityRegistry) (command : ExactMintCommand) :
+    Command :=
+  {
+    action := .mint
+    amount := command.amount
+    assetRegistered := (authorityRegistry command.asset).isSome
+    recipientPresent := false
+    selfTransfer := false
+    mintEnabled := (authorityRegistry command.asset).isSome
+    mintAuthorized := authorityRegistry command.asset == some command.actor
+  }
+
+def exactMintStep
+    (authorityRegistry : AuthorityRegistry) (preState : State)
+    (command : ExactMintCommand) : Transition :=
+  step preState (exactMintAbstractCommand authorityRegistry command)
+
+/-- Accepted mint binds the exact command asset to the exact authenticated actor. -/
+theorem accepted_exact_mint_binds_registry
+    (authorityRegistry : AuthorityRegistry) (preState : State)
+    (command : ExactMintCommand)
+    (accepted : (exactMintStep authorityRegistry preState command).accepted = true) :
+    authorityRegistry command.asset = some command.actor := by
+  have guards := accepted_mint_requires_committed_authority
+    preState
+    (exactMintAbstractCommand authorityRegistry command)
+    rfl
+    accepted
+  simpa [exactMintAbstractCommand] using guards.2.2
+
 theorem accepted_transition_preserves_u32_bound
     (preState : State) (command : Command)
     (preBound : preState.supply ≤ u32Max)
@@ -231,5 +284,38 @@ theorem decision_cases_exhaustive (preState : State) (command : Command) :
   split <;> simp_all
   cases command.action <;>
     repeat' first | split | simp_all
+
+/-- Aggregate whole-token units across the represented protocol locations. -/
+structure AccountedUnits where
+  walletUnits : Nat
+  poolLockedUnits : Nat
+  perpsLockedUnits : Nat
+  stakeLockedUnits : Nat
+  deriving DecidableEq, Repr
+
+def AccountedUnits.total (units : AccountedUnits) : Nat :=
+  units.walletUnits + units.poolLockedUnits +
+    units.perpsLockedUnits + units.stakeLockedUnits
+
+/-!
+The delta premise below is written as a cross-sum:
+
+  postAccounted + preSupply = postSupply + preAccounted
+
+This is the natural-number form of matching signed deltas and does not lose
+burn cases to truncated subtraction. The theorem assumes that both accounted
+totals were computed for the same asset and unit scale. It does not establish
+that a runtime projection includes every location exactly once, that a
+location effect is authorized, or that state and effects commit atomically.
+-/
+
+theorem global_accounting_preserved_of_matching_deltas
+    (preSupply postSupply : Nat)
+    (preUnits postUnits : AccountedUnits)
+    (preExact : preUnits.total = preSupply)
+    (matchingDelta :
+      postUnits.total + preSupply = postSupply + preUnits.total) :
+    postUnits.total = postSupply := by
+  omega
 
 end ZenoDEX.GenericTokenAuthority
