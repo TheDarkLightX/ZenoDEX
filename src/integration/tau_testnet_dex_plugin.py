@@ -19,16 +19,20 @@ Legacy key aliases are also accepted when invoking the plugin directly:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
-import hashlib
 from dataclasses import replace
 from typing import Any, Dict, Mapping, Optional, Tuple
 
 from ..core.dex import DexState
 from ..core.perp_tau_ingress_stream import evaluate_perp_tau_ingress_stream
+from ..core.proof_mining_payout import (
+    ProofMiningPayoutPlan,
+    plan_proof_mining_payout,
+)
+from ..state.balances import NATIVE_ASSET, BalanceTable
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
-from ..state.balances import BalanceTable, NATIVE_ASSET
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
 from .dex_engine import DexEngineConfig, apply_ops
@@ -46,6 +50,7 @@ from .proof_mining_runtime import (
     sync_proof_mining_runtime_balance,
 )
 from .proof_verifier import ProofVerifierConfig
+from .tau_native_identity import TauNativeBalanceSnapshot, canonical_tau_pubkey
 from .zusd_monetary_bridge import (
     ZUSDMonetaryConfig,
     ZUSDMonetaryState,
@@ -53,7 +58,6 @@ from .zusd_monetary_bridge import (
     zusd_monetary_state_from_obj,
     zusd_monetary_state_to_obj,
 )
-
 
 _DEX_INTENTS_KEY = "5"
 _DEX_SETTLEMENT_KEY = "6"
@@ -264,7 +268,9 @@ def _parse_faucet_mint_entry(entry: Any, *, index: int) -> Tuple[Optional[Tuple[
     else:
         return None, f"faucet.mint[{index}] must be a list or object"
 
-    if not isinstance(pk, str) or not pk or len(pk) > 512:
+    try:
+        pk = _canonical_pubkey(pk, name=f"faucet.mint[{index}].pubkey")
+    except (TypeError, ValueError):
         return None, f"faucet.mint[{index}] invalid pubkey"
     if not isinstance(asset, str) or not asset or len(asset) > 256:
         return None, f"faucet.mint[{index}] invalid asset"
@@ -276,22 +282,19 @@ def _parse_faucet_mint_entry(entry: Any, *, index: int) -> Tuple[Optional[Tuple[
     return (pk, asset, int(amount)), None
 
 
-def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) -> DexState:
+def _sync_native_balances(
+    state: DexState,
+    *,
+    native_balances: TauNativeBalanceSnapshot,
+) -> DexState:
     balances_copy = _copy_balance_table(state.balances)
-
-    # Drop any existing native entries from stored snapshot.
-    for (pk, asset), _amount in list(balances_copy.get_all_balances().items()):
+    for (pubkey, asset), _amount in list(balances_copy.get_all_balances().items()):
         if asset == NATIVE_ASSET:
-            balances_copy.set(pk, asset, 0)
+            balances_copy.set(pubkey, asset, 0)
 
-    for pk, amount in chain_balances.items():
-        try:
-            amt_i = int(amount)
-        except Exception:
-            continue
-        if amt_i <= 0:
-            continue
-        balances_copy.set(str(pk), NATIVE_ASSET, amt_i)
+    for binding in native_balances.entries:
+        if binding.balance > 0:
+            balances_copy.set(binding.canonical_pubkey, NATIVE_ASSET, binding.balance)
 
     return replace(state, balances=balances_copy)
 
@@ -328,19 +331,47 @@ def _apply_faucet(
     return True, next_state, None
 
 
-def _balances_patch_for_native(*, before: Dict[str, int], after_state: DexState) -> Dict[str, int]:
+def _balances_patch_for_native(
+    *,
+    before: TauNativeBalanceSnapshot,
+    after_state: DexState,
+    preferred_chain_keys: tuple[str, ...],
+) -> Dict[str, int]:
     out: Dict[str, int] = {}
-    keys = set(before.keys())
-    # Include any addresses that appear in the DEX snapshot (native).
-    for (pk, asset), _amount in after_state.balances.get_all_balances().items():
-        if asset == NATIVE_ASSET:
-            keys.add(pk)
+    before_by_canonical = {binding.canonical_pubkey: binding for binding in before.entries}
+    preferred_by_canonical: dict[str, str] = {}
+    for chain_key in preferred_chain_keys:
+        if not chain_key:
+            continue
+        binding = before.binding_for(
+            chain_key,
+            preferred_chain_key=chain_key,
+            name="native patch principal",
+        )
+        existing = preferred_by_canonical.get(binding.canonical_pubkey)
+        if existing is not None and existing != binding.chain_key:
+            raise ValueError("native patch has ambiguous preferred identity spellings")
+        preferred_by_canonical[binding.canonical_pubkey] = binding.chain_key
 
-    for pk in keys:
-        old = int(before.get(pk, 0))
-        new = int(after_state.balances.get(pk, NATIVE_ASSET))
+    after_by_canonical: dict[str, int] = {}
+    for (pubkey, asset), amount in after_state.balances.get_all_balances().items():
+        if asset == NATIVE_ASSET:
+            canonical = _canonical_pubkey(pubkey, name="native post-state pubkey")
+            if canonical != pubkey:
+                raise ValueError("native post-state pubkeys must be canonical")
+            after_by_canonical[canonical] = int(amount)
+
+    for canonical in sorted(set(before_by_canonical) | set(after_by_canonical)):
+        prior = before_by_canonical.get(canonical)
+        old = 0 if prior is None else prior.balance
+        new = after_by_canonical.get(canonical, 0)
         if new != old:
-            out[pk] = new
+            chain_key = (
+                prior.chain_key
+                if prior is not None
+                else preferred_by_canonical.get(canonical, canonical)
+            )
+            out[chain_key] = new
     return out
 
 
@@ -593,13 +624,42 @@ def _looks_like_perp_ops(raw: Any) -> bool:
     return str(module) == "TauPerp"
 
 
+def _canonicalize_tau_dex_intent_entry(entry: Any) -> Any:
+    if isinstance(entry, dict):
+        intent = dict(entry)
+        for field in ("sender_pubkey", "recipient"):
+            principal = intent.get(field)
+            if not isinstance(principal, str):
+                continue
+            intent[field] = canonical_tau_pubkey(
+                principal,
+                name=f"intent.{field}",
+            )
+        return intent
+    if isinstance(entry, (list, tuple)) and entry and isinstance(entry[0], dict):
+        envelope = list(entry)
+        envelope[0] = _canonicalize_tau_dex_intent_entry(envelope[0])
+        return envelope
+    return entry
+
+
+def _canonicalize_tau_dex_intents(raw: Any) -> Any:
+    if not isinstance(raw, list):
+        return raw
+    return [_canonicalize_tau_dex_intent_entry(entry) for entry in raw]
+
+
 def _select_dex_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if _LEGACY_DEX_INTENTS_KEY in operations:
-        out[_LEGACY_DEX_INTENTS_KEY] = operations.get(_LEGACY_DEX_INTENTS_KEY)
+        out[_LEGACY_DEX_INTENTS_KEY] = _canonicalize_tau_dex_intents(
+            operations.get(_LEGACY_DEX_INTENTS_KEY)
+        )
     elif _DEX_INTENTS_KEY in operations and _looks_like_dex_intents(operations.get(_DEX_INTENTS_KEY)):
         # Remap upstream-safe stream "5" to the internal DEX adapter schema.
-        out[_LEGACY_DEX_INTENTS_KEY] = operations.get(_DEX_INTENTS_KEY)
+        out[_LEGACY_DEX_INTENTS_KEY] = _canonicalize_tau_dex_intents(
+            operations.get(_DEX_INTENTS_KEY)
+        )
 
     if _LEGACY_DEX_SETTLEMENT_KEY in operations:
         out[_LEGACY_DEX_SETTLEMENT_KEY] = operations.get(_LEGACY_DEX_SETTLEMENT_KEY)
@@ -656,7 +716,7 @@ def _apply_proof_mining_op(
     proof_mining_op: Any,
     proof_mining_context: Any,
     tx_sender_pubkey: str,
-    chain_balances: Mapping[str, int],
+    native_balances: TauNativeBalanceSnapshot,
 ) -> Tuple[bool, DexState, Optional[ProofMiningRuntimeState], Optional[str]]:
     if proof_mining_op is None:
         return True, state, proof_mining_state, None
@@ -703,12 +763,25 @@ def _apply_proof_mining_op(
         return False, state, proof_mining_state, f"proof mining reward requires canonical winner.miner_id: {exc}"
     if winner_pubkey != sender:
         return False, state, proof_mining_state, "proof mining winner.miner_id mismatch"
+    if sender == reward_pool_pubkey:
+        return False, state, proof_mining_state, "proof mining reward recipient must differ from reward pool"
     claim_proposal_hash = str(claim_body.get("proposal_hash", ""))
     if claim_proposal_hash != str(getattr(proof_mining_context, "proposal_hash", "")):
         return False, state, proof_mining_state, "proof mining claim proposal_hash mismatch"
-    actual_pool_balance = int(chain_balances.get(reward_pool_pubkey, 0))
-    if actual_pool_balance < 0:
-        return False, state, proof_mining_state, "reward pool chain balance must be non-negative"
+    try:
+        reward_pool_binding = native_balances.binding_for(
+            reward_pool_pubkey,
+            preferred_chain_key=os.environ.get("TAU_DEX_PROOF_MINING_POOL_PUBKEY", "").strip(),
+            name="proof mining reward pool",
+        )
+        recipient_binding = native_balances.binding_for(
+            sender,
+            preferred_chain_key=tx_sender_pubkey,
+            name="proof mining reward recipient",
+        )
+    except (TypeError, ValueError) as exc:
+        return False, state, proof_mining_state, str(exc)
+    actual_pool_balance = reward_pool_binding.balance
     runtime_state = proof_mining_state
     if runtime_state is None:
         try:
@@ -743,14 +816,22 @@ def _apply_proof_mining_op(
     if reward_amount <= 0:
         return False, state, proof_mining_state, "proof mining reward_amount invalid"
     balances = _copy_balance_table(state.balances)
-    pool_balance = int(balances.get(reward_pool_pubkey, NATIVE_ASSET))
+    pool_balance = int(balances.get(reward_pool_binding.canonical_pubkey, NATIVE_ASSET))
     if pool_balance != actual_pool_balance:
         return False, state, proof_mining_state, "reward pool native balance out of sync"
-    recipient_balance = int(balances.get(sender, NATIVE_ASSET))
-    if pool_balance < reward_amount:
-        return False, state, proof_mining_state, "reward pool insufficient native balance"
-    balances.set(reward_pool_pubkey, NATIVE_ASSET, pool_balance - reward_amount)
-    balances.set(sender, NATIVE_ASSET, recipient_balance + reward_amount)
+    recipient_balance = int(balances.get(recipient_binding.canonical_pubkey, NATIVE_ASSET))
+    payout_decision = plan_proof_mining_payout(
+        reward_pool_pubkey=reward_pool_pubkey,
+        recipient_pubkey=sender,
+        reward_amount_base_units=reward_amount,
+        reward_pool_balance_base_units=pool_balance,
+        recipient_balance_base_units=recipient_balance,
+    )
+    if not isinstance(payout_decision, ProofMiningPayoutPlan):
+        return False, state, proof_mining_state, payout_decision.message
+    for effect in payout_decision.effects:
+        balance_before = int(balances.get(effect.pubkey, NATIVE_ASSET))
+        balances.set(effect.pubkey, NATIVE_ASSET, balance_before + effect.delta_base_units)
     return True, replace(state, balances=balances), next_runtime_state, None
 
 
@@ -892,14 +973,34 @@ def apply_app_tx(
     chain_id = os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or os.environ.get("TAU_NETWORK_ID", "").strip() or "tau-local"
 
     try:
+        native_balances = TauNativeBalanceSnapshot.from_chain_balances(chain_balances)
+    except (TypeError, ValueError) as exc:
+        return False, app_state_json, "", None, str(exc)
+    canonical_tx_sender_pubkey = ""
+    if tx_sender_pubkey:
+        try:
+            canonical_tx_sender_pubkey = canonical_tau_pubkey(
+                tx_sender_pubkey,
+                name="tx_sender_pubkey",
+            )
+        except (TypeError, ValueError) as exc:
+            return False, app_state_json, "", None, str(exc)
+
+    try:
         state, proof_mining_state, zusd_monetary_state = _load_state(app_state_json)
     except Exception as exc:
         return False, app_state_json, "", None, str(exc)
-    state = _sync_native_balances(state, chain_balances=chain_balances)
+    state = _sync_native_balances(state, native_balances=native_balances)
     if proof_mining_state is not None:
-        actual_reward_pool_balance = int(chain_balances.get(proof_mining_state.reward_pool_pubkey, 0))
-        if actual_reward_pool_balance < 0:
-            return False, app_state_json, "", None, "reward pool chain balance must be non-negative"
+        try:
+            reward_pool_binding = native_balances.binding_for(
+                proof_mining_state.reward_pool_pubkey,
+                preferred_chain_key=proof_mining_state.reward_pool_pubkey,
+                name="proof mining reward pool",
+            )
+        except (TypeError, ValueError) as exc:
+            return False, app_state_json, "", None, str(exc)
+        actual_reward_pool_balance = reward_pool_binding.balance
         try:
             proof_mining_state = sync_proof_mining_runtime_balance(
                 runtime_state=proof_mining_state,
@@ -913,11 +1014,14 @@ def apply_app_tx(
     if not ok:
         return False, app_state_json, "", None, err
 
-    dex_ops = _select_dex_ops(operations)
-    perp_ops = _select_perp_ops(operations)
-    token_ops = _select_token_ops(operations)
-    proof_mining_ops = _select_proof_mining_ops(operations)
-    zusd_monetary_ops = _select_zusd_monetary_ops(operations)
+    try:
+        dex_ops = _select_dex_ops(operations)
+        perp_ops = _select_perp_ops(operations)
+        token_ops = _select_token_ops(operations)
+        proof_mining_ops = _select_proof_mining_ops(operations)
+        zusd_monetary_ops = _select_zusd_monetary_ops(operations)
+    except (TypeError, ValueError) as exc:
+        return False, app_state_json, "", None, str(exc)
 
     # Sync-only call: no ops, but we still update the snapshot/hash so native balances stay consistent.
     if not dex_ops and not perp_ops and not token_ops and not proof_mining_ops and not zusd_monetary_ops:
@@ -933,7 +1037,7 @@ def apply_app_tx(
         ok, next_state, token_err = _apply_token_ops(
             next_state,
             token_ops.get(_TOKEN_OPS_KEY),
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
         )
         if not ok:
@@ -946,7 +1050,7 @@ def apply_app_tx(
             state=next_state,
             zusd_state=zusd_monetary_state,
             operations=zusd_monetary_ops.get(_ZUSD_MONETARY_OPS_KEY),
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
         )
         if not zusd_res.ok or zusd_res.state is None or zusd_res.zusd_state is None:
@@ -974,7 +1078,7 @@ def apply_app_tx(
             state=next_state,
             operations=dex_ops,
             block_timestamp=int(block_timestamp),
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
         )
         if not dex_result.ok or dex_result.state is None:
             return False, app_state_json, "", None, dex_result.error or "DEX rejected"
@@ -990,7 +1094,7 @@ def apply_app_tx(
             proof_mining_op=proof_mining_op,
             proof_mining_context=None if dex_result is None else dex_result.proof_mining_context,
             tx_sender_pubkey=tx_sender_pubkey,
-            chain_balances=chain_balances,
+            native_balances=native_balances,
         )
         if not ok:
             return False, app_state_json, "", None, proof_err or "proof mining rejected"
@@ -1001,14 +1105,21 @@ def apply_app_tx(
             config=perp_cfg,
             state=next_state,
             operations=perp_ops,
-            tx_sender_pubkey=tx_sender_pubkey,
+            tx_sender_pubkey=canonical_tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
         )
         if not perp_res.ok or perp_res.state is None:
             return False, app_state_json, "", None, perp_res.error or "PERP rejected"
         next_state = perp_res.state
 
-    balances_patch = _balances_patch_for_native(before=chain_balances, after_state=next_state)
+    balances_patch = _balances_patch_for_native(
+        before=native_balances,
+        after_state=next_state,
+        preferred_chain_keys=(
+            tx_sender_pubkey,
+            os.environ.get("TAU_DEX_PROOF_MINING_POOL_PUBKEY", "").strip(),
+        ),
+    )
     canonical, app_hash = _canonical_state_and_hash(
         next_state,
         proof_mining_state=proof_mining_state,

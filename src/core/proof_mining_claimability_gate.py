@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-
 REJECT_DISABLED = "Disabled"
 REJECT_WINNER_MISMATCH = "WinnerMismatch"
+REJECT_SELF_PAYMENT = "SelfPayment"
 REJECT_PROPOSAL_HASH_MISMATCH = "ProposalHashMismatch"
 REJECT_NEGATIVE_POOL_BALANCE = "NegativePoolBalance"
 REJECT_RUNTIME_POOL_PUBKEY_MISMATCH = "RuntimePoolPubkeyMismatch"
@@ -16,6 +16,7 @@ REJECT_OK = "Ok"
 REJECT_CODE_TO_ERROR = {
     REJECT_DISABLED: "proof mining disabled (set TAU_DEX_PROOF_MINING_POOL_PUBKEY)",
     REJECT_WINNER_MISMATCH: "proof mining winner.miner_id mismatch",
+    REJECT_SELF_PAYMENT: "proof mining reward recipient must differ from reward pool",
     REJECT_PROPOSAL_HASH_MISMATCH: "proof mining claim proposal_hash mismatch",
     REJECT_NEGATIVE_POOL_BALANCE: "reward pool chain balance must be non-negative",
     REJECT_RUNTIME_POOL_PUBKEY_MISMATCH: "proof mining reward pool pubkey mismatch",
@@ -47,6 +48,7 @@ def evaluate_proof_mining_claimability_gate(
     *,
     reward_pool_configured: bool,
     winner_matches_sender: bool,
+    recipient_differs_from_reward_pool: bool,
     proposal_hash_matches_context: bool,
     reward_pool_balance_non_negative: bool,
     runtime_state_present: bool,
@@ -67,10 +69,13 @@ def evaluate_proof_mining_claimability_gate(
 
     runtime_present = bool(runtime_state_present)
     runtime_pubkey_match = bool(runtime_present and reward_pool_pubkey_matches_state)
-    runtime_balance_match = bool(runtime_present and runtime_pubkey_match and reward_pool_balance_matches_state)
+    runtime_balance_match = bool(
+        runtime_present and runtime_pubkey_match and reward_pool_balance_matches_state
+    )
     checks: dict[str, bool] = {
         "reward_pool_configured": bool(reward_pool_configured),
         "winner_matches_sender": bool(winner_matches_sender),
+        "recipient_differs_from_reward_pool": bool(recipient_differs_from_reward_pool),
         "proposal_hash_matches_context": bool(proposal_hash_matches_context),
         "reward_pool_balance_non_negative": bool(reward_pool_balance_non_negative),
         "runtime_state_present": runtime_present,
@@ -82,6 +87,8 @@ def evaluate_proof_mining_claimability_gate(
         reject_code = REJECT_DISABLED
     elif not checks["winner_matches_sender"]:
         reject_code = REJECT_WINNER_MISMATCH
+    elif not checks["recipient_differs_from_reward_pool"]:
+        reject_code = REJECT_SELF_PAYMENT
     elif not checks["proposal_hash_matches_context"]:
         reject_code = REJECT_PROPOSAL_HASH_MISMATCH
     elif not checks["reward_pool_balance_non_negative"]:

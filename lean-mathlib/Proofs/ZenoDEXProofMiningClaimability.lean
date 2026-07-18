@@ -6,9 +6,11 @@ bounded ZenoProof reward-payout bridge.
 
 The Python runtime exposes these checks as public status fields. These lemmas
 record the math-level obligations that matter for the current disaster-search
-witnesses: missing verified proof context and stale runtime balance snapshots
-cannot produce a claimable proof-mining status, and accepted ZenoProof reward
-gates preserve the conservative reward-pool delta.
+witnesses: missing verified proof context, stale runtime balance snapshots, and
+reward-pool self-payments cannot produce a claimable proof-mining status.
+Accepted reward gates require distinct participants and preserve the combined
+reward-pool and recipient total. Runtime-to-model field binding and atomic shell
+application remain separate executable obligations.
 -/
 
 namespace TauSwap
@@ -77,6 +79,7 @@ structure Status where
   senderValid : Bool
   claimValid : Bool
   winnerMatchesSender : Bool
+  recipientDiffersFromRewardPool : Bool
   proposalHashMatchesContext : Bool
   verifiedContextPresent : Bool
   rewardPoolBalanceNonnegative : Bool
@@ -94,6 +97,7 @@ def claimable (s : Status) : Bool :=
     s.senderValid &&
     s.claimValid &&
     s.winnerMatchesSender &&
+    s.recipientDiffersFromRewardPool &&
     s.proposalHashMatchesContext &&
     s.verifiedContextPresent &&
     s.rewardPoolBalanceNonnegative &&
@@ -119,6 +123,7 @@ theorem claimable_iff_component_obligations (s : Status) :
       s.senderValid = true ∧
       s.claimValid = true ∧
       s.winnerMatchesSender = true ∧
+      s.recipientDiffersFromRewardPool = true ∧
       s.proposalHashMatchesContext = true ∧
       s.verifiedContextPresent = true ∧
       s.rewardPoolBalanceNonnegative = true ∧
@@ -133,6 +138,7 @@ theorem claimable_implies_public_status_obligations
       s.senderValid = true ∧
       s.claimValid = true ∧
       s.winnerMatchesSender = true ∧
+      s.recipientDiffersFromRewardPool = true ∧
       s.proposalHashMatchesContext = true ∧
       s.verifiedContextPresent = true ∧
       s.rewardPoolBalanceNonnegative = true ∧
@@ -191,6 +197,19 @@ theorem claimable_implies_winner_matches_sender
   cases hWinner : s.winnerMatchesSender <;>
     simp [claimable, hWinner] at hClaimable ⊢
 
+theorem reward_pool_self_payment_not_claimable
+    (s : Status)
+    (hDistinct : s.recipientDiffersFromRewardPool = false) :
+    claimable s = false := by
+  simp [claimable, hDistinct]
+
+theorem claimable_implies_recipient_differs_from_reward_pool
+    (s : Status)
+    (hClaimable : claimable s = true) :
+    s.recipientDiffersFromRewardPool = true := by
+  cases hDistinct : s.recipientDiffersFromRewardPool <;>
+    simp [claimable, hDistinct] at hClaimable ⊢
+
 theorem runtime_balance_drift_not_claimable
     (s : Status)
     (hRuntime : s.runtimeStatePresent = true)
@@ -235,7 +254,7 @@ theorem claimable_implies_runtime_bindings_ok
     (hClaimable : claimable s = true) :
     runtimeBindingsOk s = true := by
   rcases (claimable_iff_component_obligations s).mp hClaimable with
-    ⟨_, _, _, _, _, _, _, hRuntimeBindings, _⟩
+    ⟨_, _, _, _, _, _, _, _, hRuntimeBindings, _⟩
   exact hRuntimeBindings
 
 theorem not_claimable_with_wrong_proposal
@@ -334,6 +353,7 @@ structure Gate where
   freshnessOk : Bool
   uniqueClaim : Bool
   rewardPoolHasBudget : Bool
+  recipientDiffersFromRewardPool : Bool
   rewardPoolBefore : Nat
   rewardAmount : Nat
   rewardPoolAfter : Nat
@@ -344,6 +364,7 @@ def hostGuardsOk (g : Gate) : Bool :=
     g.policyOk &&
     g.freshnessOk &&
     g.uniqueClaim &&
+    g.recipientDiffersFromRewardPool &&
     g.rewardPoolHasBudget
 
 def conservativeDelta (g : Gate) : Prop :=
@@ -353,6 +374,21 @@ def accepted (g : Gate) : Prop :=
   hostGuardsOk g = true ∧
     0 < g.rewardAmount ∧
     conservativeDelta g
+
+theorem accepted_nonempty : ∃ g : Gate, accepted g := by
+  exact ⟨
+    { proofOk := true
+      bindingOk := true
+      policyOk := true
+      freshnessOk := true
+      uniqueClaim := true
+      rewardPoolHasBudget := true
+      recipientDiffersFromRewardPool := true
+      rewardPoolBefore := 20
+      rewardAmount := 4
+      rewardPoolAfter := 16 },
+    ⟨rfl, Nat.zero_lt_succ 3, rfl⟩
+  ⟩
 
 def scheduledReward (baseReward epoch : Nat) : Nat :=
   max 1 (baseReward / (2 ^ epoch))
@@ -370,6 +406,7 @@ theorem host_guards_ok_iff_obligations (g : Gate) :
       g.policyOk = true ∧
       g.freshnessOk = true ∧
       g.uniqueClaim = true ∧
+      g.recipientDiffersFromRewardPool = true ∧
       g.rewardPoolHasBudget = true := by
   simp [hostGuardsOk, and_assoc]
 
@@ -381,12 +418,13 @@ theorem accepted_implies_reward_gate_obligations
       g.policyOk = true ∧
       g.freshnessOk = true ∧
       g.uniqueClaim = true ∧
+      g.recipientDiffersFromRewardPool = true ∧
       g.rewardPoolHasBudget = true ∧
       0 < g.rewardAmount ∧
       conservativeDelta g := by
   rcases (host_guards_ok_iff_obligations g).mp hAccepted.1 with
-    ⟨hProof, hBinding, hPolicy, hFreshness, hUnique, hBudget⟩
-  exact ⟨hProof, hBinding, hPolicy, hFreshness, hUnique, hBudget, hAccepted.2.1, hAccepted.2.2⟩
+    ⟨hProof, hBinding, hPolicy, hFreshness, hUnique, hDistinct, hBudget⟩
+  exact ⟨hProof, hBinding, hPolicy, hFreshness, hUnique, hDistinct, hBudget, hAccepted.2.1, hAccepted.2.2⟩
 
 theorem accepted_implies_proof_ok
     (g : Gate)
@@ -412,7 +450,7 @@ theorem accepted_implies_freshness_ok
     (hAccepted : accepted g) :
     g.freshnessOk = true := by
   rcases (host_guards_ok_iff_obligations g).mp hAccepted.1 with
-    ⟨_, _, _, hFreshness, _, _⟩
+    ⟨_, _, _, hFreshness, _, _, _⟩
   exact hFreshness
 
 theorem accepted_implies_unique_claim
@@ -421,12 +459,18 @@ theorem accepted_implies_unique_claim
     g.uniqueClaim = true := by
   exact (host_guards_ok_iff_obligations g).mp hAccepted.1 |>.right.right.right.right.left
 
+theorem accepted_implies_recipient_differs_from_reward_pool
+    (g : Gate)
+    (hAccepted : accepted g) :
+    g.recipientDiffersFromRewardPool = true := by
+  exact (host_guards_ok_iff_obligations g).mp hAccepted.1 |>.right.right.right.right.right.left
+
 theorem accepted_implies_reward_pool_has_budget
     (g : Gate)
     (hAccepted : accepted g) :
     g.rewardPoolHasBudget = true := by
   rcases (host_guards_ok_iff_obligations g).mp hAccepted.1 with
-    ⟨_, _, _, _, _, hBudget⟩
+    ⟨_, _, _, _, _, _, hBudget⟩
   exact hBudget
 
 theorem not_accepted_without_proof
@@ -475,6 +519,14 @@ theorem duplicate_claim_not_accepted
     ¬ accepted g :=
   not_accepted_without_unique_claim g hUnique
 
+theorem reward_pool_self_payment_not_accepted
+    (g : Gate)
+    (hDistinct : g.recipientDiffersFromRewardPool = false) :
+    ¬ accepted g := by
+  intro hAccepted
+  have hDistinctTrue := accepted_implies_recipient_differs_from_reward_pool g hAccepted
+  simp [hDistinct] at hDistinctTrue
+
 theorem not_accepted_without_reward_budget
     (g : Gate)
     (hBudget : g.rewardPoolHasBudget = false) :
@@ -488,6 +540,15 @@ theorem accepted_reward_delta_conservative
     (hAccepted : accepted g) :
     conservativeDelta g :=
   hAccepted.2.2
+
+theorem accepted_payout_preserves_pool_recipient_total
+    (g : Gate)
+    (recipientBalanceBefore : Nat)
+    (hAccepted : accepted g) :
+    g.rewardPoolAfter + (recipientBalanceBefore + g.rewardAmount) =
+      g.rewardPoolBefore + recipientBalanceBefore := by
+  rw [accepted_reward_delta_conservative g hAccepted]
+  ac_rfl
 
 theorem accepted_reward_positive
     (g : Gate)

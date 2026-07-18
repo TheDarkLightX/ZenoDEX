@@ -1,6 +1,8 @@
 import json
 import sys
 
+import pytest
+
 
 def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
     from src.integration.operations import parse_intents
@@ -127,6 +129,7 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 
     sender_pubkey = "00" * 48
+    canonical_sender_pubkey = "0x" + sender_pubkey
     asset0 = "0x" + "11" * 32
     asset1 = "0x" + "22" * 32
 
@@ -173,8 +176,8 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
         for b in (parsed.get("balances") or [])
         if isinstance(b, dict)
     }
-    before_in = int(balances_before.get((sender_pubkey, asset0), 0))
-    before_out = int(balances_before.get((sender_pubkey, asset1), 0))
+    before_in = int(balances_before.get((canonical_sender_pubkey, asset0), 0))
+    before_out = int(balances_before.get((canonical_sender_pubkey, asset1), 0))
 
     swap_intent = {
         "module": "TauSwap",
@@ -207,8 +210,8 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
         for b in (parsed2.get("balances") or [])
         if isinstance(b, dict)
     }
-    after_in = int(balances_after.get((sender_pubkey, asset0), 0))
-    after_out = int(balances_after.get((sender_pubkey, asset1), 0))
+    after_in = int(balances_after.get((canonical_sender_pubkey, asset0), 0))
+    after_out = int(balances_after.get((canonical_sender_pubkey, asset1), 0))
 
     assert after_in < before_in
     assert after_out > before_out
@@ -219,6 +222,7 @@ def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkey
     from src.state.balances import NATIVE_ASSET
 
     sender_pubkey = "00" * 48
+    canonical_sender_pubkey = "0x" + sender_pubkey
     token = "0x" + "11" * 32
 
     monkeypatch.setenv("TAU_DEX_FAUCET", "1")
@@ -265,7 +269,7 @@ def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkey
 
     parsed = json.loads(synced_json)
     balances = {(b.get("pubkey"), b.get("asset")): b.get("amount") for b in (parsed.get("balances") or []) if isinstance(b, dict)}
-    assert balances.get((sender_pubkey, NATIVE_ASSET)) == 9000
+    assert balances.get((canonical_sender_pubkey, NATIVE_ASSET)) == 9000
 
 
 def test_apply_app_tx_routes_upstream_streams_to_internal_engines(monkeypatch):
@@ -1324,8 +1328,10 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     from src.state.lp import LPTable
     from src.state.state_root import compute_state_root
 
-    sender = "0x" + "11" * 48
-    reward_pool = "0x" + "99" * 48
+    sender = "11" * 48
+    canonical_sender = "0x" + sender
+    reward_pool = "99" * 48
+    canonical_reward_pool = "0x" + reward_pool
     asset0 = "0x" + "11" * 32
     asset1 = "0x" + "22" * 32
 
@@ -1355,7 +1361,7 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
         "version": "0.1",
         "kind": "CREATE_POOL",
         "intent_id": "0x" + "ab" * 32,
-        "sender_pubkey": sender,
+        "sender_pubkey": canonical_sender,
         "deadline": 9999999999,
         "nonce": 1,
         "asset0": asset0,
@@ -1448,7 +1454,7 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     parsed = json.loads(app_state_json1)
     assert parsed["schema"] == "zenodex/tau_app_state/v1"
     assert parsed["proof_mining"]["schema"] == "zenodex/proof_mining_runtime_state/v1"
-    assert parsed["proof_mining"]["reward_pool_pubkey"] == reward_pool
+    assert parsed["proof_mining"]["reward_pool_pubkey"] == canonical_reward_pool
     assert parsed["proof_mining"]["reward_pool_balance"] == 16
     assert parsed["proof_mining"]["total_paid"] == 4
     claimed_slots = parsed["proof_mining"]["claimed_slots"]
@@ -1503,10 +1509,161 @@ def test_apply_proof_mining_op_rejects_malformed_claim_shapes_without_crashing(m
             proof_mining_op={"module": "ZenoProofMining", "action": "submit_proof", "claim": claim},
             proof_mining_context=object(),
             tx_sender_pubkey=sender,
-            chain_balances={reward_pool: 10},
+            native_balances=plugin.TauNativeBalanceSnapshot.from_chain_balances(
+                {reward_pool: 10}
+            ),
         )
         assert ok is False
         assert err == expected_err
+
+
+def test_native_principal_binding_preserves_raw_key_and_rejects_duplicate_spellings() -> None:
+    from src.integration.tau_native_identity import TauNativeBalanceSnapshot
+
+    raw_pubkey = "11" * 48
+    canonical_pubkey = "0x" + raw_pubkey
+    snapshot = TauNativeBalanceSnapshot.from_chain_balances({raw_pubkey: 20})
+    binding = snapshot.binding_for(
+        canonical_pubkey,
+        preferred_chain_key=canonical_pubkey,
+        name="test principal",
+    )
+
+    assert binding.canonical_pubkey == canonical_pubkey
+    assert binding.chain_key == raw_pubkey
+    assert binding.balance == 20
+    with pytest.raises(ValueError, match="ambiguous identity spellings"):
+        TauNativeBalanceSnapshot.from_chain_balances(
+            {raw_pubkey: 20, canonical_pubkey: 20}
+        )
+
+
+def test_native_balance_patch_uses_raw_preferred_key_for_new_recipient() -> None:
+    from src.core.dex import DexState
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.tau_native_identity import TauNativeBalanceSnapshot
+    from src.state import BalanceTable, LPTable
+    from src.state.balances import NATIVE_ASSET
+
+    raw_recipient = "11" * 48
+    canonical_recipient = "0x" + raw_recipient
+    raw_pool = "99" * 48
+    canonical_pool = "0x" + raw_pool
+    before = TauNativeBalanceSnapshot.from_chain_balances({raw_pool: 20})
+    balances = BalanceTable()
+    balances.set(canonical_recipient, NATIVE_ASSET, 4)
+    balances.set(canonical_pool, NATIVE_ASSET, 16)
+    after = DexState(balances=balances, pools={}, lp_balances=LPTable())
+
+    patch = plugin._balances_patch_for_native(
+        before=before,
+        after_state=after,
+        preferred_chain_keys=(raw_recipient, raw_pool),
+    )
+
+    assert patch == {raw_recipient: 4, raw_pool: 16}
+
+
+def test_apply_app_tx_rejects_duplicate_tau_spellings_before_state_load(monkeypatch) -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    raw_pubkey = "11" * 48
+    canonical_pubkey = "0x" + raw_pubkey
+
+    def fail_if_manager_called(**_kwargs):
+        raise AssertionError("ambiguous Tau identities must reject before manager application")
+
+    monkeypatch.setattr(plugin, "apply_proof_mining_claim", fail_if_manager_called)
+    ok, app_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="opaque-prestate",
+        chain_balances={raw_pubkey: 20, canonical_pubkey: 20},
+        operations={},
+        tx_sender_pubkey=raw_pubkey,
+        block_timestamp=1,
+    )
+
+    assert ok is False
+    assert app_state_json == "opaque-prestate"
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err is not None
+    assert "ambiguous identity spellings" in err
+
+
+def test_apply_proof_mining_op_rejects_reward_pool_self_payment_without_mutation(monkeypatch):
+    """Given the pool is also the winner, payout rejects without changing either state."""
+    from src.core.dex import DexState
+    from src.core.proof_mining_claims import build_proof_mining_claim
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.proof_mining_context import ProofMiningContext
+    from src.state import BalanceTable, LPTable
+    from src.state.balances import NATIVE_ASSET
+
+    reward_pool = "0x" + "99" * 48
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
+    claim = build_proof_mining_claim(
+        round_obj={
+            "schema": "zenodex/improvement_bounty_round/v1",
+            "ok": True,
+            "job_digest": "job-self-payment",
+            "winner": {
+                "miner_id": reward_pool,
+                "witness_sha256": "witness-self-payment",
+                "improvement_u64": 7,
+            },
+            "candidates": [],
+            "argmax_certificate": None,
+        },
+        round_id="round-self-payment",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=2,
+        chain_id="tau-local",
+        prev_state_hash="sha256:prev-self-payment",
+        batch_hash="sha256:batch-self-payment",
+        dex_hash_after="sha256:after-self-payment",
+    )
+    binding = claim["body"]["proposal_binding"]
+    context = ProofMiningContext(
+        chain_id=str(binding["chain_id"]),
+        prev_state_hash=str(binding["prev_state_hash"]),
+        batch_hash=str(binding["batch_hash"]),
+        witness_hash=str(binding["witness_hash"]),
+        dex_hash_after=str(binding["dex_hash_after"]),
+        proposal_hash=str(claim["body"]["proposal_hash"]),
+        proof_scheme="dummy",
+    )
+    balances = BalanceTable()
+    balances.set(reward_pool, NATIVE_ASSET, 20)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable())
+
+    def fail_if_manager_called(**_kwargs):
+        raise AssertionError("self-payment must reject before proof-mining manager application")
+
+    monkeypatch.setattr(plugin, "apply_proof_mining_claim", fail_if_manager_called)
+
+    ok, next_state, next_proof_mining_state, err = plugin._apply_proof_mining_op(
+        state=state,
+        proof_mining_state=None,
+        proof_mining_op={
+            "module": "ZenoProofMining",
+            "action": "submit_proof",
+            "claim": claim,
+        },
+        proof_mining_context=context,
+        tx_sender_pubkey=reward_pool,
+        native_balances=plugin.TauNativeBalanceSnapshot.from_chain_balances(
+            {reward_pool: 20}
+        ),
+    )
+
+    assert ok is False
+    assert err == "proof mining reward recipient must differ from reward pool"
+    assert next_state is state
+    assert next_proof_mining_state is None
+    assert state.balances.get(reward_pool, NATIVE_ASSET) == 20
 
 
 def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):

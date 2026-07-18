@@ -87,8 +87,10 @@ Without that env var, the endpoint returns `enabled=false` and `claimable=false`
       "sender_valid": true,
       "claim_valid": true,
       "winner_matches_sender": true,
+      "recipient_differs_from_reward_pool": true,
       "proposal_hash_matches_context": true,
       "verified_context_present": true,
+      "chain_balance_identity_unambiguous": true,
       "reward_pool_balance_non_negative": true,
       "runtime_state_present": false,
       "reward_pool_pubkey_matches_state": false,
@@ -111,12 +113,19 @@ The endpoint mirrors the runtime path in `src/integration/tau_testnet_dex_plugin
 - sender pubkey is canonical
 - claim artifact passes validation
 - `winner.miner_id` matches `tx_sender_pubkey`
+- the reward recipient differs from the internal reward-pool principal
 - `claim.proposal_hash` matches `expected_proposal_hash`
 - a verified DEX proof context is present and matches the claim binding
+- every Tau chain-balance principal has one unambiguous exact spelling
 - reward-pool chain balance is non-negative
 - wrapped proof-mining runtime state, if present, matches the configured reward pool
 - wrapped proof-mining runtime state, if present, matches the live reward-pool balance
 - the bounded proof-mining manager still accepts the claim
+
+Self-payment is rejected with `proof mining reward recipient must differ from reward pool`.
+This check is enforced by both the preview endpoint and the authoritative app bridge.
+Raw 96-hex Tau balance keys are resolved to canonical `0x`-prefixed principals.
+Supplying both spellings of the same principal rejects before state application.
 
 ## Intended use
 
