@@ -21,6 +21,7 @@ from .batch_clearing import apply_settlement_pure, compute_settlement, validate_
 from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee_with_dust_carry
 from .oracle import OracleState
 from .perps import PerpsState
+from .protocol_fee_policy import canonical_protocol_fee_policy
 from .settlement import FillAction, Settlement
 from .settlement_fill_fields import read_optional_non_negative_fill_int
 from .settlement_strong_validator import validate_settlement_strong
@@ -60,6 +61,18 @@ class DexConfig:
     # of the swap fee from pool reserves and credits `protocol_fee_recipient_pubkey`.
     protocol_fee_share_bps: int = 0
     protocol_fee_recipient_pubkey: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        policy = canonical_protocol_fee_policy(
+            share_bps=self.protocol_fee_share_bps,
+            recipient_pubkey=self.protocol_fee_recipient_pubkey,
+        )
+        object.__setattr__(self, "protocol_fee_share_bps", policy.share_bps)
+        object.__setattr__(
+            self,
+            "protocol_fee_recipient_pubkey",
+            policy.recipient_pubkey,
+        )
 
 
 @dataclass(frozen=True)
