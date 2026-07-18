@@ -44,9 +44,12 @@ jobs:
       - name: Run critical quality gate
         run: bash tools/run_critical_quality_gate.sh
 
+      - name: Run value-moving BVA integrity gate
+        run: bash tools/run_zenodex_bva_gate.sh critical
+
       - name: Run /api/dex dispatch quality gate
         # Locks in the PR1/PR2 refactor (Steps 1-5): mypy --strict on
-        # the 3 dispatch modules, ≥80% branch coverage, no F-grade
+        # the 3 dispatch modules, >=80% branch coverage, no F-grade
         # cyclomatic complexity, A-grade maintainability on helpers +
         # registry. Cheap (~30s) and catches imperative-shell regressions
         # the broader critical gate doesn't focus on.
