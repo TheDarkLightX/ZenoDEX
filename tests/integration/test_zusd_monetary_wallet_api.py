@@ -2,24 +2,26 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import replace
 
+import src.integration.zusd_monetary_wallet_api as monetary_api
 from src.core.dex import DexState
-from src.core.zusd import E8, ZUSDCommand, init_state, step
+from src.core.zusd import E8, ZUSDCommand, step
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from src.integration.zusd_monetary_bridge import (
-    ZUSDMonetaryState,
+    init_monetary_state,
     zusd_monetary_sender_nonce_key,
     zusd_monetary_state_to_obj,
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
-import src.integration.zusd_monetary_wallet_api as monetary_api
-
 
 ALICE_PRIVKEY = 82
 ALICE = "0x" + bls_pubkey_hex_from_privkey(ALICE_PRIVKEY)
 ORACLE = "0x" + bls_pubkey_hex_from_privkey(81)
+ASSET_A = "0x" + "a1" * 32
+ASSET_B = "0x" + "b2" * 32
 
 
 def _ok(core, tag: str, **kwargs):
@@ -30,7 +32,12 @@ def _ok(core, tag: str, **kwargs):
 
 
 def _wrapped_app_state() -> dict[str, object]:
-    core = init_state()
+    monetary = init_monetary_state(
+        monetary_api._runtime_monetary_config(  # noqa: SLF001
+            chain_id=monetary_api._tau_chain_id(),  # noqa: SLF001
+        )
+    )
+    core = monetary.core
     core = _ok(core, "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
     core = _ok(core, "deposit_collateral", amount_e8=20 * E8)
     dex_state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
@@ -40,11 +47,10 @@ def _wrapped_app_state() -> dict[str, object]:
         "dex_state": snapshot_from_state(dex_state).data,
         "proof_mining": None,
         "zusd_monetary": zusd_monetary_state_to_obj(
-            ZUSDMonetaryState(
+            replace(
+                monetary,
                 core=core,
                 vault_owner_pubkey=ALICE,
-                sp_deposits_e8={},
-                sp_collateral_claims_e8={},
             )
         ),
     }
@@ -111,6 +117,74 @@ def test_status_reports_zusd_monetary_state_from_wrapped_app_state(monkeypatch) 
     assert status["liquidation_gas_comp_bps"] == 25
 
 
+def test_status_reports_committed_policy_when_environment_drifts(monkeypatch) -> None:
+    chain_id = "tau-test-zusd-monetary"
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", chain_id)
+    monkeypatch.setenv("TAU_DEX_ZUSD_ASSET_ID", ASSET_A)
+    committed_app_state = _wrapped_app_state()
+
+    monkeypatch.setenv("TAU_DEX_ZUSD_ASSET_ID", ASSET_B)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+    monkeypatch.setattr(
+        monetary_api,
+        "_load_app_state",
+        lambda _client: (committed_app_state, "sha256:" + "ab" * 32),
+    )
+
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "GET",
+        "/api/zusd/monetary/status",
+        None,
+    )
+
+    assert status_code == 200
+    status = payload["status"]
+    assert status["node_reachable"] is True
+    assert status["asset_id"] == ASSET_A
+    assert status["configured_asset_id"] == ASSET_B
+    assert status["policy_binding_ok"] is False
+    assert status["policy_binding_error"] == (
+        "zUSD monetary policy binding mismatch: canonical_zusd_asset"
+    )
+    assert status["committed_policy_binding"]["canonical_zusd_asset"] == ASSET_A
+
+
+def test_prepare_rejects_environment_policy_drift_before_building_intent(
+    monkeypatch,
+) -> None:
+    chain_id = "tau-test-zusd-monetary"
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", chain_id)
+    monkeypatch.setenv("TAU_DEX_ZUSD_ASSET_ID", ASSET_A)
+    committed_app_state = _wrapped_app_state()
+    monkeypatch.setenv("TAU_DEX_ZUSD_ASSET_ID", ASSET_B)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+    monkeypatch.setattr(
+        monetary_api,
+        "_load_app_state",
+        lambda _client: (committed_app_state, "sha256:" + "ab" * 32),
+    )
+
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(
+            {
+                "action": "mint_zusd",
+                "owner_pubkey": ALICE,
+                "amount": 1000,
+                "deadline": 123456789,
+                "block_timestamp": 10,
+                "tx_fee_limit": "2",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert str(payload["error"]).startswith("preflight_failed:")
+    assert "canonical_zusd_asset" in str(payload["error"])
+
+
 def test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11(monkeypatch) -> None:
     chain_id = "tau-test-zusd-monetary"
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", chain_id)
@@ -157,6 +231,29 @@ def test_prepare_mint_uses_monetary_nonce_and_preflights_stream_11(monkeypatch) 
     assert payload["proof"]["zk_wrapper"]["zk_proof_verified"] is False
 
 
+def test_prepare_rejects_boolean_block_timestamp(monkeypatch) -> None:
+    chain_id = "tau-test-zusd-monetary"
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", chain_id)
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": True,
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "bad_block_timestamp"}
+
+
 def test_prepare_mint_requires_zk_proof_when_enabled(monkeypatch) -> None:
     chain_id = "tau-test-zusd-monetary"
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", chain_id)
@@ -164,7 +261,9 @@ def test_prepare_mint_requires_zk_proof_when_enabled(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setenv(
         "ZUSD_MONETARY_WALLET_PROOF_VERIFIER_CMD_JSON",
-        json.dumps([sys.executable, "-c", "import json,sys; json.load(sys.stdin); print('{\"ok\": true}')"]),
+        json.dumps(
+            [sys.executable, "-c", "import json,sys; json.load(sys.stdin); print('{\"ok\": true}')"]
+        ),
     )
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 
@@ -192,7 +291,13 @@ def test_prepare_mint_accepts_verified_zk_wrapper(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setenv(
         "ZUSD_MONETARY_WALLET_PROOF_VERIFIER_CMD_JSON",
-        json.dumps([sys.executable, "-c", "import json,sys; obj=json.load(sys.stdin); assert obj['surface']=='zusd_stream11'; print('{\"ok\": true}')"]),
+        json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "import json,sys; obj=json.load(sys.stdin); assert obj['surface']=='zusd_stream11'; print('{\"ok\": true}')",
+            ]
+        ),
     )
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 
@@ -220,7 +325,9 @@ def test_prepare_mint_accepts_verified_zk_wrapper(monkeypatch) -> None:
     assert wrapper["zk_proof_verified"] is True
     assert wrapper["artifact_binding_configured"] is False
     assert wrapper["artifact_binding_complete"] is False
-    assert wrapper["proof_intent_receipt_hash"] == payload["proof"]["intent_receipt"]["receipt_hash"]
+    assert (
+        wrapper["proof_intent_receipt_hash"] == payload["proof"]["intent_receipt"]["receipt_hash"]
+    )
     assert payload["proof"]["profile"]["zk_proof_verified"] is True
     assert payload["proof"]["profile"]["artifact_binding_complete"] is False
     assert payload["proof"]["profile"]["promotion_ready"] is False
@@ -233,7 +340,13 @@ def test_prepare_mint_accepts_artifact_bound_zk_wrapper(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setenv(
         "ZUSD_MONETARY_WALLET_PROOF_VERIFIER_CMD_JSON",
-        json.dumps([sys.executable, "-c", "import json,sys; obj=json.load(sys.stdin); assert obj['surface']=='zusd_stream11'; print('{\"ok\": true}')"]),
+        json.dumps(
+            [
+                sys.executable,
+                "-c",
+                "import json,sys; obj=json.load(sys.stdin); assert obj['surface']=='zusd_stream11'; print('{\"ok\": true}')",
+            ]
+        ),
     )
     monkeypatch.setenv(
         "ZUSD_MONETARY_WALLET_PROOF_VERIFIER_ARTIFACT_JSON",
@@ -296,7 +409,7 @@ def test_submit_mint_rejected_zk_proof_blocks_sendtx(monkeypatch) -> None:
             [
                 sys.executable,
                 "-c",
-                "import json,sys; json.load(sys.stdin); print('{\"ok\": false, \"error\": \"fixture proof rejected\"}')",
+                'import json,sys; json.load(sys.stdin); print(\'{"ok": false, "error": "fixture proof rejected"}\')',
             ]
         ),
     )
@@ -397,7 +510,10 @@ def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkey
     assert payload["report"]["preflight"]["ok"] is True
     assert payload["report"]["tau_tx_payload"] == external_payload
     assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
-    assert json.loads(payload["report"]["tau_tx_payload"]["operations"]["11"])[0]["action"] == "mint_zusd"
+    assert (
+        json.loads(payload["report"]["tau_tx_payload"]["operations"]["11"])[0]["action"]
+        == "mint_zusd"
+    )
 
 
 def test_submit_rejects_external_signed_tau_payload_operation_mismatch(monkeypatch) -> None:

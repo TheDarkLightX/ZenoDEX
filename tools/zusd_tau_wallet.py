@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -13,12 +14,18 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.core.zusd_generic_token_admission import GenericTokenAction  # noqa: E402
+from src.integration.zusd_generic_token_admission_bridge import (  # noqa: E402
+    evaluate_live_generic_token_writer_admission,
+    generic_token_admission_reject_code,
+)
 from src.integration.zusd_tau_token import (  # noqa: E402
     ZUSDTauTokenConfig,
     ZUSDTauTokenReport,
     derive_zusd_tau_asset_id,
     prepare_zusd_tau_token_operation,
 )
+from src.state.canonical import canonical_hex_fixed_allow_0x  # noqa: E402
 
 
 def _emit_json(data: dict[str, Any], *, pretty: bool) -> None:
@@ -49,6 +56,44 @@ def _report_to_dict(report: ZUSDTauTokenReport) -> dict[str, Any]:
         ],
         "tau_tx_payload": report.tau_tx_payload,
     }
+
+
+def _configured_canonical_zusd_asset(*, chain_id: str) -> str:
+    configured = os.environ.get("TAU_DEX_ZUSD_ASSET_ID", "").strip()
+    if configured:
+        return canonical_hex_fixed_allow_0x(
+            configured,
+            nbytes=32,
+            name="TAU_DEX_ZUSD_ASSET_ID",
+        )
+    return derive_zusd_tau_asset_id(chain_id=chain_id)
+
+
+def _admit_proposed_operation(args: argparse.Namespace) -> str:
+    chain_id = str(args.chain_id)
+    canonical_asset = _configured_canonical_zusd_asset(chain_id=chain_id)
+    requested_asset = (
+        canonical_asset
+        if args.asset_id is None
+        else canonical_hex_fixed_allow_0x(
+            args.asset_id,
+            nbytes=32,
+            name="asset_id",
+        )
+    )
+    if requested_asset != canonical_asset:
+        raise ValueError("asset_id does not match configured canonical zUSD")
+    decision = evaluate_live_generic_token_writer_admission(
+        chain_id=chain_id,
+        canonical_zusd_asset=canonical_asset,
+        action=GenericTokenAction(args.action),
+        asset=requested_asset,
+        recipient_pubkey=getattr(args, "recipient_pubkey", None),
+    )
+    reject_code = generic_token_admission_reject_code(decision)
+    if reject_code is not None:
+        raise ValueError(f"generic zUSD token operation rejected: {reject_code}")
+    return requested_asset
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -96,6 +141,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     try:
+        asset_id = _admit_proposed_operation(args)
         tau_config = ZUSDTauTokenConfig(
             enabled=bool(args.tau_enabled),
             timeout_s=float(args.tau_timeout_s),
@@ -115,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
             operator_pubkey=getattr(args, "operator_pubkey", None),
             paused=bool(getattr(args, "paused", False)),
             auth_ok=bool(getattr(args, "auth_ok", True)),
-            asset_id=args.asset_id,
+            asset_id=asset_id,
             chain_id=str(args.chain_id),
             tau_config=tau_config,
             signer_privkey=args.signer_privkey,
@@ -125,17 +171,23 @@ def main(argv: list[str] | None = None) -> int:
         )
         payload = _report_to_dict(report)
         if args.telemetry_out:
-            Path(args.telemetry_out).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+            Path(args.telemetry_out).write_text(
+                json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+            )
         _emit_json(payload, pretty=bool(args.pretty))
         return 0
     except Exception as exc:
         payload = {
             "ok": False,
             "error": f"{type(exc).__name__}: {exc}",
-            "derived_asset_id": None if args.asset_id else derive_zusd_tau_asset_id(chain_id=str(args.chain_id)),
+            "derived_asset_id": None
+            if args.asset_id
+            else derive_zusd_tau_asset_id(chain_id=str(args.chain_id)),
         }
         if args.telemetry_out:
-            Path(args.telemetry_out).write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+            Path(args.telemetry_out).write_text(
+                json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+            )
         print(json.dumps(payload, sort_keys=True), file=sys.stderr)
         return 1
 
