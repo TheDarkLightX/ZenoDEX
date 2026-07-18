@@ -1,8 +1,8 @@
 """State construction and serialization for `perp_v2` and the shared v4 ABI.
 
 `initial_state()` returns the canonical initial state (matches the YAML `init`
-block).  Wire decoding is exact: missing or unknown state fields reject rather
-than being inferred or ignored inside the functional core.
+block).  Wire decoding is exact: missing, unknown, and noncanonical state fields
+reject rather than being inferred or normalized inside the functional core.
 """
 
 from __future__ import annotations
@@ -42,27 +42,22 @@ _EPOCH_PHASE_TO_INT: dict[EpochPhase, int] = {
 def _coerce_epoch_phase(val: Any) -> EpochPhase:
     if type(val) is EpochPhase:
         return val
-    if type(val) is str:
-        return EpochPhase(val)
     if type(val) is int:
         if val in _EPOCH_PHASE_INT_MAP:
             return _EPOCH_PHASE_INT_MAP[val]
         raise ValueError(f"state var 'epoch_phase' int value {val} out of range [0,2]")
     raise TypeError(
-        "state var 'epoch_phase' must be an exact EpochPhase, str, or int, "
+        "state var 'epoch_phase' must be an exact EpochPhase or canonical int, "
         f"got {type(val).__name__}"
     )
 
 
 def _coerce_state_bool(name: str, val: Any) -> bool:
-    if type(val) is bool:
-        return val
-    if type(val) is int and val in (0, 1):
-        return bool(val)
-    raise TypeError(
-        f"state var {name!r} must be bool or exact 0/1 int, "
-        f"got {type(val).__name__}"
-    )
+    if type(val) is not bool:
+        raise TypeError(
+            f"state var {name!r} must be an exact bool, got {type(val).__name__}"
+        )
+    return val
 
 
 def _coerce_state_int(name: str, val: Any) -> int:
@@ -95,9 +90,9 @@ def state_to_dict(state: PerpState) -> dict[str, bool | int | str]:
 def state_from_dict(d: Mapping[str, Any]) -> PerpState:
     """Deserialize an exact state object.
 
-    The parser rejects unknown and missing fields before coercion.  It permits
-    the documented wire aliases for booleans and epoch phase, then returns the
-    exact frozen base value used by the functional core.
+    The parser rejects unknown and missing fields before decoding.  Boolean
+    fields require JSON booleans, integer fields reject Python booleans, and
+    the phase uses the canonical integer wire representation.
     """
     if not isinstance(d, Mapping):
         raise TypeError("perps state must be a mapping")
