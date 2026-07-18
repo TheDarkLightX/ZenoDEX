@@ -1,4 +1,10 @@
-"""Runtime, generated-reference, and migration checks for isolated perps v4."""
+"""Runtime, generated-reference, and migration checks for isolated perps v4.
+
+The strengthened runtime rejects epoch advancement while a current clearing
+price is awaiting settlement.  The pinned generated v4 artifact is still
+permissive on that one named trace.  This suite therefore requires exact parity
+on the common domain and keeps the source-regeneration obligation executable.
+"""
 
 from __future__ import annotations
 
@@ -18,10 +24,12 @@ from src.core.perp_epoch import (
 )
 from src.core.perp_v2 import math as math_v3
 from src.core.perp_v2.state import state_to_dict
-from src.core.perp_v2.types import Action, ActionParams
+from src.core.perp_v2.types import Action, ActionParams, EpochPhase
 from src.core.perp_v4 import math as math_v4
 from src.kernels.python.perp_epoch_isolated_v4_adapter import IR_HASH as ADAPTER_IR_HASH
 from tools.build_perp_epoch_isolated_v4 import TARGET_MODEL, TARGET_REF, render_v4_model
+
+FORMAL_PROMOTION_BLOCKER = "PERP-PHASE-001"
 
 
 def _import_generated_ref() -> Any:
@@ -48,11 +56,7 @@ def test_v4_model_is_current_and_reference_is_hash_bound() -> None:
 
 
 def _state_dict_for_ref(state: Any) -> dict[str, Any]:
-    payload = state_to_dict(state)
-    phase = payload.get("epoch_phase")
-    if isinstance(phase, str):
-        payload["epoch_phase"] = {"Open": 0, "PricePublished": 1, "Settled": 2}[phase]
-    return payload
+    return state_to_dict(state)
 
 
 def _to_ref_command(params: ActionParams) -> Any:
@@ -205,7 +209,7 @@ def test_v4_preserves_nonrisk_rounding_policies() -> None:
             )
 
 
-def test_v4_native_matches_generated_reference_over_deterministic_trace() -> None:
+def test_v4_native_matches_generated_reference_over_common_domain() -> None:
     rng = random.Random(0x4D415247494E)
     native = replace(
         perp_v4.initial_state(),
@@ -222,6 +226,11 @@ def test_v4_native_matches_generated_reference_over_deterministic_trace() -> Non
 
     for _ in range(500):
         params = _random_action(rng)
+        if (
+            params.action is Action.ADVANCE_EPOCH
+            and native.epoch_phase is EpochPhase.PRICE_PUBLISHED
+        ):
+            continue
         native_result = perp_v4.step(native, params)
         reference_result = REF.step(reference, _to_ref_command(params))
         assert native_result.accepted == reference_result.ok
@@ -235,6 +244,33 @@ def test_v4_native_matches_generated_reference_over_deterministic_trace() -> Non
         assert _effect_dict(native_result.effect) == dict(reference_result.effects)
         native = native_result.state
         reference = reference_result.state
+
+
+def test_v4_unsettled_epoch_advance_is_formal_promotion_blocker() -> None:
+    state = replace(
+        perp_v4.initial_state(),
+        now_epoch=5,
+        epoch_phase=EpochPhase.PRICE_PUBLISHED,
+        clearing_price_seen=True,
+        clearing_price_epoch=5,
+        clearing_price_e8=100_000_000,
+        oracle_seen=True,
+        oracle_last_update_epoch=4,
+        index_price_e8=100_000_000,
+    )
+    command = ActionParams(action=Action.ADVANCE_EPOCH, delta=1)
+
+    native = perp_v4.step(state, command)
+    reference = REF.step(
+        REF.State(**_state_dict_for_ref(state)),
+        _to_ref_command(command),
+    )
+
+    assert FORMAL_PROMOTION_BLOCKER == "PERP-PHASE-001"
+    assert native.accepted is False
+    assert native.state is None
+    assert native.effect is None
+    assert reference.ok is True
 
 
 def test_v4_settlement_oracle_boundaries_match_generated_reference() -> None:
