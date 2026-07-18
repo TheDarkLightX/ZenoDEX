@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional, overload
 
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
@@ -114,6 +114,18 @@ class DexEffects(Mapping[str, object]):
             raise ValueError("total_swap_fees must be non-negative")
         if self.fee_split is not None and type(self.fee_split) is not FeeSplitResult:
             raise TypeError("fee_split must be an exact FeeSplitResult or None")
+
+    @overload
+    def __getitem__(self, key: Literal["settlement"]) -> Settlement: ...
+
+    @overload
+    def __getitem__(self, key: Literal["total_swap_fees"]) -> int: ...
+
+    @overload
+    def __getitem__(self, key: Literal["fee_split"]) -> Optional[FeeSplitResult]: ...
+
+    @overload
+    def __getitem__(self, key: str) -> object: ...
 
     def __getitem__(self, key: str) -> object:
         if key == "settlement":
