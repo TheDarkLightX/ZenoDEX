@@ -593,26 +593,59 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
         assert claim_body["status"]["claimable"] is True
         monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
 
-        from src.integration.tau_testnet_dex_plugin import apply_app_tx
+        from src.core.generic_token_authority import (
+            GenericTokenAssetAuthority,
+            GenericTokenAuthorityState,
+        )
+        from src.integration import tau_testnet_dex_plugin as plugin
 
+        registrations = tuple(
+            sorted(
+                (
+                    GenericTokenAssetAuthority(
+                        asset_id=asset0,
+                        total_supply_units=0,
+                        mint_authority_pubkey=sender,
+                    ),
+                    GenericTokenAssetAuthority(
+                        asset_id=asset1,
+                        total_supply_units=0,
+                        mint_authority_pubkey=sender,
+                    ),
+                    GenericTokenAssetAuthority(
+                        asset_id=reward_asset,
+                        total_supply_units=20,
+                        mint_authority_pubkey=None,
+                    ),
+                ),
+                key=lambda registration: registration.asset_id,
+            )
+        )
+        app_state_json, _genesis_hash = plugin.build_zusd_policy_bound_genesis_app_state(
+            config=plugin._build_zusd_monetary_config(chain_id=chain_id),
+            state=state,
+            generic_token_authority=GenericTokenAuthorityState(
+                assets=registrations
+            ),
+        )
+        app_state = json.loads(app_state_json)
+        app_state["proof_mining"] = {
+            "schema": "zenodex/proof_mining_runtime_state/v1",
+            "reward_pool_pubkey": reward_pool,
+            "epoch": 1,
+            "base_reward": 8,
+            "initial_pool": 20,
+            "reward_pool_balance": 20,
+            "total_paid": 0,
+            "claimed_slots": [],
+        }
         app_state_json = json.dumps(
-            {
-                "schema": "zenodex/tau_app_state/v1",
-                "dex_state": snapshot_from_state(state).data,
-                "proof_mining": {
-                    "schema": "zenodex/proof_mining_runtime_state/v1",
-                    "reward_pool_pubkey": reward_pool,
-                    "epoch": 1,
-                    "base_reward": 8,
-                    "initial_pool": 20,
-                    "reward_pool_balance": 20,
-                    "total_paid": 0,
-                    "claimed_slots": [],
-                },
-            }
+            app_state,
+            sort_keys=True,
+            separators=(",", ":"),
         )
         claim = json.loads(json.dumps(tx["operations"]["10"]["claim"]))
-        ok, next_app_state, app_hash, _native, err = apply_app_tx(
+        ok, next_app_state, app_hash, _native, err = plugin.apply_app_tx(
             app_state_json=app_state_json,
             chain_balances={reward_pool: 20, sender: 0},
             operations=json.loads(json.dumps(tx["operations"])),
@@ -631,7 +664,7 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
         assert len(claimed_slots) == 1
         assert claimed_slots[0]["proposal_hash"] == proposal_hash
 
-        replay_ok, replay_next_app_state, _replay_hash, _replay_native, replay_err = apply_app_tx(
+        replay_ok, replay_next_app_state, _replay_hash, _replay_native, replay_err = plugin.apply_app_tx(
             app_state_json=next_app_state,
             chain_balances={reward_pool: 20 - reward_amount, sender: reward_amount},
             operations=json.loads(json.dumps(tx["operations"])),

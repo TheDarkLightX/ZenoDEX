@@ -583,7 +583,8 @@ def perp_epoch_isolated_v3_native_apply(
     *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
 ) -> PerpStepResult:
     # Same hand-written perp_v2 implementation, but normalized to the v3 ABI.
-    from .perp_v2 import step
+    from .perp_v2 import Action, step
+    from .perp_v2.math import is_settle_oracle_usable
     from .perp_v2.state import state_from_dict, state_to_dict
 
     def _code_from_rejection(reason: str) -> str | None:
@@ -612,6 +613,18 @@ def perp_epoch_isolated_v3_native_apply(
             else:
                 code = "ParamType"
         return PerpStepResult(ok=False, error=str(exc), code=code)
+
+    # The v3 specification strengthens settlement admission beyond legacy v2.
+    # Keep that versioned rule at this compatibility boundary before reusing
+    # the v2 transition engine.
+    if action_params.action is Action.SETTLE_EPOCH and not is_settle_oracle_usable(
+        perp_state.now_epoch,
+        perp_state.oracle_last_update_epoch,
+        perp_state.max_oracle_staleness_epochs,
+        perp_state.oracle_seen,
+        perp_state.index_price_e8,
+    ):
+        return PerpStepResult(ok=False, error="guard", code="GuardFalse")
 
     result = step(perp_state, action_params)
     if not result.accepted:

@@ -237,6 +237,41 @@ def test_v4_native_matches_generated_reference_over_deterministic_trace() -> Non
         reference = reference_result.state
 
 
+def test_v4_settlement_oracle_boundaries_match_generated_reference() -> None:
+    base = replace(
+        perp_v4.initial_state(),
+        now_epoch=5,
+        epoch_phase=perp_v4.EpochPhase.PRICE_PUBLISHED,
+        clearing_price_seen=True,
+        clearing_price_epoch=5,
+        clearing_price_e8=100_000_000,
+        oracle_seen=True,
+        oracle_last_update_epoch=4,
+        index_price_e8=100_000_000,
+        max_oracle_staleness_epochs=2,
+    )
+    command = ActionParams(action=Action.SETTLE_EPOCH)
+
+    cases = {
+        "unseen": {"oracle_seen": False},
+        "zero_index": {"index_price_e8": 0},
+        "stale_by_one": {"oracle_last_update_epoch": 2},
+    }
+    for patch in cases.values():
+        state = replace(base, **patch)
+        native_result = perp_v4.step(state, command)
+        reference_result = REF.step(
+            REF.State(**_state_dict_for_ref(state)),
+            _to_ref_command(command),
+        )
+
+        assert native_result.accepted is False
+        assert native_result.rejection == "guard"
+        assert native_result.state is None
+        assert native_result.effect is None
+        assert reference_result.ok is False
+
+
 def test_default_native_alias_is_v4() -> None:
     assert perp_epoch_isolated_default_apply is perp_epoch_isolated_v4_native_apply
 
