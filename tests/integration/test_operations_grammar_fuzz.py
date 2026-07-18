@@ -81,7 +81,7 @@ def test_operations_grammar_fuzz_cli_emits_expected_schema() -> None:
 def test_operations_minimizer_collapses_duplicate_signature_dead_tail() -> None:
     witness = minimize_case("signed_intents", "SignedOps->OneEntry ; Entry->DuplicateSignatureSameWithDeadTail")
     assert witness.outcome_label == "ValueError:Failed to parse signed intent 0: signature provided twice (envelope + field)"
-    assert witness.path_id == "e80cb83ee4f2dc2f"
+    assert witness.path_id == "6e7d01402b0cbad1"
     assert witness.original_size > witness.minimized_size
     assert witness.payload == {
         "2": [
@@ -126,5 +126,5 @@ def test_operations_minimizer_cli_emits_expected_schema() -> None:
     assert witness["target"] == "signed_intents"
     assert witness["derivation"] == "SignedOps->OneEntry ; Entry->DuplicateSignatureSameWithDeadTail"
     assert witness["outcome_label"] == "ValueError:Failed to parse signed intent 0: signature provided twice (envelope + field)"
-    assert witness["path_id"] == "e80cb83ee4f2dc2f"
+    assert witness["path_id"] == "6e7d01402b0cbad1"
     assert witness["original_size"] > witness["minimized_size"]

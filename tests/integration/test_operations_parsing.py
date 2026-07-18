@@ -5,6 +5,7 @@ import pytest
 from src.core.settlement import Fill, FillAction, Settlement
 from src.integration.operations import (
     _parse_intent,
+    canonicalize_authenticated_intent_for_execution,
     create_intent_operation,
     create_settlement_operation,
     create_signed_intent_operation,
@@ -42,6 +43,30 @@ def test_parse_signed_intents_accepts_envelope_format() -> None:
     envs = parse_signed_intents(ops)
     assert len(envs) == 1
     assert envs[0].signature == "0xsig2"
+
+
+def test_authenticated_intent_projection_owns_canonical_execution_identity() -> None:
+    raw_pubkey = "11" * 48
+    canonical_pubkey = "0x" + raw_pubkey
+    signed_intent = _parse_intent(
+        {
+            **_min_intent_dict(),
+            "sender_pubkey": raw_pubkey,
+            "recipient": raw_pubkey,
+            "oracle_authorization": {"proof": ["signed"]},
+        }
+    )
+
+    execution_intent = canonicalize_authenticated_intent_for_execution(signed_intent)
+
+    assert execution_intent is not signed_intent
+    assert execution_intent.sender_pubkey == canonical_pubkey
+    assert execution_intent.fields is not signed_intent.fields
+    assert execution_intent.get_field("recipient") == canonical_pubkey
+    signed_intent.get_field("oracle_authorization")["proof"].append("mutated")
+    assert execution_intent.get_field("oracle_authorization") == {"proof": ["signed"]}
+    assert signed_intent.sender_pubkey == raw_pubkey
+    assert signed_intent.get_field("recipient") == raw_pubkey
 
 
 def test_parse_signed_intents_accepts_quote_receipt_field() -> None:

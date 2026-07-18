@@ -48,6 +48,7 @@ def test_dex_intent_signature_required_for_third_party_submitter(monkeypatch):
     user_sk = 2
     agg_sk = 3
     user_pub = bls_pubkey_hex_from_privkey(user_sk)
+    canonical_user_pub = "0x" + user_pub
     agg_pub = bls_pubkey_hex_from_privkey(agg_sk)
 
     asset0 = "0x" + "11" * 32
@@ -108,8 +109,8 @@ def test_dex_intent_signature_required_for_third_party_submitter(monkeypatch):
         for b in (parsed.get("balances") or [])
         if isinstance(b, dict)
     }
-    before_in = balances_before.get((user_pub, asset0), 0)
-    before_out = balances_before.get((user_pub, asset1), 0)
+    before_in = balances_before.get((canonical_user_pub, asset0), 0)
+    before_out = balances_before.get((canonical_user_pub, asset1), 0)
 
     swap_intent = {
         "module": "TauSwap",
@@ -143,8 +144,8 @@ def test_dex_intent_signature_required_for_third_party_submitter(monkeypatch):
         for b in (parsed2.get("balances") or [])
         if isinstance(b, dict)
     }
-    after_in = balances_after.get((user_pub, asset0), 0)
-    after_out = balances_after.get((user_pub, asset1), 0)
+    after_in = balances_after.get((canonical_user_pub, asset0), 0)
+    after_out = balances_after.get((canonical_user_pub, asset1), 0)
     assert isinstance(before_in, int) and isinstance(after_in, int)
     assert isinstance(before_out, int) and isinstance(after_out, int)
     assert after_in < before_in

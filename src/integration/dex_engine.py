@@ -52,6 +52,7 @@ from .lp_position_age_gate import (
 from .operations import (
     SettlementEnvelope,
     SignedIntentEnvelope,
+    canonicalize_authenticated_intent_for_execution,
     create_settlement_operation,
     parse_settlement_envelope,
     parse_signed_intents,
@@ -174,6 +175,9 @@ class DexEngineConfig:
     #   must be submitted by their declared sender at the outer tx layer (tx_sender_pubkey).
     require_intent_signatures: bool = True
     allow_unsigned_intents_if_tx_sender_matches: bool = True
+    # Tau adapter policy: authenticate the original payload, then project BLS
+    # identities into the committed-state spelling used by Tau snapshots.
+    canonicalize_authenticated_bls_principals: bool = False
 
     # DoS limits (applied before expensive hashing/signature verification):
     max_intents: int = 256
@@ -1236,9 +1240,9 @@ def apply_ops(
                 return DexTxResult(ok=False, error="invalid proof payload encoding")
         _fault_stage(config, "after_settlement_parse")
 
-        intents = [env.intent for env in signed_intents]
+        signed_payload_intents = [env.intent for env in signed_intents]
         err = _validate_intent_preconditions(
-            intents=intents,
+            intents=signed_payload_intents,
             settlement=settlement,
             block_timestamp=block_timestamp,
         )
@@ -1277,7 +1281,33 @@ def apply_ops(
         )
         if err is not None:
             return DexTxResult(ok=False, error=err)
-        validation_intents = _sanitize_intents_after_quote_receipt_validation(intents)
+        if config.canonicalize_authenticated_bls_principals:
+            try:
+                execution_intents = [
+                    canonicalize_authenticated_intent_for_execution(intent)
+                    for intent in signed_payload_intents
+                ]
+            except (TypeError, ValueError) as exc:
+                return DexTxResult(
+                    ok=False,
+                    error=f"invalid authenticated intent identity: {_clean_error(exc)}",
+                )
+        else:
+            execution_intents = signed_payload_intents
+        if proof_scheme in {
+            "recompute_batch_v1",
+            "recompute_batch_v2",
+            "recompute_batch_v3",
+            "recompute_batch_v4",
+        } and execution_intents != signed_payload_intents:
+            return DexTxResult(
+                ok=False,
+                error=(
+                    "proof-bearing intents must use canonical BLS principal spellings; "
+                    "recompute proof v1-v4 do not bind an identity execution profile"
+                ),
+            )
+        validation_intents = _sanitize_intents_after_quote_receipt_validation(execution_intents)
         if (
             config.require_uniform_batch_certificate_for_supported_swaps
             and uniform_batch_certificate is None
@@ -1286,15 +1316,18 @@ def apply_ops(
             return DexTxResult(ok=False, error="uniform batch certificate required for supported swaps")
 
         next_nonces: Optional[NonceTable] = None
-        if intents:
-            ok, err, next_nonces = _validate_and_apply_nonce_batch(nonces=state.nonces, intents=intents)
+        if execution_intents:
+            ok, err, next_nonces = _validate_and_apply_nonce_batch(
+                nonces=state.nonces,
+                intents=execution_intents,
+            )
             if not ok:
                 return DexTxResult(ok=False, error=err or "nonce policy rejected")
         _fault_stage(config, "after_nonce_validation")
 
         # Compute settlement deterministically and (optionally) require an exact match.
         computed_settlement: Optional[Settlement] = None
-        if intents:
+        if execution_intents:
             if uniform_batch_certificate is not None:
                 if not config.allow_uniform_batch_certificate:
                     return DexTxResult(ok=False, error="uniform batch certificate not enabled")
@@ -1417,7 +1450,7 @@ def apply_ops(
                     )
             else:
                 computed_settlement = compute_settlement(
-                    intents=intents,
+                    intents=execution_intents,
                     pools=state.pools,
                     balances=state.balances,
                     lp_balances=state.lp_balances,
@@ -1448,7 +1481,7 @@ def apply_ops(
         if settlement is not None:
             err = validate_lp_settlement_age_gate(
                 settlement=settlement,
-                intents=intents,
+                intents=execution_intents,
                 lp_balances=state.lp_balances,
                 block_timestamp=block_timestamp,
                 min_lp_position_age_seconds=config.min_lp_position_age_seconds,
@@ -1482,14 +1515,14 @@ def apply_ops(
             if settlement is None:
                 return DexTxResult(ok=False, error="proof requires settlement")
             try:
-                require_normal_form(intents, strict_lp_order=True)
+                require_normal_form(execution_intents, strict_lp_order=True)
             except IntentNormalFormError as exc:
                 return DexTxResult(ok=False, error=f"intents not in normal form: {_clean_error(exc)}")
 
             try:
                 if proof_scheme in ("recompute_batch_v3", "recompute_batch_v4"):
                     pre_state_commitment = compute_support_state_root_for_batch(
-                        intents=intents,
+                        intents=execution_intents,
                         balances=state.balances,
                         pools=state.pools,
                         lp_balances=state.lp_balances,

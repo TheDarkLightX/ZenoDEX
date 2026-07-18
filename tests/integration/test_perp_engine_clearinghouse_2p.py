@@ -162,6 +162,57 @@ def test_init_market_2p_is_strict_about_prefix_and_signatures() -> None:
     assert res3.ok is True, res3.error
 
 
+def test_tau_identity_profile_verifies_raw_init_then_commits_canonical_participants() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:ch2p:tau-identity-profile"
+    quote_asset = "0x" + "34" * 32
+    relayer = "ff" * 48
+    operation = _signed_init_market_2p(
+        market_id=market_id,
+        quote_asset=quote_asset,
+        nonce_a=1,
+        nonce_b=1,
+        deadline=_DEADLINE,
+    )
+    assert not str(operation["account_a_pubkey"]).startswith("0x")
+    config = PerpEngineConfig(
+        chain_id=_CHAIN_ID,
+        oracle_pubkey=_ORACLE_PUBKEY,
+        canonicalize_authenticated_bls_principals=True,
+    )
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+
+    rewritten = dict(operation)
+    rewritten["account_a_pubkey"] = "0x" + str(operation["account_a_pubkey"])
+    invalid = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={"5": [rewritten]},
+        tx_sender_pubkey=relayer,
+        block_timestamp=_BLOCK_TIMESTAMP,
+    )
+    assert invalid.ok is False
+    assert invalid.error is not None and "signature invalid" in invalid.error
+
+    accepted = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={"5": [operation]},
+        tx_sender_pubkey=relayer,
+        block_timestamp=_BLOCK_TIMESTAMP,
+    )
+
+    assert accepted.ok is True, accepted.error
+    assert accepted.state is not None and accepted.state.perps is not None
+    market = accepted.state.perps.markets[market_id]
+    assert isinstance(market, PerpClearinghouse2pMarketState)
+    assert market.account_a_pubkey == "0x" + _ALICE_PUBKEY
+    assert market.account_b_pubkey == "0x" + _BOB_PUBKEY
+    assert accepted.state.nonces.get_last("0x" + _ALICE_PUBKEY) == 1
+    assert accepted.state.nonces.get_last("0x" + _BOB_PUBKEY) == 1
+
+
 def test_advance_epoch_2p_rejects_delta_gt_1() -> None:
     market_id = "perp:ch2p:epoch_delta"
     quote_asset = "0x" + "77" * 32

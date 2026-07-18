@@ -50,7 +50,12 @@ from .proof_mining_runtime import (
     sync_proof_mining_runtime_balance,
 )
 from .proof_verifier import ProofVerifierConfig
-from .tau_native_identity import TauNativeBalanceSnapshot, canonical_tau_pubkey
+from .tau_native_identity import (
+    TauNativeBalanceSnapshot,
+    canonical_tau_pubkey,
+    tau_egress_pubkey,
+)
+from .tau_state_principal_migration import canonicalize_legacy_tau_state_principals
 from .zusd_monetary_bridge import (
     ZUSDMonetaryConfig,
     ZUSDMonetaryState,
@@ -335,24 +340,9 @@ def _balances_patch_for_native(
     *,
     before: TauNativeBalanceSnapshot,
     after_state: DexState,
-    preferred_chain_keys: tuple[str, ...],
 ) -> Dict[str, int]:
     out: Dict[str, int] = {}
     before_by_canonical = {binding.canonical_pubkey: binding for binding in before.entries}
-    preferred_by_canonical: dict[str, str] = {}
-    for chain_key in preferred_chain_keys:
-        if not chain_key:
-            continue
-        binding = before.binding_for(
-            chain_key,
-            preferred_chain_key=chain_key,
-            name="native patch principal",
-        )
-        existing = preferred_by_canonical.get(binding.canonical_pubkey)
-        if existing is not None and existing != binding.chain_key:
-            raise ValueError("native patch has ambiguous preferred identity spellings")
-        preferred_by_canonical[binding.canonical_pubkey] = binding.chain_key
-
     after_by_canonical: dict[str, int] = {}
     for (pubkey, asset), amount in after_state.balances.get_all_balances().items():
         if asset == NATIVE_ASSET:
@@ -369,7 +359,7 @@ def _balances_patch_for_native(
             chain_key = (
                 prior.chain_key
                 if prior is not None
-                else preferred_by_canonical.get(canonical, canonical)
+                else tau_egress_pubkey(canonical, name="native patch principal")
             )
             out[chain_key] = new
     return out
@@ -624,42 +614,13 @@ def _looks_like_perp_ops(raw: Any) -> bool:
     return str(module) == "TauPerp"
 
 
-def _canonicalize_tau_dex_intent_entry(entry: Any) -> Any:
-    if isinstance(entry, dict):
-        intent = dict(entry)
-        for field in ("sender_pubkey", "recipient"):
-            principal = intent.get(field)
-            if not isinstance(principal, str):
-                continue
-            intent[field] = canonical_tau_pubkey(
-                principal,
-                name=f"intent.{field}",
-            )
-        return intent
-    if isinstance(entry, (list, tuple)) and entry and isinstance(entry[0], dict):
-        envelope = list(entry)
-        envelope[0] = _canonicalize_tau_dex_intent_entry(envelope[0])
-        return envelope
-    return entry
-
-
-def _canonicalize_tau_dex_intents(raw: Any) -> Any:
-    if not isinstance(raw, list):
-        return raw
-    return [_canonicalize_tau_dex_intent_entry(entry) for entry in raw]
-
-
 def _select_dex_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if _LEGACY_DEX_INTENTS_KEY in operations:
-        out[_LEGACY_DEX_INTENTS_KEY] = _canonicalize_tau_dex_intents(
-            operations.get(_LEGACY_DEX_INTENTS_KEY)
-        )
+        out[_LEGACY_DEX_INTENTS_KEY] = operations.get(_LEGACY_DEX_INTENTS_KEY)
     elif _DEX_INTENTS_KEY in operations and _looks_like_dex_intents(operations.get(_DEX_INTENTS_KEY)):
         # Remap upstream-safe stream "5" to the internal DEX adapter schema.
-        out[_LEGACY_DEX_INTENTS_KEY] = _canonicalize_tau_dex_intents(
-            operations.get(_DEX_INTENTS_KEY)
-        )
+        out[_LEGACY_DEX_INTENTS_KEY] = operations.get(_DEX_INTENTS_KEY)
 
     if _LEGACY_DEX_SETTLEMENT_KEY in operations:
         out[_LEGACY_DEX_SETTLEMENT_KEY] = operations.get(_LEGACY_DEX_SETTLEMENT_KEY)
@@ -866,6 +827,7 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
     return PerpEngineConfig(
         operator_pubkey=(operator_pubkey or "").strip() or None,
         chain_id=chain_id,
+        canonicalize_authenticated_bls_principals=True,
         oracle_pubkey=(oracle_pubkey or "").strip() or None,
         allow_isolated_markets=bool(allow_isolated),
         oracle_adapter_bridge_verifier=_oracle_adapter_bridge_verifier,
@@ -985,10 +947,13 @@ def apply_app_tx(
             )
         except (TypeError, ValueError) as exc:
             return False, app_state_json, "", None, str(exc)
-
     try:
         state, proof_mining_state, zusd_monetary_state = _load_state(app_state_json)
     except Exception as exc:
+        return False, app_state_json, "", None, str(exc)
+    try:
+        state = canonicalize_legacy_tau_state_principals(state)
+    except (TypeError, ValueError) as exc:
         return False, app_state_json, "", None, str(exc)
     state = _sync_native_balances(state, native_balances=native_balances)
     if proof_mining_state is not None:
@@ -1069,6 +1034,7 @@ def apply_app_tx(
             allow_missing_settlement=bool(allow_missing_settlement),
             require_intent_signatures=bool(require_intent_sigs),
             chain_id=chain_id,
+            canonicalize_authenticated_bls_principals=True,
             allow_external_tools=bool(allow_external_tools),
             consensus_mode=bool(consensus_mode),
             proof_config=proof_verifier_config,
@@ -1115,10 +1081,6 @@ def apply_app_tx(
     balances_patch = _balances_patch_for_native(
         before=native_balances,
         after_state=next_state,
-        preferred_chain_keys=(
-            tx_sender_pubkey,
-            os.environ.get("TAU_DEX_PROOF_MINING_POOL_PUBKEY", "").strip(),
-        ),
     )
     canonical, app_hash = _canonical_state_and_hash(
         next_state,

@@ -20,6 +20,12 @@ def canonical_tau_pubkey(value: object, *, name: str) -> str:
     return canonical_hex_fixed_allow_0x(value, nbytes=48, name=name)
 
 
+def tau_egress_pubkey(value: object, *, name: str) -> str:
+    """Return the canonical Tau chain spelling for a newly created balance key."""
+
+    return canonical_tau_pubkey(value, name=name)[2:]
+
+
 @dataclass(frozen=True, order=True)
 class TauNativePrincipalBinding:
     canonical_pubkey: str

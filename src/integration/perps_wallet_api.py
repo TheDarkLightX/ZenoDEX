@@ -1877,6 +1877,7 @@ def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
     return PerpEngineConfig(
         operator_pubkey=(operator_pubkey or "").strip() or None,
         chain_id=chain_id,
+        canonicalize_authenticated_bls_principals=True,
         oracle_pubkey=(oracle_pubkey or "").strip() or None,
         allow_isolated_markets=_env_bool("TAU_DEX_ALLOW_ISOLATED_PERPS", False),
         oracle_adapter_bridge_verifier=_default_oracle_adapter_bridge_verifier,

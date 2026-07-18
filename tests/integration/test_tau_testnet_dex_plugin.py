@@ -272,6 +272,77 @@ def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkey
     assert balances.get((canonical_sender_pubkey, NATIVE_ASSET)) == 9000
 
 
+def test_apply_app_tx_native_output_uses_raw_tau_key_for_absent_recipient(monkeypatch) -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.state.balances import NATIVE_ASSET
+
+    sender_pubkey = "00" * 48
+    recipient_pubkey = "11" * 48
+    canonical_recipient = "0x" + recipient_pubkey
+    token = "0x" + "12" * 32
+
+    monkeypatch.setenv("TAU_DEX_FAUCET", "1")
+    monkeypatch.setenv("TAU_DEX_REQUIRE_INTENT_SIGS", "0")
+    monkeypatch.setenv("TAU_DEX_ALLOW_MISSING_SETTLEMENT", "1")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    create_pool = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "CREATE_POOL",
+        "intent_id": "0x" + "a1" * 32,
+        "sender_pubkey": sender_pubkey,
+        "deadline": 9999999999,
+        "nonce": 1,
+        "asset0": NATIVE_ASSET,
+        "asset1": token,
+        "fee_bps": 30,
+        "amount0": 1000,
+        "amount1": 2000,
+    }
+    created, app_state_json, _app_hash, create_patch, create_error = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={sender_pubkey: 10_000},
+        operations={
+            "7": {"mint": [[sender_pubkey, token, 10_000]]},
+            "5": [create_pool],
+        },
+        tx_sender_pubkey=sender_pubkey,
+        block_timestamp=123,
+    )
+    assert created is True, create_error
+    assert create_patch == {sender_pubkey: 9000}
+    pool_id = json.loads(app_state_json)["pools"][0]["pool_id"]
+
+    swap = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "SWAP_EXACT_IN",
+        "intent_id": "0x" + "a2" * 32,
+        "sender_pubkey": sender_pubkey,
+        "deadline": 9999999999,
+        "nonce": 2,
+        "pool_id": pool_id,
+        "asset_in": token,
+        "asset_out": NATIVE_ASSET,
+        "amount_in": 100,
+        "min_amount_out": 1,
+        "recipient": recipient_pubkey,
+    }
+    accepted, _next_json, _next_hash, patch, error = plugin.apply_app_tx(
+        app_state_json=app_state_json,
+        chain_balances=create_patch,
+        operations={"5": [swap]},
+        tx_sender_pubkey=sender_pubkey,
+        block_timestamp=124,
+    )
+
+    assert accepted is True, error
+    assert patch is not None
+    assert patch[recipient_pubkey] > 0
+    assert canonical_recipient not in patch
+
+
 def test_apply_app_tx_routes_upstream_streams_to_internal_engines(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 
@@ -1323,13 +1394,15 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     from src.integration import tau_testnet_dex_plugin as plugin
     from src.integration.dex_engine import DexEngineConfig, apply_ops
     from src.integration.dex_snapshot import state_from_snapshot
-    from src.integration.operations import create_settlement_operation
+    from src.integration.operations import (
+        canonicalize_authenticated_intent_for_execution,
+        create_settlement_operation,
+    )
     from src.integration.proof_verifier import ProofVerifierConfig
     from src.state.lp import LPTable
     from src.state.state_root import compute_state_root
 
     sender = "11" * 48
-    canonical_sender = "0x" + sender
     reward_pool = "99" * 48
     canonical_reward_pool = "0x" + reward_pool
     asset0 = "0x" + "11" * 32
@@ -1361,7 +1434,7 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
         "version": "0.1",
         "kind": "CREATE_POOL",
         "intent_id": "0x" + "ab" * 32,
-        "sender_pubkey": canonical_sender,
+        "sender_pubkey": sender,
         "deadline": 9999999999,
         "nonce": 1,
         "asset0": asset0,
@@ -1371,8 +1444,9 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
         "amount1": 2000,
     }
     parsed_intent = _parse_single_intent(intent)
+    execution_intent = canonicalize_authenticated_intent_for_execution(parsed_intent)
     settlement = compute_settlement(
-        intents=[parsed_intent],
+        intents=[execution_intent],
         pools=state0.pools,
         balances=state0.balances,
         lp_balances=state0.lp_balances,
@@ -1398,6 +1472,7 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
         config=DexEngineConfig(
             allow_missing_settlement=False,
             require_intent_signatures=False,
+            canonicalize_authenticated_bls_principals=True,
             allow_external_tools=True,
             consensus_mode=False,
             chain_id="tau-local",
@@ -1538,7 +1613,7 @@ def test_native_principal_binding_preserves_raw_key_and_rejects_duplicate_spelli
         )
 
 
-def test_native_balance_patch_uses_raw_preferred_key_for_new_recipient() -> None:
+def test_native_balance_patch_preserves_exact_tau_keys() -> None:
     from src.core.dex import DexState
     from src.integration import tau_testnet_dex_plugin as plugin
     from src.integration.tau_native_identity import TauNativeBalanceSnapshot
@@ -1558,7 +1633,6 @@ def test_native_balance_patch_uses_raw_preferred_key_for_new_recipient() -> None
     patch = plugin._balances_patch_for_native(
         before=before,
         after_state=after,
-        preferred_chain_keys=(raw_recipient, raw_pool),
     )
 
     assert patch == {raw_recipient: 4, raw_pool: 16}
@@ -1741,6 +1815,7 @@ def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
         config=DexEngineConfig(
             allow_missing_settlement=False,
             require_intent_signatures=False,
+            canonicalize_authenticated_bls_principals=True,
             allow_external_tools=True,
             consensus_mode=False,
             chain_id="tau-local",

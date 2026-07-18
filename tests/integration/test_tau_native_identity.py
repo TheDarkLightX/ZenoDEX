@@ -78,7 +78,7 @@ def test_identity_index_rejects_mismatched_preferred_principal() -> None:
         )
 
 
-def test_tau_dex_signed_intent_canonicalization_owns_its_copy() -> None:
+def test_tau_dex_selection_preserves_signed_payload_identity_spelling() -> None:
     from src.integration import tau_testnet_dex_plugin as plugin
 
     intent = {
@@ -90,24 +90,7 @@ def test_tau_dex_signed_intent_canonicalization_owns_its_copy() -> None:
 
     selected = plugin._select_dex_ops(operations)
 
-    canonical_intent = selected["2"][0][0]
-    assert canonical_intent["sender_pubkey"] == CANONICAL
-    assert canonical_intent["recipient"] == CANONICAL
+    selected_intent = selected["2"][0][0]
+    assert selected_intent["sender_pubkey"] == RAW
+    assert selected_intent["recipient"] == RAW
     assert selected["2"][0][1] == "signature"
-    assert intent["sender_pubkey"] == RAW
-    assert intent["recipient"] == RAW
-
-
-@pytest.mark.parametrize("field", ["sender_pubkey", "recipient"])
-def test_tau_dex_intent_rejects_malformed_principal(field: str) -> None:
-    from src.integration import tau_testnet_dex_plugin as plugin
-
-    intent = {
-        "module": "TauSwap",
-        "sender_pubkey": RAW,
-        "recipient": RAW,
-    }
-    intent[field] = "not-a-pubkey"
-
-    with pytest.raises(ValueError, match=f"intent.{field}"):
-        plugin._select_dex_ops({"5": [intent]})

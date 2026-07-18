@@ -58,53 +58,26 @@ from ..core.perp_clearinghouse_market_params_guard import (
     evaluate_perp_clearinghouse_market_params_guard,
     perp_clearinghouse_market_params_guard_error,
 )
-from ..core.perp_liquidation_envelope import require_perp_liquidation_envelope_bps
-from ..core.perp_liquidation_tau_source_binding import (
-    PARTIAL_LIQUIDATE_ACTION as TAU_PARTIAL_LIQUIDATE_ACTION,
-    PerpLiquidationTauSourceBinding,
-    PerpLiquidationTauSourceFacts,
-    derive_perp_liquidation_flags_from_source_binding,
-    expected_perp_liquidation_o4,
-    perp_liquidation_tau_source_binding_from_payload,
-    perp_liquidation_tau_source_facts_hash,
-    source_admission_envelope_reject_reason,
-    source_membership_proof_reject_reason,
-    source_root_authority_reject_reason,
-    source_state_root_binding_reject_reason,
-    source_binding_reject_reasons,
+from ..core.perp_depth_source_quorum_economics import (
+    verify_depth_source_quorum_economics_payload,
 )
 from ..core.perp_epoch import (
     perp_epoch_isolated_default_apply,
     perp_epoch_isolated_default_fee_pool_max_quote,
     perp_epoch_isolated_default_initial_state,
 )
-from ..core.perp_market_version_prefix_guard import (
-    REJECT_CH2P_PREFIX_MISMATCH,
-    REJECT_CH3P_PREFIX_MISMATCH,
-    REJECT_INVALID_VERSION,
-    REJECT_ISOLATED_PREFIX_CONFLICT,
-    evaluate_perp_market_version_prefix_guard,
-)
-from ..core.perp_oi_depth_certificate import (
-    verify_oi_depth_certificate_payload,
-    verify_oi_depth_source_authority_binding_payload,
-    verify_oi_depth_source_authority_payload,
-)
-from ..core.perp_depth_source_quorum_economics import (
-    verify_depth_source_quorum_economics_payload,
-)
 from ..core.perp_funding_closeout_liability_certificate import (
-    ClosedFundingSourceRow,
-    PositionAccount,
     RATIONED_ALLOCATION_RECEIPT_SCHEMA,
     SOURCE_BOUND_RATIONED_ALLOCATION_RECEIPT_SCHEMA,
     SOURCE_PORTFOLIO_BOUND_RATIONED_ALLOCATION_RECEIPT_SCHEMA,
+    ClosedFundingSourceRow,
+    PositionAccount,
     carried_funding_closeout_liability_hash,
+    funding_closeout_allocation_receipt_from_payload,
     funding_closeout_carry_forward_receipt_from_payload,
     funding_closeout_carry_forward_receipt_to_payload,
-    funding_closeout_source_availability_hash,
-    funding_closeout_allocation_receipt_from_payload,
     funding_closeout_rationed_allocation_receipt_from_payload,
+    funding_closeout_source_availability_hash,
     funding_closeout_source_bound_rationed_allocation_receipt_from_payload,
     funding_closeout_source_portfolio_bound_rationed_allocation_receipt_from_payload,
     post_open_receiver_claim_rows,
@@ -147,7 +120,36 @@ from ..core.perp_funding_closeout_priority import (
     verify_funding_closeout_recovery_source_authority_binding_payload,
     verify_funding_closeout_recovery_source_authority_payload,
 )
+from ..core.perp_liquidation_envelope import require_perp_liquidation_envelope_bps
+from ..core.perp_liquidation_tau_source_binding import (
+    PARTIAL_LIQUIDATE_ACTION as TAU_PARTIAL_LIQUIDATE_ACTION,
+)
+from ..core.perp_liquidation_tau_source_binding import (
+    PerpLiquidationTauSourceBinding,
+    PerpLiquidationTauSourceFacts,
+    derive_perp_liquidation_flags_from_source_binding,
+    expected_perp_liquidation_o4,
+    perp_liquidation_tau_source_binding_from_payload,
+    perp_liquidation_tau_source_facts_hash,
+    source_admission_envelope_reject_reason,
+    source_binding_reject_reasons,
+    source_membership_proof_reject_reason,
+    source_root_authority_reject_reason,
+    source_state_root_binding_reject_reason,
+)
+from ..core.perp_market_version_prefix_guard import (
+    REJECT_CH2P_PREFIX_MISMATCH,
+    REJECT_CH3P_PREFIX_MISMATCH,
+    REJECT_INVALID_VERSION,
+    REJECT_ISOLATED_PREFIX_CONFLICT,
+    evaluate_perp_market_version_prefix_guard,
+)
 from ..core.perp_np_matching import Intent as _NpIntent
+from ..core.perp_oi_depth_certificate import (
+    verify_oi_depth_certificate_payload,
+    verify_oi_depth_source_authority_binding_payload,
+    verify_oi_depth_source_authority_payload,
+)
 from ..core.perp_runtime_risk_gate import (
     ACTION_ADVANCE_EPOCH as RUNTIME_ACTION_ADVANCE_EPOCH,
 )
@@ -155,16 +157,10 @@ from ..core.perp_runtime_risk_gate import (
     ACTION_APPLY_FUNDING_AUTO as RUNTIME_ACTION_APPLY_FUNDING_AUTO,
 )
 from ..core.perp_runtime_risk_gate import (
-    ACTION_CLEAR_BREAKER as RUNTIME_ACTION_CLEAR_BREAKER,
-)
-from ..core.perp_runtime_risk_gate import (
     ACTION_CARRY_FUNDING_CLOSEOUT_LIABILITY as RUNTIME_ACTION_CARRY_FUNDING_CLOSEOUT_LIABILITY,
 )
 from ..core.perp_runtime_risk_gate import (
-    ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY as RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY,
-)
-from ..core.perp_runtime_risk_gate import (
-    ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY as RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY,
+    ACTION_CLEAR_BREAKER as RUNTIME_ACTION_CLEAR_BREAKER,
 )
 from ..core.perp_runtime_risk_gate import (
     ACTION_DEPOSIT_COLLATERAL as RUNTIME_ACTION_DEPOSIT_COLLATERAL,
@@ -183,6 +179,12 @@ from ..core.perp_runtime_risk_gate import (
 )
 from ..core.perp_runtime_risk_gate import (
     ACTION_SETTLE_EPOCH as RUNTIME_ACTION_SETTLE_EPOCH,
+)
+from ..core.perp_runtime_risk_gate import (
+    ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY as RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY,
+)
+from ..core.perp_runtime_risk_gate import (
+    ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY as RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY,
 )
 from ..core.perp_runtime_risk_gate import (
     ACTION_WITHDRAW_COLLATERAL as RUNTIME_ACTION_WITHDRAW_COLLATERAL,
@@ -209,12 +211,11 @@ from ..core.perp_submission_auth_message import (
     build_perp_op_auth_signing_dict_v1,
     hash_perp_op_auth_message_v1,
 )
-from ..core.perp_v2.oi_liquidity_bound import evaluate_oi_liquidity_bound
-from ..core.perp_v2.math import MAX_COLLATERAL
-from ..core.perp_v2.math import MAX_FUNDING_CUMULATIVE
+from ..core.perp_v2.math import MAX_COLLATERAL, MAX_FUNDING_CUMULATIVE
 from ..core.perp_v2.math import funding_payment as _perp_v2_funding_payment
 from ..core.perp_v2.math import liq_penalty as _perp_v2_liq_penalty
 from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
+from ..core.perp_v2.oi_liquidity_bound import evaluate_oi_liquidity_bound
 from ..core.perps import (
     FUNDING_CLOSEOUT_RECEIVER_CLAIM_NO_EXPIRY_EPOCH,
     PERP_CLEARINGHOUSE_2P_STATE_KEYS,
@@ -247,6 +248,7 @@ from ..state.canonical import (
     canonical_json_bytes,
 )
 from ..state.nonces import NonceTable
+from .tau_state_principal_migration import canonicalize_legacy_tau_state_principals
 from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
 PERP_OP_MODULE = "TauPerp"
@@ -915,6 +917,9 @@ class PerpEngineConfig:
     operator_pubkey: Optional[str] = None
     # Signature domain separation for per-op authorization (bind to a specific network/deployment).
     chain_id: str = "tau-net-alpha"
+    # Tau adapter policy: sender/signature checks bind the original payload;
+    # committed account keys use the canonical Tau BLS spelling afterward.
+    canonicalize_authenticated_bls_principals: bool = False
     # Optional oracle signer for clearing-price publication (recommended for clearinghouse markets).
     oracle_pubkey: Optional[str] = None
     # Production posture: perps are intended to run peer-to-peer via clearinghouse kernels.
@@ -2311,6 +2316,21 @@ def _require_sender_bound_account_pubkey(*, account_pubkey: str, tx_sender_pubke
     return None
 
 
+def _authenticated_execution_account_pubkey(
+    config: PerpEngineConfig,
+    account_pubkey: str,
+) -> str:
+    """Canonicalize a BLS account only after its sender/auth gate succeeds."""
+
+    if not config.canonicalize_authenticated_bls_principals:
+        return account_pubkey
+    return canonical_hex_fixed_allow_0x(
+        account_pubkey,
+        nbytes=48,
+        name="authenticated account_pubkey",
+    )
+
+
 def _evaluate_signed_surface(
     *,
     action_kind: int,
@@ -2768,6 +2788,10 @@ def _apply_clearinghouse_collateral(ctx: _PerpApplyCtx, request: _ClearinghouseC
     )
     if sender_err is not None:
         return sender_err
+    account_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        account_pubkey,
+    )
 
     role = request.market.role_for_pubkey(account_pubkey)
     if role is None:
@@ -5593,6 +5617,10 @@ def _read_isolated_collateral_command(
     if gate_error is not None:
         return gate_error, None, None
 
+    account_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        account_pubkey,
+    )
     amount = _require_int(op.data.get("amount"), name="amount", non_negative=True)
     return None, account_pubkey, amount
 
@@ -5716,6 +5744,10 @@ def _apply_isolated_deposit_insurance(
     )
     if sender_err is not None:
         return sender_err
+    account_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        account_pubkey,
+    )
 
     amount = _require_int(data.get("amount"), name="amount", non_negative=True)
     if amount <= 0:
@@ -5788,6 +5820,10 @@ def _read_isolated_set_position_command(
     if gate_error is not None:
         return gate_error, None, None
 
+    account_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        account_pubkey,
+    )
     new_pos = _require_int(op.data.get("new_position_base"), name="new_position_base", non_negative=False)
     return None, account_pubkey, new_pos
 
@@ -5886,7 +5922,7 @@ def _partial_liquidate_bound_account(
     )
     if gate_error is not None:
         return gate_error, None
-    return None, account_pubkey
+    return None, _authenticated_execution_account_pubkey(ctx.config, account_pubkey)
 
 
 def _partial_liquidate_oracle_bridge_result(
@@ -6551,6 +6587,10 @@ def _apply_chnp_join_market(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, chnp_mark
     )
     if sender_err is not None:
         return sender_err
+    account_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        account_pubkey,
+    )
     ms = _chnp_market_to_core(chnp_market)
     try:
         ms2 = _np_core.deposit(ms, account_pubkey, 0)
@@ -6581,6 +6621,10 @@ def _apply_chnp_collateral(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, chnp_marke
     )
     if sender_err is not None:
         return sender_err
+    account_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        account_pubkey,
+    )
     amount = _require_int(data.get("amount"), name="amount", non_negative=True)
     amount_e8 = int(amount) * _E8_SCALE
     if amount_e8 > _np_core.I128_MAX:
@@ -6637,6 +6681,10 @@ def _apply_chnp_submit_intent(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, chnp_ma
     )
     if sender_err is not None:
         return sender_err
+    account_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        account_pubkey,
+    )
     if chnp_market.role_for_pubkey(account_pubkey) is None:
         return "unknown account_pubkey for this clearinghouse_np market"
     target_base = _require_int(data.get("target_base"), name="target_base", non_negative=False)
@@ -6960,14 +7008,22 @@ def _init_market_2p_surface_error(
 
 def _commit_init_market_2p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, spec: _InitMarket2pSpec) -> str | None:
     ctx.perps_version = max(ctx.perps_version, PERPS_STATE_VERSION_V5)
+    account_a_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        spec.accounts.account_a_pubkey
+    )
+    account_b_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        spec.accounts.account_b_pubkey
+    )
     try:
         init_state = _ch2p_init_state_dict()
     except ValueError as exc:
         return str(exc)
     ctx.markets[op.market_id] = PerpClearinghouse2pMarketState(
         quote_asset=spec.quote_asset,
-        account_a_pubkey=spec.accounts.account_a_pubkey,
-        account_b_pubkey=spec.accounts.account_b_pubkey,
+        account_a_pubkey=account_a_pubkey,
+        account_b_pubkey=account_b_pubkey,
         state=init_state,
     )
     ctx.effects.append(
@@ -6975,8 +7031,8 @@ def _commit_init_market_2p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, spec: _Ini
             "i": i,
             "market_id": op.market_id,
             "action": op.action,
-            "account_a_pubkey": spec.accounts.account_a_pubkey,
-            "account_b_pubkey": spec.accounts.account_b_pubkey,
+            "account_a_pubkey": account_a_pubkey,
+            "account_b_pubkey": account_b_pubkey,
         }
     )
     return None
@@ -7088,15 +7144,27 @@ def _init_market_3p_surface_error(
 
 def _commit_init_market_3p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, spec: _InitMarket3pSpec) -> str | None:
     ctx.perps_version = max(ctx.perps_version, PERPS_STATE_VERSION_V5)
+    account_a_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        spec.accounts.account_a_pubkey
+    )
+    account_b_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        spec.accounts.account_b_pubkey
+    )
+    account_c_pubkey = _authenticated_execution_account_pubkey(
+        ctx.config,
+        spec.accounts.account_c_pubkey
+    )
     try:
         init_state = _ch3p_init_state_dict()
     except ValueError as exc:
         return str(exc)
     ctx.markets[op.market_id] = PerpClearinghouse3pTransferMarketState(
         quote_asset=spec.quote_asset,
-        account_a_pubkey=spec.accounts.account_a_pubkey,
-        account_b_pubkey=spec.accounts.account_b_pubkey,
-        account_c_pubkey=spec.accounts.account_c_pubkey,
+        account_a_pubkey=account_a_pubkey,
+        account_b_pubkey=account_b_pubkey,
+        account_c_pubkey=account_c_pubkey,
         state=init_state,
     )
     ctx.effects.append(
@@ -7104,9 +7172,9 @@ def _commit_init_market_3p(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, spec: _Ini
             "i": i,
             "market_id": op.market_id,
             "action": op.action,
-            "account_a_pubkey": spec.accounts.account_a_pubkey,
-            "account_b_pubkey": spec.accounts.account_b_pubkey,
-            "account_c_pubkey": spec.accounts.account_c_pubkey,
+            "account_a_pubkey": account_a_pubkey,
+            "account_b_pubkey": account_b_pubkey,
+            "account_c_pubkey": account_c_pubkey,
         }
     )
     return None
@@ -7367,6 +7435,9 @@ def apply_perp_ops(
 
         if not ops:
             return PerpTxResult(ok=True, state=state, effects=[])
+
+        if config.canonicalize_authenticated_bls_principals:
+            state = canonicalize_legacy_tau_state_principals(state)
 
         posture_err = _perp_ops_batch_posture_error(config, ops)
         if posture_err is not None:
