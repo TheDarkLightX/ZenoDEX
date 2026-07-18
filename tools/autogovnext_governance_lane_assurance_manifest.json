@@ -92,7 +92,7 @@
     },
     {
       "path": "tests/integration/test_zeno_ledger_v0.py",
-      "sha256": "34798a197ad7364b8fa0f586cefaaff6a5a6c0411215a2f65d1e868f53291f52"
+      "sha256": "74eaa10b65b85ecc5d69c8ef72c74a1d191084283e2fce68abda563d1e8e74a7"
     },
     {
       "path": "tests/integration/test_zeno_ledger_rejections_v0.py",
