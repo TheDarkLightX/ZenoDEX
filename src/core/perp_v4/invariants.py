@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+from ..perp_state_domain import state_domain_violations
 from ..perp_v2.types import EpochPhase, PerpState
 from .math import BPS_SCALE, maint_margin_req
 
@@ -158,7 +159,15 @@ INVARIANT_REGISTRY: dict[str, Callable[[PerpState], bool]] = {
 
 
 def check_all(state: PerpState) -> list[str]:
-    """Return list of violated invariant IDs (empty = all pass)."""
+    """Return exact domain or semantic invariant violations.
+
+    Domain validation runs first so semantic predicates never execute on a
+    malformed or behavior-changing state object.
+    """
+
+    domain_violations = state_domain_violations(state)
+    if domain_violations:
+        return domain_violations
     return [
         inv_id
         for inv_id, check_fn in INVARIANT_REGISTRY.items()
