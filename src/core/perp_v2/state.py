@@ -1,8 +1,9 @@
 """State construction and serialization for `perp_v2` and the shared v4 ABI.
 
 `initial_state()` returns the canonical initial state (matches the YAML `init`
-block).  Wire decoding is exact: missing, unknown, and noncanonical state fields
-reject rather than being inferred or normalized inside the functional core.
+block).  Wire decoding is exact for fields and primitive types.  Named phase
+values remain an explicit compatibility input because the v2-to-v3 adapter
+reconstructs that legacy field before entering the versioned core.
 """
 
 from __future__ import annotations
@@ -42,13 +43,15 @@ _EPOCH_PHASE_TO_INT: dict[EpochPhase, int] = {
 def _coerce_epoch_phase(val: Any) -> EpochPhase:
     if type(val) is EpochPhase:
         return val
+    if type(val) is str:
+        return EpochPhase(val)
     if type(val) is int:
         if val in _EPOCH_PHASE_INT_MAP:
             return _EPOCH_PHASE_INT_MAP[val]
         raise ValueError(f"state var 'epoch_phase' int value {val} out of range [0,2]")
     raise TypeError(
-        "state var 'epoch_phase' must be an exact EpochPhase or canonical int, "
-        f"got {type(val).__name__}"
+        "state var 'epoch_phase' must be an exact EpochPhase, named legacy phase, "
+        f"or canonical int, got {type(val).__name__}"
     )
 
 
@@ -72,7 +75,7 @@ def initial_state() -> PerpState:
 
 
 def state_to_dict(state: PerpState) -> dict[str, bool | int | str]:
-    """Serialize one exact domain-valid state to the kernel-state ABI."""
+    """Serialize one exact domain-valid state to the canonical integer ABI."""
     violations = state_domain_violations(state)
     if violations:
         raise ValueError("invalid PerpState domain: " + ",".join(violations))
@@ -91,8 +94,8 @@ def state_from_dict(d: Mapping[str, Any]) -> PerpState:
     """Deserialize an exact state object.
 
     The parser rejects unknown and missing fields before decoding.  Boolean
-    fields require JSON booleans, integer fields reject Python booleans, and
-    the phase uses the canonical integer wire representation.
+    fields require JSON booleans and integer fields reject Python booleans.
+    Accepted output is always the exact frozen base value used by the core.
     """
     if not isinstance(d, Mapping):
         raise TypeError("perps state must be a mapping")
