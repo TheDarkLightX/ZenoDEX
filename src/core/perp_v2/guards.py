@@ -3,8 +3,9 @@
 One pure function per kernel action id. Each returns True iff the action is allowed
 in the given PRE-state with the given parameters.
 
-These are direct translations of the guard blocks in
-`src/kernels/dex/perp_epoch_isolated_v3.yaml`.
+These guards implement the strengthened product contract for the v3-shaped
+runtime.  The checked YAML/reference artifacts must be regenerated from the
+same lifecycle rules before formal promotion.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from .math import (
     init_margin_req,
     is_liquidatable,
     is_oracle_fresh,
+    is_settle_oracle_usable,
     liq_penalty_capped,
     maint_margin_req,
     partial_liq_penalty_capped,
@@ -31,6 +33,8 @@ from .types import ActionParams, EpochPhase, PerpState
 
 
 def guard_advance_epoch(state: PerpState, params: ActionParams) -> bool:
+    if state.epoch_phase == EpochPhase.PRICE_PUBLISHED:
+        return False
     return state.now_epoch + params.delta <= MAX_EPOCH
 
 
@@ -43,12 +47,9 @@ def guard_publish_clearing_price(state: PerpState, params: ActionParams) -> bool
 def guard_settle_epoch(state: PerpState, params: ActionParams) -> bool:
     """Settle the current epoch (PnL realization + optional liquidation).
 
-    Preconditions (high-level):
-    - A clearing price has been published for the current `now_epoch`.
-    - This epoch has not already been settled.
-    - Post-PnL collateral stays within integer bounds.
-    - If the position becomes liquidatable at settlement, liquidation accounting
-      must not overflow fee/insurance tracking variables.
+    Settlement consumes only a current published clearing price and a seen,
+    positive, sufficiently fresh index snapshot.  This exact predicate is also
+    used by the v3 adapter and v4 core.
     """
     if state.epoch_phase != EpochPhase.PRICE_PUBLISHED:
         return False
@@ -57,6 +58,14 @@ def guard_settle_epoch(state: PerpState, params: ActionParams) -> bool:
     if state.clearing_price_epoch != state.now_epoch:
         return False
     if state.oracle_last_update_epoch >= state.now_epoch:
+        return False
+    if not is_settle_oracle_usable(
+        state.now_epoch,
+        state.oracle_last_update_epoch,
+        state.max_oracle_staleness_epochs,
+        state.oracle_seen,
+        state.index_price_e8,
+    ):
         return False
 
     sp = settle_price(
@@ -239,16 +248,8 @@ def guard_partial_liquidate(state: PerpState, params: ActionParams) -> bool:
     The position must be below maintenance margin (liquidatable) at the
     current index price. The fraction_bps parameter selects how much of
     the position to close:
-    - fraction_bps == 0: auto-compute minimum fraction via binary search
+    - fraction_bps == 0: auto-compute minimum fraction via canonical scan
     - fraction_bps > 0: use the specified fraction
-
-    Preconditions:
-    - Epoch in OPEN phase (position accounting happens during OPEN).
-    - Authorization required.
-    - Oracle must be fresh and index price positive.
-    - Position must be non-zero and below maintenance margin.
-    - The resulting collateral after penalty must stay non-negative
-      and within bounds.
     """
     outcome = evaluate_perp_liquidation_eligibility_gate(
         now_epoch=state.now_epoch,
