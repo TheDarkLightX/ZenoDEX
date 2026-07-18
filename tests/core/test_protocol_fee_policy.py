@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from src.core.batch_clearing_requests import (
+    validate_settlement_request_policy,
+    validate_swap_tiebreak_seed,
+)
 from src.core.dex import DexConfig
 from src.core.protocol_fee_policy import ProtocolFeePolicy
 from src.state.balances import BalanceTable
@@ -13,6 +17,7 @@ from src.state.state_root import compute_state_root
 _RECIPIENT_RAW = "41" * 48
 _RECIPIENT = "0x" + _RECIPIENT_RAW
 _ASSET = "0x" + "51" * 32
+_ORDERING_CHOICES = frozenset({"greedy_ab_refined"})
 
 
 def test_nonzero_protocol_share_requires_reachable_recipient() -> None:
@@ -47,6 +52,55 @@ def test_dex_config_owns_one_canonical_recipient() -> None:
 
     assert config.protocol_fee_share_bps == 2_500
     assert config.protocol_fee_recipient_pubkey == _RECIPIENT
+
+
+def test_direct_batch_boundary_requires_canonical_recipient_wire_form() -> None:
+    with pytest.raises(ValueError, match="canonical lowercase"):
+        validate_settlement_request_policy(
+            swap_ordering="greedy_ab_refined",
+            ordering_choices=_ORDERING_CHOICES,
+            protocol_fee_share_bps=1,
+            protocol_fee_recipient_pubkey=_RECIPIENT_RAW,
+        )
+
+    validate_settlement_request_policy(
+        swap_ordering="greedy_ab_refined",
+        ordering_choices=_ORDERING_CHOICES,
+        protocol_fee_share_bps=1,
+        protocol_fee_recipient_pubkey=_RECIPIENT,
+    )
+
+
+@pytest.mark.parametrize(
+    "recipient",
+    (None, " ", "not-a-key", "0x" + "00" * 48),
+)
+def test_direct_batch_boundary_rejects_missing_or_unreachable_recipient(
+    recipient: str | None,
+) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        validate_settlement_request_policy(
+            swap_ordering="greedy_ab_refined",
+            ordering_choices=_ORDERING_CHOICES,
+            protocol_fee_share_bps=1,
+            protocol_fee_recipient_pubkey=recipient,
+        )
+
+
+def test_direct_batch_boundary_rejects_boolean_fee_share() -> None:
+    with pytest.raises(ValueError, match="share_bps must be an int"):
+        validate_settlement_request_policy(
+            swap_ordering="greedy_ab_refined",
+            ordering_choices=_ORDERING_CHOICES,
+            protocol_fee_share_bps=True,
+            protocol_fee_recipient_pubkey=_RECIPIENT,
+        )
+
+
+def test_tiebreak_seed_rejects_mutable_bytearray_alias() -> None:
+    validate_swap_tiebreak_seed(b"fixed-seed")
+    with pytest.raises(TypeError, match="exact bytes"):
+        validate_swap_tiebreak_seed(bytearray(b"mutable-seed"))
 
 
 def test_canonical_recipient_is_state_root_encodable() -> None:
