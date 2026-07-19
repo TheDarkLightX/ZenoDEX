@@ -1,0 +1,43 @@
+name: functional-core-debug
+
+on:
+  push:
+    branches:
+      - agent/functional-core-auth-effect-snapshots-20260719
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dev tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Capture critical gate output
+        run: |
+          mkdir -p functional-core-debug
+          set +e
+          bash tools/run_critical_quality_gate.sh > functional-core-debug/gate.log 2>&1
+          status="$?"
+          set -e
+          printf '%s\n' "$status" > functional-core-debug/gate.status
+          tar -czf functional-core-debug/source.tar.gz \
+            src tests tools pyproject.toml requirements-dev.lock.txt
+
+      - name: Upload diagnostic artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: functional-core-debug
+          path: functional-core-debug
+          retention-days: 1
