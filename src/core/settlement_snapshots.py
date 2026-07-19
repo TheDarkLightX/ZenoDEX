@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, NoReturn
+from typing import NoReturn
 
 from ..state.immutable_collections import FrozenList, deep_freeze
 from .settlement import BalanceDelta, Fill, LPDelta, ReserveDelta, Settlement
@@ -158,23 +158,3 @@ def freeze_settlement(settlement: Settlement) -> Settlement:
         lp_deltas=FrozenList(_freeze_lp_delta(delta) for delta in settlement.lp_deltas),
         events=events,
     )
-
-
-def settlement_effect_fingerprint_payload(settlement: Settlement) -> dict[str, Any]:
-    """Stable plain-data projection used by regressions and downstream hashing."""
-
-    frozen = freeze_settlement(settlement)
-    return {
-        "module": frozen.module,
-        "version": frozen.version,
-        "batch_ref": frozen.batch_ref,
-        "included_intents": [
-            [intent_id, action.value]
-            for intent_id, action in frozen.included_intents
-        ],
-        "fills": [dict(vars(fill)) for fill in frozen.fills],
-        "balance_deltas": [dict(vars(delta)) for delta in frozen.balance_deltas],
-        "reserve_deltas": [dict(vars(delta)) for delta in frozen.reserve_deltas],
-        "lp_deltas": [dict(vars(delta)) for delta in frozen.lp_deltas],
-        "events": deep_freeze(frozen.events),
-    }
