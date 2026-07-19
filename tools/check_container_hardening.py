@@ -11,7 +11,6 @@ from typing import Any
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -107,6 +106,23 @@ def _check_main_compose(issues: list[str]) -> None:
         f"docker-compose.yml: zenodex API_HOST must default to 127.0.0.1, got {api_host!r}",
         issues,
     )
+    _require(
+        _env_value(svc, "ZENODEX_ENV") == "production",
+        "docker-compose.yml: zenodex must set ZENODEX_ENV=production",
+        issues,
+    )
+    chain_id = _env_value(svc, "TAU_DEX_CHAIN_ID") or ""
+    _require(
+        "TAU_DEX_CHAIN_ID:?" in chain_id,
+        "docker-compose.yml: production chain id must be mandatory",
+        issues,
+    )
+    volumes = [str(item) for item in _as_list(svc.get("volumes"))]
+    _require(
+        any(item.endswith(":/var/www/zenodex/zenodex-config.json:ro") for item in volumes),
+        "docker-compose.yml: production UI runtime config must be mounted read-only",
+        issues,
+    )
 
 
 def _check_apparmor_overlay(issues: list[str]) -> None:
@@ -147,6 +163,39 @@ def _check_dockerfile(path: Path, issues: list[str]) -> None:
     text = path.read_text(encoding="utf-8")
     _require(re.search(r"(?m)^USER\s+zenodex\s*$", text) is not None, f"{path.name}: production image must end as USER zenodex", issues)
     _require("EXPOSE 8080 8000" in text, f"{path.name}: expected unprivileged UI port expose", issues)
+    _require("ENV ZENODEX_ENV=production" in text, f"{path.name}: must set production runtime mode", issues)
+    _require(
+        "check_production_python_artifact.py /app/src" in text,
+        f"{path.name}: must run the production Python artifact exclusion gate",
+        issues,
+    )
+    _require(
+        "COPY .docker/validate_production_ui_config.py /validate_production_ui_config.py" in text,
+        f"{path.name}: must install the production UI capability validator",
+        issues,
+    )
+    final_source_copy = text.find("COPY --from=python-base /app/src ./src")
+    _require(final_source_copy >= 0, f"{path.name}: final curated source copy is missing", issues)
+    artifact_gate = text.find("check_production_python_artifact.py /app/src")
+    _require(
+        final_source_copy >= 0 and 0 <= artifact_gate < final_source_copy,
+        f"{path.name}: production Python artifact gate must run before the final source copy",
+        issues,
+    )
+    for module in (
+        "autotrader_live_api.py",
+        "confidential_attestation_api.py",
+        "tau_testnet_dex_plugin.py",
+        "zeno_ledger_tokenomics.py",
+        "zenodex_local_signer.py",
+    ):
+        exclusion = text.find(module)
+        _require(exclusion >= 0, f"{path.name}: does not exclude {module}", issues)
+        _require(
+            final_source_copy >= 0 and 0 <= exclusion < final_source_copy,
+            f"{path.name}: {module} must be removed before the final OCI source layer",
+            issues,
+        )
 
 
 def _check_operator_dockerfile(issues: list[str]) -> None:
@@ -179,6 +228,7 @@ def run_checks() -> list[str]:
         _check_aux_compose(ROOT / "docker-compose.multimachine.yml", service, issues)
     _check_apparmor_profile(issues)
     _check_dockerfile(ROOT / "Dockerfile", issues)
+    _check_dockerfile(ROOT / "Dockerfile.hashlocked", issues)
     _check_dockerfile(ROOT / "Dockerfile.production-hashlocked", issues)
     _check_operator_dockerfile(issues)
     return issues

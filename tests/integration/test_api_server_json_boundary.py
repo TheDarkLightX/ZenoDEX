@@ -15,7 +15,7 @@ def _start_test_server():
     httpd.perps_wallet_api_enabled = False  # type: ignore[attr-defined]
     httpd.zusd_api_enabled = False  # type: ignore[attr-defined]
     httpd.dex_api_enabled = True  # type: ignore[attr-defined]
-    httpd.demo_api_token = "test-token"  # type: ignore[attr-defined]
+    httpd.api_bearer_token = "test-token"  # type: ignore[attr-defined]
 
     thread = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     thread.start()
@@ -215,13 +215,12 @@ def test_api_server_impact_preview_rejects_bool_reserve() -> None:
 
 def test_routing_oracle_adapter_bridge_domain_error_fails_closed(monkeypatch) -> None:
     from src.integration import api_server
-    from tools import zenodex_oracle_aggregate_adapter
 
     def _raise_domain_error(_bridge: object) -> object:
         raise ValueError("unencodable bridge")
 
     monkeypatch.setattr(
-        zenodex_oracle_aggregate_adapter,
+        api_server,
         "verify_aggregate_adapter_bridge",
         _raise_domain_error,
     )

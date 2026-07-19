@@ -15,7 +15,6 @@ if str(ROOT) not in sys.path:
 
 from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.zeno_ledger_profile import sample_zeno_sovereign_testnet_profile_v0
 from src.integration.zeno_ledger_tokenomics import (
     DEFAULT_PROTOCOL_TOKEN_SYMBOL,
     build_protocol_token_distribution_v0,
@@ -33,7 +32,9 @@ from src.integration.zeno_ledger_v0 import (
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 from src.state.pools import compute_pool_id
-
+from tools.support.zeno_ledger_profile_samples import (  # noqa: E402
+    sample_zeno_sovereign_testnet_profile_v0,
+)
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_testnet_bundle_report.v0"
 

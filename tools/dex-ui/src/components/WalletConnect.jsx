@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import './WalletConnect.css';
 import { getRuntimeConfig } from '../lib/api.js';
-import { browserKeyGenerationAllowed, connectPreferredWallet } from '../sdk/walletSignerPolicy.js';
+import { connectPreferredWallet } from '../sdk/walletSignerPolicy.js';
 
 function walletErrorMessage(error) {
     const message = String(error?.message || error || '').trim();
@@ -13,7 +13,7 @@ function walletErrorMessage(error) {
         || lower.includes('connection refused')
         || lower.includes('err_connection_refused')
     ) {
-        return 'Local signer unavailable';
+        return 'External signer unavailable';
     }
     if (message === 'external_signer_unavailable') {
         return 'External signer unavailable';
@@ -33,15 +33,14 @@ function WalletConnect({ wallet, onConnect }) {
 
         try {
             const runtimeConfig = getRuntimeConfig();
+            const chainId = String(runtimeConfig.chainId || '').trim();
+            if (!chainId) {
+                throw new Error('chain_id_unavailable');
+            }
             onConnect(await connectPreferredWallet({
-                chainId: runtimeConfig.chainId || 'zeno-ledger-localtest-v0',
+                chainId,
                 globalObject: typeof window === 'undefined' ? globalThis : window,
                 runtimeConfig,
-                allowBrowserFallback: browserKeyGenerationAllowed({
-                    locationSearch: typeof window === 'undefined' ? '' : window.location.search,
-                    runtimeConfig,
-                    env: import.meta.env,
-                }),
             }));
         } catch (error) {
             console.error('Failed to connect wallet:', error);
@@ -94,7 +93,7 @@ function WalletConnect({ wallet, onConnect }) {
                         <div className="dropdown-header">
                             <span className="connected-badge">
                                 <span className="connected-dot"></span>
-                                {wallet.browserLastResort ? 'Browser fallback signer' : 'External signer'}
+                                External signer
                             </span>
                         </div>
 

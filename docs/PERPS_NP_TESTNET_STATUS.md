@@ -1,101 +1,43 @@
-# N-Party Perps — Public Testnet Status
+# N-Party Perps — Retired Production Surface
 
-> **Status: FAKE-VALUE PUBLIC TESTNET. `production_security_claim = false` on every surface.**
-> This document is the consolidated status of the many-account ("N-party")
-> perpetuals clearinghouse path: what is built, what is verified, and what is
-> deliberately deferred. It does not authorize any production or custody claim.
+> **Status: research-only and excluded from every production deployment.**
+> This document records a retired fake-value experiment; it is not a testnet or
+> production capability claim.
 
-## Why this exists
+The open N-party clearinghouse experiment is not recognized by the production
+perpetuals engine. In particular, production has no operation version, market
+prefix, initialization action, transition dispatch, configuration switch, or
+import of the research implementation.
 
-Perps previously shipped only as a **fixed 2-party clearinghouse**: every market
-was `init_market_2p(account_a, account_b)`, positions were coupled by
-`position_base_a + position_base_b = 0`, and `set_position_pair` required *both*
-counterparties to co-sign one transaction. A normal public wallet could only
-**observe**. The N-party path replaces that with an **open, epoch-batched,
-net-zero clearinghouse**: any wallet joins by depositing collateral and submits
-**single-signed** intents; a deterministic largest-remainder matcher clears the
-batch with `Σδ = 0`; settlement is at the oracle-signed clearing price.
+## Enforced boundary
 
-## Task ledger
+- `src/integration/perp_engine.py` admits only the isolated, fixed two-party,
+  and fixed three-party production versions. Retired operation payloads are
+  rejected as an invalid version before dispatch.
+- `src/integration/dex_snapshot.py` neither encodes nor decodes the retired
+  market representation. A persisted retired market fails closed as an
+  unsupported market kind.
+- `src/integration/perps_wallet_api.py` raises an unsupported-state error rather
+  than returning a sparse market summary.
+- The production UI accepts only `clearinghouse_2p_v1` and `isolated_v2` wallet
+  summaries. Source and emitted-bundle gates reject retired N-party markers.
+- Production container assembly removes `src/nonproduction` before source is
+  copied into the final image, and the artifact checker rejects the directory,
+  imports from it, and all retired adapter symbols.
 
-| # | Deliverable | State | Evidence |
-|---|-------------|-------|----------|
-| T1 | Promote the machine-verified N-party core into `src/core` | ✅ | `src/core/perp_np_matching.py` + `perp_np_clearinghouse.py` (byte-faithful promotion; provenance + SHA-256 in `src/core/perp_np_promotion.md`) |
-| T2 | `PerpClearinghouseNpMarketState` + dynamic membership | ✅ | `src/core/perps.py` (`PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1`; net-zero / two-ledger conservation / insurance enforced fail-closed in `__post_init__`) |
-| T3 | Engine apply path through `apply_perp_ops` | ✅ | `src/integration/perp_engine.py` `_apply_chnp_op` (`init_market_np` / `join_market` / `deposit`/`withdraw_collateral` / `submit_intent` / `publish_clearing_price` / `run_epoch` / `advance_epoch`); reject-is-no-op |
-| T4 | Single-signed, gated wallet API surface | ✅ | `src/integration/perps_wallet_api.py` (`_NP_ACTIONS`, `_NP_MARKET_PREFIX`, `_np_clearinghouse_enabled()`; default off). 108 API tests green |
-| T5 | Bind oracle/index price to settlement | ✅ | oracle-signed `publish_clearing_price` (real BLS) → `run_epoch` settle; operator cannot supply the price; nonzero funding fail-closed |
-| T6 | UI: 3-wallet participation (observer-trap fix) + tests | ✅ (unit) / ⏳ (browser) | `tools/dex-ui/src/lib/perpPosition.js` resolves ANY participant from `accounts[]` (was 2p-only); 5 unit tests (`perpPosition.test.mjs`, `npm run test:lib`). Live browser/e2e test deferred — NP trade surface is intentionally gated off until backend review (§ Deferred) |
-| T7 | Release smoke: 3+ participants long/short/settle | ✅ | `tools/zenodex_perp_np_release_smoke.py` (3/4/5 wallets, two-sided, net-zero, conservation, **deterministic state-header agreement**, snapshot roundtrip) + CI gate `tests/integration/test_perp_np_release_smoke.py` |
-| T8 | Keep `production_security_claim=false` + this report | ✅ | claim is false on every surface; hard validators reject non-false (see § Posture) |
+Historical frozen state types and validation code remain in `src/core` only so
+old research evidence can still be inspected offline. They provide no
+production transition path. The standalone matching and clearinghouse research
+implementation lives under `src/nonproduction` and its tests under
+`tests/nonproduction`.
 
-## Real ZK (scoped, not a production claim)
+## Research evidence
 
-A real RISC0 (risc0-zkvm 2.x) zkVM circuit proves N-party settle+match
-transitions: `zk/state_proof_risc0/` — a unified guest (`ZenoDexProofInputV1` =
-`Spot | PerpsNp`) re-derives participant-set / pre-state / post-state /
-state-delta hashes and re-checks net-zero, two-ledger conservation, insurance
-ledger, and per-account margin **inside the zkVM**, fail-closed.
+The RISC0 experiment under `zk/state_proof_risc0/` and its offline proof tools
+remain research artifacts. Their existence does not authorize runtime
+admission, custody, settlement, or a production security claim.
 
-- Smoke: `tools/zeno_ledger_perp_np_risc0_real_proof_smoke.py --case all` →
-  real STARK proofs (4/5-wallet), Python-independent hash cross-check, strict
-  verify, multi-field tamper rejection, and fail-closed negatives.
-- Reviewed by Gemini + Codex (adversarial). Hardening applied: i128 margin
-  intermediates (overflow), negative-ledger guard, `checked_add` epoch,
-  explicit scope/domain + intent-auth-not-in-circuit docstrings, `pre_app_hash`
-  binding. See `docs/zenodex_perps_np_state_proof_risc0_v1.md`.
-
-The circuit certifies a **solvent, margin-healthy settle+match epoch**; it does
-NOT prove intent *authorization* (intents are unsigned in-circuit; authorization
-is an external precondition the runtime enforces), oracle *authenticity*
-(carried, not verified), app-state linkage, funding (fail-closed to zero), or
-liquidation/ADL. It is a fail-closed safety surface, **not** the consensus
-state-advance gate.
-
-## Posture — `production_security_claim = false`
-
-- **No surface sets it true.** Hard validators reject any non-false value
-  (`src/integration/zeno_ledger_tokenomics.py`,
-  `perps_wallet_encrypted_sss_backup.py`); the release gate
-  (`tools/check_public_testnet_v0_1_16_release_ready.py`) asserts the verifier
-  reports `false` and proves a `true` claim is rejected.
-- Fake-value only; the NP wallet API is gated off by default.
-- The claim stays false until ALL hold: real in-circuit intent authorization +
-  oracle authenticity + app-state↔root linkage, zUSD proof coverage, production
-  custody, artifact binding, and the runtime release gates.
-
-## Deferred / open (honest)
-
-- **ZK design decisions** (flagged, owner: protocol author): bind an
-  intent-batch-hash in-circuit (vs documented external-auth precondition);
-  min-fill δ==0 survivor → rejected receipt + no nonce advance; make verifier
-  `expected` bindings mandatory for testnet verification.
-- **Mutable post-state ledgers + ADL** are in active development in the ZK guest
-  (fee collection / insurance draws / auto-deleverage) — closes the
-  conservation-with-fees and insolvency/liveness scope.
-- **UI browser/e2e test** for the live 3-wallet trade surface: deferred until
-  the NP UI surface is ungated (post-review). The trade form / "join market"
-  affordance stay unreachable (action allow-list + market-kind gate), not merely
-  hidden.
-
-## Reproduce
-
-```bash
-# Engine + core (3+ wallets through apply_perp_ops)
-python3 -m pytest tests/integration/test_perp_np_engine.py \
-  tests/integration/test_perp_np_engine_review_negatives.py \
-  tests/core/test_perp_np_clearinghouse.py -q          # 34 passed
-
-# Wallet API (single-signed, gated)
-python3 -m pytest tests/integration/test_perps_wallet_api.py -q   # 108 passed
-
-# Release smoke (3/4/5 wallets, long/short/settle, deterministic header)
-python3 tools/zenodex_perp_np_release_smoke.py --scenario all
-python3 -m pytest tests/integration/test_perp_np_release_smoke.py -q
-
-# UI observer-trap resolver (3-wallet)
-( cd tools/dex-ui && npm run test:lib )
-
-# Real ZK proof (heavy; needs the risc0 toolchain on PATH)
-python3 tools/zeno_ledger_perp_np_risc0_real_proof_smoke.py --case all --timeout 900
-```
+Any future promotion requires a new versioned design and an explicit review of
+authorization, Oracle authority, conservation, insolvency/loss allocation,
+state refinement, deployment-profile inclusion, and same-commit release
+evidence. It must not re-enable this retired adapter.

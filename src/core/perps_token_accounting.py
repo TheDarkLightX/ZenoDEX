@@ -6,7 +6,6 @@ from .perps import (
     PerpAnyMarketState,
     PerpClearinghouse2pMarketState,
     PerpClearinghouse3pTransferMarketState,
-    PerpClearinghouseNpMarketState,
     PerpMarketState,
 )
 
@@ -73,20 +72,6 @@ def perps_market_locked_quote_e8(market: PerpAnyMarketState) -> int:
         if total_e8 < 0:
             raise PerpsTokenAmountNegative(
                 "fixed perps locked quote e8 must be non-negative"
-            )
-        return total_e8
-
-    if market_type is PerpClearinghouseNpMarketState:
-        total_e8 = _strict_int(
-            market.global_state.get("net_deposited_e8", 0),
-            name="N-party perps net_deposited_e8",
-        ) + _strict_int(
-            market.global_state.get("insurance_ext_e8", 0),
-            name="N-party perps insurance_ext_e8",
-        )
-        if total_e8 < 0:
-            raise PerpsTokenAmountNegative(
-                "N-party perps locked quote e8 must be non-negative"
             )
         return total_e8
 

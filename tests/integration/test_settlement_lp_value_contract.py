@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
@@ -9,13 +11,15 @@ from src.integration.settlement_lp_value_contract import (
     build_settlement_lp_value_contract_from_price_attestation,
     verify_settlement_lp_value_contract,
 )
-from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     build_settlement_spot_price_packet,
 )
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
+from tests.support.settlement_price_attestation_signer import (
+    build_settlement_spot_price_attestation,
+)
 
 
 def _iid(n: int) -> str:
@@ -58,7 +62,10 @@ def _swap_context():
 
 def test_settlement_lp_value_contract_round_trips_with_explicit_lp_liability() -> None:
     pk, asset0, asset1, pool_id, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=5, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=5, delta_sub=0)),
+    )
     contract = build_settlement_lp_value_contract(
         settlement=settlement,
         asset_prices={asset0: 100, asset1: 120},
@@ -84,7 +91,10 @@ def test_settlement_lp_value_contract_round_trips_with_explicit_lp_liability() -
 
 def test_settlement_lp_value_contract_rejects_missing_lp_unit_value() -> None:
     pk, asset0, asset1, pool_id, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=5, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=5, delta_sub=0)),
+    )
 
     try:
         build_settlement_lp_value_contract(
@@ -100,7 +110,10 @@ def test_settlement_lp_value_contract_rejects_missing_lp_unit_value() -> None:
 
 def test_settlement_lp_value_contract_builds_from_price_attestation() -> None:
     pk, asset0, asset1, pool_id, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0)),
+    )
     packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),

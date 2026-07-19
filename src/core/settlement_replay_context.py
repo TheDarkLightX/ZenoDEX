@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from ..state.balances import BalanceTable
+from ..state.balances import copy_balance_table as mutable_balance_copy
 from ..state.lp import LPTable
-from ..state.pools import PoolState
+from ..state.lp import copy_lp_table as mutable_lp_copy
+from ..state.pools import PoolState, copy_pool_state
 from .settlement import BalanceDelta, LPDelta, ReserveDelta
 
 
@@ -25,36 +28,27 @@ class ReplayContext:
 @dataclass(frozen=True)
 class SettlementPreState:
     balances: BalanceTable
-    pools: Dict[str, PoolState]
+    pools: Mapping[str, PoolState]
     lp_balances: Optional[LPTable]
 
 
 def copy_balance_table(balances: BalanceTable) -> BalanceTable:
-    copied = BalanceTable()
-    for (pubkey, asset), amount in balances.get_all_balances().items():
-        copied.set(pubkey, asset, amount)
-    return copied
+    return mutable_balance_copy(balances)
 
 
 def copy_lp_table(lp_balances: LPTable) -> LPTable:
-    copied = LPTable()
-    for (pubkey, pool_id), amount in lp_balances.get_all_balances().items():
-        copied.set(pubkey, pool_id, amount)
-    for (pubkey, pool_id), timestamp in lp_balances.get_all_last_mint_timestamps().items():
-        if copied.get(pubkey, pool_id) > 0:
-            copied.set_last_mint_timestamp(pubkey, pool_id, timestamp)
-    return copied
+    return mutable_lp_copy(lp_balances)
 
 
 def build_replay_context(
     *,
     pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
+    pre_pools: Mapping[str, PoolState],
     pre_lp_balances: Optional[LPTable],
 ) -> ReplayContext:
     return ReplayContext(
         balances=copy_balance_table(pre_balances),
-        pools={pool_id: replace(pool) for pool_id, pool in pre_pools.items()},
+        pools={pool_id: copy_pool_state(pool) for pool_id, pool in pre_pools.items()},
         lp=copy_lp_table(pre_lp_balances) if pre_lp_balances is not None else LPTable(),
         expected_events=[],
         bal_deltas=[],

@@ -6,7 +6,6 @@ import pytest
 
 from src.integration import settlement_price_attestation as attestation_mod
 from src.integration.settlement_price_attestation import (
-    build_settlement_spot_price_attestation,
     verify_settlement_spot_price_attestation,
     verify_settlement_spot_price_attestation_payload,
 )
@@ -14,6 +13,9 @@ from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     SettlementSpotPricePacket,
     build_settlement_spot_price_packet,
+)
+from tests.support.settlement_price_attestation_signer import (
+    build_settlement_spot_price_attestation,
 )
 
 pytestmark = pytest.mark.skipif(importlib.util.find_spec("py_ecc") is None, reason="py_ecc is not available")

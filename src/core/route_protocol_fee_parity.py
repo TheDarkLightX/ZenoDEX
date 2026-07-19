@@ -26,6 +26,7 @@ captures protocol fees per leg identically to exact-in.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -194,8 +195,8 @@ def _validate_route_envelope(
     """
     _check_str(asset_in, "asset_in")
     _check_str(asset_out, "asset_out")
-    if not isinstance(pools, dict):
-        raise ValueError("pools must be a dict")
+    if not isinstance(pools, Mapping):
+        raise ValueError("pools must be a mapping")
     if not isinstance(legs, (list, tuple)):
         raise ValueError("legs must be a list or tuple")
     if not legs:

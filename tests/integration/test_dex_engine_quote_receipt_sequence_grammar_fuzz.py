@@ -12,8 +12,8 @@ from tools.dex_engine_quote_receipt_sequence_grammar_fuzz import (
     ASSET_C,
     ASSET_D,
     DIRECT_POOLS,
-    SPLIT_POOLS,
     SENDER,
+    SPLIT_POOLS,
     _direct_state,
     _make_direct_ops,
     _make_split_ops,
@@ -22,7 +22,6 @@ from tools.dex_engine_quote_receipt_sequence_grammar_fuzz import (
     explore_target,
     minimize_case,
 )
-
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
@@ -200,7 +199,7 @@ def test_dex_engine_quote_receipt_sequence_minimizer_removes_dead_tail_without_c
     witness = minimize_case("direct_quote_receipt_sequence", "DirectSeq->ValidThenStaleSamePoolWithDeadTail")
     assert "invalid quote receipt:" in witness.outcome_label
     assert "verifier_error='pool_snapshot_mismatch'" in witness.outcome_label
-    assert witness.path_id == "fcdfd87e7dd8d2da"
+    assert witness.path_id == "bb2bdc1803277f80"
     assert witness.original_size == 7149
     assert witness.minimized_size == 4776
     assert witness.original_size > witness.minimized_size
@@ -231,7 +230,7 @@ def test_dex_engine_quote_receipt_sequence_minimizer_cli_emits_expected_schema()
     assert witness["target"] == "direct_quote_receipt_sequence"
     assert witness["derivation"] == "DirectSeq->ValidThenStaleSamePoolWithDeadTail"
     assert "invalid quote receipt:" in witness["outcome_label"]
-    assert witness["path_id"] == "fcdfd87e7dd8d2da"
+    assert witness["path_id"] == "bb2bdc1803277f80"
     assert witness["original_size"] == 7149
     assert witness["minimized_size"] == 4776
 
@@ -241,7 +240,7 @@ def test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg
     assert "intent does not match quote receipt leg:" in witness.outcome_label
     assert "leg_index=1" in witness.outcome_label
     assert "pool_id='p1'" in witness.outcome_label
-    assert witness.path_id == "fd7896ed2fc3c3c5"
+    assert witness.path_id == "2b05cb35a3c51b22"
     assert witness.original_size == 10853
     assert witness.minimized_size == 10853
     assert isinstance(witness.payload, dict)

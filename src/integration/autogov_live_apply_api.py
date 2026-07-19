@@ -1,6 +1,6 @@
 """HTTP-free handler for the autonomous-governance live-apply API (WS5).
 
-Mirrors the `handle_perps_request` pattern: `api_server.py` owns transport,
+Uses the standard integration pattern: `api_server.py` owns transport,
 auth, and the default-OFF feature flag (`AUTOGOV_LIVE_APPLY_API_ENABLED`);
 this module owns request semantics and is fully testable without a socket.
 

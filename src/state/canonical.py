@@ -10,8 +10,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from typing import Any
-
 
 CANONICAL_ENCODING_VERSION = 1
 MAX_UVARINT_BITS = 256
@@ -33,7 +33,7 @@ def _reject_floats(value: Any) -> None:
         raise TypeError("floats are not allowed in canonical encoding")
     if isinstance(value, str):
         _reject_surrogates(value)
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         for k in value.keys():
             if not isinstance(k, str):
                 raise TypeError("dict keys must be str for canonical encoding")
@@ -58,15 +58,43 @@ def canonical_json_bytes(value: Any) -> bytes:
     - allow_nan=False
     - floats rejected (to avoid representation ambiguity)
     """
-    _reject_floats(value)
+    json_value = plain_json_value(value)
+    _reject_floats(json_value)
     text = json.dumps(
-        value,
+        json_value,
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
         allow_nan=False,
     )
     return text.encode("utf-8")
+
+
+def plain_json_value(value: Any) -> Any:
+    """Project protocol mappings/sequences to owned stdlib JSON containers."""
+
+    return _plain_json_value(value, active=set())
+
+
+def _plain_json_value(value: Any, *, active: set[int]) -> Any:
+    if isinstance(value, Mapping) or isinstance(value, (list, tuple)):
+        identity = id(value)
+        if identity in active:
+            raise TypeError("container cycles are not allowed in canonical encoding")
+        active.add(identity)
+        try:
+            if isinstance(value, Mapping):
+                out: dict[str, Any] = {}
+                for key, inner in value.items():
+                    if type(key) is not str:
+                        raise TypeError("dict keys must be str for canonical encoding")
+                    out[key] = _plain_json_value(inner, active=active)
+                return out
+            return [_plain_json_value(inner, active=active) for inner in value]
+        finally:
+            active.remove(identity)
+
+    return value
 
 
 def bounded_json_utf8_size(
@@ -164,7 +192,7 @@ def bounded_json_utf8_size(
                 total += _size(item, depth - 1)
                 _ensure_budget(total)
             return total
-        if isinstance(v, dict):
+        if isinstance(v, Mapping):
             total = 2  # {}
             first = True
             for k, val in v.items():

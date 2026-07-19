@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from src.core.dex import DexState
+from src.core.perps import PerpMarketState
 from src.integration.perp_engine import (
     PerpEngineConfig,
     _isolated_settle_oracle_runtime_facts,
@@ -88,11 +91,17 @@ def _ready_market(*, market_id: str, operator: str, price_e8: int = 100_000_000)
     )
     assert state.perps is not None
     market = state.perps.markets[market_id]
-    assert hasattr(market, "global_state")
-    market.global_state["oracle_seen"] = True
-    market.global_state["oracle_last_update_epoch"] = max(0, int(market.global_state["now_epoch"]) - 1)
-    market.global_state["index_price_e8"] = int(price_e8)
-    return state
+    assert isinstance(market, PerpMarketState)
+    global_state = dict(market.global_state)
+    global_state["oracle_seen"] = True
+    global_state["oracle_last_update_epoch"] = max(
+        0,
+        int(global_state["now_epoch"]) - 1,
+    )
+    global_state["index_price_e8"] = int(price_e8)
+    markets = dict(state.perps.markets)
+    markets[market_id] = replace(market, global_state=global_state)
+    return replace(state, perps=replace(state.perps, markets=markets))
 
 
 def _authorization_for(

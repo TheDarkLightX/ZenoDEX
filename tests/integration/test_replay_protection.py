@@ -114,8 +114,8 @@ def test_replay_protection_accepts_out_of_order_batch_nonces_and_advances() -> N
         nonce=2,
         asset0=a0,
         asset1=a1,
-        amount0=1000,
-        amount1=1000,
+        amount0=2000,
+        amount1=2000,
         created_at=1,
     )
     intent2 = _create_pool_intent(
@@ -124,8 +124,8 @@ def test_replay_protection_accepts_out_of_order_batch_nonces_and_advances() -> N
         nonce=1,
         asset0=a2,
         asset1=a3,
-        amount0=1000,
-        amount1=1000,
+        amount0=2000,
+        amount1=2000,
         created_at=2,
     )
 
@@ -325,12 +325,16 @@ def test_sender_pubkey_is_canonicalized_for_nonce_accounting() -> None:
         nonce=1,
         asset0=a0,
         asset1=a1,
-        amount0=1000,
-        amount1=1000,
+        amount0=2000,
+        amount1=2000,
         created_at=1,
     )
     res = apply_ops(
-        config=DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False),
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=False,
+            canonicalize_authenticated_bls_principals=True,
+        ),
         state=state0,
         operations={"2": [intent1]},
         block_timestamp=0,

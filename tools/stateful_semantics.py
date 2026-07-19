@@ -1,13 +1,14 @@
-from __future__ import annotations
-
 """Semantic-state extractors for stateful weird-machine exploration tooling.
 
 These helpers normalize payload families into protocol-relevant state classes so
 frontier search can prioritize semantic novelty instead of only input novelty.
 """
 
+from __future__ import annotations
+
+from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
-from typing import Any, Callable, Iterable, cast
+from typing import Any, Callable, cast
 
 
 def outcome_class(outcome_label: str) -> str:
@@ -194,7 +195,7 @@ def api_boundary_semantic_state(target_name: str):
 def state_boundary_semantic_state(target_name: str):
     def _intent_nonce(intent: Any) -> Any:
         fields = getattr(intent, "fields", None)
-        if isinstance(fields, dict):
+        if isinstance(fields, Mapping):
             return fields.get("nonce")
         if isinstance(intent, dict):
             return _mapping_get(intent, "nonce")

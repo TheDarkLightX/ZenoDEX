@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from src.agents.intent_signer import (
@@ -635,7 +637,7 @@ def test_engine_accepts_matching_attached_quote_receipt_witness() -> None:
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 
     balances = BalanceTable()
@@ -736,7 +738,7 @@ def test_engine_rejects_attached_quote_receipt_hash_mismatch() -> None:
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
     ops["2"][0]["quote_receipt_hash"] = "0xdeadbeef"
 
@@ -785,8 +787,10 @@ def test_engine_rejects_quote_bound_intent_without_leg_index() -> None:
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
-    intent.fields.pop("quote_receipt_leg_index", None)
+    intent = intent.with_field("nonce", 1)
+    fields = dict(intent.fields or {})
+    fields.pop("quote_receipt_leg_index", None)
+    intent = replace(intent, fields=fields)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 
     balances = BalanceTable()
@@ -833,7 +837,7 @@ def test_engine_rejects_quote_bound_intent_without_attached_receipt_witness() ->
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent)])
 
     balances = BalanceTable()
@@ -943,7 +947,7 @@ def test_engine_rejects_bool_quote_receipt_leg_index() -> None:
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
     ops["2"][0]["quote_receipt_leg_index"] = True
 
@@ -1097,10 +1101,21 @@ def test_engine_scopes_quote_receipt_leg_indices_per_receipt_hash() -> None:
             lp_supply=1,
             status=PoolStatus.ACTIVE,
             created_at=0,
-        )
+        ),
+        "p_ac": PoolState(
+            pool_id="p_ac",
+            asset0="A",
+            asset1="C",
+            reserve0=5_000,
+            reserve1=5_000,
+            fee_bps=10,
+            lp_supply=1,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        ),
     }
     quote_a = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=123)
-    quote_b = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=124)
+    quote_b = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="C", amount_in=124)
     assert quote_a is not None
     assert quote_b is not None
     receipt_a = make_route_quote_receipt(kind="exact_in", quote=quote_a, pools_by_id=pools)
@@ -1119,8 +1134,8 @@ def test_engine_scopes_quote_receipt_leg_indices_per_receipt_hash() -> None:
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent_a.set_field("nonce", 1)
-    intent_b.set_field("nonce", 2)
+    intent_a = intent_a.with_field("nonce", 1)
+    intent_b = intent_b.with_field("nonce", 2)
     ops = create_signed_intent_operation(
         [
             SignedIntentEnvelope(intent=intent_a, quote_receipt=receipt_a),
@@ -1131,6 +1146,7 @@ def test_engine_scopes_quote_receipt_leg_indices_per_receipt_hash() -> None:
     balances = BalanceTable()
     balances.set(sender, "A", 10_000)
     balances.set(sender, "B", 0)
+    balances.set(sender, "C", 0)
     state = DexState(balances=balances, pools=pools, lp_balances=LPTable())
 
     res = apply_ops(

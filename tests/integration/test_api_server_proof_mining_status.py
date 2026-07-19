@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import json
 import threading
+from dataclasses import replace
 from http.client import HTTPConnection
 
 from src.integration.proof_mining_context import ProofMiningContext, proof_mining_context_to_obj
@@ -21,7 +21,8 @@ def _start_test_server():
     httpd.perps_api_enabled = False  # type: ignore[attr-defined]
     httpd.zusd_api_enabled = False  # type: ignore[attr-defined]
     httpd.dex_api_enabled = True  # type: ignore[attr-defined]
-    httpd.demo_api_token = ""  # type: ignore[attr-defined]
+    httpd.api_bearer_token = ""  # type: ignore[attr-defined]
+    httpd.external_auth_enforced = True  # type: ignore[attr-defined]
 
     t = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     t.start()
@@ -39,7 +40,7 @@ def _claim(
     *,
     miner_id: str,
     reward_pool_before: int,
-    policy_ok: bool | int = 1,
+    policy_ok: int = 1,
     allow_rejected: bool = False,
 ) -> dict:
     from src.core.proof_mining_claims import build_proof_mining_claim
@@ -264,7 +265,7 @@ def test_api_server_proof_mining_status_rejects_inadmissible_live_floor_claim(mo
     sender = "0x" + "57" * 48
     reward_pool = "0x" + "67" * 48
     monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
-    claim = _claim(miner_id=sender, reward_pool_before=20, policy_ok=False, allow_rejected=True)
+    claim = _claim(miner_id=sender, reward_pool_before=20, policy_ok=0, allow_rejected=True)
     context = _context_from_claim(claim)
     httpd, thread, host, port = _start_test_server()
     try:

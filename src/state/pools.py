@@ -5,9 +5,10 @@ Pool state management for DEX pools.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Tuple
+from typing import NoReturn, Optional, Tuple
 
 from .balances import Amount, AssetId
 from .canonical import canonical_json_bytes
@@ -35,8 +36,8 @@ def _decode_curve_params_for_tag(
     *,
     tag: str,
     curve_params: Optional[object],
-    default: dict[str, int],
-) -> dict[object, object]:
+    default: Mapping[str, int],
+) -> Mapping[object, object]:
     params_obj: object = default if curve_params is None else curve_params
     if isinstance(params_obj, str):
         import json
@@ -45,13 +46,13 @@ def _decode_curve_params_for_tag(
             params_obj = json.loads(params_obj)
         except json.JSONDecodeError as exc:
             raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-    if not isinstance(params_obj, dict):
+    if not isinstance(params_obj, Mapping):
         raise ValueError(f"curve_params for {tag} must be a JSON object")
     return params_obj
 
 
 def _curve_param_int(
-    params: dict[object, object],
+    params: Mapping[object, object],
     *,
     tag: str,
     spec: _CurveParamSpec,
@@ -283,8 +284,8 @@ def canonical_pool_asset_id(asset: AssetId) -> AssetId:
     Symbolic test assets such as "A"/"B" stay byte-for-byte unchanged; only
     0x-prefixed hex IDs are normalized so Python and Rust cannot fork on case.
     """
-    if not isinstance(asset, str):
-        raise TypeError("asset ids must be strings")
+    if type(asset) is not str or not asset:
+        raise TypeError("asset ids must be strings (non-empty exact values)")
     if len(asset) < 3 or asset[:2].lower() != "0x":
         return asset
     body = asset[2:]
@@ -335,7 +336,7 @@ def compute_pool_id(
     return "0x" + hashlib.sha256(pool_id_data).hexdigest()
 
 
-@dataclass
+@dataclass(slots=True)
 class PoolState:
     """
     State of a DEX liquidity pool.
@@ -367,10 +368,12 @@ class PoolState:
     
     def __post_init__(self):
         """Validate pool state invariants."""
-        if not isinstance(self.pool_id, str) or not self.pool_id:
-            raise TypeError("pool_id must be a non-empty string")
-        if not isinstance(self.asset0, str) or not isinstance(self.asset1, str):
-            raise TypeError("asset ids must be strings")
+        if type(self.pool_id) is not str or not self.pool_id:
+            raise TypeError("pool_id must be a non-empty string (exact type required)")
+        if type(self.asset0) is not str or type(self.asset1) is not str:
+            raise TypeError("asset ids must be strings (exact type required)")
+        if type(self.status) is not PoolStatus:
+            raise TypeError("status must be an exact PoolStatus")
 
         # Pool IDs hash canonical asset text, so stored state must use the same
         # text before order checks or state-root encoders observe it.
@@ -459,3 +462,92 @@ class PoolState:
             f"reserves=({self.reserve0}, {self.reserve1}), "
             f"lp_supply={self.lp_supply}, status={self.status.value})"
         )
+
+
+class FrozenPoolState(PoolState):
+    """Immutable owned pool value used by committed ``DexState`` snapshots."""
+
+    __slots__ = ()
+
+    def __init__(
+        self,
+        pool_id: str,
+        asset0: AssetId,
+        asset1: AssetId,
+        reserve0: Amount,
+        reserve1: Amount,
+        fee_bps: int,
+        lp_supply: Amount,
+        status: PoolStatus,
+        created_at: int,
+        curve_tag: str = CURVE_TAG_CPMM,
+        curve_params: str = "",
+    ) -> None:
+        try:
+            object.__getattribute__(self, "pool_id")
+        except AttributeError:
+            pass
+        else:
+            raise TypeError("FrozenPoolState is already initialized")
+        normalized = PoolState(
+            pool_id=pool_id,
+            asset0=asset0,
+            asset1=asset1,
+            reserve0=reserve0,
+            reserve1=reserve1,
+            fee_bps=fee_bps,
+            lp_supply=lp_supply,
+            status=status,
+            created_at=created_at,
+            curve_tag=curve_tag,
+            curve_params=curve_params,
+        )
+        for name in PoolState.__slots__:
+            object.__setattr__(self, name, getattr(normalized, name))
+
+    def __setattr__(self, name: str, value: object) -> NoReturn:
+        raise TypeError("FrozenPoolState cannot be mutated")
+
+
+def copy_pool_state(source: PoolState) -> PoolState:
+    if type(source) not in (PoolState, FrozenPoolState):
+        raise TypeError("source must be an exact PoolState snapshot")
+    return PoolState(
+        pool_id=source.pool_id,
+        asset0=source.asset0,
+        asset1=source.asset1,
+        reserve0=source.reserve0,
+        reserve1=source.reserve1,
+        fee_bps=source.fee_bps,
+        lp_supply=source.lp_supply,
+        status=source.status,
+        created_at=source.created_at,
+        curve_tag=source.curve_tag,
+        curve_params=source.curve_params,
+    )
+
+
+def freeze_pool_state(source: PoolState) -> FrozenPoolState:
+    if type(source) is FrozenPoolState:
+        for name in PoolState.__slots__:
+            try:
+                object.__getattribute__(source, name)
+            except AttributeError as exc:
+                raise TypeError("FrozenPoolState is not initialized") from exc
+        return source
+    if type(source) is not PoolState:
+        raise TypeError("source must be an exact PoolState snapshot")
+    mutable = copy_pool_state(source)
+    return FrozenPoolState(
+        pool_id=mutable.pool_id,
+        asset0=mutable.asset0,
+        asset1=mutable.asset1,
+        reserve0=mutable.reserve0,
+        reserve1=mutable.reserve1,
+        fee_bps=mutable.fee_bps,
+        lp_supply=mutable.lp_supply,
+        status=mutable.status,
+        created_at=mutable.created_at,
+        curve_tag=mutable.curve_tag,
+        curve_params=mutable.curve_params,
+    )

@@ -15,8 +15,8 @@ from src.integration.zusd_monetary_bridge import (
     zusd_monetary_state_to_obj,
 )
 from src.state.balances import NATIVE_ASSET, BalanceTable
-from src.state.lp import LPTable
-from src.state.pools import PoolState, PoolStatus
+from src.state.lp import LPTable, copy_lp_table
+from src.state.pools import PoolState, PoolStatus, copy_pool_state
 
 ACTOR = "0x" + "41" * 48
 ASSET_A = "0x" + "51" * 32
@@ -467,14 +467,39 @@ def test_accepted_result_detaches_mutable_dex_children_from_prestate() -> None:
     assert result.state.pools is not prestate.pools
     assert result.state.pools[pool.pool_id] is not prestate.pools[pool.pool_id]
     assert result.state.lp_balances is not prestate.lp_balances
-    assert result.state.perps is not prestate.perps
+    # PerpsState is sealed and may be structurally shared unchanged.
+    assert result.state.perps is prestate.perps
     assert result.state.perps is not None
-    assert result.state.perps.markets is not prestate.perps.markets
+    # Sealed mappings are safe to structurally share across committed snapshots.
+    assert result.state.perps.markets is prestate.perps.markets
 
-    result.state.pools[pool.pool_id].reserve0 = 999
-    result.state.lp_balances.set(ACTOR, pool.pool_id, 99)
-    result.state.perps.markets["forged"] = "invalid-market"  # type: ignore[assignment]
+    with pytest.raises(TypeError, match="FrozenPoolState cannot be mutated"):
+        result.state.pools[pool.pool_id].reserve0 = 999
+    with pytest.raises(TypeError, match="FrozenLPTable cannot be mutated"):
+        result.state.lp_balances.set(ACTOR, pool.pool_id, 99)
+    with pytest.raises(TypeError, match="immutable value cannot be mutated"):
+        result.state.perps.markets["forged"] = "invalid-market"  # type: ignore[index]
 
+    pool_builder = copy_pool_state(result.state.pools[pool.pool_id])
+    pool_builder.reserve0 = 999
+    pool_builders = dict(result.state.pools)
+    pool_builders[pool.pool_id] = pool_builder
+    lp_builder = copy_lp_table(result.state.lp_balances)
+    lp_builder.set(ACTOR, pool.pool_id, 99)
+    forked_state = replace(
+        result.state,
+        pools=pool_builders,
+        lp_balances=lp_builder,
+    )
+
+    assert forked_state.pools[pool.pool_id].reserve0 == 999
+    assert forked_state.lp_balances.get(ACTOR, pool.pool_id) == 99
+    with pytest.raises(TypeError, match="exact persistent market state types"):
+        replace(result.state.perps, markets={"forged": "invalid-market"})  # type: ignore[dict-item]
+
+    assert result.state.pools[pool.pool_id].reserve0 == 10
+    assert result.state.lp_balances.get(ACTOR, pool.pool_id) == 3
+    assert result.state.perps.markets == {}
     assert prestate.pools[pool.pool_id].reserve0 == 10
     assert prestate.lp_balances.get(ACTOR, pool.pool_id) == 3
     assert prestate.perps.markets == {}

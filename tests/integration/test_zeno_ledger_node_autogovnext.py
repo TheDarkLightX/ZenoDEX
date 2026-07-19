@@ -13,10 +13,12 @@ import pytest
 
 from src.integration.autonomous_governance_q_policy import (
     policy_content_hash_v1,
-    sample_autonomous_governance_next_policy_v1,
 )
 from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0
 from src.integration.zeno_ledger_v0 import canonical_header_hash_v0
+from tools.support.autonomous_governance_policy_samples import (
+    sample_autonomous_governance_next_policy_v1,
+)
 from tools.zeno_ledger_make_testnet_bundle import DEFAULT_TIME_MS, build_testnet_bundle_v0
 from tools.zeno_ledger_node import (
     AUTOGOVNEXT_ADMISSION_KIND,

@@ -87,9 +87,6 @@ class _FakeClient:
         self.sent.append(dict(payload))
         return "SUCCESS tx accepted"
 
-    def createblock(self) -> str:
-        return "BLOCK created"
-
 
 def test_status_reports_zusd_monetary_state_from_wrapped_app_state(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
@@ -115,6 +112,8 @@ def test_status_reports_zusd_monetary_state_from_wrapped_app_state(monkeypatch) 
     assert status["liquidation_fee_comp_bps"] == 25
     assert status["liquidation_gas_comp_fixed_collateral_e8"] == E8 // 20
     assert status["liquidation_gas_comp_bps"] == 25
+    assert "allow_local_signing" not in status
+    assert "auto_mine" not in status
 
 
 def test_status_reports_committed_policy_when_environment_drifts(monkeypatch) -> None:
@@ -400,9 +399,31 @@ def test_prepare_mint_accepts_artifact_bound_zk_wrapper(monkeypatch) -> None:
 
 def test_submit_mint_rejected_zk_proof_blocks_sendtx(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
-    monkeypatch.setenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", "1")
-    monkeypatch.setenv("ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF", "1")
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+    }
+    prepare_code, prepared = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+    assert prepare_code == 200
+    external_payload = build_signed_tau_transaction(
+        privkey=ALICE_PRIVKEY,
+        sequence_number=prepared["transport"]["tx_sequence_number"],
+        expiration_time=123456789,
+        operations=prepared["report"]["operations"],
+        fee_limit=0,
+    )
+
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF", "1")
     monkeypatch.setenv(
         "ZUSD_MONETARY_WALLET_PROOF_VERIFIER_CMD_JSON",
         json.dumps(
@@ -413,35 +434,29 @@ def test_submit_mint_rejected_zk_proof_blocks_sendtx(monkeypatch) -> None:
             ]
         ),
     )
-    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 
-    def fail_sendtx(self, payload):  # pragma: no cover - this is a disaster-state sentinel.
+    def fail_sendtx(self, payload):  # pragma: no cover - disaster-state sentinel.
         raise AssertionError("zk_reject_broadcasts_tx")
 
     monkeypatch.setattr(_FakeClient, "sendtx", fail_sendtx)
-
-    body = {
-        "action": "mint_zusd",
-        "owner_pubkey": ALICE,
-        "amount": 1000,
-        "deadline": 123456789,
-        "block_timestamp": 10,
-        "signer_privkey": str(ALICE_PRIVKEY),
-        "zk_proof": {"system": "test-zk", "proof_bytes": "bad-fixture"},
-    }
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
         "POST",
         "/api/zusd/monetary/submit",
-        json.dumps(body).encode("utf-8"),
+        json.dumps(
+            {
+                **body,
+                "signed_tau_tx_payload": external_payload,
+                "zk_proof": {"system": "test-zk", "proof_bytes": "bad-fixture"},
+            }
+        ).encode("utf-8"),
     )
 
     assert status_code == 400
     assert payload == {"ok": False, "error": "zk_proof_required: fixture proof rejected"}
 
 
-def test_submit_mint_requires_local_signing_and_returns_sendtx(monkeypatch) -> None:
+def test_submit_requires_externally_signed_tau_payload(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
-    monkeypatch.setenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 
@@ -451,7 +466,6 @@ def test_submit_mint_requires_local_signing_and_returns_sendtx(monkeypatch) -> N
         "amount": 1000,
         "deadline": 123456789,
         "block_timestamp": 10,
-        "signer_privkey": str(ALICE_PRIVKEY),
         "tx_fee_limit": "2",
     }
     status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
@@ -460,16 +474,38 @@ def test_submit_mint_requires_local_signing_and_returns_sendtx(monkeypatch) -> N
         json.dumps(body).encode("utf-8"),
     )
 
-    assert status_code == 200
-    assert payload["ok"] is True
-    assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
-    assert payload["report"]["tau_tx_payload"]["sender_pubkey"] == ALICE[2:]
-    assert payload["report"]["tau_tx_payload"]["fee_limit"] == "2"
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "signed_tau_tx_payload_required"}
 
 
-def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkeypatch) -> None:
+def test_submit_recursively_rejects_raw_signing_material(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
-    monkeypatch.delenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
+
+    body = {
+        "action": "mint_zusd",
+        "owner_pubkey": ALICE,
+        "amount": 1000,
+        "deadline": 123456789,
+        "block_timestamp": 10,
+        "wallet": {"backup": [{"private_key_hex": str(ALICE_PRIVKEY)}]},
+    }
+    status_code, payload = monetary_api.handle_zusd_monetary_wallet_request(
+        "POST",
+        "/api/zusd/monetary/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {
+        "ok": False,
+        "error": "raw_signing_material_forbidden:wallet.backup[0].private_key_hex",
+    }
+
+
+def test_submit_accepts_valid_externally_signed_tau_payload(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 
@@ -505,7 +541,8 @@ def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkey
 
     assert status_code == 200
     assert payload["ok"] is True
-    assert payload["transport"]["allow_local_signing"] is False
+    assert "allow_local_signing" not in payload["transport"]
+    assert "auto_mine" not in payload["transport"]
     assert payload["transport"]["signing_mode"] == "external_signed_payload"
     assert payload["report"]["preflight"]["ok"] is True
     assert payload["report"]["tau_tx_payload"] == external_payload
@@ -518,7 +555,6 @@ def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkey
 
 def test_submit_rejects_external_signed_tau_payload_operation_mismatch(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
-    monkeypatch.delenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 
@@ -558,7 +594,6 @@ def test_submit_rejects_external_signed_tau_payload_operation_mismatch(monkeypat
 
 def test_submit_rejects_external_signed_tau_payload_sender_mismatch(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
-    monkeypatch.delenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 
@@ -596,7 +631,6 @@ def test_submit_rejects_external_signed_tau_payload_sender_mismatch(monkeypatch)
 
 def test_submit_rejects_external_signed_tau_payload_sequence_mismatch(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
-    monkeypatch.delenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 
@@ -634,7 +668,6 @@ def test_submit_rejects_external_signed_tau_payload_sequence_mismatch(monkeypatc
 
 def test_submit_rejects_external_signed_tau_payload_bad_signature(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
-    monkeypatch.delenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 
@@ -673,7 +706,6 @@ def test_submit_rejects_external_signed_tau_payload_bad_signature(monkeypatch) -
 
 def test_submit_rejects_preflight_failure_before_broadcast(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_MONETARY_WALLET_CHAIN_ID", "tau-test-zusd-monetary")
-    monkeypatch.delenv("ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING", raising=False)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setattr(monetary_api, "TauNetTcpClient", _FakeClient)
 

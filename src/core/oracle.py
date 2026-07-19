@@ -10,15 +10,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+from ..state.immutable import SealedValue, seal_dataclass_init
 
-@dataclass(frozen=True)
-class OracleState:
+
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
+class OracleState(SealedValue):
     """Minimal oracle freshness state."""
 
     price_timestamp: int
     max_staleness_seconds: int
 
     def __post_init__(self) -> None:
+        if type(self.price_timestamp) is not int:
+            raise TypeError("price_timestamp must be an int")
+        if type(self.max_staleness_seconds) is not int:
+            raise TypeError("max_staleness_seconds must be an int")
         if self.price_timestamp < 0:
             raise ValueError(f"price_timestamp must be non-negative: {self.price_timestamp}")
         if self.max_staleness_seconds <= 0:
@@ -46,4 +53,3 @@ def update_price_timestamp(state: OracleState, current_timestamp: int) -> Oracle
     if current_timestamp < 0:
         raise ValueError(f"current_timestamp must be non-negative: {current_timestamp}")
     return replace(state, price_timestamp=current_timestamp)
-

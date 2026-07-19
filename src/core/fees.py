@@ -9,14 +9,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..state.immutable import SealedValue, seal_dataclass_init
 
 BPS_DENOM = 10_000
 FEE_SPLIT_LANE_COUNT = 3
 MAX_FEE_SPLIT_DUST = FEE_SPLIT_LANE_COUNT - 1
 
 
+@seal_dataclass_init
 @dataclass(frozen=True, slots=True)
-class FeeSplitParams:
+class FeeSplitParams(SealedValue):
     buyback_bps: int
     treasury_bps: int
     rewards_bps: int
@@ -36,8 +38,9 @@ class FeeSplitParams:
             raise ValueError(f"bps must sum to {BPS_DENOM}, got {total}")
 
 
+@seal_dataclass_init
 @dataclass(frozen=True, slots=True)
-class FeeSplitResult:
+class FeeSplitResult(SealedValue):
     buyback_amount: int
     treasury_amount: int
     rewards_amount: int
@@ -61,8 +64,9 @@ class FeeSplitResult:
             )
 
 
+@seal_dataclass_init
 @dataclass(frozen=True, slots=True)
-class FeeAccumulatorState:
+class FeeAccumulatorState(SealedValue):
     """Carries at most two whole fee atoms between three-lane splits."""
 
     dust: int = 0
@@ -77,10 +81,13 @@ class FeeAccumulatorState:
             )
 
 
+_DEFAULT_FEE_ACCUMULATOR_STATE = FeeAccumulatorState()
+
+
 def split_fee_with_dust_carry(
     fee_amount: int,
     params: FeeSplitParams,
-    state: FeeAccumulatorState = FeeAccumulatorState(),
+    state: FeeAccumulatorState = _DEFAULT_FEE_ACCUMULATOR_STATE,
 ) -> tuple[FeeSplitResult, FeeAccumulatorState]:
     """Split one fee and carry the bounded floor-rounding remainder.
 

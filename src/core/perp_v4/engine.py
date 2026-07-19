@@ -2,15 +2,17 @@
 
 ``step(state, params)`` is the single entry point. It:
 
-1. Validates the exact pre-state domain and invariants.
+1. Validates the exact pre-state domain and action-applicable invariants.
 2. Validates parameter domains (from YAML type bounds).
 3. Applies the shared cross-action epoch lifecycle guard.
 4. Dispatches to the correct action guard / update / effect functions.
 5. Checks all invariants on the post-state.
 6. Returns a ``StepResult`` (accepted or rejected with reason).
 
-The authoritative spec is `src/kernels/dex/perp_epoch_isolated_v4.yaml`; keep
-this module in sync and use parity tests against generated refs when updating.
+The generated v4 reference does not yet contain the native
+``partial_liquidate`` extension.  Its bounded precondition exception is tracked
+by ``PERP-PARTIAL-LIQUIDATION-FORMAL-001`` and must not receive formal parity
+credit until that action is promoted into a new authoritative model.
 """
 
 from __future__ import annotations
@@ -154,6 +156,34 @@ _AUTH_ACTIONS: set[Action] = {
     Action.PARTIAL_LIQUIDATE,
 }
 
+PARTIAL_LIQUIDATION_FORMAL_PROMOTION_BLOCKER = "PERP-PARTIAL-LIQUIDATION-FORMAL-001"
+_PARTIAL_LIQUIDATION_REPAIRABLE_PRE_INVARIANT = "inv_maint_margin_ok"
+
+
+def _pre_invariant_violations(
+    state: PerpState,
+    params: ActionParams,
+) -> list[str]:
+    """Return violations that are invalid before this specific action.
+
+    An account must violate maintenance margin to be eligible for partial
+    liquidation.  That one predicate is therefore a liquidation guard input,
+    not a valid pre-invariant for the repair action.  Every other invariant is
+    still required, and the complete invariant set is checked on post-state.
+    """
+
+    violations = check_all(state)
+    if (
+        type(params) is not ActionParams
+        or params.action is not Action.PARTIAL_LIQUIDATE
+    ):
+        return violations
+    return [
+        violation
+        for violation in violations
+        if violation != _PARTIAL_LIQUIDATION_REPAIRABLE_PRE_INVARIANT
+    ]
+
 
 def _validate_params(params: ActionParams) -> str | None:
     """Check exact command shape and parameter domain bounds."""
@@ -180,7 +210,7 @@ def step(state: PerpState, params: ActionParams) -> StepResult:
     Rejection never carries a candidate state or effect, so malformed pre-state,
     lifecycle, guard, and post-invariant failures are complete no-ops.
     """
-    pre_violations = check_all(state)
+    pre_violations = _pre_invariant_violations(state, params)
     if pre_violations:
         return StepResult(
             accepted=False,

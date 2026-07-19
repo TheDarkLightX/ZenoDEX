@@ -18,9 +18,13 @@ function PerpPriceTicker({ market }) {
         );
     }
 
-    const indexPrice = market.indexPriceE8 ? e8ToNumber(BigInt(market.indexPriceE8)) : null;
-    const clearingPrice = market.clearingPriceE8 ? e8ToNumber(BigInt(market.clearingPriceE8)) : null;
-    const statusClass = market.breakerActive ? 'danger' : 'normal';
+    const indexPrice = market.indexPriceE8 != null ? e8ToNumber(BigInt(market.indexPriceE8)) : null;
+    const clearingPrice = market.clearingPriceE8 != null ? e8ToNumber(BigInt(market.clearingPriceE8)) : null;
+    const statusClass = market.breakerActive == null
+        ? 'unknown'
+        : market.breakerActive
+            ? 'danger'
+            : 'normal';
 
     return (
         <div className={`perp-price-ticker perp-price-ticker--${statusClass}`}>
@@ -59,7 +63,7 @@ function PerpPriceTicker({ market }) {
             <div className="perp-ticker-item">
                 <span className="perp-ticker-label">Epoch</span>
                 <span className="perp-ticker-value">
-                    #{market.nowEpoch}
+                    {market.nowEpoch != null ? `#${market.nowEpoch}` : '—'}
                 </span>
             </div>
 
@@ -111,6 +115,9 @@ function PhaseBadge({ phase }) {
 }
 
 function StatusBadge({ breakerActive }) {
+    if (breakerActive == null) {
+        return <span className="perp-status-badge">Unknown</span>;
+    }
     if (breakerActive) {
         return <span className="perp-status-badge perp-status-badge--danger">BREAKER</span>;
     }

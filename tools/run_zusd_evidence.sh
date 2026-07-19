@@ -29,11 +29,7 @@ fi
 echo "== zusd: pytest =="
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/core/test_zusd.py" \
-  "$ROOT_DIR/tests/core/test_zusd_multi.py" \
-  "$ROOT_DIR/tests/core/test_zusd_multi_oracle_commit_mcr.py" \
-  "$ROOT_DIR/tests/core/test_zusd_multi_redeem_selector.py" \
   "$ROOT_DIR/tests/core/test_zusd_coverage_edges.py" \
-  "$ROOT_DIR/tests/integration/test_zusd_api.py" \
   "$ROOT_DIR/tests/integration/test_zusd_monetary_wallet_api.py" \
   "$ROOT_DIR/tests/integration/test_zusd_tau_wallet_api.py" \
   "$ROOT_DIR/tests/integration/test_zusd_tau_gate.py" \
@@ -66,9 +62,6 @@ bash "$ROOT_DIR/tools/run_zusd_risky_ops_assurance_gate.sh"
 echo "== zusd: redeem fee/collateral assurance =="
 bash "$ROOT_DIR/tools/run_zusd_redeem_assurance_gate.sh"
 
-echo "== zusd: multi-redeem selector assurance =="
-bash "$ROOT_DIR/tools/run_zusd_multi_redeem_selector_assurance_gate.sh"
-
 echo "== zusd: liquidation SP absorb assurance =="
 bash "$ROOT_DIR/tools/run_zusd_liquidation_assurance_gate.sh"
 
@@ -80,9 +73,6 @@ bash "$ROOT_DIR/tools/run_zusd_mint_assurance_gate.sh"
 
 echo "== zusd: withdraw-collateral assurance =="
 bash "$ROOT_DIR/tools/run_zusd_withdraw_collateral_assurance_gate.sh"
-
-echo "== zusd: multi-oracle-commit MCR assurance =="
-bash "$ROOT_DIR/tools/run_zusd_multi_oracle_commit_mcr_assurance_gate.sh"
 
 echo "== zusd: oracle-commit assurance =="
 bash "$ROOT_DIR/tools/run_zusd_oracle_commit_assurance_gate.sh"

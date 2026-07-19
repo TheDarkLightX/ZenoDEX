@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-import src.core.batch_clearing_ab_order as batch_clearing_ab_order
 import src.core.batch_clearing as batch_clearing_module
+import src.core.batch_clearing_ab_order as batch_clearing_ab_order
 import src.core.batch_clearing_ordering as batch_clearing_ordering
 from src.core.batch_clearing import (
     _ab_ordering_key as _ab_ordering_key_with_request,
@@ -287,7 +287,7 @@ def test_compute_settlement_request_api_matches_wrapper() -> None:
 
 
 def test_compute_settlement_request_rejects_non_bytes_tiebreak_seed() -> None:
-    with pytest.raises(TypeError, match="swap_tiebreak_seed must be bytes or None"):
+    with pytest.raises(TypeError, match="swap_tiebreak_seed must be exact bytes or None"):
         compute_settlement_for_request(
             ComputeSettlementRequest(
                 intents=[],
@@ -362,7 +362,7 @@ def test_clear_batch_single_pool_request_rejects_non_bytes_tiebreak_seed() -> No
         created_at=0,
     )
 
-    with pytest.raises(TypeError, match="swap_tiebreak_seed must be bytes or None"):
+    with pytest.raises(TypeError, match="swap_tiebreak_seed must be exact bytes or None"):
         clear_batch_single_pool_for_request(
             ClearBatchSinglePoolRequest(
                 intents=[],
@@ -1236,82 +1236,24 @@ def test_apply_settlement_rejects_reserve_and_lp_failures() -> None:
         assert False, "expected negative LP supply to raise"
 
 
-def test_legacy_validate_settlement_rejects_malformed_delta_limbs() -> None:
+def test_delta_seals_reject_malformed_limbs_before_validation() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
-    asset1 = "0x" + "02" * 32
-    pool_id, pool, _ = create_pool(
-        asset0=asset0,
-        asset1=asset1,
-        amount0=2_000_000,
-        amount1=2_000_000,
-        fee_bps=30,
-        creator_pubkey=pk,
-    )
-
-    invalid_balance = Settlement(
-        module="TauSwap",
-        version="0.1",
-        batch_ref="",
-        included_intents=[],
-        fills=[],
-        balance_deltas=[BalanceDelta(pubkey=pk, asset=asset0, delta_add=True, delta_sub=0)],
-        reserve_deltas=[],
-        lp_deltas=[],
-        events=None,
-    )
-    ok, err = validate_settlement(invalid_balance, BalanceTable(), {pool_id: pool}, LPTable())
-    assert ok is False
-    assert err == "balance_delta.delta_add must be a non-negative int"
-
-    invalid_reserve = Settlement(
-        module="TauSwap",
-        version="0.1",
-        batch_ref="",
-        included_intents=[],
-        fills=[],
-        balance_deltas=[],
-        reserve_deltas=[ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=-1, delta_sub=0)],
-        lp_deltas=[],
-        events=None,
-    )
-    ok, err = validate_settlement(invalid_reserve, BalanceTable(), {pool_id: pool}, LPTable())
-    assert ok is False
-    assert err == "reserve_delta.delta_add must be a non-negative int"
-
-    invalid_lp = Settlement(
-        module="TauSwap",
-        version="0.1",
-        batch_ref="",
-        included_intents=[],
-        fills=[],
-        balance_deltas=[],
-        reserve_deltas=[],
-        lp_deltas=[LPDelta(pubkey=pk, pool_id=pool_id, delta_add=0, delta_sub="1")],
-        events=None,
-    )
-    ok, err = validate_settlement(invalid_lp, BalanceTable(), {pool_id: pool}, LPTable())
-    assert ok is False
-    assert err == "lp_delta.delta_sub must be a non-negative int"
-
-
-def test_apply_settlement_rejects_malformed_delta_limbs() -> None:
-    pk = "0x" + "11" * 48
-    asset = "0x" + "01" * 32
-    settlement = Settlement(
-        module="TauSwap",
-        version="0.1",
-        batch_ref="",
-        included_intents=[],
-        fills=[],
-        balance_deltas=[BalanceDelta(pubkey=pk, asset=asset, delta_add=True, delta_sub=0)],
-        reserve_deltas=[],
-        lp_deltas=[],
-        events=None,
-    )
+    pool_id = "0x" + "aa" * 32
 
     with pytest.raises(TypeError, match="balance_delta.delta_add must be a non-negative int"):
-        apply_settlement(settlement, BalanceTable(), {}, LPTable())
+        BalanceDelta(pubkey=pk, asset=asset0, delta_add=True, delta_sub=0)
+    with pytest.raises(TypeError, match="reserve_delta.delta_add must be a non-negative int"):
+        ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=-1, delta_sub=0)
+    with pytest.raises(TypeError, match="lp_delta.delta_sub must be a non-negative int"):
+        LPDelta(pubkey=pk, pool_id=pool_id, delta_add=0, delta_sub="1")
+
+
+def test_balance_delta_seal_rejects_malformed_limb_before_apply() -> None:
+    pk = "0x" + "11" * 48
+    asset = "0x" + "01" * 32
+    with pytest.raises(TypeError, match="balance_delta.delta_add must be a non-negative int"):
+        BalanceDelta(pubkey=pk, asset=asset, delta_add=True, delta_sub=0)
 
 
 def test_apply_settlement_pure_returns_copies_and_applies_create_pool_event() -> None:
@@ -1477,22 +1419,22 @@ def test_chunked_delta_aggregation_rejects_malformed_delta_limbs() -> None:
     asset = "0x" + "01" * 32
     pool_id = "0x" + "aa" * 32
 
-    with pytest.raises(TypeError, match="balance_deltas.delta_add must be a non-negative int"):
+    with pytest.raises(TypeError, match="balance_delta.delta_add must be a non-negative int"):
         _aggregate_balance_deltas_chunked(
             [BalanceDelta(pubkey=pk, asset=asset, delta_add=True, delta_sub=0)],
             chunk_size=1,
         )
-    with pytest.raises(TypeError, match="balance_deltas.delta_sub must be a non-negative int"):
+    with pytest.raises(TypeError, match="balance_delta.delta_sub must be a non-negative int"):
         _aggregate_balance_deltas_chunked(
             [BalanceDelta(pubkey=pk, asset=asset, delta_add=0, delta_sub="1")],
             chunk_size=1,
         )
-    with pytest.raises(TypeError, match="reserve_deltas.delta_add must be a non-negative int"):
+    with pytest.raises(TypeError, match="reserve_delta.delta_add must be a non-negative int"):
         _aggregate_reserve_deltas_chunked(
             [ReserveDelta(pool_id=pool_id, asset=asset, delta_add=-1, delta_sub=0)],
             chunk_size=1,
         )
-    with pytest.raises(TypeError, match="lp_deltas.delta_sub must be a non-negative int"):
+    with pytest.raises(TypeError, match="lp_delta.delta_sub must be a non-negative int"):
         _aggregate_lp_deltas_chunked(
             [LPDelta(pubkey=pk, pool_id=pool_id, delta_add=0, delta_sub=False)],
             chunk_size=1,
@@ -1881,7 +1823,7 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     assert len(swap_reserves) == 2
     assert swap_lp == []
 
-    with pytest.raises(TypeError, match="protocol_fee_paid must be int"):
+    with pytest.raises(TypeError, match="fill.protocol_fee_paid must be a non-negative int"):
         _apply_filled_intent_to_locals(
             intent=swap_intent,
             fill=Fill(
@@ -1901,7 +1843,7 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
             protocol_fee_recipient_pubkey=recipient,
         )
 
-    with pytest.raises(TypeError, match="protocol_fee_paid must be int"):
+    with pytest.raises(TypeError, match="fill.protocol_fee_paid must be a non-negative int"):
         _apply_swap_fill_to_scratch_balances(
             swap_intent,
             Fill(
@@ -1916,7 +1858,12 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
         )
 
     reverse_balances = _fresh_balances()
-    reverse_pool = PoolState(**{**pool.__dict__, "reserve0": 2_000_000, "reserve1": 2_000_000, "lp_supply": lp_minted + 1000})
+    reverse_pool = replace(
+        pool,
+        reserve0=2_000_000,
+        reserve1=2_000_000,
+        lp_supply=lp_minted + 1000,
+    )
     reverse_deltas: list[BalanceDelta] = []
     reverse_reserves: list[ReserveDelta] = []
     reverse_lp: list[LPDelta] = []
@@ -1949,7 +1896,12 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     assert reverse_pool.reserve0 == 1_999_930
 
     cow_balances = _fresh_balances()
-    cow_pool = PoolState(**{**pool.__dict__, "reserve0": 2_000_000, "reserve1": 2_000_000, "lp_supply": lp_minted + 1000})
+    cow_pool = replace(
+        pool,
+        reserve0=2_000_000,
+        reserve1=2_000_000,
+        lp_supply=lp_minted + 1000,
+    )
     cow_reserves: list[ReserveDelta] = []
     _apply_filled_intent_to_locals(
         intent=swap_intent,
@@ -1973,7 +1925,12 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     assert cow_pool.reserve1 == 2_000_000
 
     add_balances = _fresh_balances()
-    add_pool = PoolState(**{**pool.__dict__, "reserve0": 2_000_000, "reserve1": 2_000_000, "lp_supply": lp_minted + 1000})
+    add_pool = replace(
+        pool,
+        reserve0=2_000_000,
+        reserve1=2_000_000,
+        lp_supply=lp_minted + 1000,
+    )
     add_lp = LPTable()
     add_balance_deltas: list[BalanceDelta] = []
     add_reserve_deltas: list[ReserveDelta] = []
@@ -2013,7 +1970,12 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     assert len(add_lp_deltas) == 1
 
     remove_balances = _fresh_balances()
-    remove_pool = PoolState(**{**pool.__dict__, "reserve0": 2_000_000, "reserve1": 2_000_000, "lp_supply": lp_minted + 1000})
+    remove_pool = replace(
+        pool,
+        reserve0=2_000_000,
+        reserve1=2_000_000,
+        lp_supply=lp_minted + 1000,
+    )
     remove_lp = LPTable()
     remove_lp.set(pk, pool_id, 500)
     remove_balance_deltas: list[BalanceDelta] = []
@@ -2055,32 +2017,16 @@ def test_apply_filled_intent_to_locals_handles_swap_liquidity_and_cow_paths() ->
     assert len(remove_reserve_deltas) == 2
     assert len(remove_lp_deltas) == 1
 
-    unsupported_pool = PoolState(**{**pool.__dict__, "reserve0": 2_000_000, "reserve1": 2_000_000, "lp_supply": lp_minted + 1000})
-    weird_intent = Intent(
-        module="TauSwap",
-        version="0.1",
-        kind="MYSTERY_KIND",
-        intent_id=_iid(1016),
-        sender_pubkey=pk,
-        deadline=9999999999,
-        fields={"pool_id": pool_id},
-    )
-    try:
-        _apply_filled_intent_to_locals(
-            intent=weird_intent,
-            fill=Fill(intent_id=weird_intent.intent_id, action=FillAction.FILL),
-            pool_id=pool_id,
-            pool_state=unsupported_pool,
-            balances=_fresh_balances(),
-            lp_balances=LPTable(),
-            balance_deltas=[],
-            reserve_deltas=[],
-            lp_deltas=[],
+    with pytest.raises(TypeError, match="kind must be an exact IntentKind"):
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind="MYSTERY_KIND",  # type: ignore[arg-type]
+            intent_id=_iid(1016),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={"pool_id": pool_id},
         )
-    except ValueError as exc:
-        assert str(exc) == "Unsupported intent kind for fill application: MYSTERY_KIND"
-    else:
-        assert False, "expected unsupported intent kind to raise"
 
 
 def test_compute_and_clear_single_pool_reject_unsupported_swap_ordering() -> None:
@@ -2240,12 +2186,12 @@ def test_process_swap_intent_reject_matrix_and_helper_paths(monkeypatch) -> None
     ).reason == "COMPUTATION_ERROR: boom"
     monkeypatch.undo()
 
-    assert _process_swap_intent(
-        _swap_intent(_iid(1111), "MYSTERY_KIND", {"asset_in": asset0, "asset_out": asset1}),
-        reserves,
-        pool,
-        balances,
-    ).reason == "UNKNOWN_INTENT_TYPE"
+    with pytest.raises(TypeError, match="kind must be an exact IntentKind"):
+        _swap_intent(
+            _iid(1111),
+            "MYSTERY_KIND",
+            {"asset_in": asset0, "asset_out": asset1},
+        )
 
 
 def test_process_liquidity_intent_reject_matrix_and_helper_paths(monkeypatch) -> None:
@@ -2393,12 +2339,8 @@ def test_process_liquidity_intent_reject_matrix_and_helper_paths(monkeypatch) ->
     ).reason == "COMPUTATION_ERROR: boom_remove"
     monkeypatch.undo()
 
-    assert _process_liquidity_intent(
-        _liq_intent(_iid(1126), "MYSTERY_KIND", {}),
-        pool,
-        lp_balances,
-        balances,
-    ).reason == "UNKNOWN_INTENT_TYPE"
+    with pytest.raises(TypeError, match="kind must be an exact IntentKind"):
+        _liq_intent(_iid(1126), "MYSTERY_KIND", {})
 
 
 def test_simulate_swap_reserves_and_ab_helpers_cover_fallbacks() -> None:
@@ -3356,7 +3298,7 @@ def test_clear_batch_single_pool_rejects_malformed_liquidity_fill_from_factory(m
         )
 
     monkeypatch.setattr(batch_clearing_module, "_process_liquidity_intent", _bad_process_liquidity_intent)
-    with pytest.raises(TypeError, match="ADD_LIQUIDITY fill.amount0_used must be int"):
+    with pytest.raises(TypeError, match="fill.amount0_used must be a non-negative int"):
         clear_batch_single_pool([add_intent], pool, balances, LPTable(), swap_ordering="limit_price")
 
 
@@ -3418,7 +3360,7 @@ def test_clear_batch_single_pool_handles_successful_liquidity_and_reverse_exact_
     assert by_id[remove_liq.intent_id].action == FillAction.FILL
 
 
-def test_get_limit_price_exact_out_zero_and_unknown_kind() -> None:
+def test_get_limit_price_exact_out_zero_and_intent_rejects_unknown_kind() -> None:
     exact_out = Intent(
         module="TauSwap",
         version="0.1",
@@ -3433,16 +3375,16 @@ def test_get_limit_price_exact_out_zero_and_unknown_kind() -> None:
     zero_max = replace(exact_out, intent_id=_iid(1362), fields={"amount_out": 100, "max_amount_in": 0})
     assert _get_limit_price(zero_max) == 0
 
-    unknown = Intent(
-        module="TauSwap",
-        version="0.1",
-        kind="MYSTERY_KIND",
-        intent_id=_iid(1363),
-        sender_pubkey="0x" + "11" * 48,
-        deadline=9999999999,
-        fields={},
-    )
-    assert _get_limit_price(unknown) == 0
+    with pytest.raises(TypeError, match="kind must be an exact IntentKind"):
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind="MYSTERY_KIND",  # type: ignore[arg-type]
+            intent_id=_iid(1363),
+            sender_pubkey="0x" + "11" * 48,
+            deadline=9999999999,
+            fields={},
+        )
 
 
 def test_order_swaps_optimal_ab_bounded_exact_out_exception_path(monkeypatch) -> None:
@@ -3489,48 +3431,21 @@ def test_order_swaps_optimal_ab_bounded_exact_out_exception_path(monkeypatch) ->
     assert sorted(it.intent_id for it in result) == sorted(it.intent_id for it in intents)
 
 
-def test_order_swaps_optimal_ab_bounded_skips_unknown_kind_in_objective_loop() -> None:
+def test_order_swaps_optimal_ab_bounded_rejects_unknown_kind_at_constructor() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
-    _pool_id, pool, _ = create_pool(
-        asset0=asset0,
-        asset1=asset1,
-        amount0=2_000_000,
-        amount1=2_000_000,
-        fee_bps=30,
-        creator_pubkey=pk,
-    )
-    balances = BalanceTable()
-    balances.set(pk, asset0, 10_000)
-    reserves = (pool.reserve0, pool.reserve1)
 
-    unknown = Intent(
-        module="TauSwap",
-        version="0.1",
-        kind="MYSTERY_KIND",
-        intent_id=_iid(1369),
-        sender_pubkey=pk,
-        deadline=9999999999,
-        fields={"asset_in": asset0, "asset_out": asset1},
-    )
-    exact_out = Intent(
-        module="TauSwap",
-        version="0.1",
-        kind=IntentKind.SWAP_EXACT_OUT,
-        intent_id=_iid(1370),
-        sender_pubkey=pk,
-        deadline=9999999999,
-        fields={"asset_in": asset0, "asset_out": asset1, "amount_out": 100, "max_amount_in": 500},
-    )
-
-    result = _order_swaps_optimal_ab_bounded(
-        [unknown, exact_out],
-        pool_state=pool,
-        balances=balances,
-        reserves=reserves,
-    )
-    assert sorted(it.intent_id for it in result) == [unknown.intent_id, exact_out.intent_id]
+    with pytest.raises(TypeError, match="kind must be an exact IntentKind"):
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind="MYSTERY_KIND",  # type: ignore[arg-type]
+            intent_id=_iid(1369),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={"asset_in": asset0, "asset_out": asset1},
+        )
 
 
 def test_cow_pair_netting_bruteforce_prunes_overdrawn_x_sender() -> None:
@@ -3721,8 +3636,8 @@ def test_cow_pair_netting_bruteforce_tie_breaks_to_smallest_pair_ids() -> None:
 
 def test_cow_assignment_matches_bruteforce_pair_id_tie_on_uncoupled_surface() -> None:
     from src.core.batch_clearing_cow_search import (
-        _CowSelectionContext,
         _cow_pair_selection_key,
+        _CowSelectionContext,
         _partition_cow_candidates,
         _select_cow_pairs_assignment,
         _select_cow_pairs_bruteforce,
@@ -3846,9 +3761,9 @@ def test_cow_pair_netting_capacity_dp_filters_balance_and_feasibility() -> None:
 
 def test_cow_pair_netting_capacity_dp_beats_greedy_for_coupled_sender() -> None:
     from src.core.batch_clearing_cow_search import (
-        _CowSelectionContext,
         _assignment_balance_safe,
         _cow_pair_selection_key,
+        _CowSelectionContext,
         _is_better_cow_pair_key,
         _partition_cow_candidates,
         _select_cow_pairs,
@@ -3987,8 +3902,8 @@ def test_cow_pair_netting_assignment_beats_greedy_above_old_cap() -> None:
 
 def test_cow_pair_netting_large_coupled_solves_independent_small_component() -> None:
     from src.core.batch_clearing_cow_search import (
-        _CowSelectionContext,
         _cow_pair_selection_key,
+        _CowSelectionContext,
         _partition_cow_candidates,
         _select_cow_pairs,
         _select_cow_pairs_large_coupled_defer,
@@ -4063,8 +3978,8 @@ def test_cow_pair_netting_large_coupled_solves_independent_small_component() -> 
 
 def test_cow_pair_netting_large_star_capacity_component_selects_best_single_pair() -> None:
     from src.core.batch_clearing_cow_search import (
-        _CowSelectionContext,
         _cow_pair_selection_key,
+        _CowSelectionContext,
         _partition_cow_candidates,
         _select_cow_pairs,
     )
@@ -4123,8 +4038,8 @@ def test_cow_pair_netting_large_star_capacity_component_selects_best_single_pair
 
 def test_cow_pair_netting_large_sender_slot_component_selects_best_matching() -> None:
     from src.core.batch_clearing_cow_search import (
-        _CowSelectionContext,
         _cow_pair_selection_key,
+        _CowSelectionContext,
         _partition_cow_candidates,
         _select_cow_pairs,
     )
@@ -4184,8 +4099,8 @@ def test_cow_pair_netting_large_sender_slot_component_selects_best_matching() ->
 
 def test_cow_pair_netting_large_multi_choice_component_uses_oriented_dp() -> None:
     from src.core.batch_clearing_cow_search import (
-        _CowSelectionContext,
         _cow_pair_selection_key,
+        _CowSelectionContext,
         _partition_cow_candidates,
         _select_cow_pairs,
     )
@@ -4252,9 +4167,9 @@ def test_cow_pair_netting_large_multi_choice_component_uses_oriented_dp() -> Non
 
 def test_cow_capacity_dp_orients_to_smaller_mask_side() -> None:
     from src.core.batch_clearing_cow_search import (
-        _CowSelectionContext,
         _cow_capacity_dp_state_estimate,
         _cow_pair_selection_key,
+        _CowSelectionContext,
         _partition_cow_candidates,
         _select_cow_pairs_bruteforce,
         _select_cow_pairs_capacity_dp,
@@ -4325,9 +4240,9 @@ def test_cow_capacity_dp_orients_to_smaller_mask_side() -> None:
 def test_cow_large_equal_amount_component_uses_atomic_bmatching() -> None:
     from src.core.batch_clearing_cow_search import (
         _COW_COUPLED_EXACT_DP_STATE_CAP,
-        _CowSelectionContext,
         _cow_capacity_dp_state_estimate,
         _cow_pair_selection_key,
+        _CowSelectionContext,
         _partition_cow_candidates,
         _select_cow_pairs,
     )
@@ -4388,9 +4303,9 @@ def test_cow_large_equal_amount_component_uses_atomic_bmatching() -> None:
 def test_cow_nonuniform_overbalance_rows_pruned_before_state_cap() -> None:
     from src.core.batch_clearing_cow_search import (
         _COW_COUPLED_EXACT_DP_STATE_CAP,
-        _CowSelectionContext,
         _cow_capacity_dp_state_estimate,
         _cow_pair_selection_key,
+        _CowSelectionContext,
         _partition_cow_candidates,
         _select_cow_pairs,
     )
@@ -4462,9 +4377,9 @@ def test_cow_nonuniform_overbalance_rows_pruned_before_state_cap() -> None:
 
 def test_cow_atomic_bmatching_matches_capacity_dp_below_state_cap() -> None:
     from src.core.batch_clearing_cow_search import (
+        _cow_pair_selection_key,
         _CowComponent,
         _CowSelectionContext,
-        _cow_pair_selection_key,
         _partition_cow_candidates,
         _select_cow_pairs_atomic_bmatching,
         _select_cow_pairs_capacity_dp,
@@ -4528,9 +4443,9 @@ def test_cow_atomic_bmatching_matches_capacity_dp_below_state_cap() -> None:
 
 def test_cow_sender_slot_quotient_matches_capacity_dp_below_cap() -> None:
     from src.core.batch_clearing_cow_search import (
+        _cow_pair_selection_key,
         _CowComponent,
         _CowSelectionContext,
-        _cow_pair_selection_key,
         _partition_cow_candidates,
         _select_cow_pairs_capacity_dp,
         _select_cow_pairs_sender_slot_quotient,

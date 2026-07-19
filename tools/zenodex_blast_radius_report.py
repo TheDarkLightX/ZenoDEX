@@ -24,7 +24,6 @@ from typing import Any, Iterable, Mapping, Optional
 
 import yaml
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -36,7 +35,7 @@ from src.core.intent_access import (  # noqa: E402
 )
 from src.core.quote_receipts import verify_route_quote_receipt  # noqa: E402
 from src.integration.dex_snapshot import state_from_snapshot  # noqa: E402
-from src.integration.operations import parse_signed_intents  # noqa: E402
+from src.integration.operations import SignedIntentEnvelope, parse_signed_intents  # noqa: E402
 from src.state.intents import Intent, IntentKind  # noqa: E402
 from src.state.pools import PoolState, compute_pool_id  # noqa: E402
 from src.state.state_root import compute_state_root  # noqa: E402
@@ -44,7 +43,6 @@ from src.state.support_root import (  # noqa: E402
     compute_support_state_root,
     derive_batch_state_support,
 )
-
 
 CLAIMS_REGISTRY_PATH = REPO_ROOT / "docs" / "claims_registry.yaml"
 SYSTEM_SPEC_PATH = REPO_ROOT / "src" / "kernels" / "dex" / "zenodex_system_compose_v2.yaml"
@@ -324,12 +322,12 @@ def _intent_assets(
 
 def _has_nonce(intent: Intent) -> bool:
     fields = intent.fields or {}
-    return isinstance(fields, dict) and "nonce" in fields
+    return isinstance(fields, Mapping) and "nonce" in fields
 
 
 def _has_quote_receipt_hash(intent: Intent) -> bool:
     fields = intent.fields or {}
-    value = fields.get("quote_receipt_hash") if isinstance(fields, dict) else None
+    value = fields.get("quote_receipt_hash") if isinstance(fields, Mapping) else None
     return isinstance(value, str) and bool(value)
 
 
@@ -588,7 +586,9 @@ def build_blast_radius_report(
 
     created_pools = _created_pool_assets(intents)
     accesses = _intent_accesses(intents, pools=pools)
-    access_by_id = {intent.intent_id: access for intent, access in zip(intents, accesses)}
+    access_by_id = {
+        intent.intent_id: access for intent, access in zip(intents, accesses, strict=True)
+    }
     groups = partition_independent_intents(intents, pools=pools)
     support = derive_batch_state_support(intents, pools=pools)
 

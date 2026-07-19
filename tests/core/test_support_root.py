@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any, cast
 
 import pytest
@@ -516,7 +517,7 @@ def test_support_root_commits_add_liquidity_recipient_duration_metadata() -> Non
     assert after != before
 
 
-def test_derive_batch_state_support_covers_missing_add_liquidity_pool_and_unknown_kind() -> None:
+def test_derive_batch_state_support_covers_missing_pool_and_rejects_unknown_kind() -> None:
     pk = "0x" + "11" * 48
 
     missing_pool_add = Intent(
@@ -528,18 +529,14 @@ def test_derive_batch_state_support_covers_missing_add_liquidity_pool_and_unknow
         deadline=9999999999,
         fields={},
     )
-    unknown = Intent(
-        module="TauSwap",
-        version="0.1",
-        kind=IntentKind.ADD_LIQUIDITY,
-        intent_id=_iid(20),
-        sender_pubkey=pk,
-        deadline=9999999999,
-        fields={},
-    )
-    unknown.kind = "UNKNOWN_KIND"
+    with pytest.raises(TypeError, match="kind must be an exact IntentKind"):
+        replace(
+            missing_pool_add,
+            kind=cast(Any, "UNKNOWN_KIND"),
+            intent_id=_iid(20),
+        )
 
-    support = derive_batch_state_support([missing_pool_add, unknown], pools={})
+    support = derive_batch_state_support([missing_pool_add], pools={})
     assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=(pk,))
 
 

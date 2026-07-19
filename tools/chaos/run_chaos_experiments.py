@@ -774,9 +774,6 @@ def run_api_server_oversized_body(
         server = ThreadingHTTPServer(("127.0.0.1", port), _Handler)
         server.rate_limiter = TokenBucketRateLimiter(rpm=0)  # type: ignore
         server.cors_origins = set()  # type: ignore
-        server.demo_api_token = ""  # type: ignore
-        server.perps_api_enabled = False  # type: ignore
-        server.zusd_api_enabled = False  # type: ignore
         server.dex_api_enabled = True  # type: ignore
 
         server_thread = threading.Thread(target=server.handle_request, daemon=True)

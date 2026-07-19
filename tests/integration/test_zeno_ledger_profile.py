@@ -12,12 +12,8 @@ from src.integration.zeno_ledger_profile import (
     DEPLOYMENT_MODE_ZENO_SOVEREIGN_TESTNET_V0,
     TOKEN_SCOPE_NONE_V0,
     TOKEN_SCOPE_ZENO_LEDGER_TESTNET_V0,
-    clone_profile_with_new_id_v0,
     make_zeno_ledger_profile_v0,
     profile_content_hash_v0,
-    sample_local_sandbox_profile_v0,
-    sample_tau_exclusive_release_profile_v0,
-    sample_zeno_sovereign_testnet_profile_v0,
     validate_checkpoint_admission_v0,
     validate_zeno_ledger_profile_v0,
 )
@@ -27,6 +23,12 @@ from src.integration.zeno_ledger_v0 import (
     build_header_v0,
     compute_app_hash_v0,
     hash_v0,
+)
+from tests.support.zeno_ledger_profile_fixture import clone_profile_with_new_id_v0
+from tools.support.zeno_ledger_profile_samples import (
+    sample_local_sandbox_profile_v0,
+    sample_tau_exclusive_release_profile_v0,
+    sample_zeno_sovereign_testnet_profile_v0,
 )
 
 ROOT = Path(__file__).resolve().parents[2]

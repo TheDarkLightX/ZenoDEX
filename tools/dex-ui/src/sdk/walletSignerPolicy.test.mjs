@@ -1,63 +1,70 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { browserKeyGenerationAllowed, connectPreferredWallet } from './walletSignerPolicy.js';
+import { connectPreferredWallet } from './walletSignerPolicy.js';
 import { hashV0 } from './zenoProofClient.js';
 
-const CHAIN_ID = 'zeno-ledger-localtest-v0';
+const CHAIN_ID = 'zeno-ledger-production-v1';
 const PUBKEY = `0x${'11'.repeat(48)}`;
 const PRIVKEY = `0x${'22'.repeat(32)}`;
-const ROOT = `0x${'aa'.repeat(32)}`;
-const RUNTIME_DEFAULT_SCHEMA = 'zenodex/dex-ui/runtime-default-external-signer/v0';
+const PROVIDER = 'independent-hardware-signer';
+const RUNTIME_DEFAULT_SCHEMA = 'zenodex/dex-ui/runtime-default-external-signer/v1';
+const SECURITY_PROFILE = 'external-signer-v1';
 
-async function makePublicReceipt({ publicKey = PUBKEY, chainId = CHAIN_ID } = {}) {
-  const vault = {
-    schema: 'zenodex/local_signer/vault/v0',
-    version: 1,
-    provider: 'zenodex-local-signer-v0',
-    key_id: 'ui-test-local-signer',
+async function makePublicReceipt({
+  publicKey = PUBKEY,
+  chainId = CHAIN_ID,
+  provider = PROVIDER,
+  approvalMode = 'prompt',
+  userApprovalRequired = true,
+  bridgeAuthRequired = true,
+} = {}) {
+  const body = {
+    schema: 'zenodex/external_signer/public_receipt/v1',
+    provider,
+    key_id: 'signing-key-7',
     public_key: publicKey,
     algorithm: 'bls12-381-g2-basic-release-v0',
     chain_id: chainId,
     allowed_chain_ids: [chainId],
-    created_at_epoch: 1,
-    keygen_method: 'tau-testnet-console-wallet-py-ecc-g2basic-keygen-v0',
-    storage_backend: 'encrypted-local-vault-scrypt-aesgcm-v0',
-    browser_generated: false,
-    zenodex_custody: false,
-    encrypted_payload_hash: ROOT,
-  };
-  const vault_hash = await hashV0('local_signer_public_vault_v0', vault);
-  const body = {
-    schema: 'zenodex/local_signer/public_receipt/v0',
-    provider: 'zenodex-local-signer-v0',
-    vault_hash,
-    vault,
-    approval_mode: 'prompt',
-    signer_user_approval_required: true,
-    browser_bridge_auth_required: true,
+    issued_at_epoch: 7,
+    approval_mode: approvalMode,
+    signer_user_approval_required: userApprovalRequired,
+    bridge_auth_required: bridgeAuthRequired,
     browser_generated: false,
     zenodex_custody: false,
   };
   return {
     ...body,
-    receipt_hash: await hashV0('local_signer_public_receipt_v0', body),
+    receipt_hash: await hashV0('external_signer_public_receipt_v1', body),
   };
 }
 
-test('wallet policy prefers external signer bridge with a verified public receipt', async () => {
+function runtimeSignerConfig(publicReceipt, overrides = {}) {
+  return {
+    schema: RUNTIME_DEFAULT_SCHEMA,
+    signerSecurityProfile: SECURITY_PROFILE,
+    signerProvider: PROVIDER,
+    address: PUBKEY,
+    chainId: CHAIN_ID,
+    publicReceipt,
+    ...overrides,
+  };
+}
+
+test('wallet policy accepts an injected generic signer with a verified public receipt', async () => {
   const signTauTransactionPayload = async () => ({ ok: true });
   const signDexIntentForEngine = async () => '0xsignature';
   const publicReceipt = await makePublicReceipt();
   const wallet = await connectPreferredWallet({
     chainId: CHAIN_ID,
     globalObject: {
-      zenodexLocalSigner: {
+      zenodexSigner: {
         signTauTransactionPayload,
         signDexIntentForEngine,
         connect: async ({ chainId }) => ({
           address: PUBKEY,
           chainId,
-          signerProvider: 'zenodex-local-signer-v0',
+          signerProvider: PROVIDER,
           publicReceipt,
         }),
       },
@@ -66,8 +73,7 @@ test('wallet policy prefers external signer bridge with a verified public receip
 
   assert.equal(wallet.address, PUBKEY);
   assert.equal(wallet.chainId, CHAIN_ID);
-  assert.equal(wallet.signerProvider, 'zenodex-local-signer-v0');
-  assert.equal(wallet.localTestnetGenerated, false);
+  assert.equal(wallet.signerProvider, PROVIDER);
   assert.deepEqual(wallet.publicReceipt, publicReceipt);
   assert.equal(Object.hasOwn(wallet, 'privkey'), false);
   assert.equal(typeof wallet.signTauTransactionPayload, 'function');
@@ -76,7 +82,7 @@ test('wallet policy prefers external signer bridge with a verified public receip
   assert.equal(await wallet.signDexIntentForEngine(), '0xsignature');
 });
 
-test('wallet policy rejects external signer bridge that returns private key material', async () => {
+test('wallet policy rejects any secret material returned by an external signer', async () => {
   await assert.rejects(
     connectPreferredWallet({
       chainId: CHAIN_ID,
@@ -84,6 +90,7 @@ test('wallet policy rejects external signer bridge that returns private key mate
         zenodexSecureSigner: {
           connect: async () => ({
             address: PUBKEY,
+            signerProvider: PROVIDER,
             publicReceipt: await makePublicReceipt(),
             private_key_hex: PRIVKEY,
           }),
@@ -94,56 +101,64 @@ test('wallet policy rejects external signer bridge that returns private key mate
   );
 });
 
-test('wallet policy rejects external signer bridge without public receipt', async () => {
+test('wallet policy requires a receipt and binds it to key, chain, and provider', async () => {
   await assert.rejects(
     connectPreferredWallet({
       chainId: CHAIN_ID,
       globalObject: {
-        zenodexLocalSigner: {
-          connect: async () => ({
-            address: PUBKEY,
-            chainId: CHAIN_ID,
-          }),
+        zenodexSigner: {
+          connect: async () => ({ address: PUBKEY, chainId: CHAIN_ID, signerProvider: PROVIDER }),
         },
       },
     }),
     /public_receipt_required/,
   );
-});
 
-test('wallet policy rejects forged local signer public receipt', async () => {
-  const publicReceipt = await makePublicReceipt();
-  publicReceipt.vault.public_key = `0x${'12'.repeat(48)}`;
-
+  const forged = await makePublicReceipt();
+  forged.public_key = `0x${'12'.repeat(48)}`;
   await assert.rejects(
     connectPreferredWallet({
       chainId: CHAIN_ID,
       globalObject: {
-        zenodexLocalSigner: {
+        zenodexSigner: {
           connect: async () => ({
             address: PUBKEY,
             chainId: CHAIN_ID,
-            publicReceipt,
+            signerProvider: PROVIDER,
+            publicReceipt: forged,
           }),
         },
       },
     }),
-    /public_key_mismatch|vault_hash_mismatch|receipt_hash_mismatch/,
+    /public_key_mismatch|receipt_hash_mismatch/,
   );
 });
 
-test('wallet policy rejects unattended signer receipt in strict deployment', async () => {
-  const publicReceipt = await makePublicReceipt();
-  const body = { ...publicReceipt };
-  delete body.receipt_hash;
-  body.approval_mode = 'unattended';
-  body.signer_user_approval_required = false;
-  body.browser_bridge_auth_required = true;
-  publicReceipt.approval_mode = body.approval_mode;
-  publicReceipt.signer_user_approval_required = body.signer_user_approval_required;
-  publicReceipt.browser_bridge_auth_required = body.browser_bridge_auth_required;
-  publicReceipt.receipt_hash = await hashV0('local_signer_public_receipt_v0', body);
+test('wallet policy rejects a wallet for a different requested chain', async () => {
+  const otherChain = 'another-production-chain';
+  await assert.rejects(
+    connectPreferredWallet({
+      chainId: CHAIN_ID,
+      globalObject: {
+        zenodexSigner: {
+          connect: async () => ({
+            address: PUBKEY,
+            chainId: otherChain,
+            signerProvider: PROVIDER,
+            publicReceipt: await makePublicReceipt({ chainId: otherChain }),
+          }),
+        },
+      },
+    }),
+    /chain_id_mismatch/,
+  );
+});
 
+test('strict deployments require prompt approval and authenticated bridge pairing', async () => {
+  const unattendedReceipt = await makePublicReceipt({
+    approvalMode: 'unattended',
+    userApprovalRequired: false,
+  });
   await assert.rejects(
     connectPreferredWallet({
       chainId: CHAIN_ID,
@@ -151,88 +166,86 @@ test('wallet policy rejects unattended signer receipt in strict deployment', asy
       runtimeConfig: {
         deployment: 'production',
         allowDefaultExternalSigner: true,
-        defaultExternalSigner: {
-          schema: RUNTIME_DEFAULT_SCHEMA,
-          signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-          address: PUBKEY,
-          chainId: CHAIN_ID,
-          publicReceipt,
-        },
+        defaultExternalSigner: runtimeSignerConfig(unattendedReceipt),
       },
     }),
     /user_approval_required/,
   );
-});
 
-test('wallet policy accepts local-testnet runtime default external signer with public receipt', async () => {
-  const publicReceipt = await makePublicReceipt();
-  const wallet = await connectPreferredWallet({
-    chainId: CHAIN_ID,
-    globalObject: {},
-    runtimeConfig: {
-      deployment: 'local-testnet',
-      defaultExternalSigner: {
-        schema: RUNTIME_DEFAULT_SCHEMA,
-        signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-        address: PUBKEY,
-        chainId: CHAIN_ID,
-        signerProvider: 'zenodex-local-signer-v0',
-        publicReceipt,
-      },
-    },
-  });
-
-  assert.equal(wallet.address, PUBKEY);
-  assert.equal(wallet.chainId, CHAIN_ID);
-  assert.equal(wallet.signerProvider, 'zenodex-local-signer-v0');
-  assert.equal(wallet.signerSecurityProfile, 'native-desktop-loopback-signer-v0');
-  assert.equal(wallet.localTestnetGenerated, false);
-  assert.equal(Object.hasOwn(wallet, 'privkey'), false);
-  assert.deepEqual(wallet.publicReceipt, publicReceipt);
-});
-
-test('wallet policy rejects runtime default external signer outside allowed deployment', async () => {
+  const unauthenticatedReceipt = await makePublicReceipt({ bridgeAuthRequired: false });
   await assert.rejects(
     connectPreferredWallet({
       chainId: CHAIN_ID,
       globalObject: {},
       runtimeConfig: {
         deployment: 'production',
-        defaultExternalSigner: {
-          schema: RUNTIME_DEFAULT_SCHEMA,
-          signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-          address: PUBKEY,
-          chainId: CHAIN_ID,
-          publicReceipt: await makePublicReceipt(),
-        },
+        allowDefaultExternalSigner: true,
+        defaultExternalSigner: runtimeSignerConfig(unauthenticatedReceipt),
+      },
+    }),
+    /bridge_auth_required/,
+  );
+});
+
+test('wallet policy accepts an explicitly enabled generic runtime signer', async () => {
+  const publicReceipt = await makePublicReceipt();
+  const wallet = await connectPreferredWallet({
+    chainId: CHAIN_ID,
+    globalObject: {},
+    runtimeConfig: {
+      deployment: 'production',
+      allowDefaultExternalSigner: true,
+      defaultExternalSigner: runtimeSignerConfig(publicReceipt),
+    },
+  });
+
+  assert.equal(wallet.address, PUBKEY);
+  assert.equal(wallet.signerProvider, PROVIDER);
+  assert.equal(wallet.signerSecurityProfile, SECURITY_PROFILE);
+  assert.equal(Object.hasOwn(wallet, 'privkey'), false);
+});
+
+test('wallet policy rejects a runtime signer unless it is explicitly enabled', async () => {
+  await assert.rejects(
+    connectPreferredWallet({
+      chainId: CHAIN_ID,
+      globalObject: {},
+      runtimeConfig: {
+        deployment: 'production',
+        defaultExternalSigner: runtimeSignerConfig(await makePublicReceipt()),
       },
     }),
     /runtime_default_external_signer_not_allowed/,
   );
 });
 
-test('wallet policy rejects runtime default external signer private key material', async () => {
+test('wallet policy rejects unsupported or implicit runtime security profiles', async () => {
+  const publicReceipt = await makePublicReceipt();
   await assert.rejects(
     connectPreferredWallet({
       chainId: CHAIN_ID,
       globalObject: {},
       runtimeConfig: {
-        deployment: 'local-testnet',
-        defaultExternalSigner: {
-          schema: RUNTIME_DEFAULT_SCHEMA,
-          signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-          address: PUBKEY,
-          chainId: CHAIN_ID,
-          publicReceipt: await makePublicReceipt(),
-          private_key_hex: PRIVKEY,
-        },
+        allowDefaultExternalSigner: true,
+        defaultExternalSigner: runtimeSignerConfig(publicReceipt, { signerSecurityProfile: undefined }),
       },
     }),
-    /private_key_material/,
+    /security_profile_required/,
+  );
+  await assert.rejects(
+    connectPreferredWallet({
+      chainId: CHAIN_ID,
+      globalObject: {},
+      runtimeConfig: {
+        allowDefaultExternalSigner: true,
+        defaultExternalSigner: runtimeSignerConfig(publicReceipt, { signerSecurityProfile: 'opaque-custody-v0' }),
+      },
+    }),
+    /security_profile_unsupported/,
   );
 });
 
-test('wallet policy wires local runtime default signer endpoint without browser private key', async () => {
+test('wallet policy signs through same-origin generic endpoints without browser keys', async () => {
   const publicReceipt = await makePublicReceipt();
   const txSignature = '33'.repeat(96);
   const dexSignature = `0x${'44'.repeat(96)}`;
@@ -241,58 +254,49 @@ test('wallet policy wires local runtime default signer endpoint without browser 
     chainId: CHAIN_ID,
     globalObject: {
       fetch: async (url, options) => {
-        const body = JSON.parse(options.body);
-        seen.push({ url, body });
-        const payload = url.includes('tau')
-          ? { signature: txSignature }
-          : { signature: dexSignature };
+        seen.push({ url, body: JSON.parse(options.body) });
         return {
           ok: true,
-          text: async () => JSON.stringify(payload),
+          text: async () => JSON.stringify({
+            signature: url.includes('tau') ? txSignature : dexSignature,
+          }),
         };
       },
     },
     runtimeConfig: {
-      deployment: 'local-testnet',
-      defaultExternalSigner: {
-        schema: RUNTIME_DEFAULT_SCHEMA,
-        signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-        address: PUBKEY,
-        chainId: CHAIN_ID,
-        publicReceipt,
-        signTauTransactionPayloadUrl: 'http://127.0.0.1:8799/sign-tau-transaction-payload',
-        signDexIntentForEngineUrl: '/api/local-signer/sign-dex-intent',
-      },
+      deployment: 'production',
+      allowDefaultExternalSigner: true,
+      defaultExternalSigner: runtimeSignerConfig(publicReceipt, {
+        signTauTransactionPayloadUrl: '/api/external-signer/sign-tau',
+        signDexIntentForEngineUrl: '/api/external-signer/sign-intent',
+      }),
     },
   });
 
   const signedTauTx = await wallet.signTauTransactionPayload({
     chainId: CHAIN_ID,
-    senderPubkey: PUBKEY.slice(2),
+    senderPubkey: PUBKEY,
     sequenceNumber: 7,
     expirationTime: 99,
-    operations: { 8: { action: 'local-testnet-check' } },
+    operations: { 8: { action: 'set-position' } },
     feeLimit: '0',
   });
-  const signedDexIntent = await wallet.signDexIntentForEngine({ sender_pubkey: PUBKEY }, { chainId: CHAIN_ID });
+  const signedDexIntent = await wallet.signDexIntentForEngine(
+    { sender_pubkey: PUBKEY },
+    { chainId: CHAIN_ID },
+  );
 
   assert.equal(signedTauTx.sender_pubkey, PUBKEY.slice(2));
   assert.equal(signedTauTx.sequence_number, 7);
   assert.equal(signedTauTx.signature, txSignature);
-  assert.deepEqual(seen[1].body, {
-    chainId: CHAIN_ID,
-    intent: { sender_pubkey: PUBKEY },
-  });
   assert.equal(signedDexIntent, dexSignature);
   assert.deepEqual(seen.map((item) => item.url), [
-    'http://127.0.0.1:8799/sign-tau-transaction-payload',
-    '/api/local-signer/sign-dex-intent',
+    '/api/external-signer/sign-tau',
+    '/api/external-signer/sign-intent',
   ]);
-  assert.equal(Object.hasOwn(wallet, 'privkey'), false);
 });
 
-test('wallet policy rejects runtime signer Tau payload mutation', async () => {
-  const publicReceipt = await makePublicReceipt();
+test('wallet policy rejects any mutation of a requested Tau transaction', async () => {
   const wallet = await connectPreferredWallet({
     chainId: CHAIN_ID,
     globalObject: {
@@ -311,15 +315,11 @@ test('wallet policy rejects runtime signer Tau payload mutation', async () => {
       }),
     },
     runtimeConfig: {
-      deployment: 'local-testnet',
-      defaultExternalSigner: {
-        schema: RUNTIME_DEFAULT_SCHEMA,
-        signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-        address: PUBKEY,
-        chainId: CHAIN_ID,
-        publicReceipt,
-        signTauTransactionPayloadUrl: 'http://127.0.0.1:8799/sign-tau-transaction-payload',
-      },
+      deployment: 'production',
+      allowDefaultExternalSigner: true,
+      defaultExternalSigner: runtimeSignerConfig(await makePublicReceipt(), {
+        signTauTransactionPayloadUrl: '/api/external-signer/sign-tau',
+      }),
     },
   });
 
@@ -336,122 +336,23 @@ test('wallet policy rejects runtime signer Tau payload mutation', async () => {
   );
 });
 
-test('wallet policy can load runtime default signer wallet through loopback connect URL', async () => {
+test('wallet policy keeps pairing tokens out of the wallet and sends them only on signing', async () => {
   const publicReceipt = await makePublicReceipt();
   const seen = [];
   const wallet = await connectPreferredWallet({
     chainId: CHAIN_ID,
     globalObject: {
       fetch: async (url, options) => {
-        seen.push({ url, body: JSON.parse(options.body) });
-        return {
-          ok: true,
-          text: async () => JSON.stringify({
-            ok: true,
-            wallet: {
-              address: PUBKEY,
-              chainId: CHAIN_ID,
-              signerProvider: 'zenodex-local-signer-v0',
-              publicReceipt,
-            },
-          }),
-        };
-      },
-    },
-    runtimeConfig: {
-      deployment: 'local-testnet',
-      defaultExternalSigner: {
-        schema: RUNTIME_DEFAULT_SCHEMA,
-        signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-        connectUrl: 'http://127.0.0.1:8799/public-receipt',
-      },
-    },
-  });
-
-  assert.equal(wallet.address, PUBKEY);
-  assert.equal(wallet.signerProvider, 'zenodex-local-signer-v0');
-  assert.deepEqual(seen, [{
-    url: 'http://127.0.0.1:8799/public-receipt',
-    body: { chainId: CHAIN_ID },
-  }]);
-});
-
-test('wallet policy falls back to browser keygen when local-testnet default signer is unreachable', async () => {
-  const wallet = await connectPreferredWallet({
-    chainId: CHAIN_ID,
-    allowBrowserFallback: true,
-    generateLocalWallet: async ({ chainId }) => ({
-      address: PUBKEY,
-      chainId,
-      privkey: PRIVKEY,
-      balance: {},
-    }),
-    globalObject: {
-      fetch: async () => {
-        throw new TypeError('Failed to fetch');
-      },
-    },
-    runtimeConfig: {
-      deployment: 'local-testnet',
-      allowBrowserKeyGeneration: true,
-      defaultExternalSigner: {
-        schema: RUNTIME_DEFAULT_SCHEMA,
-        signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-        connectUrl: 'http://127.0.0.1:8799/public-receipt',
-      },
-    },
-  });
-
-  assert.equal(wallet.address, PUBKEY);
-  assert.equal(wallet.signerProvider, 'browser-local-last-resort');
-  assert.equal(wallet.browserLastResort, true);
-  assert.equal(wallet.localTestnetGenerated, true);
-  assert.equal(wallet.privkey, PRIVKEY);
-});
-
-test('wallet policy does not browser-fallback around signer validation failures', async () => {
-  await assert.rejects(
-    connectPreferredWallet({
-      chainId: CHAIN_ID,
-      allowBrowserFallback: true,
-      generateLocalWallet: async () => ({
-        address: PUBKEY,
-        privkey: PRIVKEY,
-      }),
-      globalObject: {},
-      runtimeConfig: {
-        deployment: 'local-testnet',
-        allowBrowserKeyGeneration: true,
-        defaultExternalSigner: {
-          schema: RUNTIME_DEFAULT_SCHEMA,
-          signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-          address: PUBKEY,
-          chainId: CHAIN_ID,
-        },
-      },
-    }),
-    /public_receipt_required/,
-  );
-});
-
-test('wallet policy forwards signer pairing token only as a signing header', async () => {
-  const publicReceipt = await makePublicReceipt();
-  const seen = [];
-  const wallet = await connectPreferredWallet({
-    chainId: CHAIN_ID,
-    globalObject: {
-      fetch: async (url, options) => {
-        seen.push({ url, headers: options.headers, body: JSON.parse(options.body) });
-        if (url.includes('public-receipt')) {
+        seen.push({ url, headers: options.headers });
+        if (url.includes('connect')) {
           return {
             ok: true,
             text: async () => JSON.stringify({
-              ok: true,
               signerPairingToken: 'pairing-token-for-test',
               wallet: {
                 address: PUBKEY,
                 chainId: CHAIN_ID,
-                signerProvider: 'zenodex-local-signer-v0',
+                signerProvider: PROVIDER,
                 publicReceipt,
               },
             }),
@@ -464,18 +365,16 @@ test('wallet policy forwards signer pairing token only as a signing header', asy
       },
     },
     runtimeConfig: {
-      deployment: 'local-testnet',
-      defaultExternalSigner: {
-        schema: RUNTIME_DEFAULT_SCHEMA,
-        signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-        connectUrl: 'http://127.0.0.1:8799/public-receipt',
-        signTauTransactionPayloadUrl: 'http://127.0.0.1:8799/sign-tau-transaction-payload',
-      },
+      deployment: 'production',
+      allowDefaultExternalSigner: true,
+      defaultExternalSigner: runtimeSignerConfig(publicReceipt, {
+        connectUrl: '/api/external-signer/connect',
+        signTauTransactionPayloadUrl: '/api/external-signer/sign-tau',
+      }),
     },
   });
 
   assert.equal(Object.hasOwn(wallet, 'signerPairingToken'), false);
-  assert.equal(Object.hasOwn(wallet, 'localSignerPairingToken'), false);
   await wallet.signTauTransactionPayload({
     chainId: CHAIN_ID,
     senderPubkey: PUBKEY,
@@ -484,206 +383,51 @@ test('wallet policy forwards signer pairing token only as a signing header', asy
     operations: {},
     feeLimit: '0',
   });
-
   assert.equal(seen[0].headers['x-zenodex-signer-token'], undefined);
   assert.equal(seen[1].headers['x-zenodex-signer-token'], 'pairing-token-for-test');
 });
 
-test('wallet policy rejects non-loopback runtime default signer endpoint by default', async () => {
+test('wallet policy rejects HTTP and allows explicit HTTPS signer endpoints', async () => {
+  const publicReceipt = await makePublicReceipt();
   await assert.rejects(
     connectPreferredWallet({
       chainId: CHAIN_ID,
       globalObject: {},
       runtimeConfig: {
-        deployment: 'local-testnet',
-        defaultExternalSigner: {
-          schema: RUNTIME_DEFAULT_SCHEMA,
-          signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-          address: PUBKEY,
-          chainId: CHAIN_ID,
-          publicReceipt: await makePublicReceipt(),
-          signTauTransactionPayloadUrl: 'http://example.com/sign',
-        },
+        allowDefaultExternalSigner: true,
+        defaultExternalSigner: runtimeSignerConfig(publicReceipt, {
+          signTauTransactionPayloadUrl: 'http://signer.example/sign',
+        }),
       },
     }),
-    /same_origin_or_loopback/,
+    /same_origin_or_explicit_https/,
   );
-});
 
-test('wallet policy allows explicit production external signer profile', async () => {
-  const publicReceipt = await makePublicReceipt();
   const wallet = await connectPreferredWallet({
     chainId: CHAIN_ID,
     globalObject: {},
-    runtimeConfig: {
-      deployment: 'production',
-      allowDefaultExternalSigner: true,
-      defaultExternalSigner: {
-        schema: RUNTIME_DEFAULT_SCHEMA,
-        signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-        address: PUBKEY,
-        chainId: CHAIN_ID,
-        publicReceipt,
-      },
-    },
-  });
-
-  assert.equal(wallet.address, PUBKEY);
-  assert.equal(wallet.signerSecurityProfile, 'native-desktop-loopback-signer-v0');
-  assert.equal(Object.hasOwn(wallet, 'privkey'), false);
-});
-
-test('wallet policy rejects unsupported production external signer profile', async () => {
-  await assert.rejects(
-    connectPreferredWallet({
-      chainId: CHAIN_ID,
-      globalObject: {},
-      runtimeConfig: {
-        deployment: 'production',
-        allowDefaultExternalSigner: true,
-        defaultExternalSigner: {
-          schema: RUNTIME_DEFAULT_SCHEMA,
-          signerSecurityProfile: 'opaque-remote-custody-v0',
-          address: PUBKEY,
-          chainId: CHAIN_ID,
-          publicReceipt: await makePublicReceipt(),
-        },
-      },
-    }),
-    /security_profile_unsupported/,
-  );
-});
-
-test('wallet policy rejects remote HTTPS endpoint for native desktop profile', async () => {
-  await assert.rejects(
-    connectPreferredWallet({
-      chainId: CHAIN_ID,
-      globalObject: {},
-      runtimeConfig: {
-        deployment: 'production',
-        allowDefaultExternalSigner: true,
-        allowRemoteExternalSignerEndpoint: true,
-        defaultExternalSigner: {
-          schema: RUNTIME_DEFAULT_SCHEMA,
-          signerSecurityProfile: 'native-desktop-loopback-signer-v0',
-          connectUrl: 'https://signer.example/public-receipt',
-        },
-      },
-    }),
-    /remote_https_profile_not_allowed/,
-  );
-});
-
-test('wallet policy rejects threshold signer profile until its receipt schema is wired', async () => {
-  await assert.rejects(
-    connectPreferredWallet({
-    chainId: CHAIN_ID,
-    globalObject: {
-      fetch: async () => ({
-        ok: true,
-        text: async () => JSON.stringify({
-          wallet: {
-            address: PUBKEY,
-            chainId: CHAIN_ID,
-            signerProvider: 'zenodex-local-signer-v0',
-            publicReceipt,
-          },
-        }),
-      }),
-    },
     runtimeConfig: {
       deployment: 'production',
       allowDefaultExternalSigner: true,
       allowRemoteExternalSignerEndpoint: true,
-      defaultExternalSigner: {
-        schema: RUNTIME_DEFAULT_SCHEMA,
-        signerSecurityProfile: 'threshold-signer-v0',
-        connectUrl: 'https://threshold-signer.example/public-receipt',
-      },
+      defaultExternalSigner: runtimeSignerConfig(publicReceipt, {
+        signTauTransactionPayloadUrl: 'https://signer.example/sign',
+      }),
     },
-    }),
-    /security_profile_unsupported/,
-  );
+  });
+  assert.equal(wallet.signerSecurityProfile, SECURITY_PROFILE);
 });
 
-test('wallet policy blocks browser key generation unless explicit fallback is enabled', async () => {
+test('wallet policy has no browser key generation fallback', async () => {
   await assert.rejects(
-    connectPreferredWallet({
-      chainId: CHAIN_ID,
-      globalObject: {},
-      generateLocalWallet: async () => ({ address: PUBKEY, privkey: PRIVKEY }),
-    }),
+    connectPreferredWallet({ chainId: CHAIN_ID, globalObject: {} }),
     /external_signer_unavailable/,
   );
-
-  const wallet = await connectPreferredWallet({
-    chainId: CHAIN_ID,
-    globalObject: {},
-    allowBrowserFallback: true,
-    generateLocalWallet: async ({ chainId }) => ({ address: PUBKEY, privkey: PRIVKEY, chainId }),
-  });
-
-  assert.equal(wallet.address, PUBKEY);
-  assert.equal(wallet.privkey, PRIVKEY);
-  assert.equal(wallet.browserLastResort, true);
-  assert.equal(wallet.signerProvider, 'browser-local-last-resort');
 });
 
-test('browser key generation flag is opt-in only for explicit local deployments', () => {
-  assert.equal(browserKeyGenerationAllowed(), false);
-  assert.equal(
-    browserKeyGenerationAllowed({
-      locationSearch: '?zenodexAllowBrowserKeygen=1',
-      runtimeConfig: { deployment: 'local-testnet' },
-    }),
-    true,
+test('wallet policy requires an explicit chain id', async () => {
+  await assert.rejects(
+    connectPreferredWallet({ chainId: '', globalObject: {} }),
+    /chain_id_required/,
   );
-  assert.equal(
-    browserKeyGenerationAllowed({
-      locationSearch: '?zenodexAllowBrowserKeygen=0',
-      runtimeConfig: { deployment: 'local-testnet' },
-    }),
-    false,
-  );
-  assert.equal(
-    browserKeyGenerationAllowed({
-      runtimeConfig: { deployment: 'local-testnet', allowBrowserKeyGeneration: true },
-    }),
-    true,
-  );
-  assert.equal(
-    browserKeyGenerationAllowed({
-      runtimeConfig: { deployment: 'local-testnet' },
-      env: { VITE_ALLOW_BROWSER_KEYGEN: 'true' },
-    }),
-    true,
-  );
-  assert.equal(
-    browserKeyGenerationAllowed({
-      locationSearch: '?zenodexAllowBrowserKeygen=1',
-      runtimeConfig: { deployment: 'local-testent', allowBrowserKeyGeneration: true },
-      env: { VITE_ALLOW_BROWSER_KEYGEN: 'true' },
-    }),
-    false,
-  );
-  assert.equal(
-    browserKeyGenerationAllowed({
-      locationSearch: '?zenodexAllowBrowserKeygen=1',
-      runtimeConfig: { deployment: 'local-testnet', allowBrowserKeyGeneration: false },
-    }),
-    false,
-  );
-});
-
-test('browser key generation is hard-disabled for public testnet and production', () => {
-  for (const deployment of ['public-testnet', 'production']) {
-    assert.equal(
-      browserKeyGenerationAllowed({
-        locationSearch: '?zenodexAllowBrowserKeygen=1',
-        runtimeConfig: { deployment, allowBrowserKeyGeneration: true },
-        env: { VITE_ALLOW_BROWSER_KEYGEN: 'true' },
-      }),
-      false,
-    );
-  }
 });

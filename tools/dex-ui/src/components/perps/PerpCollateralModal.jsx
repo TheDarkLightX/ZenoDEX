@@ -8,14 +8,19 @@ import './PerpCollateralModal.css';
  *
  * Follows the AddLiquidityModal pattern: two-tab modal with validation.
  */
-function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, onClose }) {
+function PerpCollateralModal({ market, position, wallet, writeEnabled, writeLockReason, onDeposit, onWithdraw, onClose }) {
     const [tab, setTab] = useState('deposit');
     const [amount, setAmount] = useState('');
 
-    const collateral = position?.collateralQuote ?? 0;
+    const collateral = position?.collateralQuote ?? null;
     // Look up wallet balance using the market's quote asset (e.g. AGRS, ZDEX).
     const quoteAsset = market?.quoteAsset ?? '';
-    const walletBalance = (quoteAsset && wallet?.balance?.[quoteAsset]) ?? 0;
+    const walletBalance = quoteAsset && wallet?.balance?.[quoteAsset] != null
+        ? Number(wallet.balance[quoteAsset])
+        : null;
+    const authoritativeFactsReady = market?.authoritativeWriteFactsReady === true
+        && position?.positionBase != null
+        && collateral != null;
 
     const parsedAmount = useMemo(() => {
         const n = parseInt(amount, 10);
@@ -26,11 +31,14 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
         if (!market || parsedAmount <= 0) {
             return { ok: false, error: null };
         }
+        if (!authoritativeFactsReady) {
+            return { ok: false, error: 'Authoritative market risk parameters are unavailable' };
+        }
 
         const state = {
             epochPhase: market.epochPhase,
             collateralQuote: toBigInt(collateral),
-            positionBase: toBigInt(position?.positionBase ?? 0),
+            positionBase: toBigInt(position.positionBase),
             nowEpoch: toBigInt(market.nowEpoch),
             oracleLastUpdateEpoch: toBigInt(market.oracleLastUpdateEpoch),
             maxOracleStalenessEpochs: toBigInt(market.maxOracleStalenessEpochs),
@@ -44,7 +52,7 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
             return validateDeposit(state, toBigInt(parsedAmount));
         }
         return validateWithdraw(state, toBigInt(parsedAmount));
-    }, [market, position, tab, parsedAmount, collateral]);
+    }, [market, position, tab, parsedAmount, collateral, authoritativeFactsReady]);
 
     const handleSubmit = useCallback(() => {
         if (!validation.ok) return;
@@ -58,8 +66,8 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
 
     const handleMax = useCallback(() => {
         if (tab === 'deposit') {
-            setAmount(Math.floor(walletBalance).toString());
-        } else {
+            if (Number.isFinite(walletBalance)) setAmount(Math.floor(walletBalance).toString());
+        } else if (collateral != null) {
             setAmount(collateral.toString());
         }
     }, [tab, walletBalance, collateral]);
@@ -93,12 +101,16 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
                     <div className="perp-collateral-info">
                         <div className="perp-collateral-info-row">
                             <span>Current Collateral</span>
-                            <span className="perp-collateral-balance">{formatQuote(collateral)}</span>
+                            <span className="perp-collateral-balance">
+                                {collateral != null ? formatQuote(collateral) : 'N/A'}
+                            </span>
                         </div>
                         {tab === 'deposit' && (
                             <div className="perp-collateral-info-row">
                                 <span>Wallet Balance</span>
-                                <span className="perp-collateral-balance">{walletBalance.toLocaleString()} {quoteAsset || 'USD'}</span>
+                                <span className="perp-collateral-balance">
+                                    {walletBalance != null ? walletBalance.toLocaleString() : 'N/A'} {quoteAsset || ''}
+                                </span>
                             </div>
                         )}
                     </div>
@@ -123,7 +135,7 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
                     </div>
 
                     {/* After Preview */}
-                    {parsedAmount > 0 && (
+                    {parsedAmount > 0 && collateral != null && (
                         <div className="perp-collateral-preview animate-fade-in">
                             <div className="perp-collateral-info-row">
                                 <span>After {tab}</span>
@@ -138,6 +150,9 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
                     {validation.error && amount && (
                         <div className="perp-order-error">{validation.error}</div>
                     )}
+                    {!writeEnabled && writeLockReason && (
+                        <div className="perp-order-error">{writeLockReason}</div>
+                    )}
                 </div>
 
                 <div className="modal-footer">
@@ -145,9 +160,10 @@ function PerpCollateralModal({ market, position, wallet, onDeposit, onWithdraw, 
                     <button
                         className="btn btn-primary"
                         onClick={handleSubmit}
-                        disabled={!wallet || !validation.ok}
+                        disabled={!wallet || !writeEnabled || !validation.ok}
                     >
                         {!wallet ? 'Connect wallet in header →'
+                            : !writeEnabled ? 'Writes disabled'
                             : !amount ? 'Enter Amount'
                             : validation.error ? validation.error
                             : tab === 'deposit' ? 'Deposit' : 'Withdraw'}

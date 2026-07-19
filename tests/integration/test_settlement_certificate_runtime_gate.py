@@ -5,11 +5,12 @@ from src.core.dex import DexState
 from src.core.liquidity import create_pool
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import parse_intents
+from src.integration.settlement_end_to_end_certificate_packet import (
+    SettlementEndToEndCertificateInputs,
+)
 from src.integration.settlement_feature_extension_packet import SettlementFeatureExtensionInputs
-from src.integration.settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
 from src.integration.settlement_price_attestation import (
     SettlementSpotPriceAttestation,
-    build_settlement_spot_price_attestation,
 )
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
@@ -19,6 +20,9 @@ from src.integration.settlement_price_provenance import (
 from src.integration.settlement_strong_certificate import SettlementProofFlags
 from src.integration.validation import validate_operations
 from src.state import BalanceTable, LPTable
+from tests.support.settlement_price_attestation_signer import (
+    build_settlement_spot_price_attestation,
+)
 
 
 def _four_swap_intent_dicts() -> tuple[list[dict], BalanceTable, dict[str, object], str, str, str]:

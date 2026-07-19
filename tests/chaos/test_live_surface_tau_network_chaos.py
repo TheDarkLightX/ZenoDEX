@@ -24,6 +24,7 @@ from src.integration.zusd_monetary_bridge import (
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
+from src.state.balances import copy_balance_table
 
 CHAIN_ID = "tau-test-live-surface-network-chaos"
 ALICE_PRIVKEY = 82
@@ -108,8 +109,9 @@ def _perps_app_state() -> dict[str, object]:
     )
     assert init_result.ok, init_result.error
     assert init_result.state is not None
-    init_result.state.balances.set(ALICE, quote_asset, 5_000)
-    return _wrapped_perps_state(init_result.state)
+    balances = copy_balance_table(init_result.state.balances)
+    balances.set(ALICE, quote_asset, 5_000)
+    return _wrapped_perps_state(replace(init_result.state, balances=balances))
 
 
 def _wrapped_perps_state(state: DexState) -> dict[str, object]:

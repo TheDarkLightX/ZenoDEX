@@ -31,22 +31,16 @@ from src.integration.perps_wallet_authority import (
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
+    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_device_approval_environment_policy_v1,
     build_perps_wallet_device_approval_exercise_v1,
     build_perps_wallet_device_approval_use_policy_v1,
-    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_signer_device_integration_v1,
     build_perps_wallet_signer_execution_exercise_v1,
     build_perps_wallet_signer_prompt_capture_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
 )
-from src.integration.perps_wallet_encrypted_sss_backup import (
-    SssBackupRecipient,
-    build_perps_wallet_encrypted_sss_backup_v1,
-    build_perps_wallet_encrypted_sss_recipient_keys_v1,
-)
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 from src.integration.zeno_key_manager import (
     KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KeyExecutionEnvironment,
@@ -55,11 +49,24 @@ from src.integration.zeno_key_manager import (
     SocialRecoveryPolicy,
     ZenoKeyManager,
 )
-from src.integration.zeno_key_manager_v0 import BACKEND_HARDWARE_WALLET_PLACEHOLDER, KeyBackendDescriptor
+from src.integration.zeno_key_manager_v0 import (
+    BACKEND_HARDWARE_WALLET_PLACEHOLDER,
+    KeyBackendDescriptor,
+)
 from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_ledger_v0 import hash_v0
-from src.integration.zeno_oracle_authority import ORACLE_AUTHORITY_PAYLOAD_KIND, build_oracle_authority_profile_v1
+from src.integration.zeno_oracle_authority import (
+    ORACLE_AUTHORITY_PAYLOAD_KIND,
+    build_oracle_authority_profile_v1,
+)
+from src.nonproduction.tau_net_signing import bls_pubkey_hex_from_privkey
+
+from .perps_wallet_sss_fixture import (
+    SssBackupRecipient,
+    build_perps_wallet_encrypted_sss_backup_v1,
+    build_perps_wallet_encrypted_sss_recipient_keys_fixture_v1,
+)
 
 try:
     from py_ecc.optimized_bls12_381 import curve_order as _BLS12_381_CURVE_ORDER
@@ -672,7 +679,7 @@ def _perps_wallet_encrypted_sss_backup_bundle(
     )
     return {
         "backup": backup,
-        "recipient_keys": build_perps_wallet_encrypted_sss_recipient_keys_v1(
+        "recipient_keys": build_perps_wallet_encrypted_sss_recipient_keys_fixture_v1(
             backup=backup,
             recipients=recipients,
         ),

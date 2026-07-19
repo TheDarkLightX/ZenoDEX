@@ -269,17 +269,15 @@ is supplied, the adapter also rejects self-declared action policies that are
 weaker than the module/action/query profile. The consumer profile catalog pins
 the first critical perps, zUSD, routing, and trigger profiles so those modules
 cannot invent weaker profile requirements without a catalog version change.
-The first runtime hooks are wired into perps settlement, the zUSD demo API, and
-guarded routing quote APIs. Isolated, 2-party clearinghouse, and 3-party
+The first runtime hooks are wired into perps settlement and guarded routing
+quote APIs. Isolated, 2-party clearinghouse, and 3-party
 transfer clearinghouse
 `settle_epoch` can require `oracle_adapter_bridge`, verify it before settlement
 state changes, and reject bridges that are missing, unchecked, rejected, bound
 to any action other than `zenodex.perps / settle_epoch`, bound to a different
 Oracle query, bound to a weaker or unrelated consumer profile, or bound to a
-different market/epoch/price snapshot runtime action ID. The zUSD API can
-require the same bridge for `mint_zusd` and `liquidate`, bound to the zUSD
-collateral-price query, official zUSD profile, mode, args, and active/pending
-oracle snapshot. The exact-in and exact-out guarded routing quote APIs can
+different market/epoch/price snapshot runtime action ID. The exact-in and
+exact-out guarded routing quote APIs can
 require the same bridge for `zenodex.routing / guarded_quote`, bound to the
 route request, route policy, official routing profile, routing reference-price
 query, and pool snapshot hash.
@@ -318,16 +316,15 @@ This branch does not claim:
 - reporter sources are honest;
 - declared source classifications prove real-world independence;
 - oracle values are true market prices;
-- every ZenoDEX routing endpoint, non-demo zUSD, liquidation, or trigger action is already
+- every ZenoDEX routing endpoint, production zUSD, liquidation, or trigger action is already
   runtime-wired to this Oracle verifier;
 - the receipt or budget formats are final.
 
 ## Next Production Work
 
 1. Replace the devnet integrity signature with production code signing.
-2. Extend runtime adapter hooks from perps settlement, the zUSD demo API, and
-   guarded routing quotes to production zUSD transaction execution, additional
-   routing endpoints, liquidation, and trigger execution.
+2. Implement the blocked production zUSD mint/liquidation Oracle lifecycle in
+   the monetary bridge, and extend coverage to additional routing endpoints.
 3. Add higher-redundancy aggregate policies after `median_3` and source
    diversity are stable.
 4. Add production reporter CLI flows, public testnet deployment config, and

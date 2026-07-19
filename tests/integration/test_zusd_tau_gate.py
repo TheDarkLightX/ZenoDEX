@@ -6,13 +6,10 @@ import src.integration.zusd_tau_gate as zusd_tau_gate
 from src.core.zusd import (
     E8,
     ZUSDCommand,
-    ZUSDMultiCommand,
-    init_multi_state,
     init_state,
     step,
-    step_multi,
 )
-from src.integration.zusd_tau_gate import ZUSDTauGateConfig, step_multi_with_tau, step_with_tau
+from src.integration.zusd_tau_gate import ZUSDTauGateConfig, step_with_tau
 
 
 def _ok_single(s, tag: str, **kwargs):
@@ -22,24 +19,10 @@ def _ok_single(s, tag: str, **kwargs):
     return r.state
 
 
-def _ok_multi(s, tag: str, **kwargs):
-    r = step_multi(s, ZUSDMultiCommand(tag=tag, args=kwargs))
-    assert r.ok, r.error
-    assert r.state is not None
-    return r.state
-
-
 def _single_mint_pre_state():
     s = init_state()
     s = _ok_single(s, "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
     s = _ok_single(s, "deposit_collateral", amount_e8=2 * E8)
-    return s
-
-
-def _multi_mint_pre_state():
-    s = init_multi_state()
-    s = _ok_multi(s, "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
-    s = _ok_multi(s, "deposit_collateral", vault="a", amount_e8=2 * E8)
     return s
 
 
@@ -133,55 +116,6 @@ def test_step_with_tau_redeem_runs_redeem_guard(monkeypatch) -> None:  # type: i
     monkeypatch.setattr(zusd_tau_gate, "run_tau_spec_steps", _fake_tau)
 
     res = step_with_tau(
-        s,
-        cmd,
-        config=ZUSDTauGateConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
-    )
-
-    assert res.ok, res.error
-    assert calls == ["zusd_redeem_guard_v1.tau", "zusd_supply_conservation_v2.tau"]
-
-
-def test_step_multi_with_tau_accepts_when_tau_outputs_one(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    s = _multi_mint_pre_state()
-    cmd = ZUSDMultiCommand(tag="mint_zusd", args={"vault": "a", "amount_e8": 100 * E8})
-    calls: list[str] = []
-
-    def _fake_tau(*, spec_path, steps, **kwargs):  # type: ignore[no-untyped-def]
-        calls.append(spec_path.name)
-        assert len(steps) == 1
-        return {0: {"o4": 1}}
-
-    monkeypatch.setattr(zusd_tau_gate, "run_tau_spec_steps", _fake_tau)
-
-    res = step_multi_with_tau(
-        s,
-        cmd,
-        config=ZUSDTauGateConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
-    )
-
-    assert res.ok, res.error
-    assert calls == ["zusd_mint_guard_v1.tau", "zusd_supply_conservation_v2.tau"]
-
-
-def test_step_multi_with_tau_redeem_auto_runs_redeem_guard(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    s = init_multi_state()
-    s = _ok_multi(s, "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
-    s = _ok_multi(s, "deposit_collateral", vault="a", amount_e8=4 * E8)
-    s = _ok_multi(s, "deposit_collateral", vault="b", amount_e8=4 * E8)
-    s = _ok_multi(s, "mint_zusd", vault="a", amount_e8=200 * E8)
-    s = _ok_multi(s, "mint_zusd", vault="b", amount_e8=250 * E8)
-    cmd = ZUSDMultiCommand(tag="redeem_zusd", args={"amount_e8": 50 * E8})
-    calls: list[str] = []
-
-    def _fake_tau(*, spec_path, steps, **kwargs):  # type: ignore[no-untyped-def]
-        calls.append(spec_path.name)
-        assert len(steps) == 1
-        return {0: {"o4": 1}}
-
-    monkeypatch.setattr(zusd_tau_gate, "run_tau_spec_steps", _fake_tau)
-
-    res = step_multi_with_tau(
         s,
         cmd,
         config=ZUSDTauGateConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),

@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Callable, Mapping
 
 from ..state.canonical import canonical_json_bytes
+from .oracle_aggregate_adapter_boundary import verify_aggregate_adapter_bridge
 from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
 TriggerOracleAdapterBridgeVerifier = Callable[[Mapping[str, Any]], Any]
@@ -188,10 +189,6 @@ def _adapter_error_summary(result: Any) -> str:
 
 
 def _default_oracle_adapter_bridge_verifier(bridge: Mapping[str, Any]) -> Any:
-    from tools.zenodex_oracle_aggregate_adapter import (  # pylint: disable=import-outside-toplevel
-        verify_aggregate_adapter_bridge,
-    )
-
     return verify_aggregate_adapter_bridge(bridge)
 
 

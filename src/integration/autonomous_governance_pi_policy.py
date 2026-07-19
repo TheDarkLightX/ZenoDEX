@@ -137,22 +137,6 @@ def pi_policy_content_hash_v1(policy: object) -> str:
     return hash_v0(_PI_POLICY_HASH_TAG, normalized)
 
 
-def sample_autonomous_governance_pi_policy_v1() -> dict[str, Any]:
-    """Deterministic sample artifact (fee surface, gentle gains) for tests/CLI."""
-    return {
-        "schema": AUTONOMOUS_GOVERNANCE_PI_POLICY_SCHEMA_V1,
-        "surface": "fee_bps",
-        "setpoint": 0,
-        "kp_num": 1,
-        "kp_den": 4,
-        "ki_num": 1,
-        "ki_den": 8,
-        "deadband": 2,
-        "out_lo": 0,
-        "out_hi": 1000,
-    }
-
-
 def evaluate_autonomous_governance_pi_policy_step_v1(
     *,
     policy: object,

@@ -11,7 +11,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 BIN = ROOT / "bin" / "zenodex-oracle"
 RESULT_SCHEMA = "zenodex.oracle.mvp_completion_audit.v1"
@@ -139,7 +138,10 @@ def run_audit(*, run_gate: bool) -> dict[str, Any]:
     runtime_hooks_ok = all(
         [
             _file_contains("src/integration/perp_engine.py", "_require_oracle_adapter_bridge"),
-            _file_contains("src/integration/zusd_api.py", "_check_zusd_oracle_adapter_bridge"),
+            _file_contains(
+                "src/integration/zusd_monetary_bridge.py",
+                "check_critical_consumer_authorization",
+            ),
             _file_contains("src/integration/api_server.py", "_check_routing_oracle_adapter_bridge_for_action"),
         ]
     )
@@ -189,11 +191,11 @@ def run_audit(*, run_gate: bool) -> dict[str, Any]:
             "Concrete ZenoDEX actions are checked against aggregate-derived reads",
             runtime_hooks_ok and dry_ok and {"verify_aggregate_adapter", "verify_adapter_bundle"} <= dry_steps,
             [
-                "runtime hooks present for perps, zUSD API, and guarded routing",
+                "runtime hooks present for perps, production zUSD monetary actions, and guarded routing",
                 "dry-run verified aggregate-adapter and consumer-adapter bundles",
             ],
             residual_limits=[
-                "not every future routing, trigger, or non-demo zUSD consumer is wired",
+                "production zUSD mint/liquidation typed Oracle authorization remains a release blocker",
             ],
         ),
         _criterion(

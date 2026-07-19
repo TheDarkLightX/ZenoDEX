@@ -94,7 +94,7 @@ DEX_DISPATCH_RECEIPT_HANDLERS_FILE = ROOT_DIR / "src" / "integration" / "dex_dis
 
 class _FakeServer:
     cors_origins: set[str]
-    demo_api_token: str
+    api_bearer_token: str
     dex_api_enabled: bool
     external_auth_enforced: bool
 
@@ -102,12 +102,12 @@ class _FakeServer:
         self,
         *,
         cors_origins: set[str] | None = None,
-        demo_api_token: str = "",
+        api_bearer_token: str = "",
         dex_api_enabled: bool = True,
         external_auth_enforced: bool = False,
     ) -> None:
         self.cors_origins = set() if cors_origins is None else set(cors_origins)
-        self.demo_api_token = str(demo_api_token)
+        self.api_bearer_token = str(api_bearer_token)
         self.dex_api_enabled = bool(dex_api_enabled)
         self.external_auth_enforced = bool(external_auth_enforced)
 
@@ -119,14 +119,14 @@ class _HandlerHarness:
         headers: dict[str, str] | None = None,
         body: bytes = b"",
         cors_origins: set[str] | None = None,
-        demo_api_token: str = "",
+        api_bearer_token: str = "",
         dex_api_enabled: bool = True,
         external_auth_enforced: bool = False,
     ) -> None:
         self.handler = object.__new__(api_server._Handler)
         self.handler.server = _FakeServer(
             cors_origins=cors_origins,
-            demo_api_token=demo_api_token,
+            api_bearer_token=api_bearer_token,
             dex_api_enabled=dex_api_enabled,
             external_auth_enforced=external_auth_enforced,
         )
@@ -211,15 +211,15 @@ def _run_parse_cors_origins(payload: object) -> str:
     return "ok:" + "|".join(origins)
 
 
-def _run_demo_auth(payload: object) -> str:
+def _run_api_auth(payload: object) -> str:
     if not isinstance(payload, dict):
         raise TypeError("payload must be a dict")
     harness = _HandlerHarness(
         headers=payload.get("headers") if isinstance(payload.get("headers"), dict) else None,
-        demo_api_token=str(payload.get("token", "")),
+        api_bearer_token=str(payload.get("token", "")),
         external_auth_enforced=False,
     )
-    return f"ok:{int(harness.handler._demo_auth_ok())}"
+    return f"ok:{int(harness.handler._api_auth_ok())}"
 
 
 def _run_read_raw_body(payload: object) -> str:
@@ -258,7 +258,7 @@ def _run_dex_request_envelope(payload: object) -> str:
     harness = _HandlerHarness(
         headers=payload.get("headers") if isinstance(payload.get("headers"), dict) else None,
         cors_origins=set(payload.get("cors_origins", [])) if isinstance(payload.get("cors_origins"), list) else None,
-        demo_api_token=str(payload.get("token", "")),
+        api_bearer_token=str(payload.get("token", "")),
         dex_api_enabled=bool(payload.get("dex_api_enabled", True)),
         external_auth_enforced=bool(payload.get("external_auth_enforced", not bool(payload.get("token", "")))),
     )
@@ -478,8 +478,8 @@ TARGETS: tuple[GrammarTarget, ...] = (
         ),
     ),
     GrammarTarget(
-        name="demo_auth",
-        runner=_run_demo_auth,
+        name="api_auth",
+        runner=_run_api_auth,
         trace_files=(API_SERVER_FILE,),
         repair_fn=_derive_authorization_repairs,
         cases=(
@@ -532,7 +532,7 @@ TARGETS: tuple[GrammarTarget, ...] = (
         trace_files=(API_SERVER_FILE, DEX_API_HELPERS_FILE, DEX_DISPATCH_RECEIPT_HANDLERS_FILE),
         repair_fn=_derive_dex_envelope_repairs,
         cases=(
-            GrammarCase("DexReq->NonDexPath", {"method": "POST", "path": "/api/perps/markets", "raw_body": b'{}'}),
+            GrammarCase("DexReq->NonDexPath", {"method": "POST", "path": "/api/not-dex", "raw_body": b'{}'}),
             GrammarCase("DexReq->DexDisabled", {"method": "POST", "path": "/api/dex/impact_preview", "dex_api_enabled": False, "raw_body": b'{}'}),
             GrammarCase("DexReq->Unauthorized", {"method": "POST", "path": "/api/dex/impact_preview", "token": "sekret", "headers": {}, "raw_body": b'{}'}),
             GrammarCase(

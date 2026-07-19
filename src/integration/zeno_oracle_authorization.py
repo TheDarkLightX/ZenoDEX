@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
+from ..state.canonical import plain_json_value
+
 SCHEMA = "zenodex/oracle-authorization-semantic-binding-check/v1"
 EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
+
+
+def _is_data_sequence(value: object) -> bool:
+    return isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray))
 
 
 def _consumer_profile_id(
@@ -166,7 +173,12 @@ class RuntimeActionFacts:
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return json.dumps(
+        plain_json_value(payload),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
 
 
 def semantic_hash(domain: str, payload: Mapping[str, Any]) -> str:
@@ -462,7 +474,7 @@ def verify_receipt_graph_binding(
         errors.append("receipt_graph aggregate_evidence_class below O3")
 
     included_report_ids = receipt_graph.get("included_report_ids")
-    if not isinstance(included_report_ids, list) or not included_report_ids:
+    if not _is_data_sequence(included_report_ids) or not included_report_ids:
         errors.append("receipt_graph included_report_ids must be a non-empty list")
         included_report_set: set[str] = set()
     else:
@@ -470,19 +482,19 @@ def verify_receipt_graph_binding(
         if len(included_report_set) != len(included_report_ids):
             errors.append("receipt_graph included_report_ids must be distinct")
     included_source_ids = receipt_graph.get("included_source_ids")
-    if not isinstance(included_source_ids, list) or not included_source_ids:
+    if not _is_data_sequence(included_source_ids) or not included_source_ids:
         errors.append("receipt_graph included_source_ids must be a non-empty list")
     elif len({str(item) for item in included_source_ids}) != len(included_source_ids):
         errors.append("receipt_graph included_source_ids must be distinct")
 
     disputed_report_ids = receipt_graph.get("disputed_report_ids")
-    if not isinstance(disputed_report_ids, list):
+    if not _is_data_sequence(disputed_report_ids):
         errors.append("receipt_graph disputed_report_ids must be a list")
     elif disputed_report_ids:
         errors.append("receipt_graph must not include disputed reports")
 
     report_leaf_commitments = receipt_graph.get("report_leaf_commitments")
-    if not isinstance(report_leaf_commitments, list) or not report_leaf_commitments:
+    if not _is_data_sequence(report_leaf_commitments) or not report_leaf_commitments:
         errors.append("receipt_graph report_leaf_commitments must be a non-empty list")
     else:
         leaf_report_ids: list[str] = []

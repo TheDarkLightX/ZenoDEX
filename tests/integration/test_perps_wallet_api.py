@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
-import threading
-import time
+from dataclasses import replace
 from typing import Mapping
 
 import pytest
@@ -92,6 +91,11 @@ from src.integration.zeno_oracle_authority import (
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
+from src.state.balances import copy_balance_table
+from tests.support.perps_oracle_bridge_fixture import build_perps_oracle_bridge_fixture
+from tools.zenodex_oracle_aggregate_adapter import (
+    verify_aggregate_adapter_bridge as verify_test_oracle_aggregate_adapter_bridge,
+)
 
 CHAIN_ID = "tau-test-perps-wallet"
 ALICE_PRIVKEY = 83
@@ -110,6 +114,16 @@ ROOT_A = "0x" + "aa" * 32
 ROOT_B = "0x" + "bb" * 32
 FUTURE_DEADLINE = 4_102_444_800
 PRODUCTION_HW_DEVICE_PRIVKEY_BYTES = bytes.fromhex("42" * 32)
+
+
+def _with_balances(
+    state: DexState,
+    *entries: tuple[str, str, int],
+) -> DexState:
+    balances = copy_balance_table(state.balances)
+    for pubkey, asset, amount in entries:
+        balances.set(pubkey, asset, amount)
+    return replace(state, balances=balances)
 
 
 def _proof_wrapper_request_hash(obj: dict[str, object]) -> str:
@@ -154,6 +168,146 @@ def _perps_wallet_signer_payload_hash(payload: dict[str, object] | None = None) 
 
 def _privkey_hex(value: int) -> str:
     return "0x" + int(value).to_bytes(32, byteorder="big", signed=False).hex()
+
+
+_PRODUCTION_HANDLE_PERPS_WALLET_REQUEST = perps_wallet_api.handle_perps_wallet_request
+_LEGACY_TEST_SIGNER_FIELDS = {
+    "account_privkey": "account_pubkey",
+    "account_a_privkey": "account_a_pubkey",
+    "account_b_privkey": "account_b_pubkey",
+    "operator_privkey": "operator_pubkey",
+    "oracle_privkey": "oracle_pubkey",
+}
+
+
+def _test_external_signer_adapter(
+    method: str,
+    path: str,
+    body: bytes | None,
+) -> tuple[int, dict[str, object]]:
+    """Adapt pre-boundary tests to the production external-signing protocol.
+
+    Historical wallet tests supplied fixture private keys to the HTTP handler.
+    Keep those fixtures test-local: ask the real prepare endpoint for its exact
+    operation, sign it here, then submit an externally signed Tau transaction.
+    Requests without legacy fixture fields go straight to the production
+    handler unchanged.
+    """
+    if method != "POST" or body is None:
+        return _PRODUCTION_HANDLE_PERPS_WALLET_REQUEST(method, path, body)
+    try:
+        parsed = json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return _PRODUCTION_HANDLE_PERPS_WALLET_REQUEST(method, path, body)
+    if not isinstance(parsed, dict):
+        return _PRODUCTION_HANDLE_PERPS_WALLET_REQUEST(method, path, body)
+
+    fixture_keys: dict[str, int] = {}
+    clean = dict(parsed)
+    for private_field, public_field in _LEGACY_TEST_SIGNER_FIELDS.items():
+        raw = clean.pop(private_field, None)
+        if raw is None:
+            continue
+        private_key = int(raw)
+        fixture_keys[public_field] = private_key
+        clean.setdefault(public_field, "0x" + bls_pubkey_hex_from_privkey(private_key))
+    if not fixture_keys or path not in {"/api/perps/wallet/prepare", "/api/perps/wallet/submit"}:
+        return _PRODUCTION_HANDLE_PERPS_WALLET_REQUEST(
+            method,
+            path,
+            json.dumps(clean).encode("utf-8"),
+        )
+
+    prepared_status, prepared = _PRODUCTION_HANDLE_PERPS_WALLET_REQUEST(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(clean).encode("utf-8"),
+    )
+    if prepared_status != 200 or prepared.get("ok") is not True:
+        return prepared_status, prepared
+
+    report = prepared.get("report")
+    operation = report.get("operation") if isinstance(report, Mapping) else None
+    transport = prepared.get("transport")
+    if not isinstance(operation, Mapping) or not isinstance(transport, Mapping):
+        raise AssertionError("test external signer received malformed prepare response")
+    operation_to_sign = dict(operation)
+    chain_id = str(transport["chain_id"])
+
+    signature_specs = (
+        ("account_a_pubkey", "sig_a", "nonce_a"),
+        ("account_b_pubkey", "sig_b", "nonce_b"),
+        ("oracle_pubkey", "oracle_sig", "oracle_nonce"),
+    )
+    for public_field, signature_field, nonce_field in signature_specs:
+        private_key = fixture_keys.get(public_field)
+        if private_key is None or clean.get(signature_field):
+            continue
+        signer_pubkey = clean.get(public_field)
+        nonce = operation_to_sign.get(nonce_field)
+        if not isinstance(signer_pubkey, str) or not isinstance(nonce, int):
+            raise AssertionError(f"test external signer missing {public_field}/{nonce_field}")
+        clean[signature_field] = sign_perp_op_for_engine(
+            operation_to_sign,
+            privkey=private_key,
+            chain_id=chain_id,
+            signer_pubkey=signer_pubkey,
+            nonce=nonce,
+        )
+
+    signed_prepare_status, signed_prepare = _PRODUCTION_HANDLE_PERPS_WALLET_REQUEST(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(clean).encode("utf-8"),
+    )
+    if path == "/api/perps/wallet/prepare":
+        return signed_prepare_status, signed_prepare
+    if signed_prepare_status != 200 or signed_prepare.get("ok") is not True:
+        return signed_prepare_status, signed_prepare
+
+    signed_report = signed_prepare.get("report")
+    signed_transport = signed_prepare.get("transport")
+    if not isinstance(signed_report, Mapping) or not isinstance(signed_transport, Mapping):
+        raise AssertionError("test external signer received malformed signed prepare response")
+    if not isinstance(signed_report.get("preflight"), Mapping) or signed_report["preflight"].get("ok") is not True:
+        return _PRODUCTION_HANDLE_PERPS_WALLET_REQUEST(
+            "POST",
+            path,
+            json.dumps(clean).encode("utf-8"),
+        )
+
+    tx_sender = str(signed_transport["tx_sender_pubkey"]).lower()
+    tx_private_key = next(
+        (
+            private_key
+            for public_field, private_key in fixture_keys.items()
+            if str(clean.get(public_field, "")).lower() == tx_sender
+        ),
+        None,
+    )
+    if tx_private_key is None:
+        raise AssertionError(f"test external signer has no key for transaction sender {tx_sender}")
+    clean["signed_tau_tx_payload"] = build_signed_tau_transaction(
+        privkey=tx_private_key,
+        sequence_number=int(signed_transport["tx_sequence_number"]),
+        expiration_time=int(signed_transport["tx_expiration_time"]),
+        operations=dict(signed_report["operations"]),
+        fee_limit=str(signed_transport["tx_fee_limit"]),
+    )
+    return _PRODUCTION_HANDLE_PERPS_WALLET_REQUEST(
+        "POST",
+        path,
+        json.dumps(clean).encode("utf-8"),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _keep_legacy_fixture_signing_outside_production(monkeypatch) -> None:
+    monkeypatch.setattr(
+        perps_wallet_api,
+        "handle_perps_wallet_request",
+        _test_external_signer_adapter,
+    )
 
 
 def _perps_wallet_key_manager(*, second_pubkey: str = BOB) -> dict[str, object]:
@@ -977,8 +1131,7 @@ def _state_with_market_and_balance(*, quote_asset: str) -> DexState:
     )
     assert res.ok, res.error
     assert res.state is not None
-    res.state.balances.set(ALICE, quote_asset, 5_000)
-    return res.state
+    return _with_balances(res.state, (ALICE, quote_asset, 5_000))
 
 
 def _apply_perps(state: DexState, ops: list[dict[str, object]], *, sender: str = OPERATOR) -> DexState:
@@ -1069,8 +1222,11 @@ def _state_after_pair_liquidation(*, quote_asset: str) -> DexState:
         state,
         [{"module": "TauPerp", "version": "1.0", "market_id": MARKET_ID, "action": "settle_epoch"}],
     )
-    state.balances.set(ALICE, quote_asset, 1000)
-    state.balances.set(BOB, quote_asset, 1000)
+    state = _with_balances(
+        state,
+        (ALICE, quote_asset, 1000),
+        (BOB, quote_asset, 1000),
+    )
     state = _apply_perps(
         state,
         [
@@ -1212,8 +1368,6 @@ class _FakeClient:
             operations = payload["operations"]
             if "8" in operations:
                 _fake_client_apply_stream8_payload(self, payload)
-            elif "7" in operations:
-                _fake_client_apply_stream7_payload(self, payload)
             else:
                 self.sent.append(dict(payload))
         else:
@@ -1222,6 +1376,24 @@ class _FakeClient:
 
     def createblock(self) -> str:
         return "BLOCK created"
+
+
+def _test_oracle_bridge_fixture(
+    *,
+    action: str,
+    market_id: str,
+    chain_id: str = CHAIN_ID,
+    account_pubkey: str | None = None,
+    fraction_bps: int = 0,
+) -> dict[str, object]:
+    return build_perps_oracle_bridge_fixture(
+        state=perps_wallet_api._state_from_app_state(_FakeClient.app_state),
+        config=perps_wallet_api._build_perp_config(chain_id=chain_id),
+        market_id=market_id,
+        action=action,
+        account_pubkey=account_pubkey,
+        fraction_bps=fraction_bps,
+    )
 
 
 def _assert_redacted_tau_tx_payload(
@@ -1272,22 +1444,17 @@ def _fake_client_apply_stream8_payload(client: _FakeClient, payload: object) -> 
     client.app_hash = "sha256:" + hash_v0("test_perps_wallet_app_state", client.app_state)[2:]
 
 
-def _fake_client_apply_stream7_payload(client: _FakeClient, payload: object) -> None:
-    client.sent.append(dict(payload))
-    assert isinstance(payload, dict)
-    wire_ops = payload.get("operations")
-    assert isinstance(wire_ops, dict)
-    faucet_op = json.loads(wire_ops["7"])
-    mint = faucet_op["mint"]
-    state = perps_wallet_api._state_from_app_state(client.app_state)
-    for entry in mint:
-        state.balances.add(entry["pubkey"], entry["asset"], int(entry["amount"]))
-    client.app_state = _wrapped_app_state(state)
-    client.app_hash = "sha256:" + hash_v0("test_perps_wallet_app_state", client.app_state)[2:]
-
-
 @pytest.fixture(autouse=True)
-def _reset_fake_client_balances() -> None:
+def _reset_fake_client_balances(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The shipped runtime deliberately has no aggregate-adapter verifier until
+    # one is promoted independently of the pre-MVP Oracle tooling.  These
+    # integration vectors explicitly inject the test-only verifier instead of
+    # relying on an environment-dependent production import.
+    monkeypatch.setattr(
+        perps_wallet_api,
+        "verify_aggregate_adapter_bridge",
+        verify_test_oracle_aggregate_adapter_bridge,
+    )
     _FakeClient.native_balances = {}
     yield
     _FakeClient.native_balances = {}
@@ -2082,13 +2249,12 @@ def test_perps_wallet_rotation_exercise_blocks_bad_guardian_signature_quorum() -
     assert any("guardian signature quorum invalid" in error for error in status["errors"])
 
 
-def test_prepare_init_market_2p_builds_signed_stream_8_and_preflights(monkeypatch) -> None:
+def test_external_signer_completes_init_market_2p_and_preflights(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 0}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
     monkeypatch.setattr(_FakeClient, "sendtx", lambda self, payload: "SUCCESS tx accepted")
@@ -2141,7 +2307,6 @@ def test_prepare_init_market_requires_zk_proof_when_enabled(monkeypatch) -> None
     _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("PERPS_WALLET_REQUIRE_ZK_PROOF", "1")
     monkeypatch.setenv(
         "PERPS_WALLET_PROOF_VERIFIER_CMD_JSON",
@@ -2174,7 +2339,6 @@ def test_prepare_init_market_accepts_verified_zk_wrapper(monkeypatch) -> None:
     _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("PERPS_WALLET_REQUIRE_ZK_PROOF", "1")
     monkeypatch.setenv(
         "PERPS_WALLET_PROOF_VERIFIER_CMD_JSON",
@@ -2219,7 +2383,6 @@ def test_prepare_init_market_accepts_artifact_bound_zk_wrapper(monkeypatch) -> N
     _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("PERPS_WALLET_REQUIRE_ZK_PROOF", "1")
     monkeypatch.setenv(
         "PERPS_WALLET_PROOF_VERIFIER_CMD_JSON",
@@ -2282,7 +2445,6 @@ def test_submit_deposit_collateral_rejected_zk_proof_blocks_sendtx(monkeypatch) 
     _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("PERPS_WALLET_REQUIRE_ZK_PROOF", "1")
     monkeypatch.setenv(
         "PERPS_WALLET_PROOF_VERIFIER_CMD_JSON",
@@ -2323,13 +2485,12 @@ def test_submit_deposit_collateral_rejected_zk_proof_blocks_sendtx(monkeypatch) 
     assert _FakeClient.sent == []
 
 
-def test_submit_required_zk_proof_rejects_stale_sequence_resign(monkeypatch) -> None:
+def test_submit_required_zk_proof_rejects_stale_external_signature(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("PERPS_WALLET_REQUIRE_ZK_PROOF", "1")
     monkeypatch.setenv(
         "PERPS_WALLET_PROOF_VERIFIER_CMD_JSON",
@@ -2363,8 +2524,8 @@ def test_submit_required_zk_proof_rejects_stale_sequence_resign(monkeypatch) -> 
     assert status_code == 400
     assert payload["ok"] is False
     assert payload["status"] == "submit_rejected"
-    assert payload["error"] == "sequence_retry_requires_fresh_zk_proof"
-    assert payload["submission"]["retry_sequence_error"] == {"expected": 10, "got": 9}
+    assert payload["error"] == "sendtx_failed"
+    assert payload["submission"]["sendtx_response"] == "FAILURE: Invalid sequence number: expected 10, got 9."
     assert len(_FakeClient.sent) == 1
 
 
@@ -2374,7 +2535,6 @@ def test_prepare_reports_tau_fee_limit_native_balance_posture(monkeypatch) -> No
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 1}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
     monkeypatch.setattr(_FakeClient, "sendtx", lambda self, payload: "SUCCESS tx accepted")
 
@@ -2407,7 +2567,6 @@ def test_prepare_rejects_bad_tx_fee_limit(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     body = {
@@ -2469,7 +2628,6 @@ def test_submit_deposit_collateral_uses_sender_bound_account_and_stream_8(monkey
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
@@ -2515,12 +2673,11 @@ def test_submit_deposit_collateral_uses_sender_bound_account_and_stream_8(monkey
 def test_submit_deposit_insurance_uses_isolated_market_and_sender_balance(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     state = _state_with_isolated_liquidatable_account(quote_asset=quote_asset)
-    state.balances.set(ALICE, quote_asset, 1_000)
+    state = _with_balances(state, (ALICE, quote_asset, 1_000))
     _FakeClient.app_state = _wrapped_app_state(state)
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
@@ -2623,7 +2780,6 @@ def test_submit_rejects_success_without_matching_state_delta(monkeypatch) -> Non
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
     monkeypatch.setattr(_FakeClient, "sendtx", lambda self, payload: "SUCCESS tx accepted")
 
@@ -2649,15 +2805,12 @@ def test_submit_rejects_success_without_matching_state_delta(monkeypatch) -> Non
     assert payload["post_submit"]["state_delta_witness"]["changed_markets"] == []
 
 
-def test_submit_accepts_background_mined_app_state_change_when_createblock_empty(monkeypatch) -> None:
+def test_submit_never_calls_createblock_when_send_applies_state(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
-    monkeypatch.setenv("PERPS_WALLET_AUTO_MINE", "1")
-    monkeypatch.setenv("PERPS_WALLET_APP_HASH_WAIT_S", "0")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     def hashed_getappstate(self, *, full: bool = False) -> str:
@@ -2671,7 +2824,10 @@ def test_submit_accepts_background_mined_app_state_change_when_createblock_empty
 
     monkeypatch.setattr(_FakeClient, "getappstate", hashed_getappstate)
     monkeypatch.setattr(_FakeClient, "sendtx", applied_sendtx)
-    monkeypatch.setattr(_FakeClient, "createblock", lambda self: "Mempool is empty. No block created.")
+    def forbidden_createblock(self):
+        raise AssertionError("wallet API must not produce blocks")
+
+    monkeypatch.setattr(_FakeClient, "createblock", forbidden_createblock)
 
     body = {
         "action": "deposit_collateral",
@@ -2690,21 +2846,16 @@ def test_submit_accepts_background_mined_app_state_change_when_createblock_empty
 
     assert status_code == 200
     assert payload["ok"] is True
-    assert payload["submission"]["createblock_response"] == "Mempool is empty. No block created."
-    assert payload["submission"]["observed_app_hash_after_createblock"] != payload["proof"]["intent_receipt"]["body"][
-        "app_hash_before"
-    ]
+    assert "createblock_response" not in payload["submission"]
+    assert payload["post_submit"]["app_hash"] != payload["proof"]["intent_receipt"]["body"]["app_hash_before"]
 
 
-def test_submit_reports_sequence_consumed_without_app_delta(monkeypatch) -> None:
+def test_submit_without_app_delta_does_not_resubmit(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
-    monkeypatch.setenv("PERPS_WALLET_AUTO_MINE", "1")
-    monkeypatch.setenv("PERPS_WALLET_APP_HASH_WAIT_S", "0")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     submit_count = {"value": 0}
@@ -2714,10 +2865,6 @@ def test_submit_reports_sequence_consumed_without_app_delta(monkeypatch) -> None
         app_hash = hash_v0("test_perps_wallet_app_state", self.app_state)
         return json.dumps({"app_hash": "sha256:" + app_hash[2:], "app_state": self.app_state}, sort_keys=True)
 
-    def sequence_after_consumption(self, sender_pubkey_hex: str) -> int:
-        assert sender_pubkey_hex == ALICE[2:]
-        return 10 if submit_count["value"] else 9
-
     def sendtx_without_app_delta(self, payload):
         self.sent.append(dict(payload))
         submit_count["value"] += 1
@@ -2726,9 +2873,7 @@ def test_submit_reports_sequence_consumed_without_app_delta(monkeypatch) -> None
         return "FAILURE: Invalid sequence number: expected 10, got 9."
 
     monkeypatch.setattr(_FakeClient, "getappstate", hashed_getappstate)
-    monkeypatch.setattr(_FakeClient, "get_sequence", sequence_after_consumption)
     monkeypatch.setattr(_FakeClient, "sendtx", sendtx_without_app_delta)
-    monkeypatch.setattr(_FakeClient, "createblock", lambda self: "Mempool is empty. No block created.")
 
     body = {
         "action": "deposit_collateral",
@@ -2748,18 +2893,17 @@ def test_submit_reports_sequence_consumed_without_app_delta(monkeypatch) -> None
     assert status_code == 400
     assert payload["ok"] is False
     assert payload["status"] == "submit_indeterminate"
-    assert payload["error"] == "tau_sequence_consumed_without_app_delta"
-    assert payload["submission"]["observed_sequence_after_retry"] == 10
+    assert payload["error"] == "state_delta_witness_missing"
+    assert submit_count["value"] == 1
+    assert "retry_sendtx_response" not in payload["submission"]
 
 
-def test_submit_reports_sequence_consumed_from_retry_error_when_sequence_read_is_stale(monkeypatch) -> None:
+def test_submit_without_app_delta_ignores_stale_sequence_read(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
-    monkeypatch.setenv("PERPS_WALLET_AUTO_MINE", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     submit_count = {"value": 0}
@@ -2778,7 +2922,6 @@ def test_submit_reports_sequence_consumed_from_retry_error_when_sequence_read_is
 
     monkeypatch.setattr(_FakeClient, "getappstate", hashed_getappstate)
     monkeypatch.setattr(_FakeClient, "sendtx", sendtx_without_app_delta)
-    monkeypatch.setattr(_FakeClient, "createblock", lambda self: "Mempool is empty. No block created.")
 
     body = {
         "action": "deposit_collateral",
@@ -2798,19 +2941,17 @@ def test_submit_reports_sequence_consumed_from_retry_error_when_sequence_read_is
     assert status_code == 400
     assert payload["ok"] is False
     assert payload["status"] == "submit_indeterminate"
-    assert payload["error"] == "tau_sequence_consumed_without_app_delta"
-    assert payload["submission"]["observed_sequence_after_retry"] == 9
-    assert payload["submission"]["retry_sequence_error"] == {"expected": 10, "got": 9}
+    assert payload["error"] == "state_delta_witness_missing"
+    assert submit_count["value"] == 1
+    assert "retry_sequence_error" not in payload["submission"]
 
 
-def test_submit_rebuilds_local_tx_once_on_initial_stale_sequence(monkeypatch) -> None:
+def test_submit_does_not_resign_external_tx_on_initial_stale_sequence(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
-    monkeypatch.setenv("PERPS_WALLET_AUTO_MINE", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     send_count = {"value": 0}
@@ -2847,287 +2988,112 @@ def test_submit_rebuilds_local_tx_once_on_initial_stale_sequence(monkeypatch) ->
         json.dumps(body).encode("utf-8"),
     )
 
-    assert status_code == 200
-    assert payload["ok"] is True
-    assert payload["transport"]["tx_sequence_number"] == 10
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert payload["status"] == "submit_rejected"
+    assert payload["error"] == "sendtx_failed"
+    assert payload["transport"]["tx_sequence_number"] == 9
     assert payload["submission"]["sendtx_response"] == "FAILURE: Invalid sequence number: expected 10, got 9."
-    assert payload["submission"]["retry_sendtx_response"] == "SUCCESS tx accepted"
-    assert payload["submission"]["retry_sequence_error"] == {"expected": 10, "got": 9}
-    assert len(_FakeClient.sent) == 2
+    assert "retry_sendtx_response" not in payload["submission"]
+    assert send_count["value"] == 1
+    assert len(_FakeClient.sent) == 1
     assert _FakeClient.sent[0]["sequence_number"] == 9
-    assert _FakeClient.sent[1]["sequence_number"] == 10
 
 
-def test_perps_wallet_testnet_faucet_requires_explicit_local_enable(monkeypatch) -> None:
-    monkeypatch.delenv("PERPS_WALLET_TESTNET_FAUCET_ENABLED", raising=False)
-
+def test_perps_wallet_testnet_faucet_route_is_removed() -> None:
     status_code, payload = perps_wallet_api.handle_perps_wallet_request(
         "POST",
         "/api/perps/wallet/testnet-faucet",
         json.dumps({}).encode("utf-8"),
     )
 
-    assert status_code == 400
-    assert payload == {"ok": False, "error": "perps_wallet_testnet_faucet_disabled"}
+    assert status_code == 404
+    assert payload == {"ok": False, "error": "not_found"}
 
 
-def test_perps_wallet_testnet_faucet_mints_quote_asset_on_stream_7(monkeypatch) -> None:
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
-    _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
-    _FakeClient.sent = []
-    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_ENABLED", "1")
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY", BOB)
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_MAX_AMOUNT", "10000")
-    monkeypatch.setenv("PERPS_WALLET_AUTO_MINE", "1")
-    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
-
-    def applied_sendtx(self, payload):
-        _fake_client_apply_stream7_payload(self, payload)
-        return "SUCCESS tx accepted"
-
-    monkeypatch.setattr(_FakeClient, "sendtx", applied_sendtx)
-    monkeypatch.setattr(_FakeClient, "createblock", lambda self: "SUCCESS block created")
-    body = {
-        "to_pubkey": BOB,
-        "asset": quote_asset,
-        "amount": 5_000,
-        "signer_privkey": str(BOB_PRIVKEY),
-        "deadline": FUTURE_DEADLINE,
-        "tx_fee_limit": "0",
-    }
-
-    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+@pytest.mark.parametrize(
+    "field",
+    (
+        "account_privkey",
+        "account_a_privkey",
+        "account_b_privkey",
+        "operator_privkey",
+        "oracle_privkey",
+        "tx_signer_privkey",
+        "signer_privkey",
+        "private_key",
+        "private_key_hex",
+        "secret_key",
+        "mnemonic",
+    ),
+)
+def test_perps_wallet_rejects_raw_signing_material_before_route_processing(field: str) -> None:
+    status_code, payload = _PRODUCTION_HANDLE_PERPS_WALLET_REQUEST(
         "POST",
-        "/api/perps/wallet/testnet-faucet",
-        json.dumps(body).encode("utf-8"),
-    )
-
-    assert status_code == 200
-    assert payload["ok"] is True
-    assert payload["testnet_only"] is True
-    assert payload["production_authority"] is False
-    assert payload["balance_before"] == 0
-    assert payload["balance_after"] == 5_000
-    assert payload["transport"]["stream_key"] == "7"
-    assert payload["transport"]["tx_sender_pubkey"] == BOB
-    assert payload["submission"]["createblock_response"] == "SUCCESS block created"
-    sent_ops = _FakeClient.sent[0]["operations"]
-    assert isinstance(sent_ops, dict)
-    assert json.loads(sent_ops["7"]) == {"mint": [{"pubkey": BOB, "asset": quote_asset, "amount": 5_000}]}
-    _assert_redacted_tau_tx_payload(payload["report"]["tau_tx_payload"], _FakeClient.sent[0], operation_streams=["7"])
-
-
-def test_perps_wallet_testnet_faucet_rebuilds_once_on_stale_sequence(monkeypatch) -> None:
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
-    _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
-    _FakeClient.sent = []
-    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_ENABLED", "1")
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY", BOB)
-    monkeypatch.setenv("PERPS_WALLET_AUTO_MINE", "1")
-    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
-
-    send_count = {"value": 0}
-
-    def stale_then_applied_sendtx(self, payload):
-        send_count["value"] += 1
-        if send_count["value"] == 1:
-            self.sent.append(dict(payload))
-            return "FAILURE: Invalid sequence number: expected 12, got 11."
-        _fake_client_apply_stream7_payload(self, payload)
-        return "SUCCESS tx accepted"
-
-    monkeypatch.setattr(_FakeClient, "sendtx", stale_then_applied_sendtx)
-    monkeypatch.setattr(_FakeClient, "createblock", lambda self: "SUCCESS block created")
-
-    body = {
-        "to_pubkey": BOB,
-        "asset": quote_asset,
-        "amount": 5_000,
-        "signer_privkey": str(BOB_PRIVKEY),
-        "deadline": FUTURE_DEADLINE,
-        "tx_fee_limit": "0",
-    }
-    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
-        "POST",
-        "/api/perps/wallet/testnet-faucet",
-        json.dumps(body).encode("utf-8"),
-    )
-
-    assert status_code == 200
-    assert payload["ok"] is True
-    assert payload["transport"]["tx_sequence_number"] == 12
-    assert payload["submission"]["sendtx_response"] == "FAILURE: Invalid sequence number: expected 12, got 11."
-    assert payload["submission"]["retry_sendtx_response"] == "SUCCESS tx accepted"
-    assert payload["submission"]["retry_sequence_error"] == {"expected": 12, "got": 11}
-    assert len(_FakeClient.sent) == 2
-    assert _FakeClient.sent[0]["sequence_number"] == 11
-    assert _FakeClient.sent[1]["sequence_number"] == 12
-
-
-def test_perps_wallet_testnet_faucet_serializes_concurrent_requests(monkeypatch) -> None:
-    active = {"value": 0, "max": 0}
-    active_lock = threading.Lock()
-    start = threading.Barrier(3)
-    results: list[tuple[int, dict[str, object]]] = []
-    results_lock = threading.Lock()
-
-    def fake_build(_body):
-        with active_lock:
-            active["value"] += 1
-            active["max"] = max(active["max"], active["value"])
-        time.sleep(0.05)
-        with active_lock:
-            active["value"] -= 1
-        return {"ok": True, "schema": "test"}
-
-    def worker() -> None:
-        start.wait(timeout=2)
-        result = perps_wallet_api.handle_perps_wallet_request(
-            "POST",
-            "/api/perps/wallet/testnet-faucet",
-            json.dumps({}).encode("utf-8"),
-        )
-        with results_lock:
-            results.append(result)
-
-    monkeypatch.setattr(perps_wallet_api, "_build_testnet_faucet_response", fake_build)
-    threads = [threading.Thread(target=worker) for _ in range(2)]
-    for thread in threads:
-        thread.start()
-    start.wait(timeout=2)
-    for thread in threads:
-        thread.join(timeout=2)
-
-    assert sorted(status_code for status_code, _payload in results) == [200, 200]
-    assert active["max"] == 1
-
-
-def test_perps_wallet_submit_and_testnet_faucet_share_tau_write_lock(monkeypatch) -> None:
-    active = {"value": 0, "max": 0}
-    active_lock = threading.Lock()
-    start = threading.Barrier(3)
-    results: list[tuple[int, dict[str, object]]] = []
-    results_lock = threading.Lock()
-
-    def enter_write_lane() -> None:
-        with active_lock:
-            active["value"] += 1
-            active["max"] = max(active["max"], active["value"])
-        time.sleep(0.05)
-        with active_lock:
-            active["value"] -= 1
-
-    def fake_submit(_body, *, for_submit: bool):
-        assert for_submit is True
-        enter_write_lane()
-        return {"ok": True, "schema": "submit-test"}
-
-    def fake_faucet(_body):
-        enter_write_lane()
-        return {"ok": True, "schema": "faucet-test"}
-
-    def worker(path: str) -> None:
-        start.wait(timeout=2)
-        result = perps_wallet_api.handle_perps_wallet_request("POST", path, json.dumps({}).encode("utf-8"))
-        with results_lock:
-            results.append(result)
-
-    monkeypatch.setattr(perps_wallet_api, "_build_prepare_response", fake_submit)
-    monkeypatch.setattr(perps_wallet_api, "_build_testnet_faucet_response", fake_faucet)
-    threads = [
-        threading.Thread(target=worker, args=("/api/perps/wallet/submit",)),
-        threading.Thread(target=worker, args=("/api/perps/wallet/testnet-faucet",)),
-    ]
-    for thread in threads:
-        thread.start()
-    start.wait(timeout=2)
-    for thread in threads:
-        thread.join(timeout=2)
-
-    assert sorted(status_code for status_code, _payload in results) == [200, 200]
-    assert active["max"] == 1
-
-
-def test_perps_wallet_testnet_faucet_rejects_missing_balance_delta(monkeypatch) -> None:
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
-    _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
-    _FakeClient.sent = []
-    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_ENABLED", "1")
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY", BOB)
-    monkeypatch.setenv("PERPS_WALLET_AUTO_MINE", "1")
-    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
-    monkeypatch.setattr(_FakeClient, "sendtx", lambda self, payload: "SUCCESS tx accepted")
-    monkeypatch.setattr(_FakeClient, "createblock", lambda self: "SUCCESS block created")
-
-    body = {
-        "to_pubkey": BOB,
-        "asset": quote_asset,
-        "amount": 5_000,
-        "signer_privkey": str(BOB_PRIVKEY),
-        "deadline": FUTURE_DEADLINE,
-        "tx_fee_limit": "0",
-    }
-    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
-        "POST",
-        "/api/perps/wallet/testnet-faucet",
-        json.dumps(body).encode("utf-8"),
+        "/api/perps/wallet/prepare",
+        json.dumps({field: "forbidden"}).encode("utf-8"),
     )
 
     assert status_code == 400
-    assert payload["ok"] is False
-    assert payload["status"] == "submit_indeterminate"
-    assert payload["error"] == "faucet_balance_delta_missing"
-    assert payload["balance_before"] == 0
-    assert payload["balance_after"] == 0
-    assert payload["expected_balance_after_at_least"] == 5_000
+    assert payload == {"ok": False, "error": f"raw_signing_material_forbidden:{field}"}
 
 
-def test_perps_wallet_testnet_faucet_rejects_non_authority_signer(monkeypatch) -> None:
+def test_perps_wallet_rejects_nested_raw_signing_material() -> None:
+    status_code, payload = _PRODUCTION_HANDLE_PERPS_WALLET_REQUEST(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps({"signer": {"private-key-hex": "forbidden"}}).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {
+        "ok": False,
+        "error": "raw_signing_material_forbidden:signer.private-key-hex",
+    }
+
+
+def test_perps_wallet_raw_key_boundary_allows_non_secret_policy_claim_names() -> None:
+    status_code, payload = _PRODUCTION_HANDLE_PERPS_WALLET_REQUEST(
+        "POST",
+        "/api/perps/wallet/not-a-route",
+        json.dumps({"no_raw_private_key_exposure": True}).encode("utf-8"),
+    )
+
+    assert status_code == 404
+    assert payload == {"ok": False, "error": "not_found"}
+
+
+def test_perps_wallet_prepare_returns_unsigned_operation_for_external_signer(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_ENABLED", "1")
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY", OPERATOR)
+    _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
+    _FakeClient.native_balances = {ALICE[2:]: 10}
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     status_code, payload = perps_wallet_api.handle_perps_wallet_request(
         "POST",
-        "/api/perps/wallet/testnet-faucet",
+        "/api/perps/wallet/prepare",
         json.dumps(
             {
-                "to_pubkey": BOB,
-                "asset": quote_asset,
-                "amount": 5_000,
-                "signer_privkey": str(BOB_PRIVKEY),
+                "action": "init_market_2p",
+                "market_id": MARKET_ID,
+                "quote_asset": quote_asset,
+                "account_a_pubkey": ALICE,
+                "account_b_pubkey": BOB,
+                "deadline": FUTURE_DEADLINE,
             }
         ).encode("utf-8"),
     )
 
-    assert status_code == 400
-    assert payload == {"ok": False, "error": "testnet_faucet_authority_mismatch"}
-
-
-def test_perps_wallet_testnet_faucet_rejects_amount_over_cap(monkeypatch) -> None:
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_ENABLED", "1")
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY", BOB)
-    monkeypatch.setenv("PERPS_WALLET_TESTNET_FAUCET_MAX_AMOUNT", "100")
-
-    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
-        "POST",
-        "/api/perps/wallet/testnet-faucet",
-        json.dumps(
-            {
-                "to_pubkey": BOB,
-                "asset": quote_asset,
-                "amount": 101,
-                "signer_privkey": str(BOB_PRIVKEY),
-            }
-        ).encode("utf-8"),
-    )
-
-    assert status_code == 400
-    assert payload == {"ok": False, "error": "testnet_faucet_amount_exceeds_cap:101>100"}
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert "allow_local_signing" not in payload["transport"]
+    assert payload["transport"]["signing_mode"] == "prepare_only"
+    assert payload["transport"]["tx_expiration_time"] == FUTURE_DEADLINE
+    assert payload["report"]["tau_tx_payload"] is None
+    assert payload["report"]["operation"]["sig_a"] == ""
+    assert payload["report"]["operation"]["sig_b"] == ""
+    assert payload["report"]["preflight"]["ok"] is False
 
 
 def test_submit_deposit_collateral_rejects_failed_sendtx(monkeypatch) -> None:
@@ -3136,7 +3102,6 @@ def test_submit_deposit_collateral_rejects_failed_sendtx(monkeypatch) -> None:
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     def rejected_sendtx(self, payload):
@@ -3175,7 +3140,6 @@ def test_submit_deposit_collateral_rejected_sendtx_clears_promotion_ready(monkey
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("PERPS_WALLET_REQUIRE_ZK_PROOF", "1")
     monkeypatch.setenv(
         "PERPS_WALLET_PROOF_VERIFIER_CMD_JSON",
@@ -3242,7 +3206,6 @@ def test_submit_deposit_collateral_sets_promotion_ready_only_after_post_submit_b
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("PERPS_WALLET_REQUIRE_ZK_PROOF", "1")
     monkeypatch.setenv(
         "PERPS_WALLET_PROOF_VERIFIER_CMD_JSON",
@@ -3307,7 +3270,6 @@ def test_submit_deposit_collateral_records_required_post_submit_zk_binding_gap(m
     _FakeClient.sent = []
     _FakeClient.native_balances = {ALICE[2:]: 5}
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("PERPS_WALLET_REQUIRE_ZK_PROOF", "1")
     monkeypatch.setenv(
         "PERPS_WALLET_PROOF_VERIFIER_CMD_JSON",
@@ -3409,7 +3371,7 @@ def test_submit_accepts_external_signed_tau_payload_without_local_signing(monkey
 
     assert status_code == 200
     assert payload["ok"] is True
-    assert payload["transport"]["allow_local_signing"] is False
+    assert "allow_local_signing" not in payload["transport"]
     assert payload["transport"]["signing_mode"] == "external_signed_payload"
     assert payload["report"]["preflight"]["ok"] is True
     _assert_redacted_tau_tx_payload(payload["report"]["tau_tx_payload"], external_payload)
@@ -3640,7 +3602,6 @@ def test_submit_withdraw_collateral_uses_sender_bound_account_and_stream_8(monke
     _FakeClient.app_state = _wrapped_app_state(_state_with_posted_collateral(quote_asset=quote_asset))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     body = {
@@ -3666,12 +3627,11 @@ def test_submit_withdraw_collateral_uses_sender_bound_account_and_stream_8(monke
     assert _FakeClient.sent[0]["sender_pubkey"] == ALICE[2:]
 
 
-def test_prepare_publish_price_signs_oracle_op(monkeypatch) -> None:
+def test_external_oracle_signer_completes_publish_price_prepare(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_advanced_market(quote_asset=quote_asset))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
@@ -3702,7 +3662,6 @@ def test_submit_advance_epoch_uses_operator_signer(monkeypatch) -> None:
     _FakeClient.app_state = _wrapped_app_state(_state_with_market_and_balance(quote_asset=quote_asset))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
@@ -3755,7 +3714,18 @@ def test_prepare_settle_epoch_can_fail_closed_on_missing_oracle_bridge(monkeypat
     assert payload["report"]["preflight"]["error"] == "settle_epoch requires oracle_adapter_bridge"
 
 
-def test_oracle_bridge_template_preflights_required_settle_epoch(monkeypatch) -> None:
+def test_synthetic_oracle_bridge_template_route_is_removed() -> None:
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge-template",
+        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    )
+
+    assert status_code == 404
+    assert payload == {"ok": False, "error": "not_found"}
+
+
+def test_caller_supplied_oracle_bridge_preflights_required_settle_epoch(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
     _FakeClient.sent = []
@@ -3764,15 +3734,13 @@ def test_oracle_bridge_template_preflights_required_settle_epoch(monkeypatch) ->
     monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
-    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
-        "POST",
-        "/api/perps/wallet/oracle-bridge-template",
-        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    bridge_payload = _test_oracle_bridge_fixture(
+        action="settle_epoch",
+        market_id=MARKET_ID,
     )
 
-    assert status_code == 200
     assert bridge_payload["ok"] is True
-    assert bridge_payload["fixture_kind"] == "local_o3_aggregate_adapter"
+    assert bridge_payload["fixture_kind"] == "test_only_o3_aggregate_adapter"
     assert bridge_payload["production_authority"] is False
     assert bridge_payload["verify_result"]["status"] == "accepted"
     assert bridge_payload["target"]["consumer_module"] == "zenodex.perps"
@@ -3803,7 +3771,6 @@ def test_submit_settle_epoch_binds_ready_oracle_authority_exercise(monkeypatch) 
     _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
     monkeypatch.setenv(
@@ -3812,12 +3779,10 @@ def test_submit_settle_epoch_binds_ready_oracle_authority_exercise(monkeypatch) 
     )
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
-    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
-        "POST",
-        "/api/perps/wallet/oracle-bridge-template",
-        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    bridge_payload = _test_oracle_bridge_fixture(
+        action="settle_epoch",
+        market_id=MARKET_ID,
     )
-    assert status_code == 200
 
     body = {
         "action": "settle_epoch",
@@ -3858,7 +3823,6 @@ def test_submit_settle_epoch_requires_ready_oracle_authority_when_enabled(monkey
     _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY", "1")
     monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
@@ -3866,12 +3830,10 @@ def test_submit_settle_epoch_requires_ready_oracle_authority_when_enabled(monkey
     monkeypatch.delenv("PERPS_ORACLE_AUTHORITY_PROFILE_FILE", raising=False)
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
-    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
-        "POST",
-        "/api/perps/wallet/oracle-bridge-template",
-        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    bridge_payload = _test_oracle_bridge_fixture(
+        action="settle_epoch",
+        market_id=MARKET_ID,
     )
-    assert status_code == 200
 
     body = {
         "action": "settle_epoch",
@@ -3900,7 +3862,6 @@ def test_submit_settle_epoch_requires_ready_oracle_authority_by_default_on_publi
     _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", public_chain_id)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
     monkeypatch.delenv("PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY", raising=False)
@@ -3908,12 +3869,11 @@ def test_submit_settle_epoch_requires_ready_oracle_authority_by_default_on_publi
     monkeypatch.delenv("PERPS_ORACLE_AUTHORITY_PROFILE_FILE", raising=False)
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
-    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
-        "POST",
-        "/api/perps/wallet/oracle-bridge-template",
-        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID, "chain_id": public_chain_id}).encode("utf-8"),
+    bridge_payload = _test_oracle_bridge_fixture(
+        action="settle_epoch",
+        market_id=MARKET_ID,
+        chain_id=public_chain_id,
     )
-    assert status_code == 200
 
     body = {
         "action": "settle_epoch",
@@ -3946,12 +3906,10 @@ def test_oracle_bridge_inspector_summarizes_verified_settle_bridge(monkeypatch) 
     monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
-    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
-        "POST",
-        "/api/perps/wallet/oracle-bridge-template",
-        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    bridge_payload = _test_oracle_bridge_fixture(
+        action="settle_epoch",
+        market_id=MARKET_ID,
     )
-    assert status_code == 200
 
     status_code, inspection = perps_wallet_api.handle_perps_wallet_request(
         "POST",
@@ -3982,12 +3940,10 @@ def test_oracle_bridge_inspector_rejects_tampered_action_id(monkeypatch) -> None
     monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
-    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
-        "POST",
-        "/api/perps/wallet/oracle-bridge-template",
-        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    bridge_payload = _test_oracle_bridge_fixture(
+        action="settle_epoch",
+        market_id=MARKET_ID,
     )
-    assert status_code == 200
     tampered = json.loads(json.dumps(bridge_payload["bridge"]))
     tampered["action"]["action_id"] = "sha256:" + "0" * 64
 
@@ -4024,6 +3980,7 @@ def test_status_exposes_clearinghouse_liquidation_summary_fields(monkeypatch) ->
 
     assert status_code == 200
     assert payload["ok"] is True
+    assert "allow_local_signing" not in payload["status"]
     proof_profile = payload["status"]["proof_profile"]
     assert proof_profile["profile_id"] == "perps_stream8_live_wallet_v0"
     assert proof_profile["zk_wrapper_required_for_production_claim"] is True
@@ -4780,7 +4737,7 @@ def test_prepare_partial_liquidate_accepts_auto_fraction_zero(monkeypatch) -> No
     assert payload["report"]["operation"]["fraction_bps"] == 0
 
 
-def test_oracle_bridge_template_preflights_required_partial_liquidate(monkeypatch) -> None:
+def test_caller_supplied_oracle_bridge_preflights_required_partial_liquidate(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_with_isolated_liquidatable_account(quote_asset=quote_asset))
     _FakeClient.sent = []
@@ -4789,20 +4746,13 @@ def test_oracle_bridge_template_preflights_required_partial_liquidate(monkeypatc
     monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
-    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
-        "POST",
-        "/api/perps/wallet/oracle-bridge-template",
-        json.dumps(
-            {
-                "action": "partial_liquidate",
-                "market_id": ISOLATED_MARKET_ID,
-                "account_pubkey": ALICE,
-                "fraction_bps": 0,
-            }
-        ).encode("utf-8"),
+    bridge_payload = _test_oracle_bridge_fixture(
+        action="partial_liquidate",
+        market_id=ISOLATED_MARKET_ID,
+        account_pubkey=ALICE,
+        fraction_bps=0,
     )
 
-    assert status_code == 200
     assert bridge_payload["ok"] is True
     assert bridge_payload["action"] == "partial_liquidate"
     assert bridge_payload["target"]["action_kind"] == "liquidate_account"
@@ -4835,7 +4785,6 @@ def test_submit_partial_liquidate_builds_account_bound_stream_8_tx(monkeypatch) 
     _FakeClient.app_state = _wrapped_app_state(_state_with_isolated_liquidatable_account(quote_asset=quote_asset))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setenv("TAU_DEX_ALLOW_ISOLATED_PERPS", "1")
     monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE", "0")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
@@ -4877,7 +4826,6 @@ def test_submit_rejects_preflight_failure_before_sendtx(monkeypatch) -> None:
     _FakeClient.app_state = _wrapped_app_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()))
     _FakeClient.sent = []
     monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
-    monkeypatch.setenv("PERPS_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
 
     body = {

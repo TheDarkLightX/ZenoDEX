@@ -11,6 +11,7 @@ import json
 import secrets
 import sys
 import threading
+from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -19,8 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.integration.zeno_ledger_v0 import canonical_json_bytes_v0, hash_v0
-from src.integration.zenodex_local_signer import (
+from src.integration.zeno_ledger_v0 import canonical_json_bytes_v0, hash_v0  # noqa: E402
+from src.integration.zenodex_local_signer import (  # noqa: E402
     create_local_signer_vault,
     read_local_signer_vault,
     verify_local_signer_dex_signature_receipt,
@@ -99,7 +100,7 @@ def _approval_summary(*, kind: str, chain_id: str, payload: dict[str, Any]) -> d
         )
     elif kind == "dex_intent":
         fields = payload.get("fields")
-        if not isinstance(fields, dict):
+        if not isinstance(fields, Mapping):
             common = {"module", "version", "kind", "intent_id", "sender_pubkey", "deadline", "salt", "signature"}
             fields = {key: value for key, value in payload.items() if key not in common}
         summary.update(
@@ -269,8 +270,8 @@ class _LocalSignerHttpHandler(BaseHTTPRequestHandler):
         if mode != "prompt":
             raise PermissionError("signing_approval_mode_unsupported")
         summary = _approval_summary(kind=kind, chain_id=chain_id, payload=payload)
-        lock = getattr(self.server, "approval_lock")
-        approval_input = getattr(self.server, "approval_input")
+        lock = self.server.approval_lock
+        approval_input = self.server.approval_input
         with lock:
             print("ZenoDEX local signer approval requested:", file=sys.stderr)
             print(json.dumps(summary, indent=2, sort_keys=True), file=sys.stderr)
@@ -283,8 +284,8 @@ class _LocalSignerHttpHandler(BaseHTTPRequestHandler):
         self._write_options()
 
     def do_GET(self) -> None:
-        vault = getattr(self.server, "vault")
-        chain_id = getattr(self.server, "chain_id")
+        vault = self.server.vault
+        chain_id = self.server.chain_id
         if self.path == "/health":
             self._write_json(200, {"ok": True, "provider": "zenodex-local-signer-v0"})
             return
@@ -312,9 +313,9 @@ class _LocalSignerHttpHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if self._reject_disallowed_origin(require_origin=True):
             return
-        vault = getattr(self.server, "vault")
-        passphrase = getattr(self.server, "passphrase")
-        default_chain_id = getattr(self.server, "chain_id")
+        vault = self.server.vault
+        passphrase = self.server.passphrase
+        default_chain_id = self.server.chain_id
         try:
             body = self._read_json_body()
             chain_id = str(body.get("chainId") or body.get("chain_id") or default_chain_id)
@@ -328,7 +329,7 @@ class _LocalSignerHttpHandler(BaseHTTPRequestHandler):
                     200,
                     {
                         "ok": True,
-                        "signerPairingToken": getattr(self.server, "pairing_token"),
+                        "signerPairingToken": self.server.pairing_token,
                         "wallet": {
                             "address": vault.public_key,
                             "chainId": chain_id,

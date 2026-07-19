@@ -20,11 +20,6 @@ from src.integration.zeno_ledger_app_hash_history import (
     checked_range_summary_v0,
 )
 from src.integration.zeno_ledger_mirror import validate_mirror_index_v0
-from src.integration.zeno_ledger_profile import (
-    sample_local_sandbox_profile_v0,
-    sample_tau_exclusive_release_profile_v0,
-    sample_zeno_sovereign_testnet_profile_v0,
-)
 from src.integration.zeno_ledger_signature import validate_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_tau_export import validate_tau_export_packet_v0
 from src.integration.zeno_ledger_testnet_status import validate_testnet_status_v0
@@ -47,6 +42,11 @@ from src.integration.zeno_ledger_v0 import (
 from src.integration.zeno_ledger_watcher import validate_watcher_attestation_v0
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+from tools.support.zeno_ledger_profile_samples import (
+    sample_local_sandbox_profile_v0,
+    sample_tau_exclusive_release_profile_v0,
+    sample_zeno_sovereign_testnet_profile_v0,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 VERIFY_SCRIPT = ROOT / "tools" / "zeno_ledger_verify.py"

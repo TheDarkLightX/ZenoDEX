@@ -1,5 +1,5 @@
 # ZenoDEX Docker Compose Configuration
-# Plug-and-play deployment for the formally verified DEX
+# Production deployment for ZenoDEX
 #
 # Usage:
 #   docker compose up -d         # Start all services
@@ -20,7 +20,8 @@ services:
       # Expose UI only by default. Keep API internal unless explicitly enabled.
       - "${UI_PORT:-3000}:8080" # UI served via nginx (unprivileged port)
     environment:
-      # Local-first: leave empty unless you intentionally want a remote Tau RPC.
+      - ZENODEX_ENV=production
+      - TAU_DEX_CHAIN_ID=${TAU_DEX_CHAIN_ID:?TAU_DEX_CHAIN_ID must identify the production chain}
       - TAU_NET_RPC=${TAU_NET_RPC:-}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       # Default-deny CORS; operators must set explicit origins (comma-separated).
@@ -30,6 +31,7 @@ services:
       - RATE_LIMIT_RPM=${RATE_LIMIT_RPM:-600}
     volumes:
       - zenodex-data:/app/data # Persistent data (optional)
+      - ${ZENODEX_RUNTIME_CONFIG_PATH:?ZENODEX_RUNTIME_CONFIG_PATH must point to a production zenodex-config.json}:/var/www/zenodex/zenodex-config.json:ro
     security_opt:
       - no-new-privileges:true
     cap_drop:

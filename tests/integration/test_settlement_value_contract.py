@@ -7,6 +7,10 @@ import pytest
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
+from src.integration.settlement_price_provenance import (
+    SettlementSpotPriceEntry,
+    build_settlement_spot_price_packet,
+)
 from src.integration.settlement_value_contract import (
     SETTLEMENT_SPOT_VALUE_CONTRACT_SCHEMA,
     build_settlement_spot_value_contract,
@@ -14,13 +18,11 @@ from src.integration.settlement_value_contract import (
     build_settlement_spot_value_contract_from_price_packet,
     verify_settlement_spot_value_contract,
 )
-from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
-from src.integration.settlement_price_provenance import (
-    SettlementSpotPriceEntry,
-    build_settlement_spot_price_packet,
-)
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
+from tests.support.settlement_price_attestation_signer import (
+    build_settlement_spot_price_attestation,
+)
 
 
 def _iid(n: int) -> str:
@@ -99,7 +101,10 @@ def test_settlement_spot_value_contract_rejects_missing_price_coverage() -> None
 
 def test_settlement_spot_value_contract_rejects_lp_delta_scope_violation() -> None:
     pk, asset0, _asset1, pool_id, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=1, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=1, delta_sub=0)),
+    )
 
     with pytest.raises(ValueError, match="empty lp_deltas"):
         build_settlement_spot_value_contract(

@@ -2263,17 +2263,16 @@ claims:
     layer: implementation
     statement: >
       The first-shell ZenoOracle critical consumer-profile catalog has seven
-      machine-checked runtime-wired profiles: perps settlement, standalone
-      perps liquidation, zUSD mint, zUSD liquidation, guarded routing, and
-      trigger execution, plus typed critical-settlement authorization in
-      `dex_engine`. The zUSD mint/liquidation and trigger execution surfaces
-      are checked for both O3 adapter bridge binding and typed
-      OracleAuthorization binding. The checker verifies catalog query IDs,
-      profile IDs, consumer modules, action kinds, runtime action-ID bindings,
-      typed zUSD action-facts/pre-state binding, and typed trigger
-      action-facts/pre-state binding for this catalog. Future critical
-      consumers require their own catalog profiles and runtime checks before
-      they become covered guarantees.
+      profiles. Five are machine-checked as runtime-wired: perps settlement,
+      standalone perps liquidation, guarded routing, trigger execution, and
+      typed critical-settlement authorization in `dex_engine`. The zUSD mint
+      and liquidation profiles remain blocked design-only backlog entries
+      because the production monetary bridge has no committed typed
+      Oracle-authorization lifecycle for those actions. The checker verifies
+      catalog query IDs, profile IDs, consumer modules, action kinds, runtime
+      action-ID bindings, and the typed bindings present on the five wired
+      surfaces. It does not count audit replay scaffolds as runtime evidence or
+      claim that the two blocked zUSD profiles are production-wired.
     evidence:
       kind: python
       check:
@@ -2282,9 +2281,8 @@ claims:
       files:
         - tools/check_zeno_oracle_critical_action_map.py
         - tests/test_zeno_oracle_critical_action_map.py
-        - docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md
         - src/integration/perp_engine.py
-        - src/integration/zusd_api.py
+        - src/integration/zusd_monetary_bridge.py
         - src/integration/api_server.py
         - src/integration/dex_engine.py
         - src/integration/zeno_oracle_settlement_authorization.py

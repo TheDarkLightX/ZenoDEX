@@ -5,7 +5,6 @@ Handles operation groups "2" (DEX intents) and "3" (DEX settlement).
 """
 
 from collections.abc import Mapping
-from copy import deepcopy
 from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Optional
 
@@ -17,8 +16,8 @@ from ..core.settlement import (
     ReserveDelta,
     Settlement,
 )
-from ..state.canonical import canonical_hex_fixed_allow_0x
-from ..state.intents import Intent, IntentKind
+from ..state.canonical import canonical_hex_fixed_allow_0x, plain_json_value
+from ..state.intents import Intent, IntentKind, require_exact_intent
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -97,12 +96,13 @@ def canonicalize_authenticated_intent_for_execution(intent: Intent) -> Intent:
     defensively owned value and never changes the fields that were signed.
     """
 
+    require_exact_intent(intent)
     sender_pubkey = canonical_hex_fixed_allow_0x(
         intent.sender_pubkey,
         nbytes=48,
         name="authenticated intent sender_pubkey",
     )
-    fields = deepcopy(intent.fields or {})
+    fields = dict(intent.fields or {})
     recipient = fields.get("recipient")
     if recipient is not None:
         fields["recipient"] = canonical_hex_fixed_allow_0x(
@@ -724,6 +724,6 @@ def create_settlement_operation(settlement: Settlement) -> Dict[str, Any]:
     }
     
     if settlement.events:
-        settlement_data["events"] = settlement.events
+        settlement_data["events"] = plain_json_value(settlement.events)
     
     return {"3": settlement_data}

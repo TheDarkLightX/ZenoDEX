@@ -16,7 +16,6 @@ if str(ROOT) not in sys.path:
 from src.core.dex import DexState
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0
-from src.integration.zeno_ledger_profile import sample_zeno_sovereign_testnet_profile_v0
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
     BODY_SCHEMA_V0,
@@ -25,13 +24,15 @@ from src.integration.zeno_ledger_v0 import (
 )
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+from tools.support.zeno_ledger_profile_samples import (  # noqa: E402
+    sample_zeno_sovereign_testnet_profile_v0,
+)
 from tools.zeno_ledger_make_feature_lane import build_feature_lane_manifest_v0
 from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_CHAIN_ID,
     DEFAULT_SEQUENCER_ID,
     DEFAULT_TIME_MS,
 )
-
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_assurance_feature_suite_report.v0"
 

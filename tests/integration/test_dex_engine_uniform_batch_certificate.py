@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from hashlib import sha256
 from math import gcd
 
@@ -42,6 +43,7 @@ from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus
 
 SENDER = "0x" + "aa" * 48
+PROTOCOL_TREASURY = "0x" + "cc" * 48
 
 
 def _intent_id(label: str) -> str:
@@ -412,7 +414,13 @@ def _ops_with_uniform_certificate(*, tamper_settlement: bool = False) -> dict[st
         certificate=cert,
     )
     if tamper_settlement:
-        settlement.fills[0].amount_out_filled = 99
+        settlement = replace(
+            settlement,
+            fills=(
+                replace(settlement.fills[0], amount_out_filled=99),
+                *settlement.fills[1:],
+            ),
+        )
     settlement_op = create_settlement_operation(settlement)["3"]
     settlement_op["uniform_batch_certificate"] = cert.to_dict()
     return {"2": _intent_ops(), "3": settlement_op}
@@ -1426,7 +1434,7 @@ def test_engine_rejects_uniform_batch_certificate_when_protocol_fees_enabled() -
             require_intent_signatures=False,
             dex_config=DexConfig(
                 protocol_fee_share_bps=5_000,
-                protocol_fee_recipient_pubkey="protocol_treasury",
+                protocol_fee_recipient_pubkey=PROTOCOL_TREASURY,
             ),
         ),
         state=_state(),

@@ -1,8 +1,24 @@
 #!/bin/bash
 # ZenoDEX entrypoint.
-# Starts nginx + the minimal Python API with local-first defaults.
+# Starts nginx + the minimal Python API with production-safe defaults.
 
 set -euo pipefail
+
+ZENODEX_ENV="${ZENODEX_ENV:-production}"
+if [[ "$ZENODEX_ENV" != "production" ]]; then
+    echo "ERROR: the production image requires ZENODEX_ENV=production" >&2
+    exit 1
+fi
+if [[ -z "${TAU_DEX_CHAIN_ID:-}" ]]; then
+    echo "ERROR: TAU_DEX_CHAIN_ID is required in production" >&2
+    exit 1
+fi
+if ! python /validate_production_ui_config.py \
+    /var/www/zenodex/zenodex-config.json \
+    --expected-chain-id "$TAU_DEX_CHAIN_ID"; then
+    echo "ERROR: production UI config failed the release capability contract" >&2
+    exit 1
+fi
 
 # Optional remote RPC. Core hosting should not depend on a managed provider.
 TAU_NET_RPC="${TAU_NET_RPC:-}"
@@ -14,7 +30,7 @@ fi
 if [[ -n "$TAU_NET_RPC" ]]; then
     echo "Using explicit Tau RPC: $TAU_NET_RPC"
 else
-    echo "TAU_NET_RPC is unset. Running in local-first mode; configure a local Tau node or set an explicit remote RPC if needed."
+    echo "TAU_NET_RPC is unset. Configure an in-network Tau node or set an explicit remote RPC if needed."
 fi
 
 # Nginx temp dirs (required when using read-only rootfs + tmpfs)

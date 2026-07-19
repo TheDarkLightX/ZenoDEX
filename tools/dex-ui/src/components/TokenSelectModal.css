@@ -113,19 +113,6 @@
     gap: 0.75rem;
 }
 
-.import-link {
-    background: transparent;
-    border: none;
-    color: var(--accent);
-    cursor: pointer;
-    font-size: 0.875rem;
-    text-decoration: underline;
-}
-
-.import-link:hover {
-    color: var(--accent-hover);
-}
-
 /* Token Item */
 .token-list-item {
     display: flex;
@@ -195,84 +182,6 @@
     color: var(--text-primary);
     font-weight: 500;
     font-size: 0.9375rem;
-}
-
-.token-custom-badge {
-    font-size: 0.6875rem;
-    padding: 0.125rem 0.375rem;
-    background: var(--warning);
-    color: var(--bg);
-    border-radius: 0.25rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-/* Import Section */
-.token-import-section {
-    padding: 1rem 1.5rem;
-    border-top: 1px solid var(--border);
-}
-
-.import-toggle-btn {
-    width: 100%;
-    padding: 0.75rem;
-    background: transparent;
-    border: 1px dashed var(--border);
-    border-radius: 0.75rem;
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.import-toggle-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: rgba(var(--accent-rgb), 0.05);
-}
-
-.token-import-unavailable {
-    color: var(--text-secondary);
-    font-size: 0.8125rem;
-    line-height: 1.4;
-}
-
-.import-form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-.import-address-input {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    color: var(--text-primary);
-    font-size: 0.875rem;
-    font-family: monospace;
-}
-
-.import-address-input:focus {
-    outline: none;
-    border-color: var(--accent);
-}
-
-.import-error {
-    color: var(--danger);
-    font-size: 0.8125rem;
-}
-
-.import-actions {
-    display: flex;
-    gap: 0.75rem;
-}
-
-.import-actions .btn {
-    flex: 1;
-    padding: 0.625rem 1rem;
-    font-size: 0.875rem;
 }
 
 /* Responsive */

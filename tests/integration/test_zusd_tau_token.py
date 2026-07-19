@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from inspect import signature
 
 import pytest
 
@@ -30,6 +31,17 @@ def test_zusd_tau_token_identity_helpers_are_stable() -> None:
         derive_zusd_tau_asset_id(chain_id="")
     with pytest.raises(ValueError, match="symbol must be a non-empty string"):
         derive_zusd_tau_asset_id(symbol="")
+
+
+def test_prepare_zusd_tau_token_operation_is_unsigned_by_construction() -> None:
+    parameters = signature(prepare_zusd_tau_token_operation).parameters
+
+    assert {
+        "signer_privkey",
+        "tx_sequence_number",
+        "tx_expiration_time",
+        "tx_fee_limit",
+    }.isdisjoint(parameters)
 
 
 def test_create_tau_token_operation_covers_all_actions_and_validation() -> None:
@@ -94,9 +106,8 @@ def test_create_tau_token_operation_covers_all_actions_and_validation() -> None:
         )
 
 
-def test_prepare_zusd_tau_transfer_success_builds_receipts_and_tx_payload() -> None:
-    privkey = 34
-    sender = "0x" + bls_pubkey_hex_from_privkey(privkey)
+def test_prepare_zusd_tau_transfer_success_builds_unsigned_receipts() -> None:
+    sender = "0x" + bls_pubkey_hex_from_privkey(34)
     recipient = "0x" + bls_pubkey_hex_from_privkey(35)
 
     report = prepare_zusd_tau_token_operation(
@@ -110,9 +121,6 @@ def test_prepare_zusd_tau_transfer_success_builds_receipts_and_tx_payload() -> N
         sender_pubkey=sender,
         recipient_pubkey=recipient,
         chain_id="tau-local",
-        signer_privkey=privkey,
-        tx_sequence_number=7,
-        tx_expiration_time=999,
     )
 
     assert report.action == "transfer"
@@ -122,8 +130,7 @@ def test_prepare_zusd_tau_transfer_success_builds_receipts_and_tx_payload() -> N
     assert report.supply_after == 1_000
     assert report.operations["9"][0]["sender_pubkey"] == sender
     assert len(report.tau_receipts) == 2
-    assert report.tau_tx_payload is not None
-    assert report.tau_tx_payload["sequence_number"] == 7
+    assert report.tau_tx_payload is None
 
 
 def test_prepare_zusd_tau_transfer_rejects_aliasing_accounts() -> None:
@@ -157,7 +164,6 @@ def test_prepare_zusd_tau_token_covers_mint_and_burn() -> None:
         recipient_balance_before=10,
         operator_pubkey=operator,
         recipient_pubkey=recipient,
-        signer_privkey=36,
     )
     burn = prepare_zusd_tau_token_operation(
         action="burn",
@@ -167,7 +173,6 @@ def test_prepare_zusd_tau_token_covers_mint_and_burn() -> None:
         total_supply_before=1_000,
         sender_balance_before=100,
         sender_pubkey=burner,
-        signer_privkey=38,
     )
 
     assert mint.supply_after == 1_050
@@ -178,7 +183,7 @@ def test_prepare_zusd_tau_token_covers_mint_and_burn() -> None:
     assert len(burn.tau_receipts) == 1
 
 
-def test_prepare_zusd_tau_token_rejects_invalid_budget_and_signer_inputs() -> None:
+def test_prepare_zusd_tau_token_rejects_invalid_budget_inputs() -> None:
     sender = "0x" + bls_pubkey_hex_from_privkey(39)
     recipient = "0x" + bls_pubkey_hex_from_privkey(40)
 
@@ -216,30 +221,6 @@ def test_prepare_zusd_tau_token_rejects_invalid_budget_and_signer_inputs() -> No
             recipient_balance_before=0xFFFFFFFF,
             sender_pubkey=sender,
             recipient_pubkey=recipient,
-        )
-    with pytest.raises(ValueError, match="signer_privkey does not match"):
-        prepare_zusd_tau_token_operation(
-            action="burn",
-            amount=1,
-            deadline=99,
-            last_used_nonce=0,
-            total_supply_before=10,
-            sender_balance_before=10,
-            sender_pubkey=sender,
-            signer_privkey=41,
-        )
-    with pytest.raises(ValueError, match="provided together"):
-        prepare_zusd_tau_token_operation(
-            action="transfer",
-            amount=1,
-            deadline=99,
-            last_used_nonce=0,
-            total_supply_before=10,
-            sender_balance_before=10,
-            recipient_balance_before=0,
-            sender_pubkey=sender,
-            recipient_pubkey=recipient,
-            tx_sequence_number=1,
         )
     with pytest.raises(ValueError, match="next token nonce exceeds u32"):
         prepare_zusd_tau_token_operation(
@@ -286,20 +267,6 @@ def test_prepare_zusd_tau_token_rejects_invalid_budget_and_signer_inputs() -> No
             total_supply_before=10,
             sender_balance_before=10,
             sender_pubkey=sender,
-        )
-    with pytest.raises(ValueError, match="signer_privkey is required"):
-        prepare_zusd_tau_token_operation(
-            action="transfer",
-            amount=1,
-            deadline=99,
-            last_used_nonce=0,
-            total_supply_before=10,
-            sender_balance_before=10,
-            recipient_balance_before=0,
-            sender_pubkey=sender,
-            recipient_pubkey=recipient,
-            tx_sequence_number=1,
-            tx_expiration_time=1,
         )
 
 

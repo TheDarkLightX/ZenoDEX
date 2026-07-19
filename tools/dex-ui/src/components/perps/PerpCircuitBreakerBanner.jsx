@@ -20,7 +20,9 @@ function PerpCircuitBreakerBanner({ breakerActive, breakerLastTriggerEpoch }) {
                     </span>
                 </div>
                 <div className="perp-breaker-banner-epoch">
-                    Triggered at epoch #{breakerLastTriggerEpoch}
+                    {breakerLastTriggerEpoch != null
+                        ? `Triggered at epoch #${breakerLastTriggerEpoch}`
+                        : 'Trigger epoch unavailable'}
                 </div>
             </div>
         </div>

@@ -30,17 +30,17 @@ Algorithm Design:
 
 from __future__ import annotations
 
-from dataclasses import replace
+from collections.abc import Mapping
 from typing import Dict, List, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import (
     quote_cpmm_swap_exact_in,
     quote_cpmm_swap_exact_out,
 )
-from ..state.balances import Amount, BalanceTable, PubKey
-from ..state.intents import Intent
-from ..state.lp import LPTable
-from ..state.pools import PoolState
+from ..state.balances import Amount, BalanceTable, PubKey, copy_balance_table
+from ..state.intents import Intent, require_exact_intent
+from ..state.lp import LPTable, copy_lp_table
+from ..state.pools import PoolState, copy_pool_state
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .batch_clearing_apply import (
     _apply_filled_intent_to_locals_with_context,
@@ -153,7 +153,7 @@ _DELTA_COMPAT_EXPORTS = (
 
 def compute_settlement(
     intents: List[Intent],
-    pools: Dict[str, PoolState],
+    pools: Mapping[str, PoolState],
     balances: BalanceTable,
     lp_balances: Optional[LPTable] = None,
     *,
@@ -180,6 +180,8 @@ def compute_settlement(
     Returns:
         Settlement object with fills and deltas
     """
+    for intent in intents:
+        require_exact_intent(intent)
     validate_swap_tiebreak_seed(swap_tiebreak_seed)
     if swap_ordering not in _SWAP_ORDERING_CHOICES:
         raise ValueError(f"unsupported swap_ordering: {swap_ordering!r}")
@@ -224,20 +226,11 @@ def compute_settlement_for_request(request: ComputeSettlementRequest) -> Settlem
 
 
 def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
-    copied = BalanceTable()
-    for (pubkey, asset), amount in balances.get_all_balances().items():
-        copied.set(pubkey, asset, amount)
-    return copied
+    return copy_balance_table(balances)
 
 
 def _copy_lp_table(lp_balances: LPTable) -> LPTable:
-    copied = LPTable()
-    for (pubkey, pool_id), amount in lp_balances.get_all_balances().items():
-        copied.set(pubkey, pool_id, amount)
-    for (pubkey, pool_id), timestamp in lp_balances.get_all_last_mint_timestamps().items():
-        if copied.get(pubkey, pool_id) > 0:
-            copied.set_last_mint_timestamp(pubkey, pool_id, timestamp)
-    return copied
+    return copy_lp_table(lp_balances)
 
 
 def _try_create_pool(
@@ -430,7 +423,7 @@ def _process_liquidity_intent(
 def validate_settlement(
     settlement: Settlement,
     pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
+    pre_pools: Mapping[str, PoolState],
     pre_lp_balances: Optional[LPTable] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
@@ -502,7 +495,7 @@ def apply_settlement(
 def apply_settlement_pure(
     settlement: Settlement,
     balances: BalanceTable,
-    pools: Dict[str, PoolState],
+    pools: Mapping[str, PoolState],
     lp_balances: Optional[LPTable] = None,
 ) -> tuple[BalanceTable, Dict[str, PoolState], LPTable]:
     """
@@ -511,7 +504,9 @@ def apply_settlement_pure(
     Returns fresh (balances, pools, lp_balances) copies with the settlement applied.
     """
     balances_copy = _copy_balance_table(balances)
-    pools_copy: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
+    pools_copy: Dict[str, PoolState] = {
+        pool_id: copy_pool_state(pool) for pool_id, pool in pools.items()
+    }
     lp_copy = _copy_lp_table(lp_balances) if lp_balances is not None else LPTable()
 
     apply_settlement(settlement, balances_copy, pools_copy, lp_copy)

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from src.core.zusd import ZUSDMultiState, ZUSDState
+from src.core.zusd import ZUSDState
 
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
@@ -37,8 +37,8 @@ def _require_nonempty_string(value: object, field_name: str) -> str:
 
 def _require_state_mode(value: object) -> str:
     state_mode = _require_nonempty_string(value, "state_mode")
-    if state_mode not in {"single", "multi"}:
-        raise ValueError("state_mode must be single or multi")
+    if state_mode != "single":
+        raise ValueError("state_mode must be single")
     return state_mode
 
 
@@ -198,13 +198,15 @@ def _is_oracle_fresh(*, now_epoch: int, last_update_epoch: int, max_staleness_ep
 
 
 def build_zusd_oracle_pending_gate_contract(
-    state: ZUSDState | ZUSDMultiState,
+    state: ZUSDState,
     *,
     risky_requested: bool,
     max_staleness_epochs: int = 100,
     tcr_ok: bool = True,
 ) -> ZUSDOraclePendingGateContract:
-    state_mode = "multi" if isinstance(state, ZUSDMultiState) else "single"
+    if type(state) is not ZUSDState:
+        raise TypeError("state must be a ZUSDState")
+    state_mode = "single"
     oracle_seen = bool(state.oracle_seen)
     price_e8 = int(state.price_e8)
     price_pending_e8 = int(state.price_pending_e8)

@@ -133,6 +133,34 @@ def test_state_from_snapshot_rejects_unknown_version() -> None:
         state_from_snapshot(snap)
 
 
+def test_state_from_snapshot_rejects_duplicate_decoded_nonce_pubkeys() -> None:
+    pk_lower = "0x" + "ab" * 48
+    pk_upper = "0x" + "AB" * 48
+    snapshot = snapshot_from_state(
+        DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    ).data
+    snapshot["nonces"] = [
+        {"pubkey": pk_lower, "last_nonce": 1},
+        {"pubkey": pk_upper, "last_nonce": 2},
+    ]
+
+    with pytest.raises(ValueError, match="duplicate decoded nonce entry"):
+        state_from_snapshot(snapshot)
+
+
+def test_state_from_snapshot_preserves_single_nonce_spelling_normalization() -> None:
+    pk_lower = "0x" + "ab" * 48
+    pk_upper = "0x" + "AB" * 48
+    snapshot = snapshot_from_state(
+        DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    ).data
+    snapshot["nonces"] = [{"pubkey": pk_upper, "last_nonce": 7}]
+
+    restored = state_from_snapshot(snapshot)
+
+    assert restored.nonces.get_all() == {pk_lower: 7}
+
+
 def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
     balances = BalanceTable()
     lp = LPTable()

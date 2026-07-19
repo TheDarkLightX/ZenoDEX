@@ -7,6 +7,7 @@ In production, this would call the Tau Docker container to validate operations.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from ..core.batch_clearing import apply_settlement
@@ -36,7 +37,7 @@ def validate_operations(
     intents: List[Intent],
     settlement: Optional[Settlement],
     balances: BalanceTable,
-    pools: Dict[str, PoolState],
+    pools: Mapping[str, PoolState],
     lp_balances: Optional[LPTable],
     block_timestamp: int,
     *,

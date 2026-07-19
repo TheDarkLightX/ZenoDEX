@@ -25,14 +25,14 @@ const POOLS = {
 const VARIANTS = {
   enforced: {
     deployment: 'local-testnet', chainId: 'zeno-ledger-localtest-v0', apiBase: '', demoMode: false,
-    localTestnetZkPosture: {
+    expectedZkPosture: {
       ok: true, production_security_claim: false, proof_verifier_kind: 'subprocess',
       zk_fallback_reason: null, zk_mode_effective: 'strict', zk_mode_requested: 'strict', zk_required: true,
     },
   },
   advisory: {
     deployment: 'local-testnet', chainId: 'zeno-ledger-localtest-v0', apiBase: '', demoMode: false,
-    localTestnetZkPosture: {
+    expectedZkPosture: {
       ok: true, production_security_claim: false, proof_verifier_kind: 'disabled',
       zk_fallback_reason: 'proof verifier command unavailable', zk_mode_effective: 'open',
       zk_mode_requested: 'auto-strict', zk_required: false,

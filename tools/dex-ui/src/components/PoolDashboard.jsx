@@ -1,11 +1,8 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { formatNumber, formatPercent } from '../lib/cpmm';
-import { apiAddLiquidity, apiCreateLiquidityPool, apiGetPools, apiMintTestnetFaucet, apiRemoveLiquidity, getRuntimeConfig } from '../lib/api.js';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { formatNumber } from '../lib/cpmm';
+import { apiAddLiquidity, apiCreateLiquidityPool, apiGetPools, apiRemoveLiquidity, getRuntimeConfig } from '../lib/api.js';
 import { compactAssetLabel, displaySymbolForAsset, isCanonicalAssetId, isCompactAssetLabel } from '../lib/swapData.js';
 import { buildAndSignCreatePoolIntent, buildAndSignLiquidityIntent } from '../sdk/dexIntentSigner.js';
-import { browserKeyGenerationAllowed, connectPreferredWallet } from '../sdk/walletSignerPolicy.js';
-import { useDemoMode } from '../lib/DemoModeContext.jsx';
-import { DEMO_POOLS } from '../lib/mockData.js';
 import AddLiquidityModal from './AddLiquidityModal';
 import RemoveLiquidityModal from './RemoveLiquidityModal';
 import './PoolDashboard.css';
@@ -16,9 +13,6 @@ const TOKEN_ICONS = {
     ZDEX: '\u26a1',
     zUSD: '\u25c8',
     ZUSD: '\u25c8',
-    TASSET0: 'T\u2080',
-    TASSET1: 'T\u2081',
-    TZENO: 'TZ',
 };
 
 function safeFiniteNumber(value) {
@@ -88,34 +82,9 @@ function normalizeLivePool(row) {
     };
 }
 
-function normalizeFallbackPool(row) {
-    return {
-        id: String(row.id),
-        token0: row.token0,
-        token1: row.token1,
-        reserve0: safeFiniteNumber(row.reserve0),
-        reserve1: safeFiniteNumber(row.reserve1),
-        feeBps: safeFiniteNumber(row.feeBps ?? 30),
-        curveTag: 'CPMM',
-        lpSupply: safeFiniteNumber(row.totalLpSupply),
-        totalLpSupply: safeFiniteNumber(row.totalLpSupply),
-        tvl: safeFiniteNumber(row.tvl),
-        volume24h: safeFiniteNumber(row.volume24h),
-        apy: safeFiniteNumber(row.apy),
-        myLp: safeFiniteNumber(row.myLp),
-        source: 'fallback',
-        status: 'ACTIVE',
-    };
-}
-
 function formatOptionalNumber(value, { prefix = '', suffix = '', decimals = 6 } = {}) {
     if (value == null) return NA;
     return `${prefix}${formatNumber(value, decimals)}${suffix}`;
-}
-
-function formatOptionalPercent(value) {
-    if (value == null) return NA;
-    return formatPercent(value);
 }
 
 function formatSharePercent(value) {
@@ -126,12 +95,6 @@ function formatSharePercent(value) {
 function formatReserves(pool) {
     if (pool.reserve0 == null || pool.reserve1 == null) return NA;
     return `${formatNumber(pool.reserve0)} ${pool.token0.symbol} / ${formatNumber(pool.reserve1)} ${pool.token1.symbol}`;
-}
-
-function formatPoolDepth(pool) {
-    if (pool.tvl != null) return formatOptionalNumber(pool.tvl, { prefix: '$' });
-    if (pool.reserveDepth == null) return NA;
-    return `${formatNumber(pool.reserveDepth)} units`;
 }
 
 function formatPoolActivity(pool) {
@@ -201,16 +164,6 @@ function feeBpsAmount(value) {
 
 function deadlineOneHour() {
     return Math.floor(Date.now() / 1000) + 3600;
-}
-
-function liquiditySmokeEnabled() {
-    if (typeof window === 'undefined') return false;
-    return new URLSearchParams(window.location.search).get('zenodexUiSmokeLiquidity') === '1';
-}
-
-function localFixtureFundingAllowed(runtimeConfig = getRuntimeConfig()) {
-    const deployment = String(runtimeConfig?.deployment || '').toLowerCase();
-    return deployment === 'local-testnet' || deployment === 'localtest';
 }
 
 const LIQUIDITY_BACKOFF_MS = [250, 750, 1500];
@@ -288,34 +241,15 @@ function walletForPool(wallet, pool) {
     };
 }
 
-function defaultNewAssetId() {
-    return '0x4444444444444444444444444444444444444444444444444444444444444444';
-}
-
 function dexIntentSignerForWallet(wallet) {
     return wallet?.signDexIntentForEngine || wallet?.signDexIntent || null;
 }
 
 function canSignDexIntent(wallet) {
-    return Boolean(wallet?.privkey || dexIntentSignerForWallet(wallet));
-}
-
-async function connectPoolSigningWallet(chainId) {
-    const runtimeConfig = getRuntimeConfig();
-    return connectPreferredWallet({
-        chainId,
-        globalObject: typeof window === 'undefined' ? globalThis : window,
-        runtimeConfig,
-        allowBrowserFallback: browserKeyGenerationAllowed({
-            locationSearch: typeof window === 'undefined' ? '' : window.location.search,
-            runtimeConfig,
-            env: import.meta.env,
-        }),
-    });
+    return Boolean(dexIntentSignerForWallet(wallet));
 }
 
 function PoolDashboard({ wallet }) {
-    const { demoMode } = useDemoMode();
     const runtimeConfig = getRuntimeConfig();
     const [livePools, setLivePools] = useState([]);
     const [liveTokens, setLiveTokens] = useState([]);
@@ -325,28 +259,23 @@ function PoolDashboard({ wallet }) {
     const [actionError, setActionError] = useState('');
     const [actionBusy, setActionBusy] = useState('');
     const [loadingPools, setLoadingPools] = useState(false);
-    const [demoPools, setDemoPools] = useState(() => DEMO_POOLS.map(normalizeFallbackPool));
     const [addPool, setAddPool] = useState(null);
     const [removePool, setRemovePool] = useState(null);
     const [poolSearch, setPoolSearch] = useState('');
     const [poolSort, setPoolSort] = useState({ key: 'reserveDepth', dir: 'desc' });
     const [accountLastNonce, setAccountLastNonce] = useState(null);
     const [createForm, setCreateForm] = useState({
-        asset0: 'tASSET0',
-        asset1: defaultNewAssetId(),
+        asset0: '',
+        asset1: '',
         amount0: '2000',
         amount1: '2000',
         feeBps: '30',
-        fundBeforeCreate: localFixtureFundingAllowed(),
     });
-    const smokeRan = useRef(false);
-    const runtimeChainId = runtimeConfig.chainId || wallet?.chainId || 'zeno-ledger-localtest-v0';
-    const canUseLocalFixtureFunding = localFixtureFundingAllowed(runtimeConfig);
+    const runtimeChainId = String(runtimeConfig.chainId || wallet?.chainId || '').trim();
     const walletDexSigner = dexIntentSignerForWallet(wallet);
     const walletCanSignDexIntent = canSignDexIntent(wallet);
 
     const loadLivePools = useCallback(async ({ showLoading = true } = {}) => {
-        if (demoMode) return;
         if (showLoading) setLoadingPools(true);
         try {
             const payload = await apiGetPools({ timeoutMs: 5000, account: wallet?.address || '' });
@@ -367,30 +296,19 @@ function PoolDashboard({ wallet }) {
                 setLoadingPools(false);
             }
         }
-    }, [demoMode, wallet?.address]);
+    }, [wallet?.address]);
 
     useEffect(() => {
         let cancelled = false;
-        if (demoMode) {
-            setPoolError('');
-            setLivePools([]);
-            setLiveTokens([]);
-            setLiveSource('');
-            setLoadingPools(false);
-            return () => {
-                cancelled = true;
-            };
-        }
-
         void loadLivePools().then(() => {
             if (cancelled) return;
         });
         return () => {
             cancelled = true;
         };
-    }, [demoMode, loadLivePools]);
+    }, [loadLivePools]);
 
-    const pools = demoMode ? demoPools : livePools;
+    const pools = livePools;
 
     // PulseX/Uniswap-Info-style search + sort over the pools table. Sort keys are
     // limited to fields the node actually reports (reserves, LP, fee, volume) —
@@ -436,25 +354,11 @@ function PoolDashboard({ wallet }) {
             .filter((row) => row.symbol && row.assetId)
             .sort((a, b) => a.symbol.localeCompare(b.symbol));
     }, [liveTokens]);
-    const sourceLabel = demoMode
-        ? 'Local fallback pools'
-        : liveSource
-            ? `Live node: ${liveSource}`
-            : 'Live node';
+    const sourceLabel = liveSource ? `Live node: ${liveSource}` : 'Live node';
 
     const handleAddSubmit = useCallback(async (data) => {
         setActionError('');
         setActionMessage('');
-        if (demoMode) {
-            setDemoPools((prev) =>
-                prev.map((p) =>
-                    p.id === data.pool.id
-                        ? { ...p, myLp: (p.myLp || 0) + (data.lpTokensExpected || 0) }
-                        : p
-                )
-            );
-            return;
-        }
         if (!wallet?.address) {
             setActionError('connect_wallet_first');
             return;
@@ -498,7 +402,6 @@ function PoolDashboard({ wallet }) {
                         kind: 'ADD_LIQUIDITY',
                         pool: freshPool,
                         payload: basePayload,
-                        privkey: wallet.privkey,
                         signDexIntent: walletDexSigner,
                         chainId: runtimeChainId,
                     });
@@ -540,21 +443,11 @@ function PoolDashboard({ wallet }) {
         } finally {
             setActionBusy('');
         }
-    }, [accountLastNonce, demoMode, loadLivePools, runtimeChainId, wallet?.address, wallet?.privkey, walletCanSignDexIntent, walletDexSigner]);
+    }, [accountLastNonce, loadLivePools, runtimeChainId, wallet?.address, walletCanSignDexIntent, walletDexSigner]);
 
     const handleRemoveSubmit = useCallback(async (data) => {
         setActionError('');
         setActionMessage('');
-        if (demoMode) {
-            setDemoPools((prev) =>
-                prev.map((p) =>
-                    p.id === data.pool.id
-                        ? { ...p, myLp: Math.max(0, (p.myLp || 0) - (data.lpAmount || 0)) }
-                        : p
-                )
-            );
-            return;
-        }
         if (!wallet?.address) {
             setActionError('connect_wallet_first');
             return;
@@ -596,7 +489,6 @@ function PoolDashboard({ wallet }) {
                         kind: 'REMOVE_LIQUIDITY',
                         pool: freshPool,
                         payload: basePayload,
-                        privkey: wallet.privkey,
                         signDexIntent: walletDexSigner,
                         chainId: runtimeChainId,
                     });
@@ -638,7 +530,7 @@ function PoolDashboard({ wallet }) {
         } finally {
             setActionBusy('');
         }
-    }, [accountLastNonce, demoMode, loadLivePools, runtimeChainId, wallet?.address, wallet?.privkey, walletCanSignDexIntent, walletDexSigner]);
+    }, [accountLastNonce, loadLivePools, runtimeChainId, wallet?.address, walletCanSignDexIntent, walletDexSigner]);
 
     const resolveCreateAsset = useCallback((value, name) => {
         const text = String(value || '').trim();
@@ -659,10 +551,6 @@ function PoolDashboard({ wallet }) {
         event.preventDefault();
         setActionError('');
         setActionMessage('');
-        if (demoMode) {
-            setActionError('create_pool_requires_live_mode');
-            return;
-        }
         if (!wallet?.address) {
             setActionError('connect_wallet_first');
             return;
@@ -682,33 +570,6 @@ function PoolDashboard({ wallet }) {
             const amount1 = wholeAmount(createForm.amount1, 'amount1');
             const feeBps = feeBpsAmount(createForm.feeBps);
             const now = Date.now();
-            if (createForm.fundBeforeCreate) {
-                if (!canUseLocalFixtureFunding) {
-                    throw new Error('local_fixture_funding_requires_local_testnet');
-                }
-                await apiMintTestnetFaucet(
-                    {
-                        to_pubkey: wallet.address,
-                        asset: rawAsset0,
-                        amount: amount0,
-                        local_fixture_mode: true,
-                        time_ms: now,
-                        tx_id: `ui-create-pool-faucet-asset0-${now}`,
-                    },
-                    { timeoutMs: 10000 },
-                );
-                await apiMintTestnetFaucet(
-                    {
-                        to_pubkey: wallet.address,
-                        asset: rawAsset1,
-                        amount: amount1,
-                        local_fixture_mode: true,
-                        time_ms: now + 1,
-                        tx_id: `ui-create-pool-faucet-asset1-${now}`,
-                    },
-                    { timeoutMs: 10000 },
-                );
-            }
             const fresh = await apiGetPools({ timeoutMs: 5000, account: wallet.address });
             const basePayload = {
                 asset0: rawAsset0,
@@ -725,7 +586,6 @@ function PoolDashboard({ wallet }) {
             };
             const signed = await buildAndSignCreatePoolIntent({
                 payload: basePayload,
-                privkey: wallet.privkey,
                 signDexIntent: walletDexSigner,
                 chainId: runtimeChainId,
             });
@@ -761,204 +621,23 @@ function PoolDashboard({ wallet }) {
         } finally {
             setActionBusy('');
         }
-    }, [accountLastNonce, canUseLocalFixtureFunding, createForm, demoMode, livePools.length, loadLivePools, resolveCreateAsset, runtimeChainId, wallet?.address, wallet?.privkey, walletCanSignDexIntent, walletDexSigner]);
-
-    const handleFundPool = useCallback(async (pool) => {
-        if (demoMode || !wallet?.address) return;
-        setActionError('');
-        setActionMessage('');
-        if (!canUseLocalFixtureFunding) {
-            setActionError('local_fixture_funding_requires_local_testnet');
-            return;
-        }
-        setActionBusy(`fund:${pool.id}`);
-        try {
-            const now = Date.now();
-            await apiMintTestnetFaucet(
-                {
-                    to_pubkey: wallet.address,
-                    asset: pool.asset0,
-                    amount: 50000,
-                    local_fixture_mode: true,
-                    time_ms: now,
-                    tx_id: `ui-pool-faucet-${pool.id}-asset0-${now}`,
-                },
-                { timeoutMs: 10000 },
-            );
-            await apiMintTestnetFaucet(
-                {
-                    to_pubkey: wallet.address,
-                    asset: pool.asset1,
-                    amount: 50000,
-                    local_fixture_mode: true,
-                    time_ms: now + 1,
-                    tx_id: `ui-pool-faucet-${pool.id}-asset1-${now}`,
-                },
-                { timeoutMs: 10000 },
-            );
-            setActionMessage(`Funded ${pool.token0.symbol} and ${pool.token1.symbol} from the local faucet`);
-            await loadLivePools({ showLoading: false });
-        } catch (err) {
-            setActionError(err?.message || 'fund_pool_failed');
-        } finally {
-            setActionBusy('');
-        }
-    }, [canUseLocalFixtureFunding, demoMode, loadLivePools, wallet?.address]);
-
-    useEffect(() => {
-        if (demoMode || !liquiditySmokeEnabled() || smokeRan.current || !canUseLocalFixtureFunding) return;
-        smokeRan.current = true;
-        let cancelled = false;
-        async function runLiquiditySmoke() {
-            setActionError('');
-            setActionMessage('Running signed liquidity smoke...');
-            setActionBusy('smoke:liquidity');
-            try {
-                const smokeWallet = wallet?.address && canSignDexIntent(wallet)
-                    ? wallet
-                    : await connectPoolSigningWallet(runtimeChainId);
-                const smokeDexSigner = dexIntentSignerForWallet(smokeWallet);
-                const initial = await apiGetPools({ timeoutMs: 5000, account: smokeWallet.address });
-                const initialRows = Array.isArray(initial?.pools) ? initial.pools : [];
-                const pool = findPoolById(initialRows, '');
-                if (!pool) throw new Error('no_live_pool_for_liquidity_smoke');
-                const poolId = String(pool.poolId || pool.pool_id || pool.id || '');
-                const now = Date.now();
-                await apiMintTestnetFaucet(
-                    {
-                        to_pubkey: smokeWallet.address,
-                        asset: pool.asset0,
-                        amount: 50000,
-                        local_fixture_mode: true,
-                        time_ms: now,
-                        tx_id: `ui-liquidity-smoke-faucet-asset0-${now}`,
-                    },
-                    { timeoutMs: 10000 },
-                );
-                await apiMintTestnetFaucet(
-                    {
-                        to_pubkey: smokeWallet.address,
-                        asset: pool.asset1,
-                        amount: 50000,
-                        local_fixture_mode: true,
-                        time_ms: now + 1,
-                        tx_id: `ui-liquidity-smoke-faucet-asset1-${now}`,
-                    },
-                    { timeoutMs: 10000 },
-                );
-                const funded = await apiGetPools({ timeoutMs: 5000, account: smokeWallet.address });
-                const fundedRows = Array.isArray(funded?.pools) ? funded.pools : [];
-                const fundedPool = findPoolById(fundedRows, poolId);
-                if (!fundedPool) throw new Error('funded_pool_missing');
-                const addPayload = {
-                    poolId,
-                    asset0: fundedPool.asset0,
-                    asset1: fundedPool.asset1,
-                    amount0Desired: 25,
-                    amount1Desired: 25,
-                    amount0Min: 0,
-                    amount1Min: 0,
-                    senderPubkey: smokeWallet.address,
-                    recipient: smokeWallet.address,
-                    deadline: deadlineOneHour(),
-                    nonce: (safeFiniteNumber(funded?.account_last_nonce) ?? 0) + 1,
-                    timeMs: now + 2,
-                };
-                const addSigned = await buildAndSignLiquidityIntent({
-                    kind: 'ADD_LIQUIDITY',
-                    pool: fundedPool,
-                    payload: addPayload,
-                    privkey: smokeWallet.privkey,
-                    signDexIntent: smokeDexSigner,
-                    chainId: runtimeChainId,
-                });
-                const addReport = await apiAddLiquidity(
-                    { ...addPayload, signature: addSigned.signature },
-                    { timeoutMs: 10000 },
-                );
-                if (addReport?.tx_accepted !== true) {
-                    throw new Error(addReport?.error || 'signed_add_liquidity_rejected');
-                }
-                const afterAdd = await apiGetPools({ timeoutMs: 5000, account: smokeWallet.address });
-                const afterAddPool = findPoolById(Array.isArray(afterAdd?.pools) ? afterAdd.pools : [], poolId);
-                const lpBalance = safeFiniteNumber(afterAddPool?.accountLpBalance ?? afterAddPool?.account_lp_balance) ?? 0;
-                if (lpBalance <= 0) {
-                    throw new Error('lp_balance_did_not_increase');
-                }
-                const removePayload = {
-                    poolId,
-                    lpAmount: 1,
-                    amount0Min: 0,
-                    amount1Min: 0,
-                    senderPubkey: smokeWallet.address,
-                    recipient: smokeWallet.address,
-                    deadline: deadlineOneHour(),
-                    nonce: (safeFiniteNumber(afterAdd?.account_last_nonce) ?? addPayload.nonce) + 1,
-                    timeMs: now + 420000,
-                };
-                const removeSigned = await buildAndSignLiquidityIntent({
-                    kind: 'REMOVE_LIQUIDITY',
-                    pool: afterAddPool,
-                    payload: removePayload,
-                    privkey: smokeWallet.privkey,
-                    signDexIntent: smokeDexSigner,
-                    chainId: runtimeChainId,
-                });
-                const removeReport = await apiRemoveLiquidity(
-                    { ...removePayload, signature: removeSigned.signature },
-                    { timeoutMs: 10000 },
-                );
-                if (removeReport?.tx_accepted !== true) {
-                    throw new Error(removeReport?.error || 'signed_remove_liquidity_rejected');
-                }
-                if (!cancelled) {
-                    setActionMessage(`Liquidity smoke confirmed at height ${removeReport.height}`);
-                    await loadLivePools({ showLoading: false });
-                }
-            } catch (err) {
-                if (!cancelled) {
-                    setActionError(`liquidity_smoke_failed: ${err?.message || err}`);
-                }
-            } finally {
-                if (!cancelled) {
-                    setActionBusy('');
-                }
-            }
-        }
-        void runLiquiditySmoke();
-        return () => {
-            cancelled = true;
-        };
-    }, [canUseLocalFixtureFunding, demoMode, loadLivePools, runtimeChainId, wallet]);
+    }, [accountLastNonce, createForm, livePools.length, loadLivePools, resolveCreateAsset, runtimeChainId, wallet?.address, walletCanSignDexIntent, walletDexSigner]);
 
     const totals = useMemo(() => {
-        if (!demoMode) {
-            const totalReserves = pools.reduce((sum, pool) => sum + (pool.reserveDepth || 0), 0);
-            const volumePools = pools.filter((pool) => pool.volume24h != null);
-            const feePools = pools.filter((pool) => pool.fees24h != null);
-            return {
-                totalTvl: totalReserves > 0 ? totalReserves : null,
-                totalVol: volumePools.length > 0 ? volumePools.reduce((sum, pool) => sum + (pool.volume24h || 0), 0) : null,
-                totalFees: feePools.length > 0 ? feePools.reduce((sum, pool) => sum + (pool.fees24h || 0), 0) : null,
-                activePools: pools.filter((pool) => pool.status === 'ACTIVE' || pool.status === '').length,
-                verifiedPools: pools.filter(isPoolVerified).length,
-                poolCount: pools.length,
-            };
-        }
-        const totalTvl = pools.reduce((s, p) => s + (p.tvl || 0), 0);
-        const totalVol = pools.reduce((s, p) => s + (p.volume24h || 0), 0);
+        const totalReserves = pools.reduce((sum, pool) => sum + (pool.reserveDepth || 0), 0);
+        const volumePools = pools.filter((pool) => pool.volume24h != null);
+        const feePools = pools.filter((pool) => pool.fees24h != null);
         return {
-            totalTvl,
-            totalVol,
-            totalFees: Math.round(totalVol * 0.003),
-            activePools: pools.length,
-            // Same predicate as the per-row chip so the tile and chips always agree.
+            totalTvl: totalReserves > 0 ? totalReserves : null,
+            totalVol: volumePools.length > 0 ? volumePools.reduce((sum, pool) => sum + (pool.volume24h || 0), 0) : null,
+            totalFees: feePools.length > 0 ? feePools.reduce((sum, pool) => sum + (pool.fees24h || 0), 0) : null,
+            activePools: pools.filter((pool) => pool.status === 'ACTIVE' || pool.status === '').length,
             verifiedPools: pools.filter(isPoolVerified).length,
             poolCount: pools.length,
         };
-    }, [demoMode, pools]);
+    }, [pools]);
 
-    const canOpenLiquidityModals = pools.length > 0 && (demoMode || Boolean(wallet?.address));
+    const canOpenLiquidityModals = pools.length > 0 && Boolean(wallet?.address);
     const addModalWallet = addPool ? walletForPool(wallet, addPool) : wallet;
     const removeModalWallet = removePool ? walletForPool(wallet, removePool) : wallet;
 
@@ -973,7 +652,7 @@ function PoolDashboard({ wallet }) {
                     className="btn btn-primary"
                     onClick={() => canOpenLiquidityModals && setAddPool(pools[0])}
                     disabled={!canOpenLiquidityModals}
-                    title={wallet?.address || demoMode ? 'Add liquidity to a pool' : 'Connect a wallet to add liquidity'}
+                    title={wallet?.address ? 'Add liquidity to a pool' : 'Connect a wallet to add liquidity'}
                 >
                     Add Liquidity
                 </button>
@@ -997,7 +676,7 @@ function PoolDashboard({ wallet }) {
                 </div>
             )}
 
-            {!demoMode && !poolError && (
+            {!poolError && (
                 <div className="pool-honesty-banner pool-honesty-info" role="status">
                     <strong>Live mode.</strong> Add/remove liquidity posts to the writer through nginx token injection.
                     Reserves, LP supply, wallet balances, account LP, recent swap counts, input units, and fee units
@@ -1006,23 +685,12 @@ function PoolDashboard({ wallet }) {
                 </div>
             )}
 
-            {!demoMode && (
-                <form className="pool-create-panel panel" onSubmit={handleCreatePool}>
+            <form className="pool-create-panel panel" onSubmit={handleCreatePool}>
                     <div className="pool-create-heading">
                         <div>
                             <h3>Create Pool</h3>
                             <p>Use a listed symbol or a canonical 32-byte asset ID.</p>
                         </div>
-                        {canUseLocalFixtureFunding && (
-                            <label className="pool-create-check">
-                                <input
-                                    type="checkbox"
-                                    checked={createForm.fundBeforeCreate}
-                                    onChange={(event) => setCreateForm((prev) => ({ ...prev, fundBeforeCreate: event.target.checked }))}
-                                />
-                                Fund locally
-                            </label>
-                        )}
                     </div>
                     <datalist id="pool-token-options">
                         {tokenOptions.map((token) => (
@@ -1083,21 +751,20 @@ function PoolDashboard({ wallet }) {
                             Create Pool
                         </button>
                     </div>
-                </form>
-            )}
+            </form>
 
             <div className="pool-stats grid grid-4">
                 <div className="stat panel animate-slide-up" style={{ animationDelay: '0ms' }}>
-                    <span className="stat-label">{demoMode ? 'Total TVL' : 'Reserve Units'}</span>
-                    <span className="stat-value">{formatOptionalNumber(totals.totalTvl, { prefix: demoMode ? '$' : '' })}</span>
+                    <span className="stat-label">Reserve Units</span>
+                    <span className="stat-value">{formatOptionalNumber(totals.totalTvl)}</span>
                 </div>
                 <div className="stat panel animate-slide-up" style={{ animationDelay: '50ms' }}>
-                    <span className="stat-label">{demoMode ? '24h Volume' : 'Input Units'}</span>
-                    <span className="stat-value">{formatOptionalNumber(totals.totalVol, { prefix: demoMode ? '$' : '' })}</span>
+                    <span className="stat-label">Input Units</span>
+                    <span className="stat-value">{formatOptionalNumber(totals.totalVol)}</span>
                 </div>
                 <div className="stat panel animate-slide-up" style={{ animationDelay: '100ms' }}>
-                    <span className="stat-label">{demoMode ? '24h Fees' : 'Fee Units'}</span>
-                    <span className="stat-value">{formatOptionalNumber(totals.totalFees, { prefix: demoMode ? '$' : '' })}</span>
+                    <span className="stat-label">Fee Units</span>
+                    <span className="stat-value">{formatOptionalNumber(totals.totalFees)}</span>
                 </div>
                 <div className="stat panel animate-slide-up pool-stat-verified" style={{ animationDelay: '150ms' }}>
                     <span className="stat-label">Verified pools</span>
@@ -1111,7 +778,7 @@ function PoolDashboard({ wallet }) {
                     <input
                         className="input pool-search"
                         type="search"
-                        placeholder="Search pools (e.g. ZDEX, TASSET0)"
+                        placeholder="Search pools by live asset or pool ID"
                         value={poolSearch}
                         onChange={(e) => setPoolSearch(e.target.value)}
                         aria-label="Search pools by token"
@@ -1127,12 +794,10 @@ function PoolDashboard({ wallet }) {
                             <th className="pool-th-sort" onClick={() => toggleSort('reserveDepth')}>Reserves{sortIndicator('reserveDepth')}</th>
                             <th className="pool-th-sort" onClick={() => toggleSort('lpSupply')}>LP Supply{sortIndicator('lpSupply')}</th>
                             <th className="pool-th-sort" onClick={() => toggleSort('feeBps')}>Fee{sortIndicator('feeBps')}</th>
-                            {demoMode && <th>TVL</th>}
-                            <th className={demoMode ? '' : 'pool-th-sort'} onClick={demoMode ? undefined : () => toggleSort('volume24h')}>
-                                {demoMode ? '24h Volume' : `Recent Activity${sortIndicator('volume24h')}`}
+                            <th className="pool-th-sort" onClick={() => toggleSort('volume24h')}>
+                                Recent Activity{sortIndicator('volume24h')}
                             </th>
-                            {!demoMode && <th>Recent Fees</th>}
-                            {demoMode && <th>APY</th>}
+                            <th>Recent Fees</th>
                             <th>My Position</th>
                             <th></th>
                         </tr>
@@ -1140,17 +805,17 @@ function PoolDashboard({ wallet }) {
                     <tbody>
                         {loadingPools && pools.length === 0 ? (
                             <tr>
-                                <td colSpan={demoMode ? 9 : 8} className="pool-empty-cell">Loading live pool feed...</td>
+                                <td colSpan={8} className="pool-empty-cell">Loading live pool feed...</td>
                             </tr>
                         ) : null}
                         {!loadingPools && pools.length === 0 ? (
                             <tr>
-                                <td colSpan={demoMode ? 9 : 8} className="pool-empty-cell">No live pools reported.</td>
+                                <td colSpan={8} className="pool-empty-cell">No live pools reported.</td>
                             </tr>
                         ) : null}
                         {!loadingPools && pools.length > 0 && displayPools.length === 0 ? (
                             <tr>
-                                <td colSpan={demoMode ? 9 : 8} className="pool-empty-cell">No pools match &ldquo;{poolSearch}&rdquo;.</td>
+                                <td colSpan={8} className="pool-empty-cell">No pools match &ldquo;{poolSearch}&rdquo;.</td>
                             </tr>
                         ) : null}
                         {displayPools.map((pool, i) => (
@@ -1202,10 +867,8 @@ function PoolDashboard({ wallet }) {
                                 </td>
                                 <td>{formatOptionalNumber(pool.lpSupply)}</td>
                                 <td>{pool.feeBps == null ? NA : `${pool.feeBps} bps`}</td>
-                                {demoMode && <td>{formatPoolDepth(pool)}</td>}
-                                <td>{demoMode ? formatOptionalNumber(pool.volume24h, { prefix: '$' }) : formatPoolActivity(pool)}</td>
-                                {!demoMode && <td>{formatPoolFees(pool)}</td>}
-                                {demoMode && <td className={pool.apy == null ? 'pool-na-cell' : 'apy-cell'}>{formatOptionalPercent(pool.apy)}</td>}
+                                <td>{formatPoolActivity(pool)}</td>
+                                <td>{formatPoolFees(pool)}</td>
                                 <td>
                                     {pool.myLp != null && pool.myLp > 0 ? (
                                         <span className="pool-position">
@@ -1218,54 +881,25 @@ function PoolDashboard({ wallet }) {
                                 </td>
                                 <td>
                                     <div className="pool-actions">
-                                        {demoMode ? (
-                                            <>
+                                        <>
+                                            <button
+                                                className="btn btn-secondary"
+                                                onClick={() => setAddPool(pool)}
+                                                disabled={!wallet?.address || Boolean(actionBusy)}
+                                                title={wallet?.address ? 'Add liquidity' : 'Connect a wallet first'}
+                                            >
+                                                Add
+                                            </button>
+                                            {(pool.myLp || 0) > 0 && (
                                                 <button
                                                     className="btn btn-secondary"
-                                                    onClick={() => setAddPool(pool)}
-                                                >
-                                                    Add
-                                                </button>
-                                                {pool.myLp > 0 && (
-                                                    <button
-                                                        className="btn btn-secondary"
-                                                        onClick={() => setRemovePool(pool)}
-                                                    >
-                                                        Remove
-                                                    </button>
-                                                )}
-                                            </>
-                                        ) : (
-                                            <>
-                                                {canUseLocalFixtureFunding && (
-                                                    <button
-                                                        className="btn btn-secondary"
-                                                        onClick={() => handleFundPool(pool)}
-                                                        disabled={!wallet?.address || Boolean(actionBusy)}
-                                                        title={wallet?.address ? 'Mint local-testnet pool assets' : 'Connect a wallet first'}
-                                                    >
-                                                        Fund
-                                                    </button>
-                                                )}
-                                                <button
-                                                    className="btn btn-secondary"
-                                                    onClick={() => setAddPool(pool)}
+                                                    onClick={() => setRemovePool(pool)}
                                                     disabled={!wallet?.address || Boolean(actionBusy)}
-                                                    title={wallet?.address ? 'Add liquidity' : 'Connect a wallet first'}
                                                 >
-                                                    Add
+                                                    Remove
                                                 </button>
-                                                {(pool.myLp || 0) > 0 && (
-                                                    <button
-                                                        className="btn btn-secondary"
-                                                        onClick={() => setRemovePool(pool)}
-                                                        disabled={!wallet?.address || Boolean(actionBusy)}
-                                                    >
-                                                        Remove
-                                                    </button>
-                                                )}
-                                            </>
-                                        )}
+                                            )}
+                                        </>
                                     </div>
                                 </td>
                             </tr>
@@ -1284,7 +918,7 @@ function PoolDashboard({ wallet }) {
             {addPool && (
                 <AddLiquidityModal
                     pool={addPool}
-                    wallet={demoMode ? wallet : addModalWallet}
+                    wallet={addModalWallet}
                     onClose={() => setAddPool(null)}
                     onSubmit={handleAddSubmit}
                 />
@@ -1293,7 +927,7 @@ function PoolDashboard({ wallet }) {
             {removePool && (
                 <RemoveLiquidityModal
                     pool={removePool}
-                    wallet={demoMode ? wallet : removeModalWallet}
+                    wallet={removeModalWallet}
                     lpBalance={removePool.myLp || 0}
                     onClose={() => setRemovePool(null)}
                     onSubmit={handleRemoveSubmit}

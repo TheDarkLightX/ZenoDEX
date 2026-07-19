@@ -57,21 +57,23 @@ def test_global_cover_counts_dex_pool_reserves_on_both_asset_sides() -> None:
     zusd_asset = config.zusd_asset
     balances = BalanceTable()
     balances.set(_WALLET, zusd_asset, 100)
+    pool_asset0 = _pool(
+        pool_id_byte="41",
+        asset0=zusd_asset,
+        asset1=_HIGH_ASSET,
+        reserve0=500,
+        reserve1=2_000,
+    )
+    pool_asset1 = _pool(
+        pool_id_byte="42",
+        asset0=_LOW_ASSET,
+        asset1=zusd_asset,
+        reserve0=3_000,
+        reserve1=400,
+    )
     pools = {
-        "pool-zusd-asset0": _pool(
-            pool_id_byte="41",
-            asset0=zusd_asset,
-            asset1=_HIGH_ASSET,
-            reserve0=500,
-            reserve1=2_000,
-        ),
-        "pool-zusd-asset1": _pool(
-            pool_id_byte="42",
-            asset0=_LOW_ASSET,
-            asset1=zusd_asset,
-            reserve0=3_000,
-            reserve1=400,
-        ),
+        pool_asset0.pool_id: pool_asset0,
+        pool_asset1.pool_id: pool_asset1,
     }
     state = DexState(balances=balances, pools=pools, lp_balances=LPTable())
     monetary = _monetary_state_with_free_debt(config, 1_000 * E8)
@@ -100,7 +102,7 @@ def test_global_cover_rejects_counterfeit_wallet_supply_masked_by_dex_pool_omiss
     )
     state = DexState(
         balances=balances,
-        pools={"pool": pool},
+        pools={pool.pool_id: pool},
         lp_balances=LPTable(),
     )
     monetary = _monetary_state_with_free_debt(config, 1_000 * E8)

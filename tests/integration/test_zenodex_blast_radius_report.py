@@ -4,12 +4,19 @@ import json
 import subprocess
 from pathlib import Path
 
-from src.agents.intent_signer import create_swap_intent_from_quote_receipt, create_swap_intents_from_quote_receipt
+from src.agents.intent_signer import (
+    create_swap_intent_from_quote_receipt,
+    create_swap_intents_from_quote_receipt,
+)
 from src.core.dex import DexState
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
 from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.operations import SignedIntentEnvelope, create_intent_operation, create_signed_intent_operation
+from src.integration.operations import (
+    SignedIntentEnvelope,
+    create_intent_operation,
+    create_signed_intent_operation,
+)
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
@@ -245,7 +252,7 @@ def test_build_blast_radius_report_marks_attached_quote_receipt_witness_as_full(
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     operations = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 
     report = build_blast_radius_report(
@@ -316,7 +323,7 @@ def test_build_blast_radius_report_keeps_invalid_attached_quote_receipt_witness_
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     operations = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=bad_receipt)])
 
     report = build_blast_radius_report(
@@ -511,7 +518,7 @@ def test_build_blast_radius_report_flags_duplicate_split_quote_receipt_leg() -> 
         salt=intents[0].salt,
         fields=dict(intents[0].fields or {}),
     )
-    duplicate_intent.set_field("nonce", 99)
+    duplicate_intent = duplicate_intent.with_field("nonce", 99)
     report = build_blast_radius_report(
         operations=create_signed_intent_operation(
             [

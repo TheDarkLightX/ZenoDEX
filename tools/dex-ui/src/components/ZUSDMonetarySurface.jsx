@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { apiGetZusdMonetaryStatus, apiPrepareZusdMonetary, apiSubmitZusdMonetary, readLocalSmokeFragmentSecret } from '../lib/api.js';
+import { useEffect, useMemo, useState } from 'react';
+import { apiGetZusdMonetaryStatus, apiPrepareZusdMonetary } from '../lib/api.js';
 import InfoTip from './InfoTip.jsx';
 import './ZUSDTauWalletSurface.css';
 
@@ -8,14 +8,12 @@ const E8 = 100_000_000;
 const EMPTY_FORM = {
   action: 'mint_zusd',
   actor_pubkey: '',
-  signer_privkey: '',
   amount: '100',
   zk_proof_json: '',
   price_e8: String(100 * E8),
   delta: '1',
   deadline: '',
   tx_fee_limit: '0',
-  signed_tau_tx_payload: '',
 };
 
 const ACTIONS = [
@@ -39,30 +37,6 @@ const ACTIONS = [
   ['oracle_commit', 'Oracle Commit'],
   ['advance_epoch', 'Advance Epoch'],
 ];
-
-function readSmokeConfig() {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('zenodexUiSmokeZusdMonetary') !== '1') {
-    return null;
-  }
-  return {
-    action: params.get('zusdMonetaryAction') || 'mint_zusd',
-    actor_pubkey: params.get('actorPubkey') || params.get('senderPubkey') || '',
-    signer_privkey: readLocalSmokeFragmentSecret('signerPrivkey'),
-    amount: params.get('zusdAmount') || '100',
-    amount_e8: params.get('zusdAmountE8') || '',
-    zk_proof_json: params.get('zusdZkProofJson') || params.get('zkProofJson') || '',
-    price_e8: params.get('zusdPriceE8') || String(100 * E8),
-    delta: params.get('zusdDelta') || '1',
-    deadline: params.get('zusdDeadline') || '',
-    tx_fee_limit: params.get('zusdTxFeeLimit') || params.get('txFeeLimit') || '0',
-    signed_tau_tx_payload:
-      params.get('signedTauTxPayload') || params.get('signed_tau_tx_payload') || params.get('zusdSignedTauTxPayload') || '',
-  };
-}
 
 function parsePositiveInt(raw) {
   const value = Number.parseInt(String(raw || '').trim(), 10);
@@ -135,14 +109,8 @@ function buildPayload(form) {
   if (actor) {
     payload.sender_pubkey = actor;
   }
-  if (form.signer_privkey.trim()) {
-    payload.signer_privkey = form.signer_privkey.trim();
-  }
   if (String(form.tx_fee_limit || '').trim()) {
     payload.tx_fee_limit = String(form.tx_fee_limit).trim();
-  }
-  if (form.signed_tau_tx_payload.trim()) {
-    payload.signed_tau_tx_payload = form.signed_tau_tx_payload.trim();
   }
   if (String(form.zk_proof_json || '').trim()) {
     payload.zk_proof = parseJsonObject(form.zk_proof_json, 'zk_proof_json');
@@ -257,11 +225,10 @@ const ZUSD_LEAN_PROOFS = [
 function ZUSDMonetarySurface() {
   const [status, setStatus] = useState(null);
   const [statusError, setStatusError] = useState('');
-  const [form, setForm] = useState(() => readSmokeConfig() || EMPTY_FORM);
+  const [form, setForm] = useState(EMPTY_FORM);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const smokeRan = useRef(false);
 
   // Progressive Disclosure: Form tab navigation
   const [activeFormTab, setActiveFormTab] = useState('vault'); // 'vault', 'stability', 'system'
@@ -275,10 +242,6 @@ function ZUSDMonetarySurface() {
   // Stability Pool states
   const [spAdjust, setSpAdjust] = useState('');
   const [spAdjustMode, setSpAdjustMode] = useState('deposit'); // 'deposit', 'withdraw'
-
-  // Orchestrator states
-  const [orchestrationStep, setOrchestrationStep] = useState(0);
-  const [orchestrationMessage, setOrchestrationMessage] = useState('');
 
   const needsAmount = useMemo(
     () => [
@@ -338,229 +301,6 @@ function ZUSDMonetarySurface() {
     }
   }
 
-  async function handleSubmit() {
-    setBusy(true);
-    setError('');
-    try {
-      const payload = await apiSubmitZusdMonetary(buildPayload(form), { timeoutMs: 20000 });
-      setResult(payload);
-      await loadStatus();
-    } catch (err) {
-      setResult(null);
-      setError(err?.message || 'submit_failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // Sequential Orchestration for Vault Adjuster
-  async function handleUnifiedAdjustment() {
-    setBusy(true);
-    setError('');
-    setResult(null);
-    setOrchestrationStep(1);
-    setOrchestrationMessage('Validating settings...');
-
-    try {
-      const actor = form.actor_pubkey.trim();
-      if (!actor) {
-        throw new Error('Wallet public key is required. Open Transaction signing and set the actor key.');
-      }
-
-      const collVal = parseFloat(collateralAdjust) || 0;
-      const borrowVal = parseFloat(borrowAdjust) || 0;
-
-      if (collVal <= 0 && borrowVal <= 0) {
-        throw new Error('Please specify a collateral or debt adjustment amount.');
-      }
-
-      const common = {
-        actor_pubkey: form.actor_pubkey,
-        signer_privkey: form.signer_privkey,
-        deadline: form.deadline,
-        tx_fee_limit: form.tx_fee_limit,
-        signed_tau_tx_payload: form.signed_tau_tx_payload,
-      };
-
-      // Step 1: Collateral adjustment
-      let depositRes = null;
-      if (collVal > 0) {
-        const collAction = collAdjustMode === 'deposit' ? 'deposit_collateral' : 'withdraw_collateral';
-        const collActionLabel = collAdjustMode === 'deposit' ? 'Depositing collateral' : 'Withdrawing collateral';
-        setOrchestrationMessage(`Step 1/2: Submitting ${collActionLabel} (${collVal} units)...`);
-
-        const payload = buildPayload({
-          ...common,
-          action: collAction,
-          amount: String(collVal),
-        });
-
-        depositRes = await apiSubmitZusdMonetary(payload, { timeoutMs: 20000 });
-        if (!depositRes || !depositRes.ok) {
-          throw new Error(depositRes?.error || depositRes?.status || `${collAction} failed`);
-        }
-        setResult(depositRes);
-      }
-
-      // Step 2: Debt adjustment
-      if (borrowVal > 0) {
-        if (collVal > 0) {
-          setOrchestrationMessage('Synchronizing state with node...');
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-          await loadStatus();
-        }
-
-        const debtAction = borrowAdjustMode === 'mint' ? 'mint_zusd' : 'repay_zusd';
-        const debtActionLabel = borrowAdjustMode === 'mint' ? 'Minting zUSD' : 'Repaying zUSD';
-        setOrchestrationStep(2);
-        setOrchestrationMessage(`Step 2/2: Submitting ${debtActionLabel} (${borrowVal} units)...`);
-
-        const payload = buildPayload({
-          ...common,
-          action: debtAction,
-          amount: String(borrowVal),
-        });
-
-        const borrowRes = await apiSubmitZusdMonetary(payload, { timeoutMs: 20000 });
-        if (!borrowRes || !borrowRes.ok) {
-          throw new Error(borrowRes?.error || borrowRes?.status || `${debtAction} failed`);
-        }
-        setResult(borrowRes);
-      }
-
-      setOrchestrationMessage('Vault adjustment completed successfully!');
-      setCollateralAdjust('');
-      setBorrowAdjust('');
-      await loadStatus();
-    } catch (err) {
-      setResult(null);
-      setError(err?.message || 'Adjustment failed');
-    } finally {
-      setBusy(false);
-      setOrchestrationStep(0);
-    }
-  }
-
-  // Stability Pool submits
-  async function handleStabilitySubmit() {
-    setBusy(true);
-    setError('');
-    setResult(null);
-    try {
-      const actor = form.actor_pubkey.trim();
-      if (!actor) {
-        throw new Error('Wallet public key is required. Open Transaction signing and set the actor key.');
-      }
-
-      const spVal = parseFloat(spAdjust) || 0;
-      if (spVal <= 0) {
-        throw new Error('Please specify an amount.');
-      }
-
-      const spAction = spAdjustMode === 'deposit' ? 'deposit_sp' : 'withdraw_sp';
-      const payload = buildPayload({
-        ...form,
-        action: spAction,
-        amount: String(spVal),
-      });
-
-      const res = await apiSubmitZusdMonetary(payload, { timeoutMs: 20000 });
-      setResult(res);
-      setSpAdjust('');
-      await loadStatus();
-    } catch (err) {
-      setError(err?.message || 'Stability pool transaction failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleClaimSpRewards() {
-    setBusy(true);
-    setError('');
-    setResult(null);
-    try {
-      const actor = form.actor_pubkey.trim();
-      if (!actor) {
-        throw new Error('Wallet public key is required. Open Transaction signing and set the actor key.');
-      }
-
-      const payload = buildPayload({
-        ...form,
-        action: 'claim_sp_collateral',
-      });
-      const res = await apiSubmitZusdMonetary(payload, { timeoutMs: 20000 });
-      setResult(res);
-      await loadStatus();
-    } catch (err) {
-      setError(err?.message || 'Claim rewards failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleShutdownClaim(source) {
-    setBusy(true);
-    setError('');
-    setResult(null);
-    try {
-      const actor = form.actor_pubkey.trim();
-      if (!actor) {
-        throw new Error('Wallet public key is required. Open Transaction signing and set the actor key.');
-      }
-      const amount = source === 'stability_pool' ? (Number.parseFloat(spAdjust) || 0) : (Number.parseFloat(borrowAdjust) || 0);
-      if (amount <= 0) {
-        throw new Error('Enter the zUSD amount to settle.');
-      }
-      const payload = buildPayload({
-        ...form,
-        action: source === 'stability_pool' ? 'claim_sp_shutdown_collateral' : 'claim_shutdown_collateral',
-        amount: String(amount),
-      });
-      const res = await apiSubmitZusdMonetary(payload, { timeoutMs: 20000 });
-      setResult(res);
-      if (source === 'stability_pool') {
-        setSpAdjust('');
-      } else {
-        setBorrowAdjust('');
-      }
-      await loadStatus();
-    } catch (err) {
-      setError(err?.message || 'Shutdown claim failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  useEffect(() => {
-    const smoke = readSmokeConfig();
-    if (!smoke || smokeRan.current || busy) {
-      return;
-    }
-    if (status?.node_reachable !== true) {
-      return;
-    }
-    smokeRan.current = true;
-    async function runSmoke() {
-      const nextSmoke = { ...smoke };
-      setForm((current) => ({ ...current, ...nextSmoke }));
-      if (!nextSmoke.signer_privkey.trim() && !nextSmoke.signed_tau_tx_payload.trim()) {
-        throw new Error('smoke signer credential or signed Tau payload required');
-      }
-      const payloadIn = buildPayload({ ...EMPTY_FORM, ...nextSmoke });
-      return apiSubmitZusdMonetary(payloadIn, { timeoutMs: 20000 });
-    }
-    void runSmoke()
-      .then((payload) => {
-        setResult(payload);
-        setError('');
-      })
-      .catch((err) => {
-        setResult(null);
-        setError(err?.message || 'submit_failed');
-      });
-  }, [busy, status]);
-
   const liveSummary = result?.transport || null;
   const proofProfile = result?.proof?.profile || null;
   const zkWrapper = result?.proof?.zk_wrapper || null;
@@ -579,8 +319,7 @@ function ZUSDMonetarySurface() {
 
   // NOTE: collateralAmt/debtAmt must be declared before `branchMode`, which
   // reads `debtAmt`. Declaring them after caused a render-time temporal-dead-zone
-  // crash ("Cannot access 'debtAmt' before initialization") that the ErrorBoundary
-  // caught — taking down the entire zUSD surface in live (non-demo) mode.
+  // crash ("Cannot access 'debtAmt' before initialization") that the ErrorBoundary caught.
   const collateralSymbol = 'AGRS';
   const collateralAmt = Number(status?.core?.collateral_e8 ?? 0) / E8;
   const debtAmt = Number(status?.core?.debt_e8 ?? 0) / E8;
@@ -617,12 +356,6 @@ function ZUSDMonetarySurface() {
   const maxMintAtMcr = Math.max(0, Math.floor((projectedValue / (mcrPct / 100)) - debtAmt));
   const maxMintAtTarget = Math.max(0, Math.floor((projectedValue / (ccrPct / 100)) - debtAmt));
   const networkLabel = status?.chain_id ? 'Zeno Network' : 'unknown';
-  const vaultSubmitLabel = collAdjustMode === 'deposit' && borrowAdjustMode === 'mint'
-    ? 'Deposit AGRS and mint zUSD'
-    : collAdjustMode === 'withdraw' && borrowAdjustMode === 'repay'
-      ? 'Repay zUSD and withdraw AGRS'
-      : 'Submit vault update';
-
   // ── Protocol stat tiles (live, node-reported) ──────────────────────────
   // `num` formats without a forced minimum-fraction (unlike formatAmount,
   // which pins min=2 and would throw RangeError when digits < 2).
@@ -639,8 +372,7 @@ function ZUSDMonetarySurface() {
     if (a >= 1e3) return `$${(v / 1e3).toFixed(1)}K`;
     return formatCurrency(v);
   };
-  // Reveal tiny collateral instead of rounding to "0 AGRS" (the test fixture
-  // holds 0.00001 AGRS, which must reconcile with its $ value).
+  // Reveal tiny collateral instead of rounding it to "0 AGRS".
   const collateralUnits = collateralAmt > 0 && collateralAmt < 1 ? num(collateralAmt, 8) : num(collateralAmt, 2);
   const statTiles = [
     { label: 'Total debt', value: status ? num(debtAmt, 2) : '—', sub: 'zUSD' },
@@ -765,7 +497,7 @@ function ZUSDMonetarySurface() {
             </div>
             <div className="zusd-wallet-kv">
               <span>Signing mode</span>
-              <span>{status?.allow_local_signing ? 'Local signer' : 'External signer'}</span>
+              <span>External signer required</span>
             </div>
             <div className="zusd-wallet-kv">
               <span>Shutdown settlement</span>
@@ -953,15 +685,9 @@ function ZUSDMonetarySurface() {
                     </select>
                   </div>
                 </div>
-                <button
-                  className="btn btn-secondary w-100"
-                  style={{ marginTop: 'var(--space-md)' }}
-                  onClick={handleClaimSpRewards}
-                  disabled={busy}
-                  type="button"
-                >
-                  Claim Collateral Rewards
-                </button>
+                <p className="zusd-wallet-placeholder">
+                  Stability Pool writes are unavailable until the production external-signer envelope is integrated.
+                </p>
               </>
             )}
 
@@ -1063,79 +789,19 @@ function ZUSDMonetarySurface() {
                   onChange={(event) => setForm((current) => ({ ...current, tx_fee_limit: event.target.value }))}
                 />
 
-
-                <label className="label" htmlFor="zusd-monetary-signed-payload">Signed Tau Tx Payload</label>
-                <textarea
-                  id="zusd-monetary-signed-payload"
-                  className="input zusd-wallet-textarea"
-                  rows={6}
-                  value={form.signed_tau_tx_payload}
-                  onChange={(event) => setForm((current) => ({ ...current, signed_tau_tx_payload: event.target.value }))}
-                  placeholder='{"sender_pubkey":"...","signature":"..."}'
-                />
               </div>
             </details>
 
-            {/* Action buttons */}
+            <p className="zusd-wallet-placeholder" role="status">
+              Production profile is prepare-only. Submission is blocked until an external signer returns a verified signed envelope without exposing key material to the browser or API server.
+            </p>
             <div className="zusd-wallet-actions">
-              {activeFormTab === 'vault' && (
-                <>
-                  <button
-                    className="btn btn-primary w-100"
-                    type="button"
-                    onClick={handleUnifiedAdjustment}
-                    disabled={busy || (collAdjustValue <= 0 && debtAdjustValue <= 0)}
-                  >
-                    {busy ? 'Processing...' : vaultSubmitLabel}
-                  </button>
-                  {status?.shutdown_claim_available ? (
-                    <button
-                      className="btn btn-secondary w-100"
-                      type="button"
-                      onClick={() => handleShutdownClaim('free')}
-                      disabled={busy || debtAdjustValue <= 0}
-                    >
-                      Claim shutdown collateral
-                    </button>
-                  ) : null}
-                </>
-              )}
-              {activeFormTab === 'stability' && (
-                <>
-                  <button className="btn btn-primary w-100" type="button" onClick={handleStabilitySubmit} disabled={busy}>
-                    {busy ? 'Processing...' : 'Submit Stability Pool'}
-                  </button>
-                  {status?.sp_shutdown_claim_available ? (
-                    <button
-                      className="btn btn-secondary w-100"
-                      type="button"
-                      onClick={() => handleShutdownClaim('stability_pool')}
-                      disabled={busy || (Number.parseFloat(spAdjust) || 0) <= 0}
-                    >
-                      Claim shutdown pool share
-                    </button>
-                  ) : null}
-                </>
-              )}
               {activeFormTab === 'system' && (
-                <>
-                  <button className="btn btn-secondary" type="button" onClick={handlePrepare} disabled={busy}>
-                    {busy ? 'Preparing...' : 'Prepare'}
-                  </button>
-                  <button className="btn btn-primary" type="button" onClick={handleSubmit} disabled={busy}>
-                    {busy ? 'Submitting...' : 'Submit transaction'}
-                  </button>
-                </>
+                <button className="btn btn-secondary" type="button" onClick={handlePrepare} disabled={busy}>
+                  {busy ? 'Preparing...' : 'Prepare unsigned request'}
+                </button>
               )}
             </div>
-
-            {/* Sequence Status messaging */}
-            {orchestrationStep > 0 && (
-              <div className="zusd-orchestrator-status">
-                <span className="spinner-inline" />
-                <span style={{ marginLeft: '8px' }}>{orchestrationMessage}</span>
-              </div>
-            )}
 
             {error ? <p className="zusd-wallet-error">{error}</p> : null}
           </div>

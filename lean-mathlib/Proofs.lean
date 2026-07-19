@@ -364,7 +364,6 @@ import Proofs.ZUSDFeePipeline
 import Proofs.ZUSDMCRHeadroom
 import Proofs.ZUSDMonetarySubmitClassifier
 import Proofs.ZUSDGenericTokenAdmission
-import Proofs.ZUSDMultiRedeemSelector
 import Proofs.ZUSDFeeStakingAccounting
 import Proofs.ZUSDRedemptionDrainGuards
 import Proofs.ZUSDSPConvexity

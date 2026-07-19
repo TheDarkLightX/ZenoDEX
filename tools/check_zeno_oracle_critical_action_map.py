@@ -260,66 +260,6 @@ def _check_perps_liquidate_account(profiles: Mapping[tuple[str, str], Mapping[st
     )
 
 
-def _check_zusd_action(
-    profiles: Mapping[tuple[str, str], Mapping[str, Any]],
-    *,
-    action_kind: str,
-    expected_tag: str,
-) -> dict[str, Any]:
-    errors: list[str] = []
-    key = ("zenodex.zusd", action_kind)
-    profile = profiles[key]
-    source = _source("src/integration/zusd_api.py")
-
-    from src.integration import zusd_api  # pylint: disable=import-outside-toplevel
-
-    _expect(
-        str(profile["query_id"]) == zusd_api._ORACLE_ZUSD_COLLATERAL_QUERY_ID,  # noqa: SLF001
-        errors,
-        f"zusd_{action_kind}_query_id_drift",
-    )
-    _expect(
-        str(profile["profile_id"]) == zusd_api._ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind],  # noqa: SLF001
-        errors,
-        f"zusd_{action_kind}_profile_id_drift",
-    )
-    _expect(
-        zusd_api._ZUSD_ORACLE_ADAPTER_ACTIONS.get(expected_tag) == action_kind,  # noqa: SLF001
-        errors,
-        f"zusd_{action_kind}_tag_mapping_missing",
-    )
-    for needle in (
-        "_check_zusd_oracle_adapter_bridge(",
-        "ZUSD_ORACLE_ADAPTER_REQUIRED",
-        'consumer_module": "zenodex.zusd"',
-        'if _adapter_result_get(result, "profile_id") != _ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind]',
-        'if _adapter_result_get(result, "action_id") != expected_action_id',
-        "_check_zusd_oracle_authorization(",
-        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
-        "check_critical_consumer_authorization(",
-        "action_kind = _ZUSD_ORACLE_ADAPTER_ACTIONS.get(tag, tag)",
-        "profile_id = _ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind]",
-        "_zusd_critical_action_facts_hash(",
-        "_zusd_runtime_oracle_action_id(",
-    ):
-        _expect(needle in source, errors, f"zusd_{action_kind}_missing_static_wiring:{needle}")
-    return _runtime_surface(
-        consumer_module=key[0],
-        action_kind=key[1],
-        path="src/integration/zusd_api.py",
-        details={
-            "query_id": profile["query_id"],
-            "profile_id": profile["profile_id"],
-            "required_controls": [
-                "ZUSD_ORACLE_ADAPTER_REQUIRED",
-                "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
-            ],
-            "runtime_tag": expected_tag,
-        },
-        errors=errors,
-    )
-
-
 def _check_routing_guarded_quote(profiles: Mapping[tuple[str, str], Mapping[str, Any]]) -> dict[str, Any]:
     errors: list[str] = []
     key = ("zenodex.routing", "guarded_quote")
@@ -484,8 +424,6 @@ def check_critical_action_map() -> dict[str, Any]:
     runtime_surfaces = [
         _check_perps_settle_epoch(profiles),
         _check_perps_liquidate_account(profiles),
-        _check_zusd_action(profiles, action_kind="mint", expected_tag="mint_zusd"),
-        _check_zusd_action(profiles, action_kind="liquidate_vault", expected_tag="liquidate"),
         _check_routing_guarded_quote(profiles),
         _check_critical_settlement(profiles),
         _check_trigger_execute(profiles),
@@ -498,7 +436,22 @@ def check_critical_action_map() -> dict[str, Any]:
     fail_closed_config = _check_fail_closed_config(runtime_surfaces)
     errors.extend(f"fail_closed_config_rejected:{error}" for error in fail_closed_config["errors"])
 
-    design_only_backlog: list[dict[str, Any]] = []
+    design_only_backlog = [
+        {
+            "key": f"zenodex.zusd:{action_kind}",
+            "consumer_module": "zenodex.zusd",
+            "action_kind": action_kind,
+            "profile_id": profiles[("zenodex.zusd", action_kind)]["profile_id"],
+            "query_id": profiles[("zenodex.zusd", action_kind)]["query_id"],
+            "production_path": "src/integration/zusd_monetary_bridge.py",
+            "status": "blocked",
+            "reason": (
+                "the production monetary bridge has no committed typed Oracle-authorization "
+                "lifecycle for this action; audit replay scaffolds are not runtime evidence"
+            ),
+        }
+        for action_kind in ("mint", "liquidate_vault")
+    ]
 
     ok = not errors
     return {

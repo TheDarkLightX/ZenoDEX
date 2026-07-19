@@ -78,7 +78,6 @@ CRITICAL_TESTS=(
   tests/core/test_perp_functional_core_fail_closed.py
   tests/core/test_perps_token_accounting.py
   tests/core/test_protocol_fee_policy.py
-  tests/integration/test_perps_api.py
   tests/integration/test_tau_gate_boundary.py
   tests/integration/test_validation_uses_strong_settlement_gate.py
   tests/state/test_balances.py
@@ -105,7 +104,6 @@ COVERAGE_TARGETS=(
   --cov=src.core.perp_v2
   --cov=src.core.perp_v4
   --cov=src.core.perps_token_accounting
-  --cov=src.integration.perps_api
   --cov=src.integration.validation
   --cov=src.kernels.python.batch_auction_settler_v1_witness
   --cov=src.kernels.python.settlement_swap_runtime_v1
@@ -136,7 +134,6 @@ echo "== critical: ruff =="
   src/core/perp_v2 \
   src/core/perp_v4 \
   src/core/perps_token_accounting.py \
-  src/integration/perps_api.py \
   src/integration/validation.py \
   src/kernels/python/batch_auction_settler_v1_witness.py \
   src/kernels/python/settlement_swap_runtime_v1.py \

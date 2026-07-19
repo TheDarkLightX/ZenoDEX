@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from ...agents.intent_signer import verify_intent_signature
 from ...integration.operations import SignedIntentEnvelope, parse_signed_intents
-from ...integration.tau_net_client import (
+from ...integration.tau_net_rpc import (
     encode_tau_operations_for_wire,
     verify_tau_transaction_payload_signature,
 )

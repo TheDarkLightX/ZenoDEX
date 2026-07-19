@@ -22,6 +22,7 @@ import threading
 import time
 from collections import OrderedDict
 from contextlib import contextmanager
+from dataclasses import replace
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -84,9 +85,9 @@ from src.integration.zeno_ledger_v0 import (
     tx_hash_v0,
     validate_body_v0,
 )
-from src.state.balances import NATIVE_ASSET
+from src.state.balances import NATIVE_ASSET, copy_balance_table
 from src.state.canonical import canonical_hex_fixed_allow_0x
-from src.state.pools import compute_pool_id
+from src.state.pools import compute_pool_id, copy_pool_state
 from tools.zeno_ledger_make_public_testnet_bundle import build_public_testnet_bundle_v0
 from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_CHAIN_ID,
@@ -4571,7 +4572,9 @@ def _build_faucet_block_from_body_v0(
     pre_snapshot = _dex_snapshot_from_state_file_obj_v0(pre_snapshot_obj)
     pre_state = state_from_snapshot(pre_snapshot)
     pre_state_root = _state_root_for_state_file_obj_v0(pre_snapshot_obj)
-    pre_state.balances.add(to_pubkey, asset, amount)
+    balances = copy_balance_table(pre_state.balances)
+    balances.add(to_pubkey, asset, amount)
+    pre_state = replace(pre_state, balances=balances)
     post_dex_snapshot = snapshot_from_state(pre_state).data
     post_snapshot = _replace_dex_snapshot_in_state_file_obj_v0(pre_snapshot_obj, post_dex_snapshot)
     post_state_root = _state_root_for_state_file_obj_v0(post_snapshot)
@@ -4709,8 +4712,10 @@ def _build_tokenomics_reward_claim_block_from_body_v0(
         reward_source_balance=source_balance,
     )
     pre_state_root = _state_root_for_state_file_obj_v0(pre_snapshot_obj)
-    pre_state.balances.subtract(str(claim["controller_pubkey"]), token_asset_id, int(claim["amount"]))
-    pre_state.balances.add(str(claim["recipient_pubkey"]), token_asset_id, int(claim["amount"]))
+    balances = copy_balance_table(pre_state.balances)
+    balances.subtract(str(claim["controller_pubkey"]), token_asset_id, int(claim["amount"]))
+    balances.add(str(claim["recipient_pubkey"]), token_asset_id, int(claim["amount"]))
+    pre_state = replace(pre_state, balances=balances)
     post_dex_snapshot = snapshot_from_state(pre_state).data
     post_snapshot = _replace_dex_snapshot_in_state_file_obj_v0(pre_snapshot_obj, post_dex_snapshot)
     post_state_root = _state_root_for_state_file_obj_v0(post_snapshot)
@@ -5096,11 +5101,18 @@ def _apply_tokenomics_buyback_burn_to_block_report_v0(
             pool = post_state.pools.get(pool_id)
             if pool is None:
                 raise ValueError("tokenomics buyback market pool missing")
-            post_state.balances.subtract(source_pubkey, quote_asset, quote_amount_in)
-            pool.reserve0 = int(market_purchase["reserve0_after"])
-            pool.reserve1 = int(market_purchase["reserve1_after"])
+            balances = copy_balance_table(post_state.balances)
+            balances.subtract(source_pubkey, quote_asset, quote_amount_in)
+            pools = dict(post_state.pools)
+            mutable_pool = copy_pool_state(pool)
+            mutable_pool.reserve0 = int(market_purchase["reserve0_after"])
+            mutable_pool.reserve1 = int(market_purchase["reserve1_after"])
+            pools[pool_id] = mutable_pool
+            post_state = replace(post_state, balances=balances, pools=pools)
         elif burn_amount > 0:
-            post_state.balances.subtract(source_pubkey, token_asset_id, burn_amount)
+            balances = copy_balance_table(post_state.balances)
+            balances.subtract(source_pubkey, token_asset_id, burn_amount)
+            post_state = replace(post_state, balances=balances)
     updated_dex_snapshot = snapshot_from_state(post_state).data
     updated_snapshot = _replace_dex_snapshot_in_state_file_obj_v0(post_snapshot_obj, updated_dex_snapshot)
     post_state_root = _state_root_for_state_file_obj_v0(updated_snapshot)

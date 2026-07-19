@@ -69,13 +69,14 @@ def test_cow_pair_netting_falls_back_when_aggregate_debit_check_fails_closed(mon
     call_counter = {"n": 0}
     original_get = balances.get
 
-    def _stateful_get(pubkey: str, asset: str) -> int:
+    def _stateful_get(self: BalanceTable, pubkey: str, asset: str) -> int:
+        del self
         call_counter["n"] += 1
         if call_counter["n"] <= 2:
             return int(original_get(pubkey, asset))
         return 0
 
-    monkeypatch.setattr(balances, "get", _stateful_get)
+    monkeypatch.setattr(BalanceTable, "get", _stateful_get)
     fills, remaining = _cow_pair_netting_exact_in_v1(intents, pool_state=pool, balances=balances)
     assert fills == []
     assert [it.intent_id for it in remaining] == sorted([it.intent_id for it in intents])

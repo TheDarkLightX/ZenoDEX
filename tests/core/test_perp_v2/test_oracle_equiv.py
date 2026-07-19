@@ -47,6 +47,7 @@ def _import_generated_ref() -> Any:
 
 
 ref = _import_generated_ref()
+LIFECYCLE_FORMAL_PROMOTION_BLOCKER = "PERP-PHASE-001"
 
 # ---------------------------------------------------------------------------
 # Translation helpers
@@ -113,6 +114,39 @@ def assert_result_parity(
     assert ref_result.effects is not None
     assert native_result.state == ref_state_to_dict(ref_result.state), context
     assert native_result.effects == dict(ref_result.effects), context
+
+
+def assert_named_lifecycle_divergence(
+    *,
+    native_state: dict[str, bool | int],
+    params: ActionParams,
+    native_result: PerpStepResult,
+    ref_result: Any,
+) -> None:
+    """Admit only the exact fail-closed lifecycle delta tracked for promotion."""
+
+    assert LIFECYCLE_FORMAL_PROMOTION_BLOCKER == "PERP-PHASE-001"
+    assert native_result.ok is False
+    assert native_result.error == "guard"
+    assert ref_result.ok is True
+
+    if params.action is Action.ADVANCE_EPOCH:
+        assert native_state["epoch_phase"] == 1
+        return
+
+    assert params.action is Action.SETTLE_EPOCH
+    oracle_usable = (
+        native_state["oracle_seen"] is True
+        and type(native_state["index_price_e8"]) is int
+        and native_state["index_price_e8"] > 0
+        and type(native_state["oracle_last_update_epoch"]) is int
+        and type(native_state["now_epoch"]) is int
+        and type(native_state["max_oracle_staleness_epochs"]) is int
+        and native_state["oracle_last_update_epoch"] <= native_state["now_epoch"]
+        and native_state["now_epoch"] - native_state["oracle_last_update_epoch"]
+        <= native_state["max_oracle_staleness_epochs"]
+    )
+    assert oracle_usable is False
 
 
 def oracle_bound_initial_states() -> tuple[dict[str, bool | int], Any]:
@@ -225,12 +259,15 @@ class TestSingleActionEquivalence:
         )
 
 
-class TestActionSequenceEquivalence:
-    """Fuzz multi-step action sequences."""
+class TestActionSequenceRefinementBoundary:
+    """Match the generated model up to the named lifecycle refinement delta."""
 
     @given(actions=st.lists(action_params_strategy(), min_size=1, max_size=30))
     @settings(max_examples=200, deadline=5000)
-    def test_sequence(self, actions: list[ActionParams]):
+    def test_sequence_matches_until_named_lifecycle_divergence(
+        self,
+        actions: list[ActionParams],
+    ) -> None:
         our_state = perp_epoch_isolated_v3_native_initial_state()
         ref_state = ref.init_state()
 
@@ -238,6 +275,14 @@ class TestActionSequenceEquivalence:
             command = params_to_command(params)
             our_result = apply_native(our_state, command)
             ref_result = ref.step(ref_state, command)
+            if our_result.ok != ref_result.ok:
+                assert_named_lifecycle_divergence(
+                    native_state=our_state,
+                    params=params,
+                    native_result=our_result,
+                    ref_result=ref_result,
+                )
+                return
             assert_result_parity(
                 our_result,
                 ref_result,
@@ -249,6 +294,32 @@ class TestActionSequenceEquivalence:
                 assert ref_result.state is not None
                 our_state = our_result.state
                 ref_state = ref_result.state
+
+
+def test_generated_reference_still_exposes_named_pending_settlement_delta() -> None:
+    our_state = perp_epoch_isolated_v3_native_initial_state()
+    ref_state = ref.init_state()
+    for params in (
+        ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
+        ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1),
+    ):
+        command = params_to_command(params)
+        our_result = apply_native(our_state, command)
+        ref_result = ref.step(ref_state, command)
+        assert_result_parity(our_result, ref_result, context=params.action.value)
+        assert our_result.state is not None
+        assert ref_result.state is not None
+        our_state = our_result.state
+        ref_state = ref_result.state
+
+    params = ActionParams(action=Action.ADVANCE_EPOCH, delta=1)
+    command = params_to_command(params)
+    assert_named_lifecycle_divergence(
+        native_state=our_state,
+        params=params,
+        native_result=apply_native(our_state, command),
+        ref_result=ref.step(ref_state, command),
+    )
 
 
 class TestLifecycleEquivalence:

@@ -3,6 +3,8 @@ import { calcLpTokensMint, calcPoolShare, formatNumber, formatPercent, getSpotPr
 import { validateAddLiquidity } from '../lib/validation';
 import './AddLiquidityModal.css';
 
+const LIVE_POOL_SNAPSHOT_ERROR = 'live_pool_snapshot_unavailable';
+
 /**
  * AddLiquidityModal - Poka-yoke modal for adding liquidity to a pool
  * Features:
@@ -19,24 +21,27 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
     const [typedConfirmText, setTypedConfirmText] = useState('');
 
     // Pool data
-    const { token0, token1, reserve0, reserve1, totalLpSupply = 1000000 } = pool;
+    const { token0, token1, reserve0, reserve1, totalLpSupply } = pool;
+    const livePoolSnapshotReady = Number.isFinite(reserve0) && reserve0 > 0
+        && Number.isFinite(reserve1) && reserve1 > 0
+        && Number.isFinite(totalLpSupply) && totalLpSupply > 0;
 
-    // User balances (mock - would come from wallet integration)
+    // User balances are supplied by the connected wallet snapshot.
     const balance0 = wallet?.balance?.[token0.symbol] ?? 0;
     const balance1 = wallet?.balance?.[token1.symbol] ?? 0;
 
     // Current pool ratio
     const poolRatio = useMemo(() => {
-        if (reserve0 <= 0) return 1;
+        if (!livePoolSnapshotReady) return null;
         return reserve1 / reserve0;
-    }, [reserve0, reserve1]);
+    }, [livePoolSnapshotReady, reserve0, reserve1]);
 
     // Calculate LP tokens and preview
     const preview = useMemo(() => {
         const amt0 = parseFloat(amount0) || 0;
         const amt1 = parseFloat(amount1) || 0;
 
-        if (amt0 <= 0 || amt1 <= 0) {
+        if (!livePoolSnapshotReady || poolRatio == null || amt0 <= 0 || amt1 <= 0) {
             return null;
         }
 
@@ -56,10 +61,13 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
             imbalanceRatio,
             isImbalanced,
         };
-    }, [amount0, amount1, reserve0, reserve1, totalLpSupply, poolRatio]);
+    }, [amount0, amount1, livePoolSnapshotReady, reserve0, reserve1, totalLpSupply, poolRatio]);
 
     // Validation
     const validation = useMemo(() => {
+        if (!livePoolSnapshotReady) {
+            return { ok: false, error: LIVE_POOL_SNAPSHOT_ERROR };
+        }
         const amt0 = parseFloat(amount0) || 0;
         const amt1 = parseFloat(amount1) || 0;
 
@@ -69,12 +77,12 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
             balance0,
             balance1,
         });
-    }, [amount0, amount1, balance0, balance1]);
+    }, [amount0, amount1, balance0, balance1, livePoolSnapshotReady]);
 
     // Handle amount0 change with auto-ratio
     const handleAmount0Change = useCallback((value) => {
         setAmount0(value);
-        if (lockedRatio && value) {
+        if (lockedRatio && value && poolRatio != null) {
             const amt0 = parseFloat(value) || 0;
             setAmount1((amt0 * poolRatio).toFixed(6));
         }
@@ -83,7 +91,7 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
     // Handle amount1 change with auto-ratio
     const handleAmount1Change = useCallback((value) => {
         setAmount1(value);
-        if (lockedRatio && value) {
+        if (lockedRatio && value && poolRatio != null && poolRatio > 0) {
             const amt1 = parseFloat(value) || 0;
             setAmount0((amt1 / poolRatio).toFixed(6));
         }
@@ -99,6 +107,7 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
     }, [balance1, handleAmount1Change]);
 
     const handleSubmit = useCallback(() => {
+        if (!validation.ok || !preview) return;
         setShowConfirm(false);
         setTypedConfirmText('');
         onSubmit?.({
@@ -108,7 +117,7 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
             lpTokensExpected: preview?.lpTokens,
         });
         onClose();
-    }, [amount0, amount1, preview, pool, onSubmit, onClose]);
+    }, [amount0, amount1, preview, pool, onSubmit, onClose, validation.ok]);
 
     // Submit handler with confirmation for imbalanced adds
     const handleAddClick = useCallback(() => {
@@ -124,6 +133,7 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
 
     const getButtonText = () => {
         if (!wallet) return 'Connect Wallet';
+        if (!livePoolSnapshotReady) return 'Live pool data unavailable';
         if (!amount0 || !amount1) return 'Enter Amounts';
         if (validation.error) return validation.error;
         return 'Add Liquidity';
@@ -145,7 +155,9 @@ function AddLiquidityModal({ pool, wallet, onClose, onSubmit }) {
                         </span>
                         <span className="pool-name">{token0.symbol} / {token1.symbol}</span>
                         <span className="pool-ratio">
-                            1 {token0.symbol} = {formatNumber(poolRatio, 4)} {token1.symbol}
+                            {poolRatio == null
+                                ? 'Live ratio unavailable'
+                                : `1 ${token0.symbol} = ${formatNumber(poolRatio, 4)} ${token1.symbol}`}
                         </span>
                     </div>
 

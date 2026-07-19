@@ -5,12 +5,13 @@ Intents are user-authored requests (swap, add/remove liquidity, create pool)
 that are collected and settled in batches.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Mapping, Optional, cast
 
 from .balances import PubKey
 from .canonical import canonical_hex_fixed_allow_0x
+from .immutable import SealedValue, freeze_mapping, seal_dataclass_init
 
 
 class IntentKind(Enum):
@@ -22,8 +23,9 @@ class IntentKind(Enum):
     SWAP_EXACT_OUT = "SWAP_EXACT_OUT"
 
 
-@dataclass
-class Intent:
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
+class Intent(SealedValue):
     """
     Base intent structure.
     
@@ -46,39 +48,61 @@ class Intent:
     
     # Intent-specific fields (stored as dict for flexibility)
     # These will be validated per intent kind
-    fields: Optional[Dict[str, Any]] = None
+    fields: Optional[Mapping[str, Any]] = None
     
     def __post_init__(self):
         """Validate intent structure."""
+        if type(self.module) is not str:
+            raise TypeError("module must be a string")
+        for name, value in (("version", self.version), ("sender_pubkey", self.sender_pubkey)):
+            if type(value) is not str or not value:
+                raise TypeError(f"{name} must be a non-empty string")
+        if type(self.kind) is not IntentKind:
+            raise TypeError("kind must be an exact IntentKind")
+        if type(self.deadline) is not int or self.deadline < 0:
+            raise TypeError("deadline must be a non-negative int")
+        if self.salt is not None and (type(self.salt) is not str or not self.salt):
+            raise TypeError("salt must be a non-empty string or None")
         if self.module != "TauSwap":
             raise ValueError(f"Invalid module: {self.module}")
 
         try:
-            self.intent_id = canonical_hex_fixed_allow_0x(self.intent_id, nbytes=32, name="intent_id")
+            canonical_intent_id = canonical_hex_fixed_allow_0x(
+                self.intent_id,
+                nbytes=32,
+                name="intent_id",
+            )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"Invalid intent_id format: {self.intent_id}") from exc
-        
-        if self.fields is None:
-            self.fields = {}
+
+        fields = {} if self.fields is None else self.fields
+        if not isinstance(fields, Mapping):
+            raise TypeError("fields must be a mapping when present")
+        object.__setattr__(self, "intent_id", canonical_intent_id)
+        object.__setattr__(self, "fields", freeze_mapping(fields, name="intent.fields"))
     
     def get_field(self, key: str, default: Any = None) -> Any:
         """Get intent-specific field value."""
         return self.fields.get(key, default) if self.fields else default
     
-    def set_field(self, key: str, value: Any) -> None:
-        """Set intent-specific field value."""
-        if self.fields is None:
-            self.fields = {}
-        self.fields[key] = value
+    def with_field(self, key: str, value: Any) -> "Intent":
+        """Return a new intent with one field changed; never mutate signed meaning."""
+
+        if not isinstance(key, str) or not key:
+            raise TypeError("field key must be a non-empty string")
+        fields = dict(self.fields or {})
+        fields[key] = value
+        return replace(self, fields=fields)
 
 
-@dataclass
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
 class SwapIntent(Intent):
     """Swap intent (exact-in or exact-out)."""
     
     def __post_init__(self):
         """Validate swap intent fields."""
-        super().__post_init__()
+        Intent.__post_init__(self)
         
         if self.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
             raise ValueError(f"Invalid kind for SwapIntent: {self.kind}")
@@ -114,13 +138,14 @@ class SwapIntent(Intent):
                 raise ValueError("max_amount_in must be non-negative")
 
 
-@dataclass
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
 class CreatePoolIntent(Intent):
     """Create pool intent."""
     
     def __post_init__(self):
         """Validate create pool intent fields."""
-        super().__post_init__()
+        Intent.__post_init__(self)
         
         if self.kind != IntentKind.CREATE_POOL:
             raise ValueError(f"Invalid kind for CreatePoolIntent: {self.kind}")
@@ -147,8 +172,9 @@ class CreatePoolIntent(Intent):
             raise ValueError("amount1 must be positive")
 
 
-@dataclass
-class SignedIntent:
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
+class SignedIntent(SealedValue):
     """
     Intent with cryptographic signature.
     
@@ -161,5 +187,16 @@ class SignedIntent:
     
     def __post_init__(self):
         """Validate signature format."""
+        require_exact_intent(self.intent)
+        if type(self.signature) is not str:
+            raise TypeError("signature must be a string")
         if not self.signature.startswith("0x") or len(self.signature) < 130:
             raise ValueError(f"Invalid signature format: {self.signature}")
+
+
+def require_exact_intent(value: object) -> Intent:
+    """Reject behavior-changing subclasses at direct core API boundaries."""
+
+    if type(value) not in (Intent, SwapIntent, CreatePoolIntent):
+        raise TypeError("intent must be an exact ZenoDEX intent value")
+    return cast(Intent, value)

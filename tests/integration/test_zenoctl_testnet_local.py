@@ -20,13 +20,16 @@ import os
 import socket
 import subprocess
 import sys
-import yaml
 from contextlib import closing
 from pathlib import Path
 from typing import Mapping
 
 import pytest
+import yaml
 
+from tools.zenoctl_testnet_local.perps_wallet_sss_fixture import (
+    recipient_root_keys_from_fixture_v1,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_OVERLAY = REPO_ROOT / "docker-compose.local-testnet.yml"
@@ -529,8 +532,9 @@ def test_fixture_bundle_writes_key_material_with_owner_only_mode(tmp_path: Path)
 
 
 def test_fixture_bundle_is_byte_identical_across_reruns(tmp_path: Path) -> None:
-    from tools.zenoctl_testnet_local import fixtures as fx
     import hashlib
+
+    from tools.zenoctl_testnet_local import fixtures as fx
 
     common_kwargs = dict(
         out_dir=tmp_path,
@@ -549,7 +553,9 @@ def test_fixture_bundle_is_byte_identical_across_reruns(tmp_path: Path) -> None:
 
 
 def test_fixture_profiles_pass_live_authority_evaluators(tmp_path: Path) -> None:
-    from src.integration.autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
+    from src.integration.autotrader_supervisor_profile import (
+        evaluate_autotrader_supervisor_profile_v1,
+    )
     from src.integration.perps_wallet_authority import (
         evaluate_perps_wallet_authority_profile_v1,
         evaluate_perps_wallet_device_approval_exercise_v1,
@@ -563,7 +569,6 @@ def test_fixture_profiles_pass_live_authority_evaluators(tmp_path: Path) -> None
     )
     from src.integration.perps_wallet_encrypted_sss_backup import (
         evaluate_perps_wallet_encrypted_sss_backup_v1,
-        recipient_root_keys_from_fixture_v1,
     )
     from src.integration.zeno_oracle_authority import evaluate_oracle_authority_profile_v1
     from tools.zenoctl_testnet_local import fixtures as fx
@@ -666,8 +671,8 @@ def test_fixture_profiles_pass_live_authority_evaluators(tmp_path: Path) -> None
 
 
 def test_encrypted_sss_shamir_recovery_and_duplicate_rejection() -> None:
-    from src.integration.perps_wallet_encrypted_sss_backup import (
-        recover_secret_shamir_gf256,
+    from src.integration.perps_wallet_encrypted_sss_backup import recover_secret_shamir_gf256
+    from tools.zenoctl_testnet_local.perps_wallet_sss_fixture import (
         split_secret_shamir_gf256,
     )
 
@@ -688,7 +693,6 @@ def test_encrypted_sss_shamir_recovery_and_duplicate_rejection() -> None:
 def test_encrypted_sss_backup_evaluator_rejects_tampered_envelope(tmp_path: Path) -> None:
     from src.integration.perps_wallet_encrypted_sss_backup import (
         evaluate_perps_wallet_encrypted_sss_backup_v1,
-        recipient_root_keys_from_fixture_v1,
     )
     from tools.zenoctl_testnet_local import fixtures as fx
 
@@ -728,7 +732,6 @@ def test_encrypted_sss_backup_evaluator_replays_recovery_after_rehashed_tamper(t
         perps_wallet_encrypted_sss_backup_hash_v1,
         perps_wallet_encrypted_sss_delivery_hash_v1,
         perps_wallet_encrypted_sss_envelope_hash_v1,
-        recipient_root_keys_from_fixture_v1,
     )
     from tools.zenoctl_testnet_local import fixtures as fx
 
@@ -766,14 +769,13 @@ def test_encrypted_sss_backup_evaluator_replays_recovery_after_rehashed_tamper(t
 def test_encrypted_sss_public_fields_do_not_recover_key_from_one_share(tmp_path: Path) -> None:
     import hashlib
 
-    from src.integration.perps_wallet_encrypted_sss_backup import (
-        _decrypt_share_envelope,
+    from src.integration.perps_wallet_encrypted_sss_backup import _decrypt_share_envelope
+    from src.nonproduction.tau_net_signing import bls_pubkey_hex_from_privkey
+    from tools.zenoctl_testnet_local import fixtures as fx
+    from tools.zenoctl_testnet_local.perps_wallet_sss_fixture import (
         _derive_coefficient,
         _gf_mul,
-        recipient_root_keys_from_fixture_v1,
     )
-    from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
-    from tools.zenoctl_testnet_local import fixtures as fx
 
     chain_id = "zeno-ledger-localtest-v0"
     bundle = fx.generate_fixture_bundle(
@@ -823,7 +825,9 @@ def test_encrypted_sss_public_fields_do_not_recover_key_from_one_share(tmp_path:
 
 
 def test_encrypted_sss_backup_requires_trusted_replay_keys(tmp_path: Path) -> None:
-    from src.integration.perps_wallet_encrypted_sss_backup import evaluate_perps_wallet_encrypted_sss_backup_v1
+    from src.integration.perps_wallet_encrypted_sss_backup import (
+        evaluate_perps_wallet_encrypted_sss_backup_v1,
+    )
     from tools.zenoctl_testnet_local import fixtures as fx
 
     chain_id = "zeno-ledger-localtest-v0"
@@ -868,7 +872,6 @@ def test_encrypted_sss_backup_accepts_live_delivery_receipts(tmp_path: Path) -> 
         build_perps_wallet_encrypted_sss_live_delivery_receipt_v1,
         evaluate_perps_wallet_encrypted_sss_backup_v1,
         perps_wallet_encrypted_sss_backup_hash_v1,
-        recipient_root_keys_from_fixture_v1,
     )
     from tools.zenoctl_testnet_local import fixtures as fx
 
@@ -927,12 +930,8 @@ def test_perps_wallet_api_has_no_local_provider_delivery_route(
         network_id=chain_id,
         created_at_ms=1000,
     )
-    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
     backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
-    recipient_keys = json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
-    monkeypatch.setenv("PERPS_WALLET_AUTHORITY_PROFILE_JSON", json.dumps(profile, sort_keys=True))
-    monkeypatch.setenv("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON", json.dumps(recipient_keys, sort_keys=True))
 
     status_code, payload = perps_wallet_api.handle_perps_wallet_request(
         "POST",
@@ -943,6 +942,43 @@ def test_perps_wallet_api_has_no_local_provider_delivery_route(
     assert status_code == 404, payload
     assert payload["ok"] is False
     assert payload["error"] == "not_found"
+
+
+def test_perps_wallet_api_does_not_load_fixture_recipient_keys(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.integration import perps_wallet_api
+    from tools.zenoctl_testnet_local import fixtures as fx
+
+    chain_id = "zeno-ledger-localtest-v0"
+    bundle = fx.generate_fixture_bundle(
+        out_dir=tmp_path,
+        chain_id=chain_id,
+        network_id=chain_id,
+        created_at_ms=1000,
+    )
+    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
+    backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
+    recipient_keys = bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("PERPS_WALLET_AUTHORITY_PROFILE_JSON", json.dumps(profile, sort_keys=True))
+    # A stale deployment may still provide this legacy fixture variable. The
+    # shipped handler must ignore it and keep recovery replay blocked.
+    monkeypatch.setenv("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON", recipient_keys)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/encrypted-sss-backup/evaluate",
+        json.dumps(backup).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is False
+    status = payload["encrypted_sss_backup"]
+    assert status["encrypted_sss_backup_ready"] is False
+    assert "encrypted SSS trusted recipient replay keys are missing" in status["errors"]
+    assert "encrypted SSS hostile replay keys are missing" in status["errors"]
 
 
 def test_perps_wallet_api_real_provider_delivery_fails_closed_without_provider_config(
@@ -959,12 +995,8 @@ def test_perps_wallet_api_real_provider_delivery_fails_closed_without_provider_c
         network_id=chain_id,
         created_at_ms=1000,
     )
-    profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
     backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
-    recipient_keys = json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
-    monkeypatch.setenv("PERPS_WALLET_AUTHORITY_PROFILE_JSON", json.dumps(profile, sort_keys=True))
-    monkeypatch.setenv("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON", json.dumps(recipient_keys, sort_keys=True))
 
     status_code, payload = perps_wallet_api.handle_perps_wallet_request(
         "POST",
@@ -998,13 +1030,11 @@ def test_perps_wallet_api_real_provider_delivery_redacts_backup_material(
     )
     profile = json.loads(bundle.perps_wallet_authority_profile.read_text(encoding="utf-8"))
     backup = json.loads(bundle.perps_wallet_encrypted_sss_backup.read_text(encoding="utf-8"))
-    recipient_keys = json.loads(bundle.perps_wallet_encrypted_sss_recipient_keys.read_text(encoding="utf-8"))
     backup["envelopes"] = [item for item in backup["envelopes"] if item.get("provider_kind") == "offline_export"]
     export_dir = tmp_path / "sss-export"
     export_dir.mkdir()
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("PERPS_WALLET_AUTHORITY_PROFILE_JSON", json.dumps(profile, sort_keys=True))
-    monkeypatch.setenv("PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_JSON", json.dumps(recipient_keys, sort_keys=True))
     monkeypatch.setenv("PERPS_WALLET_ENCRYPTED_SSS_OFFLINE_EXPORT_DIR", str(export_dir))
 
     status_code, payload = perps_wallet_api.handle_perps_wallet_request(
@@ -1061,7 +1091,6 @@ def test_encrypted_sss_external_audit_evidence_is_signed_and_bound(tmp_path: Pat
         perps_wallet_encrypted_sss_audit_evidence_hash_v1,
         perps_wallet_encrypted_sss_audit_subject_hash_v1,
         perps_wallet_encrypted_sss_backup_hash_v1,
-        recipient_root_keys_from_fixture_v1,
     )
     from src.integration.zeno_ledger_signature import (
         bls_public_key_hex_from_private_key_v0,
@@ -1372,16 +1401,18 @@ def test_nginx_listens_on_port_8080_only() -> None:
 
 
 def test_nginx_render_rejects_empty_token() -> None:
-    from tools.zenoctl_testnet_local import nginx as ng
     import dataclasses
+
+    from tools.zenoctl_testnet_local import nginx as ng
 
     with pytest.raises(ValueError, match="non-empty"):
         ng.render_nginx_conf(dataclasses.replace(_nginx_inputs(), writer_token=""))
 
 
 def test_nginx_render_rejects_malformed_upstream() -> None:
-    from tools.zenoctl_testnet_local import nginx as ng
     import dataclasses
+
+    from tools.zenoctl_testnet_local import nginx as ng
 
     with pytest.raises(ValueError, match="host:port"):
         ng.render_nginx_conf(dataclasses.replace(_nginx_inputs(), writer_upstream="no-port"))
@@ -1390,10 +1421,10 @@ def test_nginx_render_rejects_malformed_upstream() -> None:
 def test_runtime_config_has_no_tokens() -> None:
     from tools.zenoctl_testnet_local import nginx as ng
 
-    runtime = ng.render_runtime_config(demo_mode=False)
+    runtime = ng.render_runtime_config()
     parsed = json.loads(runtime)
-    assert parsed["demoMode"] is False
-    assert parsed["allowDemoMode"] is False
+    assert "demoMode" not in parsed
+    assert "allowDemoMode" not in parsed
     assert parsed["apiBase"] == ""
     assert parsed["zenoOracleApiBase"] == ""
     assert parsed["oracleApiBase"] == ""
@@ -1414,6 +1445,38 @@ def test_runtime_config_has_no_tokens() -> None:
     assert "Bearer" not in serialized
     assert "writer" not in serialized.lower()
     assert "token" not in serialized.lower()
+
+
+def test_ui_surface_contract_is_audit_only_and_not_a_public_asset() -> None:
+    from tools.zenoctl_testnet_local import nginx as ng
+
+    assert ng.UI_SURFACE_CONTRACT_PATH.is_file()
+    assert ng.UI_SURFACE_CONTRACT_PATH.parent.name == "audit"
+    assert "public" not in ng.UI_SURFACE_CONTRACT_PATH.parts
+
+
+def test_ui_surface_contract_requires_runtime_attestation_and_absent_public_copy() -> None:
+    from tools.zenoctl_testnet_local import nginx as ng
+
+    runtime_config = {"ok": True, **json.loads(ng.render_runtime_config())}
+    report = ng.evaluate_ui_surface_contract_attestation(
+        retired_public_contract={"ok": False, "status_code": 404},
+        runtime_config=runtime_config,
+    )
+    assert report["ok"] is True
+
+    report = ng.evaluate_ui_surface_contract_attestation(
+        retired_public_contract={"ok": True, **ng.load_ui_surface_contract()},
+        runtime_config=runtime_config,
+    )
+    assert report["ok"] is False
+    assert "audit-only UI surface contract is unexpectedly served" in report["errors"]
+
+    lifecycle_source = (REPO_ROOT / "tools" / "zenoctl_testnet_local" / "lifecycle.py").read_text(
+        encoding="utf-8"
+    )
+    assert '_safe_get_json(f"{ui_base}/zenodex-ui-contract.json")' in lifecycle_source
+    assert "evaluate_ui_surface_contract_attestation" in lifecycle_source
 
 
 def test_runtime_config_rejects_overriding_builtin_keys() -> None:
@@ -1451,7 +1514,8 @@ def test_existing_runtime_config_refresh_updates_ui_contract(tmp_path: Path) -> 
     lc._refresh_existing_runtime_config(path)
     parsed = json.loads(path.read_text(encoding="utf-8"))
 
-    assert parsed["demoMode"] is False
+    assert "demoMode" not in parsed
+    assert "allowDemoMode" not in parsed
     assert parsed["allowBrowserKeyGeneration"] is True
     assert parsed["uiSurfaceContractSchema"] == "zenodex.dex_ui.surface_contract.v1"
     assert parsed["uiSurfaceContractVersion"] == ng.ui_surface_contract_version()
@@ -1550,8 +1614,8 @@ def test_compose_overlay_api_does_not_enable_demo_or_fixture_shortcuts() -> None
     assert env.get("LOCAL_TESTNET_ALLOW_PLAINTEXT_FIXTURE_KEYS") not in {"1", "true", True}
     assert env.get("LOCAL_TESTNET_FIXTURE_KEY_API_ENABLED") not in {"1", "true", True}
     assert "LOCAL_TESTNET_FIXTURE_KEY_BUNDLE_FILE" not in env
-    assert env.get("PERPS_API_ENABLED") == "false"
-    assert env.get("ZUSD_API_ENABLED") == "false"
+    assert "PERPS_API_ENABLED" not in env
+    assert "ZUSD_API_ENABLED" not in env
 
 
 def test_compose_overlay_bootstrap_service_has_writer_token_for_controller_runs() -> None:
@@ -1585,23 +1649,18 @@ def test_compose_overlay_tau_local_enables_balance_patch_for_local_state_bootstr
     env = doc["services"]["tau-local"]["environment"]
     assert env["TAU_ENABLE_FAUCET"] == "1"
     assert env["TAU_DEX_FAUCET"] == "1"
-    assert env["TAU_DEX_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}"
+    assert env["TAU_DEX_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-ZDEX}"
     assert env["TAU_DEX_ALLOW_MISSING_SETTLEMENT"] == "1"
     assert env["TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH"] == "1"
 
 
-def test_compose_overlay_exposes_capped_local_testnet_faucets() -> None:
+def test_compose_overlay_excludes_perps_wallet_fixture_faucet() -> None:
     doc = _load_compose_overlay()
     env = doc["services"]["zenodex-api"]["environment"]
-    assert env["TAU_DEX_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}"
-    assert env["PERPS_WALLET_TESTNET_FAUCET_ENABLED"] == "true"
-    assert env["PERPS_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY"].startswith("${TAU_DEX_TOKEN_OPERATOR_PUBKEY")
-    assert env["PERPS_WALLET_TESTNET_FAUCET_MAX_AMOUNT"] == "100000"
-    assert env["PERPS_WALLET_ALLOW_LOCAL_SIGNING"] == "true"
-    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_ENABLED"] == "true"
-    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY"].startswith("${TAU_DEX_TOKEN_OPERATOR_PUBKEY")
-    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_SIGNER_PRIVKEY"].startswith("${TAU_DEX_TOKEN_OPERATOR_PRIVKEY")
-    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_MAX_AMOUNT_E8"] == "1000"
+    assert env["TAU_DEX_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-ZDEX}"
+    assert all(not key.startswith("PERPS_WALLET_TESTNET_FAUCET_") for key in env)
+    assert "PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_FILE" not in env
+    assert "PERPS_WALLET_ALLOW_LOCAL_SIGNING" not in env
 
 
 def test_compose_overlay_autotrader_uses_persistent_execution_journal() -> None:

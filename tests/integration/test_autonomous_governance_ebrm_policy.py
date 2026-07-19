@@ -12,10 +12,12 @@ from src.integration.autonomous_governance_ebrm_policy import (
     ebrm_policy_content_hash_v1,
     evaluate_autonomous_governance_ebrm_policy_step_v1,
     normalize_autonomous_governance_ebrm_policy_v1,
-    sample_autonomous_governance_ebrm_policy_v1,
 )
 from src.integration.autonomous_governance_q_policy import (
     governance_surface_context_hash_v1,
+)
+from tools.support.autonomous_governance_policy_samples import (
+    sample_autonomous_governance_ebrm_policy_v1,
 )
 
 ROOT = Path(__file__).resolve().parents[2]

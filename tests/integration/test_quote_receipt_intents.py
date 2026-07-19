@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import pytest
 
-from src.agents.intent_signer import create_swap_intent_from_quote_receipt, create_swap_intents_from_quote_receipt
+from src.agents.intent_signer import (
+    create_swap_intent_from_quote_receipt,
+    create_swap_intents_from_quote_receipt,
+)
 from src.core.dex import DexState
 from src.core.quote_receipts import make_route_quote_receipt, pool_state_fingerprint
 from src.core.routing import best_route_exact_in_2hop, best_route_exact_out_2hop
 from src.integration.dex_engine import DexEngineConfig, apply_ops
-from src.integration.operations import SignedIntentEnvelope, create_intent_operation, create_signed_intent_operation
+from src.integration.operations import (
+    SignedIntentEnvelope,
+    create_signed_intent_operation,
+)
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus
@@ -240,7 +246,7 @@ def test_receipt_derived_intent_rejects_when_pool_snapshot_has_drifted() -> None
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
 
     balances = BalanceTable()
     balances.set(sender, "A", 10_000)

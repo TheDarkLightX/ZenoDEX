@@ -8,10 +8,12 @@ from src.integration.autonomous_governance_pi_policy import (
     evaluate_autonomous_governance_pi_policy_step_v1,
     normalize_autonomous_governance_pi_policy_v1,
     pi_policy_content_hash_v1,
-    sample_autonomous_governance_pi_policy_v1,
 )
 from src.integration.autonomous_governance_q_policy import (
     governance_surface_context_hash_v1,
+)
+from tools.support.autonomous_governance_policy_samples import (
+    sample_autonomous_governance_pi_policy_v1,
 )
 
 _SURFACE_STATE: dict[str, int] = {

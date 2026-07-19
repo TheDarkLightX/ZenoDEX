@@ -23,7 +23,9 @@ function PerpEpochIndicator({ market }) {
     return (
         <div className="perp-epoch-indicator">
             <div className="perp-epoch-header">
-                <span className="perp-epoch-label">Epoch #{market.nowEpoch}</span>
+                <span className="perp-epoch-label">
+                    {market.nowEpoch != null ? `Epoch #${market.nowEpoch}` : 'Epoch unknown'}
+                </span>
             </div>
             <div className="perp-epoch-steps">
                 {steps.map((step, idx) => {

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
 from src.integration import settlement_value_packet as value_packet_mod
-from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     build_settlement_spot_price_packet,
@@ -21,6 +22,9 @@ from src.integration.settlement_value_packet import (
 )
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
+from tests.support.settlement_price_attestation_signer import (
+    build_settlement_spot_price_attestation,
+)
 
 
 def _iid(n: int) -> str:
@@ -94,7 +98,10 @@ def test_settlement_value_packet_round_trips_for_spot_packet() -> None:
 
 def test_settlement_value_packet_round_trips_for_lp_attestation() -> None:
     pk, asset0, asset1, pool_id, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0)),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -136,7 +143,10 @@ def test_settlement_value_packet_round_trips_for_lp_attestation() -> None:
 
 def test_settlement_value_packet_rejects_lp_unit_value_snapshot_mismatch() -> None:
     pk, asset0, asset1, pool_id, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0)),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -172,8 +182,17 @@ def test_settlement_value_packet_rejects_lp_unit_value_snapshot_mismatch() -> No
 def test_settlement_value_packet_rejects_replay_with_different_settlement_identity() -> None:
     pk, asset0, asset1, pool_id, settlement = _swap_context(3300)
     _pk2, _asset0b, _asset1b, _pool_id2, replay_settlement = _swap_context(3301)
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
-    replay_settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0)),
+    )
+    replay_settlement = replace(
+        replay_settlement,
+        lp_deltas=(
+            *replay_settlement.lp_deltas,
+            LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0),
+        ),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -224,8 +243,14 @@ def test_settlement_value_packet_rejects_replay_with_different_settlement_identi
 def test_settlement_value_packet_rejects_missing_lp_projection_entry() -> None:
     pk, asset0, asset1, pool_id, settlement = _swap_context()
     second_pool_id = f"{pool_id}:secondary"
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=second_pool_id, delta_add=5, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(
+            *settlement.lp_deltas,
+            LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0),
+            LPDelta(pubkey=pk, pool_id=second_pool_id, delta_add=5, delta_sub=0),
+        ),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -264,7 +289,10 @@ def test_settlement_value_packet_rejects_missing_lp_projection_entry() -> None:
 
 def test_settlement_value_packet_rejects_lp_aware_packet_ok_floor_downgrade() -> None:
     pk, asset0, asset1, pool_id, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0)),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -302,7 +330,10 @@ def test_settlement_value_packet_rejects_lp_aware_packet_ok_floor_downgrade() ->
 
 def test_settlement_value_packet_rejects_missing_attestation_source_allowlist_assumption() -> None:
     pk, asset0, asset1, pool_id, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0)),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -414,7 +445,10 @@ def test_settlement_value_packet_rejects_bool_spot_contract_numeric_fields() -> 
 
 def test_settlement_value_packet_rejects_bool_lp_contract_numeric_fields() -> None:
     pk, asset0, asset1, pool_id, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0)),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=1, observed_epoch=95, age_epochs=5, source_id="oracle:a"),

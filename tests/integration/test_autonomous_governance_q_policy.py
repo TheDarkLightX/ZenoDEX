@@ -16,11 +16,13 @@ from src.integration.autonomous_governance_q_policy import (
     evaluate_autonomous_governance_surface_q_policy_v1,
     policy_content_hash_v1,
     q_learning_update_fixed_point_v1,
+)
+from src.tau_specs.governance import gov_gate
+from tools.support.autonomous_governance_policy_samples import (
     sample_autonomous_governance_next_policy_v1,
     sample_autonomous_governance_q_policy_v1,
     sample_autonomous_governance_surface_q_policy_v1,
 )
-from src.tau_specs.governance import gov_gate
 
 
 def _params(*, fee_step: int = 10) -> dict[str, BoundedParameter]:

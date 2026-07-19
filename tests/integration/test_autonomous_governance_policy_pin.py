@@ -19,10 +19,6 @@ from typing import Any, Callable, TypeVar, cast
 import pytest
 
 import src.integration.zeno_ledger_signature as sig
-from src.integration.autonomous_governance_q_policy import (
-    policy_content_hash_v1,
-    sample_autonomous_governance_surface_q_policy_v1,
-)
 from src.integration.autonomous_governance_policy_pin import (
     AUTONOMOUS_GOVERNANCE_POLICY_PIN_SCHEMA_V1,
     GENESIS_PREVIOUS_PIN_HASH,
@@ -34,6 +30,9 @@ from src.integration.autonomous_governance_policy_pin import (
     verify_policy_pin_chain_v1,
     verify_policy_pin_v1,
 )
+from src.integration.autonomous_governance_q_policy import (
+    policy_content_hash_v1,
+)
 from src.integration.autonomous_governance_trajectory import (
     run_autonomous_governance_surface_trajectory_v1,
 )
@@ -44,7 +43,9 @@ from src.integration.zeno_governance_authority import (
 from src.integration.zeno_key_manager_v0 import BACKEND_TAU_BLS_IMPORT, KeyBackendDescriptor
 from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
-
+from tools.support.autonomous_governance_policy_samples import (
+    sample_autonomous_governance_surface_q_policy_v1,
+)
 
 ROOT_B = "0x" + "bb" * 32
 ROOT_C = "0x" + "cc" * 32

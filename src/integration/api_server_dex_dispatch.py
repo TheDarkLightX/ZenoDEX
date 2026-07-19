@@ -27,11 +27,10 @@ Design constraints (locked in PR1):
 
 from __future__ import annotations
 
-import contextlib
 import time
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any, Callable, Iterator, Mapping, Optional, Tuple
+from typing import Any, Callable, Mapping, Optional, Tuple
 
 from src.integration.api_server_dex_metrics import (
     _METRICS_LATENCY_RESERVOIR as _METRICS_LATENCY_RESERVOIR,
@@ -231,34 +230,7 @@ if _REGISTRY_BUILD is None:
     raise RuntimeError("dex endpoint registry build table missing")
 
 
-def _freeze_registry(
-    build: dict[str, DexEndpointSpec],
-) -> tuple[Mapping[str, DexEndpointSpec], Callable[[str, DexEndpointSpec], "contextlib.AbstractContextManager[None]"]]:
-    """Build the frozen registry view and a test-only mutation hatch.
-
-    The backing dict is closed over by the returned helpers and never
-    exposed as a module attribute, so production code cannot bypass the
-    ``MappingProxyType`` view. The returned context manager is the only
-    documented way to add a synthetic handler for testing; it cleans up
-    on exit even if the test body raises.
-    """
-    backing: dict[str, DexEndpointSpec] = dict(build)
-    view: Mapping[str, DexEndpointSpec] = MappingProxyType(backing)
-
-    @contextlib.contextmanager
-    def _register_for_test(path: str, spec: DexEndpointSpec) -> Iterator[None]:
-        if path in backing:
-            raise RuntimeError(f"path already registered: {path}")
-        backing[path] = spec
-        try:
-            yield
-        finally:
-            backing.pop(path, None)
-
-    return view, _register_for_test
-
-
-DEX_ENDPOINT_REGISTRY, _register_for_test = _freeze_registry(_REGISTRY_BUILD)
+DEX_ENDPOINT_REGISTRY: Mapping[str, DexEndpointSpec] = MappingProxyType(dict(_REGISTRY_BUILD))
 _REGISTRY_BUILD = None
 
 
@@ -436,8 +408,38 @@ def _returned_error_code(response: DexResponse) -> Optional[str]:
     return None
 
 
+def dispatch_endpoint_spec(
+    path: str,
+    spec: DexEndpointSpec,
+    obj: Mapping[str, Any],
+    ctx: DexRequestContext,
+) -> DexResponse:
+    """Run one explicit immutable endpoint specification.
+
+    Taking the specification as data keeps registry selection separate from
+    execution and lets tests exercise the real dispatch behavior without a
+    mutable production registry or a test-only mutation hook.
+    """
+    start_ns = time.perf_counter_ns()
+    response, error_code_for_metrics = _run_endpoint_handler(path, spec, obj, ctx)
+    latency_ms = (time.perf_counter_ns() - start_ns) / 1_000_000.0
+
+    status = response[0]
+    is_error = error_code_for_metrics is not None or status >= 400
+    if is_error and error_code_for_metrics is None:
+        error_code_for_metrics = _returned_error_code(response)
+
+    DISPATCH_METRICS.record_request(
+        path,
+        latency_ms=latency_ms,
+        is_error=is_error,
+        error_code=error_code_for_metrics,
+    )
+    return response
+
+
 def dispatch(path: str, obj: Mapping[str, Any], ctx: DexRequestContext) -> Optional[DexResponse]:
-    """Look up a handler and run it with uniform exception handling.
+    """Look up an immutable handler specification and execute it uniformly.
 
     Returns ``None`` if no handler is registered (caller should fall through
     to the legacy chain or return 404). Otherwise returns the handler's
@@ -460,23 +462,4 @@ def dispatch(path: str, obj: Mapping[str, Any], ctx: DexRequestContext) -> Optio
     spec = DEX_ENDPOINT_REGISTRY.get(path)
     if spec is None:
         return None
-
-    start_ns = time.perf_counter_ns()
-    response, error_code_for_metrics = _run_endpoint_handler(path, spec, obj, ctx)
-    latency_ms = (time.perf_counter_ns() - start_ns) / 1_000_000.0
-
-    # Treat status >= 400 as an error for metrics purposes (even if the
-    # handler chose to return it directly without raising). Matches what
-    # an operator wants: "how many requests came back with an error?"
-    status = response[0]
-    is_error = error_code_for_metrics is not None or status >= 400
-    if is_error and error_code_for_metrics is None:
-        error_code_for_metrics = _returned_error_code(response)
-
-    DISPATCH_METRICS.record_request(
-        path,
-        latency_ms=latency_ms,
-        is_error=is_error,
-        error_code=error_code_for_metrics,
-    )
-    return response
+    return dispatch_endpoint_spec(path, spec, obj, ctx)

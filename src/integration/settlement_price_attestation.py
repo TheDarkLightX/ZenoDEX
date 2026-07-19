@@ -25,12 +25,6 @@ except ImportError:  # pragma: no cover - optional dependency
     _BLSValidationError = ValueError
     _BLS_AVAILABLE = False
 
-try:
-    from py_ecc.optimized_bls12_381 import curve_order as _BLS12_381_CURVE_ORDER
-except ImportError:  # pragma: no cover - optional dependency
-    _BLS12_381_CURVE_ORDER = None
-
-
 SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA = "zenodex/settlement-spot-price-attestation/v1"
 _PRICE_ATTESTATION_VERIFY_CACHE: dict[tuple[object, ...], tuple[bool, str | None]] = {}
 
@@ -101,38 +95,61 @@ class SettlementSpotPriceAttestation:
         )
 
 
-def build_settlement_spot_price_attestation(
+def settlement_spot_price_attestation_unsigned_dict(
     *,
     packet: SettlementSpotPricePacket,
-    signer_privkey: str | int | bytes | bytearray,
-) -> SettlementSpotPriceAttestation:
+    signer_pubkey: str,
+) -> dict[str, Any]:
+    """Build the exact public payload an external authority must sign."""
     ok, err = verify_settlement_spot_price_packet(packet=packet)
     if not ok:
         raise ValueError(f"invalid settlement spot price packet: {err}")
     if not packet.provenance_ok:
         raise ValueError("settlement spot price packet is not provenance_ok")
-    _require_bls()
-    sk_int = _parse_privkey_to_int(signer_privkey)
-    signer_pubkey = canonical_hex_fixed_allow_0x(
-        "0x" + G2Basic.SkToPk(sk_int).hex(),
+    canonical_signer_pubkey = canonical_hex_fixed_allow_0x(
+        signer_pubkey,
         nbytes=48,
         name="signer_pubkey",
     )
-    signed_at_epoch = int(packet.now_epoch)
-    packet_hash = _packet_hash_hex(packet)
-    unsigned = {
+    return {
         "schema": SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA,
         "packet": packet.to_dict(),
-        "signer_pubkey": signer_pubkey,
-        "signed_at_epoch": signed_at_epoch,
-        "packet_hash": packet_hash,
+        "signer_pubkey": canonical_signer_pubkey,
+        "signed_at_epoch": int(packet.now_epoch),
+        "packet_hash": _packet_hash_hex(packet),
     }
-    signature = "0x" + G2Basic.Sign(sk_int, _attestation_message_bytes(unsigned)).hex()
-    return SettlementSpotPriceAttestation(
+
+
+def settlement_spot_price_attestation_signing_message(
+    *,
+    packet: SettlementSpotPricePacket,
+    signer_pubkey: str,
+) -> bytes:
+    """Return canonical public bytes for an out-of-process signer."""
+    return _attestation_message_bytes(
+        settlement_spot_price_attestation_unsigned_dict(
+            packet=packet,
+            signer_pubkey=signer_pubkey,
+        )
+    )
+
+
+def settlement_spot_price_attestation_from_external_signature(
+    *,
+    packet: SettlementSpotPricePacket,
+    signer_pubkey: str,
+    signature: str,
+) -> SettlementSpotPriceAttestation:
+    """Assemble a typed attestation from public data and an external signature."""
+    unsigned = settlement_spot_price_attestation_unsigned_dict(
         packet=packet,
         signer_pubkey=signer_pubkey,
-        signed_at_epoch=signed_at_epoch,
-        packet_hash=packet_hash,
+    )
+    return SettlementSpotPriceAttestation(
+        packet=packet,
+        signer_pubkey=str(unsigned["signer_pubkey"]),
+        signed_at_epoch=int(unsigned["signed_at_epoch"]),
+        packet_hash=str(unsigned["packet_hash"]),
         signature=signature,
     )
 
@@ -308,37 +325,6 @@ def _cache_attestation_verify_result(
     _PRICE_ATTESTATION_VERIFY_CACHE[key] = result
 
 
-def _parse_privkey_to_int(privkey: str | int | bytes | bytearray) -> int:
-    if isinstance(privkey, bool):
-        raise TypeError("privkey must be str|int|bytes and not bool")
-    if isinstance(privkey, int):
-        sk = int(privkey)
-    elif isinstance(privkey, (bytes, bytearray)):
-        raw = bytes(privkey)
-        if len(raw) != 32:
-            raise ValueError("privkey bytes must be length 32")
-        sk = int.from_bytes(raw, byteorder="big", signed=False)
-    elif isinstance(privkey, str):
-        text = privkey.strip()
-        if not text:
-            raise ValueError("privkey must be non-empty")
-        if text.lower().startswith("0x"):
-            text = text[2:]
-        if len(text) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in text):
-            sk = int.from_bytes(bytes.fromhex(text), byteorder="big", signed=False)
-        elif text.isdigit():
-            sk = int(text, 10)
-        else:
-            raise ValueError("privkey must be 32-byte hex or a positive integer string")
-    else:
-        raise TypeError("privkey must be str|int|bytes")
-    if sk <= 0:
-        raise ValueError("privkey must be positive")
-    if _BLS12_381_CURVE_ORDER is not None and sk >= int(_BLS12_381_CURVE_ORDER):
-        raise ValueError("privkey out of range (must be < BLS12-381 curve order)")
-    return sk
-
-
 def _require_bls() -> None:
     if not _BLS_AVAILABLE:
-        raise ValueError("py_ecc.bls is required for settlement price attestation signing and verification")
+        raise ValueError("py_ecc.bls is required for settlement price attestation verification")

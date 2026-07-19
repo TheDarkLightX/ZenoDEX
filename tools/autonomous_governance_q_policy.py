@@ -13,25 +13,20 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.integration.autonomous_governance_ebrm_policy import (  # noqa: E402
+    ebrm_policy_content_hash_v1,
+    evaluate_autonomous_governance_ebrm_policy_step_v1,
+)
+from src.integration.autonomous_governance_live_apply import (  # noqa: E402
+    admit_autonomous_governance_live_session_file_update_v1,
+    autonomous_governance_live_session_file_context_hash_v1,
+)
 from src.integration.autonomous_governance_q_policy import (  # noqa: E402
     admit_autonomous_governance_surface_request_v1,
     commit_autonomous_governance_surface_q_policy_v1,
     evaluate_autonomous_governance_q_policy_v1,
     evaluate_autonomous_governance_surface_q_policy_v1,
     governance_surface_context_hash_v1,
-    sample_autonomous_governance_next_policy_v1,
-    sample_autonomous_governance_q_policy_v1,
-    sample_autonomous_governance_surface_q_policy_v1,
-)
-from src.integration.autonomous_governance_ebrm_policy import (  # noqa: E402
-    ebrm_policy_content_hash_v1,
-    evaluate_autonomous_governance_ebrm_policy_step_v1,
-    sample_autonomous_governance_ebrm_policy_v1,
-)
-from src.integration.autonomous_governance_trajectory import (  # noqa: E402
-    admit_verified_autonomous_governance_surface_trajectory_v1,
-    run_autonomous_governance_surface_trajectory_v1,
-    verify_autonomous_governance_surface_trajectory_v1,
 )
 from src.integration.autonomous_governance_session import (  # noqa: E402
     continue_autonomous_governance_surface_trajectory_v1,
@@ -49,11 +44,17 @@ from src.integration.autonomous_governance_session_store_file import (  # noqa: 
     initialize_autonomous_governance_session_store_file_v1,
     verify_autonomous_governance_session_store_file_v1,
 )
-from src.integration.autonomous_governance_live_apply import (  # noqa: E402
-    admit_autonomous_governance_live_session_file_update_v1,
-    autonomous_governance_live_session_file_context_hash_v1,
+from src.integration.autonomous_governance_trajectory import (  # noqa: E402
+    admit_verified_autonomous_governance_surface_trajectory_v1,
+    run_autonomous_governance_surface_trajectory_v1,
+    verify_autonomous_governance_surface_trajectory_v1,
 )
-
+from tools.support.autonomous_governance_policy_samples import (  # noqa: E402
+    sample_autonomous_governance_ebrm_policy_v1,
+    sample_autonomous_governance_next_policy_v1,
+    sample_autonomous_governance_q_policy_v1,
+    sample_autonomous_governance_surface_q_policy_v1,
+)
 
 MAX_INPUT_BYTES = 500_000
 

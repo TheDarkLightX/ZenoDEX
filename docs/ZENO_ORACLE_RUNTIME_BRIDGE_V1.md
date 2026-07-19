@@ -81,58 +81,14 @@ for a different consumer, action, query, profile policy, market, market kind,
 participant set, epoch, clearing price, or oracle snapshot, or accepting a
 decorative bridge field that no runtime verifier checked.
 
-## zUSD API Hook
+## zUSD Production Gap
 
-The zUSD development API now gates the critical `mint_zusd` and `liquidate`
-commands when `ZUSD_ORACLE_ADAPTER_REQUIRED` is enabled, and also verifies any
-`oracle_adapter_bridge` supplied on those commands even when the requirement flag
-is disabled.
-
-When `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` is enabled, the same critical
-`mint_zusd` and `liquidate` commands also require typed `oracle_authorization`.
-The authorization is checked against the runtime action kind (`mint` or
-`liquidate_vault`), the per-action zUSD profile, the runtime action ID,
-action-facts hash, pre-state hash, query ID, active or pending oracle price, and
-current epoch. This keeps the O3 adapter receipt and the runtime-consumed typed
-authorization bound to the same zUSD action surface.
-
-The verified bridge must bind to:
-
-```text
-consumer_module = "zenodex.zusd"
-action_kind     = "mint" | "liquidate_vault"
-query_id        = sha256("zenodex.oracle.query.zusd.collateral_price_e8")
-profile_id      = published zUSD mint/liquidation profile
-```
-
-The zUSD runtime action ID is the SHA-256 content hash of:
-
-```text
-schema = "zenodex.oracle.zusd_runtime_action_id.v1"
-consumer_module = "zenodex.zusd"
-action_kind
-mode = "single" | "multi"
-tag
-args
-now_epoch
-price_e8
-price_pending_e8
-oracle_last_update_epoch
-```
-
-This prevents a zUSD mint/liquidation request from borrowing a receipt for a
-different command, query, profile policy, mode, argument set, active oracle
-price, pending oracle price, or oracle update epoch.
-
-The Oracle MVP gate also runs:
-
-```bash
-pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
-pytest -q tests/integration/test_zusd_api.py -k oracle_authorization
-```
-
-The zUSD hook does not claim that the zUSD API is the production chain
-transaction path; `src/integration/zusd_api.py` remains a demo/development API.
+The unsigned in-memory zUSD API was deleted. Its former adapter and typed
+authorization checks do not transfer release credit to the production monetary
+path. `src/integration/zusd_monetary_bridge.py` must commit and verify the full
+`mint` and `liquidate_vault` Oracle lifecycle before those two catalog profiles
+can move out of the blocked set. Audit replay scaffolds are evidence tools, not
+transaction authority.
 
 ## Routing Guarded-Quote Hooks
 
@@ -237,12 +193,11 @@ Those tests cover:
 This hook does not yet claim:
 
 - every routing endpoint is runtime-wired;
-- the zUSD demo API is the production chain transaction path;
+- zUSD mint or liquidation is Oracle-authorized on the production monetary path;
 - the external Oracle network is live;
 - verifier callbacks are automatically configured by deployment tooling.
 
-The current claim is narrower: perps settlement, critical zUSD demo API actions,
-trigger execution, and guarded routing quote APIs now have fail-closed runtime
-bridge points that can require an accepted aggregate-derived Oracle receipt
-before execution proceeds. zUSD, trigger execution, protected swap, isolated
-perps settlement, and critical settlement also have typed authorization tests.
+The current claim is narrower: perps settlement, trigger execution, guarded
+routing quote APIs, protected swaps, and critical settlement have fail-closed
+runtime bridge or typed-authorization coverage. The two zUSD profiles remain
+explicitly blocked.

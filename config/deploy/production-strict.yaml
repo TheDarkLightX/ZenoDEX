@@ -25,7 +25,6 @@ runtime_policy:
   allow_path_lookup: false
   plaintext_fixture_keys_allowed: false
   local_only_routes_allowed: false
-  proof_mining_payout_template_enabled: false
   env_config_file_allowlist_required: true
   dependency_sbom_required: true
   secret_scan_required: true

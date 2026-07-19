@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from src.core.dex import DexState
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
@@ -26,7 +28,9 @@ def _apply_result(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str,
 
 
 def _seed_initial_oracle_snapshot_for_test(state: DexState, ops: list[dict[str, object]]) -> DexState:
-    """Model the external oracle snapshot required before first isolated settlement."""
+    """Return a new state with the external oracle fixture captured explicitly."""
+    from src.core.perps import PerpMarketState
+
     if len(ops) != 1 or ops[0].get("action") != "publish_clearing_price":
         return state
     market_id = ops[0].get("market_id")
@@ -35,13 +39,17 @@ def _seed_initial_oracle_snapshot_for_test(state: DexState, ops: list[dict[str, 
     market = state.perps.markets[market_id]
     if not hasattr(market, "global_state"):
         return state
-    global_state = market.global_state
+    global_state = dict(market.global_state)
     if bool(global_state.get("oracle_seen", False)) and int(global_state.get("index_price_e8", 0)) > 0:
         return state
     global_state["oracle_seen"] = True
     global_state["oracle_last_update_epoch"] = max(0, int(global_state.get("now_epoch", 0)) - 1)
     global_state["index_price_e8"] = int(ops[0].get("price_e8", 0))
-    return state
+    if not isinstance(market, PerpMarketState):
+        return state
+    markets = dict(state.perps.markets)
+    markets[market_id] = replace(market, global_state=global_state)
+    return replace(state, perps=replace(state.perps, markets=markets))
 
 
 def _apply(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], operator_pubkey: str) -> DexState:
@@ -472,7 +480,7 @@ def test_settle_epoch_is_order_independent() -> None:
     assert post.perps == post_rev.perps
 
 
-def test_set_position_rejects_malformed_oracle_snapshot_zero_index() -> None:
+def test_persistent_market_rejects_malformed_oracle_snapshot_zero_index() -> None:
     market_id = "perp:malformed-oracle"
     quote_asset = "0x" + "77" * 32
     operator = "00" * 48
@@ -510,21 +518,16 @@ def test_set_position_rejects_malformed_oracle_snapshot_zero_index() -> None:
 
     assert state.perps is not None
     market = state.perps.markets[market_id]
-    # Simulate an in-memory corrupted oracle snapshot (invalid reachable state).
-    # Snapshot parsing should fail-closed on this, but runtime code should still
-    # reject actions when fed malformed state.
-    market.global_state["oracle_seen"] = True
-    market.global_state["oracle_last_update_epoch"] = int(market.global_state.get("now_epoch", 0))
-    market.global_state["index_price_e8"] = 0
-
-    res = _apply_result(
-        state=state,
-        tx_sender_pubkey=alice,
-        operator_pubkey=operator,
-        ops=[_op(market_id, "set_position", account_pubkey=alice, new_position_base=10)],
+    # Committed state can no longer be corrupted in place.  Build the proposed
+    # malformed snapshot explicitly and verify the sealing boundary rejects it.
+    malformed_global = dict(market.global_state)
+    malformed_global["oracle_seen"] = True
+    malformed_global["oracle_last_update_epoch"] = int(
+        malformed_global.get("now_epoch", 0)
     )
-    assert res.ok is False
-    assert res.error == "guard"
+    malformed_global["index_price_e8"] = 0
+    with pytest.raises(ValueError):
+        replace(market, global_state=malformed_global)
 
 
 def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
@@ -600,7 +603,11 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
 
     cap_accounts = dict(market.accounts)
     cap_accounts[alice] = replace(cap_accounts[alice], collateral_quote=52_000_000)
-    cap_market = type(market)(quote_asset=market.quote_asset, global_state=dict(market.global_state), accounts=cap_accounts)
+    cap_market = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=dict(market.global_state),
+        accounts=cap_accounts,
+    )
     cap_pre = replace(pre, perps=type(pre.perps)(version=pre.perps.version, markets={market_id: cap_market}))
     cap_res = _apply_result(
         state=cap_pre,
@@ -608,13 +615,12 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "settle_epoch")],
     )
-    assert cap_res.ok is True, cap_res.error
-    assert cap_res.effects is not None
-    cap_effect = cap_res.effects[0]
-    assert cap_effect["liquidation_penalty_raw_quote"] == 4_750_000
-    assert cap_effect["liquidation_penalty_collected_quote"] == 2_000_000
-    assert cap_effect["liquidation_penalty_shortfall_quote"] == 2_750_000
-    assert cap_effect["liquidation_penalty_cap_bound_count"] == 1
+    # This fabricated account is already below maintenance at the committed
+    # index price.  Settlement is not a repair action for malformed pre-state;
+    # it must reject instead of using the defensive penalty cap to normalize it.
+    assert cap_res.ok is False
+    assert cap_res.error is not None
+    assert cap_res.error.endswith("pre_invariant:inv_maint_margin_ok")
 
     post_res = _apply_result(
         state=pre,
@@ -1209,16 +1215,16 @@ def test_isolated_oi_liquidity_policy_rejects_unsupported_aggregate_open_interes
 
 
 def test_isolated_oi_depth_certificate_binds_market_and_epoch() -> None:
+    from src.core.perp_depth_source_quorum_economics import (
+        DepthSourceEconomicsRow,
+        depth_source_quorum_economics_payload_from_fields,
+    )
     from src.core.perp_oi_depth_certificate import (
         certificate_payload_from_fields,
         oi_depth_source_authority_hash,
         source_authority_binding_payload_from_fields,
         source_authority_payload_from_fields,
         verify_oi_depth_source_authority_payload,
-    )
-    from src.core.perp_depth_source_quorum_economics import (
-        DepthSourceEconomicsRow,
-        depth_source_quorum_economics_payload_from_fields,
     )
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
@@ -2000,9 +2006,7 @@ def test_apply_funding_auto_requires_closeout_liability_certificate_for_negative
     from src.core.perp_funding_closeout_liability_certificate import (
         PositionAccount,
         build_funding_closeout_liability_certificate,
-        build_funding_closeout_liability_receipt,
         funding_closeout_liability_certificate_to_payload,
-        funding_closeout_liability_receipt_to_payload,
     )
     from src.core.perp_v2.math import PRICE_SCALE, funding_payment
     from src.core.perps import (
@@ -2846,6 +2850,7 @@ def test_apply_funding_auto_v3_rationed_receipt_applies_multi_receiver_haircuts(
 
 
 def test_apply_funding_auto_mixed_open_netting_receipt_applies_signed_surface() -> None:
+    from src.core.perp_funding_closeout_liability_certificate import PositionAccount
     from src.core.perp_funding_closeout_mixed_open_netting import (
         build_mixed_open_funding_netting_certificate,
         mixed_open_funding_netting_certificate_to_payload,
@@ -2862,7 +2867,6 @@ def test_apply_funding_auto_mixed_open_netting_receipt_applies_signed_surface() 
         _kernel_initial_global_state,
         apply_perp_ops,
     )
-    from src.core.perp_funding_closeout_liability_certificate import PositionAccount
 
     market_id = "perp:funding-closeout-mixed-open"
     quote_asset = "0x" + "7e" * 32
@@ -3893,14 +3897,14 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
     )
     from src.core.perp_funding_closeout_priority import (
         RECOVERY_PRIORITY_RECEIVER_FIRST,
-        build_funding_closeout_recovery_collection_receipt,
         build_funding_closeout_receiver_recovery_distribution_certificate,
+        build_funding_closeout_recovery_collection_receipt,
         build_funding_closeout_recovery_priority_certificate,
         build_funding_closeout_recovery_source_authority,
         build_funding_closeout_recovery_source_authority_binding,
         build_funding_closeout_sink_recovery_distribution_certificate,
-        funding_closeout_recovery_collection_receipt_to_payload,
         funding_closeout_receiver_recovery_distribution_certificate_to_payload,
+        funding_closeout_recovery_collection_receipt_to_payload,
         funding_closeout_recovery_priority_certificate_to_payload,
         funding_closeout_recovery_source_authority_binding_hash,
         funding_closeout_recovery_source_authority_binding_to_payload,

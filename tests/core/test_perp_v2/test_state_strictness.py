@@ -34,15 +34,16 @@ def test_state_from_dict_rejects_bool_for_integer_state_fields(field: str) -> No
 
 
 @pytest.mark.parametrize("field", sorted(BOOL_STATE_FIELDS))
-def test_state_from_dict_normalizes_bool_state_fields_from_zero_one(field: str) -> None:
+@pytest.mark.parametrize("value", (0, 1))
+def test_state_from_dict_rejects_zero_one_int_for_bool_state_fields(
+    field: str,
+    value: int,
+) -> None:
     payload = state_to_dict(initial_state())
-    payload[field] = 1
-    true_state = state_from_dict(payload)
-    assert getattr(true_state, field) is True
+    payload[field] = value
 
-    payload[field] = 0
-    false_state = state_from_dict(payload)
-    assert getattr(false_state, field) is False
+    with pytest.raises(TypeError, match=field):
+        state_from_dict(payload)
 
 
 @pytest.mark.parametrize("field", sorted(BOOL_STATE_FIELDS))

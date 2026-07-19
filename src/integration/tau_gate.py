@@ -13,22 +13,25 @@ IMPORTANT:
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, replace
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from ..core.liquidity import create_pool
 from ..core.settlement import Fill, FillAction, Settlement
 from ..state.intents import Intent, IntentKind
-from ..state.pools import PoolState
+from ..state.pools import PoolState, copy_pool_state
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
     SETTLEMENT_PRICE_RAILS_ALIGNED_V1,
     SETTLEMENT_V5_ALIGNED_COMPACT_BUNDLE,
     SWAP_BV32_SAFE_RANGE_GUARD_V1,
     SWAP_EXACT_IN_PROOF_GATE_V1,
+    SWAP_EXACT_IN_PROTOCOL_FEE_APPLY_V1,
     SWAP_EXACT_IN_V1,
     SWAP_EXACT_IN_V4,
     SWAP_EXACT_OUT_PROOF_GATE_V1,
+    SWAP_EXACT_OUT_PROTOCOL_FEE_APPLY_V1,
     SWAP_EXACT_OUT_V1,
     SWAP_EXACT_OUT_V4,
     TauSpecRef,
@@ -36,9 +39,11 @@ from .tau_witness import (
     build_settlement_v5_aligned_compact_bundle_step,
     build_swap_bv32_safe_range_guard_v1_step,
     build_swap_exact_in_proof_gate_v1_step,
+    build_swap_exact_in_protocol_fee_apply_v1_step,
     build_swap_exact_in_v1_step,
     build_swap_exact_in_v4_step,
     build_swap_exact_out_proof_gate_v1_step,
+    build_swap_exact_out_protocol_fee_apply_v1_step,
     build_swap_exact_out_v1_step,
     build_swap_exact_out_v4_step,
 )
@@ -120,7 +125,7 @@ def validate_settlement_swaps(
     *,
     intents: List[Intent],
     settlement: Settlement,
-    pre_pools: Dict[str, PoolState],
+    pre_pools: Mapping[str, PoolState],
     config: TauGateConfig = DEFAULT_TAU_GATE_CONFIG,
 ) -> Tuple[bool, Optional[str]]:
     """
@@ -161,7 +166,7 @@ def validate_settlement_swaps(
             pre = pre_pools.get(pid)
             if pre is None:
                 return None
-            pool = replace(pre)
+            pool = copy_pool_state(pre)
             pools_mut[pid] = pool
             return pool
 
@@ -227,6 +232,8 @@ def validate_settlement_swaps(
                 created_at = intent.get_field("created_at", 0)
                 curve_tag = intent.get_field("curve_tag", None)
                 curve_params = intent.get_field("curve_params", None)
+                if isinstance(curve_params, Mapping):
+                    curve_params = dict(curve_params)
                 if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
                     return False, f"CREATE_POOL missing params for intent {intent.intent_id}"
                 pool_id, pool_state, _lp_minted = create_pool(
@@ -276,7 +283,8 @@ def validate_settlement_swaps(
                 pools_mut[pool_id] = pool
                 continue
 
-            if intent.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
+            intent_kind: object = intent.kind
+            if intent_kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
                 return False, f"Tau gate does not support intent kind {intent.kind} (intent {intent.intent_id})"
 
             asset_in = intent.get_field("asset_in")
@@ -292,10 +300,33 @@ def validate_settlement_swaps(
 
             amount_in = getattr(fill, "amount_in_filled", None)
             amount_out = getattr(fill, "amount_out_filled", None)
-            if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
+            if type(amount_in) is not int or amount_in <= 0:
                 return False, f"Invalid amount_in_filled for intent {intent.intent_id}: {amount_in!r}"
-            if not isinstance(amount_out, int) or isinstance(amount_out, bool) or amount_out <= 0:
+            if type(amount_out) is not int or amount_out <= 0:
                 return False, f"Invalid amount_out_filled for intent {intent.intent_id}: {amount_out!r}"
+            protocol_fee_raw = getattr(fill, "protocol_fee_paid", None)
+            if protocol_fee_raw is None:
+                protocol_fee = 0
+            elif type(protocol_fee_raw) is not int or protocol_fee_raw < 0:
+                return False, f"Invalid protocol_fee_paid for intent {intent.intent_id}: {protocol_fee_raw!r}"
+            else:
+                protocol_fee = protocol_fee_raw
+            if protocol_fee > amount_in:
+                return False, f"protocol_fee_paid exceeds amount_in_filled for intent {intent.intent_id}"
+
+            fee_total = 0
+            if protocol_fee > 0:
+                fee_total_raw = getattr(fill, "fee_paid", None)
+                if type(fee_total_raw) is not int or fee_total_raw < 0:
+                    return False, f"Invalid fee_paid for protocol-fee intent {intent.intent_id}: {fee_total_raw!r}"
+                if protocol_fee > fee_total_raw:
+                    return False, f"protocol_fee_paid exceeds fee_paid for intent {intent.intent_id}"
+                fee_total = fee_total_raw
+                if config.swap_profile == "proof_gate_range_guard":
+                    return False, (
+                        "Tau swap_profile=proof_gate_range_guard does not support "
+                        f"protocol-fee reserve transitions (intent {intent.intent_id})"
+                    )
 
             # Build reserves in/out from current pool snapshot.
             if asset_in == pool.asset0:
@@ -307,12 +338,30 @@ def validate_settlement_swaps(
 
             if intent.kind == IntentKind.SWAP_EXACT_IN:
                 min_amount_out = intent.get_field("min_amount_out", 0)
-                if not isinstance(min_amount_out, int) or isinstance(min_amount_out, bool) or min_amount_out < 0:
+                if type(min_amount_out) is not int or min_amount_out < 0:
                     return False, f"Invalid min_amount_out for intent {intent.intent_id}: {min_amount_out!r}"
-                new_reserve_in = reserve_in + amount_in
+                new_reserve_in = reserve_in + amount_in - protocol_fee
                 new_reserve_out = reserve_out - amount_out
 
-                if config.swap_profile == "proof_gate_range_guard":
+                if protocol_fee > 0:
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_EXACT_IN_PROTOCOL_FEE_APPLY_V1,
+                        step=build_swap_exact_in_protocol_fee_apply_v1_step(
+                            reserve_in=reserve_in,
+                            reserve_out=reserve_out,
+                            amount_in=amount_in,
+                            fee_bps=pool.fee_bps,
+                            min_amount_out=min_amount_out,
+                            amount_out=amount_out,
+                            new_reserve_in=new_reserve_in,
+                            new_reserve_out=new_reserve_out,
+                            fee_total=fee_total,
+                            protocol_fee=protocol_fee,
+                        ),
+                        intent_id=intent.intent_id,
+                    )
+                elif config.swap_profile == "proof_gate_range_guard":
                     _append_swap_segment(
                         pool_id=pool_id,
                         spec_ref=SWAP_EXACT_IN_PROOF_GATE_V1,
@@ -377,12 +426,30 @@ def validate_settlement_swaps(
                     )
             else:
                 max_amount_in = intent.get_field("max_amount_in", 0)
-                if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
+                if type(max_amount_in) is not int or max_amount_in < 0:
                     return False, f"Invalid max_amount_in for intent {intent.intent_id}: {max_amount_in!r}"
-                new_reserve_in = reserve_in + amount_in
+                new_reserve_in = reserve_in + amount_in - protocol_fee
                 new_reserve_out = reserve_out - amount_out
 
-                if config.swap_profile == "proof_gate_range_guard":
+                if protocol_fee > 0:
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_EXACT_OUT_PROTOCOL_FEE_APPLY_V1,
+                        step=build_swap_exact_out_protocol_fee_apply_v1_step(
+                            reserve_in=reserve_in,
+                            reserve_out=reserve_out,
+                            amount_out=amount_out,
+                            fee_bps=pool.fee_bps,
+                            max_amount_in=max_amount_in,
+                            amount_in=amount_in,
+                            new_reserve_in=new_reserve_in,
+                            new_reserve_out=new_reserve_out,
+                            fee_total=fee_total,
+                            protocol_fee=protocol_fee,
+                        ),
+                        intent_id=intent.intent_id,
+                    )
+                elif config.swap_profile == "proof_gate_range_guard":
                     _append_swap_segment(
                         pool_id=pool_id,
                         spec_ref=SWAP_EXACT_OUT_PROOF_GATE_V1,
@@ -447,11 +514,11 @@ def validate_settlement_swaps(
 
             # Apply to pool snapshot for subsequent steps.
             if asset_in == pool.asset0:
-                pool.reserve0 = pool.reserve0 + amount_in
-                pool.reserve1 = pool.reserve1 - amount_out
+                pool.reserve0 = new_reserve_in
+                pool.reserve1 = new_reserve_out
             else:
-                pool.reserve1 = pool.reserve1 + amount_in
-                pool.reserve0 = pool.reserve0 - amount_out
+                pool.reserve1 = new_reserve_in
+                pool.reserve0 = new_reserve_out
             pools_mut[pool_id] = pool
 
         settlement_gate: Optional[Tuple[TauSpecRef, Dict[str, int], str]] = None

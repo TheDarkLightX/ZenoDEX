@@ -32,12 +32,11 @@ from .live_proof_wrapper import (
     require_live_proof_wrapper,
     verify_live_proof_wrapper,
 )
-from .tau_net_client import (
+from .raw_signing_boundary import reject_raw_signing_material
+from .tau_net_rpc import (
     TauNetRpcError,
     TauNetTcpClient,
     TauNetTcpConfig,
-    bls_pubkey_hex_from_privkey,
-    build_signed_tau_transaction,
     encode_tau_operations_for_wire,
     verify_tau_transaction_payload_signature,
 )
@@ -326,19 +325,6 @@ def _runtime_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
             lo=0,
             hi=10_000,
         ),
-    )
-
-
-def _allow_signing() -> bool:
-    return _env_bool(
-        "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING",
-        _env_bool("ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", False),
-    )
-
-
-def _auto_mine() -> bool:
-    return _env_bool(
-        "ZUSD_MONETARY_WALLET_AUTO_MINE", _env_bool("ZUSD_TAU_WALLET_AUTO_MINE", False)
     )
 
 
@@ -756,9 +742,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
 
     tau_tx_payload: dict[str, Any] | None = None
     signing_mode = "prepare_only"
-    signer_privkey = body.get("signer_privkey")
     external_payload = _request_signed_tau_tx_payload(body) if for_submit else None
-    may_sign = _preflight_ok(preflight)
     if external_payload is not None:
         tau_tx_payload = _validate_external_tau_tx_payload(
             external_payload,
@@ -769,22 +753,8 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             tx_fee_limit=tx_fee_limit,
         )
         signing_mode = "external_signed_payload"
-    elif may_sign and (for_submit or signer_privkey is not None):
-        if not isinstance(signer_privkey, (str, int)):
-            raise ValueError("missing_signer_privkey")
-        if not _allow_signing():
-            raise ValueError("local_signing_disabled")
-        signer_pubkey = "0x" + bls_pubkey_hex_from_privkey(cast(Any, signer_privkey))
-        if signer_pubkey.lower() != actor_pubkey.lower():
-            raise ValueError("signer_privkey does not match sender_pubkey")
-        tau_tx_payload = build_signed_tau_transaction(
-            privkey=cast(Any, signer_privkey),
-            sequence_number=tx_sequence_number,
-            expiration_time=deadline,
-            operations=operations,
-            fee_limit=tx_fee_limit,
-        )
-        signing_mode = "local_test_signing"
+    elif for_submit:
+        raise ValueError("signed_tau_tx_payload_required")
 
     payload: Dict[str, Any] = {
         "ok": True,
@@ -810,9 +780,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "host_protocol_fee_share_bps": config.host_protocol_fee_share_bps,
             "fee_stake_asset_id": config.fee_stake_asset_id,
             "staking_activation_delay_epochs": config.staking_activation_delay_epochs,
-            "allow_local_signing": _allow_signing(),
             "signing_mode": signing_mode,
-            "auto_mine": _auto_mine(),
             "tau_host": _env_str(
                 "ZUSD_MONETARY_WALLET_TAU_HOST", _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1")
             ),
@@ -861,8 +829,6 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     if for_submit:
         send_resp = client.sendtx(cast(Mapping[str, Any], tau_tx_payload))
         payload["submission"] = {"sendtx_response": send_resp}
-        if _auto_mine():
-            payload["submission"]["createblock_response"] = client.createblock()
         app_state_after, app_hash_after = _load_app_state(client)
         payload["post_submit"] = {
             "app_hash": app_hash_after,
@@ -908,8 +874,6 @@ def _status_payload() -> Dict[str, Any]:
             lo=1,
             hi=65535,
         ),
-        "allow_local_signing": _allow_signing(),
-        "auto_mine": _auto_mine(),
         "stability_pool_pubkey": sp_pubkey,
         "oracle_pubkey": os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY")
         or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
@@ -1012,6 +976,7 @@ def handle_zusd_monetary_wallet_request(method: str, path: str, body: Optional[b
             return 400, {"ok": False, "error": err}
         if parsed is None:
             return 400, {"ok": False, "error": "bad_json"}
+        reject_raw_signing_material(parsed)
         if rest == ["prepare"]:
             return 200, _build_prepare_response(parsed, for_submit=False)
         if rest == ["submit"]:

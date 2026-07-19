@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -174,7 +175,9 @@ def test_batch_auction_witness_skips_mixed_direction_or_special_fill_reason() ->
         lp_balances=LPTable(),
         swap_ordering="greedy_ab_refined",
     )
-    supported_settlement.fills[0].reason = "COW_NETTED"
+    supported_fills = list(supported_settlement.fills)
+    supported_fills[0] = replace(supported_fills[0], reason="COW_NETTED")
+    supported_settlement = replace(supported_settlement, fills=supported_fills)
     assert supported_settlement.fills[0].action == FillAction.FILL
     assert replay_supported_batch_auction_exact_in_witness(
         intents=supported_intents,
@@ -183,35 +186,88 @@ def test_batch_auction_witness_skips_mixed_direction_or_special_fill_reason() ->
 
 
 @pytest.mark.parametrize(
-    "mutate",
+    ("intent_field", "value"),
     [
-        lambda intents, settlement: intents.clear(),
-        lambda intents, settlement: settlement.included_intents.pop(),
-        lambda intents, settlement: intents[0].fields.__setitem__("pool_id", ""),
-        lambda intents, settlement: intents[0].fields.__setitem__("asset_in", ""),
-        lambda intents, settlement: intents[0].fields.__setitem__("asset_out", ASSET0),
-        lambda intents, settlement: intents[0].fields.__setitem__("amount_in", 0),
-        lambda intents, settlement: intents[0].fields.__setitem__("min_amount_out", -1),
-        lambda intents, settlement: settlement.included_intents.__setitem__(0, (intents[0].intent_id, FillAction.REJECT)),
-        lambda intents, settlement: settlement.fills.pop(),
-        lambda intents, settlement: setattr(settlement.fills[0], "action", FillAction.REJECT),
-        lambda intents, settlement: setattr(settlement.fills[0], "amount_in_filled", 6),
-        lambda intents, settlement: setattr(settlement.fills[0], "amount_out_filled", -1),
+        ("pool_id", ""),
+        ("asset_in", ""),
+        ("asset_out", ASSET0),
+        ("amount_in", 0),
+        ("min_amount_out", -1),
     ],
 )
-def test_batch_auction_witness_skips_unsupported_or_malformed_batches(mutate) -> None:
+def test_batch_auction_witness_skips_malformed_intents(intent_field: str, value: object) -> None:
     intents, settlement, _pools, _balances = _make_supported_batch()
-    mutate(intents, settlement)
+    intents[0] = replace(
+        intents[0],
+        fields={**dict(intents[0].fields or {}), intent_field: value},
+    )
     assert replay_supported_batch_auction_exact_in_witness(intents=intents, settlement=settlement) is None
+
+
+@pytest.mark.parametrize(
+    ("fill_field", "value"),
+    [
+        ("amount_in_filled", 6),
+        ("amount_out_filled", -1),
+    ],
+)
+def test_batch_auction_witness_skips_malformed_fill_values(fill_field: str, value: object) -> None:
+    intents, settlement, _pools, _balances = _make_supported_batch()
+    fills = list(settlement.fills)
+    if fill_field == "amount_out_filled":
+        with pytest.raises(TypeError, match="fill.amount_out_filled must be a non-negative int"):
+            replace(fills[0], **{fill_field: value})
+        return
+    fills[0] = replace(fills[0], **{fill_field: value})
+    settlement = replace(settlement, fills=fills)
+    assert replay_supported_batch_auction_exact_in_witness(intents=intents, settlement=settlement) is None
+
+
+def test_batch_auction_witness_skips_missing_input_intents() -> None:
+    _intents, settlement, _pools, _balances = _make_supported_batch()
+    assert replay_supported_batch_auction_exact_in_witness(intents=[], settlement=settlement) is None
+
+
+def test_settlement_seal_rejects_structurally_malformed_batches() -> None:
+    intents, settlement, _pools, _balances = _make_supported_batch()
+    with pytest.raises(ValueError, match="Fill mismatch"):
+        replace(settlement, fills=settlement.fills[1:])
+    with pytest.raises(ValueError, match="Fill mismatch"):
+        replace(
+            settlement,
+            included_intents=[
+                (intents[0].intent_id, FillAction.REJECT),
+                *settlement.included_intents[1:],
+            ],
+        )
 
 
 def test_batch_auction_witness_skips_batches_outside_notional_domain() -> None:
     intents, settlement, _pools, _balances = _make_supported_batch()
-    settlement.fills[0].amount_out_filled = int(intents[0].get_field("amount_in")) + int(intents[1].get_field("amount_in")) + 1
+    fills = list(settlement.fills)
+    fills[0] = replace(
+        fills[0],
+        amount_out_filled=(
+            int(intents[0].get_field("amount_in"))
+            + int(intents[1].get_field("amount_in"))
+            + 1
+        ),
+    )
+    settlement = replace(settlement, fills=fills)
     assert replay_supported_batch_auction_exact_in_witness(intents=intents, settlement=settlement) is None
 
     intents, settlement, _pools, _balances = _make_supported_batch()
-    intents[0].fields["min_amount_out"] = int(intents[0].get_field("amount_in")) + int(intents[1].get_field("amount_in")) + 1
+    intents[0] = replace(
+        intents[0],
+        fields={
+            **dict(intents[0].fields or {}),
+            "min_amount_out": (
+                int(intents[0].get_field("amount_in"))
+                + int(intents[1].get_field("amount_in"))
+                + 1
+            ),
+        },
+    )
     assert replay_supported_batch_auction_exact_in_witness(intents=intents, settlement=settlement) is None
 
 

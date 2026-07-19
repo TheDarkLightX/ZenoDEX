@@ -1,0 +1,295 @@
+{
+  "schema": "zenodex.dex_ui.surface_contract.v1",
+  "version": "dex-ui-production-facing-20260719-v7",
+  "purpose": "Pin a live-only production UI whose artifact contains no demo state, query-triggered writes, proof-mining workbench, fixture funding, or synthetic market fallback.",
+  "required_capabilities": [
+    "dark_light_theme_switcher",
+    "production_bundle_demo_free",
+    "wallet_connection_requires_real_signer",
+    "swap_live_token_list_from_pool_feed",
+    "swap_feed_failure_is_unavailable",
+    "swap_no_fake_custom_token_import",
+    "perps_live_wallet_status_source",
+    "perps_external_signer_required",
+    "zusd_live_vault_and_wallet_surfaces",
+    "oracle_read_only_live_dashboard"
+  ],
+  "source_markers": [
+    {
+      "path": "src/App.jsx",
+      "contains": "<ThemeSwitcher />",
+      "reason": "header keeps the dark/light mode toggle"
+    },
+    {
+      "path": "src/lib/ThemeContext.jsx",
+      "contains": "zenodex.theme",
+      "reason": "theme selection remains persistent"
+    },
+    {
+      "path": "src/lib/PerpProvider.jsx",
+      "contains": "const statusResp = await apiGetPerpsWalletStatus",
+      "reason": "perpetuals data comes from the Tau-node-backed status endpoint"
+    },
+    {
+      "path": "src/lib/perpLiveState.js",
+      "contains": "if (kind !== SUPPORTED_MARKET_KIND)",
+      "reason": "perpetuals ignores market representations outside the production wallet allowlist"
+    },
+    {
+      "path": "src/lib/PerpProvider.jsx",
+      "contains": "if (!externalTauSigner) {",
+      "reason": "production perps writes fail closed without an external signer"
+    },
+    {
+      "path": "src/components/SwapInterface.jsx",
+      "contains": "availableTokens={tokens}",
+      "reason": "swap token selection is fed only by live pool data"
+    },
+    {
+      "path": "src/components/TokenSelectModal.jsx",
+      "contains": "return Array.isArray(availableTokens) ? availableTokens : [];",
+      "reason": "token selection has no built-in or custom synthetic asset fallback"
+    },
+    {
+      "path": "src/components/SwapInterface.jsx",
+      "contains": "Quotes and swap submission are disabled until live reserves load",
+      "reason": "pool-feed failure is explicit and fail closed"
+    },
+    {
+      "path": "src/components/SwapInterface.jsx",
+      "contains": "expectedZkPosture",
+      "reason": "production proof expectations use deployment-neutral authority naming"
+    },
+    {
+      "path": "src/lib/swapData.js",
+      "contains": "source: 'unavailable'",
+      "reason": "pool API failure returns an empty unavailable state"
+    },
+    {
+      "path": "src/components/ZUSDWorkbench.jsx",
+      "contains": "<ZUSDMonetarySurface />",
+      "reason": "zUSD production route mounts the live monetary surface"
+    },
+    {
+      "path": "src/components/ZUSDWorkbench.jsx",
+      "contains": "<ZUSDTauWalletSurface />",
+      "reason": "zUSD production route mounts the live wallet surface"
+    },
+    {
+      "path": "src/components/ZUSDTauWalletSurface.jsx",
+      "contains": "Prepare unsigned request",
+      "reason": "zUSD wallet is fail-closed and prepare-only until external signed envelopes are supported"
+    },
+    {
+      "path": "src/components/ZUSDMonetarySurface.jsx",
+      "contains": "Production profile is prepare-only",
+      "reason": "zUSD monetary writes are excluded while the external signer boundary is incomplete"
+    },
+    {
+      "path": "src/components/perps/PerpLiveWalletSurface.jsx",
+      "contains": "apiInspectPerpsOracleBridge",
+      "reason": "perps retains inspection of caller-supplied Oracle evidence"
+    },
+    {
+      "path": "src/components/perps/PerpLiveWalletSurface.jsx",
+      "contains": "market_id: ''",
+      "reason": "operator actions fail closed without a caller-selected or live market identifier"
+    },
+    {
+      "path": "src/components/ZenoOracleDashboard.jsx",
+      "contains": "This surface never synthesizes or submits reports",
+      "reason": "production Oracle dashboard is live and read-only"
+    },
+    {
+      "path": "src/lib/api.js",
+      "contains": "throw new Error('zeno_oracle_api_base_unconfigured')",
+      "reason": "Oracle reads fail closed unless same-origin or an external base is explicitly configured"
+    },
+    {
+      "path": "src/components/TokenStats.jsx",
+      "contains": "No bundled supply values are substituted.",
+      "reason": "missing tokenomics fields render as unavailable instead of invented supply values"
+    },
+    {
+      "path": "src/components/AddLiquidityModal.jsx",
+      "contains": "live_pool_snapshot_unavailable",
+      "reason": "LP mint previews and submissions require live reserves and LP supply"
+    },
+    {
+      "path": "src/components/RemoveLiquidityModal.jsx",
+      "contains": "live_pool_snapshot_unavailable",
+      "reason": "LP burn previews and submissions require live reserves and LP supply"
+    },
+    {
+      "path": "scripts/check-production-bundle.mjs",
+      "contains": "forbidden demo/test functionality is present",
+      "reason": "every production build scans emitted bytes for forbidden functionality"
+    }
+  ],
+  "forbidden_source_markers": [
+    {
+      "path": "src/App.jsx",
+      "forbids": "DemoModeProvider",
+      "reason": "production has no demo provider"
+    },
+    {
+      "path": "src/App.jsx",
+      "forbids": "ProofMiningWorkbench",
+      "reason": "proof-mining fixtures are not production-routable"
+    },
+    {
+      "path": "src/App.jsx",
+      "forbids": "ConfidentialWorkbench",
+      "reason": "fixture-backed confidential flows are not production-routable"
+    },
+    {
+      "path": "src/App.jsx",
+      "forbids": "PerpsGovernanceSurface",
+      "reason": "fixture-backed governance exercises are not production-routable"
+    },
+    {
+      "path": "src/App.jsx",
+      "forbids": "StrategyWorkbench",
+      "reason": "fixture-backed AutoTrader UI is not production-routable"
+    },
+    {
+      "path": "src/App.jsx",
+      "forbids": "getInitialWallet",
+      "reason": "URL parameters cannot construct a wallet or balances"
+    },
+    {
+      "path": "src/components/SwapInterface.jsx",
+      "forbids": "zenodexUiSmoke",
+      "reason": "query parameters cannot initiate swaps"
+    },
+    {
+      "path": "src/components/PoolDashboard.jsx",
+      "forbids": "apiMintTestnetFaucet",
+      "reason": "production liquidity UI has no fixture funding path"
+    },
+    {
+      "path": "src/components/TokenStats.jsx",
+      "forbids": "mockData",
+      "reason": "tokenomics never falls back to bundled values"
+    },
+    {
+      "path": "src/components/TokenStats.jsx",
+      "forbids": "DEFAULT_INITIAL_SUPPLY",
+      "reason": "initial supply must come from live ledger state"
+    },
+    {
+      "path": "src/components/TokenStats.jsx",
+      "forbids": "DEFAULT_MIN_SUPPLY",
+      "reason": "supply floor must come from live ledger state"
+    },
+    {
+      "path": "src/components/TokenStats.jsx",
+      "forbids": "row.claimed_amount || 0",
+      "reason": "an absent claimed amount must not be represented as a real zero"
+    },
+    {
+      "path": "src/components/TokenStats.jsx",
+      "forbids": "row.remaining_amount ?? row.budget_amount",
+      "reason": "an absent remaining amount must not be inferred from the budget"
+    },
+    {
+      "path": "src/components/TokenStats.jsx",
+      "forbids": "treasury_allocation_burn_only",
+      "reason": "an absent buyback mode must render as unavailable"
+    },
+    {
+      "path": "src/components/AddLiquidityModal.jsx",
+      "forbids": "totalLpSupply = 1000000",
+      "reason": "LP mint calculations must never invent total supply"
+    },
+    {
+      "path": "src/components/RemoveLiquidityModal.jsx",
+      "forbids": "totalLpSupply = 1000000",
+      "reason": "LP burn calculations must never invent total supply"
+    },
+    {
+      "path": "src/lib/PerpProvider.jsx",
+      "forbids": "perpMockData",
+      "reason": "perpetuals never falls back to bundled markets"
+    },
+    {
+      "path": "src/lib/swapData.js",
+      "forbids": "FALLBACK_SWAP",
+      "reason": "synthetic reserves and balances are absent"
+    },
+    {
+      "path": "src/components/SwapInterface.jsx",
+      "forbids": "previewSource: hasApiPreview ? 'api' : 'local'",
+      "reason": "client-side arithmetic is not labeled as a local-network data source"
+    },
+    {
+      "path": "src/components/SwapInterface.jsx",
+      "forbids": "let submitPath = 'local'",
+      "reason": "the production swap flow has no local submission fallback"
+    },
+    {
+      "path": "src/components/perps/PerpLiveWalletSurface.jsx",
+      "forbids": "perp:ch2p:local",
+      "reason": "production operator forms have no bundled market identifier"
+    },
+    {
+      "path": "src/components/perps/PerpTradingView.jsx",
+      "forbids": "local Tau node",
+      "reason": "production diagnostics do not presume a local network"
+    },
+    {
+      "path": "src/components/TokenSelectModal.jsx",
+      "forbids": "allowImportCustom",
+      "reason": "custom placeholder token import is physically absent"
+    },
+    {
+      "path": "src/components/ZUSDTauWalletSurface.jsx",
+      "forbids": "signer_privkey",
+      "reason": "the browser never accepts raw zUSD signing keys"
+    },
+    {
+      "path": "src/components/ZUSDTauWalletSurface.jsx",
+      "forbids": "apiSubmitZusdWallet",
+      "reason": "wallet submit is excluded until an external signer envelope exists"
+    },
+    {
+      "path": "src/components/ZUSDMonetarySurface.jsx",
+      "forbids": "apiSubmitZusdMonetary",
+      "reason": "monetary submit is excluded until an external signer envelope exists"
+    },
+    {
+      "path": "src/lib/api.js",
+      "forbids": "apiSubmitZusd",
+      "reason": "retired zUSD submit clients are physically absent from production source"
+    },
+    {
+      "path": "src/lib/api.js",
+      "forbids": "DEFAULT_ZENO_ORACLE_API_BASE",
+      "reason": "the browser cannot silently redirect Oracle authority to a local process"
+    },
+    {
+      "path": "src/lib/api.js",
+      "forbids": "http://127.0.0.1:8787",
+      "reason": "production has no browser-local Oracle fallback"
+    },
+    {
+      "path": "src/sdk/dexIntentSigner.js",
+      "forbids": "privkey",
+      "reason": "production intent construction has no raw-key signing implementation"
+    },
+    {
+      "path": "public/zenodex-config.json",
+      "forbids": "demoMode",
+      "reason": "production runtime config does not advertise a demo capability"
+    },
+    {
+      "path": "public/zenodex-config.json",
+      "forbids": "allowBrowserKeyGeneration",
+      "reason": "production runtime config has no browser key-generation capability"
+    }
+  ],
+  "dependency_pin_policy": {
+    "package_json_no_semver_ranges": true,
+    "allow_file_dependencies": true
+  }
+}

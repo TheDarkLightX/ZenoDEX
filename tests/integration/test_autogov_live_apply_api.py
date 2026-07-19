@@ -151,7 +151,7 @@ def test_api_server_routes_autogov_surface(tmp_path: Path, monkeypatch) -> None:
     httpd.confidential_attestation_api_enabled = False  # type: ignore[attr-defined]
     httpd.confidential_sealed_bid_api_enabled = False  # type: ignore[attr-defined]
     httpd.dex_api_enabled = False  # type: ignore[attr-defined]
-    httpd.demo_api_token = "autogov-test-token"  # type: ignore[attr-defined]
+    httpd.api_bearer_token = "autogov-test-token"  # type: ignore[attr-defined]
     httpd.external_auth_enforced = False  # type: ignore[attr-defined]
 
     thread = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)

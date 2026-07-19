@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any, Dict, Tuple
 
@@ -91,7 +92,7 @@ def _verify_canonical_route_certificate(
 def _verify_pool_snapshots(
     *,
     pools: Dict[str, Any],
-    pools_by_id: Dict[str, PoolState],
+    pools_by_id: Mapping[str, PoolState],
 ) -> Tuple[bool, str, Dict[str, PoolState] | None]:
     pool_entries_well_formed = True
     all_pools_present = True

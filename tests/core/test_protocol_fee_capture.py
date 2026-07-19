@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
+import pytest
+
 from src.core.batch_clearing import apply_settlement_pure, compute_settlement
 from src.core.cpmm import swap_exact_in_with_protocol_fee
 from src.core.settlement import FillAction
@@ -156,21 +160,14 @@ def test_strong_validator_rejects_numeric_string_protocol_fee_paid() -> None:
         protocol_fee_share_bps=5_000,
         protocol_fee_recipient_pubkey=TREASURY,
     )
-    settlement.fills[0].protocol_fee_paid = str(settlement.fills[0].protocol_fee_paid)
-
-    ok, err = validate_settlement_strong(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=lp,
-        mode="strong_proof_carrying",
-        protocol_fee_share_bps=5_000,
-        protocol_fee_recipient_pubkey=TREASURY,
-    )
-
-    assert ok is False
-    assert err == f"swap protocol_fee_paid must be int for intent_id={intent.intent_id}"
+    with pytest.raises(
+        TypeError,
+        match=r"fill\.protocol_fee_paid must be a non-negative int",
+    ):
+        replace(
+            settlement.fills[0],
+            protocol_fee_paid=str(settlement.fills[0].protocol_fee_paid),
+        )
 
 
 def test_compute_settlement_captures_exact_out_protocol_fee_to_treasury() -> None:

@@ -351,9 +351,8 @@
  * LIVE zUSD surface enrichment — protocol stat tiles, live risk-parameter
  * table, and a Formal Proofs panel that surfaces the node's runtime claim
  * scope (proof_profile) alongside the 7 machine-checked Lean theorems.
- * Brings the real-data surface up to the demo's polish (zusd_demo.png).
- * Scoped under .zusd-wallet-surface so the reused proof/risk semantics never
- * inherit the demo (ZUSDWorkbench.css) layout. Built on existing tokens.
+ * Scoped under .zusd-wallet-surface so the reused proof/risk semantics stay
+ * within the production data surface. Built on existing tokens.
  * ───────────────────────────────────────────────────────────────────── */
 .zusd-stat-tiles {
   display: grid;
@@ -404,7 +403,7 @@
   align-items: start;
 }
 
-/* Live risk-parameter table (scoped; overrides the demo's flex .zusd-risk-table) */
+/* Live risk-parameter table */
 .zusd-wallet-surface .zusd-rp-table {
   width: 100%;
   border-collapse: collapse;

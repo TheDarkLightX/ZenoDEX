@@ -1,54 +1,5 @@
 import { apiFetchJson } from './api.js';
 
-// Offline fallback for when /api/pools is unreachable. The live token set
-// and pools come from the local testnet via /api/pools.
-// Canonical local testnet tokens: ZDEX, zUSD, TASSET0, TASSET1, TZENO.
-export const FALLBACK_SWAP_POOLS = {
-    'TASSET0-ZDEX': { token0: 'TASSET0', token1: 'ZDEX', asset0: 'TASSET0', asset1: 'ZDEX', reserve0: 1_000_000, reserve1: 500_000, feeBps: 30 },
-    'TASSET0-TASSET1': { token0: 'TASSET0', token1: 'TASSET1', asset0: 'TASSET0', asset1: 'TASSET1', reserve0: 1_000_000, reserve1: 1_000_000, feeBps: 30 },
-    'TASSET1-TZENO': { token0: 'TASSET1', token1: 'TZENO', asset0: 'TASSET1', asset1: 'TZENO', reserve0: 1_000_000, reserve1: 1_000_000, feeBps: 30 },
-};
-
-export const FALLBACK_SWAP_TOKENS = [
-    { symbol: 'ZDEX', name: 'ZenoDEX', icon: '⚡', decimals: 18 },
-    { symbol: 'zUSD', name: 'ZenoUSD', icon: '◈', decimals: 18 },
-    { symbol: 'tAGRS', name: 'Test Agoras', icon: '✦', decimals: 18 },
-    { symbol: 'TASSET0', name: 'Test Asset 0', icon: 'T₀', decimals: 18 },
-    { symbol: 'TASSET1', name: 'Test Asset 1', icon: 'T₁', decimals: 18 },
-    { symbol: 'TZENO', name: 'Test Zeno', icon: 'TZ', decimals: 18 },
-];
-
-export const FALLBACK_SWAP_BALANCES = {
-    ZDEX: 1_000_000,
-    zUSD: 0,
-    tAGRS: 1_000_000,
-    TASSET0: 1_000_000,
-    TASSET1: 1_000_000,
-    TZENO: 1_000_000,
-};
-
-function clonePools(pools) {
-    return Object.fromEntries(
-        Object.entries(pools).map(([k, v]) => [
-            k,
-            {
-                token0: v.token0,
-                token1: v.token1,
-                asset0: v.asset0,
-                asset1: v.asset1,
-                poolId: v.poolId ?? v.pool_id ?? null,
-                assetsBySymbol: v.assetsBySymbol || {
-                    [String(v.token0 || '').toUpperCase()]: v.asset0,
-                    [String(v.token1 || '').toUpperCase()]: v.asset1,
-                },
-                reserve0: Number(v.reserve0),
-                reserve1: Number(v.reserve1),
-                feeBps: Number(v.feeBps ?? 30),
-            },
-        ]),
-    );
-}
-
 function toFiniteNumber(v) {
     const n = Number(v);
     return Number.isFinite(n) ? n : NaN;
@@ -84,8 +35,6 @@ export function displaySymbolForAsset(value) {
 
 function defaultTokenForSymbol(symbol) {
     const normalized = displaySymbolForAsset(symbol);
-    const known = FALLBACK_SWAP_TOKENS.find((token) => token.symbol.toUpperCase() === normalized.toUpperCase());
-    if (known) return known;
     return {
         symbol: normalized,
         name: normalized,
@@ -205,7 +154,7 @@ function normalizePoolsPayload(payload) {
     }
 
     // Map payload form:
-    // { "ZDEX-TASSET0": { reserve0, reserve1, feeBps } }
+    // { "POOL_ID": { reserve0, reserve1, feeBps } }
     const out = {};
     for (const [pair, value] of Object.entries(payload)) {
         if (!value || typeof value !== 'object') continue;
@@ -252,9 +201,9 @@ export async function loadSwapPools({ timeoutMs = 2500, account = '' } = {}) {
         };
     } catch (err) {
         return {
-            source: 'fallback',
-            pools: clonePools(FALLBACK_SWAP_POOLS),
-            tokens: [...FALLBACK_SWAP_TOKENS],
+            source: 'unavailable',
+            pools: {},
+            tokens: [],
             account: account || null,
             accountLastNonce: null,
             error: err?.message || 'pool_feed_unavailable',

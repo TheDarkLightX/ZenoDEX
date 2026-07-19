@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, replace
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..state.balances import BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
-from ..state.pools import PoolState
+from ..state.pools import PoolState, copy_pool_state
 from .batch_clearing_deltas import (
     _aggregate_balance_deltas_chunked,
     _aggregate_lp_deltas_chunked,
@@ -65,7 +66,7 @@ class _SettlementComputeFactories:
 
 def compute_settlement_with_factories(
     intents: List[Intent],
-    pools: Dict[str, PoolState],
+    pools: Mapping[str, PoolState],
     balances: BalanceTable,
     lp_balances: Optional[LPTable],
     *,
@@ -73,7 +74,9 @@ def compute_settlement_with_factories(
     chunk_size: int,
     factories: _SettlementComputeFactories,
 ) -> Settlement:
-    pool_states: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
+    pool_states: Dict[str, PoolState] = {
+        pool_id: copy_pool_state(pool) for pool_id, pool in pools.items()
+    }
     balances_local = factories.copy_balance_table_fn(balances)
     lp_local = factories.copy_lp_table_fn(lp_balances) if lp_balances is not None else LPTable()
     partitions = _partition_settlement_intents(intents)

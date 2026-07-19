@@ -20,11 +20,9 @@ The 5 endpoints in PR1 scope:
 
 from __future__ import annotations
 
-import importlib
 import json
 import threading
 from http.client import HTTPConnection
-from pathlib import Path
 
 import pytest
 
@@ -38,7 +36,7 @@ def _start_test_server(*, dex_enabled: bool = True):
     httpd.perps_api_enabled = False  # type: ignore[attr-defined]
     httpd.zusd_api_enabled = False  # type: ignore[attr-defined]
     httpd.dex_api_enabled = bool(dex_enabled)  # type: ignore[attr-defined]
-    httpd.demo_api_token = ""  # type: ignore[attr-defined]
+    httpd.api_bearer_token = ""  # type: ignore[attr-defined]
     httpd.external_auth_enforced = True  # type: ignore[attr-defined]
 
     t = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
@@ -72,18 +70,6 @@ def _post_json(host: str, port: int, path: str, payload: dict, *, timeout: float
         conn.close()
 
 
-def _load_writer_snapshot_from_file(data_dir: Path):
-    importlib.import_module("src.integration.api_server_dex_dispatch")
-    handlers = importlib.import_module("src.integration.dex_dispatch_proof_mining_handlers")
-    return handlers._load_latest_writer_snapshot_from_file_for_template(data_dir)
-
-
-def _load_writer_snapshot_from_url(url: str):
-    importlib.import_module("src.integration.api_server_dex_dispatch")
-    handlers = importlib.import_module("src.integration.dex_dispatch_proof_mining_handlers")
-    return handlers._load_latest_writer_snapshot_from_url_for_template(url)
-
-
 # ---------------------------------------------------------------------------
 # Registry-level invariants (don't require the live server)
 # ---------------------------------------------------------------------------
@@ -110,7 +96,6 @@ def test_registry_contains_pr1_endpoints() -> None:
         "/api/dex/slippage_advice",
         "/api/dex/pokayoke_swap_suggest",
         "/api/dex/pokayoke_swap_suggest_heavy",
-        "/api/dex/proof_mining_payout_template",
         "/api/dex/proof_mining_status",
     }
     assert expected.issubset(set(DEX_ENDPOINT_REGISTRY.keys()))
@@ -145,56 +130,6 @@ def test_lookup_returns_handler_for_registered_path() -> None:
     assert callable(lookup("/api/dex/quote_exact_out_many_pool_certified_advisory"))
     assert callable(lookup("/api/dex/build_settlement_witness_lifecycle_packet"))
     assert callable(lookup("/api/dex/verify_settlement_witness_lifecycle_packet"))
-
-
-def test_writer_snapshot_loader_rejects_relative_escape(tmp_path: Path) -> None:
-    data_dir = tmp_path / "writer"
-    data_dir.mkdir()
-    (tmp_path / "outside.json").write_text(json.dumps({"schema": "outside"}), encoding="utf-8")
-    (data_dir / "live_state.json").write_text(
-        json.dumps({"latest_snapshot_path": "../outside.json"}),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="escapes writer data dir"):
-        _load_writer_snapshot_from_file(data_dir)
-
-
-def test_writer_snapshot_loader_rejects_absolute_escape(tmp_path: Path) -> None:
-    data_dir = tmp_path / "writer"
-    data_dir.mkdir()
-    outside = tmp_path / "outside.json"
-    outside.write_text(json.dumps({"schema": "outside"}), encoding="utf-8")
-    (data_dir / "live_state.json").write_text(
-        json.dumps({"latest_snapshot_path": str(outside)}),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="escapes writer data dir"):
-        _load_writer_snapshot_from_file(data_dir)
-
-
-def test_writer_snapshot_loader_accepts_snapshot_inside_data_dir(tmp_path: Path) -> None:
-    data_dir = tmp_path / "writer"
-    snapshot_dir = data_dir / "live_ledger" / "snapshots"
-    snapshot_dir.mkdir(parents=True)
-    snapshot = snapshot_dir / "1.json"
-    snapshot.write_text(
-        json.dumps({"schema": "zenodex/tau_app_state/v1", "dex_state": {"ok": True}}),
-        encoding="utf-8",
-    )
-    (data_dir / "live_state.json").write_text(
-        json.dumps({"latest_snapshot_path": "live_ledger/snapshots/1.json"}),
-        encoding="utf-8",
-    )
-
-    assert _load_writer_snapshot_from_file(data_dir) == {"ok": True}
-
-
-@pytest.mark.parametrize("url", ["file:///tmp/live_state.json", "writer.example/api/dex/snapshot", ""])
-def test_writer_snapshot_url_loader_rejects_non_http_urls(url: str) -> None:
-    with pytest.raises(ValueError, match="absolute http or https"):
-        _load_writer_snapshot_from_url(url)
 
 
 def test_duplicate_registration_raises() -> None:
@@ -434,287 +369,30 @@ def test_proof_mining_status_missing_expected_proposal_hash_returns_400() -> Non
         _stop_test_server(httpd, t)
 
 
-def test_proof_mining_payout_template_loads_writer_snapshot_over_http(monkeypatch) -> None:
-    from src.integration.api_server_dex_dispatch import DexRequestContext
-    from src.integration.dex_dispatch_proof_mining_handlers import (
-        _load_latest_writer_snapshot_for_template,
-    )
-
-    snapshot = {"schema": "zenodex/dex_state/v1", "pools": [], "balances": []}
-
-    class _FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001
-            return None
-
-        def read(self) -> bytes:
-            return json.dumps({"ok": True, "latest_height": 3, "snapshot": snapshot}).encode("utf-8")
-
-    def _fake_urlopen(req, timeout):  # noqa: ANN001
-        assert timeout == 2.0
-        assert req.full_url == "http://writer.example/api/dex/snapshot"
-        return _FakeResponse()
-
-    class _Server:
-        pass
-
-    monkeypatch.setenv("ZENO_LEDGER_WRITER_SNAPSHOT_URL", "http://writer.example/api/dex/snapshot")
-    monkeypatch.setattr("src.integration.dex_dispatch_proof_mining_handlers.urllib.request.urlopen", _fake_urlopen)
-
-    loaded = _load_latest_writer_snapshot_for_template(DexRequestContext(server=_Server(), cors_origin=None, raw_body=None))
-
-    assert loaded == snapshot
-
-
-def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkeypatch) -> None:
-    from src.core.dex import DexState
-    from src.integration.dex_snapshot import snapshot_from_state
-    from src.integration.zeno_ledger_v0 import hash_v0
-    from src.state.balances import BalanceTable
-    from src.state.lp import LPTable
-
-    sender = "0x" + "12" * 48
-    reward_pool = "0x" + "34" * 48
-    asset0 = "0x" + "56" * 32
-    asset1 = "0x" + "78" * 32
-    chain_id = "zeno-ledger-localtest-v0"
-    reward_asset = hash_v0("testnet_bundle_token_asset", {"chain_id": chain_id, "symbol": "ZDEX"})
-    balances = BalanceTable()
-    balances.set(reward_pool, reward_asset, 20)
-    state = DexState(balances=balances, pools={}, lp_balances=LPTable())
-    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
-    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
-    monkeypatch.setenv("TAU_DEX_TOKEN_SYMBOL", "ZDEX")
-    monkeypatch.setenv("TAU_DEX_FAUCET", "1")
-    monkeypatch.setenv("TAU_DEX_REQUIRE_INTENT_SIGS", "0")
-    monkeypatch.setenv("TAU_DEX_ALLOW_EXTERNAL_TOOLS", "1")
-    monkeypatch.setenv("TAU_DEX_CONSENSUS_MODE", "0")
-    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP", "1")
-    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", '["python3","tools/proof_verifiers/recompute_batch_v4.py"]')
-
-    intent = {
-        "module": "TauSwap",
-        "version": "0.1",
-        "kind": "CREATE_POOL",
-        "intent_id": "0x" + "ab" * 32,
-        "sender_pubkey": sender,
-        "deadline": 1_999_999_999,
-        "nonce": 1,
-        "asset0": asset0,
-        "asset1": asset1,
-        "fee_bps": 30,
-        "amount0": 2_000,
-        "amount1": 3_000,
-        "created_at": 123,
-    }
-    payload = {
-        "chain_id": chain_id,
-        "tx_sender_pubkey": sender,
-        "signed_intent": {"intent": intent, "signature": "0x" + "99" * 96},
-        "faucet_mint": [
-            {"pubkey": sender, "asset": asset0, "amount": 10_000},
-            {"pubkey": sender, "asset": asset1, "amount": 10_000},
-        ],
-        "pre_state_snapshot": snapshot_from_state(state).data,
-    }
-    httpd, t, host, port = _start_test_server()
+def test_proof_mining_payout_template_route_is_not_exposed() -> None:
+    httpd, thread, host, port = _start_test_server()
     try:
         status, body = _post_json(
             host,
             port,
             "/api/dex/proof_mining_payout_template",
-            payload,
+            {},
         )
-        repeat_status, repeat_body = _post_json(
-            host,
-            port,
-            "/api/dex/proof_mining_payout_template",
-            payload,
-        )
-        assert status == 200
-        assert repeat_status == 200
-        assert body["ok"] is True
-        assert repeat_body == body
-
-        intent_without_created_at = {k: v for k, v in intent.items() if k != "created_at"}
-        explicit_timestamp_payload = {
-            **payload,
-            "block_timestamp": 456,
-            "signed_intent": {"intent": intent_without_created_at, "signature": "0x" + "99" * 96},
-        }
-        explicit_timestamp_status, explicit_timestamp_body = _post_json(
-            host,
-            port,
-            "/api/dex/proof_mining_payout_template",
-            explicit_timestamp_payload,
-        )
-        assert explicit_timestamp_status == 200
-        assert explicit_timestamp_body["tx"]["block_timestamp"] == 456
-
-        missing_timestamp_payload = dict(explicit_timestamp_payload)
-        missing_timestamp_payload.pop("block_timestamp")
-        missing_timestamp_status, missing_timestamp_body = _post_json(
-            host,
-            port,
-            "/api/dex/proof_mining_payout_template",
-            missing_timestamp_payload,
-        )
-        assert missing_timestamp_status == 400
-        assert missing_timestamp_body == {"ok": False, "error": "bad_block_timestamp"}
-
-        tx = body["tx"]
-        assert set(tx["operations"]) == {"5", "6", "7", "10"}
-        assert tx["block_timestamp"] == 123
-        assert tx["tx_id"].startswith("proof-mining-payout:0x")
-        assert "signature" in tx["operations"]["5"][0]
-        assert "signature" not in tx["operations"]["6"]["proof"]["operations"]["5"][0]
-        assert tx["operations"]["6"]["proof"]["scheme"] == "recompute_batch_v4"
-        assert tx["operations"]["10"]["claim"]["body"]["job_digest"].startswith("local-proof-mining:0x")
-        assert tx["operations"]["10"]["claim"]["body"]["round_id"].startswith("local-proof-mining-round:0x")
-        assert tx["operations"]["10"]["claim"]["body"]["proposal_hash"] == body["status_request"]["expected_proposal_hash"]
-        assert body["status_request"]["proof_mining_context"]["proof_scheme"] == "recompute_batch_v4"
-        assert body["status_request"]["chain_balances"] == {reward_pool: {reward_asset: 20}}
-        assert body["status_request"]["reward_pool_pubkey"] == reward_pool
-        assert "dex_state" not in json.loads(body["status_request"]["app_state_json"])
-        assert len(json.dumps(body["status_request"], sort_keys=True).encode("utf-8")) < 100_000
-        assert body["reward_pool_before"] == 20
-
-        monkeypatch.delenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", raising=False)
-        claim_status, claim_body = _post_json(
-            host,
-            port,
-            "/api/dex/proof_mining_status",
-            body["status_request"],
-        )
-        assert claim_status == 200
-        assert claim_body["ok"] is True
-        assert claim_body["status"]["claimable"] is True
-        monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
-
-        from src.core.generic_token_authority import (
-            GenericTokenAssetAuthority,
-            GenericTokenAuthorityState,
-        )
-        from src.integration import tau_testnet_dex_plugin as plugin
-
-        registrations = tuple(
-            sorted(
-                (
-                    GenericTokenAssetAuthority(
-                        asset_id=asset0,
-                        total_supply_units=0,
-                        mint_authority_pubkey=sender,
-                    ),
-                    GenericTokenAssetAuthority(
-                        asset_id=asset1,
-                        total_supply_units=0,
-                        mint_authority_pubkey=sender,
-                    ),
-                    GenericTokenAssetAuthority(
-                        asset_id=reward_asset,
-                        total_supply_units=20,
-                        mint_authority_pubkey=None,
-                    ),
-                ),
-                key=lambda registration: registration.asset_id,
-            )
-        )
-        app_state_json, _genesis_hash = plugin.build_zusd_policy_bound_genesis_app_state(
-            config=plugin._build_zusd_monetary_config(chain_id=chain_id),
-            state=state,
-            generic_token_authority=GenericTokenAuthorityState(
-                assets=registrations
-            ),
-        )
-        app_state = json.loads(app_state_json)
-        app_state["proof_mining"] = {
-            "schema": "zenodex/proof_mining_runtime_state/v1",
-            "reward_pool_pubkey": reward_pool,
-            "epoch": 1,
-            "base_reward": 8,
-            "initial_pool": 20,
-            "reward_pool_balance": 20,
-            "total_paid": 0,
-            "claimed_slots": [],
-        }
-        app_state_json = json.dumps(
-            app_state,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        claim = json.loads(json.dumps(tx["operations"]["10"]["claim"]))
-        ok, next_app_state, app_hash, _native, err = plugin.apply_app_tx(
-            app_state_json=app_state_json,
-            chain_balances={reward_pool: 20, sender: 0},
-            operations=json.loads(json.dumps(tx["operations"])),
-            tx_sender_pubkey=sender,
-            block_timestamp=int(tx["block_timestamp"]),
-        )
-        assert ok is True, err
-        assert len(app_hash) in {64, 66}
-
-        first_state = json.loads(next_app_state)
-        proposal_hash = claim["body"]["proposal_hash"]
-        reward_amount = claim["body"]["bounded_model"]["reward_amount"]
-        assert first_state["proof_mining"]["reward_pool_balance"] == 20 - reward_amount
-        assert first_state["proof_mining"]["total_paid"] == reward_amount
-        claimed_slots = first_state["proof_mining"]["claimed_slots"]
-        assert len(claimed_slots) == 1
-        assert claimed_slots[0]["proposal_hash"] == proposal_hash
-
-        replay_ok, replay_next_app_state, _replay_hash, _replay_native, replay_err = plugin.apply_app_tx(
-            app_state_json=next_app_state,
-            chain_balances={reward_pool: 20 - reward_amount, sender: reward_amount},
-            operations=json.loads(json.dumps(tx["operations"])),
-            tx_sender_pubkey=sender,
-            block_timestamp=int(tx["block_timestamp"]),
-        )
-        assert replay_ok is False
-        assert replay_err
-        assert replay_next_app_state == next_app_state
-        assert json.loads(replay_next_app_state)["proof_mining"]["total_paid"] == reward_amount
-
-        from dataclasses import replace
-
-        from src.integration.proof_mining_context import proof_mining_context_from_obj
-        from src.integration.proof_mining_runtime import (
-            apply_proof_mining_claim,
-            proof_mining_runtime_state_from_obj,
-        )
-
-        runtime_state = proof_mining_runtime_state_from_obj(first_state["proof_mining"])
-        proposal_claimed_state = replace(
-            runtime_state,
-            snapshot=replace(
-                runtime_state.snapshot,
-                reward_pool_balance=int(claim["body"]["budget"]["reward_pool_before"]),
-                total_paid=0,
-            ),
-        )
-        context = proof_mining_context_from_obj(body["status_request"]["proof_mining_context"])
-        with pytest.raises(ValueError, match="proposal_hash already claimed"):
-            apply_proof_mining_claim(
-                runtime_state=proposal_claimed_state,
-                claim_artifact=claim,
-                actual_reward_pool_balance=int(claim["body"]["budget"]["reward_pool_before"]),
-                proof_mining_context=context,
-            )
-
+        assert status == 404
+        assert body == {"ok": False, "error": "not_found"}
     finally:
-        _stop_test_server(httpd, t)
+        _stop_test_server(httpd, thread)
 
 
-def test_build_settlement_spot_price_attestation_rejects_bool_signer_privkey() -> None:
+def test_build_settlement_spot_price_attestation_route_is_not_exposed() -> None:
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
             host, port, "/api/dex/build_settlement_spot_price_attestation",
-            {"packet": {}, "signer_privkey": True},
+            {"packet": {}},
         )
-        assert status == 400
-        assert body == {"ok": False, "error": "bad_signer_privkey"}
+        assert status == 404
+        assert body == {"ok": False, "error": "not_found"}
     finally:
         _stop_test_server(httpd, t)
 
@@ -729,8 +407,7 @@ def test_dex_endpoint_error_is_converted_to_response() -> None:
         DexEndpointError,
         DexEndpointSpec,
         DexRequestContext,
-        _register_for_test,
-        dispatch,
+        dispatch_endpoint_spec,
     )
 
     def _raises_dex_endpoint_error(obj, ctx):  # noqa: ARG001
@@ -740,10 +417,8 @@ def test_dex_endpoint_error_is_converted_to_response() -> None:
         handler=_raises_dex_endpoint_error,
         default_error_code="__test_default_error__",
     )
-    with _register_for_test("/api/dex/__test_dex_endpoint_error__", spec):
-        ctx = DexRequestContext(server=None, cors_origin=None, raw_body=None)
-        result = dispatch("/api/dex/__test_dex_endpoint_error__", {}, ctx)
-    assert result is not None
+    ctx = DexRequestContext(server=None, cors_origin=None, raw_body=None)
+    result = dispatch_endpoint_spec("/api/dex/__test_dex_endpoint_error__", spec, {}, ctx)
     status, body = result
     assert status == 400
     assert body == {"ok": False, "error": "bad_assets", "reason": "canonical_order"}
@@ -756,8 +431,7 @@ def test_dispatcher_catch_all_uses_default_error_code() -> None:
     from src.integration.api_server_dex_dispatch import (
         DexEndpointSpec,
         DexRequestContext,
-        _register_for_test,
-        dispatch,
+        dispatch_endpoint_spec,
     )
 
     def _raises_runtime_error(obj, ctx):  # noqa: ARG001
@@ -767,10 +441,8 @@ def test_dispatcher_catch_all_uses_default_error_code() -> None:
         handler=_raises_runtime_error,
         default_error_code="custom_catch_all_error",
     )
-    with _register_for_test("/api/dex/__test_catch_all__", spec):
-        ctx = DexRequestContext(server=None, cors_origin=None, raw_body=None)
-        result = dispatch("/api/dex/__test_catch_all__", {}, ctx)
-    assert result is not None
+    ctx = DexRequestContext(server=None, cors_origin=None, raw_body=None)
+    result = dispatch_endpoint_spec("/api/dex/__test_catch_all__", spec, {}, ctx)
     status, body = result
     assert status == 400
     assert body == {"ok": False, "error": "custom_catch_all_error", "details": "request failed"}
@@ -837,8 +509,7 @@ def test_metrics_increment_on_successful_dispatch() -> None:
         DISPATCH_METRICS,
         DexEndpointSpec,
         DexRequestContext,
-        _register_for_test,
-        dispatch,
+        dispatch_endpoint_spec,
         serve_metrics,
     )
 
@@ -847,11 +518,10 @@ def test_metrics_increment_on_successful_dispatch() -> None:
 
     spec = DexEndpointSpec(handler=_ok_handler, default_error_code="__test_ok_default__")
     DISPATCH_METRICS.reset()
-    with _register_for_test("/api/dex/__test_metrics_ok__", spec):
-        ctx = DexRequestContext(server=None, cors_origin=None, raw_body=None)
-        dispatch("/api/dex/__test_metrics_ok__", {}, ctx)
-        dispatch("/api/dex/__test_metrics_ok__", {}, ctx)
-        snap = serve_metrics()
+    ctx = DexRequestContext(server=None, cors_origin=None, raw_body=None)
+    dispatch_endpoint_spec("/api/dex/__test_metrics_ok__", spec, {}, ctx)
+    dispatch_endpoint_spec("/api/dex/__test_metrics_ok__", spec, {}, ctx)
+    snap = serve_metrics()
     ep = snap["metrics"]["/api/dex/__test_metrics_ok__"]
     assert ep["request_count"] == 2
     assert ep["error_count"] == 0
@@ -869,8 +539,7 @@ def test_metrics_increment_on_dex_endpoint_error() -> None:
         DexEndpointError,
         DexEndpointSpec,
         DexRequestContext,
-        _register_for_test,
-        dispatch,
+        dispatch_endpoint_spec,
         serve_metrics,
     )
 
@@ -879,10 +548,9 @@ def test_metrics_increment_on_dex_endpoint_error() -> None:
 
     spec = DexEndpointSpec(handler=_raises_dex_err, default_error_code="__test_default__")
     DISPATCH_METRICS.reset()
-    with _register_for_test("/api/dex/__test_metrics_dex_err__", spec):
-        ctx = DexRequestContext(server=None, cors_origin=None, raw_body=None)
-        dispatch("/api/dex/__test_metrics_dex_err__", {}, ctx)
-        snap = serve_metrics()
+    ctx = DexRequestContext(server=None, cors_origin=None, raw_body=None)
+    dispatch_endpoint_spec("/api/dex/__test_metrics_dex_err__", spec, {}, ctx)
+    snap = serve_metrics()
     ep = snap["metrics"]["/api/dex/__test_metrics_dex_err__"]
     assert ep["request_count"] == 1
     assert ep["error_count"] == 1
@@ -897,8 +565,7 @@ def test_metrics_increment_on_handler_returning_4xx_directly() -> None:
         DISPATCH_METRICS,
         DexEndpointSpec,
         DexRequestContext,
-        _register_for_test,
-        dispatch,
+        dispatch_endpoint_spec,
         serve_metrics,
     )
 
@@ -907,10 +574,9 @@ def test_metrics_increment_on_handler_returning_4xx_directly() -> None:
 
     spec = DexEndpointSpec(handler=_returns_400, default_error_code="__test_default__")
     DISPATCH_METRICS.reset()
-    with _register_for_test("/api/dex/__test_metrics_direct_400__", spec):
-        ctx = DexRequestContext(server=None, cors_origin=None, raw_body=None)
-        dispatch("/api/dex/__test_metrics_direct_400__", {}, ctx)
-        snap = serve_metrics()
+    ctx = DexRequestContext(server=None, cors_origin=None, raw_body=None)
+    dispatch_endpoint_spec("/api/dex/__test_metrics_direct_400__", spec, {}, ctx)
+    snap = serve_metrics()
     ep = snap["metrics"]["/api/dex/__test_metrics_direct_400__"]
     assert ep["error_count"] == 1
     assert ep["most_recent_error_code"] == "bad_assets"

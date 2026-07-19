@@ -3,8 +3,9 @@
 Tests cover known action sequences end-to-end through the engine.
 """
 
-import pytest
 from dataclasses import replace
+
+import pytest
 
 from src.core.perp_v2 import (
     Action,
@@ -133,7 +134,7 @@ class TestSettleEpoch:
         assert r.effect.event == Event.EPOCH_SETTLED
         assert r.effect.oracle_fresh is True
 
-    def test_bootstrap_settle_allowed_when_oracle_not_seen_and_flat(self):
+    def test_bootstrap_settle_rejects_without_an_authoritative_oracle_snapshot(self):
         s = replace(
             initial_state(),
             now_epoch=1,
@@ -148,10 +149,10 @@ class TestSettleEpoch:
             collateral_quote=0,
         )
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
-        assert r.accepted
-        assert r.state is not None
-        assert r.state.oracle_seen is True
-        assert r.state.index_price_e8 == 100_000_000
+        assert r.accepted is False
+        assert r.rejection == "guard"
+        assert r.state is None
+        assert r.effect is None
 
     def test_profitable_long(self):
         # Long 100, price goes up 10% but clamped to 5% (max_oracle_move_bps=500)
@@ -176,9 +177,11 @@ class TestSettleEpoch:
     def test_liquidation(self):
         # Long 100, price drops 3% (within 5% max move → no clamping).
         # settle_price = 97_000_000. PnL = -(100 * 3_000_000 / 1e8) = -3.
-        # collateral_after_pnl = 4 - 3 = 1.
+        # collateral_after_pnl = 6 - 3 = 3.
         # notional at 97e6: 100 * 97e6 / 1e8 = 97.
-        # maint_req = 97 * 600 / 10000 = 5. Since 1 < 5 → liquidated.
+        # maint_req = 97 * 600 / 10000 = 5. Since 3 < 5 → liquidated.
+        # The pre-state remains valid at the old 100e6 index: collateral 6 is
+        # exactly its maintenance requirement.
         s = replace(
             initial_state(),
             now_epoch=2,
@@ -189,7 +192,7 @@ class TestSettleEpoch:
             oracle_seen=True,
             oracle_last_update_epoch=1,
             index_price_e8=100_000_000,
-            collateral_quote=4,
+            collateral_quote=6,
             position_base=100,
             entry_price_e8=100_000_000,
         )
@@ -225,15 +228,16 @@ class TestSettleEpoch:
         s = replace(
             initial_state(),
             now_epoch=2,
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
             clearing_price_seen=True,
             clearing_price_epoch=2,
             clearing_price_e8=100_000_000,
             oracle_seen=False,
-            oracle_last_update_epoch=1,
+            oracle_last_update_epoch=0,
             index_price_e8=0,
             collateral_quote=100_000,
-            position_base=100,
-            entry_price_e8=100_000_000,
+            position_base=0,
+            entry_price_e8=0,
         )
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
         assert not r.accepted
@@ -327,7 +331,7 @@ class TestWithdrawCollateral:
         )
         r = step(s, ActionParams(action=Action.WITHDRAW_COLLATERAL, amount=1, auth_ok=True))
         assert not r.accepted
-        assert r.rejection == "guard"
+        assert r.rejection == "pre_invariant:inv_oracle_seen_positive_index"
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +375,7 @@ class TestSetPosition:
         )
         r = step(s, ActionParams(action=Action.SET_POSITION, new_position_base=100, auth_ok=True))
         assert not r.accepted
-        assert r.rejection == "guard"
+        assert r.rejection == "pre_invariant:inv_oracle_seen_positive_index"
 
     def test_breaker_reduce_only(self):
         s = _make_state_with_oracle(collateral=100_000, position=100, breaker_active=True)
@@ -486,7 +490,7 @@ class TestApplyFunding:
         )
         r = step(s, ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=50, auth_ok=True))
         assert not r.accepted
-        assert r.rejection == "guard"
+        assert r.rejection == "pre_invariant:inv_oracle_seen_positive_index"
 
     def test_margin_check(self):
         s = _make_state_with_oracle(collateral=7, position=100)
@@ -534,8 +538,13 @@ class TestApplyInsuranceClaim:
 
 class TestFullSequence:
     def test_deposit_trade_settle_withdraw(self):
-        """Walk through a full lifecycle: deposit → open → settle → withdraw."""
-        s = initial_state()
+        """Walk through a lifecycle from an authority-provisioned Oracle snapshot."""
+        s = replace(
+            initial_state(),
+            oracle_seen=True,
+            oracle_last_update_epoch=0,
+            index_price_e8=100_000_000,
+        )
 
         # Epoch 1
         r = step(s, ActionParams(action=Action.ADVANCE_EPOCH, delta=1))
@@ -549,7 +558,7 @@ class TestFullSequence:
         s = r.state
         assert s.epoch_phase == EpochPhase.PRICE_PUBLISHED
 
-        # Settle epoch (establishes oracle)
+        # Settle epoch using the pre-provisioned Oracle snapshot.
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
         assert r.accepted
         s = r.state
@@ -830,7 +839,7 @@ class TestStepOrRaise:
             step_or_raise(initial_state(), ActionParams(action=Action.ADVANCE_EPOCH, delta=0))
 
     def test_guard_raises_guard_error(self):
-        s = replace(initial_state(), now_epoch=1, clearing_price_epoch=1)
+        s = initial_state()
         with pytest.raises(PerpGuardError, match="guard"):
             step_or_raise(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100))
 
@@ -855,11 +864,10 @@ class TestSettleLiqOverflowBoundary:
     def test_fee_pool_near_max(self):
         """Liquidation penalty would push fee_pool above MAX_COLLATERAL → rejected."""
         from src.core.perp_v2.math import MAX_COLLATERAL
-        # pos=100M, clearing=97e6, index=100e6 → settle=97e6 (within 5% clamp).
-        # pnl = -(100M * 3e6 / 1e8) = -3M. collateral_after_pnl = 4M - 3M = 1M.
-        # notional = 100M * 97e6 / 1e8 = 97M. maint_req = 97M * 600 / 10000 = 5.82M.
-        # 1M < 5.82M → liquidated. penalty = 97M * 50 / 10000 = 485K.
-        # fee_pool(MAX) + 485K > MAX → guard rejects.
+        # pos=1M, clearing=97e6, index=100e6 → settle=97e6 (within 5% clamp).
+        # pnl = -(1M * 3e6 / 1e8) = -30K. collateral_after_pnl = 60K - 30K = 30K.
+        # notional = 970K and maint_req = 58.2K, so the position liquidates.
+        # Its positive penalty would push fee_pool(MAX) over the bound.
         s = replace(
             initial_state(),
             now_epoch=2,
@@ -869,11 +877,12 @@ class TestSettleLiqOverflowBoundary:
             oracle_seen=True,
             oracle_last_update_epoch=1,
             index_price_e8=100_000_000,
-            collateral_quote=4_000_000,
-            position_base=100_000_000,
+            collateral_quote=60_000,
+            position_base=1_000_000,
             entry_price_e8=100_000_000,
             fee_pool_quote=MAX_COLLATERAL,
             fee_income=MAX_COLLATERAL,
+            insurance_balance=MAX_COLLATERAL,
             min_notional_for_bounty=1,
         )
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))

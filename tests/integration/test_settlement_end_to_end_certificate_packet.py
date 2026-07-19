@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from src.core.batch_clearing import compute_settlement
@@ -18,7 +20,6 @@ from src.integration.settlement_feature_extension_packet import (
     SettlementFeatureExtensionInputs,
     SettlementFeatureExtensionPacket,
 )
-from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     build_settlement_spot_price_packet,
@@ -29,6 +30,9 @@ from src.integration.settlement_strong_certificate import (
 )
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
+from tests.support.settlement_price_attestation_signer import (
+    build_settlement_spot_price_attestation,
+)
 
 
 def _iid(n: int) -> str:
@@ -214,7 +218,10 @@ def test_end_to_end_certificate_packet_round_trips_for_spot_packet() -> None:
 
 def test_end_to_end_certificate_packet_round_trips_for_endogenous_attestation() -> None:
     pk, asset0, asset1, pool_id, pool, settlement = _four_swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=2, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=2, delta_sub=0)),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),

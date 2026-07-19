@@ -6,7 +6,6 @@ import pytest
 
 from src.core.liquidity import create_pool
 from src.state import BalanceTable, LPTable
-from src.state.lp import LPDurationRiskMetadata
 from src.state.nonces import NonceTable
 from src.state.state_root import STATE_ROOT_VERSION, compute_state_root
 
@@ -367,14 +366,20 @@ def test_state_root_rejects_corrupt_lp_duration_risk_metadata(
     lp = LPTable()
     lp.set(pk, pool_id, 10)
     lp._last_mint_timestamps[(pk, pool_id)] = -1  # type: ignore[assignment]
-    with pytest.raises(ValueError, match="invalid LP mint timestamp"):
+    with pytest.raises(ValueError, match="last_mint_timestamp must be a non-negative int"):
         compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)
+
+    class _CorruptDurationMetadata:
+        last_mint_timestamp = None
+        last_remove_timestamp = None
+        churn_tier = True
+        last_churn_update_timestamp = None
 
     lp = LPTable()
     monkeypatch.setattr(
-        lp,
+        LPTable,
         "get_all_duration_risk_metadata",
-        lambda: {(pk, pool_id): LPDurationRiskMetadata(churn_tier=True)},  # type: ignore[arg-type]
+        lambda _self: {(pk, pool_id): _CorruptDurationMetadata()},
     )
     with pytest.raises(ValueError, match="invalid LP churn tier"):
         compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)

@@ -73,14 +73,36 @@ def _require_int_range(
     minimum: int | None = None,
     maximum: int | None = None,
 ) -> int:
-    if not isinstance(value, int) or isinstance(value, bool):
+    if type(value) is not int:
         raise TypeError(f"{name} must be an int")
-    value_int = int(value)
+    value_int = value
     if minimum is not None and value_int < minimum:
         raise ValueError(f"{name} must be >= {minimum}: {value_int}")
     if maximum is not None and value_int > maximum:
         raise ValueError(f"{name} exceeds kernel domain max {maximum}: {value_int}")
     return value_int
+
+
+def _validate_swap_post_reserves(*, new_reserve_in: object, new_reserve_out: object) -> None:
+    if type(new_reserve_in) is not int:
+        raise TypeError("new_reserve_in must be an int")
+    if new_reserve_in > DEX_POOL_RESERVE_MAX:
+        raise ValueError(
+            f"swap would exceed reserve_in domain max {DEX_POOL_RESERVE_MAX}: "
+            f"post-state {new_reserve_in}"
+        )
+    _require_int_range(
+        "new_reserve_in",
+        new_reserve_in,
+        minimum=1,
+        maximum=DEX_POOL_RESERVE_MAX,
+    )
+    _require_int_range(
+        "new_reserve_out",
+        new_reserve_out,
+        minimum=1,
+        maximum=DEX_POOL_RESERVE_MAX,
+    )
 
 
 def quote_cpmm_swap_exact_in(
@@ -102,11 +124,6 @@ def quote_cpmm_swap_exact_in(
         minimum=0,
         maximum=BPS_DENOM,
     )
-    if reserve_in + amount_in > DEX_POOL_RESERVE_MAX:
-        raise ValueError(
-            f"swap would exceed reserve_in domain max {DEX_POOL_RESERVE_MAX}: "
-            f"{reserve_in} + {amount_in}"
-        )
 
     res = _kernel_swap_exact_in_v8(
         reserve_in=reserve_in,
@@ -114,6 +131,10 @@ def quote_cpmm_swap_exact_in(
         amount_in=amount_in,
         fee_bps=fee_bps,
         protocol_fee_share_bps=protocol_fee_share_bps,
+    )
+    _validate_swap_post_reserves(
+        new_reserve_in=res.new_reserve_in,
+        new_reserve_out=res.new_reserve_out,
     )
     if res.k_after < res.k_before:
         raise ValueError(f"Invariant violation: new_k ({res.k_after}) < old_k ({res.k_before})")
@@ -167,6 +188,16 @@ def quote_cpmm_swap_exact_out(
         amount_out=amount_out,
         fee_bps=fee_bps,
         protocol_fee_share_bps=protocol_fee_share_bps,
+    )
+    _require_int_range(
+        "amount_in",
+        res.amount_in,
+        minimum=1,
+        maximum=DEX_SWAP_AMOUNT_MAX,
+    )
+    _validate_swap_post_reserves(
+        new_reserve_in=res.new_reserve_in,
+        new_reserve_out=res.new_reserve_out,
     )
     gap_bps = _gap_bps(overdelivery_gap=int(res.overdelivery_gap), amount_out=amount_out)
     if gap_bps > max_overdelivery_gap_bps:

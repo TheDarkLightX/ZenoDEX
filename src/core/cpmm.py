@@ -114,18 +114,17 @@ def swap_exact_in(
     require_int_range("reserve_out", reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
     require_int_range("amount_in", amount_in, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX)
     require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
-    if reserve_in + amount_in > DEX_POOL_RESERVE_MAX:
-        raise ValueError(
-            f"swap would exceed reserve_in domain max {DEX_POOL_RESERVE_MAX}: "
-            f"{reserve_in} + {amount_in}"
-        )
-    
+
     res = _kernel_swap_exact_in_v8(
         reserve_in=reserve_in,
         reserve_out=reserve_out,
         amount_in=amount_in,
         fee_bps=fee_bps,
         protocol_fee_share_bps=0,
+    )
+    _validate_swap_post_reserves(
+        new_reserve_in=res.new_reserve_in,
+        new_reserve_out=res.new_reserve_out,
     )
 
     # Verify invariant: with protocol_fee_share_bps=0, k must not decrease.
@@ -158,11 +157,6 @@ def swap_exact_in_with_protocol_fee(
     require_int_range("amount_in", amount_in, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX)
     require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
     require_int_range("protocol_fee_share_bps", protocol_fee_share_bps, minimum=0, maximum=10000)
-    if reserve_in + amount_in > DEX_POOL_RESERVE_MAX:
-        raise ValueError(
-            f"swap would exceed reserve_in domain max {DEX_POOL_RESERVE_MAX}: "
-            f"{reserve_in} + {amount_in}"
-        )
 
     res = _kernel_swap_exact_in_v8(
         reserve_in=reserve_in,
@@ -170,6 +164,10 @@ def swap_exact_in_with_protocol_fee(
         amount_in=amount_in,
         fee_bps=fee_bps,
         protocol_fee_share_bps=protocol_fee_share_bps,
+    )
+    _validate_swap_post_reserves(
+        new_reserve_in=res.new_reserve_in,
+        new_reserve_out=res.new_reserve_out,
     )
     if res.k_after < res.k_before:
         raise ValueError(f"Invariant violation: new_k ({res.k_after}) < old_k ({res.k_before})")
@@ -233,6 +231,29 @@ def _enforce_exact_out_overdelivery_policy(
 def _raise_if_k_decreased(*, k_before: int, k_after: int) -> None:
     if k_after < k_before:
         raise ValueError(f"Invariant violation: new_k ({k_after}) < old_k ({k_before})")
+
+
+def _validate_swap_post_reserves(*, new_reserve_in: object, new_reserve_out: object) -> None:
+    """Keep every accepted swap inside the authoritative pool-state domain."""
+    if type(new_reserve_in) is not int:
+        raise TypeError("new_reserve_in must be an int")
+    if new_reserve_in > DEX_POOL_RESERVE_MAX:
+        raise ValueError(
+            f"swap would exceed reserve_in domain max {DEX_POOL_RESERVE_MAX}: "
+            f"post-state {new_reserve_in}"
+        )
+    require_int_range(
+        "new_reserve_in",
+        new_reserve_in,
+        minimum=1,
+        maximum=DEX_POOL_RESERVE_MAX,
+    )
+    require_int_range(
+        "new_reserve_out",
+        new_reserve_out,
+        minimum=1,
+        maximum=DEX_POOL_RESERVE_MAX,
+    )
 
 
 def _validate_lp_mint_inputs(params: _LpMintInputs) -> None:
@@ -299,6 +320,16 @@ def swap_exact_out(
         reserve_out=params.reserve_out,
         amount_out=params.amount_out,
         fee_bps=params.fee_bps,
+    )
+    require_int_range(
+        "amount_in",
+        res.amount_in,
+        minimum=1,
+        maximum=DEX_SWAP_AMOUNT_MAX,
+    )
+    _validate_swap_post_reserves(
+        new_reserve_in=res.new_reserve_in,
+        new_reserve_out=res.new_reserve_out,
     )
 
     # Optional policy guard for exact-out quote quality in small-reserve regimes.

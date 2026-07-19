@@ -15,6 +15,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.core.zusd_generic_token_admission import GenericTokenAction  # noqa: E402
+from src.integration.tau_net_client import (  # noqa: E402
+    bls_pubkey_hex_from_privkey,
+    build_signed_tau_transaction,
+)
 from src.integration.zusd_generic_token_admission_bridge import (  # noqa: E402
     evaluate_live_generic_token_writer_admission,
     generic_token_admission_reject_code,
@@ -164,12 +168,33 @@ def main(argv: list[str] | None = None) -> int:
             asset_id=asset_id,
             chain_id=str(args.chain_id),
             tau_config=tau_config,
-            signer_privkey=args.signer_privkey,
-            tx_sequence_number=args.tx_sequence_number,
-            tx_expiration_time=args.tx_expiration_time,
-            tx_fee_limit=args.tx_fee_limit,
         )
         payload = _report_to_dict(report)
+        if (args.tx_sequence_number is None) != (args.tx_expiration_time is None):
+            raise ValueError(
+                "tx_sequence_number and tx_expiration_time must be provided together"
+            )
+        if args.signer_privkey is not None:
+            actor_pubkey = (
+                report.operation["operator_pubkey"]
+                if report.action == "mint"
+                else report.operation["sender_pubkey"]
+            )
+            signer_pubkey = "0x" + bls_pubkey_hex_from_privkey(args.signer_privkey)
+            if signer_pubkey.lower() != str(actor_pubkey).lower():
+                raise ValueError("signer_privkey does not match token actor pubkey")
+        if args.tx_sequence_number is not None:
+            if args.signer_privkey is None:
+                raise ValueError(
+                    "signer_privkey is required when building a Tau transaction payload"
+                )
+            payload["tau_tx_payload"] = build_signed_tau_transaction(
+                privkey=args.signer_privkey,
+                sequence_number=int(args.tx_sequence_number),
+                expiration_time=int(args.tx_expiration_time),
+                operations=report.operations,
+                fee_limit=args.tx_fee_limit,
+            )
         if args.telemetry_out:
             Path(args.telemetry_out).write_text(
                 json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"

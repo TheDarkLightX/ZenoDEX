@@ -98,16 +98,18 @@ class FixedClearinghouseValidationRequest:
 
 
 def _validate_market_identity(request: FixedClearinghouseValidationRequest) -> None:
+    if type(request.kind) is not str:
+        raise TypeError("kind must be an exact string")
     if request.kind != request.expected_kind:
         raise ValueError(f"unsupported perps market kind: {request.kind}")
-    if not isinstance(request.quote_asset, str) or not request.quote_asset:
+    if type(request.quote_asset) is not str or not request.quote_asset:
         raise TypeError("quote_asset must be a non-empty string")
 
 
 def _validate_account_pubkeys(request: FixedClearinghouseValidationRequest) -> None:
     pubkey_bytes: list[bytes] = []
     for name, pubkey in request.account_pubkeys:
-        if not isinstance(pubkey, str) or not pubkey:
+        if type(pubkey) is not str or not pubkey:
             raise TypeError(f"{name} must be a non-empty string")
         pubkey_bytes.append(request.pubkey_bytes48(pubkey, name=name))
     if len(set(pubkey_bytes)) != len(pubkey_bytes):
@@ -115,6 +117,8 @@ def _validate_account_pubkeys(request: FixedClearinghouseValidationRequest) -> N
 
 
 def _validate_state_keyset(*, state: Mapping[str, Value], state_keys: set[str]) -> None:
+    if any(type(key) is not str for key in state):
+        raise TypeError("state keys must be exact strings")
     keys = set(state.keys())
     extra = keys - state_keys
     missing = state_keys - keys
@@ -127,17 +131,17 @@ def _validate_state_keyset(*, state: Mapping[str, Value], state_keys: set[str]) 
 def _validate_state_values(*, state: Mapping[str, Value], bool_keys: set[str]) -> None:
     for key, value in state.items():
         if key in bool_keys:
-            if not isinstance(value, bool):
+            if type(value) is not bool:
                 raise TypeError(f"state[{key!r}] must be a bool")
             continue
-        if isinstance(value, int) and not isinstance(value, bool):
+        if type(value) is int:
             continue
         raise TypeError(f"state[{key!r}] must be an int")
 
 
 def _state_int(state: Mapping[str, Value], key: str) -> int:
     value = state[key]
-    if not isinstance(value, int) or isinstance(value, bool):
+    if type(value) is not int:
         raise TypeError(f"state[{key!r}] must be an int")
     return value
 
@@ -146,8 +150,8 @@ def validate_fixed_clearinghouse_shape(request: FixedClearinghouseValidationRequ
     """Validate shared fixed-participant clearinghouse constructor shape."""
     _validate_market_identity(request)
     _validate_account_pubkeys(request)
-    if not isinstance(request.state, dict):
-        raise TypeError("state must be a dict")
+    if not isinstance(request.state, Mapping):
+        raise TypeError("state must be a mapping")
     _validate_state_keyset(state=request.state, state_keys=request.state_keys)
     _validate_state_values(state=request.state, bool_keys=request.bool_keys)
 

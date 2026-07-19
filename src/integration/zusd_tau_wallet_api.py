@@ -1,9 +1,8 @@
 """Tau-node-backed zUSD wallet transport API.
 
-This module exposes a narrow HTTP surface for the zUSD TauToken transport lane.
-It is separate from ``zusd_api.py`` because the latter is a local demo state
-machine, while this module talks to a Tau testnet node and prepares or submits
-stream-9 TauToken operations.
+This module exposes a narrow read/prepare HTTP surface for the zUSD TauToken
+transport lane. It talks to a Tau node and returns unsigned stream-9 operation
+bundles; transaction signing and submission remain outside the production API.
 """
 
 from __future__ import annotations
@@ -27,7 +26,8 @@ from ..state.canonical import canonical_hex_fixed_allow_0x
 from .dex_snapshot import state_from_snapshot
 from .generic_token_accounting import generic_token_accounting_error
 from .generic_token_authority_bridge import generic_token_authority_from_obj
-from .tau_net_client import TauNetRpcError, TauNetTcpClient, TauNetTcpConfig
+from .raw_signing_boundary import reject_raw_signing_material
+from .tau_net_rpc import TauNetRpcError, TauNetTcpClient, TauNetTcpConfig
 from .zusd_generic_token_admission_bridge import (
     evaluate_live_generic_token_writer_admission,
     generic_token_admission_reject_code,
@@ -126,14 +126,6 @@ def _canonical_zusd_asset_id(*, chain_id: str) -> str:
             name="TAU_DEX_ZUSD_ASSET_ID",
         )
     return derive_zusd_tau_asset_id(chain_id=chain_id)
-
-
-def _allow_signing() -> bool:
-    return _env_bool("ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", False)
-
-
-def _auto_mine() -> bool:
-    return _env_bool("ZUSD_TAU_WALLET_AUTO_MINE", False)
 
 
 def _tau_verify_config() -> ZUSDTauTokenConfig:
@@ -337,8 +329,6 @@ def _assert_exact_request_fields(
         endpoint_fields: frozenset[str] = frozenset()
     elif endpoint == "prepare":
         endpoint_fields = frozenset(("amount", "deadline"))
-    elif endpoint == "submit":
-        endpoint_fields = frozenset(("amount", "deadline", "signer_privkey"))
     else:
         raise ValueError("unsupported_wallet_endpoint")
 
@@ -427,12 +417,12 @@ def _request_int(body: Mapping[str, Any], *, name: str, default: Optional[int] =
     return int(value)
 
 
-def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dict[str, Any]:
+def _build_prepare_response(body: Mapping[str, Any]) -> Dict[str, Any]:
     action = _request_action(body)
     _assert_exact_request_fields(
         body,
         action=action,
-        endpoint="submit" if for_submit else "prepare",
+        endpoint="prepare",
     )
     amount = _request_int(body, name="amount", default=None)
     deadline = _request_int(body, name="deadline", default=_default_deadline())
@@ -496,12 +486,6 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         asset_id=asset_id,
     )
 
-    signer_privkey = body.get("signer_privkey")
-    if for_submit and not isinstance(signer_privkey, (str, int)):
-        raise ValueError("missing_signer_privkey")
-    if signer_privkey is not None and not _allow_signing():
-        raise ValueError("local_signing_disabled")
-
     report = prepare_zusd_tau_token_operation(
         action=cast(Any, action),
         amount=amount,
@@ -516,11 +500,6 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         asset_id=asset_id,
         chain_id=chain_id,
         tau_config=_tau_verify_config(),
-        signer_privkey=signer_privkey if signer_privkey is not None else None,
-        tx_sequence_number=int(context["tx_sequence_number"])
-        if signer_privkey is not None
-        else None,
-        tx_expiration_time=deadline if signer_privkey is not None else None,
     )
 
     payload = {
@@ -561,23 +540,6 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             "tau_tx_payload": report.tau_tx_payload,
         },
     }
-    if for_submit:
-        send_resp = client.sendtx(cast(Mapping[str, Any], report.tau_tx_payload))
-        submission: dict[str, Any] = {
-            "sendtx_response": send_resp,
-        }
-        if _auto_mine():
-            submission["createblock_response"] = client.createblock()
-        payload["submission"] = submission
-        app_state_after, app_hash_after = _load_app_state(client)
-        committed_state_after = _committed_token_state(app_state_after)
-        payload["post_submit"] = {
-            "app_hash": app_hash_after,
-            "balances": _balances_for_asset(
-                committed_state_after,
-                asset_id=asset_id,
-            ),
-        }
     return payload
 
 
@@ -592,8 +554,6 @@ def _status_payload() -> Dict[str, Any]:
         "asset_id": asset_id,
         "tau_host": _env_str("ZUSD_TAU_WALLET_TAU_HOST", "127.0.0.1"),
         "tau_port": _env_int("ZUSD_TAU_WALLET_TAU_PORT", 65432, lo=1, hi=65535),
-        "allow_local_signing": _allow_signing(),
-        "auto_mine": _auto_mine(),
     }
     try:
         client = _tau_client()
@@ -656,6 +616,7 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
             return 400, {"ok": False, "error": err}
         if parsed is None:
             return 400, {"ok": False, "error": "bad_json"}
+        reject_raw_signing_material(parsed)
         if rest == ["inspect"]:
             action = _request_action(parsed)
             _assert_exact_request_fields(
@@ -702,9 +663,7 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
             )
             return 200, {"ok": True, "transport": context, "chain_id": chain_id}
         if rest == ["prepare"]:
-            return 200, _build_prepare_response(parsed, for_submit=False)
-        if rest == ["submit"]:
-            return 200, _build_prepare_response(parsed, for_submit=True)
+            return 200, _build_prepare_response(parsed)
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
         return 400, {"ok": False, "error": str(exc)}

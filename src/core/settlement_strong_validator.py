@@ -14,11 +14,12 @@ recomputes canonical deltas/events and requires exact match.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from ..state.balances import BalanceTable, PubKey
-from ..state.intents import Intent, IntentKind
+from ..state.intents import Intent, IntentKind, require_exact_intent
 from ..state.lp import LPTable
 from ..state.pools import PoolState
 from .batch_clearing import validate_settlement as validate_settlement_legacy
@@ -296,7 +297,7 @@ def validate_settlement_strong(
     settlement: Settlement,
     intents: List[Intent],
     pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
+    pre_pools: Mapping[str, PoolState],
     pre_lp_balances: Optional[LPTable] = None,
     mode: str = _MODE_STRONG_REPLAY,
     allow_cow_netting: bool = False,
@@ -311,6 +312,8 @@ def validate_settlement_strong(
     rather than crash on malformed inputs.
     """
     try:
+        for intent in intents:
+            require_exact_intent(intent)
         request = _StrongValidationRequest(
             settlement=settlement,
             intents=intents,

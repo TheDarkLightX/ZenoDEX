@@ -59,17 +59,17 @@ PERP_ISOLATED_GLOBAL_BOOL_KEYS: set[str] = {
 
 def validate_isolated_account_state(account: Any) -> None:
     """Validate the isolated account record shape used by PerpAccountState."""
-    if not isinstance(account.position_base, int) or isinstance(account.position_base, bool):
+    if type(account.position_base) is not int:
         raise TypeError("position_base must be an int")
-    if not isinstance(account.entry_price_e8, int) or isinstance(account.entry_price_e8, bool):
+    if type(account.entry_price_e8) is not int:
         raise TypeError("entry_price_e8 must be an int")
-    if not isinstance(account.collateral_quote, int) or isinstance(account.collateral_quote, bool):
+    if type(account.collateral_quote) is not int:
         raise TypeError("collateral_quote must be an int")
-    if not isinstance(account.funding_paid_cumulative, int) or isinstance(account.funding_paid_cumulative, bool):
+    if type(account.funding_paid_cumulative) is not int:
         raise TypeError("funding_paid_cumulative must be an int")
-    if not isinstance(account.funding_last_applied_epoch, int) or isinstance(account.funding_last_applied_epoch, bool):
+    if type(account.funding_last_applied_epoch) is not int:
         raise TypeError("funding_last_applied_epoch must be an int")
-    if not isinstance(account.liquidated_this_step, bool):
+    if type(account.liquidated_this_step) is not bool:
         raise TypeError("liquidated_this_step must be a bool")
     if account.entry_price_e8 < 0:
         raise ValueError("entry_price_e8 must be non-negative")
@@ -110,23 +110,23 @@ class _IsolatedValidationContext:
 
 def _read_global_int(global_state: Mapping[str, Value], key: str) -> int:
     value = global_state[key]
-    if isinstance(value, bool) or not isinstance(value, int):
+    if type(value) is not int:
         raise TypeError(f"global_state[{key!r}] must be an int")
     return int(value)
 
 
 def _read_global_bool(global_state: Mapping[str, Value], key: str) -> bool:
     value = global_state[key]
-    if isinstance(value, bool):
+    if type(value) is bool:
         return bool(value)
-    if isinstance(value, int) and value in (0, 1):
+    if type(value) is int and value in (0, 1):
         return bool(value)
     raise TypeError(f"global_state[{key!r}] must be a bool or 0/1 int")
 
 
 def _read_account_int(acct: Any, field_name: str) -> int:
     value = getattr(acct, field_name)
-    if isinstance(value, bool) or not isinstance(value, int):
+    if type(value) is not int:
         raise TypeError(f"account {field_name} must be an int")
     return int(value)
 
@@ -322,7 +322,7 @@ def _validate_epoch_phase(ctx: _IsolatedValidationContext) -> None:
 
 
 def _validate_account_key(pk: Any) -> None:
-    if not isinstance(pk, str):
+    if type(pk) is not str:
         raise TypeError("accounts keys must be non-empty strings")
     if not pk:
         raise TypeError("accounts keys must be non-empty strings")

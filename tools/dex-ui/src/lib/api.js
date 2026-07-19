@@ -1,6 +1,5 @@
 const DEFAULT_API_BASE = '';
 const DEFAULT_TIMEOUT_MS = 15_000;
-const DEFAULT_ZENO_ORACLE_API_BASE = 'http://127.0.0.1:8787';
 
 export function getRuntimeConfig() {
   if (typeof window === 'undefined') {
@@ -8,65 +7,6 @@ export function getRuntimeConfig() {
   }
   const cfg = window.__ZENODEX_CONFIG__;
   return cfg && typeof cfg === 'object' ? cfg : {};
-}
-
-export function isLocalTestnetDeployment(runtimeConfig = getRuntimeConfig()) {
-  const deployment = String(runtimeConfig?.deployment || '').toLowerCase();
-  return deployment === 'local-testnet' || deployment === 'localtest';
-}
-
-export function readLocalSmokeFragmentSecret(names) {
-  if (!isLocalTestnetDeployment() || typeof window === 'undefined') {
-    return '';
-  }
-  const fragment = String(window.location.hash || '').replace(/^#/, '');
-  if (!fragment) {
-    return '';
-  }
-  const fragmentParams = new URLSearchParams(fragment);
-  for (const name of Array.isArray(names) ? names : [names]) {
-    const value = fragmentParams.get(name);
-    if (value) {
-      return value;
-    }
-  }
-  return '';
-}
-
-function parseBooleanLike(raw) {
-  if (raw === true || raw === 'true' || raw === '1' || raw === 1) {
-    return true;
-  }
-  if (raw === false || raw === 'false' || raw === '0' || raw === 0) {
-    return false;
-  }
-  return undefined;
-}
-
-export function getRuntimeBooleanFlag({ queryKey, runtimeKey, envKey, defaultValue = false }) {
-  if (typeof window !== 'undefined' && queryKey) {
-    const params = new URLSearchParams(window.location.search);
-    if (params.has(queryKey)) {
-      return parseBooleanLike(params.get(queryKey)) ?? Boolean(defaultValue);
-    }
-  }
-
-  if (runtimeKey) {
-    const runtimeValue = getRuntimeConfig()?.[runtimeKey];
-    const parsedRuntime = parseBooleanLike(runtimeValue);
-    if (parsedRuntime !== undefined) {
-      return parsedRuntime;
-    }
-  }
-
-  if (typeof import.meta !== 'undefined' && import.meta.env && envKey && import.meta.env[envKey] !== undefined) {
-    const parsedEnv = parseBooleanLike(import.meta.env[envKey]);
-    if (parsedEnv !== undefined) {
-      return parsedEnv;
-    }
-  }
-
-  return Boolean(defaultValue);
 }
 
 function normalizeApiBase(raw) {
@@ -80,18 +20,19 @@ function normalizeApiBase(raw) {
 function getZenoOracleApiBase() {
   const runtimeConfig = getRuntimeConfig();
   const hasRuntimeOracleBase = Object.prototype.hasOwnProperty.call(runtimeConfig, 'zenoOracleApiBase');
-  const runtimeBase = normalizeApiBase(runtimeConfig.zenoOracleApiBase);
-  if (runtimeBase) {
-    return runtimeBase;
+  if (hasRuntimeOracleBase) {
+    if (typeof runtimeConfig.zenoOracleApiBase !== 'string') {
+      throw new Error('zeno_oracle_api_base_unconfigured');
+    }
+    // An explicitly empty value selects the same origin. Absence is not
+    // equivalent: production must declare this authority boundary.
+    return normalizeApiBase(runtimeConfig.zenoOracleApiBase);
   }
   const v = normalizeApiBase(import.meta?.env?.VITE_ZENO_ORACLE_API_URL ?? '');
   if (v) {
     return v;
   }
-  if (hasRuntimeOracleBase) {
-    return '';
-  }
-  return DEFAULT_ZENO_ORACLE_API_BASE;
+  throw new Error('zeno_oracle_api_base_unconfigured');
 }
 
 export function getApiBase() {
@@ -291,28 +232,12 @@ export function apiPrepareZusdWallet(body, options = {}) {
   });
 }
 
-export function apiSubmitZusdWallet(body, options = {}) {
-  return apiFetchJson('/api/zusd/wallet/submit', {
-    method: 'POST',
-    body: JSON.stringify(body || {}),
-    ...(options || {}),
-  });
-}
-
 export function apiGetZusdMonetaryStatus(options = {}) {
   return apiFetchJson('/api/zusd/monetary/status', { method: 'GET', ...(options || {}) });
 }
 
 export function apiPrepareZusdMonetary(body, options = {}) {
   return apiFetchJson('/api/zusd/monetary/prepare', {
-    method: 'POST',
-    body: JSON.stringify(body || {}),
-    ...(options || {}),
-  });
-}
-
-export function apiSubmitZusdMonetary(body, options = {}) {
-  return apiFetchJson('/api/zusd/monetary/submit', {
     method: 'POST',
     body: JSON.stringify(body || {}),
     ...(options || {}),
@@ -333,30 +258,6 @@ export function apiPreparePerpsWallet(body, options = {}) {
 
 export function apiSubmitPerpsWallet(body, options = {}) {
   return apiFetchJson('/api/perps/wallet/submit', {
-    method: 'POST',
-    body: JSON.stringify(body || {}),
-    ...(options || {}),
-  });
-}
-
-export function apiMintTestnetFaucet(body, options = {}) {
-  return apiFetchJson('/api/testnet/faucet', {
-    method: 'POST',
-    body: JSON.stringify(body || {}),
-    ...(options || {}),
-  });
-}
-
-export function apiMintPerpsWalletTestnetFaucet(body, options = {}) {
-  return apiFetchJson('/api/perps/wallet/testnet-faucet', {
-    method: 'POST',
-    body: JSON.stringify(body || {}),
-    ...(options || {}),
-  });
-}
-
-export function apiBuildPerpsOracleBridge(body, options = {}) {
-  return apiFetchJson('/api/perps/wallet/oracle-bridge-template', {
     method: 'POST',
     body: JSON.stringify(body || {}),
     ...(options || {}),
@@ -864,22 +765,6 @@ export function apiDexPokayokeSwapSuggestHeavy(
       target_actions: targetActions,
       pools: [],
     }),
-    ...(options || {}),
-  });
-}
-
-export function apiCheckProofMiningStatus(body, options = {}) {
-  return apiFetchJson('/api/dex/proof_mining_status', {
-    method: 'POST',
-    body: JSON.stringify(body || {}),
-    ...(options || {}),
-  });
-}
-
-export function apiBuildProofMiningPayoutTemplate(body, options = {}) {
-  return apiFetchJson('/api/dex/proof_mining_payout_template', {
-    method: 'POST',
-    body: JSON.stringify(body || {}),
     ...(options || {}),
   });
 }

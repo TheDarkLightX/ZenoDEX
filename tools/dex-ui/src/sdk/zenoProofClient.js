@@ -814,7 +814,7 @@ export async function advanceWalletSyncStateV0({
     && candidateHeight > validatedCurrentState.height
   ) {
     // Continue only from the header the wallet already accepted; a replay from
-    // a different root is an alternate history even if its local hashes line up.
+    // a different root is an alternate history even if its constituent hashes line up.
     effectiveExpectedTrustedPrevHeaderHash = validatedCurrentState.target_header_hash;
   }
   const effectiveExpectedSignerRegistryHash = expectedSignerRegistryHash

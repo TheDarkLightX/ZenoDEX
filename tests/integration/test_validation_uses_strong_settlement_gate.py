@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import replace
 from types import ModuleType
 
 import pytest
@@ -425,8 +426,10 @@ def test_validate_operations_requires_explicit_opt_in_for_snapshot_bound_quote_b
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.fields.pop("quote_receipt_hash", None)
-    intent.fields.pop("quote_receipt_leg_index", None)
+    fields = dict(intent.fields or {})
+    fields.pop("quote_receipt_hash", None)
+    fields.pop("quote_receipt_leg_index", None)
+    intent = replace(intent, fields=fields)
 
     settlement = compute_settlement(
         intents=[intent],

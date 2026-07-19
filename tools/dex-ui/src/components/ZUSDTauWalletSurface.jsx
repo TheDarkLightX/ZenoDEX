@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { apiGetZusdWalletStatus, apiPrepareZusdWallet, apiSubmitZusdWallet, readLocalSmokeFragmentSecret } from '../lib/api.js';
+import { useEffect, useMemo, useState } from 'react';
+import { apiGetZusdWalletStatus, apiPrepareZusdWallet } from '../lib/api.js';
 import './ZUSDTauWalletSurface.css';
 
 const EMPTY_FORM = {
@@ -7,29 +7,9 @@ const EMPTY_FORM = {
   sender_pubkey: '',
   recipient_pubkey: '',
   operator_pubkey: '',
-  signer_privkey: '',
   amount: '100',
   deadline: '',
 };
-
-function readSmokeConfig() {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('zenodexUiSmokeZusd') !== '1') {
-    return null;
-  }
-  return {
-    action: params.get('zusdAction') || 'transfer',
-    sender_pubkey: params.get('senderPubkey') || '',
-    recipient_pubkey: params.get('recipientPubkey') || '',
-    operator_pubkey: params.get('operatorPubkey') || '',
-    signer_privkey: readLocalSmokeFragmentSecret('signerPrivkey'),
-    amount: params.get('zusdAmount') || '100',
-    deadline: params.get('zusdDeadline') || '',
-  };
-}
 
 function buildPayload(form) {
   const payload = {
@@ -48,20 +28,16 @@ function buildPayload(form) {
   if (form.operator_pubkey.trim()) {
     payload.operator_pubkey = form.operator_pubkey.trim();
   }
-  if (form.signer_privkey.trim()) {
-    payload.signer_privkey = form.signer_privkey.trim();
-  }
   return payload;
 }
 
 function ZUSDTauWalletSurface() {
   const [status, setStatus] = useState(null);
   const [statusError, setStatusError] = useState('');
-  const [form, setForm] = useState(() => readSmokeConfig() || EMPTY_FORM);
+  const [form, setForm] = useState(EMPTY_FORM);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const smokeRan = useRef(false);
 
   const isTransfer = form.action === 'transfer';
   const isMint = form.action === 'mint';
@@ -101,48 +77,6 @@ function ZUSDTauWalletSurface() {
     }
   }
 
-  async function handleSubmit() {
-    setBusy(true);
-    setError('');
-    try {
-      const payload = await apiSubmitZusdWallet(buildPayload(form), { timeoutMs: 20000 });
-      setResult(payload);
-    } catch (err) {
-      setResult(null);
-      setError(err?.message || 'submit_failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  useEffect(() => {
-    const smoke = readSmokeConfig();
-    if (!smoke || smokeRan.current || busy) {
-      return;
-    }
-    if (status?.node_reachable !== true) {
-      return;
-    }
-    smokeRan.current = true;
-    async function runSmoke() {
-      const nextSmoke = { ...smoke };
-      setForm(nextSmoke);
-      if (!nextSmoke.signer_privkey.trim()) {
-        throw new Error('smoke signer credential required');
-      }
-      return apiSubmitZusdWallet(buildPayload(nextSmoke), { timeoutMs: 20000 });
-    }
-    void runSmoke()
-      .then((payload) => {
-        setResult(payload);
-        setError('');
-      })
-      .catch((err) => {
-        setResult(null);
-        setError(err?.message || 'submit_failed');
-      });
-  }, [busy, status]);
-
   return (
     <section className="zusd-wallet-surface">
       <div className="zusd-hero panel panel-glass animate-fade-in">
@@ -150,7 +84,7 @@ function ZUSDTauWalletSurface() {
           <p className="zusd-kicker">zUSD account operations</p>
           <h1>zUSD Wallet</h1>
           <p className="zusd-subtitle">
-            Transfer zUSD, review account balances, and submit signed wallet transactions.
+            Review account balances and prepare unsigned zUSD wallet transactions for an external signer.
           </p>
         </div>
         <div className="zusd-hero-meta">
@@ -170,7 +104,7 @@ function ZUSDTauWalletSurface() {
             <div className="zusd-wallet-kv"><span>Asset ID</span><span className="zusd-mono">{status?.asset_id || 'unavailable'}</span></div>
             <div className="zusd-wallet-kv"><span>Endpoint</span><span>{status?.tau_host || 'network'}:{status?.tau_port || '-'}</span></div>
             <div className="zusd-wallet-kv"><span>Bridge</span><span>{status?.app_bridge_available ? 'available' : 'not detected'}</span></div>
-            <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'Local signer' : 'External signer'}</span></div>
+            <div className="zusd-wallet-kv"><span>Signing</span><span>External signer required</span></div>
             <div className="zusd-wallet-kv"><span>Operator</span><span className="zusd-mono">{status?.token_operator_pubkey || 'not configured'}</span></div>
           </div>
           {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}
@@ -183,8 +117,8 @@ function ZUSDTauWalletSurface() {
 
         <div className="panel zusd-wallet-card">
           <div className="zusd-section-header">
-            <h2>Submit transfer</h2>
-            <span className="zusd-section-badge">Signed transaction</span>
+            <h2>Prepare transfer</h2>
+            <span className="zusd-section-badge">Unsigned request</span>
           </div>
           <div className="zusd-wallet-form">
             <label className="label" htmlFor="zusd-action">Action</label>
@@ -261,21 +195,12 @@ function ZUSDTauWalletSurface() {
               placeholder="optional"
             />
 
-            <label className="label" htmlFor="zusd-signer">Signer credential</label>
-            <input
-              id="zusd-signer"
-              className="input"
-              value={form.signer_privkey}
-              onChange={(event) => setForm((current) => ({ ...current, signer_privkey: event.target.value }))}
-              placeholder="32-byte hex or integer"
-            />
-
+            <p className="zusd-wallet-placeholder" role="status">
+              Submission is blocked until the production external-signer envelope is integrated. Private key material is never accepted by this UI.
+            </p>
             <div className="zusd-wallet-actions">
               <button className="btn btn-secondary" type="button" onClick={handlePrepare} disabled={busy}>
-                {busy ? 'Preparing...' : 'Prepare'}
-              </button>
-              <button className="btn btn-primary" type="button" onClick={handleSubmit} disabled={busy}>
-                {busy ? 'Submitting...' : 'Submit transaction'}
+                {busy ? 'Preparing...' : 'Prepare unsigned request'}
               </button>
             </div>
             {error ? <p className="zusd-wallet-error">{error}</p> : null}
@@ -300,7 +225,7 @@ function ZUSDTauWalletSurface() {
               <div className="zusd-wallet-kv"><span>Tx Sequence</span><span>{liveSummary.tx_sequence_number}</span></div>
             </div>
           ) : (
-            <p className="zusd-wallet-placeholder">Prepare or submit a request to load the current network context.</p>
+            <p className="zusd-wallet-placeholder">Prepare a request to load the current network context.</p>
           )}
         </div>
 

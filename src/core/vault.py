@@ -11,11 +11,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping
 
+from ..state.immutable import SealedValue, seal_dataclass_init
+
 ACC_SCALE = 1_000_000
 
 
-@dataclass(frozen=True)
-class VaultState:
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
+class VaultState(SealedValue):
     """Vault state."""
 
     acc_reward_per_share: int
@@ -25,6 +28,15 @@ class VaultState:
     staked_lp_shares: int
 
     def __post_init__(self) -> None:
+        for name, value in (
+            ("acc_reward_per_share", self.acc_reward_per_share),
+            ("last_update_acc", self.last_update_acc),
+            ("pending_rewards", self.pending_rewards),
+            ("reward_balance", self.reward_balance),
+            ("staked_lp_shares", self.staked_lp_shares),
+        ):
+            if type(value) is not int:
+                raise TypeError(f"{name} must be an int")
         if self.acc_reward_per_share < 0:
             raise ValueError("acc_reward_per_share must be non-negative")
         if self.last_update_acc < 0:

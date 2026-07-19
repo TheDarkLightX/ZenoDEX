@@ -16,13 +16,14 @@ Units note:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Dict, Literal
+from typing import Dict, Literal, TypeVar
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
+from ..state.immutable import FrozenDict, SealedValue, seal_dataclass_init
 from . import perps_fixed_validation as _fixed_validation
 from . import perps_isolated_validation as _isolated_validation
-from . import perps_np_validation as _np_validation
 from .perp_apply_funding_auto_gate import (
     MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
 )
@@ -36,15 +37,10 @@ from .perps_isolated_validation import (
     validate_isolated_account_state,
     validate_isolated_state_consistency,
 )
-from .perps_np_validation import (
-    NpMarketValidationRequest,
-    validate_np_account_record,
-    validate_np_market_state,
-    validate_np_pending_intent_record,
-)
 
 # Kernel value domain (mirrors the YAML spec / generated refs): bool | int | str
 Value = bool | int | str
+_OwnedValue = TypeVar("_OwnedValue")
 
 MAX_PENDING_FUNDING_CLOSEOUT_ROOT_HASHES = 64
 MAX_FUNDING_CLOSEOUT_SINK_CLAIMANT_BALANCES = 128
@@ -71,7 +67,7 @@ def _pubkey_bytes48_or_none(pubkey: str) -> bytes | None:
 
 
 def _is_non_bool_int(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
+    return type(value) is int
 
 
 def _is_zero_one_int(value: object) -> bool:
@@ -79,11 +75,11 @@ def _is_zero_one_int(value: object) -> bool:
 
 
 def _is_non_empty_str(value: object) -> bool:
-    return isinstance(value, str) and bool(value)
+    return type(value) is str and bool(value)
 
 
 def _is_sha256_hash(value: object) -> bool:
-    if not isinstance(value, str):
+    if type(value) is not str:
         return False
     if not value.startswith("sha256:") or len(value) != len("sha256:") + 64:
         return False
@@ -91,10 +87,27 @@ def _is_sha256_hash(value: object) -> bool:
     return suffix.lower() == suffix and all(ch in "0123456789abcdef" for ch in suffix)
 
 
+def _owned_str_key_mapping(
+    value: Mapping[str, _OwnedValue],
+    *,
+    name: str,
+) -> dict[str, _OwnedValue]:
+    """Snapshot a mapping once while rejecting executable key subclasses."""
+
+    owned: dict[str, _OwnedValue] = {}
+    for key, inner in value.items():
+        if type(key) is not str:
+            raise TypeError(f"{name} keys must be exact strings")
+        if key in owned:
+            raise ValueError(f"{name} contains duplicate key {key!r}")
+        owned[key] = inner
+    return owned
+
+
 def _normalize_pending_funding_closeout_root_hashes(value: object) -> tuple[str, ...]:
     if value is None:
         return ()
-    if not isinstance(value, tuple):
+    if type(value) is not tuple:
         raise TypeError("pending_funding_closeout_root_hashes must be a tuple")
     if len(value) > MAX_PENDING_FUNDING_CLOSEOUT_ROOT_HASHES:
         raise ValueError("too many pending funding closeout root hashes")
@@ -111,7 +124,7 @@ def _normalize_pending_funding_closeout_source_availability_hashes(
 ) -> tuple[str, ...]:
     if value is None:
         return ()
-    if not isinstance(value, tuple):
+    if type(value) is not tuple:
         raise TypeError("pending_funding_closeout_source_availability_hashes must be a tuple")
     if len(value) > MAX_PENDING_FUNDING_CLOSEOUT_ROOT_HASHES:
         raise ValueError("too many pending funding closeout source availability hashes")
@@ -130,7 +143,7 @@ def _normalize_pending_funding_closeout_carried_liability_hashes(
 ) -> tuple[str, ...]:
     if value is None:
         return ()
-    if not isinstance(value, tuple):
+    if type(value) is not tuple:
         raise TypeError("pending_funding_closeout_carried_liability_hashes must be a tuple")
     if len(value) > MAX_PENDING_FUNDING_CLOSEOUT_ROOT_HASHES:
         raise ValueError("too many pending funding closeout carried liability hashes")
@@ -149,7 +162,7 @@ def _normalize_funding_closeout_policy_ledger_hashes(
 ) -> tuple[str, ...]:
     if value is None:
         return ()
-    if not isinstance(value, tuple):
+    if type(value) is not tuple:
         raise TypeError("funding_closeout_policy_ledger_hashes must be a tuple")
     if len(value) > MAX_PENDING_FUNDING_CLOSEOUT_ROOT_HASHES:
         raise ValueError("too many funding closeout policy ledger hashes")
@@ -168,14 +181,14 @@ def _normalize_funding_closeout_sink_claimant_balances(
 ) -> tuple[tuple[str, int], ...]:
     if value is None:
         return ()
-    if not isinstance(value, tuple):
+    if type(value) is not tuple:
         raise TypeError("funding_closeout_sink_claimant_balances_quote must be a tuple")
     if len(value) > MAX_FUNDING_CLOSEOUT_SINK_CLAIMANT_BALANCES:
         raise ValueError("too many funding closeout sink claimant balances")
     balances: list[tuple[str, int]] = []
     seen: set[str] = set()
     for row in value:
-        if not isinstance(row, tuple) or len(row) != 2:
+        if type(row) is not tuple or len(row) != 2:
             raise TypeError("funding closeout sink claimant balance row must be a pair")
         claimant, balance_quote = row
         if not _is_non_empty_str(claimant):
@@ -198,14 +211,14 @@ def _normalize_funding_closeout_receiver_claim_balances(
 ) -> tuple[tuple[str, int], ...]:
     if value is None:
         return ()
-    if not isinstance(value, tuple):
+    if type(value) is not tuple:
         raise TypeError("funding_closeout_receiver_claim_balances_quote must be a tuple")
     if len(value) > MAX_FUNDING_CLOSEOUT_RECEIVER_CLAIM_BALANCES:
         raise ValueError("too many funding closeout receiver claim balances")
     balances: list[tuple[str, int]] = []
     seen: set[str] = set()
     for row in value:
-        if not isinstance(row, tuple) or len(row) != 2:
+        if type(row) is not tuple or len(row) != 2:
             raise TypeError("funding closeout receiver claim balance row must be a pair")
         account_pubkey, balance_quote = row
         if not _is_non_empty_str(account_pubkey):
@@ -228,14 +241,14 @@ def _normalize_funding_closeout_receiver_claim_lots(
 ) -> tuple[tuple[str, str, int, int], ...]:
     if value is None:
         return ()
-    if not isinstance(value, tuple):
+    if type(value) is not tuple:
         raise TypeError("funding_closeout_receiver_claim_lots_quote must be a tuple")
     if len(value) > MAX_FUNDING_CLOSEOUT_RECEIVER_CLAIM_LOTS:
         raise ValueError("too many funding closeout receiver claim lots")
     lots: list[tuple[str, str, int, int]] = []
     seen: set[tuple[str, str]] = set()
     for row in value:
-        if not isinstance(row, tuple) or len(row) != 4:
+        if type(row) is not tuple or len(row) != 4:
             raise TypeError("funding closeout receiver claim lot row must be a 4-tuple")
         account_pubkey, lot_id, balance_quote, expires_at_epoch = row
         if not _is_non_empty_str(account_pubkey):
@@ -308,16 +321,16 @@ def _infer_epoch_phase(gs: dict) -> int:
 
 def _legacy_global_int(gs: dict, key: str, default: int) -> int:
     value = gs.get(key, default)
-    if isinstance(value, bool) or not isinstance(value, int):
+    if type(value) is not int:
         raise TypeError(f"global_state[{key!r}] must be an int")
     return int(value)
 
 
 def _legacy_global_bool(gs: dict, key: str, default: bool) -> bool:
     value = gs.get(key, default)
-    if isinstance(value, bool):
+    if type(value) is bool:
         return bool(value)
-    if isinstance(value, int) and value in (0, 1):
+    if type(value) is int and value in (0, 1):
         return bool(value)
     raise TypeError(f"global_state[{key!r}] must be a bool or 0/1 int")
 
@@ -329,14 +342,16 @@ def _validate_isolated_market_header(
     global_state: object,
     accounts: object,
 ) -> None:
+    if type(kind) is not str:
+        raise TypeError("kind must be an exact string")
     if kind != PERP_MARKET_KIND_ISOLATED_V2:
         raise ValueError(f"unsupported perps market kind: {kind}")
     if not _is_non_empty_str(quote_asset):
         raise TypeError("quote_asset must be a non-empty string")
-    if not isinstance(global_state, dict):
-        raise TypeError("global_state must be a dict")
-    if not isinstance(accounts, dict):
-        raise TypeError("accounts must be a dict")
+    if not isinstance(global_state, Mapping):
+        raise TypeError("global_state must be a mapping")
+    if not isinstance(accounts, Mapping):
+        raise TypeError("accounts must be a mapping")
 
 
 def _ensure_isolated_global_defaults(global_state: Dict[str, Value]) -> None:
@@ -360,7 +375,7 @@ def _validate_isolated_global_keys(global_state: Dict[str, Value]) -> None:
 def _normalize_isolated_epoch_phase(global_state: Dict[str, Value]) -> None:
     # Canonical kernel encoding: Open=0, PricePublished=1, Settled=2.
     ep = global_state.get("epoch_phase")
-    if isinstance(ep, str):
+    if type(ep) is str:
         if ep not in _EPOCH_PHASE_STR_TO_INT:
             raise ValueError(f"global_state['epoch_phase'] invalid: {ep!r}")
         global_state["epoch_phase"] = _EPOCH_PHASE_STR_TO_INT[ep]
@@ -378,7 +393,7 @@ def _validate_normalized_isolated_epoch_phase(value: Value) -> None:
 
 
 def _normalize_isolated_bool_global_value(global_state: Dict[str, Value], key: str, value: Value) -> None:
-    if isinstance(value, bool):
+    if type(value) is bool:
         return
     if _is_zero_one_int(value):
         global_state[key] = bool(value)
@@ -412,20 +427,13 @@ _EPOCH_PHASE_INT_TO_STR: dict[int, str] = {0: "Open", 1: "PricePublished", 2: "S
 PERP_MARKET_KIND_ISOLATED_V2: Literal["isolated_v2"] = "isolated_v2"
 PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1: Literal["clearinghouse_2p_v1"] = "clearinghouse_2p_v1"
 PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1: Literal["clearinghouse_3p_transfer_v1"] = "clearinghouse_3p_transfer_v1"
-# Open, dynamic-membership N-party net-zero clearinghouse (3+ independent wallets).
-# Unlike the fixed-slot 2p/3p kernels this market has no a/b/c slots. It holds a
-# dynamic account set and delegates transition semantics to
-# `src/core/perp_np_clearinghouse.py`.
-PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1: Literal["clearinghouse_np_v1"] = "clearinghouse_np_v1"
 
 # Compatibility re-exports: existing snapshot and integration code import these
 # constants from `src.core.perps`.
 PERP_ACCOUNT_KEYS = _isolated_validation.PERP_ACCOUNT_KEYS
 PERP_ISOLATED_GLOBAL_KEYS = _isolated_validation.PERP_ISOLATED_GLOBAL_KEYS
 _PERP_ISOLATED_GLOBAL_BOOL_KEYS = _isolated_validation.PERP_ISOLATED_GLOBAL_BOOL_KEYS
-PERP_CLEARINGHOUSE_NP_ACCOUNT_KEYS = _np_validation.PERP_CLEARINGHOUSE_NP_ACCOUNT_KEYS
-PERP_CLEARINGHOUSE_NP_GLOBAL_KEYS = _np_validation.PERP_CLEARINGHOUSE_NP_GLOBAL_KEYS
-PERP_CLEARINGHOUSE_NP_PENDING_INTENT_KEYS = _np_validation.PERP_CLEARINGHOUSE_NP_PENDING_INTENT_KEYS
+_PERP_ISOLATED_SHELL_GLOBAL_KEYS = frozenset({"mark_price_source_kind"})
 PERP_CLEARINGHOUSE_2P_BOOL_KEYS = _fixed_validation.PERP_CLEARINGHOUSE_2P_BOOL_KEYS
 PERP_CLEARINGHOUSE_2P_STATE_KEYS = _fixed_validation.PERP_CLEARINGHOUSE_2P_STATE_KEYS
 PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS = _fixed_validation.PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS
@@ -434,8 +442,9 @@ PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS = _fixed_validation.PERP_CLEARINGHOUSE
 # Backwards-compatible alias (older modules import PERP_GLOBAL_KEYS).
 PERP_GLOBAL_KEYS: set[str] = PERP_ISOLATED_GLOBAL_KEYS
 
-@dataclass(frozen=True)
-class PerpAccountState:
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
+class PerpAccountState(SealedValue):
     """Per-account isolated margin state for the epoch-perp kernel (v2 default)."""
 
     position_base: int
@@ -459,13 +468,14 @@ class PerpAccountState:
         }
 
 
-@dataclass(frozen=True)
-class PerpMarketState:
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
+class PerpMarketState(SealedValue):
     """Single-market state: global epoch/oracle + account table."""
 
     quote_asset: str
-    global_state: Dict[str, Value]
-    accounts: Dict[str, PerpAccountState]
+    global_state: Mapping[str, Value]
+    accounts: Mapping[str, PerpAccountState]
     kind: Literal["isolated_v2"] = PERP_MARKET_KIND_ISOLATED_V2
     pending_funding_closeout_root_hashes: tuple[str, ...] = ()
     pending_funding_closeout_source_availability_hashes: tuple[str, ...] = ()
@@ -482,10 +492,23 @@ class PerpMarketState:
             global_state=self.global_state,
             accounts=self.accounts,
         )
-        _ensure_isolated_global_defaults(self.global_state)
-        _validate_isolated_global_keys(self.global_state)
-        _normalize_isolated_epoch_phase(self.global_state)
-        _normalize_isolated_global_values(self.global_state)
+        # Persistent state owns its mappings.  Normalization may use detached
+        # mutable builders during construction, but no mutable alias may escape
+        # into the committed market snapshot.
+        owned_global_state = _owned_str_key_mapping(
+            self.global_state,
+            name="global_state",
+        )
+        owned_accounts = _owned_str_key_mapping(
+            self.accounts,
+            name="accounts",
+        )
+        if any(type(account) is not PerpAccountState for account in owned_accounts.values()):
+            raise TypeError("accounts values must be exact PerpAccountState instances")
+        _ensure_isolated_global_defaults(owned_global_state)
+        _validate_isolated_global_keys(owned_global_state)
+        _normalize_isolated_epoch_phase(owned_global_state)
+        _normalize_isolated_global_values(owned_global_state)
         object.__setattr__(
             self,
             "pending_funding_closeout_root_hashes",
@@ -549,22 +572,38 @@ class PerpMarketState:
             "funding_closeout_receiver_claim_balances_quote",
             normalized_receiver_claim_balances,
         )
-        self._validate_isolated_state_consistency()
-        self._validate_funding_closeout_sink_claimant_balances()
+        self._validate_isolated_state_consistency(
+            global_state=owned_global_state,
+            accounts=owned_accounts,
+        )
+        self._validate_funding_closeout_sink_claimant_balances(
+            global_state=owned_global_state,
+        )
+        object.__setattr__(self, "global_state", FrozenDict(owned_global_state))
+        object.__setattr__(self, "accounts", FrozenDict(owned_accounts))
 
-    def _validate_isolated_state_consistency(self) -> None:
+    def _validate_isolated_state_consistency(
+        self,
+        *,
+        global_state: Mapping[str, Value],
+        accounts: Mapping[str, PerpAccountState],
+    ) -> None:
         """Validate consensus-critical invariants on the persistent isolated-market state.
 
         This prevents malformed snapshots from bypassing phase gates or corrupting
         derived accounting.
         """
         validate_isolated_state_consistency(
-            global_state=self.global_state,
-            accounts=self.accounts,
+            global_state=global_state,
+            accounts=accounts,
             epoch_phase_int_to_str=_EPOCH_PHASE_INT_TO_STR,
         )
 
-    def _validate_funding_closeout_sink_claimant_balances(self) -> None:
+    def _validate_funding_closeout_sink_claimant_balances(
+        self,
+        *,
+        global_state: Mapping[str, Value],
+    ) -> None:
         total = sum(
             balance_quote
             for _, balance_quote in self.funding_closeout_sink_claimant_balances_quote
@@ -572,7 +611,7 @@ class PerpMarketState:
         if total == 0:
             return
         for key in ("fee_pool_quote", "fee_income", "insurance_balance"):
-            value = self.global_state.get(key)
+            value = global_state.get(key)
             if not _is_non_bool_int(value):
                 raise TypeError(f"global_state[{key!r}] must be an int")
             if total > int(value):
@@ -581,12 +620,19 @@ class PerpMarketState:
                 )
 
     def kernel_state_for_account(self, account: PerpAccountState) -> dict[str, Value]:
-        # Merge global + account state into a single kernel state dict.
-        return {**dict(self.global_state), **account.to_kernel_state()}
+        # Shell policy fields remain authoritative persistent state, but are not
+        # part of the strict v2/v4 state-machine schema.
+        kernel_global_state = {
+            key: value
+            for key, value in self.global_state.items()
+            if key not in _PERP_ISOLATED_SHELL_GLOBAL_KEYS
+        }
+        return {**kernel_global_state, **account.to_kernel_state()}
 
 
-@dataclass(frozen=True)
-class PerpClearinghouse2pMarketState:
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
+class PerpClearinghouse2pMarketState(SealedValue):
     """Two-party clearinghouse market state (spec-driven kernel state).
 
     The clearinghouse kernel does not store pubkeys; we bind two pubkeys to its
@@ -600,10 +646,13 @@ class PerpClearinghouse2pMarketState:
     quote_asset: str
     account_a_pubkey: str
     account_b_pubkey: str
-    state: Dict[str, Value]
+    state: Mapping[str, Value]
     kind: Literal["clearinghouse_2p_v1"] = PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1
 
     def __post_init__(self) -> None:
+        if not isinstance(self.state, Mapping):
+            raise TypeError("state must be a mapping")
+        owned_state = _owned_str_key_mapping(self.state, name="state")
         validate_fixed_clearinghouse_shape(
             FixedClearinghouseValidationRequest(
                 kind=self.kind,
@@ -613,13 +662,14 @@ class PerpClearinghouse2pMarketState:
                     ("account_a_pubkey", self.account_a_pubkey),
                     ("account_b_pubkey", self.account_b_pubkey),
                 ),
-                state=self.state,
+                state=owned_state,
                 state_keys=PERP_CLEARINGHOUSE_2P_STATE_KEYS,
                 bool_keys=PERP_CLEARINGHOUSE_2P_BOOL_KEYS,
                 pubkey_bytes48=_pubkey_bytes48,
             )
         )
-        validate_two_party_clearinghouse_invariants(self.state)
+        validate_two_party_clearinghouse_invariants(owned_state)
+        object.__setattr__(self, "state", FrozenDict(owned_state))
 
     def role_for_pubkey(self, pubkey: str) -> Literal["a", "b"] | None:
         pb = _pubkey_bytes48_or_none(pubkey)
@@ -632,8 +682,9 @@ class PerpClearinghouse2pMarketState:
         return None
 
 
-@dataclass(frozen=True)
-class PerpClearinghouse3pTransferMarketState:
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
+class PerpClearinghouse3pTransferMarketState(SealedValue):
     """Three-party transfer clearinghouse market state (spec-driven kernel state).
 
     A/B are the active matched pair, and C is a standby account that can take over a distressed
@@ -648,10 +699,13 @@ class PerpClearinghouse3pTransferMarketState:
     account_a_pubkey: str
     account_b_pubkey: str
     account_c_pubkey: str
-    state: Dict[str, Value]
+    state: Mapping[str, Value]
     kind: Literal["clearinghouse_3p_transfer_v1"] = PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1
 
     def __post_init__(self) -> None:
+        if not isinstance(self.state, Mapping):
+            raise TypeError("state must be a mapping")
+        owned_state = _owned_str_key_mapping(self.state, name="state")
         validate_fixed_clearinghouse_shape(
             FixedClearinghouseValidationRequest(
                 kind=self.kind,
@@ -662,13 +716,14 @@ class PerpClearinghouse3pTransferMarketState:
                     ("account_b_pubkey", self.account_b_pubkey),
                     ("account_c_pubkey", self.account_c_pubkey),
                 ),
-                state=self.state,
+                state=owned_state,
                 state_keys=PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS,
                 bool_keys=PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS,
                 pubkey_bytes48=_pubkey_bytes48,
             )
         )
-        validate_three_party_transfer_clearinghouse_invariants(self.state)
+        validate_three_party_transfer_clearinghouse_invariants(owned_state)
+        object.__setattr__(self, "state", FrozenDict(owned_state))
 
     def role_for_pubkey(self, pubkey: str) -> Literal["a", "b", "c"] | None:
         pb = _pubkey_bytes48_or_none(pubkey)
@@ -683,103 +738,41 @@ class PerpClearinghouse3pTransferMarketState:
         return None
 
 
-@dataclass(frozen=True)
-class PerpClearinghouseNpAccount:
-    """One participant in an N-party clearinghouse market."""
-
-    pubkey: str
-    position_base: int = 0
-    entry_price_e8: int = 0
-    collateral_e8: int = 0
-    funding_paid_cum_e8: int = 0
-    nonce: int = 0
-
-    def __post_init__(self) -> None:
-        validate_np_account_record(account=self, pubkey_bytes48=_pubkey_bytes48)
-
-
-@dataclass(frozen=True)
-class PerpClearinghouseNpPendingIntent:
-    """A single-signed position intent queued for the next batch match."""
-
-    pubkey: str
-    target_base: int
-    nonce: int
-    limit_price_e8: int = 0
-    min_fill_base: int = 0
-    expiry_epoch: int = 1 << 62
-
-    def __post_init__(self) -> None:
-        validate_np_pending_intent_record(intent=self, pubkey_bytes48=_pubkey_bytes48)
-
-
-@dataclass(frozen=True)
-class PerpClearinghouseNpMarketState:
-    """Open N-party net-zero clearinghouse market state."""
-
-    quote_asset: str
-    global_state: Dict[str, int]
-    accounts: tuple[PerpClearinghouseNpAccount, ...] = ()
-    pending_intents: tuple[PerpClearinghouseNpPendingIntent, ...] = ()
-    kind: Literal["clearinghouse_np_v1"] = PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1
-
-    def __post_init__(self) -> None:
-        validate_np_market_state(
-            NpMarketValidationRequest(
-                kind=self.kind,
-                expected_kind=PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
-                quote_asset=self.quote_asset,
-                global_state=self.global_state,
-                accounts=self.accounts,
-                pending_intents=self.pending_intents,
-                account_type=PerpClearinghouseNpAccount,
-                pending_intent_type=PerpClearinghouseNpPendingIntent,
-                pubkey_bytes48=_pubkey_bytes48,
-            )
-        )
-
-    def by_pubkey(self) -> dict[str, PerpClearinghouseNpAccount]:
-        return {a.pubkey: a for a in self.accounts}
-
-    def role_for_pubkey(self, pubkey: str) -> str | None:
-        """Return the participant's own pubkey if it is a member."""
-        pb = _pubkey_bytes48_or_none(pubkey)
-        if pb is None:
-            return None
-        for account in self.accounts:
-            if pb == _pubkey_bytes48_or_none(account.pubkey):
-                return account.pubkey
-        return None
-
-
 PerpAnyMarketState = (
     PerpMarketState
     | PerpClearinghouse2pMarketState
     | PerpClearinghouse3pTransferMarketState
-    | PerpClearinghouseNpMarketState
 )
 
 
-@dataclass(frozen=True)
-class PerpsState:
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
+class PerpsState(SealedValue):
     """Top-level perps module state (can hold multiple markets)."""
 
     version: int
-    markets: Dict[str, PerpAnyMarketState]
+    markets: Mapping[str, PerpAnyMarketState]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.version, int) or isinstance(self.version, bool) or self.version <= 0:
+        if type(self.version) is not int or self.version <= 0:
             raise TypeError("version must be a positive int")
         if self.version not in (PERPS_STATE_VERSION_V4, PERPS_STATE_VERSION_V5):
             raise ValueError(f"unsupported perps state version: {self.version}")
-        if not isinstance(self.markets, dict):
-            raise TypeError("markets must be a dict")
-        if self.version == PERPS_STATE_VERSION_V4:
-            for market_id, market in self.markets.items():
-                if not isinstance(market_id, str):
-                    raise TypeError("markets keys must be strings")
-                if not isinstance(market, PerpMarketState):
-                    raise TypeError("perps v4 supports isolated markets only")
+        if not isinstance(self.markets, Mapping):
+            raise TypeError("markets must be a mapping")
+        owned_markets = _owned_str_key_mapping(self.markets, name="markets")
+        allowed_v5_types = (
+            PerpMarketState,
+            PerpClearinghouse2pMarketState,
+            PerpClearinghouse3pTransferMarketState,
+        )
+        for market in owned_markets.values():
+            if self.version == PERPS_STATE_VERSION_V4:
+                if type(market) is not PerpMarketState:
+                    raise TypeError("perps v4 supports exact isolated markets only")
+            elif type(market) not in allowed_v5_types:
+                raise TypeError("perps v5 markets must use exact persistent market state types")
+        object.__setattr__(self, "markets", FrozenDict(owned_markets))
 
     def get_market(self, market_id: str) -> PerpAnyMarketState | None:
         return self.markets.get(market_id)

@@ -1,14 +1,21 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { delimiter } from 'node:path';
 import { test } from 'node:test';
 import { bls12_381 as bls } from '@noble/curves/bls12-381';
 import { buildAndSignRouteIntent } from './dexIntentSigner.js';
+import { signDexIntentForEngine } from '../../test-support/rawKeySigner.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
+const PYTHONPATH = [REPO_ROOT, process.env.PYTHONPATH].filter(Boolean).join(delimiter);
 const CHAIN_ID = 'zeno-ledger-localtest-v0';
 const PRIVKEY = `0x${'11'.repeat(32)}`;
 const PUBKEY = `0x${Buffer.from(bls.getPublicKey(PRIVKEY.slice(2))).toString('hex')}`;
+const externalDexSigner = (intent, { chainId }) => signDexIntentForEngine(intent, {
+  privkey: PRIVKEY,
+  chainId,
+});
 
 function backendRouteOp({ mode, nonce }) {
   const script = `
@@ -69,7 +76,7 @@ with tempfile.TemporaryDirectory() as td:
     cwd: REPO_ROOT,
     input: JSON.stringify({ sender: PUBKEY, mode, nonce }),
     encoding: 'utf8',
-    env: { ...process.env, PYTHONPATH: REPO_ROOT },
+    env: { ...process.env, PYTHONPATH },
   });
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout);
@@ -98,7 +105,7 @@ print(json.dumps({"ok": ok, "error": err}))
     cwd: REPO_ROOT,
     input: JSON.stringify({ intent, signature, chain_id: CHAIN_ID }),
     encoding: 'utf8',
-    env: { ...process.env, PYTHONPATH: REPO_ROOT },
+    env: { ...process.env, PYTHONPATH },
   });
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout);
@@ -115,7 +122,7 @@ test('route exact-in signer emits backend-parseable per-leg swap intents', async
       nonce: backend.op.nonce,
       deadline: backend.op.deadline,
     },
-    privkey: PRIVKEY,
+    signDexIntent: externalDexSigner,
     chainId: CHAIN_ID,
   });
   assert.equal(signed.intents.length, backend.receipt.body.legs.length);
@@ -142,7 +149,7 @@ test('route exact-out signer emits backend-parseable per-leg swap intents', asyn
       nonce: backend.op.nonce,
       deadline: backend.op.deadline,
     },
-    privkey: PRIVKEY,
+    signDexIntent: externalDexSigner,
     chainId: CHAIN_ID,
   });
   assert.equal(signed.intents.length, backend.receipt.body.legs.length);
@@ -194,7 +201,7 @@ test('route signer does not require RISC0 route binding hash for direct swap int
       nonce: backend.op.nonce,
       deadline: backend.op.deadline,
     },
-    privkey: PRIVKEY,
+    signDexIntent: externalDexSigner,
     chainId: CHAIN_ID,
   });
   assert.equal(signed.intent.quote_receipt_hash, backend.receipt.receipt_hash);

@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { delimiter, dirname, resolve } from 'node:path';
 
 import { verifyBlsEnvelopeV0, verifyBlsQuorumV0 } from './zenoBlsVerifier.js';
 import {
@@ -27,12 +27,13 @@ import {
 
 const _here = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(_here, '../../../..');
+const PYTHONPATH = [REPO_ROOT, process.env.PYTHONPATH].filter(Boolean).join(delimiter);
 
 /** Run a Python snippet against the repo's venv-equivalent interpreter. */
 function pyRun(snippet) {
   const proc = spawnSync('python3', ['-c', snippet], {
     cwd: REPO_ROOT,
-    env: { ...process.env, PYTHONPATH: REPO_ROOT },
+    env: { ...process.env, PYTHONPATH },
     encoding: 'utf-8',
     timeout: 30_000,
   });

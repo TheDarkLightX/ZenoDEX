@@ -2,7 +2,7 @@ import { chromium } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
 const OUT='test-results/screens'; mkdirSync(OUT,{recursive:true});
 const DASH=JSON.parse(readFileSync('test-results/live-oracle-dashboard.json','utf8'));
-const CFG={deployment:'local-testnet',apiBase:'',demoMode:false,allowDemoMode:false,localTestnetZkPosture:{zk_mode_effective:'strict',zk_required:true,proof_verifier_kind:'subprocess'}};
+const CFG={deployment:'local-testnet',apiBase:'',expectedZkPosture:{zk_mode_effective:'strict',zk_required:true,proof_verifier_kind:'subprocess'}};
 const b=await chromium.launch();const p=await (await b.newContext({viewport:{width:1440,height:1300},deviceScaleFactor:2,colorScheme:'dark'})).newPage();
 const errs=[];p.on('pageerror',e=>errs.push(String(e)));p.on('console',m=>{if(m.type()==='error')errs.push('c:'+m.text().slice(0,90));});
 await p.route('**/zenodex-config.json',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(CFG)}));

@@ -10,14 +10,21 @@ This module wires the verified kernels into a single pure step:
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field
-from typing import Dict, List, Literal, Optional, overload
+from dataclasses import dataclass, field, replace
+from typing import List, Literal, Optional, overload
 
-from ..state.balances import BalanceTable
-from ..state.intents import Intent
-from ..state.lp import LPTable
-from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
-from ..state.pools import PoolState
+from ..state.balances import BalanceTable, FrozenBalanceTable, freeze_balance_table
+from ..state.canonical import canonical_hex_fixed_allow_0x
+from ..state.immutable import FrozenDict, SealedValue, seal_dataclass_init
+from ..state.intents import Intent, require_exact_intent
+from ..state.lp import FrozenLPTable, LPTable, freeze_lp_table
+from ..state.nonces import (
+    FrozenNonceTable,
+    NonceTable,
+    freeze_nonce_table,
+    validate_and_apply_intent_nonce_batch,
+)
+from ..state.pools import FrozenPoolState, PoolState, freeze_pool_state
 from .batch_clearing import apply_settlement_pure, compute_settlement, validate_settlement
 from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee_with_dust_carry
 from .oracle import OracleState
@@ -39,8 +46,9 @@ _FAIL_CLOSED_STEP_ERRORS = (
 )
 
 
-@dataclass(frozen=True)
-class DexConfig:
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
+class DexConfig(SealedValue):
     """Runtime config for the core step."""
 
     fee_split_params: Optional[FeeSplitParams] = None
@@ -64,6 +72,20 @@ class DexConfig:
     protocol_fee_recipient_pubkey: Optional[str] = None
 
     def __post_init__(self) -> None:
+        if self.fee_split_params is not None and type(self.fee_split_params) is not FeeSplitParams:
+            raise TypeError("fee_split_params must be an exact FeeSplitParams or None")
+        for string_name, string_value in (
+            ("swap_ordering", self.swap_ordering),
+            ("settlement_validation", self.settlement_validation),
+        ):
+            if type(string_value) is not str or not string_value:
+                raise TypeError(f"{string_name} must be a non-empty string")
+        for bool_name, bool_value in (
+            ("allow_snapshot_bound_quote_bindings", self.allow_snapshot_bound_quote_bindings),
+            ("reject_settlements_with_rejected_intents", self.reject_settlements_with_rejected_intents),
+        ):
+            if type(bool_value) is not bool:
+                raise TypeError(f"{bool_name} must be a bool")
         policy = canonical_protocol_fee_policy(
             share_bps=self.protocol_fee_share_bps,
             recipient_pubkey=self.protocol_fee_recipient_pubkey,
@@ -76,10 +98,11 @@ class DexConfig:
         )
 
 
-@dataclass(frozen=True)
-class DexState:
+@seal_dataclass_init
+@dataclass(frozen=True, slots=True)
+class DexState(SealedValue):
     balances: BalanceTable
-    pools: Dict[str, PoolState]
+    pools: Mapping[str, PoolState]
     lp_balances: LPTable
     nonces: NonceTable = field(default_factory=NonceTable)
 
@@ -89,9 +112,63 @@ class DexState:
     fee_accumulator: FeeAccumulatorState = FeeAccumulatorState()
     perps: Optional[PerpsState] = None
 
+    def __post_init__(self) -> None:
+        if type(self.balances) not in (BalanceTable, FrozenBalanceTable):
+            raise TypeError("balances must be an exact BalanceTable snapshot")
+        if not isinstance(self.pools, Mapping):
+            raise TypeError("pools must be a mapping")
+        if type(self.lp_balances) not in (LPTable, FrozenLPTable):
+            raise TypeError("lp_balances must be an exact LPTable snapshot")
+        if type(self.nonces) not in (NonceTable, FrozenNonceTable):
+            raise TypeError("nonces must be an exact NonceTable snapshot")
+        if self.vault is not None and type(self.vault) is not VaultState:
+            raise TypeError("vault must be an exact VaultState or None")
+        if self.oracle is not None and type(self.oracle) is not OracleState:
+            raise TypeError("oracle must be an exact OracleState or None")
+        if type(self.fee_accumulator) is not FeeAccumulatorState:
+            raise TypeError("fee_accumulator must be an exact FeeAccumulatorState")
+        if self.perps is not None and type(self.perps) is not PerpsState:
+            raise TypeError("perps must be an exact PerpsState or None")
 
+        frozen_pools: dict[str, FrozenPoolState] = {}
+        decoded_pool_ids: dict[str, str] = {}
+        for pool_id, pool in self.pools.items():
+            if type(pool_id) is not str:
+                raise TypeError("pool ids must be strings")
+            if pool_id in frozen_pools:
+                raise ValueError("duplicate pool_id in pools mapping iteration")
+            if type(pool) not in (PoolState, FrozenPoolState):
+                raise TypeError(f"pool {pool_id!r} must be an exact PoolState snapshot")
+            frozen_pool = freeze_pool_state(pool)
+            if frozen_pool.pool_id != pool_id:
+                raise ValueError(
+                    f"pool_id mismatch: key={pool_id} pool.pool_id={frozen_pool.pool_id}"
+                )
+            try:
+                decoded_pool_id = canonical_hex_fixed_allow_0x(
+                    pool_id,
+                    nbytes=32,
+                    name="pool_id",
+                )
+            except ValueError:
+                # Preserve symbolic IDs for non-production/test profiles. Their
+                # canonical spelling requires an explicit snapshot migration.
+                decoded_pool_id = pool_id
+            prior_spelling = decoded_pool_ids.get(decoded_pool_id)
+            if prior_spelling is not None and prior_spelling != pool_id:
+                raise ValueError("duplicate decoded pool_id in pools")
+            decoded_pool_ids[decoded_pool_id] = pool_id
+            frozen_pools[pool_id] = frozen_pool
+
+        object.__setattr__(self, "balances", freeze_balance_table(self.balances))
+        object.__setattr__(self, "pools", FrozenDict(frozen_pools))
+        object.__setattr__(self, "lp_balances", freeze_lp_table(self.lp_balances))
+        object.__setattr__(self, "nonces", freeze_nonce_table(self.nonces))
+
+
+@seal_dataclass_init
 @dataclass(frozen=True, slots=True)
-class DexEffects(Mapping[str, object]):
+class DexEffects(SealedValue, Mapping[str, object]):
     """Immutable, backwards-compatible effect plan.
 
     ``Mapping`` preserves the historical read surface used by the shell and
@@ -114,6 +191,7 @@ class DexEffects(Mapping[str, object]):
             raise ValueError("total_swap_fees must be non-negative")
         if self.fee_split is not None and type(self.fee_split) is not FeeSplitResult:
             raise TypeError("fee_split must be an exact FeeSplitResult or None")
+        object.__setattr__(self, "settlement", replace(self.settlement))
 
     @overload
     def __getitem__(self, key: Literal["settlement"]) -> Settlement: ...
@@ -143,8 +221,9 @@ class DexEffects(Mapping[str, object]):
         return len(self._KEYS)
 
 
+@seal_dataclass_init
 @dataclass(frozen=True, slots=True)
-class DexStepResult:
+class DexStepResult(SealedValue):
     ok: bool
     state: Optional[DexState] = None
     effects: Optional[DexEffects] = None
@@ -312,6 +391,12 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
     This function is pure: it returns a new DexState and structured effects.
     """
     try:
+        if type(config) is not DexConfig:
+            raise TypeError("config must be an exact DexConfig")
+        if type(state) is not DexState:
+            raise TypeError("state must be an exact DexState")
+        for intent in intents:
+            require_exact_intent(intent)
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
             intents=intents,

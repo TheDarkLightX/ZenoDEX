@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from ..state.balances import BalanceTable, PubKey
 from ..state.intents import Intent
@@ -18,7 +19,7 @@ class ComputeSettlementRequest:
     """Input shape for deterministic multi-pool settlement computation."""
 
     intents: List[Intent]
-    pools: Dict[str, PoolState]
+    pools: Mapping[str, PoolState]
     balances: BalanceTable
     lp_balances: Optional[LPTable] = None
     swap_ordering: str = "greedy_ab_refined"

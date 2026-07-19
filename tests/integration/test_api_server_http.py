@@ -19,7 +19,7 @@ def _start_test_server(
     httpd.rate_limiter = api_server.TokenBucketRateLimiter(rpm=0)  # type: ignore[attr-defined]
     httpd.perps_api_enabled = bool(perps_enabled)  # type: ignore[attr-defined]
     httpd.zusd_api_enabled = bool(zusd_enabled)  # type: ignore[attr-defined]
-    httpd.demo_api_token = ""  # type: ignore[attr-defined]
+    httpd.api_bearer_token = ""  # type: ignore[attr-defined]
 
     t = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     t.start()

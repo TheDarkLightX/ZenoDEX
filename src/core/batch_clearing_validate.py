@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -22,7 +23,7 @@ class _SettlementValidationFactories:
 
 def _created_pools_from_events(
     settlement: Settlement,
-    pre_pools: Dict[str, PoolState],
+    pre_pools: Mapping[str, PoolState],
     factories: _SettlementValidationFactories,
 ) -> Tuple[Optional[Dict[str, PoolState]], Optional[str]]:
     created_pools: Dict[str, PoolState] = {}
@@ -74,7 +75,7 @@ def _check_balance_nonnegative(settlement: Settlement, pre_balances: BalanceTabl
 
 def _check_reserve_nonnegative(
     settlement: Settlement,
-    pools_view: Dict[str, PoolState],
+    pools_view: Mapping[str, PoolState],
 ) -> Optional[str]:
     reserve_net: Dict[Tuple[str, AssetId], Amount] = defaultdict(int)
     for reserve_delta in settlement.reserve_deltas:
@@ -120,8 +121,8 @@ def _check_asset_conservation(settlement: Settlement) -> Optional[str]:
 
 def _check_lp_supply_nonnegative(
     settlement: Settlement,
-    pre_pools: Dict[str, PoolState],
-    pools_view: Dict[str, PoolState],
+    pre_pools: Mapping[str, PoolState],
+    pools_view: Mapping[str, PoolState],
 ) -> Optional[str]:
     supply_net: Dict[str, Amount] = defaultdict(int)
     for lp_delta in settlement.lp_deltas:
@@ -138,7 +139,7 @@ def _check_lp_supply_nonnegative(
 def validate_settlement_with_factories(
     settlement: Settlement,
     pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
+    pre_pools: Mapping[str, PoolState],
     pre_lp_balances: Optional[LPTable],
     factories: _SettlementValidationFactories,
 ) -> Tuple[bool, Optional[str]]:

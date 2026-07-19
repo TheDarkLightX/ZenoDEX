@@ -14,6 +14,7 @@ This supports:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
@@ -351,7 +352,7 @@ def _verify_expected_frontier_signature_binding(
 def _verify_prechecked_route_quote_receipt(
     *,
     ctx: _ReceiptBodyContext,
-    pools_by_id: Dict[str, PoolState],
+    pools_by_id: Mapping[str, PoolState],
     expected_quote_epoch: int | None,
     expected_frontier_signature_binding: FrontierSignatureCertificatesRootBinding | None,
 ) -> Tuple[bool, str]:
@@ -402,7 +403,7 @@ def _verify_prechecked_route_quote_receipt(
 def verify_route_quote_receipt(
     receipt: object,
     *,
-    pools_by_id: Dict[str, PoolState],
+    pools_by_id: Mapping[str, PoolState],
     expected_quote_epoch: int | None = None,
     expected_frontier_signature_binding: FrontierSignatureCertificatesRootBinding | None = None,
 ) -> Tuple[bool, str]:

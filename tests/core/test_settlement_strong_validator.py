@@ -33,6 +33,36 @@ def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
 
 
+def _with_fill(settlement: Settlement, index: int = 0, **changes: object) -> Settlement:
+    fills = list(settlement.fills)
+    fills[index] = replace(fills[index], **changes)
+    return replace(settlement, fills=fills)
+
+
+def _with_balance_delta(settlement: Settlement, index: int = 0, **changes: object) -> Settlement:
+    deltas = list(settlement.balance_deltas)
+    deltas[index] = replace(deltas[index], **changes)
+    return replace(settlement, balance_deltas=deltas)
+
+
+def _with_reserve_delta(settlement: Settlement, index: int = 0, **changes: object) -> Settlement:
+    deltas = list(settlement.reserve_deltas)
+    deltas[index] = replace(deltas[index], **changes)
+    return replace(settlement, reserve_deltas=deltas)
+
+
+def _with_lp_delta(settlement: Settlement, index: int = 0, **changes: object) -> Settlement:
+    deltas = list(settlement.lp_deltas)
+    deltas[index] = replace(deltas[index], **changes)
+    return replace(settlement, lp_deltas=deltas)
+
+
+def _with_event(settlement: Settlement, index: int = 0, **changes: object) -> Settlement:
+    events = [dict(event) for event in settlement.events or ()]
+    events[index].update(changes)
+    return replace(settlement, events=events)
+
+
 def _setup_liquidity_context() -> tuple[str, str, str, str, PoolState, BalanceTable, LPTable]:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
@@ -336,88 +366,35 @@ def test_aggregate_helpers_reject_malformed_delta_limbs() -> None:
     asset = "0x" + "01" * 32
     pool_id = _iid(2)
 
-    with pytest.raises(TypeError, match="balance_deltas.delta_add must be a non-negative int"):
-        strong_validator._aggregate_balance_deltas(
-            [BalanceDelta(pubkey=pk, asset=asset, delta_add=True, delta_sub=0)]
-        )
-    with pytest.raises(TypeError, match="balance_deltas.delta_sub must be a non-negative int"):
-        strong_validator._aggregate_balance_deltas(
-            [BalanceDelta(pubkey=pk, asset=asset, delta_add=0, delta_sub="1")]
-        )
-    with pytest.raises(TypeError, match="reserve_deltas.delta_add must be a non-negative int"):
-        strong_validator._aggregate_reserve_deltas(
-            [ReserveDelta(pool_id=pool_id, asset=asset, delta_add=-1, delta_sub=0)]
-        )
-    with pytest.raises(TypeError, match="lp_deltas.delta_sub must be a non-negative int"):
-        strong_validator._aggregate_lp_deltas(
-            [LPDelta(pubkey=pk, pool_id=pool_id, delta_add=0, delta_sub=False)]
-        )
+    with pytest.raises(TypeError, match="balance_delta.delta_add must be a non-negative int"):
+        BalanceDelta(pubkey=pk, asset=asset, delta_add=True, delta_sub=0)
+    with pytest.raises(TypeError, match="balance_delta.delta_sub must be a non-negative int"):
+        BalanceDelta(pubkey=pk, asset=asset, delta_add=0, delta_sub="1")
+    with pytest.raises(TypeError, match="reserve_delta.delta_add must be a non-negative int"):
+        ReserveDelta(pool_id=pool_id, asset=asset, delta_add=-1, delta_sub=0)
+    with pytest.raises(TypeError, match="lp_delta.delta_sub must be a non-negative int"):
+        LPDelta(pubkey=pk, pool_id=pool_id, delta_add=0, delta_sub=False)
 
 
 def test_check_canonical_deltas_rejects_invalid_balance_scalar_fields() -> None:
-    settlement = Settlement(
-        module="TauSwap",
-        version="0.1",
-        batch_ref="",
-        included_intents=[],
-        fills=[],
-        balance_deltas=[BalanceDelta(pubkey=_iid(1), asset=_iid(2), delta_add=False, delta_sub=1)],
-        reserve_deltas=[],
-        lp_deltas=[],
-        events=None,
-    )
-    ok, err = strong_validator._check_canonical_deltas(settlement)
-    assert ok is False
-    assert err == "balance_deltas contains invalid delta_add"
-
-    settlement.balance_deltas = [BalanceDelta(pubkey=_iid(1), asset=_iid(2), delta_add=1, delta_sub=False)]
-    ok, err = strong_validator._check_canonical_deltas(settlement)
-    assert ok is False
-    assert err == "balance_deltas contains invalid delta_sub"
+    with pytest.raises(TypeError, match="balance_delta.delta_add must be a non-negative int"):
+        BalanceDelta(pubkey=_iid(1), asset=_iid(2), delta_add=False, delta_sub=1)
+    with pytest.raises(TypeError, match="balance_delta.delta_sub must be a non-negative int"):
+        BalanceDelta(pubkey=_iid(1), asset=_iid(2), delta_add=1, delta_sub=False)
 
 
 def test_check_canonical_deltas_rejects_invalid_reserve_scalar_fields() -> None:
-    settlement = Settlement(
-        module="TauSwap",
-        version="0.1",
-        batch_ref="",
-        included_intents=[],
-        fills=[],
-        balance_deltas=[],
-        reserve_deltas=[ReserveDelta(pool_id=_iid(1), asset=_iid(2), delta_add=False, delta_sub=1)],
-        lp_deltas=[],
-        events=None,
-    )
-    ok, err = strong_validator._check_canonical_deltas(settlement)
-    assert ok is False
-    assert err == "reserve_deltas contains invalid delta_add"
-
-    settlement.reserve_deltas = [ReserveDelta(pool_id=_iid(1), asset=_iid(2), delta_add=1, delta_sub=False)]
-    ok, err = strong_validator._check_canonical_deltas(settlement)
-    assert ok is False
-    assert err == "reserve_deltas contains invalid delta_sub"
+    with pytest.raises(TypeError, match="reserve_delta.delta_add must be a non-negative int"):
+        ReserveDelta(pool_id=_iid(1), asset=_iid(2), delta_add=False, delta_sub=1)
+    with pytest.raises(TypeError, match="reserve_delta.delta_sub must be a non-negative int"):
+        ReserveDelta(pool_id=_iid(1), asset=_iid(2), delta_add=1, delta_sub=False)
 
 
 def test_check_canonical_deltas_rejects_invalid_lp_scalar_fields() -> None:
-    settlement = Settlement(
-        module="TauSwap",
-        version="0.1",
-        batch_ref="",
-        included_intents=[],
-        fills=[],
-        balance_deltas=[],
-        reserve_deltas=[],
-        lp_deltas=[LPDelta(pubkey=_iid(1), pool_id=_iid(2), delta_add=False, delta_sub=1)],
-        events=None,
-    )
-    ok, err = strong_validator._check_canonical_deltas(settlement)
-    assert ok is False
-    assert err == "lp_deltas contains invalid delta_add"
-
-    settlement.lp_deltas = [LPDelta(pubkey=_iid(1), pool_id=_iid(2), delta_add=1, delta_sub=False)]
-    ok, err = strong_validator._check_canonical_deltas(settlement)
-    assert ok is False
-    assert err == "lp_deltas contains invalid delta_sub"
+    with pytest.raises(TypeError, match="lp_delta.delta_add must be a non-negative int"):
+        LPDelta(pubkey=_iid(1), pool_id=_iid(2), delta_add=False, delta_sub=1)
+    with pytest.raises(TypeError, match="lp_delta.delta_sub must be a non-negative int"):
+        LPDelta(pubkey=_iid(1), pool_id=_iid(2), delta_add=1, delta_sub=False)
 
 
 def test_strong_validator_allows_reject_without_fill_details() -> None:
@@ -475,7 +452,7 @@ def test_strong_validator_rejects_duplicate_input_intent_ids() -> None:
 
 def test_strong_validator_rejects_included_intents_mismatch() -> None:
     _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
-    settlement.included_intents = [(_iid(999), FillAction.REJECT)]
+    settlement = replace(settlement, included_intents=[(_iid(999), FillAction.REJECT)], fills=[])
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -490,90 +467,56 @@ def test_strong_validator_rejects_included_intents_mismatch() -> None:
 
 def test_strong_validator_rejects_duplicate_included_intents() -> None:
     _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
-    settlement.included_intents = [
-        (intent.intent_id, FillAction.FILL),
-        (intent.intent_id, FillAction.REJECT),
-    ]
-    ok, err = validate_settlement_strong(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == "settlement included_intents contains duplicate intent_id entries"
+    del pool_id, pool, balances
+    with pytest.raises(ValueError, match="included_intents contains duplicate intent_id entries"):
+        replace(
+            settlement,
+            included_intents=[
+                (intent.intent_id, FillAction.FILL),
+                (intent.intent_id, FillAction.REJECT),
+            ],
+        )
 
 
 def test_strong_validator_rejects_duplicate_fill_ids() -> None:
     _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
-    settlement.fills = [settlement.fills[0], settlement.fills[0]]
-    ok, err = validate_settlement_strong(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == "settlement fills contains duplicate intent_id entries"
+    del pool_id, pool, balances, intent
+    with pytest.raises(ValueError, match="fills contains duplicate intent_id entries"):
+        replace(settlement, fills=[settlement.fills[0], settlement.fills[0]])
 
 
 def test_strong_validator_rejects_extra_fill_id() -> None:
     _pk, asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
-    settlement.fills.append(
-        Fill(
-            intent_id=_iid(998),
-            action=FillAction.REJECT,
-            reason="UNSUPPORTED",
-            amount_in_filled=0,
-            amount_out_filled=0,
-            fee_paid=0,
+    del asset0, pool_id, pool, balances, intent
+    with pytest.raises(ValueError, match="fills contains intent_ids not in included_intents"):
+        replace(
+            settlement,
+            fills=[
+                *settlement.fills,
+                Fill(
+                    intent_id=_iid(998),
+                    action=FillAction.REJECT,
+                    reason="UNSUPPORTED",
+                    amount_in_filled=0,
+                    amount_out_filled=0,
+                    fee_paid=0,
+                ),
+            ],
         )
-    )
-    ok, err = validate_settlement_strong(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    del asset0
-    assert ok is False
-    assert err == f"settlement fills contains intent_ids not in input intents: ['{_iid(998)}']"
 
 
 def test_strong_validator_rejects_missing_fill_for_filled_intent() -> None:
     _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
-    settlement.fills = []
-    ok, err = validate_settlement_strong(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == f"missing Fill for filled intent_id: {intent.intent_id}"
+    del pool_id, pool, balances, intent
+    with pytest.raises(ValueError, match="Fill mismatch: missing"):
+        replace(settlement, fills=[])
 
 
 def test_strong_validator_rejects_fill_action_mismatch() -> None:
     _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
-    settlement.fills[0].action = FillAction.REJECT
-    ok, err = validate_settlement_strong(
-        settlement=settlement,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == f"Fill.action mismatch for intent_id={intent.intent_id}: FillAction.REJECT != FillAction.FILL"
+    del pool_id, pool, balances, intent
+    with pytest.raises(ValueError, match="Fill mismatch"):
+        _with_fill(settlement, action=FillAction.REJECT)
 
 
 def test_strong_validator_rejects_invalid_recipient() -> None:
@@ -733,7 +676,10 @@ def test_strong_validator_rejects_create_pool_duplicate_existing_pool_id() -> No
 
 def test_strong_validator_rejects_create_pool_fill_amount0_mismatch() -> None:
     _pk, _asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
-    settlement.fills[0].amount0_used += 1
+    settlement = _with_fill(
+        settlement,
+        amount0_used=int(settlement.fills[0].amount0_used or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -748,7 +694,10 @@ def test_strong_validator_rejects_create_pool_fill_amount0_mismatch() -> None:
 
 def test_strong_validator_rejects_create_pool_reserve_only_donation_witness() -> None:
     _pk, _asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
-    settlement.reserve_deltas[0].delta_add += 1_000_000
+    settlement = _with_reserve_delta(
+        settlement,
+        delta_add=settlement.reserve_deltas[0].delta_add + 1_000_000,
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -1089,10 +1038,13 @@ def test_strong_proof_carrying_requires_swap_reserve_witnesses() -> None:
     # - correct witness: proof-carrying must accept
     # - off-by-one witness: proof-carrying must reject
 
-    fill.reserve_in_before = None
-    fill.reserve_out_before = None
+    missing_witness = _with_fill(
+        settlement,
+        reserve_in_before=None,
+        reserve_out_before=None,
+    )
     ok_pc, err_pc = validate_settlement_strong(
-        settlement=settlement,
+        settlement=missing_witness,
         intents=[intent],
         pre_balances=balances,
         pre_pools={pool_id: pool_state},
@@ -1102,8 +1054,6 @@ def test_strong_proof_carrying_requires_swap_reserve_witnesses() -> None:
     assert ok_pc is False
     assert err_pc is not None
 
-    fill.reserve_in_before = witness_in
-    fill.reserve_out_before = witness_out
     ok_pc2, err_pc2 = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -1120,24 +1070,23 @@ def test_strong_proof_carrying_requires_swap_reserve_witnesses() -> None:
         (True, witness_out),
         (witness_in, False),
     ):
-        fill.reserve_in_before = bad_in  # type: ignore[assignment]
-        fill.reserve_out_before = bad_out  # type: ignore[assignment]
-        ok_bad, err_bad = validate_settlement_strong(
-            settlement=settlement,
-            intents=[intent],
-            pre_balances=balances,
-            pre_pools={pool_id: pool_state},
-            pre_lp_balances=LPTable(),
-            mode="strong_proof_carrying",
-        )
-        assert ok_bad is False
-        assert err_bad is not None
-        assert "invalid swap witness reserve type" in err_bad
+        with pytest.raises(
+            TypeError,
+            match=r"fill\.reserve_(?:in|out)_before must be a non-negative int",
+        ):
+            _with_fill(
+                settlement,
+                reserve_in_before=bad_in,
+                reserve_out_before=bad_out,
+            )
 
-    fill.reserve_in_before = witness_in + 1
-    fill.reserve_out_before = witness_out
+    mismatched_witness = _with_fill(
+        settlement,
+        reserve_in_before=witness_in + 1,
+        reserve_out_before=witness_out,
+    )
     ok_pc3, err_pc3 = validate_settlement_strong(
-        settlement=settlement,
+        settlement=mismatched_witness,
         intents=[intent],
         pre_balances=balances,
         pre_pools={pool_id: pool_state},
@@ -1331,34 +1280,9 @@ def test_strong_validator_accepts_exact_reciprocal_cow_netted_pair() -> None:
     assert ok is True, err
     assert err is None
 
-    fee_bool_settlement = replace(settlement, fills=[replace(settlement.fills[0], fee_paid=False), settlement.fills[1]])
-    ok, err = validate_settlement_strong(
-        settlement=fee_bool_settlement,
-        intents=[intent0, intent1],
-        pre_balances=balances,
-        pre_pools={pool_id: pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-        allow_cow_netting=True,
-    )
-    assert ok is False
-    assert err == f"COW_NETTED fee_paid must be int: intent_id={intent0.intent_id}"
-
-    fee_string_settlement = replace(
-        settlement,
-        fills=[replace(settlement.fills[0], fee_paid="0"), settlement.fills[1]],
-    )
-    ok, err = validate_settlement_strong(
-        settlement=fee_string_settlement,
-        intents=[intent0, intent1],
-        pre_balances=balances,
-        pre_pools={pool_id: pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-        allow_cow_netting=True,
-    )
-    assert ok is False
-    assert err == f"COW_NETTED fee_paid must be int: intent_id={intent0.intent_id}"
+    for malformed_fee in (False, "0"):
+        with pytest.raises(TypeError, match=r"fill\.fee_paid must be a non-negative int"):
+            replace(settlement.fills[0], fee_paid=malformed_fee)
 
     protocol_fee_settlement = replace(
         settlement,
@@ -1981,21 +1905,24 @@ def test_strong_validator_rejects_duplicate_balance_delta_keys() -> None:
 
     settlement = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
     first_delta = settlement.balance_deltas[0]
-    settlement.balance_deltas = [
-        BalanceDelta(
-            pubkey=first_delta.pubkey,
-            asset=first_delta.asset,
-            delta_add=first_delta.delta_add,
-            delta_sub=400,
-        ),
-        BalanceDelta(
-            pubkey=first_delta.pubkey,
-            asset=first_delta.asset,
-            delta_add=0,
-            delta_sub=first_delta.delta_sub - 400,
-        ),
-        *settlement.balance_deltas[1:],
-    ]
+    settlement = replace(
+        settlement,
+        balance_deltas=[
+            BalanceDelta(
+                pubkey=first_delta.pubkey,
+                asset=first_delta.asset,
+                delta_add=first_delta.delta_add,
+                delta_sub=400,
+            ),
+            BalanceDelta(
+                pubkey=first_delta.pubkey,
+                asset=first_delta.asset,
+                delta_add=0,
+                delta_sub=first_delta.delta_sub - 400,
+            ),
+            *settlement.balance_deltas[1:],
+        ],
+    )
 
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -2044,8 +1971,12 @@ def test_strong_validator_rejects_zero_delta_entry() -> None:
     )
 
     settlement = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
-    settlement.balance_deltas.append(
-        BalanceDelta(pubkey=pk, asset=asset0, delta_add=0, delta_sub=0)
+    settlement = replace(
+        settlement,
+        balance_deltas=[
+            *settlement.balance_deltas,
+            BalanceDelta(pubkey=pk, asset=asset0, delta_add=0, delta_sub=0),
+        ],
     )
 
     ok, err = validate_settlement_strong(
@@ -2263,21 +2194,24 @@ def test_strong_validator_rejects_duplicate_reserve_delta_keys() -> None:
 
     settlement = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
     first_delta = settlement.reserve_deltas[0]
-    settlement.reserve_deltas = [
-        ReserveDelta(
-            pool_id=first_delta.pool_id,
-            asset=first_delta.asset,
-            delta_add=first_delta.delta_add // 2,
-            delta_sub=0,
-        ),
-        ReserveDelta(
-            pool_id=first_delta.pool_id,
-            asset=first_delta.asset,
-            delta_add=first_delta.delta_add - (first_delta.delta_add // 2),
-            delta_sub=0,
-        ),
-        *settlement.reserve_deltas[1:],
-    ]
+    settlement = replace(
+        settlement,
+        reserve_deltas=[
+            ReserveDelta(
+                pool_id=first_delta.pool_id,
+                asset=first_delta.asset,
+                delta_add=first_delta.delta_add // 2,
+                delta_sub=0,
+            ),
+            ReserveDelta(
+                pool_id=first_delta.pool_id,
+                asset=first_delta.asset,
+                delta_add=first_delta.delta_add - (first_delta.delta_add // 2),
+                delta_sub=0,
+            ),
+            *settlement.reserve_deltas[1:],
+        ],
+    )
 
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -2314,21 +2248,24 @@ def test_strong_validator_rejects_duplicate_lp_delta_keys() -> None:
 
     settlement = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
     first_delta = settlement.lp_deltas[0]
-    settlement.lp_deltas = [
-        LPDelta(
-            pubkey=first_delta.pubkey,
-            pool_id=first_delta.pool_id,
-            delta_add=first_delta.delta_add // 2,
-            delta_sub=0,
-        ),
-        LPDelta(
-            pubkey=first_delta.pubkey,
-            pool_id=first_delta.pool_id,
-            delta_add=first_delta.delta_add - (first_delta.delta_add // 2),
-            delta_sub=0,
-        ),
-        *settlement.lp_deltas[1:],
-    ]
+    settlement = replace(
+        settlement,
+        lp_deltas=[
+            LPDelta(
+                pubkey=first_delta.pubkey,
+                pool_id=first_delta.pool_id,
+                delta_add=first_delta.delta_add // 2,
+                delta_sub=0,
+            ),
+            LPDelta(
+                pubkey=first_delta.pubkey,
+                pool_id=first_delta.pool_id,
+                delta_add=first_delta.delta_add - (first_delta.delta_add // 2),
+                delta_sub=0,
+            ),
+            *settlement.lp_deltas[1:],
+        ],
+    )
 
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -2412,7 +2349,10 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     assert err == f"invalid min_amount_out for intent_id={intent.intent_id}"
 
     amount_in_mismatch = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
-    amount_in_mismatch.fills[0].amount_in_filled += 1
+    amount_in_mismatch = _with_fill(
+        amount_in_mismatch,
+        amount_in_filled=int(amount_in_mismatch.fills[0].amount_in_filled or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=amount_in_mismatch,
         intents=[intent],
@@ -2425,17 +2365,11 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     assert err == f"swap amount_in_filled mismatch for intent_id={intent.intent_id}"
 
     amount_in_string = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
-    amount_in_string.fills[0].amount_in_filled = str(amount_in_string.fills[0].amount_in_filled)
-    ok, err = validate_settlement_strong(
-        settlement=amount_in_string,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == f"swap amount_in_filled must be int for intent_id={intent.intent_id}"
+    with pytest.raises(TypeError, match=r"fill\.amount_in_filled must be a non-negative int"):
+        _with_fill(
+            amount_in_string,
+            amount_in_filled=str(amount_in_string.fills[0].amount_in_filled),
+        )
 
     def _boom_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
@@ -2471,7 +2405,10 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     monkeypatch.undo()
 
     amount_out_mismatch = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
-    amount_out_mismatch.fills[0].amount_out_filled += 1
+    amount_out_mismatch = _with_fill(
+        amount_out_mismatch,
+        amount_out_filled=int(amount_out_mismatch.fills[0].amount_out_filled or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=amount_out_mismatch,
         intents=[intent],
@@ -2499,7 +2436,10 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     assert err == f"swap slippage for intent_id={intent.intent_id}"
 
     fee_mismatch = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
-    fee_mismatch.fills[0].fee_paid += 1
+    fee_mismatch = _with_fill(
+        fee_mismatch,
+        fee_paid=int(fee_mismatch.fills[0].fee_paid or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=fee_mismatch,
         intents=[intent],
@@ -2512,30 +2452,15 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     assert err == f"swap fee_paid mismatch for intent_id={intent.intent_id}"
 
     fee_string = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
-    fee_string.fills[0].fee_paid = str(fee_string.fills[0].fee_paid)
-    ok, err = validate_settlement_strong(
-        settlement=fee_string,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == f"swap fee_paid must be int for intent_id={intent.intent_id}"
+    with pytest.raises(TypeError, match=r"fill\.fee_paid must be a non-negative int"):
+        _with_fill(
+            fee_string,
+            fee_paid=str(fee_string.fills[0].fee_paid),
+        )
 
     protocol_fee_bool = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
-    protocol_fee_bool.fills[0].protocol_fee_paid = False
-    ok, err = validate_settlement_strong(
-        settlement=protocol_fee_bool,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == f"swap protocol_fee_paid must be int for intent_id={intent.intent_id}"
+    with pytest.raises(TypeError, match=r"fill\.protocol_fee_paid must be a non-negative int"):
+        _with_fill(protocol_fee_bool, protocol_fee_paid=False)
 
     low_balances = BalanceTable()
     low_balances.set(intent.sender_pubkey, asset0, 1)
@@ -2583,7 +2508,10 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     amount_out_mismatch = compute_settlement(
         [intent], {pool_id: pool}, balances, LPTable(), swap_ordering="greedy_ab_refined"
     )
-    amount_out_mismatch.fills[0].amount_out_filled += 1
+    amount_out_mismatch = _with_fill(
+        amount_out_mismatch,
+        amount_out_filled=int(amount_out_mismatch.fills[0].amount_out_filled or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=amount_out_mismatch,
         intents=[intent],
@@ -2598,17 +2526,11 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     amount_out_string = compute_settlement(
         [intent], {pool_id: pool}, balances, LPTable(), swap_ordering="greedy_ab_refined"
     )
-    amount_out_string.fills[0].amount_out_filled = str(amount_out_string.fills[0].amount_out_filled)
-    ok, err = validate_settlement_strong(
-        settlement=amount_out_string,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == f"swap amount_out_filled must be int for intent_id={intent.intent_id}"
+    with pytest.raises(TypeError, match=r"fill\.amount_out_filled must be a non-negative int"):
+        _with_fill(
+            amount_out_string,
+            amount_out_filled=str(amount_out_string.fills[0].amount_out_filled),
+        )
 
     def _boom_exact_out(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
@@ -2630,7 +2552,10 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     amount_in_mismatch = compute_settlement(
         [intent], {pool_id: pool}, balances, LPTable(), swap_ordering="greedy_ab_refined"
     )
-    amount_in_mismatch.fills[0].amount_in_filled += 1
+    amount_in_mismatch = _with_fill(
+        amount_in_mismatch,
+        amount_in_filled=int(amount_in_mismatch.fills[0].amount_in_filled or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=amount_in_mismatch,
         intents=[intent],
@@ -2657,7 +2582,10 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     fee_mismatch = compute_settlement(
         [intent], {pool_id: pool}, balances, LPTable(), swap_ordering="greedy_ab_refined"
     )
-    fee_mismatch.fills[0].fee_paid += 1
+    fee_mismatch = _with_fill(
+        fee_mismatch,
+        fee_paid=int(fee_mismatch.fills[0].fee_paid or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=fee_mismatch,
         intents=[intent],
@@ -2762,7 +2690,10 @@ def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
     assert err.startswith(f"CREATE_POOL computation error for intent_id={intent.intent_id}:")
 
     amount1_mismatch = compute_settlement([intent], {}, balances, LPTable())
-    amount1_mismatch.fills[0].amount1_used += 1
+    amount1_mismatch = _with_fill(
+        amount1_mismatch,
+        amount1_used=int(amount1_mismatch.fills[0].amount1_used or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=amount1_mismatch,
         intents=[intent],
@@ -2775,20 +2706,17 @@ def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
     assert err == f"CREATE_POOL fill.amount1_used mismatch for intent_id={intent.intent_id}"
 
     amount0_string = compute_settlement([intent], {}, balances, LPTable())
-    amount0_string.fills[0].amount0_used = str(amount0_string.fills[0].amount0_used)
-    ok, err = validate_settlement_strong(
-        settlement=amount0_string,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == f"CREATE_POOL fill.amount0_used must be int for intent_id={intent.intent_id}"
+    with pytest.raises(TypeError, match=r"fill\.amount0_used must be a non-negative int"):
+        _with_fill(
+            amount0_string,
+            amount0_used=str(amount0_string.fills[0].amount0_used),
+        )
 
     lp_minted_mismatch = compute_settlement([intent], {}, balances, LPTable())
-    lp_minted_mismatch.fills[0].lp_minted += 1
+    lp_minted_mismatch = _with_fill(
+        lp_minted_mismatch,
+        lp_minted=int(lp_minted_mismatch.fills[0].lp_minted or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=lp_minted_mismatch,
         intents=[intent],
@@ -2866,7 +2794,10 @@ def test_strong_validator_rejects_add_liquidity_field_fill_and_apply_failures() 
     assert err.startswith(f"ADD_LIQUIDITY computation error for intent_id={intent.intent_id}:")
 
     amount0_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
-    amount0_mismatch.fills[0].amount0_used += 1
+    amount0_mismatch = _with_fill(
+        amount0_mismatch,
+        amount0_used=int(amount0_mismatch.fills[0].amount0_used or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=amount0_mismatch,
         intents=[intent],
@@ -2879,7 +2810,10 @@ def test_strong_validator_rejects_add_liquidity_field_fill_and_apply_failures() 
     assert err == f"ADD_LIQUIDITY fill.amount0_used mismatch for intent_id={intent.intent_id}"
 
     amount1_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
-    amount1_mismatch.fills[0].amount1_used += 1
+    amount1_mismatch = _with_fill(
+        amount1_mismatch,
+        amount1_used=int(amount1_mismatch.fills[0].amount1_used or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=amount1_mismatch,
         intents=[intent],
@@ -2892,20 +2826,17 @@ def test_strong_validator_rejects_add_liquidity_field_fill_and_apply_failures() 
     assert err == f"ADD_LIQUIDITY fill.amount1_used mismatch for intent_id={intent.intent_id}"
 
     lp_minted_string = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
-    lp_minted_string.fills[0].lp_minted = str(lp_minted_string.fills[0].lp_minted)
-    ok, err = validate_settlement_strong(
-        settlement=lp_minted_string,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=lp_balances,
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == f"ADD_LIQUIDITY fill.lp_minted must be int for intent_id={intent.intent_id}"
+    with pytest.raises(TypeError, match=r"fill\.lp_minted must be a non-negative int"):
+        _with_fill(
+            lp_minted_string,
+            lp_minted=str(lp_minted_string.fills[0].lp_minted),
+        )
 
     lp_minted_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
-    lp_minted_mismatch.fills[0].lp_minted += 1
+    lp_minted_mismatch = _with_fill(
+        lp_minted_mismatch,
+        lp_minted=int(lp_minted_mismatch.fills[0].lp_minted or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=lp_minted_mismatch,
         intents=[intent],
@@ -2986,7 +2917,10 @@ def test_strong_validator_rejects_remove_liquidity_field_fill_and_apply_failures
     assert err.startswith(f"REMOVE_LIQUIDITY computation error for intent_id={intent.intent_id}:")
 
     lp_burned_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
-    lp_burned_mismatch.fills[0].lp_burned += 1
+    lp_burned_mismatch = _with_fill(
+        lp_burned_mismatch,
+        lp_burned=int(lp_burned_mismatch.fills[0].lp_burned or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=lp_burned_mismatch,
         intents=[intent],
@@ -2999,20 +2933,17 @@ def test_strong_validator_rejects_remove_liquidity_field_fill_and_apply_failures
     assert err == f"REMOVE_LIQUIDITY fill.lp_burned mismatch for intent_id={intent.intent_id}"
 
     lp_burned_string = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
-    lp_burned_string.fills[0].lp_burned = str(lp_burned_string.fills[0].lp_burned)
-    ok, err = validate_settlement_strong(
-        settlement=lp_burned_string,
-        intents=[intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=lp_balances,
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == f"REMOVE_LIQUIDITY fill.lp_burned must be int for intent_id={intent.intent_id}"
+    with pytest.raises(TypeError, match=r"fill\.lp_burned must be a non-negative int"):
+        _with_fill(
+            lp_burned_string,
+            lp_burned=str(lp_burned_string.fills[0].lp_burned),
+        )
 
     amount0_out_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
-    amount0_out_mismatch.fills[0].amount0_out += 1
+    amount0_out_mismatch = _with_fill(
+        amount0_out_mismatch,
+        amount0_out=int(amount0_out_mismatch.fills[0].amount0_out or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=amount0_out_mismatch,
         intents=[intent],
@@ -3025,7 +2956,10 @@ def test_strong_validator_rejects_remove_liquidity_field_fill_and_apply_failures
     assert err == f"REMOVE_LIQUIDITY fill.amount0_out mismatch for intent_id={intent.intent_id}"
 
     amount1_out_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
-    amount1_out_mismatch.fills[0].amount1_out += 1
+    amount1_out_mismatch = _with_fill(
+        amount1_out_mismatch,
+        amount1_out=int(amount1_out_mismatch.fills[0].amount1_out or 0) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=amount1_out_mismatch,
         intents=[intent],
@@ -3054,7 +2988,10 @@ def test_strong_validator_rejects_remove_liquidity_field_fill_and_apply_failures
 
 def test_strong_validator_rejects_replay_and_event_mismatches() -> None:
     _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
-    settlement.balance_deltas[0].delta_sub += 1
+    settlement = _with_balance_delta(
+        settlement,
+        delta_sub=settlement.balance_deltas[0].delta_sub + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -3067,7 +3004,10 @@ def test_strong_validator_rejects_replay_and_event_mismatches() -> None:
     assert err == "balance_deltas mismatch vs replay"
 
     _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
-    settlement.reserve_deltas[0].delta_add += 1
+    settlement = _with_reserve_delta(
+        settlement,
+        delta_add=settlement.reserve_deltas[0].delta_add + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -3080,7 +3020,10 @@ def test_strong_validator_rejects_replay_and_event_mismatches() -> None:
     assert err == "reserve_deltas mismatch vs replay"
 
     _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
-    settlement.lp_deltas[0].delta_add += 1
+    settlement = _with_lp_delta(
+        settlement,
+        delta_add=settlement.lp_deltas[0].delta_add + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -3093,7 +3036,10 @@ def test_strong_validator_rejects_replay_and_event_mismatches() -> None:
     assert err == "lp_deltas mismatch vs replay"
 
     _pk, _asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
-    settlement.events[0]["fee_bps"] += 1
+    settlement = _with_event(
+        settlement,
+        fee_bps=int(settlement.events[0]["fee_bps"]) + 1,
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -3108,7 +3054,7 @@ def test_strong_validator_rejects_replay_and_event_mismatches() -> None:
 
 def test_check_canonical_deltas_rejects_unsorted_and_zero_reserve_lp_entries() -> None:
     _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
-    settlement.reserve_deltas = list(reversed(settlement.reserve_deltas))
+    settlement = replace(settlement, reserve_deltas=list(reversed(settlement.reserve_deltas)))
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -3121,8 +3067,12 @@ def test_check_canonical_deltas_rejects_unsorted_and_zero_reserve_lp_entries() -
     assert err == "reserve_deltas not sorted canonically"
 
     _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
-    settlement.reserve_deltas.append(
-        ReserveDelta(pool_id=pool_id, asset=pool.asset0, delta_add=0, delta_sub=0)
+    settlement = replace(
+        settlement,
+        reserve_deltas=[
+            *settlement.reserve_deltas,
+            ReserveDelta(pool_id=pool_id, asset=pool.asset0, delta_add=0, delta_sub=0),
+        ],
     )
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -3136,8 +3086,12 @@ def test_check_canonical_deltas_rejects_unsorted_and_zero_reserve_lp_entries() -
     assert err == "reserve_deltas contains a zero entry"
 
     _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
-    settlement.lp_deltas.append(
-        LPDelta(pubkey=intent.sender_pubkey, pool_id=pool_id, delta_add=0, delta_sub=0)
+    settlement = replace(
+        settlement,
+        lp_deltas=[
+            *settlement.lp_deltas,
+            LPDelta(pubkey=intent.sender_pubkey, pool_id=pool_id, delta_add=0, delta_sub=0),
+        ],
     )
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -3579,35 +3533,14 @@ def test_strong_validator_rejects_cow_netted_input_and_apply_errors() -> None:
     assert err.startswith(f"COW_NETTED apply error for intent_id={base_intent.intent_id}:")
 
 
-def test_strong_validator_rejects_unsupported_intent_kind() -> None:
-    _pk, _asset0, _asset1, pool_id, pool, balances, _intent, _settlement = _setup_swap_context()
-    weird_intent = Intent(
-        module="TauSwap",
-        version="0.1",
-        kind="MYSTERY_KIND",
-        intent_id=_iid(916),
-        sender_pubkey="0x" + "11" * 48,
-        deadline=9999999999,
-        fields={"pool_id": pool_id},
-    )
-    settlement = Settlement(
-        module="TauSwap",
-        version="0.1",
-        batch_ref="",
-        included_intents=[(weird_intent.intent_id, FillAction.FILL)],
-        fills=[Fill(intent_id=weird_intent.intent_id, action=FillAction.FILL)],
-        balance_deltas=[],
-        reserve_deltas=[],
-        lp_deltas=[],
-        events=None,
-    )
-    ok, err = validate_settlement_strong(
-        settlement=settlement,
-        intents=[weird_intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
-    )
-    assert ok is False
-    assert err == "unsupported intent kind for strong validation: MYSTERY_KIND"
+def test_intent_constructor_rejects_unsupported_kind_before_strong_validation() -> None:
+    with pytest.raises(TypeError, match="kind must be an exact IntentKind"):
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind="MYSTERY_KIND",  # type: ignore[arg-type]
+            intent_id=_iid(916),
+            sender_pubkey="0x" + "11" * 48,
+            deadline=9999999999,
+            fields={},
+        )

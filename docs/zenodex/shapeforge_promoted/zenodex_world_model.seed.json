@@ -138,8 +138,8 @@
       "id": "cross_module_oracle_sync_requires_shared_bounds",
       "sources": [
         "docs/ALGORITHM_PROMOTIONS_2026Q1.md",
-        "src/integration/zusd_api.py",
-        "tests/integration/test_zusd_api.py"
+        "src/integration/zusd_oracle_contracts.py",
+        "tests/integration/test_zusd_oracle_contracts.py"
       ]
     },
     {
@@ -2055,9 +2055,9 @@
       "description": "zUSD oracle activation can fail closed against the perps oracle view by checking divergence and epoch lag before accepting a composed oracle world.",
       "evidence": [
         {
-          "claim": "The zUSD API exposes an opt-in integer-only cross-module sync gate that rejects oracle activation when price divergence exceeds the configured basis-point cap or epoch lag exceeds the configured bound.",
-          "class": "implemented",
-          "source": "src/integration/zusd_api.py"
+          "claim": "The cross-module Oracle contract exposes an integer-only sync gate that rejects a candidate snapshot when price divergence exceeds the configured basis-point cap or epoch lag exceeds the configured bound.",
+          "class": "contract",
+          "source": "src/integration/zusd_oracle_contracts.py"
         },
         {
           "claim": "A dedicated cross-module oracle sync contract packet reconstructs divergence_bps, epoch_lag, sync_gate_ok, and the Tau witness step from raw zUSD and perps oracle snapshots.",
@@ -2146,11 +2146,9 @@
       ],
       "slice_id": "cross_module_oracle_sync_gate",
       "sources": [
-        "src/integration/zusd_api.py",
         "src/integration/zusd_oracle_contracts.py",
         "src/integration/tau_witness.py",
         "src/tau_specs/recommended/zusd_cross_module_oracle_sync_gate_v1.tau",
-        "tests/integration/test_zusd_api.py",
         "tests/integration/test_zusd_oracle_contracts.py",
         "tests/tau/test_zusd_tau_specs.py",
         "docs/ALGORITHM_PROMOTIONS_2026Q1.md",

@@ -15,7 +15,7 @@ def _start_test_server():
     httpd.perps_api_enabled = False  # type: ignore[attr-defined]
     httpd.zusd_api_enabled = False  # type: ignore[attr-defined]
     httpd.dex_api_enabled = True  # type: ignore[attr-defined]
-    httpd.demo_api_token = ""  # type: ignore[attr-defined]
+    httpd.api_bearer_token = ""  # type: ignore[attr-defined]
     httpd.external_auth_enforced = True  # type: ignore[attr-defined]
 
     thread = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
@@ -101,7 +101,6 @@ def test_exact_out_many_pool_guarded_quote_rejects_bridge_for_reordered_pool_sna
     monkeypatch,
 ) -> None:
     from src.integration import api_server
-    from tools import zenodex_oracle_aggregate_adapter
 
     pools = [
         _pool(pid="pool_a", a0="A", a1="B", r0=40, r1=20),
@@ -140,7 +139,7 @@ def test_exact_out_many_pool_guarded_quote_rejects_bridge_for_reordered_pool_sna
         }
 
     monkeypatch.setattr(
-        zenodex_oracle_aggregate_adapter,
+        api_server,
         "verify_aggregate_adapter_bridge",
         _accepted_bridge_for_reordered_snapshot,
     )

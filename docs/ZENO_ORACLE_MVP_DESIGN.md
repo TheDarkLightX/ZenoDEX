@@ -124,18 +124,17 @@ different action, query, value hash, epoch, or policy.
 
 The aggregate-adapter bridge now checks the complete local path from admitted
 aggregate to aggregate-derived read bundle to concrete action/profile binding.
-Perps `settle_epoch` paths, critical zUSD demo API commands, and guarded
-routing quote APIs now have the first runtime hooks. When configured to require
-an Oracle bridge, isolated,
+Perps `settle_epoch` paths and guarded routing quote APIs have runtime hooks.
+When configured to require an Oracle bridge, isolated,
 2-party clearinghouse, and 3-party transfer clearinghouse settlement reject
 missing, unverified, rejected, wrong-query, wrong-profile, wrong-action, or
-wrong-runtime-action-ID aggregate-adapter bridges before state changes. The zUSD
-demo API applies the same pattern to `mint_zusd` and `liquidate`, including the
-official collateral-price query and consumer profile. The exact-in and exact-out
+wrong-runtime-action-ID aggregate-adapter bridges before state changes. The
+exact-in and exact-out
 guarded routing quote APIs apply it to `zenodex.routing / guarded_quote`,
 including the route request, route policy, routing reference-price query,
-official routing profile, and pool snapshot hash. Trigger, production zUSD, and
-remaining routing consumers remain adapter-only until they get equivalent hooks.
+official routing profile, and pool snapshot hash. The deleted unsigned zUSD API
+provides no release evidence; production zUSD mint and liquidation remain
+blocked until the monetary bridge has an equivalent committed lifecycle.
 
 8. Token incentive lane
 

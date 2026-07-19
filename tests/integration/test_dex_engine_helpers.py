@@ -10,10 +10,10 @@ import pytest
 
 import src.integration.dex_engine as dex_engine
 from src.core.dex import DexConfig, DexState
+from src.core.fees import FeeAccumulatorState, FeeSplitParams
 from src.core.settlement import Fill, FillAction, Settlement
 from src.integration.dex_engine import (
     DexEngineConfig,
-    DexFaultInjectionConfig,
     _build_signing_payloads,
     _clean_error,
     _format_error_details,
@@ -269,15 +269,6 @@ def test_hex_helper_covers_defensive_fromhex_paths(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(dex_engine, "bytes", _BytesWrongLength, raising=False)
     with pytest.raises(ValueError, match="must decode to exactly 2 bytes"):
         _hex_to_bytes_allow_0x("0x12ab", name="x", expected_nbytes=2)
-
-
-def test_fault_injection_config_rejects_unknown_stage() -> None:
-    with pytest.raises(ValueError, match="unknown fault injection stage: no_such_stage"):
-        DexFaultInjectionConfig(fail_at_stage="no_such_stage")
-
-
-def test_fault_injection_config_accepts_none_stage() -> None:
-    assert DexFaultInjectionConfig().fail_at_stage is None
 
 
 def test_dex_engine_config_rejects_certificate_mode_without_proof_flags() -> None:
@@ -606,17 +597,8 @@ def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_g
     )
     assert _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={}) == f"invalid quote receipt legs: {good_env.intent.intent_id}"
 
-    calls = {"n": 0}
-
-    def _stateful_get_field(key: str, default: Any = None) -> Any:
-        if key == "quote_receipt_leg_index":
-            calls["n"] += 1
-            return 0 if calls["n"] == 1 else -1
-        return good_env.intent.fields.get(key, default) if good_env.intent.fields else default
-
-    good_env.intent.get_field = _stateful_get_field  # type: ignore[method-assign]
-    object.__setattr__(good_env, "quote_receipt", _receipt())
-    assert "missing quote_receipt_leg_index" in _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={})  # type: ignore[arg-type]
+    valid_env = replace(good_env, quote_receipt=_receipt())
+    assert _validate_quote_receipt_witnesses(signed_intents=[valid_env], pools={}) is None  # type: ignore[arg-type]
 
 
 def test_build_signing_payloads_rejects_invalid_or_oversized_signing_dicts() -> None:
@@ -625,15 +607,12 @@ def test_build_signing_payloads_rejects_invalid_or_oversized_signing_dicts() -> 
     signing_dicts, payloads = _build_signing_payloads([env], max_intent_bytes=4096, max_total_intent_bytes=4096)
     assert len(signing_dicts) == len(payloads) == 1
 
-    salted_intent = _swap_intent(intent_id=_iid(4))
-    salted_intent.salt = "salt"
+    salted_intent = replace(_swap_intent(intent_id=_iid(4)), salt="salt")
     signing_dicts, _payloads = _build_signing_payloads([SignedIntentEnvelope(intent=salted_intent)], max_intent_bytes=4096, max_total_intent_bytes=4096)
     assert signing_dicts[0]["salt"] == "salt"
 
-    bad_fields_intent = _swap_intent(intent_id=_iid(2))
-    bad_fields_intent.fields = 7  # type: ignore[assignment]
-    with pytest.raises(TypeError, match="intent.fields must be a dict"):
-        _build_signing_payloads([SignedIntentEnvelope(intent=bad_fields_intent)], max_intent_bytes=4096, max_total_intent_bytes=4096)
+    with pytest.raises(TypeError, match="fields must be a mapping"):
+        replace(_swap_intent(intent_id=_iid(2)), fields=7)  # type: ignore[arg-type]
 
     too_large = _swap_intent(intent_id=_iid(3), fields={"blob": "A" * 5000})
     with pytest.raises(ValueError, match=f"intent signing payload too large: {too_large.intent_id}"):
@@ -1195,16 +1174,30 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
         settlement_env=SettlementEnvelope(settlement=settlement, proof=None),
         computed_settlement=settlement,
     )
-    monkeypatch.setattr(dex_engine, "split_fee_with_dust_carry", lambda **kwargs: ("split", "next-fee"))
+    next_fee_state = FeeAccumulatorState(dust=1)
+    monkeypatch.setattr(
+        dex_engine,
+        "split_fee_with_dust_carry",
+        lambda **kwargs: ("split", next_fee_state),
+    )
     res = apply_ops(
-        config=DexEngineConfig(dex_config=DexConfig(fee_split_params=object()), require_settlement_match=False),
+        config=DexEngineConfig(
+            dex_config=DexConfig(
+                fee_split_params=FeeSplitParams(
+                    buyback_bps=10_000,
+                    treasury_bps=0,
+                    rewards_bps=0,
+                )
+            ),
+            require_settlement_match=False,
+        ),
         state=state,
         operations={"2": "ignored"},
         block_timestamp=0,
     )
     assert res.ok is True
     assert res.state is not None
-    assert res.state.fee_accumulator == "next-fee"
+    assert res.state.fee_accumulator == next_fee_state
 
     proof = {"scheme": "dummy", "pre_state_commitment": "0x1", "batch_commitment": "0x2"}
     _patch_apply_ops_happy_path(

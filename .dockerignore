@@ -16,8 +16,21 @@
 !generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py
 !src/
 !src/**
+!packages/
+!packages/zeno-proof-client/
+!packages/zeno-proof-client/package.json
+!packages/zeno-proof-client/src/
+!packages/zeno-proof-client/src/**
 !tests/
 !tests/**
 !tools/
 !tools/dex-ui/
 !tools/dex-ui/**
+
+# Re-exclude generated host artifacts after the broad src/UI negations above.
+# Otherwise Docker can copy stale bytecode for deleted runtime modules or a
+# developer's node_modules/dist over the clean build-stage installation.
+**/__pycache__/
+**/*.py[cod]
+tools/dex-ui/node_modules/
+tools/dex-ui/dist/

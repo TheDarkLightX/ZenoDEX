@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from dataclasses import replace
 
+from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import Fill, FillAction, Settlement
 from src.integration import tau_gate
@@ -13,7 +14,10 @@ from src.integration.tau_gate import (
     TauSettlementModuleFlags,
     validate_settlement_swaps,
 )
+from src.integration.validation import validate_operations
+from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
+from src.state.lp import LPTable
 
 
 def _mk_intent_id(n: int) -> str:
@@ -394,6 +398,313 @@ def test_tau_gate_supports_mixed_exact_in_and_exact_out_per_pool(monkeypatch) ->
     )
     assert ok, err
     assert calls == [("swap_exact_in_v1.tau", 1), ("swap_exact_out_v1.tau", 1)]
+
+
+def test_tau_gate_protocol_fee_witness_matches_and_chains_authoritative_reserves(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    pk = "0x" + "11" * 48
+    pool_id, pool, _ = create_pool(
+        asset0="0x" + "01" * 32,
+        asset1="0x" + "02" * 32,
+        amount0=10_000,
+        amount1=10_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+    intent_in = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_mk_intent_id(301),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": pool.asset0,
+            "asset_out": pool.asset1,
+            "min_amount_out": 1,
+        },
+    )
+    intent_out = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_mk_intent_id(302),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": pool.asset0,
+            "asset_out": pool.asset1,
+            "max_amount_in": 1_000,
+        },
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[
+            (intent_in.intent_id, FillAction.FILL),
+            (intent_out.intent_id, FillAction.FILL),
+        ],
+        fills=[
+            Fill(
+                intent_id=intent_in.intent_id,
+                action=FillAction.FILL,
+                amount_in_filled=1_000,
+                amount_out_filled=900,
+                fee_paid=3,
+                protocol_fee_paid=1,
+            ),
+            Fill(
+                intent_id=intent_out.intent_id,
+                action=FillAction.FILL,
+                amount_in_filled=500,
+                amount_out_filled=300,
+                fee_paid=4,
+                protocol_fee_paid=2,
+            ),
+        ],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+    calls: list[tuple[str, dict[str, int]]] = []
+
+    def _fake_tau(*, spec_path, steps, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((spec_path.name, dict(steps[0])))
+        return {i: {"o1": 1} for i in range(len(steps))}
+
+    monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _fake_tau)
+
+    ok, err = validate_settlement_swaps(
+        intents=[intent_in, intent_out],
+        settlement=settlement,
+        pre_pools={pool_id: pool},
+        config=TauGateConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert ok, err
+    assert [name for name, _step in calls] == [
+        "swap_exact_in_protocol_fee_apply_v1.tau",
+        "swap_exact_out_protocol_fee_apply_v1.tau",
+    ]
+    assert calls[0][1]["i7"] == 10_000 + 1_000 - 1
+    assert calls[0][1]["i8"] == 10_000 - 900
+    assert calls[0][1]["i9"] == 3
+    assert calls[0][1]["i10"] == 1
+    assert calls[1][1]["i1"] == 10_999
+    assert calls[1][1]["i2"] == 9_100
+    assert calls[1][1]["i7"] == 10_999 + 500 - 2
+    assert calls[1][1]["i8"] == 9_100 - 300
+    assert calls[1][1]["i9"] == 4
+    assert calls[1][1]["i10"] == 2
+    assert pool.reserve0 == 10_000
+    assert pool.reserve1 == 10_000
+
+
+def test_tau_gate_protocol_fee_witnesses_match_strongly_validated_bidirectional_settlement(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    sender = "0x" + "11" * 48
+    treasury = "0x" + "33" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=1_000_000,
+        amount1=1_000_000,
+        fee_bps=100,
+        creator_pubkey=sender,
+        created_at=0,
+    )
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_mk_intent_id(401),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_in": 10_000,
+                "min_amount_out": 1,
+                "recipient": sender,
+            },
+        ),
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_mk_intent_id(402),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": asset1,
+                "asset_out": asset0,
+                "amount_in": 10_000,
+                "min_amount_out": 1,
+                "recipient": sender,
+            },
+        ),
+    ]
+    balances = BalanceTable()
+    balances.set(sender, asset0, 100_000)
+    balances.set(sender, asset1, 100_000)
+    lp_balances = LPTable()
+    settlement = compute_settlement(
+        intents=intents,
+        pools={pool_id: pool},
+        balances=balances,
+        lp_balances=lp_balances,
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=treasury,
+    )
+    calls: list[tuple[str, list[dict[str, int]]]] = []
+
+    def _fake_tau(*, spec_path, steps, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((spec_path.name, [dict(step) for step in steps]))
+        return {i: {"o1": 1} for i in range(len(steps))}
+
+    monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _fake_tau)
+
+    ok, err = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools={pool_id: pool},
+        lp_balances=lp_balances,
+        block_timestamp=0,
+        tau_gate_config=TauGateConfig(
+            enabled=True,
+            tau_bin=sys.executable,
+            allow_path_lookup=False,
+        ),
+        protocol_fee_share_bps=5_000,
+        protocol_fee_recipient_pubkey=treasury,
+    )
+
+    assert ok, err
+    assert len(calls) == 1
+    spec_name, steps = calls[0]
+    assert spec_name == "swap_exact_in_protocol_fee_apply_v1.tau"
+    assert len(steps) == 2
+
+    intents_by_id = {intent.intent_id: intent for intent in intents}
+    fills_by_id = {fill.intent_id: fill for fill in settlement.fills}
+    reserve0 = pool.reserve0
+    reserve1 = pool.reserve1
+    directions: set[tuple[str, str]] = set()
+    for step, (intent_id, action) in zip(steps, settlement.included_intents, strict=True):
+        assert action is FillAction.FILL
+        intent = intents_by_id[intent_id]
+        fill = fills_by_id[intent_id]
+        asset_in = intent.get_field("asset_in")
+        asset_out = intent.get_field("asset_out")
+        directions.add((asset_in, asset_out))
+        if asset_in == asset0:
+            reserve_in, reserve_out = reserve0, reserve1
+        else:
+            reserve_in, reserve_out = reserve1, reserve0
+
+        assert step["i1"] == fill.reserve_in_before == reserve_in
+        assert step["i2"] == fill.reserve_out_before == reserve_out
+        assert step["i3"] == fill.amount_in_filled
+        assert step["i6"] == fill.amount_out_filled
+        assert step["i9"] == fill.fee_paid
+        assert step["i10"] == fill.protocol_fee_paid
+        assert step["i7"] == reserve_in + fill.amount_in_filled - fill.protocol_fee_paid
+        assert step["i8"] == reserve_out - fill.amount_out_filled
+
+        if asset_in == asset0:
+            reserve0, reserve1 = step["i7"], step["i8"]
+        else:
+            reserve1, reserve0 = step["i7"], step["i8"]
+
+    assert directions == {(asset0, asset1), (asset1, asset0)}
+    assert pool.reserve0 == 1_000_000
+    assert pool.reserve1 == 1_000_000
+
+
+def test_tau_gate_protocol_fee_fails_closed_for_unsupported_proof_gate_profile(
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    pk = "0x" + "11" * 48
+    pool_id, pool, _ = create_pool(
+        asset0="0x" + "01" * 32,
+        asset1="0x" + "02" * 32,
+        amount0=10_000,
+        amount1=10_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_mk_intent_id(303),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": pool.asset0,
+            "asset_out": pool.asset1,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.FILL)],
+        fills=[
+            Fill(
+                intent_id=intent.intent_id,
+                action=FillAction.FILL,
+                amount_in_filled=1_000,
+                amount_out_filled=900,
+                fee_paid=3,
+                protocol_fee_paid=1,
+            )
+        ],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+    called = False
+
+    def _unexpected_tau(**_kwargs):  # type: ignore[no-untyped-def]
+        nonlocal called
+        called = True
+        return {}
+
+    monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _unexpected_tau)
+
+    ok, err = validate_settlement_swaps(
+        intents=[intent],
+        settlement=settlement,
+        pre_pools={pool_id: pool},
+        config=TauGateConfig(
+            enabled=True,
+            tau_bin=sys.executable,
+            allow_path_lookup=False,
+            swap_profile="proof_gate_range_guard",
+        ),
+    )
+
+    assert not ok
+    assert err and "does not support protocol-fee reserve transitions" in err
+    assert called is False
 
 
 def test_tau_gate_proof_gate_range_guard_profile_runs_composed_specs(monkeypatch) -> None:  # type: ignore[no-untyped-def]

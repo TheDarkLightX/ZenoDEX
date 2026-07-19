@@ -28,24 +28,26 @@ import pytest
 import src.integration.autonomous_governance_trajectory as trajectory_module
 from src.integration.autonomous_governance_q_policy import (
     policy_content_hash_v1,
-    sample_autonomous_governance_surface_q_policy_v1,
 )
 from src.integration.autonomous_governance_trajectory import (
-    AUTONOMOUS_GOVERNANCE_TRAJECTORY_SCHEMA_V1,
+    _TRAJECTORY_HASH_TAG,
     AUTONOMOUS_GOVERNANCE_TRAJECTORY_ADMISSION_SCHEMA_V1,
+    AUTONOMOUS_GOVERNANCE_TRAJECTORY_SCHEMA_V1,
     MAX_TRAJECTORY_STEPS_V1,
     STATUS_COMPLETED,
     STATUS_HALTED_INVARIANT_BREACH,
     STATUS_REJECTED_STRUCTURAL,
-    _TRAJECTORY_HASH_TAG,
-    admit_verified_autonomous_governance_surface_trajectory_v1,
     _audit_step_transition,
     _chain_genesis,
     _chain_link,
+    admit_verified_autonomous_governance_surface_trajectory_v1,
     run_autonomous_governance_surface_trajectory_v1,
     verify_autonomous_governance_surface_trajectory_v1,
 )
 from src.integration.zeno_ledger_v0 import hash_v0
+from tools.support.autonomous_governance_policy_samples import (
+    sample_autonomous_governance_surface_q_policy_v1,
+)
 
 
 def _surface_state(**overrides: int) -> dict[str, int]:
@@ -161,7 +163,7 @@ def test_trajectory_threads_state_and_records_realized_deltas() -> None:
     assert all(record["adopted"] for record in receipt["steps"])
     assert all(receipt["invariant_report"].values())
     # Steps chain: state_after of step k is state_before of step k+1.
-    for previous, current in zip(receipt["steps"], receipt["steps"][1:]):
+    for previous, current in zip(receipt["steps"], receipt["steps"][1:], strict=False):
         assert current["state_before"] == previous["state_after"]
 
 

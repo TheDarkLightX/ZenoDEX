@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any, Dict, Mapping
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes
-from ..state.intents import Intent
+from ..state.intents import Intent, require_exact_intent
 from .dex_intent_auth_shape_gate import (
     dex_intent_auth_shape_gate_error,
     evaluate_dex_intent_auth_shape_gate,
@@ -23,10 +23,11 @@ def _normalize_intent_kind(kind: Any) -> Any:
 def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict[str, Any]:
     """Build the canonical signing dict for a DEX intent."""
     if isinstance(intent, Intent):
+        require_exact_intent(intent)
         fields = {} if intent.fields is None else intent.fields
         shape = evaluate_dex_intent_auth_shape_gate(
             intent_object_mode=1,
-            fields_object_ok=isinstance(fields, dict),
+            fields_object_ok=isinstance(fields, Mapping),
             explicit_fields_present=0,
             explicit_fields_mapping_ok=1,
             salt_present=int(intent.salt is not None),

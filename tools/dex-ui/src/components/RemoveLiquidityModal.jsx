@@ -3,6 +3,8 @@ import { calcLpTokensBurn, formatNumber, formatPercent } from '../lib/cpmm';
 import { validateRemoveLiquidity } from '../lib/validation';
 import './RemoveLiquidityModal.css';
 
+const LIVE_POOL_SNAPSHOT_ERROR = 'live_pool_snapshot_unavailable';
+
 /**
  * RemoveLiquidityModal - Poka-yoke modal for removing liquidity from a pool
  * Features:
@@ -18,7 +20,10 @@ function RemoveLiquidityModal({ pool, wallet, lpBalance = 0, onClose, onSubmit }
     const [typedConfirmText, setTypedConfirmText] = useState('');
 
     // Pool data
-    const { token0, token1, reserve0, reserve1, totalLpSupply = 1000000 } = pool;
+    const { token0, token1, reserve0, reserve1, totalLpSupply } = pool;
+    const livePoolSnapshotReady = Number.isFinite(reserve0) && reserve0 > 0
+        && Number.isFinite(reserve1) && reserve1 > 0
+        && Number.isFinite(totalLpSupply) && totalLpSupply > 0;
 
     // Calculate percentage of LP tokens
     const lpPercent = useMemo(() => {
@@ -30,7 +35,7 @@ function RemoveLiquidityModal({ pool, wallet, lpBalance = 0, onClose, onSubmit }
     // Calculate tokens to receive
     const preview = useMemo(() => {
         const amt = parseFloat(lpAmount) || 0;
-        if (amt <= 0) return null;
+        if (!livePoolSnapshotReady || amt <= 0) return null;
 
         const { amount0, amount1 } = calcLpTokensBurn(amt, reserve0, reserve1, totalLpSupply);
         const minAmount0 = amount0 * (1 - slippage);
@@ -42,16 +47,19 @@ function RemoveLiquidityModal({ pool, wallet, lpBalance = 0, onClose, onSubmit }
             minAmount0,
             minAmount1,
         };
-    }, [lpAmount, reserve0, reserve1, totalLpSupply, slippage]);
+    }, [lpAmount, livePoolSnapshotReady, reserve0, reserve1, totalLpSupply, slippage]);
 
     // Validation
     const validation = useMemo(() => {
+        if (!livePoolSnapshotReady) {
+            return { ok: false, error: LIVE_POOL_SNAPSHOT_ERROR };
+        }
         const amt = parseFloat(lpAmount) || 0;
         return validateRemoveLiquidity({
             lpAmount: amt,
             lpBalance,
         });
-    }, [lpAmount, lpBalance]);
+    }, [lpAmount, lpBalance, livePoolSnapshotReady]);
 
     // Preset buttons
     const handlePreset = useCallback((percent) => {
@@ -68,6 +76,7 @@ function RemoveLiquidityModal({ pool, wallet, lpBalance = 0, onClose, onSubmit }
     }, [lpBalance]);
 
     const handleSubmit = useCallback(() => {
+        if (!validation.ok || !preview) return;
         setShowConfirm(false);
         setTypedConfirmText('');
         onSubmit?.({
@@ -79,7 +88,7 @@ function RemoveLiquidityModal({ pool, wallet, lpBalance = 0, onClose, onSubmit }
             minAmount1: preview?.minAmount1,
         });
         onClose();
-    }, [lpAmount, preview, pool, onSubmit, onClose]);
+    }, [lpAmount, preview, pool, onSubmit, onClose, validation.ok]);
 
     // Submit handler
     const handleRemoveClick = useCallback(() => {
@@ -96,6 +105,7 @@ function RemoveLiquidityModal({ pool, wallet, lpBalance = 0, onClose, onSubmit }
 
     const getButtonText = () => {
         if (!wallet) return 'Connect Wallet';
+        if (!livePoolSnapshotReady) return 'Live pool data unavailable';
         if (lpBalance <= 0) return 'No LP Tokens';
         if (!lpAmount || parseFloat(lpAmount) <= 0) return 'Enter Amount';
         if (validation.error) return validation.error;

@@ -8,7 +8,7 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -18,12 +18,13 @@ from src.agents.autotrader_chatbot_advisor import (  # noqa: E402
     AutoTraderChatbotConfig,
     ZenoAutoTraderChatbotAdvisor,
 )
-from src.agents.autotrader_local_guard_evaluator import AutoTraderLocalGuardInputs  # noqa: E402
 from src.agents.autotrader_llm_provider import (  # noqa: E402
     AUTOTRADER_LLM_PARSE_HINT_SCHEMA,
+    AutoTraderLanguageProviderResult,
     LocalOpenAICompatibleLLMProvider,
-    StaticAutoTraderLanguageProvider,
+    validate_autotrader_llm_parse_hint,
 )
+from src.agents.autotrader_local_guard_evaluator import AutoTraderLocalGuardInputs  # noqa: E402
 from src.agents.strategy_ir import (  # noqa: E402
     NotionalCaps,
     PolicyBackend,
@@ -41,6 +42,37 @@ from src.integration.autotrader_signals import (  # noqa: E402
 )
 
 SCHEMA = "zenodex/agents/autotrader_chatbot_advisor_check/v1"
+
+
+class _FixedParseHintProvider:
+    """Evidence-only provider double; never part of the shipped runtime."""
+
+    provider_id = "fixed_parse_hint_evidence_provider"
+
+    def __init__(self, payload: Mapping[str, Any], *, model: str) -> None:
+        self._payload = dict(payload)
+        self._model = model
+
+    def parse(
+        self,
+        *,
+        query: str,
+        normalized_query: str,
+        base_features: Mapping[str, float],
+        requested_controls: Sequence[str],
+        intent_tags: Sequence[str],
+    ) -> AutoTraderLanguageProviderResult:
+        del query, normalized_query, base_features
+        return validate_autotrader_llm_parse_hint(
+            self._payload,
+            provider=self.provider_id,
+            llm_calls=1,
+            local_only=True,
+            model=self._model,
+            fallback_intent_tags=intent_tags,
+            fallback_requested_controls=requested_controls,
+            raw_response_chars=len(json.dumps(self._payload, sort_keys=True)),
+        )
 
 
 def build_report() -> dict[str, Any]:
@@ -98,7 +130,7 @@ def build_report() -> dict[str, Any]:
     )
 
     local_provider_response = ZenoAutoTraderChatbotAdvisor(
-        language_provider=StaticAutoTraderLanguageProvider(
+        language_provider=_FixedParseHintProvider(
             {
                 "schema": AUTOTRADER_LLM_PARSE_HINT_SCHEMA,
                 "feature_updates": {
@@ -109,7 +141,7 @@ def build_report() -> dict[str, Any]:
                 "intent_tags": ["llm_low_slippage_hint"],
                 "explanation": "Use a lower slippage band and smaller order.",
             },
-            model="demo-local-model",
+            model="fixed-evidence-model",
         )
     ).handle_user_query(
         "Please keep this swap low slippage and explain the safer path.",
@@ -121,7 +153,7 @@ def build_report() -> dict[str, Any]:
     _record(
         checks,
         "local_llm.valid_parse_hint_remains_advisory",
-        local_provider_response["language_bridge"]["provider"] == "static_autotrader_language_provider"
+        local_provider_response["language_bridge"]["provider"] == "fixed_parse_hint_evidence_provider"
         and local_provider_response["language_bridge"]["provider_schema_valid"] is True
         and local_provider_response["language_bridge"]["llm_calls"] == 1
         and local_provider_response["language_bridge"]["parsed_features"]["slippage_bps_norm"] == 0.18
@@ -161,7 +193,7 @@ def build_report() -> dict[str, Any]:
     )
 
     bad_provider_response = ZenoAutoTraderChatbotAdvisor(
-        language_provider=StaticAutoTraderLanguageProvider(
+        language_provider=_FixedParseHintProvider(
             {
                 "schema": AUTOTRADER_LLM_PARSE_HINT_SCHEMA,
                 "feature_updates": {"budget_used_norm": 0.99},

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Deterministic action-grammar explorer for stateful quote-receipt behavior in `dex_engine`.
 
@@ -9,6 +7,8 @@ the interesting branch only appears after a prior successful transition:
 - quote receipt hash and witness requirements fire after earlier success
 - split quote-receipt leg binding and coverage checks fire after an unrelated success
 """
+
+from __future__ import annotations
 
 import argparse
 import copy
@@ -23,16 +23,21 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.agents.intent_signer import create_swap_intent_from_quote_receipt, create_swap_intents_from_quote_receipt
-from src.core.dex import DexState
-from src.core.quote_receipts import make_route_quote_receipt
-from src.core.routing import best_route_exact_in_2hop
-from src.integration.dex_engine import DexEngineConfig, apply_ops
-from src.integration.operations import SignedIntentEnvelope, create_signed_intent_operation
-from src.state.balances import BalanceTable
-from src.state.lp import LPTable
-from src.state.pools import PoolState, PoolStatus
-
+from src.agents.intent_signer import (  # noqa: E402
+    create_swap_intent_from_quote_receipt,
+    create_swap_intents_from_quote_receipt,
+)
+from src.core.dex import DexState  # noqa: E402
+from src.core.quote_receipts import make_route_quote_receipt  # noqa: E402
+from src.core.routing import best_route_exact_in_2hop  # noqa: E402
+from src.integration.dex_engine import DexEngineConfig, apply_ops  # noqa: E402
+from src.integration.operations import (  # noqa: E402
+    SignedIntentEnvelope,
+    create_signed_intent_operation,
+)
+from src.state.balances import BalanceTable  # noqa: E402
+from src.state.lp import LPTable  # noqa: E402
+from src.state.pools import PoolState, PoolStatus  # noqa: E402
 
 RunnerFn = Callable[[object], str]
 
@@ -219,7 +224,7 @@ def _make_direct_ops(
         deadline=9_999_999_999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", nonce)
+    intent = intent.with_field("nonce", nonce)
     env = SignedIntentEnvelope(intent=intent, quote_receipt=receipt if attach_witness else None)
     ops = create_signed_intent_operation([env])
     if hash_override is not None:

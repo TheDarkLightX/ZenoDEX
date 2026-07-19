@@ -2,31 +2,47 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.fire.registry.bundle_v1 import write_fire_registry_bundle
+from src.fire.registry.index_v1 import write_fire_registry_index
+from src.fire.registry.release_v1 import write_fire_registry_release_metadata
 from src.fire.runtime.burn_boost_call_v1 import (
     BurnBoostCallTerms,
+)
+from src.fire.runtime.burn_boost_call_v1 import (
     build_manifest as build_burn_manifest,
+)
+from src.fire.runtime.burn_boost_call_v1 import (
     compile_terms as compile_burn_terms,
+)
+from src.fire.runtime.burn_boost_call_v1 import (
     render_object_card as render_burn_object_card,
 )
 from src.fire.runtime.fee_note_v1 import (
     FeeNoteTerms,
+)
+from src.fire.runtime.fee_note_v1 import (
     build_manifest as build_fee_manifest,
+)
+from src.fire.runtime.fee_note_v1 import (
     compile_terms as compile_fee_terms,
+)
+from src.fire.runtime.fee_note_v1 import (
     render_object_card as render_fee_object_card,
 )
 from src.fire.runtime.lp_loss_cover_v1 import (
     LPLossCoverTerms,
+)
+from src.fire.runtime.lp_loss_cover_v1 import (
     build_manifest as build_lp_manifest,
+)
+from src.fire.runtime.lp_loss_cover_v1 import (
     compile_terms as compile_lp_terms,
+)
+from src.fire.runtime.lp_loss_cover_v1 import (
     render_object_card as render_lp_object_card,
 )
-from src.fire.registry.bundle_v1 import write_fire_registry_bundle
-from src.fire.registry.index_v1 import write_fire_registry_index
-from src.fire.registry.release_v1 import write_fire_registry_release_metadata
-
 
 SNAPSHOT_REPORT_SCHEMA = "zenodex/fire-registry-snapshot-build-report/v1"
-DEMO_SIGNER_PRIVKEY = "73"
 
 
 def build_fire_registry_snapshot(

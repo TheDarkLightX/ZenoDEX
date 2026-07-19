@@ -1,9 +1,8 @@
-"""Encrypted SSS backup receipts for the perps wallet authority lane.
+"""Verify encrypted SSS backup evidence for the perps wallet authority lane.
 
-This module models optional backup and recovery evidence. It does not make the
-server a custodian: encrypted share envelopes are transport artifacts, and the
-status explicitly distinguishes local-testnet fixture readiness from a
-production security claim.
+This production boundary validates externally constructed backup artifacts and
+live delivery receipts.  It intentionally contains no recipient type, secret
+splitting, envelope encryption, or local-fixture construction capability.
 """
 
 from __future__ import annotations
@@ -11,8 +10,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-import secrets
-from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from cryptography.exceptions import InvalidTag
@@ -21,17 +18,19 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from src.integration.perps_wallet_authority import evaluate_perps_wallet_authority_profile_v1
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 from src.integration.zeno_ledger_signature import validate_bls_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_v0 import hash_v0
 
+try:
+    from py_ecc.bls import G2Basic
+    from py_ecc.optimized_bls12_381 import curve_order as _BLS12_381_CURVE_ORDER
+except ImportError:  # pragma: no cover - optional dependency guard
+    G2Basic = None
+    _BLS12_381_CURVE_ORDER = None
 
 PERPS_WALLET_ENCRYPTED_SSS_BACKUP_SCHEMA_V1 = "zenodex/perps-wallet-encrypted-sss-backup/v1"
 PERPS_WALLET_ENCRYPTED_SSS_BACKUP_STATUS_SCHEMA_V1 = (
     "zenodex/perps-wallet-encrypted-sss-backup-status/v1"
-)
-PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_SCHEMA_V1 = (
-    "zenodex/perps-wallet-encrypted-sss-recipient-keys/v1"
 )
 PERPS_WALLET_ENCRYPTED_SSS_AUDIT_EVIDENCE_SCHEMA_V1 = (
     "zenodex/perps-wallet-encrypted-sss-audit-evidence/v1"
@@ -62,53 +61,6 @@ _FORBIDDEN_RAW_FIELD_FRAGMENTS = (
     "plaintext_share_bytes",
     "key_material_hex",
 )
-
-
-@dataclass(frozen=True)
-class SssBackupRecipient:
-    recipient_id: str
-    provider_kind: str
-    provider_id: str
-    transport_kind: str
-    destination_hash: str
-    recipient_root_key: bytes
-
-
-def split_secret_shamir_gf256(
-    secret_material: bytes,
-    *,
-    threshold: int,
-    share_count: int,
-    coefficient_seed: bytes | None = None,
-) -> list[tuple[int, bytes]]:
-    """Split bytes into Shamir shares over GF(256)."""
-
-    if not secret_material:
-        raise ValueError("secret_material must be non-empty")
-    if threshold < 2:
-        raise ValueError("threshold must be at least 2")
-    if share_count < threshold:
-        raise ValueError("share_count must be >= threshold")
-    if share_count > 255:
-        raise ValueError("share_count must be <= 255")
-    if coefficient_seed is None:
-        coefficient_seed = secrets.token_bytes(32)
-    if not coefficient_seed:
-        raise ValueError("coefficient_seed must be non-empty")
-
-    shares = bytearray(secret_material_len := len(secret_material))
-    del shares
-    out = [(x, bytearray(secret_material_len)) for x in range(1, share_count + 1)]
-    for byte_index, value in enumerate(secret_material):
-        coefficients = [value]
-        for degree in range(1, threshold):
-            coef = _derive_coefficient(coefficient_seed, byte_index=byte_index, degree=degree)
-            if degree == threshold - 1 and coef == 0:
-                coef = 1
-            coefficients.append(coef)
-        for x, share_bytes in out:
-            share_bytes[byte_index] = _eval_poly_gf256(coefficients, x)
-    return [(x, bytes(share_bytes)) for x, share_bytes in out]
 
 
 def recover_secret_shamir_gf256(shares: Sequence[tuple[int, bytes]]) -> bytes:
@@ -146,248 +98,6 @@ def recover_secret_shamir_gf256(shares: Sequence[tuple[int, bytes]]) -> bytes:
             value ^= _gf_mul(share_i[byte_index], coefficient)
         recovered[byte_index] = value
     return bytes(recovered)
-
-
-def build_perps_wallet_encrypted_sss_backup_v1(
-    *,
-    authority_id: str,
-    chain_id: str,
-    wallet_authority_hash: str,
-    subject_key_id: str,
-    secret_material: bytes,
-    recipients: Sequence[SssBackupRecipient],
-    threshold: int = 3,
-    created_at_epoch: int = 13,
-    drill_epoch: int = 14,
-    backup_id: str = "perps-wallet-a-localtest-encrypted-sss-v1",
-    coefficient_seed: bytes | None = None,
-    encryption_salt: bytes | None = None,
-) -> dict[str, Any]:
-    if len(recipients) < threshold:
-        raise ValueError("recipient count must be >= threshold")
-    if threshold < 2:
-        raise ValueError("threshold must be at least 2")
-
-    shares = split_secret_shamir_gf256(
-        secret_material,
-        threshold=threshold,
-        share_count=len(recipients),
-        coefficient_seed=coefficient_seed,
-    )
-    if encryption_salt is None:
-        encryption_salt = secrets.token_bytes(32)
-    if not encryption_salt:
-        raise ValueError("encryption_salt must be non-empty")
-    key_fingerprint = _sha256_hex(secret_material)
-    envelopes = [
-        _encrypt_share_envelope(
-            backup_id=backup_id,
-            chain_id=chain_id,
-            wallet_authority_hash=wallet_authority_hash,
-            subject_key_id=subject_key_id,
-            recipient=recipient,
-            share_index=index,
-            x=x,
-            share_bytes=share_bytes,
-            encryption_salt=encryption_salt,
-        )
-        for index, ((x, share_bytes), recipient) in enumerate(zip(shares, recipients, strict=True), start=1)
-    ]
-
-    selected = envelopes[:threshold]
-    selected_recipients = list(recipients[:threshold])
-    recovered = recover_secret_shamir_gf256(
-        [
-            (
-                int(envelope["x"]),
-                _decrypt_share_envelope(
-                    backup_id=backup_id,
-                    wallet_authority_hash=wallet_authority_hash,
-                    envelope=envelope,
-                    recipient_root_key=recipient.recipient_root_key,
-                ),
-            )
-            for envelope, recipient in zip(selected, selected_recipients, strict=True)
-        ]
-    )
-    insufficient_recovered = recover_secret_shamir_gf256(
-        [
-            (
-                int(envelope["x"]),
-                _decrypt_share_envelope(
-                    backup_id=backup_id,
-                    wallet_authority_hash=wallet_authority_hash,
-                    envelope=envelope,
-                    recipient_root_key=recipient.recipient_root_key,
-                ),
-            )
-            for envelope, recipient in zip(selected[:-1], selected_recipients[:-1], strict=True)
-        ]
-    )
-    tampered_ciphertext_rejected = _tampered_ciphertext_rejected(
-        backup_id=backup_id,
-        wallet_authority_hash=wallet_authority_hash,
-        envelope=selected[0],
-        recipient_root_key=selected_recipients[0].recipient_root_key,
-    )
-    wrong_recipient_key_rejected = _wrong_recipient_key_rejected(
-        backup_id=backup_id,
-        wallet_authority_hash=wallet_authority_hash,
-        envelope=selected[0],
-        wrong_key=selected_recipients[1].recipient_root_key,
-    )
-    duplicate_share_rejected = _duplicate_share_rejected(selected[0])
-
-    storage_provider_kinds = sorted({recipient.provider_kind for recipient in recipients})
-    delivery_evidence = [_delivery_receipt_for_envelope(envelope) for envelope in envelopes]
-    recovery_drill = {
-        "drill_id": "local-testnet-encrypted-sss-recovery-drill-1",
-        "performed_at_epoch": drill_epoch,
-        "selected_share_ids": [str(envelope["share_id"]) for envelope in selected],
-        "selected_provider_kinds": sorted({str(envelope["provider_kind"]) for envelope in selected}),
-        "threshold_satisfied": True,
-        "reconstituted_key_matches": recovered == secret_material,
-        "reconstituted_key_fingerprint": key_fingerprint,
-        "new_key_rotation_required": True,
-        "old_key_invalidated_on_completion": True,
-    }
-    recovery_drill["drill_hash"] = perps_wallet_encrypted_sss_recovery_drill_hash_v1(recovery_drill)
-    hostile_share_tests: dict[str, Any] = {
-        "insufficient_shares_rejected": insufficient_recovered != secret_material,
-        "tampered_ciphertext_rejected": tampered_ciphertext_rejected,
-        "wrong_recipient_key_rejected": wrong_recipient_key_rejected,
-        "duplicate_share_rejected": duplicate_share_rejected,
-    }
-    hostile_share_tests["suite_hash"] = perps_wallet_encrypted_sss_hostile_suite_hash_v1(hostile_share_tests)
-
-    backup: dict[str, Any] = {
-        "schema": PERPS_WALLET_ENCRYPTED_SSS_BACKUP_SCHEMA_V1,
-        "authority_id": authority_id,
-        "chain_id": chain_id,
-        "wallet_authority_hash": wallet_authority_hash,
-        "subject_key_id": subject_key_id,
-        "backup_id": backup_id,
-        "created_at_epoch": created_at_epoch,
-        "sss": {
-            "algorithm": SHAMIR_GF256_ALGORITHM_V1,
-            "threshold": threshold,
-            "share_count": len(envelopes),
-            "x_coordinates": [int(envelope["x"]) for envelope in envelopes],
-        },
-        "encryption": {
-            "library": "cryptography",
-            "aead": AEAD_AES_256_GCM,
-            "kdf": KDF_HKDF_SHA256,
-            "key_derivation": "per-recipient local-testnet fixture root",
-        },
-        "storage_policy": {
-            "min_provider_kinds": 3,
-            "requires_recovery_email": True,
-            "requires_cloud_drive": True,
-            "requires_offline_export": True,
-        },
-        "storage_provider_kinds": storage_provider_kinds,
-        "envelopes": envelopes,
-        "delivery_evidence": delivery_evidence,
-        "recovery_drill": recovery_drill,
-        "hostile_share_tests": hostile_share_tests,
-        "raw_material_exposure": {
-            "key_material_exposed": False,
-            "share_material_exposed": False,
-            "server_can_reconstitute": False,
-        },
-        "audit_evidence": {
-            "audit_required_for_production": True,
-            "external_audit_ready": False,
-            "audit_status": "local-fixture-unaudited",
-            "audit_report_hash": None,
-        },
-        "production_security_claim": False,
-        "audit_status": "local-fixture-unaudited",
-        "not_claimed": [
-            "does_not_claim_server_side_custody",
-            "does_not_claim_plaintext_share_storage",
-            "does_not_claim_external_email_delivery",
-            "does_not_claim_dropbox_or_box_account_delivery",
-            "does_not_claim_audited_production_sss_custody",
-        ],
-    }
-    backup["backup_hash"] = perps_wallet_encrypted_sss_backup_hash_v1(backup)
-    return backup
-
-
-def build_perps_wallet_encrypted_sss_recipient_keys_v1(
-    *,
-    backup: Mapping[str, Any],
-    recipients: Sequence[SssBackupRecipient],
-) -> dict[str, Any]:
-    """Build private local replay keys for encrypted SSS fixture evaluation.
-
-    This artifact is intentionally separate from the public backup/status
-    receipts. It is mounted into the local API so the evaluator can decrypt and
-    replay the recovery drill instead of trusting self-attested booleans.
-    """
-
-    body = {
-        "schema": PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_SCHEMA_V1,
-        "backup_id": backup.get("backup_id"),
-        "backup_hash": backup.get("backup_hash"),
-        "wallet_authority_hash": backup.get("wallet_authority_hash"),
-        "subject_key_id": backup.get("subject_key_id"),
-        "keys": [
-            {
-                "recipient_id": recipient.recipient_id,
-                "provider_kind": recipient.provider_kind,
-                "provider_id": recipient.provider_id,
-                "transport_kind": recipient.transport_kind,
-                "destination_hash": recipient.destination_hash,
-                "recipient_root_key_b64": _b64(recipient.recipient_root_key),
-                "recipient_root_key_sha256": _sha256_hex(recipient.recipient_root_key),
-            }
-            for recipient in recipients
-        ],
-        "production_security_claim": False,
-        "not_claimed": [
-            "local_replay_keys_are_not_public_config",
-            "does_not_claim_production_recipient_key_custody",
-        ],
-    }
-    body["keyset_hash"] = hash_v0("perps_wallet_encrypted_sss_recipient_keys_v1", body)
-    return body
-
-
-def recipient_root_keys_from_fixture_v1(keys_fixture: Mapping[str, Any]) -> dict[str, bytes]:
-    obj = dict(keys_fixture)
-    if obj.get("schema") != PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_SCHEMA_V1:
-        raise ValueError("encrypted SSS recipient keys schema mismatch")
-    expected_hash = obj.get("keyset_hash")
-    body = {key: value for key, value in obj.items() if key != "keyset_hash"}
-    if expected_hash != hash_v0("perps_wallet_encrypted_sss_recipient_keys_v1", body):
-        raise ValueError("encrypted SSS recipient keys hash mismatch")
-    if obj.get("production_security_claim") is not False:
-        raise ValueError("encrypted SSS recipient keys must not claim production custody")
-    raw_keys = _require_list(obj.get("keys"), name="keys")
-    out: dict[str, bytes] = {}
-    for index, item in enumerate(raw_keys):
-        entry = _require_mapping(item, name=f"keys[{index}]")
-        recipient_id = _require_nonempty_str(entry.get("recipient_id"), name=f"keys[{index}].recipient_id")
-        root_key = _b64decode(
-            _require_nonempty_str(
-                entry.get("recipient_root_key_b64"),
-                name=f"keys[{index}].recipient_root_key_b64",
-            ),
-            name=f"keys[{index}].recipient_root_key_b64",
-        )
-        if len(root_key) != 32:
-            raise ValueError(f"keys[{index}].recipient_root_key_b64 must decode to 32 bytes")
-        if entry.get("recipient_root_key_sha256") != _sha256_hex(root_key):
-            raise ValueError(f"keys[{index}].recipient root key hash mismatch")
-        if recipient_id in out:
-            raise ValueError(f"duplicate encrypted SSS recipient key: {recipient_id}")
-        out[recipient_id] = root_key
-    if not out:
-        raise ValueError("encrypted SSS recipient keys fixture is empty")
-    return out
 
 
 def perps_wallet_encrypted_sss_envelope_hash_v1(envelope: Mapping[str, Any]) -> str:
@@ -880,7 +590,7 @@ def _replay_recovery_drill(
         errors.append("encrypted SSS replay recovered key fingerprint mismatch")
     subject_public_key = _subject_public_key(profile, str(backup.get("subject_key_id") or ""))
     try:
-        recovered_public_key = "0x" + bls_pubkey_hex_from_privkey(recovered)
+        recovered_public_key = _bls_public_key_from_recovered_secret(recovered)
     except Exception as exc:
         errors.append(f"encrypted SSS replay recovered key is not a valid BLS key: {exc}")
         recovered_public_key = None
@@ -973,7 +683,7 @@ def _replay_hostile_share_tests(
         recovered_fingerprint = _sha256_hex(recovered)
         subject_public_key = _subject_public_key(profile, str(backup.get("subject_key_id") or ""))
         try:
-            recovered_public_key = "0x" + bls_pubkey_hex_from_privkey(recovered)
+            recovered_public_key = _bls_public_key_from_recovered_secret(recovered)
         except Exception:
             recovered_public_key = None
         if recovered_fingerprint == drill_fingerprint or recovered_public_key == subject_public_key:
@@ -984,75 +694,6 @@ def _replay_hostile_share_tests(
         "replay_hostile_tests_ready": not errors,
         "errors": errors,
     }
-
-
-def _encrypt_share_envelope(
-    *,
-    backup_id: str,
-    chain_id: str,
-    wallet_authority_hash: str,
-    subject_key_id: str,
-    recipient: SssBackupRecipient,
-    share_index: int,
-    x: int,
-    share_bytes: bytes,
-    encryption_salt: bytes,
-) -> dict[str, Any]:
-    share_id = f"share-{share_index:02d}"
-    envelope_id = f"{backup_id}:{share_id}:{recipient.recipient_id}"
-    aad = _envelope_aad(
-        backup_id=backup_id,
-        chain_id=chain_id,
-        wallet_authority_hash=wallet_authority_hash,
-        subject_key_id=subject_key_id,
-        envelope_id=envelope_id,
-        share_id=share_id,
-        x=x,
-        recipient=recipient,
-    )
-    aad_bytes = _canonical_json_bytes(aad)
-    envelope_salt = hashlib.blake2b(
-        encryption_salt
-        + b"|zenodex-localtest-sss-envelope-salt-v1|"
-        + envelope_id.encode("utf-8"),
-        digest_size=32,
-    ).digest()
-    key, nonce = _derive_aead_material(
-        recipient.recipient_root_key,
-        backup_id=backup_id,
-        envelope_id=envelope_id,
-        wallet_authority_hash=wallet_authority_hash,
-        envelope_salt=envelope_salt,
-    )
-    ciphertext = AESGCM(key).encrypt(nonce, share_bytes, aad_bytes)
-    envelope = {
-        **aad,
-        "envelope_salt_b64": _b64(envelope_salt),
-        "nonce_b64": _b64(nonce),
-        "ciphertext_b64": _b64(ciphertext),
-        "aad_hash": hash_v0("perps_wallet_encrypted_sss_envelope_aad_v1", aad),
-        "share_sha256": _sha256_hex(share_bytes),
-    }
-    envelope["envelope_hash"] = perps_wallet_encrypted_sss_envelope_hash_v1(envelope)
-    return envelope
-
-
-def _delivery_receipt_for_envelope(envelope: Mapping[str, Any]) -> dict[str, Any]:
-    delivery = {
-        "schema": "zenodex/perps-wallet-encrypted-sss-delivery/v1",
-        "envelope_id": envelope["envelope_id"],
-        "share_id": envelope["share_id"],
-        "provider_kind": envelope["provider_kind"],
-        "provider_id": envelope["provider_id"],
-        "destination_hash": envelope["destination_hash"],
-        "envelope_hash": envelope["envelope_hash"],
-        "delivery_mode": "local_fixture",
-        "delivery_status": "delivered",
-        "delivered_at_epoch": 13,
-        "receipt_reference": f"local-fixture-delivery:{envelope['share_id']}",
-    }
-    delivery["delivery_hash"] = perps_wallet_encrypted_sss_delivery_hash_v1(delivery)
-    return delivery
 
 
 def build_perps_wallet_encrypted_sss_live_delivery_receipt_v1(
@@ -1135,33 +776,6 @@ def _decrypt_share_envelope(
     if _sha256_hex(plaintext) != envelope.get("share_sha256"):
         raise ValueError("share hash mismatch")
     return plaintext
-
-
-def _envelope_aad(
-    *,
-    backup_id: str,
-    chain_id: str,
-    wallet_authority_hash: str,
-    subject_key_id: str,
-    envelope_id: str,
-    share_id: str,
-    x: int,
-    recipient: SssBackupRecipient,
-) -> dict[str, Any]:
-    return {
-        "backup_id": backup_id,
-        "chain_id": chain_id,
-        "wallet_authority_hash": wallet_authority_hash,
-        "subject_key_id": subject_key_id,
-        "envelope_id": envelope_id,
-        "share_id": share_id,
-        "x": x,
-        "recipient_id": recipient.recipient_id,
-        "provider_kind": recipient.provider_kind,
-        "provider_id": recipient.provider_id,
-        "transport_kind": recipient.transport_kind,
-        "destination_hash": recipient.destination_hash,
-    }
 
 
 def _validate_envelope(envelope: Mapping[str, Any], *, errors: list[str]) -> None:
@@ -1344,25 +958,6 @@ def _duplicate_share_rejected(envelope: Mapping[str, Any]) -> bool:
     return False
 
 
-def _derive_coefficient(seed: bytes, *, byte_index: int, degree: int) -> int:
-    return hashlib.blake2b(
-        seed
-        + byte_index.to_bytes(4, "big")
-        + degree.to_bytes(2, "big")
-        + b"|zenodex-shamir-gf256-coefficient-v1",
-        digest_size=1,
-    ).digest()[0]
-
-
-def _eval_poly_gf256(coefficients: Sequence[int], x: int) -> int:
-    out = 0
-    power = 1
-    for coefficient in coefficients:
-        out ^= _gf_mul(coefficient, power)
-        power = _gf_mul(power, x)
-    return out
-
-
 def _gf_mul(a: int, b: int) -> int:
     a &= 0xFF
     b &= 0xFF
@@ -1421,42 +1016,6 @@ def _derive_aead_material(
         info=context,
     ).derive(root_key)
     return expanded[:32], expanded[32:]
-
-
-def _derive_aead_key(
-    root_key: bytes,
-    *,
-    backup_id: str,
-    envelope_id: str,
-    wallet_authority_hash: str,
-    envelope_salt: bytes,
-) -> bytes:
-    key, _nonce = _derive_aead_material(
-        root_key,
-        backup_id=backup_id,
-        envelope_id=envelope_id,
-        wallet_authority_hash=wallet_authority_hash,
-        envelope_salt=envelope_salt,
-    )
-    return key
-
-
-def _derive_nonce(
-    root_key: bytes,
-    *,
-    backup_id: str,
-    envelope_id: str,
-    wallet_authority_hash: str,
-    envelope_salt: bytes,
-) -> bytes:
-    _key, nonce = _derive_aead_material(
-        root_key,
-        backup_id=backup_id,
-        envelope_id=envelope_id,
-        wallet_authority_hash=wallet_authority_hash,
-        envelope_salt=envelope_salt,
-    )
-    return nonce
 
 
 def _length_prefixed_context(domain: bytes, *parts: bytes) -> bytes:
@@ -1556,6 +1115,19 @@ def _subject_public_key(profile: Mapping[str, Any] | None, subject_key_id: str) 
             public_key = item.get("public_key")
             return public_key if isinstance(public_key, str) else None
     return None
+
+
+def _bls_public_key_from_recovered_secret(secret: bytes) -> str:
+    """Derive only the comparison key required by recovery verification."""
+
+    if G2Basic is None or _BLS12_381_CURVE_ORDER is None:
+        raise RuntimeError("py_ecc.bls is required for encrypted SSS recovery verification")
+    if len(secret) != 32:
+        raise ValueError("recovered BLS key must be 32 bytes")
+    private_key = int.from_bytes(secret, byteorder="big", signed=False)
+    if private_key <= 0 or private_key >= int(_BLS12_381_CURVE_ORDER):
+        raise ValueError("recovered BLS key is out of range")
+    return "0x" + G2Basic.SkToPk(private_key).hex()
 
 
 def _reject_forbidden_raw_fields(value: object, *, errors: list[str], path: str = "backup") -> None:

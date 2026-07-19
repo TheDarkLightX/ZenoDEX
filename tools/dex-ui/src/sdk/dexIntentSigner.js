@@ -1,6 +1,5 @@
 import { hashV0, stableStringify } from './zenoProofClient.js';
 
-const textEncoder = new TextEncoder();
 const COMMON_INTENT_KEYS = new Set([
   'module',
   'version',
@@ -12,50 +11,6 @@ const COMMON_INTENT_KEYS = new Set([
   'fields',
   'quote_receipt',
 ]);
-
-function bytesToHex(bytes) {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function hexToBytes(value, name = 'hex') {
-  const s = String(value || '').trim();
-  const body = s.startsWith('0x') ? s.slice(2) : s;
-  if (!/^[0-9a-fA-F]+$/.test(body) || body.length % 2 !== 0) {
-    throw new Error(`${name} must be even-length hex`);
-  }
-  return Uint8Array.from(body.match(/../g).map((part) => Number.parseInt(part, 16)));
-}
-
-async function sha256Bytes(bytes) {
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
-  return new Uint8Array(digest);
-}
-
-function concatBytes(parts) {
-  const total = parts.reduce((sum, part) => sum + part.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const part of parts) {
-    out.set(part, offset);
-    offset += part.length;
-  }
-  return out;
-}
-
-function canonicalJsonBytes(value) {
-  return textEncoder.encode(stableStringify(value));
-}
-
-function domainSepBytes(label, version = 1) {
-  const cleanLabel = String(label || '');
-  if (!cleanLabel || cleanLabel.includes('\0')) {
-    throw new Error('domain_label_invalid');
-  }
-  if (!Number.isSafeInteger(version) || version <= 0) {
-    throw new Error('domain_version_invalid');
-  }
-  return textEncoder.encode(`zenodex:${cleanLabel}:v${version}\0`);
-}
 
 function asInt(value, name) {
   const n = Number(value);
@@ -96,11 +51,6 @@ function bpsMulCeil(value, bps, name) {
   return toSafeNumber((BigInt(value) * BigInt(bps) + 9_999n) / 10_000n, name);
 }
 
-async function getBls() {
-  const mod = await import('@noble/curves/bls12-381');
-  return mod.bls12_381;
-}
-
 export function encodeTauOperationsForWire(operations) {
   if (!operations || typeof operations !== 'object' || Array.isArray(operations)) {
     throw new Error('operations_must_be_object');
@@ -118,42 +68,6 @@ export function encodeTauOperationsForWire(operations) {
     }
   }
   return encoded;
-}
-
-export async function signTauTransactionPayload(payload, { privkey }) {
-  const signingDict = {
-    sender_pubkey: payload.sender_pubkey,
-    sequence_number: asInt(payload.sequence_number, 'sequence_number'),
-    expiration_time: asInt(payload.expiration_time, 'expiration_time'),
-    operations: payload.operations,
-    fee_limit: String(payload.fee_limit),
-  };
-  const digest = await sha256Bytes(canonicalJsonBytes(signingDict));
-  const bls = await getBls();
-  const signature = await bls.sign(digest, hexToBytes(privkey, 'privkey'));
-  return bytesToHex(signature);
-}
-
-export async function buildSignedTauTransaction({
-  privkey,
-  sequenceNumber,
-  sequence_number,
-  expirationTime,
-  expiration_time,
-  operations,
-  feeLimit = '0',
-  fee_limit,
-}) {
-  const bls = await getBls();
-  const payload = {
-    sender_pubkey: bytesToHex(bls.getPublicKey(hexToBytes(privkey, 'privkey'))),
-    sequence_number: asInt(sequence_number ?? sequenceNumber, 'sequence_number'),
-    expiration_time: asInt(expiration_time ?? expirationTime, 'expiration_time'),
-    operations: encodeTauOperationsForWire(operations || {}),
-    fee_limit: String(fee_limit ?? feeLimit),
-  };
-  payload.signature = await signTauTransactionPayload(payload, { privkey });
-  return payload;
 }
 
 const PERP_SIGNED_FIELD_KEYS = {
@@ -207,49 +121,6 @@ export function buildPerpOpAuthSigningDictV1(op, { signerPubkey, signer_pubkey, 
   };
 }
 
-export async function signPerpOpForEngine(op, {
-  privkey,
-  chainId,
-  chain_id,
-  signerPubkey,
-  signer_pubkey,
-  nonce,
-}) {
-  const chain = String(chain_id ?? chainId ?? '').trim();
-  if (!chain) {
-    throw new Error('chain_id_required');
-  }
-  const signer = String(signer_pubkey ?? signerPubkey ?? '').trim();
-  const signingDict = buildPerpOpAuthSigningDictV1(op, { signerPubkey: signer, nonce });
-  const message = concatBytes([
-    domainSepBytes(`perp_op_sig:${chain}`, 1),
-    canonicalJsonBytes(signingDict),
-  ]);
-  const digest = await sha256Bytes(message);
-  const bls = await getBls();
-  const signature = await bls.sign(digest, hexToBytes(privkey, 'privkey'));
-  return `0x${bytesToHex(signature)}`;
-}
-
-export async function generateLocalTauWallet({ chainId = 'zeno-ledger-localtest-v0' } = {}) {
-  const bls = await getBls();
-  const privateKey = bls.utils.randomPrivateKey();
-  const publicKey = bls.getPublicKey(privateKey);
-  return {
-    address: `0x${bytesToHex(publicKey)}`,
-    privkey: `0x${bytesToHex(privateKey)}`,
-    chainId,
-    localTestnetGenerated: true,
-    balance: {
-      ZDEX: 0,
-      zUSD: 0,
-      TASSET0: 0,
-      TASSET1: 0,
-      TZENO: 0,
-    },
-  };
-}
-
 export function buildDexIntentSigningDictV1(intent) {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) {
     throw new Error('intent must be an object');
@@ -275,27 +146,11 @@ export function buildDexIntentSigningDictV1(intent) {
   return signingDict;
 }
 
-export async function signDexIntentForEngine(intent, { privkey, chainId }) {
-  const chain = String(chainId || '').trim();
-  if (!chain) {
-    throw new Error('chain_id_required');
+async function signDexIntentWithAvailableSigner(intent, { chainId, signDexIntent }) {
+  if (typeof signDexIntent !== 'function') {
+    throw new Error('external_dex_intent_signer_required');
   }
-  const signingPayload = textEncoder.encode(stableStringify(buildDexIntentSigningDictV1(intent)));
-  const prefix = textEncoder.encode(`zenodex:dex_intent_sig:${chain}:v1\0`);
-  const digest = await sha256Bytes(concatBytes([prefix, signingPayload]));
-  const bls = await getBls();
-  const signature = await bls.sign(digest, hexToBytes(privkey, 'privkey'));
-  return `0x${bytesToHex(signature)}`;
-}
-
-async function signDexIntentWithAvailableSigner(intent, { privkey, chainId, signDexIntent }) {
-  if (typeof signDexIntent === 'function') {
-    return signDexIntent(intent, { chainId });
-  }
-  if (!privkey) {
-    throw new Error('dex_intent_signer_unavailable');
-  }
-  return signDexIntentForEngine(intent, { privkey, chainId });
+  return signDexIntent(intent, { chainId });
 }
 
 function liquidityMath({ kind, pool, payload }) {
@@ -352,9 +207,8 @@ export async function buildAndSignLiquidityIntent({
   kind,
   pool,
   payload,
-  privkey,
   signDexIntent,
-  chainId = 'zeno-ledger-localtest-v0',
+  chainId = '',
 }) {
   if (kind !== 'ADD_LIQUIDITY' && kind !== 'REMOVE_LIQUIDITY') {
     throw new Error('unsupported_liquidity_kind');
@@ -398,7 +252,7 @@ export async function buildAndSignLiquidityIntent({
   }
   return {
     intent: operation,
-    signature: await signDexIntentWithAvailableSigner(operation, { privkey, chainId, signDexIntent }),
+    signature: await signDexIntentWithAvailableSigner(operation, { chainId, signDexIntent }),
   };
 }
 
@@ -456,9 +310,8 @@ function requireUnambiguousSwapPayload(payload) {
 export async function buildAndSignSwapIntent({
   pool,
   payload,
-  privkey,
   signDexIntent,
-  chainId = 'zeno-ledger-localtest-v0',
+  chainId = '',
 }) {
   if (!pool || typeof pool !== 'object' || Array.isArray(pool)) {
     throw new Error('pool_must_be_object');
@@ -518,15 +371,14 @@ export async function buildAndSignSwapIntent({
   };
   return {
     intent: operation,
-    signature: await signDexIntentWithAvailableSigner(operation, { privkey, chainId, signDexIntent }),
+    signature: await signDexIntentWithAvailableSigner(operation, { chainId, signDexIntent }),
   };
 }
 
 export async function buildAndSignRouteIntent({
   payload,
-  privkey,
   signDexIntent,
-  chainId = 'zeno-ledger-localtest-v0',
+  chainId = '',
 }) {
   const sender = String(payload.senderPubkey || payload.sender_pubkey || '').trim();
   const recipient = String(payload.recipient || sender).trim();
@@ -701,7 +553,7 @@ export async function buildAndSignRouteIntent({
     };
     signedIntents.push({
       intent: operation,
-      signature: await signDexIntentWithAvailableSigner(operation, { privkey, chainId, signDexIntent }),
+      signature: await signDexIntentWithAvailableSigner(operation, { chainId, signDexIntent }),
     });
   }
   const first = signedIntents[0];
@@ -717,9 +569,8 @@ export async function buildAndSignRouteIntent({
 
 export async function buildAndSignCreatePoolIntent({
   payload,
-  privkey,
   signDexIntent,
-  chainId = 'zeno-ledger-localtest-v0',
+  chainId = '',
 }) {
   const sender = String(payload.senderPubkey || payload.sender_pubkey || '').trim();
   const deadline = asInt(payload.deadline ?? 1_999_999_999, 'deadline');
@@ -769,6 +620,6 @@ export async function buildAndSignCreatePoolIntent({
   };
   return {
     intent: operation,
-    signature: await signDexIntentWithAvailableSigner(operation, { privkey, chainId, signDexIntent }),
+    signature: await signDexIntentWithAvailableSigner(operation, { chainId, signDexIntent }),
   };
 }

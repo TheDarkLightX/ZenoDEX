@@ -21,11 +21,13 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from string import Template
-
+from typing import Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_PATH = REPO_ROOT / ".docker" / "nginx.local-testnet.conf.template"
-UI_SURFACE_CONTRACT_PATH = REPO_ROOT / "tools" / "dex-ui" / "public" / "zenodex-ui-contract.json"
+UI_SURFACE_CONTRACT_PATH = (
+    REPO_ROOT / "tools" / "dex-ui" / "audit" / "production-surface-contract.json"
+)
 
 EXPECTED_LOCATION_BLOCKS = (
     "location = /api/health",
@@ -84,6 +86,53 @@ def ui_surface_contract_hash(*, contract_path: Path = UI_SURFACE_CONTRACT_PATH) 
     contract = load_ui_surface_contract(contract_path=contract_path)
     canonical = json.dumps(contract, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return "sha256:" + hashlib.sha256(canonical).hexdigest()
+
+
+def evaluate_ui_surface_contract_attestation(
+    *,
+    retired_public_contract: Mapping[str, object],
+    runtime_config: Mapping[str, object],
+) -> dict[str, object]:
+    """Evaluate the runtime's compact UI-boundary attestation.
+
+    The detailed source contract is audit evidence, not a public asset. A
+    deployment is ready only when the retired asset URL is absent and the
+    runtime config binds the source contract's schema, version, and hash.
+    """
+
+    errors: list[str] = []
+    try:
+        expected_contract = load_ui_surface_contract()
+        expected_version = str(expected_contract["version"])
+        expected_hash = ui_surface_contract_hash()
+    except Exception as exc:
+        return {
+            "ok": False,
+            "errors": [f"source UI surface contract invalid: {type(exc).__name__}: {exc}"],
+            "retired_public_contract": dict(retired_public_contract),
+            "runtime_config": dict(runtime_config),
+        }
+    if retired_public_contract.get("ok") is True:
+        errors.append("audit-only UI surface contract is unexpectedly served")
+    if runtime_config.get("ok") is not True:
+        errors.append("runtime UI config unavailable")
+    else:
+        if "demoMode" in runtime_config or "allowDemoMode" in runtime_config:
+            errors.append("runtime config contains retired demo-mode fields")
+        if runtime_config.get("uiSurfaceContractSchema") != expected_contract.get("schema"):
+            errors.append("runtime UI surface contract schema mismatch")
+        if runtime_config.get("uiSurfaceContractVersion") != expected_version:
+            errors.append("runtime UI surface contract version mismatch")
+        if runtime_config.get("uiSurfaceContractHash") != expected_hash:
+            errors.append("runtime UI surface contract hash mismatch")
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "expected_version": expected_version,
+        "expected_hash": expected_hash,
+        "retired_public_contract": dict(retired_public_contract),
+        "runtime_config": dict(runtime_config),
+    }
 
 
 @dataclass(frozen=True)
@@ -223,7 +272,7 @@ def assert_no_token_in_file(file_path: Path, token: str) -> None:
         )
 
 
-def render_runtime_config(*, demo_mode: bool = False, extra: dict[str, object] | None = None) -> str:
+def render_runtime_config(*, extra: dict[str, object] | None = None) -> str:
     """Render `zenodex-config.json` for the UI. Loaded at runtime by
     `tools/dex-ui/src/main.jsx` into `window.__ZENODEX_CONFIG__`.
 
@@ -239,8 +288,6 @@ def render_runtime_config(*, demo_mode: bool = False, extra: dict[str, object] |
         "signDexIntentForEngineUrl": "http://127.0.0.1:8799/sign-dex-intent",
     }
     config: dict[str, object] = {
-        "demoMode": bool(demo_mode),
-        "allowDemoMode": False,
         "apiBase": "",
         "zenoOracleApiBase": "",
         "oracleApiBase": "",

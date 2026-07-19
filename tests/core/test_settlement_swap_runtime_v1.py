@@ -104,8 +104,74 @@ def test_quote_cpmm_swap_exact_in_rejects_domain_overflow() -> None:
     with pytest.raises(ValueError, match="swap would exceed reserve_in domain max"):
         quote_cpmm_swap_exact_in(
             reserve_in=3_000_000_000,
-            reserve_out=10,
-            amount_in=1,
+            reserve_out=3_000_000_000,
+            amount_in=2,
+            fee_bps=0,
+        )
+
+
+def test_quote_cpmm_swap_exact_in_accepts_fee_adjusted_post_reserve_boundary() -> None:
+    quote = quote_cpmm_swap_exact_in(
+        reserve_in=3_000_000_000 - 1,
+        reserve_out=3_000_000_000,
+        amount_in=2,
+        fee_bps=5_000,
+        protocol_fee_share_bps=10_000,
+    )
+
+    assert quote.fee_paid == 1
+    assert quote.protocol_fee_paid == 1
+    assert quote.amount_out == 1
+    assert quote.reserve_in_after == 3_000_000_000
+
+
+def test_quote_cpmm_swap_exact_out_rejects_post_reserve_overflow() -> None:
+    with pytest.raises(ValueError, match="swap would exceed reserve_in domain max"):
+        quote_cpmm_swap_exact_out(
+            reserve_in=3_000_000_000,
+            reserve_out=3_000_000_000,
+            amount_out=1,
+            fee_bps=0,
+        )
+
+
+def test_quote_cpmm_swap_exact_out_accepts_fee_adjusted_post_reserve_boundary() -> None:
+    quote = quote_cpmm_swap_exact_out(
+        reserve_in=3_000_000_000 - 1,
+        reserve_out=3_000_000_000,
+        amount_out=1,
+        fee_bps=5_000,
+        protocol_fee_share_bps=10_000,
+    )
+
+    assert quote.amount_in == 2
+    assert quote.fee_paid == 1
+    assert quote.protocol_fee_paid == 1
+    assert quote.reserve_in_after == 3_000_000_000
+    assert quote.reserve_out_after == 3_000_000_000 - 1
+
+
+def test_quote_cpmm_swap_exact_out_rejects_computed_amount_in_overflow() -> None:
+    with pytest.raises(ValueError, match="amount_in exceeds kernel domain max 3000000000"):
+        quote_cpmm_swap_exact_out(
+            reserve_in=3_000_000_000,
+            reserve_out=2,
+            amount_out=1,
+            fee_bps=30,
+        )
+
+
+class _ExecutableInt(int):
+    def __mul__(self, _other: object) -> int:
+        return 0
+
+
+def test_settlement_runtime_rejects_executable_int_subclasses() -> None:
+    with pytest.raises(TypeError, match="amount_in must be an int"):
+        quote_cpmm_swap_exact_in(
+            reserve_in=1_000,
+            reserve_out=1_000,
+            amount_in=_ExecutableInt(100),
             fee_bps=30,
         )
 

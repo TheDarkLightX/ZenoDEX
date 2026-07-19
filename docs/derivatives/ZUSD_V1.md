@@ -77,7 +77,8 @@ parity map, including the Liquity V2 5% liquidation-penalty gap.
 - Kernel: `src/core/zusd.py`
 - Tests:
   - `tests/core/test_zusd.py`
-  - `tests/core/test_zusd_multi.py`
+  - `tests/core/test_zusd_auth_strictness.py`
+  - `tests/integration/test_zusd_monetary_wallet_api.py`
 
 ## Tau guard suite (execution-trace validated)
 
@@ -97,20 +98,20 @@ zUSD policy guards now exist as Tau specs in `src/tau_specs/recommended/`:
 - `zusd_deposit_sp_guard_v1.tau`
 - `zusd_withdraw_sp_guard_v1.tau`
 
-Runtime fail-closed adapter (single + multi vault):
+Runtime fail-closed adapter (single-vault monetary model):
 - `src/integration/zusd_tau_gate.py`
   - `step_with_tau(...)`
-  - `step_multi_with_tau(...)`
 
 Execution-trace test coverage:
 - `tests/tau/test_zusd_tau_specs.py`
 
-## Multi-vault extension (a/b)
+## Excluded multi-vault prototype
 
-The same module now includes a two-vault system API (SimplexBorrow-like):
-- state: `ZUSDMultiState` with `vault_a`, `vault_b`, shared `free_debt/sp_debt/sp_coll`
-- command runner: `step_multi(...)`
-- tests: `tests/core/test_zusd_multi.py`
+The incomplete two-vault prototype was removed from shipped source. It lacked
+the single-vault model's liquidation compensation and shutdown lifecycle, so it
+must not be treated as an alternate production transition system. A future
+multi-vault design requires a new complete specification and promotion packet;
+the deleted prototype receives no release credit.
 
 ## How person-to-person zUSD transfer works on Tau Net
 

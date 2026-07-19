@@ -18,8 +18,8 @@ from dataclasses import dataclass
 BPS_DENOM = 10_000
 
 
-def _require_int(name: str, value: int) -> None:
-    if not isinstance(value, int) or isinstance(value, bool):
+def _require_int(name: str, value: object) -> None:
+    if type(value) is not int:
         raise TypeError(f"{name} must be an int")
 
 

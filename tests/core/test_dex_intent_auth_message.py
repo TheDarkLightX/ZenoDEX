@@ -120,16 +120,14 @@ def test_build_dex_intent_signing_dict_v1_rejects_transport_non_mapping_explicit
         build_dex_intent_signing_dict_v1(transport)
 
 
-def test_build_dex_intent_signing_dict_v1_rejects_intent_object_non_dict_fields() -> None:
-    intent = Intent(
-        module="TauSwap",
-        version="0.1",
-        kind=IntentKind.CREATE_POOL,
-        intent_id="0x" + "ee" * 32,
-        sender_pubkey="0x" + "77" * 48,
-        deadline=1,
-        fields=[],
-    )
-
-    with pytest.raises(TypeError, match="intent.fields must be a dict"):
-        build_dex_intent_signing_dict_v1(intent)
+def test_intent_seal_rejects_non_mapping_fields() -> None:
+    with pytest.raises(TypeError, match="fields must be a mapping when present"):
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.CREATE_POOL,
+            intent_id="0x" + "ee" * 32,
+            sender_pubkey="0x" + "77" * 48,
+            deadline=1,
+            fields=[],
+        )

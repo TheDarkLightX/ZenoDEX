@@ -111,7 +111,7 @@ def _app_state_payload(
 
 class _FakeClient:
     def __init__(self, _cfg=None) -> None:
-        self.sent: list[dict[str, object]] = []
+        pass
 
     def rpc(self, cmd: str) -> str:
         if cmd == "hello version=1":
@@ -134,14 +134,6 @@ class _FakeClient:
             return 9
         return 0
 
-    def sendtx(self, payload):
-        self.sent.append(dict(payload))
-        return "SUCCESS tx accepted"
-
-    def createblock(self) -> str:
-        return "BLOCK created"
-
-
 def test_status_reports_tau_node_bridge(monkeypatch) -> None:
     monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
     monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FakeClient)
@@ -159,6 +151,8 @@ def test_status_reports_tau_node_bridge(monkeypatch) -> None:
     assert status["holder_count"] == 2
     assert status["generic_mint_authorities"] == []
     assert "token_operator_pubkey" not in status
+    assert "allow_local_signing" not in status
+    assert "auto_mine" not in status
 
 
 def test_status_and_prepare_use_committed_asset_when_environment_drifts(
@@ -309,7 +303,6 @@ def test_prepare_rejects_noncanonical_action_syntax(monkeypatch, action) -> None
     [
         ("unexpected", "ignored-before-fix"),
         ("operator_pubkey", OPERATOR),
-        ("signer_privkey", "1"),
     ],
 )
 def test_prepare_rejects_fields_outside_exact_transfer_grammar(
@@ -552,26 +545,21 @@ def test_prepare_generic_mint_requires_committed_asset_authority(monkeypatch) ->
     }
 
 
-def test_submit_requires_explicit_local_signing_and_returns_sendtx(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("secret_fields", "expected_path"),
+    [
+        ({"signer_privkey": "1"}, "signer_privkey"),
+        ({"metadata": {"private_key": "1"}}, "metadata.private_key"),
+        ({"metadata": [{"seed_phrase": "do not accept"}]}, "metadata[0].seed_phrase"),
+    ],
+)
+def test_prepare_recursively_rejects_raw_signing_material(
+    monkeypatch,
+    secret_fields: dict[str, object],
+    expected_path: str,
+) -> None:
     monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
-    monkeypatch.setenv("ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING", "1")
     monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FakeClient)
-
-    class _Report:
-        action = "transfer"
-        asset_id = derive_zusd_tau_asset_id(chain_id="tau-test-wallet")
-        nonce_key = token_sender_nonce_key(SENDER)
-        nonce_before = 4
-        nonce_after = 5
-        operation = {"action": "transfer"}
-        operations = {"9": [{"action": "transfer"}]}
-        sender_balance_after = 300
-        recipient_balance_after = 150
-        supply_after = 450
-        tau_receipts = ()
-        tau_tx_payload = {"sender_pubkey": SENDER[2:], "sequence_number": 7}
-
-    monkeypatch.setattr(wallet_api, "prepare_zusd_tau_token_operation", lambda **kwargs: _Report())
 
     body = {
         "action": "transfer",
@@ -579,14 +567,38 @@ def test_submit_requires_explicit_local_signing_and_returns_sendtx(monkeypatch) 
         "recipient_pubkey": RECIPIENT,
         "amount": 100,
         "deadline": 123456789,
-        "signer_privkey": "1",
+        **secret_fields,
     }
     status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
         "POST",
-        "/api/zusd/wallet/submit",
+        "/api/zusd/wallet/prepare",
         json.dumps(body).encode("utf-8"),
     )
 
-    assert status_code == 200
-    assert payload["ok"] is True
-    assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
+    assert status_code == 400
+    assert payload == {
+        "ok": False,
+        "error": f"raw_signing_material_forbidden:{expected_path}",
+    }
+
+
+def test_submit_endpoint_is_absent(monkeypatch) -> None:
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps(
+            {
+                "action": "transfer",
+                "sender_pubkey": SENDER,
+                "recipient_pubkey": RECIPIENT,
+                "amount": 100,
+                "deadline": 123456789,
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status_code == 404
+    assert payload == {"ok": False, "error": "not_found"}

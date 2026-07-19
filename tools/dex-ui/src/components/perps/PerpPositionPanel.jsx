@@ -16,6 +16,15 @@ function PerpPositionPanel({ market, position, derived, isObserver = false }) {
         );
     }
 
+    if (position && position.positionBase == null) {
+        return (
+            <div className="perp-position-panel perp-position-panel--empty">
+                <h3 className="perp-section-title">Position</h3>
+                <p className="perp-placeholder">Authoritative position state unavailable</p>
+            </div>
+        );
+    }
+
     const hasPosition = position && position.positionBase !== 0;
 
     if (!hasPosition) {
@@ -37,19 +46,31 @@ function PerpPositionPanel({ market, position, derived, isObserver = false }) {
 
     const side = position.positionBase > 0 ? 'long' : 'short';
     const size = Math.abs(position.positionBase);
-    const entryPrice = e8ToNumber(BigInt(position.entryPriceE8));
-    const indexPrice = e8ToNumber(BigInt(market.indexPriceE8));
+    const entryPrice = position.entryPriceE8 != null
+        ? e8ToNumber(BigInt(position.entryPriceE8))
+        : null;
+    const indexPrice = market.indexPriceE8 != null
+        ? e8ToNumber(BigInt(market.indexPriceE8))
+        : null;
 
-    const pnl = derived?.unrealizedPnl ?? 0;
-    const pnlPositive = pnl >= 0;
+    const pnl = derived?.unrealizedPnl ?? null;
+    const pnlPositive = pnl != null && pnl >= 0;
     const liqPrice = derived?.liquidationPrice;
-    const leverage = derived?.leverage ?? 0;
-    const mRatio = derived?.marginRatio ?? Infinity;
+    const leverage = derived?.leverage ?? null;
+    const mRatio = derived?.marginRatio ?? null;
 
     // Margin health: ratio of collateral to maint margin
     // >2.0 = green, 1.5-2.0 = orange, <1.5 = red
-    const healthPercent = Math.min(100, Math.max(0, ((mRatio - 1) / 2) * 100));
-    const healthColor = mRatio >= 2 ? 'var(--perp-long)' : mRatio >= 1.5 ? 'var(--perp-warning)' : 'var(--perp-short)';
+    const healthPercent = mRatio != null
+        ? Math.min(100, Math.max(0, ((mRatio - 1) / 2) * 100))
+        : null;
+    const healthColor = mRatio == null
+        ? 'var(--text-muted)'
+        : mRatio >= 2
+            ? 'var(--perp-long)'
+            : mRatio >= 1.5
+                ? 'var(--perp-warning)'
+                : 'var(--perp-short)';
 
     return (
         <div className="perp-position-panel">
@@ -67,21 +88,27 @@ function PerpPositionPanel({ market, position, derived, isObserver = false }) {
                 </div>
                 <div className="perp-position-row">
                     <span>Entry Price</span>
-                    <span className="perp-position-value">${formatPrice(entryPrice)}</span>
+                    <span className="perp-position-value">
+                        {entryPrice != null ? `$${formatPrice(entryPrice)}` : '--'}
+                    </span>
                 </div>
                 <div className="perp-position-row">
                     <span>Mark Price</span>
-                    <span className="perp-position-value">${formatPrice(indexPrice)}</span>
+                    <span className="perp-position-value">
+                        {indexPrice != null ? `$${formatPrice(indexPrice)}` : '--'}
+                    </span>
                 </div>
                 <div className="perp-position-row">
                     <span>Unrealized PnL</span>
                     <span className={`perp-position-value perp-pnl ${pnlPositive ? 'positive' : 'negative'}`}>
-                        {pnlPositive ? '+' : ''}{formatQuote(pnl)}
+                        {pnl != null ? `${pnlPositive ? '+' : ''}${formatQuote(pnl)}` : '--'}
                     </span>
                 </div>
                 <div className="perp-position-row">
                     <span>Leverage</span>
-                    <span className="perp-position-value">{leverage.toFixed(1)}x</span>
+                    <span className="perp-position-value">
+                        {leverage != null ? `${leverage.toFixed(1)}x` : '--'}
+                    </span>
                 </div>
                 <div className="perp-position-row">
                     <span>Liq. Price</span>
@@ -92,7 +119,7 @@ function PerpPositionPanel({ market, position, derived, isObserver = false }) {
                 <div className="perp-position-row">
                     <span>Collateral</span>
                     <span className="perp-position-value">
-                        {formatQuote(position.collateralQuote)}
+                        {position.collateralQuote != null ? formatQuote(position.collateralQuote) : '--'}
                     </span>
                 </div>
             </div>
@@ -101,13 +128,15 @@ function PerpPositionPanel({ market, position, derived, isObserver = false }) {
             <div className="perp-margin-health">
                 <div className="perp-margin-health-header">
                     <span>Margin Health</span>
-                    <span style={{ color: healthColor }}>{mRatio.toFixed(2)}x</span>
+                    <span style={{ color: healthColor }}>
+                        {mRatio != null ? `${mRatio.toFixed(2)}x` : '--'}
+                    </span>
                 </div>
                 <div className="perp-margin-health-bar">
                     <div
                         className="perp-margin-health-fill"
                         style={{
-                            width: `${healthPercent}%`,
+                            width: `${healthPercent ?? 0}%`,
                             background: healthColor,
                         }}
                     />

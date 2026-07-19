@@ -12,12 +12,11 @@ from src.agents.autotrader_chatbot_advisor import (
     AutoTraderChatbotConfig,
     ZenoAutoTraderChatbotAdvisor,
 )
-from src.agents.autotrader_local_guard_evaluator import AutoTraderLocalGuardInputs
 from src.agents.autotrader_llm_provider import (
     AUTOTRADER_LLM_PARSE_HINT_SCHEMA,
     LocalOpenAICompatibleLLMProvider,
-    StaticAutoTraderLanguageProvider,
 )
+from src.agents.autotrader_local_guard_evaluator import AutoTraderLocalGuardInputs
 from src.agents.strategy_ir import (
     NotionalCaps,
     PolicyBackend,
@@ -33,6 +32,7 @@ from src.integration.autotrader_signals import (
     SignalSourceKind,
     SignalTrustTier,
 )
+from tests.support.autotrader_llm_provider_fixture import FixedAutoTraderLanguageProvider
 
 
 def _strategy(*, max_slippage_bps: int = 75, per_order_max: int = 100) -> StrategyIR:
@@ -228,7 +228,7 @@ def test_chatbot_advisor_prompt_budget_is_fail_closed_and_cheap_to_evaluate() ->
 
 
 def test_chatbot_advisor_accepts_valid_local_llm_parse_hints_without_authority() -> None:
-    provider = StaticAutoTraderLanguageProvider(
+    provider = FixedAutoTraderLanguageProvider(
         {
             "schema": AUTOTRADER_LLM_PARSE_HINT_SCHEMA,
             "feature_updates": {
@@ -239,7 +239,7 @@ def test_chatbot_advisor_accepts_valid_local_llm_parse_hints_without_authority()
             "intent_tags": ["llm_low_slippage_hint"],
             "explanation": "Use a lower slippage band and smaller order.",
         },
-        model="demo-local-qwen-or-lfm",
+        model="fixture-local-qwen-or-lfm",
     )
     advisor = ZenoAutoTraderChatbotAdvisor(language_provider=provider)
     response = advisor.handle_user_query(
@@ -250,8 +250,8 @@ def test_chatbot_advisor_accepts_valid_local_llm_parse_hints_without_authority()
     )
 
     bridge = response["language_bridge"]
-    assert bridge["provider"] == "static_autotrader_language_provider"
-    assert bridge["provider_model"] == "demo-local-qwen-or-lfm"
+    assert bridge["provider"] == "fixed_autotrader_language_test_provider"
+    assert bridge["provider_model"] == "fixture-local-qwen-or-lfm"
     assert bridge["provider_local_only"] is True
     assert bridge["provider_schema_valid"] is True
     assert bridge["provider_fallback_used"] is False
@@ -266,7 +266,7 @@ def test_chatbot_advisor_accepts_valid_local_llm_parse_hints_without_authority()
 
 
 def test_chatbot_advisor_falls_back_when_local_llm_hint_contains_authority() -> None:
-    provider = StaticAutoTraderLanguageProvider(
+    provider = FixedAutoTraderLanguageProvider(
         {
             "schema": AUTOTRADER_LLM_PARSE_HINT_SCHEMA,
             "feature_updates": {"budget_used_norm": 0.99},
@@ -286,7 +286,7 @@ def test_chatbot_advisor_falls_back_when_local_llm_hint_contains_authority() -> 
     )
 
     bridge = response["language_bridge"]
-    assert bridge["provider"] == "static_autotrader_language_provider"
+    assert bridge["provider"] == "fixed_autotrader_language_test_provider"
     assert bridge["provider_schema_valid"] is False
     assert bridge["provider_fallback_used"] is True
     assert bridge["provider_error"] == "provider_payload_contains_authority_field"

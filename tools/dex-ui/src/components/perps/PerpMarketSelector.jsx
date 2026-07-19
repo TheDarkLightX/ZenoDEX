@@ -24,9 +24,11 @@ function PerpMarketSelector({ markets, selectedMarketId, onSelect }) {
 }
 
 function MarketCard({ market, isSelected, onSelect }) {
-    const price = useMemo(() => e8ToNumber(BigInt(market.indexPriceE8)), [market.indexPriceE8]);
+    const price = useMemo(() => (
+        market.indexPriceE8 != null ? e8ToNumber(BigInt(market.indexPriceE8)) : null
+    ), [market.indexPriceE8]);
     const fundingRate = market.fundingRateBps;
-    const fundingPositive = fundingRate >= 0;
+    const fundingPositive = fundingRate != null && fundingRate >= 0;
 
     return (
         <button
@@ -41,10 +43,12 @@ function MarketCard({ market, isSelected, onSelect }) {
                 )}
             </div>
             <div className="perp-market-card-price">
-                ${formatPrice(price)}
+                {price != null ? `$${formatPrice(price)}` : 'Awaiting oracle'}
             </div>
             <div className={`perp-market-card-funding ${fundingPositive ? 'positive' : 'negative'}`}>
-                FR: {fundingPositive ? '+' : ''}{bpsToPercent(fundingRate)}
+                {fundingRate != null
+                    ? `FR: ${fundingPositive ? '+' : ''}${bpsToPercent(fundingRate)}`
+                    : 'FR: —'}
             </div>
         </button>
     );

@@ -270,31 +270,6 @@ def ebrm_policy_content_hash_v1(policy: object) -> str:
     return hash_v0(_EBRM_POLICY_HASH_TAG, body)
 
 
-def sample_autonomous_governance_ebrm_policy_v1() -> dict[str, Any]:
-    """Deterministic sample EBRM artifact for tests and operator tooling."""
-
-    policy = {
-        "schema": AUTONOMOUS_GOVERNANCE_EBRM_POLICY_SCHEMA_V1,
-        "policy_id": "sample_fee_deviation_ebrm_policy_v1",
-        "version": 1,
-        "surface": "fee_bps",
-        "features": ["deviation_bps"],
-        "feature_bounds": {"deviation_bps": {"min": 0, "max": 1_000}},
-        "state_bins": {"deviation_bps": [25, 100, 300]},
-        "energy_model": {
-            "targets": {
-                "0": 30,
-                "1": 35,
-                "2": 50,
-                "3": 67,
-            },
-            "w_track": 1,
-            "w_move": 0,
-        },
-    }
-    return policy
-
-
 def _feature_value(
     *,
     feature: str,

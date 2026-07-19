@@ -8,8 +8,6 @@ from src.core.perps import (
     PerpAccountState,
     PerpClearinghouse2pMarketState,
     PerpClearinghouse3pTransferMarketState,
-    PerpClearinghouseNpAccount,
-    PerpClearinghouseNpMarketState,
     PerpMarketState,
 )
 from src.core.perps_token_accounting import (
@@ -136,47 +134,6 @@ def test_three_party_projection_uses_closed_system_deposit_total() -> None:
     )
 
     assert perps_market_locked_quote_units(market) == 4
-
-
-def _np_global_state(*, net_deposited_e8: int, insurance_ext_e8: int) -> dict[str, int]:
-    return {
-        "now_epoch": 0,
-        "index_price_e8": 100 * E8_SCALE,
-        "fee_pool_e8": 0,
-        "insurance_e8": insurance_ext_e8,
-        "insurance_ext_e8": insurance_ext_e8,
-        "claims_paid_e8": 0,
-        "net_deposited_e8": net_deposited_e8,
-        "initial_margin_bps": 1_000,
-        "maintenance_margin_bps": 500,
-        "depeg_buffer_bps": 100,
-        "liquidation_penalty_bps": 50,
-        "max_oracle_move_bps": 500,
-        "funding_cap_bps": 100,
-        "max_position_abs": 1_000_000,
-        "min_notional_for_bounty_e8": 100 * E8_SCALE,
-        "clearing_price_seen": 0,
-        "clearing_price_epoch": 0,
-        "clearing_price_e8": 0,
-    }
-
-
-def test_n_party_projection_includes_external_insurance_deposits_once() -> None:
-    market = PerpClearinghouseNpMarketState(
-        quote_asset=QUOTE_ASSET,
-        global_state=_np_global_state(
-            net_deposited_e8=5 * E8_SCALE,
-            insurance_ext_e8=1 * E8_SCALE,
-        ),
-        accounts=(
-            PerpClearinghouseNpAccount(
-                pubkey=ACCOUNT_A,
-                collateral_e8=5 * E8_SCALE,
-            ),
-        ),
-    )
-
-    assert perps_market_locked_quote_units(market) == 6
 
 
 def test_projection_rejects_non_whole_token_e8_total() -> None:

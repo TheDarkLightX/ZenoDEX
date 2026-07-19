@@ -43,7 +43,7 @@ from . import compose as cm
 from . import fixtures as fx
 from . import manifest as mf
 from . import nginx as ng
-
+from .perps_oracle_bridge import build_local_settle_epoch_bridge
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = REPO_ROOT / "docker-compose.local-testnet.yml"
@@ -255,12 +255,11 @@ def cmd_up(opts: UpOptions) -> int:
     }
     paths.rendered_runtime_config.write_text(
         ng.render_runtime_config(
-            demo_mode=False,
             extra={
                 "chainId": opts.chain_id,
                 "networkId": opts.network_id,
                 "localTestnetGovernanceFixtures": gov_fixtures,
-                "localTestnetZkPosture": zk_posture,
+                "expectedZkPosture": zk_posture,
                 "localTestnetConfidentialFixture": confidential_fixture.to_runtime_config(),
             },
         ),
@@ -1049,6 +1048,11 @@ def _refresh_existing_runtime_config(path: Path) -> None:
         config = dict(raw)
     else:
         config = {}
+    # These retired toggles no longer have a UI consumer. Drop them when
+    # refreshing older local-testnet artifacts instead of preserving inert
+    # security-sensitive configuration.
+    config.pop("demoMode", None)
+    config.pop("allowDemoMode", None)
     default_external_signer = {
         "schema": "zenodex/dex-ui/runtime-default-external-signer/v0",
         "signerSecurityProfile": "native-desktop-loopback-signer-v0",
@@ -1058,8 +1062,6 @@ def _refresh_existing_runtime_config(path: Path) -> None:
     }
     config.update(
         {
-            "demoMode": False,
-            "allowDemoMode": False,
             "apiBase": "",
             "zenoOracleApiBase": "",
             "oracleApiBase": "",
@@ -2111,50 +2113,16 @@ def _probe_base_services(*, ui_base: str) -> dict[str, Any]:
 
 
 def _probe_ui_surface_contract(*, ui_base: str) -> dict[str, Any]:
-    contract = _safe_get_json(f"{ui_base}/zenodex-ui-contract.json")
+    # The source contract is audit evidence and must never be copied into the
+    # production web root. Probe the retired URL so readiness also catches a
+    # stale image that still serves it, then attest only the non-sensitive
+    # schema/version/hash tuple embedded in runtime configuration.
+    retired_public_contract = _safe_get_json(f"{ui_base}/zenodex-ui-contract.json")
     runtime_config = _safe_get_json(f"{ui_base}/zenodex-config.json")
-    errors: list[str] = []
-    try:
-        expected_contract = ng.load_ui_surface_contract()
-        expected_version = str(expected_contract["version"])
-        expected_hash = ng.ui_surface_contract_hash()
-    except Exception as exc:
-        return {
-            "ok": False,
-            "errors": [f"source UI surface contract invalid: {type(exc).__name__}: {exc}"],
-            "served_contract": contract,
-            "runtime_config": runtime_config,
-        }
-    if contract.get("ok") is not True:
-        errors.append("served UI surface contract unavailable")
-    else:
-        if contract.get("schema") != expected_contract.get("schema"):
-            errors.append("served UI surface contract schema mismatch")
-        if contract.get("version") != expected_version:
-            errors.append(
-                f"served UI surface contract version mismatch: {contract.get('version')} != {expected_version}"
-            )
-    if runtime_config.get("ok") is not True:
-        errors.append("runtime UI config unavailable")
-    else:
-        if runtime_config.get("demoMode") is not False:
-            errors.append("runtime config must disable demoMode for local testnet")
-        if runtime_config.get("allowDemoMode") is not False:
-            errors.append("runtime config must disallow demo mode for local testnet")
-        if runtime_config.get("uiSurfaceContractSchema") != expected_contract.get("schema"):
-            errors.append("runtime UI surface contract schema mismatch")
-        if runtime_config.get("uiSurfaceContractVersion") != expected_version:
-            errors.append("runtime UI surface contract version mismatch")
-        if runtime_config.get("uiSurfaceContractHash") != expected_hash:
-            errors.append("runtime UI surface contract hash mismatch")
-    return {
-        "ok": not errors,
-        "errors": errors,
-        "expected_version": expected_version,
-        "expected_hash": expected_hash,
-        "served_contract": contract,
-        "runtime_config": runtime_config,
-    }
+    return ng.evaluate_ui_surface_contract_attestation(
+        retired_public_contract=retired_public_contract,
+        runtime_config=runtime_config,
+    )
 
 
 def _collect_lane_readiness(*, ui_base: str, manifest: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -2786,9 +2754,20 @@ def _run_release_flow_smoke(
         return summary
 
     def submit_perps(name: str, payload: Mapping[str, Any], *, zk_required: bool = False) -> dict[str, Any]:
+        prepare_body = _with_local_fixture_zk_proof(payload, zk_required=zk_required)
+        prepared = _post_json(
+            f"{ui_base}/api/perps/wallet/prepare",
+            prepare_body,
+            timeout_s=20.0,
+        )
+        _require_ok(prepared, label=f"{name} prepare")
         response = _post_json(
             f"{ui_base}/api/perps/wallet/submit",
-            _with_local_fixture_zk_proof(payload, zk_required=zk_required),
+            _local_sign_prepared_perps_wallet_payload(
+                request=prepare_body,
+                prepared=prepared,
+                roles=roles,
+            ),
             timeout_s=20.0,
         )
         summary = require(name, response)
@@ -2907,7 +2886,6 @@ def _run_release_flow_smoke(
             **perps_common,
             "action": "deposit_collateral",
             "account_pubkey": alice,
-            "account_privkey": _role_privkey_int(roles, "alice"),
             "amount": 10,
         },
         zk_required=zk_required,
@@ -2918,7 +2896,6 @@ def _run_release_flow_smoke(
             **perps_common,
             "action": "deposit_collateral",
             "account_pubkey": bob,
-            "account_privkey": _role_privkey_int(roles, "bob"),
             "amount": 10,
         },
         zk_required=zk_required,
@@ -2944,8 +2921,6 @@ def _run_release_flow_smoke(
             "action": "set_position_pair",
             "account_a_pubkey": alice,
             "account_b_pubkey": bob,
-            "account_a_privkey": _role_privkey_int(roles, "alice"),
-            "account_b_privkey": _role_privkey_int(roles, "bob"),
             "new_position_base_a": 1,
             "new_position_base_b": -1,
         },
@@ -3092,9 +3067,6 @@ def _browser_smoke_cases(
     alice = _role_pubkey(roles, "alice")
     alice_priv = roles["alice"]["privkey_hex"]
     bob = _role_pubkey(roles, "bob")
-    oracle_auth = _role_pubkey(roles, "oracle_authority")
-    oracle_priv = roles["oracle_authority"]["privkey_hex"]
-    market_id = str(seed_report["market_id"])
     spot_payload = _build_signed_live_swap_payload(
         ui_base=ui_base,
         roles=roles,
@@ -3182,24 +3154,6 @@ def _browser_smoke_cases(
                 }
             ),
             "snippets": ("Quick Mint zUSD", "mint request completed"),
-        },
-        {
-            "name": "perps_wallet_ui",
-            "url": url(
-                {
-                    "tab": "perps",
-                    "demo": "false",
-                    "zenodexUiSmokePerpsWallet": "1",
-                    "perpsWalletAction": "publish_clearing_price",
-                    "marketId": market_id,
-                    "priceE8": str(E8),
-                    "perpsDeadline": str(deadline),
-                    "oraclePubkey": oracle_auth,
-                    "oraclePrivkey": oracle_priv,
-                    **zk_query,
-                }
-            ),
-            "snippets": ("Live Perps Wallet", "submit accepted"),
         },
         {
             "name": "oracle_ui",
@@ -3871,9 +3825,21 @@ def _run_perps_wallet_cycle_smoke(
     steps: dict[str, dict[str, Any]] = {}
 
     def submit(name: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        prepare_body = _with_local_fixture_zk_proof(payload, zk_required=zk_required)
+        prepared = _post_json(
+            f"{ui_base}/api/perps/wallet/prepare",
+            prepare_body,
+            timeout_s=20.0,
+        )
+        _require_ok(prepared, label=f"perps {name} prepare")
+        signed_body = _local_sign_prepared_perps_wallet_payload(
+            request=prepare_body,
+            prepared=prepared,
+            roles=roles,
+        )
         response = _post_json(
             f"{ui_base}/api/perps/wallet/submit",
-            _with_local_fixture_zk_proof(payload, zk_required=zk_required),
+            signed_body,
             timeout_s=20.0,
         )
         summary = _summarize_response(response)
@@ -3885,16 +3851,22 @@ def _run_perps_wallet_cycle_smoke(
             raise RuntimeError(f"perps {name} submission was not accepted")
         return response
 
-    operator_privkey = _role_privkey_int(roles, "operator")
-    oracle_privkey = _role_privkey_int(roles, "oracle_authority")
+    operator_pubkey = _role_pubkey(roles, "operator")
+    oracle_pubkey = _role_pubkey(roles, "oracle_authority")
     common = {"market_id": market_id, "deadline": deadline, "tx_fee_limit": "0"}
 
     def get_bridge_payload() -> dict[str, Any]:
-        resp = _post_json(
-            f"{ui_base}/api/perps/wallet/oracle-bridge-template",
-            {"action": "settle_epoch", "market_id": market_id},
+        status_payload = _safe_get_json(f"{ui_base}/api/perps/wallet/status")
+        status = status_payload.get("status")
+        if status_payload.get("ok") is not True or not isinstance(status, Mapping):
+            raise RuntimeError("perps status unavailable while building local oracle evidence")
+        live_market = _find_perps_market(status_payload, market_id=market_id)
+        if live_market is None:
+            raise RuntimeError(f"perps market missing while building local oracle evidence: {market_id}")
+        return build_local_settle_epoch_bridge(
+            chain_id=str(status.get("chain_id") or ""),
+            market=live_market,
         )
-        return resp.get("bridge") or {}
 
     status_before = _safe_get_json(f"{ui_base}/api/perps/wallet/status")
     market_before = _find_perps_market(status_before, market_id=market_id)
@@ -3905,7 +3877,7 @@ def _run_perps_wallet_cycle_smoke(
             {
                 **common,
                 "action": "settle_epoch",
-                "operator_privkey": operator_privkey,
+                "sender_pubkey": operator_pubkey,
                 "oracle_adapter_bridge": get_bridge_payload(),
             },
         )
@@ -3915,7 +3887,7 @@ def _run_perps_wallet_cycle_smoke(
                 **common,
                 "action": "advance_epoch",
                 "delta": 1,
-                "operator_privkey": operator_privkey,
+                "sender_pubkey": operator_pubkey,
             },
         )
     elif prep == "advance":
@@ -3925,7 +3897,7 @@ def _run_perps_wallet_cycle_smoke(
                 **common,
                 "action": "advance_epoch",
                 "delta": 1,
-                "operator_privkey": operator_privkey,
+                "sender_pubkey": operator_pubkey,
             },
         )
 
@@ -3935,7 +3907,7 @@ def _run_perps_wallet_cycle_smoke(
             **common,
             "action": "publish_clearing_price",
             "price_e8": E8,
-            "oracle_privkey": oracle_privkey,
+            "oracle_pubkey": oracle_pubkey,
         },
     )
     submit(
@@ -3943,7 +3915,7 @@ def _run_perps_wallet_cycle_smoke(
         {
             **common,
             "action": "settle_epoch",
-            "operator_privkey": operator_privkey,
+            "sender_pubkey": operator_pubkey,
             "oracle_adapter_bridge": get_bridge_payload(),
         },
     )
@@ -3953,7 +3925,7 @@ def _run_perps_wallet_cycle_smoke(
             **common,
             "action": "advance_epoch",
             "delta": 1,
-            "operator_privkey": operator_privkey,
+            "sender_pubkey": operator_pubkey,
         },
     )
     return {
@@ -3962,6 +3934,93 @@ def _run_perps_wallet_cycle_smoke(
         "action": "publish_clearing_price",
         "steps": steps,
     }
+
+
+def _local_sign_prepared_perps_wallet_payload(
+    *,
+    request: Mapping[str, Any],
+    prepared: Mapping[str, Any],
+    roles: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Sign a prepared wallet request in local tooling, never in the API."""
+    from src.integration.tau_net_client import (
+        build_signed_tau_transaction,
+        sign_perp_op_for_engine,
+    )
+
+    report = prepared.get("report")
+    transport = prepared.get("transport")
+    if not isinstance(report, Mapping) or not isinstance(transport, Mapping):
+        raise RuntimeError("perps prepare response is missing report or transport")
+    raw_operation = report.get("operation")
+    if not isinstance(raw_operation, Mapping):
+        raise RuntimeError("perps prepare response is missing operation")
+    operation = dict(raw_operation)
+    action = str(operation.get("action") or "")
+    chain_id = str(transport.get("chain_id") or "")
+    body = dict(request)
+
+    def role_for_pubkey(pubkey: object) -> str:
+        target = str(pubkey or "").lower()
+        for role, entry in roles.items():
+            if str(entry.get("public_key") or "").lower() == target:
+                return role
+        raise RuntimeError(f"no local fixture signer for perps pubkey: {pubkey}")
+
+    if action == "publish_clearing_price":
+        operation.pop("oracle_sig", None)
+        signer_role = "oracle_authority"
+        oracle_pubkey = _role_pubkey(roles, signer_role)
+        oracle_nonce = int(operation.get("oracle_nonce") or 0)
+        oracle_sig = sign_perp_op_for_engine(
+            operation,
+            privkey=_role_privkey_int(roles, signer_role),
+            chain_id=chain_id,
+            signer_pubkey=oracle_pubkey,
+            nonce=oracle_nonce,
+        )
+        operation["oracle_sig"] = oracle_sig
+        body["oracle_sig"] = oracle_sig
+    elif action in {"init_market_2p", "set_position_pair"}:
+        operation.pop("sig_a", None)
+        operation.pop("sig_b", None)
+        role_a = role_for_pubkey(operation.get("account_a_pubkey"))
+        role_b = role_for_pubkey(operation.get("account_b_pubkey"))
+        nonce_a = int(operation.get("nonce_a") or 0)
+        nonce_b = int(operation.get("nonce_b") or 0)
+        sig_a = sign_perp_op_for_engine(
+            operation,
+            privkey=_role_privkey_int(roles, role_a),
+            chain_id=chain_id,
+            signer_pubkey=_role_pubkey(roles, role_a),
+            nonce=nonce_a,
+        )
+        sig_b = sign_perp_op_for_engine(
+            operation,
+            privkey=_role_privkey_int(roles, role_b),
+            chain_id=chain_id,
+            signer_pubkey=_role_pubkey(roles, role_b),
+            nonce=nonce_b,
+        )
+        operation["sig_a"] = sig_a
+        operation["sig_b"] = sig_b
+        body["sig_a"] = sig_a
+        body["sig_b"] = sig_b
+        signer_role = role_a
+    elif action in {"deposit_collateral", "withdraw_collateral", "deposit_insurance", "partial_liquidate"}:
+        signer_role = role_for_pubkey(operation.get("account_pubkey"))
+    else:
+        signer_role = "operator"
+
+    tx_payload = build_signed_tau_transaction(
+        privkey=_role_privkey_int(roles, signer_role),
+        sequence_number=int(transport.get("tx_sequence_number") or 0),
+        expiration_time=int(transport.get("tx_expiration_time") or 0),
+        operations={"8": [operation]},
+        fee_limit=str(transport.get("tx_fee_limit") or "0"),
+    )
+    body["signed_tau_tx_payload"] = tx_payload
+    return body
 
 
 def _find_perps_market(status_payload: Mapping[str, Any], *, market_id: str) -> Mapping[str, Any] | None:

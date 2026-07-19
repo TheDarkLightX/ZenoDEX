@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -10,6 +9,8 @@ def test_nginx_config_hardens_api_body_limit_and_static_headers() -> None:
     text = (ROOT / ".docker/nginx.conf").read_text(encoding="utf-8")
 
     assert "client_max_body_size 512k;" in text
+    assert "proxy_pass http://127.0.0.1:8000;" in text
+    assert "proxy_pass http://127.0.0.1:8000/;" not in text
     static_block = text.split("location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {", 1)[1]
     for header in (
         'add_header X-Frame-Options "DENY" always;',
@@ -17,6 +18,39 @@ def test_nginx_config_hardens_api_body_limit_and_static_headers() -> None:
         'add_header Content-Security-Policy "default-src \'self\';',
     ):
         assert header in static_block
+
+
+def test_production_docker_context_excludes_host_build_and_bytecode_artifacts() -> None:
+    text = (ROOT / ".dockerignore").read_text(encoding="utf-8")
+
+    for pattern in (
+        "**/__pycache__/",
+        "**/*.py[cod]",
+        "tools/dex-ui/node_modules/",
+        "tools/dex-ui/dist/",
+    ):
+        assert pattern in text
+
+
+def test_production_container_requires_chain_bound_demo_free_runtime_config() -> None:
+    entrypoint = (ROOT / ".docker/entrypoint.sh").read_text(encoding="utf-8")
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert 'ZENODEX_ENV="${ZENODEX_ENV:-production}"' in entrypoint
+    assert "TAU_DEX_CHAIN_ID is required in production" in entrypoint
+    assert "/validate_production_ui_config.py" in entrypoint
+    validator = (ROOT / ".docker/validate_production_ui_config.py").read_text(encoding="utf-8")
+    assert "FORBIDDEN_CAPABILITY_KEYS" in validator
+    for key in ("demoMode", "allowDemoMode", "allowBrowserKeyGeneration"):
+        assert f'"{key}"' in validator
+    assert "forbidden_capability_key" in validator
+    assert "chain_id_mismatch" in validator
+    assert "TAU_DEX_CHAIN_ID=${TAU_DEX_CHAIN_ID:?" in compose
+    assert "ZENODEX_RUNTIME_CONFIG_PATH:?" in compose
+    assert "./src/integration/autotrader_live_api.py" in dockerfile
+    assert "./src/integration/confidential_attestation_api.py" in dockerfile
+    assert "COPY .docker/validate_production_ui_config.py /validate_production_ui_config.py" in dockerfile
 
 
 def test_dependency_manifests_split_runtime_from_agent_packages() -> None:

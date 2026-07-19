@@ -11,23 +11,17 @@ This is intentionally lightweight and CI-friendly:
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
 import yaml
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = REPO_ROOT / "docs" / "claims_registry.yaml"
 
 
-@dataclass(frozen=True)
 class CheckError(Exception):
-    message: str
-
-    def __str__(self) -> str:  # pragma: no cover
-        return self.message
+    """A registry validation failure with normal exception semantics."""
 
 
 def _require_mapping(obj: Any, *, name: str) -> dict[str, Any]:
@@ -126,4 +120,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

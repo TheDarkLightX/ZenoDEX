@@ -63,7 +63,8 @@ def test_authenticated_intent_projection_owns_canonical_execution_identity() -> 
     assert execution_intent.sender_pubkey == canonical_pubkey
     assert execution_intent.fields is not signed_intent.fields
     assert execution_intent.get_field("recipient") == canonical_pubkey
-    signed_intent.get_field("oracle_authorization")["proof"].append("mutated")
+    with pytest.raises(AttributeError):
+        signed_intent.get_field("oracle_authorization")["proof"].append("mutated")
     assert execution_intent.get_field("oracle_authorization") == {"proof": ["signed"]}
     assert signed_intent.sender_pubkey == raw_pubkey
     assert signed_intent.get_field("recipient") == raw_pubkey

@@ -20,12 +20,10 @@ from src.integration.settlement_feature_extension_packet import (
     verify_settlement_feature_extension_packet_payload,
 )
 from src.integration.settlement_price_attestation import (
-    build_settlement_spot_price_attestation,
     verify_settlement_spot_price_attestation_payload,
 )
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
-    SettlementSpotPricePacket,
     build_settlement_spot_price_packet,
     verify_settlement_spot_price_packet_payload,
 )
@@ -101,24 +99,6 @@ def _handle_verify_settlement_spot_price_attestation(obj: Mapping[str, Any], ctx
         return 200, {"ok": bool(ok), "error": err}
     except BOUNDARY_DOMAIN_ERRORS:
         return 400, {"ok": False, "error": "verify_settlement_spot_price_attestation_error", "details": "request failed"}
-
-
-def _handle_build_settlement_spot_price_attestation(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse:
-    packet_obj = obj.get("packet")
-    signer_privkey = obj.get("signer_privkey")
-    if not isinstance(packet_obj, dict):
-        return 400, {"ok": False, "error": "bad_packet"}
-    if isinstance(signer_privkey, bool) or not isinstance(signer_privkey, (str, int)):
-        return 400, {"ok": False, "error": "bad_signer_privkey"}
-    try:
-        packet = SettlementSpotPricePacket.from_dict(packet_obj)
-        attestation = build_settlement_spot_price_attestation(
-            packet=packet,
-            signer_privkey=signer_privkey,
-        )
-        return 200, {"ok": True, "attestation": attestation.to_dict()}
-    except BOUNDARY_DOMAIN_ERRORS:
-        return 400, {"ok": False, "error": "build_settlement_spot_price_attestation_error", "details": "request failed"}
 
 
 def _handle_build_exact_out_route_certificate(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse:
@@ -263,7 +243,6 @@ def register_settlement_audit_handlers() -> None:
     )
     _register("/api/dex/verify_settlement_feature_extension_packet", _handle_verify_settlement_feature_extension_packet)
     _register("/api/dex/verify_settlement_spot_price_attestation", _handle_verify_settlement_spot_price_attestation)
-    _register("/api/dex/build_settlement_spot_price_attestation", _handle_build_settlement_spot_price_attestation)
     _register("/api/dex/build_exact_out_route_certificate", _handle_build_exact_out_route_certificate)
     _register("/api/dex/audit_exact_out_two_pool_canonicality", _handle_audit_exact_out_two_pool_canonicality)
     _register(

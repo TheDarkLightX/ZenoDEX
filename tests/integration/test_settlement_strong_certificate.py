@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 
@@ -139,8 +138,14 @@ def test_verify_settlement_strong_certificate_rejects_tampered_settlement() -> N
     _intent, settlement, _balances, _pools = _swap_context()
     cert = build_settlement_strong_certificate(settlement=settlement, proof_flags=SettlementProofFlags.all_true())
 
-    tampered = deepcopy(settlement)
-    tampered.balance_deltas[0].delta_sub += 1
+    first_delta = settlement.balance_deltas[0]
+    tampered = replace(
+        settlement,
+        balance_deltas=[
+            replace(first_delta, delta_sub=first_delta.delta_sub + 1),
+            *settlement.balance_deltas[1:],
+        ],
+    )
 
     ok, err = verify_settlement_strong_certificate(settlement=tampered, certificate=cert)
     assert ok is False

@@ -7,15 +7,21 @@ import {
   buildAndSignCreatePoolIntent,
   buildAndSignLiquidityIntent,
   buildAndSignSwapIntent,
+} from './dexIntentSigner.js';
+import {
   buildSignedTauTransaction,
   signDexIntentForEngine,
   signPerpOpForEngine,
-} from './dexIntentSigner.js';
+} from '../../test-support/rawKeySigner.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 const CHAIN_ID = 'zeno-ledger-localtest-v0';
 const PRIVKEY = `0x${'11'.repeat(32)}`;
 const PUBKEY = `0x${Buffer.from(bls.getPublicKey(PRIVKEY.slice(2))).toString('hex')}`;
+const externalDexSigner = (intent, { chainId }) => signDexIntentForEngine(intent, {
+  privkey: PRIVKEY,
+  chainId,
+});
 
 function pythonVerify(intent, signature) {
   const script = `
@@ -115,7 +121,7 @@ test('browser DEX intent signature verifies in Python engine policy', async () =
   assert.deepEqual(pythonVerify(intent, signature), { ok: true, error: null });
 });
 
-test('browser liquidity signer builds an add-liquidity intent accepted by Python signature policy', async () => {
+test('external liquidity signer builds an add-liquidity intent accepted by Python signature policy', async () => {
   const pool = {
     poolId: `0x${'ef'.repeat(32)}`,
     reserve0: 10000,
@@ -137,7 +143,7 @@ test('browser liquidity signer builds an add-liquidity intent accepted by Python
     kind: 'ADD_LIQUIDITY',
     pool,
     payload,
-    privkey: PRIVKEY,
+    signDexIntent: externalDexSigner,
     chainId: CHAIN_ID,
   });
   assert.equal(signed.intent.kind, 'ADD_LIQUIDITY');
@@ -145,7 +151,7 @@ test('browser liquidity signer builds an add-liquidity intent accepted by Python
   assert.deepEqual(pythonVerify(signed.intent, signed.signature), { ok: true, error: null });
 });
 
-test('browser swap signer builds an exact-in swap intent accepted by Python signature policy', async () => {
+test('external swap signer builds an exact-in swap intent accepted by Python signature policy', async () => {
   const pool = {
     poolId: `0x${'ef'.repeat(32)}`,
     asset0: `0x${'01'.repeat(32)}`,
@@ -167,7 +173,7 @@ test('browser swap signer builds an exact-in swap intent accepted by Python sign
   const signed = await buildAndSignSwapIntent({
     pool,
     payload,
-    privkey: PRIVKEY,
+    signDexIntent: externalDexSigner,
     chainId: CHAIN_ID,
   });
   assert.equal(signed.intent.kind, 'SWAP_EXACT_IN');

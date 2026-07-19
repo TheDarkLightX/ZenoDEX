@@ -12,11 +12,8 @@ import {
 } from '../lib/routeProfiles';
 import { createQuoteCertificate, verifyQuoteCertificate } from '../lib/quoteCertificate';
 import { useTransactionCenter } from '../lib/TransactionCenterContext.jsx';
-import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import TokenSelectModal from './TokenSelectModal.jsx';
 import {
-    FALLBACK_SWAP_POOLS,
-    FALLBACK_SWAP_TOKENS,
     loadSwapPools,
     resolveWalletTokenBalance,
 } from '../lib/swapData.js';
@@ -24,6 +21,8 @@ import VerifiedBySpec from './VerifiedBySpec.jsx';
 import CopyHash from './CopyHash.jsx';
 import { buildAndSignSwapIntent } from '../sdk/dexIntentSigner.js';
 import './SwapInterface.css';
+
+const EMPTY_TOKEN = Object.freeze({ symbol: '', name: 'Unavailable', icon: '—', decimals: 0 });
 
 // SVGs
 const SettingsIcon = () => (
@@ -80,19 +79,6 @@ function Tooltip({ text, children }) {
     );
 }
 
-function createMockTxHash() {
-    const bytes = new Uint8Array(32);
-    if (typeof globalThis !== 'undefined' && globalThis.crypto?.getRandomValues) {
-        globalThis.crypto.getRandomValues(bytes);
-    } else {
-        for (let i = 0; i < bytes.length; i += 1) {
-            bytes[i] = Math.floor(Math.random() * 256);
-        }
-    }
-    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-    return `0x${hex}`;
-}
-
 function shortHash(hash) {
     if (!hash) return '';
     return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
@@ -128,11 +114,9 @@ function estimateRoutePendingVolumes({ amountIn, routeType, profileId, gateDecis
 
 function SwapInterface({ wallet }) {
     const { upsertTransaction } = useTransactionCenter();
-    const { demoMode } = useDemoMode();
-    const [fromToken, setFromToken] = useState(FALLBACK_SWAP_TOKENS[0]);
-    const [toToken, setToToken] = useState(FALLBACK_SWAP_TOKENS[1]);
+    const [fromToken, setFromToken] = useState(EMPTY_TOKEN);
+    const [toToken, setToToken] = useState(EMPTY_TOKEN);
     const [tokenModalSide, setTokenModalSide] = useState(null);
-    const [customTokens, setCustomTokens] = useState([]);
     const [amountIn, setAmountIn] = useState('');
     const [slippage, setSlippage] = useState(0.005);
     const [showSettings, setShowSettings] = useState(false);
@@ -164,42 +148,21 @@ function SwapInterface({ wallet }) {
     const [routeApiImpactPreview, setRouteApiImpactPreview] = useState(null);
     const [apiSlippageAdvice, setApiSlippageAdvice] = useState(null);
     const [poolFeed, setPoolFeed] = useState({
-        source: 'fallback',
-        pools: FALLBACK_SWAP_POOLS,
-        tokens: FALLBACK_SWAP_TOKENS,
-        error: null,
+        source: 'unavailable',
+        pools: {},
+        tokens: [],
+        account: null,
+        accountLastNonce: null,
+        error: 'pool_feed_not_loaded',
     });
     const [nowMs, setNowMs] = useState(Date.now());
 
     const quoteDagRef = useRef(createQuoteDagCache());
-    const uiSmokeSubmitRef = useRef(false);
-    const tokens = useMemo(() => (
-        Array.isArray(poolFeed.tokens) && poolFeed.tokens.length >= 2
-            ? poolFeed.tokens
-            : FALLBACK_SWAP_TOKENS
-    ), [poolFeed.tokens]);
+    const tokens = useMemo(
+        () => (Array.isArray(poolFeed.tokens) ? poolFeed.tokens : []),
+        [poolFeed.tokens],
+    );
     const tokenSymbols = useMemo(() => tokens.map((token) => token.symbol), [tokens]);
-    const uiSmokeSwap = useMemo(() => {
-        if (typeof window === 'undefined') {
-            return { enabled: false, amountIn: '', minAmountOut: '', signature: '', nonce: '', deadline: '', fromSymbol: '', toSymbol: '' };
-        }
-        const params = new URLSearchParams(window.location.search);
-        return {
-            enabled: params.get('zenodexUiSmokeSwap') === '1',
-            amountIn: params.get('smokeAmountIn') || '100',
-            minAmountOut: params.get('smokeMinAmountOut') || '',
-            signature: params.get('smokeIntentSignature') || '',
-            nonce: params.get('smokeNonce') || '',
-            deadline: params.get('smokeDeadline') || '',
-            fromSymbol: params.get('smokeFromSymbol') || '',
-            toSymbol: params.get('smokeToSymbol') || '',
-        };
-    }, []);
-    const uiSmokeTokenSelectSide = useMemo(() => {
-        if (typeof window === 'undefined') return '';
-        const side = String(new URLSearchParams(window.location.search).get('zenodexUiSmokeTokenSelect') || '').trim();
-        return side === 'from' || side === 'to' ? side : '';
-    }, []);
 
     // Auto-refresh prices every 15 seconds
     useEffect(() => {
@@ -250,7 +213,7 @@ function SwapInterface({ wallet }) {
             const next = await loadSwapPools({ timeoutMs: 2200, account: wallet?.address || '' });
             if (!cancelled) {
                 setPoolFeed(next);
-                // Back off when API is unavailable to reduce noisy retries in local-only mode.
+                // Back off when the API is unavailable to avoid noisy retries.
                 scheduleNext(next.source === 'api' ? 30_000 : 180_000);
             }
         };
@@ -262,7 +225,13 @@ function SwapInterface({ wallet }) {
     }, [wallet?.address]);
 
     useEffect(() => {
-        if (tokens.length < 2) return;
+        if (tokens.length < 2) {
+            setFromToken(EMPTY_TOKEN);
+            setToToken(EMPTY_TOKEN);
+            setAmountIn('');
+            setQuoteError('');
+            return;
+        }
         const fromKnown = tokens.some((token) => token.symbol === fromToken.symbol);
         const toKnown = tokens.some((token) => token.symbol === toToken.symbol);
         if (fromKnown && toKnown && fromToken.symbol !== toToken.symbol) return;
@@ -271,28 +240,6 @@ function SwapInterface({ wallet }) {
         setAmountIn('');
         setQuoteError('');
     }, [tokens, fromToken.symbol, toToken.symbol]);
-
-    useEffect(() => {
-        if (!uiSmokeSwap.enabled || tokens.length < 2) return;
-        const requestedFrom = String(uiSmokeSwap.fromSymbol || '').trim().toUpperCase();
-        const requestedTo = String(uiSmokeSwap.toSymbol || '').trim().toUpperCase();
-        if (!requestedFrom || !requestedTo || requestedFrom === requestedTo) return;
-        const nextFrom = tokens.find((token) => String(token.symbol || '').trim().toUpperCase() === requestedFrom);
-        const nextTo = tokens.find((token) => String(token.symbol || '').trim().toUpperCase() === requestedTo);
-        if (!nextFrom || !nextTo) return;
-        setFromToken(nextFrom);
-        setToToken(nextTo);
-    }, [uiSmokeSwap, tokens]);
-
-    useEffect(() => {
-        if (!uiSmokeSwap.enabled || poolFeed.source !== 'api' || amountIn) return;
-        setAmountIn(uiSmokeSwap.amountIn);
-    }, [uiSmokeSwap, poolFeed.source, amountIn]);
-
-    useEffect(() => {
-        if (!uiSmokeTokenSelectSide || poolFeed.source !== 'api') return;
-        setTokenModalSide(uiSmokeTokenSelectSide);
-    }, [uiSmokeTokenSelectSide, poolFeed.source]);
 
     useEffect(() => {
         if (!submittedSwap || submittedSwap.status !== 'pending') return undefined;
@@ -500,7 +447,7 @@ function SwapInterface({ wallet }) {
             feePaidEstimate: hasApiPreview ? apiImpactPreview.feeAmount : (directMetrics.input * feeRate),
             amountOutWorstCase: hasApiPreview ? apiImpactPreview.amountOutWorstCase : null,
             amountOutBestCase: hasApiPreview ? apiImpactPreview.amountOutBestCase : null,
-            previewSource: hasApiPreview ? 'api' : 'local',
+            previewSource: hasApiPreview ? 'api' : 'client-calculated',
             routePath: directPath,
             routeType: 'direct',
             profileId: 'legacy',
@@ -835,12 +782,6 @@ function SwapInterface({ wallet }) {
         setTokenModalSide(null);
     };
 
-    const handleImportToken = (token) => {
-        if (!demoMode || !token) return;
-        setCustomTokens((prev) => [...prev, token]);
-        handleSelectToken(token);
-    };
-
     const handleMaxAmount = () => {
         if (wallet && fromBalance != null && fromBalance > 0) {
             setAmountIn(String(fromBalance));
@@ -960,23 +901,20 @@ function SwapInterface({ wallet }) {
             const submittedAt = Date.now();
             const txId = `swap-${submittedAt}-${Math.random().toString(16).slice(2, 8)}`;
             let txHash = '';
-            let submitPath = 'local';
             let remoteAccepted = false;
             let remoteHeight = null;
             let remoteReceipt = null;
-            if (!demoMode && poolFeed.source !== 'api') {
+            if (poolFeed.source !== 'api') {
                 setQuoteError('Live swap submission requires a live pool feed');
                 return;
             }
             try {
                 const amountInUnits = Math.max(1, Math.round(Number(amountIn)));
-                const minAmountOutUnits = uiSmokeSwap.minAmountOut
-                    ? Math.max(0, Math.floor(Number(uiSmokeSwap.minAmountOut)))
-                    : Math.max(0, Math.floor(Number(activePreview.minOutput ?? 1)));
+                const minAmountOutUnits = Math.max(0, Math.floor(Number(activePreview.minOutput ?? 1)));
                 const currentPool = poolFeed.pools[poolKey];
-                let intentSignature = uiSmokeSwap.signature || undefined;
-                let intentNonce = uiSmokeSwap.nonce ? Number(uiSmokeSwap.nonce) : null;
-                let intentDeadline = uiSmokeSwap.deadline ? Number(uiSmokeSwap.deadline) : 1_999_999_999;
+                let intentSignature;
+                let intentNonce = null;
+                let intentDeadline = 1_999_999_999;
                 if (!Number.isSafeInteger(intentDeadline) || intentDeadline <= 0) {
                     throw new Error('swap_deadline_unavailable');
                 }
@@ -1000,9 +938,8 @@ function SwapInterface({ wallet }) {
                             deadline: intentDeadline,
                             nonce: nextNonce,
                         },
-                        privkey: wallet?.privkey,
                         signDexIntent: wallet?.signDexIntentForEngine || wallet?.signDexIntent,
-                        chainId: getRuntimeConfig().chainId || wallet?.chainId || 'zeno-ledger-localtest-v0',
+                        chainId: String(getRuntimeConfig().chainId || wallet?.chainId || '').trim(),
                     });
                     intentSignature = signed.signature;
                     intentNonce = signed.intent.nonce;
@@ -1034,25 +971,17 @@ function SwapInterface({ wallet }) {
                 remoteReceipt = maybeRemote?.receipt || null;
                 remoteAccepted = maybeRemote?.tx_accepted === true || remoteReceipt?.accepted === true;
                 remoteHeight = maybeRemote?.height ?? null;
-                submitPath = 'api';
                 loadSwapPools({ timeoutMs: 2200, account: wallet?.address || '' })
                     .then((next) => setPoolFeed(next))
                     .catch(() => {});
             } catch (err) {
-                if (!demoMode) {
-                    const msg = err && typeof err === 'object' ? String(err.message || 'swap_submit_failed') : 'swap_submit_failed';
-                    setQuoteError(`Live swap submission failed: ${msg}`);
-                    return;
-                }
-                txHash = createMockTxHash();
-                submitPath = 'local-fallback';
+                const msg = err && typeof err === 'object' ? String(err.message || 'swap_submit_failed') : 'swap_submit_failed';
+                setQuoteError(`Live swap submission failed: ${msg}`);
+                return;
             }
             if (!txHash) {
-                if (!demoMode) {
-                    setQuoteError('Live swap submission failed: missing transaction hash');
-                    return;
-                }
-                txHash = createMockTxHash();
+                setQuoteError('Live swap submission failed: missing transaction hash');
+                return;
             }
             const transactionStatus = remoteAccepted ? 'confirmed' : 'pending';
 
@@ -1062,7 +991,7 @@ function SwapInterface({ wallet }) {
                 txHash,
                 network: 'Tau Net Alpha',
                 status: transactionStatus,
-                submitPath,
+                submitPath: 'api',
                 height: remoteHeight,
                 receipt: remoteReceipt,
                 submittedAt,
@@ -1084,37 +1013,7 @@ function SwapInterface({ wallet }) {
         } finally {
             setIsSubmitting(false);
         }
-    }, [amountIn, fromToken, toToken, activePreview, quotePayload, quoteCertificate, effectiveProfileConfig.label, advancedMode, upsertTransaction, demoMode, poolFeed, poolKey, livePoolIntent, wallet, uiSmokeSwap]);
-
-    useEffect(() => {
-        if (!uiSmokeSwap.enabled) return;
-        if (uiSmokeSubmitRef.current) return;
-        if (!wallet || poolFeed.source !== 'api' || isSubmitting || submittedSwap) return;
-        if (!amountIn || !activePreview || !validation.ok) return;
-        if (advancedMode && !certificateCheck.ok) return;
-        try {
-            if (window.sessionStorage.getItem('zenodex.uiSmokeSwap.submitted') === '1') {
-                return;
-            }
-            window.sessionStorage.setItem('zenodex.uiSmokeSwap.submitted', '1');
-        } catch {
-            // Session storage is a test convenience; the ref still prevents repeats in normal browsers.
-        }
-        uiSmokeSubmitRef.current = true;
-        executeSwap();
-    }, [
-        uiSmokeSwap.enabled,
-        wallet,
-        poolFeed.source,
-        isSubmitting,
-        submittedSwap,
-        amountIn,
-        activePreview,
-        validation.ok,
-        advancedMode,
-        certificateCheck.ok,
-        executeSwap,
-    ]);
+    }, [amountIn, fromToken, toToken, activePreview, quotePayload, quoteCertificate, effectiveProfileConfig.label, advancedMode, upsertTransaction, poolFeed, poolKey, livePoolIntent, wallet]);
 
     const handleFindSaferAmount = useCallback(async () => {
         if (advancedMode) return;
@@ -1225,7 +1124,7 @@ function SwapInterface({ wallet }) {
     // Strict ZK + a subprocess verifier means the mounted live write gates are
     // proof-wrapper checked. Spot swap still reports Tau-spec math posture here
     // unless a dedicated spot proof surface is advertised by the node.
-    const zkPosture = getRuntimeConfig()?.localTestnetZkPosture || {};
+    const zkPosture = getRuntimeConfig()?.expectedZkPosture || {};
     const proofEnforced = zkPosture.zk_required === true
         && zkPosture.zk_mode_effective === 'strict'
         && zkPosture.proof_verifier_kind === 'subprocess';
@@ -1308,9 +1207,9 @@ function SwapInterface({ wallet }) {
                             <span>{toToken.symbol}</span>
                         </div>
                     </div>
-                    <div className={`swap-rail-feed ${poolFeed.source === 'api' ? 'is-live' : 'is-snapshot'}`}>
+                    <div className={`swap-rail-feed ${poolFeed.source === 'api' ? 'is-live' : 'is-unavailable'}`}>
                         <span className="swap-rail-dot" aria-hidden="true" />
-                        {poolFeed.source === 'api' ? 'Live pool feed' : 'Reference snapshot'}
+                        {poolFeed.source === 'api' ? 'Live pool feed' : 'Pool feed unavailable'}
                     </div>
                 </>
             ) : (
@@ -1710,7 +1609,7 @@ function SwapInterface({ wallet }) {
                             <span>Price Feed</span>
                         </Tooltip>
                         <span className={poolFeed.source === 'api' ? 'impact-low' : 'impact-medium'}>
-                            {poolFeed.source === 'api' ? 'Live API' : 'Reference Snapshot'}
+                            {poolFeed.source === 'api' ? 'Live API' : 'Unavailable'}
                         </span>
                     </div>
                     {advancedMode && (
@@ -1770,7 +1669,7 @@ function SwapInterface({ wallet }) {
 
             {poolFeed.source !== 'api' && (
                 <div className="swap-notice">
-                    <InfoIcon /> <span>Live pool feed unavailable. Using a reference reserve snapshot for preview quotes.</span>
+                    <InfoIcon /> <span>Live pool feed unavailable. Quotes and swap submission are disabled until live reserves load.</span>
                 </div>
             )}
 
@@ -2082,7 +1981,7 @@ function SwapInterface({ wallet }) {
                             </div>
                             <div className="confirm-row">
                                 <span>Submission:</span>
-                                <span>{submittedSwap.submitPath === 'local-fallback' ? 'Local fallback' : 'Network relay'}</span>
+                                <span>Network relay</span>
                             </div>
                             {submittedSwap.height !== null && submittedSwap.height !== undefined && (
                                 <div className="confirm-row">
@@ -2142,7 +2041,7 @@ function SwapInterface({ wallet }) {
                     ) : (
                         <span className="verified-badge verified-badge-advisory">Spec-checked (proofs off)</span>
                     )}
-                    <span className="network-badge">Tau local-testnet</span>
+                    <span className="network-badge">{String(getRuntimeConfig().chainId || 'Chain unavailable')}</span>
                 </div>
             </div>
 
@@ -2155,9 +2054,6 @@ function SwapInterface({ wallet }) {
                 excludeToken={tokenModalSide === 'from' ? toToken : fromToken}
                 wallet={wallet}
                 availableTokens={tokens}
-                customTokens={demoMode ? customTokens : []}
-                onImportToken={handleImportToken}
-                allowImportCustom={demoMode}
             />
         </div>
     );

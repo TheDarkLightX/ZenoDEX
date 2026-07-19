@@ -33,6 +33,11 @@ from src.integration.api_server_settlement_parsers import (
     _parse_settlement_feature_extension_inputs_payload,
     _parse_settlement_proof_flags_payload,
 )
+from src.integration.oracle_aggregate_adapter_boundary import (
+    ORACLE_AGGREGATE_ADAPTER_UNAVAILABLE,
+    ORACLE_AGGREGATE_ADAPTER_VERIFIER_AVAILABLE,
+    verify_aggregate_adapter_bridge,
+)
 from src.state.canonical import canonical_json_bytes
 
 __all__ = (
@@ -832,13 +837,6 @@ def _check_routing_oracle_adapter_bridge_for_action(
         return "oracle_adapter_bridge must be an object"
 
     try:
-        from tools.zenodex_oracle_aggregate_adapter import (  # pylint: disable=import-outside-toplevel
-            verify_aggregate_adapter_bridge,
-        )
-    except ImportError as exc:
-        return f"oracle_adapter_bridge verifier unavailable: {type(exc).__name__}"
-
-    try:
         result = verify_aggregate_adapter_bridge(bridge)
     except (TypeError, ValueError) as exc:
         return f"oracle_adapter_bridge verifier error: {type(exc).__name__}"
@@ -945,8 +943,6 @@ class ApiServerConfig:
     cors_origins: Set[str]
     rpm: int
     max_buckets: int
-    perps_enabled: bool
-    perps_demo_api_unsafe_enabled: bool
     perps_wallet_enabled: bool
     zusd_tau_wallet_enabled: bool
     zusd_monetary_wallet_enabled: bool
@@ -956,16 +952,15 @@ class ApiServerConfig:
     confidential_sealed_bid_state_file: str
     dex_enabled: bool
     autogov_live_apply_enabled: bool
-    legacy_demo_api_token: str
     auth_bearer_token: str
     confidential_feature_status: dict[str, Any]
     sensitive_api_enabled: bool
     production_mode: bool
     external_auth_enforced: bool
-    allow_demo_token_auth: bool
     allow_in_memory_sealed_bid: bool
-    legacy_demo_token_active: bool
     confidential_sealed_bid_asset_settlement_enabled: bool
+    production_forbidden_settings: tuple[str, ...]
+    retired_unsafe_settings: tuple[str, ...]
 
 
 def _env_enabled(name: str, default: str = "false") -> bool:
@@ -974,17 +969,15 @@ def _env_enabled(name: str, default: str = "false") -> bool:
 
 def _load_api_server_config() -> ApiServerConfig:
     host = _env_str("API_HOST", "127.0.0.1")
-    api_bearer_token = _env_str("ZENODEX_API_BEARER_TOKEN", "")
-    legacy_demo_api_token = _env_str("DEMO_API_TOKEN", "")
-    auth_bearer_token = api_bearer_token or legacy_demo_api_token
+    auth_bearer_token = _env_str("ZENODEX_API_BEARER_TOKEN", "")
     confidential_sealed_bid_state_file = _env_str("CONFIDENTIAL_SEALED_BID_STATE_FILE", "")
     runtime_env = _env_str("ZENODEX_ENV", _env_str("APP_ENV", "production")).lower()
 
-    from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
+    from src.integration.confidential_feature_status import (
+        load_confidential_feature_status_from_env,  # pylint: disable=import-outside-toplevel
+    )
 
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
-    perps_enabled = _env_enabled("PERPS_API_ENABLED")
-    perps_demo_api_unsafe_enabled = _env_enabled("PERPS_DEMO_API_UNSAFE_ENABLED")
     perps_wallet_enabled = _env_enabled("PERPS_WALLET_API_ENABLED")
     zusd_tau_wallet_enabled = _env_enabled("ZUSD_TAU_WALLET_API_ENABLED")
     zusd_monetary_wallet_enabled = _env_enabled("ZUSD_MONETARY_WALLET_API_ENABLED")
@@ -994,8 +987,7 @@ def _load_api_server_config() -> ApiServerConfig:
     dex_enabled = _env_enabled("DEX_API_ENABLED")
     autogov_live_apply_enabled = _env_enabled("AUTOGOV_LIVE_APPLY_API_ENABLED")
     sensitive_api_enabled = bool(
-        perps_enabled
-        or perps_wallet_enabled
+        perps_wallet_enabled
         or zusd_tau_wallet_enabled
         or zusd_monetary_wallet_enabled
         or autotrader_live_enabled
@@ -1011,8 +1003,6 @@ def _load_api_server_config() -> ApiServerConfig:
         cors_origins=_parse_cors_origins(_env_str("CORS_ORIGINS", "")),
         rpm=_env_int("RATE_LIMIT_RPM", 600, lo=0, hi=1_000_000),
         max_buckets=_env_int("RATE_LIMIT_MAX_BUCKETS", 10_000, lo=1, hi=1_000_000),
-        perps_enabled=perps_enabled,
-        perps_demo_api_unsafe_enabled=perps_demo_api_unsafe_enabled,
         perps_wallet_enabled=perps_wallet_enabled,
         zusd_tau_wallet_enabled=zusd_tau_wallet_enabled,
         zusd_monetary_wallet_enabled=zusd_monetary_wallet_enabled,
@@ -1022,35 +1012,86 @@ def _load_api_server_config() -> ApiServerConfig:
         confidential_sealed_bid_state_file=confidential_sealed_bid_state_file,
         dex_enabled=dex_enabled,
         autogov_live_apply_enabled=autogov_live_apply_enabled,
-        legacy_demo_api_token=legacy_demo_api_token,
         auth_bearer_token=auth_bearer_token,
         confidential_feature_status=confidential_feature_status,
         sensitive_api_enabled=sensitive_api_enabled,
         production_mode=runtime_env not in ("dev", "development", "test", "local"),
         external_auth_enforced=_env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False),
-        allow_demo_token_auth=_env_bool("ALLOW_DEMO_TOKEN_AUTH", False),
         allow_in_memory_sealed_bid=_env_bool("CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE", False),
-        legacy_demo_token_active=bool(legacy_demo_api_token and not api_bearer_token),
         confidential_sealed_bid_asset_settlement_enabled=_env_bool(
             "CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED",
             False,
+        ),
+        production_forbidden_settings=tuple(
+            name
+            for name in (
+                "AUTOTRADER_LIVE_API_ENABLED",
+                "AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING",
+                "AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION",
+                "CONFIDENTIAL_ATTESTATION_API_ENABLED",
+                "CONFIDENTIAL_SEALED_BID_API_ENABLED",
+                "CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE",
+                "CONFIDENTIAL_SEALED_BID_ALLOW_FIXTURE_SETTLEMENT",
+                "CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED",
+                "CONFIDENTIAL_SEALED_BID_RETURN_SIGNED_TAU_TX_PAYLOAD",
+            )
+            if runtime_env not in ("dev", "development", "test", "local", "local-testnet")
+            and _env_bool(name, False)
+        ),
+        retired_unsafe_settings=tuple(
+            name
+            for name in (
+                "PERPS_API_ENABLED",
+                "ZUSD_API_ENABLED",
+                "PERPS_DEMO_API_UNSAFE_ENABLED",
+                "DEMO_API_TOKEN",
+                "ALLOW_DEMO_TOKEN_AUTH",
+                "PERPS_WALLET_ALLOW_LOCAL_SIGNING",
+                "PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD",
+                "PERPS_WALLET_AUTO_MINE",
+                "ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING",
+                "ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING",
+                "ZUSD_TAU_WALLET_AUTO_MINE",
+                "ZUSD_MONETARY_WALLET_AUTO_MINE",
+            )
+            if os.environ.get(name) not in (None, "", "0", "false", "False")
         ),
     )
 
 
 def _api_startup_refusal_lines(config: ApiServerConfig) -> Optional[list[str]]:
-    if config.perps_demo_api_unsafe_enabled and (
-        config.production_mode or not _is_loopback_host(config.host)
-    ):
+    if config.retired_unsafe_settings:
         return [
-            "Refusing to start: PERPS_DEMO_API_UNSAFE_ENABLED is local demo only. "
-            "Set ZENODEX_ENV=local/dev/test and bind API_HOST to loopback."
+            "Refusing to start: retired unsafe runtime settings are present: "
+            + ", ".join(config.retired_unsafe_settings)
+            + ". The unsigned in-memory perps and zUSD surfaces and legacy demo-token auth "
+            "were removed; use signed wallet transports and ZENODEX_API_BEARER_TOKEN."
         ]
+    if config.production_forbidden_settings:
+        return [
+            "Refusing to start: development/test-only settings are enabled in production: "
+            + ", ".join(config.production_forbidden_settings)
+        ]
+    if config.production_mode and not ORACLE_AGGREGATE_ADAPTER_VERIFIER_AVAILABLE:
+        unavailable_surfaces: list[str] = []
+        if config.perps_wallet_enabled:
+            unavailable_surfaces.append("PERPS_WALLET_API_ENABLED")
+        if config.dex_enabled and _env_bool(
+            "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED",
+            default=False,
+        ):
+            unavailable_surfaces.append("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED")
+        if unavailable_surfaces:
+            return [
+                "Refusing to start: production Oracle aggregate-adapter verification "
+                "is unavailable for enabled surfaces: "
+                + ", ".join(unavailable_surfaces)
+                + f" ({ORACLE_AGGREGATE_ADAPTER_UNAVAILABLE})."
+            ]
     if config.sensitive_api_enabled and not config.external_auth_enforced and not config.auth_bearer_token:
         return [
             "Refusing to start: sensitive APIs enabled without external auth or ZENODEX_API_BEARER_TOKEN "
-            f"(host={config.host!r}, perps_api={config.perps_enabled}, "
-            f"perps_wallet_api={config.perps_wallet_enabled}, "
+            f"(host={config.host!r}, perps_wallet_api={config.perps_wallet_enabled}, "
             f"zusd_tau_wallet_api={config.zusd_tau_wallet_enabled}, "
             f"zusd_monetary_wallet_api={config.zusd_monetary_wallet_enabled}, "
             f"autotrader_live_api={config.autotrader_live_enabled}, "
@@ -1062,35 +1103,10 @@ def _api_startup_refusal_lines(config: ApiServerConfig) -> Optional[list[str]]:
         config.confidential_sealed_bid_enabled
         and config.production_mode
         and not config.confidential_sealed_bid_state_file
-        and not config.allow_in_memory_sealed_bid
     ):
         return [
             "Refusing to start: confidential sealed-bid API requires "
-            "CONFIDENTIAL_SEALED_BID_STATE_FILE in production mode. "
-            "Set CONFIDENTIAL_SEALED_BID_ALLOW_IN_MEMORY_STATE=1 only for controlled demos."
-        ]
-    if (
-        config.sensitive_api_enabled
-        and not config.external_auth_enforced
-        and config.legacy_demo_token_active
-        and config.production_mode
-        and not config.allow_demo_token_auth
-    ):
-        return [
-            "Refusing to start: DEMO_API_TOKEN is demo/dev auth only. "
-            "Set ZENODEX_EXTERNAL_AUTH_ENFORCED=1 for a real auth gateway, or "
-            "ALLOW_DEMO_TOKEN_AUTH=1 only for a controlled demo."
-        ]
-    if (
-        config.sensitive_api_enabled
-        and not config.external_auth_enforced
-        and config.legacy_demo_token_active
-        and not _is_loopback_host(config.host)
-        and not config.allow_demo_token_auth
-    ):
-        return [
-            "Refusing to start: demo-token auth on a non-loopback bind requires "
-            "ALLOW_DEMO_TOKEN_AUTH=1 for an explicitly scoped demo."
+            "CONFIDENTIAL_SEALED_BID_STATE_FILE in production mode."
         ]
     return None
 
@@ -1364,19 +1380,12 @@ def _deploy_profile_refusal_lines(config: ApiServerConfig) -> Optional[list[str]
         "sensitive_api_enabled": config.sensitive_api_enabled,
         "external_auth_enforced": config.external_auth_enforced,
         "auth_bearer_token_set": bool(config.auth_bearer_token),
-        "allow_demo_token_auth": config.allow_demo_token_auth,
-        "legacy_demo_token_active": config.legacy_demo_token_active,
-        "perps_demo_api_unsafe_enabled": config.perps_demo_api_unsafe_enabled,
         "confidential_sealed_bid_allow_in_memory_state": config.allow_in_memory_sealed_bid,
         "confidential_sealed_bid_allow_fixture_settlement": _env_bool(
             "CONFIDENTIAL_SEALED_BID_ALLOW_FIXTURE_SETTLEMENT", False
         ),
         "confidential_sealed_bid_return_signed_tau_tx_payload": _env_bool(
             "CONFIDENTIAL_SEALED_BID_RETURN_SIGNED_TAU_TX_PAYLOAD", False
-        ),
-        "perps_wallet_allow_local_signing": _env_bool("PERPS_WALLET_ALLOW_LOCAL_SIGNING", False),
-        "perps_wallet_return_signed_tau_tx_payload": _env_bool(
-            "PERPS_WALLET_RETURN_SIGNED_TAU_TX_PAYLOAD", False
         ),
         "perps_tau_source_binding_required": _env_bool(
             "TAU_DEX_REQUIRE_TAU_SOURCE_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
@@ -1596,20 +1605,12 @@ def _print_refusal(lines: list[str]) -> None:
 
 
 def _attach_api_server_state(httpd: ThreadingHTTPServer, config: ApiServerConfig) -> None:
-    from src.integration.confidential_sealed_bid_api import (  # pylint: disable=import-outside-toplevel
-        ConfidentialSealedBidTable,
-        submit_confidential_sealed_bid_local_ledger_settlement,
+    from src.state.confidential_requests import (
+        ConfidentialRequestTable,  # pylint: disable=import-outside-toplevel
     )
-    from src.state.confidential_requests import ConfidentialRequestTable  # pylint: disable=import-outside-toplevel
 
     httpd.cors_origins = config.cors_origins  # type: ignore[attr-defined]
     httpd.rate_limiter = TokenBucketRateLimiter(rpm=config.rpm, max_buckets=config.max_buckets)  # type: ignore[attr-defined]
-    httpd.perps_api_enabled = config.perps_enabled  # type: ignore[attr-defined]
-    httpd.perps_demo_api_unsafe_enabled = (  # type: ignore[attr-defined]
-        config.perps_demo_api_unsafe_enabled
-        and not config.production_mode
-        and _is_loopback_host(config.host)
-    )
     httpd.api_host = config.host  # type: ignore[attr-defined]
     httpd.perps_wallet_api_enabled = config.perps_wallet_enabled  # type: ignore[attr-defined]
     httpd.zusd_tau_wallet_api_enabled = config.zusd_tau_wallet_enabled  # type: ignore[attr-defined]
@@ -1622,27 +1623,33 @@ def _attach_api_server_state(httpd: ThreadingHTTPServer, config: ApiServerConfig
     httpd.confidential_sealed_bid_api_enabled = config.confidential_sealed_bid_enabled  # type: ignore[attr-defined]
     httpd.dex_api_enabled = config.dex_enabled  # type: ignore[attr-defined]
     httpd.autogov_live_apply_api_enabled = config.autogov_live_apply_enabled  # type: ignore[attr-defined]
-    httpd.demo_api_token = config.auth_bearer_token  # type: ignore[attr-defined]
+    httpd.api_bearer_token = config.auth_bearer_token  # type: ignore[attr-defined]
     httpd.external_auth_enforced = config.external_auth_enforced  # type: ignore[attr-defined]
     httpd.confidential_feature_status = config.confidential_feature_status  # type: ignore[attr-defined]
     httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
     httpd.confidential_request_lock = threading.Lock()  # type: ignore[attr-defined]
-    httpd.confidential_sealed_bid_table = ConfidentialSealedBidTable(  # type: ignore[attr-defined]
-        state_path=config.confidential_sealed_bid_state_file
-    )
+    httpd.confidential_sealed_bid_table = None  # type: ignore[attr-defined]
     httpd.confidential_sealed_bid_lock = threading.Lock()  # type: ignore[attr-defined]
-    httpd.confidential_sealed_bid_asset_settlement_submitter = (  # type: ignore[attr-defined]
-        submit_confidential_sealed_bid_local_ledger_settlement
-        if config.confidential_sealed_bid_asset_settlement_enabled
-        else None
-    )
+    httpd.confidential_sealed_bid_asset_settlement_submitter = None  # type: ignore[attr-defined]
+    if config.confidential_sealed_bid_enabled:
+        from src.integration.confidential_sealed_bid_api import (  # pylint: disable=import-outside-toplevel
+            ConfidentialSealedBidTable,
+            submit_confidential_sealed_bid_local_ledger_settlement,
+        )
+
+        httpd.confidential_sealed_bid_table = ConfidentialSealedBidTable(  # type: ignore[attr-defined]
+            state_path=config.confidential_sealed_bid_state_file
+        )
+        if config.confidential_sealed_bid_asset_settlement_enabled:
+            httpd.confidential_sealed_bid_asset_settlement_submitter = (  # type: ignore[attr-defined]
+                submit_confidential_sealed_bid_local_ledger_settlement
+            )
 
 
 def _print_api_startup_banner(config: ApiServerConfig) -> None:
     print(
         f"zenodex-api listening on http://{config.host}:{config.port} "
         f"(cors_origins={sorted(config.cors_origins)}, rpm={config.rpm}, max_buckets={config.max_buckets}, "
-        f"perps_api={config.perps_enabled}, "
         f"perps_wallet_api={config.perps_wallet_enabled}, "
         f"zusd_tau_wallet_api={config.zusd_tau_wallet_enabled}, "
         f"zusd_monetary_wallet_api={config.zusd_monetary_wallet_enabled}, "
@@ -1653,9 +1660,10 @@ def _print_api_startup_banner(config: ApiServerConfig) -> None:
         f"dex_api={config.dex_enabled}, "
         f"autogov_live_apply_api={config.autogov_live_apply_enabled}, "
         f"confidential_stage={config.confidential_feature_status.get('stage')}, "
-        f"external_auth_enforced={config.external_auth_enforced}, bearer_token_set={bool(config.auth_bearer_token)}, "
-        f"legacy_demo_token_set={bool(config.legacy_demo_api_token)}, "
-        f"demo_token_auth_allowed={config.allow_demo_token_auth})"
+        f"external_auth_enforced={config.external_auth_enforced}, "
+        f"oracle_aggregate_adapter_verifier_available="
+        f"{ORACLE_AGGREGATE_ADAPTER_VERIFIER_AVAILABLE}, "
+        f"bearer_token_set={bool(config.auth_bearer_token)})"
     )
 
 
@@ -1699,11 +1707,11 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _maybe_rate_limit(self) -> bool:
-        limiter: TokenBucketRateLimiter = getattr(self.server, "rate_limiter")  # type: ignore[attr-defined]
+        limiter: TokenBucketRateLimiter = self.server.rate_limiter  # type: ignore[attr-defined]
         return limiter.allow(self._client_ip())
 
     def _allowed_cors_origin_or_none(self) -> Optional[str]:
-        allowed: Set[str] = getattr(self.server, "cors_origins")  # type: ignore[attr-defined]
+        allowed: Set[str] = self.server.cors_origins  # type: ignore[attr-defined]
         origin = self._cors_origin()
         if origin is None:
             return None
@@ -1712,7 +1720,7 @@ class _Handler(BaseHTTPRequestHandler):
                 return allowed_origin
         return None
 
-    def _demo_auth_ok(self) -> bool:
+    def _api_auth_ok(self) -> bool:
         """Bearer-token check for sensitive local/testnet routes.
 
         Review note (grade A-): this handler used to allow requests whenever
@@ -1721,9 +1729,9 @@ class _Handler(BaseHTTPRequestHandler):
         boundary too; only an explicit external-auth server flag may bypass the
         in-process bearer check.
         """
-        token = getattr(self.server, "demo_api_token", "")  # type: ignore[attr-defined]
+        token = getattr(self.server, "api_bearer_token", "")
         if not isinstance(token, str) or not token:
-            return bool(getattr(self.server, "external_auth_enforced", False))  # type: ignore[attr-defined]
+            return bool(getattr(self.server, "external_auth_enforced", False))
         auth = self.headers.get("Authorization")
         if not isinstance(auth, str) or not auth:
             return False
@@ -1804,32 +1812,9 @@ class _Handler(BaseHTTPRequestHandler):
                 cors_origin=cors_origin,
                 raw_body=raw_body,
             )
-        if not getattr(self.server, "perps_api_enabled", False):
-            return False
-        if not self._perps_demo_api_allowed():
-            return False
-        if (
-            (hasattr(self.server, "demo_api_token") or hasattr(self.server, "external_auth_enforced"))
-            and not self._demo_auth_ok()
-        ):
-            self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
-            return True
-        from src.integration.perps_api import handle_perps_request
-
-        status, resp = handle_perps_request(method, path, raw_body)
-        self._write_json(status, resp, cors_origin=cors_origin)
-        return True
-
-    def _perps_demo_api_allowed(self) -> bool:
-        if not getattr(self.server, "perps_demo_api_unsafe_enabled", False):
-            return False
-        client_host = str(self.client_address[0]) if self.client_address else ""
-        server_host = str(getattr(self.server, "api_host", ""))
-        if not server_host:
-            server_address = getattr(self.server, "server_address", None)
-            if isinstance(server_address, tuple) and server_address:
-                server_host = str(server_address[0])
-        return _is_loopback_host(client_host) and _is_loopback_host(server_host)
+        # The legacy unsigned in-memory perps surface was removed. Only the
+        # signature-checked wallet transport is production-reachable.
+        return False
 
     def _maybe_handle_perps_wallet_api(
         self, *, method: str, path: str, cors_origin: Optional[str], raw_body: Optional[bytes]
@@ -1838,7 +1823,7 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         if not getattr(self.server, "perps_wallet_api_enabled", False):
             return False
-        if not self._demo_auth_ok():
+        if not self._api_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
         from src.integration.perps_wallet_api import handle_perps_wallet_request
@@ -1868,9 +1853,8 @@ class _Handler(BaseHTTPRequestHandler):
             )
         # No HTTP exposure for non-wallet /api/zusd/* routes. Signed
         # production writes go through /api/zusd/wallet/* and
-        # /api/zusd/monetary/*. The in-memory audit-replay scaffold lives
-        # at src/integration/_zusd_audit_replay_state.py and is imported
-        # only by tools/check_* audit harnesses, never served.
+        # /api/zusd/monetary/*. Oracle contract replays remain offline
+        # verification work; no mutable zUSD HTTP scaffold is shipped.
         return False
 
     def _maybe_handle_zusd_tau_wallet_api(
@@ -1880,7 +1864,7 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         if not getattr(self.server, "zusd_tau_wallet_api_enabled", False):
             return False
-        if not self._demo_auth_ok():
+        if not self._api_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
         from src.integration.zusd_tau_wallet_api import handle_zusd_tau_wallet_request
@@ -1896,7 +1880,7 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         if not getattr(self.server, "zusd_monetary_wallet_api_enabled", False):
             return False
-        if not self._demo_auth_ok():
+        if not self._api_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
         from src.integration.zusd_monetary_wallet_api import handle_zusd_monetary_wallet_request
@@ -1912,14 +1896,14 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         if not getattr(self.server, "autotrader_live_api_enabled", False):
             return False
-        if not self._demo_auth_ok():
+        if not self._api_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
         from src.integration.autotrader_live_api import handle_autotrader_live_request
 
-        execution_keys = getattr(self.server, "autotrader_execution_keys", None)  # type: ignore[attr-defined]
-        supervisor_runs = getattr(self.server, "autotrader_supervisor_runs", None)  # type: ignore[attr-defined]
-        execution_lock = getattr(self.server, "autotrader_execution_lock", None)  # type: ignore[attr-defined]
+        execution_keys = getattr(self.server, "autotrader_execution_keys", None)
+        supervisor_runs = getattr(self.server, "autotrader_supervisor_runs", None)
+        execution_lock = getattr(self.server, "autotrader_execution_lock", None)
         if path in {
             "/api/strategy/autotrader/execute-once",
             "/api/strategy/autotrader/supervisor/execute",
@@ -1950,14 +1934,14 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         if not getattr(self.server, "confidential_attestation_api_enabled", False):
             return False
-        if not self._demo_auth_ok():
+        if not self._api_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
         from src.integration.confidential_attestation_api import (
             handle_confidential_attestation_request,
         )
 
-        request_lock = getattr(self.server, "confidential_request_lock", None)  # type: ignore[attr-defined]
+        request_lock = getattr(self.server, "confidential_request_lock", None)
         stateful_paths = {
             "/api/confidential/attestation/admit",
             "/api/confidential/attestation/execute",
@@ -1971,7 +1955,7 @@ class _Handler(BaseHTTPRequestHandler):
                 )
                 return True
             with request_lock:
-                request_table = getattr(self.server, "confidential_request_table", None)  # type: ignore[attr-defined]
+                request_table = getattr(self.server, "confidential_request_table", None)
                 status, resp, updated_request_table = handle_confidential_attestation_request(
                     method,
                     path,
@@ -1981,7 +1965,7 @@ class _Handler(BaseHTTPRequestHandler):
                 if updated_request_table is not None:
                     self.server.confidential_request_table = updated_request_table  # type: ignore[attr-defined]
         else:
-            request_table = getattr(self.server, "confidential_request_table", None)  # type: ignore[attr-defined]
+            request_table = getattr(self.server, "confidential_request_table", None)
             status, resp, _updated_request_table = handle_confidential_attestation_request(
                 method,
                 path,
@@ -1998,18 +1982,20 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         if not getattr(self.server, "confidential_sealed_bid_api_enabled", False):
             return False
-        if not self._demo_auth_ok():
+        if not self._api_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
-        from src.integration.confidential_sealed_bid_api import handle_confidential_sealed_bid_request
+        from src.integration.confidential_sealed_bid_api import (
+            handle_confidential_sealed_bid_request,
+        )
 
-        table = getattr(self.server, "confidential_sealed_bid_table", None)  # type: ignore[attr-defined]
-        asset_settlement_submitter = getattr(  # type: ignore[attr-defined]
+        table = getattr(self.server, "confidential_sealed_bid_table", None)
+        asset_settlement_submitter = getattr(
             self.server,
             "confidential_sealed_bid_asset_settlement_submitter",
             None,
         )
-        lock = getattr(self.server, "confidential_sealed_bid_lock", None)  # type: ignore[attr-defined]
+        lock = getattr(self.server, "confidential_sealed_bid_lock", None)
         if lock is not None:
             with lock:
                 status, resp = handle_confidential_sealed_bid_request(
@@ -2037,7 +2023,7 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         if not getattr(self.server, "autogov_live_apply_api_enabled", False):
             return False
-        if not self._demo_auth_ok():
+        if not self._api_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
         from src.integration.autogov_live_apply_api import handle_autogov_request
@@ -2055,7 +2041,9 @@ class _Handler(BaseHTTPRequestHandler):
             self._write_json(200, generate_openapi_document(), cors_origin=cors_origin)
             return True
         if path == "/api/dex/metrics" and method == "GET":
-            from src.integration.api_server_dex_dispatch import serve_metrics  # pylint: disable=import-outside-toplevel
+            from src.integration.api_server_dex_dispatch import (
+                serve_metrics,  # pylint: disable=import-outside-toplevel
+            )
 
             self._write_json(200, serve_metrics(), cors_origin=cors_origin)
             return True
@@ -2068,7 +2056,7 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         if not getattr(self.server, "dex_api_enabled", False):
             return False
-        if not self._demo_auth_ok():
+        if not self._api_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
         if self._maybe_handle_dex_get_endpoint(method=method, path=path, cors_origin=cors_origin):
@@ -2076,7 +2064,9 @@ class _Handler(BaseHTTPRequestHandler):
         if method != "POST":
             self._write_json(405, {"ok": False, "error": "method_not_allowed"}, cors_origin=cors_origin)
             return True
-        from src.integration._dex_api_helpers import parse_json_body_or_400  # pylint: disable=import-outside-toplevel
+        from src.integration._dex_api_helpers import (
+            parse_json_body_or_400,  # pylint: disable=import-outside-toplevel
+        )
 
         obj, parse_error = parse_json_body_or_400(raw_body)
         if parse_error is not None or obj is None:
@@ -2096,6 +2086,8 @@ class _Handler(BaseHTTPRequestHandler):
         # try/except.
         from src.integration.api_server_dex_dispatch import (  # pylint: disable=import-outside-toplevel
             DexRequestContext as _DexRequestContext,
+        )
+        from src.integration.api_server_dex_dispatch import (
             dispatch as _dex_dispatch,
         )
 

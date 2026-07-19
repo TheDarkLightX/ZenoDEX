@@ -1,21 +1,36 @@
 #!/usr/bin/env python3
 """Replayable cross-module oracle split-brain pack."""
 
+# This executable supports direct invocation from any working directory; the
+# repository root must be admitted before importing project modules.
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse
-import os
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.core.zusd import E8
-from src.integration import perps_api as perps_demo_api
-from src.integration.zusd_api import handle_zusd_request, reset_demo_state
+from src.core.zusd import E8, ZUSDCommand, ZUSDState, init_state, step
+from src.integration.zusd_oracle_contracts import (
+    ZUSDCrossModuleOracleSyncContract,
+    ZUSDOraclePendingGateContract,
+    build_zusd_cross_module_oracle_sync_contract,
+    build_zusd_oracle_pending_gate_contract,
+    verify_zusd_cross_module_oracle_sync_contract_payload,
+    verify_zusd_oracle_pending_gate_contract_payload,
+)
+from src.integration.zusd_oracle_recovery_lifecycle import (
+    build_zusd_oracle_recovery_lifecycle_packet,
+    verify_zusd_oracle_recovery_lifecycle_packet_payload,
+)
+
+_state = init_state()
 
 
 def _assert(condition: bool, message: str) -> None:
@@ -24,37 +39,24 @@ def _assert(condition: bool, message: str) -> None:
 
 
 def _reset() -> None:
-    os.environ["ZUSD_TAU_GATE_ENABLED"] = "0"
-    os.environ.pop("ZUSD_TAU_BIN", None)
-    os.environ.pop("ZUSD_TAU_ALLOW_PATH_LOOKUP", None)
-    os.environ.pop("ZUSD_PERP_ORACLE_SYNC_ENABLED", None)
-    os.environ.pop("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", None)
-    os.environ.pop("ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS", None)
-    os.environ.pop("ZUSD_PERP_ORACLE_SYNC_MAX_EPOCH_LAG", None)
-    reset_demo_state()
-    perps_demo_api.reset_demo_state()
-
-
-def _post(path: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
-    import json
-
-    raw = json.dumps(body).encode("utf-8")
-    return handle_zusd_request("POST", path, raw)
+    global _state
+    _state = init_state()
 
 
 def _step(tag: str, **args: Any) -> dict[str, Any]:
-    status, body = _post("/api/zusd/step", {"tag": tag, "args": args})
-    _assert(status == 200 and body["ok"] is True, f"zusd step failed for {tag}: {body}")
-    return body["state"]
+    global _state
+    result = step(_state, ZUSDCommand(tag=tag, args=args))
+    _assert(result.ok and result.state is not None, f"zusd step failed for {tag}: {result.error}")
+    _state = result.state
+    return dict(_state.__dict__)
 
 
 def _build_pending_gate(*, state: dict[str, Any], risky_requested: bool, tcr_ok: bool) -> dict[str, Any]:
-    status, body = _post(
-        "/api/zusd/build_oracle_pending_gate_contract",
-        {"state": state, "risky_requested": risky_requested, "tcr_ok": tcr_ok},
-    )
-    _assert(status == 200 and body["ok"] is True, f"pending gate build failed: {body}")
-    return body["contract"]
+    return build_zusd_oracle_pending_gate_contract(
+        ZUSDState(**state),
+        risky_requested=risky_requested,
+        tcr_ok=tcr_ok,
+    ).to_dict()
 
 
 def _build_sync(
@@ -66,20 +68,15 @@ def _build_sync(
     max_divergence_bps: int,
     max_epoch_lag: int,
 ) -> dict[str, Any]:
-    status, body = _post(
-        "/api/zusd/build_cross_module_oracle_sync_contract",
-        {
-            "market_id": "TAU-USD",
-            "zusd_price_e8": zusd_price_e8,
-            "zusd_epoch": zusd_epoch,
-            "perp_price_e8": perp_price_e8,
-            "perp_oracle_epoch": perp_oracle_epoch,
-            "max_divergence_bps": max_divergence_bps,
-            "max_epoch_lag": max_epoch_lag,
-        },
-    )
-    _assert(status == 200 and body["ok"] is True, f"sync contract build failed: {body}")
-    return body["contract"]
+    return build_zusd_cross_module_oracle_sync_contract(
+        market_id="TAU-USD",
+        zusd_price_e8=zusd_price_e8,
+        zusd_epoch=zusd_epoch,
+        perp_price_e8=perp_price_e8,
+        perp_oracle_epoch=perp_oracle_epoch,
+        max_divergence_bps=max_divergence_bps,
+        max_epoch_lag=max_epoch_lag,
+    ).to_dict()
 
 
 def _build_recovery(
@@ -88,21 +85,32 @@ def _build_recovery(
     current_pending_gate_contract: dict[str, Any],
     current_sync_contract: dict[str, Any],
 ) -> dict[str, Any]:
-    status, body = _post(
-        "/api/zusd/build_oracle_recovery_lifecycle_packet",
-        {
-            "previous_pending_gate_contract": previous_pending_gate_contract,
-            "current_pending_gate_contract": current_pending_gate_contract,
-            "current_sync_contract": current_sync_contract,
-        },
-    )
-    _assert(status == 200 and body["ok"] is True, f"recovery packet build failed: {body}")
-    return body["packet"]
+    return build_zusd_oracle_recovery_lifecycle_packet(
+        previous_pending_gate_contract=ZUSDOraclePendingGateContract.from_dict(
+            previous_pending_gate_contract
+        ),
+        current_pending_gate_contract=ZUSDOraclePendingGateContract.from_dict(
+            current_pending_gate_contract
+        ),
+        current_sync_contract=ZUSDCrossModuleOracleSyncContract.from_dict(current_sync_contract),
+    ).to_dict()
 
 
 def _verify(path: str, key: str, payload: dict[str, Any]) -> None:
-    status, body = _post(path, {key: payload})
-    _assert(status == 200 and body["ok"] is True and body["error"] is None, f"verify failed: {body}")
+    del key
+    verifiers = {
+        "/api/zusd/verify_oracle_pending_gate_contract": (
+            verify_zusd_oracle_pending_gate_contract_payload
+        ),
+        "/api/zusd/verify_cross_module_oracle_sync_contract": (
+            verify_zusd_cross_module_oracle_sync_contract_payload
+        ),
+        "/api/zusd/verify_oracle_recovery_lifecycle_packet": (
+            verify_zusd_oracle_recovery_lifecycle_packet_payload
+        ),
+    }
+    ok, error = verifiers[path](payload)
+    _assert(ok, f"verify failed: {error}")
 
 
 def _healthy_local_state() -> tuple[dict[str, Any], dict[str, Any]]:

@@ -29,8 +29,8 @@ def test_api_server_request_grammar_fuzz_cors_origins_discovers_stable_paths() -
     assert "ok:https://a.example|https://b.example" in labels
 
 
-def test_api_server_request_grammar_fuzz_demo_auth_discovers_stable_paths() -> None:
-    report = explore_target("demo_auth")
+def test_api_server_request_grammar_fuzz_api_auth_discovers_stable_paths() -> None:
+    report = explore_target("api_auth")
     labels = _labels(report)
     assert report.total_cases == 5
     assert report.unique_outcome_count == 2
@@ -95,13 +95,13 @@ def test_api_server_request_grammar_fuzz_all_targets_are_covered_and_determinist
     by_name = {report.target: report for report in left}
     assert set(by_name) == {
         "cors_origins",
-        "demo_auth",
+        "api_auth",
         "raw_body",
         "json_body",
         "dex_request_envelope",
     }
     assert by_name["cors_origins"].total_cases == 6
-    assert by_name["demo_auth"].total_cases == 5
+    assert by_name["api_auth"].total_cases == 5
     assert by_name["raw_body"].total_cases == 8
     assert by_name["json_body"].total_cases == 7
     assert by_name["dex_request_envelope"].total_cases == 16
@@ -116,7 +116,7 @@ def test_api_server_request_grammar_fuzz_cli_emits_expected_schema() -> None:
     assert payload["schema"] == "zenodex/api-server-request-grammar-fuzz/v1"
     assert {report["target"] for report in payload["reports"]} == {
         "cors_origins",
-        "demo_auth",
+        "api_auth",
         "raw_body",
         "json_body",
         "dex_request_envelope",
@@ -126,7 +126,7 @@ def test_api_server_request_grammar_fuzz_cli_emits_expected_schema() -> None:
 def test_api_server_request_minimizer_collapses_unauthorized_dead_fields() -> None:
     witness = minimize_case("dex_request_envelope", "DexReq->UnauthorizedWithDeadFields")
     assert witness.outcome_label == "handled:401:unauthorized"
-    assert witness.path_id == "5e8fc70d924d6b69"
+    assert witness.path_id == "69b9482b4f90c12e"
     assert witness.original_size > witness.minimized_size
     assert witness.payload == {"token": "sekret"}
 
@@ -151,6 +151,6 @@ def test_api_server_request_minimizer_cli_emits_expected_schema() -> None:
     assert witness["target"] == "dex_request_envelope"
     assert witness["derivation"] == "DexReq->UnauthorizedWithDeadFields"
     assert witness["outcome_label"] == "handled:401:unauthorized"
-    assert witness["path_id"] == "5e8fc70d924d6b69"
+    assert witness["path_id"] == "69b9482b4f90c12e"
     assert witness["payload"] == {"token": "sekret"}
     assert witness["original_size"] > witness["minimized_size"]

@@ -1,16 +1,8 @@
-"""Tests for the perps oracle bridge dataclass call signature fix.
-
-Verifies that _perps_clearinghouse_runtime_oracle_action_id and
-_perps_liquidate_account_runtime_oracle_action_id accept their respective
-frozen dataclass request types (not kwargs), and that the
-_local_perps_oracle_bridge_fixture function in perps_wallet_api.py
-constructs those dataclasses correctly.
-"""
+"""Perps Oracle action-id and production-boundary regression tests."""
 from __future__ import annotations
 
 import inspect
-
-import pytest
+from pathlib import Path
 
 from src.core.perps import (
     PerpAccountState,
@@ -18,12 +10,8 @@ from src.core.perps import (
     PerpMarketState,
 )
 from src.integration.perp_engine import (
-    _ClearinghouseOracleRuntimeRequest,
-    _LiquidateAccountOracleRuntimeRequest,
-    _ORACLE_PERPS_INDEX_QUERY_ID,
-    _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
-    _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
     PerpEngineConfig,
+    _LiquidateAccountOracleRuntimeRequest,
     _perps_clearinghouse_runtime_oracle_action_id,
     _perps_liquidate_account_runtime_oracle_action_id,
 )
@@ -57,7 +45,7 @@ def _clearinghouse_market() -> PerpClearinghouse2pMarketState:
             "max_oracle_move_bps": 5000,
             "initial_margin_bps": 5000,
             "maintenance_margin_bps": 2500,
-            "liquidation_penalty_bps": 500,
+            "liquidation_penalty_bps": 100,
             "max_position_abs": 1_000_000,
             "fee_pool_e8": 0,
             "liquidated_this_step": False,
@@ -92,7 +80,7 @@ def _isolated_market() -> PerpMarketState:
             "initial_margin_bps": 5000,
             "maintenance_margin_bps": 2500,
             "depeg_buffer_bps": 0,
-            "liquidation_penalty_bps": 500,
+            "liquidation_penalty_bps": 100,
             "max_position_abs": 1_000_000,
             "fee_pool_quote": 0,
             "funding_rate_bps": 0,
@@ -116,15 +104,12 @@ def _isolated_market() -> PerpMarketState:
     )
 
 
-class TestClearinghouseOracleActionIdDataclass:
-    """_perps_clearinghouse_runtime_oracle_action_id must accept a
-    _ClearinghouseOracleRuntimeRequest dataclass, not kwargs.
-    """
+class TestClearinghouseOracleActionId:
 
-    def test_accepts_dataclass_and_returns_sha256_hex(self) -> None:
+    def test_returns_sha256_hex(self) -> None:
         market = _clearinghouse_market()
-        request = _ClearinghouseOracleRuntimeRequest(
-            config=_config(),
+        action_id = _perps_clearinghouse_runtime_oracle_action_id(
+            _config(),
             market_id="perp:ch2p:test",
             action_kind="settle_epoch",
             market_kind="clearinghouse_2p_v1",
@@ -132,22 +117,28 @@ class TestClearinghouseOracleActionIdDataclass:
             state=market.state,
             participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
         )
-        action_id = _perps_clearinghouse_runtime_oracle_action_id(request)
         assert isinstance(action_id, str)
         assert action_id.startswith("sha256:")
         assert len(action_id) == len("sha256:") + 64
 
-    def test_rejects_kwargs_call_signature(self) -> None:
-        """The function must not accept positional config + keyword args."""
+    def test_config_is_positional_and_action_facts_are_keyword_only(self) -> None:
         sig = inspect.signature(_perps_clearinghouse_runtime_oracle_action_id)
         params = list(sig.parameters.values())
-        assert len(params) == 1
-        assert params[0].name == "request"
+        assert [param.name for param in params] == [
+            "config",
+            "market_id",
+            "action_kind",
+            "market_kind",
+            "quote_asset",
+            "state",
+            "participant_pubkeys",
+        ]
+        assert params[0].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+        assert all(param.kind is inspect.Parameter.KEYWORD_ONLY for param in params[1:])
 
     def test_is_deterministic(self) -> None:
         market = _clearinghouse_market()
-        request = _ClearinghouseOracleRuntimeRequest(
-            config=_config(),
+        kwargs = dict(
             market_id="perp:ch2p:test",
             action_kind="settle_epoch",
             market_kind="clearinghouse_2p_v1",
@@ -155,14 +146,13 @@ class TestClearinghouseOracleActionIdDataclass:
             state=market.state,
             participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
         )
-        id1 = _perps_clearinghouse_runtime_oracle_action_id(request)
-        id2 = _perps_clearinghouse_runtime_oracle_action_id(request)
+        id1 = _perps_clearinghouse_runtime_oracle_action_id(_config(), **kwargs)
+        id2 = _perps_clearinghouse_runtime_oracle_action_id(_config(), **kwargs)
         assert id1 == id2
 
     def test_different_market_id_produces_different_action_id(self) -> None:
         market = _clearinghouse_market()
         base_kwargs = dict(
-            config=_config(),
             action_kind="settle_epoch",
             market_kind="clearinghouse_2p_v1",
             quote_asset=market.quote_asset,
@@ -170,10 +160,10 @@ class TestClearinghouseOracleActionIdDataclass:
             participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
         )
         id1 = _perps_clearinghouse_runtime_oracle_action_id(
-            _ClearinghouseOracleRuntimeRequest(market_id="perp:ch2p:a", **base_kwargs),
+            _config(), market_id="perp:ch2p:a", **base_kwargs
         )
         id2 = _perps_clearinghouse_runtime_oracle_action_id(
-            _ClearinghouseOracleRuntimeRequest(market_id="perp:ch2p:b", **base_kwargs),
+            _config(), market_id="perp:ch2p:b", **base_kwargs
         )
         assert id1 != id2
 
@@ -197,11 +187,33 @@ class TestLiquidateAccountOracleActionIdDataclass:
         assert action_id.startswith("sha256:")
         assert len(action_id) == len("sha256:") + 64
 
-    def test_rejects_kwargs_call_signature(self) -> None:
+    def test_accepts_dataclass_or_explicit_keyword_fields(self) -> None:
         sig = inspect.signature(_perps_liquidate_account_runtime_oracle_action_id)
         params = list(sig.parameters.values())
-        assert len(params) == 1
-        assert params[0].name == "request"
+        assert [param.name for param in params] == [
+            "config",
+            "market_id",
+            "market",
+            "account_pubkey",
+            "fraction_bps",
+        ]
+        market = _isolated_market()
+        request = _LiquidateAccountOracleRuntimeRequest(
+            config=_config(),
+            market_id="perp:iso:test",
+            market=market,
+            account_pubkey=_ALICE,
+            fraction_bps=2500,
+        )
+        assert _perps_liquidate_account_runtime_oracle_action_id(
+            request
+        ) == _perps_liquidate_account_runtime_oracle_action_id(
+            _config(),
+            market_id="perp:iso:test",
+            market=market,
+            account_pubkey=_ALICE,
+            fraction_bps=2500,
+        )
 
     def test_different_fraction_produces_different_action_id(self) -> None:
         market = _isolated_market()
@@ -220,31 +232,70 @@ class TestLiquidateAccountOracleActionIdDataclass:
         assert id1 != id2
 
 
-class TestLocalPerpsOracleBridgeFixtureCallSignature:
-    """Verify that _local_perps_oracle_bridge_fixture in perps_wallet_api
-    imports and constructs the dataclass types correctly (no kwargs leak).
-    """
+class TestProductionWalletOracleBridgeBoundary:
+    def test_runtime_module_has_no_synthetic_bridge_builder(self) -> None:
+        source = (
+            Path(__file__).resolve().parents[2] / "src" / "integration" / "perps_wallet_api.py"
+        ).read_text(encoding="utf-8")
+        assert "def _local_perps_oracle_bridge_fixture(" not in source
 
-    def test_module_imports_dataclass_types(self) -> None:
-        from src.integration import perps_wallet_api
-        source = inspect.getsource(perps_wallet_api._local_perps_oracle_bridge_fixture)
-        assert "_ClearinghouseOracleRuntimeRequest" in source
-        assert "_LiquidateAccountOracleRuntimeRequest" in source
-        assert "_perps_clearinghouse_runtime_oracle_action_id(" in source
-        assert "_perps_liquidate_account_runtime_oracle_action_id(" in source
+    def test_runtime_source_has_no_sample_or_fixture_construction_imports(self) -> None:
+        source = (
+            Path(__file__).resolve().parents[2] / "src" / "integration" / "perps_wallet_api.py"
+        ).read_text(encoding="utf-8")
+        for forbidden in (
+            "sample_admitted_median3_aggregate",
+            "zenodex_oracle_admitted_median3",
+            "zenodex_oracle_aggregate_read",
+            "_local_perps_oracle_bridge_fixture",
+            'rest == ["oracle-bridge-template"]',
+        ):
+            assert forbidden not in source
 
-    def test_no_kwargs_call_pattern_for_clearinghouse(self) -> None:
-        from src.integration import perps_wallet_api
-        source = inspect.getsource(perps_wallet_api._local_perps_oracle_bridge_fixture)
-        # The old broken pattern was: _perps_clearinghouse_runtime_oracle_action_id(
-        #     config, market_id=..., ...
-        # The fixed pattern wraps args in _ClearinghouseOracleRuntimeRequest(...).
-        # Verify the dataclass constructor call is present.
-        assert "_ClearinghouseOracleRuntimeRequest(" in source
-        assert "config=config" in source
+    def test_runtime_source_has_no_fixture_faucet_or_recipient_key_loader(self) -> None:
+        source = (
+            Path(__file__).resolve().parents[2] / "src" / "integration" / "perps_wallet_api.py"
+        ).read_text(encoding="utf-8")
+        for forbidden in (
+            'rest == ["testnet-faucet"]',
+            "def _build_testnet_faucet_response(",
+            "PERPS_WALLET_TESTNET_FAUCET_",
+            "recipient_root_keys_from_fixture_v1",
+            "PERPS_WALLET_ENCRYPTED_SSS_RECIPIENT_KEYS_",
+            "PERPS_WALLET_ALLOW_LOCAL_SIGNING",
+            "build_signed_tau_transaction",
+            "sign_perp_op_for_engine",
+            "bls_pubkey_hex_from_privkey",
+            "local_test_signing",
+        ):
+            assert forbidden not in source
 
-    def test_no_kwargs_call_pattern_for_liquidate(self) -> None:
-        from src.integration import perps_wallet_api
-        source = inspect.getsource(perps_wallet_api._local_perps_oracle_bridge_fixture)
-        assert "_LiquidateAccountOracleRuntimeRequest(" in source
-        assert "fraction_bps=fraction_bps" in source
+    def test_live_wallet_ui_exposes_external_signing_data_only(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        component = (
+            root / "tools" / "dex-ui" / "src" / "components" / "perps" / "PerpLiveWalletSurface.jsx"
+        ).read_text(encoding="utf-8")
+        api_source = (root / "tools" / "dex-ui" / "src" / "lib" / "api.js").read_text(
+            encoding="utf-8"
+        )
+        for forbidden in (
+            "privkey",
+            "apiMintPerpsWalletTestnetFaucet",
+            "/api/perps/wallet/testnet-faucet",
+        ):
+            assert forbidden not in component
+            assert forbidden not in api_source
+        for required in (
+            "account_a_pubkey",
+            "account_b_pubkey",
+            "account_pubkey",
+            "operator_pubkey",
+            "oracle_pubkey",
+            "sig_a",
+            "sig_b",
+            "oracle_sig",
+            "signed_tau_tx_payload",
+            "tx_expiration_time",
+            "External signing bundle",
+        ):
+            assert required in component

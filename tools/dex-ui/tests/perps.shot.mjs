@@ -12,7 +12,7 @@ const STATUS = JSON.parse(readFileSync('test-results/perps-wallet-status-live.js
 const CFG = {
   deployment: 'local-testnet', chainId: 'zeno-ledger-localtest-v0', apiBase: '',
   demoMode: false, allowDemoMode: false,
-  localTestnetZkPosture: { zk_mode_effective: 'strict', zk_required: true, proof_verifier_kind: 'subprocess' },
+  expectedZkPosture: { zk_mode_effective: 'strict', zk_required: true, proof_verifier_kind: 'subprocess' },
 };
 
 const browser = await chromium.launch();

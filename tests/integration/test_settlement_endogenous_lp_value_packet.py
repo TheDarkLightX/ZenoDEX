@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from src.core.batch_clearing import compute_settlement
@@ -14,7 +16,6 @@ from src.integration.settlement_endogenous_lp_value_packet import (
     verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation,
     verify_settlement_endogenous_lp_value_packet_payload_from_price_packet,
 )
-from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     SettlementSpotPricePacket,
@@ -23,6 +24,9 @@ from src.integration.settlement_price_provenance import (
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
 from src.state.pools import PoolState
+from tests.support.settlement_price_attestation_signer import (
+    build_settlement_spot_price_attestation,
+)
 
 
 def _iid(n: int) -> str:
@@ -76,7 +80,10 @@ def _price_packet(asset0: str, asset1: str) -> SettlementSpotPricePacket:
 
 def test_endogenous_lp_value_packet_round_trips_from_price_packet() -> None:
     pk, asset0, asset1, pool_id, pool, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0)),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -110,7 +117,10 @@ def test_endogenous_lp_value_packet_round_trips_from_price_packet() -> None:
 
 def test_endogenous_lp_value_packet_round_trips_from_attestation() -> None:
     pk, asset0, asset1, pool_id, pool, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=2, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=2, delta_sub=0)),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -148,7 +158,10 @@ def test_endogenous_lp_value_packet_round_trips_from_attestation() -> None:
 
 def test_endogenous_lp_value_packet_rejects_tampering() -> None:
     pk, asset0, asset1, pool_id, pool, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=1, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=1, delta_sub=0)),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -177,7 +190,10 @@ def test_endogenous_lp_value_packet_rejects_tampering() -> None:
 
 def test_endogenous_lp_value_packet_from_dict_round_trips() -> None:
     pk, asset0, asset1, pool_id, pool, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=1, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=1, delta_sub=0)),
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -197,7 +213,10 @@ def test_endogenous_lp_value_packet_from_dict_round_trips() -> None:
 
 def test_endogenous_lp_value_packet_from_dict_rejects_string_boolean_flags() -> None:
     pk, asset0, asset1, pool_id, pool, settlement = _swap_context()
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=1, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=1, delta_sub=0)),
+    )
     price_packet = _price_packet(asset0, asset1)
     packet = build_settlement_endogenous_lp_value_packet_from_price_packet(
         settlement=settlement,
@@ -226,7 +245,10 @@ def test_endogenous_lp_value_packet_rejects_bool_pool_snapshot_numeric_fields() 
         curve_tag=pool.curve_tag,
         curve_params=pool.curve_params,
     )
-    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    settlement = replace(
+        settlement,
+        lp_deltas=(*settlement.lp_deltas, LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0)),
+    )
     price_packet = _price_packet(asset0, asset1)
     packet = build_settlement_endogenous_lp_value_packet_from_price_packet(
         settlement=settlement,

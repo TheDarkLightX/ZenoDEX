@@ -21,7 +21,10 @@ PERP_RATE_BPS_MAX = 10_000
 
 
 def is_strict_int(value: object) -> TypeGuard[int]:
-    return isinstance(value, int) and not isinstance(value, bool)
+    # Consensus inputs are data, not executable objects.  ``isinstance`` would
+    # admit user-defined ``int`` subclasses whose arithmetic/comparison methods
+    # can change the result after validation.
+    return type(value) is int
 
 
 def require_int_range(

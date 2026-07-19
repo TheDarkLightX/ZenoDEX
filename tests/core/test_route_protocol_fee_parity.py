@@ -1499,9 +1499,9 @@ def test_route_rejects_unreferenced_mismatched_pool() -> None:
         )
 
 
-def test_route_rejects_non_dict_pools() -> None:
-    """Non-dict pools raises ValueError (not AttributeError)."""
-    with pytest.raises(ValueError, match="pools must be a dict"):
+def test_route_rejects_non_mapping_pools() -> None:
+    """Non-mapping pools raises ValueError (not AttributeError)."""
+    with pytest.raises(ValueError, match="pools must be a mapping"):
         execute_route_exact_in(
             pools=[("POOL_ID", _single_pool()[POOL_ID])],  # type: ignore[arg-type]
             legs=_single_leg_route(),

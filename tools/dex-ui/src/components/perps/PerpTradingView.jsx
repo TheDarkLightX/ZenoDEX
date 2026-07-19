@@ -12,7 +12,6 @@ import PerpCircuitBreakerBanner from './PerpCircuitBreakerBanner.jsx';
 import PerpInsuranceFundPanel from './PerpInsuranceFundPanel.jsx';
 import PerpTradeHistory from './PerpTradeHistory.jsx';
 import PerpLiveWalletSurface from './PerpLiveWalletSurface.jsx';
-import { useDemoMode } from '../../lib/DemoModeContext.jsx';
 import VerifiedBySpec from '../VerifiedBySpec.jsx';
 import './PerpTradingView.css';
 
@@ -26,7 +25,6 @@ import './PerpTradingView.css';
  * Wires all perps components via PerpContext.
  */
 function PerpTradingView({ wallet }) {
-    const { demoMode } = useDemoMode();
     const {
         markets,
         selectedMarket,
@@ -39,7 +37,6 @@ function PerpTradingView({ wallet }) {
         error,
         writeEnabled,
         writeLockReason,
-        perpsPreviewWritesRequested,
         loadMarkets,
         selectMarket,
         setPosition,
@@ -51,10 +48,16 @@ function PerpTradingView({ wallet }) {
         if (!error) return null;
         const raw = String(error);
         if (raw === 'timeout') {
-            return 'Perpetuals data took too long to load. The local Tau node may be busy — try again in a moment.';
+            return 'Perpetuals data took too long to load. The Tau node or network may be busy — try again in a moment.';
         }
         if (raw === 'tau_node_unreachable') {
-            return 'The local Tau node is unreachable. Make sure the local-testnet stack is running, then retry.';
+            return 'The Tau node is unreachable. Check the network connection, then retry.';
+        }
+        if (raw.startsWith('unsupported_perps_market_kind:')) {
+            return `A market was excluded because this production trader does not support its state model (${raw}).`;
+        }
+        if (raw.startsWith('perps_authoritative_facts_unavailable:')) {
+            return `Perpetuals writes are locked because authoritative risk parameters are missing (${raw}).`;
         }
         return `Could not load perpetuals data: ${raw}`;
     })();
@@ -66,13 +69,13 @@ function PerpTradingView({ wallet }) {
     // counterparty pubkeys (account A/B) can trade it. A normal connected wallet
     // is an OBSERVER — surface that honestly instead of a silent dead-end CTA.
     const isObserver = useMemo(() => {
-        if (demoMode || !wallet?.address || !selectedMarket) return false;
+        if (!wallet?.address || !selectedMarket) return false;
         if (selectedMarket.kind !== 'clearinghouse_2p_v1') return false;
         const norm = (v) => String(v || '').toLowerCase().replace(/^0x/, '');
         const w = norm(wallet.address);
         if (!w) return false;
         return w !== norm(selectedMarket.accountAPubkey) && w !== norm(selectedMarket.accountBPubkey);
-    }, [demoMode, wallet, selectedMarket]);
+    }, [wallet, selectedMarket]);
 
     // Load markets on mount
     useEffect(() => {
@@ -96,33 +99,25 @@ function PerpTradingView({ wallet }) {
     // low-level operator console (Live Wallet). The trader surface is the
     // headline in both modes. The operator console only appears in live mode,
     // tucked behind a disclosure so it isn't mistaken for the trader UI.
-    const previewLabel = demoMode
-        ? 'Demo market replay'
-        : writeEnabled
-            ? 'Live · writes enabled'
-            : 'Live · signer required';
-    const previewDetail = demoMode
-        ? 'Uses bundled market, position, and history data. Orders stay inside the UI state model.'
-        : writeEnabled
-            ? 'Reads from the Tau node. Trader actions submit through the stream-8 wallet API.'
-            : 'Reads from the Tau node. Trader writes need an external signer or local-testnet write mode.';
+    const previewLabel = writeEnabled ? 'Live · writes enabled' : 'Live · writes locked';
+    const previewDetail = writeEnabled
+        ? 'Reads from the Tau node. Trader actions submit through the stream-8 wallet API.'
+        : `Reads from the Tau node. ${writeLockReason}`;
 
     // While the wallet status round-trip is in flight we used to early-return
     // a full-page spinner, which left the user staring at a blank screen for
-    // ~3–6 s on local-testnet. Render the page layout immediately and show
+    // several seconds. Render the page layout immediately and show
     // an inline loading hint instead; the form/panels handle the empty-market
     // case on their own.
     const showInlineLoading = loading && markets.length === 0;
 
-    // Build the preview grid as a reusable fragment so it can either be
-    // rendered as the main surface (demo mode) or tucked inside a
-    // collapsible disclosure (live mode).
+    // Build the live trading grid as a reusable fragment.
     const previewGrid = (
         <>
             <div className="perp-market-bar">
                 <div className="perp-market-header">
                     <div className="perp-title-block">
-                        <h2 className="perp-title">{demoMode ? 'Perpetuals (demo)' : 'Perpetuals'}</h2>
+                        <h2 className="perp-title">Perpetuals</h2>
                         <VerifiedBySpec
                             spec="perp_epoch_isolated_v3"
                             kind="esso"
@@ -139,19 +134,10 @@ function PerpTradingView({ wallet }) {
                 />
             </div>
 
-            {!demoMode && !writeEnabled && (
+            {!writeEnabled && (
                 <div className="perp-preview-lock" role="status">
-                    <div className="perp-preview-lock-title">External signer required</div>
+                    <div className="perp-preview-lock-title">Perpetuals writes locked</div>
                     <p className="perp-preview-lock-text">{writeLockReason}</p>
-                </div>
-            )}
-
-            {!demoMode && writeEnabled && perpsPreviewWritesRequested && (
-                <div className="perp-preview-lock perp-preview-lock-open" role="status">
-                    <div className="perp-preview-lock-title">Local-testnet writes enabled</div>
-                    <p className="perp-preview-lock-text">
-                        Trader actions submit through the local stream-8 wallet API and are mined on the local Tau node.
-                    </p>
                 </div>
             )}
 
@@ -222,10 +208,10 @@ function PerpTradingView({ wallet }) {
     return (
         <div className="perp-trading-view">
             {/* Circuit Breaker Banner */}
-            {selectedMarket?.breakerActive && (
+            {selectedMarket?.breakerActive === true && (
                 <PerpCircuitBreakerBanner
                     breakerActive={true}
-                    breakerLastTriggerEpoch={selectedMarket.breakerLastTriggerEpoch ?? 0}
+                    breakerLastTriggerEpoch={selectedMarket.breakerLastTriggerEpoch}
                 />
             )}
 
@@ -251,8 +237,7 @@ function PerpTradingView({ wallet }) {
                 In live mode the raw stream-8 operator console is available
                 behind a disclosure for market makers / operators. */}
             {previewGrid}
-            {!demoMode && (
-                <details className="perp-preview-disclosure">
+            <details className="perp-preview-disclosure">
                     <summary className="perp-preview-disclosure-summary">
                         <span className="perp-preview-disclosure-label">Operator console</span>
                         <span className="perp-preview-disclosure-hint">
@@ -264,8 +249,7 @@ function PerpTradingView({ wallet }) {
                     <div className="perp-preview-disclosure-body">
                         <PerpLiveWalletSurface />
                     </div>
-                </details>
-            )}
+            </details>
 
             {/* Modals */}
             {showConfirmOrder && (
@@ -282,6 +266,8 @@ function PerpTradingView({ wallet }) {
                     market={selectedMarket}
                     position={currentPosition}
                     wallet={wallet}
+                    writeEnabled={writeEnabled}
+                    writeLockReason={writeLockReason}
                     onDeposit={depositCollateral}
                     onWithdraw={withdrawCollateral}
                     onClose={() => setShowCollateralModal(false)}

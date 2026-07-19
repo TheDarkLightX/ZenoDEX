@@ -10,12 +10,14 @@ import pytest
 from src.integration.autonomous_governance_q_policy import (
     evaluate_autonomous_governance_surface_q_policy_v1,
     policy_content_hash_v1,
-    sample_autonomous_governance_surface_q_policy_v1,
 )
 from tools.autonomous_governance_policy_factory import (
     _build_training_corpus,
     _write_json,
     build_policy_artifact_check_report,
+)
+from tools.support.autonomous_governance_policy_samples import (
+    sample_autonomous_governance_surface_q_policy_v1,
 )
 
 

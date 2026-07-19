@@ -16,11 +16,12 @@ from src.integration.zeno_ledger_profile import (
     DEPLOYMENT_MODE_LOCAL_SANDBOX_V0,
     DEPLOYMENT_MODE_TAU_EXCLUSIVE_RELEASE_V0,
     DEPLOYMENT_MODE_ZENO_SOVEREIGN_TESTNET_V0,
+)
+from tools.support.zeno_ledger_profile_samples import (  # noqa: E402
     sample_local_sandbox_profile_v0,
     sample_tau_exclusive_release_profile_v0,
     sample_zeno_sovereign_testnet_profile_v0,
 )
-
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_profile_report.v0"
 

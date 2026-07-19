@@ -1,12 +1,10 @@
 {
-  "deployment": "local-testnet",
-  "chainId": "zeno-ledger-localtest-v0",
+  "deployment": "production",
+  "chainId": "",
   "apiBase": "",
-  "demoMode": false,
-  "allowDemoMode": false,
-  "allowBrowserKeyGeneration": true,
   "allowDefaultExternalSigner": false,
-  "temporaryBrowserKeygenForTesting": true,
-  "temporaryBrowserKeygenExpires": "after Keys standalone app replaces browser signing",
-  "zenoOracleApiBase": ""
+  "zenoOracleApiBase": "",
+  "uiSurfaceContractSchema": "zenodex.dex_ui.surface_contract.v1",
+  "uiSurfaceContractVersion": "dex-ui-production-facing-20260719-v7",
+  "uiSurfaceContractHash": "sha256:2721e6bf0c44c9038f76d281d1110e41b14e437ec5da98f0941764ff564ed7f7"
 }

@@ -10,6 +10,7 @@ services:
     environment:
       API_HOST: "127.0.0.1"
       API_PORT: "8000"
+      ZENODEX_ENV: "local"
       API_SURFACE_PROFILE: "local-demo"
       LOG_LEVEL: "info"
     volumes:

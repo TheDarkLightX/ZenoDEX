@@ -470,7 +470,7 @@
     }
 }
 
-/* Live supply-model parameters (replaces the demo transfer-tax formula) */
+/* Live supply-model parameters */
 .model-params {
     margin: var(--space-sm) 0;
     display: flex;

@@ -42,6 +42,7 @@ from ..state.canonical import (
 )
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
+from ..state.pools import copy_pool_state
 from .zusd_tau_token import derive_zusd_tau_asset_id
 
 ZUSD_MONETARY_SCHEMA = "zenodex/zusd_monetary_state/v2"
@@ -1515,7 +1516,7 @@ def _detached_dex_state(
 
     return DexState(
         balances=balances,
-        pools={pool_id: replace(pool) for pool_id, pool in sorted(state.pools.items())},
+        pools={pool_id: copy_pool_state(pool) for pool_id, pool in sorted(state.pools.items())},
         lp_balances=_copy_lp_table(state.lp_balances),
         nonces=nonces,
         vault=state.vault,

@@ -1,30 +1,25 @@
 from __future__ import annotations
 
-from src.agents.intent_signer import create_swap_intent, create_swap_intent_from_quote_receipt, create_swap_intents_from_quote_receipt
+import pytest
+
+from src.agents.intent_signer import (
+    create_swap_intent,
+    create_swap_intent_from_quote_receipt,
+    create_swap_intents_from_quote_receipt,
+)
 from src.core.dex import DexState
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
 from src.integration import dex_engine as dex_engine_mod
-from src.integration.dex_engine import DexEngineConfig, DexFaultInjectionConfig, apply_ops
+from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.operations import SignedIntentEnvelope, create_intent_operation, create_signed_intent_operation
+from src.integration.operations import (
+    SignedIntentEnvelope,
+    create_signed_intent_operation,
+)
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus
-
-
-_FAULT_STAGES = (
-    "after_raw_validation",
-    "after_intent_parse",
-    "after_settlement_parse",
-    "after_preconditions",
-    "after_signature_verification",
-    "after_nonce_validation",
-    "after_settlement_compute",
-    "after_settlement_validation",
-    "after_proof_verification",
-    "after_apply_pure",
-)
 
 
 def _create_pool_intent_dict(*, intent_id: str, sender: str, asset0: str, asset1: str, deadline: int = 9999999999) -> dict:
@@ -68,40 +63,27 @@ def _base_state_and_ops(*, deadline: int = 9999999999) -> tuple[DexState, dict, 
     return state, ops, sender
 
 
-def test_fault_injection_rejects_every_stage_without_mutating_state() -> None:
-    for stage in _FAULT_STAGES:
-        state, ops, sender = _base_state_and_ops()
-        before = snapshot_from_state(state).data
-
-        res = apply_ops(
-            config=DexEngineConfig(
-                allow_missing_settlement=True,
-                require_intent_signatures=False,
-                enable_test_fault_injection=True,
-                fault_injection=DexFaultInjectionConfig(fail_at_stage=stage),
-            ),
-            state=state,
-            operations=ops,
-            block_timestamp=0,
-            tx_sender_pubkey=sender,
-        )
-
-        after = snapshot_from_state(state).data
-        assert not res.ok
-        assert res.error == f"fault injected: {stage}"
-        assert res.state is None
-        assert res.settlement is None
-        assert before == after
-
-
-def test_fault_injection_requires_explicit_test_enable() -> None:
+@pytest.mark.parametrize(
+    "boundary",
+    ("parse_signed_intents", "compute_settlement", "apply_settlement_pure"),
+)
+def test_unexpected_boundary_failure_rejects_without_mutating_state(
+    monkeypatch: pytest.MonkeyPatch,
+    boundary: str,
+) -> None:
     state, ops, sender = _base_state_and_ops()
+    before = snapshot_from_state(state).data
+
+    def _raise_unexpected(*args, **kwargs):  # type: ignore[no-untyped-def]
+        del args, kwargs
+        raise RuntimeError(f"unexpected failure at {boundary}")
+
+    monkeypatch.setattr(dex_engine_mod, boundary, _raise_unexpected)
 
     res = apply_ops(
         config=DexEngineConfig(
             allow_missing_settlement=True,
             require_intent_signatures=False,
-            fault_injection=DexFaultInjectionConfig(fail_at_stage="after_intent_parse"),
         ),
         state=state,
         operations=ops,
@@ -110,7 +92,10 @@ def test_fault_injection_requires_explicit_test_enable() -> None:
     )
 
     assert not res.ok
-    assert res.error == "fault injection disabled"
+    assert res.error == "internal error"
+    assert res.state is None
+    assert res.settlement is None
+    assert snapshot_from_state(state).data == before
 
 
 def test_expired_intent_rejects_before_nonce_and_settlement_compute(monkeypatch) -> None:
@@ -193,7 +178,7 @@ def test_attached_quote_receipt_mismatch_rejects_before_nonce_and_settlement_com
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
     ops["2"][0]["amount_in"] = int(ops["2"][0]["amount_in"]) + 1
 
@@ -255,7 +240,7 @@ def test_missing_attached_quote_receipt_rejects_before_nonce_and_settlement_comp
         deadline=9999999999,
         slippage_bps=0,
     )
-    intent.set_field("nonce", 1)
+    intent = intent.with_field("nonce", 1)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent)])
 
     balances = BalanceTable()

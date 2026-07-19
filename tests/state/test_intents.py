@@ -25,11 +25,12 @@ def test_intent_defaults_fields_and_field_helpers() -> None:
     )
     assert intent.fields == {}
     assert intent.get_field("missing", 7) == 7
-    intent.set_field("amount_in", 42)
-    assert intent.get_field("amount_in") == 42
+    updated = intent.with_field("amount_in", 42)
+    assert intent.get_field("amount_in") is None
+    assert updated.get_field("amount_in") == 42
 
 
-def test_intent_set_field_recovers_from_none_fields() -> None:
+def test_intent_with_field_returns_new_owned_value() -> None:
     intent = Intent(
         module="TauSwap",
         version="0.1",
@@ -39,9 +40,9 @@ def test_intent_set_field_recovers_from_none_fields() -> None:
         deadline=123,
         fields={},
     )
-    intent.fields = None
-    intent.set_field("pool_id", _hex32("b"))
-    assert intent.fields == {"pool_id": _hex32("b")}
+    updated = intent.with_field("pool_id", _hex32("b"))
+    assert intent.fields == {}
+    assert updated.fields == {"pool_id": _hex32("b")}
 
 
 @pytest.mark.parametrize("module", ["", "OtherSwap"])

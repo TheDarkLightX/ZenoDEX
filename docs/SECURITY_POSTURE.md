@@ -16,9 +16,17 @@ source, not inferred from tribal knowledge.
   `src/core/` and `src/integration/validation.py`.
 - Tau is an additional, fail-closed verification layer for specific bounded
   checks. It is not the sole runtime authority.
-- Demo APIs under `src/integration/api_server.py`, `src/integration/perps_api.py`,
-  and `src/integration/zusd_api.py` are development surfaces, not the production
-  transaction path.
+- The unsigned in-memory perps and zUSD APIs were deleted. Production exposes
+  only signed wallet/ledger transports, and retired demo environment settings
+  cause startup refusal rather than re-enabling a compatibility path.
+- Production wallet transports import the verifier-only Tau RPC boundary in
+  `src/integration/tau_net_rpc.py`. Raw private-key parsing, transaction/intent
+  signing, `createblock`, and signed-transaction construction live under
+  `src/nonproduction/`; the legacy local-testnet client facade and autotrader
+  executor are removed during production image assembly.
+- Production images are assembled from a curated builder-stage source tree.
+  Development/local-testnet modules and stale bytecode never enter a final OCI
+  layer, and a build-time artifact scanner enforces that exclusion.
 
 ## Hardening Decisions
 
@@ -31,7 +39,7 @@ Applied to:
 - BLS signature verification paths
 - proof-verifier subprocess setup
 - Tau subprocess setup
-- demo API request parsing / state-transition glue
+- exposed API request parsing / state-transition glue
 
 Reasoning:
 - Failures on these paths should surface as deterministic rejections or explicit
@@ -187,5 +195,6 @@ and by code inspection respectively.
   `python3 -m pip install --require-hashes -r requirements-dev.lock.txt`.
 - For sensitive APIs, use `ZENODEX_EXTERNAL_AUTH_ENFORCED=1` for a real gateway
   or `ZENODEX_API_BEARER_TOKEN` for controlled local/testnet operators.
-  `DEMO_API_TOKEN` plus `ALLOW_DEMO_TOKEN_AUTH=1` is only for controlled legacy demos.
+  The retired `DEMO_API_TOKEN` and `ALLOW_DEMO_TOKEN_AUTH` settings cause startup
+  refusal and cannot re-enable the deleted compatibility surface.
 - If Tau-backed gates are enabled in production, prefer absolute binary paths.

@@ -15,7 +15,6 @@ from ..core.dex import DexState
 from ..core.perps import (
     PerpClearinghouse2pMarketState,
     PerpClearinghouse3pTransferMarketState,
-    PerpClearinghouseNpMarketState,
     PerpMarketState,
     PerpsState,
 )
@@ -252,32 +251,6 @@ def _canonical_fixed_market(
     return replace(market, state=dict(market.state), **updates), True
 
 
-def _canonical_np_market(
-    market: PerpClearinghouseNpMarketState,
-) -> tuple[PerpClearinghouseNpMarketState, bool]:
-    account_rows, accounts_changed = _canonical_rows(
-        ((account.pubkey, account) for account in market.accounts),
-        name="N-party perps account",
-    )
-    pending_rows, pending_changed = _canonical_rows(
-        ((intent.pubkey, intent) for intent in market.pending_intents),
-        name="N-party pending intent",
-    )
-    if not (accounts_changed or pending_changed):
-        return market, False
-    accounts = tuple(replace(account, pubkey=canonical) for canonical, account in account_rows)
-    pending_intents = tuple(replace(intent, pubkey=canonical) for canonical, intent in pending_rows)
-    return (
-        replace(
-            market,
-            global_state=dict(market.global_state),
-            accounts=accounts,
-            pending_intents=pending_intents,
-        ),
-        True,
-    )
-
-
 def _canonical_perps(source: PerpsState | None) -> tuple[PerpsState | None, bool]:
     if source is None:
         return None, False
@@ -291,8 +264,6 @@ def _canonical_perps(source: PerpsState | None) -> tuple[PerpsState | None, bool
             (PerpClearinghouse2pMarketState, PerpClearinghouse3pTransferMarketState),
         ):
             migrated, market_changed = _canonical_fixed_market(market)
-        elif isinstance(market, PerpClearinghouseNpMarketState):
-            migrated, market_changed = _canonical_np_market(market)
         else:
             raise TypeError(f"unsupported perps market state: {type(market).__name__}")
         markets[market_id] = migrated

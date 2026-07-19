@@ -31,7 +31,7 @@ def _start_test_server():
     httpd.autotrader_live_api_enabled = False  # type: ignore[attr-defined]
     httpd.confidential_attestation_api_enabled = True  # type: ignore[attr-defined]
     httpd.dex_api_enabled = False  # type: ignore[attr-defined]
-    httpd.demo_api_token = ""  # type: ignore[attr-defined]
+    httpd.api_bearer_token = ""  # type: ignore[attr-defined]
     httpd.external_auth_enforced = True  # type: ignore[attr-defined]
     httpd.confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()  # type: ignore[attr-defined]
     httpd.confidential_request_table = ConfidentialRequestTable()  # type: ignore[attr-defined]
@@ -111,7 +111,7 @@ def _post_json(
     return int(resp.status), payload
 
 
-def test_api_server_confidential_attestation_api_is_sensitive(monkeypatch, capsys) -> None:
+def test_api_server_confidential_attestation_api_is_forbidden_in_production(monkeypatch, capsys) -> None:
     from src.integration import api_server
 
     for name in (
@@ -132,7 +132,10 @@ def test_api_server_confidential_attestation_api_is_sensitive(monkeypatch, capsy
 
     assert api_server.main([]) == 2
     out = capsys.readouterr().out
-    assert "confidential_attestation_api=True" in out
+    assert out == (
+        "Refusing to start: development/test-only settings are enabled in production: "
+        "CONFIDENTIAL_ATTESTATION_API_ENABLED\n"
+    )
 
 
 def test_api_server_confidential_status_endpoint(monkeypatch) -> None:

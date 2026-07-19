@@ -6,6 +6,44 @@ import sys
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _explicit_test_deployment_profile(monkeypatch):
+    monkeypatch.setenv("TAU_DEX_DEPLOYMENT_PROFILE", "test")
+
+
+def test_missing_settlement_policy_defaults_to_reject(monkeypatch) -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.delenv("TAU_DEX_ALLOW_MISSING_SETTLEMENT", raising=False)
+    assert plugin._allow_missing_settlement_from_env() is False
+
+
+def test_missing_settlement_policy_rejects_malformed_boolean(monkeypatch) -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_ALLOW_MISSING_SETTLEMENT", "truthy")
+    with pytest.raises(ValueError, match="strict boolean"):
+        plugin._allow_missing_settlement_from_env()
+    result = plugin.apply_app_tx(
+        app_state_json=_policy_bound_empty_state(plugin),
+        chain_balances={},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=0,
+    )
+    assert result[0] is False
+    assert result[4] == "TAU_DEX_ALLOW_MISSING_SETTLEMENT must be a strict boolean"
+
+
+def test_missing_settlement_policy_rejects_non_test_profile(monkeypatch) -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_ALLOW_MISSING_SETTLEMENT", "true")
+    monkeypatch.setenv("TAU_DEX_DEPLOYMENT_PROFILE", "production")
+    with pytest.raises(ValueError, match="restricted"):
+        plugin._allow_missing_settlement_from_env()
+
+
 def _policy_bound_empty_state(plugin) -> str:
     chain_id = plugin.os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or "tau-local"
     config = plugin._build_zusd_monetary_config(chain_id=chain_id)
@@ -436,12 +474,8 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
     assert after_out > before_out
 
 
-def test_apply_app_tx_zero_output_swap_commits_nonce_only(monkeypatch) -> None:
-    """CPMM-IN-003: reject value effects while consuming the authenticated nonce.
-
-    The nonce-only commit prevents a signed rejected intent from becoming replayable.
-    """
-    from src.core.settlement import FillAction
+def test_apply_app_tx_zero_output_swap_is_atomic_reject_noop(monkeypatch) -> None:
+    """CPMM-IN-003: a computed rejection cannot consume nonce or move value."""
     from src.integration import tau_testnet_dex_plugin as plugin
     from src.integration.dex_engine import DexEngineConfig, apply_ops
 
@@ -513,7 +547,6 @@ def test_apply_app_tx_zero_output_swap_commits_nonce_only(monkeypatch) -> None:
     chain_balances = {sender_pubkey: 123}
     operations_before = copy.deepcopy(operations)
     chain_balances_before = copy.deepcopy(chain_balances)
-    state_before = _dex_snapshot_from_app_state_json(app_state_json)
     dex_state, _proof_mining, _zusd, _token_authority = plugin._load_state(
         app_state_json
     )
@@ -530,18 +563,15 @@ def test_apply_app_tx_zero_output_swap_commits_nonce_only(monkeypatch) -> None:
         block_timestamp=124,
         tx_sender_pubkey=canonical_sender_pubkey,
     )
-    assert engine_result.ok is True
-    assert engine_result.state is not None
-    assert engine_result.state.nonces.get_last(canonical_sender_pubkey) == 2
-    assert engine_result.settlement is not None
-    assert engine_result.settlement.balance_deltas == []
-    assert engine_result.settlement.reserve_deltas == []
-    assert engine_result.settlement.lp_deltas == []
-    assert len(engine_result.settlement.fills) == 1
-    assert engine_result.settlement.fills[0].action is FillAction.REJECT
-    assert engine_result.settlement.fills[0].reason == (
-        "COMPUTATION_ERROR: amount_out is zero (trade too small)"
+    expected_error = (
+        "settlement contains rejected intent at public DEX boundary: "
+        + swap_intent["intent_id"]
     )
+    assert engine_result.ok is False
+    assert engine_result.state is None
+    assert engine_result.settlement is None
+    assert engine_result.error == expected_error
+    assert dex_state.nonces.get_last(canonical_sender_pubkey) == 1
 
     committed, committed_state, committed_hash, balances_patch, error = plugin.apply_app_tx(
         app_state_json=app_state_json,
@@ -551,24 +581,11 @@ def test_apply_app_tx_zero_output_swap_commits_nonce_only(monkeypatch) -> None:
         block_timestamp=124,
     )
 
-    assert committed is True
-    assert error is None
-    assert committed_state != app_state_json
-    assert hashlib.sha256(committed_state.encode("utf-8")).hexdigest() == committed_hash
-    state_after = _dex_snapshot_from_app_state_json(committed_state)
-    assert state_after.keys() == state_before.keys()
-    assert {
-        key: value for key, value in state_after.items() if key != "nonces"
-    } == {
-        key: value for key, value in state_before.items() if key != "nonces"
-    }
-    assert state_before["nonces"] == [
-        {"last_nonce": 1, "pubkey": canonical_sender_pubkey}
-    ]
-    assert state_after["nonces"] == [
-        {"last_nonce": 2, "pubkey": canonical_sender_pubkey}
-    ]
-    assert balances_patch in (None, {})
+    assert committed is False
+    assert error == expected_error
+    assert committed_state == app_state_json
+    assert committed_hash == ""
+    assert balances_patch is None
     assert operations == operations_before
     assert chain_balances == chain_balances_before
 
@@ -583,7 +600,7 @@ def test_apply_app_tx_zero_output_swap_commits_nonce_only(monkeypatch) -> None:
     assert replay_state == committed_state
     assert replay_hash == ""
     assert replay_patch is None
-    assert replay_error == "nonce sequence invalid"
+    assert replay_error == expected_error
     assert operations == operations_before
     assert chain_balances == chain_balances_before
 

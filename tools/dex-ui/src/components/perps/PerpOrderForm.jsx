@@ -20,27 +20,30 @@ function PerpOrderForm({ market, position, wallet, writeEnabled, writeLockReason
     const [sizeInput, setSizeInput] = useState('');
     const [targetLeverage, setTargetLeverage] = useState(1);
 
-    const currentPosBase = position?.positionBase ?? 0;
+    const currentPosBase = position?.positionBase ?? null;
+    const authoritativeFactsReady = market?.authoritativeWriteFactsReady === true
+        && currentPosBase != null
+        && position?.collateralQuote != null;
 
     // Max size derivable from collateral × leverage × price (in base units).
     // Used by the leverage presets and the size quick-fill row.
     const maxSizeForLeverage = useMemo(() => {
-        if (!market) return 0;
-        const collateral = Number(position?.collateralQuote ?? 0);
-        const indexPrice = Number(market.indexPriceE8 ?? 0) / 100_000_000;
+        if (!authoritativeFactsReady) return 0;
+        const collateral = Number(position.collateralQuote);
+        const indexPrice = Number(market.indexPriceE8) / 100_000_000;
         if (collateral <= 0 || indexPrice <= 0 || targetLeverage <= 0) return 0;
         return Math.floor((collateral * targetLeverage) / indexPrice);
-    }, [market, position, targetLeverage]);
+    }, [market, position, targetLeverage, authoritativeFactsReady]);
 
     const applyLeveragePreset = useCallback((lev) => {
         setTargetLeverage(lev);
-        if (!market) return;
-        const collateral = Number(position?.collateralQuote ?? 0);
-        const indexPrice = Number(market.indexPriceE8 ?? 0) / 100_000_000;
+        if (!authoritativeFactsReady) return;
+        const collateral = Number(position.collateralQuote);
+        const indexPrice = Number(market.indexPriceE8) / 100_000_000;
         if (collateral <= 0 || indexPrice <= 0) return;
         const nextSize = Math.floor((collateral * lev) / indexPrice);
         if (nextSize > 0) setSizeInput(String(nextSize));
-    }, [market, position]);
+    }, [market, position, authoritativeFactsReady]);
 
     const applySizeFraction = useCallback((fraction) => {
         if (maxSizeForLeverage <= 0) return;
@@ -60,6 +63,9 @@ function PerpOrderForm({ market, position, wallet, writeEnabled, writeLockReason
         if (!market || newPositionBase == null) {
             return { ok: false, error: null };
         }
+        if (!authoritativeFactsReady) {
+            return { ok: false, error: 'Authoritative market risk parameters are unavailable' };
+        }
         const state = {
             epochPhase: market.epochPhase,
             oracleSeen: market.oracleSeen,
@@ -73,29 +79,29 @@ function PerpOrderForm({ market, position, wallet, writeEnabled, writeLockReason
             initialMarginBps: toBigInt(market.initialMarginBps),
             maintenanceMarginBps: toBigInt(market.maintenanceMarginBps),
             depegBufferBps: toBigInt(market.depegBufferBps),
-            collateralQuote: toBigInt(position?.collateralQuote ?? 0),
+            collateralQuote: toBigInt(position.collateralQuote),
         };
         return validateSetPosition(state, toBigInt(newPositionBase));
-    }, [market, position, newPositionBase, currentPosBase]);
+    }, [market, position, newPositionBase, currentPosBase, authoritativeFactsReady]);
 
     // Compute leverage preview
     const leveragePreview = useMemo(() => {
-        if (!market || newPositionBase == null) return null;
-        const collateral = toBigInt(position?.collateralQuote ?? 0);
+        if (!authoritativeFactsReady || newPositionBase == null) return null;
+        const collateral = toBigInt(position.collateralQuote);
         if (collateral === 0n) return null;
         return effectiveLeverage(
             toBigInt(newPositionBase),
             toBigInt(market.indexPriceE8),
             collateral,
         );
-    }, [market, position, newPositionBase]);
+    }, [market, position, newPositionBase, authoritativeFactsReady]);
 
     // Notional preview
     const notionalPreview = useMemo(() => {
-        if (!market || newPositionBase == null) return null;
+        if (!authoritativeFactsReady || newPositionBase == null) return null;
         const absPos = Math.abs(newPositionBase);
         return (absPos * market.indexPriceE8) / 100_000_000;
-    }, [market, newPositionBase]);
+    }, [market, newPositionBase, authoritativeFactsReady]);
 
     const handleSubmit = useCallback(() => {
         if (!validation.ok || newPositionBase == null) return;
@@ -136,6 +142,7 @@ function PerpOrderForm({ market, position, wallet, writeEnabled, writeLockReason
                             type="button"
                             className={`perp-leverage-chip ${targetLeverage === lev ? 'active' : ''}`}
                             onClick={() => applyLeveragePreset(lev)}
+                            disabled={!authoritativeFactsReady}
                         >
                             {lev}x
                         </button>
@@ -201,7 +208,7 @@ function PerpOrderForm({ market, position, wallet, writeEnabled, writeLockReason
                     <div className="perp-preview-row">
                         <span>Collateral</span>
                         <span className="perp-preview-value">
-                            ${formatQuote(position?.collateralQuote ?? 0)}
+                            {position?.collateralQuote != null ? `$${formatQuote(position.collateralQuote)}` : '--'}
                         </span>
                     </div>
                 </div>

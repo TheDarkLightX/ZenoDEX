@@ -1,6 +1,7 @@
 """Intent creation and signing for autonomous agents."""
 
 import hashlib
+from collections.abc import Mapping
 from typing import Any, Dict, Optional
 
 from ..core.quote_receipts import pool_state_fingerprint
@@ -631,8 +632,8 @@ def _generate_intent_id(
 
 def _intent_signing_dict(intent: Intent) -> dict[str, Any]:
     fields = intent.fields or {}
-    if not isinstance(fields, dict):
-        raise TypeError("intent.fields must be a dict")
+    if not isinstance(fields, Mapping):
+        raise TypeError("intent.fields must be a mapping")
     out: dict[str, Any] = {
         "module": intent.module,
         "version": intent.version,

@@ -427,37 +427,17 @@ def test_swap_limit_price_rejects_non_swap_intent() -> None:
         _swap_limit_price(intent)
 
 
-def test_normal_form_places_defensive_unknown_kind_after_known_pool_actions() -> None:
-    pk = "0x" + "11" * 48
-    pool_id = "0x" + "aa" * 32
-    swap = Intent(
-        module="TauSwap",
-        version="0.1",
-        kind=IntentKind.SWAP_EXACT_IN,
-        intent_id=_iid(15),
-        sender_pubkey=pk,
-        deadline=9999999999,
-        fields={
-            "pool_id": pool_id,
-            "asset_in": "0x" + "01" * 32,
-            "asset_out": "0x" + "02" * 32,
-            "amount_in": 10,
-            "min_amount_out": 1,
-        },
-    )
-    unknown = Intent(
-        module="TauSwap",
-        version="0.1",
-        kind=IntentKind.ADD_LIQUIDITY,
-        intent_id=_iid(16),
-        sender_pubkey=pk,
-        deadline=9999999999,
-        fields={"pool_id": pool_id},
-    )
-    unknown.kind = "UNKNOWN_KIND"  # type: ignore[assignment]
-
-    normalized = normalize_intents([unknown, swap]).intent_ids
-    assert normalized == [swap.intent_id, unknown.intent_id]
+def test_intent_boundary_rejects_unknown_kind_before_normalization() -> None:
+    with pytest.raises(TypeError, match="kind must be an exact IntentKind"):
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind="UNKNOWN_KIND",  # type: ignore[arg-type]
+            intent_id=_iid(16),
+            sender_pubkey="0x" + "11" * 48,
+            deadline=9999999999,
+            fields={"pool_id": "0x" + "aa" * 32},
+        )
 
 
 def test_require_normal_form_rejects_out_of_order_batch() -> None:

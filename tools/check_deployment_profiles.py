@@ -19,7 +19,6 @@ PRODUCTION_RUNTIME_POLICY: dict[str, bool] = {
     "allow_path_lookup": False,
     "plaintext_fixture_keys_allowed": False,
     "local_only_routes_allowed": False,
-    "proof_mining_payout_template_enabled": False,
     "env_config_file_allowlist_required": True,
     "dependency_sbom_required": True,
     "secret_scan_required": True,

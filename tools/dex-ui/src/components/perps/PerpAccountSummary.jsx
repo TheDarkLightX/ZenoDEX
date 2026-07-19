@@ -16,14 +16,23 @@ function PerpAccountSummary({ markets, positions }) {
         let totalCollateral = 0;
         let totalPnl = 0;
         let openCount = 0;
+        let collateralComplete = true;
+        let pnlComplete = true;
 
         for (const market of markets) {
             const pos = positions[market.id];
             if (!pos) continue;
-            totalCollateral += pos.collateralQuote || 0;
-            if (pos.positionBase !== 0 && pos.entryPriceE8) {
+            if (pos.collateralQuote == null) {
+                collateralComplete = false;
+            } else {
+                totalCollateral += pos.collateralQuote;
+            }
+            if (pos.positionBase != null && pos.positionBase !== 0) {
                 openCount++;
-                // Simple PnL estimate
+                if (pos.entryPriceE8 == null || market.indexPriceE8 == null) {
+                    pnlComplete = false;
+                    continue;
+                }
                 const absPos = Math.abs(pos.positionBase);
                 const priceDiff = market.indexPriceE8 - pos.entryPriceE8;
                 const sign = pos.positionBase > 0 ? 1 : -1;
@@ -31,10 +40,17 @@ function PerpAccountSummary({ markets, positions }) {
             }
         }
 
-        return { totalCollateral, totalPnl, openCount };
+        return {
+            totalCollateral: collateralComplete ? totalCollateral : null,
+            totalPnl: pnlComplete ? totalPnl : null,
+            openCount,
+        };
     }, [markets, positions]);
 
-    const pnlPositive = summary.totalPnl >= 0;
+    const pnlPositive = summary.totalPnl != null && summary.totalPnl >= 0;
+    const accountValue = summary.totalCollateral != null && summary.totalPnl != null
+        ? summary.totalCollateral + summary.totalPnl
+        : null;
 
     return (
         <div className="perp-account-summary">
@@ -42,14 +58,16 @@ function PerpAccountSummary({ markets, positions }) {
                 <div className="perp-summary-stat">
                     <span className="perp-summary-label">Total Collateral</span>
                     <span className="perp-summary-value">
-                        {formatQuote(summary.totalCollateral)}
+                        {summary.totalCollateral != null ? formatQuote(summary.totalCollateral) : '--'}
                     </span>
                 </div>
 
                 <div className="perp-summary-stat">
                     <span className="perp-summary-label">Unrealized PnL</span>
                     <span className={`perp-summary-value perp-summary-pnl ${pnlPositive ? 'positive' : 'negative'}`}>
-                        {pnlPositive ? '+' : ''}{formatQuote(summary.totalPnl)}
+                        {summary.totalPnl != null
+                            ? `${pnlPositive ? '+' : ''}${formatQuote(summary.totalPnl)}`
+                            : '--'}
                     </span>
                 </div>
 
@@ -63,7 +81,7 @@ function PerpAccountSummary({ markets, positions }) {
                 <div className="perp-summary-stat">
                     <span className="perp-summary-label">Account Value</span>
                     <span className="perp-summary-value">
-                        {formatQuote(summary.totalCollateral + summary.totalPnl)}
+                        {accountValue != null ? formatQuote(accountValue) : '--'}
                     </span>
                 </div>
             </div>

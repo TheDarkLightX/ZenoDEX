@@ -2,7 +2,7 @@ import { useState, lazy, Suspense } from 'react';
 import './index.css';
 // Per-surface code-splitting: each tab is a separate chunk loaded on demand, so
 // the initial bundle only carries the default (Swap) surface + shell. The other
-// nine surfaces (incl. the large Oracle/zUSD/Perps dashboards) load when first
+// five surfaces (including the large Oracle/zUSD/Perps dashboards) load when first
 // opened, cutting first-paint JS substantially.
 // One importer per tab id, shared by both lazy() and the hover/focus prefetch
 // below so warming a chunk on hover resolves the SAME module the click renders.
@@ -11,12 +11,8 @@ const SURFACE_IMPORTERS = {
   pools: () => import('./components/PoolDashboard'),
   stats: () => import('./components/TokenStats'),
   perps: () => import('./components/perps/PerpTradingView'),
-  strategy: () => import('./components/StrategyWorkbench.jsx'),
   zusd: () => import('./components/ZUSDWorkbench.jsx'),
   oracle: () => import('./components/ZenoOracleDashboard.jsx'),
-  confidential: () => import('./components/ConfidentialWorkbench.jsx'),
-  governance: () => import('./components/PerpsGovernanceSurface.jsx'),
-  proofs: () => import('./components/ProofMiningWorkbench.jsx'),
 };
 // Prefetch a surface chunk (idempotent — dynamic import() caches the request).
 function prefetchSurface(id) {
@@ -27,14 +23,9 @@ const SwapInterface = lazy(SURFACE_IMPORTERS.swap);
 const PoolDashboard = lazy(SURFACE_IMPORTERS.pools);
 const TokenStats = lazy(SURFACE_IMPORTERS.stats);
 const PerpTradingView = lazy(SURFACE_IMPORTERS.perps);
-const ConfidentialWorkbench = lazy(SURFACE_IMPORTERS.confidential);
-const StrategyWorkbench = lazy(SURFACE_IMPORTERS.strategy);
 const ZUSDWorkbench = lazy(SURFACE_IMPORTERS.zusd);
 const ZenoOracleDashboard = lazy(SURFACE_IMPORTERS.oracle);
-const PerpsGovernanceSurface = lazy(SURFACE_IMPORTERS.governance);
-const ProofMiningWorkbench = lazy(SURFACE_IMPORTERS.proofs);
 import { PerpProvider } from './lib/PerpProvider.jsx';
-import { DemoModeProvider } from './lib/DemoModeProvider.jsx';
 import { ThemeProvider } from './lib/ThemeContext.jsx';
 import ThemeSwitcher from './components/ThemeSwitcher.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
@@ -48,14 +39,11 @@ const NAV_TABS = [
   { id: 'pools', label: 'Pools' },
   { id: 'stats', label: 'ZDEX Stats' },
   { id: 'perps', label: 'Perpetuals' },
-  { id: 'strategy', label: 'Strategy' },
   { id: 'zusd', label: 'zUSD' },
   { id: 'oracle', label: 'Oracle' },
-  { id: 'confidential', label: 'Confidential' },
-  { id: 'governance', label: 'Keys' },
 ];
 
-const ROUTE_TAB_IDS = new Set([...NAV_TABS.map((tab) => tab.id), 'proofs']);
+const ROUTE_TAB_IDS = new Set(NAV_TABS.map((tab) => tab.id));
 
 const ZENODEX_LOGO_ICON = `${import.meta.env.BASE_URL}branding/zenodex/zenodex_icon_256.png`;
 
@@ -67,49 +55,15 @@ function getInitialTab() {
   return ROUTE_TAB_IDS.has(requested) ? requested : 'swap';
 }
 
-function getInitialWallet() {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const params = new URLSearchParams(window.location.search);
-  if (
-    params.get('zenodexUiSmokeSwap') !== '1'
-    && params.get('zenodexUiSmokeLiquidity') !== '1'
-    && params.get('walletAddress') == null
-  ) {
-    return null;
-  }
-  const rawAddress = String(params.get('walletAddress') || '').trim();
-  if (!/^(0x)?[0-9a-fA-F]{96}$/.test(rawAddress)) {
-    return null;
-  }
-  const address = rawAddress.toLowerCase().startsWith('0x')
-    ? `0x${rawAddress.slice(2).toLowerCase()}`
-    : `0x${rawAddress.toLowerCase()}`;
-  return {
-    address,
-    chainId: getRuntimeConfig().chainId || 'zeno-ledger-localtest-v0',
-    balance: {
-      ZDEX: 1_000_000,
-      zUSD: 0,
-      tAGRS: 1_000_000,
-      TASSET0: 1_000_000,
-      TASSET1: 1_000_000,
-      TZENO: 1_000_000,
-    },
-  };
-}
-
 function App() {
   const [activeTab, setActiveTab] = useState(getInitialTab);
-  const [wallet, setWallet] = useState(getInitialWallet);
+  const [wallet, setWallet] = useState(null);
   const { upsertTransaction } = useTransactionCenter();
   const uiSurfaceVersion = getRuntimeConfig().uiSurfaceContractVersion || 'ui-unpinned';
 
   return (
     <ThemeProvider>
-      <DemoModeProvider>
-        <div className={`app-container ${activeTab === 'oracle' ? 'app-container-oracle' : ''}`}>
+      <div className={`app-container ${activeTab === 'oracle' ? 'app-container-oracle' : ''}`}>
           {/* Header */}
           <header className="header">
             <div className="logo">
@@ -177,12 +131,6 @@ function App() {
             </div>
           )}
 
-          {activeTab === 'strategy' && (
-            <div className="animate-fade-in">
-              <StrategyWorkbench />
-            </div>
-          )}
-
           {activeTab === 'zusd' && (
             <div className="animate-fade-in">
               <ZUSDWorkbench />
@@ -195,23 +143,6 @@ function App() {
             </div>
           )}
 
-          {activeTab === 'confidential' && (
-            <div className="animate-fade-in">
-              <ConfidentialWorkbench />
-            </div>
-          )}
-
-          {activeTab === 'proofs' && (
-            <div className="animate-fade-in">
-              <ProofMiningWorkbench />
-            </div>
-          )}
-
-          {activeTab === 'governance' && (
-            <div className="animate-fade-in">
-              <PerpsGovernanceSurface />
-            </div>
-          )}
           </Suspense>
           </ErrorBoundary>
         </main>
@@ -219,7 +150,7 @@ function App() {
         {/* Footer */}
         <footer className="footer">
           <p>
-            ZenoDEX: Formally Verified Decentralized Exchange
+            ZenoDEX: Deterministic Decentralized Exchange
             <span className="footer-sep">•</span>
             Powered by <a href="https://tau.net" target="_blank" rel="noopener noreferrer">Tau Network</a>
             <span className="footer-sep">•</span>
@@ -229,8 +160,7 @@ function App() {
         </footer>
 
           <TransactionDrawer />
-        </div>
-      </DemoModeProvider>
+      </div>
     </ThemeProvider>
   );
 }

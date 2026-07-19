@@ -87,20 +87,6 @@ except ImportError:  # pragma: no cover - optional dependency
 
 _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
 
-_FAULT_STAGES = (
-    "after_raw_validation",
-    "after_intent_parse",
-    "after_settlement_parse",
-    "after_preconditions",
-    "after_signature_verification",
-    "after_nonce_validation",
-    "after_settlement_compute",
-    "after_settlement_validation",
-    "after_proof_verification",
-    "after_apply_pure",
-)
-
-
 def _format_error_details(**kwargs: Any) -> str:
     parts: list[str] = []
     for key, value in kwargs.items():
@@ -134,24 +120,6 @@ def _validate_and_apply_nonce_batch(*, nonces: NonceTable, intents: list[Intent]
         intents=intents,
         require_all_nonces=True,
     )
-
-
-@dataclass(frozen=True)
-class DexFaultInjectionConfig:
-    """
-    Test-only fault injection for fail-closed anomaly coverage.
-
-    `fail_at_stage` must be one of the stable stage ids in `_FAULT_STAGES`.
-    """
-
-    fail_at_stage: Optional[str] = None
-
-    def __post_init__(self) -> None:
-        stage = self.fail_at_stage
-        if stage is None:
-            return
-        if stage not in _FAULT_STAGES:
-            raise ValueError(f"unknown fault injection stage: {stage}")
 
 
 @dataclass(frozen=True)
@@ -242,10 +210,6 @@ class DexEngineConfig:
 
     # Optional fee split params (applied after any successful settlement).
     dex_config: DexConfig = DexConfig()
-
-    # Test-only anomaly hook. Must not be enabled in production/testnet configs.
-    enable_test_fault_injection: bool = False
-    fault_injection: Optional[DexFaultInjectionConfig] = None
 
     def __post_init__(self) -> None:
         if self.require_settlement_certificate and self.settlement_end_to_end_certificate_inputs is None:
@@ -367,12 +331,6 @@ class DexTxResult:
     settlement: Optional[Settlement] = None
     error: Optional[str] = None
     proof_mining_context: Optional[ProofMiningContext] = None
-
-
-class _InjectedFault(RuntimeError):
-    def __init__(self, stage: str) -> None:
-        super().__init__(f"fault injected: {stage}")
-        self.stage = stage
 
 
 def _hex_to_bytes_allow_0x(hex_str: str, *, name: str, expected_nbytes: Optional[int] = None) -> bytes:
@@ -600,14 +558,6 @@ def _verify_proof_if_present(
 def _clean_error(message: Any, *, max_len: int = 200) -> str:
     out = " ".join(str(message).strip().split())
     return out if len(out) <= max_len else out[:max_len]
-
-
-def _fault_stage(config: DexEngineConfig, stage: str) -> None:
-    fault = config.fault_injection
-    if fault is None:
-        return
-    if fault.fail_at_stage == stage:
-        raise _InjectedFault(stage)
 
 
 def _validate_external_tool_policy(config: DexEngineConfig) -> Optional[str]:
@@ -846,7 +796,7 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
 def _validate_quote_receipt_witnesses(
     *,
     signed_intents: List[SignedIntentEnvelope],
-    pools: Dict[str, Any],
+    pools: Mapping[str, Any],
 ) -> Optional[str]:
     grouped_by_hash: Dict[str, List[SignedIntentEnvelope]] = {}
     for env in signed_intents:
@@ -1154,9 +1104,6 @@ def apply_ops(
     it is used only for signature policy (bypass for user-submitted intents).
     """
     try:
-        if config.fault_injection is not None and not bool(config.enable_test_fault_injection):
-            return DexTxResult(ok=False, error="fault injection disabled")
-
         err = _validate_external_tool_policy(config)
         if err is not None:
             return DexTxResult(ok=False, error=err)
@@ -1168,21 +1115,16 @@ def apply_ops(
         err = _validate_raw_intent_ops(config, operations.get("2"))
         if err is not None:
             return DexTxResult(ok=False, error=err)
-        _fault_stage(config, "after_raw_validation")
-
         try:
             signed_intents = parse_signed_intents(operations)
         except ValueError as exc:
             return DexTxResult(ok=False, error=f"invalid intents: {_clean_error(exc)}")
         if len(signed_intents) > config.max_intents:
             return DexTxResult(ok=False, error=f"too many intents: {len(signed_intents)} > {config.max_intents}")
-        _fault_stage(config, "after_intent_parse")
-
         try:
             settlement_env = parse_settlement_envelope(operations)
         except ValueError as exc:
             return DexTxResult(ok=False, error=f"invalid settlement: {_clean_error(exc)}")
-        settlement_supplied = settlement_env is not None
         settlement = settlement_env.settlement if settlement_env else None
         proof = settlement_env.proof if settlement_env else None
         uniform_batch_certificate = (
@@ -1238,8 +1180,6 @@ def apply_ops(
                 return DexTxResult(ok=False, error="proof payload too large")
             except TypeError:
                 return DexTxResult(ok=False, error="invalid proof payload encoding")
-        _fault_stage(config, "after_settlement_parse")
-
         signed_payload_intents = [env.intent for env in signed_intents]
         err = _validate_intent_preconditions(
             intents=signed_payload_intents,
@@ -1248,8 +1188,6 @@ def apply_ops(
         )
         if err is not None:
             return DexTxResult(ok=False, error=err)
-        _fault_stage(config, "after_preconditions")
-
         try:
             signing_dicts, signing_payloads = _build_signing_payloads(
                 signed_intents,
@@ -1269,8 +1207,6 @@ def apply_ops(
         )
         if not ok:
             return DexTxResult(ok=False, error=err)
-        _fault_stage(config, "after_signature_verification")
-
         err = _validate_quote_receipt_witnesses(signed_intents=signed_intents, pools=state.pools)
         if err is not None:
             return DexTxResult(ok=False, error=err)
@@ -1323,8 +1259,6 @@ def apply_ops(
             )
             if not ok:
                 return DexTxResult(ok=False, error=err or "nonce policy rejected")
-        _fault_stage(config, "after_nonce_validation")
-
         # Compute settlement deterministically and (optionally) require an exact match.
         computed_settlement: Optional[Settlement] = None
         if execution_intents:
@@ -1472,9 +1406,7 @@ def apply_ops(
                 if got != expected:
                     return DexTxResult(ok=False, error="settlement mismatch")
                 settlement = computed_settlement
-        _fault_stage(config, "after_settlement_compute")
-
-        if settlement is not None and settlement_supplied:
+        if settlement is not None:
             reject_error = reject_settlement_public_boundary_error(config.dex_config, settlement)
             if reject_error is not None:
                 return DexTxResult(ok=False, error=reject_error)
@@ -1629,8 +1561,6 @@ def apply_ops(
         )
         if not ok:
             return DexTxResult(ok=False, error=err or "operations invalid")
-        _fault_stage(config, "after_settlement_validation")
-
         if not proof_preverified:
             ok, err = _verify_proof_if_present(
                 verifier,
@@ -1644,7 +1574,6 @@ def apply_ops(
             )
             if not ok:
                 return DexTxResult(ok=False, error=err)
-        _fault_stage(config, "after_proof_verification")
         if settlement is None:
             # No DEX ops; state unchanged.
             return DexTxResult(ok=True, state=state, settlement=None)
@@ -1663,8 +1592,6 @@ def apply_ops(
         )
         if err is not None:
             return DexTxResult(ok=False, error=err)
-        _fault_stage(config, "after_apply_pure")
-
         # Optional fee split accounting (dust carry). This is a local/accounting module
         # and does not mutate balances/pools unless a future module consumes it.
         next_fee_state = state.fee_accumulator
@@ -1700,7 +1627,5 @@ def apply_ops(
             except Exception as exc:
                 return DexTxResult(ok=False, error=f"invalid proof mining context: {exc}")
         return DexTxResult(ok=True, state=next_state, settlement=settlement, proof_mining_context=proof_mining_context)
-    except _InjectedFault as exc:
-        return DexTxResult(ok=False, error=str(exc))
     except Exception:
         return DexTxResult(ok=False, error="internal error")

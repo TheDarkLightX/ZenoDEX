@@ -5,11 +5,8 @@ import pytest
 from src.core.zusd import (
     E8,
     ZUSDCommand,
-    ZUSDMultiCommand,
-    init_multi_state,
     init_state,
     step,
-    step_multi,
 )
 from src.integration.tau_witness import ZUSD_CROSS_MODULE_ORACLE_SYNC_GATE_V1
 from src.integration.zusd_oracle_contracts import (
@@ -25,13 +22,6 @@ from src.integration.zusd_oracle_contracts import (
 
 def _single_ok(state, tag: str, **args):
     res = step(state, ZUSDCommand(tag=tag, args=args))  # type: ignore[arg-type]
-    assert res.ok, res.error
-    assert res.state is not None
-    return res.state
-
-
-def _multi_ok(state, tag: str, **args):
-    res = step_multi(state, ZUSDMultiCommand(tag=tag, args=args))  # type: ignore[arg-type]
     assert res.ok, res.error
     assert res.state is not None
     return res.state
@@ -71,15 +61,6 @@ def test_zusd_oracle_pending_gate_contract_rejects_pending_mismatch() -> None:
     assert err == "action_allowed mismatch"
 
 
-def test_zusd_oracle_pending_gate_contract_supports_multi_state() -> None:
-    state = _multi_ok(init_multi_state(), "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
-    contract = build_zusd_oracle_pending_gate_contract(state, risky_requested=False, tcr_ok=False)
-
-    assert contract.state_mode == "multi"
-    assert contract.action_allowed is True
-    assert contract.blocked_by_recovery is True
-
-
 def test_zusd_oracle_pending_gate_contract_rejects_string_boolean_flags() -> None:
     state = _single_ok(init_state(), "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
     payload = build_zusd_oracle_pending_gate_contract(state, risky_requested=True, tcr_ok=True).to_dict()
@@ -100,12 +81,12 @@ def test_zusd_oracle_pending_gate_contract_rejects_invalid_state_mode() -> None:
 
     payload["state_mode"] = "unexpected"
 
-    with pytest.raises(ValueError, match="state_mode must be single or multi"):
+    with pytest.raises(ValueError, match="state_mode must be single"):
         ZUSDOraclePendingGateContract.from_dict(payload)
 
     ok, err = verify_zusd_oracle_pending_gate_contract_payload(payload)
     assert not ok
-    assert err == "state_mode must be single or multi"
+    assert err == "state_mode must be single"
 
 
 def test_zusd_oracle_pending_gate_contract_rejects_non_string_state_mode() -> None:

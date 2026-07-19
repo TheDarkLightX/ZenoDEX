@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 
 from src.core.zusd import E8
 from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.perp_engine import PerpEngineConfig
-from src.integration.perps_wallet_api import _local_perps_oracle_bridge_fixture
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
+from tests.support.perps_oracle_bridge_fixture import build_perps_oracle_bridge_fixture
 from tools.zenodex_oracle_aggregate_adapter import (
     aggregate_adapter_content_hash,
     verify_aggregate_adapter_bridge,
@@ -23,6 +24,7 @@ ALICE = "0x" + bls_pubkey_hex_from_privkey(ALICE_PRIVKEY)
 BOB = "0x" + bls_pubkey_hex_from_privkey(BOB_PRIVKEY)
 OPERATOR = "0x" + bls_pubkey_hex_from_privkey(OPERATOR_PRIVKEY)
 ORACLE = "0x" + bls_pubkey_hex_from_privkey(ORACLE_PRIVKEY)
+GENERIC_PERP_QUOTE_ASSET = "0x" + "5f" * 32
 
 
 def _signed_init_market(*, market_id: str, quote_asset: str, nonce_a: int, nonce_b: int, deadline: int = DEADLINE):
@@ -92,12 +94,44 @@ def _apply(app_state_json: str, *, operations, sender: str, block_timestamp: int
     )
 
 
+def _policy_bound_empty_state() -> str:
+    chain_id = os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or "tau-local"
+    config = plugin._build_zusd_monetary_config(chain_id=chain_id)
+    app_state_json, _app_hash = plugin.build_zusd_policy_bound_genesis_app_state(config=config)
+    return app_state_json
+
+
+def _policy_bound_generic_quote_state() -> str:
+    from src.core.generic_token_authority import (
+        GenericTokenAssetAuthority,
+        GenericTokenAuthorityState,
+    )
+
+    chain_id = os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or "tau-local"
+    config = plugin._build_zusd_monetary_config(chain_id=chain_id)
+    authority = GenericTokenAuthorityState(
+        assets=(
+            GenericTokenAssetAuthority(
+                asset_id=GENERIC_PERP_QUOTE_ASSET,
+                total_supply_units=0,
+                mint_authority_pubkey=OPERATOR,
+            ),
+        )
+    )
+    app_state_json, _app_hash = plugin.build_zusd_policy_bound_genesis_app_state(
+        config=config,
+        generic_token_authority=authority,
+    )
+    return app_state_json
+
+
 def test_stream8_app_bridge_rejects_nonce_replay_without_side_effect(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    initial_app_state = _policy_bound_empty_state()
 
     ok1, app_state_json1, _hash1, _patch1, err1 = _apply(
-        "",
+        initial_app_state,
         operations={"8": [_signed_init_market(market_id="perp:ch2p:replay-a", quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
         sender=OPERATOR,
         block_timestamp=1,
@@ -118,9 +152,10 @@ def test_stream8_app_bridge_rejects_nonce_replay_without_side_effect(monkeypatch
 def test_stream8_rejects_batch_local_nonce_replay_without_first_market_side_effect(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    initial_app_state = _policy_bound_empty_state()
 
     ok, app_state_json, _hash, _patch, err = _apply(
-        "",
+        initial_app_state,
         operations={
             "8": [
                 _signed_init_market(
@@ -143,30 +178,32 @@ def test_stream8_rejects_batch_local_nonce_replay_without_first_market_side_effe
 
     assert ok is False
     assert err == "account_a signature invalid: nonce invalid"
-    assert app_state_json == ""
+    assert app_state_json == initial_app_state
 
 
 def test_stream8_app_bridge_rejects_expired_signature_without_materializing_market(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    initial_app_state = _policy_bound_empty_state()
 
     ok, app_state_json, _hash, _patch, err = _apply(
-        "",
+        initial_app_state,
         operations={"8": [_signed_init_market(market_id="perp:ch2p:expired", quote_asset=quote_asset, nonce_a=1, nonce_b=1, deadline=1)]},
         sender=OPERATOR,
         block_timestamp=2,
     )
     assert ok is False
     assert err == "account_a signature invalid: signature expired (deadline)"
-    assert app_state_json == ""
+    assert app_state_json == initial_app_state
 
 
 def test_cross_stream_zusd_then_bad_perps_is_atomic(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    initial_app_state = _policy_bound_empty_state()
 
     ok, app_state_json, _hash, _patch, err = _apply(
-        "",
+        initial_app_state,
         operations={
             "11": [
                 {
@@ -193,7 +230,7 @@ def test_cross_stream_zusd_then_bad_perps_is_atomic(monkeypatch) -> None:
     )
     assert ok is False
     assert err == "unknown market_id"
-    assert app_state_json == ""
+    assert app_state_json == initial_app_state
 
 
 def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatch) -> None:
@@ -204,7 +241,7 @@ def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatc
     market_id = "perp:ch2p:oracle-adapter-required"
 
     ok1, app_state_json1, _hash1, _patch1, err1 = _apply(
-        "",
+        _policy_bound_empty_state(),
         operations={"8": [_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
         sender=OPERATOR,
         block_timestamp=1,
@@ -222,20 +259,23 @@ def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatc
     assert app_state_json2 == app_state_json1
 
 
-def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_deposits(monkeypatch) -> None:
+def test_stream8_app_bridge_accepts_signed_position_pair_after_authorized_token_deposits(
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    quote_asset = GENERIC_PERP_QUOTE_ASSET
     market_id = "perp:ch2p:position"
 
     ok0, app_state_json0, _hash0, _patch0, err0 = _apply(
-        "",
+        _policy_bound_generic_quote_state(),
         operations={
             "9": [
-                {
-                    "module": "TauToken",
-                    "action": "mint",
+                    {
+                        "module": "TauToken",
+                        "version": "0.1",
+                        "action": "mint",
                     "asset": quote_asset,
                     "to_pubkey": ALICE,
                     "amount": 1_000,
@@ -243,9 +283,10 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
                     "deadline": DEADLINE,
                     "operator_pubkey": OPERATOR,
                 },
-                {
-                    "module": "TauToken",
-                    "action": "mint",
+                    {
+                        "module": "TauToken",
+                        "version": "0.1",
+                        "action": "mint",
                     "asset": quote_asset,
                     "to_pubkey": BOB,
                     "amount": 1_000,
@@ -319,16 +360,17 @@ def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    quote_asset = GENERIC_PERP_QUOTE_ASSET
     market_id = "perp:ch2p:position-out-of-order"
 
     ok0, app_state_json, _hash0, _patch0, err0 = _apply(
-        "",
+        _policy_bound_generic_quote_state(),
         operations={
             "9": [
-                {
-                    "module": "TauToken",
-                    "action": "mint",
+                    {
+                        "module": "TauToken",
+                        "version": "0.1",
+                        "action": "mint",
                     "asset": quote_asset,
                     "to_pubkey": ALICE,
                     "amount": 1_000,
@@ -336,9 +378,10 @@ def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(
                     "deadline": DEADLINE,
                     "operator_pubkey": OPERATOR,
                 },
-                {
-                    "module": "TauToken",
-                    "action": "mint",
+                    {
+                        "module": "TauToken",
+                        "version": "0.1",
+                        "action": "mint",
                     "asset": quote_asset,
                     "to_pubkey": BOB,
                     "amount": 1_000,
@@ -411,7 +454,7 @@ def test_stream8_rejects_stale_oracle_adapter_bridge_without_settlement_side_eff
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     market_id = "perp:ch2p:stale-oracle-bridge"
 
-    app_state_json = ""
+    app_state_json = _policy_bound_empty_state()
     for op, sender, timestamp in (
         (_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1), OPERATOR, 1),
         ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}, OPERATOR, 2),
@@ -425,8 +468,9 @@ def test_stream8_rejects_stale_oracle_adapter_bridge_without_settlement_side_eff
         )
         assert ok_step is True, err_step
 
-    bridge_payload = _local_perps_oracle_bridge_fixture(
-        app_state=json.loads(app_state_json),
+    state, _proof_mining_state, _zusd_state, _token_authority = plugin._load_state(app_state_json)
+    bridge_payload = build_perps_oracle_bridge_fixture(
+        state=state,
         config=PerpEngineConfig(chain_id=CHAIN_ID, operator_pubkey=OPERATOR, oracle_pubkey=ORACLE),
         market_id=market_id,
         action="settle_epoch",

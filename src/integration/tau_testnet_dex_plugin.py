@@ -195,6 +195,31 @@ def _bool_env(name: str, *, default: bool) -> bool:
     return bool(default)
 
 
+def _strict_bool_env(name: str, *, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return bool(default)
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be a strict boolean")
+
+
+def _allow_missing_settlement_from_env() -> bool:
+    enabled = _strict_bool_env("TAU_DEX_ALLOW_MISSING_SETTLEMENT", default=False)
+    if not enabled:
+        return False
+    profile = _str_env("TAU_DEX_DEPLOYMENT_PROFILE").lower()
+    if profile not in {"local-testnet", "test"}:
+        raise ValueError(
+            "TAU_DEX_ALLOW_MISSING_SETTLEMENT is restricted to an explicit "
+            "local-testnet or test deployment profile"
+        )
+    return True
+
+
 def _str_env(name: str, *, default: str = "") -> str:
     raw = os.environ.get(name)
     if raw is None:
@@ -1321,11 +1346,14 @@ def apply_app_tx(
             decoded_ops[key] = _maybe_decode_custom_stream_value(v)
     operations = decoded_ops
 
-    allow_faucet = _bool_env("TAU_DEX_FAUCET", default=False)
-    allow_missing_settlement = _bool_env("TAU_DEX_ALLOW_MISSING_SETTLEMENT", default=True)
-    require_intent_sigs = _bool_env("TAU_DEX_REQUIRE_INTENT_SIGS", default=True)
-    allow_external_tools = _bool_env("TAU_DEX_ALLOW_EXTERNAL_TOOLS", default=False)
-    consensus_mode = _bool_env("TAU_DEX_CONSENSUS_MODE", default=True)
+    try:
+        allow_faucet = _bool_env("TAU_DEX_FAUCET", default=False)
+        allow_missing_settlement = _allow_missing_settlement_from_env()
+        require_intent_sigs = _bool_env("TAU_DEX_REQUIRE_INTENT_SIGS", default=True)
+        allow_external_tools = _bool_env("TAU_DEX_ALLOW_EXTERNAL_TOOLS", default=False)
+        consensus_mode = _bool_env("TAU_DEX_CONSENSUS_MODE", default=True)
+    except ValueError as exc:
+        return False, app_state_json, "", None, str(exc)
     chain_id = (
         os.environ.get("TAU_DEX_CHAIN_ID", "").strip()
         or os.environ.get("TAU_NETWORK_ID", "").strip()

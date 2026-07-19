@@ -266,37 +266,6 @@ class LocalOpenAICompatibleLLMProvider:
         )
 
 
-class StaticAutoTraderLanguageProvider:
-    """Test/demo provider that returns a fixed parse-hint payload."""
-
-    provider_id = "static_autotrader_language_provider"
-
-    def __init__(self, payload: Mapping[str, Any], *, model: str = "static") -> None:
-        self.payload = dict(payload)
-        self.model = model
-
-    def parse(
-        self,
-        *,
-        query: str,
-        normalized_query: str,
-        base_features: Mapping[str, float],
-        requested_controls: Sequence[str],
-        intent_tags: Sequence[str],
-    ) -> AutoTraderLanguageProviderResult:
-        del query, normalized_query, base_features
-        return validate_autotrader_llm_parse_hint(
-            self.payload,
-            provider=self.provider_id,
-            llm_calls=1,
-            local_only=True,
-            model=self.model,
-            fallback_intent_tags=intent_tags,
-            fallback_requested_controls=requested_controls,
-            raw_response_chars=len(json.dumps(self.payload, sort_keys=True)),
-        )
-
-
 def autotrader_llm_provider_config_from_dict(
     payload: Mapping[str, Any],
 ) -> AutoTraderLocalLLMProviderConfig:
@@ -670,7 +639,6 @@ __all__ = [
     "AutoTraderLLMProviderKind",
     "AutoTraderLocalLLMProviderConfig",
     "LocalOpenAICompatibleLLMProvider",
-    "StaticAutoTraderLanguageProvider",
     "autotrader_llm_provider_config_from_dict",
     "build_autotrader_language_provider_from_config",
     "load_autotrader_llm_provider_config_file",

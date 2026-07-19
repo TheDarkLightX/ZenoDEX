@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from hashlib import sha256
 from math import gcd
 from random import Random
@@ -1416,8 +1417,10 @@ def test_uniform_batch_certificate_rejects_intent_set_hash_mismatch() -> None:
     balances = _balances()
     intents = _balanced_intents()
     certificate = _certificate_for(intents)
-    tampered = _swap("alice-a-to-b", "alice", "A", "B", min_amount_out=1)
-    tampered.intent_id = intents[0].intent_id
+    tampered = replace(
+        _swap("alice-a-to-b", "alice", "A", "B", min_amount_out=1),
+        intent_id=intents[0].intent_id,
+    )
     changed_intents = [tampered, intents[1]]
 
     result = verify_uniform_batch_certificate_v1(
@@ -1442,14 +1445,18 @@ def test_uniform_batch_settlement_validator_rejects_tampering() -> None:
         balances=balances,
         certificate=certificate,
     )
-    settlement.fills[0].amount_out_filled = 99
+    tampered_fill = replace(settlement.fills[0], amount_out_filled=99)
+    tampered_settlement = replace(
+        settlement,
+        fills=[tampered_fill, *settlement.fills[1:]],
+    )
 
     ok, err = validate_uniform_batch_settlement_v1(
         intents=intents,
         pool=pool,
         balances=balances,
         certificate=certificate,
-        settlement=settlement,
+        settlement=tampered_settlement,
     )
 
     assert ok is False

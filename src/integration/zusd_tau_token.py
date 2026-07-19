@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from ..state.canonical import canonical_hex_fixed_allow_0x, domain_sep_bytes
-from .tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
     PROTOCOL_TOKEN_V1,
@@ -194,10 +193,6 @@ def prepare_zusd_tau_token_operation(
     asset_id: str | None = None,
     chain_id: str = "tau-net-alpha",
     tau_config: ZUSDTauTokenConfig | None = None,
-    signer_privkey: str | int | bytes | bytearray | None = None,
-    tx_sequence_number: int | None = None,
-    tx_expiration_time: int | None = None,
-    tx_fee_limit: str | int = "0",
 ) -> ZUSDTauTokenReport:
     amount = _require_u32("amount", amount, minimum=1)
     deadline = _require_u32("deadline", deadline, minimum=1)
@@ -205,9 +200,6 @@ def prepare_zusd_tau_token_operation(
     supply_before = _require_u32("total_supply_before", total_supply_before, minimum=0)
     sender_before = _require_u32("sender_balance_before", sender_balance_before, minimum=0)
     recipient_before = _require_u32("recipient_balance_before", recipient_balance_before, minimum=0)
-    if (tx_sequence_number is None) != (tx_expiration_time is None):
-        raise ValueError("tx_sequence_number and tx_expiration_time must be provided together")
-
     asset = (
         _canonical_asset_id(asset_id, name="asset_id")
         if asset_id is not None
@@ -254,14 +246,6 @@ def prepare_zusd_tau_token_operation(
         sender_after = sender_before - amount
         recipient_after = 0
         supply_after = supply_before - amount
-
-    if signer_privkey is not None:
-        signer_pubkey = _canonical_pubkey(
-            "0x" + bls_pubkey_hex_from_privkey(signer_privkey),
-            name="signer_pubkey",
-        )
-        if signer_pubkey != actor_pubkey:
-            raise ValueError("signer_privkey does not match token actor pubkey")
 
     operation = create_tau_token_operation(
         action=action,
@@ -331,18 +315,6 @@ def prepare_zusd_tau_token_operation(
             if tau_error is not None:
                 raise ValueError(tau_error)
 
-    tau_tx_payload: dict[str, Any] | None = None
-    if tx_sequence_number is not None and tx_expiration_time is not None:
-        if signer_privkey is None:
-            raise ValueError("signer_privkey is required when building a Tau transaction payload")
-        tau_tx_payload = build_signed_tau_transaction(
-            privkey=signer_privkey,
-            sequence_number=_require_u32("tx_sequence_number", tx_sequence_number, minimum=0),
-            expiration_time=_require_u32("tx_expiration_time", tx_expiration_time, minimum=1),
-            operations=operations,
-            fee_limit=tx_fee_limit,
-        )
-
     return ZUSDTauTokenReport(
         action=action,
         asset_id=asset,
@@ -355,5 +327,4 @@ def prepare_zusd_tau_token_operation(
         recipient_balance_after=recipient_after,
         supply_after=supply_after,
         tau_receipts=tuple(tau_receipts),
-        tau_tx_payload=tau_tx_payload,
     )

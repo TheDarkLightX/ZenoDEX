@@ -26,10 +26,14 @@ from src.core.perp_v2 import math as math_v3
 from src.core.perp_v2.state import state_to_dict
 from src.core.perp_v2.types import Action, ActionParams, EpochPhase
 from src.core.perp_v4 import math as math_v4
+from src.core.perp_v4.invariants import check_all as check_v4_invariants
 from src.kernels.python.perp_epoch_isolated_v4_adapter import IR_HASH as ADAPTER_IR_HASH
 from tools.build_perp_epoch_isolated_v4 import TARGET_MODEL, TARGET_REF, render_v4_model
 
 FORMAL_PROMOTION_BLOCKER = "PERP-PHASE-001"
+PARTIAL_LIQUIDATION_FORMAL_PROMOTION_BLOCKER = (
+    "PERP-PARTIAL-LIQUIDATION-FORMAL-001"
+)
 
 
 def _import_generated_ref() -> Any:
@@ -195,6 +199,89 @@ def test_v4_optimized_partial_selector_matches_exact_predicate_scan() -> None:
         assert selected == expected
 
 
+def _partial_liquidation_boundary_state(*, collateral_quote: int) -> Any:
+    return replace(
+        perp_v4.initial_state(),
+        now_epoch=1,
+        epoch_phase=EpochPhase.OPEN,
+        oracle_seen=True,
+        oracle_last_update_epoch=1,
+        index_price_e8=100_000_000,
+        position_base=100_000,
+        entry_price_e8=100_000_000,
+        collateral_quote=collateral_quote,
+    )
+
+
+def test_partial_liquidation_pre_invariant_exception_is_exact_and_bounded() -> None:
+    maintenance_requirement = math_v4.maint_margin_req(
+        100_000,
+        100_000_000,
+        500,
+        100,
+    )
+    command = ActionParams(
+        action=Action.PARTIAL_LIQUIDATE,
+        fraction_bps=10_000,
+        auth_ok=True,
+    )
+
+    at_boundary = _partial_liquidation_boundary_state(
+        collateral_quote=maintenance_requirement
+    )
+    below_boundary = _partial_liquidation_boundary_state(
+        collateral_quote=maintenance_requirement - 1
+    )
+
+    # Exact maintenance is healthy and therefore not liquidatable; one quote
+    # unit below it is repairable and must end in a fully valid flat state.
+    assert perp_v4.step(at_boundary, command).rejection == "guard"
+    repaired = perp_v4.step(below_boundary, command)
+    assert repaired.accepted is True
+    assert repaired.state is not None
+    assert repaired.state.position_base == 0
+    assert check_v4_invariants(repaired.state) == []
+
+    # The v2 native extension had the same contradictory precondition and uses
+    # the same bounded exception. This does not imply generated v3 parity.
+    repaired_v2 = perp_v2.step(below_boundary, command)
+    assert repaired_v2.accepted is True
+    assert repaired_v2.state is not None
+    assert repaired_v2.state.position_base == 0
+
+    # No other malformed pre-state is admitted alongside the maintenance
+    # exception, and authorization remains an independent guard.
+    malformed = replace(below_boundary, fee_pool_quote=1)
+    malformed_result = perp_v4.step(malformed, command)
+    assert malformed_result.rejection == "pre_invariant:inv_fee_pool_eq_fee_income"
+    unauthorized = perp_v4.step(
+        below_boundary,
+        replace(command, auth_ok=False),
+    )
+    assert unauthorized.rejection == "guard"
+
+
+def test_partial_liquidation_native_extension_has_named_formal_promotion_blocker() -> None:
+    assert (
+        perp_v4.PARTIAL_LIQUIDATION_FORMAL_PROMOTION_BLOCKER
+        == PARTIAL_LIQUIDATION_FORMAL_PROMOTION_BLOCKER
+    )
+    assert (
+        perp_v2.PARTIAL_LIQUIDATION_FORMAL_PROMOTION_BLOCKER
+        == PARTIAL_LIQUIDATION_FORMAL_PROMOTION_BLOCKER
+    )
+
+    generated_result = REF.step(
+        REF.init_state(),
+        REF.Command(
+            tag="partial_liquidate",
+            args={"fraction_bps": 10_000, "auth_ok": True},
+        ),
+    )
+    assert generated_result.ok is False
+    assert generated_result.error == "unknown action: partial_liquidate"
+
+
 def test_v4_preserves_nonrisk_rounding_policies() -> None:
     for position in (-1_000, -1, 0, 1, 1_000):
         for price_e8 in (1, 100_000_000, 200_000_000):
@@ -289,11 +376,20 @@ def test_v4_settlement_oracle_boundaries_match_generated_reference() -> None:
     command = ActionParams(action=Action.SETTLE_EPOCH)
 
     cases = {
-        "unseen": {"oracle_seen": False},
-        "zero_index": {"index_price_e8": 0},
-        "stale_by_one": {"oracle_last_update_epoch": 2},
+        "unseen": (
+            {"oracle_seen": False},
+            "pre_invariant:inv_oracle_seen_zeroed",
+        ),
+        "zero_index": (
+            {"index_price_e8": 0},
+            "pre_invariant:inv_oracle_seen_positive_index",
+        ),
+        "stale_by_one": (
+            {"oracle_last_update_epoch": 2},
+            "guard",
+        ),
     }
-    for patch in cases.values():
+    for patch, native_rejection in cases.values():
         state = replace(base, **patch)
         native_result = perp_v4.step(state, command)
         reference_result = REF.step(
@@ -302,7 +398,7 @@ def test_v4_settlement_oracle_boundaries_match_generated_reference() -> None:
         )
 
         assert native_result.accepted is False
-        assert native_result.rejection == "guard"
+        assert native_result.rejection == native_rejection
         assert native_result.state is None
         assert native_result.effect is None
         assert reference_result.ok is False
