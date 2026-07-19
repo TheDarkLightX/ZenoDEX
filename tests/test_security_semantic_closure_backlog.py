@@ -115,7 +115,7 @@ def test_security_semantic_closure_backlog_reconciles_to_39() -> None:
         if finding["status"] == "candidate_uncredited":
             assert (
                 finding["candidate_state"]
-                == "dirty_local_uncommitted_unmerged_no_release_credit"
+                == "local_committed_unreviewed_unmerged_no_release_credit"
             )
             candidate_refs = finding["candidate_evidence_refs"]
             assert candidate_refs
@@ -141,7 +141,7 @@ def test_security_semantic_closure_backlog_reconciles_to_39() -> None:
         if obligation["status"] == "candidate_uncredited":
             assert (
                 obligation["candidate_state"]
-                == "dirty_local_uncommitted_unmerged_no_release_credit"
+                == "local_committed_unreviewed_unmerged_no_release_credit"
             )
         else:
             assert "candidate_state" not in obligation
@@ -216,7 +216,8 @@ def test_security_semantic_closure_backlog_pins_sources_and_live_candidate_state
     assert candidate == {
         "branch": "agent/differential-oracle-remaining-fixes-20260719",
         "base_revision": basis["repository_revision"],
-        "state": "dirty_local_uncommitted",
+        "candidate_revision": "4f6440827b110fc89693b3ec90d44851310f48db",
+        "state": "local_committed_unreviewed",
         "release_credit": False,
     }
 

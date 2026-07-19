@@ -13,7 +13,8 @@
     "candidate_worktree": {
       "branch": "agent/differential-oracle-remaining-fixes-20260719",
       "base_revision": "26dc2e6b5603d70c602e08f200cc4c43d6881527",
-      "state": "dirty_local_uncommitted",
+      "candidate_revision": "4f6440827b110fc89693b3ec90d44851310f48db",
+      "state": "local_committed_unreviewed",
       "release_credit": false
     },
     "pull_request_454_snapshot": {
@@ -117,7 +118,7 @@
         "Constructor aliases and accessor values cannot mutate committed balances, their canonical root, or subsequent transition behavior.",
         "The repair and adversarial alias evidence are committed, reviewed, merged, and green on the exact credited revision."
       ],
-      "candidate_state": "dirty_local_uncommitted_unmerged_no_release_credit",
+      "candidate_state": "local_committed_unreviewed_unmerged_no_release_credit",
       "candidate_evidence_refs": [
         "tests/core/test_differential_oracle_immutability.py#test_state_alias_001_balance_snapshot_is_owned_and_immutable"
       ],
@@ -151,7 +152,7 @@
         "The pool mapping and every PoolState leaf are owned immutable values whose root and behavior survive all caller-alias mutation attempts.",
         "The repair and adversarial alias evidence are committed, reviewed, merged, and green on the exact credited revision."
       ],
-      "candidate_state": "dirty_local_uncommitted_unmerged_no_release_credit",
+      "candidate_state": "local_committed_unreviewed_unmerged_no_release_credit",
       "candidate_evidence_refs": [
         "tests/core/test_differential_oracle_immutability.py#test_state_alias_002_pool_mapping_and_values_are_owned_and_immutable"
       ],
@@ -185,7 +186,7 @@
         "LP balances and duration metadata are transitively owned and cannot change a committed root or LP transition through retained aliases.",
         "The repair and adversarial alias evidence are committed, reviewed, merged, and green on the exact credited revision."
       ],
-      "candidate_state": "dirty_local_uncommitted_unmerged_no_release_credit",
+      "candidate_state": "local_committed_unreviewed_unmerged_no_release_credit",
       "candidate_evidence_refs": [
         "tests/core/test_differential_oracle_immutability.py#test_state_alias_003_lp_snapshot_includes_duration_metadata"
       ],
@@ -219,7 +220,7 @@
         "Nonce authority is transitively immutable and retained aliases cannot alter replay admission or the committed root.",
         "The repair and adversarial alias evidence are committed, reviewed, merged, and green on the exact credited revision."
       ],
-      "candidate_state": "dirty_local_uncommitted_unmerged_no_release_credit",
+      "candidate_state": "local_committed_unreviewed_unmerged_no_release_credit",
       "candidate_evidence_refs": [
         "tests/core/test_differential_oracle_immutability.py#test_state_alias_004_nonce_snapshot_cannot_change_replay_eligibility"
       ],
@@ -252,7 +253,7 @@
         "Signed and admitted intents own one bounded canonical value whose bytes, hash, and execution semantics survive all input and nested-alias mutation attempts.",
         "The repair and adversarial alias evidence are committed, reviewed, merged, and green on the exact credited revision."
       ],
-      "candidate_state": "dirty_local_uncommitted_unmerged_no_release_credit",
+      "candidate_state": "local_committed_unreviewed_unmerged_no_release_credit",
       "candidate_evidence_refs": [
         "tests/core/test_differential_oracle_immutability.py#test_state_alias_005_intent_owns_transitively_immutable_signed_fields"
       ],
@@ -287,7 +288,7 @@
         "Accepted Settlement, effect, and receipt graphs are transitively immutable and cannot be changed through constructor, nested, accessor, or reinitialization aliases.",
         "The complete repair supersedes the incomplete draft candidate and is committed, reviewed, merged, and green on the exact credited revision."
       ],
-      "candidate_state": "dirty_local_uncommitted_unmerged_no_release_credit",
+      "candidate_state": "local_committed_unreviewed_unmerged_no_release_credit",
       "candidate_evidence_refs": [
         "tests/core/test_differential_oracle_immutability.py#test_state_alias_006_effect_plan_owns_immutable_settlement"
       ],
@@ -325,7 +326,7 @@
         "Every public settlement transport applies one atomic rejection rule: a batch containing any REJECT produces no state, nonce, balance, reserve, or effect mutation.",
         "Computed and supplied settlement paths share permanent replay evidence on a committed, reviewed, merged, CI-green revision."
       ],
-      "candidate_state": "dirty_local_uncommitted_unmerged_no_release_credit",
+      "candidate_state": "local_committed_unreviewed_unmerged_no_release_credit",
       "candidate_evidence_refs": [
         "tests/integration/test_dex_engine_reject_noop.py#test_rejected_settlement_is_atomic_independent_of_transport",
         "tests/integration/test_dex_engine_reject_noop.py#test_mixed_fill_and_reject_batch_is_atomic",
@@ -361,7 +362,7 @@
         "Exact-out admission rejects every transition whose post-reserves exceed the authoritative domain and preserves the exact prestate on rejection.",
         "Boundary, maximum, and maximum-plus-one evidence is committed, reviewed, merged, and green on the exact credited revision."
       ],
-      "candidate_state": "dirty_local_uncommitted_unmerged_no_release_credit",
+      "candidate_state": "local_committed_unreviewed_unmerged_no_release_credit",
       "candidate_evidence_refs": [
         "tests/core/test_domain_bounds.py#test_swap_exact_out_rejects_post_update_reserve_overflow",
         "tests/core/test_domain_bounds.py#test_swap_exact_out_rejects_computed_amount_in_overflow"
@@ -396,7 +397,7 @@
         "Exact-in reserve-domain validation uses the actual credited reserve input after protocol-fee diversion and accepts or rejects the exact maximum boundary consistently across adapters.",
         "Runtime, kernel, and witness parity evidence is committed, reviewed, merged, and green on the exact credited revision."
       ],
-      "candidate_state": "dirty_local_uncommitted_unmerged_no_release_credit",
+      "candidate_state": "local_committed_unreviewed_unmerged_no_release_credit",
       "candidate_evidence_refs": [
         "tests/core/test_domain_bounds.py#test_swap_exact_in_protocol_fee_uses_actual_post_reserve_domain"
       ],
@@ -429,7 +430,7 @@
         "The Tau witness proves the same protocol-fee debit and post-reserve transition committed by the accepted runtime settlement.",
         "Bidirectional nonzero-fee replay evidence is committed, reviewed, merged, and green on the exact credited revision, or an enforced named-profile exclusion is evidenced."
       ],
-      "candidate_state": "dirty_local_uncommitted_unmerged_no_release_credit",
+      "candidate_state": "local_committed_unreviewed_unmerged_no_release_credit",
       "candidate_evidence_refs": [
         "tests/integration/test_tau_gate.py#test_tau_gate_protocol_fee_witness_matches_and_chains_authoritative_reserves",
         "tests/integration/test_tau_gate.py#test_tau_gate_protocol_fee_witnesses_match_strongly_validated_bidirectional_settlement"
@@ -525,7 +526,7 @@
         "The native partial-liquidation repair action is reachable only under its exact action-specific precondition while all unrelated pre-invariants, guards, and post-invariants remain enforced.",
         "Runtime reachability evidence is committed, reviewed, merged, and green; formal promotion remains separately blocked by PERP-PARTIAL-LIQUIDATION-FORMAL-001."
       ],
-      "candidate_state": "dirty_local_uncommitted_unmerged_no_release_credit",
+      "candidate_state": "local_committed_unreviewed_unmerged_no_release_credit",
       "candidate_evidence_refs": [
         "tests/core/test_perp_v4_parity.py#test_partial_liquidation_pre_invariant_exception_is_exact_and_bounded"
       ],
@@ -921,7 +922,7 @@
       },
       {
         "id": "BLOCKER-DIRTY-LOCAL-CANDIDATES",
-        "statement": "Eleven exact defect repairs are only dirty local, uncommitted, unreviewed, and unmerged candidates.",
+        "statement": "Eleven exact defect repairs are locally committed, but unreviewed and unmerged candidates.",
         "evidence_refs": [
           "docs/audit/zenodex_closure_backlog_v1.json#basis.candidate_worktree"
         ],
@@ -964,7 +965,7 @@
     "reasons": [
       "All 39 closure items currently have zero release credit.",
       "Sixteen defect-family items remain in three unenumerated group records; six promotion/evidence items remain in one unenumerated group record.",
-      "Eleven attempted exact repairs are dirty local, uncommitted, unreviewed, and unmerged candidates.",
+      "Eleven attempted exact repairs are locally committed, but unreviewed and unmerged candidates.",
       "PR 454 is draft, unmerged, and CI-red at the exact recorded head, so its candidates receive no release credit.",
       "Native partial-liquidation formal promotion remains blocked.",
       "Unresolved named-profile decisions are not treated as enforced exclusions.",
