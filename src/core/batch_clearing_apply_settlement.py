@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from ..state.balances import Amount, AssetId, BalanceTable, PubKey
@@ -75,10 +75,10 @@ def _apply_reserve_deltas(settlement: Settlement, pools: Dict[str, PoolState]) -
         if new_reserve < 0:
             raise ValueError(f"Negative reserve: {pool_id}, {asset}, {current} + {net}")
         if asset == pool.asset0:
-            pool.reserve0 = new_reserve
+            pools[pool_id] = replace(pool, reserve0=new_reserve)
         else:
             # `get_reserve(asset)` above already guarantees membership.
-            pool.reserve1 = new_reserve
+            pools[pool_id] = replace(pool, reserve1=new_reserve)
 
 
 def _apply_lp_deltas(
@@ -98,7 +98,7 @@ def _apply_lp_deltas(
         new_supply = pools[pool_id].lp_supply + net
         if new_supply < 0:
             raise ValueError(f"Negative LP supply: {pool_id}")
-        pools[pool_id].lp_supply = new_supply
+        pools[pool_id] = replace(pools[pool_id], lp_supply=new_supply)
 
     if lp_balances is None:
         return
