@@ -1,6 +1,7 @@
 name: functional-core-debug
 
 on:
+  pull_request:
   push:
     branches:
       - agent/functional-core-auth-effect-snapshots-20260719
