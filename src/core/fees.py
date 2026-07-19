@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 BPS_DENOM = 10_000
 FEE_SPLIT_LANE_COUNT = 3
 MAX_FEE_SPLIT_DUST = FEE_SPLIT_LANE_COUNT - 1
@@ -77,10 +76,13 @@ class FeeAccumulatorState:
             )
 
 
+_EMPTY_FEE_ACCUMULATOR_STATE = FeeAccumulatorState()
+
+
 def split_fee_with_dust_carry(
     fee_amount: int,
     params: FeeSplitParams,
-    state: FeeAccumulatorState = FeeAccumulatorState(),
+    state: FeeAccumulatorState = _EMPTY_FEE_ACCUMULATOR_STATE,
 ) -> tuple[FeeSplitResult, FeeAccumulatorState]:
     """Split one fee and carry the bounded floor-rounding remainder.
 
