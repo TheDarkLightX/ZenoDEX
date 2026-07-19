@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional, overload
 
 from ..state.balances import BalanceTable
+from ..state.intent_snapshots import freeze_intent_batch
 from ..state.intents import Intent
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
@@ -32,6 +33,7 @@ from .perps import PerpsState
 from .protocol_fee_policy import canonical_protocol_fee_policy
 from .settlement import FillAction, Settlement
 from .settlement_fill_fields import read_optional_non_negative_fill_int
+from .settlement_snapshots import freeze_settlement
 from .settlement_strong_validator import validate_settlement_strong
 from .vault import VaultState
 
@@ -128,7 +130,9 @@ class DexEffects(Mapping[str, object]):
 
     ``Mapping`` preserves the historical read surface used by the shell and
     tests while preventing callers from changing an accepted plan after it has
-    been hashed, cached, signed, or queued.
+    been hashed, cached, signed, or queued.  The settlement is copied into a
+    recursively immutable normal form rather than retaining the proposed
+    settlement object.
     """
 
     settlement: Settlement
@@ -138,14 +142,15 @@ class DexEffects(Mapping[str, object]):
     _KEYS = ("settlement", "total_swap_fees", "fee_split")
 
     def __post_init__(self) -> None:
-        if type(self.settlement) is not Settlement:
-            raise TypeError("settlement must be an exact Settlement")
+        if not isinstance(self.settlement, Settlement):
+            raise TypeError("settlement must be a Settlement")
         if type(self.total_swap_fees) is not int:
             raise TypeError("total_swap_fees must be an int")
         if self.total_swap_fees < 0:
             raise ValueError("total_swap_fees must be non-negative")
         if self.fee_split is not None and type(self.fee_split) is not FeeSplitResult:
             raise TypeError("fee_split must be an exact FeeSplitResult or None")
+        object.__setattr__(self, "settlement", freeze_settlement(self.settlement))
 
     @overload
     def __getitem__(self, key: Literal["settlement"]) -> Settlement: ...
@@ -319,9 +324,11 @@ def step_with_candidate_settlement(
 ) -> DexStepResult:
     """Verifier path: accept an externally proposed settlement (proof-carrying friendly)."""
     try:
+        sealed_intents = freeze_intent_batch(intents)
+        sealed_candidate = freeze_settlement(candidate_settlement)
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
-            intents=intents,
+            intents=sealed_intents,
             require_all_nonces=False,
         )
         if not ok:
@@ -329,8 +336,8 @@ def step_with_candidate_settlement(
         return _validate_and_apply_settlement(
             config,
             state,
-            intents,
-            candidate_settlement,
+            sealed_intents,
+            sealed_candidate,
             next_nonces or state.nonces,
         )
     except _FAIL_CLOSED_STEP_ERRORS as exc:
@@ -344,15 +351,16 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
     This function is pure: it returns a new DexState and structured effects.
     """
     try:
+        sealed_intents = freeze_intent_batch(intents)
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
-            intents=intents,
+            intents=sealed_intents,
             require_all_nonces=False,
         )
         if not ok:
             return DexStepResult(ok=False, error=err or "nonce policy rejected")
         settlement = compute_settlement(
-            intents=intents,
+            intents=sealed_intents,
             pools=state.pools,
             balances=state.balances,
             lp_balances=state.lp_balances,
@@ -363,7 +371,7 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
         return _validate_and_apply_settlement(
             config,
             state,
-            intents,
+            sealed_intents,
             settlement,
             next_nonces or state.nonces,
         )
