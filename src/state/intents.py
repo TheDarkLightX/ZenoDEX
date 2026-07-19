@@ -147,19 +147,28 @@ class CreatePoolIntent(Intent):
             raise ValueError("amount1 must be positive")
 
 
-@dataclass
+@dataclass(frozen=True)
 class SignedIntent:
     """
     Intent with cryptographic signature.
     
-    Attributes:
-        intent: The intent object
-        signature: BLS12-381 signature (hex string)
+    The intent is replaced with an owned immutable snapshot during
+    construction, so the verified payload cannot be changed after signing.
     """
     intent: Intent
     signature: str
     
     def __post_init__(self):
-        """Validate signature format."""
+        """Validate the signature envelope and seal the authenticated payload."""
+        if not isinstance(self.signature, str):
+            raise ValueError(f"Invalid signature format: {self.signature}")
         if not self.signature.startswith("0x") or len(self.signature) < 130:
             raise ValueError(f"Invalid signature format: {self.signature}")
+        if not isinstance(self.intent, Intent):
+            raise TypeError("intent must be an Intent")
+
+        # Imported lazily to avoid a module-initialization cycle: the snapshot
+        # implementation subclasses Intent after this module is fully loaded.
+        from .intent_snapshots import freeze_intent
+
+        object.__setattr__(self, "intent", freeze_intent(self.intent))
