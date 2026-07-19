@@ -66,4 +66,6 @@ def validate_settlement_request_policy(
 
 def validate_swap_tiebreak_seed(seed: bytes | None) -> None:
     if seed is not None and type(seed) is not bytes:
-        raise TypeError("swap_tiebreak_seed must be exact bytes or None")
+        raise TypeError(
+            "swap_tiebreak_seed must be bytes or None (exact bytes required)"
+        )
