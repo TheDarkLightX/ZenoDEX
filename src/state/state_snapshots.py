@@ -87,16 +87,54 @@ class FrozenLPTable(LPTable):
             raise TypeError("committed LP snapshot is immutable")
         object.__setattr__(self, name, value)
 
-    set = _immutable_state
-    add = _immutable_state
-    subtract = _immutable_state
-    set_last_mint_timestamp = _immutable_state
-    clear_last_mint_timestamp = _immutable_state
-    set_last_remove_timestamp = _immutable_state
-    clear_last_remove_timestamp = _immutable_state
-    set_churn_tier = _immutable_state
-    set_last_churn_update_timestamp = _immutable_state
-    clear_last_churn_update_timestamp = _immutable_state
+    def set(self, pubkey: PubKey, pool_id: PoolId, amount: Amount) -> None:
+        _immutable_state(pubkey, pool_id, amount)
+
+    def add(self, pubkey: PubKey, pool_id: PoolId, delta: int) -> None:
+        _immutable_state(pubkey, pool_id, delta)
+
+    def subtract(self, pubkey: PubKey, pool_id: PoolId, delta: Amount) -> None:
+        _immutable_state(pubkey, pool_id, delta)
+
+    def set_last_mint_timestamp(
+        self,
+        pubkey: PubKey,
+        pool_id: PoolId,
+        timestamp: int,
+    ) -> None:
+        _immutable_state(pubkey, pool_id, timestamp)
+
+    def clear_last_mint_timestamp(self, pubkey: PubKey, pool_id: PoolId) -> None:
+        _immutable_state(pubkey, pool_id)
+
+    def set_last_remove_timestamp(
+        self,
+        pubkey: PubKey,
+        pool_id: PoolId,
+        timestamp: int,
+    ) -> None:
+        _immutable_state(pubkey, pool_id, timestamp)
+
+    def clear_last_remove_timestamp(self, pubkey: PubKey, pool_id: PoolId) -> None:
+        _immutable_state(pubkey, pool_id)
+
+    def set_churn_tier(self, pubkey: PubKey, pool_id: PoolId, tier: int) -> None:
+        _immutable_state(pubkey, pool_id, tier)
+
+    def set_last_churn_update_timestamp(
+        self,
+        pubkey: PubKey,
+        pool_id: PoolId,
+        timestamp: int,
+    ) -> None:
+        _immutable_state(pubkey, pool_id, timestamp)
+
+    def clear_last_churn_update_timestamp(
+        self,
+        pubkey: PubKey,
+        pool_id: PoolId,
+    ) -> None:
+        _immutable_state(pubkey, pool_id)
 
     def __deepcopy__(self, _memo: dict[int, object]) -> FrozenLPTable:
         return self
