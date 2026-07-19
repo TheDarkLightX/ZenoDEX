@@ -65,6 +65,7 @@ CRITICAL_TESTS=(
   tests/core/test_batch_greedy.py
   tests/core/test_batch_clearing_b_refinement.py
   tests/core/test_batch_clearing_global_refinement.py
+  tests/core/test_authority_snapshot_immutability.py
   tests/core/test_dex_step.py
   tests/core/test_dex_step_candidate_settlement.py
   tests/core/test_dex_state_immutability.py
@@ -99,6 +100,7 @@ COVERAGE_TARGETS=(
   --cov=src.core.protocol_fee_policy
   --cov=src.core.quote_receipts
   --cov=src.core.settlement
+  --cov=src.core.settlement_snapshots
   --cov=src.core.settlement_strong_validator
   --cov=src.core.volatility_tier
   --cov=src.core.perp_epoch_lifecycle
@@ -112,6 +114,7 @@ COVERAGE_TARGETS=(
   --cov=src.kernels.python.settlement_swap_runtime_v1
   --cov=src.state.balances
   --cov=src.state.immutable_collections
+  --cov=src.state.intent_snapshots
   --cov=src.state.intents
   --cov=src.state.lp
   --cov=src.state.state_snapshots
@@ -133,6 +136,7 @@ echo "== critical: ruff =="
   src/core/protocol_fee_policy.py \
   src/core/quote_receipts.py \
   src/core/settlement.py \
+  src/core/settlement_snapshots.py \
   src/core/settlement_strong_validator.py \
   src/core/volatility_tier.py \
   src/core/perp_epoch_lifecycle.py \
@@ -146,10 +150,12 @@ echo "== critical: ruff =="
   src/kernels/python/settlement_swap_runtime_v1.py \
   src/state/balances.py \
   src/state/immutable_collections.py \
+  src/state/intent_snapshots.py \
   src/state/intents.py \
   src/state/lp.py \
   src/state/state_snapshots.py \
   src/state/volatility.py \
+  tests/core/test_authority_snapshot_immutability.py \
   tests/core/test_domain_bounds.py \
   tests/core/test_batch_clearing_properties.py \
   tests/core/test_batch_clearing_coverage_edges.py \
