@@ -134,6 +134,38 @@ def test_bootstrap_oracle_is_operator_only_one_time_and_lifecycle_complete() -> 
     assert settled_market.global_state["index_price_e8"] == 100_000_000
 
 
+def test_isolated_advance_epoch_rejects_delta_above_one() -> None:
+    market_id = "perp:advance-epoch-bva"
+    quote_asset = "0x" + "83" * 32
+    operator = "00" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+    )
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+
+    result = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=2)],
+    )
+
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error == "advance_epoch delta must be 1 for isolated markets"
+
+
 def test_bootstrap_oracle_price_bva_and_pre_value_boundary() -> None:
     from src.core.domain_limits import PERP_PRICE_E8_MAX
 
@@ -1000,11 +1032,18 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "settle_epoch")],
     )
-    assert cap_res.ok is False
-    assert cap_res.state is None
-    assert cap_res.effects is None
-    assert cap_res.error is not None
-    assert "pre_invariant:inv_maint_margin_ok" in cap_res.error
+    assert cap_res.ok is True, cap_res.error
+    assert cap_res.state is not None
+    assert cap_res.effects is not None
+    cap_effect = cap_res.effects[0]
+    assert cap_effect["liquidation_penalty_raw_quote"] == 4_750_000
+    assert cap_effect["liquidation_penalty_collected_quote"] == 2_000_000
+    assert cap_effect["liquidation_penalty_shortfall_quote"] == 2_750_000
+    assert cap_effect["liquidation_penalty_cap_bound_count"] == 1
+    assert cap_res.state.perps is not None
+    capped_alice = cap_res.state.perps.markets[market_id].accounts[alice]
+    assert capped_alice.position_base == 0
+    assert capped_alice.collateral_quote == 0
 
     post_res = _apply_result(
         state=pre,
@@ -1786,6 +1825,21 @@ def test_apply_funding_auto_applies_to_all_open_positions() -> None:
     assert acct_bob.funding_paid_cumulative == -10_000
     assert int(market.global_state["fee_pool_quote"]) == 0
 
+    # Funding applied after publication must preserve the mounted, composed
+    # settlement path for every account in the market.
+    settled = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
+    assert settled.ok is True, settled.error
+    assert settled.state is not None
+    assert settled.state.perps is not None
+    settled_market = settled.state.perps.markets[market_id]
+    assert int(settled_market.global_state["epoch_phase"]) == 2
+    assert sum(account.collateral_quote for account in settled_market.accounts.values()) == 400_000
+
 
 def test_apply_funding_auto_allows_empty_open_interest() -> None:
     market_id = "perp:funding-empty"
@@ -2472,7 +2526,7 @@ def test_isolated_oi_depth_certificate_binds_market_and_epoch() -> None:
     assert valid_economics.ok is True, valid_economics.error
 
 
-def test_publish_rejects_stale_oracle_before_funding() -> None:
+def test_advance_epoch_rejects_skipped_oracle_window_before_funding() -> None:
     market_id = "perp:funding-stale"
     quote_asset = "0x" + "69" * 32
     operator = "00" * 48
@@ -2517,24 +2571,18 @@ def test_publish_rejects_stale_oracle_before_funding() -> None:
         ops=[_op(market_id, "set_market_params", params={"max_oracle_staleness_epochs": 1})],
     )
 
-    # Jump several epochs ahead without Oracle refresh. Publication must reject
-    # before the market can enter PRICE_PUBLISHED with an unusable snapshot.
-    state = _apply(
+    # A caller-selected jump could stale the Oracle and strand every recovery
+    # action. The mounted lifecycle accepts exactly one epoch at a time.
+    res = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         ops=[_op(market_id, "advance_epoch", delta=3)],
     )
-    res = _apply_result(
-        state=state,
-        tx_sender_pubkey=operator,
-        operator_pubkey=operator,
-        ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)],
-    )
     assert res.ok is False
     assert res.state is None
     assert res.effects is None
-    assert res.error == "guard"
+    assert res.error == "advance_epoch delta must be 1 for isolated markets"
 
 
 def test_set_market_params_rejects_staleness_widening_with_open_positions() -> None:
@@ -2625,11 +2673,34 @@ def test_set_market_params_rejects_staleness_widening_with_open_positions() -> N
     assert widened.error is not None
     assert "cannot increase max_oracle_staleness_epochs while positions are open" in widened.error
 
-    stale_state = _apply(
+    skipped = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         ops=[_op(market_id, "advance_epoch", delta=3)],
+    )
+    assert skipped.ok is False
+    assert skipped.state is None
+    assert skipped.effects is None
+    assert skipped.error == "advance_epoch delta must be 1 for isolated markets"
+
+    # Preserve stale-snapshot guard coverage for imported/recovered snapshots.
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    stale_global = dict(market.global_state)
+    stale_global["now_epoch"] = int(stale_global["now_epoch"]) + 3
+    stale_global["epoch_phase"] = 0
+    stale_market = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=stale_global,
+        accounts=dict(market.accounts),
+    )
+    stale_state = replace(
+        state,
+        perps=type(state.perps)(
+            version=state.perps.version,
+            markets={market_id: stale_market},
+        ),
     )
     stale_withdraw = _apply_result(
         state=stale_state,

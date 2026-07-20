@@ -16,7 +16,7 @@ from typing import Any, Callable, Mapping
 
 # Bind this adapter to the exact kernel spec version (fail-closed by default).
 # Checked by the toolchain's adapter lint step (fail-closed by default).
-IR_HASH = "sha256:5ad3a30e56c04035df9e1b69ad81a52ebebfc941cd5b99a5f982dadafdb848c9"
+IR_HASH = "sha256:a7d4a4ff80a895b30f1328c62b43d0f7bd3e7d0600bea4b53970a054ddff7310"
 
 
 def _prepare_ctx(ir: Any) -> Any:
@@ -98,6 +98,7 @@ ACTION_HANDLERS: dict[str, Callable[[PerpEpochIsolatedV3Adapter, Any], Any]] = {
     "apply_funding": _handle_generic,
     "deposit_insurance": _handle_generic,
     "apply_insurance_claim": _handle_generic,
+    "partial_liquidate": _handle_generic,
 }
 
 EFFECT_HANDLERS: dict[str, Callable[[PerpEpochIsolatedV3Adapter, str, Any], None]] = {

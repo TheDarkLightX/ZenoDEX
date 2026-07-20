@@ -94,7 +94,7 @@ def test_invalid_prestate_precedes_malformed_command_domain(engine: Engine) -> N
 
 
 @pytest.mark.parametrize("engine", _ENGINES)
-def test_partial_liquidation_only_exempts_maintenance_violation(
+def test_partial_liquidation_does_not_exempt_structural_violation(
     engine: Engine,
 ) -> None:
     malformed = replace(
@@ -122,6 +122,60 @@ def test_partial_liquidation_only_exempts_maintenance_violation(
     assert result.state is None
     assert result.effect is None
     assert result.rejection == "pre_invariant:inv_breaker_not_from_future"
+
+
+@pytest.mark.parametrize("engine", _ENGINES)
+def test_underwater_account_can_top_up_collateral(engine: Engine) -> None:
+    """An Oracle-driven margin breach remains a representable recovery state."""
+    underwater = replace(
+        initial_state(),
+        now_epoch=1,
+        oracle_seen=True,
+        oracle_last_update_epoch=1,
+        index_price_e8=100_000_000,
+        position_base=100,
+        entry_price_e8=100_000_000,
+        collateral_quote=0,
+    )
+
+    result = engine(
+        underwater,
+        ActionParams(
+            action=Action.DEPOSIT_COLLATERAL,
+            amount=10,
+            auth_ok=True,
+        ),
+    )
+
+    assert result.accepted is True
+    assert result.state is not None
+    assert result.state.collateral_quote == 10
+
+
+@pytest.mark.parametrize("engine", _ENGINES)
+def test_epoch_advance_cannot_skip_oracle_recovery_window(engine: Engine) -> None:
+    """One command cannot make a fresh underwater account unrecoverably stale."""
+    underwater = replace(
+        initial_state(),
+        now_epoch=1,
+        oracle_seen=True,
+        oracle_last_update_epoch=1,
+        index_price_e8=100_000_000,
+        max_oracle_staleness_epochs=1,
+        position_base=100,
+        entry_price_e8=100_000_000,
+        collateral_quote=5,
+    )
+
+    result = engine(
+        underwater,
+        ActionParams(action=Action.ADVANCE_EPOCH, delta=2),
+    )
+
+    assert result.accepted is False
+    assert result.state is None
+    assert result.effect is None
+    assert result.rejection == "param_domain:delta"
 
 
 @pytest.mark.parametrize("engine", _ENGINES)

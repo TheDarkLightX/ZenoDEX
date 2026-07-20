@@ -2,7 +2,11 @@
 
 from dataclasses import replace
 
-from src.core.perp_v2.invariants import INVARIANT_REGISTRY, check_all
+from src.core.perp_v2.invariants import (
+    INVARIANT_REGISTRY,
+    check_all,
+    inv_maint_margin_ok,
+)
 from src.core.perp_v2.state import initial_state
 from src.core.perp_v2.types import EpochPhase
 
@@ -14,7 +18,7 @@ class TestAllInvariantsOnInitialState:
         assert violations == []
 
     def test_registry_has_19_invariants(self):
-        assert len(INVARIANT_REGISTRY) == 19
+        assert len(INVARIANT_REGISTRY) == 18
 
 
 class TestClearingNotFromFuture:
@@ -123,7 +127,8 @@ class TestMaintMarginOk:
             oracle_seen=True,
             collateral_quote=0,
         )
-        assert "inv_maint_margin_ok" in check_all(s)
+        assert inv_maint_margin_ok(s) is False
+        assert "inv_maint_margin_ok" not in check_all(s)
 
 
 class TestFundingBounded:

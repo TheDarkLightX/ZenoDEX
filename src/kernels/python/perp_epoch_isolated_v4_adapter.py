@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
 
-IR_HASH = "sha256:6b90cab9a7c2777776efd22b0fd2fe4c6aad4f488ac1bf5301d23af4dbb7084a"
+IR_HASH = "sha256:3c2bb52f4af761fc0086aba5ba6743c2c0e0bbdcf9f93a80a22d5f8daafc1f7f"
 
 
 def _prepare_ctx(ir: Any) -> Any:
@@ -88,6 +88,7 @@ ACTION_HANDLERS: dict[str, Callable[[PerpEpochIsolatedV4Adapter, Any], Any]] = {
     "apply_funding": _handle_generic,
     "deposit_insurance": _handle_generic,
     "apply_insurance_claim": _handle_generic,
+    "partial_liquidate": _handle_generic,
 }
 
 EFFECT_HANDLERS: dict[str, Callable[[PerpEpochIsolatedV4Adapter, str, Any], None]] = {

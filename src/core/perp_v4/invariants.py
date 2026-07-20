@@ -70,6 +70,9 @@ def inv_entry_matches_price_when_open(s: PerpState) -> bool:
     return s.entry_price_e8 == s.index_price_e8
 
 
+# Maintenance health is deliberately outside INVARIANT_REGISTRY. Oracle-driven
+# underwater states must remain representable for collateral top-up and liquidation.
+# Use this predicate in risk-action guards, recovery checks, and v3-to-v4 migration.
 def inv_maint_margin_ok(s: PerpState) -> bool:
     if s.position_base == 0:
         return True
@@ -165,7 +168,6 @@ INVARIANT_REGISTRY: dict[str, Callable[[PerpState], bool]] = {
     "inv_margin_params_ordered": inv_margin_params_ordered,
     "inv_entry_zero_when_flat": inv_entry_zero_when_flat,
     "inv_entry_matches_price_when_open": inv_entry_matches_price_when_open,
-    "inv_maint_margin_ok": inv_maint_margin_ok,
     "inv_funding_bounded": inv_funding_bounded,
     "inv_insurance_nonneg": inv_insurance_nonneg,
     "inv_insurance_conservation": inv_insurance_conservation,
@@ -191,14 +193,14 @@ def check_all(state: PerpState) -> list[str]:
 
 
 def check_prestate(state: PerpState, action: Action | None) -> list[str]:
-    """Return action-aware pre-state violations.
+    """Return structural and lifecycle violations for an action pre-state.
 
-    Partial liquidation is the sole transition whose purpose is to repair an
-    under-maintenance account. Every domain, ownership-shape, accounting, and
-    lifecycle invariant still applies, and the accepted post-state must satisfy
-    the complete invariant registry.
+    Maintenance health is an action admission predicate, not a global state
+    invariant: an authenticated Oracle move can make an otherwise valid account
+    underwater. Keeping that recovery state representable lets the owner add
+    collateral and lets liquidation repair it. Risk-increasing actions and
+    partial liquidation enforce their exact maintenance postconditions in their
+    guards.
     """
-    violations = check_all(state)
-    if action is not Action.PARTIAL_LIQUIDATE:
-        return violations
-    return [violation for violation in violations if violation != "inv_maint_margin_ok"]
+    del action
+    return check_all(state)

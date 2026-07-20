@@ -484,10 +484,12 @@ def perp_epoch_isolated_v3_to_v4_migrate(
     migration; v4 never fabricates collateral or silently liquidates them.
     """
     from .perp_v4 import state_from_dict, state_to_dict
-    from .perp_v4.invariants import check_all
+    from .perp_v4.invariants import check_all, inv_maint_margin_ok
 
     candidate = state_from_dict(_state_with_epoch_phase_for_native_input(state))
     violations = check_all(candidate)
+    if not violations and not inv_maint_margin_ok(candidate):
+        violations = ["inv_maint_margin_ok"]
     if violations:
         raise ValueError(f"v4_migration_invariant:{','.join(violations)}")
     return _normalize_native_state_for_kernel_abi_v3(state_to_dict(candidate))

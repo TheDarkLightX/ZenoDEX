@@ -129,6 +129,7 @@ types:
           "FundingApplied",
           "InsuranceDeposited",
           "InsuranceClaimPaid",
+          "PartialLiquidationApplied",
         ]
 
   # v3: Epoch lifecycle phase — gates user-facing actions to prevent timing games.
@@ -455,40 +456,9 @@ invariants:
         - op: "="
           args: [{ var: "entry_price_e8" }, { var: "index_price_e8" }]
 
-  # v2: Maintenance safety uses effective_maint = maintenance_margin_bps + depeg_buffer_bps
-  - id: "inv_maint_margin_ok"
-    kind: "safety"
-    expr:
-      op: "=>"
-      args:
-        - op: "not"
-          args:
-            - op: "="
-              args: [{ var: "position_base" }, { const: 0 }]
-        - op: ">="
-          args:
-            - { var: "collateral_quote" }
-            - op: "div"
-              args:
-                - op: "*"
-                  args:
-                    - op: "div"
-                      args:
-                        - op: "*"
-                          args:
-                            - op: "ite"
-                              cond:
-                                op: ">="
-                                args: [{ var: "position_base" }, { const: 0 }]
-                              then: { var: "position_base" }
-                              else:
-                                op: "-"
-                                args: [{ const: 0 }, { var: "position_base" }]
-                            - { var: "index_price_e8" }
-                        - { const: 100000000 }
-                    - op: "+"
-                      args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
-                - { const: 10000 }
+  # Maintenance health is an action admission predicate rather than a global
+  # invariant. An authenticated Oracle move can make an otherwise valid account
+  # underwater; that state must remain representable for top-up and liquidation.
 
   # --- v2 new invariants ---
 
@@ -862,7 +832,9 @@ actions:
   - id: "advance_epoch"
     params:
       - id: "delta"
-        type: { kind: "int", min: 1, max: 10000 }
+        # Height-derived epochs advance by at most one at each accepted block.
+        # Larger caller-selected jumps can stale the Oracle and strand accounts.
+        type: { kind: "int", min: 1, max: 1 }
     guard:
       op: "and"
       args:
@@ -1961,6 +1933,187 @@ actions:
         expr: { bool: false }
     effects:
       event: { enum: "InsuranceClaimPaid" }
+      oracle_fresh: *eff_oracle_fresh
+      notional_quote: *eff_notional
+      effective_maint_bps: *eff_maint_bps
+      maint_req_quote: *eff_maint_req
+      init_req_quote: *eff_init_req
+      margin_ok: *eff_margin_ok
+      liquidated: { var: "liquidated_this_step" }
+      collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
+      insurance_after: { var: "insurance_balance" }
+
+  # ---- v3 ACTION: partial_liquidate ----
+  # Recovery transition for an Oracle-driven under-maintenance account. The
+  # caller supplies an already-resolved fraction in [1, 10000]. Runtime
+  # fraction_bps=0 is refined to this explicit value by the canonical bounded
+  # selector covered by the partial-liquidation semantics evidence lane.
+  - id: "partial_liquidate"
+    params:
+      - id: "fraction_bps"
+        type: { kind: "int", min: 1, max: 10000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "epoch_phase" }, { const: 0 }] }
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        - op: "not"
+          args:
+            - { op: "=", args: [{ var: "position_base" }, { const: 0 }] }
+        - { var: "oracle_seen" }
+        - { op: ">", args: [{ var: "index_price_e8" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }] }
+        - op: "<="
+          args:
+            - op: "-"
+              args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+            - { var: "max_oracle_staleness_epochs" }
+        # The pre-state must be strictly below effective maintenance.
+        - op: "<"
+          args:
+            - { var: "collateral_quote" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - &partial_abs_position
+                              op: "ite"
+                              cond:
+                                op: ">="
+                                args: [{ var: "position_base" }, { const: 0 }]
+                              then: { var: "position_base" }
+                              else:
+                                op: "-"
+                                args: [{ const: 0 }, { var: "position_base" }]
+                            - { var: "index_price_e8" }
+                        - { const: 100000000 }
+                    - op: "+"
+                      args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                - { const: 10000 }
+        # Bind the exact penalty and post-collateral expressions.
+        - op: ">="
+          args:
+            - &partial_post_collateral
+              op: "-"
+              args:
+                - { var: "collateral_quote" }
+                - &partial_penalty
+                  op: "min"
+                  args:
+                    - { var: "collateral_quote" }
+                    - &partial_raw_penalty
+                      op: "ite"
+                      cond:
+                        op: ">="
+                        args:
+                          - &partial_closed_notional
+                            op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - &partial_closed_base
+                                    op: "div"
+                                    args:
+                                      - op: "*"
+                                        args: [*partial_abs_position, { param: "fraction_bps" }]
+                                      - { const: 10000 }
+                                  - { var: "index_price_e8" }
+                              - { const: 100000000 }
+                          - { var: "min_notional_for_bounty" }
+                      then:
+                        op: "div"
+                        args:
+                          - op: "*"
+                            args: [*partial_closed_notional, { var: "liquidation_penalty_bps" }]
+                          - { const: 10000 }
+                      else: { const: 0 }
+            - { const: 0 }
+        - { op: "<=", args: [*partial_post_collateral, { const: 1000000000000000 }] }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "fee_pool_quote" }, *partial_penalty]
+            - { const: 1000000000000000 }
+        - op: "<="
+          args:
+            - &partial_post_fee_income
+              op: "+"
+              args: [{ var: "fee_income" }, *partial_penalty]
+            - { const: 1000000000000000 }
+        - op: "and"
+          args:
+            - op: ">="
+              args:
+                - &partial_post_insurance
+                  op: "-"
+                  args:
+                    - op: "+"
+                      args: [{ var: "initial_insurance" }, *partial_post_fee_income]
+                    - { var: "claims_paid" }
+                - { const: 0 }
+            - { op: "<=", args: [*partial_post_insurance, { const: 1000000000000000 }] }
+        # The remaining position is flat or restored to maintenance health.
+        - op: "or"
+          args:
+            - op: "="
+              args:
+                - &partial_remaining_position
+                  op: "ite"
+                  cond:
+                    op: ">="
+                    args: [{ var: "position_base" }, { const: 0 }]
+                  then: &partial_remaining_abs
+                    op: "-"
+                    args: [*partial_abs_position, *partial_closed_base]
+                  else:
+                    op: "-"
+                    args: [{ const: 0 }, *partial_remaining_abs]
+                - { const: 0 }
+            - op: ">="
+              args:
+                - *partial_post_collateral
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "div"
+                          args:
+                            - op: "*"
+                              args: [*partial_remaining_abs, { var: "index_price_e8" }]
+                            - { const: 100000000 }
+                        - op: "+"
+                          args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                    - { const: 10000 }
+    updates:
+      - var: "position_base"
+        expr: *partial_remaining_position
+      - var: "entry_price_e8"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [*partial_remaining_position, { const: 0 }] }
+          then: { const: 0 }
+          else: { var: "index_price_e8" }
+      - var: "collateral_quote"
+        expr: *partial_post_collateral
+      - var: "fee_pool_quote"
+        expr:
+          op: "+"
+          args: [{ var: "fee_pool_quote" }, *partial_penalty]
+      - var: "fee_income"
+        expr: *partial_post_fee_income
+      - var: "insurance_balance"
+        expr: *partial_post_insurance
+      - var: "liquidated_this_step"
+        expr: { bool: true }
+    effects:
+      event: { enum: "PartialLiquidationApplied" }
       oracle_fresh: *eff_oracle_fresh
       notional_quote: *eff_notional
       effective_maint_bps: *eff_maint_bps

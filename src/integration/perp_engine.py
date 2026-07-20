@@ -3889,6 +3889,8 @@ def _apply_isolated_advance_epoch(
     if pending_closeout_error is not None:
         return pending_closeout_error
     delta = _require_int(data.get("delta"), name="delta", non_negative=True)
+    if delta != 1:
+        return "advance_epoch delta must be 1 for isolated markets"
 
     dummy = _kernel_initial_account_state()
     res = perp_epoch_isolated_default_apply(

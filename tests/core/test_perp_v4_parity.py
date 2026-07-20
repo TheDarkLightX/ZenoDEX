@@ -50,6 +50,36 @@ def test_v4_model_is_current_and_reference_is_hash_bound() -> None:
     assert match.group(1) == ADAPTER_IR_HASH
 
 
+def test_v4_epoch_advance_delta_above_one_rejects_in_runtime_and_reference() -> None:
+    state = replace(
+        perp_v4.initial_state(),
+        now_epoch=1,
+        oracle_seen=True,
+        oracle_last_update_epoch=1,
+        index_price_e8=100_000_000,
+        max_oracle_staleness_epochs=1,
+        position_base=100,
+        entry_price_e8=100_000_000,
+        collateral_quote=5,
+    )
+    command = ActionParams(action=Action.ADVANCE_EPOCH, delta=2)
+
+    native = perp_v4.step(state, command)
+    reference = REF.step(
+        REF.State(**state_to_dict(state)),
+        REF.Command(tag="advance_epoch", args={"delta": 2}),
+    )
+
+    assert native.accepted is False
+    assert native.state is None
+    assert native.effect is None
+    assert native.rejection == "param_domain:delta"
+    assert reference.ok is False
+    assert reference.state is None
+    assert reference.effects is None
+    assert reference.error == "invalid param delta"
+
+
 def _state_dict_for_ref(state: Any) -> dict[str, Any]:
     return state_to_dict(state)
 
@@ -74,6 +104,8 @@ def _to_ref_command(params: ActionParams) -> Any:
         args = {"amount": params.amount}
     elif params.action is Action.APPLY_INSURANCE_CLAIM:
         args = {"claim_amount": params.claim_amount, "auth_ok": params.auth_ok}
+    elif params.action is Action.PARTIAL_LIQUIDATE:
+        args = {"fraction_bps": params.fraction_bps, "auth_ok": params.auth_ok}
     return REF.Command(tag=params.action.value, args=args)
 
 
@@ -107,6 +139,7 @@ def _random_action(rng: random.Random) -> ActionParams:
             Action.APPLY_FUNDING,
             Action.DEPOSIT_INSURANCE,
             Action.APPLY_INSURANCE_CLAIM,
+            Action.PARTIAL_LIQUIDATE,
         ]
     )
     if action is Action.BOOTSTRAP_ORACLE:
@@ -137,6 +170,10 @@ def _random_action(rng: random.Random) -> ActionParams:
         return ActionParams(action=action, amount=rng.randint(1, 100_000))
     if action is Action.APPLY_INSURANCE_CLAIM:
         return ActionParams(action=action, claim_amount=rng.randint(1, 50_000), auth_ok=True)
+    if action is Action.PARTIAL_LIQUIDATE:
+        return ActionParams(
+            action=action, fraction_bps=rng.randint(1, 10_000), auth_ok=True
+        )
     return ActionParams(action=action)
 
 
@@ -398,3 +435,80 @@ def test_v4_funding_preserves_published_settlement_path_in_reference() -> None:
     assert reference.ok is False
     assert reference.state is None
     assert reference.effects is None
+
+def test_v4_partial_liquidation_fraction_bva_and_auto_refinement() -> None:
+    state = replace(
+        perp_v4.initial_state(),
+        now_epoch=2,
+        oracle_seen=True,
+        oracle_last_update_epoch=2,
+        index_price_e8=100_000_000,
+        position_base=100_000,
+        entry_price_e8=100_000_000,
+        collateral_quote=5_000,
+        fee_pool_quote=100,
+        fee_income=100,
+        initial_insurance=500,
+        insurance_balance=600,
+        min_notional_for_bounty=0,
+    )
+    selected = math_v4.compute_partial_close_fraction(
+        position_base=100_000,
+        collateral_after_pnl=5_000,
+        settle_price_e8=100_000_000,
+        maintenance_margin_bps=500,
+        depeg_buffer_bps=100,
+        liquidation_penalty_bps=50,
+        min_notional_for_bounty=0,
+    )
+    assert selected == 1_817
+
+    for fraction_bps, expected_ok in (
+        (selected - 1, False),
+        (selected, True),
+        (10_000, True),
+    ):
+        command = ActionParams(
+            action=Action.PARTIAL_LIQUIDATE,
+            fraction_bps=fraction_bps,
+            auth_ok=True,
+        )
+        native = perp_v4.step(state, command)
+        reference = REF.step(
+            REF.State(**_state_dict_for_ref(state)),
+            _to_ref_command(command),
+        )
+
+        assert native.accepted is expected_ok
+        assert reference.ok is expected_ok
+        if expected_ok:
+            assert native.state is not None
+            assert native.effect is not None
+            assert reference.state is not None
+            assert reference.effects is not None
+            assert _state_dict_for_ref(native.state) == vars(reference.state)
+            assert _effect_dict(native.effect) == dict(reference.effects)
+
+    auto_native = perp_v4.step(
+        state,
+        ActionParams(
+            action=Action.PARTIAL_LIQUIDATE,
+            fraction_bps=0,
+            auth_ok=True,
+        ),
+    )
+    resolved_reference = REF.step(
+        REF.State(**_state_dict_for_ref(state)),
+        REF.Command(
+            tag="partial_liquidate",
+            args={"fraction_bps": selected, "auth_ok": True},
+        ),
+    )
+    assert auto_native.accepted is True
+    assert resolved_reference.ok is True
+    assert auto_native.state is not None
+    assert auto_native.effect is not None
+    assert resolved_reference.state is not None
+    assert resolved_reference.effects is not None
+    assert _state_dict_for_ref(auto_native.state) == vars(resolved_reference.state)
+    assert _effect_dict(auto_native.effect) == dict(resolved_reference.effects)

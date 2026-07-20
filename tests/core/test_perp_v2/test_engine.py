@@ -108,15 +108,17 @@ class TestAdvanceEpoch:
         assert r.effect is not None
         assert r.effect.event == Event.EPOCH_ADVANCED
 
-    def test_multi_delta(self):
+    def test_multi_delta_rejected_without_state_or_effect(self):
         s = initial_state()
         r = step(s, ActionParams(action=Action.ADVANCE_EPOCH, delta=100))
-        assert r.accepted
-        assert r.state.now_epoch == 100
+        assert not r.accepted
+        assert r.state is None
+        assert r.effect is None
+        assert r.rejection == "param_domain:delta"
 
-    def test_overflow_rejected(self):
-        s = replace(initial_state(), now_epoch=999_999)
-        r = step(s, ActionParams(action=Action.ADVANCE_EPOCH, delta=10000))
+    def test_epoch_bound_overflow_rejected(self):
+        s = replace(initial_state(), now_epoch=1_000_000)
+        r = step(s, ActionParams(action=Action.ADVANCE_EPOCH, delta=1))
         assert not r.accepted
         assert r.rejection == "guard"
 
@@ -786,9 +788,13 @@ class TestParamDomainValidation:
         assert not r.accepted
         assert r.rejection == "param_domain:delta"
 
-    def test_advance_epoch_delta_at_max(self):
-        r = step(initial_state(), ActionParams(action=Action.ADVANCE_EPOCH, delta=10_000))
-        assert r.accepted
+    def test_advance_epoch_delta_one_is_the_only_admitted_value(self):
+        accepted = step(initial_state(), ActionParams(action=Action.ADVANCE_EPOCH, delta=1))
+        rejected = step(initial_state(), ActionParams(action=Action.ADVANCE_EPOCH, delta=2))
+
+        assert accepted.accepted
+        assert not rejected.accepted
+        assert rejected.rejection == "param_domain:delta"
 
     def test_publish_clearing_price_zero(self):
         s = replace(initial_state(), now_epoch=1)

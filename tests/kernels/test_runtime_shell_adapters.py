@@ -9,7 +9,6 @@ from typing import Any
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[2]
 ESSO_ROOT = ROOT / "external" / "ESSO"
 
@@ -17,6 +16,10 @@ CASES = [
     (
         Path("src/kernels/dex/perp_epoch_isolated_v3.yaml"),
         "src.kernels.python.perp_epoch_isolated_v3_adapter:make_adapter",
+    ),
+    (
+        Path("src/kernels/dex/perp_epoch_isolated_v4.yaml"),
+        "src.kernels.python.perp_epoch_isolated_v4_adapter:make_adapter",
     ),
     (
         Path("src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml"),
