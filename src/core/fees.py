@@ -71,7 +71,7 @@ class FeeAccumulatorState:
             raise TypeError("dust must be an int")
         if not 0 <= self.dust <= MAX_FEE_SPLIT_DUST:
             raise ValueError(
-                "dust must be in the inductive three-lane bound "
+                "dust must be non-negative and in the inductive three-lane bound "
                 f"[0, {MAX_FEE_SPLIT_DUST}]"
             )
 

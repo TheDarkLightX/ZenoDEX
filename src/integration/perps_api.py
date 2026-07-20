@@ -85,7 +85,7 @@ _DEMO_GLOBAL_BTC: Dict[str, bool | int | str] = {
     "maintenance_margin_bps": 500,
     "depeg_buffer_bps": 100,
     "liquidation_penalty_bps": 50,
-    "max_position_abs": 1_000_000,
+    "max_position_abs": PERP_POSITION_MAX,
     "fee_pool_quote": 1_200_000_000,
     "funding_rate_bps": 0,
     "funding_cap_bps": 100,
@@ -113,7 +113,7 @@ _DEMO_GLOBAL_ETH: Dict[str, bool | int | str] = {
     "maintenance_margin_bps": 500,
     "depeg_buffer_bps": 100,
     "liquidation_penalty_bps": 50,
-    "max_position_abs": 10_000_000,
+    "max_position_abs": PERP_POSITION_MAX,
     "fee_pool_quote": 600_000_000,
     "funding_rate_bps": 0,
     "funding_cap_bps": 100,
@@ -141,7 +141,7 @@ _DEMO_GLOBAL_TAU: Dict[str, bool | int | str] = {
     "maintenance_margin_bps": 1000,
     "depeg_buffer_bps": 200,
     "liquidation_penalty_bps": 50,
-    "max_position_abs": 100_000_000,
+    "max_position_abs": PERP_POSITION_MAX,
     "fee_pool_quote": 150_000_000,
     "funding_rate_bps": 0,
     "funding_cap_bps": 100,
@@ -200,7 +200,7 @@ def _history_with_entry(
     }
     new_history = [*history, entry]
     if len(new_history) > _MAX_HISTORY:
-        new_history = new_history[len(new_history) - _MAX_HISTORY:]
+        new_history = new_history[len(new_history) - _MAX_HISTORY :]
     return new_history
 
 
@@ -335,7 +335,10 @@ def _full_market(market_id: str, market: PerpMarketState) -> Dict[str, Any]:
 
 
 def _position_info(
-    market_id: str, pubkey: str, account: PerpAccountState, market: PerpMarketState,
+    market_id: str,
+    pubkey: str,
+    account: PerpAccountState,
+    market: PerpMarketState,
 ) -> Dict[str, Any]:
     """Build JSON-friendly position info with computed fields."""
     gs = market.global_state
@@ -343,16 +346,25 @@ def _position_info(
     maint_bps = int(gs.get("maintenance_margin_bps", 500))
     depeg_bps = int(gs.get("depeg_buffer_bps", 100))
 
-    notional = notional_quote(account.position_base, index_price) if account.position_base != 0 else 0
-    maint_req = maint_margin_req(account.position_base, index_price, maint_bps, depeg_bps) if account.position_base != 0 else 0
+    notional = (
+        notional_quote(account.position_base, index_price) if account.position_base != 0 else 0
+    )
+    maint_req = (
+        maint_margin_req(account.position_base, index_price, maint_bps, depeg_bps)
+        if account.position_base != 0
+        else 0
+    )
 
     unrealized_pnl = 0
     if account.position_base != 0 and account.entry_price_e8 != 0:
         unrealized_pnl = pnl_quote(account.position_base, index_price, account.entry_price_e8)
 
     liq_price = liquidation_price_e8(
-        account.position_base, account.collateral_quote,
-        index_price, maint_bps, depeg_bps,
+        account.position_base,
+        account.collateral_quote,
+        index_price,
+        maint_bps,
+        depeg_bps,
     )
 
     margin_ratio_bps = 0
@@ -379,7 +391,8 @@ def _position_info(
 
 
 def _kernel_state_for_account(
-    market: PerpMarketState, account: PerpAccountState,
+    market: PerpMarketState,
+    account: PerpAccountState,
 ) -> PerpState:
     """Build a PerpState from market globals + account state for kernel step()."""
     merged = market.kernel_state_for_account(account)
@@ -411,7 +424,8 @@ def _default_account() -> PerpAccountState:
 
 
 def _account_from_step_result(
-    base: PerpAccountState, new_ps: PerpState,
+    base: PerpAccountState,
+    new_ps: PerpState,
 ) -> PerpAccountState:
     """Extract account-level fields from a kernel PerpState after step()."""
     return PerpAccountState(
@@ -425,7 +439,9 @@ def _account_from_step_result(
 
 
 def _update_market_account(
-    market: PerpMarketState, pubkey: str, new_account: PerpAccountState,
+    market: PerpMarketState,
+    pubkey: str,
+    new_account: PerpAccountState,
 ) -> PerpMarketState:
     """Return a new PerpMarketState with the given account updated."""
     new_accounts = dict(market.accounts)
@@ -438,7 +454,8 @@ def _update_market_account(
 
 
 def _update_market_globals(
-    market: PerpMarketState, new_gs: Dict[str, bool | int | str],
+    market: PerpMarketState,
+    new_gs: Dict[str, bool | int | str],
 ) -> PerpMarketState:
     return PerpMarketState(
         quote_asset=market.quote_asset,
@@ -468,10 +485,7 @@ def _parse_json_body(body: Optional[bytes]) -> Tuple[Optional[Dict[str, Any]], O
 
 
 def _handle_list_markets(perps: PerpsState) -> ResponseT:
-    markets = [
-        _market_summary(mid, m)
-        for mid, m in sorted(perps.markets.items())
-    ]
+    markets = [_market_summary(mid, m) for mid, m in sorted(perps.markets.items())]
     return 200, {"ok": True, "markets": markets}
 
 
@@ -593,7 +607,11 @@ def _handle_collateral(
 
     result = step(ps, params)
     if not result.accepted:
-        return perps, history, (400, {"ok": False, "error": "guard_rejected", "detail": result.rejection})
+        return (
+            perps,
+            history,
+            (400, {"ok": False, "error": "guard_rejected", "detail": result.rejection}),
+        )
 
     if result.state is None:
         return perps, history, (500, {"ok": False, "error": "internal_error"})
@@ -605,12 +623,16 @@ def _handle_collateral(
     new_perps = PerpsState(version=perps.version, markets=new_markets)
     new_history = _history_with_entry(history, market_id, pubkey, action, {"amount": amount})
 
-    return new_perps, new_history, (
-        200,
-        {
-            "ok": True,
-            "position": _position_info(market_id, pubkey, new_account, new_market),
-        },
+    return (
+        new_perps,
+        new_history,
+        (
+            200,
+            {
+                "ok": True,
+                "position": _position_info(market_id, pubkey, new_account, new_market),
+            },
+        ),
     )
 
 
@@ -668,7 +690,11 @@ def _handle_set_position(
     )
     result = step(ps, params)
     if not result.accepted:
-        return perps, history, (400, {"ok": False, "error": "guard_rejected", "detail": result.rejection})
+        return (
+            perps,
+            history,
+            (400, {"ok": False, "error": "guard_rejected", "detail": result.rejection}),
+        )
 
     if result.state is None:
         return perps, history, (500, {"ok": False, "error": "internal_error"})
@@ -679,15 +705,23 @@ def _handle_set_position(
     new_markets[market_id] = new_market
     new_perps = PerpsState(version=perps.version, markets=new_markets)
     new_history = _history_with_entry(
-        history, market_id, pubkey, "set_position", {"newPositionBase": new_position_base},
+        history,
+        market_id,
+        pubkey,
+        "set_position",
+        {"newPositionBase": new_position_base},
     )
 
-    return new_perps, new_history, (
-        200,
-        {
-            "ok": True,
-            "position": _position_info(market_id, pubkey, new_account, new_market),
-        },
+    return (
+        new_perps,
+        new_history,
+        (
+            200,
+            {
+                "ok": True,
+                "position": _position_info(market_id, pubkey, new_account, new_market),
+            },
+        ),
     )
 
 
@@ -730,7 +764,11 @@ def _handle_insurance(
     params = ActionParams(action=Action.DEPOSIT_INSURANCE, amount=amount)
     result = step(ps, params)
     if not result.accepted:
-        return perps, history, (400, {"ok": False, "error": "guard_rejected", "detail": result.rejection})
+        return (
+            perps,
+            history,
+            (400, {"ok": False, "error": "guard_rejected", "detail": result.rejection}),
+        )
 
     if result.state is None:
         return perps, history, (500, {"ok": False, "error": "internal_error"})
@@ -743,14 +781,20 @@ def _handle_insurance(
     new_markets = dict(perps.markets)
     new_markets[market_id] = new_market
     new_perps = PerpsState(version=perps.version, markets=new_markets)
-    new_history = _history_with_entry(history, market_id, pubkey, "deposit_insurance", {"amount": amount})
+    new_history = _history_with_entry(
+        history, market_id, pubkey, "deposit_insurance", {"amount": amount}
+    )
 
-    return new_perps, new_history, (
-        200,
-        {
-            "ok": True,
-            "market": _full_market(market_id, new_market),
-        },
+    return (
+        new_perps,
+        new_history,
+        (
+            200,
+            {
+                "ok": True,
+                "market": _full_market(market_id, new_market),
+            },
+        ),
     )
 
 
@@ -760,7 +804,9 @@ def _handle_insurance(
 
 
 def handle_perps_request(
-    method: str, path: str, body: Optional[bytes],
+    method: str,
+    path: str,
+    body: Optional[bytes],
 ) -> Tuple[int, Dict[str, Any]]:
     """Route a perps API request. Returns (status_code, response_dict).
 
@@ -780,7 +826,9 @@ def handle_perps_request(
             if method == "GET":
                 return _dispatch_get(_demo_perps, _history, rest)
             if method == "POST":
-                next_perps, next_history, response = _dispatch_post(_demo_perps, _history, rest, body)
+                next_perps, next_history, response = _dispatch_post(
+                    _demo_perps, _history, rest, body
+                )
                 _demo_perps = next_perps
                 _history = next_history
                 return response

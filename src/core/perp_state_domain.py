@@ -7,10 +7,10 @@ and fails closed if ``PerpState`` gains a field without an explicit domain.
 
 from __future__ import annotations
 
+from .domain_limits import PERP_PRICE_E8_MAX
 from .perp_v2.types import EpochPhase, PerpState
 
 _MAX_EPOCH = 1_000_000
-_MAX_PRICE_E8 = 1_000_000_000_000
 _MAX_QUOTE = 1_000_000_000_000_000
 _MAX_POSITION = 1_000_000
 _MAX_BPS = 10_000
@@ -29,18 +29,18 @@ _BOOL_FIELDS = frozenset(
 _INT_BOUNDS: dict[str, tuple[int, int]] = {
     "breaker_last_trigger_epoch": (0, _MAX_EPOCH),
     "claims_paid": (0, _MAX_QUOTE),
-    "clearing_price_e8": (0, _MAX_PRICE_E8),
+    "clearing_price_e8": (0, PERP_PRICE_E8_MAX),
     "clearing_price_epoch": (0, _MAX_EPOCH),
     "collateral_quote": (0, _MAX_QUOTE),
     "depeg_buffer_bps": (0, _MAX_DEPEG_BPS),
-    "entry_price_e8": (0, _MAX_PRICE_E8),
+    "entry_price_e8": (0, PERP_PRICE_E8_MAX),
     "fee_income": (0, _MAX_QUOTE),
     "fee_pool_quote": (0, _MAX_QUOTE),
     "funding_cap_bps": (1, _MAX_BPS),
     "funding_last_applied_epoch": (0, _MAX_EPOCH),
     "funding_paid_cumulative": (-_MAX_QUOTE, _MAX_QUOTE),
     "funding_rate_bps": (-_MAX_BPS, _MAX_BPS),
-    "index_price_e8": (0, _MAX_PRICE_E8),
+    "index_price_e8": (0, PERP_PRICE_E8_MAX),
     "initial_insurance": (0, _MAX_QUOTE),
     "initial_margin_bps": (0, _MAX_BPS),
     "insurance_balance": (0, _MAX_QUOTE),
@@ -60,10 +60,7 @@ _ACTUAL_FIELDS = frozenset(PerpState.__dataclass_fields__)
 if _ACTUAL_FIELDS != _EXPECTED_FIELDS:
     missing = sorted(_ACTUAL_FIELDS - _EXPECTED_FIELDS)
     stale = sorted(_EXPECTED_FIELDS - _ACTUAL_FIELDS)
-    raise RuntimeError(
-        "PerpState domain registry drift "
-        f"(unregistered={missing}, stale={stale})"
-    )
+    raise RuntimeError(f"PerpState domain registry drift (unregistered={missing}, stale={stale})")
 
 
 def state_domain_violations(state: object) -> list[str]:

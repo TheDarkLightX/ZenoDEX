@@ -1,9 +1,8 @@
 """State construction and serialization for `perp_v2` and the shared v4 ABI.
 
 `initial_state()` returns the canonical initial state (matches the YAML `init`
-block).  Wire decoding is exact for fields and primitive types.  Named phase
-values remain an explicit compatibility input because the v2-to-v3 adapter
-reconstructs that legacy field before entering the versioned core.
+block). Wire decoding is exact for fields and primitive types. Epoch phases use
+the one canonical integer encoding committed by the v3/v4 kernel ABI.
 """
 
 from __future__ import annotations
@@ -41,25 +40,18 @@ _EPOCH_PHASE_TO_INT: dict[EpochPhase, int] = {
 
 
 def _coerce_epoch_phase(val: Any) -> EpochPhase:
-    if type(val) is EpochPhase:
-        return val
-    if type(val) is str:
-        return EpochPhase(val)
-    if type(val) is int:
-        if val in _EPOCH_PHASE_INT_MAP:
-            return _EPOCH_PHASE_INT_MAP[val]
+    if type(val) is not int:
+        raise TypeError(
+            f"state var 'epoch_phase' must be an exact canonical int, got {type(val).__name__}"
+        )
+    if val not in _EPOCH_PHASE_INT_MAP:
         raise ValueError(f"state var 'epoch_phase' int value {val} out of range [0,2]")
-    raise TypeError(
-        "state var 'epoch_phase' must be an exact EpochPhase, named legacy phase, "
-        f"or canonical int, got {type(val).__name__}"
-    )
+    return _EPOCH_PHASE_INT_MAP[val]
 
 
 def _coerce_state_bool(name: str, val: Any) -> bool:
     if type(val) is not bool:
-        raise TypeError(
-            f"state var {name!r} must be an exact bool, got {type(val).__name__}"
-        )
+        raise TypeError(f"state var {name!r} must be an exact bool, got {type(val).__name__}")
     return val
 
 
@@ -105,8 +97,7 @@ def state_from_dict(d: Mapping[str, Any]) -> PerpState:
         missing = sorted(_STATE_VAR_NAME_SET - actual)
         unknown = sorted(actual - _STATE_VAR_NAME_SET)
         raise ValueError(
-            "perps state fields must match exactly "
-            f"(missing={missing}, unknown={unknown})"
+            f"perps state fields must match exactly (missing={missing}, unknown={unknown})"
         )
 
     kwargs: dict[str, Any] = {}

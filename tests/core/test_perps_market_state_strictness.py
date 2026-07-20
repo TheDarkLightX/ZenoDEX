@@ -5,7 +5,8 @@ from __future__ import annotations
 import pytest
 
 from src.core.perp_apply_funding_auto_gate import MARK_PRICE_SOURCE_EXTERNAL_MEDIAN
-from src.core.perps import PerpMarketState
+from src.core.perp_v2.state import state_from_dict
+from src.core.perps import PerpAccountState, PerpMarketState
 
 
 def _legacy_global_state() -> dict[str, bool | int]:
@@ -67,6 +68,28 @@ def test_market_state_legacy_phase_inference_accepts_zero_one_bool_flags() -> No
     assert market.global_state["oracle_seen"] is False
 
 
+def test_kernel_projection_excludes_shell_only_mark_price_source() -> None:
+    market = PerpMarketState(
+        quote_asset="zUSD",
+        global_state=_legacy_global_state(),
+        accounts={},
+    )
+
+    kernel_state = market.kernel_state_for_account(
+        PerpAccountState(
+            position_base=0,
+            entry_price_e8=0,
+            collateral_quote=0,
+            funding_paid_cumulative=0,
+            funding_last_applied_epoch=0,
+            liquidated_this_step=False,
+        )
+    )
+
+    assert "mark_price_source_kind" not in kernel_state
+    assert state_from_dict(kernel_state).now_epoch == 0
+
+
 def test_market_state_sink_claimant_balances_are_canonical() -> None:
     global_state = _legacy_global_state()
     global_state["fee_pool_quote"] = 30_000
@@ -121,9 +144,7 @@ def test_market_state_rejects_unfunded_sink_claimant_balance() -> None:
             quote_asset="zUSD",
             global_state=global_state,
             accounts={},
-            funding_closeout_sink_claimant_balances_quote=(
-                ("protocol_sink", 10_000),
-            ),
+            funding_closeout_sink_claimant_balances_quote=(("protocol_sink", 10_000),),
         )
 
 
@@ -160,9 +181,7 @@ def test_market_state_receiver_claim_lots_project_balances() -> None:
         ("receiver", "old", 10_000, 5),
         ("receiver", "future", 20_000, 10),
     )
-    assert market.funding_closeout_receiver_claim_balances_quote == (
-        ("receiver", 30_000),
-    )
+    assert market.funding_closeout_receiver_claim_balances_quote == (("receiver", 30_000),)
 
 
 def test_market_state_rejects_receiver_claim_lot_projection_mismatch() -> None:

@@ -21,6 +21,7 @@ from ..domain_limits import (
     PERP_ADVANCE_EPOCH_DELTA_MAX,
     PERP_PARAM_AMOUNT_MAX,
     PERP_POSITION_MAX,
+    PERP_PRICE_E8_MAX,
     PERP_RATE_BPS_MAX,
     is_strict_int,
 )
@@ -31,6 +32,7 @@ from .effects import (
     effect_advance_epoch,
     effect_apply_funding,
     effect_apply_insurance_claim,
+    effect_bootstrap_oracle,
     effect_clear_breaker,
     effect_deposit_collateral,
     effect_deposit_insurance,
@@ -44,6 +46,7 @@ from .guards import (
     guard_advance_epoch,
     guard_apply_funding,
     guard_apply_insurance_claim,
+    guard_bootstrap_oracle,
     guard_clear_breaker,
     guard_deposit_collateral,
     guard_deposit_insurance,
@@ -53,9 +56,10 @@ from .guards import (
     guard_settle_epoch,
     guard_withdraw_collateral,
 )
-from .invariants import check_all
+from .invariants import check_all, check_prestate
 from .updates import (
     apply_advance_epoch,
+    apply_bootstrap_oracle,
     apply_clear_breaker,
     apply_deposit_collateral,
     apply_deposit_insurance,
@@ -73,38 +77,65 @@ UpdateFn = Callable[[PerpState, ActionParams], PerpState]
 EffectFn = Callable[[PerpState, ActionParams], Effect]
 
 _DISPATCH: dict[Action, tuple[GuardFn, UpdateFn, EffectFn]] = {
+    Action.BOOTSTRAP_ORACLE: (
+        guard_bootstrap_oracle,
+        apply_bootstrap_oracle,
+        effect_bootstrap_oracle,
+    ),
     Action.ADVANCE_EPOCH: (
-        guard_advance_epoch, apply_advance_epoch, effect_advance_epoch,
+        guard_advance_epoch,
+        apply_advance_epoch,
+        effect_advance_epoch,
     ),
     Action.PUBLISH_CLEARING_PRICE: (
-        guard_publish_clearing_price, apply_publish_clearing_price, effect_publish_clearing_price,
+        guard_publish_clearing_price,
+        apply_publish_clearing_price,
+        effect_publish_clearing_price,
     ),
     Action.SETTLE_EPOCH: (
-        guard_settle_epoch, apply_settle_epoch, effect_settle_epoch,
+        guard_settle_epoch,
+        apply_settle_epoch,
+        effect_settle_epoch,
     ),
     Action.DEPOSIT_COLLATERAL: (
-        guard_deposit_collateral, apply_deposit_collateral, effect_deposit_collateral,
+        guard_deposit_collateral,
+        apply_deposit_collateral,
+        effect_deposit_collateral,
     ),
     Action.WITHDRAW_COLLATERAL: (
-        guard_withdraw_collateral, apply_withdraw_collateral, effect_withdraw_collateral,
+        guard_withdraw_collateral,
+        apply_withdraw_collateral,
+        effect_withdraw_collateral,
     ),
     Action.SET_POSITION: (
-        guard_set_position, apply_set_position, effect_set_position,
+        guard_set_position,
+        apply_set_position,
+        effect_set_position,
     ),
     Action.CLEAR_BREAKER: (
-        guard_clear_breaker, apply_clear_breaker, effect_clear_breaker,
+        guard_clear_breaker,
+        apply_clear_breaker,
+        effect_clear_breaker,
     ),
     Action.APPLY_FUNDING: (
-        guard_apply_funding, apply_funding, effect_apply_funding,
+        guard_apply_funding,
+        apply_funding,
+        effect_apply_funding,
     ),
     Action.DEPOSIT_INSURANCE: (
-        guard_deposit_insurance, apply_deposit_insurance, effect_deposit_insurance,
+        guard_deposit_insurance,
+        apply_deposit_insurance,
+        effect_deposit_insurance,
     ),
     Action.APPLY_INSURANCE_CLAIM: (
-        guard_apply_insurance_claim, apply_insurance_claim, effect_apply_insurance_claim,
+        guard_apply_insurance_claim,
+        apply_insurance_claim,
+        effect_apply_insurance_claim,
     ),
     Action.PARTIAL_LIQUIDATE: (
-        guard_partial_liquidate, apply_partial_liquidate, effect_partial_liquidate,
+        guard_partial_liquidate,
+        apply_partial_liquidate,
+        effect_partial_liquidate,
     ),
 }
 
@@ -112,11 +143,14 @@ _DISPATCH: dict[Action, tuple[GuardFn, UpdateFn, EffectFn]] = {
 
 # Per-action bounds: list of (field_name, min_val, max_val).
 _PARAM_BOUNDS: dict[Action, list[tuple[str, int, int]]] = {
+    Action.BOOTSTRAP_ORACLE: [
+        ("price_e8", 1, PERP_PRICE_E8_MAX),
+    ],
     Action.ADVANCE_EPOCH: [
         ("delta", 1, PERP_ADVANCE_EPOCH_DELTA_MAX),
     ],
     Action.PUBLISH_CLEARING_PRICE: [
-        ("price_e8", 1, PERP_PARAM_AMOUNT_MAX),
+        ("price_e8", 1, PERP_PRICE_E8_MAX),
     ],
     Action.SETTLE_EPOCH: [],
     Action.DEPOSIT_COLLATERAL: [
@@ -145,6 +179,8 @@ _PARAM_BOUNDS: dict[Action, list[tuple[str, int, int]]] = {
 
 # Actions that consume `auth_ok` as a consensus-relevant guard input.
 _AUTH_ACTIONS: set[Action] = {
+    Action.BOOTSTRAP_ORACLE,
+    Action.PUBLISH_CLEARING_PRICE,
     Action.DEPOSIT_COLLATERAL,
     Action.WITHDRAW_COLLATERAL,
     Action.SET_POSITION,
@@ -180,7 +216,13 @@ def step(state: PerpState, params: ActionParams) -> StepResult:
     Rejection never carries a candidate state or effect, so malformed pre-state,
     lifecycle, guard, and post-invariant failures are complete no-ops.
     """
-    pre_violations = check_all(state)
+    # The generated reference validates the pre-state before command domains.
+    # Determine the action only from the exact command type; malformed commands
+    # receive no action-specific invariant exemption.
+    pre_action = (
+        params.action if type(params) is ActionParams and type(params.action) is Action else None
+    )
+    pre_violations = check_prestate(state, pre_action)
     if pre_violations:
         return StepResult(
             accepted=False,

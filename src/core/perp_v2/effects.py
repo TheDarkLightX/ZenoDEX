@@ -15,7 +15,9 @@ from .math import (
 from .types import ActionParams, Effect, Event, PerpState
 
 
-def _common_effects(state: PerpState, *, oracle_fresh_override: bool | None = None) -> dict[str, bool | int]:
+def _common_effects(
+    state: PerpState, *, oracle_fresh_override: bool | None = None
+) -> dict[str, bool | int]:
     """Shared effect fields computed from post-state.
 
     `oracle_fresh_override` lets `settle_epoch` force `oracle_fresh=True`
@@ -25,14 +27,18 @@ def _common_effects(state: PerpState, *, oracle_fresh_override: bool | None = No
         oracle_fresh_override
         if oracle_fresh_override is not None
         else is_oracle_fresh(
-            state.now_epoch, state.oracle_last_update_epoch,
-            state.max_oracle_staleness_epochs, state.oracle_seen,
+            state.now_epoch,
+            state.oracle_last_update_epoch,
+            state.max_oracle_staleness_epochs,
+            state.oracle_seen,
         )
     )
     notional = notional_quote(state.position_base, state.index_price_e8)
     maint_req = maint_margin_req(
-        state.position_base, state.index_price_e8,
-        state.maintenance_margin_bps, state.depeg_buffer_bps,
+        state.position_base,
+        state.index_price_e8,
+        state.maintenance_margin_bps,
+        state.depeg_buffer_bps,
     )
     margin_ok = True if state.position_base == 0 else state.collateral_quote >= maint_req
 
@@ -42,7 +48,9 @@ def _common_effects(state: PerpState, *, oracle_fresh_override: bool | None = No
         effective_maint_bps=state.maintenance_margin_bps + state.depeg_buffer_bps,
         maint_req_quote=maint_req,
         init_req_quote=init_margin_req(
-            state.position_base, state.index_price_e8, state.initial_margin_bps,
+            state.position_base,
+            state.index_price_e8,
+            state.initial_margin_bps,
         ),
         margin_ok=margin_ok,
         liquidated=state.liquidated_this_step,
@@ -50,6 +58,10 @@ def _common_effects(state: PerpState, *, oracle_fresh_override: bool | None = No
         fee_pool_after=state.fee_pool_quote,
         insurance_after=state.insurance_balance,
     )
+
+
+def effect_bootstrap_oracle(state: PerpState, params: ActionParams) -> Effect:
+    return Effect(event=Event.ORACLE_BOOTSTRAPPED, **_common_effects(state))
 
 
 def effect_advance_epoch(state: PerpState, params: ActionParams) -> Effect:

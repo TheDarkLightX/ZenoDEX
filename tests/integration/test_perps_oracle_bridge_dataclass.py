@@ -10,20 +10,15 @@ from __future__ import annotations
 
 import inspect
 
-import pytest
-
 from src.core.perps import (
     PerpAccountState,
     PerpClearinghouse2pMarketState,
     PerpMarketState,
 )
 from src.integration.perp_engine import (
+    PerpEngineConfig,
     _ClearinghouseOracleRuntimeRequest,
     _LiquidateAccountOracleRuntimeRequest,
-    _ORACLE_PERPS_INDEX_QUERY_ID,
-    _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
-    _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-    PerpEngineConfig,
     _perps_clearinghouse_runtime_oracle_action_id,
     _perps_liquidate_account_runtime_oracle_action_id,
 )
@@ -57,7 +52,7 @@ def _clearinghouse_market() -> PerpClearinghouse2pMarketState:
             "max_oracle_move_bps": 5000,
             "initial_margin_bps": 5000,
             "maintenance_margin_bps": 2500,
-            "liquidation_penalty_bps": 500,
+            "liquidation_penalty_bps": 100,
             "max_position_abs": 1_000_000,
             "fee_pool_e8": 0,
             "liquidated_this_step": False,
@@ -92,7 +87,7 @@ def _isolated_market() -> PerpMarketState:
             "initial_margin_bps": 5000,
             "maintenance_margin_bps": 2500,
             "depeg_buffer_bps": 0,
-            "liquidation_penalty_bps": 500,
+            "liquidation_penalty_bps": 100,
             "max_position_abs": 1_000_000,
             "fee_pool_quote": 0,
             "funding_rate_bps": 0,
@@ -176,6 +171,25 @@ class TestClearinghouseOracleActionIdDataclass:
             _ClearinghouseOracleRuntimeRequest(market_id="perp:ch2p:b", **base_kwargs),
         )
         assert id1 != id2
+
+    def test_constructor_state_alias_cannot_change_action_id(self) -> None:
+        market = _clearinghouse_market()
+        caller_state = dict(market.state)
+        request = _ClearinghouseOracleRuntimeRequest(
+            config=_config(),
+            market_id="perp:ch2p:test",
+            action_kind="settle_epoch",
+            market_kind="clearinghouse_2p_v1",
+            quote_asset=market.quote_asset,
+            state=caller_state,
+            participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
+        )
+        action_id = _perps_clearinghouse_runtime_oracle_action_id(request)
+
+        caller_state["index_price_e8"] = 1
+
+        assert _perps_clearinghouse_runtime_oracle_action_id(request) == action_id
+        assert request.state["index_price_e8"] == 100_000_000
 
 
 class TestLiquidateAccountOracleActionIdDataclass:

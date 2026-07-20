@@ -16,6 +16,7 @@ from .math import (
     BPS_SCALE,
     MAX_COLLATERAL,
     MAX_EPOCH,
+    PRICE_SCALE,
     abs_val,
     compute_partial_close_fraction,
     init_margin_req,
@@ -32,16 +33,85 @@ from .math import (
 from .types import ActionParams, EpochPhase, PerpState
 
 
+def guard_bootstrap_oracle(state: PerpState, params: ActionParams) -> bool:
+    """Initialize the index Oracle once, before any value enters the market."""
+    return (
+        params.auth_ok
+        and state.now_epoch == 0
+        and state.epoch_phase == EpochPhase.OPEN
+        and not state.oracle_seen
+        and state.oracle_last_update_epoch == 0
+        and state.index_price_e8 == 0
+        and not state.clearing_price_seen
+        and state.clearing_price_epoch == 0
+        and state.clearing_price_e8 == 0
+        and not state.breaker_active
+        and state.breaker_last_trigger_epoch == 0
+        and state.position_base == 0
+        and state.entry_price_e8 == 0
+        and state.collateral_quote == 0
+        and state.fee_pool_quote == 0
+        and state.funding_paid_cumulative == 0
+        and state.insurance_balance == 0
+        and state.initial_insurance == 0
+        and state.fee_income == 0
+        and state.claims_paid == 0
+        and state.funding_last_applied_epoch == 0
+        and not state.liquidated_this_step
+    )
+
+
 def guard_advance_epoch(state: PerpState, params: ActionParams) -> bool:
     if state.epoch_phase == EpochPhase.PRICE_PUBLISHED:
         return False
     return state.now_epoch + params.delta <= MAX_EPOCH
 
 
+def _settlement_safety_envelope_ok(
+    state: PerpState,
+    *,
+    collateral_quote: int,
+) -> bool:
+    """Conservatively reserve enough room for every clamped settlement price."""
+    max_move_e8 = (state.index_price_e8 * state.max_oracle_move_bps + BPS_SCALE - 1) // BPS_SCALE
+    max_pnl_magnitude = abs_val(state.position_base) * max_move_e8 // PRICE_SCALE
+    max_collateral_after = collateral_quote + max_pnl_magnitude
+
+    if collateral_quote < max_pnl_magnitude:
+        return False
+    if max_collateral_after > MAX_COLLATERAL:
+        return False
+    if state.position_base == 0:
+        return True
+    if state.fee_pool_quote + max_collateral_after > MAX_COLLATERAL:
+        return False
+    if state.fee_income + max_collateral_after > MAX_COLLATERAL:
+        return False
+    return (
+        state.initial_insurance + state.fee_income + max_collateral_after - state.claims_paid
+        <= MAX_COLLATERAL
+    )
+
+
 def guard_publish_clearing_price(state: PerpState, params: ActionParams) -> bool:
+    """Require authorization and a prior usable index observation."""
+    if not params.auth_ok:
+        return False
     if state.epoch_phase != EpochPhase.OPEN:
         return False
-    return state.clearing_price_epoch < state.now_epoch
+    if state.clearing_price_epoch >= state.now_epoch:
+        return False
+    if state.oracle_last_update_epoch >= state.now_epoch:
+        return False
+    if not is_settle_oracle_usable(
+        state.now_epoch,
+        state.oracle_last_update_epoch,
+        state.max_oracle_staleness_epochs,
+        state.oracle_seen,
+        state.index_price_e8,
+    ):
+        return False
+    return _settlement_safety_envelope_ok(state, collateral_quote=state.collateral_quote)
 
 
 def guard_settle_epoch(state: PerpState, params: ActionParams) -> bool:
@@ -81,8 +151,11 @@ def guard_settle_epoch(state: PerpState, params: ActionParams) -> bool:
         return False
 
     if state.position_base != 0 and is_liquidatable(
-        state.position_base, coll_after_pnl, sp,
-        state.maintenance_margin_bps, state.depeg_buffer_bps,
+        state.position_base,
+        coll_after_pnl,
+        sp,
+        state.maintenance_margin_bps,
+        state.depeg_buffer_bps,
     ):
         if not _settle_liq_overflow_ok(state, coll_after_pnl, sp):
             return False
@@ -134,15 +207,19 @@ def guard_withdraw_collateral(state: PerpState, params: ActionParams) -> bool:
     if state.index_price_e8 <= 0:
         return False
     if not is_oracle_fresh(
-        state.now_epoch, state.oracle_last_update_epoch,
-        state.max_oracle_staleness_epochs, state.oracle_seen,
+        state.now_epoch,
+        state.oracle_last_update_epoch,
+        state.max_oracle_staleness_epochs,
+        state.oracle_seen,
     ):
         return False
 
     remaining = state.collateral_quote - params.amount
     return remaining >= maint_margin_req(
-        state.position_base, state.index_price_e8,
-        state.maintenance_margin_bps, state.depeg_buffer_bps,
+        state.position_base,
+        state.index_price_e8,
+        state.maintenance_margin_bps,
+        state.depeg_buffer_bps,
     )
 
 
@@ -154,6 +231,13 @@ def guard_set_position(state: PerpState, params: ActionParams) -> bool:
     if not state.oracle_seen:
         return False
     if abs_val(params.new_position_base) > state.max_position_abs:
+        return False
+    if params.new_position_base != 0 and state.collateral_quote < maint_margin_req(
+        params.new_position_base,
+        state.index_price_e8,
+        state.maintenance_margin_bps,
+        state.depeg_buffer_bps,
+    ):
         return False
 
     if state.breaker_active:
@@ -179,14 +263,17 @@ def _guard_set_position_normal(state: PerpState, params: ActionParams) -> bool:
     if state.index_price_e8 <= 0:
         return False
     if not is_oracle_fresh(
-        state.now_epoch, state.oracle_last_update_epoch,
-        state.max_oracle_staleness_epochs, state.oracle_seen,
+        state.now_epoch,
+        state.oracle_last_update_epoch,
+        state.max_oracle_staleness_epochs,
+        state.oracle_seen,
     ):
         return False
     if params.new_position_base == 0:
         return True
     return state.collateral_quote >= init_margin_req(
-        params.new_position_base, state.index_price_e8,
+        params.new_position_base,
+        state.index_price_e8,
         state.initial_margin_bps,
     )
 
@@ -222,10 +309,19 @@ def guard_apply_funding(state: PerpState, params: ActionParams) -> bool:
         depeg_buffer_bps=state.depeg_buffer_bps,
         funding_paid_cumulative=state.funding_paid_cumulative,
     )
-    return outcome.funding_apply_allowed
+    if not outcome.funding_apply_allowed:
+        return False
+    if state.epoch_phase is EpochPhase.PRICE_PUBLISHED:
+        return _settlement_safety_envelope_ok(
+            state,
+            collateral_quote=outcome.collateral_after_quote,
+        )
+    return True
 
 
 def guard_deposit_insurance(state: PerpState, params: ActionParams) -> bool:
+    if state.epoch_phase is EpochPhase.PRICE_PUBLISHED:
+        return False
     if state.initial_insurance + params.amount > MAX_COLLATERAL:
         return False
     return state.insurance_balance + params.amount <= MAX_COLLATERAL
@@ -238,7 +334,9 @@ def guard_apply_insurance_claim(state: PerpState, params: ActionParams) -> bool:
         return False
     if state.claims_paid + params.claim_amount > MAX_COLLATERAL:
         return False
-    resulting = state.initial_insurance + state.fee_income - (state.claims_paid + params.claim_amount)
+    resulting = (
+        state.initial_insurance + state.fee_income - (state.claims_paid + params.claim_amount)
+    )
     return resulting >= 0
 
 
@@ -270,16 +368,23 @@ def guard_partial_liquidate(state: PerpState, params: ActionParams) -> bool:
     fraction = params.fraction_bps
     if fraction == 0:
         fraction = compute_partial_close_fraction(
-            state.position_base, state.collateral_quote, state.index_price_e8,
-            state.maintenance_margin_bps, state.depeg_buffer_bps,
-            state.liquidation_penalty_bps, state.min_notional_for_bounty,
+            state.position_base,
+            state.collateral_quote,
+            state.index_price_e8,
+            state.maintenance_margin_bps,
+            state.depeg_buffer_bps,
+            state.liquidation_penalty_bps,
+            state.min_notional_for_bounty,
         )
     if fraction < 1 or fraction > BPS_SCALE:
         return False
 
     penalty = partial_liq_penalty_capped(
-        state.collateral_quote, state.position_base, fraction,
-        state.index_price_e8, state.liquidation_penalty_bps,
+        state.collateral_quote,
+        state.position_base,
+        fraction,
+        state.index_price_e8,
+        state.liquidation_penalty_bps,
         state.min_notional_for_bounty,
     )
     new_collateral = state.collateral_quote - penalty
@@ -299,8 +404,10 @@ def guard_partial_liquidate(state: PerpState, params: ActionParams) -> bool:
     remaining = remaining_position_signed(state.position_base, fraction)
     if remaining != 0:
         mreq = maint_margin_req(
-            remaining, state.index_price_e8,
-            state.maintenance_margin_bps, state.depeg_buffer_bps,
+            remaining,
+            state.index_price_e8,
+            state.maintenance_margin_bps,
+            state.depeg_buffer_bps,
         )
         if new_collateral < mreq:
             return False

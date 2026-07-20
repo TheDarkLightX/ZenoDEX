@@ -3,9 +3,11 @@
 Tests cover known action sequences end-to-end through the engine.
 """
 
-import pytest
 from dataclasses import replace
 
+import pytest
+
+from src.core.domain_limits import PERP_PRICE_E8_MAX
 from src.core.perp_v2 import (
     Action,
     ActionParams,
@@ -42,8 +44,59 @@ def _make_state_with_oracle(
 
 
 # ---------------------------------------------------------------------------
+# bootstrap_oracle
+# ---------------------------------------------------------------------------
+
+
+class TestBootstrapOracle:
+    def test_initializes_oracle_once_before_value_enters(self):
+        r = step(
+            initial_state(),
+            ActionParams(
+                action=Action.BOOTSTRAP_ORACLE,
+                price_e8=100_000_000,
+                auth_ok=True,
+            ),
+        )
+        assert r.accepted
+        assert r.state is not None
+        assert r.state.oracle_seen is True
+        assert r.state.oracle_last_update_epoch == 0
+        assert r.state.index_price_e8 == 100_000_000
+        assert r.effect is not None
+        assert r.effect.event is Event.ORACLE_BOOTSTRAPPED
+
+    @pytest.mark.parametrize("auth_ok", [False, 0, 1, "yes"])
+    def test_requires_exact_authorization(self, auth_ok):
+        r = step(
+            initial_state(),
+            ActionParams(
+                action=Action.BOOTSTRAP_ORACLE,
+                price_e8=100_000_000,
+                auth_ok=auth_ok,
+            ),
+        )
+        assert not r.accepted
+        assert r.state is None
+        assert r.effect is None
+
+    def test_replay_and_post_value_bootstrap_reject(self):
+        first = step(
+            initial_state(),
+            ActionParams(action=Action.BOOTSTRAP_ORACLE, price_e8=100_000_000, auth_ok=True),
+        )
+        assert first.accepted and first.state is not None
+        replay = step(
+            first.state,
+            ActionParams(action=Action.BOOTSTRAP_ORACLE, price_e8=100_000_000, auth_ok=True),
+        )
+        assert not replay.accepted
+
+
+# ---------------------------------------------------------------------------
 # advance_epoch
 # ---------------------------------------------------------------------------
+
 
 class TestAdvanceEpoch:
     def test_basic(self):
@@ -72,19 +125,44 @@ class TestAdvanceEpoch:
 # publish_clearing_price
 # ---------------------------------------------------------------------------
 
+
 class TestPublishClearingPrice:
     def test_basic(self):
-        s = replace(initial_state(), now_epoch=1, clearing_price_epoch=0)
-        r = step(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000))
+        s = replace(
+            initial_state(),
+            now_epoch=1,
+            clearing_price_epoch=0,
+            oracle_seen=True,
+            oracle_last_update_epoch=0,
+            index_price_e8=100_000_000,
+        )
+        r = step(
+            s,
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000, auth_ok=True),
+        )
         assert r.accepted
         assert r.state.clearing_price_e8 == 100_000_000
         assert r.state.clearing_price_seen is True
         assert r.state.clearing_price_epoch == 1
 
     def test_duplicate_rejected(self):
-        s = replace(initial_state(), now_epoch=1, clearing_price_epoch=1)
-        r = step(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000))
+        s = replace(
+            initial_state(),
+            now_epoch=1,
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            clearing_price_seen=True,
+            clearing_price_epoch=1,
+            clearing_price_e8=100_000_000,
+            oracle_seen=True,
+            oracle_last_update_epoch=0,
+            index_price_e8=100_000_000,
+        )
+        r = step(
+            s,
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000, auth_ok=True),
+        )
         assert not r.accepted
+        assert r.rejection == "guard"
 
     def test_rejected_when_phase_not_open(self):
         s = replace(
@@ -96,7 +174,10 @@ class TestPublishClearingPrice:
             oracle_last_update_epoch=1,
             index_price_e8=100_000_000,
         )
-        r = step(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000))
+        r = step(
+            s,
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000, auth_ok=True),
+        )
         assert not r.accepted
         assert r.rejection == "guard"
 
@@ -104,6 +185,7 @@ class TestPublishClearingPrice:
 # ---------------------------------------------------------------------------
 # settle_epoch
 # ---------------------------------------------------------------------------
+
 
 class TestSettleEpoch:
     def _ready_to_settle(self, price_e8=100_000_000, coll=100_000, pos=0):
@@ -133,7 +215,7 @@ class TestSettleEpoch:
         assert r.effect.event == Event.EPOCH_SETTLED
         assert r.effect.oracle_fresh is True
 
-    def test_bootstrap_settle_allowed_when_oracle_not_seen_and_flat(self):
+    def test_unseen_oracle_published_prestate_rejects_before_dispatch(self):
         s = replace(
             initial_state(),
             now_epoch=1,
@@ -148,10 +230,10 @@ class TestSettleEpoch:
             collateral_quote=0,
         )
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
-        assert r.accepted
-        assert r.state is not None
-        assert r.state.oracle_seen is True
-        assert r.state.index_price_e8 == 100_000_000
+        assert not r.accepted
+        assert r.state is None
+        assert r.effect is None
+        assert r.rejection == "pre_invariant:inv_phase_published_has_settlement_path"
 
     def test_profitable_long(self):
         # Long 100, price goes up 10% but clamped to 5% (max_oracle_move_bps=500)
@@ -176,9 +258,9 @@ class TestSettleEpoch:
     def test_liquidation(self):
         # Long 100, price drops 3% (within 5% max move → no clamping).
         # settle_price = 97_000_000. PnL = -(100 * 3_000_000 / 1e8) = -3.
-        # collateral_after_pnl = 4 - 3 = 1.
+        # collateral_after_pnl = 6 - 3 = 3.
         # notional at 97e6: 100 * 97e6 / 1e8 = 97.
-        # maint_req = 97 * 600 / 10000 = 5. Since 1 < 5 → liquidated.
+        # maint_req = 97 * 600 / 10000 = 5. Since 3 < 5 → liquidated.
         s = replace(
             initial_state(),
             now_epoch=2,
@@ -189,7 +271,7 @@ class TestSettleEpoch:
             oracle_seen=True,
             oracle_last_update_epoch=1,
             index_price_e8=100_000_000,
-            collateral_quote=4,
+            collateral_quote=6,
             position_base=100,
             entry_price_e8=100_000_000,
         )
@@ -221,23 +303,21 @@ class TestSettleEpoch:
         assert not r.accepted
         assert r.rejection == "guard"
 
-    def test_guard_rejects_when_oracle_not_seen(self):
+    def test_invalid_published_prestate_rejects_when_oracle_not_seen(self):
         s = replace(
             initial_state(),
             now_epoch=2,
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
             clearing_price_seen=True,
             clearing_price_epoch=2,
             clearing_price_e8=100_000_000,
             oracle_seen=False,
-            oracle_last_update_epoch=1,
+            oracle_last_update_epoch=0,
             index_price_e8=0,
-            collateral_quote=100_000,
-            position_base=100,
-            entry_price_e8=100_000_000,
         )
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
         assert not r.accepted
-        assert r.rejection == "guard"
+        assert r.rejection == "pre_invariant:inv_phase_published_has_settlement_path"
 
     def test_guard_rejects_when_oracle_stale(self):
         s = replace(
@@ -273,6 +353,7 @@ class TestSettleEpoch:
 # deposit_collateral
 # ---------------------------------------------------------------------------
 
+
 class TestDepositCollateral:
     def test_basic(self):
         s = initial_state()
@@ -289,6 +370,7 @@ class TestDepositCollateral:
 # ---------------------------------------------------------------------------
 # withdraw_collateral
 # ---------------------------------------------------------------------------
+
 
 class TestWithdrawCollateral:
     def test_basic(self):
@@ -327,12 +409,13 @@ class TestWithdrawCollateral:
         )
         r = step(s, ActionParams(action=Action.WITHDRAW_COLLATERAL, amount=1, auth_ok=True))
         assert not r.accepted
-        assert r.rejection == "guard"
+        assert r.rejection == "pre_invariant:inv_oracle_seen_positive_index"
 
 
 # ---------------------------------------------------------------------------
 # set_position
 # ---------------------------------------------------------------------------
+
 
 class TestSetPosition:
     def test_open_long(self):
@@ -371,7 +454,7 @@ class TestSetPosition:
         )
         r = step(s, ActionParams(action=Action.SET_POSITION, new_position_base=100, auth_ok=True))
         assert not r.accepted
-        assert r.rejection == "guard"
+        assert r.rejection == "pre_invariant:inv_oracle_seen_positive_index"
 
     def test_breaker_reduce_only(self):
         s = _make_state_with_oracle(collateral=100_000, position=100, breaker_active=True)
@@ -394,7 +477,9 @@ class TestSetPosition:
 
     def test_exceeds_max_position(self):
         s = _make_state_with_oracle(collateral=1_000_000_000)
-        r = step(s, ActionParams(action=Action.SET_POSITION, new_position_base=1_000_001, auth_ok=True))
+        r = step(
+            s, ActionParams(action=Action.SET_POSITION, new_position_base=1_000_001, auth_ok=True)
+        )
         assert not r.accepted
 
     def test_short_position(self):
@@ -407,6 +492,7 @@ class TestSetPosition:
 # ---------------------------------------------------------------------------
 # clear_breaker
 # ---------------------------------------------------------------------------
+
 
 class TestClearBreaker:
     def test_basic(self):
@@ -440,6 +526,7 @@ class TestClearBreaker:
 # ---------------------------------------------------------------------------
 # apply_funding
 # ---------------------------------------------------------------------------
+
 
 class TestApplyFunding:
     def test_long_pays_positive_rate(self):
@@ -486,7 +573,7 @@ class TestApplyFunding:
         )
         r = step(s, ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=50, auth_ok=True))
         assert not r.accepted
-        assert r.rejection == "guard"
+        assert r.rejection == "pre_invariant:inv_oracle_seen_positive_index"
 
     def test_margin_check(self):
         s = _make_state_with_oracle(collateral=7, position=100)
@@ -501,6 +588,7 @@ class TestApplyFunding:
 # deposit_insurance
 # ---------------------------------------------------------------------------
 
+
 class TestDepositInsurance:
     def test_basic(self):
         s = initial_state()
@@ -514,23 +602,29 @@ class TestDepositInsurance:
 # apply_insurance_claim
 # ---------------------------------------------------------------------------
 
+
 class TestApplyInsuranceClaim:
     def test_basic(self):
         s = replace(initial_state(), insurance_balance=5000, initial_insurance=5000)
-        r = step(s, ActionParams(action=Action.APPLY_INSURANCE_CLAIM, claim_amount=1000, auth_ok=True))
+        r = step(
+            s, ActionParams(action=Action.APPLY_INSURANCE_CLAIM, claim_amount=1000, auth_ok=True)
+        )
         assert r.accepted
         assert r.state.claims_paid == 1000
         assert r.state.insurance_balance == 4000
 
     def test_exceeds_balance_rejected(self):
         s = replace(initial_state(), insurance_balance=500, initial_insurance=500)
-        r = step(s, ActionParams(action=Action.APPLY_INSURANCE_CLAIM, claim_amount=600, auth_ok=True))
+        r = step(
+            s, ActionParams(action=Action.APPLY_INSURANCE_CLAIM, claim_amount=600, auth_ok=True)
+        )
         assert not r.accepted
 
 
 # ---------------------------------------------------------------------------
 # Full sequence test
 # ---------------------------------------------------------------------------
+
 
 class TestFullSequence:
     def test_deposit_trade_settle_withdraw(self):
@@ -543,13 +637,24 @@ class TestFullSequence:
         s = r.state
         assert s.epoch_phase == EpochPhase.OPEN
 
+        # Simulate the authenticated Oracle adapter binding the initial snapshot.
+        s = replace(
+            s,
+            oracle_seen=True,
+            oracle_last_update_epoch=0,
+            index_price_e8=100_000_000,
+        )
+
         # Publish clearing price
-        r = step(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000))
+        r = step(
+            s,
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000, auth_ok=True),
+        )
         assert r.accepted
         s = r.state
         assert s.epoch_phase == EpochPhase.PRICE_PUBLISHED
 
-        # Settle epoch (establishes oracle)
+        # Settle epoch using the authenticated Oracle snapshot.
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
         assert r.accepted
         s = r.state
@@ -580,7 +685,10 @@ class TestFullSequence:
         s = r.state
 
         # Publish higher clearing price (profit)
-        r = step(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=110_000_000))
+        r = step(
+            s,
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=110_000_000, auth_ok=True),
+        )
         assert r.accepted
         s = r.state
 
@@ -618,16 +726,21 @@ class TestFullSequence:
         """Execute a known sequence and verify no invariant is ever violated."""
         from src.core.perp_v2.invariants import check_all
 
-        s = initial_state()
+        s = replace(
+            initial_state(),
+            oracle_seen=True,
+            oracle_last_update_epoch=0,
+            index_price_e8=100_000_000,
+        )
         actions = [
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
-            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000),
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000, auth_ok=True),
             ActionParams(action=Action.SETTLE_EPOCH),
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),  # re-enter OPEN
             ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1_000_000, auth_ok=True),
             ActionParams(action=Action.SET_POSITION, new_position_base=100, auth_ok=True),
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
-            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=102_000_000),
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=102_000_000, auth_ok=True),
             ActionParams(action=Action.SETTLE_EPOCH),
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),  # re-enter OPEN
             ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=50, auth_ok=True),
@@ -639,15 +752,16 @@ class TestFullSequence:
 
         for params in actions:
             r = step(s, params)
-            if r.accepted:
-                s = r.state
-                violations = check_all(s)
-                assert violations == [], f"Invariant violation after {params.action}: {violations}"
+            assert r.accepted, f"Unexpected rejection after {params.action}: {r.rejection}"
+            s = r.state
+            violations = check_all(s)
+            assert violations == [], f"Invariant violation after {params.action}: {violations}"
 
 
 # ---------------------------------------------------------------------------
 # Parameter domain validation
 # ---------------------------------------------------------------------------
+
 
 class TestParamDomainValidation:
     """YAML param bounds are enforced before guard dispatch."""
@@ -690,22 +804,30 @@ class TestParamDomainValidation:
 
     def test_publish_clearing_price_exceeds_max(self):
         s = replace(initial_state(), now_epoch=1)
-        r = step(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1_000_000_000_001))
+        r = step(
+            s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=PERP_PRICE_E8_MAX + 1)
+        )
         assert not r.accepted
         assert r.rejection == "param_domain:price_e8"
 
     def test_deposit_collateral_zero(self):
-        r = step(initial_state(), ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=0, auth_ok=True))
+        r = step(
+            initial_state(), ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=0, auth_ok=True)
+        )
         assert not r.accepted
         assert r.rejection == "param_domain:amount"
 
     def test_deposit_collateral_auth_must_be_bool(self):
-        r = step(initial_state(), ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1, auth_ok=1))
+        r = step(
+            initial_state(), ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1, auth_ok=1)
+        )
         assert not r.accepted
         assert r.rejection == "param_domain:auth_ok"
 
     def test_deposit_collateral_negative(self):
-        r = step(initial_state(), ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=-1, auth_ok=True))
+        r = step(
+            initial_state(), ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=-1, auth_ok=True)
+        )
         assert not r.accepted
         assert r.rejection == "param_domain:amount"
 
@@ -728,18 +850,27 @@ class TestParamDomainValidation:
 
     def test_insurance_claim_exceeds_max(self):
         s = replace(initial_state(), insurance_balance=5000, initial_insurance=5000)
-        r = step(s, ActionParams(action=Action.APPLY_INSURANCE_CLAIM, claim_amount=1_000_000_000_001, auth_ok=True))
+        r = step(
+            s,
+            ActionParams(
+                action=Action.APPLY_INSURANCE_CLAIM, claim_amount=1_000_000_000_001, auth_ok=True
+            ),
+        )
         assert not r.accepted
         assert r.rejection == "param_domain:claim_amount"
 
     def test_set_position_within_bounds(self):
         s = _make_state_with_oracle(collateral=100_000)
-        r = step(s, ActionParams(action=Action.SET_POSITION, new_position_base=1_000_000, auth_ok=True))
+        r = step(
+            s, ActionParams(action=Action.SET_POSITION, new_position_base=1_000_000, auth_ok=True)
+        )
         assert r.accepted
 
     def test_set_position_exceeds_domain(self):
         s = _make_state_with_oracle(collateral=100_000_000)
-        r = step(s, ActionParams(action=Action.SET_POSITION, new_position_base=1_000_001, auth_ok=True))
+        r = step(
+            s, ActionParams(action=Action.SET_POSITION, new_position_base=1_000_001, auth_ok=True)
+        )
         assert not r.accepted
         assert r.rejection == "param_domain:new_position_base"
 
@@ -747,6 +878,7 @@ class TestParamDomainValidation:
 # ---------------------------------------------------------------------------
 # Effect field assertions
 # ---------------------------------------------------------------------------
+
 
 class TestEffectFields:
     """Effects compute post-state observables correctly."""
@@ -816,6 +948,7 @@ class TestEffectFields:
 # step_or_raise
 # ---------------------------------------------------------------------------
 
+
 class TestStepOrRaise:
     """Exception-raising entry point for strict callers."""
 
@@ -830,9 +963,11 @@ class TestStepOrRaise:
             step_or_raise(initial_state(), ActionParams(action=Action.ADVANCE_EPOCH, delta=0))
 
     def test_guard_raises_guard_error(self):
-        s = replace(initial_state(), now_epoch=1, clearing_price_epoch=1)
+        s = initial_state()
         with pytest.raises(PerpGuardError, match="guard"):
-            step_or_raise(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100))
+            step_or_raise(
+                s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100, auth_ok=True)
+            )
 
     def test_invariant_raises_invariant_error(self):
         """Construct a scenario where invariant check catches a violation.
@@ -849,41 +984,46 @@ class TestStepOrRaise:
 # Settle-epoch liquidation overflow boundary
 # ---------------------------------------------------------------------------
 
+
 class TestSettleLiqOverflowBoundary:
     """Test _settle_liq_overflow_ok logic at near-max boundaries."""
 
     def test_fee_pool_near_max(self):
         """Liquidation penalty would push fee_pool above MAX_COLLATERAL → rejected."""
         from src.core.perp_v2.math import MAX_COLLATERAL
-        # pos=100M, clearing=97e6, index=100e6 → settle=97e6 (within 5% clamp).
-        # pnl = -(100M * 3e6 / 1e8) = -3M. collateral_after_pnl = 4M - 3M = 1M.
-        # notional = 100M * 97e6 / 1e8 = 97M. maint_req = 97M * 600 / 10000 = 5.82M.
-        # 1M < 5.82M → liquidated. penalty = 97M * 50 / 10000 = 485K.
-        # fee_pool(MAX) + 485K > MAX → guard rejects.
+
+        # pos=1M, clearing=97e6, index=100e6 → settle=97e6 (within 5% clamp).
+        # pnl = -(1M * 3e6 / 1e8) = -30K. collateral_after_pnl = 60K - 30K = 30K.
+        # notional = 1M * 97e6 / 1e8 = 970K. maint_req = 58.2K.
+        # 30K < 58.2K → liquidated. penalty = 4.85K.
+        # fee_pool(MAX) + 4.85K > MAX → published prestate is invalid.
         s = replace(
             initial_state(),
             now_epoch=2,
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
             clearing_price_seen=True,
             clearing_price_epoch=2,
             clearing_price_e8=97_000_000,
             oracle_seen=True,
             oracle_last_update_epoch=1,
             index_price_e8=100_000_000,
-            collateral_quote=4_000_000,
-            position_base=100_000_000,
+            collateral_quote=60_000,
+            position_base=1_000_000,
             entry_price_e8=100_000_000,
             fee_pool_quote=MAX_COLLATERAL,
             fee_income=MAX_COLLATERAL,
+            insurance_balance=MAX_COLLATERAL,
             min_notional_for_bounty=1,
         )
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
         assert not r.accepted
-        assert r.rejection == "guard"
+        assert r.rejection == "pre_invariant:inv_phase_published_has_settlement_path"
 
 
 # ---------------------------------------------------------------------------
 # Phase-gate tests
 # ---------------------------------------------------------------------------
+
 
 class TestPhaseGating:
     """User actions (deposit, withdraw, set_position, apply_funding) are
@@ -896,6 +1036,10 @@ class TestPhaseGating:
             now_epoch=1,
             clearing_price_seen=True,
             clearing_price_epoch=1,
+            clearing_price_e8=100_000_000,
+            oracle_seen=True,
+            oracle_last_update_epoch=0,
+            index_price_e8=100_000_000,
         )
         r = step(s, ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1000, auth_ok=True))
         assert not r.accepted
@@ -921,10 +1065,15 @@ class TestPhaseGating:
             now_epoch=1,
             clearing_price_seen=True,
             clearing_price_epoch=1,
+            clearing_price_e8=100_000_000,
+            oracle_seen=True,
+            oracle_last_update_epoch=0,
+            index_price_e8=100_000_000,
             collateral_quote=1000,
         )
         r = step(s, ActionParams(action=Action.WITHDRAW_COLLATERAL, amount=500, auth_ok=True))
         assert not r.accepted
+        assert r.rejection == "guard"
 
     def test_set_position_rejected_in_settled(self):
         s = replace(
@@ -940,8 +1089,10 @@ class TestPhaseGating:
         s = replace(
             _make_state_with_oracle(collateral=100_000, position=1000),
             epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            now_epoch=2,
             clearing_price_seen=True,
-            clearing_price_epoch=1,
+            clearing_price_epoch=2,
+            clearing_price_e8=100_000_000,
         )
         r = step(s, ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=50, auth_ok=True))
         assert r.accepted
@@ -977,8 +1128,18 @@ class TestPhaseGating:
         assert r.state.epoch_phase == EpochPhase.OPEN
 
     def test_publish_sets_price_published(self):
-        s = replace(initial_state(), now_epoch=1, clearing_price_epoch=0)
-        r = step(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000))
+        s = replace(
+            initial_state(),
+            now_epoch=1,
+            clearing_price_epoch=0,
+            oracle_seen=True,
+            oracle_last_update_epoch=0,
+            index_price_e8=100_000_000,
+        )
+        r = step(
+            s,
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000, auth_ok=True),
+        )
         assert r.accepted
         assert r.state.epoch_phase == EpochPhase.PRICE_PUBLISHED
 

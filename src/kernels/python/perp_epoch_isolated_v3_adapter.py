@@ -14,10 +14,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
 
-
 # Bind this adapter to the exact kernel spec version (fail-closed by default).
 # Checked by the toolchain's adapter lint step (fail-closed by default).
-IR_HASH = "sha256:23a9b8ec0233f3514301be3d347c6f3623db0876559efc00d904d5b0786a0cfe"
+IR_HASH = "sha256:5ad3a30e56c04035df9e1b69ad81a52ebebfc941cd5b99a5f982dadafdb848c9"
 
 
 def _prepare_ctx(ir: Any) -> Any:
@@ -88,6 +87,7 @@ def _handle_generic(adapter: PerpEpochIsolatedV3Adapter, command: Any) -> Any:
 
 
 ACTION_HANDLERS: dict[str, Callable[[PerpEpochIsolatedV3Adapter, Any], Any]] = {
+    "bootstrap_oracle": _handle_generic,
     "advance_epoch": _handle_generic,
     "publish_clearing_price": _handle_generic,
     "settle_epoch": _handle_generic,

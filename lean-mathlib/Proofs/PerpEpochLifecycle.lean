@@ -20,6 +20,7 @@ inductive Phase where
 
 inductive Action where
   | advanceEpoch
+  | publishClearingPrice
   | settleEpoch
   | other
   deriving DecidableEq, Repr
@@ -50,6 +51,11 @@ def oracleUsable (state : State) : Bool :=
 with this decision in the implementation. -/
 def lifecycleAllowed (state : State) : Action → Bool
   | .advanceEpoch => decide (state.phase ≠ .pricePublished)
+  | .publishClearingPrice =>
+      decide (state.phase = .open) &&
+        decide (state.clearingPriceEpoch < state.nowEpoch) &&
+        decide (state.oracleLastUpdateEpoch < state.nowEpoch) &&
+        oracleUsable state
   | .settleEpoch =>
       decide (state.phase = .pricePublished) &&
         state.clearingPriceSeen &&
@@ -79,7 +85,59 @@ theorem settled_allows_epoch_advance
 theorem advance_allowed_iff_not_published (state : State) :
     lifecycleAllowed state .advanceEpoch = true ↔
       state.phase ≠ .pricePublished := by
-  cases state.phase <;> simp [lifecycleAllowed]
+  simp [lifecycleAllowed]
+
+def basePublicationState : State :=
+  {
+    phase := .open
+    nowEpoch := 5
+    clearingPriceSeen := false
+    clearingPriceEpoch := 4
+    oracleSeen := true
+    oracleLastUpdateEpoch := 3
+    indexPriceE8 := 100000000
+    maxOracleStalenessEpochs := 2
+  }
+
+theorem exact_freshness_boundary_allows_publication :
+    lifecycleAllowed basePublicationState .publishClearingPrice = true := by
+  decide
+
+theorem unseen_oracle_blocks_publication :
+    lifecycleAllowed
+      { basePublicationState with oracleSeen := false }
+      .publishClearingPrice = false := by
+  decide
+
+theorem zero_index_blocks_publication :
+    lifecycleAllowed
+      { basePublicationState with indexPriceE8 := 0 }
+      .publishClearingPrice = false := by
+  decide
+
+theorem stale_by_one_blocks_publication :
+    lifecycleAllowed
+      { basePublicationState with oracleLastUpdateEpoch := 2 }
+      .publishClearingPrice = false := by
+  decide
+
+theorem same_epoch_oracle_blocks_publication :
+    lifecycleAllowed
+      { basePublicationState with oracleLastUpdateEpoch := 5 }
+      .publishClearingPrice = false := by
+  decide
+
+theorem duplicate_epoch_publication_is_blocked :
+    lifecycleAllowed
+      { basePublicationState with clearingPriceEpoch := 5 }
+      .publishClearingPrice = false := by
+  decide
+
+theorem non_open_phase_blocks_publication :
+    lifecycleAllowed
+      { basePublicationState with phase := .settled }
+      .publishClearingPrice = false := by
+  decide
 
 def baseSettlementState : State :=
   {
