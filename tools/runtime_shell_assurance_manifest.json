@@ -48,11 +48,11 @@
     },
     {
       "path": "src/kernels/python/dex_global_conservation_v1_adapter.py",
-      "sha256": "c79e41fd09f0ea74e3ee148f531ce0cdaba16853cd24cbd797101cc271f0c339"
+      "sha256": "a4a60455c5b2ed90c3d8f4673fc3439e33d13a166b5e44d00de61fa477e237d0"
     },
     {
       "path": "tests/kernels/test_python_adapter_wrappers.py",
-      "sha256": "a8b2579c94445c83264b9e4b8cafb0da7a48891a2ada6ef33d9703b3d6f0ad63"
+      "sha256": "30dea9977ca3ac9a51c40dfe5968d88da48af58ec0615335c2147d93041df8dd"
     },
     {
       "path": "tests/kernels/test_proof_mining_manager_v1_adapter.py",
@@ -60,7 +60,7 @@
     },
     {
       "path": "tests/kernels/test_runtime_shell_adapters.py",
-      "sha256": "b11215f0c2b89703902fb4b4fa64d11a924db33815fd5f97a9f9342d68e9d682"
+      "sha256": "7c9f7b115119e421f2582a6d4eb3de8f3ca45d87cc409196b3becb6c584b5aff"
     },
     {
       "path": "src/kernels/dex/perp_epoch_isolated_v4.yaml",
