@@ -226,6 +226,7 @@ def test_cross_stream_zusd_then_bad_perps_is_atomic(monkeypatch) -> None:
 
 def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
     quote_asset = QUOTE_ASSET
@@ -253,6 +254,7 @@ def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatc
 
 def test_stream8_app_bridge_accepts_signed_position_pair_after_quote_collateral_deposits(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
     quote_asset = QUOTE_ASSET
@@ -349,6 +351,7 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_quote_collateral_
 
 def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
     quote_asset = QUOTE_ASSET

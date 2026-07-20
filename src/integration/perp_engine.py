@@ -2999,6 +2999,9 @@ def _apply_ch2p_advance_epoch(
     )
     if unknown is not None:
         return unknown
+    operator_err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
+    if operator_err is not None:
+        return operator_err
     # Scheduler rule: only advance when the current epoch is settled.
     if int(ch2p_market.state.get("oracle_last_update_epoch", 0)) != int(
         ch2p_market.state.get("now_epoch", 0)
@@ -3034,6 +3037,9 @@ def _apply_ch2p_settle_epoch(
     )
     if unknown is not None:
         return unknown
+    operator_err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
+    if operator_err is not None:
+        return operator_err
     err = _require_oracle_adapter_bridge(
         _OracleAdapterBridgeRequirement(
             config=ctx.config,
@@ -3078,6 +3084,9 @@ def _apply_ch2p_clear_breaker(
     )
     if unknown is not None:
         return unknown
+    operator_err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
+    if operator_err is not None:
+        return operator_err
     if (
         int(ch2p_market.state.get("position_base_a", 0)) != 0
         or int(ch2p_market.state.get("position_base_b", 0)) != 0
@@ -3108,6 +3117,9 @@ def _apply_ch3p_advance_epoch(
     )
     if unknown is not None:
         return unknown
+    operator_err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
+    if operator_err is not None:
+        return operator_err
     if int(ch3p_market.state.get("oracle_last_update_epoch", 0)) != int(
         ch3p_market.state.get("now_epoch", 0)
     ):
@@ -3140,6 +3152,9 @@ def _apply_ch3p_settle_epoch(
     )
     if unknown is not None:
         return unknown
+    operator_err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
+    if operator_err is not None:
+        return operator_err
     err = _require_oracle_adapter_bridge(
         _OracleAdapterBridgeRequirement(
             config=ctx.config,
@@ -3185,6 +3200,9 @@ def _apply_ch3p_clear_breaker(
     )
     if unknown is not None:
         return unknown
+    operator_err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
+    if operator_err is not None:
+        return operator_err
     if (
         int(ch3p_market.state.get("position_base_a", 0)) != 0
         or int(ch3p_market.state.get("position_base_b", 0)) != 0
