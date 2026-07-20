@@ -275,6 +275,7 @@ PERP_CH3P_MARKET_PREFIX = "perp:ch3p:"
 PERP_CHNP_MARKET_PREFIX = "perp:chnp:"
 
 _E8_SCALE = 100_000_000
+_ISOLATED_EPOCH_PHASE_PRICE_PUBLISHED = 1
 
 try:
     from py_ecc.bls import G2Basic
@@ -1196,7 +1197,7 @@ def _receiver_claim_lots_for_mutation(
 def _add_funding_closeout_receiver_claim_lots(
     market: PerpMarketState,
     *,
-    receiver_claims_by_account: Mapping[str, int],
+    receiver_claims_by_account: Mapping[str, int] | None,
     policy_hash: str | None,
 ) -> tuple[tuple[str, str, int, int], ...]:
     claims = {
@@ -4709,22 +4710,24 @@ def _apply_isolated_funding_to_accounts(
     )
 
 
-def _commit_isolated_apply_funding_auto(
-    ctx: _PerpApplyCtx,
-    *,
-    i: int,
-    op: PerpOp,
+@dataclass(frozen=True, slots=True)
+class _IsolatedFundingCommitState:
+    market: PerpMarketState
+    consumed_root_hashes: tuple[str, ...]
+    consumed_source_availability_hashes: tuple[str, ...]
+    receiver_claim_balances_quote: tuple[tuple[str, int], ...]
+    receiver_claim_lots_quote: tuple[tuple[str, str, int, int], ...]
+
+
+def _build_isolated_funding_commit_state(
     market: PerpMarketState,
+    *,
     funding_gate: Any,
     account_apply: _IsolatedFundingAccountApply,
-    projected_net_funding_quote: int,
-    receiver_haircut_quote: int = 0,
-    receiver_haircuts_by_account: Mapping[str, int] | None = None,
-    allocation_receipt_applied: bool = False,
-    policy_ledger_hash: str | None = None,
-    policy_ledger_payload: Mapping[str, Any] | None = None,
-    receiver_claims_by_account: Mapping[str, int] | None = None,
-) -> None:
+    policy_ledger_hash: str | None,
+    receiver_claims_by_account: Mapping[str, int],
+) -> _IsolatedFundingCommitState:
+    """Build the exact post-funding market used by preflight and commit."""
     expected_global = dict(market.global_state)
     expected_global["funding_rate_bps"] = int(funding_gate.funding_rate_bps)
     expected_global["fee_pool_quote"] = int(funding_gate.fee_pool_after_funding_quote)
@@ -4759,7 +4762,7 @@ def _commit_isolated_apply_funding_auto(
         if receiver_claim_lots
         else tuple(getattr(market, "funding_closeout_receiver_claim_lots_quote", ()))
     )
-    ctx.markets[op.market_id] = _isolated_market_with(
+    candidate_market = _isolated_market_with(
         market,
         global_state=expected_global,
         accounts=account_apply.accounts,
@@ -4769,6 +4772,48 @@ def _commit_isolated_apply_funding_auto(
         funding_closeout_receiver_claim_balances_quote=receiver_claim_balances,
         funding_closeout_receiver_claim_lots_quote=next_receiver_claim_lots,
     )
+    return _IsolatedFundingCommitState(
+        market=candidate_market,
+        consumed_root_hashes=consumed_roots,
+        consumed_source_availability_hashes=consumed_source_roots,
+        receiver_claim_balances_quote=receiver_claim_balances,
+        receiver_claim_lots_quote=next_receiver_claim_lots,
+    )
+
+
+def _isolated_post_funding_settlement_path_error(
+    candidate_market: PerpMarketState,
+) -> Optional[str]:
+    """Reject funding that would invalidate an already-published settlement."""
+    if (
+        int(candidate_market.global_state.get("epoch_phase", 0))
+        != _ISOLATED_EPOCH_PHASE_PRICE_PUBLISHED
+    ):
+        return None
+
+    settle_error, settle_plan = _plan_isolated_settlement(candidate_market)
+    if settle_error is None and settle_plan is not None:
+        return None
+    detail = settle_error or "settlement plan missing"
+    return f"apply_funding_auto would destroy mounted settlement path: {detail}"
+
+
+def _commit_isolated_apply_funding_auto(
+    ctx: _PerpApplyCtx,
+    *,
+    i: int,
+    op: PerpOp,
+    commit_state: _IsolatedFundingCommitState,
+    funding_gate: Any,
+    account_apply: _IsolatedFundingAccountApply,
+    projected_net_funding_quote: int,
+    receiver_haircut_quote: int = 0,
+    receiver_haircuts_by_account: Mapping[str, int] | None = None,
+    allocation_receipt_applied: bool = False,
+    policy_ledger_hash: str | None = None,
+    policy_ledger_payload: Mapping[str, Any] | None = None,
+) -> None:
+    ctx.markets[op.market_id] = commit_state.market
     ctx.effects.append(
         {
             "i": i,
@@ -4782,9 +4827,11 @@ def _commit_isolated_apply_funding_auto(
             "fee_pool_after_quote": int(funding_gate.fee_pool_after_funding_quote),
             "fee_income_after_quote": int(funding_gate.fee_income_after_funding_quote),
             "insurance_after_quote": int(funding_gate.insurance_after_funding_quote),
-            "funding_closeout_pending_root_hashes_consumed": list(consumed_roots),
+            "funding_closeout_pending_root_hashes_consumed": list(
+                commit_state.consumed_root_hashes
+            ),
             "funding_closeout_pending_source_availability_hashes_consumed": list(
-                consumed_source_roots
+                commit_state.consumed_source_availability_hashes
             ),
             "funding_closeout_receiver_haircut_quote": int(receiver_haircut_quote),
             "funding_closeout_receiver_haircuts_quote_by_account": dict(
@@ -4801,7 +4848,9 @@ def _commit_isolated_apply_funding_auto(
             "funding_closeout_policy_ledger": (
                 dict(policy_ledger_payload) if policy_ledger_payload is not None else None
             ),
-            "funding_closeout_receiver_claim_balances_quote": dict(receiver_claim_balances),
+            "funding_closeout_receiver_claim_balances_quote": dict(
+                commit_state.receiver_claim_balances_quote
+            ),
             "funding_closeout_receiver_claim_lots_quote": [
                 {
                     "account_pubkey": account_pubkey,
@@ -4810,7 +4859,7 @@ def _commit_isolated_apply_funding_auto(
                     "expires_at_epoch": int(expires_at_epoch),
                 }
                 for account_pubkey, lot_id, balance_quote, expires_at_epoch in (
-                    next_receiver_claim_lots
+                    commit_state.receiver_claim_lots_quote
                 )
             ],
         }
@@ -4867,11 +4916,24 @@ def _apply_isolated_apply_funding_auto(
     if account_apply is None:
         return "internal error: apply_funding account step missing"
 
+    commit_state = _build_isolated_funding_commit_state(
+        market,
+        funding_gate=funding_gate,
+        account_apply=account_apply,
+        policy_ledger_hash=closeout_admission.policy_ledger_hash,
+        receiver_claims_by_account=closeout_admission.receiver_claims_by_account,
+    )
+    settlement_path_error = _isolated_post_funding_settlement_path_error(
+        commit_state.market,
+    )
+    if settlement_path_error is not None:
+        return settlement_path_error
+
     _commit_isolated_apply_funding_auto(
         ctx,
         i=i,
         op=op,
-        market=market,
+        commit_state=commit_state,
         funding_gate=funding_gate,
         account_apply=account_apply,
         projected_net_funding_quote=closeout_admission.projected_net_funding_quote,
@@ -4880,7 +4942,6 @@ def _apply_isolated_apply_funding_auto(
         allocation_receipt_applied=closeout_admission.allocation_receipt_applied,
         policy_ledger_hash=closeout_admission.policy_ledger_hash,
         policy_ledger_payload=closeout_admission.policy_ledger_payload,
-        receiver_claims_by_account=closeout_admission.receiver_claims_by_account,
     )
     return None
 
