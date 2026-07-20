@@ -78,6 +78,12 @@ def _ready_market(*, market_id: str, operator: str, price_e8: int = 100_000_000)
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
+        ops=[_op(market_id, "bootstrap_oracle", price_e8=price_e8)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
         ops=[_op(market_id, "advance_epoch", delta=1)],
     )
     state = _apply(
@@ -86,12 +92,6 @@ def _ready_market(*, market_id: str, operator: str, price_e8: int = 100_000_000)
         operator_pubkey=operator,
         ops=[_op(market_id, "publish_clearing_price", price_e8=price_e8)],
     )
-    assert state.perps is not None
-    market = state.perps.markets[market_id]
-    assert hasattr(market, "global_state")
-    market.global_state["oracle_seen"] = True
-    market.global_state["oracle_last_update_epoch"] = max(0, int(market.global_state["now_epoch"]) - 1)
-    market.global_state["index_price_e8"] = int(price_e8)
     return state
 
 

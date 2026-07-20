@@ -12,8 +12,9 @@ from __future__ import annotations
 
 from typing import Callable
 
+from ..perp_state_domain import state_domain_violations
 from .math import BPS_SCALE, maint_margin_req
-from .types import EpochPhase, PerpState
+from .types import Action, ActionParams, EpochPhase, PerpState
 
 
 def inv_clearing_not_from_future(s: PerpState) -> bool:
@@ -69,12 +70,17 @@ def inv_entry_matches_price_when_open(s: PerpState) -> bool:
     return s.entry_price_e8 == s.index_price_e8
 
 
+# Maintenance health is deliberately outside INVARIANT_REGISTRY. Oracle-driven
+# underwater states must remain representable for collateral top-up and liquidation.
+# Use this predicate in risk-action guards, recovery checks, and v3-to-v4 migration.
 def inv_maint_margin_ok(s: PerpState) -> bool:
     if s.position_base == 0:
         return True
     mreq = maint_margin_req(
-        s.position_base, s.index_price_e8,
-        s.maintenance_margin_bps, s.depeg_buffer_bps,
+        s.position_base,
+        s.index_price_e8,
+        s.maintenance_margin_bps,
+        s.depeg_buffer_bps,
     )
     return s.collateral_quote >= mreq
 
@@ -104,7 +110,10 @@ def funded_liquidation_params_ok_bps(
     liquidation_penalty_bps: int,
 ) -> bool:
     """True when post-move margin headroom can fund the liquidation penalty."""
-    if min(max_oracle_move_bps, maintenance_margin_bps, depeg_buffer_bps, liquidation_penalty_bps) < 0:
+    if (
+        min(max_oracle_move_bps, maintenance_margin_bps, depeg_buffer_bps, liquidation_penalty_bps)
+        < 0
+    ):
         return False
     eff_maint_bps = maintenance_margin_bps + depeg_buffer_bps
     if max_oracle_move_bps >= eff_maint_bps:
@@ -131,6 +140,19 @@ def inv_phase_consistent(s: PerpState) -> bool:
     return True  # OPEN has no additional constraint
 
 
+def inv_phase_published_has_settlement_path(s: PerpState) -> bool:
+    """Every published state has an enabled ordinary settlement transition."""
+    if s.epoch_phase is not EpochPhase.PRICE_PUBLISHED:
+        return True
+
+    from .guards import guard_settle_epoch
+
+    return guard_settle_epoch(
+        s,
+        ActionParams(action=Action.SETTLE_EPOCH),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Registry + check_all
 # ---------------------------------------------------------------------------
@@ -146,7 +168,6 @@ INVARIANT_REGISTRY: dict[str, Callable[[PerpState], bool]] = {
     "inv_margin_params_ordered": inv_margin_params_ordered,
     "inv_entry_zero_when_flat": inv_entry_zero_when_flat,
     "inv_entry_matches_price_when_open": inv_entry_matches_price_when_open,
-    "inv_maint_margin_ok": inv_maint_margin_ok,
     "inv_funding_bounded": inv_funding_bounded,
     "inv_insurance_nonneg": inv_insurance_nonneg,
     "inv_insurance_conservation": inv_insurance_conservation,
@@ -154,13 +175,32 @@ INVARIANT_REGISTRY: dict[str, Callable[[PerpState], bool]] = {
     "inv_funding_epoch_gated": inv_funding_epoch_gated,
     "inv_fee_pool_eq_fee_income": inv_fee_pool_eq_fee_income,
     "inv_phase_consistent": inv_phase_consistent,
+    "inv_phase_published_has_settlement_path": (inv_phase_published_has_settlement_path),
 }
 
 
 def check_all(state: PerpState) -> list[str]:
-    """Return list of violated invariant IDs (empty = all pass)."""
-    return [
-        inv_id
-        for inv_id, check_fn in INVARIANT_REGISTRY.items()
-        if not check_fn(state)
-    ]
+    """Return exact domain or semantic invariant violations.
+
+    Domain validation runs first so semantic predicates never execute on a
+    malformed or behavior-changing state object.
+    """
+
+    domain_violations = state_domain_violations(state)
+    if domain_violations:
+        return domain_violations
+    return [inv_id for inv_id, check_fn in INVARIANT_REGISTRY.items() if not check_fn(state)]
+
+
+def check_prestate(state: PerpState, action: Action | None) -> list[str]:
+    """Return structural and lifecycle violations for an action pre-state.
+
+    Maintenance health is an action admission predicate, not a global state
+    invariant: an authenticated Oracle move can make an otherwise valid account
+    underwater. Keeping that recovery state representable lets the owner add
+    collateral and lets liquidation repair it. Risk-increasing actions and
+    partial liquidation enforce their exact maintenance postconditions in their
+    guards.
+    """
+    del action
+    return check_all(state)

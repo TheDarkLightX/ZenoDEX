@@ -10,6 +10,7 @@ from ..state.intents import Intent
 from ..state.lp import LPTable
 from ..state.pools import PoolState
 from .domain_limits import is_strict_int
+from .protocol_fee_policy import canonical_protocol_fee_policy
 
 
 @dataclass(frozen=True)
@@ -51,10 +52,20 @@ def validate_settlement_request_policy(
         raise ValueError(f"unsupported swap_ordering: {swap_ordering!r}")
     if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
         raise ValueError("protocol_fee_share_bps must be an int in [0, 10000]")
-    if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
-        raise ValueError("protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0")
+
+    policy = canonical_protocol_fee_policy(
+        share_bps=protocol_fee_share_bps,
+        recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
+    if protocol_fee_recipient_pubkey != policy.recipient_pubkey:
+        raise ValueError(
+            "protocol_fee_recipient_pubkey must use canonical lowercase "
+            "0x-prefixed wire form"
+        )
 
 
 def validate_swap_tiebreak_seed(seed: bytes | None) -> None:
-    if seed is not None and not isinstance(seed, (bytes, bytearray)):
-        raise TypeError("swap_tiebreak_seed must be bytes or None")
+    if seed is not None and type(seed) is not bytes:
+        raise TypeError(
+            "swap_tiebreak_seed must be bytes or None (exact bytes required)"
+        )

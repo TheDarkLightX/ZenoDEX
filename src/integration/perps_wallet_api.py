@@ -2050,6 +2050,7 @@ def _local_perps_oracle_bridge_fixture(
         _ORACLE_PERPS_INDEX_QUERY_ID,
         _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
         _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        _ClearinghouseOracleRuntimeRequest,
         _LiquidateAccountOracleRuntimeRequest,
         _perps_clearinghouse_runtime_oracle_action_id,
         _perps_liquidate_account_runtime_oracle_action_id,
@@ -2066,13 +2067,15 @@ def _local_perps_oracle_bridge_fixture(
         profile_id = _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID
         freshness_window_epochs = 2
         action_id = _perps_clearinghouse_runtime_oracle_action_id(
-            config,
-            market_id=market_id,
-            action_kind=action_kind,
-            market_kind="clearinghouse_2p_v1",
-            quote_asset=market.quote_asset,
-            state=market.state,
-            participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
+            _ClearinghouseOracleRuntimeRequest(
+                config=config,
+                market_id=market_id,
+                action_kind=action_kind,
+                market_kind="clearinghouse_2p_v1",
+                quote_asset=market.quote_asset,
+                state=market.state,
+                participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
+            )
         )
     elif wallet_action == "partial_liquidate":
         if not isinstance(market, PerpMarketState):

@@ -57,6 +57,38 @@ def test_isolated_projection_does_not_count_mirrored_fee_pool_twice() -> None:
     assert perps_market_locked_quote_e8(market) == 23 * E8_SCALE
 
 
+def test_isolated_projection_rejects_behavior_changing_market_subclass() -> None:
+    class DerivedPerpMarketState(PerpMarketState):
+        pass
+
+    base = _isolated_market()
+    derived = DerivedPerpMarketState(
+        quote_asset=base.quote_asset,
+        global_state=dict(base.global_state),
+        accounts=dict(base.accounts),
+        pending_funding_closeout_root_hashes=base.pending_funding_closeout_root_hashes,
+        pending_funding_closeout_source_availability_hashes=(
+            base.pending_funding_closeout_source_availability_hashes
+        ),
+        pending_funding_closeout_carried_liability_hashes=(
+            base.pending_funding_closeout_carried_liability_hashes
+        ),
+        funding_closeout_policy_ledger_hashes=base.funding_closeout_policy_ledger_hashes,
+        funding_closeout_sink_claimant_balances_quote=(
+            base.funding_closeout_sink_claimant_balances_quote
+        ),
+        funding_closeout_receiver_claim_balances_quote=(
+            base.funding_closeout_receiver_claim_balances_quote
+        ),
+        funding_closeout_receiver_claim_lots_quote=(
+            base.funding_closeout_receiver_claim_lots_quote
+        ),
+    )
+
+    with pytest.raises(TypeError, match="unsupported exact perps market type"):
+        perps_market_locked_quote_e8(derived)
+
+
 def _fixed_state(*, three_party: bool, net_deposited_e8: int) -> dict[str, object]:
     keys = (
         PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS

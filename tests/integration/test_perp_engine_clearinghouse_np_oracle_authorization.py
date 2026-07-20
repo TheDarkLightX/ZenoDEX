@@ -101,13 +101,15 @@ def test_clearinghouse_np_rejects_malformed_runtime_facts(monkeypatch) -> None:
     def accepted_bridge(_bridge: object) -> dict[str, object]:
         participant_pubkeys = perp_engine._chnp_participant_pubkeys(market)
         action_id = perp_engine._perps_clearinghouse_runtime_oracle_action_id(
-            config,
-            market_id=market_id,
-            action_kind="settle_epoch",
-            market_kind=perp_engine.PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
-            quote_asset=market.quote_asset,
-            state=dict(market.global_state),
-            participant_pubkeys=participant_pubkeys,
+            perp_engine._ClearinghouseOracleRuntimeRequest(
+                config=config,
+                market_id=market_id,
+                action_kind="settle_epoch",
+                market_kind=perp_engine.PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
+                quote_asset=market.quote_asset,
+                state=market.global_state,
+                participant_pubkeys=participant_pubkeys,
+            )
         )
         return {
             "status": "accepted",

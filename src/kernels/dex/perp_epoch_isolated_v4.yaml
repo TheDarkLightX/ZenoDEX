@@ -58,6 +58,7 @@ types:
   type:
     kind: enum
     symbols:
+    - OracleBootstrapped
     - EpochAdvanced
     - ClearingPricePublished
     - EpochSettled
@@ -68,6 +69,7 @@ types:
     - FundingApplied
     - InsuranceDeposited
     - InsuranceClaimPaid
+    - PartialLiquidationApplied
 - id: t_epoch_phase
   type:
     kind: enum
@@ -113,7 +115,7 @@ state_vars:
   type:
     kind: int
     min: 0
-    max: 1000000000000
+    max: 10000000000000
 - id: oracle_seen
   role: data
   type:
@@ -129,7 +131,7 @@ state_vars:
   type:
     kind: int
     min: 0
-    max: 1000000000000
+    max: 10000000000000
 - id: max_oracle_staleness_epochs
   role: control
   type:
@@ -183,7 +185,7 @@ state_vars:
   type:
     kind: int
     min: 0
-    max: 1000000000000
+    max: 10000000000000
 - id: collateral_quote
   role: data
   type:
@@ -465,48 +467,6 @@ invariants:
       args:
       - var: entry_price_e8
       - var: index_price_e8
-- id: inv_maint_margin_ok
-  kind: safety
-  expr:
-    op: =>
-    args:
-    - op: not
-      args:
-      - op: '='
-        args:
-        - var: position_base
-        - const: 0
-    - op: '>='
-      args:
-      - var: collateral_quote
-      - op: div
-        args:
-        - op: +
-          args:
-          - op: '*'
-            args:
-            - op: '*'
-              args:
-              - op: ite
-                cond:
-                  op: '>='
-                  args:
-                  - var: position_base
-                  - const: 0
-                then:
-                  var: position_base
-                else:
-                  op: '-'
-                  args:
-                  - const: 0
-                  - var: position_base
-              - var: index_price_e8
-            - op: +
-              args:
-              - var: maintenance_margin_bps
-              - var: depeg_buffer_bps
-          - const: 999999999999
-        - const: 1000000000000
 - id: inv_funding_bounded
   kind: safety
   expr:
@@ -606,6 +566,357 @@ invariants:
       args:
       - var: clearing_price_epoch
       - var: now_epoch
+- id: inv_phase_published_has_settlement_path
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: '='
+      args:
+      - var: epoch_phase
+      - const: 1
+    - &id012
+      op: and
+      args:
+      - var: clearing_price_seen
+      - op: '='
+        args:
+        - var: clearing_price_epoch
+        - var: now_epoch
+      - op: <
+        args:
+        - var: oracle_last_update_epoch
+        - var: now_epoch
+      - var: oracle_seen
+      - op: '>'
+        args:
+        - var: index_price_e8
+        - const: 0
+      - op: <=
+        args:
+        - op: '-'
+          args:
+          - var: now_epoch
+          - var: oracle_last_update_epoch
+        - var: max_oracle_staleness_epochs
+      - op: '='
+        args:
+        - var: epoch_phase
+        - const: 1
+      - op: '>='
+        args:
+        - op: +
+          args:
+          - var: collateral_quote
+          - &id003
+            op: ite
+            cond:
+              op: '='
+              args:
+              - op: '>='
+                args:
+                - var: position_base
+                - const: 0
+              - op: '>='
+                args:
+                - &id001
+                  op: ite
+                  cond: &id013
+                    op: and
+                    args:
+                    - var: oracle_seen
+                    - op: '>'
+                      args:
+                      - op: '*'
+                        args:
+                        - op: ite
+                          cond:
+                            op: '>='
+                            args:
+                            - var: clearing_price_e8
+                            - var: index_price_e8
+                          then:
+                            op: '-'
+                            args:
+                            - var: clearing_price_e8
+                            - var: index_price_e8
+                          else:
+                            op: '-'
+                            args:
+                            - var: index_price_e8
+                            - var: clearing_price_e8
+                        - const: 10000
+                      - op: '*'
+                        args:
+                        - var: max_oracle_move_bps
+                        - var: index_price_e8
+                  then:
+                    op: ite
+                    cond:
+                      op: '>='
+                      args:
+                      - var: clearing_price_e8
+                      - var: index_price_e8
+                    then:
+                      op: +
+                      args:
+                      - var: index_price_e8
+                      - op: div
+                        args:
+                        - op: +
+                          args:
+                          - op: '*'
+                            args:
+                            - var: index_price_e8
+                            - var: max_oracle_move_bps
+                          - const: 9999
+                        - const: 10000
+                    else:
+                      op: '-'
+                      args:
+                      - var: index_price_e8
+                      - op: div
+                        args:
+                        - op: +
+                          args:
+                          - op: '*'
+                            args:
+                            - var: index_price_e8
+                            - var: max_oracle_move_bps
+                          - const: 9999
+                        - const: 10000
+                  else:
+                    var: clearing_price_e8
+                - var: index_price_e8
+            then: &id002
+              op: div
+              args:
+              - op: '*'
+                args:
+                - op: ite
+                  cond:
+                    op: '>='
+                    args:
+                    - var: position_base
+                    - const: 0
+                  then:
+                    var: position_base
+                  else:
+                    op: '-'
+                    args:
+                    - const: 0
+                    - var: position_base
+                - op: ite
+                  cond:
+                    op: '>='
+                    args:
+                    - *id001
+                    - var: index_price_e8
+                  then:
+                    op: '-'
+                    args:
+                    - *id001
+                    - var: index_price_e8
+                  else:
+                    op: '-'
+                    args:
+                    - var: index_price_e8
+                    - *id001
+              - const: 100000000
+            else:
+              op: '-'
+              args:
+              - const: 0
+              - *id002
+        - const: 0
+      - op: <=
+        args:
+        - op: +
+          args:
+          - var: collateral_quote
+          - *id003
+        - const: 1000000000000000
+      - op: ite
+        cond:
+          op: and
+          args:
+          - op: not
+            args:
+            - op: '='
+              args:
+              - var: position_base
+              - const: 0
+          - op: <
+            args:
+            - op: +
+              args:
+              - var: collateral_quote
+              - *id003
+            - op: div
+              args:
+              - op: +
+                args:
+                - op: '*'
+                  args:
+                  - op: '*'
+                    args:
+                    - op: ite
+                      cond:
+                        op: '>='
+                        args:
+                        - var: position_base
+                        - const: 0
+                      then:
+                        var: position_base
+                      else:
+                        op: '-'
+                        args:
+                        - const: 0
+                        - var: position_base
+                    - *id001
+                  - op: +
+                    args:
+                    - var: maintenance_margin_bps
+                    - var: depeg_buffer_bps
+                - const: 999999999999
+              - const: 1000000000000
+        then:
+          op: <=
+          args:
+          - op: +
+            args:
+            - var: fee_pool_quote
+            - &id004
+              op: ite
+              cond:
+                op: '>='
+                args:
+                - op: div
+                  args:
+                  - op: '*'
+                    args:
+                    - op: ite
+                      cond:
+                        op: '>='
+                        args:
+                        - var: position_base
+                        - const: 0
+                      then:
+                        var: position_base
+                      else:
+                        op: '-'
+                        args:
+                        - const: 0
+                        - var: position_base
+                    - *id001
+                  - const: 100000000
+                - var: min_notional_for_bounty
+              then:
+                op: min
+                args:
+                - op: +
+                  args:
+                  - var: collateral_quote
+                  - *id003
+                - op: div
+                  args:
+                  - op: '*'
+                    args:
+                    - op: div
+                      args:
+                      - op: '*'
+                        args:
+                        - op: ite
+                          cond:
+                            op: '>='
+                            args:
+                            - var: position_base
+                            - const: 0
+                          then:
+                            var: position_base
+                          else:
+                            op: '-'
+                            args:
+                            - const: 0
+                            - var: position_base
+                        - *id001
+                      - const: 100000000
+                    - var: liquidation_penalty_bps
+                  - const: 10000
+              else:
+                const: 0
+          - const: 1000000000000000
+        else:
+          bool: true
+      - op: ite
+        cond:
+          op: and
+          args:
+          - op: not
+            args:
+            - op: '='
+              args:
+              - var: position_base
+              - const: 0
+          - op: <
+            args:
+            - op: +
+              args:
+              - var: collateral_quote
+              - *id003
+            - op: div
+              args:
+              - op: +
+                args:
+                - op: '*'
+                  args:
+                  - op: '*'
+                    args:
+                    - op: ite
+                      cond:
+                        op: '>='
+                        args:
+                        - var: position_base
+                        - const: 0
+                      then:
+                        var: position_base
+                      else:
+                        op: '-'
+                        args:
+                        - const: 0
+                        - var: position_base
+                    - *id001
+                  - op: +
+                    args:
+                    - var: maintenance_margin_bps
+                    - var: depeg_buffer_bps
+                - const: 999999999999
+              - const: 1000000000000
+        then:
+          op: and
+          args:
+          - op: <=
+            args:
+            - op: +
+              args:
+              - var: fee_income
+              - *id004
+            - const: 1000000000000000
+          - op: <=
+            args:
+            - op: '-'
+              args:
+              - op: +
+                args:
+                - var: initial_insurance
+                - op: +
+                  args:
+                  - var: fee_income
+                  - *id004
+              - var: claims_paid
+            - const: 1000000000000000
+        else:
+          bool: true
 actions:
 - id: advance_epoch
   params:
@@ -613,15 +924,27 @@ actions:
     type:
       kind: int
       min: 1
-      max: 10000
+      max: 1
   guard:
-    op: <=
+    op: and
     args:
-    - op: +
+    - op: or
       args:
-      - var: now_epoch
-      - param: delta
-    - const: 1000000
+      - op: '='
+        args:
+        - var: epoch_phase
+        - const: 0
+      - op: '='
+        args:
+        - var: epoch_phase
+        - const: 2
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: now_epoch
+        - param: delta
+      - const: 1000000
   updates:
   - var: now_epoch
     expr:
@@ -638,7 +961,7 @@ actions:
   effects:
     event:
       enum: EpochAdvanced
-    oracle_fresh: &id001
+    oracle_fresh: &id005
       op: and
       args:
       - var: oracle_seen
@@ -649,7 +972,7 @@ actions:
           - var: now_epoch
           - var: oracle_last_update_epoch
         - var: max_oracle_staleness_epochs
-    notional_quote: &id002
+    notional_quote: &id006
       op: div
       args:
       - op: '*'
@@ -669,12 +992,12 @@ actions:
             - var: position_base
         - var: index_price_e8
       - const: 100000000
-    effective_maint_bps: &id003
+    effective_maint_bps: &id007
       op: +
       args:
       - var: maintenance_margin_bps
       - var: depeg_buffer_bps
-    maint_req_quote: &id004
+    maint_req_quote: &id008
       op: div
       args:
       - op: +
@@ -703,7 +1026,7 @@ actions:
             - var: depeg_buffer_bps
         - const: 999999999999
       - const: 1000000000000
-    init_req_quote: &id005
+    init_req_quote: &id009
       op: div
       args:
       - op: +
@@ -729,7 +1052,7 @@ actions:
           - var: initial_margin_bps
         - const: 999999999999
       - const: 1000000000000
-    margin_ok: &id006
+    margin_ok: &id010
       op: ite
       cond:
         op: '='
@@ -778,16 +1101,150 @@ actions:
       var: fee_pool_quote
     insurance_after:
       var: insurance_balance
+- id: bootstrap_oracle
+  params:
+  - id: price_e8
+    type:
+      kind: int
+      min: 1
+      max: 10000000000000
+  - id: auth_ok
+    type:
+      kind: bool
+  guard:
+    op: and
+    args:
+    - op: '='
+      args:
+      - param: auth_ok
+      - bool: true
+    - op: '='
+      args:
+      - var: now_epoch
+      - const: 0
+    - op: '='
+      args:
+      - var: epoch_phase
+      - const: 0
+    - op: not
+      args:
+      - var: oracle_seen
+    - op: '='
+      args:
+      - var: oracle_last_update_epoch
+      - const: 0
+    - op: '='
+      args:
+      - var: index_price_e8
+      - const: 0
+    - op: not
+      args:
+      - var: clearing_price_seen
+    - op: '='
+      args:
+      - var: clearing_price_epoch
+      - const: 0
+    - op: '='
+      args:
+      - var: clearing_price_e8
+      - const: 0
+    - op: not
+      args:
+      - var: breaker_active
+    - op: '='
+      args:
+      - var: breaker_last_trigger_epoch
+      - const: 0
+    - op: '='
+      args:
+      - var: position_base
+      - const: 0
+    - op: '='
+      args:
+      - var: entry_price_e8
+      - const: 0
+    - op: '='
+      args:
+      - var: collateral_quote
+      - const: 0
+    - op: '='
+      args:
+      - var: fee_pool_quote
+      - const: 0
+    - op: '='
+      args:
+      - var: funding_paid_cumulative
+      - const: 0
+    - op: '='
+      args:
+      - var: insurance_balance
+      - const: 0
+    - op: '='
+      args:
+      - var: initial_insurance
+      - const: 0
+    - op: '='
+      args:
+      - var: fee_income
+      - const: 0
+    - op: '='
+      args:
+      - var: claims_paid
+      - const: 0
+    - op: '='
+      args:
+      - var: funding_last_applied_epoch
+      - const: 0
+    - op: not
+      args:
+      - var: liquidated_this_step
+  updates:
+  - var: oracle_seen
+    expr:
+      bool: true
+  - var: oracle_last_update_epoch
+    expr:
+      var: now_epoch
+  - var: index_price_e8
+    expr:
+      param: price_e8
+  - var: liquidated_this_step
+    expr:
+      bool: false
+  effects:
+    event:
+      enum: OracleBootstrapped
+    oracle_fresh: *id005
+    notional_quote: *id006
+    effective_maint_bps: *id007
+    maint_req_quote: *id008
+    init_req_quote: *id009
+    margin_ok: *id010
+    liquidated:
+      var: liquidated_this_step
+    collateral_after:
+      var: collateral_quote
+    fee_pool_after:
+      var: fee_pool_quote
+    insurance_after:
+      var: insurance_balance
 - id: publish_clearing_price
   params:
   - id: price_e8
     type:
       kind: int
       min: 1
-      max: 1000000000000
+      max: 10000000000000
+  - id: auth_ok
+    type:
+      kind: bool
   guard:
     op: and
     args:
+    - op: '='
+      args:
+      - param: auth_ok
+      - bool: true
     - op: <
       args:
       - var: clearing_price_epoch
@@ -796,6 +1253,105 @@ actions:
       args:
       - var: epoch_phase
       - const: 0
+    - op: <
+      args:
+      - var: oracle_last_update_epoch
+      - var: now_epoch
+    - var: oracle_seen
+    - op: '>'
+      args:
+      - var: index_price_e8
+      - const: 0
+    - op: <=
+      args:
+      - op: '-'
+        args:
+        - var: now_epoch
+        - var: oracle_last_update_epoch
+      - var: max_oracle_staleness_epochs
+    - op: '>='
+      args:
+      - var: collateral_quote
+      - &id011
+        op: div
+        args:
+        - op: '*'
+          args:
+          - op: ite
+            cond:
+              op: '>='
+              args:
+              - var: position_base
+              - const: 0
+            then:
+              var: position_base
+            else:
+              op: '-'
+              args:
+              - const: 0
+              - var: position_base
+          - op: div
+            args:
+            - op: +
+              args:
+              - op: '*'
+                args:
+                - var: index_price_e8
+                - var: max_oracle_move_bps
+              - const: 9999
+            - const: 10000
+        - const: 100000000
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: collateral_quote
+        - *id011
+      - const: 1000000000000000
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: position_base
+        - const: 0
+      - op: and
+        args:
+        - op: <=
+          args:
+          - op: +
+            args:
+            - var: fee_pool_quote
+            - op: +
+              args:
+              - var: collateral_quote
+              - *id011
+          - const: 1000000000000000
+        - op: <=
+          args:
+          - op: +
+            args:
+            - var: fee_income
+            - op: +
+              args:
+              - var: collateral_quote
+              - *id011
+          - const: 1000000000000000
+        - op: <=
+          args:
+          - op: '-'
+            args:
+            - op: +
+              args:
+              - var: initial_insurance
+              - op: +
+                args:
+                - var: fee_income
+                - op: +
+                  args:
+                  - var: collateral_quote
+                  - *id011
+            - var: claims_paid
+          - const: 1000000000000000
   updates:
   - var: clearing_price_seen
     expr:
@@ -815,12 +1371,12 @@ actions:
   effects:
     event:
       enum: ClearingPricePublished
-    oracle_fresh: *id001
-    notional_quote: *id002
-    effective_maint_bps: *id003
-    maint_req_quote: *id004
-    init_req_quote: *id005
-    margin_ok: *id006
+    oracle_fresh: *id005
+    notional_quote: *id006
+    effective_maint_bps: *id007
+    maint_req_quote: *id008
+    init_req_quote: *id009
+    margin_ok: *id010
     liquidated:
       var: liquidated_this_step
     collateral_after:
@@ -830,348 +1386,7 @@ actions:
     insurance_after:
       var: insurance_balance
 - id: settle_epoch
-  guard:
-    op: and
-    args:
-    - var: clearing_price_seen
-    - op: '='
-      args:
-      - var: clearing_price_epoch
-      - var: now_epoch
-    - op: <
-      args:
-      - var: oracle_last_update_epoch
-      - var: now_epoch
-    - var: oracle_seen
-    - op: '>'
-      args:
-      - var: index_price_e8
-      - const: 0
-    - op: <=
-      args:
-      - op: '-'
-        args:
-        - var: now_epoch
-        - var: oracle_last_update_epoch
-      - var: max_oracle_staleness_epochs
-    - op: '='
-      args:
-      - var: epoch_phase
-      - const: 1
-    - op: '>='
-      args:
-      - op: +
-        args:
-        - var: collateral_quote
-        - &id009
-          op: ite
-          cond:
-            op: '='
-            args:
-            - op: '>='
-              args:
-              - var: position_base
-              - const: 0
-            - op: '>='
-              args:
-              - &id007
-                op: ite
-                cond: &id011
-                  op: and
-                  args:
-                  - var: oracle_seen
-                  - op: '>'
-                    args:
-                    - op: '*'
-                      args:
-                      - op: ite
-                        cond:
-                          op: '>='
-                          args:
-                          - var: clearing_price_e8
-                          - var: index_price_e8
-                        then:
-                          op: '-'
-                          args:
-                          - var: clearing_price_e8
-                          - var: index_price_e8
-                        else:
-                          op: '-'
-                          args:
-                          - var: index_price_e8
-                          - var: clearing_price_e8
-                      - const: 10000
-                    - op: '*'
-                      args:
-                      - var: max_oracle_move_bps
-                      - var: index_price_e8
-                then:
-                  op: ite
-                  cond:
-                    op: '>='
-                    args:
-                    - var: clearing_price_e8
-                    - var: index_price_e8
-                  then:
-                    op: +
-                    args:
-                    - var: index_price_e8
-                    - op: div
-                      args:
-                      - op: +
-                        args:
-                        - op: '*'
-                          args:
-                          - var: index_price_e8
-                          - var: max_oracle_move_bps
-                        - const: 9999
-                      - const: 10000
-                  else:
-                    op: '-'
-                    args:
-                    - var: index_price_e8
-                    - op: div
-                      args:
-                      - op: +
-                        args:
-                        - op: '*'
-                          args:
-                          - var: index_price_e8
-                          - var: max_oracle_move_bps
-                        - const: 9999
-                      - const: 10000
-                else:
-                  var: clearing_price_e8
-              - var: index_price_e8
-          then: &id008
-            op: div
-            args:
-            - op: '*'
-              args:
-              - op: ite
-                cond:
-                  op: '>='
-                  args:
-                  - var: position_base
-                  - const: 0
-                then:
-                  var: position_base
-                else:
-                  op: '-'
-                  args:
-                  - const: 0
-                  - var: position_base
-              - op: ite
-                cond:
-                  op: '>='
-                  args:
-                  - *id007
-                  - var: index_price_e8
-                then:
-                  op: '-'
-                  args:
-                  - *id007
-                  - var: index_price_e8
-                else:
-                  op: '-'
-                  args:
-                  - var: index_price_e8
-                  - *id007
-            - const: 100000000
-          else:
-            op: '-'
-            args:
-            - const: 0
-            - *id008
-      - const: 0
-    - op: <=
-      args:
-      - op: +
-        args:
-        - var: collateral_quote
-        - *id009
-      - const: 1000000000000000
-    - op: ite
-      cond:
-        op: and
-        args:
-        - op: not
-          args:
-          - op: '='
-            args:
-            - var: position_base
-            - const: 0
-        - op: <
-          args:
-          - op: +
-            args:
-            - var: collateral_quote
-            - *id009
-          - op: div
-            args:
-            - op: +
-              args:
-              - op: '*'
-                args:
-                - op: '*'
-                  args:
-                  - op: ite
-                    cond:
-                      op: '>='
-                      args:
-                      - var: position_base
-                      - const: 0
-                    then:
-                      var: position_base
-                    else:
-                      op: '-'
-                      args:
-                      - const: 0
-                      - var: position_base
-                  - *id007
-                - op: +
-                  args:
-                  - var: maintenance_margin_bps
-                  - var: depeg_buffer_bps
-              - const: 999999999999
-            - const: 1000000000000
-      then:
-        op: <=
-        args:
-        - op: +
-          args:
-          - var: fee_pool_quote
-          - &id010
-            op: ite
-            cond:
-              op: '>='
-              args:
-              - op: div
-                args:
-                - op: '*'
-                  args:
-                  - op: ite
-                    cond:
-                      op: '>='
-                      args:
-                      - var: position_base
-                      - const: 0
-                    then:
-                      var: position_base
-                    else:
-                      op: '-'
-                      args:
-                      - const: 0
-                      - var: position_base
-                  - *id007
-                - const: 100000000
-              - var: min_notional_for_bounty
-            then:
-              op: min
-              args:
-              - op: +
-                args:
-                - var: collateral_quote
-                - *id009
-              - op: div
-                args:
-                - op: '*'
-                  args:
-                  - op: div
-                    args:
-                    - op: '*'
-                      args:
-                      - op: ite
-                        cond:
-                          op: '>='
-                          args:
-                          - var: position_base
-                          - const: 0
-                        then:
-                          var: position_base
-                        else:
-                          op: '-'
-                          args:
-                          - const: 0
-                          - var: position_base
-                      - *id007
-                    - const: 100000000
-                  - var: liquidation_penalty_bps
-                - const: 10000
-            else:
-              const: 0
-        - const: 1000000000000000
-      else:
-        bool: true
-    - op: ite
-      cond:
-        op: and
-        args:
-        - op: not
-          args:
-          - op: '='
-            args:
-            - var: position_base
-            - const: 0
-        - op: <
-          args:
-          - op: +
-            args:
-            - var: collateral_quote
-            - *id009
-          - op: div
-            args:
-            - op: +
-              args:
-              - op: '*'
-                args:
-                - op: '*'
-                  args:
-                  - op: ite
-                    cond:
-                      op: '>='
-                      args:
-                      - var: position_base
-                      - const: 0
-                    then:
-                      var: position_base
-                    else:
-                      op: '-'
-                      args:
-                      - const: 0
-                      - var: position_base
-                  - *id007
-                - op: +
-                  args:
-                  - var: maintenance_margin_bps
-                  - var: depeg_buffer_bps
-              - const: 999999999999
-            - const: 1000000000000
-      then:
-        op: and
-        args:
-        - op: <=
-          args:
-          - op: +
-            args:
-            - var: fee_income
-            - *id010
-          - const: 1000000000000000
-        - op: <=
-          args:
-          - op: '-'
-            args:
-            - op: +
-              args:
-              - var: initial_insurance
-              - op: +
-                args:
-                - var: fee_income
-                - *id010
-            - var: claims_paid
-          - const: 1000000000000000
-      else:
-        bool: true
+  guard: *id012
   updates:
   - var: oracle_last_update_epoch
     expr:
@@ -1183,7 +1398,7 @@ actions:
     expr:
       const: 2
   - var: liquidated_this_step
-    expr: &id012
+    expr: &id014
       op: and
       args:
       - op: not
@@ -1197,7 +1412,7 @@ actions:
         - op: +
           args:
           - var: collateral_quote
-          - *id009
+          - *id003
         - op: div
           args:
           - op: +
@@ -1219,7 +1434,7 @@ actions:
                     args:
                     - const: 0
                     - var: position_base
-                - *id007
+                - *id001
               - op: +
                 args:
                 - var: maintenance_margin_bps
@@ -1227,17 +1442,17 @@ actions:
             - const: 999999999999
           - const: 1000000000000
   - var: index_price_e8
-    expr: *id007
+    expr: *id001
   - var: breaker_active
     expr:
       op: or
       args:
       - var: breaker_active
-      - *id011
+      - *id013
   - var: breaker_last_trigger_epoch
     expr:
       op: ite
-      cond: *id011
+      cond: *id013
       then:
         var: now_epoch
       else:
@@ -1245,40 +1460,40 @@ actions:
   - var: collateral_quote
     expr:
       op: ite
-      cond: *id012
+      cond: *id014
       then:
         op: '-'
         args:
         - op: +
           args:
           - var: collateral_quote
-          - *id009
-        - *id010
+          - *id003
+        - *id004
       else:
         op: +
         args:
         - var: collateral_quote
-        - *id009
+        - *id003
   - var: fee_pool_quote
     expr:
       op: ite
-      cond: *id012
+      cond: *id014
       then:
         op: +
         args:
         - var: fee_pool_quote
-        - *id010
+        - *id004
       else:
         var: fee_pool_quote
   - var: fee_income
     expr:
       op: ite
-      cond: *id012
+      cond: *id014
       then:
         op: +
         args:
         - var: fee_income
-        - *id010
+        - *id004
       else:
         var: fee_income
   - var: insurance_balance
@@ -1289,19 +1504,19 @@ actions:
         args:
         - var: initial_insurance
         - op: ite
-          cond: *id012
+          cond: *id014
           then:
             op: +
             args:
             - var: fee_income
-            - *id010
+            - *id004
           else:
             var: fee_income
       - var: claims_paid
   - var: position_base
     expr:
       op: ite
-      cond: *id012
+      cond: *id014
       then:
         const: 0
       else:
@@ -1316,20 +1531,20 @@ actions:
           args:
           - var: position_base
           - const: 0
-        - *id012
+        - *id014
       then:
         const: 0
-      else: *id007
+      else: *id001
   effects:
     event:
       enum: EpochSettled
     oracle_fresh:
       bool: true
-    notional_quote: *id002
-    effective_maint_bps: *id003
-    maint_req_quote: *id004
-    init_req_quote: *id005
-    margin_ok: *id006
+    notional_quote: *id006
+    effective_maint_bps: *id007
+    maint_req_quote: *id008
+    init_req_quote: *id009
+    margin_ok: *id010
     liquidated:
       var: liquidated_this_step
     collateral_after:
@@ -1379,12 +1594,12 @@ actions:
   effects:
     event:
       enum: CollateralDeposited
-    oracle_fresh: *id001
-    notional_quote: *id002
-    effective_maint_bps: *id003
-    maint_req_quote: *id004
-    init_req_quote: *id005
-    margin_ok: *id006
+    oracle_fresh: *id005
+    notional_quote: *id006
+    effective_maint_bps: *id007
+    maint_req_quote: *id008
+    init_req_quote: *id009
+    margin_ok: *id010
     liquidated:
       var: liquidated_this_step
     collateral_after:
@@ -1484,12 +1699,12 @@ actions:
   effects:
     event:
       enum: CollateralWithdrawn
-    oracle_fresh: *id001
-    notional_quote: *id002
-    effective_maint_bps: *id003
-    maint_req_quote: *id004
-    init_req_quote: *id005
-    margin_ok: *id006
+    oracle_fresh: *id005
+    notional_quote: *id006
+    effective_maint_bps: *id007
+    maint_req_quote: *id008
+    init_req_quote: *id009
+    margin_ok: *id010
     liquidated:
       var: liquidated_this_step
     collateral_after:
@@ -1656,6 +1871,46 @@ actions:
                   - var: initial_margin_bps
                 - const: 999999999999
               - const: 1000000000000
+    - op: ite
+      cond:
+        op: '='
+        args:
+        - param: new_position_base
+        - const: 0
+      then:
+        bool: true
+      else:
+        op: '>='
+        args:
+        - var: collateral_quote
+        - op: div
+          args:
+          - op: +
+            args:
+            - op: '*'
+              args:
+              - op: '*'
+                args:
+                - op: ite
+                  cond:
+                    op: '>='
+                    args:
+                    - param: new_position_base
+                    - const: 0
+                  then:
+                    param: new_position_base
+                  else:
+                    op: '-'
+                    args:
+                    - const: 0
+                    - param: new_position_base
+                - var: index_price_e8
+              - op: +
+                args:
+                - var: maintenance_margin_bps
+                - var: depeg_buffer_bps
+            - const: 999999999999
+          - const: 1000000000000
   updates:
   - var: position_base
     expr:
@@ -1678,12 +1933,12 @@ actions:
   effects:
     event:
       enum: PositionSet
-    oracle_fresh: *id001
-    notional_quote: *id002
-    effective_maint_bps: *id003
-    maint_req_quote: *id004
-    init_req_quote: *id005
-    margin_ok: *id006
+    oracle_fresh: *id005
+    notional_quote: *id006
+    effective_maint_bps: *id007
+    maint_req_quote: *id008
+    init_req_quote: *id009
+    margin_ok: *id010
     liquidated:
       var: liquidated_this_step
     collateral_after:
@@ -1722,12 +1977,12 @@ actions:
   effects:
     event:
       enum: BreakerCleared
-    oracle_fresh: *id001
-    notional_quote: *id002
-    effective_maint_bps: *id003
-    maint_req_quote: *id004
-    init_req_quote: *id005
-    margin_ok: *id006
+    oracle_fresh: *id005
+    notional_quote: *id006
+    effective_maint_bps: *id007
+    maint_req_quote: *id008
+    init_req_quote: *id009
+    margin_ok: *id010
     liquidated:
       var: liquidated_this_step
     collateral_after:
@@ -1791,7 +2046,7 @@ actions:
       - op: '-'
         args:
         - var: collateral_quote
-        - &id014
+        - &id016
           op: ite
           cond:
             op: '='
@@ -1804,7 +2059,7 @@ actions:
               args:
               - param: new_rate_bps
               - const: 0
-          then: &id013
+          then: &id015
             op: div
             args:
             - op: '*'
@@ -1846,21 +2101,21 @@ actions:
             op: '-'
             args:
             - const: 0
-            - *id013
+            - *id015
       - const: 0
     - op: <=
       args:
       - op: '-'
         args:
         - var: collateral_quote
-        - *id014
+        - *id016
       - const: 1000000000000000
     - op: '>='
       args:
       - op: '-'
         args:
         - var: collateral_quote
-        - *id014
+        - *id016
       - op: div
         args:
         - op: +
@@ -1894,15 +2149,68 @@ actions:
       - op: +
         args:
         - var: funding_paid_cumulative
-        - *id014
+        - *id016
       - const: 1000000000000000
     - op: '>='
       args:
       - op: +
         args:
         - var: funding_paid_cumulative
-        - *id014
+        - *id016
       - const: -1000000000000000
+    - op: or
+      args:
+      - op: not
+        args:
+        - op: '='
+          args:
+          - var: epoch_phase
+          - const: 1
+      - op: and
+        args:
+        - op: '>='
+          args:
+          - &id017
+            op: '-'
+            args:
+            - var: collateral_quote
+            - *id016
+          - *id011
+        - op: <=
+          args:
+          - &id018
+            op: +
+            args:
+            - *id017
+            - *id011
+          - const: 1000000000000000
+        - op: <=
+          args:
+          - op: +
+            args:
+            - var: fee_pool_quote
+            - *id018
+          - const: 1000000000000000
+        - op: <=
+          args:
+          - op: +
+            args:
+            - var: fee_income
+            - *id018
+          - const: 1000000000000000
+        - op: <=
+          args:
+          - op: '-'
+            args:
+            - op: +
+              args:
+              - var: initial_insurance
+              - op: +
+                args:
+                - var: fee_income
+                - *id018
+            - var: claims_paid
+          - const: 1000000000000000
   updates:
   - var: funding_rate_bps
     expr:
@@ -1915,25 +2223,25 @@ actions:
       op: '-'
       args:
       - var: collateral_quote
-      - *id014
+      - *id016
   - var: funding_paid_cumulative
     expr:
       op: +
       args:
       - var: funding_paid_cumulative
-      - *id014
+      - *id016
   - var: liquidated_this_step
     expr:
       bool: false
   effects:
     event:
       enum: FundingApplied
-    oracle_fresh: *id001
-    notional_quote: *id002
-    effective_maint_bps: *id003
-    maint_req_quote: *id004
-    init_req_quote: *id005
-    margin_ok: *id006
+    oracle_fresh: *id005
+    notional_quote: *id006
+    effective_maint_bps: *id007
+    maint_req_quote: *id008
+    init_req_quote: *id009
+    margin_ok: *id010
     liquidated:
       var: liquidated_this_step
     collateral_after:
@@ -1952,6 +2260,12 @@ actions:
   guard:
     op: and
     args:
+    - op: not
+      args:
+      - op: '='
+        args:
+        - var: epoch_phase
+        - const: 1
     - op: <=
       args:
       - op: +
@@ -1985,12 +2299,12 @@ actions:
   effects:
     event:
       enum: InsuranceDeposited
-    oracle_fresh: *id001
-    notional_quote: *id002
-    effective_maint_bps: *id003
-    maint_req_quote: *id004
-    init_req_quote: *id005
-    margin_ok: *id006
+    oracle_fresh: *id005
+    notional_quote: *id006
+    effective_maint_bps: *id007
+    maint_req_quote: *id008
+    init_req_quote: *id009
+    margin_ok: *id010
     liquidated:
       var: liquidated_this_step
     collateral_after:
@@ -2065,12 +2379,252 @@ actions:
   effects:
     event:
       enum: InsuranceClaimPaid
-    oracle_fresh: *id001
-    notional_quote: *id002
-    effective_maint_bps: *id003
-    maint_req_quote: *id004
-    init_req_quote: *id005
-    margin_ok: *id006
+    oracle_fresh: *id005
+    notional_quote: *id006
+    effective_maint_bps: *id007
+    maint_req_quote: *id008
+    init_req_quote: *id009
+    margin_ok: *id010
+    liquidated:
+      var: liquidated_this_step
+    collateral_after:
+      var: collateral_quote
+    fee_pool_after:
+      var: fee_pool_quote
+    insurance_after:
+      var: insurance_balance
+- id: partial_liquidate
+  params:
+  - id: fraction_bps
+    type:
+      kind: int
+      min: 1
+      max: 10000
+  - id: auth_ok
+    type:
+      kind: bool
+  guard:
+    op: and
+    args:
+    - op: '='
+      args:
+      - var: epoch_phase
+      - const: 0
+    - op: '='
+      args:
+      - param: auth_ok
+      - bool: true
+    - op: not
+      args:
+      - op: '='
+        args:
+        - var: position_base
+        - const: 0
+    - var: oracle_seen
+    - op: '>'
+      args:
+      - var: index_price_e8
+      - const: 0
+    - op: '>='
+      args:
+      - var: now_epoch
+      - var: oracle_last_update_epoch
+    - op: <=
+      args:
+      - op: '-'
+        args:
+        - var: now_epoch
+        - var: oracle_last_update_epoch
+      - var: max_oracle_staleness_epochs
+    - op: <
+      args:
+      - var: collateral_quote
+      - op: div
+        args:
+        - op: +
+          args:
+          - op: '*'
+            args:
+            - op: '*'
+              args:
+              - &id019
+                op: ite
+                cond:
+                  op: '>='
+                  args:
+                  - var: position_base
+                  - const: 0
+                then:
+                  var: position_base
+                else:
+                  op: '-'
+                  args:
+                  - const: 0
+                  - var: position_base
+              - var: index_price_e8
+            - op: +
+              args:
+              - var: maintenance_margin_bps
+              - var: depeg_buffer_bps
+          - const: 999999999999
+        - const: 1000000000000
+    - op: '>='
+      args:
+      - &id021
+        op: '-'
+        args:
+        - var: collateral_quote
+        - &id022
+          op: min
+          args:
+          - var: collateral_quote
+          - op: ite
+            cond:
+              op: '>='
+              args:
+              - &id020
+                op: div
+                args:
+                - op: '*'
+                  args:
+                  - &id025
+                    op: div
+                    args:
+                    - op: '*'
+                      args:
+                      - *id019
+                      - param: fraction_bps
+                    - const: 10000
+                  - var: index_price_e8
+                - const: 100000000
+              - var: min_notional_for_bounty
+            then:
+              op: div
+              args:
+              - op: '*'
+                args:
+                - *id020
+                - var: liquidation_penalty_bps
+              - const: 10000
+            else:
+              const: 0
+      - const: 0
+    - op: <=
+      args:
+      - *id021
+      - const: 1000000000000000
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: fee_pool_quote
+        - *id022
+      - const: 1000000000000000
+    - op: <=
+      args:
+      - &id023
+        op: +
+        args:
+        - var: fee_income
+        - *id022
+      - const: 1000000000000000
+    - op: and
+      args:
+      - op: '>='
+        args:
+        - &id024
+          op: '-'
+          args:
+          - op: +
+            args:
+            - var: initial_insurance
+            - *id023
+          - var: claims_paid
+        - const: 0
+      - op: <=
+        args:
+        - *id024
+        - const: 1000000000000000
+    - op: or
+      args:
+      - op: '='
+        args:
+        - &id027
+          op: ite
+          cond:
+            op: '>='
+            args:
+            - var: position_base
+            - const: 0
+          then: &id026
+            op: '-'
+            args:
+            - *id019
+            - *id025
+          else:
+            op: '-'
+            args:
+            - const: 0
+            - *id026
+        - const: 0
+      - op: '>='
+        args:
+        - *id021
+        - op: div
+          args:
+          - op: +
+            args:
+            - op: '*'
+              args:
+              - op: '*'
+                args:
+                - *id026
+                - var: index_price_e8
+              - op: +
+                args:
+                - var: maintenance_margin_bps
+                - var: depeg_buffer_bps
+            - const: 999999999999
+          - const: 1000000000000
+  updates:
+  - var: position_base
+    expr: *id027
+  - var: entry_price_e8
+    expr:
+      op: ite
+      cond:
+        op: '='
+        args:
+        - *id027
+        - const: 0
+      then:
+        const: 0
+      else:
+        var: index_price_e8
+  - var: collateral_quote
+    expr: *id021
+  - var: fee_pool_quote
+    expr:
+      op: +
+      args:
+      - var: fee_pool_quote
+      - *id022
+  - var: fee_income
+    expr: *id023
+  - var: insurance_balance
+    expr: *id024
+  - var: liquidated_this_step
+    expr:
+      bool: true
+  effects:
+    event:
+      enum: PartialLiquidationApplied
+    oracle_fresh: *id005
+    notional_quote: *id006
+    effective_maint_bps: *id007
+    maint_req_quote: *id008
+    init_req_quote: *id009
+    margin_ok: *id010
     liquidated:
       var: liquidated_this_step
     collateral_after:

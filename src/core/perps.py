@@ -101,7 +101,9 @@ def _normalize_pending_funding_closeout_root_hashes(value: object) -> tuple[str,
     roots: list[str] = []
     for root_hash in value:
         if not _is_sha256_hash(root_hash):
-            raise ValueError("pending funding closeout root hash must be sha256:<64 lowercase hex chars>")
+            raise ValueError(
+                "pending funding closeout root hash must be sha256:<64 lowercase hex chars>"
+            )
         roots.append(str(root_hash))
     return tuple(sorted(set(roots)))
 
@@ -239,7 +241,9 @@ def _normalize_funding_closeout_receiver_claim_lots(
             raise TypeError("funding closeout receiver claim lot row must be a 4-tuple")
         account_pubkey, lot_id, balance_quote, expires_at_epoch = row
         if not _is_non_empty_str(account_pubkey):
-            raise TypeError("funding closeout receiver claim lot account must be a non-empty string")
+            raise TypeError(
+                "funding closeout receiver claim lot account must be a non-empty string"
+            )
         if len(str(account_pubkey)) > 512:
             raise ValueError("funding closeout receiver claim lot account too large")
         if not _is_non_empty_str(lot_id):
@@ -274,8 +278,8 @@ def funding_closeout_receiver_claim_balances_from_lots(
 ) -> tuple[tuple[str, int], ...]:
     balances: dict[str, int] = {}
     for account_pubkey, _lot_id, balance_quote, _expires_at_epoch in lots:
-        balances[str(account_pubkey)] = (
-            int(balances.get(str(account_pubkey), 0)) + int(balance_quote)
+        balances[str(account_pubkey)] = int(balances.get(str(account_pubkey), 0)) + int(
+            balance_quote
         )
     if len(balances) > MAX_FUNDING_CLOSEOUT_RECEIVER_CLAIM_BALANCES:
         raise ValueError("too many funding closeout receiver claim balance accounts")
@@ -377,7 +381,9 @@ def _validate_normalized_isolated_epoch_phase(value: Value) -> None:
         raise ValueError(f"global_state['epoch_phase'] invalid: {value!r}")
 
 
-def _normalize_isolated_bool_global_value(global_state: Dict[str, Value], key: str, value: Value) -> None:
+def _normalize_isolated_bool_global_value(
+    global_state: Dict[str, Value], key: str, value: Value
+) -> None:
     if isinstance(value, bool):
         return
     if _is_zero_one_int(value):
@@ -386,7 +392,9 @@ def _normalize_isolated_bool_global_value(global_state: Dict[str, Value], key: s
     raise TypeError(f"global_state[{key!r}] must be a bool (or 0/1 int)")
 
 
-def _normalize_isolated_global_value(global_state: Dict[str, Value], key: str, value: Value) -> None:
+def _normalize_isolated_global_value(
+    global_state: Dict[str, Value], key: str, value: Value
+) -> None:
     if key == "epoch_phase":
         _validate_normalized_isolated_epoch_phase(value)
         return
@@ -411,7 +419,9 @@ _EPOCH_PHASE_INT_TO_STR: dict[int, str] = {0: "Open", 1: "PricePublished", 2: "S
 
 PERP_MARKET_KIND_ISOLATED_V2: Literal["isolated_v2"] = "isolated_v2"
 PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1: Literal["clearinghouse_2p_v1"] = "clearinghouse_2p_v1"
-PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1: Literal["clearinghouse_3p_transfer_v1"] = "clearinghouse_3p_transfer_v1"
+PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1: Literal["clearinghouse_3p_transfer_v1"] = (
+    "clearinghouse_3p_transfer_v1"
+)
 # Open, dynamic-membership N-party net-zero clearinghouse (3+ independent wallets).
 # Unlike the fixed-slot 2p/3p kernels this market has no a/b/c slots. It holds a
 # dynamic account set and delegates transition semantics to
@@ -428,11 +438,16 @@ PERP_CLEARINGHOUSE_NP_GLOBAL_KEYS = _np_validation.PERP_CLEARINGHOUSE_NP_GLOBAL_
 PERP_CLEARINGHOUSE_NP_PENDING_INTENT_KEYS = _np_validation.PERP_CLEARINGHOUSE_NP_PENDING_INTENT_KEYS
 PERP_CLEARINGHOUSE_2P_BOOL_KEYS = _fixed_validation.PERP_CLEARINGHOUSE_2P_BOOL_KEYS
 PERP_CLEARINGHOUSE_2P_STATE_KEYS = _fixed_validation.PERP_CLEARINGHOUSE_2P_STATE_KEYS
-PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS = _fixed_validation.PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS
-PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS = _fixed_validation.PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS
+PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS = (
+    _fixed_validation.PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS
+)
+PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS = (
+    _fixed_validation.PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS
+)
 
 # Backwards-compatible alias (older modules import PERP_GLOBAL_KEYS).
 PERP_GLOBAL_KEYS: set[str] = PERP_ISOLATED_GLOBAL_KEYS
+
 
 @dataclass(frozen=True)
 class PerpAccountState:
@@ -528,10 +543,8 @@ class PerpMarketState:
                 self.funding_closeout_receiver_claim_lots_quote,
             ),
         )
-        normalized_receiver_claim_balances = (
-            _normalize_funding_closeout_receiver_claim_balances(
-                self.funding_closeout_receiver_claim_balances_quote
-            )
+        normalized_receiver_claim_balances = _normalize_funding_closeout_receiver_claim_balances(
+            self.funding_closeout_receiver_claim_balances_quote
         )
         if self.funding_closeout_receiver_claim_lots_quote:
             lot_projection = funding_closeout_receiver_claim_balances_from_lots(
@@ -540,9 +553,7 @@ class PerpMarketState:
             if normalized_receiver_claim_balances and (
                 normalized_receiver_claim_balances != lot_projection
             ):
-                raise ValueError(
-                    "funding closeout receiver claim balance projection mismatch"
-                )
+                raise ValueError("funding closeout receiver claim balance projection mismatch")
             normalized_receiver_claim_balances = lot_projection
         object.__setattr__(
             self,
@@ -566,8 +577,7 @@ class PerpMarketState:
 
     def _validate_funding_closeout_sink_claimant_balances(self) -> None:
         total = sum(
-            balance_quote
-            for _, balance_quote in self.funding_closeout_sink_claimant_balances_quote
+            balance_quote for _, balance_quote in self.funding_closeout_sink_claimant_balances_quote
         )
         if total == 0:
             return
@@ -581,8 +591,13 @@ class PerpMarketState:
                 )
 
     def kernel_state_for_account(self, account: PerpAccountState) -> dict[str, Value]:
-        # Merge global + account state into a single kernel state dict.
-        return {**dict(self.global_state), **account.to_kernel_state()}
+        """Project persistent market state onto the exact isolated-kernel ABI."""
+        kernel_global_state = {
+            key: value
+            for key, value in self.global_state.items()
+            if key != "mark_price_source_kind"
+        }
+        return {**kernel_global_state, **account.to_kernel_state()}
 
 
 @dataclass(frozen=True)

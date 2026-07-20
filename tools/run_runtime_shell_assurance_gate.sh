@@ -80,6 +80,11 @@ run_shell_assurance \
   "src.kernels.python.perp_epoch_isolated_v3_adapter:make_adapter"
 
 run_shell_assurance \
+  "perp_epoch_isolated_v4" \
+  "src/kernels/dex/perp_epoch_isolated_v4.yaml" \
+  "src.kernels.python.perp_epoch_isolated_v4_adapter:make_adapter"
+
+run_shell_assurance \
   "perp_epoch_clearinghouse_2p_v0_1" \
   "src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml" \
   "src.kernels.python.perp_epoch_clearinghouse_2p_v0_1_adapter:make_adapter"

@@ -4,7 +4,6 @@ import importlib
 import sys
 from types import ModuleType, SimpleNamespace
 
-
 PLAIN_ADAPTER_MODULES = [
     "src.kernels.python.dex_global_conservation_v1_adapter",
     "src.kernels.python.proof_mining_manager_v1_adapter",
@@ -15,6 +14,7 @@ PLAIN_ADAPTER_MODULES = [
 CTX_ADAPTER_MODULES = [
     "src.kernels.python.perp_epoch_isolated_v2_adapter",
     "src.kernels.python.perp_epoch_isolated_v3_adapter",
+    "src.kernels.python.perp_epoch_isolated_v4_adapter",
     "src.kernels.python.perp_epoch_clearinghouse_2p_v0_1_adapter",
 ]
 

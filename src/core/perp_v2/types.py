@@ -19,6 +19,8 @@ from enum import Enum, unique
 @unique
 class Action(Enum):
     """One member per action id in the kernel spec."""
+
+    BOOTSTRAP_ORACLE = "bootstrap_oracle"
     ADVANCE_EPOCH = "advance_epoch"
     PUBLISH_CLEARING_PRICE = "publish_clearing_price"
     SETTLE_EPOCH = "settle_epoch"
@@ -35,6 +37,7 @@ class Action(Enum):
 @unique
 class EpochPhase(Enum):
     """Lifecycle phase within an epoch."""
+
     OPEN = "Open"
     PRICE_PUBLISHED = "PricePublished"
     SETTLED = "Settled"
@@ -43,6 +46,8 @@ class EpochPhase(Enum):
 @unique
 class Event(Enum):
     """One member per effect event enum in the kernel spec."""
+
+    ORACLE_BOOTSTRAPPED = "OracleBootstrapped"
     EPOCH_ADVANCED = "EpochAdvanced"
     CLEARING_PRICE_PUBLISHED = "ClearingPricePublished"
     EPOCH_SETTLED = "EpochSettled"
@@ -126,14 +131,14 @@ class ActionParams:
     """
 
     action: Action
-    delta: int = 0                # advance_epoch
-    price_e8: int = 0             # publish_clearing_price
-    amount: int = 0               # deposit_collateral / withdraw_collateral / deposit_insurance
-    new_position_base: int = 0    # set_position
-    new_rate_bps: int = 0         # apply_funding
-    claim_amount: int = 0         # apply_insurance_claim
-    fraction_bps: int = 0         # partial_liquidate (0 = auto-compute minimum)
-    auth_ok: bool = False         # shared: deposit/withdraw/set_position/clear/funding/claim
+    delta: int = 0  # advance_epoch
+    price_e8: int = 0  # publish_clearing_price
+    amount: int = 0  # deposit_collateral / withdraw_collateral / deposit_insurance
+    new_position_base: int = 0  # set_position
+    new_rate_bps: int = 0  # apply_funding
+    claim_amount: int = 0  # apply_insurance_claim
+    fraction_bps: int = 0  # partial_liquidate (0 = auto-compute minimum)
+    auth_ok: bool = False  # verifier-owned authorization fact for guarded actions
 
 
 @dataclass(frozen=True)

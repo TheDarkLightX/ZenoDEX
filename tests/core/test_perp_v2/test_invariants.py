@@ -1,8 +1,12 @@
-"""Tests for src/core/perp_v2/invariants.py — 16 invariant checkers."""
+"""Tests for the complete perp v2 invariant registry."""
 
 from dataclasses import replace
 
-from src.core.perp_v2.invariants import INVARIANT_REGISTRY, check_all
+from src.core.perp_v2.invariants import (
+    INVARIANT_REGISTRY,
+    check_all,
+    inv_maint_margin_ok,
+)
 from src.core.perp_v2.state import initial_state
 from src.core.perp_v2.types import EpochPhase
 
@@ -13,7 +17,7 @@ class TestAllInvariantsOnInitialState:
         violations = check_all(s)
         assert violations == []
 
-    def test_registry_has_18_invariants(self):
+    def test_registry_has_19_invariants(self):
         assert len(INVARIANT_REGISTRY) == 18
 
 
@@ -123,7 +127,8 @@ class TestMaintMarginOk:
             oracle_seen=True,
             collateral_quote=0,
         )
-        assert "inv_maint_margin_ok" in check_all(s)
+        assert inv_maint_margin_ok(s) is False
+        assert "inv_maint_margin_ok" not in check_all(s)
 
 
 class TestFundingBounded:
@@ -226,3 +231,40 @@ class TestPhaseConsistent:
             oracle_last_update_epoch=1,
         )
         assert "inv_phase_consistent" in check_all(s)
+
+
+class TestPhasePublishedHasSettlementPath:
+    def test_valid_published_state_passes(self):
+        state = replace(
+            initial_state(),
+            now_epoch=2,
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            clearing_price_seen=True,
+            clearing_price_epoch=2,
+            clearing_price_e8=100_000_000,
+            oracle_seen=True,
+            oracle_last_update_epoch=1,
+            index_price_e8=100_000_000,
+        )
+
+        assert "inv_phase_published_has_settlement_path" not in check_all(state)
+
+    def test_unusable_oracle_fails(self):
+        state = replace(
+            initial_state(),
+            now_epoch=2,
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            clearing_price_seen=True,
+            clearing_price_epoch=2,
+            clearing_price_e8=100_000_000,
+            oracle_seen=False,
+            oracle_last_update_epoch=0,
+            index_price_e8=0,
+        )
+
+        assert "inv_phase_published_has_settlement_path" in check_all(state)
+
+    def test_open_state_is_outside_the_obligation(self):
+        assert "inv_phase_published_has_settlement_path" not in check_all(
+            initial_state()
+        )

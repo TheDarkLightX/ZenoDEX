@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from src.core import DexConfig, DexState, FeeSplitParams, dex_step
+import pytest
+
+from src.core import (
+    DexConfig,
+    DexEffects,
+    DexState,
+    DexStepResult,
+    FeeSplitParams,
+    dex_step,
+)
 from src.core.liquidity import create_pool
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
@@ -116,7 +125,7 @@ def test_dex_step_end_to_end_create_swap_lp() -> None:
     res = dex_step(config, state, intents)
     assert res.ok, res.error
     assert res.state is not None
-    assert res.effects is not None
+    assert type(res.effects) is DexEffects
 
     next_state = res.state
     settlement = res.effects["settlement"]
@@ -130,3 +139,22 @@ def test_dex_step_end_to_end_create_swap_lp() -> None:
     # Fee split is computed when configured.
     assert int(res.effects["total_swap_fees"]) >= 0
     assert res.effects["fee_split"] is not None
+
+    # Accepted effects retain their historical mapping reads but cannot mutate.
+    with pytest.raises(TypeError):
+        res.effects["total_swap_fees"] = 0  # type: ignore[index]
+
+
+def test_dex_step_result_shape_is_fail_closed() -> None:
+    empty = DexState(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+    )
+
+    with pytest.raises(ValueError, match="accepted result requires exact DexEffects"):
+        DexStepResult(ok=True, state=empty, effects=None)
+    with pytest.raises(ValueError, match="rejected result cannot carry state"):
+        DexStepResult(ok=False, state=empty, error="rejected")
+    with pytest.raises(ValueError, match="non-empty error"):
+        DexStepResult(ok=False, error="")

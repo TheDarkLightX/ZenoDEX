@@ -1,3 +1,5 @@
+import copy
+import hashlib
 import json
 import sys
 
@@ -488,6 +490,158 @@ def test_apply_app_tx_swap_exact_in(monkeypatch):
 
     assert after_in < before_in
     assert after_out > before_out
+
+
+def test_apply_app_tx_zero_output_swap_commits_nonce_only(monkeypatch) -> None:
+    """CPMM-IN-003: reject value effects while consuming the authenticated nonce.
+
+    The nonce-only commit prevents a signed rejected intent from becoming replayable.
+    """
+    from src.core.settlement import FillAction
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.dex_engine import DexEngineConfig, apply_ops
+
+    sender_pubkey = "00" * 48
+    canonical_sender_pubkey = "0x" + sender_pubkey
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+
+    monkeypatch.setenv("TAU_DEX_FAUCET", "1")
+    monkeypatch.setenv("TAU_DEX_REQUIRE_INTENT_SIGS", "0")
+    monkeypatch.setenv("TAU_DEX_ALLOW_MISSING_SETTLEMENT", "1")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+
+    create_pool_intent = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "CREATE_POOL",
+        "intent_id": "0x" + "aa" * 32,
+        "sender_pubkey": sender_pubkey,
+        "deadline": 9999999999,
+        "nonce": 1,
+        "asset0": asset0,
+        "asset1": asset1,
+        "fee_bps": 50,
+        "amount0": 1000,
+        "amount1": 2000,
+    }
+    created, app_state_json, app_hash, setup_patch, setup_error = plugin.apply_app_tx(
+        app_state_json=_policy_bound_generic_state(
+            plugin,
+            assets=(asset0, asset1),
+            mint_authority_pubkey=canonical_sender_pubkey,
+        ),
+        chain_balances={sender_pubkey: 123},
+        operations={
+            "7": {
+                "mint": [
+                    [canonical_sender_pubkey, asset0, 10_000],
+                    [canonical_sender_pubkey, asset1, 10_000],
+                ]
+            },
+            "5": [create_pool_intent],
+        },
+        tx_sender_pubkey=sender_pubkey,
+        block_timestamp=123,
+    )
+    assert created is True
+    assert setup_error is None
+    assert setup_patch in (None, {})
+    assert hashlib.sha256(app_state_json.encode("utf-8")).hexdigest() == app_hash
+
+    pool_id = _dex_snapshot_from_app_state_json(app_state_json)["pools"][0]["pool_id"]
+    swap_intent = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "SWAP_EXACT_IN",
+        "intent_id": "0x" + "bb" * 32,
+        "sender_pubkey": sender_pubkey,
+        "deadline": 9999999999,
+        "nonce": 2,
+        "pool_id": pool_id,
+        "asset_in": asset1,
+        "asset_out": asset0,
+        "amount_in": 2,
+        "min_amount_out": 1,
+        "recipient": sender_pubkey,
+    }
+    operations = {"5": [swap_intent]}
+    chain_balances = {sender_pubkey: 123}
+    operations_before = copy.deepcopy(operations)
+    chain_balances_before = copy.deepcopy(chain_balances)
+    state_before = _dex_snapshot_from_app_state_json(app_state_json)
+    dex_state, _proof_mining, _zusd, _token_authority = plugin._load_state(
+        app_state_json
+    )
+    engine_result = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=False,
+            chain_id="tau-local",
+            canonicalize_authenticated_bls_principals=True,
+            proof_config=plugin._build_proof_verifier_config(),
+        ),
+        state=dex_state,
+        operations={"2": [swap_intent]},
+        block_timestamp=124,
+        tx_sender_pubkey=canonical_sender_pubkey,
+    )
+    assert engine_result.ok is True
+    assert engine_result.state is not None
+    assert engine_result.state.nonces.get_last(canonical_sender_pubkey) == 2
+    assert engine_result.settlement is not None
+    assert engine_result.settlement.balance_deltas == []
+    assert engine_result.settlement.reserve_deltas == []
+    assert engine_result.settlement.lp_deltas == []
+    assert len(engine_result.settlement.fills) == 1
+    assert engine_result.settlement.fills[0].action is FillAction.REJECT
+    assert engine_result.settlement.fills[0].reason == (
+        "COMPUTATION_ERROR: amount_out is zero (trade too small)"
+    )
+
+    committed, committed_state, committed_hash, balances_patch, error = plugin.apply_app_tx(
+        app_state_json=app_state_json,
+        chain_balances=chain_balances,
+        operations=operations,
+        tx_sender_pubkey=sender_pubkey,
+        block_timestamp=124,
+    )
+
+    assert committed is True
+    assert error is None
+    assert committed_state != app_state_json
+    assert hashlib.sha256(committed_state.encode("utf-8")).hexdigest() == committed_hash
+    state_after = _dex_snapshot_from_app_state_json(committed_state)
+    assert state_after.keys() == state_before.keys()
+    assert {
+        key: value for key, value in state_after.items() if key != "nonces"
+    } == {
+        key: value for key, value in state_before.items() if key != "nonces"
+    }
+    assert state_before["nonces"] == [
+        {"last_nonce": 1, "pubkey": canonical_sender_pubkey}
+    ]
+    assert state_after["nonces"] == [
+        {"last_nonce": 2, "pubkey": canonical_sender_pubkey}
+    ]
+    assert balances_patch in (None, {})
+    assert operations == operations_before
+    assert chain_balances == chain_balances_before
+
+    replay_ok, replay_state, replay_hash, replay_patch, replay_error = plugin.apply_app_tx(
+        app_state_json=committed_state,
+        chain_balances=chain_balances,
+        operations=operations,
+        tx_sender_pubkey=sender_pubkey,
+        block_timestamp=125,
+    )
+    assert replay_ok is False
+    assert replay_state == committed_state
+    assert replay_hash == ""
+    assert replay_patch is None
+    assert replay_error == "nonce sequence invalid"
+    assert operations == operations_before
+    assert chain_balances == chain_balances_before
 
 
 def test_apply_app_tx_create_pool_with_native_asset_updates_chain_balance(monkeypatch):

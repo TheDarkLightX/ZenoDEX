@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
 
-IR_HASH = "sha256:5981d683dff2c95f6069d52dc1848290b4637d18df69ae31285094e30268ace1"
+IR_HASH = "sha256:3c2bb52f4af761fc0086aba5ba6743c2c0e0bbdcf9f93a80a22d5f8daafc1f7f"
 
 
 def _prepare_ctx(ir: Any) -> Any:
@@ -68,9 +68,7 @@ class PerpEpochIsolatedV4Adapter:
         return effects
 
 
-def _commit_effect(
-    adapter: PerpEpochIsolatedV4Adapter, effect_id: str, value: Any
-) -> None:
+def _commit_effect(adapter: PerpEpochIsolatedV4Adapter, effect_id: str, value: Any) -> None:
     adapter._pending_effects[str(effect_id)] = value
 
 
@@ -79,6 +77,7 @@ def _handle_generic(adapter: PerpEpochIsolatedV4Adapter, command: Any) -> Any:
 
 
 ACTION_HANDLERS: dict[str, Callable[[PerpEpochIsolatedV4Adapter, Any], Any]] = {
+    "bootstrap_oracle": _handle_generic,
     "advance_epoch": _handle_generic,
     "publish_clearing_price": _handle_generic,
     "settle_epoch": _handle_generic,
@@ -89,11 +88,10 @@ ACTION_HANDLERS: dict[str, Callable[[PerpEpochIsolatedV4Adapter, Any], Any]] = {
     "apply_funding": _handle_generic,
     "deposit_insurance": _handle_generic,
     "apply_insurance_claim": _handle_generic,
+    "partial_liquidate": _handle_generic,
 }
 
-EFFECT_HANDLERS: dict[
-    str, Callable[[PerpEpochIsolatedV4Adapter, str, Any], None]
-] = {
+EFFECT_HANDLERS: dict[str, Callable[[PerpEpochIsolatedV4Adapter, str, Any], None]] = {
     "event": _commit_effect,
     "oracle_fresh": _commit_effect,
     "notional_quote": _commit_effect,

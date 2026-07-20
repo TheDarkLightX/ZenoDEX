@@ -17,6 +17,7 @@ ACTION_PARTIAL_LIQUIDATE = 10
 ACTION_CARRY_FUNDING_CLOSEOUT_LIABILITY = 11
 ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY = 12
 ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY = 13
+ACTION_BOOTSTRAP_ORACLE = 14
 
 REJECT_OK = "Ok"
 REJECT_INVALID_ACTION = "InvalidAction"
@@ -31,6 +32,7 @@ REJECT_SENDER_BINDING_INVALID = "SenderBindingInvalid"
 
 _OPERATOR_ACTIONS = frozenset(
     {
+        ACTION_BOOTSTRAP_ORACLE,
         ACTION_ADVANCE_EPOCH,
         ACTION_PUBLISH_CLEARING_PRICE,
         ACTION_APPLY_FUNDING_AUTO,
@@ -109,7 +111,7 @@ def _require_flag(value: Any, *, name: str) -> bool:
 def _require_action_kind(value: Any, *, name: str = "action_kind") -> int:
     if not isinstance(value, int) or isinstance(value, bool):
         raise TypeError(f"{name} must be an int")
-    if value < ACTION_INVALID or value > ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY:
+    if value < ACTION_INVALID or value > ACTION_BOOTSTRAP_ORACLE:
         raise ValueError(f"{name} out of range")
     return int(value)
 
@@ -120,7 +122,9 @@ def _runtime_risk_requirements(action: int) -> _RuntimeRiskRequirements:
         operator_required=bool(action in _OPERATOR_ACTIONS),
         sender_binding_required=bool(action in _SENDER_BOUND_ACTIONS),
         epoch_settled_required=bool(action in (ACTION_ADVANCE_EPOCH, ACTION_SET_MARKET_PARAMS)),
-        positive_price_required=bool(action == ACTION_PUBLISH_CLEARING_PRICE),
+        positive_price_required=bool(
+            action in (ACTION_BOOTSTRAP_ORACLE, ACTION_PUBLISH_CLEARING_PRICE)
+        ),
         positions_flat_required=bool(action == ACTION_CLEAR_BREAKER),
         params_object_required=bool(action == ACTION_SET_MARKET_PARAMS),
     )
@@ -155,7 +159,10 @@ def _runtime_risk_reject_code(
         return REJECT_SENDER_BINDING_INVALID
     if action == ACTION_ADVANCE_EPOCH and not flags.epoch_settled_ok:
         return REJECT_EPOCH_NOT_SETTLED
-    if action == ACTION_PUBLISH_CLEARING_PRICE and not flags.positive_price_ok:
+    if (
+        action in (ACTION_BOOTSTRAP_ORACLE, ACTION_PUBLISH_CLEARING_PRICE)
+        and not flags.positive_price_ok
+    ):
         return REJECT_PRICE_INVALID
     if action == ACTION_CLEAR_BREAKER and not flags.positions_flat_ok:
         return REJECT_POSITIONS_OPEN
@@ -218,7 +225,9 @@ def evaluate_perp_runtime_risk_gate(
     )
     requirements = _runtime_risk_requirements(action)
     reject_code = _runtime_risk_reject_code(action, flags=flags, requirements=requirements)
-    return _runtime_risk_outcome(action, flags=flags, requirements=requirements, reject_code=reject_code)
+    return _runtime_risk_outcome(
+        action, flags=flags, requirements=requirements, reject_code=reject_code
+    )
 
 
 def perp_runtime_risk_gate_error(outcome: PerpRuntimeRiskGateOutcome, *, action: str) -> str | None:
@@ -231,7 +240,7 @@ def perp_runtime_risk_gate_error(outcome: PerpRuntimeRiskGateOutcome, *, action:
     if outcome.reject_code == REJECT_EPOCH_NOT_SETTLED:
         return "cannot advance epoch before settling current epoch"
     if outcome.reject_code == REJECT_PRICE_INVALID:
-        return "publish_clearing_price requires price_e8 > 0"
+        return f"{action} requires price_e8 > 0"
     if outcome.reject_code == REJECT_POSITIONS_OPEN:
         return "cannot clear breaker while positions are open"
     if outcome.reject_code == REJECT_MARKET_PARAMS_MID_EPOCH:

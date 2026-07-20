@@ -21,7 +21,7 @@ from .liquidity import (
     remove_liquidity,
 )
 from .settlement import Settlement, Fill, FillAction
-from .dex import DexConfig, DexState, DexStepResult
+from .dex import DexConfig, DexEffects, DexState, DexStepResult
 from .dex import step as dex_step
 from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee_with_dust_carry
 from .oracle import OracleState, init_oracle_state, is_fresh, update_price_timestamp
@@ -71,6 +71,7 @@ __all__ = [
     "Fill",
     "FillAction",
     "DexConfig",
+    "DexEffects",
     "DexState",
     "DexStepResult",
     "dex_step",

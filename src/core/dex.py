@@ -9,8 +9,9 @@ This module wires the verified kernels into a single pure step:
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Literal, Optional, overload
 
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
@@ -21,6 +22,7 @@ from .batch_clearing import apply_settlement_pure, compute_settlement, validate_
 from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee_with_dust_carry
 from .oracle import OracleState
 from .perps import PerpsState
+from .protocol_fee_policy import canonical_protocol_fee_policy
 from .settlement import FillAction, Settlement
 from .settlement_fill_fields import read_optional_non_negative_fill_int
 from .settlement_strong_validator import validate_settlement_strong
@@ -61,6 +63,18 @@ class DexConfig:
     protocol_fee_share_bps: int = 0
     protocol_fee_recipient_pubkey: Optional[str] = None
 
+    def __post_init__(self) -> None:
+        policy = canonical_protocol_fee_policy(
+            share_bps=self.protocol_fee_share_bps,
+            recipient_pubkey=self.protocol_fee_recipient_pubkey,
+        )
+        object.__setattr__(self, "protocol_fee_share_bps", policy.share_bps)
+        object.__setattr__(
+            self,
+            "protocol_fee_recipient_pubkey",
+            policy.recipient_pubkey,
+        )
+
 
 @dataclass(frozen=True)
 class DexState:
@@ -76,19 +90,81 @@ class DexState:
     perps: Optional[PerpsState] = None
 
 
-@dataclass(frozen=True)
-class DexEffects:
+@dataclass(frozen=True, slots=True)
+class DexEffects(Mapping[str, object]):
+    """Immutable, backwards-compatible effect plan.
+
+    ``Mapping`` preserves the historical read surface used by the shell and
+    tests while preventing callers from changing an accepted plan after it has
+    been hashed, cached, signed, or queued.
+    """
+
     settlement: Settlement
     total_swap_fees: int
     fee_split: Optional[FeeSplitResult] = None
 
+    _KEYS = ("settlement", "total_swap_fees", "fee_split")
 
-@dataclass(frozen=True)
+    def __post_init__(self) -> None:
+        if type(self.settlement) is not Settlement:
+            raise TypeError("settlement must be an exact Settlement")
+        if type(self.total_swap_fees) is not int:
+            raise TypeError("total_swap_fees must be an int")
+        if self.total_swap_fees < 0:
+            raise ValueError("total_swap_fees must be non-negative")
+        if self.fee_split is not None and type(self.fee_split) is not FeeSplitResult:
+            raise TypeError("fee_split must be an exact FeeSplitResult or None")
+
+    @overload
+    def __getitem__(self, key: Literal["settlement"]) -> Settlement: ...
+
+    @overload
+    def __getitem__(self, key: Literal["total_swap_fees"]) -> int: ...
+
+    @overload
+    def __getitem__(self, key: Literal["fee_split"]) -> Optional[FeeSplitResult]: ...
+
+    @overload
+    def __getitem__(self, key: str) -> object: ...
+
+    def __getitem__(self, key: str) -> object:
+        if key == "settlement":
+            return self.settlement
+        if key == "total_swap_fees":
+            return self.total_swap_fees
+        if key == "fee_split":
+            return self.fee_split
+        raise KeyError(key)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._KEYS)
+
+    def __len__(self) -> int:
+        return len(self._KEYS)
+
+
+@dataclass(frozen=True, slots=True)
 class DexStepResult:
     ok: bool
     state: Optional[DexState] = None
-    effects: Optional[Dict[str, Any]] = None
+    effects: Optional[DexEffects] = None
     error: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if type(self.ok) is not bool:
+            raise TypeError("ok must be a bool")
+        if self.ok:
+            if type(self.state) is not DexState:
+                raise ValueError("accepted result requires an exact DexState")
+            if type(self.effects) is not DexEffects:
+                raise ValueError("accepted result requires exact DexEffects")
+            if self.error is not None:
+                raise ValueError("accepted result cannot carry an error")
+            return
+        if self.state is not None or self.effects is not None:
+            raise ValueError("rejected result cannot carry state or effects")
+        if type(self.error) is not str or not self.error:
+            raise ValueError("rejected result requires a non-empty error")
 
 
 def _validate_and_apply_settlement(
@@ -158,11 +234,11 @@ def _validate_and_apply_settlement(
     return DexStepResult(
         ok=True,
         state=next_state,
-        effects={
-            "settlement": settlement,
-            "total_swap_fees": total_fees,
-            "fee_split": fee_split,
-        },
+        effects=DexEffects(
+            settlement=settlement,
+            total_swap_fees=total_fees,
+            fee_split=fee_split,
+        ),
     )
 
 

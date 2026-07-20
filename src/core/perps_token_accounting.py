@@ -32,14 +32,18 @@ def _strict_int(value: object, *, name: str) -> int:
 
 
 def perps_market_locked_quote_e8(market: PerpAnyMarketState) -> int:
-    """Return units represented in one perps market, scaled by E8.
+    """Return units represented in one exact committed market, scaled by E8.
 
     Mirrored accounting views and claims are intentionally excluded. Isolated
     `fee_pool_quote` equals fee income already represented in
     `insurance_balance`; adding both would count the same units twice.
+
+    Exact market types are required because committed accounting must not call
+    behavior-changing properties or methods inherited from caller subclasses.
     """
 
-    if isinstance(market, PerpMarketState):
+    market_type = type(market)
+    if market_type is PerpMarketState:
         account_units = sum(
             _strict_int(
                 account.collateral_quote,
@@ -58,10 +62,10 @@ def perps_market_locked_quote_e8(market: PerpAnyMarketState) -> int:
             )
         return total_units * E8_SCALE
 
-    if isinstance(
-        market,
-        (PerpClearinghouse2pMarketState, PerpClearinghouse3pTransferMarketState),
-    ):
+    if market_type in {
+        PerpClearinghouse2pMarketState,
+        PerpClearinghouse3pTransferMarketState,
+    }:
         total_e8 = _strict_int(
             market.state.get("net_deposited_e8", 0),
             name="fixed perps net_deposited_e8",
@@ -72,7 +76,7 @@ def perps_market_locked_quote_e8(market: PerpAnyMarketState) -> int:
             )
         return total_e8
 
-    if isinstance(market, PerpClearinghouseNpMarketState):
+    if market_type is PerpClearinghouseNpMarketState:
         total_e8 = _strict_int(
             market.global_state.get("net_deposited_e8", 0),
             name="N-party perps net_deposited_e8",
@@ -86,7 +90,7 @@ def perps_market_locked_quote_e8(market: PerpAnyMarketState) -> int:
             )
         return total_e8
 
-    raise TypeError(f"unsupported perps market type: {type(market)!r}")
+    raise TypeError(f"unsupported exact perps market type: {market_type!r}")
 
 
 def perps_market_locked_quote_units(market: PerpAnyMarketState) -> int:

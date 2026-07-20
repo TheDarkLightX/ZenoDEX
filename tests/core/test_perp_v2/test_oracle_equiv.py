@@ -63,7 +63,7 @@ def params_to_command(params: ActionParams):
     if tag == "advance_epoch":
         args = {"delta": params.delta}
     elif tag == "publish_clearing_price":
-        args = {"price_e8": params.price_e8}
+        args = {"price_e8": params.price_e8, "auth_ok": params.auth_ok}
     elif tag == "settle_epoch":
         args = {}
     elif tag == "deposit_collateral":
@@ -130,6 +130,7 @@ def oracle_bound_initial_states() -> tuple[dict[str, bool | int], Any]:
 # Hypothesis strategies: generate action params in YAML domain bounds
 # ---------------------------------------------------------------------------
 
+
 def action_params_strategy() -> st.SearchStrategy[ActionParams]:
     """Generate random ActionParams within YAML domain bounds.
 
@@ -147,6 +148,7 @@ def action_params_strategy() -> st.SearchStrategy[ActionParams]:
             ActionParams,
             action=st.just(Action.PUBLISH_CLEARING_PRICE),
             price_e8=st.integers(min_value=1, max_value=1_000_000_000_000),
+            auth_ok=auth,
         ),
         st.builds(
             ActionParams,
@@ -198,6 +200,7 @@ def action_params_strategy() -> st.SearchStrategy[ActionParams]:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestInitialStateEquivalence:
     def test_initial_states_match(self):
@@ -261,15 +264,15 @@ class TestLifecycleEquivalence:
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
             ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1_000_000, auth_ok=True),
             ActionParams(action=Action.SET_POSITION, new_position_base=100, auth_ok=True),
-            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000),
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000, auth_ok=True),
             ActionParams(action=Action.SETTLE_EPOCH),
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
-            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=105_000_000),
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=105_000_000, auth_ok=True),
             ActionParams(action=Action.SETTLE_EPOCH),
             ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=10, auth_ok=True),
             ActionParams(action=Action.DEPOSIT_INSURANCE, amount=500_000),
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
-            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=102_000_000),
+            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=102_000_000, auth_ok=True),
             ActionParams(action=Action.SETTLE_EPOCH),
         ]
 
@@ -303,10 +306,10 @@ def test_regression_stale_oracle_settle_epoch_accept_reject_parity() -> None:
     """
     actions = [
         ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
-        ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1),
+        ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1, auth_ok=True),
         ActionParams(action=Action.SETTLE_EPOCH),
         ActionParams(action=Action.ADVANCE_EPOCH, delta=101),
-        ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1),
+        ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1, auth_ok=True),
         ActionParams(action=Action.SETTLE_EPOCH),
     ]
 

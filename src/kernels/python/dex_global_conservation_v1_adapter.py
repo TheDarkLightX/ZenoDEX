@@ -3,10 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
 
-
 # Bound to the kernel IR hash of `src/kernels/dex/dex_global_conservation_v1.yaml`.
 # Checked by the toolchain's adapter lint step (fail-closed by default).
-IR_HASH = "sha256:9ea1cb58898c72b5f809923be0c25e85630101e24f8cead027bd0c5cb96fc06f"
+IR_HASH = "sha256:49e76918030dafba3123c868342afd395e01a7402de7e664ec7763acda1d426d"
 
 
 def _kernel_step(*, state: Mapping[str, Any], command: Any, ir: Any) -> Any:

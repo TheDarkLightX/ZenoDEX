@@ -67,12 +67,17 @@ CRITICAL_TESTS=(
   tests/core/test_batch_clearing_global_refinement.py
   tests/core/test_dex_step.py
   tests/core/test_dex_step_candidate_settlement.py
+  tests/core/test_fees_bva.py
   tests/core/test_quote_receipts.py
   tests/core/test_settlement.py
   tests/core/test_settlement_strong_validator.py
   tests/core/test_volatility_tier.py
   tests/core/test_volatility_tier_ref_parity.py
   tests/core/test_perp_v2
+  tests/core/test_perp_v4_parity.py
+  tests/core/test_perp_functional_core_fail_closed.py
+  tests/core/test_perps_token_accounting.py
+  tests/core/test_protocol_fee_policy.py
   tests/integration/test_perps_api.py
   tests/integration/test_tau_gate_boundary.py
   tests/integration/test_validation_uses_strong_settlement_gate.py
@@ -85,14 +90,21 @@ CRITICAL_TESTS=(
 COVERAGE_TARGETS=(
   --cov=src.core.domain_limits
   --cov=src.core.cpmm
+  --cov=src.core.fees
   --cov=src.core.liquidity
   --cov=src.core.batch_clearing
+  --cov=src.core.batch_clearing_requests
   --cov=src.core.dex
+  --cov=src.core.protocol_fee_policy
   --cov=src.core.quote_receipts
   --cov=src.core.settlement
   --cov=src.core.settlement_strong_validator
   --cov=src.core.volatility_tier
+  --cov=src.core.perp_epoch_lifecycle
+  --cov=src.core.perp_state_domain
   --cov=src.core.perp_v2
+  --cov=src.core.perp_v4
+  --cov=src.core.perps_token_accounting
   --cov=src.integration.perps_api
   --cov=src.integration.validation
   --cov=src.kernels.python.batch_auction_settler_v1_witness
@@ -109,14 +121,21 @@ echo "== critical: ruff =="
   tools/check_acceptance_tcb_coverage.py \
   src/core/domain_limits.py \
   src/core/cpmm.py \
+  src/core/fees.py \
   src/core/liquidity.py \
   src/core/batch_clearing.py \
+  src/core/batch_clearing_requests.py \
   src/core/dex.py \
+  src/core/protocol_fee_policy.py \
   src/core/quote_receipts.py \
   src/core/settlement.py \
   src/core/settlement_strong_validator.py \
   src/core/volatility_tier.py \
+  src/core/perp_epoch_lifecycle.py \
+  src/core/perp_state_domain.py \
   src/core/perp_v2 \
+  src/core/perp_v4 \
+  src/core/perps_token_accounting.py \
   src/integration/perps_api.py \
   src/integration/validation.py \
   src/kernels/python/batch_auction_settler_v1_witness.py \
@@ -131,11 +150,16 @@ echo "== critical: ruff =="
   tests/core/test_batch_auction_settler_v1_ref_parity.py \
   tests/core/test_batch_auction_settler_v1_witness.py \
   tests/core/test_settlement_swap_runtime_v1.py \
+  tests/core/test_fees_bva.py \
   tests/core/test_quote_receipts.py \
   tests/core/test_quote_receipts_fuzz.py \
   tests/core/test_settlement.py \
   tests/core/test_liquidity.py \
   tests/core/test_perp_v2/test_submodules.py \
+  tests/core/test_perp_v4_parity.py \
+  tests/core/test_perp_functional_core_fail_closed.py \
+  tests/core/test_perps_token_accounting.py \
+  tests/core/test_protocol_fee_policy.py \
   tests/core/test_settlement_strong_validator.py \
   tests/core/test_intent_normal_form.py \
   tests/core/test_support_root.py \
