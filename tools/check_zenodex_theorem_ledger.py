@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Validate the ranked ZenoDEX theorem-to-code ledger.
 
-The checker validates structure, ranking, required assurance obligations, source
-locators, and repository evidence paths.  It does not decide whether a cited
-paper theorem is true or whether its assumptions apply to ZenoDEX; those remain
-explicit review obligations in the ledger.
+This validates the ledger's structure and fail-closed research posture.  It does
+not decide whether a cited theorem is correct or whether its assumptions apply
+to ZenoDEX; those remain explicit review and refinement obligations.
 """
 
 from __future__ import annotations
@@ -18,6 +17,15 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LEDGER = ROOT / "docs" / "research" / "ZENODEX_THEOREM_LEDGER_V1.json"
 SCHEMA = "zenodex.theorem_ledger.v1"
 TIERS = frozenset({"S", "A", "B", "C"})
+LOCAL_EVIDENCE_STATUSES = frozenset(
+    {
+        "proved_in_pr",
+        "abstract_cas_lemmas_proved_in_pr",
+        "partially_formalized",
+        "related_repo_proofs_exist",
+        "existence_to_runtime_bridge_open",
+    }
+)
 REQUIRED_ASSURANCE_CHAIN = (
     "unique_authority_bytes",
     "unique_typed_command",
@@ -81,7 +89,7 @@ def _list(value: Any, name: str, errors: list[str]) -> list[Any]:
     return value
 
 
-def _nonempty_str(value: Any, name: str, errors: list[str]) -> str | None:
+def _text(value: Any, name: str, errors: list[str]) -> str | None:
     if type(value) is not str or not value.strip():
         errors.append(f"{name} must be a non-empty exact string")
         return None
@@ -95,18 +103,18 @@ def _validate_theorems(raw: Any, errors: list[str], *, root: Path) -> list[dict[
     reports: list[dict[str, Any]] = []
     ids: set[str] = set()
     ranks: set[int] = set()
-    seen_non_s = False
+    seen_lower_tier = False
 
     for index, raw_item in enumerate(theorems):
         item_errors: list[str] = []
         item = _mapping(raw_item, f"theorems[{index}]", item_errors)
-        theorem_id = _nonempty_str(item.get("id"), f"theorems[{index}].id", item_errors)
-        tier = _nonempty_str(item.get("tier"), f"theorems[{index}].tier", item_errors)
-        source = _nonempty_str(item.get("source"), f"theorems[{index}].source", item_errors)
-        _nonempty_str(item.get("statement"), f"theorems[{index}].statement", item_errors)
-        _nonempty_str(item.get("zenodex_use"), f"theorems[{index}].zenodex_use", item_errors)
-        _nonempty_str(item.get("proof_obligation"), f"theorems[{index}].proof_obligation", item_errors)
-        _nonempty_str(item.get("status"), f"theorems[{index}].status", item_errors)
+        theorem_id = _text(item.get("id"), f"theorems[{index}].id", item_errors)
+        tier = _text(item.get("tier"), f"theorems[{index}].tier", item_errors)
+        source = _text(item.get("source"), f"theorems[{index}].source", item_errors)
+        _text(item.get("statement"), f"theorems[{index}].statement", item_errors)
+        _text(item.get("zenodex_use"), f"theorems[{index}].zenodex_use", item_errors)
+        _text(item.get("proof_obligation"), f"theorems[{index}].proof_obligation", item_errors)
+        status = _text(item.get("status"), f"theorems[{index}].status", item_errors)
 
         rank = item.get("rank")
         if type(rank) is not int or rank <= 0:
@@ -123,29 +131,38 @@ def _validate_theorems(raw: Any, errors: list[str], *, root: Path) -> list[dict[
 
         if tier not in TIERS:
             item_errors.append(f"theorems[{index}].tier must be one of {sorted(TIERS)}")
-        if tier == "S":
-            if seen_non_s:
-                item_errors.append("S-tier theorem appears after a lower-tier theorem")
-        else:
-            seen_non_s = True
+        elif tier == "S" and seen_lower_tier:
+            item_errors.append("S-tier theorem appears after a lower-tier theorem")
+        elif tier != "S":
+            seen_lower_tier = True
 
         if source is not None and not any(
             marker in source for marker in ("DOI:", "arXiv:", "IFIP", "ZenoDEX")
         ):
-            item_errors.append("source must contain a DOI, arXiv locator, IFIP locator, or ZenoDEX artifact")
+            item_errors.append(
+                "source must contain a DOI, arXiv locator, IFIP locator, or ZenoDEX artifact"
+            )
 
         artifact = item.get("artifact")
         if artifact is not None:
-            if type(artifact) is not str or not artifact or artifact.startswith("/") or ".." in artifact.split("/"):
-                item_errors.append("artifact must be a safe non-empty repository-relative path or null")
-            elif not (root / artifact).is_file():
-                item_errors.append(f"artifact does not exist: {artifact}")
+            if (
+                type(artifact) is not str
+                or not artifact
+                or artifact.startswith("/")
+                or ".." in artifact.split("/")
+            ):
+                item_errors.append(
+                    "artifact must be a safe non-empty repository-relative path or null"
+                )
+            elif status in LOCAL_EVIDENCE_STATUSES and not (root / artifact).is_file():
+                item_errors.append(f"branch-local artifact does not exist: {artifact}")
 
         reports.append(
             {
                 "id": theorem_id,
                 "rank": rank,
                 "tier": tier,
+                "status": status,
                 "ok": not item_errors,
                 "errors": item_errors,
             }
@@ -174,16 +191,18 @@ def _validate_ideas(raw: Any, errors: list[str]) -> list[dict[str, Any]]:
     for index, raw_item in enumerate(ideas):
         item_errors: list[str] = []
         item = _mapping(raw_item, f"ideas[{index}]", item_errors)
-        idea_id = _nonempty_str(item.get("id"), f"ideas[{index}].id", item_errors)
-        tier = _nonempty_str(item.get("tier"), f"ideas[{index}].tier", item_errors)
-        _nonempty_str(item.get("design"), f"ideas[{index}].design", item_errors)
+        idea_id = _text(item.get("id"), f"ideas[{index}].id", item_errors)
+        tier = _text(item.get("tier"), f"ideas[{index}].tier", item_errors)
+        _text(item.get("design"), f"ideas[{index}].design", item_errors)
         if idea_id is not None:
             if idea_id in ids:
                 item_errors.append(f"duplicate idea id: {idea_id}")
             ids.add(idea_id)
         if tier not in TIERS:
             item_errors.append(f"ideas[{index}].tier must be one of {sorted(TIERS)}")
-        reports.append({"id": idea_id, "tier": tier, "ok": not item_errors, "errors": item_errors})
+        reports.append(
+            {"id": idea_id, "tier": tier, "ok": not item_errors, "errors": item_errors}
+        )
         errors.extend(item_errors)
     missing = sorted(REQUIRED_IDEA_IDS - ids)
     if missing:
@@ -191,7 +210,12 @@ def _validate_ideas(raw: Any, errors: list[str]) -> list[dict[str, Any]]:
     return reports
 
 
-def validate_ledger(value: Any, *, root: Path = ROOT, require_reviewed: bool = False) -> dict[str, Any]:
+def validate_ledger(
+    value: Any,
+    *,
+    root: Path = ROOT,
+    require_reviewed: bool = False,
+) -> dict[str, Any]:
     errors: list[str] = []
     obj = _mapping(value, "ledger", errors)
     if obj.get("schema") != SCHEMA:
@@ -200,14 +224,14 @@ def validate_ledger(value: Any, *, root: Path = ROOT, require_reviewed: bool = F
         errors.append("claim_status must be research_candidate or reviewed")
     if require_reviewed and obj.get("claim_status") != "reviewed":
         errors.append("review gate requires claim_status=reviewed")
-    _nonempty_str(obj.get("generated_at"), "generated_at", errors)
-    _nonempty_str(obj.get("research_question"), "research_question", errors)
+    _text(obj.get("generated_at"), "generated_at", errors)
+    _text(obj.get("research_question"), "research_question", errors)
 
     tiers = _mapping(obj.get("tiers"), "tiers", errors)
     if set(tiers) != TIERS:
         errors.append(f"tiers must define exactly {sorted(TIERS)}")
     for tier in sorted(TIERS):
-        _nonempty_str(tiers.get(tier), f"tiers.{tier}", errors)
+        _text(tiers.get(tier), f"tiers.{tier}", errors)
 
     chain = _list(obj.get("assurance_chain"), "assurance_chain", errors)
     if tuple(chain) != REQUIRED_ASSURANCE_CHAIN:
@@ -220,9 +244,9 @@ def validate_ledger(value: Any, *, root: Path = ROOT, require_reviewed: bool = F
     correction_statuses: set[str] = set()
     for index, raw_item in enumerate(corrections):
         item = _mapping(raw_item, f"citation_corrections[{index}]", errors)
-        _nonempty_str(item.get("supplied"), f"citation_corrections[{index}].supplied", errors)
-        status = _nonempty_str(item.get("status"), f"citation_corrections[{index}].status", errors)
-        _nonempty_str(item.get("replacement"), f"citation_corrections[{index}].replacement", errors)
+        _text(item.get("supplied"), f"citation_corrections[{index}].supplied", errors)
+        status = _text(item.get("status"), f"citation_corrections[{index}].status", errors)
+        _text(item.get("replacement"), f"citation_corrections[{index}].replacement", errors)
         if status is not None:
             correction_statuses.add(status)
     missing_corrections = sorted(REQUIRED_CORRECTION_STATUSES - correction_statuses)
@@ -233,7 +257,7 @@ def validate_ledger(value: Any, *, root: Path = ROOT, require_reviewed: bool = F
     if len(non_claims) < 5:
         errors.append("non_claims must contain at least five explicit limitations")
     for index, item in enumerate(non_claims):
-        _nonempty_str(item, f"non_claims[{index}]", errors)
+        _text(item, f"non_claims[{index}]", errors)
 
     return {
         "schema": "zenodex.theorem_ledger.validation_report.v1",
