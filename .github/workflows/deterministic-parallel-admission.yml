@@ -1,0 +1,46 @@
+name: deterministic-parallel-admission
+
+on:
+  pull_request:
+    paths:
+      - "src/core/deterministic_parallel_admission.py"
+      - "tests/core/test_deterministic_parallel_admission.py"
+      - "docs/research/DETERMINISTIC_MONOTONE_ADMISSION_V1.md"
+      - ".github/workflows/deterministic-parallel-admission.yml"
+  push:
+    branches:
+      - agent/deterministic-parallel-admission-v1-20260721
+    paths:
+      - "src/core/deterministic_parallel_admission.py"
+      - "tests/core/test_deterministic_parallel_admission.py"
+      - "docs/research/DETERMINISTIC_MONOTONE_ADMISSION_V1.md"
+      - ".github/workflows/deterministic-parallel-admission.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  assurance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Static checks
+        run: |
+          python -m ruff check \
+            src/core/deterministic_parallel_admission.py \
+            tests/core/test_deterministic_parallel_admission.py
+          python -m mypy src/core/deterministic_parallel_admission.py
+          python -m py_compile src/core/deterministic_parallel_admission.py
+
+      - name: Determinism and failure-semantics tests
+        run: python -m pytest -q tests/core/test_deterministic_parallel_admission.py
