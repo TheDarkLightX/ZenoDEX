@@ -121,6 +121,9 @@ jobs:
         run: |
           lake update
           lake exe cache get
+      - name: Type-check read/write footprint theorem source directly
+        working-directory: lean-mathlib
+        run: lake env lean Proofs/ReadWriteStableParallel.lean
       - name: Build integrated theorem-ledger module graph
         working-directory: lean-mathlib
         run: lake build Proofs.TheoremLedger
@@ -130,9 +133,6 @@ jobs:
       - name: Type-check parallel theorem source directly
         working-directory: lean-mathlib
         run: lake env lean Proofs/DeterministicParallelExecution.lean
-      - name: Type-check read/write footprint theorem source directly
-        working-directory: lean-mathlib
-        run: lake env lean Proofs/ReadWriteStableParallel.lean
       - name: Reject proof placeholders
         run: |
           ! grep -R -nE '\b(sorry|admit|axiom)\b' \
