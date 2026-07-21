@@ -283,6 +283,8 @@ def check_invariants(state: ZUSDState) -> list[str]:
         failed.append("inv_oracle_unseen_zeroed")
     if (state.free_debt_e8 + state.sp_debt_e8) != state.debt_e8:
         failed.append("inv_supply_conservation")
+    if state.debt_e8 > state.max_debt_supply_e8:
+        failed.append("inv_total_debt_cap")
     if not _debt_floor_ok(debt_e8=state.debt_e8, min_debt_open_e8=state.min_debt_open_e8):
         failed.append("inv_debt_floor")
     if not _solvent_at_price(
@@ -414,7 +416,7 @@ def step(state: ZUSDState, cmd: ZUSDCommand) -> ZUSDStepResult:
             new_debt = state.debt_e8 + debt_delta
             if new_debt > state.max_debt_e8:
                 return ZUSDStepResult(ok=False, error="mint exceeds per-vault max_debt_e8")
-            if (state.free_debt_e8 + debt_delta) > state.max_debt_supply_e8:
+            if new_debt > state.max_debt_supply_e8:
                 return ZUSDStepResult(ok=False, error="mint exceeds max_debt_supply_e8")
             if not _mcr_ok(
                 collateral_e8=state.collateral_e8,
@@ -813,6 +815,8 @@ def check_multi_invariants(state: ZUSDMultiState) -> list[str]:
     td = _total_debt(state)
     if (state.free_debt_e8 + state.sp_debt_e8) != td:
         failed.append("inv_supply_conservation")
+    if td > state.max_debt_supply_e8:
+        failed.append("inv_total_debt_cap")
     if not _debt_floor_ok(debt_e8=state.vault_a.debt_e8, min_debt_open_e8=state.min_debt_open_e8):
         failed.append("inv_debt_floor_a")
     if not _debt_floor_ok(debt_e8=state.vault_b.debt_e8, min_debt_open_e8=state.min_debt_open_e8):
@@ -970,7 +974,7 @@ def step_multi(state: ZUSDMultiState, cmd: ZUSDMultiCommand) -> ZUSDMultiStepRes
             new_debt = v.debt_e8 + debt_delta
             if new_debt > state.max_debt_e8:
                 return ZUSDMultiStepResult(ok=False, error="mint exceeds per-vault max_debt_e8")
-            if (state.free_debt_e8 + debt_delta) > state.max_debt_supply_e8:
+            if (_total_debt(state) + debt_delta) > state.max_debt_supply_e8:
                 return ZUSDMultiStepResult(ok=False, error="mint exceeds max_debt_supply_e8")
             if not _mcr_ok(
                 collateral_e8=v.collateral_e8,
