@@ -1,9 +1,13 @@
 """
-Vault staking + reward distribution kernel.
+Legacy aggregate vault arithmetic reference.
 
-This is a pure state machine intended for the functional core:
-- Inputs are integers (already range-checked by the shell if desired).
-- Outputs are (next_state, effects) or an error.
+This is a pure bounded state machine retained for generated-reference parity and
+historical snapshot compatibility. It is **not** a multi-user reward authority:
+it has no claimant identity, per-account shares, reward debt, or replay nonce,
+and its ``harvest`` command accepts a caller-supplied aggregate ``entry_acc``.
+Production claimant accounting belongs in ``src.core.vault_claimant``.
+
+Inputs are integers and outputs are a next value/effect value or a rejection.
 """
 
 from __future__ import annotations
@@ -12,11 +16,12 @@ from dataclasses import dataclass
 from typing import Any, Literal, Mapping
 
 ACC_SCALE = 1_000_000
+LEGACY_AGGREGATE_VAULT_MULTI_USER_AUTHORITY = False
 
 
 @dataclass(frozen=True)
 class VaultState:
-    """Vault state."""
+    """Legacy aggregate state; never a claimant-indexed authority value."""
 
     acc_reward_per_share: int
     last_update_acc: int
@@ -81,7 +86,7 @@ def init_vault_state() -> VaultState:
 
 
 def step(state: VaultState, cmd: VaultCommand) -> VaultStepResult:
-    """Execute a vault command."""
+    """Execute a legacy aggregate vault command."""
     try:
         if cmd.tag == "deposit_rewards":
             return _deposit_rewards(state, cmd.args)
@@ -182,7 +187,6 @@ def _stake(state: VaultState, args: Mapping[str, Any]) -> VaultStepResult:
         )
         return VaultStepResult(ok=True, state=new_state, effects={"delta_acc": 0, "harvested_reward": 0})
 
-    # First staker: distribute any pending rewards across the new stake.
     delta_acc = (state.pending_rewards * ACC_SCALE) // new_staked
     distributed = (delta_acc * new_staked) // ACC_SCALE
     new_pending = state.pending_rewards - distributed
