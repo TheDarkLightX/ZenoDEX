@@ -1,0 +1,91 @@
+name: apply-zusd-finalized-oracle-pr-target
+
+on:
+  pull_request_target:
+    branches:
+      - agent/zusd-finalized-oracle-apply-base-20260721
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/zusd-finalized-oracle-authority-20260721'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact same-repository head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify event/head binding
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_REF: agent/zusd-finalized-oracle-authority-20260721
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(git branch --show-current)" = "$EXPECTED_REF"
+          test -f .agent/apply_zusd_finalized_oracle.py
+          test -f .agent/zusd-finalized-oracle-authority.v1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Apply deterministic source transformation
+        run: python .agent/apply_zusd_finalized_oracle.py
+
+      - name: Static validation
+        run: |
+          python -m ruff check \
+            src/core/zusd.py \
+            src/integration/tau_witness.py \
+            src/integration/zusd_tau_gate.py \
+            tests/core/test_zusd.py \
+            tests/core/test_zusd_multi.py \
+            tests/core/test_zusd_finalized_oracle_authority.py \
+            tests/integration/test_zusd_tau_gate_edges.py \
+            tests/tau/test_zusd_finalized_oracle_specs.py
+          python -m py_compile \
+            src/core/zusd.py \
+            src/integration/tau_witness.py \
+            src/integration/zusd_tau_gate.py \
+            .agent/apply_zusd_finalized_oracle.py
+
+      - name: Focused semantic validation
+        run: |
+          python -m pytest -q \
+            tests/core/test_zusd.py \
+            tests/core/test_zusd_multi.py \
+            tests/core/test_zusd_finalized_oracle_authority.py \
+            tests/core/test_zusd_total_debt_cap.py \
+            tests/integration/test_zusd_tau_gate_edges.py \
+            tests/tau/test_zusd_tau_specs.py \
+            tests/tau/test_zusd_finalized_oracle_specs.py
+
+      - name: Publish verified normal source commit
+        run: |
+          rm -f .agent/apply_zusd_finalized_oracle.py
+          rm -f .agent/zusd-finalized-oracle-authority.v1
+          rm -f .agent/zusd-finalized-oracle-authority.trigger
+          rm -f .agent/zusd-finalized-oracle-authority.diagnose-trigger
+          rm -f .agent/zusd-finalized-oracle-authority.publisher-trigger
+          rm -f .agent/zusd-finalized-oracle-authority.diagnostics.txt
+          rmdir .agent 2>/dev/null || true
+          rm -f .github/workflows/apply-zusd-finalized-oracle-authority.yml
+          rm -f .github/workflows/diagnose-zusd-finalized-oracle-authority.yml
+          rm -f .github/workflows/repair-zusd-finalized-oracle-publisher.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(zusd): require finalized Oracle authority for liquidation"
+          git push origin HEAD:agent/zusd-finalized-oracle-authority-20260721
