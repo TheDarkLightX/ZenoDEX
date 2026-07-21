@@ -8,6 +8,7 @@ on:
     paths:
       - "lean-mathlib/Proofs/TypedDeterministicParser.lean"
       - "lean-mathlib/Proofs/DeterministicParallelExecution.lean"
+      - "lean-mathlib/Proofs/ReadWriteStableParallel.lean"
       - "lean-mathlib/Proofs/TheoremLedger.lean"
       - "lean-mathlib/Proofs.lean"
       - "tools/query_theoremsearch_zenodex.py"
@@ -126,6 +127,9 @@ jobs:
       - name: Type-check parallel theorem source directly
         working-directory: lean-mathlib
         run: lake env lean Proofs/DeterministicParallelExecution.lean
+      - name: Type-check read/write footprint theorem source directly
+        working-directory: lean-mathlib
+        run: lake env lean Proofs/ReadWriteStableParallel.lean
       - name: Build integrated theorem-ledger module graph
         working-directory: lean-mathlib
         run: lake build Proofs.TheoremLedger
@@ -134,6 +138,7 @@ jobs:
           ! grep -R -nE '\b(sorry|admit|axiom)\b' \
             lean-mathlib/Proofs/TypedDeterministicParser.lean \
             lean-mathlib/Proofs/DeterministicParallelExecution.lean \
+            lean-mathlib/Proofs/ReadWriteStableParallel.lean \
             lean-mathlib/Proofs/TheoremLedger.lean
 
   ledger-validation:
