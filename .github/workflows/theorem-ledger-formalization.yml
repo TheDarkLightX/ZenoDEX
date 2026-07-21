@@ -11,8 +11,10 @@ on:
       - "lean-mathlib/Proofs.lean"
       - "tools/query_theoremsearch_zenodex.py"
       - "tools/check_zenodex_theorem_ledger.py"
+      - "tests/tools/test_check_zenodex_theorem_ledger.py"
       - "docs/research/ZENODEX_THEOREM_LEDGER_2026-07-21.md"
       - "docs/research/ZENODEX_THEOREM_LEDGER_V1.json"
+      - ".github/workflows/theorem-ledger-formalization.yml"
 
 permissions:
   contents: read
@@ -31,6 +33,19 @@ jobs:
           python tools/query_theoremsearch_zenodex.py \
             --output internal/theoremsearch/zenodex_theorem_queries_v1.json \
             --n-results 8
+      - name: Validate retrieval bundle shape
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("internal/theoremsearch/zenodex_theorem_queries_v1.json")
+          obj = json.loads(path.read_text(encoding="utf-8"))
+          assert obj["schema"] == "zenodex.theoremsearch.query_bundle.v1"
+          assert len(obj["queries"]) == 12
+          assert all(item["theorem_search"] for item in obj["queries"])
+          assert all(item["theorem_graph"] for item in obj["queries"])
+          PY
       - name: Upload raw theorem retrieval
         uses: actions/upload-artifact@v4
         with:
@@ -75,11 +90,30 @@ jobs:
             lean-mathlib/Proofs/DeterministicParallelExecution.lean
 
   ledger-validation:
-    if: ${{ hashFiles('tools/check_zenodex_theorem_ledger.py') != '' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python tools/check_zenodex_theorem_ledger.py --pretty
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+      - name: Static checks
+        run: |
+          python -m ruff check \
+            tools/query_theoremsearch_zenodex.py \
+            tools/check_zenodex_theorem_ledger.py \
+            tests/tools/test_check_zenodex_theorem_ledger.py
+          python -m ruff format --check \
+            tools/query_theoremsearch_zenodex.py \
+            tools/check_zenodex_theorem_ledger.py \
+            tests/tools/test_check_zenodex_theorem_ledger.py
+          python -m py_compile \
+            tools/query_theoremsearch_zenodex.py \
+            tools/check_zenodex_theorem_ledger.py \
+            tests/tools/test_check_zenodex_theorem_ledger.py
+      - name: Validate theorem ledger
+        run: python tools/check_zenodex_theorem_ledger.py --pretty
+      - name: Run fail-closed ledger tests
+        run: python -m pytest -q tests/tools/test_check_zenodex_theorem_ledger.py
