@@ -111,7 +111,9 @@ def validate_synthesis(value: Any, *, root: Path = ROOT) -> dict[str, Any]:
     rk = _mapping(obj.get("research_kernel_result"), "research_kernel_result", errors)
     if rk.get("supported_scoped_claim") != "claim_typed_parser_boundary":
         errors.append("Research Kernel scoped promotion changed")
-    refuted = frozenset(_list(rk.get("refuted_overbroad_claims"), "refuted_overbroad_claims", errors))
+    refuted = frozenset(
+        _list(rk.get("refuted_overbroad_claims"), "refuted_overbroad_claims", errors)
+    )
     if refuted != REQUIRED_REFUTATIONS:
         errors.append("Research Kernel refuted claim set mismatch")
 
