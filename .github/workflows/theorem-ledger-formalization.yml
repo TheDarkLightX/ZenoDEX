@@ -8,6 +8,7 @@ on:
     paths:
       - "lean-mathlib/Proofs/TypedDeterministicParser.lean"
       - "lean-mathlib/Proofs/DeterministicParallelExecution.lean"
+      - "lean-mathlib/Proofs/TheoremLedger.lean"
       - "lean-mathlib/Proofs.lean"
       - "tools/query_theoremsearch_zenodex.py"
       - "tools/check_zenodex_theorem_ledger.py"
@@ -125,11 +126,15 @@ jobs:
       - name: Compile deterministic parallel execution theorems
         working-directory: lean-mathlib
         run: lake env lean Proofs/DeterministicParallelExecution.lean
+      - name: Compile integrated theorem-ledger module
+        working-directory: lean-mathlib
+        run: lake env lean Proofs/TheoremLedger.lean
       - name: Reject proof placeholders
         run: |
           ! grep -R -nE '\b(sorry|admit|axiom)\b' \
             lean-mathlib/Proofs/TypedDeterministicParser.lean \
-            lean-mathlib/Proofs/DeterministicParallelExecution.lean
+            lean-mathlib/Proofs/DeterministicParallelExecution.lean \
+            lean-mathlib/Proofs/TheoremLedger.lean
 
   ledger-validation:
     runs-on: ubuntu-latest
