@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - "lean-mathlib/Proofs/ReadWriteStableParallel.lean"
-      - "lean-mathlib/Proofs/TheoremLedger.lean"
+      - "lean-mathlib/Proofs/RKMorphESSOSynthesis.lean"
       - "docs/research/ZENODEX_RK_MORPH_ESSO_SYNTHESIS_2026-07-21.md"
       - "docs/research/ZENODEX_RK_MORPH_ESSO_SYNTHESIS_V1.json"
       - "tools/check_zenodex_tool_research_synthesis.py"
@@ -78,15 +78,15 @@ jobs:
           lake env lean Proofs/ReadWriteStableParallel.lean \
             2>&1 | tee ../lean-footprint-diagnostics.txt
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-      - name: Build integrated theorem-ledger module graph
-        id: lake_graph
+      - name: Type-check isolated three-tool synthesis module
+        id: lean_synthesis
         continue-on-error: true
         working-directory: lean-mathlib
         shell: bash
         run: |
           set -o pipefail
-          lake build Proofs.TheoremLedger \
-            2>&1 | tee ../lean-module-graph-diagnostics.txt
+          lake env lean Proofs/RKMorphESSOSynthesis.lean \
+            2>&1 | tee ../lean-synthesis-diagnostics.txt
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
       - name: Upload Lean diagnostics
         if: always()
@@ -95,16 +95,16 @@ jobs:
           name: read-write-stable-parallel-lean-diagnostics
           path: |
             lean-footprint-diagnostics.txt
-            lean-module-graph-diagnostics.txt
+            lean-synthesis-diagnostics.txt
           if-no-files-found: error
       - name: Enforce direct theorem type-check
         if: steps.lean_direct.outputs.exit_code != '0'
         run: exit 1
-      - name: Enforce integrated module graph
-        if: steps.lake_graph.outputs.exit_code != '0'
+      - name: Enforce synthesis module type-check
+        if: steps.lean_synthesis.outputs.exit_code != '0'
         run: exit 1
       - name: Reject proof placeholders
         run: |
           ! grep -R -nE '\b(sorry|admit|axiom)\b' \
             lean-mathlib/Proofs/ReadWriteStableParallel.lean \
-            lean-mathlib/Proofs/TheoremLedger.lean
+            lean-mathlib/Proofs/RKMorphESSOSynthesis.lean
