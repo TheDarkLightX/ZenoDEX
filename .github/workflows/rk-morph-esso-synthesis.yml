@@ -116,19 +116,31 @@ jobs:
           lake env lean Proofs/ReadWriteStableParallel.lean \
             2>&1 | tee ../lean-footprint-diagnostics.txt
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-      - name: Upload Lean footprint diagnostics
+      - name: Build integrated theorem-ledger module graph
+        id: lake_graph
+        continue-on-error: true
+        working-directory: lean-mathlib
+        shell: bash
+        run: |
+          set -o pipefail
+          lake build Proofs.TheoremLedger \
+            2>&1 | tee ../lean-module-graph-diagnostics.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+      - name: Upload Lean diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: read-write-stable-parallel-lean-diagnostics
-          path: lean-footprint-diagnostics.txt
+          path: |
+            lean-footprint-diagnostics.txt
+            lean-module-graph-diagnostics.txt
           if-no-files-found: error
       - name: Enforce direct theorem type-check
         if: steps.lean_direct.outputs.exit_code != '0'
         run: exit 1
-      - name: Build integrated theorem-ledger module graph
-        working-directory: lean-mathlib
-        run: lake build Proofs.TheoremLedger
+      - name: Enforce integrated module graph
+        if: steps.lake_graph.outputs.exit_code != '0'
+        run: exit 1
       - name: Reject proof placeholders
         run: |
           ! grep -R -nE '\b(sorry|admit|axiom)\b' \
