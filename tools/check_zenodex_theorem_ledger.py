@@ -200,9 +200,7 @@ def _validate_ideas(raw: Any, errors: list[str]) -> list[dict[str, Any]]:
             ids.add(idea_id)
         if tier not in TIERS:
             item_errors.append(f"ideas[{index}].tier must be one of {sorted(TIERS)}")
-        reports.append(
-            {"id": idea_id, "tier": tier, "ok": not item_errors, "errors": item_errors}
-        )
+        reports.append({"id": idea_id, "tier": tier, "ok": not item_errors, "errors": item_errors})
         errors.extend(item_errors)
     missing = sorted(REQUIRED_IDEA_IDS - ids)
     if missing:

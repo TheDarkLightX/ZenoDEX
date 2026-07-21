@@ -108,9 +108,7 @@ def theorem_search(query: str, *, n_results: int) -> Any:
 
 
 def graph_search(query: str, *, n_results: int) -> Any:
-    params = urllib.parse.urlencode(
-        {"query": query, "n_results": n_results, "formality": "both"}
-    )
+    params = urllib.parse.urlencode({"query": query, "n_results": n_results, "formality": "both"})
     request = urllib.request.Request(
         f"{GRAPH_URL}?{params}",
         headers={"User-Agent": "ZenoDEX-TheoremLedger/1"},
