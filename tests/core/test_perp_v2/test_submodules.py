@@ -5,6 +5,7 @@ from dataclasses import replace
 import src.core.perp_v2.effects as effects
 import src.core.perp_v2.guards as guards
 import src.core.perp_v2.updates as updates
+import src.core.perp_v4.guards as guards_v4
 from src.core.perp_v2.errors import PerpInvariantError
 from src.core.perp_v2.math import (
     MAX_COLLATERAL,
@@ -65,6 +66,21 @@ def test_guard_set_position_breaker_is_reduce_only() -> None:
         state,
         ActionParams(action=Action.SET_POSITION, new_position_base=-50, auth_ok=True),
     )
+
+
+def test_guard_set_position_rechecks_exact_post_maintenance_requirement() -> None:
+    malformed = _open_state(
+        breaker_active=True,
+        collateral_quote=0,
+    )
+    command = ActionParams(
+        action=Action.SET_POSITION,
+        new_position_base=50,
+        auth_ok=True,
+    )
+
+    assert not guards.guard_set_position(malformed, command)
+    assert not guards_v4.guard_set_position(malformed, command)
 
 
 def test_guard_settle_epoch_rejects_liquidation_overflow_path() -> None:

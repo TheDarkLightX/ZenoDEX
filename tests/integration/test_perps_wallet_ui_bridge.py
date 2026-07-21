@@ -11,8 +11,8 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlencode, urlparse
 from urllib.error import HTTPError
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import pytest
@@ -21,7 +21,11 @@ from src.core.dex import DexState
 from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
 from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.perp_engine import PerpEngineConfig, _kernel_initial_global_state, apply_perp_ops
+from src.integration.perp_engine import (
+    PerpEngineConfig,
+    _kernel_initial_global_state,
+    apply_perp_ops,
+)
 from src.integration.perps_wallet_authority import (
     PERPS_WALLET_AUTHORITY_PAYLOAD_KIND,
     PERPS_WALLET_DEVICE_APPROVAL_EXERCISE_SCHEMA_V1,
@@ -29,39 +33,43 @@ from src.integration.perps_wallet_authority import (
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
-    PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
     PERPS_WALLET_SIGNER_EXECUTION_EXERCISE_SCHEMA_V1,
+    PERPS_WALLET_SIGNER_PROMPT_CAPTURE_SCHEMA_V1,
+    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_device_approval_environment_policy_v1,
     build_perps_wallet_device_approval_exercise_v1,
     build_perps_wallet_device_approval_use_policy_v1,
-    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_signer_device_integration_v1,
-    build_perps_wallet_signer_prompt_capture_v1,
     build_perps_wallet_signer_execution_exercise_v1,
+    build_perps_wallet_signer_prompt_capture_v1,
     perps_wallet_device_approval_exercise_hash_v1,
     perps_wallet_recovery_exercise_hash_v1,
     perps_wallet_rotation_exercise_hash_v1,
     perps_wallet_signer_device_integration_hash_v1,
-    perps_wallet_signer_prompt_capture_hash_v1,
     perps_wallet_signer_execution_exercise_hash_v1,
+    perps_wallet_signer_prompt_capture_hash_v1,
 )
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction, sign_perp_op_for_engine
+from src.integration.tau_net_client import (
+    bls_pubkey_hex_from_privkey,
+    build_signed_tau_transaction,
+    sign_perp_op_for_engine,
+)
 from src.integration.zeno_key_manager import (
-    KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KEY_ENVIRONMENT_LOCAL_PROCESS,
+    KEY_ENVIRONMENT_PHONE_SECURE_HARDWARE,
     KeyExecutionEnvironment,
     KeyRef,
     RecoveryGuardian,
     SocialRecoveryPolicy,
     ZenoKeyManager,
 )
-from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
-from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_key_manager_v0 import (
     BACKEND_HARDWARE_WALLET_PLACEHOLDER,
     BACKEND_OS_KEYCHAIN,
     KeyBackendDescriptor,
 )
+from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
+from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.integration.zeno_oracle_authority import (
     ORACLE_AUTHORITY_PAYLOAD_KIND,
@@ -77,7 +85,6 @@ from src.state import BalanceTable, LPTable
 from tests.chaos.conftest import requires_toxiproxy
 from tests.integration.tau_rpc_fault_proxy import TauRpcFaultProxy
 from tools.chaos.toxiproxy_harness import ToxiproxyHarness
-
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -1129,7 +1136,11 @@ def _advanced_market_state(
         signer_pubkey=account_b_pubkey,
         nonce=1,
     )
-    cfg = PerpEngineConfig(chain_id=chain_id, oracle_pubkey=oracle_pubkey)
+    cfg = PerpEngineConfig(
+        chain_id=chain_id,
+        operator_pubkey=account_a_pubkey,
+        oracle_pubkey=oracle_pubkey,
+    )
     res1 = apply_perp_ops(
         config=cfg,
         state=state,
@@ -1281,7 +1292,11 @@ def _liquidation_ready_market_state(
     oracle_pubkey = "0x" + bls_pubkey_hex_from_privkey(oracle_privkey)
     account_a_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_a_privkey)
     account_b_pubkey = "0x" + bls_pubkey_hex_from_privkey(account_b_privkey)
-    cfg = PerpEngineConfig(chain_id=chain_id, oracle_pubkey=oracle_pubkey)
+    cfg = PerpEngineConfig(
+        chain_id=chain_id,
+        operator_pubkey=account_a_pubkey,
+        oracle_pubkey=oracle_pubkey,
+    )
     state = _settle_ready_market_state(
         chain_id=chain_id,
         market_id=market_id,

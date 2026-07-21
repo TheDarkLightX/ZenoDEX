@@ -10,7 +10,6 @@ from typing import Any, Mapping, Sequence
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .proof_verifier import ProofVerifierConfig, make_proof_verifier
 
-
 LIVE_PROOF_WRAPPER_REQUEST_SCHEMA = "zenodex/live-proof-wrapper-request/v1"
 LIVE_PROOF_WRAPPER_STATUS_SCHEMA = "zenodex/live-proof-wrapper-status/v1"
 LIVE_PROOF_WRAPPER_HASH_DOMAIN = "zenodex.live_proof_wrapper.request/v1"
@@ -227,6 +226,7 @@ def verify_live_proof_wrapper(
     proof_intent_receipt: Mapping[str, Any],
     proof: Mapping[str, Any] | None,
     required: bool,
+    expected_execution_context_hash: str | None = None,
 ) -> dict[str, Any]:
     config = proof_verifier_config_from_env(env_prefix=env_prefix)
     artifact_binding = _artifact_binding_status(env_prefix=env_prefix, verifier_cmd=config.verifier_cmd)
@@ -237,6 +237,8 @@ def verify_live_proof_wrapper(
         "proof_intent_receipt": dict(proof_intent_receipt),
         "proof": None if proof is None else dict(proof),
     }
+    if expected_execution_context_hash is not None:
+        request["expected_execution_context_hash"] = expected_execution_context_hash
     request_hash = _hash_request(request)
     status: dict[str, Any] = {
         "schema": LIVE_PROOF_WRAPPER_STATUS_SCHEMA,

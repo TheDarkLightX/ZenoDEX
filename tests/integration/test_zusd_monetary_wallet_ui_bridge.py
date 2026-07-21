@@ -8,29 +8,30 @@ import socketserver
 import subprocess
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
-from urllib.parse import urlencode
 from urllib.error import HTTPError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import pytest
 
 from src.core.dex import DexState
-from src.core.zusd import E8, ZUSDCommand, init_state, step
+from src.core.zusd import E8, ZUSDCommand, step
 from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from src.integration.zusd_monetary_bridge import (
-    ZUSDMonetaryState,
+    init_monetary_state,
     stability_pool_pubkey,
     zusd_monetary_state_to_obj,
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from src.state import BalanceTable, LPTable
 from tests.chaos.conftest import requires_toxiproxy
+from tests.consensus_clock import execution_clock_v1
 from tests.integration.tau_rpc_fault_proxy import TauRpcFaultProxy
 from tools.chaos.toxiproxy_harness import ToxiproxyHarness
-
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -122,7 +123,9 @@ def _zusd_core(app_state: dict[str, object]) -> dict[str, int]:
     assert isinstance(monetary, dict)
     core = monetary.get("core")
     assert isinstance(core, dict)
-    return {str(k): int(v) for k, v in core.items() if isinstance(v, int) and not isinstance(v, bool)}
+    return {
+        str(k): int(v) for k, v in core.items() if isinstance(v, int) and not isinstance(v, bool)
+    }
 
 
 def _balance_for_asset(app_state: dict[str, object], *, pubkey: str, asset_id: str) -> int:
@@ -161,8 +164,11 @@ def _ok(core, tag: str, **kwargs):
     return res.state
 
 
-def _initial_app_state_json(*, owner_pubkey: str) -> str:
-    core = init_state()
+def _initial_app_state_json(*, owner_pubkey: str, chain_id: str) -> str:
+    monetary = init_monetary_state(
+        plugin._build_zusd_monetary_config(chain_id=chain_id)  # noqa: SLF001
+    )
+    core = monetary.core
     core = _ok(core, "bootstrap_oracle", price_e8=100 * E8, auth_ok=True)
     core = _ok(core, "deposit_collateral", amount_e8=20 * E8)
     dex_state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
@@ -172,11 +178,10 @@ def _initial_app_state_json(*, owner_pubkey: str) -> str:
         "dex_state": snapshot_from_state(dex_state).data,
         "proof_mining": None,
         "zusd_monetary": zusd_monetary_state_to_obj(
-            ZUSDMonetaryState(
+            replace(
+                monetary,
                 core=core,
                 vault_owner_pubkey=owner_pubkey,
-                sp_deposits_e8={},
-                sp_collateral_claims_e8={},
             )
         ),
     }
@@ -187,12 +192,16 @@ class _TauRpcState:
     def __init__(self, *, owner_pubkey: str, chain_id: str) -> None:
         self.owner_pubkey = owner_pubkey.lower()
         self.chain_id = chain_id
-        self.app_state_json = _initial_app_state_json(owner_pubkey=owner_pubkey)
+        self.app_state_json = _initial_app_state_json(
+            owner_pubkey=owner_pubkey,
+            chain_id=chain_id,
+        )
         self.app_hash = "ab" * 32
         self.pending_tx: dict[str, object] | None = None
         self.sequences: dict[str, int] = {self.owner_pubkey[2:]: 7}
         self.native_balances: dict[str, int] = {self.owner_pubkey: 5 * E8}
         self.command_counts: dict[str, int] = {}
+        self.block_height = 0
         self.lock = threading.Lock()
 
     def app_state_payload(self) -> dict[str, object]:
@@ -216,12 +225,17 @@ class _TauRpcState:
             os.environ["TAU_DEX_CHAIN_ID"] = self.chain_id
             os.environ["TAU_DEX_ZUSD_ORACLE_PUBKEY"] = self.owner_pubkey
             try:
+                height = self.block_height
                 ok, next_json, app_hash, _patch, err = plugin.apply_app_tx(
                     app_state_json=self.app_state_json,
                     chain_balances=dict(self.native_balances),
                     operations=ops,
                     tx_sender_pubkey=sender,
-                    block_timestamp=int(time.time()),
+                    block_timestamp=height,
+                    execution_clock=execution_clock_v1(
+                        chain_id=self.chain_id,
+                        height=height,
+                    ),
                 )
             finally:
                 if old_chain_id is None:
@@ -235,6 +249,7 @@ class _TauRpcState:
             assert ok, err
             self.app_state_json = next_json
             self.app_hash = app_hash
+            self.block_height += 1
             if isinstance(_patch, dict):
                 for pubkey, amount in _patch.items():
                     self.native_balances[str(pubkey).strip().lower()] = int(amount)
@@ -266,7 +281,9 @@ class _TauRpcHandler(socketserver.StreamRequestHandler):
             self.wfile.write(f"BALANCE: {state.native_balances.get(account, 0)}\n".encode("utf-8"))
             return
         if line == "getappstate full":
-            self.wfile.write((json.dumps(state.app_state_payload(), sort_keys=True) + "\n").encode("utf-8"))
+            self.wfile.write(
+                (json.dumps(state.app_state_payload(), sort_keys=True) + "\n").encode("utf-8")
+            )
             return
         if line.startswith("sendtx "):
             payload = json.loads(line.split(" ", 1)[1])
@@ -321,7 +338,9 @@ class _TauRpcPartialSendTimeoutHandler(_TauRpcHandler):
             self.wfile.write(f"BALANCE: {state.native_balances.get(account, 0)}\n".encode("utf-8"))
             return
         if line == "getappstate full":
-            self.wfile.write((json.dumps(state.app_state_payload(), sort_keys=True) + "\n").encode("utf-8"))
+            self.wfile.write(
+                (json.dumps(state.app_state_payload(), sort_keys=True) + "\n").encode("utf-8")
+            )
             return
         if line == "createblock":
             state.apply_pending()
@@ -409,7 +428,13 @@ def _run_zusd_browser_submit(
         body["owner_pubkey"] = actor_pubkey
     if action in {"deposit_sp", "withdraw_sp", "redeem_zusd", "claim_sp_collateral"}:
         body["account_pubkey"] = actor_pubkey
-    if action in {"advance_epoch", "bootstrap_oracle", "oracle_report", "oracle_commit", "liquidate"}:
+    if action in {
+        "advance_epoch",
+        "bootstrap_oracle",
+        "oracle_report",
+        "oracle_commit",
+        "liquidate",
+    }:
         body["actor_pubkey"] = actor_pubkey
     if amount is not None:
         body["amount"] = int(amount)
@@ -421,7 +446,9 @@ def _run_zusd_browser_submit(
         body["price_e8"] = int(price_e8)
         query["zusdPriceE8"] = str(int(price_e8))
 
-    signed_payload = _prepare_external_signed_zusd_payload(api_base=api_base, privkey=privkey, body=body)
+    signed_payload = _prepare_external_signed_zusd_payload(
+        api_base=api_base, privkey=privkey, body=body
+    )
     query["signedTauTxPayload"] = json.dumps(signed_payload, sort_keys=True, separators=(",", ":"))
     result = subprocess.run(
         [
@@ -453,7 +480,9 @@ def _run_zusd_browser_submit(
     return dom
 
 
-def test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout(tmp_path: Path) -> None:
+def test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout(
+    tmp_path: Path,
+) -> None:
     chrome = _chrome_binary()
     if chrome is None:
         pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
@@ -466,7 +495,9 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout(t
     owner_privkey = 82
     owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(owner_privkey)
     tau_port = _free_port()
-    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcPartialSendTimeoutHandler)
+    tau_server = socketserver.ThreadingTCPServer(
+        ("127.0.0.1", tau_port), _TauRpcPartialSendTimeoutHandler
+    )
     tau_server.allow_reuse_address = True
     tau_server.state = _TauRpcState(owner_pubkey=owner_pubkey, chain_id=chain_id)  # type: ignore[attr-defined]
     tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
@@ -552,7 +583,9 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout(t
                 "actorPubkey": owner_pubkey,
                 "zusdAmount": "100",
                 "zusdDeadline": str(deadline),
-                "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
+                "signedTauTxPayload": json.dumps(
+                    signed_payload, sort_keys=True, separators=(",", ":")
+                ),
             }
         )
         result = subprocess.run(
@@ -594,7 +627,9 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_partial_tau_send_timeout(t
                 proc.wait(timeout=5)
 
 
-def test_zusd_monetary_wallet_browser_fails_closed_on_tau_send_drop_before_response(tmp_path: Path) -> None:
+def test_zusd_monetary_wallet_browser_fails_closed_on_tau_send_drop_before_response(
+    tmp_path: Path,
+) -> None:
     chrome = _chrome_binary()
     if chrome is None:
         pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
@@ -607,7 +642,9 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_tau_send_drop_before_respo
     owner_privkey = 82
     owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(owner_privkey)
     tau_port = _free_port()
-    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcSendDropBeforeResponseHandler)
+    tau_server = socketserver.ThreadingTCPServer(
+        ("127.0.0.1", tau_port), _TauRpcSendDropBeforeResponseHandler
+    )
     tau_server.allow_reuse_address = True
     tau_server.state = _TauRpcState(owner_pubkey=owner_pubkey, chain_id=chain_id)  # type: ignore[attr-defined]
     tau_thread = threading.Thread(target=tau_server.serve_forever, daemon=True)
@@ -696,7 +733,9 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_tau_send_drop_before_respo
                 "actorPubkey": owner_pubkey,
                 "zusdAmount": "100",
                 "zusdDeadline": str(deadline),
-                "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
+                "signedTauTxPayload": json.dumps(
+                    signed_payload, sort_keys=True, separators=(",", ":")
+                ),
             }
         )
         result = subprocess.run(
@@ -737,7 +776,9 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_tau_send_drop_before_respo
                 proc.wait(timeout=5)
 
 
-def test_zusd_monetary_wallet_browser_fails_closed_on_truncated_proxy_sendtx_response(tmp_path: Path) -> None:
+def test_zusd_monetary_wallet_browser_fails_closed_on_truncated_proxy_sendtx_response(
+    tmp_path: Path,
+) -> None:
     chrome = _chrome_binary()
     if chrome is None:
         pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
@@ -843,7 +884,9 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_truncated_proxy_sendtx_res
                 "actorPubkey": owner_pubkey,
                 "zusdAmount": "100",
                 "zusdDeadline": str(deadline),
-                "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
+                "signedTauTxPayload": json.dumps(
+                    signed_payload, sort_keys=True, separators=(",", ":")
+                ),
             }
         )
         result = subprocess.run(
@@ -890,7 +933,9 @@ def test_zusd_monetary_wallet_browser_fails_closed_on_truncated_proxy_sendtx_res
 
 
 @requires_toxiproxy
-def test_zusd_monetary_wallet_browser_fails_closed_through_toxiproxy_limit_data(tmp_path: Path) -> None:
+def test_zusd_monetary_wallet_browser_fails_closed_through_toxiproxy_limit_data(
+    tmp_path: Path,
+) -> None:
     chrome = _chrome_binary()
     if chrome is None:
         pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
@@ -903,7 +948,9 @@ def test_zusd_monetary_wallet_browser_fails_closed_through_toxiproxy_limit_data(
     owner_privkey = 82
     owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(owner_privkey)
     tau_port = _free_port()
-    tau_server = socketserver.ThreadingTCPServer(("0.0.0.0", tau_port), _TauRpcGatedSendSuccessHandler)
+    tau_server = socketserver.ThreadingTCPServer(
+        ("0.0.0.0", tau_port), _TauRpcGatedSendSuccessHandler
+    )
     tau_server.allow_reuse_address = True
     tau_server.state = _TauRpcState(owner_pubkey=owner_pubkey, chain_id=chain_id)  # type: ignore[attr-defined]
     tau_server.send_response_event = threading.Event()  # type: ignore[attr-defined]
@@ -982,7 +1029,9 @@ def test_zusd_monetary_wallet_browser_fails_closed_through_toxiproxy_limit_data(
                     "actorPubkey": owner_pubkey,
                     "zusdAmount": "100",
                     "zusdDeadline": str(deadline),
-                    "signedTauTxPayload": json.dumps(signed_payload, sort_keys=True, separators=(",", ":")),
+                    "signedTauTxPayload": json.dumps(
+                        signed_payload, sort_keys=True, separators=(",", ":")
+                    ),
                 }
             )
             chrome_proc = subprocess.Popen(
@@ -1033,7 +1082,9 @@ def test_zusd_monetary_wallet_browser_fails_closed_through_toxiproxy_limit_data(
         tau_thread.join(timeout=2.0)
 
 
-def test_zusd_monetary_wallet_browser_succeeds_under_bounded_tau_send_jitter(tmp_path: Path) -> None:
+def test_zusd_monetary_wallet_browser_succeeds_under_bounded_tau_send_jitter(
+    tmp_path: Path,
+) -> None:
     chrome = _chrome_binary()
     if chrome is None:
         pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
@@ -1046,7 +1097,9 @@ def test_zusd_monetary_wallet_browser_succeeds_under_bounded_tau_send_jitter(tmp
     owner_privkey = 82
     owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(owner_privkey)
     tau_port = _free_port()
-    tau_server = socketserver.ThreadingTCPServer(("127.0.0.1", tau_port), _TauRpcDelayedSendSuccessHandler)
+    tau_server = socketserver.ThreadingTCPServer(
+        ("127.0.0.1", tau_port), _TauRpcDelayedSendSuccessHandler
+    )
     tau_server.allow_reuse_address = True
     tau_server.state = _TauRpcState(owner_pubkey=owner_pubkey, chain_id=chain_id)  # type: ignore[attr-defined]
     tau_server.send_delay_s = 0.15  # type: ignore[attr-defined]
@@ -1110,7 +1163,9 @@ def test_zusd_monetary_wallet_browser_succeeds_under_bounded_tau_send_jitter(tmp
             expected_snippets=('"debt_e8": 10000000000',),
         )
         state_after = _app_state_from_tau_server(tau_server)
-        assert _zusd_core(state_after)["debt_e8"] == _zusd_core(state_before)["debt_e8"] + (100 * E8)
+        assert _zusd_core(state_after)["debt_e8"] == _zusd_core(state_before)["debt_e8"] + (
+            100 * E8
+        )
         rpc_state: _TauRpcState = tau_server.state  # type: ignore[attr-defined]
         assert rpc_state.pending_tx is None
         assert rpc_state.sequences[owner_pubkey[2:].lower()] == 8

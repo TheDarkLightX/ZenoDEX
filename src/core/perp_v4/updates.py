@@ -27,6 +27,16 @@ from .math import (
 )
 
 
+def apply_bootstrap_oracle(state: PerpState, params: ActionParams) -> PerpState:
+    return replace(
+        state,
+        oracle_seen=True,
+        oracle_last_update_epoch=state.now_epoch,
+        index_price_e8=params.price_e8,
+        liquidated_this_step=False,
+    )
+
+
 def apply_advance_epoch(state: PerpState, params: ActionParams) -> PerpState:
     return replace(
         state,
@@ -49,25 +59,35 @@ def apply_publish_clearing_price(state: PerpState, params: ActionParams) -> Perp
 
 def apply_settle_epoch(state: PerpState, params: ActionParams) -> PerpState:
     sp = settle_price(
-        state.clearing_price_e8, state.index_price_e8,
-        state.max_oracle_move_bps, state.oracle_seen,
+        state.clearing_price_e8,
+        state.index_price_e8,
+        state.max_oracle_move_bps,
+        state.oracle_seen,
     )
     pnl = pnl_quote(state.position_base, sp, state.index_price_e8)
     coll_after_pnl = state.collateral_quote + pnl
 
     liq = is_liquidatable(
-        state.position_base, coll_after_pnl, sp,
-        state.maintenance_margin_bps, state.depeg_buffer_bps,
+        state.position_base,
+        coll_after_pnl,
+        sp,
+        state.maintenance_margin_bps,
+        state.depeg_buffer_bps,
     )
     move_violated = oracle_move_violated(
-        state.clearing_price_e8, state.index_price_e8,
-        state.max_oracle_move_bps, state.oracle_seen,
+        state.clearing_price_e8,
+        state.index_price_e8,
+        state.max_oracle_move_bps,
+        state.oracle_seen,
     )
 
     if liq:
         penalty = liq_penalty_capped(
-            coll_after_pnl, state.position_base, sp,
-            state.liquidation_penalty_bps, state.min_notional_for_bounty,
+            coll_after_pnl,
+            state.position_base,
+            sp,
+            state.liquidation_penalty_bps,
+            state.min_notional_for_bounty,
         )
         new_collateral = coll_after_pnl - penalty
         new_fee_pool = state.fee_pool_quote + penalty
@@ -189,15 +209,22 @@ def apply_partial_liquidate(state: PerpState, params: ActionParams) -> PerpState
     fraction = params.fraction_bps
     if fraction == 0:
         fraction = compute_partial_close_fraction(
-            state.position_base, state.collateral_quote, state.index_price_e8,
-            state.maintenance_margin_bps, state.depeg_buffer_bps,
-            state.liquidation_penalty_bps, state.min_notional_for_bounty,
+            state.position_base,
+            state.collateral_quote,
+            state.index_price_e8,
+            state.maintenance_margin_bps,
+            state.depeg_buffer_bps,
+            state.liquidation_penalty_bps,
+            state.min_notional_for_bounty,
         )
 
     remaining = remaining_position_signed(state.position_base, fraction)
     penalty = partial_liq_penalty_capped(
-        state.collateral_quote, state.position_base, fraction,
-        state.index_price_e8, state.liquidation_penalty_bps,
+        state.collateral_quote,
+        state.position_base,
+        fraction,
+        state.index_price_e8,
+        state.liquidation_penalty_bps,
         state.min_notional_for_bounty,
     )
 

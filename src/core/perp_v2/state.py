@@ -1,18 +1,21 @@
-"""State construction and serialization for `perp_v2`.
+"""State construction and serialization for `perp_v2` and the shared v4 ABI.
 
-`initial_state()` returns the canonical initial state (matches the YAML `init` block).
-
-Round-trip property (tested): `state_from_dict(state_to_dict(s)) == s` for all valid states.
+`initial_state()` returns the canonical initial state (matches the YAML `init`
+block). Wire decoding is exact for fields and primitive types. Epoch phases use
+the one canonical integer encoding committed by the v3/v4 kernel ABI.
 """
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
+from ..perp_state_domain import state_domain_violations
 from .types import EpochPhase, PerpState
 
 # Auto-derived from PerpState field definitions (single source of truth).
 STATE_VAR_NAMES: tuple[str, ...] = tuple(PerpState.__dataclass_fields__)
+_STATE_VAR_NAME_SET = frozenset(STATE_VAR_NAMES)
 
 _BOOL_STATE_VAR_NAMES = frozenset(
     {
@@ -22,7 +25,6 @@ _BOOL_STATE_VAR_NAMES = frozenset(
         "liquidated_this_step",
     }
 )
-
 
 _EPOCH_PHASE_INT_MAP: dict[int, EpochPhase] = {
     0: EpochPhase.OPEN,
@@ -38,62 +40,78 @@ _EPOCH_PHASE_TO_INT: dict[EpochPhase, int] = {
 
 
 def _coerce_epoch_phase(val: Any) -> EpochPhase:
-    if isinstance(val, EpochPhase):
-        return val
-    if isinstance(val, str):
-        return EpochPhase(val)
-    if isinstance(val, int) and not isinstance(val, bool):
-        if val in _EPOCH_PHASE_INT_MAP:
-            return _EPOCH_PHASE_INT_MAP[val]
+    if type(val) is not int:
+        raise TypeError(
+            f"state var 'epoch_phase' must be an exact canonical int, got {type(val).__name__}"
+        )
+    if val not in _EPOCH_PHASE_INT_MAP:
         raise ValueError(f"state var 'epoch_phase' int value {val} out of range [0,2]")
-    raise TypeError(f"state var 'epoch_phase' must be EpochPhase|str|int, got {type(val).__name__}")
+    return _EPOCH_PHASE_INT_MAP[val]
 
 
 def _coerce_state_bool(name: str, val: Any) -> bool:
-    if isinstance(val, bool):
-        return bool(val)
-    if isinstance(val, int) and val in (0, 1):
-        return bool(val)
-    raise TypeError(f"state var {name!r} must be bool or 0/1 int, got {type(val).__name__}")
+    if type(val) is not bool:
+        raise TypeError(f"state var {name!r} must be an exact bool, got {type(val).__name__}")
+    return val
 
 
 def _coerce_state_int(name: str, val: Any) -> int:
-    if isinstance(val, bool) or not isinstance(val, int):
-        raise TypeError(f"state var {name!r} must be int, got {type(val).__name__}")
-    return int(val)
+    if type(val) is not int:
+        raise TypeError(f"state var {name!r} must be an exact int, got {type(val).__name__}")
+    return val
 
 
 def initial_state() -> PerpState:
-    """Return the canonical initial PerpState matching the YAML init block.
-
-    All dataclass defaults match the YAML init block, so ``PerpState()``
-    is the correct initial state.
-    """
+    """Return the canonical PerpState matching the YAML init block."""
     return PerpState()
 
 
 def state_to_dict(state: PerpState) -> dict[str, bool | int | str]:
-    """Serialize a PerpState to a plain dict (kernel-state dict format)."""
-    d: dict[str, bool | int | str] = {}
+    """Serialize one exact domain-valid state to the canonical integer ABI."""
+    violations = state_domain_violations(state)
+    if violations:
+        raise ValueError("invalid PerpState domain: " + ",".join(violations))
+
+    encoded: dict[str, bool | int | str] = {}
     for name in STATE_VAR_NAMES:
         val = getattr(state, name)
-        if isinstance(val, EpochPhase):
-            # Kernel spec uses int encoding for enums: Open=0, PricePublished=1, Settled=2.
-            d[name] = int(_EPOCH_PHASE_TO_INT[val])
+        if type(val) is EpochPhase:
+            encoded[name] = _EPOCH_PHASE_TO_INT[val]
         else:
-            d[name] = val
-    return d
+            encoded[name] = val
+    return encoded
 
 
 def state_from_dict(d: Mapping[str, Any]) -> PerpState:
-    """Deserialize a dict to a PerpState. Raises KeyError on missing fields."""
+    """Deserialize an exact state object.
+
+    The parser rejects unknown and missing fields before decoding.  Boolean
+    fields require JSON booleans and integer fields reject Python booleans.
+    Accepted output is always the exact frozen base value used by the core.
+    """
+    if not isinstance(d, Mapping):
+        raise TypeError("perps state must be a mapping")
+    obj = dict(d)
+    actual = frozenset(obj)
+    if actual != _STATE_VAR_NAME_SET:
+        missing = sorted(_STATE_VAR_NAME_SET - actual)
+        unknown = sorted(actual - _STATE_VAR_NAME_SET)
+        raise ValueError(
+            f"perps state fields must match exactly (missing={missing}, unknown={unknown})"
+        )
+
     kwargs: dict[str, Any] = {}
     for name in STATE_VAR_NAMES:
-        val = d[name]
+        val = obj[name]
         if name == "epoch_phase":
             kwargs[name] = _coerce_epoch_phase(val)
         elif name in _BOOL_STATE_VAR_NAMES:
             kwargs[name] = _coerce_state_bool(name, val)
         else:
             kwargs[name] = _coerce_state_int(name, val)
-    return PerpState(**kwargs)
+
+    state = PerpState(**kwargs)
+    domain_violations = state_domain_violations(state)
+    if domain_violations:
+        raise ValueError("invalid perps state domain: " + ",".join(domain_violations))
+    return state

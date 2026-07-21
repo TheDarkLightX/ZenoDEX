@@ -18,37 +18,232 @@ def _op(market_id: str, action: str, **kwargs: object) -> dict[str, object]:
     return op
 
 
-def _apply_result(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], operator_pubkey: str):
+def _apply_result(
+    *, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], operator_pubkey: str
+):
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
     cfg = PerpEngineConfig(operator_pubkey=operator_pubkey, allow_isolated_markets=True)
-    return apply_perp_ops(config=cfg, state=state, operations={"5": ops}, tx_sender_pubkey=tx_sender_pubkey, block_timestamp=0)
+    return apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": ops},
+        tx_sender_pubkey=tx_sender_pubkey,
+        block_timestamp=0,
+    )
 
 
-def _seed_initial_oracle_snapshot_for_test(state: DexState, ops: list[dict[str, object]]) -> DexState:
-    """Model the external oracle snapshot required before first isolated settlement."""
-    if len(ops) != 1 or ops[0].get("action") != "publish_clearing_price":
-        return state
-    market_id = ops[0].get("market_id")
-    if not isinstance(market_id, str) or state.perps is None or market_id not in state.perps.markets:
-        return state
-    market = state.perps.markets[market_id]
-    if not hasattr(market, "global_state"):
-        return state
-    global_state = market.global_state
-    if bool(global_state.get("oracle_seen", False)) and int(global_state.get("index_price_e8", 0)) > 0:
-        return state
-    global_state["oracle_seen"] = True
-    global_state["oracle_last_update_epoch"] = max(0, int(global_state.get("now_epoch", 0)) - 1)
-    global_state["index_price_e8"] = int(ops[0].get("price_e8", 0))
-    return state
-
-
-def _apply(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], operator_pubkey: str) -> DexState:
-    res = _apply_result(state=state, tx_sender_pubkey=tx_sender_pubkey, operator_pubkey=operator_pubkey, ops=ops)
+def _apply(
+    *, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], operator_pubkey: str
+) -> DexState:
+    res = _apply_result(
+        state=state, tx_sender_pubkey=tx_sender_pubkey, operator_pubkey=operator_pubkey, ops=ops
+    )
     assert res.ok is True, res.error
     assert res.state is not None
-    return _seed_initial_oracle_snapshot_for_test(res.state, ops)
+    return res.state
+
+
+def _bootstrap(
+    *,
+    state: DexState,
+    market_id: str,
+    price_e8: int,
+    operator_pubkey: str,
+) -> DexState:
+    return _apply(
+        state=state,
+        tx_sender_pubkey=operator_pubkey,
+        operator_pubkey=operator_pubkey,
+        ops=[_op(market_id, "bootstrap_oracle", price_e8=price_e8)],
+    )
+
+
+def test_bootstrap_oracle_is_operator_only_one_time_and_lifecycle_complete() -> None:
+    market_id = "perp:bootstrap-lifecycle"
+    quote_asset = "0x" + "81" * 32
+    operator = "00" * 48
+    alice = "aa" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+    )
+
+    unauthorized = _apply_result(
+        state=state,
+        tx_sender_pubkey=alice,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "bootstrap_oracle", price_e8=100_000_000)],
+    )
+    assert unauthorized.ok is False
+    assert unauthorized.state is None
+    assert unauthorized.effects is None
+    assert unauthorized.error == "operator only"
+
+    bootstrapped = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "bootstrap_oracle", price_e8=100_000_000)],
+    )
+    assert bootstrapped.ok is True, bootstrapped.error
+    assert bootstrapped.state is not None
+    assert bootstrapped.effects is not None
+    assert bootstrapped.state.perps is not None
+    market = bootstrapped.state.perps.markets[market_id]
+    assert market.global_state["oracle_seen"] is True
+    assert market.global_state["oracle_last_update_epoch"] == 0
+    assert market.global_state["index_price_e8"] == 100_000_000
+
+    replay = _apply_result(
+        state=bootstrapped.state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "bootstrap_oracle", price_e8=100_000_000)],
+    )
+    assert replay.ok is False
+    assert replay.state is None
+    assert replay.effects is None
+    assert replay.error == "guard"
+
+    advanced = _apply(
+        state=bootstrapped.state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    published = _apply(
+        state=advanced,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    settled = _apply(
+        state=published,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
+    assert settled.perps is not None
+    settled_market = settled.perps.markets[market_id]
+    assert settled_market.global_state["epoch_phase"] == 2
+    assert settled_market.global_state["index_price_e8"] == 100_000_000
+
+
+def test_isolated_advance_epoch_rejects_delta_above_one() -> None:
+    market_id = "perp:advance-epoch-bva"
+    quote_asset = "0x" + "83" * 32
+    operator = "00" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+    )
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+
+    result = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=2)],
+    )
+
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error == "advance_epoch delta must be 1 for isolated markets"
+
+
+def test_bootstrap_oracle_price_bva_and_pre_value_boundary() -> None:
+    from src.core.domain_limits import PERP_PRICE_E8_MAX
+
+    operator = "00" * 48
+    quote_asset = "0x" + "82" * 32
+    cases = (
+        ("zero", 0, False, "bootstrap_oracle requires price_e8 > 0"),
+        ("one", 1, True, None),
+        ("max", PERP_PRICE_E8_MAX, True, None),
+        ("over-max", PERP_PRICE_E8_MAX + 1, False, "param_domain:price_e8"),
+    )
+
+    for suffix, price_e8, expected_ok, expected_error in cases:
+        market_id = f"perp:bootstrap-bva-{suffix}"
+        initial = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+        initialized = _apply(
+            state=initial,
+            tx_sender_pubkey=operator,
+            operator_pubkey=operator,
+            ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+        )
+        result = _apply_result(
+            state=initialized,
+            tx_sender_pubkey=operator,
+            operator_pubkey=operator,
+            ops=[_op(market_id, "bootstrap_oracle", price_e8=price_e8)],
+        )
+        assert result.ok is expected_ok
+        if expected_ok:
+            assert result.state is not None
+            assert result.effects is not None
+            assert result.state.perps is not None
+            assert result.state.perps.markets[market_id].global_state["index_price_e8"] == price_e8
+        else:
+            assert result.state is None
+            assert result.effects is None
+            assert result.error == expected_error
+
+    post_value_market_id = "perp:bootstrap-after-value"
+    alice = "aa" * 48
+    initialized = _apply(
+        state=DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()),
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(post_value_market_id, "init_market", quote_asset=quote_asset)],
+    )
+    funded = BalanceTable()
+    funded.set(alice, quote_asset, 1)
+    funded_state = replace(initialized, balances=funded)
+    with_collateral = _apply(
+        state=funded_state,
+        tx_sender_pubkey=alice,
+        operator_pubkey=operator,
+        ops=[
+            _op(
+                post_value_market_id,
+                "deposit_collateral",
+                account_pubkey=alice,
+                amount=1,
+            )
+        ],
+    )
+    after_value = _apply_result(
+        state=with_collateral,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[
+            _op(
+                post_value_market_id,
+                "bootstrap_oracle",
+                price_e8=100_000_000,
+            )
+        ],
+    )
+    assert after_value.ok is False
+    assert after_value.state is None
+    assert after_value.effects is None
+    assert after_value.error == "bootstrap_oracle requires an empty market"
 
 
 def test_publish_clearing_price_rejects_unsafe_oracle_reward_posture() -> None:
@@ -65,7 +260,18 @@ def test_publish_clearing_price_rejects_unsafe_oracle_reward_posture() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     cfg = PerpEngineConfig(
         operator_pubkey=operator,
@@ -100,7 +306,18 @@ def test_publish_clearing_price_accepts_safe_oracle_reward_posture() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     cfg = PerpEngineConfig(
         operator_pubkey=operator,
@@ -184,7 +401,18 @@ def test_publish_clearing_price_rejects_zero_oracle_fee_friction() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     cfg = PerpEngineConfig(
         operator_pubkey=operator,
@@ -218,7 +446,18 @@ def test_publish_clearing_price_rejects_zero_oracle_reward_safety_margin() -> No
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     cfg = PerpEngineConfig(
         operator_pubkey=operator,
@@ -235,7 +474,10 @@ def test_publish_clearing_price_rejects_zero_oracle_reward_safety_margin() -> No
         block_timestamp=0,
     )
     assert res.ok is False
-    assert res.error == "oracle reward posture unsafe: require oracle_spot_reward_safety_margin_bps > 0"
+    assert (
+        res.error
+        == "oracle reward posture unsafe: require oracle_spot_reward_safety_margin_bps > 0"
+    )
 
 
 def test_publish_clearing_price_rejects_reward_subsidy_without_oracle_signer() -> None:
@@ -252,7 +494,18 @@ def test_publish_clearing_price_rejects_reward_subsidy_without_oracle_signer() -
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     cfg = PerpEngineConfig(
         operator_pubkey=operator,
@@ -269,7 +522,10 @@ def test_publish_clearing_price_rejects_reward_subsidy_without_oracle_signer() -
         block_timestamp=0,
     )
     assert res.ok is False
-    assert res.error == "oracle reward posture unsafe: require oracle_pubkey when oracle_spot_reward_bps > 0"
+    assert (
+        res.error
+        == "oracle reward posture unsafe: require oracle_pubkey when oracle_spot_reward_bps > 0"
+    )
 
 
 def test_set_market_params_enforces_collectible_penalty_floor() -> None:
@@ -286,15 +542,31 @@ def test_set_market_params_enforces_collectible_penalty_floor() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
     # settle epoch so set_market_params is allowed.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     cfg = PerpEngineConfig(
         operator_pubkey=operator,
@@ -319,7 +591,10 @@ def test_set_market_params_enforces_collectible_penalty_floor() -> None:
         block_timestamp=0,
     )
     assert res_bad.ok is False
-    assert res_bad.error is not None and "ceil(5000 * 10000 / liquidation_penalty_bps)" in res_bad.error
+    assert (
+        res_bad.error is not None
+        and "ceil(5000 * 10000 / liquidation_penalty_bps)" in res_bad.error
+    )
 
     res_ok = apply_perp_ops(
         config=cfg,
@@ -351,14 +626,30 @@ def test_set_market_params_reports_funding_rate_clamp() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     assert state.perps is not None
     market = state.perps.markets[market_id]
@@ -408,19 +699,40 @@ def test_settle_epoch_is_order_independent() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
 
     # Epoch 1: establish an oracle/index price (no accounts yet).
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Epoch 2 (OPEN): deposit collateral and open positions, then publish+settle.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     # Fund both traders so they can deposit collateral.
     funded = BalanceTable()
@@ -435,21 +747,42 @@ def test_settle_epoch_is_order_independent() -> None:
         state=state,
         tx_sender_pubkey=alice,
         operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", account_pubkey=alice, amount=1000), _op(market_id, "set_position", account_pubkey=alice, new_position_base=100)],
+        ops=[
+            _op(market_id, "deposit_collateral", account_pubkey=alice, amount=1000),
+            _op(market_id, "set_position", account_pubkey=alice, new_position_base=100),
+        ],
     )
     state = _apply(
         state=state,
         tx_sender_pubkey=bob,
         operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", account_pubkey=bob, amount=1000), _op(market_id, "set_position", account_pubkey=bob, new_position_base=-100)],
+        ops=[
+            _op(market_id, "deposit_collateral", account_pubkey=bob, amount=1000),
+            _op(market_id, "set_position", account_pubkey=bob, new_position_base=-100),
+        ],
     )
 
     # Settle epoch 2 at same price to complete the cycle.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Epoch 3: publish a new (different) clearing price (pre-settle state).
-    pre = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    pre = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
     pre = _apply(
         state=pre,
         tx_sender_pubkey=operator,
@@ -461,13 +794,27 @@ def test_settle_epoch_is_order_independent() -> None:
     assert pre.perps is not None
     market = pre.perps.markets[market_id]
     reversed_accounts = dict(reversed(list(market.accounts.items())))
-    market_rev = type(market)(quote_asset=market.quote_asset, global_state=dict(market.global_state), accounts=reversed_accounts)
+    market_rev = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=dict(market.global_state),
+        accounts=reversed_accounts,
+    )
     perps_rev = type(pre.perps)(version=pre.perps.version, markets={market_id: market_rev})
     pre_rev = replace(pre, perps=perps_rev)
 
     # Settle epoch from both pre-states and compare.
-    post = _apply(state=pre, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
-    post_rev = _apply(state=pre_rev, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    post = _apply(
+        state=pre,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
+    post_rev = _apply(
+        state=pre_rev,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     assert post.perps == post_rev.perps
 
@@ -485,16 +832,37 @@ def test_set_position_rejects_malformed_oracle_snapshot_zero_index() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
     # Establish oracle, then return to OPEN where set_position is allowed.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     funded = BalanceTable()
     for (pk, asset), amt in state.balances.get_all_balances().items():
@@ -524,7 +892,7 @@ def test_set_position_rejects_malformed_oracle_snapshot_zero_index() -> None:
         ops=[_op(market_id, "set_position", account_pubkey=alice, new_position_base=10)],
     )
     assert res.ok is False
-    assert res.error == "guard"
+    assert res.error == "pre_invariant:inv_oracle_seen_positive_index"
 
 
 def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
@@ -543,14 +911,40 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000_000,
+        operator_pubkey=operator,
+    )
 
     # Epoch 1: establish an oracle/index price (no accounts yet).
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Epoch 2 (OPEN): deposit collateral and open positions.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     # Fund both traders so they can deposit collateral.
     funded = BalanceTable()
@@ -583,25 +977,55 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
     )
 
     # Settle epoch 2 at same price to complete the cycle.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Epoch 3: publish a new clearing price (pre-settle state).
-    pre = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    pre = _apply(state=pre, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=95_000_000_000)])
+    pre = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    pre = _apply(
+        state=pre,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=95_000_000_000)],
+    )
 
     # Construct an equivalent state but with reversed account insertion order.
     assert pre.perps is not None
     market = pre.perps.markets[market_id]
     reversed_accounts = dict(reversed(list(market.accounts.items())))
-    market_rev = type(market)(quote_asset=market.quote_asset, global_state=dict(market.global_state), accounts=reversed_accounts)
+    market_rev = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=dict(market.global_state),
+        accounts=reversed_accounts,
+    )
     perps_rev = type(pre.perps)(version=pre.perps.version, markets={market_id: market_rev})
     pre_rev = replace(pre, perps=perps_rev)
 
     cap_accounts = dict(market.accounts)
     cap_accounts[alice] = replace(cap_accounts[alice], collateral_quote=52_000_000)
-    cap_market = type(market)(quote_asset=market.quote_asset, global_state=dict(market.global_state), accounts=cap_accounts)
-    cap_pre = replace(pre, perps=type(pre.perps)(version=pre.perps.version, markets={market_id: cap_market}))
+    cap_market = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=dict(market.global_state),
+        accounts=cap_accounts,
+    )
+    cap_pre = replace(
+        pre, perps=type(pre.perps)(version=pre.perps.version, markets={market_id: cap_market})
+    )
     cap_res = _apply_result(
         state=cap_pre,
         tx_sender_pubkey=operator,
@@ -609,12 +1033,17 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
         ops=[_op(market_id, "settle_epoch")],
     )
     assert cap_res.ok is True, cap_res.error
+    assert cap_res.state is not None
     assert cap_res.effects is not None
     cap_effect = cap_res.effects[0]
     assert cap_effect["liquidation_penalty_raw_quote"] == 4_750_000
     assert cap_effect["liquidation_penalty_collected_quote"] == 2_000_000
     assert cap_effect["liquidation_penalty_shortfall_quote"] == 2_750_000
     assert cap_effect["liquidation_penalty_cap_bound_count"] == 1
+    assert cap_res.state.perps is not None
+    capped_alice = cap_res.state.perps.markets[market_id].accounts[alice]
+    assert capped_alice.position_base == 0
+    assert capped_alice.collateral_quote == 0
 
     post_res = _apply_result(
         state=pre,
@@ -631,7 +1060,12 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
     assert effect["liquidation_penalty_shortfall_quote"] == 0
     assert effect["liquidation_penalty_cap_bound_count"] == 0
     post = post_res.state
-    post_rev = _apply(state=pre_rev, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    post_rev = _apply(
+        state=pre_rev,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     assert post.perps == post_rev.perps
 
@@ -655,6 +1089,108 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
     assert acct_bob.collateral_quote == 150_000_000
 
 
+def test_publish_rejects_if_exact_mounted_settlement_would_overflow() -> None:
+    from src.core.perp_epoch import perp_epoch_isolated_default_fee_pool_max_quote
+    from src.core.perps import (
+        PERPS_STATE_VERSION,
+        PerpAccountState,
+        PerpMarketState,
+        PerpsState,
+    )
+    from src.integration.perp_engine import (
+        PerpEngineConfig,
+        _kernel_initial_global_state,
+        apply_perp_ops,
+    )
+
+    market_id = "perp:publish-settlement-overflow"
+    quote_asset = "0x" + "83" * 32
+    operator = "00" * 48
+    alice = "aa" * 48
+    bob = "bb" * 48
+    index_price_e8 = 100_000_000_000
+    max_fee_pool = int(perp_epoch_isolated_default_fee_pool_max_quote())
+    pre_fee_pool = max_fee_pool - 5_000_000
+
+    global_state = _kernel_initial_global_state()
+    global_state.update(
+        {
+            "now_epoch": 3,
+            "epoch_phase": 0,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 2,
+            "index_price_e8": index_price_e8,
+            "fee_pool_quote": pre_fee_pool,
+            "fee_income": pre_fee_pool,
+            "insurance_balance": pre_fee_pool,
+            "min_notional_for_bounty": 0,
+        }
+    )
+    state = DexState(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        perps=PerpsState(
+            version=PERPS_STATE_VERSION,
+            markets={
+                market_id: PerpMarketState(
+                    quote_asset=quote_asset,
+                    global_state=global_state,
+                    accounts={
+                        alice: PerpAccountState(
+                            position_base=1_000_000,
+                            entry_price_e8=index_price_e8,
+                            collateral_quote=100_000_000,
+                            funding_paid_cumulative=0,
+                            funding_last_applied_epoch=2,
+                            liquidated_this_step=False,
+                        ),
+                        bob: PerpAccountState(
+                            position_base=1_000_000,
+                            entry_price_e8=index_price_e8,
+                            collateral_quote=100_000_000,
+                            funding_paid_cumulative=0,
+                            funding_last_applied_epoch=2,
+                            liquidated_this_step=False,
+                        ),
+                    },
+                )
+            },
+        ),
+    )
+
+    result = apply_perp_ops(
+        config=PerpEngineConfig(
+            operator_pubkey=operator,
+            allow_isolated_markets=True,
+        ),
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "publish_clearing_price",
+                    price_e8=95_000_000_000,
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error == (
+        "publish_clearing_price has no mounted settlement path: "
+        "fee/insurance overflow (post-settle)"
+    )
+    assert state.perps is not None
+    unchanged = state.perps.markets[market_id]
+    assert unchanged.global_state["epoch_phase"] == 0
+    assert unchanged.global_state["clearing_price_seen"] is False
+    assert unchanged.global_state["fee_pool_quote"] == pre_fee_pool
+
+
 def test_settle_epoch_clears_liquidated_flag_for_flat_accounts() -> None:
     market_id = "perp:liq-flag"
     quote_asset = "0x" + "55" * 32
@@ -669,11 +1205,37 @@ def test_settle_epoch_clears_liquidated_flag_for_flat_accounts() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     funded = BalanceTable()
     for (pk, asset), amt in state.balances.get_all_balances().items():
@@ -691,13 +1253,38 @@ def test_settle_epoch_clears_liquidated_flag_for_flat_accounts() -> None:
         ],
     )
 
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Epoch 3: force liquidation.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=95_000_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=95_000_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     assert state.perps is not None
     market = state.perps.markets[market_id]
@@ -706,14 +1293,29 @@ def test_settle_epoch_clears_liquidated_flag_for_flat_accounts() -> None:
     assert acct.liquidated_this_step is True
 
     # advance_epoch is global-only, so the per-account liquidation marker persists.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
     assert state.perps is not None
     market = state.perps.markets[market_id]
     assert market.accounts[alice].liquidated_this_step is True
 
     # Next settlement on a flat account must clear the marker.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=95_000_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=95_000_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     assert state.perps is not None
     market = state.perps.markets[market_id]
@@ -784,14 +1386,40 @@ def test_breaker_reduce_only_and_clear() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
 
     # Epoch 1: establish an oracle/index price (no accounts yet).
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Epoch 2 (OPEN): deposit collateral and open positions.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     # Fund both traders so they can deposit collateral.
     funded = BalanceTable()
@@ -806,26 +1434,62 @@ def test_breaker_reduce_only_and_clear() -> None:
         state=state,
         tx_sender_pubkey=alice,
         operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", account_pubkey=alice, amount=1000), _op(market_id, "set_position", account_pubkey=alice, new_position_base=100)],
+        ops=[
+            _op(market_id, "deposit_collateral", account_pubkey=alice, amount=1000),
+            _op(market_id, "set_position", account_pubkey=alice, new_position_base=100),
+        ],
     )
     state = _apply(
         state=state,
         tx_sender_pubkey=bob,
         operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", account_pubkey=bob, amount=1000), _op(market_id, "set_position", account_pubkey=bob, new_position_base=-100)],
+        ops=[
+            _op(market_id, "deposit_collateral", account_pubkey=bob, amount=1000),
+            _op(market_id, "set_position", account_pubkey=bob, new_position_base=-100),
+        ],
     )
 
     # Settle epoch 2 at same price (positions survive unchanged).
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Epoch 3: publish a wildly out-of-bounds move (settle clamps + triggers breaker).
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=200_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=200_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Epoch 4 (OPEN + breaker_active): reduce-only operations allowed.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     assert state.perps is not None
     market = state.perps.markets[market_id]
@@ -853,7 +1517,12 @@ def test_breaker_reduce_only_and_clear() -> None:
     assert res_inc.ok is False
 
     # Breaker posture: reduce is allowed.
-    state = _apply(state=state, tx_sender_pubkey=alice, operator_pubkey=operator, ops=[_op(market_id, "set_position", account_pubkey=alice, new_position_base=50)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=alice,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "set_position", account_pubkey=alice, new_position_base=50)],
+    )
 
     # Breaker posture: no sign flip unless closing to 0.
     res_flip = _apply_result(
@@ -865,21 +1534,46 @@ def test_breaker_reduce_only_and_clear() -> None:
     assert res_flip.ok is False
 
     # Clear breaker fails while positions are open (engine-level fail-closed).
-    res_clear_open = _apply_result(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "clear_breaker")])
+    res_clear_open = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "clear_breaker")],
+    )
     assert res_clear_open.ok is False
     assert res_clear_open.error == "cannot clear breaker while positions are open"
 
     # Close out all positions.
-    state = _apply(state=state, tx_sender_pubkey=alice, operator_pubkey=operator, ops=[_op(market_id, "set_position", account_pubkey=alice, new_position_base=0)])
-    state = _apply(state=state, tx_sender_pubkey=bob, operator_pubkey=operator, ops=[_op(market_id, "set_position", account_pubkey=bob, new_position_base=0)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=alice,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "set_position", account_pubkey=alice, new_position_base=0)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=bob,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "set_position", account_pubkey=bob, new_position_base=0)],
+    )
 
     # Clear breaker requires operator key.
-    res_clear_nonop = _apply_result(state=state, tx_sender_pubkey=alice, operator_pubkey=operator, ops=[_op(market_id, "clear_breaker")])
+    res_clear_nonop = _apply_result(
+        state=state,
+        tx_sender_pubkey=alice,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "clear_breaker")],
+    )
     assert res_clear_nonop.ok is False
     assert res_clear_nonop.error == "operator only"
 
     # Operator can clear breaker once all accounts are flat.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "clear_breaker")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "clear_breaker")],
+    )
     assert state.perps is not None
     market2 = state.perps.markets[market_id]
     assert market2.global_state["breaker_active"] is False
@@ -898,15 +1592,41 @@ def test_operator_cannot_skip_settlement() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
 
     # Once a clearing price is published, the operator must settle before advancing or re-publishing.
-    res_adv = _apply_result(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    res_adv = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
     assert res_adv.ok is False
     assert res_adv.error == "cannot advance epoch before settling current epoch"
 
-    res_pub = _apply_result(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=101_000_000)])
+    res_pub = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=101_000_000)],
+    )
     assert res_pub.ok is False
 
 
@@ -993,12 +1713,38 @@ def test_apply_funding_auto_applies_to_all_open_positions() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Epoch 2 (OPEN): deposit collateral and open positions.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     # Fund balances so traders can post collateral.
     funded = BalanceTable()
@@ -1029,13 +1775,38 @@ def test_apply_funding_auto_applies_to_all_open_positions() -> None:
     )
 
     # Settle epoch 2 at same price to complete the cycle.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Epoch 3: publish a 2% higher clearing price, then apply funding.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "apply_funding_auto")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "apply_funding_auto")],
+    )
 
     assert state.perps is not None
     market = state.perps.markets[market_id]
@@ -1054,6 +1825,103 @@ def test_apply_funding_auto_applies_to_all_open_positions() -> None:
     assert acct_bob.funding_paid_cumulative == -10_000
     assert int(market.global_state["fee_pool_quote"]) == 0
 
+    # Funding applied after publication must preserve the mounted, composed
+    # settlement path for every account in the market.
+    settled = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
+    assert settled.ok is True, settled.error
+    assert settled.state is not None
+    assert settled.state.perps is not None
+    settled_market = settled.state.perps.markets[market_id]
+    assert int(settled_market.global_state["epoch_phase"]) == 2
+    assert sum(account.collateral_quote for account in settled_market.accounts.values()) == 400_000
+
+
+def test_apply_funding_auto_rejects_when_post_funding_settlement_would_be_impossible() -> None:
+    from src.core.perp_epoch import perp_epoch_isolated_default_fee_pool_max_quote
+    from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
+    from src.integration.perp_engine import _kernel_initial_global_state
+
+    market_id = "perp:funding-preserves-composed-settlement"
+    quote_asset = "0x" + "84" * 32
+    operator = "00" * 48
+    max_fee = int(perp_epoch_isolated_default_fee_pool_max_quote())
+
+    global_state = _kernel_initial_global_state()
+    global_state.update(
+        {
+            "now_epoch": 3,
+            "epoch_phase": 0,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 2,
+            "index_price_e8": 100_000_000,
+            "fee_pool_quote": max_fee - 120_000,
+            "fee_income": max_fee - 120_000,
+            "insurance_balance": max_fee - 120_000,
+            "min_notional_for_bounty": 0,
+        }
+    )
+    accounts = {
+        f"long-{index:02d}": PerpAccountState(
+            position_base=1_000_000,
+            entry_price_e8=100_000_000,
+            collateral_quote=70_000,
+            funding_paid_cumulative=0,
+            funding_last_applied_epoch=2,
+            liquidated_this_step=False,
+        )
+        for index in range(13)
+    }
+    accounts["short"] = PerpAccountState(
+        position_base=-1_000_000,
+        entry_price_e8=100_000_000,
+        collateral_quote=60_000,
+        funding_paid_cumulative=0,
+        funding_last_applied_epoch=2,
+        liquidated_this_step=False,
+    )
+    state = DexState(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        perps=PerpsState(
+            version=PERPS_STATE_VERSION,
+            markets={
+                market_id: PerpMarketState(
+                    quote_asset=quote_asset,
+                    global_state=global_state,
+                    accounts=accounts,
+                )
+            },
+        ),
+    )
+
+    published = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=105_000_000)],
+    )
+    assert published.ok is True, published.error
+    assert published.state is not None
+
+    funded = _apply_result(
+        state=published.state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "apply_funding_auto")],
+    )
+
+    assert funded.ok is False
+    assert funded.state is None
+    assert funded.effects is None
+    assert funded.error is not None
+    assert funded.error.startswith("apply_funding_auto would destroy mounted settlement path: ")
+
 
 def test_apply_funding_auto_allows_empty_open_interest() -> None:
     market_id = "perp:funding-empty"
@@ -1067,14 +1935,45 @@ def test_apply_funding_auto_allows_empty_open_interest() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # No user positions are ever opened. Funding auto should still be callable for
     # the epoch and update the global funding rate deterministically.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)],
+    )
     res = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
@@ -1105,7 +2004,9 @@ def test_isolated_oi_liquidity_policy_rejects_unsupported_aggregate_open_interes
     alice = "aa" * 48
     bob = "bb" * 48
 
-    def apply_with_config(state: DexState, *, sender: str, ops: list[dict[str, object]], cfg: PerpEngineConfig):
+    def apply_with_config(
+        state: DexState, *, sender: str, ops: list[dict[str, object]], cfg: PerpEngineConfig
+    ):
         result = apply_perp_ops(
             config=cfg,
             state=state,
@@ -1113,11 +2014,11 @@ def test_isolated_oi_liquidity_policy_rejects_unsupported_aggregate_open_interes
             tx_sender_pubkey=sender,
             block_timestamp=0,
         )
-        if result.ok and result.state is not None:
-            result = replace(result, state=_seed_initial_oracle_snapshot_for_test(result.state, ops))
         return result
 
-    def apply_ok(state: DexState, *, sender: str, ops: list[dict[str, object]], cfg: PerpEngineConfig) -> DexState:
+    def apply_ok(
+        state: DexState, *, sender: str, ops: list[dict[str, object]], cfg: PerpEngineConfig
+    ) -> DexState:
         result = apply_with_config(state, sender=sender, ops=ops, cfg=cfg)
         assert result.ok is True, result.error
         assert result.state is not None
@@ -1125,8 +2026,21 @@ def test_isolated_oi_liquidity_policy_rejects_unsupported_aggregate_open_interes
 
     def setup_state(cfg: PerpEngineConfig) -> DexState:
         state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
-        state = apply_ok(state, sender=operator, cfg=cfg, ops=[_op(market_id, "init_market", quote_asset=quote_asset)])
-        state = apply_ok(state, sender=operator, cfg=cfg, ops=[_op(market_id, "advance_epoch", delta=1)])
+        state = apply_ok(
+            state,
+            sender=operator,
+            cfg=cfg,
+            ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+        )
+        state = _bootstrap(
+            state=state,
+            market_id=market_id,
+            price_e8=100_000_000,
+            operator_pubkey=operator,
+        )
+        state = apply_ok(
+            state, sender=operator, cfg=cfg, ops=[_op(market_id, "advance_epoch", delta=1)]
+        )
         state = apply_ok(
             state,
             sender=operator,
@@ -1134,7 +2048,9 @@ def test_isolated_oi_liquidity_policy_rejects_unsupported_aggregate_open_interes
             ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
         )
         state = apply_ok(state, sender=operator, cfg=cfg, ops=[_op(market_id, "settle_epoch")])
-        state = apply_ok(state, sender=operator, cfg=cfg, ops=[_op(market_id, "advance_epoch", delta=1)])
+        state = apply_ok(
+            state, sender=operator, cfg=cfg, ops=[_op(market_id, "advance_epoch", delta=1)]
+        )
 
         funded = BalanceTable()
         for (pk, asset), amt in state.balances.get_all_balances().items():
@@ -1209,16 +2125,16 @@ def test_isolated_oi_liquidity_policy_rejects_unsupported_aggregate_open_interes
 
 
 def test_isolated_oi_depth_certificate_binds_market_and_epoch() -> None:
+    from src.core.perp_depth_source_quorum_economics import (
+        DepthSourceEconomicsRow,
+        depth_source_quorum_economics_payload_from_fields,
+    )
     from src.core.perp_oi_depth_certificate import (
         certificate_payload_from_fields,
         oi_depth_source_authority_hash,
         source_authority_binding_payload_from_fields,
         source_authority_payload_from_fields,
         verify_oi_depth_source_authority_payload,
-    )
-    from src.core.perp_depth_source_quorum_economics import (
-        DepthSourceEconomicsRow,
-        depth_source_quorum_economics_payload_from_fields,
     )
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
@@ -1227,7 +2143,9 @@ def test_isolated_oi_depth_certificate_binds_market_and_epoch() -> None:
     operator = "00" * 48
     alice = "aa" * 48
 
-    def apply_with_config(state: DexState, *, sender: str, ops: list[dict[str, object]], cfg: PerpEngineConfig):
+    def apply_with_config(
+        state: DexState, *, sender: str, ops: list[dict[str, object]], cfg: PerpEngineConfig
+    ):
         result = apply_perp_ops(
             config=cfg,
             state=state,
@@ -1235,11 +2153,11 @@ def test_isolated_oi_depth_certificate_binds_market_and_epoch() -> None:
             tx_sender_pubkey=sender,
             block_timestamp=0,
         )
-        if result.ok and result.state is not None:
-            result = replace(result, state=_seed_initial_oracle_snapshot_for_test(result.state, ops))
         return result
 
-    def apply_ok(state: DexState, *, sender: str, ops: list[dict[str, object]], cfg: PerpEngineConfig) -> DexState:
+    def apply_ok(
+        state: DexState, *, sender: str, ops: list[dict[str, object]], cfg: PerpEngineConfig
+    ) -> DexState:
         result = apply_with_config(state, sender=sender, ops=ops, cfg=cfg)
         assert result.ok is True, result.error
         assert result.state is not None
@@ -1247,8 +2165,21 @@ def test_isolated_oi_depth_certificate_binds_market_and_epoch() -> None:
 
     cfg_base = PerpEngineConfig(operator_pubkey=operator, allow_isolated_markets=True)
     state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
-    state = apply_ok(state, sender=operator, cfg=cfg_base, ops=[_op(market_id, "init_market", quote_asset=quote_asset)])
-    state = apply_ok(state, sender=operator, cfg=cfg_base, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = apply_ok(
+        state,
+        sender=operator,
+        cfg=cfg_base,
+        ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+    )
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = apply_ok(
+        state, sender=operator, cfg=cfg_base, ops=[_op(market_id, "advance_epoch", delta=1)]
+    )
     state = apply_ok(
         state,
         sender=operator,
@@ -1256,7 +2187,9 @@ def test_isolated_oi_depth_certificate_binds_market_and_epoch() -> None:
         ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
     )
     state = apply_ok(state, sender=operator, cfg=cfg_base, ops=[_op(market_id, "settle_epoch")])
-    state = apply_ok(state, sender=operator, cfg=cfg_base, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = apply_ok(
+        state, sender=operator, cfg=cfg_base, ops=[_op(market_id, "advance_epoch", delta=1)]
+    )
 
     funded = BalanceTable()
     for (pk, asset), amt in state.balances.get_all_balances().items():
@@ -1675,7 +2608,7 @@ def test_isolated_oi_depth_certificate_binds_market_and_epoch() -> None:
     assert valid_economics.ok is True, valid_economics.error
 
 
-def test_apply_funding_auto_rejects_stale_oracle() -> None:
+def test_advance_epoch_rejects_skipped_oracle_window_before_funding() -> None:
     market_id = "perp:funding-stale"
     quote_asset = "0x" + "69" * 32
     operator = "00" * 48
@@ -1687,9 +2620,30 @@ def test_apply_funding_auto_rejects_stale_oracle() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Tight staleness budget so a skipped epoch window fail-closes funding.
     state = _apply(
@@ -1699,18 +2653,18 @@ def test_apply_funding_auto_rejects_stale_oracle() -> None:
         ops=[_op(market_id, "set_market_params", params={"max_oracle_staleness_epochs": 1})],
     )
 
-    # Jump several epochs ahead without oracle refresh, then publish clearing for current epoch.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=3)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)])
-
+    # A caller-selected jump could stale the Oracle and strand every recovery
+    # action. The mounted lifecycle accepts exactly one epoch at a time.
     res = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
-        ops=[_op(market_id, "apply_funding_auto")],
+        ops=[_op(market_id, "advance_epoch", delta=3)],
     )
     assert res.ok is False
-    assert res.error == "cannot apply funding: oracle is stale"
+    assert res.state is None
+    assert res.effects is None
+    assert res.error == "advance_epoch delta must be 1 for isolated markets"
 
 
 def test_set_market_params_rejects_staleness_widening_with_open_positions() -> None:
@@ -1726,16 +2680,42 @@ def test_set_market_params_rejects_staleness_widening_with_open_positions() -> N
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         ops=[_op(market_id, "set_market_params", params={"max_oracle_staleness_epochs": 1})],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     funded = BalanceTable()
     for (pk, asset), amt in state.balances.get_all_balances().items():
@@ -1752,8 +2732,18 @@ def test_set_market_params_rejects_staleness_widening_with_open_positions() -> N
             _op(market_id, "set_position", account_pubkey=alice, new_position_base=1_000_000),
         ],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     widened = _apply_result(
         state=state,
@@ -1765,7 +2755,35 @@ def test_set_market_params_rejects_staleness_widening_with_open_positions() -> N
     assert widened.error is not None
     assert "cannot increase max_oracle_staleness_epochs while positions are open" in widened.error
 
-    stale_state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=3)])
+    skipped = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=3)],
+    )
+    assert skipped.ok is False
+    assert skipped.state is None
+    assert skipped.effects is None
+    assert skipped.error == "advance_epoch delta must be 1 for isolated markets"
+
+    # Preserve stale-snapshot guard coverage for imported/recovered snapshots.
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    stale_global = dict(market.global_state)
+    stale_global["now_epoch"] = int(stale_global["now_epoch"]) + 3
+    stale_global["epoch_phase"] = 0
+    stale_market = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=stale_global,
+        accounts=dict(market.accounts),
+    )
+    stale_state = replace(
+        state,
+        perps=type(state.perps)(
+            version=state.perps.version,
+            markets={market_id: stale_market},
+        ),
+    )
     stale_withdraw = _apply_result(
         state=stale_state,
         tx_sender_pubkey=alice,
@@ -1790,11 +2808,42 @@ def test_apply_funding_auto_rejects_malformed_control_fields() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)],
+    )
 
     assert state.perps is not None
     market_any = state.perps.markets[market_id]
@@ -1817,7 +2866,11 @@ def test_apply_funding_auto_rejects_malformed_control_fields() -> None:
         return replace(state, perps=perps)
 
     malformed_cases = (
-        ("max_oracle_staleness_epochs", 0, "cannot apply funding: invalid max_oracle_staleness_epochs"),
+        (
+            "max_oracle_staleness_epochs",
+            0,
+            "cannot apply funding: invalid max_oracle_staleness_epochs",
+        ),
         ("funding_cap_bps", 0, "cannot apply funding: invalid funding_cap_bps"),
         ("clearing_price_e8", 0, "cannot apply funding: clearing_price_e8 must be positive"),
         ("max_oracle_move_bps", -1, "cannot apply funding: invalid max_oracle_move_bps"),
@@ -1852,11 +2905,37 @@ def test_apply_funding_auto_routes_positive_net_flow_to_fee_pool() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     funded = BalanceTable()
     for (pk, asset), amt in state.balances.get_all_balances().items():
@@ -1873,11 +2952,31 @@ def test_apply_funding_auto_routes_positive_net_flow_to_fee_pool() -> None:
             _op(market_id, "set_position", account_pubkey=alice, new_position_base=1_000_000),
         ],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)],
+    )
 
     res = _apply_result(
         state=state,
@@ -1914,11 +3013,37 @@ def test_apply_funding_auto_rejects_negative_fee_pool_after() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     funded = BalanceTable()
     for (pk, asset), amt in state.balances.get_all_balances().items():
@@ -1935,11 +3060,31 @@ def test_apply_funding_auto_rejects_negative_fee_pool_after() -> None:
             _op(market_id, "set_position", account_pubkey=alice, new_position_base=-1_000_000),
         ],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=102_000_000)],
+    )
 
     res = _apply_result(
         state=state,
@@ -1996,13 +3141,13 @@ def test_apply_funding_auto_rejects_negative_fee_pool_after() -> None:
     assert int(ok_market.global_state["insurance_balance"]) == 0
 
 
-def test_apply_funding_auto_requires_closeout_liability_certificate_for_negative_net_funding() -> None:
+def test_apply_funding_auto_requires_closeout_liability_certificate_for_negative_net_funding() -> (
+    None
+):
     from src.core.perp_funding_closeout_liability_certificate import (
         PositionAccount,
         build_funding_closeout_liability_certificate,
-        build_funding_closeout_liability_receipt,
         funding_closeout_liability_certificate_to_payload,
-        funding_closeout_liability_receipt_to_payload,
     )
     from src.core.perp_v2.math import PRICE_SCALE, funding_payment
     from src.core.perps import (
@@ -2137,7 +3282,9 @@ def test_apply_funding_auto_requires_closeout_liability_certificate_for_negative
         block_timestamp=0,
     )
     assert missing.ok is False
-    assert missing.error == "funding closeout liability certificate required for negative net funding"
+    assert (
+        missing.error == "funding closeout liability certificate required for negative net funding"
+    )
 
     legacy_perps = replace(
         publish.state.perps,
@@ -2699,8 +3846,7 @@ def test_apply_funding_auto_v3_rationed_receipt_applies_multi_receiver_haircuts(
     )
     assert v3_under_source_policy.ok is False
     assert (
-        v3_under_source_policy.error
-        == "funding closeout source-bound allocation receipt required"
+        v3_under_source_policy.error == "funding closeout source-bound allocation receipt required"
     )
 
     wrong_source_res = apply_perp_ops(
@@ -2723,10 +3869,7 @@ def test_apply_funding_auto_v3_rationed_receipt_applies_multi_receiver_haircuts(
         block_timestamp=0,
     )
     assert wrong_source_res.ok is False
-    assert (
-        wrong_source_res.error
-        == "funding closeout source availability root not pending"
-    )
+    assert wrong_source_res.error == "funding closeout source availability root not pending"
 
     assert publish.state.perps is not None
     ambiguous_perps = replace(
@@ -2762,10 +3905,7 @@ def test_apply_funding_auto_v3_rationed_receipt_applies_multi_receiver_haircuts(
         block_timestamp=0,
     )
     assert ambiguous_source.ok is False
-    assert (
-        ambiguous_source.error
-        == "funding closeout source-portfolio allocation receipt required"
-    )
+    assert ambiguous_source.error == "funding closeout source-portfolio allocation receipt required"
 
     source_bound_valid = apply_perp_ops(
         config=source_bound_config,
@@ -2794,20 +3934,15 @@ def test_apply_funding_auto_v3_rationed_receipt_applies_multi_receiver_haircuts(
         receiver_a: 0,
         receiver_b: 0,
     }
-    assert (
-        source_bound_valid.effects[0][
-            "funding_closeout_pending_source_availability_hashes_consumed"
-        ]
-        == [v4_emitted_receipt.source_availability_hash]
-    )
+    assert source_bound_valid.effects[0][
+        "funding_closeout_pending_source_availability_hashes_consumed"
+    ] == [v4_emitted_receipt.source_availability_hash]
     assert source_bound_valid.state is not None
     assert source_bound_valid.state.perps is not None
     source_bound_market = source_bound_valid.state.perps.markets[market_id]
     assert source_bound_market.accounts[receiver_a].collateral_quote == 660_000
     assert source_bound_market.accounts[receiver_b].collateral_quote == 440_000
-    assert (
-        source_bound_market.pending_funding_closeout_source_availability_hashes == ()
-    )
+    assert source_bound_market.pending_funding_closeout_source_availability_hashes == ()
 
     valid = apply_perp_ops(
         config=guarded_config,
@@ -2846,6 +3981,7 @@ def test_apply_funding_auto_v3_rationed_receipt_applies_multi_receiver_haircuts(
 
 
 def test_apply_funding_auto_mixed_open_netting_receipt_applies_signed_surface() -> None:
+    from src.core.perp_funding_closeout_liability_certificate import PositionAccount
     from src.core.perp_funding_closeout_mixed_open_netting import (
         build_mixed_open_funding_netting_certificate,
         mixed_open_funding_netting_certificate_to_payload,
@@ -2862,7 +3998,6 @@ def test_apply_funding_auto_mixed_open_netting_receipt_applies_signed_surface() 
         _kernel_initial_global_state,
         apply_perp_ops,
     )
-    from src.core.perp_funding_closeout_liability_certificate import PositionAccount
 
     market_id = "perp:funding-closeout-mixed-open"
     quote_asset = "0x" + "7e" * 32
@@ -2995,9 +4130,7 @@ def test_apply_funding_auto_mixed_open_netting_receipt_applies_signed_surface() 
                     market_id,
                     "apply_funding_auto",
                     funding_closeout_allocation_receipt=(
-                        mixed_open_funding_netting_certificate_to_payload(
-                            wrong_rate_receipt
-                        )
+                        mixed_open_funding_netting_certificate_to_payload(wrong_rate_receipt)
                     ),
                 )
             ]
@@ -3248,17 +4381,15 @@ def test_apply_funding_auto_v5_source_portfolio_accepts_multi_closeout_reservati
         PositionAccount(receiver_b, -60_000),
         PositionAccount(payer_b, 0),
     )
-    v4_downgrade_receipt = (
-        build_funding_closeout_source_bound_rationed_allocation_receipt(
-            pre_accounts,
-            post_accounts,
-            market_id=market_id,
-            epoch=3,
-            price_e8=price_e8,
-            funding_rate_bps=100,
-            payer_available_by_account={payer_a: 0, payer_b: 0},
-            sink_capacity_by_account={payer_a: 100_000, payer_b: 50_000},
-        )
+    v4_downgrade_receipt = build_funding_closeout_source_bound_rationed_allocation_receipt(
+        pre_accounts,
+        post_accounts,
+        market_id=market_id,
+        epoch=3,
+        price_e8=price_e8,
+        funding_rate_bps=100,
+        payer_available_by_account={payer_a: 0, payer_b: 0},
+        sink_capacity_by_account={payer_a: 100_000, payer_b: 50_000},
     )
     v5_receipt = build_funding_closeout_source_portfolio_bound_rationed_allocation_receipt(
         pre_accounts,
@@ -3281,12 +4412,8 @@ def test_apply_funding_auto_v5_source_portfolio_accepts_multi_closeout_reservati
         v5_receipt,
         carry_epoch=4,
     )
-    wrong_carry_payload = funding_closeout_carry_forward_receipt_to_payload(
-        carry_receipt
-    )
-    wrong_carry_payload["pending_source_availability_hashes"] = [
-        "sha256:" + "99" * 32
-    ]
+    wrong_carry_payload = funding_closeout_carry_forward_receipt_to_payload(carry_receipt)
+    wrong_carry_payload["pending_source_availability_hashes"] = ["sha256:" + "99" * 32]
     wrong_carry = apply_perp_ops(
         config=base_config,
         state=publish.state,
@@ -3329,10 +4456,9 @@ def test_apply_funding_auto_v5_source_portfolio_accepts_multi_closeout_reservati
     assert carry.effects is not None
     assert carry.effects[0]["source_epoch"] == 3
     assert carry.effects[0]["carry_epoch"] == 4
-    assert (
-        carry.effects[0]["funding_closeout_carried_liability_hash"]
-        == carried_funding_closeout_liability_hash(carry_receipt)
-    )
+    assert carry.effects[0][
+        "funding_closeout_carried_liability_hash"
+    ] == carried_funding_closeout_liability_hash(carry_receipt)
     assert carry.state is not None
     assert carry.state.perps is not None
     carry_market = carry.state.perps.markets[market_id]
@@ -3428,8 +4554,7 @@ def test_apply_funding_auto_v5_source_portfolio_accepts_multi_closeout_reservati
     )
     assert underfunded_carried_settlement.ok is False
     assert underfunded_carried_settlement.error == (
-        "funding closeout carried settlement would violate funding sink bounds "
-        "(payable=150000)"
+        "funding closeout carried settlement would violate funding sink bounds (payable=150000)"
     )
 
     carried_settlement = apply_perp_ops(
@@ -3451,21 +4576,15 @@ def test_apply_funding_auto_v5_source_portfolio_accepts_multi_closeout_reservati
     )
     assert carried_settlement.ok is True, carried_settlement.error
     assert carried_settlement.effects is not None
-    assert (
-        carried_settlement.effects[0][
-            "funding_closeout_carried_liability_hash_consumed"
-        ]
-        == carried_funding_closeout_liability_hash(carry_receipt)
-    )
-    assert (
-        carried_settlement.effects[0][
-            "funding_closeout_carried_receiver_payments_quote_by_account"
-        ]
-        == {
-            receiver_a: 90_000,
-            receiver_b: 60_000,
-        }
-    )
+    assert carried_settlement.effects[0][
+        "funding_closeout_carried_liability_hash_consumed"
+    ] == carried_funding_closeout_liability_hash(carry_receipt)
+    assert carried_settlement.effects[0][
+        "funding_closeout_carried_receiver_payments_quote_by_account"
+    ] == {
+        receiver_a: 90_000,
+        receiver_b: 60_000,
+    }
     assert carried_settlement.effects[0]["funding_closeout_carried_total_payable_quote"] == 150_000
     assert carried_settlement.state is not None
     assert carried_settlement.state.perps is not None
@@ -3512,8 +4631,7 @@ def test_apply_funding_auto_v5_source_portfolio_accepts_multi_closeout_reservati
     )
     assert duplicate_carried_settlement.ok is False
     assert (
-        duplicate_carried_settlement.error
-        == "funding closeout carried liability root not pending"
+        duplicate_carried_settlement.error == "funding closeout carried liability root not pending"
     )
 
     guarded_config = PerpEngineConfig(
@@ -3541,15 +4659,10 @@ def test_apply_funding_auto_v5_source_portfolio_accepts_multi_closeout_reservati
         block_timestamp=0,
     )
     assert v4_downgrade.ok is False
-    assert (
-        v4_downgrade.error
-        == "funding closeout source-portfolio allocation receipt required"
-    )
+    assert v4_downgrade.error == "funding closeout source-portfolio allocation receipt required"
 
     under_reserved_payload = (
-        funding_closeout_source_portfolio_bound_rationed_allocation_receipt_to_payload(
-            v5_receipt
-        )
+        funding_closeout_source_portfolio_bound_rationed_allocation_receipt_to_payload(v5_receipt)
     )
     under_reserved_payload["aggregate_sink_capacity_quote"] = 149_999
     under_reserved = apply_perp_ops(
@@ -3654,9 +4767,8 @@ def test_apply_funding_auto_v5_source_portfolio_accepts_multi_closeout_reservati
         receiver_a: 0,
         receiver_b: 0,
     }
-    assert (
-        valid.effects[0]["funding_closeout_pending_source_availability_hashes_consumed"]
-        == list(publish_market.pending_funding_closeout_source_availability_hashes)
+    assert valid.effects[0]["funding_closeout_pending_source_availability_hashes_consumed"] == list(
+        publish_market.pending_funding_closeout_source_availability_hashes
     )
     assert valid.effects[0]["funding_closeout_policy_ledger_emitted"] is True
     assert valid.effects[0]["funding_closeout_policy_ledger_hash"] == policy_hash
@@ -3691,9 +4803,7 @@ def test_apply_funding_auto_v5_source_portfolio_accepts_multi_closeout_reservati
             market_id: replace(
                 settled_market,
                 pending_funding_closeout_root_hashes=("sha256:" + "22" * 32,),
-                pending_funding_closeout_source_availability_hashes=(
-                    "sha256:" + "33" * 32,
-                ),
+                pending_funding_closeout_source_availability_hashes=("sha256:" + "33" * 32,),
             ),
         },
     )
@@ -3726,12 +4836,38 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
         operator_pubkey=operator,
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _bootstrap(
+        state=state,
+        market_id=market_id,
+        price_e8=100_000_000,
+        operator_pubkey=operator,
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Epoch 2 (OPEN): deposit collateral and open positions.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
 
     funded = BalanceTable()
     for (pk, asset), amt in state.balances.get_all_balances().items():
@@ -3750,8 +4886,18 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     )
 
     # Settle epoch 2 at same price so set_market_params can be tested (requires settled epoch).
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
 
     # Operator-only.
     res_nonop = _apply_result(
@@ -3768,7 +4914,13 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
-        ops=[_op(market_id, "set_market_params", params={"initial_margin_bps": 3000, "maintenance_margin_bps": 2000})],
+        ops=[
+            _op(
+                market_id,
+                "set_market_params",
+                params={"initial_margin_bps": 3000, "maintenance_margin_bps": 2000},
+            )
+        ],
     )
     assert res_bad.ok is False
     assert res_bad.error is not None and "under maintenance margin" in res_bad.error
@@ -3779,10 +4931,20 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
-        ops=[_op(market_id, "set_market_params", params={"liquidation_penalty_bps": 50, "min_notional_for_bounty": 199})],
+        ops=[
+            _op(
+                market_id,
+                "set_market_params",
+                params={"liquidation_penalty_bps": 50, "min_notional_for_bounty": 199},
+            )
+        ],
     )
     assert res_bounty_floor.ok is False
-    assert res_bounty_floor.error is not None and "cannot decrease min_notional_for_bounty while positions are open" in res_bounty_floor.error
+    assert (
+        res_bounty_floor.error is not None
+        and "cannot decrease min_notional_for_bounty while positions are open"
+        in res_bounty_floor.error
+    )
 
     # Scientist hardening: liquidation penalty must stay positive.
     res_zero_penalty = _apply_result(
@@ -3792,7 +4954,10 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
         ops=[_op(market_id, "set_market_params", params={"liquidation_penalty_bps": 0})],
     )
     assert res_zero_penalty.ok is False
-    assert res_zero_penalty.error is not None and "liquidation_penalty_bps > 0" in res_zero_penalty.error
+    assert (
+        res_zero_penalty.error is not None
+        and "liquidation_penalty_bps > 0" in res_zero_penalty.error
+    )
 
     # Scientist hardening: depeg buffer must remain positive (fail-closed against disabling buffer).
     res_zero_depeg = _apply_result(
@@ -3825,7 +4990,11 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
         ops=[_op(market_id, "set_market_params", params={"liquidation_penalty_bps": 60})],
     )
     assert res_penalty_up.ok is False
-    assert res_penalty_up.error is not None and "cannot increase liquidation_penalty_bps while positions are open" in res_penalty_up.error
+    assert (
+        res_penalty_up.error is not None
+        and "cannot increase liquidation_penalty_bps while positions are open"
+        in res_penalty_up.error
+    )
 
     # Scientist hardening: while positions are open, do not widen the stale-oracle action window.
     res_staleness_up = _apply_result(
@@ -3836,7 +5005,10 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     )
     assert res_staleness_up.ok is False
     assert res_staleness_up.error is not None
-    assert "cannot increase max_oracle_staleness_epochs while positions are open" in res_staleness_up.error
+    assert (
+        "cannot increase max_oracle_staleness_epochs while positions are open"
+        in res_staleness_up.error
+    )
 
     # Scientist hardening: while positions are open, do not allow lowering bounty threshold.
     res_bounty_down = _apply_result(
@@ -3846,7 +5018,11 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
         ops=[_op(market_id, "set_market_params", params={"min_notional_for_bounty": 50_000_000})],
     )
     assert res_bounty_down.ok is False
-    assert res_bounty_down.error is not None and "cannot decrease min_notional_for_bounty while positions are open" in res_bounty_down.error
+    assert (
+        res_bounty_down.error is not None
+        and "cannot decrease min_notional_for_bounty while positions are open"
+        in res_bounty_down.error
+    )
 
     # Hardening-direction updates are allowed while positions are open.
     res_harden = _apply_result(
@@ -3868,7 +5044,12 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     assert res_harden.ok is True, res_harden.error
 
     # Mid-epoch guard: params can only be updated when the current epoch is settled.
-    mid = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    mid = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
     res_mid = _apply_result(
         state=mid,
         tx_sender_pubkey=operator,
@@ -3893,14 +5074,14 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
     )
     from src.core.perp_funding_closeout_priority import (
         RECOVERY_PRIORITY_RECEIVER_FIRST,
-        build_funding_closeout_recovery_collection_receipt,
         build_funding_closeout_receiver_recovery_distribution_certificate,
+        build_funding_closeout_recovery_collection_receipt,
         build_funding_closeout_recovery_priority_certificate,
         build_funding_closeout_recovery_source_authority,
         build_funding_closeout_recovery_source_authority_binding,
         build_funding_closeout_sink_recovery_distribution_certificate,
-        funding_closeout_recovery_collection_receipt_to_payload,
         funding_closeout_receiver_recovery_distribution_certificate_to_payload,
+        funding_closeout_recovery_collection_receipt_to_payload,
         funding_closeout_recovery_priority_certificate_to_payload,
         funding_closeout_recovery_source_authority_binding_hash,
         funding_closeout_recovery_source_authority_binding_to_payload,
@@ -3997,23 +5178,17 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
         valid_until_epoch=3,
         authorized_source_ids=("source:other-recovery",),
     )
-    source_authority_binding = (
-        build_funding_closeout_recovery_source_authority_binding(
-            market_id=market_id,
-            valid_from_epoch=3,
-            valid_until_epoch=3,
-            authority_hash=funding_closeout_recovery_source_authority_hash(
-                source_authority
-            ),
-            authority_state_root_hash=authority_state_root_hash,
-            policy_hash=authority_policy_hash,
-            signer_privkey=1,
-        )
+    source_authority_binding = build_funding_closeout_recovery_source_authority_binding(
+        market_id=market_id,
+        valid_from_epoch=3,
+        valid_until_epoch=3,
+        authority_hash=funding_closeout_recovery_source_authority_hash(source_authority),
+        authority_state_root_hash=authority_state_root_hash,
+        policy_hash=authority_policy_hash,
+        signer_privkey=1,
     )
     source_authority_binding_payload = (
-        funding_closeout_recovery_source_authority_binding_to_payload(
-            source_authority_binding
-        )
+        funding_closeout_recovery_source_authority_binding_to_payload(source_authority_binding)
     )
     source_authority_signer = str(source_authority_binding_payload["signer_pubkey"])
     distribution = build_funding_closeout_receiver_recovery_distribution_certificate(
@@ -4024,10 +5199,8 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
         policy_ledger,
         priority,
     )
-    sink_distribution_payload = (
-        funding_closeout_sink_recovery_distribution_certificate_to_payload(
-            sink_distribution
-        )
+    sink_distribution_payload = funding_closeout_sink_recovery_distribution_certificate_to_payload(
+        sink_distribution
     )
     partial_priority = build_funding_closeout_recovery_priority_certificate(
         policy_ledger,
@@ -4090,9 +5263,7 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                     funding_closeout_receiver_claim_balances_quote=(
                         initial_receiver_claim_balances
                     ),
-                    funding_closeout_receiver_claim_lots_quote=(
-                        initial_receiver_claim_lots
-                    ),
+                    funding_closeout_receiver_claim_lots_quote=(initial_receiver_claim_lots),
                 )
             },
         ),
@@ -4110,9 +5281,7 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
         isolated_funding_closeout_recovery_source_authority_state_root_hash=(
             authority_state_root_hash
         ),
-        isolated_funding_closeout_recovery_source_authority_policy_hash=(
-            authority_policy_hash
-        ),
+        isolated_funding_closeout_recovery_source_authority_policy_hash=(authority_policy_hash),
         isolated_funding_closeout_recovery_source_authority_signer_pubkeys=(
             source_authority_signer,
         ),
@@ -4121,9 +5290,7 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
         operator_pubkey=operator,
         allow_isolated_markets=True,
         isolated_funding_closeout_recovery_source_authority=(
-            funding_closeout_recovery_source_authority_to_payload(
-                unauthorized_source_authority
-            )
+            funding_closeout_recovery_source_authority_to_payload(unauthorized_source_authority)
         ),
     )
     missing_binding_config = PerpEngineConfig(
@@ -4145,9 +5312,7 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
         isolated_funding_closeout_recovery_source_authority_state_root_hash=(
             other_authority_state_root_hash
         ),
-        isolated_funding_closeout_recovery_source_authority_policy_hash=(
-            authority_policy_hash
-        ),
+        isolated_funding_closeout_recovery_source_authority_policy_hash=(authority_policy_hash),
         isolated_funding_closeout_recovery_source_authority_signer_pubkeys=(
             source_authority_signer,
         ),
@@ -4164,18 +5329,14 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
                             distribution
                         )
                     ),
-                    funding_closeout_sink_recovery_distribution=(
-                        sink_distribution_payload
-                    ),
+                    funding_closeout_sink_recovery_distribution=(sink_distribution_payload),
                 )
             ]
         },
@@ -4183,14 +5344,9 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
         block_timestamp=0,
     )
     assert missing_collection.ok is False
-    assert (
-        missing_collection.error
-        == "funding closeout recovery collection receipt required"
-    )
+    assert missing_collection.error == "funding closeout recovery collection receipt required"
 
-    wrong_collection_payload = funding_closeout_recovery_collection_receipt_to_payload(
-        collection
-    )
+    wrong_collection_payload = funding_closeout_recovery_collection_receipt_to_payload(collection)
     wrong_collection_payload["collected_source_quote"] = 99_999
     wrong_collection = apply_perp_ops(
         config=config,
@@ -4204,21 +5360,15 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
-                    funding_closeout_recovery_collection_receipt=(
-                        wrong_collection_payload
-                    ),
+                    funding_closeout_recovery_collection_receipt=(wrong_collection_payload),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
                             distribution
                         )
                     ),
-                    funding_closeout_sink_recovery_distribution=(
-                        sink_distribution_payload
-                    ),
+                    funding_closeout_sink_recovery_distribution=(sink_distribution_payload),
                 )
             ]
         },
@@ -4227,8 +5377,7 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
     )
     assert wrong_collection.ok is False
     assert (
-        wrong_collection.error
-        == "invalid funding closeout recovery collection receipt: "
+        wrong_collection.error == "invalid funding closeout recovery collection receipt: "
         "recovery collection credited amount mismatch"
     )
 
@@ -4244,23 +5393,17 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
                     funding_closeout_recovery_collection_receipt=(
-                        funding_closeout_recovery_collection_receipt_to_payload(
-                            collection
-                        )
+                        funding_closeout_recovery_collection_receipt_to_payload(collection)
                     ),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
                             distribution
                         )
                     ),
-                    funding_closeout_sink_recovery_distribution=(
-                        sink_distribution_payload
-                    ),
+                    funding_closeout_sink_recovery_distribution=(sink_distribution_payload),
                 )
             ]
         },
@@ -4268,10 +5411,7 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
         block_timestamp=0,
     )
     assert missing_authority.ok is False
-    assert (
-        missing_authority.error
-        == "funding closeout recovery source authority required"
-    )
+    assert missing_authority.error == "funding closeout recovery source authority required"
 
     missing_binding = apply_perp_ops(
         config=missing_binding_config,
@@ -4285,23 +5425,17 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
                     funding_closeout_recovery_collection_receipt=(
-                        funding_closeout_recovery_collection_receipt_to_payload(
-                            collection
-                        )
+                        funding_closeout_recovery_collection_receipt_to_payload(collection)
                     ),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
                             distribution
                         )
                     ),
-                    funding_closeout_sink_recovery_distribution=(
-                        sink_distribution_payload
-                    ),
+                    funding_closeout_sink_recovery_distribution=(sink_distribution_payload),
                 )
             ]
         },
@@ -4309,10 +5443,7 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
         block_timestamp=0,
     )
     assert missing_binding.ok is False
-    assert (
-        missing_binding.error
-        == "funding closeout recovery source authority binding required"
-    )
+    assert missing_binding.error == "funding closeout recovery source authority binding required"
 
     wrong_root = apply_perp_ops(
         config=wrong_root_config,
@@ -4326,23 +5457,17 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
                     funding_closeout_recovery_collection_receipt=(
-                        funding_closeout_recovery_collection_receipt_to_payload(
-                            collection
-                        )
+                        funding_closeout_recovery_collection_receipt_to_payload(collection)
                     ),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
                             distribution
                         )
                     ),
-                    funding_closeout_sink_recovery_distribution=(
-                        sink_distribution_payload
-                    ),
+                    funding_closeout_sink_recovery_distribution=(sink_distribution_payload),
                 )
             ]
         },
@@ -4351,8 +5476,7 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
     )
     assert wrong_root.ok is False
     assert (
-        wrong_root.error
-        == "invalid funding closeout recovery source authority binding: "
+        wrong_root.error == "invalid funding closeout recovery source authority binding: "
         "recovery source authority binding state_root_hash mismatch"
     )
 
@@ -4368,23 +5492,17 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
                     funding_closeout_recovery_collection_receipt=(
-                        funding_closeout_recovery_collection_receipt_to_payload(
-                            collection
-                        )
+                        funding_closeout_recovery_collection_receipt_to_payload(collection)
                     ),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
                             distribution
                         )
                     ),
-                    funding_closeout_sink_recovery_distribution=(
-                        sink_distribution_payload
-                    ),
+                    funding_closeout_sink_recovery_distribution=(sink_distribution_payload),
                 )
             ]
         },
@@ -4393,8 +5511,7 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
     )
     assert unauthorized_source.ok is False
     assert (
-        unauthorized_source.error
-        == "invalid funding closeout recovery source authority: "
+        unauthorized_source.error == "invalid funding closeout recovery source authority: "
         "recovery source_id not authorized: source:closed-payer-recovery"
     )
 
@@ -4424,23 +5541,17 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
                     funding_closeout_recovery_collection_receipt=(
-                        funding_closeout_recovery_collection_receipt_to_payload(
-                            collection
-                        )
+                        funding_closeout_recovery_collection_receipt_to_payload(collection)
                     ),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
                             distribution
                         )
                     ),
-                    funding_closeout_sink_recovery_distribution=(
-                        sink_distribution_payload
-                    ),
+                    funding_closeout_sink_recovery_distribution=(sink_distribution_payload),
                 )
             ]
         },
@@ -4465,14 +5576,10 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            partial_priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(partial_priority)
                     ),
                     funding_closeout_recovery_collection_receipt=(
-                        funding_closeout_recovery_collection_receipt_to_payload(
-                            partial_collection
-                        )
+                        funding_closeout_recovery_collection_receipt_to_payload(partial_collection)
                     ),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
@@ -4571,23 +5678,17 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
                     funding_closeout_recovery_collection_receipt=(
-                        funding_closeout_recovery_collection_receipt_to_payload(
-                            collection
-                        )
+                        funding_closeout_recovery_collection_receipt_to_payload(collection)
                     ),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
                             distribution
                         )
                     ),
-                    funding_closeout_sink_recovery_distribution=(
-                        sink_distribution_payload
-                    ),
+                    funding_closeout_sink_recovery_distribution=(sink_distribution_payload),
                 )
             ]
         },
@@ -4604,25 +5705,17 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
         valid.effects[0]["funding_closeout_recovery_collection_source_id"]
         == "source:closed-payer-recovery"
     )
-    assert valid.effects[0]["funding_closeout_recovery_source_authority_hash"].startswith(
-        "sha256:"
-    )
-    assert (
-        valid.effects[0]["funding_closeout_recovery_source_authority_binding_hash"]
-        == funding_closeout_recovery_source_authority_binding_hash(
-            source_authority_binding
-        )
-    )
+    assert valid.effects[0]["funding_closeout_recovery_source_authority_hash"].startswith("sha256:")
+    assert valid.effects[0][
+        "funding_closeout_recovery_source_authority_binding_hash"
+    ] == funding_closeout_recovery_source_authority_binding_hash(source_authority_binding)
     assert valid.effects[0]["funding_closeout_receiver_recoveries_quote_by_account"] == {
         receiver_a: 48_000,
         receiver_b: 32_000,
     }
-    assert (
-        valid.effects[0]["funding_closeout_sink_recovery_distribution_hash"]
-        == funding_closeout_sink_recovery_distribution_certificate_hash(
-            sink_distribution
-        )
-    )
+    assert valid.effects[0][
+        "funding_closeout_sink_recovery_distribution_hash"
+    ] == funding_closeout_sink_recovery_distribution_certificate_hash(sink_distribution)
     assert valid.effects[0]["funding_closeout_sink_recoveries_quote_by_claimant"] == {
         "protocol_sink": 20_000,
     }
@@ -4674,23 +5767,17 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
                     funding_closeout_recovery_collection_receipt=(
-                        funding_closeout_recovery_collection_receipt_to_payload(
-                            collection
-                        )
+                        funding_closeout_recovery_collection_receipt_to_payload(collection)
                     ),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
                             distribution
                         )
                     ),
-                    funding_closeout_sink_recovery_distribution=(
-                        sink_distribution_payload
-                    ),
+                    funding_closeout_sink_recovery_distribution=(sink_distribution_payload),
                 )
             ]
         },
@@ -4712,14 +5799,10 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
                     funding_closeout_recovery_collection_receipt=(
-                        funding_closeout_recovery_collection_receipt_to_payload(
-                            collection
-                        )
+                        funding_closeout_recovery_collection_receipt_to_payload(collection)
                     ),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
@@ -4733,15 +5816,10 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
         block_timestamp=0,
     )
     assert missing_sink_distribution.ok is False
-    assert (
-        missing_sink_distribution.error
-        == "funding closeout sink distribution required"
-    )
+    assert missing_sink_distribution.error == "funding closeout sink distribution required"
 
     wrong_distribution_payload = (
-        funding_closeout_receiver_recovery_distribution_certificate_to_payload(
-            distribution
-        )
+        funding_closeout_receiver_recovery_distribution_certificate_to_payload(distribution)
     )
     rows = list(wrong_distribution_payload["receiver_rows"])
     rows[0] = {**rows[0], "recovery_quote": 50_000}
@@ -4759,21 +5837,13 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
                     funding_closeout_recovery_collection_receipt=(
-                        funding_closeout_recovery_collection_receipt_to_payload(
-                            collection
-                        )
+                        funding_closeout_recovery_collection_receipt_to_payload(collection)
                     ),
-                    funding_closeout_receiver_recovery_distribution=(
-                        wrong_distribution_payload
-                    ),
-                    funding_closeout_sink_recovery_distribution=(
-                        sink_distribution_payload
-                    ),
+                    funding_closeout_receiver_recovery_distribution=(wrong_distribution_payload),
+                    funding_closeout_sink_recovery_distribution=(sink_distribution_payload),
                 )
             ]
         },
@@ -4803,23 +5873,17 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
                         funding_closeout_policy_ledger_to_payload(policy_ledger)
                     ),
                     funding_closeout_recovery_priority_certificate=(
-                        funding_closeout_recovery_priority_certificate_to_payload(
-                            priority
-                        )
+                        funding_closeout_recovery_priority_certificate_to_payload(priority)
                     ),
                     funding_closeout_recovery_collection_receipt=(
-                        funding_closeout_recovery_collection_receipt_to_payload(
-                            collection
-                        )
+                        funding_closeout_recovery_collection_receipt_to_payload(collection)
                     ),
                     funding_closeout_receiver_recovery_distribution=(
                         funding_closeout_receiver_recovery_distribution_certificate_to_payload(
                             distribution
                         )
                     ),
-                    funding_closeout_sink_recovery_distribution=(
-                        wrong_sink_distribution_payload
-                    ),
+                    funding_closeout_sink_recovery_distribution=(wrong_sink_distribution_payload),
                 )
             ]
         },
@@ -4828,7 +5892,6 @@ def test_settle_funding_closeout_recovery_consumes_policy_root_and_distribution(
     )
     assert wrong_sink_distribution.ok is False
     assert (
-        wrong_sink_distribution.error
-        == "invalid funding closeout sink distribution: "
+        wrong_sink_distribution.error == "invalid funding closeout sink distribution: "
         "sink largest-remainder distribution mismatch"
     )

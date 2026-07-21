@@ -34,7 +34,6 @@ def test_runtime_risk_gate_advance_epoch_prefers_operator_only() -> None:
     assert perp_runtime_risk_gate_error(outcome, action="advance_epoch") == "operator only"
 
 
-
 def test_runtime_risk_gate_advance_epoch_rejects_unsettled_epoch() -> None:
     outcome = evaluate_perp_runtime_risk_gate(
         action_kind=ACTION_ADVANCE_EPOCH,
@@ -48,8 +47,10 @@ def test_runtime_risk_gate_advance_epoch_rejects_unsettled_epoch() -> None:
     )
 
     assert outcome.reject_code == "EpochNotSettled"
-    assert perp_runtime_risk_gate_error(outcome, action="advance_epoch") == "cannot advance epoch before settling current epoch"
-
+    assert (
+        perp_runtime_risk_gate_error(outcome, action="advance_epoch")
+        == "cannot advance epoch before settling current epoch"
+    )
 
 
 def test_runtime_risk_gate_publish_price_rejects_nonpositive_price() -> None:
@@ -65,8 +66,10 @@ def test_runtime_risk_gate_publish_price_rejects_nonpositive_price() -> None:
     )
 
     assert outcome.reject_code == "PriceInvalid"
-    assert perp_runtime_risk_gate_error(outcome, action="publish_clearing_price") == "publish_clearing_price requires price_e8 > 0"
-
+    assert (
+        perp_runtime_risk_gate_error(outcome, action="publish_clearing_price")
+        == "publish_clearing_price requires price_e8 > 0"
+    )
 
 
 def test_runtime_risk_gate_clear_breaker_rejects_open_positions() -> None:
@@ -82,8 +85,10 @@ def test_runtime_risk_gate_clear_breaker_rejects_open_positions() -> None:
     )
 
     assert outcome.reject_code == "PositionsOpen"
-    assert perp_runtime_risk_gate_error(outcome, action="clear_breaker") == "cannot clear breaker while positions are open"
-
+    assert (
+        perp_runtime_risk_gate_error(outcome, action="clear_breaker")
+        == "cannot clear breaker while positions are open"
+    )
 
 
 def test_runtime_risk_gate_set_market_params_rejects_mid_epoch_before_params_shape() -> None:
@@ -99,8 +104,10 @@ def test_runtime_risk_gate_set_market_params_rejects_mid_epoch_before_params_sha
     )
 
     assert outcome.reject_code == "MarketParamsMidEpoch"
-    assert perp_runtime_risk_gate_error(outcome, action="set_market_params") == "cannot update market params mid-epoch"
-
+    assert (
+        perp_runtime_risk_gate_error(outcome, action="set_market_params")
+        == "cannot update market params mid-epoch"
+    )
 
 
 def test_runtime_risk_gate_deposit_prefers_unknown_fields_before_sender_binding() -> None:
@@ -116,8 +123,10 @@ def test_runtime_risk_gate_deposit_prefers_unknown_fields_before_sender_binding(
     )
 
     assert outcome.reject_code == "UnknownFields"
-    assert perp_runtime_risk_gate_error(outcome, action="deposit_collateral") == "deposit_collateral has unknown fields"
-
+    assert (
+        perp_runtime_risk_gate_error(outcome, action="deposit_collateral")
+        == "deposit_collateral has unknown fields"
+    )
 
 
 def test_runtime_risk_gate_set_position_rejects_sender_binding() -> None:
@@ -133,7 +142,10 @@ def test_runtime_risk_gate_set_position_rejects_sender_binding() -> None:
     )
 
     assert outcome.reject_code == "SenderBindingInvalid"
-    assert perp_runtime_risk_gate_error(outcome, action="set_position") == "account_pubkey must match tx sender"
+    assert (
+        perp_runtime_risk_gate_error(outcome, action="set_position")
+        == "account_pubkey must match tx sender"
+    )
 
 
 def test_runtime_risk_gate_partial_liquidate_rejects_sender_binding() -> None:
@@ -149,7 +161,10 @@ def test_runtime_risk_gate_partial_liquidate_rejects_sender_binding() -> None:
     )
 
     assert outcome.reject_code == "SenderBindingInvalid"
-    assert perp_runtime_risk_gate_error(outcome, action="partial_liquidate") == "account_pubkey must match tx sender"
+    assert (
+        perp_runtime_risk_gate_error(outcome, action="partial_liquidate")
+        == "account_pubkey must match tx sender"
+    )
 
 
 def test_runtime_risk_gate_settle_carried_liability_is_operator_only() -> None:
@@ -194,7 +209,6 @@ def test_runtime_risk_gate_settle_closeout_recovery_is_operator_only() -> None:
         )
         == "operator only"
     )
-
 
 
 def test_runtime_risk_gate_rejects_noncanonical_flag() -> None:

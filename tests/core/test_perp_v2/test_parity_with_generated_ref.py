@@ -1,32 +1,31 @@
-"""Parity check: `src/core/perp_v2` vs a generated Python reference model for the YAML spec.
+"""Refinement checks: the v3 native adapter vs its generated Python reference.
 
 The reference model is generated from `src/kernels/dex/perp_epoch_isolated_v3.yaml`
-by an optional kernel-spec toolchain (validator/verifier/codegen) vendored under
-`external/` (git-ignored). That toolchain is used in evidence/verification workflows; the
-generated file itself is committed and has no runtime toolchain dependency.
-
-This is the strongest CI-friendly regression test we can have without invoking the
-spec interpreter:
-- the reference is derived directly from the spec
-- `src/core/perp_v2` is the hand-maintained "production" implementation
-
-If this test fails, it indicates a semantic drift between the implementation and
-the spec/codegen artifact.
+by the pinned kernel-spec toolchain vendored under `external/`. The suite
+requires total runtime/reference agreement over the exercised domain.
 """
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import random
+import re
 import sys
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from src.core.perp_v2 import Action, ActionParams, initial_state, step
-from src.core.perp_v2.state import state_to_dict
+from src.core.perp_epoch import (
+    perp_epoch_isolated_v3_native_apply,
+    perp_epoch_isolated_v3_native_initial_state,
+)
+from src.core.perp_v2 import Action, ActionParams
+from src.core.perp_v2 import math as math_v3
+
+EXPECTED_MODEL_SOURCE_SHA256 = "1821e36ab9f5f19ccab42f5e181268859bf611bdd0c48d290b0bdfab1c204154"
+EXPECTED_IR_HASH = "sha256:a7d4a4ff80a895b30f1328c62b43d0f7bd3e7d0600bea4b53970a054ddff7310"
 
 
 def _import_generated_ref() -> Any:
@@ -47,28 +46,30 @@ def _import_generated_ref() -> Any:
 REF = _import_generated_ref()
 
 
-def _state_dict_for_ref(s) -> dict[str, Any]:
-    """Convert our state_to_dict to the ref model's encoding."""
-    d = state_to_dict(s)
-    ep = d.get("epoch_phase")
-    if isinstance(ep, str):
-        # Ref model uses int encoding: Open=0, PricePublished=1, Settled=2.
-        d["epoch_phase"] = {"Open": 0, "PricePublished": 1, "Settled": 2}[ep]
-    return d
+def test_v3_generated_reference_is_bound_to_current_esso_source() -> None:
+    root = Path(__file__).resolve().parents[3]
+    model = root / "src" / "kernels" / "dex" / "perp_epoch_isolated_v3.yaml"
+    reference = root / "generated" / "perp_python" / "perp_epoch_isolated_v3_ref.py"
+    source = reference.read_text(encoding="utf-8")
+    match = re.search(r"^IR hash: (sha256:[0-9a-f]{64})$", source, re.MULTILINE)
 
-
-def _to_ref_state(s) -> Any:
-    return REF.State(**_state_dict_for_ref(s))
+    assert hashlib.sha256(model.read_bytes()).hexdigest() == (EXPECTED_MODEL_SOURCE_SHA256)
+    assert match is not None
+    assert match.group(1) == EXPECTED_IR_HASH
 
 
 def _to_ref_cmd(params: ActionParams) -> Any:
     tag = params.action.value
     args: dict[str, Any] = {}
 
-    if params.action is Action.ADVANCE_EPOCH:
+    if params.action is Action.BOOTSTRAP_ORACLE:
+        args["price_e8"] = int(params.price_e8)
+        args["auth_ok"] = bool(params.auth_ok)
+    elif params.action is Action.ADVANCE_EPOCH:
         args["delta"] = int(params.delta)
     elif params.action is Action.PUBLISH_CLEARING_PRICE:
         args["price_e8"] = int(params.price_e8)
+        args["auth_ok"] = bool(params.auth_ok)
     elif params.action is Action.DEPOSIT_COLLATERAL:
         args["amount"] = int(params.amount)
         args["auth_ok"] = bool(params.auth_ok)
@@ -88,6 +89,9 @@ def _to_ref_cmd(params: ActionParams) -> Any:
     elif params.action is Action.APPLY_INSURANCE_CLAIM:
         args["claim_amount"] = int(params.claim_amount)
         args["auth_ok"] = bool(params.auth_ok)
+    elif params.action is Action.PARTIAL_LIQUIDATE:
+        args["fraction_bps"] = int(params.fraction_bps)
+        args["auth_ok"] = bool(params.auth_ok)
     elif params.action is Action.SETTLE_EPOCH:
         args = {}
     else:
@@ -96,30 +100,13 @@ def _to_ref_cmd(params: ActionParams) -> Any:
     return REF.Command(tag=tag, args=args)
 
 
-def _effect_as_dict(our_effect) -> dict[str, Any]:
-    assert our_effect is not None
-    return {
-        "event": our_effect.event.value,
-        "oracle_fresh": bool(our_effect.oracle_fresh),
-        "notional_quote": int(our_effect.notional_quote),
-        "effective_maint_bps": int(our_effect.effective_maint_bps),
-        "maint_req_quote": int(our_effect.maint_req_quote),
-        "init_req_quote": int(our_effect.init_req_quote),
-        "margin_ok": bool(our_effect.margin_ok),
-        "liquidated": bool(our_effect.liquidated),
-        "collateral_after": int(our_effect.collateral_after),
-        "fee_pool_after": int(our_effect.fee_pool_after),
-        "insurance_after": int(our_effect.insurance_after),
-    }
-
-
 def _random_action_params(rng: random.Random) -> ActionParams:
-    # Bias toward "useful" actions, but allow rejections; parity should still hold.
     action = rng.choice(
         [
             Action.ADVANCE_EPOCH,
             Action.PUBLISH_CLEARING_PRICE,
             Action.SETTLE_EPOCH,
+            Action.BOOTSTRAP_ORACLE,
             Action.DEPOSIT_COLLATERAL,
             Action.WITHDRAW_COLLATERAL,
             Action.SET_POSITION,
@@ -127,13 +114,24 @@ def _random_action_params(rng: random.Random) -> ActionParams:
             Action.APPLY_FUNDING,
             Action.DEPOSIT_INSURANCE,
             Action.APPLY_INSURANCE_CLAIM,
+            Action.PARTIAL_LIQUIDATE,
         ]
     )
 
+    if action is Action.BOOTSTRAP_ORACLE:
+        return ActionParams(
+            action=action,
+            price_e8=rng.randint(1, 2_000_000_000),
+            auth_ok=True,
+        )
     if action is Action.ADVANCE_EPOCH:
         return ActionParams(action=action, delta=rng.randint(1, 3))
     if action is Action.PUBLISH_CLEARING_PRICE:
-        return ActionParams(action=action, price_e8=rng.randint(1, 2_000_000_000))
+        return ActionParams(
+            action=action,
+            price_e8=rng.randint(1, 2_000_000_000),
+            auth_ok=True,
+        )
     if action is Action.DEPOSIT_COLLATERAL:
         return ActionParams(action=action, amount=rng.randint(1, 50_000), auth_ok=True)
     if action is Action.WITHDRAW_COLLATERAL:
@@ -143,51 +141,299 @@ def _random_action_params(rng: random.Random) -> ActionParams:
     if action is Action.CLEAR_BREAKER:
         return ActionParams(action=action, auth_ok=True)
     if action is Action.APPLY_FUNDING:
-        # funding_cap_bps defaults to 100; keep inside to reduce trivial rejections.
         return ActionParams(action=action, new_rate_bps=rng.randint(-100, 100), auth_ok=True)
     if action is Action.DEPOSIT_INSURANCE:
         return ActionParams(action=action, amount=rng.randint(1, 100_000))
     if action is Action.APPLY_INSURANCE_CLAIM:
-        # Most claims will be rejected (no insurance deposited), which is fine.
         return ActionParams(action=action, claim_amount=rng.randint(1, 50_000), auth_ok=True)
     if action is Action.SETTLE_EPOCH:
         return ActionParams(action=action)
+    if action is Action.PARTIAL_LIQUIDATE:
+        return ActionParams(
+            action=action, fraction_bps=rng.randint(1, 10_000), auth_ok=True
+        )
 
     raise AssertionError("unreachable")
 
 
-class TestPerpV2ParityWithGeneratedRef:
+class TestPerpV3AdapterParityWithGeneratedRef:
     def test_initial_state_matches(self) -> None:
-        ours = initial_state()
+        ours = perp_epoch_isolated_v3_native_initial_state()
         ref = REF.init_state()
-        assert _state_dict_for_ref(ours) == vars(ref)
+        assert ours == vars(ref)
 
-    def test_random_trace_parity(self) -> None:
+    def test_random_trace_parity_on_common_admitted_domain(self) -> None:
         rng = random.Random(0)
-        ours = initial_state()
+        ours = perp_epoch_isolated_v3_native_initial_state()
         ref = REF.init_state()
 
-        # Make sure oracle is seen early so we exercise more actions.
-        ours = replace(ours, oracle_seen=True, oracle_last_update_epoch=0, index_price_e8=100_000_000)
-        ref = replace(ref, oracle_seen=True, oracle_last_update_epoch=0, index_price_e8=100_000_000)
+        ours = {
+            **ours,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 0,
+            "index_price_e8": 100_000_000,
+        }
+        ref = REF.State(
+            **{
+                **vars(ref),
+                "oracle_seen": True,
+                "oracle_last_update_epoch": 0,
+                "index_price_e8": 100_000_000,
+            }
+        )
 
         for _ in range(500):
             params = _random_action_params(rng)
-            our_res = step(ours, params)
-            ref_res = REF.step(ref, _to_ref_cmd(params))
+            command = _to_ref_cmd(params)
+            our_res = perp_epoch_isolated_v3_native_apply(
+                state=ours,
+                action=command.tag,
+                params=command.args,
+            )
+            ref_res = REF.step(ref, command)
 
-            assert our_res.accepted == ref_res.ok
+            assert our_res.ok == ref_res.ok
 
-            if not our_res.accepted:
+            if not our_res.ok:
                 continue
 
             assert our_res.state is not None
-            assert our_res.effect is not None
+            assert our_res.effects is not None
             assert ref_res.state is not None
             assert ref_res.effects is not None
 
-            assert _state_dict_for_ref(our_res.state) == vars(ref_res.state)
-            assert _effect_as_dict(our_res.effect) == dict(ref_res.effects)
+            assert our_res.state == vars(ref_res.state)
+            assert our_res.effects == dict(ref_res.effects)
 
             ours = our_res.state
             ref = ref_res.state
+
+    def test_unsettled_epoch_advance_rejects_in_both_implementations(self) -> None:
+        state = {
+            **perp_epoch_isolated_v3_native_initial_state(),
+            "now_epoch": 5,
+            "epoch_phase": 1,
+            "clearing_price_seen": True,
+            "clearing_price_epoch": 5,
+            "clearing_price_e8": 100_000_000,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 4,
+            "index_price_e8": 100_000_000,
+        }
+        command = REF.Command(tag="advance_epoch", args={"delta": 1})
+
+        native = perp_epoch_isolated_v3_native_apply(
+            state=state,
+            action=command.tag,
+            params=command.args,
+        )
+        reference = REF.step(REF.State(**state), command)
+
+        assert native.ok is False
+        assert native.state is None
+        assert native.effects is None
+        assert reference.ok is False
+        assert reference.state is None
+        assert reference.effects is None
+
+    def test_epoch_advance_delta_above_one_rejects_in_both_implementations(self) -> None:
+        state = {
+            **perp_epoch_isolated_v3_native_initial_state(),
+            "now_epoch": 1,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 1,
+            "index_price_e8": 100_000_000,
+            "max_oracle_staleness_epochs": 1,
+            "position_base": 100,
+            "entry_price_e8": 100_000_000,
+            "collateral_quote": 5,
+        }
+        command = REF.Command(tag="advance_epoch", args={"delta": 2})
+
+        native = perp_epoch_isolated_v3_native_apply(
+            state=state,
+            action=command.tag,
+            params=command.args,
+        )
+        reference = REF.step(REF.State(**state), command)
+
+        assert native.ok is False
+        assert native.state is None
+        assert native.effects is None
+        assert native.error == "param_domain:delta"
+        assert reference.ok is False
+        assert reference.state is None
+        assert reference.effects is None
+        assert reference.error == "invalid param delta"
+
+    def test_unsettleable_publication_rejects_in_both_implementations(self) -> None:
+        state = {
+            **perp_epoch_isolated_v3_native_initial_state(),
+            "now_epoch": 1,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 0,
+            "index_price_e8": 19_425_419,
+            "position_base": 7,
+            "entry_price_e8": 19_425_419,
+            "collateral_quote": 0,
+            "initial_margin_bps": 7_500,
+            "maintenance_margin_bps": 7_500,
+            "depeg_buffer_bps": 0,
+            "max_oracle_move_bps": 7_500,
+        }
+        command = REF.Command(
+            tag="publish_clearing_price",
+            args={"price_e8": 1, "auth_ok": True},
+        )
+
+        native = perp_epoch_isolated_v3_native_apply(
+            state=state,
+            action=command.tag,
+            params=command.args,
+        )
+        reference = REF.step(REF.State(**state), command)
+
+        assert native.ok is False
+        assert native.state is None
+        assert native.effects is None
+        assert reference.ok is False
+        assert reference.state is None
+        assert reference.effects is None
+
+    def test_funding_preserves_published_settlement_path_in_both(self) -> None:
+        state = {
+            **perp_epoch_isolated_v3_native_initial_state(),
+            "now_epoch": 1,
+            "epoch_phase": 1,
+            "clearing_price_seen": True,
+            "clearing_price_epoch": 1,
+            "clearing_price_e8": 1,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 0,
+            "index_price_e8": 102,
+            "max_oracle_staleness_epochs": 1,
+            "max_oracle_move_bps": 9_902,
+            "initial_margin_bps": 9_903,
+            "maintenance_margin_bps": 9_902,
+            "depeg_buffer_bps": 0,
+            "funding_cap_bps": 10_000,
+            "position_base": 990_100,
+            "entry_price_e8": 102,
+            "collateral_quote": 1,
+        }
+        command = REF.Command(
+            tag="apply_funding",
+            args={"new_rate_bps": 10_000, "auth_ok": True},
+        )
+
+        native = perp_epoch_isolated_v3_native_apply(
+            state=state,
+            action=command.tag,
+            params=command.args,
+        )
+        reference = REF.step(REF.State(**state), command)
+
+        assert native.ok is False
+        assert native.state is None
+        assert native.effects is None
+        assert reference.ok is False
+        assert reference.state is None
+        assert reference.effects is None
+
+    def test_insurance_deposit_waits_for_settlement_in_both(self) -> None:
+        state = {
+            **perp_epoch_isolated_v3_native_initial_state(),
+            "now_epoch": 1,
+            "epoch_phase": 1,
+            "clearing_price_seen": True,
+            "clearing_price_epoch": 1,
+            "clearing_price_e8": 100_000_000,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 0,
+            "index_price_e8": 100_000_000,
+        }
+        command = REF.Command(tag="deposit_insurance", args={"amount": 1})
+
+        native = perp_epoch_isolated_v3_native_apply(
+            state=state,
+            action=command.tag,
+            params=command.args,
+        )
+        reference = REF.step(REF.State(**state), command)
+
+        assert native.ok is False
+        assert native.state is None
+        assert native.effects is None
+        assert reference.ok is False
+        assert reference.state is None
+        assert reference.effects is None
+
+    def test_partial_liquidation_fraction_bva_and_auto_refinement(self) -> None:
+        state = {
+            **perp_epoch_isolated_v3_native_initial_state(),
+            "now_epoch": 2,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 2,
+            "index_price_e8": 100_000_000,
+            "position_base": 100_000,
+            "entry_price_e8": 100_000_000,
+            "collateral_quote": 5_000,
+            "fee_pool_quote": 100,
+            "fee_income": 100,
+            "initial_insurance": 500,
+            "insurance_balance": 600,
+            "min_notional_for_bounty": 0,
+        }
+        selected = math_v3.compute_partial_close_fraction(
+            position_base=100_000,
+            collateral_after_pnl=5_000,
+            settle_price_e8=100_000_000,
+            maintenance_margin_bps=500,
+            depeg_buffer_bps=100,
+            liquidation_penalty_bps=50,
+            min_notional_for_bounty=0,
+        )
+        assert selected == 1_816
+
+        for fraction_bps, expected_ok in (
+            (selected - 1, False),
+            (selected, True),
+            (10_000, True),
+        ):
+            command = REF.Command(
+                tag="partial_liquidate",
+                args={"fraction_bps": fraction_bps, "auth_ok": True},
+            )
+            native = perp_epoch_isolated_v3_native_apply(
+                state=state,
+                action=command.tag,
+                params=command.args,
+            )
+            reference = REF.step(REF.State(**state), command)
+
+            assert native.ok is expected_ok
+            assert reference.ok is expected_ok
+            if expected_ok:
+                assert native.state is not None
+                assert native.effects is not None
+                assert reference.state is not None
+                assert reference.effects is not None
+                assert native.state == vars(reference.state)
+                assert native.effects == dict(reference.effects)
+
+        auto_native = perp_epoch_isolated_v3_native_apply(
+            state=state,
+            action="partial_liquidate",
+            params={"fraction_bps": 0, "auth_ok": True},
+        )
+        resolved_reference = REF.step(
+            REF.State(**state),
+            REF.Command(
+                tag="partial_liquidate",
+                args={"fraction_bps": selected, "auth_ok": True},
+            ),
+        )
+        assert auto_native.ok is True
+        assert resolved_reference.ok is True
+        assert auto_native.state == vars(resolved_reference.state)
+        assert auto_native.effects == dict(resolved_reference.effects or {})

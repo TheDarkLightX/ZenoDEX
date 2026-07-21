@@ -13,6 +13,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.core.dex import DexState
+from src.integration.dex_snapshot import snapshot_from_state
+from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0
+from src.state.balances import BalanceTable
+from src.state.lp import LPTable
 from tools.zeno_ledger_make_feature_lane import build_feature_lane_manifest_v0
 from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_ASSET0,
@@ -24,12 +29,6 @@ from tools.zeno_ledger_make_testnet_bundle import (
     _root,
     build_testnet_bundle_v0,
 )
-from src.core.dex import DexState
-from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0
-from src.state.balances import BalanceTable
-from src.state.lp import LPTable
-
 
 REPORT_SCHEMA = "zenodex.zeno_ledger.make_core_feature_suite_report.v0"
 
@@ -78,7 +77,10 @@ def _tau_app_spot_body_v0(*, chain_id: str, time_ms: int, sequencer_id: str) -> 
     }
     return _body_with_transaction_v0(
         chain_id=chain_id,
-        height=1,
+        # This lane is an isolated Tau-app fixture. Its supplied app state is
+        # the genesis pre-state, so the first transition must be height zero
+        # instead of pretending an unauthenticated parent exists.
+        height=0,
         time_ms=time_ms,
         sequencer_id=sequencer_id,
         tx=tx,

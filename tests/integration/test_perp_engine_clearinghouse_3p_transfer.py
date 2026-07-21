@@ -8,7 +8,6 @@ from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_per
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 
-
 _CHAIN_ID = "tau-test"
 _BLOCK_TIMESTAMP = 1
 _DEADLINE = 10_000
@@ -144,6 +143,129 @@ def _signed_publish_price(*, market_id: str, price_e8: int, oracle_nonce: int, d
     return base
 
 
+def _initialized_ch3p_state(*, market_id: str, quote_asset: str) -> DexState:
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    return _apply(
+        state=state,
+        tx_sender_pubkey="ff" * 48,
+        ops=[
+            _signed_init_market_3p(
+                market_id=market_id,
+                quote_asset=quote_asset,
+                nonce_a=1,
+                nonce_b=1,
+                nonce_c=1,
+                deadline=_DEADLINE,
+            )
+        ],
+    )
+
+
+def test_ch3p_advance_epoch_rejects_outsider_as_exact_noop() -> None:
+    market_id = "perp:ch3p:authority_advance"
+    operator = "ee" * 48
+    outsider = "ff" * 48
+    state = _initialized_ch3p_state(market_id=market_id, quote_asset="0x" + "b1" * 32)
+
+    result = _apply_result(
+        state=state,
+        tx_sender_pubkey=outsider,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)],
+    )
+
+    assert result.ok is False
+    assert result.error == "operator only"
+    assert result.state is None
+    assert result.effects is None
+
+
+def test_ch3p_settle_epoch_rejects_outsider_as_exact_noop() -> None:
+    market_id = "perp:ch3p:authority_settle"
+    operator = "ee" * 48
+    outsider = "ff" * 48
+    state = _initialized_ch3p_state(market_id=market_id, quote_asset="0x" + "b2" * 32)
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=outsider,
+        operator_pubkey=operator,
+        ops=[
+            _signed_publish_price(
+                market_id=market_id,
+                price_e8=100_000_000,
+                oracle_nonce=1,
+                deadline=_DEADLINE,
+            )
+        ],
+    )
+
+    result = _apply_result(
+        state=state,
+        tx_sender_pubkey=outsider,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch", version="1.1")],
+    )
+
+    assert result.ok is False
+    assert result.error == "operator only"
+    assert result.state is None
+    assert result.effects is None
+
+
+def test_ch3p_clear_breaker_rejects_outsider_as_exact_noop() -> None:
+    market_id = "perp:ch3p:authority_clear_breaker"
+    operator = "ee" * 48
+    outsider = "ff" * 48
+    state = _initialized_ch3p_state(market_id=market_id, quote_asset="0x" + "b3" * 32)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    assert isinstance(market, PerpClearinghouse3pTransferMarketState)
+    breaker_market = PerpClearinghouse3pTransferMarketState(
+        quote_asset=market.quote_asset,
+        account_a_pubkey=market.account_a_pubkey,
+        account_b_pubkey=market.account_b_pubkey,
+        account_c_pubkey=market.account_c_pubkey,
+        state={
+            **market.state,
+            "breaker_active": True,
+            "breaker_last_trigger_epoch": int(market.state["now_epoch"]),
+        },
+    )
+    markets = dict(state.perps.markets)
+    markets[market_id] = breaker_market
+    state = replace(state, perps=replace(state.perps, markets=markets))
+
+    result = _apply_result(
+        state=state,
+        tx_sender_pubkey=outsider,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "clear_breaker", version="1.1")],
+    )
+
+    assert result.ok is False
+    assert result.error == "operator only"
+    assert result.state is None
+    assert result.effects is None
+
+    accepted = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "clear_breaker", version="1.1")],
+    )
+    assert accepted.ok is True, accepted.error
+    assert accepted.state is not None and accepted.state.perps is not None
+    accepted_market = accepted.state.perps.markets[market_id]
+    assert isinstance(accepted_market, PerpClearinghouse3pTransferMarketState)
+    assert accepted_market.state["breaker_active"] is False
+
+
 def test_init_market_3p_is_strict_about_prefix_and_signatures() -> None:
     quote_asset = "0x" + "33" * 32
     relayer = "ff" * 48
@@ -181,6 +303,42 @@ def test_init_market_3p_is_strict_about_prefix_and_signatures() -> None:
     assert res3.ok is True, res3.error
 
 
+def test_tau_identity_profile_commits_canonical_3p_participants_after_signatures() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:ch3p:tau-identity-profile"
+    operation = _signed_init_market_3p(
+        market_id=market_id,
+        quote_asset="0x" + "35" * 32,
+        nonce_a=1,
+        nonce_b=1,
+        nonce_c=1,
+        deadline=_DEADLINE,
+    )
+    config = PerpEngineConfig(
+        chain_id=_CHAIN_ID,
+        oracle_pubkey=_ORACLE_PUBKEY,
+        canonicalize_authenticated_bls_principals=True,
+    )
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+
+    result = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={"5": [operation]},
+        tx_sender_pubkey="ff" * 48,
+        block_timestamp=_BLOCK_TIMESTAMP,
+    )
+
+    assert result.ok is True, result.error
+    assert result.state is not None and result.state.perps is not None
+    market = result.state.perps.markets[market_id]
+    assert isinstance(market, PerpClearinghouse3pTransferMarketState)
+    assert market.account_a_pubkey == "0x" + _ALICE_PUBKEY
+    assert market.account_b_pubkey == "0x" + _BOB_PUBKEY
+    assert market.account_c_pubkey == "0x" + _CAROL_PUBKEY
+
+
 def test_advance_epoch_3p_rejects_delta_gt_1() -> None:
     market_id = "perp:ch3p:epoch_delta"
     quote_asset = "0x" + "77" * 32
@@ -202,7 +360,12 @@ def test_advance_epoch_3p_rejects_delta_gt_1() -> None:
         ],
     )
 
-    res = _apply_result(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "advance_epoch", version="1.1", delta=2)])
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=relayer,
+        operator_pubkey=relayer,
+        ops=[_op(market_id, "advance_epoch", version="1.1", delta=2)],
+    )
     assert not res.ok
     assert res.error == "advance_epoch delta must be 1 for clearinghouse markets"
 
@@ -278,6 +441,7 @@ def test_publish_price_3p_rejects_zero_price() -> None:
     state = _apply(
         state=state,
         tx_sender_pubkey=relayer,
+        operator_pubkey=relayer,
         ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)],
     )
 
@@ -375,9 +539,9 @@ def test_settle_epoch_3p_can_transfer_distressed_side_and_preserve_conservation(
     )
 
     # Epoch 1: initialize index price at 1.00.
-    state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=relayer, operator_pubkey=relayer, ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)])
     state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_signed_publish_price(market_id=market_id, price_e8=100_000_000, oracle_nonce=1, deadline=_DEADLINE)])
-    state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "settle_epoch", version="1.1")])
+    state = _apply(state=state, tx_sender_pubkey=relayer, operator_pubkey=relayer, ops=[_op(market_id, "settle_epoch", version="1.1")])
 
     # Fund all accounts (quote units; kernel stores quote-e8).
     state = _apply(
@@ -404,9 +568,9 @@ def test_settle_epoch_3p_can_transfer_distressed_side_and_preserve_conservation(
     )
 
     # Epoch 2: +5% move triggers maintenance breach for the short; its position is transferred to idle C.
-    state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=relayer, operator_pubkey=relayer, ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)])
     state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_signed_publish_price(market_id=market_id, price_e8=105_000_000, oracle_nonce=2, deadline=_DEADLINE)])
-    state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "settle_epoch", version="1.1")])
+    state = _apply(state=state, tx_sender_pubkey=relayer, operator_pubkey=relayer, ops=[_op(market_id, "settle_epoch", version="1.1")])
 
     assert state.perps is not None
     m = state.perps.markets[market_id]

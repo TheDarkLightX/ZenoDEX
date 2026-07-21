@@ -53,7 +53,9 @@ def _stop_test_server(httpd, thread: threading.Thread) -> None:
     thread.join(timeout=2.0)
 
 
-def _post_json(host: str, port: int, path: str, payload: dict, *, timeout: float = 15.0) -> tuple[int, dict]:
+def _post_json(
+    host: str, port: int, path: str, payload: dict, *, timeout: float = 15.0
+) -> tuple[int, dict]:
     # Generous timeout because the pokayoke_swap_suggest_heavy endpoint does
     # a multi-evaluation search and can take several seconds under coverage
     # instrumentation. Real handlers should still respond in <1s.
@@ -191,7 +193,9 @@ def test_writer_snapshot_loader_accepts_snapshot_inside_data_dir(tmp_path: Path)
     assert _load_writer_snapshot_from_file(data_dir) == {"ok": True}
 
 
-@pytest.mark.parametrize("url", ["file:///tmp/live_state.json", "writer.example/api/dex/snapshot", ""])
+@pytest.mark.parametrize(
+    "url", ["file:///tmp/live_state.json", "writer.example/api/dex/snapshot", ""]
+)
 def test_writer_snapshot_url_loader_rejects_non_http_urls(url: str) -> None:
     with pytest.raises(ValueError, match="absolute http or https"):
         _load_writer_snapshot_from_url(url)
@@ -224,19 +228,35 @@ def test_impact_preview_byte_shape() -> None:
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/impact_preview",
-            {"reserve_in": 1_000_000, "reserve_out": 1_000_000, "amount_in": 10_000, "fee_bps": 30,
-             "pending_volume_same_direction": 50_000, "confidence_bps": 9500},
+            host,
+            port,
+            "/api/dex/impact_preview",
+            {
+                "reserve_in": 1_000_000,
+                "reserve_out": 1_000_000,
+                "amount_in": 10_000,
+                "fee_bps": 30,
+                "pending_volume_same_direction": 50_000,
+                "confidence_bps": 9500,
+            },
         )
         assert status == 200
         assert body["ok"] is True
         preview = body["preview"]
         # Pin every field the legacy handler returned.
         expected_keys = {
-            "amount_out_isolated", "fee_amount", "price_impact_bps", "effective_price_e8",
-            "spot_price_e8", "amount_out_best_case", "amount_out_worst_case",
-            "recommended_min_out", "pending_volume_same_direction", "confidence_bps",
-            "pending_volume_at_confidence", "amount_out_at_confidence",
+            "amount_out_isolated",
+            "fee_amount",
+            "price_impact_bps",
+            "effective_price_e8",
+            "spot_price_e8",
+            "amount_out_best_case",
+            "amount_out_worst_case",
+            "recommended_min_out",
+            "pending_volume_same_direction",
+            "confidence_bps",
+            "pending_volume_at_confidence",
+            "amount_out_at_confidence",
         }
         assert set(preview.keys()) == expected_keys
         assert all(isinstance(preview[k], int) for k in expected_keys)
@@ -251,7 +271,9 @@ def test_impact_preview_invalid_returns_400_with_legacy_error_code() -> None:
         # Negative reserve violates internal contract; legacy returned
         # status 400, error "impact_preview_error", details "request failed".
         status, body = _post_json(
-            host, port, "/api/dex/impact_preview",
+            host,
+            port,
+            "/api/dex/impact_preview",
             {"reserve_in": -1, "reserve_out": 1_000_000, "amount_in": 10_000, "fee_bps": 30},
         )
         assert status == 400
@@ -264,18 +286,34 @@ def test_slippage_advice_byte_shape() -> None:
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/slippage_advice",
-            {"reserve_in": 1_000_000, "reserve_out": 1_000_000, "amount_in": 10_000, "fee_bps": 30,
-             "pending_volume_same_direction": 5000, "confidence_bps": 9500},
+            host,
+            port,
+            "/api/dex/slippage_advice",
+            {
+                "reserve_in": 1_000_000,
+                "reserve_out": 1_000_000,
+                "amount_in": 10_000,
+                "fee_bps": 30,
+                "pending_volume_same_direction": 5000,
+                "confidence_bps": 9500,
+            },
         )
         assert status == 200
         assert body["ok"] is True
         advice = body["advice"]
         for key in (
-            "best_amount_out", "price_impact_bps", "amount_out_at_confidence",
-            "pending_volume_at_confidence", "confidence_bps", "required_slippage_bps",
-            "recommended_slippage_bps_revert_safe", "recommended_slippage_bps_mev_safe",
-            "recommended_slippage_bps", "status", "pokayoke", "options",
+            "best_amount_out",
+            "price_impact_bps",
+            "amount_out_at_confidence",
+            "pending_volume_at_confidence",
+            "confidence_bps",
+            "required_slippage_bps",
+            "recommended_slippage_bps_revert_safe",
+            "recommended_slippage_bps_mev_safe",
+            "recommended_slippage_bps",
+            "status",
+            "pokayoke",
+            "options",
         ):
             assert key in advice, f"missing legacy field {key!r}"
         assert isinstance(advice["options"], list)
@@ -289,9 +327,17 @@ def test_slippage_advice_with_user_slippage_includes_pokayoke() -> None:
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/slippage_advice",
-            {"reserve_in": 1_000_000, "reserve_out": 1_000_000, "amount_in": 10_000, "fee_bps": 30,
-             "user_slippage_bps": 50, "slippage_options_bps": [10, 50, 100]},
+            host,
+            port,
+            "/api/dex/slippage_advice",
+            {
+                "reserve_in": 1_000_000,
+                "reserve_out": 1_000_000,
+                "amount_in": 10_000,
+                "fee_bps": 30,
+                "user_slippage_bps": 50,
+                "slippage_options_bps": [10, 50, 100],
+            },
         )
         assert status == 200
         assert body["ok"] is True
@@ -307,10 +353,18 @@ def test_slippage_advice_with_inaction_regret_includes_proofux_payload() -> None
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/slippage_advice",
-            {"reserve_in": 1_000_000, "reserve_out": 1_000_000, "amount_in": 10_000, "fee_bps": 30,
-             "user_slippage_bps": 50, "slippage_options_bps": [10, 50, 100],
-             "inaction_regret_bps": 800},
+            host,
+            port,
+            "/api/dex/slippage_advice",
+            {
+                "reserve_in": 1_000_000,
+                "reserve_out": 1_000_000,
+                "amount_in": 10_000,
+                "fee_bps": 30,
+                "user_slippage_bps": 50,
+                "slippage_options_bps": [10, 50, 100],
+                "inaction_regret_bps": 800,
+            },
         )
         assert status == 200
         assert body["ok"] is True
@@ -327,15 +381,19 @@ def test_pokayoke_swap_suggest_byte_shape() -> None:
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/pokayoke_swap_suggest",
+            host,
+            port,
+            "/api/dex/pokayoke_swap_suggest",
             {"reserve_in": 1_000_000, "reserve_out": 1_000_000, "amount_in": 10_000, "fee_bps": 30},
         )
         assert status == 200
         assert body["ok"] is True
         s = body["suggestions"]
         expected_keys = {
-            "impact_lt_500_bps", "impact_lt_100_bps",
-            "required_slippage_le_user_bps", "required_slippage_le_max_option_bps",
+            "impact_lt_500_bps",
+            "impact_lt_100_bps",
+            "required_slippage_le_user_bps",
+            "required_slippage_le_max_option_bps",
         }
         assert set(s.keys()) == expected_keys
     finally:
@@ -346,19 +404,35 @@ def test_pokayoke_swap_suggest_heavy_byte_shape() -> None:
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/pokayoke_swap_suggest_heavy",
-            {"reserve_in": 1_000_000, "reserve_out": 1_000_000, "amount_in": 10_000, "fee_bps": 30,
-             "user_slippage_bps": 50, "slippage_options_bps": [10, 50, 100],
-             "max_attacker_amount_in": 2000, "max_evals": 8},
+            host,
+            port,
+            "/api/dex/pokayoke_swap_suggest_heavy",
+            {
+                "reserve_in": 1_000_000,
+                "reserve_out": 1_000_000,
+                "amount_in": 10_000,
+                "fee_bps": 30,
+                "user_slippage_bps": 50,
+                "slippage_options_bps": [10, 50, 100],
+                "max_attacker_amount_in": 2000,
+                "max_evals": 8,
+            },
         )
         assert status == 200
         assert body["ok"] is True
         assert isinstance(body["suggestions"], list)
         if body["suggestions"]:
             first = body["suggestions"][0]
-            for key in ("target_action", "suggested_amount_in", "status",
-                        "eval_count", "baseline_action", "suggested_action",
-                        "baseline_reasons", "suggested_reasons"):
+            for key in (
+                "target_action",
+                "suggested_amount_in",
+                "status",
+                "eval_count",
+                "baseline_action",
+                "suggested_action",
+                "baseline_reasons",
+                "suggested_reasons",
+            ):
                 assert key in first
     finally:
         _stop_test_server(httpd, t)
@@ -368,11 +442,17 @@ def test_pokayoke_swap_suggest_heavy_missing_user_slippage_returns_400() -> None
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/pokayoke_swap_suggest_heavy",
+            host,
+            port,
+            "/api/dex/pokayoke_swap_suggest_heavy",
             {"reserve_in": 1_000_000, "reserve_out": 1_000_000, "amount_in": 10_000, "fee_bps": 30},
         )
         assert status == 400
-        assert body == {"ok": False, "error": "pokayoke_swap_suggest_heavy_error", "details": "request failed"}
+        assert body == {
+            "ok": False,
+            "error": "pokayoke_swap_suggest_heavy_error",
+            "details": "request failed",
+        }
     finally:
         _stop_test_server(httpd, t)
 
@@ -381,7 +461,9 @@ def test_proof_mining_status_bad_claim_returns_400() -> None:
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/proof_mining_status",
+            host,
+            port,
+            "/api/dex/proof_mining_status",
             {"claim": "not_a_dict", "tx_sender_pubkey": "0x" + "11" * 48},
         )
         assert status == 400
@@ -394,7 +476,9 @@ def test_proof_mining_status_bad_chain_balances_returns_400() -> None:
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/proof_mining_status",
+            host,
+            port,
+            "/api/dex/proof_mining_status",
             {
                 "claim": {},
                 "chain_balances": "not_a_dict",
@@ -412,7 +496,9 @@ def test_proof_mining_status_missing_tx_sender_returns_400() -> None:
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/proof_mining_status",
+            host,
+            port,
+            "/api/dex/proof_mining_status",
             {"claim": {}, "chain_balances": {}, "tx_sender_pubkey": ""},
         )
         assert status == 400
@@ -425,7 +511,9 @@ def test_proof_mining_status_missing_expected_proposal_hash_returns_400() -> Non
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/proof_mining_status",
+            host,
+            port,
+            "/api/dex/proof_mining_status",
             {"claim": {}, "chain_balances": {}, "tx_sender_pubkey": "0x" + "11" * 48},
         )
         assert status == 400
@@ -450,7 +538,9 @@ def test_proof_mining_payout_template_loads_writer_snapshot_over_http(monkeypatc
             return None
 
         def read(self) -> bytes:
-            return json.dumps({"ok": True, "latest_height": 3, "snapshot": snapshot}).encode("utf-8")
+            return json.dumps({"ok": True, "latest_height": 3, "snapshot": snapshot}).encode(
+                "utf-8"
+            )
 
     def _fake_urlopen(req, timeout):  # noqa: ANN001
         assert timeout == 2.0
@@ -461,9 +551,13 @@ def test_proof_mining_payout_template_loads_writer_snapshot_over_http(monkeypatc
         pass
 
     monkeypatch.setenv("ZENO_LEDGER_WRITER_SNAPSHOT_URL", "http://writer.example/api/dex/snapshot")
-    monkeypatch.setattr("src.integration.dex_dispatch_proof_mining_handlers.urllib.request.urlopen", _fake_urlopen)
+    monkeypatch.setattr(
+        "src.integration.dex_dispatch_proof_mining_handlers.urllib.request.urlopen", _fake_urlopen
+    )
 
-    loaded = _load_latest_writer_snapshot_for_template(DexRequestContext(server=_Server(), cors_origin=None, raw_body=None))
+    loaded = _load_latest_writer_snapshot_for_template(
+        DexRequestContext(server=_Server(), cors_origin=None, raw_body=None)
+    )
 
     assert loaded == snapshot
 
@@ -492,7 +586,10 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
     monkeypatch.setenv("TAU_DEX_ALLOW_EXTERNAL_TOOLS", "1")
     monkeypatch.setenv("TAU_DEX_CONSENSUS_MODE", "0")
     monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP", "1")
-    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", '["python3","tools/proof_verifiers/recompute_batch_v4.py"]')
+    monkeypatch.setenv(
+        "TAU_DEX_PROOF_VERIFIER_CMD_JSON",
+        '["python3","tools/proof_verifiers/recompute_batch_v4.py"]',
+    )
 
     intent = {
         "module": "TauSwap",
@@ -551,7 +648,10 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
             explicit_timestamp_payload,
         )
         assert explicit_timestamp_status == 200
-        assert explicit_timestamp_body["tx"]["block_timestamp"] == 456
+        assert "block_timestamp" not in explicit_timestamp_body["tx"]
+        assert explicit_timestamp_body["execution_context_requirements"] == {
+            "block_time_seconds": 456
+        }
 
         missing_timestamp_payload = dict(explicit_timestamp_payload)
         missing_timestamp_payload.pop("block_timestamp")
@@ -566,15 +666,25 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
 
         tx = body["tx"]
         assert set(tx["operations"]) == {"5", "6", "7", "10"}
-        assert tx["block_timestamp"] == 123
+        assert "block_timestamp" not in tx
+        assert body["execution_context_requirements"] == {"block_time_seconds": 123}
         assert tx["tx_id"].startswith("proof-mining-payout:0x")
         assert "signature" in tx["operations"]["5"][0]
         assert "signature" not in tx["operations"]["6"]["proof"]["operations"]["5"][0]
         assert tx["operations"]["6"]["proof"]["scheme"] == "recompute_batch_v4"
-        assert tx["operations"]["10"]["claim"]["body"]["job_digest"].startswith("local-proof-mining:0x")
-        assert tx["operations"]["10"]["claim"]["body"]["round_id"].startswith("local-proof-mining-round:0x")
-        assert tx["operations"]["10"]["claim"]["body"]["proposal_hash"] == body["status_request"]["expected_proposal_hash"]
-        assert body["status_request"]["proof_mining_context"]["proof_scheme"] == "recompute_batch_v4"
+        assert tx["operations"]["10"]["claim"]["body"]["job_digest"].startswith(
+            "local-proof-mining:0x"
+        )
+        assert tx["operations"]["10"]["claim"]["body"]["round_id"].startswith(
+            "local-proof-mining-round:0x"
+        )
+        assert (
+            tx["operations"]["10"]["claim"]["body"]["proposal_hash"]
+            == body["status_request"]["expected_proposal_hash"]
+        )
+        assert (
+            body["status_request"]["proof_mining_context"]["proof_scheme"] == "recompute_batch_v4"
+        )
         assert body["status_request"]["chain_balances"] == {reward_pool: {reward_asset: 20}}
         assert body["status_request"]["reward_pool_pubkey"] == reward_pool
         assert "dex_state" not in json.loads(body["status_request"]["app_state_json"])
@@ -593,34 +703,81 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
         assert claim_body["status"]["claimable"] is True
         monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
 
-        from src.integration.tau_testnet_dex_plugin import apply_app_tx
+        from src.core.generic_token_authority import (
+            GenericTokenAssetAuthority,
+            GenericTokenAuthorityState,
+        )
+        from src.integration import tau_testnet_dex_plugin as plugin
+        from tests.consensus_clock import execution_clock_v1
+        from tests.integration.test_zeno_ledger_v0 import _body
+        from tools.zeno_ledger_run_local import _execute_tau_app_body_v0
 
+        registrations = tuple(
+            sorted(
+                (
+                    GenericTokenAssetAuthority(
+                        asset_id=asset0,
+                        total_supply_units=0,
+                        mint_authority_pubkey=sender,
+                    ),
+                    GenericTokenAssetAuthority(
+                        asset_id=asset1,
+                        total_supply_units=0,
+                        mint_authority_pubkey=sender,
+                    ),
+                    GenericTokenAssetAuthority(
+                        asset_id=reward_asset,
+                        total_supply_units=20,
+                        mint_authority_pubkey=None,
+                    ),
+                ),
+                key=lambda registration: registration.asset_id,
+            )
+        )
+        app_state_json, _genesis_hash = plugin.build_zusd_policy_bound_genesis_app_state(
+            config=plugin._build_zusd_monetary_config(chain_id=chain_id),
+            state=state,
+            generic_token_authority=GenericTokenAuthorityState(assets=registrations),
+        )
+        app_state = json.loads(app_state_json)
+        app_state["proof_mining"] = {
+            "schema": "zenodex/proof_mining_runtime_state/v1",
+            "reward_pool_pubkey": reward_pool,
+            "epoch": 1,
+            "base_reward": 8,
+            "initial_pool": 20,
+            "reward_pool_balance": 20,
+            "total_paid": 0,
+            "claimed_slots": [],
+        }
         app_state_json = json.dumps(
-            {
-                "schema": "zenodex/tau_app_state/v1",
-                "dex_state": snapshot_from_state(state).data,
-                "proof_mining": {
-                    "schema": "zenodex/proof_mining_runtime_state/v1",
-                    "reward_pool_pubkey": reward_pool,
-                    "epoch": 1,
-                    "base_reward": 8,
-                    "initial_pool": 20,
-                    "reward_pool_balance": 20,
-                    "total_paid": 0,
-                    "claimed_slots": [],
-                },
-            }
+            app_state,
+            sort_keys=True,
+            separators=(",", ":"),
         )
         claim = json.loads(json.dumps(tx["operations"]["10"]["claim"]))
-        ok, next_app_state, app_hash, _native, err = apply_app_tx(
+        (
+            _pre_state_root,
+            _post_state_root,
+            next_app_state,
+            _executed_body,
+            receipts,
+            _native_balance_effects,
+        ) = _execute_tau_app_body_v0(
             app_state_json=app_state_json,
             chain_balances={reward_pool: 20, sender: 0},
-            operations=json.loads(json.dumps(tx["operations"])),
-            tx_sender_pubkey=sender,
-            block_timestamp=int(tx["block_timestamp"]),
+            body=_body(txs=[json.loads(json.dumps(tx))]),
+            tau_chain_id=chain_id,
+            allow_missing_settlement=False,
+            require_intent_signatures=False,
+            enable_faucet=True,
+            block_time_seconds=int(intent["created_at"]),
+            execution_clock=execution_clock_v1(
+                chain_id=chain_id,
+                height=1,
+            ),
         )
-        assert ok is True, err
-        assert len(app_hash) in {64, 66}
+        assert receipts[0]["accepted"] is True
 
         first_state = json.loads(next_app_state)
         proposal_hash = claim["body"]["proposal_hash"]
@@ -631,12 +788,18 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
         assert len(claimed_slots) == 1
         assert claimed_slots[0]["proposal_hash"] == proposal_hash
 
-        replay_ok, replay_next_app_state, _replay_hash, _replay_native, replay_err = apply_app_tx(
-            app_state_json=next_app_state,
-            chain_balances={reward_pool: 20 - reward_amount, sender: reward_amount},
-            operations=json.loads(json.dumps(tx["operations"])),
-            tx_sender_pubkey=sender,
-            block_timestamp=int(tx["block_timestamp"]),
+        replay_ok, replay_next_app_state, _replay_hash, _replay_native, replay_err = (
+            plugin.apply_app_tx(
+                app_state_json=next_app_state,
+                chain_balances={reward_pool: 20 - reward_amount, sender: reward_amount},
+                operations=json.loads(json.dumps(tx["operations"])),
+                tx_sender_pubkey=sender,
+                block_timestamp=int(intent["created_at"]),
+                execution_clock=execution_clock_v1(
+                    chain_id=chain_id,
+                    height=1,
+                ),
+            )
         )
         assert replay_ok is False
         assert replay_err
@@ -677,7 +840,9 @@ def test_build_settlement_spot_price_attestation_rejects_bool_signer_privkey() -
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
-            host, port, "/api/dex/build_settlement_spot_price_attestation",
+            host,
+            port,
+            "/api/dex/build_settlement_spot_price_attestation",
             {"packet": {}, "signer_privkey": True},
         )
         assert status == 400
@@ -1038,7 +1203,10 @@ def test_default_error_code_derived_from_path_suffix() -> None:
     from src.integration.api_server_dex_dispatch import _default_error_code_for_path
 
     assert _default_error_code_for_path("/api/dex/impact_preview") == "impact_preview_error"
-    assert _default_error_code_for_path("/api/dex/__test_default_code__") == "__test_default_code___error"
+    assert (
+        _default_error_code_for_path("/api/dex/__test_default_code__")
+        == "__test_default_code___error"
+    )
 
 
 def test_unregistered_path_returns_not_found_after_dispatch_miss() -> None:
@@ -1064,8 +1232,12 @@ def test_dispatch_disabled_when_dex_api_disabled() -> None:
         # registry should never be consulted before that gate.
         conn = HTTPConnection(host, port, timeout=5.0)
         try:
-            conn.request("POST", "/api/dex/impact_preview",
-                         body=b"{}", headers={"Content-Type": "application/json"})
+            conn.request(
+                "POST",
+                "/api/dex/impact_preview",
+                body=b"{}",
+                headers={"Content-Type": "application/json"},
+            )
             resp = conn.getresponse()
             # When dex_api_enabled is False, _maybe_handle_dex_api returns
             # False so the request falls through the handler chain. The

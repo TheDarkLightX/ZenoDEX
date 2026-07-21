@@ -385,7 +385,6 @@ def _template_response(assembly: _TemplateAssembly, claim: Mapping[str, Any]) ->
     tx = {
         "tx_id": str(assembly.obj.get("tx_id") or f"proof-mining-payout:{claim['claim_hash']}"),
         "tx_sender_pubkey": assembly.sender,
-        "block_timestamp": assembly.tx_block_timestamp,
         "operations": {
             **({"7": {"mint": assembly.faucet_mint}} if assembly.faucet_mint else {}),
             "5": [assembly.template_intent.intent],
@@ -423,6 +422,9 @@ def _template_response(assembly: _TemplateAssembly, claim: Mapping[str, Any]) ->
     return {
         "ok": True,
         "tx": tx,
+        "execution_context_requirements": {
+            "block_time_seconds": assembly.tx_block_timestamp,
+        },
         "status_request": status_request,
         "reward_pool_pubkey": assembly.reward.pool_pubkey,
         "reward_asset_id": assembly.reward.asset_id,

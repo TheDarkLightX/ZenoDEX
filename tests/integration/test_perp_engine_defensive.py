@@ -51,7 +51,7 @@ def _empty_state() -> DexState:
 
 def _apply_perp_ops(state: DexState, op: dict[str, object], *, tx_sender_pubkey: str = _ALICE):
     return perp_engine.apply_perp_ops(
-        config=perp_engine.PerpEngineConfig(),
+        config=perp_engine.PerpEngineConfig(operator_pubkey=_ALICE),
         state=state,
         operations={perp_engine.PERP_OPS_KEY: [op]},
         tx_sender_pubkey=tx_sender_pubkey,

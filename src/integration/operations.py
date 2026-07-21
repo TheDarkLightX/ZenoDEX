@@ -5,7 +5,8 @@ Handles operation groups "2" (DEX intents) and "3" (DEX settlement).
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Optional
 
 from ..core.settlement import (
@@ -16,6 +17,7 @@ from ..core.settlement import (
     ReserveDelta,
     Settlement,
 )
+from ..state.canonical import canonical_hex_fixed_allow_0x
 from ..state.intents import Intent, IntentKind
 
 
@@ -86,6 +88,29 @@ class SettlementEnvelope:
     uniform_batch_optimality_certificate: Optional[Dict[str, Any]] = None
     uniform_batch_v2_bounded_grid: Optional[Dict[str, Any]] = None
     uniform_batch_v3_exact_out_grid: Optional[Dict[str, Any]] = None
+
+
+def canonicalize_authenticated_intent_for_execution(intent: Intent) -> Intent:
+    """Project an authenticated intent into canonical committed-state identities.
+
+    Callers must authenticate the original intent first. This function returns a
+    defensively owned value and never changes the fields that were signed.
+    """
+
+    sender_pubkey = canonical_hex_fixed_allow_0x(
+        intent.sender_pubkey,
+        nbytes=48,
+        name="authenticated intent sender_pubkey",
+    )
+    fields = deepcopy(intent.fields or {})
+    recipient = fields.get("recipient")
+    if recipient is not None:
+        fields["recipient"] = canonical_hex_fixed_allow_0x(
+            recipient,
+            nbytes=48,
+            name="authenticated intent recipient",
+        )
+    return replace(intent, sender_pubkey=sender_pubkey, fields=fields)
 
 
 def _require_list_or_empty(value: Any, *, name: str) -> list[Any]:

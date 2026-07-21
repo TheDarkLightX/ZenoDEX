@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import json
 
+from src.core.generic_token_authority import (
+    GenericTokenAssetAuthority,
+    GenericTokenAuthorityState,
+)
 from src.core.zusd import E8
 from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.perp_engine import PerpEngineConfig
 from src.integration.perps_wallet_api import _local_perps_oracle_bridge_fixture
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
-from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
+from src.integration.zusd_monetary_bridge import ZUSDMonetaryConfig
 from tools.zenodex_oracle_aggregate_adapter import (
     aggregate_adapter_content_hash,
     verify_aggregate_adapter_bridge,
@@ -23,6 +27,26 @@ ALICE = "0x" + bls_pubkey_hex_from_privkey(ALICE_PRIVKEY)
 BOB = "0x" + bls_pubkey_hex_from_privkey(BOB_PRIVKEY)
 OPERATOR = "0x" + bls_pubkey_hex_from_privkey(OPERATOR_PRIVKEY)
 ORACLE = "0x" + bls_pubkey_hex_from_privkey(ORACLE_PRIVKEY)
+QUOTE_ASSET = "0x" + "95" * 32
+
+
+def _policy_bound_genesis() -> str:
+    app_state_json, _app_hash = plugin.build_zusd_policy_bound_genesis_app_state(
+        config=ZUSDMonetaryConfig(
+            chain_id=CHAIN_ID,
+            oracle_pubkey=ORACLE,
+        ),
+        generic_token_authority=GenericTokenAuthorityState(
+            assets=(
+                GenericTokenAssetAuthority(
+                    asset_id=QUOTE_ASSET,
+                    total_supply_units=0,
+                    mint_authority_pubkey=OPERATOR,
+                ),
+            )
+        ),
+    )
+    return app_state_json
 
 
 def _signed_init_market(*, market_id: str, quote_asset: str, nonce_a: int, nonce_b: int, deadline: int = DEADLINE):
@@ -94,10 +118,11 @@ def _apply(app_state_json: str, *, operations, sender: str, block_timestamp: int
 
 def test_stream8_app_bridge_rejects_nonce_replay_without_side_effect(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    quote_asset = QUOTE_ASSET
+    genesis = _policy_bound_genesis()
 
     ok1, app_state_json1, _hash1, _patch1, err1 = _apply(
-        "",
+        genesis,
         operations={"8": [_signed_init_market(market_id="perp:ch2p:replay-a", quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
         sender=OPERATOR,
         block_timestamp=1,
@@ -117,10 +142,11 @@ def test_stream8_app_bridge_rejects_nonce_replay_without_side_effect(monkeypatch
 
 def test_stream8_rejects_batch_local_nonce_replay_without_first_market_side_effect(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    quote_asset = QUOTE_ASSET
+    genesis = _policy_bound_genesis()
 
     ok, app_state_json, _hash, _patch, err = _apply(
-        "",
+        genesis,
         operations={
             "8": [
                 _signed_init_market(
@@ -143,30 +169,32 @@ def test_stream8_rejects_batch_local_nonce_replay_without_first_market_side_effe
 
     assert ok is False
     assert err == "account_a signature invalid: nonce invalid"
-    assert app_state_json == ""
+    assert app_state_json == genesis
 
 
 def test_stream8_app_bridge_rejects_expired_signature_without_materializing_market(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    quote_asset = QUOTE_ASSET
+    genesis = _policy_bound_genesis()
 
     ok, app_state_json, _hash, _patch, err = _apply(
-        "",
+        genesis,
         operations={"8": [_signed_init_market(market_id="perp:ch2p:expired", quote_asset=quote_asset, nonce_a=1, nonce_b=1, deadline=1)]},
         sender=OPERATOR,
         block_timestamp=2,
     )
     assert ok is False
     assert err == "account_a signature invalid: signature expired (deadline)"
-    assert app_state_json == ""
+    assert app_state_json == genesis
 
 
 def test_cross_stream_zusd_then_bad_perps_is_atomic(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    genesis = _policy_bound_genesis()
 
     ok, app_state_json, _hash, _patch, err = _apply(
-        "",
+        genesis,
         operations={
             "11": [
                 {
@@ -193,18 +221,20 @@ def test_cross_stream_zusd_then_bad_perps_is_atomic(monkeypatch) -> None:
     )
     assert ok is False
     assert err == "unknown market_id"
-    assert app_state_json == ""
+    assert app_state_json == genesis
 
 
 def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    quote_asset = QUOTE_ASSET
     market_id = "perp:ch2p:oracle-adapter-required"
+    genesis = _policy_bound_genesis()
 
     ok1, app_state_json1, _hash1, _patch1, err1 = _apply(
-        "",
+        genesis,
         operations={"8": [_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
         sender=OPERATOR,
         block_timestamp=1,
@@ -222,19 +252,22 @@ def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatc
     assert app_state_json2 == app_state_json1
 
 
-def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_deposits(monkeypatch) -> None:
+def test_stream8_app_bridge_accepts_signed_position_pair_after_quote_collateral_deposits(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    quote_asset = QUOTE_ASSET
     market_id = "perp:ch2p:position"
+    genesis = _policy_bound_genesis()
 
     ok0, app_state_json0, _hash0, _patch0, err0 = _apply(
-        "",
+        genesis,
         operations={
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "mint",
                     "asset": quote_asset,
                     "to_pubkey": ALICE,
@@ -245,6 +278,7 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
                 },
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "mint",
                     "asset": quote_asset,
                     "to_pubkey": BOB,
@@ -317,17 +351,20 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
 
 def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    quote_asset = QUOTE_ASSET
     market_id = "perp:ch2p:position-out-of-order"
+    genesis = _policy_bound_genesis()
 
     ok0, app_state_json, _hash0, _patch0, err0 = _apply(
-        "",
+        genesis,
         operations={
             "9": [
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "mint",
                     "asset": quote_asset,
                     "to_pubkey": ALICE,
@@ -338,6 +375,7 @@ def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(
                 },
                 {
                     "module": "TauToken",
+                    "version": "0.1",
                     "action": "mint",
                     "asset": quote_asset,
                     "to_pubkey": BOB,
@@ -408,10 +446,10 @@ def test_stream8_rejects_stale_oracle_adapter_bridge_without_settlement_side_eff
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    quote_asset = QUOTE_ASSET
     market_id = "perp:ch2p:stale-oracle-bridge"
 
-    app_state_json = ""
+    app_state_json = _policy_bound_genesis()
     for op, sender, timestamp in (
         (_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1), OPERATOR, 1),
         ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}, OPERATOR, 2),

@@ -983,7 +983,11 @@ def _state_with_market_and_balance(*, quote_asset: str) -> DexState:
 
 def _apply_perps(state: DexState, ops: list[dict[str, object]], *, sender: str = OPERATOR) -> DexState:
     res = apply_perp_ops(
-        config=PerpEngineConfig(chain_id=CHAIN_ID, oracle_pubkey=ORACLE),
+        config=PerpEngineConfig(
+            chain_id=CHAIN_ID,
+            operator_pubkey=OPERATOR,
+            oracle_pubkey=ORACLE,
+        ),
         state=state,
         operations={"5": ops},
         tx_sender_pubkey=sender,

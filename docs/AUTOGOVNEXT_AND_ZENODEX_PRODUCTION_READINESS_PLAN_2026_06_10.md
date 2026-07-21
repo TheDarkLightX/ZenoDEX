@@ -790,10 +790,82 @@ auditor, live-wrapper, supervisor, and TEE/operator artifacts. The manifest
 builder recomputes lane hashes and sidecar-relative paths; it does not
 synthesize the external evidence.
 
+### Deterministic-By-Construction Parallel Execution Milestone
+
+Position this milestone after committed-state, signed-command, and accepted-
+effect transitive immutability close, currently tracked by PRs #459 and #460,
+and after execution-context/consensus binding is available. It must close
+before throughput scaling or production promotion can rely on parallel
+value-moving execution.
+
+Keep the sequential functional core as the normative executable reference.
+For every supported worker count and deterministic partition profile, require:
+
+```text
+ParallelStepV1(pre_state, command_batch, execution_context, worker_profile)
+  =
+SequentialStepV1(pre_state, command_batch, execution_context)
+```
+
+Equality covers:
+
+- accepted versus rejected outcome and canonical reject class;
+- post-state value and canonical state root;
+- canonical effect-plan bytes and effect-plan hash;
+- nonce, replay key, receipt, and outbox contents;
+- overflow, rounding, dust, fee, ordering, and claimant semantics.
+
+Construction rules:
+
+1. Bind every worker to the same immutable pre-state root, command-set root,
+   execution-context hash, policy hash, and module-version digest.
+2. Partition work by a canonical committed key or range. Host scheduling,
+   work stealing, completion order, thread count, and process layout cannot
+   change protocol observables.
+3. Permit workers to return data-only candidates. Workers cannot mutate shared
+   committed state or execute external effects.
+4. Use a fixed, versioned reduction tree when arithmetic is not proven
+   associative and commutative under the exact integer and rounding rules.
+5. Resolve duplicate keys, conflicting writes, and multiple rejections by a
+   canonical total order declared in the protocol.
+6. Join all worker outputs into one owned immutable post-state and effect plan.
+   Any worker failure, missing result, duplicate result, context mismatch, or
+   join violation rejects with no candidate state and no effects.
+7. Commit state, effects, replay identity, receipt, and outbox atomically using
+   compare-and-swap against the expected pre-state root.
+
+Adoption order:
+
+1. Parallelize proof generation and read-only validation first.
+2. Parallelize disjoint state-root and certificate lanes with fixed joins.
+3. Admit parallel value-moving transitions only after sequential/parallel
+   observational equivalence is a required release gate.
+
+Required evidence:
+
+- differential replay across worker counts `1, 2, 4, 8` and multiple host
+  schedules;
+- property and stateful tests for permutation, retry, crash, timeout, worker
+  loss, duplicate result, and rejected-transition no-op;
+- cross-platform determinism over Python/Rust and supported operating systems;
+- canonical state/effect/receipt golden vectors;
+- bounded ESSO, SMT, Tau, or Lean evidence for partition coverage, unique
+  ownership, fixed joins, and reduction arithmetic;
+- recursive-proof checks that every child binds the same block context, or an
+  exact ordered contiguous block range when aggregating across blocks;
+- benchmarks with committed resource limits. Performance measurements do not
+  promote safety or refinement claims.
+
+Progressive cooldown, exponential backoff, local clocks, random scheduling,
+and unordered reductions remain outside consensus semantics. Retry backoff may
+exist in the imperative shell, where it cannot alter accepted state or effects.
+
 Workstreams in dependency order:
 
 1. State root and canonical root:
    - complete canonical multi-lane root or JMT keystone;
+   - close transitive ownership of committed state, signed commands, and
+     accepted effects before parallel execution;
    - bind field-level encoding to live encoders;
    - prove membership and non-membership paths needed by escape and light
      clients.
@@ -801,29 +873,34 @@ Workstreams in dependency order:
    - prove RISC0 guests execute the live transition, not a parallel statement;
    - bind journals to canonical `post_state_root`;
    - add client refuse-by-default proof verification.
-3. Spot and settlement:
+3. Deterministic parallel execution:
+   - preserve the sequential functional core as the executable reference;
+   - implement canonical partition, fixed join, exact-no-op failure, and atomic
+     commit boundaries;
+   - gate every parallel profile on state, effect, receipt, and root equality.
+4. Spot and settlement:
    - finish exact-out settlement path and split-routing settlement binding;
    - keep direct pure-core helpers unexposed;
    - retain strong proof-carrying validation.
-4. Balances and nonces:
+5. Balances and nonces:
    - close proof-to-live-transition binding;
    - keep per-change proof receipts CI-gated;
    - bind replay authority to the live admission path.
-5. Perps and zUSD:
+6. Perps and zUSD:
    - close funding, liquidation, breaker, and wallet-state surfacing;
    - add guest-to-Python differentials for all value-moving guest actions;
    - require proof coverage for production profiles.
-6. Oracle:
+7. Oracle:
    - replace single-source trust with quorum, staleness bounds, divergence
      limits, and production evidence receipts;
    - add adversarial stale and divergent report tests.
-7. Runtime and UI:
+8. Runtime and UI:
    - remove timer-based finality;
    - poll receipt/finality endpoints;
    - remove or gate fake safety badges;
    - ensure production configs cannot expose fixture keys or unsigned mutation
      paths.
-8. Release evidence:
+9. Release evidence:
    - run full release gate from a clean commit;
    - produce two-machine and multi-validator evidence;
    - include Docker, Trivy, dependency audit, Rust parity, proof receipts,
@@ -846,10 +923,13 @@ pinned candidate commit:
    responses by default.
 7. State-root, balances, nonces, spot, perps, zUSD, oracle, and proof-market
    lanes have current evidence artifacts.
-8. `production_security_claim` flips only after the full evidence bundle passes
+8. Every production parallel-execution profile is observationally equal to the
+   sequential reference across supported worker counts and schedules, with
+   canonical joins and exact-no-op failure.
+9. `production_security_claim` flips only after the full evidence bundle passes
    and is reviewed.
-9. Full release gate passes without local-only hidden toolchain assumptions.
-10. Two independent nodes replay to the same root under realistic network
+10. Full release gate passes without local-only hidden toolchain assumptions.
+11. Two independent nodes replay to the same root under realistic network
     conditions.
 
 ## Initial Verification Commands

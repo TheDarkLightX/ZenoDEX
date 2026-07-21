@@ -10,6 +10,9 @@ import pytest
 from src.core.frontier_signature_root import FRONTIER_SIGNATURE_CERTIFICATES_EMPTY_ROOT_V1
 from src.core.risc0_tx_execution_order import (
     build_tx_execution_order_certificate_v1,
+    route_price_interval_authority_policy_root_hex_v1,
+    route_price_interval_authority_root_hex_v1,
+    route_price_intervals_root_hex_v1,
     tx_execution_order_commitment_hex_v1,
 )
 from src.integration.proof_toolchain_lock import proof_toolchain_lock_hash_v0
@@ -43,6 +46,9 @@ def _root(label: str) -> str:
 
 def _hex(label: str) -> str:
     return _root(label)[2:]
+
+
+EXECUTION_CONTEXT_HASH = _root("execution-context")
 
 
 def _tx_order_abi_positive_cases() -> list[dict[str, object]]:
@@ -206,8 +212,18 @@ def _proof(
         "accepted_receipts_root": _hex("accepted-receipts-root"),
         "pre_app_hash": "",
         "post_app_hash": post_app_hash,
+        "execution_context_hash": EXECUTION_CONTEXT_HASH[2:],
         "protocol_fee_share_bps": 0,
         "protocol_fee_recipient_pubkey": None,
+        "route_price_interval_count": 0,
+        "route_price_intervals_root": route_price_intervals_root_hex_v1([]),
+        "route_price_interval_authority_root": (
+            route_price_interval_authority_root_hex_v1(None)
+        ),
+        "route_price_interval_authority_policy_root": (
+            route_price_interval_authority_policy_root_hex_v1(None)
+        ),
+        "route_price_interval_max_width_bps": None,
     }
     if frontier_count is not None:
         meta["shared_pool_frontier_signature_certificate_count"] = frontier_count
@@ -240,12 +256,68 @@ def _write_json(path: Path, value: object) -> None:
 
 
 def _run_adapter(*args: str) -> subprocess.CompletedProcess[str]:
+    argv = list(args)
+    if "--expected-execution-context-hash" not in argv:
+        argv.extend(
+            ["--expected-execution-context-hash", EXECUTION_CONTEXT_HASH]
+        )
     return subprocess.run(
-        [sys.executable, str(ADAPTER_SCRIPT), *args],
+        [sys.executable, str(ADAPTER_SCRIPT), *argv],
         cwd=ROOT,
         text=True,
         capture_output=True,
     )
+
+
+def test_risc0_adapter_requires_independent_execution_context_argument(
+    tmp_path: Path,
+) -> None:
+    body = _body(1)
+    header = _header(body)
+    proof_path = tmp_path / "proof.json"
+    header_path = tmp_path / "header.json"
+    _write_json(proof_path, _proof(post_app_hash=str(header["app_hash"])[2:]))
+    _write_json(header_path, header)
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(ADAPTER_SCRIPT),
+            "--proof",
+            str(proof_path),
+            "--header",
+            str(header_path),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert proc.returncode == 2
+    assert "--expected-execution-context-hash" in proc.stderr
+
+
+def test_risc0_adapter_rejects_execution_context_substitution(
+    tmp_path: Path,
+) -> None:
+    body = _body(1)
+    header = _header(body)
+    proof_path = tmp_path / "proof.json"
+    header_path = tmp_path / "header.json"
+    _write_json(proof_path, _proof(post_app_hash=str(header["app_hash"])[2:]))
+    _write_json(header_path, header)
+
+    proc = _run_adapter(
+        "--proof",
+        str(proof_path),
+        "--header",
+        str(header_path),
+        "--expected-execution-context-hash",
+        _root("different-execution-context"),
+    )
+
+    assert proc.returncode == 1
+    assert "risc0 execution_context_hash mismatch" in proc.stdout
 
 
 def _verifier_script(path: Path, *, ok: bool) -> Path:
@@ -608,6 +680,7 @@ def test_risc0_adapter_binds_frontier_signature_meta(tmp_path: Path) -> None:
     assert isinstance(proof_meta, dict)
     expected_public_input = {
         "proof_type": frontier_a["proof_type"],
+        "execution_context_hash": EXECUTION_CONTEXT_HASH[2:],
         "state_hash": frontier_a["state_hash"],
         "txs_commitment": proof_meta["txs_commitment"],
         "tx_execution_order_commitment": proof_meta["tx_execution_order_commitment"],
@@ -620,6 +693,15 @@ def test_risc0_adapter_binds_frontier_signature_meta(tmp_path: Path) -> None:
         "post_app_hash": proof_meta["post_app_hash"],
         "protocol_fee_share_bps": 0,
         "protocol_fee_recipient_pubkey": None,
+        "route_price_interval_count": proof_meta["route_price_interval_count"],
+        "route_price_intervals_root": proof_meta["route_price_intervals_root"],
+        "route_price_interval_authority_root": (
+            proof_meta["route_price_interval_authority_root"]
+        ),
+        "route_price_interval_authority_policy_root": (
+            proof_meta["route_price_interval_authority_policy_root"]
+        ),
+        "route_price_interval_max_width_bps": None,
         "shared_pool_frontier_signature_certificate_count": 1,
         "shared_pool_frontier_signature_certificates_root": "aa" * 32,
     }
@@ -671,6 +753,7 @@ def test_risc0_adapter_consumes_python_order_certificate(tmp_path: Path) -> None
     assert isinstance(proof_meta, dict)
     expected_public_input = {
         "proof_type": proof["proof_type"],
+        "execution_context_hash": EXECUTION_CONTEXT_HASH[2:],
         "state_hash": proof["state_hash"],
         "txs_commitment": proof_meta["txs_commitment"],
         "tx_execution_order_commitment": certificate.tx_execution_order_commitment,
@@ -683,6 +766,15 @@ def test_risc0_adapter_consumes_python_order_certificate(tmp_path: Path) -> None
         "post_app_hash": proof_meta["post_app_hash"],
         "protocol_fee_share_bps": 0,
         "protocol_fee_recipient_pubkey": None,
+        "route_price_interval_count": proof_meta["route_price_interval_count"],
+        "route_price_intervals_root": proof_meta["route_price_intervals_root"],
+        "route_price_interval_authority_root": (
+            proof_meta["route_price_interval_authority_root"]
+        ),
+        "route_price_interval_authority_policy_root": (
+            proof_meta["route_price_interval_authority_policy_root"]
+        ),
+        "route_price_interval_max_width_bps": None,
         "shared_pool_frontier_signature_certificate_count": 0,
         "shared_pool_frontier_signature_certificates_root": (
             FRONTIER_SIGNATURE_CERTIFICATES_EMPTY_ROOT_V1[2:]
@@ -789,6 +881,7 @@ def test_risc0_adapter_accepts_body_order_commitment_abi_corpus(tmp_path: Path) 
         assert isinstance(proof_meta, dict)
         expected_public_input = {
             "proof_type": proof["proof_type"],
+            "execution_context_hash": EXECUTION_CONTEXT_HASH[2:],
             "state_hash": proof["state_hash"],
             "txs_commitment": proof_meta["txs_commitment"],
             "tx_execution_order_commitment": commitment,
@@ -801,6 +894,19 @@ def test_risc0_adapter_accepts_body_order_commitment_abi_corpus(tmp_path: Path) 
             "post_app_hash": proof_meta["post_app_hash"],
             "protocol_fee_share_bps": 0,
             "protocol_fee_recipient_pubkey": None,
+            "route_price_interval_count": proof_meta[
+                "route_price_interval_count"
+            ],
+            "route_price_intervals_root": proof_meta[
+                "route_price_intervals_root"
+            ],
+            "route_price_interval_authority_root": proof_meta[
+                "route_price_interval_authority_root"
+            ],
+            "route_price_interval_authority_policy_root": proof_meta[
+                "route_price_interval_authority_policy_root"
+            ],
+            "route_price_interval_max_width_bps": None,
             "shared_pool_frontier_signature_certificate_count": 0,
             "shared_pool_frontier_signature_certificates_root": (
                 FRONTIER_SIGNATURE_CERTIFICATES_EMPTY_ROOT_V1[2:]

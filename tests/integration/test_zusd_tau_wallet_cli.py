@@ -64,7 +64,7 @@ def test_zusd_tau_wallet_cli_transfer_roundtrip(tmp_path: Path) -> None:
     assert persisted["asset_id"] == report["asset_id"]
 
 
-def test_zusd_tau_wallet_cli_mint_roundtrip(tmp_path: Path) -> None:
+def test_zusd_tau_wallet_cli_rejects_generic_canonical_mint() -> None:
     operator = "0x" + bls_pubkey_hex_from_privkey(53)
     recipient = "0x" + bls_pubkey_hex_from_privkey(54)
 
@@ -96,11 +96,10 @@ def test_zusd_tau_wallet_cli_mint_roundtrip(tmp_path: Path) -> None:
         text=True,
     )
 
-    assert proc.returncode == 0, proc.stderr
-    report = json.loads(proc.stdout)
-    assert report["action"] == "mint"
-    assert report["recipient_balance_after"] == 15
-    assert report["supply_after"] == 105
+    assert proc.returncode == 1
+    report = json.loads(proc.stderr)
+    assert report["ok"] is False
+    assert "canonical_zusd_mint_requires_monetary_authority" in report["error"]
 
 
 def test_zusd_tau_wallet_cli_signer_mismatch_fails() -> None:

@@ -60,7 +60,10 @@ def test_apply_app_tx_rejects_wrapper_schema_drift_and_preserves_previous_blob(m
     assert app_state_json == bad_state
     assert app_hash_hex == ""
     assert balances_patch is None
-    assert err == "invalid app_state snapshot: unsupported app_state schema: 'zenodex/tau_app_state/v2'"
+    assert err == (
+        "invalid app_state snapshot: app_state schema/version mismatch: "
+        "expected 'zenodex/tau_app_state/v1' for version 1"
+    )
 
 
 def test_apply_app_tx_rejects_wrapper_version_drift_and_preserves_previous_blob(monkeypatch) -> None:
@@ -79,7 +82,10 @@ def test_apply_app_tx_rejects_wrapper_version_drift_and_preserves_previous_blob(
     assert app_state_json == bad_state
     assert app_hash_hex == ""
     assert balances_patch is None
-    assert err == "invalid app_state snapshot: unsupported app_state version: 2"
+    assert err == (
+        "invalid app_state snapshot: app_state schema/version mismatch: "
+        "expected 'zenodex/tau_app_state/v2' for version 2"
+    )
 
 
 def test_apply_app_tx_rejects_wrapper_like_payload_missing_schema(monkeypatch) -> None:
@@ -105,7 +111,10 @@ def test_apply_app_tx_rejects_wrapper_like_payload_missing_schema(monkeypatch) -
     assert app_state_json == bad_state
     assert app_hash_hex == ""
     assert balances_patch is None
-    assert err == "invalid app_state snapshot: unsupported app_state schema: None"
+    assert err == (
+        "invalid app_state snapshot: app_state schema/version mismatch: "
+        "expected 'zenodex/tau_app_state/v1' for version 1"
+    )
 
 
 def test_apply_app_tx_rejects_oversized_app_state_json_before_parse(monkeypatch) -> None:

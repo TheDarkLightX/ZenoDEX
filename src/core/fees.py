@@ -9,32 +9,33 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 BPS_DENOM = 10_000
+FEE_SPLIT_LANE_COUNT = 3
+MAX_FEE_SPLIT_DUST = FEE_SPLIT_LANE_COUNT - 1
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FeeSplitParams:
     buyback_bps: int
     treasury_bps: int
     rewards_bps: int
 
     def __post_init__(self) -> None:
-        for name, v in (
+        for name, value in (
             ("buyback_bps", self.buyback_bps),
             ("treasury_bps", self.treasury_bps),
             ("rewards_bps", self.rewards_bps),
         ):
-            if not isinstance(v, int) or isinstance(v, bool):
+            if type(value) is not int:
                 raise TypeError(f"{name} must be an int")
-            if not (0 <= v <= BPS_DENOM):
-                raise ValueError(f"{name} must be in [0, {BPS_DENOM}]: {v}")
+            if not 0 <= value <= BPS_DENOM:
+                raise ValueError(f"{name} must be in [0, {BPS_DENOM}]: {value}")
         total = self.buyback_bps + self.treasury_bps + self.rewards_bps
         if total != BPS_DENOM:
             raise ValueError(f"bps must sum to {BPS_DENOM}, got {total}")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FeeSplitResult:
     buyback_amount: int
     treasury_amount: int
@@ -42,43 +43,58 @@ class FeeSplitResult:
     dust_carried: int
 
     def __post_init__(self) -> None:
-        for name, v in (
+        for name, value in (
             ("buyback_amount", self.buyback_amount),
             ("treasury_amount", self.treasury_amount),
             ("rewards_amount", self.rewards_amount),
             ("dust_carried", self.dust_carried),
         ):
-            if not isinstance(v, int) or isinstance(v, bool):
+            if type(value) is not int:
                 raise TypeError(f"{name} must be an int")
-            if v < 0:
-                raise ValueError(f"{name} must be non-negative: {v}")
+            if value < 0:
+                raise ValueError(f"{name} must be non-negative: {value}")
+        if self.dust_carried > MAX_FEE_SPLIT_DUST:
+            raise ValueError(
+                "dust_carried exceeds the three-lane floor-rounding bound: "
+                f"{self.dust_carried} > {MAX_FEE_SPLIT_DUST}"
+            )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FeeAccumulatorState:
-    """Carries rounding dust in fee units (not scaled)."""
+    """Carries at most two whole fee atoms between three-lane splits."""
 
     dust: int = 0
 
     def __post_init__(self) -> None:
-        if not isinstance(self.dust, int) or isinstance(self.dust, bool):
+        if type(self.dust) is not int:
             raise TypeError("dust must be an int")
-        if self.dust < 0:
-            raise ValueError("dust must be non-negative")
+        if not 0 <= self.dust <= MAX_FEE_SPLIT_DUST:
+            raise ValueError(
+                "dust must be non-negative and in the inductive three-lane bound "
+                f"[0, {MAX_FEE_SPLIT_DUST}]"
+            )
+
+
+_EMPTY_FEE_ACCUMULATOR_STATE = FeeAccumulatorState()
 
 
 def split_fee_with_dust_carry(
     fee_amount: int,
     params: FeeSplitParams,
-    state: FeeAccumulatorState = FeeAccumulatorState(),
+    state: FeeAccumulatorState = _EMPTY_FEE_ACCUMULATOR_STATE,
 ) -> tuple[FeeSplitResult, FeeAccumulatorState]:
-    """
-    Split `fee_amount` across (buyback, treasury, rewards) with deterministic floor rounding.
+    """Split one fee and carry the bounded floor-rounding remainder.
 
-    Remainders are carried in `state.dust` and added to the next split.
+    Exact core types are required so a caller cannot substitute behavior-changing
+    subclasses or look-alike objects at the committed arithmetic boundary.
     """
-    if not isinstance(fee_amount, int) or isinstance(fee_amount, bool) or fee_amount < 0:
+    if type(fee_amount) is not int or fee_amount < 0:
         raise ValueError(f"fee_amount must be a non-negative int, got {fee_amount}")
+    if type(params) is not FeeSplitParams:
+        raise TypeError("params must be an exact FeeSplitParams")
+    if type(state) is not FeeAccumulatorState:
+        raise TypeError("state must be an exact FeeAccumulatorState")
 
     total = fee_amount + state.dust
     buyback = (total * params.buyback_bps) // BPS_DENOM
@@ -88,14 +104,13 @@ def split_fee_with_dust_carry(
     if distributed > total:
         raise AssertionError("fee split over-distributed")
     dust = total - distributed
+    if dust > MAX_FEE_SPLIT_DUST:
+        raise AssertionError("three-lane floor-rounding dust bound violated")
 
-    return (
-        FeeSplitResult(
-            buyback_amount=buyback,
-            treasury_amount=treasury,
-            rewards_amount=rewards,
-            dust_carried=dust,
-        ),
-        FeeAccumulatorState(dust=dust),
+    result = FeeSplitResult(
+        buyback_amount=buyback,
+        treasury_amount=treasury,
+        rewards_amount=rewards,
+        dust_carried=dust,
     )
-
+    return result, FeeAccumulatorState(dust=dust)

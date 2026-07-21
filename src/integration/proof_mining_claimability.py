@@ -19,8 +19,10 @@ from .proof_mining_runtime import (
     initialize_proof_mining_runtime_state,
     proof_mining_runtime_state_from_obj,
 )
+from .tau_native_identity import TauChainKeyIndex
 
-_APP_STATE_SCHEMA = "zenodex/tau_app_state/v1"
+_APP_STATE_SCHEMA_V1 = "zenodex/tau_app_state/v1"
+_APP_STATE_SCHEMA_V2 = "zenodex/tau_app_state/v2"
 
 
 @dataclass(frozen=True)
@@ -83,9 +85,16 @@ def _reward_pool_balance_from_chain(
     chain_balances: Mapping[str, Any],
     *,
     reward_pool_pubkey: str,
+    preferred_chain_key: str,
     reward_asset_id: str | None,
 ) -> int:
-    raw_balance = chain_balances.get(reward_pool_pubkey, 0)
+    key_index = TauChainKeyIndex.from_chain_keys(chain_balances.keys())
+    binding = key_index.binding_for(
+        reward_pool_pubkey,
+        preferred_chain_key=preferred_chain_key,
+        name="proof mining reward pool",
+    )
+    raw_balance = chain_balances.get(binding.chain_key, 0)
     if isinstance(raw_balance, Mapping):
         if reward_asset_id is None:
             raise ValueError("reward_asset_id is required when reward pool balance is asset-scoped")
@@ -97,7 +106,9 @@ def _reward_pool_balance_from_chain(
     return _require_balance_int(raw_balance, name="chain_balances[reward_pool_pubkey]")
 
 
-def _load_proof_mining_state_from_app_state(app_state_json: str) -> Optional[ProofMiningRuntimeState]:
+def _load_proof_mining_state_from_app_state(
+    app_state_json: str,
+) -> Optional[ProofMiningRuntimeState]:
     raw = (app_state_json or "").strip()
     if not raw:
         return None
@@ -107,12 +118,22 @@ def _load_proof_mining_state_from_app_state(app_state_json: str) -> Optional[Pro
         raise ValueError(f"invalid app_state_json: {exc}") from exc
     if not isinstance(obj, Mapping):
         raise ValueError("app_state_json must decode to an object")
-    if obj.get("schema") != _APP_STATE_SCHEMA:
+    schema = obj.get("schema")
+    version = obj.get("version")
+    if schema == _APP_STATE_SCHEMA_V1:
+        if version not in (None, 1):
+            return None
+    elif schema == _APP_STATE_SCHEMA_V2:
+        if version != 2 or not isinstance(obj.get("generic_token_authority"), Mapping):
+            return None
+    else:
         return None
     proof_obj = obj.get("proof_mining")
     if proof_obj is None:
         return None
-    return proof_mining_runtime_state_from_obj(_require_mapping(proof_obj, name="app_state.proof_mining"))
+    return proof_mining_runtime_state_from_obj(
+        _require_mapping(proof_obj, name="app_state.proof_mining")
+    )
 
 
 def _status_from_gate(
@@ -170,8 +191,10 @@ def evaluate_proof_mining_claimability(
         "sender_valid": False,
         "claim_valid": False,
         "winner_matches_sender": False,
+        "recipient_differs_from_reward_pool": False,
         "proposal_hash_matches_context": False,
         "verified_context_present": False,
+        "chain_balance_identity_unambiguous": False,
         "reward_pool_balance_non_negative": False,
         "runtime_state_present": False,
         "reward_pool_pubkey_matches_state": False,
@@ -188,6 +211,7 @@ def evaluate_proof_mining_claimability(
         gate = evaluate_proof_mining_claimability_gate(
             reward_pool_configured=False,
             winner_matches_sender=False,
+            recipient_differs_from_reward_pool=False,
             proposal_hash_matches_context=False,
             reward_pool_balance_non_negative=False,
             runtime_state_present=False,
@@ -233,12 +257,28 @@ def evaluate_proof_mining_claimability(
     reward_pool_after = int(claim["reward_pool_after"])
     winner_pubkey = _canonical_pubkey(claim["winner"].get("miner_id"), name="claim winner.miner_id")
     checks["winner_matches_sender"] = bool(winner_pubkey == sender)
+    checks["recipient_differs_from_reward_pool"] = bool(winner_pubkey != canonical_pool)
     checks["proposal_hash_matches_context"] = bool(str(expected_proposal_hash) == proposal_hash)
-    actual_pool_balance = _reward_pool_balance_from_chain(
-        chain_balances,
-        reward_pool_pubkey=canonical_pool,
-        reward_asset_id=reward_asset_id,
-    )
+    try:
+        actual_pool_balance = _reward_pool_balance_from_chain(
+            chain_balances,
+            reward_pool_pubkey=canonical_pool,
+            preferred_chain_key=reward_pool_pubkey,
+            reward_asset_id=reward_asset_id,
+        )
+    except (TypeError, ValueError) as exc:
+        return ProofMiningClaimabilityStatus(
+            enabled=True,
+            claimable=False,
+            error=str(exc),
+            reward_pool_pubkey=canonical_pool,
+            proposal_hash=proposal_hash,
+            reward_amount=None,
+            reward_pool_before=None,
+            reward_pool_after=None,
+            checks=checks,
+        )
+    checks["chain_balance_identity_unambiguous"] = True
     checks["reward_pool_balance_non_negative"] = bool(actual_pool_balance >= 0)
 
     runtime_state_present = False
@@ -249,7 +289,8 @@ def evaluate_proof_mining_claimability(
         runtime_state_present = True
         runtime_pubkey_matches_state = bool(str(runtime_state.reward_pool_pubkey) == canonical_pool)
         runtime_balance_matches_state = bool(
-            runtime_pubkey_matches_state and int(runtime_state.snapshot.reward_pool_balance) == actual_pool_balance
+            runtime_pubkey_matches_state
+            and int(runtime_state.snapshot.reward_pool_balance) == actual_pool_balance
         )
     checks["runtime_state_present"] = runtime_state_present
     checks["reward_pool_pubkey_matches_state"] = runtime_pubkey_matches_state
@@ -257,13 +298,16 @@ def evaluate_proof_mining_claimability(
 
     manager_ok = False
     manager_error = None
-    gate = None
     if (
         checks["winner_matches_sender"]
+        and checks["recipient_differs_from_reward_pool"]
         and checks["proposal_hash_matches_context"]
         and checks["verified_context_present"]
         and checks["reward_pool_balance_non_negative"]
-        and (not runtime_state_present or (runtime_pubkey_matches_state and runtime_balance_matches_state))
+        and (
+            not runtime_state_present
+            or (runtime_pubkey_matches_state and runtime_balance_matches_state)
+        )
     ):
         if runtime_state is None:
             runtime_state = initialize_proof_mining_runtime_state(
@@ -283,7 +327,9 @@ def evaluate_proof_mining_claimability(
             if manager_ok:
                 reward_pool_before = int(runtime_state.snapshot.reward_pool_balance)
                 reward_pool_after = int(next_state.snapshot.reward_pool_balance)
-                reward_amount = int(result.effects.get("reward_amount", reward_pool_before - reward_pool_after))
+                reward_amount = int(
+                    result.effects.get("reward_amount", reward_pool_before - reward_pool_after)
+                )
         except (TypeError, ValueError) as exc:
             manager_error = str(exc)
     elif (
@@ -295,6 +341,7 @@ def evaluate_proof_mining_claimability(
     gate = evaluate_proof_mining_claimability_gate(
         reward_pool_configured=checks["reward_pool_configured"],
         winner_matches_sender=checks["winner_matches_sender"],
+        recipient_differs_from_reward_pool=checks["recipient_differs_from_reward_pool"],
         proposal_hash_matches_context=checks["proposal_hash_matches_context"],
         reward_pool_balance_non_negative=checks["reward_pool_balance_non_negative"],
         runtime_state_present=runtime_state_present,

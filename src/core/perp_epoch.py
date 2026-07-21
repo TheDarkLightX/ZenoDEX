@@ -54,27 +54,52 @@ class PerpStepResult:
 
 def _model_path_v1() -> Path:
     # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v1.yaml
-    return Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "perp_epoch_isolated_v1.yaml")
+    return (
+        Path(__file__)
+        .resolve()
+        .parents[1]
+        .joinpath("kernels", "dex", "perp_epoch_isolated_v1.yaml")
+    )
 
 
 def _model_path_v1_1() -> Path:
     # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v1_1.yaml
-    return Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "perp_epoch_isolated_v1_1.yaml")
+    return (
+        Path(__file__)
+        .resolve()
+        .parents[1]
+        .joinpath("kernels", "dex", "perp_epoch_isolated_v1_1.yaml")
+    )
 
 
 def _model_path_v2() -> Path:
     # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v2.yaml
-    return Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "perp_epoch_isolated_v2.yaml")
+    return (
+        Path(__file__)
+        .resolve()
+        .parents[1]
+        .joinpath("kernels", "dex", "perp_epoch_isolated_v2.yaml")
+    )
 
 
 def _model_path_v3() -> Path:
     # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v3.yaml
-    return Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "perp_epoch_isolated_v3.yaml")
+    return (
+        Path(__file__)
+        .resolve()
+        .parents[1]
+        .joinpath("kernels", "dex", "perp_epoch_isolated_v3.yaml")
+    )
 
 
 def _model_path_v4() -> Path:
     # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v4.yaml
-    return Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "perp_epoch_isolated_v4.yaml")
+    return (
+        Path(__file__)
+        .resolve()
+        .parents[1]
+        .joinpath("kernels", "dex", "perp_epoch_isolated_v4.yaml")
+    )
 
 
 def _load_yaml_model(path: Path):
@@ -105,7 +130,9 @@ def _kernel_ctx_v1():
         from ..kernels.python.perp_epoch_isolated_v1_adapter import IR_HASH as expected_hash
 
         if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
+            raise RuntimeError(
+                f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}"
+            )
     except ImportError:
         # Best-effort only; runtime can still operate with the loaded IR.
         pass
@@ -167,7 +194,9 @@ def _kernel_ctx_v1_1():
         from ..kernels.python.perp_epoch_isolated_v1_1_adapter import IR_HASH as expected_hash
 
         if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
+            raise RuntimeError(
+                f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}"
+            )
     except ImportError:
         pass
 
@@ -214,7 +243,9 @@ def _kernel_ctx_v2():
         from ..kernels.python.perp_epoch_isolated_v2_adapter import IR_HASH as expected_hash
 
         if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
+            raise RuntimeError(
+                f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}"
+            )
     except ImportError:
         pass
 
@@ -261,7 +292,9 @@ def _kernel_ctx_v3():
         from ..kernels.python.perp_epoch_isolated_v3_adapter import IR_HASH as expected_hash
 
         if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
+            raise RuntimeError(
+                f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}"
+            )
     except ImportError:
         pass
 
@@ -308,7 +341,9 @@ def _kernel_ctx_v4():
         from ..kernels.python.perp_epoch_isolated_v4_adapter import IR_HASH as expected_hash
 
         if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
-            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
+            raise RuntimeError(
+                f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}"
+            )
     except ImportError:
         pass
 
@@ -344,26 +379,20 @@ def perp_epoch_isolated_v4_fee_pool_max_quote() -> int:
 # v2 native backend: uses hand-written src/core/perp_v2 (no external toolchain dependency)
 # ---------------------------------------------------------------------------
 
-_EPOCH_PHASE_STR_TO_INT: dict[str, int] = {
-    "Open": 0,
-    "PricePublished": 1,
-    "Settled": 2,
-}
-
 
 def _normalize_native_state_for_kernel_abi_v3(state: Mapping[str, Value]) -> dict[str, Value]:
-    """
-    Normalize native state dict to the v3 kernel ABI.
+    """Validate and own one canonical v3/v4 kernel state mapping.
 
-    v3 adds the `epoch_phase` state var, encoded as an int:
-      Open=0, PricePublished=1, Settled=2.
+    The canonical phase encoding is an exact integer: Open=0,
+    PricePublished=1, Settled=2. Compatibility aliases must be translated by a
+    non-authoritative boundary before entering this function.
     """
     out = dict(state)
     ep = out.get("epoch_phase")
-    if isinstance(ep, str):
-        mapped = _EPOCH_PHASE_STR_TO_INT.get(ep)
-        if mapped is not None:
-            out["epoch_phase"] = int(mapped)
+    if type(ep) is not int:
+        raise TypeError("epoch_phase must be an exact canonical int")
+    if ep not in (0, 1, 2):
+        raise ValueError("epoch_phase must be in canonical range [0,2]")
     return out
 
 
@@ -378,14 +407,14 @@ def _normalize_native_state_for_kernel_abi_v2(state: Mapping[str, Value]) -> dic
     return out
 
 
-def _infer_epoch_phase_for_native_input(state: Mapping[str, Value]) -> str:
+def _infer_epoch_phase_for_native_input(state: Mapping[str, Value]) -> int:
     """
     Best-effort phase reconstruction for v2-shaped states that omit epoch_phase.
     """
     now = state.get("now_epoch")
-    clearing_seen = bool(state.get("clearing_price_seen", False))
+    clearing_seen = state.get("clearing_price_seen", False) is True
     clearing_epoch = state.get("clearing_price_epoch")
-    oracle_seen = bool(state.get("oracle_seen", False))
+    oracle_seen = state.get("oracle_seen", False) is True
     oracle_last = state.get("oracle_last_update_epoch")
     if (
         clearing_seen
@@ -401,9 +430,9 @@ def _infer_epoch_phase_for_native_input(state: Mapping[str, Value]) -> str:
             and not isinstance(oracle_last, bool)
             and int(oracle_last) == int(now)
         ):
-            return "Settled"
-        return "PricePublished"
-    return "Open"
+            return 2
+        return 1
+    return 0
 
 
 def _state_with_epoch_phase_for_native_input(state: Mapping[str, Value]) -> dict[str, Value]:
@@ -455,10 +484,12 @@ def perp_epoch_isolated_v3_to_v4_migrate(
     migration; v4 never fabricates collateral or silently liquidates them.
     """
     from .perp_v4 import state_from_dict, state_to_dict
-    from .perp_v4.invariants import check_all
+    from .perp_v4.invariants import check_all, inv_maint_margin_ok
 
     candidate = state_from_dict(_state_with_epoch_phase_for_native_input(state))
     violations = check_all(candidate)
+    if not violations and not inv_maint_margin_ok(candidate):
+        violations = ["inv_maint_margin_ok"]
     if violations:
         raise ValueError(f"v4_migration_invariant:{','.join(violations)}")
     return _normalize_native_state_for_kernel_abi_v3(state_to_dict(candidate))
@@ -478,6 +509,7 @@ def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
     from .perp_v2.types import Action, ActionParams
 
     _field_map: dict[Action, list[tuple[str, str]]] = {
+        Action.BOOTSTRAP_ORACLE: [("price_e8", "price_e8")],
         Action.ADVANCE_EPOCH: [("delta", "delta")],
         Action.PUBLISH_CLEARING_PRICE: [("price_e8", "price_e8")],
         Action.SETTLE_EPOCH: [],
@@ -490,12 +522,19 @@ def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
         Action.APPLY_INSURANCE_CLAIM: [("claim_amount", "claim_amount")],
         Action.PARTIAL_LIQUIDATE: [("fraction_bps", "fraction_bps")],
     }
-    _auth_actions = frozenset({
-        Action.DEPOSIT_COLLATERAL, Action.WITHDRAW_COLLATERAL,
-        Action.SET_POSITION, Action.CLEAR_BREAKER,
-        Action.APPLY_FUNDING, Action.APPLY_INSURANCE_CLAIM,
-        Action.PARTIAL_LIQUIDATE,
-    })
+    _auth_actions = frozenset(
+        {
+            Action.BOOTSTRAP_ORACLE,
+            Action.PUBLISH_CLEARING_PRICE,
+            Action.DEPOSIT_COLLATERAL,
+            Action.WITHDRAW_COLLATERAL,
+            Action.SET_POSITION,
+            Action.CLEAR_BREAKER,
+            Action.APPLY_FUNDING,
+            Action.APPLY_INSURANCE_CLAIM,
+            Action.PARTIAL_LIQUIDATE,
+        }
+    )
 
     p = dict(params or {})
     act = Action(action)
@@ -583,7 +622,8 @@ def perp_epoch_isolated_v3_native_apply(
     *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
 ) -> PerpStepResult:
     # Same hand-written perp_v2 implementation, but normalized to the v3 ABI.
-    from .perp_v2 import step
+    from .perp_v2 import Action, step
+    from .perp_v2.math import is_settle_oracle_usable
     from .perp_v2.state import state_from_dict, state_to_dict
 
     def _code_from_rejection(reason: str) -> str | None:
@@ -612,6 +652,18 @@ def perp_epoch_isolated_v3_native_apply(
             else:
                 code = "ParamType"
         return PerpStepResult(ok=False, error=str(exc), code=code)
+
+    # The v3 specification strengthens settlement admission beyond legacy v2.
+    # Keep that versioned rule at this compatibility boundary before reusing
+    # the v2 transition engine.
+    if action_params.action is Action.SETTLE_EPOCH and not is_settle_oracle_usable(
+        perp_state.now_epoch,
+        perp_state.oracle_last_update_epoch,
+        perp_state.max_oracle_staleness_epochs,
+        perp_state.oracle_seen,
+        perp_state.index_price_e8,
+    ):
+        return PerpStepResult(ok=False, error="guard", code="GuardFalse")
 
     result = step(perp_state, action_params)
     if not result.accepted:

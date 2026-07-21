@@ -45,6 +45,51 @@ def _ready_np_market(*, market_id: str, operator: str, quote_asset: str) -> DexS
     return res.state
 
 
+def test_tau_identity_profile_commits_canonical_np_join_account() -> None:
+    market_id = "perp:chnp:tau-identity-profile"
+    quote_asset = "0x" + "9b" * 32
+    operator = "00" * 48
+    account = "11" * 48
+    config = PerpEngineConfig(
+        operator_pubkey=operator,
+        canonicalize_authenticated_bls_principals=True,
+    )
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    initialized = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "init_market_np",
+                    quote_asset=quote_asset,
+                    index_price_e8=100_000_000,
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert initialized.ok is True, initialized.error
+    assert initialized.state is not None
+
+    joined = apply_perp_ops(
+        config=config,
+        state=initialized.state,
+        operations={"5": [_op(market_id, "join_market", account_pubkey=account)]},
+        tx_sender_pubkey=account,
+        block_timestamp=1,
+    )
+
+    assert joined.ok is True, joined.error
+    assert joined.state is not None and joined.state.perps is not None
+    market = joined.state.perps.markets[market_id]
+    assert tuple(account_state.pubkey for account_state in market.accounts) == (
+        "0x" + account,
+    )
+
+
 def test_clearinghouse_np_rejects_malformed_runtime_facts(monkeypatch) -> None:
     market_id = "perp:chnp:auth-malformed-runtime"
     quote_asset = "0x" + "9a" * 32
@@ -62,7 +107,7 @@ def test_clearinghouse_np_rejects_malformed_runtime_facts(monkeypatch) -> None:
                 action_kind="settle_epoch",
                 market_kind=perp_engine.PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
                 quote_asset=market.quote_asset,
-                state=dict(market.global_state),
+                state=market.global_state,
                 participant_pubkeys=participant_pubkeys,
             )
         )
