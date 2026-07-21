@@ -799,54 +799,73 @@ before throughput scaling or production promotion can rely on parallel
 value-moving execution.
 
 Keep the sequential functional core as the normative executable reference.
-For every supported worker count and deterministic partition profile, require:
+For every permitted, versioned logical partition profile `p`, require:
 
 ```text
-ParallelStepV1(pre_state, command_batch, execution_context, worker_profile)
+Encode(ParallelStepV1_p(pre_state, command_batch, execution_context))
   =
-SequentialStepV1(pre_state, command_batch, execution_context)
+Encode(SequentialStepV1(pre_state, command_batch, execution_context))
 ```
+
+Logical partition identifiers, membership, and the reduction tree are protocol
+data. Physical worker count and task scheduling remain implementation details.
 
 Equality covers:
 
 - accepted versus rejected outcome and canonical reject class;
+- deterministic rejection precedence;
 - post-state value and canonical state root;
 - canonical effect-plan bytes and effect-plan hash;
-- nonce, replay key, receipt, and outbox contents;
-- overflow, rounding, dust, fee, ordering, and claimant semantics.
+- nonce, replay key, receipt, event, and outbox contents;
+- overflow, division, rounding, dust, fee, limit, tie-break, and claimant
+  semantics;
+- canonical ordering of every encoded output.
 
 Construction rules:
 
-1. Bind every worker to the same immutable pre-state root, command-set root,
-   execution-context hash, policy hash, and module-version digest.
-2. Partition work by a canonical committed key or range. Host scheduling,
-   work stealing, completion order, thread count, and process layout cannot
-   change protocol observables.
+1. Bind every worker result to the same immutable pre-state root, command-set
+   root, execution-context hash, policy hash, module-version digest,
+   algorithm-version digest, and logical-partition version.
+2. Partition work by canonical committed identifiers and ranges. Host
+   scheduling, work stealing, completion order, thread count, and process
+   layout cannot change protocol observables.
 3. Permit workers to return data-only candidates. Workers cannot mutate shared
    committed state or execute external effects.
 4. Use a fixed, versioned reduction tree when arithmetic is not proven
    associative and commutative under the exact integer and rounding rules.
 5. Resolve duplicate keys, conflicting writes, and multiple rejections by a
-   canonical total order declared in the protocol.
-6. Join all worker outputs into one owned immutable post-state and effect plan.
-   Any worker failure, missing result, duplicate result, context mismatch, or
-   join violation rejects with no candidate state and no effects.
+   canonical total order over logical partition ID and local command index.
+   Completion time cannot select the visible failure.
+6. Validate every worker result and binding at the join before constructing
+   one owned immutable post-state and effect plan. Any worker failure, missing
+   result, duplicate result, context mismatch, or join violation rejects with
+   no candidate state and no effects.
 7. Commit state, effects, replay identity, receipt, and outbox atomically using
-   compare-and-swap against the expected pre-state root.
+   compare-and-swap against the expected pre-state root. A failed compare-and-
+   swap discards all candidates and either returns a canonical stale-root
+   rejection or recomputes from the newly authorized snapshot.
+8. Deliver external effects only from the committed outbox with canonical
+   replay keys and idempotent acknowledgement. Atomic state commit alone does
+   not establish exactly-once external delivery.
 
 Adoption order:
 
-1. Parallelize proof generation and read-only validation first.
+1. Parallelize proof generation and read-only validation first. Semantically
+   dependent commands retain explicit ordering; parallel validation followed
+   by a fixed-order join is the first value-path boundary.
 2. Parallelize disjoint state-root and certificate lanes with fixed joins.
 3. Admit parallel value-moving transitions only after sequential/parallel
    observational equivalence is a required release gate.
 
 Required evidence:
 
-- differential replay across worker counts `1, 2, 4, 8` and multiple host
-  schedules;
-- property and stateful tests for permutation, retry, crash, timeout, worker
-  loss, duplicate result, and rejected-transition no-op;
+- differential replay across permitted logical partition profiles, physical
+  worker counts `1, 2, 4, 8`, and multiple host schedules;
+- boundary tests for partition edges, conflicting accounts, pools, nonces, and
+  claims, integer limits, rounding, and residue allocation;
+- property and stateful tests for permutation, retry, crash, cancellation,
+  timeout, worker loss, duplicate result, stale-root races, and
+  rejected-transition no-op;
 - cross-platform determinism over Python/Rust and supported operating systems;
 - canonical state/effect/receipt golden vectors;
 - bounded ESSO, SMT, Tau, or Lean evidence for partition coverage, unique
@@ -859,6 +878,13 @@ Required evidence:
 Progressive cooldown, exponential backoff, local clocks, random scheduling,
 and unordered reductions remain outside consensus semantics. Retry backoff may
 exist in the imperative shell, where it cannot alter accepted state or effects.
+
+Research basis: [Freeze After Writing: Quasi-Deterministic Parallel Programming
+with LVars](https://scholarworks.iu.edu/dspace/items/060499ca-6a17-4626-b837-7738785832a3)
+shows a shared-state model whose runs produce the same answer or raise an error.
+It informs the same-answer-or-fail boundary above. It does not prove ZenoDEX
+partition coverage, runtime refinement, value conservation, or effect-delivery
+semantics.
 
 Workstreams in dependency order:
 
@@ -875,8 +901,8 @@ Workstreams in dependency order:
    - add client refuse-by-default proof verification.
 3. Deterministic parallel execution:
    - preserve the sequential functional core as the executable reference;
-   - implement canonical partition, fixed join, exact-no-op failure, and atomic
-     commit boundaries;
+   - implement versioned logical partitions, fixed joins, exact-no-op failure,
+     committed outbox delivery, and atomic commit boundaries;
    - gate every parallel profile on state, effect, receipt, and root equality.
 4. Spot and settlement:
    - finish exact-out settlement path and split-routing settlement binding;
@@ -923,9 +949,9 @@ pinned candidate commit:
    responses by default.
 7. State-root, balances, nonces, spot, perps, zUSD, oracle, and proof-market
    lanes have current evidence artifacts.
-8. Every production parallel-execution profile is observationally equal to the
-   sequential reference across supported worker counts and schedules, with
-   canonical joins and exact-no-op failure.
+8. Every permitted logical parallel-execution profile is observationally equal
+   to the sequential reference, and physical worker counts and schedules cannot
+   change its encoding, with canonical joins and exact-no-op failure.
 9. `production_security_claim` flips only after the full evidence bundle passes
    and is reviewed.
 10. Full release gate passes without local-only hidden toolchain assumptions.
