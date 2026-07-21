@@ -2,16 +2,15 @@
 
 The historical ``src.core.vault`` module is an aggregate bounded reference model.
 It has no claimant identity and therefore cannot safely authorize multi-user
-reward claims. This module represents the production claimant relation directly:
+reward claims. This module represents the claimant relation directly:
 
 * every account has active and pending shares, reward debt, claimable rewards,
   and an exact replay nonce;
 * reward funding has its own exact replay nonce;
-* staking after an accrual snapshots the current accumulator and cannot capture
-  historical rewards;
+* activation snapshots the current accumulator, preventing historical capture;
 * unstaking settles the claimant first and preserves earned rewards;
 * claims update only the named claimant and emit an immutable transfer plan;
-* rounding and no-staker deposits remain explicit protocol residue;
+* rounding and no-staker deposits remain explicit residue;
 * every rejected command is an exact no-state/no-effect result.
 
 This module performs no I/O, authentication, clock access, persistence, or token
@@ -26,12 +25,13 @@ from typing import Final, Literal, TypeAlias
 
 ACC_SCALE: Final = 10**18
 MAX_U256: Final = (1 << 256) - 1
+MAX_U512: Final = (1 << 512) - 1
 MAX_ACCOUNTS: Final = 100_000
 MAX_CLAIMANT_BYTES: Final = 512
 MAX_EFFECT_TRANSFERS: Final = 8
 
 
-def _require_u256(value: int, *, name: str) -> int:
+def _u256(value: int, *, name: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool):
         raise TypeError(f"{name} must be an int")
     if value < 0 or value > MAX_U256:
@@ -39,8 +39,15 @@ def _require_u256(value: int, *, name: str) -> int:
     return int(value)
 
 
-def _checked_add(left: int, right: int, *, name: str) -> int:
-    result = _require_u256(left, name=f"{name}.left") + _require_u256(
+def _positive(value: int, *, name: str) -> int:
+    value = _u256(value, name=name)
+    if value == 0:
+        raise ValueError(f"{name} must be positive")
+    return value
+
+
+def _add(left: int, right: int, *, name: str) -> int:
+    result = _u256(left, name=f"{name}.left") + _u256(
         right,
         name=f"{name}.right",
     )
@@ -49,23 +56,20 @@ def _checked_add(left: int, right: int, *, name: str) -> int:
     return result
 
 
-def _checked_mul(left: int, right: int, *, name: str) -> int:
-    left = _require_u256(left, name=f"{name}.left")
-    right = _require_u256(right, name=f"{name}.right")
-    result = left * right
+def _mul_div(left: int, right: int, denominator: int, *, name: str) -> int:
+    left = _u256(left, name=f"{name}.left")
+    right = _u256(right, name=f"{name}.right")
+    denominator = _positive(denominator, name=f"{name}.denominator")
+    product = left * right
+    if product > MAX_U512:
+        raise OverflowError(f"{name} product overflow")
+    result = product // denominator
     if result > MAX_U256:
-        raise OverflowError(f"{name} overflow")
+        raise OverflowError(f"{name} quotient overflow")
     return result
 
 
-def _require_positive(value: int, *, name: str) -> int:
-    value = _require_u256(value, name=name)
-    if value == 0:
-        raise ValueError(f"{name} must be positive")
-    return value
-
-
-def _require_claimant(value: str, *, name: str = "claimant") -> str:
+def _claimant(value: str, *, name: str = "claimant") -> str:
     if not isinstance(value, str):
         raise TypeError(f"{name} must be a string")
     if not value or len(value.encode("utf-8")) > MAX_CLAIMANT_BYTES:
@@ -75,12 +79,21 @@ def _require_claimant(value: str, *, name: str = "claimant") -> str:
     return value
 
 
-def _require_next_nonce(observed: int, previous: int, *, name: str) -> int:
-    observed = _require_u256(observed, name=name)
-    previous = _require_u256(previous, name=f"previous_{name}")
+def _next_nonce(observed: int, previous: int, *, name: str) -> int:
+    observed = _u256(observed, name=name)
+    previous = _u256(previous, name=f"previous_{name}")
     if previous == MAX_U256 or observed != previous + 1:
         raise ValueError(f"{name} must equal previous nonce + 1")
     return observed
+
+
+def _gross(active_shares: int, accumulator: int) -> int:
+    return _mul_div(
+        active_shares,
+        accumulator,
+        ACC_SCALE,
+        name="gross_reward",
+    )
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -95,7 +108,7 @@ class VaultAccount:
     last_nonce: int = 0
 
     def __post_init__(self) -> None:
-        _require_claimant(self.claimant)
+        _claimant(self.claimant)
         for name in (
             "active_shares",
             "pending_shares",
@@ -103,7 +116,32 @@ class VaultAccount:
             "claimable",
             "last_nonce",
         ):
-            _require_u256(getattr(self, name), name=f"account.{name}")
+            _u256(getattr(self, name), name=f"account.{name}")
+
+
+def _account_owned(account: VaultAccount, accumulator: int) -> int:
+    gross = _gross(account.active_shares, accumulator)
+    if account.reward_debt > gross:
+        raise ValueError("account reward_debt exceeds gross accrued reward")
+    return _add(
+        account.claimable,
+        gross - account.reward_debt,
+        name="account_owned_rewards",
+    )
+
+
+def _aggregate_owned(
+    accounts: tuple[VaultAccount, ...],
+    accumulator: int,
+) -> int:
+    total = 0
+    for account in accounts:
+        total = _add(
+            total,
+            _account_owned(account, accumulator),
+            name="aggregate_owned_rewards",
+        )
+    return total
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,12 +168,10 @@ class ClaimantVaultState:
             raise ValueError("too many vault accounts")
         if any(not isinstance(account, VaultAccount) for account in self.accounts):
             raise TypeError("accounts contain a non-VaultAccount")
-        canonical_accounts = tuple(sorted(self.accounts, key=lambda item: item.claimant))
-        if len({account.claimant for account in canonical_accounts}) != len(
-            canonical_accounts
-        ):
+        accounts = tuple(sorted(self.accounts, key=lambda item: item.claimant))
+        if len({account.claimant for account in accounts}) != len(accounts):
             raise ValueError("duplicate vault claimant")
-        object.__setattr__(self, "accounts", canonical_accounts)
+        object.__setattr__(self, "accounts", accounts)
 
         for name in (
             "acc_reward_per_share",
@@ -146,50 +182,33 @@ class ClaimantVaultState:
             "cumulative_drained",
             "last_funding_nonce",
         ):
-            _require_u256(getattr(self, name), name=name)
+            _u256(getattr(self, name), name=name)
 
         total_active = 0
         total_pending = 0
-        aggregate_owned = 0
-        for account in canonical_accounts:
-            total_active = _checked_add(
+        for account in accounts:
+            total_active = _add(
                 total_active,
                 account.active_shares,
                 name="total_active_shares",
             )
-            total_pending = _checked_add(
+            total_pending = _add(
                 total_pending,
                 account.pending_shares,
                 name="total_pending_shares",
             )
-            gross = _gross_reward(
-                account.active_shares,
-                self.acc_reward_per_share,
-            )
-            if account.reward_debt > gross:
-                raise ValueError("account reward_debt exceeds gross accrued reward")
-            unsettled = gross - account.reward_debt
-            account_owned = _checked_add(
-                account.claimable,
-                unsettled,
-                name="account_owned_rewards",
-            )
-            aggregate_owned = _checked_add(
-                aggregate_owned,
-                account_owned,
-                name="aggregate_owned_rewards",
-            )
+        aggregate_owned = _aggregate_owned(accounts, self.acc_reward_per_share)
 
-        if _checked_add(
+        if _add(
             aggregate_owned,
             self.explicit_residue,
             name="owned_plus_residue",
         ) != self.reward_balance:
             raise ValueError(
-                "reward_balance must equal aggregate claimant ownership plus explicit residue"
+                "reward_balance must equal claimant ownership plus explicit residue"
             )
-        if _checked_add(
-            _checked_add(
+        if _add(
+            _add(
                 self.reward_balance,
                 self.cumulative_claimed,
                 name="custody_plus_claimed",
@@ -206,7 +225,7 @@ class ClaimantVaultState:
         object.__setattr__(self, "aggregate_owned_rewards", aggregate_owned)
 
     def account(self, claimant: str) -> VaultAccount | None:
-        claimant = _require_claimant(claimant)
+        claimant = _claimant(claimant)
         for account in self.accounts:
             if account.claimant == claimant:
                 return account
@@ -219,8 +238,8 @@ class DepositRewards:
     funding_nonce: int
 
     def __post_init__(self) -> None:
-        _require_positive(self.amount, name="amount")
-        _require_u256(self.funding_nonce, name="funding_nonce")
+        _positive(self.amount, name="amount")
+        _u256(self.funding_nonce, name="funding_nonce")
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,9 +249,9 @@ class QueueStake:
     nonce: int
 
     def __post_init__(self) -> None:
-        _require_claimant(self.claimant)
-        _require_positive(self.shares, name="shares")
-        _require_u256(self.nonce, name="nonce")
+        _claimant(self.claimant)
+        _positive(self.shares, name="shares")
+        _u256(self.nonce, name="nonce")
 
 
 @dataclass(frozen=True, slots=True)
@@ -242,9 +261,9 @@ class ActivateStake:
     nonce: int
 
     def __post_init__(self) -> None:
-        _require_claimant(self.claimant)
-        _require_positive(self.shares, name="shares")
-        _require_u256(self.nonce, name="nonce")
+        _claimant(self.claimant)
+        _positive(self.shares, name="shares")
+        _u256(self.nonce, name="nonce")
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,9 +273,9 @@ class CancelPendingStake:
     nonce: int
 
     def __post_init__(self) -> None:
-        _require_claimant(self.claimant)
-        _require_positive(self.shares, name="shares")
-        _require_u256(self.nonce, name="nonce")
+        _claimant(self.claimant)
+        _positive(self.shares, name="shares")
+        _u256(self.nonce, name="nonce")
 
 
 @dataclass(frozen=True, slots=True)
@@ -266,9 +285,9 @@ class Unstake:
     nonce: int
 
     def __post_init__(self) -> None:
-        _require_claimant(self.claimant)
-        _require_positive(self.shares, name="shares")
-        _require_u256(self.nonce, name="nonce")
+        _claimant(self.claimant)
+        _positive(self.shares, name="shares")
+        _u256(self.nonce, name="nonce")
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,8 +296,8 @@ class ClaimRewards:
     nonce: int
 
     def __post_init__(self) -> None:
-        _require_claimant(self.claimant)
-        _require_u256(self.nonce, name="nonce")
+        _claimant(self.claimant)
+        _u256(self.nonce, name="nonce")
 
 
 @dataclass(frozen=True, slots=True)
@@ -287,8 +306,8 @@ class DrainResidue:
     funding_nonce: int
 
     def __post_init__(self) -> None:
-        _require_claimant(self.recipient, name="recipient")
-        _require_u256(self.funding_nonce, name="funding_nonce")
+        _claimant(self.recipient, name="recipient")
+        _u256(self.funding_nonce, name="funding_nonce")
 
 
 VaultCommand: TypeAlias = (
@@ -309,8 +328,8 @@ class RewardTransfer:
     reason: Literal["CLAIM", "RESIDUE_DRAIN"]
 
     def __post_init__(self) -> None:
-        _require_claimant(self.recipient, name="recipient")
-        _require_positive(self.amount, name="transfer amount")
+        _claimant(self.recipient, name="recipient")
+        _positive(self.amount, name="transfer amount")
 
 
 @dataclass(frozen=True, slots=True)
@@ -320,8 +339,8 @@ class ShareTransfer:
     direction: Literal["INTO_VAULT", "OUT_OF_VAULT"]
 
     def __post_init__(self) -> None:
-        _require_claimant(self.claimant)
-        _require_positive(self.shares, name="transfer shares")
+        _claimant(self.claimant)
+        _positive(self.shares, name="transfer shares")
 
 
 @dataclass(frozen=True, slots=True)
@@ -349,7 +368,7 @@ class ClaimantVaultEffects:
             for transfer in self.share_transfers
         ):
             raise TypeError("share_transfers contain an invalid value")
-        _require_u256(self.accumulator_delta, name="accumulator_delta")
+        _u256(self.accumulator_delta, name="accumulator_delta")
         if not isinstance(self.explicit_residue_delta, int) or isinstance(
             self.explicit_residue_delta,
             bool,
@@ -387,34 +406,23 @@ def init_claimant_vault_state() -> ClaimantVaultState:
     return ClaimantVaultState()
 
 
-def _gross_reward(active_shares: int, accumulator: int) -> int:
-    product = _checked_mul(
-        active_shares,
-        accumulator,
-        name="gross_reward_product",
-    )
-    return product // ACC_SCALE
-
-
-def _settled_account(
+def _settle(
     account: VaultAccount,
     *,
     accumulator: int,
     nonce: int | None = None,
 ) -> VaultAccount:
-    gross = _gross_reward(account.active_shares, accumulator)
+    gross = _gross(account.active_shares, accumulator)
     if account.reward_debt > gross:
         raise ValueError("account reward debt exceeds gross reward")
-    accrued = gross - account.reward_debt
-    claimable = _checked_add(
-        account.claimable,
-        accrued,
-        name="account_claimable",
-    )
     return replace(
         account,
         reward_debt=gross,
-        claimable=claimable,
+        claimable=_add(
+            account.claimable,
+            gross - account.reward_debt,
+            name="account_claimable",
+        ),
         last_nonce=account.last_nonce if nonce is None else nonce,
     )
 
@@ -422,26 +430,17 @@ def _settled_account(
 def _replace_account(
     state: ClaimantVaultState,
     account: VaultAccount,
-    **state_updates: int | tuple[VaultAccount, ...],
+    **updates: int,
 ) -> ClaimantVaultState:
-    accounts = [
+    accounts = tuple(
         existing
         for existing in state.accounts
         if existing.claimant != account.claimant
-    ]
-    accounts.append(account)
-    return replace(
-        state,
-        accounts=tuple(accounts),
-        **state_updates,
-    )
+    ) + (account,)
+    return replace(state, accounts=accounts, **updates)
 
 
-def _empty_account(claimant: str) -> VaultAccount:
-    return VaultAccount(claimant=_require_claimant(claimant))
-
-
-def _account_for_command(
+def _command_account(
     state: ClaimantVaultState,
     claimant: str,
     nonce: int,
@@ -452,98 +451,100 @@ def _account_for_command(
     if account is None:
         if not create:
             raise ValueError("unknown vault claimant")
-        account = _empty_account(claimant)
-    _require_next_nonce(nonce, account.last_nonce, name="nonce")
+        account = VaultAccount(claimant=_claimant(claimant))
+    _next_nonce(nonce, account.last_nonce, name="nonce")
     return account
 
 
-def _deposit_rewards(
+def _deposit(
     state: ClaimantVaultState,
     command: DepositRewards,
 ) -> ClaimantVaultStepResult:
-    funding_nonce = _require_next_nonce(
+    funding_nonce = _next_nonce(
         command.funding_nonce,
         state.last_funding_nonce,
         name="funding_nonce",
     )
-    amount = _require_positive(command.amount, name="amount")
-    pre_owned = state.aggregate_owned_rewards
+    amount = _positive(command.amount, name="amount")
     accumulator_delta = 0
     next_accumulator = state.acc_reward_per_share
     if state.total_active_shares > 0:
-        scaled = _checked_mul(amount, ACC_SCALE, name="deposit_scaled")
-        accumulator_delta = scaled // state.total_active_shares
-        next_accumulator = _checked_add(
-            next_accumulator,
+        accumulator_delta = _mul_div(
+            amount,
+            ACC_SCALE,
+            state.total_active_shares,
+            name="deposit_accumulator_delta",
+        )
+        next_accumulator = _add(
+            state.acc_reward_per_share,
             accumulator_delta,
             name="acc_reward_per_share",
         )
 
-    provisional = replace(
+    next_owned = _aggregate_owned(state.accounts, next_accumulator)
+    available_for_new_ownership = _add(
+        state.explicit_residue,
+        amount,
+        name="residue_plus_deposit",
+    )
+    newly_owned = next_owned - state.aggregate_owned_rewards
+    if newly_owned < 0 or newly_owned > available_for_new_ownership:
+        raise ValueError("deposit ownership delta exceeds available custody")
+    next_residue = available_for_new_ownership - newly_owned
+    residue_delta = next_residue - state.explicit_residue
+
+    next_state = replace(
         state,
         acc_reward_per_share=next_accumulator,
-        reward_balance=_checked_add(
+        reward_balance=_add(
             state.reward_balance,
             amount,
             name="reward_balance",
         ),
-        cumulative_deposited=_checked_add(
+        explicit_residue=next_residue,
+        cumulative_deposited=_add(
             state.cumulative_deposited,
             amount,
             name="cumulative_deposited",
         ),
-        explicit_residue=0,
         last_funding_nonce=funding_nonce,
-    )
-    newly_owned = provisional.aggregate_owned_rewards - pre_owned
-    if newly_owned < 0 or newly_owned > amount:
-        raise ValueError("deposit ownership delta out of range")
-    residue_increment = amount - newly_owned
-    next_state = replace(
-        provisional,
-        explicit_residue=_checked_add(
-            state.explicit_residue,
-            residue_increment,
-            name="explicit_residue",
-        ),
     )
     return ClaimantVaultStepResult(
         ok=True,
         state=next_state,
         effects=ClaimantVaultEffects(
             accumulator_delta=accumulator_delta,
-            explicit_residue_delta=residue_increment,
+            explicit_residue_delta=residue_delta,
         ),
     )
 
 
-def _queue_stake(
+def _queue(
     state: ClaimantVaultState,
     command: QueueStake,
 ) -> ClaimantVaultStepResult:
-    account = _account_for_command(
+    account = _command_account(
         state,
         command.claimant,
         command.nonce,
         create=True,
     )
-    settled = _settled_account(
+    settled = _settle(
         account,
         accumulator=state.acc_reward_per_share,
         nonce=command.nonce,
     )
     next_account = replace(
         settled,
-        pending_shares=_checked_add(
+        pending_shares=_add(
             settled.pending_shares,
             command.shares,
             name="pending_shares",
         ),
     )
-    next_state = _replace_account(state, next_account)
     return ClaimantVaultStepResult(
         ok=True,
-        state=next_state,
+        state=_replace_account(state, next_account),
         effects=ClaimantVaultEffects(
             share_transfers=(
                 ShareTransfer(
@@ -556,11 +557,11 @@ def _queue_stake(
     )
 
 
-def _activate_stake(
+def _activate(
     state: ClaimantVaultState,
     command: ActivateStake,
 ) -> ClaimantVaultStepResult:
-    account = _account_for_command(
+    account = _command_account(
         state,
         command.claimant,
         command.nonce,
@@ -568,12 +569,12 @@ def _activate_stake(
     )
     if command.shares > account.pending_shares:
         raise ValueError("activation exceeds pending shares")
-    settled = _settled_account(
+    settled = _settle(
         account,
         accumulator=state.acc_reward_per_share,
         nonce=command.nonce,
     )
-    next_active = _checked_add(
+    next_active = _add(
         settled.active_shares,
         command.shares,
         name="active_shares",
@@ -582,21 +583,20 @@ def _activate_stake(
         settled,
         active_shares=next_active,
         pending_shares=settled.pending_shares - command.shares,
-        reward_debt=_gross_reward(next_active, state.acc_reward_per_share),
+        reward_debt=_gross(next_active, state.acc_reward_per_share),
     )
-    next_state = _replace_account(state, next_account)
     return ClaimantVaultStepResult(
         ok=True,
-        state=next_state,
+        state=_replace_account(state, next_account),
         effects=ClaimantVaultEffects(),
     )
 
 
-def _cancel_pending_stake(
+def _cancel_pending(
     state: ClaimantVaultState,
     command: CancelPendingStake,
 ) -> ClaimantVaultStepResult:
-    account = _account_for_command(
+    account = _command_account(
         state,
         command.claimant,
         command.nonce,
@@ -604,7 +604,7 @@ def _cancel_pending_stake(
     )
     if command.shares > account.pending_shares:
         raise ValueError("cancellation exceeds pending shares")
-    settled = _settled_account(
+    settled = _settle(
         account,
         accumulator=state.acc_reward_per_share,
         nonce=command.nonce,
@@ -613,10 +613,9 @@ def _cancel_pending_stake(
         settled,
         pending_shares=settled.pending_shares - command.shares,
     )
-    next_state = _replace_account(state, next_account)
     return ClaimantVaultStepResult(
         ok=True,
-        state=next_state,
+        state=_replace_account(state, next_account),
         effects=ClaimantVaultEffects(
             share_transfers=(
                 ShareTransfer(
@@ -633,7 +632,7 @@ def _unstake(
     state: ClaimantVaultState,
     command: Unstake,
 ) -> ClaimantVaultStepResult:
-    account = _account_for_command(
+    account = _command_account(
         state,
         command.claimant,
         command.nonce,
@@ -641,7 +640,7 @@ def _unstake(
     )
     if command.shares > account.active_shares:
         raise ValueError("unstake exceeds active shares")
-    settled = _settled_account(
+    settled = _settle(
         account,
         accumulator=state.acc_reward_per_share,
         nonce=command.nonce,
@@ -650,12 +649,11 @@ def _unstake(
     next_account = replace(
         settled,
         active_shares=next_active,
-        reward_debt=_gross_reward(next_active, state.acc_reward_per_share),
+        reward_debt=_gross(next_active, state.acc_reward_per_share),
     )
-    next_state = _replace_account(state, next_account)
     return ClaimantVaultStepResult(
         ok=True,
-        state=next_state,
+        state=_replace_account(state, next_account),
         effects=ClaimantVaultEffects(
             share_transfers=(
                 ShareTransfer(
@@ -672,13 +670,13 @@ def _claim_rewards(
     state: ClaimantVaultState,
     command: ClaimRewards,
 ) -> ClaimantVaultStepResult:
-    account = _account_for_command(
+    account = _command_account(
         state,
         command.claimant,
         command.nonce,
         create=False,
     )
-    settled = _settled_account(
+    settled = _settle(
         account,
         accumulator=state.acc_reward_per_share,
         nonce=command.nonce,
@@ -693,7 +691,7 @@ def _claim_rewards(
         state,
         next_account,
         reward_balance=state.reward_balance - amount,
-        cumulative_claimed=_checked_add(
+        cumulative_claimed=_add(
             state.cumulative_claimed,
             amount,
             name="cumulative_claimed",
@@ -714,11 +712,11 @@ def _claim_rewards(
     )
 
 
-def _drain_residue(
+def _drain(
     state: ClaimantVaultState,
     command: DrainResidue,
 ) -> ClaimantVaultStepResult:
-    funding_nonce = _require_next_nonce(
+    funding_nonce = _next_nonce(
         command.funding_nonce,
         state.last_funding_nonce,
         name="funding_nonce",
@@ -734,7 +732,7 @@ def _drain_residue(
         state,
         reward_balance=state.reward_balance - amount,
         explicit_residue=0,
-        cumulative_drained=_checked_add(
+        cumulative_drained=_add(
             state.cumulative_drained,
             amount,
             name="cumulative_drained",
@@ -761,30 +759,25 @@ def step_claimant_vault(
     state: ClaimantVaultState,
     command: VaultCommand,
 ) -> ClaimantVaultStepResult:
-    """Apply one pure claimant-vault transition.
-
-    All validation exceptions are converted into typed no-state/no-effect
-    rejections. Implementation defects outside the declared validation surface
-    remain visible rather than being silently converted into protocol semantics.
-    """
+    """Apply one pure claimant-vault transition."""
 
     if not isinstance(state, ClaimantVaultState):
         raise TypeError("state must be ClaimantVaultState")
     try:
         if isinstance(command, DepositRewards):
-            return _deposit_rewards(state, command)
+            return _deposit(state, command)
         if isinstance(command, QueueStake):
-            return _queue_stake(state, command)
+            return _queue(state, command)
         if isinstance(command, ActivateStake):
-            return _activate_stake(state, command)
+            return _activate(state, command)
         if isinstance(command, CancelPendingStake):
-            return _cancel_pending_stake(state, command)
+            return _cancel_pending(state, command)
         if isinstance(command, Unstake):
             return _unstake(state, command)
         if isinstance(command, ClaimRewards):
             return _claim_rewards(state, command)
         if isinstance(command, DrainResidue):
-            return _drain_residue(state, command)
+            return _drain(state, command)
         raise TypeError("unsupported claimant-vault command type")
     except (TypeError, ValueError, OverflowError, ArithmeticError) as exc:
         return ClaimantVaultStepResult(ok=False, error=str(exc))
