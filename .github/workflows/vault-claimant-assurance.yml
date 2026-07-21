@@ -1,0 +1,49 @@
+name: vault-claimant-assurance
+
+on:
+  pull_request:
+    paths:
+      - "src/core/vault.py"
+      - "src/core/vault_claimant.py"
+      - "tests/core/test_vault_claimant.py"
+      - "tests/core/test_vault_legacy_authority.py"
+      - "docs/security/CLAIMANT_VAULT_AUTHORITY_BOUNDARY_V1.md"
+      - ".github/workflows/vault-claimant-assurance.yml"
+  push:
+    branches:
+      - agent/vault-claimant-accounting-v1-20260721
+
+permissions:
+  contents: read
+
+jobs:
+  assurance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Static checks
+        run: |
+          python -m ruff check \
+            src/core/vault.py \
+            src/core/vault_claimant.py \
+            tests/core/test_vault_claimant.py \
+            tests/core/test_vault_legacy_authority.py
+          python -m mypy src/core/vault_claimant.py
+          python -m py_compile src/core/vault.py src/core/vault_claimant.py
+
+      - name: Claimant ownership and legacy parity tests
+        run: |
+          python -m pytest -q \
+            tests/core/test_vault_claimant.py \
+            tests/core/test_vault_legacy_authority.py \
+            tests/core/test_vault_ref_parity.py
