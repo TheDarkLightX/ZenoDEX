@@ -19,7 +19,7 @@ immutable-snapshot, canonical-join, and atomic-commit obligations.
 
 namespace ZenoDEX.TheoremLedger
 
-/-- The theorem-ledger module is an import integration point, not a new axiom. -/
+/-- The module checks imports while introducing no additional trusted premise. -/
 theorem integration_surface_checked : True := by
   trivial
 
