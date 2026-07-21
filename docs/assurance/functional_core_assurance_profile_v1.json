@@ -1,0 +1,566 @@
+{
+  "schema": "zenodex.functional_core.assurance_profile.v1",
+  "profile_id": "zenodex-fcis-v1",
+  "version": 1,
+  "claim_status": "blocked",
+  "scope": {
+    "included": [
+      "canonical authority-state construction",
+      "authenticated command and intent admission",
+      "pure deterministic state transitions",
+      "economic invariant evaluation",
+      "accepted state, effect, and receipt construction",
+      "Python, Rust, Tau, Lean, and proof-kernel refinement relations",
+      "atomic persistence and idempotent effect delivery required by accepted transitions"
+    ],
+    "excluded": [
+      "oracle truth and external market correctness",
+      "cryptographic primitive soundness below the declared library boundary",
+      "compiler, operating-system, hardware, and theorem-checker defects outside the declared TCB",
+      "user-interface correctness except where UI bytes become authority-bearing protocol input",
+      "economic optimality claims not stated as obligations in this profile"
+    ]
+  },
+  "normative_transition": {
+    "signature": "Step(State, Command, Context) -> Reject(Error) | Accept(State, Effects, Receipt)",
+    "accepted": "An accepted result contains one immutable successor state, one immutable effect plan, and one immutable receipt derived from the same pre-state, command, context, and candidate transition.",
+    "rejected": "A rejected result contains no candidate state, no effects, no receipt, and authorizes no external mutation.",
+    "determinism": "For canonical equal State, Command, and Context values, every conforming implementation returns byte-identical acceptance, error, successor state, effects, receipt, and roots."
+  },
+  "trusted_computing_base": [
+    {
+      "id": "TCB-FORMAL-CHECKERS",
+      "component": "Pinned Tau, Lean, Kani, and proof-verifier toolchains",
+      "role": "Check the formal specifications, refinements, and proof artifacts used by release claims.",
+      "status": "provisional",
+      "evidence": [],
+      "blockers": [
+        "Pin every promoted checker and verifier by immutable digest.",
+        "Reproduce every promoted proof at the release commit."
+      ]
+    },
+    {
+      "id": "TCB-LANGUAGE-RUNTIMES",
+      "component": "Pinned Python interpreter plus Rust compiler and runtime",
+      "role": "Execute the authoritative and shadow transition implementations.",
+      "status": "provisional",
+      "evidence": [],
+      "blockers": [
+        "Bind release evidence to exact interpreter, compiler, target, and dependency hashes.",
+        "Eliminate implementation-defined behavior from authority paths."
+      ]
+    },
+    {
+      "id": "TCB-CRYPTOGRAPHY",
+      "component": "Battle-tested signature, hash, and proof-verification libraries",
+      "role": "Authenticate actors and bind commands, state, context, receipts, and evidence.",
+      "status": "provisional",
+      "evidence": [],
+      "blockers": [
+        "Inventory every primitive and library version used by an authority path.",
+        "Bind domain separation, key types, and verification policy into committed configuration."
+      ]
+    },
+    {
+      "id": "TCB-CANONICAL-CODEC",
+      "component": "Canonical state and wire encoders and decoders",
+      "role": "Provide a one-to-one relation between accepted authority bytes and semantic values.",
+      "status": "provisional",
+      "evidence": [
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#469",
+          "status": "pending",
+          "sha256": null
+        }
+      ],
+      "blockers": [
+        "Merge and promote strict canonical decoders across every authority-bearing ingress.",
+        "Prove Python and Rust byte-for-byte codec parity."
+      ]
+    },
+    {
+      "id": "TCB-PERSISTENCE",
+      "component": "Expected-root compare-and-swap store plus transactional outbox",
+      "role": "Commit the accepted state, effects, receipt, and delivery identity atomically.",
+      "status": "provisional",
+      "evidence": [],
+      "blockers": [
+        "Complete one atomic commit boundary for state, effects, receipts, and outbox entries.",
+        "Prove retry and crash recovery are idempotent."
+      ]
+    },
+    {
+      "id": "TCB-EVIDENCE-PIPELINE",
+      "component": "Hash-pinned CI, test, differential, proof, and release evidence pipeline",
+      "role": "Prevent stale, skipped, partial, or differently configured evidence from supporting a release claim.",
+      "status": "provisional",
+      "evidence": [],
+      "blockers": [
+        "Bind every evidence item to the exact source tree, toolchain, configuration, and executed command.",
+        "Reject missing, stale, unexecuted, or unhashed evidence."
+      ]
+    },
+    {
+      "id": "TCB-PLATFORM",
+      "component": "Operating system, container runtime, firmware, CPU, memory, and storage hardware",
+      "role": "Provide the physical execution substrate beneath the verified software boundary.",
+      "status": "provisional",
+      "evidence": [],
+      "blockers": [
+        "Define the production platform assumptions and fault model.",
+        "Add reproducible builds and deployment attestation for the accepted platform set."
+      ]
+    }
+  ],
+  "obligations": [
+    {
+      "id": "FCIS-STATE-OWNERSHIP",
+      "title": "Committed state transitively owns immutable values",
+      "category": "representation",
+      "statement": "No caller-owned alias, mutable child, or behavior-changing subclass can alter or reinterpret committed state after construction.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#459",
+          "status": "pending",
+          "sha256": null
+        }
+      ],
+      "blockers": [
+        "Merge exact-head evidence for STATE-ALIAS-001, 002, 003, 004, and 007.",
+        "Re-run the complete state inventory at the release commit."
+      ]
+    },
+    {
+      "id": "FCIS-INTENT-OWNERSHIP",
+      "title": "Authenticated intents own immutable meaning",
+      "category": "representation",
+      "statement": "Authentication, hashing, nonce admission, settlement, and execution consume one recursively immutable intent value.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#460",
+          "status": "pending",
+          "sha256": null
+        }
+      ],
+      "blockers": [
+        "Merge authenticated-intent snapshot ownership.",
+        "Inventory every authenticated message type, including non-DEX modules."
+      ]
+    },
+    {
+      "id": "FCIS-EFFECT-OWNERSHIP",
+      "title": "Accepted effects and receipts own immutable values",
+      "category": "representation",
+      "statement": "An accepted effect or receipt cannot change through a retained proposal, nested collection, event payload, or subclass after acceptance.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#460",
+          "status": "pending",
+          "sha256": null
+        },
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#468",
+          "status": "pending",
+          "sha256": null
+        }
+      ],
+      "blockers": [
+        "Merge accepted-effect and receipt snapshot ownership.",
+        "Inventory every effect and receipt type emitted by the system."
+      ]
+    },
+    {
+      "id": "FCIS-CANONICAL-WIRE-ENCODING",
+      "title": "Accepted authority bytes have one semantic spelling",
+      "category": "encoding",
+      "statement": "The accepted bytes-to-value relation is injective for every command, state, proof context, effect, receipt, and persistence record.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#469",
+          "status": "pending",
+          "sha256": null
+        }
+      ],
+      "blockers": [
+        "Merge strict canonical JSON and fixed-hex boundaries.",
+        "Mount equivalent strict decoding at every remaining authority ingress.",
+        "Prove cross-language codec parity."
+      ]
+    },
+    {
+      "id": "FCIS-TOTALITY",
+      "title": "The normative transition is total over canonical inputs",
+      "category": "semantics",
+      "statement": "Every canonical State, Command, and Context tuple returns one explicit accepted or rejected result without process escape, undefined behavior, or unclassified exception.",
+      "status": "open",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Define the complete canonical state, command, and context domains.",
+        "Prove or exhaustively cover every constructor and transition branch.",
+        "Eliminate broad exception swallowing from authority paths."
+      ]
+    },
+    {
+      "id": "FCIS-DETERMINISM",
+      "title": "Canonical equal inputs produce byte-identical results",
+      "category": "semantics",
+      "statement": "All conforming implementations return identical acceptance, rejection, state, effects, receipts, roots, and error codes for equal canonical inputs.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#463",
+          "status": "pending",
+          "sha256": null
+        }
+      ],
+      "blockers": [
+        "Complete deterministic time, ordering, arithmetic-width, and tie-break policies.",
+        "Run exhaustive differential replay across every promoted implementation."
+      ]
+    },
+    {
+      "id": "FCIS-REJECTION-ATOMICITY",
+      "title": "Rejected transitions authorize no state or effects",
+      "category": "semantics",
+      "statement": "Every rejection carries only a canonical error and leaves pre-state, balances, nonces, effects, receipts, and outbox unchanged.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Add no-state/no-effect assertions to every command and failure family.",
+        "Prove shell rollback and crash recovery preserve the same relation."
+      ]
+    },
+    {
+      "id": "FCIS-INVARIANT-PRESERVATION",
+      "title": "Accepted transitions preserve all hard invariants",
+      "category": "semantics",
+      "statement": "For every accepted transition, all representation, conservation, authority, range, and lifecycle invariants hold in the successor state and effect plan.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Create a complete invariant inventory and map every invariant to source, proof, and regression evidence.",
+        "Separate representability invariants from derived health and policy conditions on every module."
+      ]
+    },
+    {
+      "id": "FCIS-ARITHMETIC-RANGE-SAFETY",
+      "title": "All arithmetic is range-safe and rounding-explicit",
+      "category": "arithmetic",
+      "statement": "Every authoritative operation uses committed widths, checked domains, explicit rounding direction, and equivalent overflow behavior across implementations.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Complete integer-width and safe-range inventories.",
+        "Prove or exhaustively test every boundary, product, division, and cumulative accumulator."
+      ]
+    },
+    {
+      "id": "FCIS-CONTEXT-BINDING",
+      "title": "Execution context is committed and replay-bound",
+      "category": "authority",
+      "statement": "Chain, policy, time, oracle, validator, proof, algorithm, and configuration facts affecting acceptance are committed in State, Command, or Context and bound into roots and receipts.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Remove remaining host or environment authority from value-moving transitions.",
+        "Bind the same execution-context hash through final headers, proofs, effects, and receipts."
+      ]
+    },
+    {
+      "id": "FCIS-FORMAL-SPEC-COVERAGE",
+      "title": "Every authoritative transition has a normative formal specification",
+      "category": "formal_methods",
+      "statement": "Each command, field, invariant, error, and effect is represented in a versioned formal specification whose semantics are the release authority.",
+      "status": "open",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Build a source-extracted command, field, invariant, effect, and error inventory.",
+        "Map every inventory item to Tau, Lean, Kani, proof-kernel, or explicitly justified executable-spec evidence."
+      ]
+    },
+    {
+      "id": "FCIS-IMPLEMENTATION-REFINEMENT",
+      "title": "Every executable implementation refines the same specification",
+      "category": "formal_methods",
+      "statement": "Python, Rust, Tau adapters, proof guests, and accelerated paths are proven or differentially demonstrated equivalent to the normative transition relation.",
+      "status": "open",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Complete Python-to-Rust and host-to-guest refinement for every promoted command.",
+        "Reject release when any shadow or production path lacks exact-SHA equivalence evidence."
+      ]
+    },
+    {
+      "id": "FCIS-SEQUENTIAL-PARALLEL-EQUIVALENCE",
+      "title": "Parallel execution is observationally equal to sequential execution",
+      "category": "concurrency",
+      "statement": "Parallel computation may produce immutable facts or candidates only when final state, effects, rejection, roots, and receipts equal the normative sequential transition.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#463",
+          "status": "pending",
+          "sha256": null
+        }
+      ],
+      "blockers": [
+        "Freeze deterministic partitioning, reduction trees, ordering, and algorithm versions.",
+        "Prove or differentially test equality for every parallelized surface."
+      ]
+    },
+    {
+      "id": "FCIS-COMMAND-FIELD-INVENTORY",
+      "title": "Command, field, error, effect, and invariant coverage is complete",
+      "category": "coverage",
+      "statement": "The release evidence inventory is generated from authoritative source and contains every reachable command, field, error, effect, invariant, and lifecycle terminal state.",
+      "status": "open",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Generate inventories from source rather than handwritten lists.",
+        "Fail closed on missing, duplicated, renamed, or untested inventory entries."
+      ]
+    },
+    {
+      "id": "FCIS-BOUNDARY-SEQUENCE-COVERAGE",
+      "title": "Boundary values and adversarial sequences cover the complete domain",
+      "category": "coverage",
+      "statement": "Every numeric boundary, lifecycle transition, replay path, alias path, malformed encoding, and adversarial command sequence is covered by reproducible tests or proofs.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Complete BVA matrices for every command and field.",
+        "Add stateful sequence, metamorphic, differential, and disaster-state campaigns with permanent minimized regressions."
+      ]
+    },
+    {
+      "id": "FCIS-ATOMIC-COMMIT",
+      "title": "State, effects, receipt, and outbox commit atomically",
+      "category": "shell",
+      "statement": "The shell commits the accepted successor state, effect plan, receipt, nonce changes, and delivery identities in one expected-root transaction or commits none of them.",
+      "status": "open",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Define and implement one atomic persistence contract.",
+        "Prove crash points cannot expose partial accepted effects."
+      ]
+    },
+    {
+      "id": "FCIS-IDEMPOTENT-DELIVERY",
+      "title": "External effect delivery is exactly-once in semantic effect",
+      "category": "shell",
+      "statement": "Every effect has a deterministic identity and retry protocol so crashes, duplicates, reordering, and replay cannot apply economic effects more than once.",
+      "status": "open",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Implement a transactional outbox keyed by accepted receipt and effect identity.",
+        "Add crash-recovery and duplicate-delivery proofs or exhaustive fault-injection tests."
+      ]
+    },
+    {
+      "id": "FCIS-EXACT-SHA-EVIDENCE",
+      "title": "Every release claim is bound to exact executed evidence",
+      "category": "evidence",
+      "statement": "Evidence identifies the exact source tree, toolchain, configuration, inputs, commands, outputs, and artifact hashes and is rejected when stale or unexecuted.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Unify audit, proof, test, differential, and release evidence under one signed manifest.",
+        "Require evidence freshness after every authority-source change."
+      ]
+    },
+    {
+      "id": "ZUSD-TOTAL-DEBT-CAP",
+      "title": "zUSD global debt cap covers every custody domain",
+      "category": "economic_semantics",
+      "statement": "Free debt plus Stability Pool debt and every other authoritative debt custody domain cannot exceed the committed global cap.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#466",
+          "status": "pending",
+          "sha256": null
+        }
+      ],
+      "blockers": [
+        "Merge the Python repair.",
+        "Port and differentially prove the same relation in every promoted implementation."
+      ]
+    },
+    {
+      "id": "ZUSD-FINALIZED-ORACLE-AUTHORITY",
+      "title": "Only finalized fresh oracle state moves liquidation value",
+      "category": "economic_semantics",
+      "statement": "Pending observations are non-authoritative; liquidation consumes one fresh finalized price and explicit health facts.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#467",
+          "status": "pending",
+          "sha256": null
+        }
+      ],
+      "blockers": [
+        "Merge the finalized-oracle lifecycle.",
+        "Complete cross-module and cross-implementation oracle authority parity."
+      ]
+    },
+    {
+      "id": "ZUSD-VAULT-OWNERSHIP",
+      "title": "Vault ownership is authenticated and released at the empty terminal state",
+      "category": "economic_semantics",
+      "statement": "Owner-controlled mutations require the current owner, permissionless maintenance cannot seize ownership, and ownership is released exactly when debt and collateral are zero.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#470",
+          "status": "pending",
+          "sha256": null
+        }
+      ],
+      "blockers": [
+        "Merge the mounted single-vault lifecycle.",
+        "Define and prove the production multi-vault owner map and migration semantics."
+      ]
+    },
+    {
+      "id": "ZUSD-REDEMPTION-ORDERING",
+      "title": "Redemptions traverse the globally correct deterministic order",
+      "category": "economic_semantics",
+      "statement": "Redemption selects and traverses the globally riskiest eligible vault prefix with complete debt-floor and partial-redemption semantics.",
+      "status": "open",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Replace the bounded closest-vault model with the production ordering and prefix traversal relation.",
+        "Prove ordering, partial fill, debt floor, and fee behavior."
+      ]
+    },
+    {
+      "id": "ZUSD-PARTIAL-STABILITY-POOL-OFFSET",
+      "title": "Liquidation supports partial Stability Pool coverage",
+      "category": "economic_semantics",
+      "statement": "Liquidation deterministically offsets the covered debt, preserves residual liabilities, and allocates collateral, compensation, and claims without conservation loss.",
+      "status": "open",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Implement partial offset and residual-debt representation.",
+        "Prove conservation and claimant allocation at every boundary."
+      ]
+    },
+    {
+      "id": "ZUSD-INSOLVENCY-REDISTRIBUTION",
+      "title": "Residual insolvency and redistribution are complete",
+      "category": "economic_semantics",
+      "statement": "Bad debt, residual collateral, redistribution, recovery bands, and terminal claims have one deterministic and fully accounted lifecycle.",
+      "status": "open",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Define the residual insolvency state machine.",
+        "Implement and prove redistribution and recovery-mode bands."
+      ]
+    },
+    {
+      "id": "ZUSD-SHUTDOWN-SETTLEMENT",
+      "title": "Shutdown and terminal settlement are complete",
+      "category": "economic_semantics",
+      "statement": "Shutdown authority, final pricing, claim ordering, debt cancellation, collateral disposition, and terminal state are deterministic and auditable.",
+      "status": "open",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Define the shutdown authority and complete terminal state machine.",
+        "Prove all liabilities and assets have exactly one terminal disposition."
+      ]
+    },
+    {
+      "id": "FEES-HOST-ENTITLEMENT",
+      "title": "Host fee entitlement is authenticated and non-forgeable",
+      "category": "economic_semantics",
+      "statement": "Fee claimants and amounts derive from authenticated committed entitlement, and same-transaction stake or host manipulation cannot capture prior fees.",
+      "status": "open",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Bind host identity and entitlement into authenticated command context.",
+        "Complete no-prior-staker, pending-stake cancellation, and terminal fee disposition semantics."
+      ]
+    },
+    {
+      "id": "PERPS-ORACLE-SETTLEMENT-PARITY",
+      "title": "Perps oracle, funding, liquidation, and settlement semantics agree",
+      "category": "economic_semantics",
+      "statement": "Formal kernels, Python, Rust, proof guests, and integration guards apply identical seen, positivity, freshness, epoch, funding, liquidation, and settlement relations.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Close all formal/native perps guard divergences.",
+        "Complete epoch, funding closeout, liquidation, and settlement differential evidence."
+      ]
+    },
+    {
+      "id": "SPOT-FEE-ROUTING-PARITY",
+      "title": "Spot swap, fee, liquidity, and routing semantics agree",
+      "category": "economic_semantics",
+      "statement": "Exact-in, exact-out, LP, protocol-fee, token-authority, routing, and receipt paths share one deterministic arithmetic and authority relation.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Close remaining fee, LP, route, receipt, and token-authority defects.",
+        "Prove canonical winner, tie-break, and sequential replay parity for every promoted route profile."
+      ]
+    },
+    {
+      "id": "FCIS-RELEASE-ZERO-BLOCKERS",
+      "title": "Production release requires zero required open obligations",
+      "category": "release",
+      "statement": "A production release is impossible unless this profile is released, every required obligation is closed with verified evidence, and every TCB component is accepted.",
+      "status": "partial",
+      "required_for_release": true,
+      "evidence": [],
+      "blockers": [
+        "Merge the functional-core assurance validator into the release-integrity workflow.",
+        "Close every other required obligation and accept the declared TCB."
+      ]
+    }
+  ]
+}
