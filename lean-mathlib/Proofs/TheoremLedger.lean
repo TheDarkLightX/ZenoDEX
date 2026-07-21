@@ -1,23 +1,25 @@
 import Proofs.DeterministicParallelExecution
 import Proofs.TypedDeterministicParser
-import Proofs.ZenoLedgerDisjointWrites
 
 /-!
 # ZenoDEX theorem-ledger formal surface
 
-This module intentionally groups the connective proofs introduced by the
-literature-to-code review with the repository's existing concrete disjoint-write
-result.  Importing it checks that the abstract patch theorem, typed parser
-boundary, and concrete key-write theorem coexist in one pinned Lean environment.
+This module groups the two connective proof developments introduced by the
+literature-to-code review.  Importing it checks that the typed parser boundary
+and abstract independent-patch semantics coexist in one pinned Lean environment.
 
-No theorem in this module upgrades a runtime implementation automatically.  The
-runtime must still discharge its concrete parser round trip, footprint
-soundness, immutable-snapshot, canonical-join, and atomic-commit obligations.
+The repository's older concrete `ZenoLedgerDisjointWrites` development remains a
+separate proof surface.  This integration module does not make its compilation a
+premise of the new parser and patch results.
+
+No theorem here upgrades a runtime implementation automatically.  The runtime
+must still discharge its concrete parser round trip, footprint soundness,
+immutable-snapshot, canonical-join, and atomic-commit obligations.
 -/
 
 namespace ZenoDEX.TheoremLedger
 
-/-- The theorem-ledger module is a proof integration point, not a new axiom. -/
+/-- The theorem-ledger module is an import integration point, not a new axiom. -/
 theorem integration_surface_checked : True := by
   trivial
 
