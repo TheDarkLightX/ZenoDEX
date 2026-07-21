@@ -1,0 +1,85 @@
+name: theorem-ledger-formalization
+
+on:
+  push:
+    branches:
+      - agent/theorem-ledger-formalization-20260721
+  pull_request:
+    paths:
+      - "lean-mathlib/Proofs/TypedDeterministicParser.lean"
+      - "lean-mathlib/Proofs/DeterministicParallelExecution.lean"
+      - "lean-mathlib/Proofs.lean"
+      - "tools/query_theoremsearch_zenodex.py"
+      - "tools/check_zenodex_theorem_ledger.py"
+      - "docs/research/ZENODEX_THEOREM_LEDGER_2026-07-21.md"
+      - "docs/research/ZENODEX_THEOREM_LEDGER_V1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  theorem-retrieval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Query TheoremSearch reproducibly
+        run: |
+          python tools/query_theoremsearch_zenodex.py \
+            --output internal/theoremsearch/zenodex_theorem_queries_v1.json \
+            --n-results 8
+      - name: Upload raw theorem retrieval
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenodex-theoremsearch-results
+          path: internal/theoremsearch/zenodex_theorem_queries_v1.json
+          if-no-files-found: error
+
+  lean-formalization:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Lean toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Restore pinned Mathlib source
+        run: |
+          rm -rf external/mathlib4
+          git clone --depth 1 --branch v4.27.0 \
+            https://github.com/leanprover-community/mathlib4.git \
+            external/mathlib4
+      - name: Restore Mathlib compiled cache
+        working-directory: lean-mathlib
+        run: |
+          lake update
+          lake exe cache get
+      - name: Compile typed deterministic parser theorems
+        working-directory: lean-mathlib
+        run: lake env lean Proofs/TypedDeterministicParser.lean
+      - name: Compile deterministic parallel execution theorems
+        working-directory: lean-mathlib
+        run: lake env lean Proofs/DeterministicParallelExecution.lean
+      - name: Reject proof placeholders
+        run: |
+          ! grep -R -nE '\b(sorry|admit|axiom)\b' \
+            lean-mathlib/Proofs/TypedDeterministicParser.lean \
+            lean-mathlib/Proofs/DeterministicParallelExecution.lean
+
+  ledger-validation:
+    if: ${{ hashFiles('tools/check_zenodex_theorem_ledger.py') != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python tools/check_zenodex_theorem_ledger.py --pretty
