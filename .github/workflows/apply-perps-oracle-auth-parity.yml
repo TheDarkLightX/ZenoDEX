@@ -4,6 +4,16 @@ on:
   push:
     branches:
       - agent/perps-oracle-auth-parity-20260721
+  pull_request:
+    branches:
+      - agent/functional-core-auth-effect-snapshots-20260719
+    paths:
+      - ".agent/perps-oracle-auth-parity.patch.b64"
+      - ".agent/perps-oracle-auth-parity.trigger"
+      - ".github/workflows/apply-perps-oracle-auth-parity.yml"
+      - "src/integration/zeno_oracle_fail_closed_config.py"
+      - "tests/integration/test_perp_engine_clearinghouse_oracle_authorization_parity.py"
+      - "tests/integration/test_zeno_oracle_fail_closed_config.py"
 
 permissions:
   contents: write
@@ -53,6 +63,7 @@ jobs:
       - name: Commit applied parity fix
         run: |
           rm -f .agent/perps-oracle-auth-parity.patch.b64
+          rm -f .agent/perps-oracle-auth-parity.trigger
           rmdir .agent 2>/dev/null || true
           rm -f .github/workflows/apply-perps-oracle-auth-parity.yml
           git config user.name "github-actions[bot]"
