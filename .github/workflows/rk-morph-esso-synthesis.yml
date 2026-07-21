@@ -107,8 +107,25 @@ jobs:
           lake update
           lake exe cache get
       - name: Type-check read/write footprint theorem
+        id: lean_direct
+        continue-on-error: true
         working-directory: lean-mathlib
-        run: lake env lean Proofs/ReadWriteStableParallel.lean
+        shell: bash
+        run: |
+          set -o pipefail
+          lake env lean Proofs/ReadWriteStableParallel.lean \
+            2>&1 | tee ../lean-footprint-diagnostics.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+      - name: Upload Lean footprint diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: read-write-stable-parallel-lean-diagnostics
+          path: lean-footprint-diagnostics.txt
+          if-no-files-found: error
+      - name: Enforce direct theorem type-check
+        if: steps.lean_direct.outputs.exit_code != '0'
+        run: exit 1
       - name: Build integrated theorem-ledger module graph
         working-directory: lean-mathlib
         run: lake build Proofs.TheoremLedger
