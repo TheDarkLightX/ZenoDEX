@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from ..state.balances import BalanceTable
 from ..state.lp import LPTable
-from ..state.pools import PoolState
+from ..state.pools import PoolState, copy_pool_state
 from .settlement import BalanceDelta, LPDelta, ReserveDelta
 
 
@@ -54,7 +54,7 @@ def build_replay_context(
 ) -> ReplayContext:
     return ReplayContext(
         balances=copy_balance_table(pre_balances),
-        pools={pool_id: replace(pool) for pool_id, pool in pre_pools.items()},
+        pools={pool_id: copy_pool_state(pool) for pool_id, pool in pre_pools.items()},
         lp=copy_lp_table(pre_lp_balances) if pre_lp_balances is not None else LPTable(),
         expected_events=[],
         bal_deltas=[],

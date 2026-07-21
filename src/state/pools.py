@@ -76,7 +76,9 @@ def _normalize_non_negative_rational(c_num: int, c_den: int) -> Tuple[int, int]:
 
 
 def _normalize_cubic_sum_curve_params(tag: str, curve_params: Optional[object]) -> str:
-    params_obj = _decode_curve_params_for_tag(tag=tag, curve_params=curve_params, default={"p": 1, "q": 1})
+    params_obj = _decode_curve_params_for_tag(
+        tag=tag, curve_params=curve_params, default={"p": 1, "q": 1}
+    )
     p = _curve_param_int(
         params_obj,
         tag=tag,
@@ -110,7 +112,9 @@ def _normalize_sum_boost_curve_params(tag: str, curve_params: Optional[object]) 
 
 
 def _normalize_quartic_blend_curve_params(tag: str, curve_params: Optional[object]) -> str:
-    params_obj = _decode_curve_params_for_tag(tag=tag, curve_params=curve_params, default={"c_num": 8, "c_den": 1})
+    params_obj = _decode_curve_params_for_tag(
+        tag=tag, curve_params=curve_params, default={"c_num": 8, "c_den": 1}
+    )
     c_num = _curve_param_int(
         params_obj,
         tag=tag,
@@ -126,7 +130,9 @@ def _normalize_quartic_blend_curve_params(tag: str, curve_params: Optional[objec
 
 
 def _normalize_quintic_blend_curve_params(tag: str, curve_params: Optional[object]) -> str:
-    params_obj = _decode_curve_params_for_tag(tag=tag, curve_params=curve_params, default={"c_num": 2, "c_den": 1})
+    params_obj = _decode_curve_params_for_tag(
+        tag=tag, curve_params=curve_params, default={"c_num": 2, "c_den": 1}
+    )
     c_num = _curve_param_int(
         params_obj,
         tag=tag,
@@ -141,7 +147,9 @@ def _normalize_quintic_blend_curve_params(tag: str, curve_params: Optional[objec
     return _canonical_curve_params({"c_den": c_den_norm, "c_num": c_num_norm})
 
 
-def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optional[object]) -> Tuple[str, str]:
+def normalize_curve_config(
+    *, curve_tag: Optional[object], curve_params: Optional[object]
+) -> Tuple[str, str]:
     """
     Normalize and validate curve configuration.
 
@@ -271,6 +279,7 @@ def parse_quintic_blend_params(curve_params: str) -> Tuple[int, int]:
 
 class PoolStatus(Enum):
     """Pool status enumeration."""
+
     ACTIVE = "ACTIVE"
     FROZEN = "FROZEN"
     DISABLED = "DISABLED"
@@ -339,7 +348,7 @@ def compute_pool_id(
 class PoolState:
     """
     State of a DEX liquidity pool.
-    
+
     Attributes:
         pool_id: 32-byte pool identifier (hex string)
         asset0: First asset identifier (must be < asset1 lexicographically)
@@ -353,6 +362,7 @@ class PoolState:
         status: Pool status
         created_at: Block height or timestamp when pool was created
     """
+
     pool_id: str
     asset0: AssetId
     asset1: AssetId
@@ -364,7 +374,12 @@ class PoolState:
     created_at: int
     curve_tag: str = CURVE_TAG_CPMM
     curve_params: str = ""
-    
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if self.__dict__.get("_snapshot_sealed", False):
+            raise TypeError("committed pool snapshot is immutable")
+        object.__setattr__(self, name, value)
+
     def __post_init__(self):
         """Validate pool state invariants."""
         if not isinstance(self.pool_id, str) or not self.pool_id:
@@ -379,9 +394,7 @@ class PoolState:
 
         # Ensure canonical ordering
         if self.asset0 >= self.asset1:
-            raise ValueError(
-                f"Assets must be in canonical order: {self.asset0} < {self.asset1}"
-            )
+            raise ValueError(f"Assets must be in canonical order: {self.asset0} < {self.asset1}")
 
         self.reserve0 = _require_strict_int("reserve0", self.reserve0)
         self.reserve1 = _require_strict_int("reserve1", self.reserve1)
@@ -394,32 +407,32 @@ class PoolState:
             raise ValueError(f"fee_bps must be in [0, 10000]: {self.fee_bps}")
 
         # Normalize curve config (fail-closed on unknown curves).
-        tag, params = normalize_curve_config(curve_tag=self.curve_tag, curve_params=self.curve_params)
+        tag, params = normalize_curve_config(
+            curve_tag=self.curve_tag, curve_params=self.curve_params
+        )
         self.curve_tag = tag
         self.curve_params = params
 
         # Validate non-negative reserves
         if self.reserve0 < 0 or self.reserve1 < 0:
-            raise ValueError(
-                f"Reserves must be non-negative: ({self.reserve0}, {self.reserve1})"
-            )
-        
+            raise ValueError(f"Reserves must be non-negative: ({self.reserve0}, {self.reserve1})")
+
         # Validate non-negative LP supply
         if self.lp_supply < 0:
             raise ValueError(f"LP supply must be non-negative: {self.lp_supply}")
         if self.created_at < 0:
             raise ValueError(f"created_at must be non-negative: {self.created_at}")
-    
+
     def get_reserve(self, asset: AssetId) -> Amount:
         """
         Get reserve for a specific asset.
-        
+
         Args:
             asset: Asset identifier
-            
+
         Returns:
             Reserve amount
-            
+
         Raises:
             ValueError: If asset is not in this pool
         """
@@ -429,29 +442,29 @@ class PoolState:
             return self.reserve1
         else:
             raise ValueError(f"Asset {asset} not in pool {self.pool_id}")
-    
+
     def get_constant_product(self) -> int:
         """
         Compute k = reserve0 * reserve1 (CPMM constant).
-        
+
         Returns:
             Constant product k
         """
         return self.reserve0 * self.reserve1
-    
+
     def verify_invariant(self, min_k: int = 0) -> bool:
         """
         Verify CPMM invariant: reserve0 * reserve1 >= min_k.
-        
+
         Args:
             min_k: Minimum allowed constant product
-            
+
         Returns:
             True if invariant holds
         """
         k = self.get_constant_product()
         return k >= min_k
-    
+
     def __repr__(self) -> str:
         return (
             f"PoolState(pool_id={self.pool_id[:16]}..., "
@@ -459,3 +472,29 @@ class PoolState:
             f"reserves=({self.reserve0}, {self.reserve1}), "
             f"lp_supply={self.lp_supply}, status={self.status.value})"
         )
+
+
+def copy_pool_state(source: PoolState) -> PoolState:
+    """Return a fresh mutable scratch copy of one pool value.
+
+    ``dataclasses.replace(source)`` preserves subclasses. That is unsafe when
+    ``source`` is an immutable committed snapshot and the caller needs local
+    mutation during settlement replay. Constructing the exact scratch type
+    makes the committed-to-scratch boundary explicit.
+    """
+
+    if not isinstance(source, PoolState):
+        raise TypeError("source must be a PoolState")
+    return PoolState(
+        pool_id=source.pool_id,
+        asset0=source.asset0,
+        asset1=source.asset1,
+        reserve0=source.reserve0,
+        reserve1=source.reserve1,
+        fee_bps=source.fee_bps,
+        lp_supply=source.lp_supply,
+        status=source.status,
+        created_at=source.created_at,
+        curve_tag=source.curve_tag,
+        curve_params=source.curve_params,
+    )

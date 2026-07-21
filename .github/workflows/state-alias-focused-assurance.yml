@@ -1,0 +1,122 @@
+# Read-only exact-head certification for the committed-state alias family.
+name: state-alias-focused-assurance
+
+on:
+  pull_request:
+    branches:
+      - agent/state-alias-assurance-base-20260721
+    types: [synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  state-alias-family:
+    if: github.event.pull_request.head.ref == 'agent/functional-core-owned-state-snapshots-20260719'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Ruff
+        run: |
+          python -m ruff check \
+            src/core/batch_clearing.py \
+            src/core/batch_clearing_apply_settlement.py \
+            src/core/batch_clearing_compute.py \
+            src/core/dex.py \
+            src/core/fees.py \
+            src/core/settlement_replay_context.py \
+            src/state/balances.py \
+            src/state/immutable_collections.py \
+            src/state/lp.py \
+            src/state/nonces.py \
+            src/state/pools.py \
+            src/state/state_snapshots.py \
+            tests/core/test_dex_state_immutability.py
+          python -m ruff format --check \
+            src/core/batch_clearing.py \
+            src/core/batch_clearing_apply_settlement.py \
+            src/core/batch_clearing_compute.py \
+            src/core/dex.py \
+            src/core/fees.py \
+            src/core/settlement_replay_context.py \
+            src/state/balances.py \
+            src/state/immutable_collections.py \
+            src/state/lp.py \
+            src/state/nonces.py \
+            src/state/pools.py \
+            src/state/state_snapshots.py \
+            tests/core/test_dex_state_immutability.py
+
+      - name: Mypy
+        run: |
+          python -m mypy \
+            src/core/batch_clearing.py \
+            src/core/batch_clearing_apply_settlement.py \
+            src/core/batch_clearing_compute.py \
+            src/core/dex.py \
+            src/core/settlement_replay_context.py \
+            src/state/balances.py \
+            src/state/immutable_collections.py \
+            src/state/lp.py \
+            src/state/nonces.py \
+            src/state/pools.py \
+            src/state/state_snapshots.py
+
+      - name: Compile
+        run: |
+          python -m py_compile \
+            src/core/batch_clearing.py \
+            src/core/batch_clearing_apply_settlement.py \
+            src/core/batch_clearing_compute.py \
+            src/core/dex.py \
+            src/core/settlement_replay_context.py \
+            src/state/balances.py \
+            src/state/immutable_collections.py \
+            src/state/lp.py \
+            src/state/nonces.py \
+            src/state/pools.py \
+            src/state/state_snapshots.py
+
+      - name: Diff hygiene
+        run: git diff --check
+
+      - name: State alias witnesses
+        run: python -m pytest -q tests/core/test_dex_state_immutability.py
+
+      - name: Batch clearing compatibility
+        run: |
+          python -m pytest -q \
+            tests/core/test_batch_clearing.py \
+            tests/core/test_batch_clearing_coverage_edges.py \
+            tests/core/test_batch_clearing_properties.py
+
+      - name: DEX step compatibility
+        run: |
+          python -m pytest -q \
+            tests/core/test_dex_step.py \
+            tests/core/test_dex_step_candidate_settlement.py
+
+      - name: Settlement compatibility
+        run: |
+          python -m pytest -q \
+            tests/core/test_settlement.py \
+            tests/core/test_settlement_strong_validator.py

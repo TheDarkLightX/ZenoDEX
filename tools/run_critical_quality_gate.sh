@@ -67,6 +67,7 @@ CRITICAL_TESTS=(
   tests/core/test_batch_clearing_global_refinement.py
   tests/core/test_dex_step.py
   tests/core/test_dex_step_candidate_settlement.py
+  tests/core/test_dex_state_immutability.py
   tests/core/test_fees_bva.py
   tests/core/test_quote_receipts.py
   tests/core/test_settlement.py
@@ -110,8 +111,10 @@ COVERAGE_TARGETS=(
   --cov=src.kernels.python.batch_auction_settler_v1_witness
   --cov=src.kernels.python.settlement_swap_runtime_v1
   --cov=src.state.balances
+  --cov=src.state.immutable_collections
   --cov=src.state.intents
   --cov=src.state.lp
+  --cov=src.state.state_snapshots
   --cov=src.state.volatility
 )
 
@@ -124,6 +127,7 @@ echo "== critical: ruff =="
   src/core/fees.py \
   src/core/liquidity.py \
   src/core/batch_clearing.py \
+  src/core/batch_clearing_apply_settlement.py \
   src/core/batch_clearing_requests.py \
   src/core/dex.py \
   src/core/protocol_fee_policy.py \
@@ -141,8 +145,10 @@ echo "== critical: ruff =="
   src/kernels/python/batch_auction_settler_v1_witness.py \
   src/kernels/python/settlement_swap_runtime_v1.py \
   src/state/balances.py \
+  src/state/immutable_collections.py \
   src/state/intents.py \
   src/state/lp.py \
+  src/state/state_snapshots.py \
   src/state/volatility.py \
   tests/core/test_domain_bounds.py \
   tests/core/test_batch_clearing_properties.py \
@@ -150,6 +156,7 @@ echo "== critical: ruff =="
   tests/core/test_batch_auction_settler_v1_ref_parity.py \
   tests/core/test_batch_auction_settler_v1_witness.py \
   tests/core/test_settlement_swap_runtime_v1.py \
+  tests/core/test_dex_state_immutability.py \
   tests/core/test_fees_bva.py \
   tests/core/test_quote_receipts.py \
   tests/core/test_quote_receipts_fuzz.py \

@@ -30,7 +30,7 @@ Algorithm Design:
 
 from __future__ import annotations
 
-from dataclasses import replace
+from collections.abc import Mapping
 from typing import Dict, List, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import (
@@ -40,7 +40,7 @@ from ..kernels.python.settlement_swap_runtime_v1 import (
 from ..state.balances import Amount, BalanceTable, PubKey
 from ..state.intents import Intent
 from ..state.lp import LPTable
-from ..state.pools import PoolState
+from ..state.pools import PoolState, copy_pool_state
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .batch_clearing_apply import (
     _apply_filled_intent_to_locals_with_context,
@@ -122,15 +122,17 @@ _SWAP_ORDERING_GREEDY_AB_REFINED = "greedy_ab_refined"
 _SWAP_ORDERING_GREEDY_AB_GLOBAL = "greedy_ab_global"
 _SWAP_ORDERING_MCI_AB_GLOBAL = "mci_ab_global"
 _SWAP_ORDERING_COW_PAIR_NETTING_V1 = "cow_pair_netting_v1"
-_SWAP_ORDERING_CHOICES = frozenset({
-    _SWAP_ORDERING_LIMIT_PRICE,
-    _SWAP_ORDERING_OPTIMAL_AB_BOUNDED,
-    _SWAP_ORDERING_GREEDY_AB,
-    _SWAP_ORDERING_GREEDY_AB_REFINED,
-    _SWAP_ORDERING_GREEDY_AB_GLOBAL,
-    _SWAP_ORDERING_MCI_AB_GLOBAL,
-    _SWAP_ORDERING_COW_PAIR_NETTING_V1,
-})
+_SWAP_ORDERING_CHOICES = frozenset(
+    {
+        _SWAP_ORDERING_LIMIT_PRICE,
+        _SWAP_ORDERING_OPTIMAL_AB_BOUNDED,
+        _SWAP_ORDERING_GREEDY_AB,
+        _SWAP_ORDERING_GREEDY_AB_REFINED,
+        _SWAP_ORDERING_GREEDY_AB_GLOBAL,
+        _SWAP_ORDERING_MCI_AB_GLOBAL,
+        _SWAP_ORDERING_COW_PAIR_NETTING_V1,
+    }
+)
 
 # Chunk size for settlement delta aggregation (invariant chunking promotion).
 _DELTA_AGG_CHUNK_SIZE = 128
@@ -153,7 +155,7 @@ _DELTA_COMPAT_EXPORTS = (
 
 def compute_settlement(
     intents: List[Intent],
-    pools: Dict[str, PoolState],
+    pools: Mapping[str, PoolState],
     balances: BalanceTable,
     lp_balances: Optional[LPTable] = None,
     *,
@@ -186,7 +188,9 @@ def compute_settlement(
     if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
         raise ValueError("protocol_fee_share_bps must be an int in [0, 10000]")
     if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
-        raise ValueError("protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0")
+        raise ValueError(
+            "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
+        )
     return compute_settlement_with_factories(
         intents,
         pools,
@@ -282,7 +286,9 @@ def _apply_filled_intent_to_locals(
         or reserve_deltas is None
         or lp_deltas is None
     ):
-        raise ValueError("fill, pool_id, pool_state, balances, lp_balances, and delta lists are required")
+        raise ValueError(
+            "fill, pool_id, pool_state, balances, lp_balances, and delta lists are required"
+        )
     _apply_filled_intent_to_locals_with_context(
         intent,
         fill,
@@ -312,14 +318,14 @@ def clear_batch_single_pool(
 ) -> List[Fill]:
     """
     Process batch of intents for a single pool.
-    
+
     Deterministic: clear swaps under the selected ordering and process
     liquidity intents in receive order.
-    
+
     Args:
         intents: List of intents for this pool
         pool_state: Current pool state
-        
+
     Returns:
         List of Fill objects
     """
@@ -502,7 +508,7 @@ def apply_settlement(
 def apply_settlement_pure(
     settlement: Settlement,
     balances: BalanceTable,
-    pools: Dict[str, PoolState],
+    pools: Mapping[str, PoolState],
     lp_balances: Optional[LPTable] = None,
 ) -> tuple[BalanceTable, Dict[str, PoolState], LPTable]:
     """
@@ -511,7 +517,9 @@ def apply_settlement_pure(
     Returns fresh (balances, pools, lp_balances) copies with the settlement applied.
     """
     balances_copy = _copy_balance_table(balances)
-    pools_copy: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
+    pools_copy: Dict[str, PoolState] = {
+        pool_id: copy_pool_state(pool) for pool_id, pool in pools.items()
+    }
     lp_copy = _copy_lp_table(lp_balances) if lp_balances is not None else LPTable()
 
     apply_settlement(settlement, balances_copy, pools_copy, lp_copy)

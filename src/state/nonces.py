@@ -15,7 +15,6 @@ from .balances import PubKey
 from .canonical import canonical_hex_fixed_allow_0x
 from .intents import Intent
 
-
 _U32_MAX = 0xFFFFFFFF
 
 
@@ -29,6 +28,11 @@ class NonceTable:
     """
 
     _last: Dict[PubKey, int] = field(default_factory=dict)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if self.__dict__.get("_snapshot_sealed", False):
+            raise TypeError("committed nonce snapshot is immutable")
+        object.__setattr__(self, name, value)
 
     def get_last(self, pubkey: PubKey) -> int:
         pk = canonical_hex_fixed_allow_0x(pubkey, nbytes=48, name="pubkey")
@@ -111,7 +115,9 @@ def validate_and_apply_intent_nonce_batch(
         except ValueError:
             return False, "Missing/invalid nonce", None
         try:
-            sender = canonical_hex_fixed_allow_0x(intent.sender_pubkey, nbytes=48, name="sender_pubkey")
+            sender = canonical_hex_fixed_allow_0x(
+                intent.sender_pubkey, nbytes=48, name="sender_pubkey"
+            )
         except (TypeError, ValueError) as exc:
             return False, f"invalid sender_pubkey for nonce accounting: {exc}", None
         per_sender.setdefault(sender, []).append(int(nonce))

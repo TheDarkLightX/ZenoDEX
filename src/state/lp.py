@@ -56,6 +56,11 @@ class LPTable:
         self._churn_tiers: Dict[Tuple[PubKey, PoolId], int] = {}
         self._last_churn_update_timestamps: Dict[Tuple[PubKey, PoolId], int] = {}
 
+    def __setattr__(self, name: str, value: object) -> None:
+        if self.__dict__.get("_snapshot_sealed", False):
+            raise TypeError("committed LP snapshot is immutable")
+        object.__setattr__(self, name, value)
+
     def get(self, pubkey: PubKey, pool_id: PoolId) -> Amount:
         """Get LP balance for (pubkey, pool_id). Returns 0 if not found."""
         return self._balances.get((pubkey, pool_id), 0)
@@ -77,9 +82,7 @@ class LPTable:
         current = self.get(pubkey, pool_id)
         new_balance = current + delta_i
         if new_balance < 0:
-            raise ValueError(
-                f"Insufficient LP balance: {current} + {delta_i} = {new_balance} < 0"
-            )
+            raise ValueError(f"Insufficient LP balance: {current} + {delta_i} = {new_balance} < 0")
         self.set(pubkey, pool_id, new_balance)
 
     def subtract(self, pubkey: PubKey, pool_id: PoolId, delta: Amount) -> None:
@@ -156,7 +159,9 @@ class LPTable:
         """Return the last timestamp at which churn metadata was updated."""
         return self._last_churn_update_timestamps.get((pubkey, pool_id))
 
-    def set_last_churn_update_timestamp(self, pubkey: PubKey, pool_id: PoolId, timestamp: int) -> None:
+    def set_last_churn_update_timestamp(
+        self, pubkey: PubKey, pool_id: PoolId, timestamp: int
+    ) -> None:
         """Bind a timestamp to the committed LP churn-tier state."""
         timestamp_i = _require_lp_non_negative_int("last churn update timestamp", timestamp)
         self._last_churn_update_timestamps[(pubkey, pool_id)] = timestamp_i
