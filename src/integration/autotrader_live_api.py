@@ -18,11 +18,12 @@ from ..agents.policy_compiler import compile_policy_candidate
 from ..core.liquidity import create_pool
 from ..core.quote_receipts import make_route_quote_receipt
 from ..core.routing import best_route_exact_in_2hop
+from ..state.immutable_collections import deep_thaw_json
 from ..state.pools import PoolState, PoolStatus
-from .autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
 from .autotrader_controller import AutoTraderControllerState
 from .autotrader_live import AutoTraderLiveReport, prepare_autotrader_live_quote_receipt
 from .autotrader_risk_disclosure import build_autotrader_risk_disclosure
+from .autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
 from .tau_net_client import (
     TauNetTcpClient,
     TauNetTcpConfig,
@@ -31,7 +32,6 @@ from .tau_net_client import (
     verify_tau_transaction_payload_signature,
 )
 from .zeno_ledger_v0 import hash_v0
-
 
 MAX_POST_BODY = 96_000
 ResponseT = Tuple[int, Dict[str, Any]]
@@ -368,7 +368,7 @@ def _intent_to_obj(intent: Any) -> dict[str, Any]:
         "sender_pubkey": str(intent.sender_pubkey),
         "deadline": int(intent.deadline),
         "salt": intent.salt,
-        "fields": dict(intent.fields or {}),
+        "fields": deep_thaw_json(intent.fields or {}),
     }
 
 

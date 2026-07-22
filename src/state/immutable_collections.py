@@ -168,3 +168,23 @@ def deep_freeze(value: Any) -> Any:
             )
         return cloned
     return deepcopy(value)
+
+
+def deep_thaw_json(value: Any) -> Any:
+    """Return a detached builtin-container projection for canonical JSON.
+
+    Authority-bearing values remain frozen while stored, signed, admitted, or
+    committed. Canonical JSON encoders require ordinary dict and list
+    containers, so serialization boundaries use this helper to create an
+    ephemeral owned projection. Scalar and mapping-key validation remains the
+    canonical encoder's responsibility.
+    """
+
+    if isinstance(value, Mapping):
+        return {
+            deepcopy(key): deep_thaw_json(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (FrozenList, list, tuple)):
+        return [deep_thaw_json(item) for item in value]
+    return deepcopy(value)

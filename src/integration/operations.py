@@ -6,8 +6,9 @@ Handles operation groups "2" (DEX intents) and "3" (DEX settlement).
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
+from ..core.dex_intent_auth_message import canonicalize_dex_intent_identifier_if_decodable
 from ..core.domain_limits import (
     DEX_LP_AMOUNT_MAX,
     DEX_LP_SUPPLY_MAX,
@@ -15,14 +16,14 @@ from ..core.domain_limits import (
     DEX_SWAP_AMOUNT_MAX,
 )
 from ..core.settlement import (
-    Settlement,
-    FillAction,
-    Fill,
     BalanceDelta,
-    ReserveDelta,
+    Fill,
+    FillAction,
     LPDelta,
+    ReserveDelta,
+    Settlement,
 )
-from ..core.dex_intent_auth_message import canonicalize_dex_intent_identifier_if_decodable
+from ..state.immutable_collections import deep_freeze, deep_thaw_json
 from ..state.intents import Intent, IntentKind
 from ..state.pools import normalize_curve_config, normalize_pool_asset_pair
 
@@ -117,7 +118,7 @@ def _parse_quote_receipt_transport(value: Any, *, name: str) -> Dict[str, Any]:
     return receipt
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SignedIntentEnvelope:
     """
     Parsed intent with optional per-intent signature.
@@ -128,7 +129,21 @@ class SignedIntentEnvelope:
 
     intent: Intent
     signature: Optional[str] = None
-    quote_receipt: Optional[Dict[str, Any]] = None
+    quote_receipt: Optional[Mapping[str, Any]] = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.intent, Intent):
+            raise TypeError("intent must be an Intent")
+
+        # Bind signature verification and quote validation to one detached
+        # payload even if the caller retains and mutates its builder.
+        from ..state.intent_snapshots import freeze_intent
+
+        object.__setattr__(self, "intent", freeze_intent(self.intent))
+        if self.quote_receipt is not None:
+            if not isinstance(self.quote_receipt, Mapping):
+                raise TypeError("quote_receipt must be a mapping or None")
+            object.__setattr__(self, "quote_receipt", deep_freeze(self.quote_receipt))
 
 
 @dataclass
@@ -1045,7 +1060,7 @@ def create_intent_operation(intents: List[Intent]) -> Dict[str, Any]:
             for k, v in intent.fields.items():
                 if k in reserved_keys:
                     raise ValueError(f"intent.fields contains reserved key: {k}")
-                intent_dict[k] = v
+                intent_dict[k] = deep_thaw_json(v)
         
         intents_data.append(intent_dict)
     
@@ -1059,12 +1074,13 @@ def create_signed_intent_operation(signed_intents: List[SignedIntentEnvelope]) -
     """
     base = create_intent_operation([env.intent for env in signed_intents])
     intents_data = base["2"]
-    for entry, env in zip(intents_data, signed_intents):
+    for entry, env in zip(intents_data, signed_intents, strict=True):
         if env.signature is not None:
             _require_str(env.signature, name="signature", non_empty=True, max_len=4096)
             entry["signature"] = env.signature
         if env.quote_receipt is not None:
-            entry["quote_receipt"] = _parse_quote_receipt_transport(env.quote_receipt, name="quote_receipt")
+            receipt = deep_thaw_json(env.quote_receipt)
+            entry["quote_receipt"] = _parse_quote_receipt_transport(receipt, name="quote_receipt")
     return {"2": intents_data}
 
 

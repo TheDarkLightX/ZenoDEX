@@ -33,7 +33,7 @@ class FeeSplitParams:
             raise ValueError(f"bps must sum to {BPS_DENOM}, got {total}")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FeeSplitResult:
     buyback_amount: int
     treasury_amount: int

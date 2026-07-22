@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Any, Dict, Mapping
 
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes
+from ..state.immutable_collections import deep_thaw_json
 from ..state.intents import Intent
 from .dex_intent_auth_shape_gate import (
     dex_intent_auth_shape_gate_error,
@@ -55,12 +56,12 @@ def _canonicalize_auth_identifier_if_decodable(value: Any, *, key: str) -> Any:
 def canonicalize_dex_intent_signing_dict_v1(signing_dict: Mapping[str, Any]) -> Dict[str, Any]:
     """Canonicalize fixed-width identifiers for DEX intent auth hashing only."""
 
-    out: Dict[str, Any] = dict(signing_dict)
+    out: Dict[str, Any] = deep_thaw_json(signing_dict)
     if "sender_pubkey" in out:
         out["sender_pubkey"] = _canonicalize_auth_identifier_if_decodable(out["sender_pubkey"], key="sender_pubkey")
     fields = out.get("fields")
     if isinstance(fields, Mapping):
-        normalized_fields = dict(fields)
+        normalized_fields = deep_thaw_json(fields)
         for key in _DEX_INTENT_AUTH_IDENTIFIER_WIDTHS:
             if key in normalized_fields:
                 normalized_fields[key] = _canonicalize_auth_identifier_if_decodable(normalized_fields[key], key=key)
@@ -74,14 +75,14 @@ def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict
         fields = {} if intent.fields is None else intent.fields
         shape = evaluate_dex_intent_auth_shape_gate(
             intent_object_mode=1,
-            fields_object_ok=isinstance(fields, dict),
+            fields_object_ok=isinstance(fields, Mapping),
             explicit_fields_present=0,
             explicit_fields_mapping_ok=1,
             salt_present=int(intent.salt is not None),
         )
         if not shape.shape_ok:
             raise TypeError(dex_intent_auth_shape_gate_error(shape) or "invalid intent auth shape")
-        fields = dict(fields)
+        fields = deep_thaw_json(fields)
         signing_dict: Dict[str, Any] = {
             "module": intent.module,
             "version": intent.version,
@@ -114,7 +115,9 @@ def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict
     if shape.use_transport_flattened_fields:
         fields = {k: v for k, v in dict(intent).items() if k not in _DEX_INTENT_COMMON_KEYS and k != "signature"}
     else:
-        fields = dict(explicit_fields)
+        if not isinstance(explicit_fields, Mapping):
+            raise TypeError("intent.fields must be a mapping when present")
+        fields = deep_thaw_json(explicit_fields)
 
     signing_dict = {
         "module": intent.get("module"),
