@@ -9,10 +9,12 @@ This module wires the verified kernels into a single pure step:
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Literal, Optional, overload
 
 from ..state.balances import BalanceTable
+from ..state.intent_snapshots import freeze_intent_batch
 from ..state.intents import Intent
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
@@ -34,8 +36,19 @@ from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee
 from .oracle import OracleState
 from .perps import PerpsState
 from .settlement import FillAction, Settlement
+from .settlement_snapshots import freeze_settlement, snapshot_settlement
 from .settlement_strong_validator import validate_settlement_strong
 from .vault import VaultState
+
+_FAIL_CLOSED_STEP_ERRORS = (
+    TypeError,
+    ValueError,
+    ArithmeticError,
+    LookupError,
+    AttributeError,
+    RuntimeError,
+    AssertionError,
+)
 
 
 @dataclass(frozen=True)
@@ -82,7 +95,6 @@ class DexConfig:
             return True
         return not bool(self.allow_legacy_nonce_free_steps)
 
-
 @dataclass(frozen=True, slots=True)
 class DexState:
     balances: BalanceTable
@@ -122,19 +134,77 @@ class DexState:
         object.__setattr__(self, "perps", frozen_perps)
 
 
-@dataclass(frozen=True)
-class DexEffects:
+@dataclass(frozen=True, slots=True)
+class DexEffects(Mapping[str, object]):
+    """Owned immutable effect plan with the historical mapping read surface."""
+
     settlement: Settlement
     total_swap_fees: int
     fee_split: Optional[FeeSplitResult] = None
 
+    _KEYS = ("settlement", "total_swap_fees", "fee_split")
 
-@dataclass(frozen=True)
+    def __post_init__(self) -> None:
+        if not isinstance(self.settlement, Settlement):
+            raise TypeError("settlement must be a Settlement")
+        if type(self.total_swap_fees) is not int:
+            raise TypeError("total_swap_fees must be an int")
+        if self.total_swap_fees < 0:
+            raise ValueError("total_swap_fees must be non-negative")
+        if self.fee_split is not None and type(self.fee_split) is not FeeSplitResult:
+            raise TypeError("fee_split must be an exact FeeSplitResult or None")
+        object.__setattr__(self, "settlement", freeze_settlement(self.settlement))
+
+    @overload
+    def __getitem__(self, key: Literal["settlement"]) -> Settlement: ...
+
+    @overload
+    def __getitem__(self, key: Literal["total_swap_fees"]) -> int: ...
+
+    @overload
+    def __getitem__(self, key: Literal["fee_split"]) -> Optional[FeeSplitResult]: ...
+
+    @overload
+    def __getitem__(self, key: str) -> object: ...
+
+    def __getitem__(self, key: str) -> object:
+        if key == "settlement":
+            return self.settlement
+        if key == "total_swap_fees":
+            return self.total_swap_fees
+        if key == "fee_split":
+            return self.fee_split
+        raise KeyError(key)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._KEYS)
+
+    def __len__(self) -> int:
+        return len(self._KEYS)
+
+
+@dataclass(frozen=True, slots=True)
 class DexStepResult:
     ok: bool
     state: Optional[DexState] = None
-    effects: Optional[Dict[str, Any]] = None
+    effects: Optional[DexEffects] = None
     error: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if type(self.ok) is not bool:
+            raise TypeError("ok must be a bool")
+        if self.ok:
+            if type(self.state) is not DexState:
+                raise ValueError("accepted result requires an exact DexState")
+            if type(self.effects) is not DexEffects:
+                raise ValueError("accepted result requires exact DexEffects")
+            if self.error is not None:
+                raise ValueError("accepted result cannot carry an error")
+            return
+        if self.state is not None or self.effects is not None:
+            raise ValueError("rejected result cannot carry state or effects")
+        if type(self.error) is not str or not self.error:
+            raise ValueError("rejected result requires a non-empty error")
 
 
 def _validate_and_apply_settlement(
@@ -181,7 +251,7 @@ def _validate_and_apply_settlement(
         lp_balances=state.lp_balances,
     )
 
-    total_fees = sum(int(fill.fee_paid or 0) for fill in settlement.fills)
+    total_fees = _sum_settlement_swap_fees(settlement)
 
     fee_split = None
     next_fee_state = state.fee_accumulator
@@ -206,11 +276,11 @@ def _validate_and_apply_settlement(
     return DexStepResult(
         ok=True,
         state=next_state,
-        effects={
-            "settlement": settlement,
-            "total_swap_fees": total_fees,
-            "fee_split": fee_split,
-        },
+        effects=DexEffects(
+            settlement=settlement,
+            total_swap_fees=total_fees,
+            fee_split=fee_split,
+        ),
     )
 
 
@@ -226,6 +296,18 @@ def _first_rejected_settlement_intent_error(settlement: Settlement) -> str | Non
     return None
 
 
+def _sum_settlement_swap_fees(settlement: Settlement) -> int:
+    total = 0
+    for fill in settlement.fills:
+        fee_paid = 0 if fill.fee_paid is None else fill.fee_paid
+        if type(fee_paid) is not int:
+            raise TypeError(f"SWAP fee_paid must be an int: {fill.intent_id}")
+        if fee_paid < 0:
+            raise ValueError(f"SWAP fee_paid must be non-negative: {fill.intent_id}")
+        total += fee_paid
+    return total
+
+
 def step_with_candidate_settlement(
     config: DexConfig,
     state: DexState,
@@ -235,9 +317,11 @@ def step_with_candidate_settlement(
 ) -> DexStepResult:
     """Verifier path: accept an externally proposed settlement (proof-carrying friendly)."""
     try:
+        sealed_intents = freeze_intent_batch(intents)
+        owned_candidate = snapshot_settlement(candidate_settlement)
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
-            intents=intents,
+            intents=sealed_intents,
             require_all_nonces=config.requires_complete_nonce_coverage(),
         )
         if not ok:
@@ -245,11 +329,11 @@ def step_with_candidate_settlement(
         return _validate_and_apply_settlement(
             config,
             state,
-            intents,
-            candidate_settlement,
+            sealed_intents,
+            owned_candidate,
             next_nonces or state.nonces,
         )
-    except Exception as exc:
+    except _FAIL_CLOSED_STEP_ERRORS as exc:
         return DexStepResult(ok=False, error=str(exc))
 
 
@@ -260,15 +344,16 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
     This function is pure: it returns a new DexState and structured effects.
     """
     try:
+        sealed_intents = freeze_intent_batch(intents)
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
-            intents=intents,
+            intents=sealed_intents,
             require_all_nonces=config.requires_complete_nonce_coverage(),
         )
         if not ok:
             return DexStepResult(ok=False, error=err or "nonce policy rejected")
         settlement = compute_settlement(
-            intents=intents,
+            intents=sealed_intents,
             pools=state.pools,
             balances=state.balances,
             lp_balances=state.lp_balances,
@@ -279,9 +364,9 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
         return _validate_and_apply_settlement(
             config,
             state,
-            intents,
+            sealed_intents,
             settlement,
             next_nonces or state.nonces,
         )
-    except Exception as exc:
+    except _FAIL_CLOSED_STEP_ERRORS as exc:
         return DexStepResult(ok=False, error=str(exc))

@@ -608,17 +608,20 @@ def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_g
     )
     assert _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={})[0] == f"invalid quote receipt legs: {good_env.intent.intent_id}"
 
-    calls = {"n": 0}
+    with pytest.raises(TypeError, match="immutable"):
+        good_env.intent.get_field = lambda key, default=None: default  # type: ignore[method-assign]
 
-    def _stateful_get_field(key: str, default: Any = None) -> Any:
-        if key == "quote_receipt_leg_index":
-            calls["n"] += 1
-            return 0 if calls["n"] == 1 else -1
-        return good_env.intent.fields.get(key, default) if good_env.intent.fields else default
-
-    good_env.intent.get_field = _stateful_get_field  # type: ignore[method-assign]
-    object.__setattr__(good_env, "quote_receipt", _receipt())
-    assert "missing quote_receipt_leg_index" in _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={})[0]  # type: ignore[arg-type]
+    missing_leg_env = SignedIntentEnvelope(
+        intent=_swap_intent(
+            intent_id=_iid(47),
+            fields={"quote_receipt_hash": "0x" + "ab" * 32},
+        ),
+        quote_receipt=_receipt(),
+    )
+    assert "missing quote_receipt_leg_index" in _validate_quote_receipt_witnesses(
+        signed_intents=[missing_leg_env],
+        pools={},
+    )[0]  # type: ignore[arg-type]
 
 
 def test_build_signing_payloads_rejects_invalid_or_oversized_signing_dicts() -> None:

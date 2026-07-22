@@ -49,6 +49,7 @@ from ..state.canonical import (
     domain_sep_bytes,
     sha256_hex,
 )
+from ..state.immutable_collections import deep_thaw_json
 from ..state.intents import Intent, IntentKind, RouteIntent
 from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.state_root import compute_state_root
@@ -792,7 +793,7 @@ def _validate_route_intent_against_quote_receipt(
             sender_pubkey=intent.sender_pubkey,
             deadline=intent.deadline,
             salt=intent.salt,
-            fields=dict(intent.fields or {}),
+            fields=deep_thaw_json(intent.fields or {}),
         )
     except ValueError as exc:
         return None, _quote_receipt_error(
@@ -981,7 +982,7 @@ def _validate_quote_receipt_witnesses(
     route_bindings: Dict[str, RouteBinding] = {}
     for env in signed_intents:
         quote_hash = env.intent.get_field("quote_receipt_hash")
-        receipt = env.quote_receipt
+        receipt = None if env.quote_receipt is None else deep_thaw_json(env.quote_receipt)
         if quote_hash is not None and receipt is None:
             return _quote_receipt_error("missing quote receipt witness", **_quote_receipt_intent_context(env.intent)), {}
         if receipt is None:
@@ -1051,7 +1052,11 @@ def _validate_quote_receipt_witnesses(
             ), {}
 
     for quote_hash, envs in grouped_by_hash.items():
-        receipt = envs[0].quote_receipt
+        receipt = (
+            None
+            if envs[0].quote_receipt is None
+            else deep_thaw_json(envs[0].quote_receipt)
+        )
         body = receipt.get("body") if isinstance(receipt, Mapping) else None
         legs = body.get("legs") if isinstance(body, Mapping) else None
         if not isinstance(legs, list) or not legs:
@@ -1141,9 +1146,9 @@ def _validate_protected_swap_oracle_authorizations(
             )
         try:
             result = check_protected_swap_oracle_authorization(
-                authorization_payload=auth,
+                authorization_payload=deep_thaw_json(auth),
                 intent=env.intent,
-                receipt=env.quote_receipt,
+                receipt=deep_thaw_json(env.quote_receipt),
                 now_epoch=int(block_timestamp),
             )
         except Exception as exc:
@@ -1223,7 +1228,7 @@ def _sanitize_intents_after_quote_receipt_validation(
     """
     out: List[Intent] = []
     for intent in intents:
-        fields = dict(intent.fields or {})
+        fields = deep_thaw_json(intent.fields or {})
         fields.pop("quote_receipt_hash", None)
         fields.pop("quote_receipt_leg_index", None)
         fields.pop("oracle_authorization", None)

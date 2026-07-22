@@ -5,6 +5,7 @@ Pool state management for DEX pools.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Tuple
@@ -90,7 +91,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
                 params_obj = json.loads(params_obj)
             except Exception as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+        if not isinstance(params_obj, Mapping):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
         p = params_obj.get("p", 1)
         q = params_obj.get("q", 1)
@@ -112,7 +113,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
                 params_obj = json.loads(params_obj)
             except Exception as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+        if not isinstance(params_obj, Mapping):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
         mu_num = params_obj.get("mu_num", 200)
         mu_den = params_obj.get("mu_den", 10_000)
@@ -136,7 +137,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
                 params_obj = json.loads(params_obj)
             except Exception as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+        if not isinstance(params_obj, Mapping):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
         c_num = params_obj.get("c_num", 8)
         c_den = params_obj.get("c_den", 1)
@@ -171,7 +172,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
                 params_obj = json.loads(params_obj)
             except Exception as exc:
                 raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-        if not isinstance(params_obj, dict):
+        if not isinstance(params_obj, Mapping):
             raise ValueError(f"curve_params for {tag} must be a JSON object")
         c_num = params_obj.get("c_num", 2)
         c_den = params_obj.get("c_den", 1)

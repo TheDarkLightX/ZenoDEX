@@ -20,7 +20,7 @@ class FillAction(Enum):
     REJECT = "REJECT"
 
 
-@dataclass
+@dataclass(slots=True)
 class Fill:
     """
     Represents a filled intent.
@@ -68,7 +68,7 @@ class Fill:
     reserve_out_before: Optional[Amount] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class BalanceDelta:
     """
     Balance delta for a (pubkey, asset) pair.
@@ -89,7 +89,7 @@ class BalanceDelta:
         return self.delta_add - self.delta_sub
 
 
-@dataclass
+@dataclass(slots=True)
 class ReserveDelta:
     """
     Reserve delta for a (pool_id, asset) pair.
@@ -110,7 +110,7 @@ class ReserveDelta:
         return self.delta_add - self.delta_sub
 
 
-@dataclass
+@dataclass(slots=True)
 class LPDelta:
     """
     LP balance delta for a (pubkey, pool_id) pair.
@@ -131,7 +131,7 @@ class LPDelta:
         return self.delta_add - self.delta_sub
 
 
-@dataclass
+@dataclass(slots=True)
 class Settlement:
     """
     Batch settlement proposal.

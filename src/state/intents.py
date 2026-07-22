@@ -25,7 +25,7 @@ class IntentKind(Enum):
     ROUTE_EXACT_OUT = "ROUTE_EXACT_OUT"
 
 
-@dataclass
+@dataclass(slots=True)
 class Intent:
     """
     Base intent structure.
@@ -271,19 +271,29 @@ class CreatePoolIntent(Intent):
             raise ValueError("amount1 must be positive")
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class SignedIntent:
     """
     Intent with cryptographic signature.
-    
-    Attributes:
-        intent: The intent object
-        signature: BLS12-381 signature (hex string)
+
+    Construction replaces the caller's intent with an owned immutable
+    snapshot, binding every later signature check and relay operation to the
+    same payload.
     """
     intent: Intent
     signature: str
     
     def __post_init__(self):
-        """Validate signature format."""
+        """Validate the signature envelope and seal its signed payload."""
+        if not isinstance(self.signature, str):
+            raise ValueError(f"Invalid signature format: {self.signature}")
         if not self.signature.startswith("0x") or len(self.signature) < 130:
             raise ValueError(f"Invalid signature format: {self.signature}")
+        if not isinstance(self.intent, Intent):
+            raise TypeError("intent must be an Intent")
+
+        # Imported lazily because the immutable read-compatible snapshot
+        # subclasses Intent after this module is initialized.
+        from .intent_snapshots import freeze_intent
+
+        object.__setattr__(self, "intent", freeze_intent(self.intent))

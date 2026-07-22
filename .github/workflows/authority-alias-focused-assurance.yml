@@ -1,0 +1,135 @@
+# Read-only exact-head certification for authenticated commands and DEX effects.
+name: authority-alias-focused-assurance
+
+on:
+  pull_request:
+    branches:
+      - main
+      - agent/functional-core-owned-state-snapshots-20260719
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: authority-alias-focused-assurance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  critical-quality:
+    if: github.event.pull_request.head.ref == 'agent/functional-core-auth-effect-snapshots-20260719'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Run critical-quality gate
+        run: bash tools/run_critical_quality_gate.sh
+
+  mounted-authority-consumers:
+    if: github.event.pull_request.head.ref == 'agent/functional-core-auth-effect-snapshots-20260719'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Source hygiene
+        run: |
+          python -m ruff check \
+            src/agents/intent_signer.py \
+            src/agents/relayer.py \
+            src/core/dex.py \
+            src/core/dex_intent_auth_message.py \
+            src/core/settlement.py \
+            src/core/settlement_snapshots.py \
+            src/core/uniform_batch_admission.py \
+            src/core/uniform_batch_clearing.py \
+            src/integration/autotrader_live_api.py \
+            src/integration/dex_engine.py \
+            src/integration/operations.py \
+            src/state/immutable_collections.py \
+            src/state/intent_snapshots.py \
+            src/state/intents.py \
+            src/state/nonces.py \
+            src/state/pools.py \
+            tests/core/test_authority_snapshot_immutability.py \
+            tests/integration/test_dex_engine_helpers.py
+          python -m ruff format --check \
+            src/core/settlement_snapshots.py \
+            src/state/intent_snapshots.py \
+            tests/core/test_authority_snapshot_immutability.py
+          python -m mypy
+          git diff --check
+
+      - name: Compile changed Python
+        run: |
+          python -m py_compile \
+            src/agents/intent_signer.py \
+            src/agents/relayer.py \
+            src/core/dex.py \
+            src/core/dex_intent_auth_message.py \
+            src/core/settlement.py \
+            src/core/settlement_snapshots.py \
+            src/core/uniform_batch_admission.py \
+            src/core/uniform_batch_clearing.py \
+            src/integration/autotrader_live_api.py \
+            src/integration/dex_engine.py \
+            src/integration/operations.py \
+            src/state/immutable_collections.py \
+            src/state/intent_snapshots.py \
+            src/state/intents.py \
+            src/state/nonces.py \
+            src/state/pools.py \
+            tests/core/test_authority_snapshot_immutability.py \
+            tests/integration/test_dex_engine_helpers.py
+
+      - name: Authenticated-command and effect-plan regressions
+        run: |
+          python -m pytest -q \
+            tests/core/test_authority_snapshot_immutability.py \
+            tests/core/test_dex_step.py \
+            tests/core/test_dex_step_candidate_settlement.py \
+            tests/core/test_settlement.py \
+            tests/core/test_settlement_strong_validator.py \
+            tests/core/test_uniform_batch_admission.py \
+            tests/core/test_uniform_batch_clearing.py \
+            tests/state/test_intents.py \
+            tests/integration/test_operations_parsing.py \
+            tests/integration/test_quote_receipt_intents.py \
+            tests/integration/test_dex_engine_protected_swap_oracle_authorization.py \
+            tests/integration/test_dex_engine_helpers.py \
+            tests/integration/test_dex_engine.py
