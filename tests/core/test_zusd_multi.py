@@ -43,7 +43,7 @@ def test_multi_supply_conservation_across_two_vaults() -> None:
     assert check_multi_invariants(s) == []
 
 
-def test_oracle_commit_requires_both_vaults_above_mcr_at_pending() -> None:
+def test_oracle_commit_finalizes_adverse_price_for_all_vaults() -> None:
     s = init_multi_state()
     s = _bootstrap(s)
     s = _ok(s, "deposit_collateral", vault="a", amount_e8=2 * E8)
@@ -53,8 +53,9 @@ def test_oracle_commit_requires_both_vaults_above_mcr_at_pending() -> None:
     s = _ok(s, "oracle_report", price_e8=50 * E8, auth_ok=True)
 
     r = step_multi(s, ZUSDMultiCommand(tag="oracle_commit", args={"auth_ok": True}))
-    assert not r.ok
-    assert "below MCR" in (r.error or "")
+    assert r.ok, r.error
+    assert r.state is not None
+    assert r.state.price_e8 == 50 * E8
 
 
 def test_recovery_mode_blocks_risky_ops_multi() -> None:
@@ -87,6 +88,7 @@ def test_liquidate_single_vault_moves_only_target_debt_and_collateral() -> None:
     s = _ok(s, "mint_zusd", vault="b", amount_e8=100 * E8)
     s = _ok(s, "deposit_sp", amount_e8=180 * E8)
     s = _ok(s, "oracle_report", price_e8=50 * E8, auth_ok=True)
+    s = _ok(s, "oracle_commit", auth_ok=True)
 
     r = step_multi(s, ZUSDMultiCommand(tag="liquidate", args={"vault": "a"}))
     assert r.ok, r.error

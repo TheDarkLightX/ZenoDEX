@@ -47,10 +47,10 @@ def _ready_state() -> Z.ZUSDState:
 
 
 def _liquidatable_state() -> Z.ZUSDState:
-    # Valid (debt == free + sp) and under MCR at the pending price.
+    # Valid (debt == free + sp) and under MCR at the finalized price.
     return Z.ZUSDState(
         now_epoch=5, oracle_seen=True, oracle_last_update_epoch=5,
-        price_e8=100 * E8, price_pending_e8=10 * E8, collateral_e8=100 * E8,
+        price_e8=10 * E8, price_pending_e8=10 * E8, collateral_e8=100 * E8,
         debt_e8=1000 * E8, free_debt_e8=0, sp_debt_e8=1000 * E8,
         max_sp_coll_e8=10 ** 30, liquidation_gas_comp_bps=100,
         liquidation_gas_comp_fixed_collateral_e8=E8,
@@ -152,7 +152,7 @@ def _liq_multi(which: str) -> "Z.ZUSDMultiState":
     vb = Z.ZUSDVault(100 * E8, 1000 * E8) if which == "b" else Z.ZUSDVault(10000 * E8, 0)
     return Z.ZUSDMultiState(
         now_epoch=5, oracle_seen=True, oracle_last_update_epoch=5,
-        price_e8=100 * E8, price_pending_e8=10 * E8, vault_a=va, vault_b=vb,
+        price_e8=10 * E8, price_pending_e8=10 * E8, vault_a=va, vault_b=vb,
         free_debt_e8=0, sp_debt_e8=1000 * E8, max_sp_coll_e8=10 ** 30,
     )
 

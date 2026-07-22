@@ -27,6 +27,12 @@ from ..core.zusd import (
     init_multi_state,
     init_state,
 )
+from ..state.canonical import canonical_json_bytes
+from .zeno_oracle_authorization import (
+    RuntimeActionFacts,
+    check_critical_consumer_authorization,
+    semantic_hash,
+)
 from .zusd_oracle_contracts import (
     ZUSDCrossModuleOracleSyncContract,
     ZUSDOraclePendingGateContract,
@@ -40,12 +46,6 @@ from .zusd_oracle_recovery_lifecycle import (
     verify_zusd_oracle_recovery_lifecycle_packet_payload,
 )
 from .zusd_tau_gate import ZUSDTauGateConfig, step_multi_with_tau, step_with_tau
-from ..state.canonical import canonical_json_bytes
-from .zeno_oracle_authorization import (
-    RuntimeActionFacts,
-    check_critical_consumer_authorization,
-    semantic_hash,
-)
 
 MAX_POST_BODY: int = 65_536
 
@@ -210,8 +210,8 @@ def _planned_single_oracle_authorization_value(
         return int(state.price_pending_e8)
     if tag == "mint_zusd" and state.price_e8 > 0:
         return int(state.price_e8)
-    if tag == "liquidate" and state.price_pending_e8 > 0:
-        return int(state.price_pending_e8)
+    if tag == "liquidate" and state.price_e8 > 0:
+        return int(state.price_e8)
     return None
 
 
@@ -230,8 +230,8 @@ def _planned_multi_oracle_authorization_value(
         return int(state.price_pending_e8)
     if tag == "mint_zusd" and state.price_e8 > 0:
         return int(state.price_e8)
-    if tag == "liquidate" and state.price_pending_e8 > 0:
-        return int(state.price_pending_e8)
+    if tag == "liquidate" and state.price_e8 > 0:
+        return int(state.price_e8)
     return None
 
 

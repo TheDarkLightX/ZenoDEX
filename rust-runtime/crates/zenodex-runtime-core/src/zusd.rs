@@ -8,7 +8,7 @@
 //! arbitrary-precision ints. Stored state fields are `<= 1e30` (enforced by the
 //! bound checks) and therefore fit `u128`.
 //!
-//! Reject reasons are stable string codes; the Python harness
+//! Reject reasons are an exhaustive type with stable wire codes; the Python harness
 //! (`tools/runtime/zusd_kernel_lib.py`) maps `zusd.py`'s error prose to the same
 //! codes, and the Python/Rust differential pins the agreement.
 
@@ -26,11 +26,110 @@ const RECEIPT_LABEL: &str = "zusd_receipt";
 const STATE_VERSION: u32 = 1;
 const RECEIPT_VERSION: u32 = 1;
 
-// --- Stable reject codes (mirrored by the Python harness mapping) -------------
-pub const REJ_NOT_POSITIVE_INT: &str = "not_positive_int";
-pub const REJ_BOUNDED_CHECK_FAILED: &str = "bounded_check_failed";
-pub const REJ_INVARIANT_VIOLATION: &str = "invariant_violation";
-pub const REJ_UNKNOWN_ACTION: &str = "unknown_action";
+/// Stable, exhaustive semantic rejection registry for the zUSD core.
+///
+/// The shell serializes [`ZusdReject::code`].  Keeping variants inside the
+/// core prevents free-form strings, spelling drift, and accidental fallback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ZusdReject {
+    NotPositiveInt,
+    BoundedCheckFailed,
+    InvariantViolation,
+    UnknownAction,
+    OracleAlreadyBootstrapped,
+    BootstrapRequiresAuth,
+    OracleNotBootstrapped,
+    ReportRequiresAuth,
+    ReportPriceNotNonIncreasing,
+    CommitRequiresAuth,
+    CommitStaleOracle,
+    InsufficientCollateral,
+    WithdrawBlockedOracle,
+    WithdrawViolatesMcr,
+    MintBlockedOracle,
+    MintBelowMinDebt,
+    MintExceedsMaxDebt,
+    MintExceedsMaxSupply,
+    MintViolatesMcr,
+    RepayExceedsDebt,
+    RepayExceedsFreeDebt,
+    RepayBelowMinDebt,
+    DepositSpExceedsFreeDebt,
+    DepositSpExceedsMaxSupply,
+    WithdrawSpExceedsSpDebt,
+    WithdrawSpBlockedOracle,
+    WithdrawSpBelowMcr,
+    RedeemOracleUninitialized,
+    RedeemPendingMismatch,
+    RedeemStaleOracle,
+    RedeemExceedsDebt,
+    RedeemExceedsFreeDebt,
+    RedeemAmountTooSmall,
+    RedeemInsufficientCollateral,
+    RedeemFeeConsumesAll,
+    RedeemProtocolCapExceeded,
+    RedeemBelowMinDebt,
+    RedeemViolatesMcr,
+    LiquidateOracleUninitialized,
+    LiquidatePendingMismatch,
+    LiquidateStaleOracle,
+    LiquidateNoDebt,
+    LiquidateNotUnderMcr,
+    LiquidateSpCannotAbsorb,
+    LiquidateSpCapExceeded,
+}
+
+impl ZusdReject {
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::NotPositiveInt => "not_positive_int",
+            Self::BoundedCheckFailed => "bounded_check_failed",
+            Self::InvariantViolation => "invariant_violation",
+            Self::UnknownAction => "unknown_action",
+            Self::OracleAlreadyBootstrapped => "oracle_already_bootstrapped",
+            Self::BootstrapRequiresAuth => "bootstrap_requires_auth",
+            Self::OracleNotBootstrapped => "oracle_not_bootstrapped",
+            Self::ReportRequiresAuth => "report_requires_auth",
+            Self::ReportPriceNotNonIncreasing => "report_price_not_non_increasing",
+            Self::CommitRequiresAuth => "commit_requires_auth",
+            Self::CommitStaleOracle => "commit_stale_oracle",
+            Self::InsufficientCollateral => "insufficient_collateral",
+            Self::WithdrawBlockedOracle => "withdraw_blocked_oracle",
+            Self::WithdrawViolatesMcr => "withdraw_violates_mcr",
+            Self::MintBlockedOracle => "mint_blocked_oracle",
+            Self::MintBelowMinDebt => "mint_below_min_debt",
+            Self::MintExceedsMaxDebt => "mint_exceeds_max_debt",
+            Self::MintExceedsMaxSupply => "mint_exceeds_max_supply",
+            Self::MintViolatesMcr => "mint_violates_mcr",
+            Self::RepayExceedsDebt => "repay_exceeds_debt",
+            Self::RepayExceedsFreeDebt => "repay_exceeds_free_debt",
+            Self::RepayBelowMinDebt => "repay_below_min_debt",
+            Self::DepositSpExceedsFreeDebt => "deposit_sp_exceeds_free_debt",
+            Self::DepositSpExceedsMaxSupply => "deposit_sp_exceeds_max_supply",
+            Self::WithdrawSpExceedsSpDebt => "withdraw_sp_exceeds_sp_debt",
+            Self::WithdrawSpBlockedOracle => "withdraw_sp_blocked_oracle",
+            Self::WithdrawSpBelowMcr => "withdraw_sp_below_mcr",
+            Self::RedeemOracleUninitialized => "redeem_oracle_uninitialized",
+            Self::RedeemPendingMismatch => "redeem_pending_mismatch",
+            Self::RedeemStaleOracle => "redeem_stale_oracle",
+            Self::RedeemExceedsDebt => "redeem_exceeds_debt",
+            Self::RedeemExceedsFreeDebt => "redeem_exceeds_free_debt",
+            Self::RedeemAmountTooSmall => "redeem_amount_too_small",
+            Self::RedeemInsufficientCollateral => "redeem_insufficient_collateral",
+            Self::RedeemFeeConsumesAll => "redeem_fee_consumes_all",
+            Self::RedeemProtocolCapExceeded => "redeem_protocol_cap_exceeded",
+            Self::RedeemBelowMinDebt => "redeem_below_min_debt",
+            Self::RedeemViolatesMcr => "redeem_violates_mcr",
+            Self::LiquidateOracleUninitialized => "liquidate_oracle_uninitialized",
+            Self::LiquidatePendingMismatch => "liquidate_pending_mismatch",
+            Self::LiquidateStaleOracle => "liquidate_stale_oracle",
+            Self::LiquidateNoDebt => "liquidate_no_debt",
+            Self::LiquidateNotUnderMcr => "liquidate_not_under_mcr",
+            Self::LiquidateSpCannotAbsorb => "liquidate_sp_cannot_absorb",
+            Self::LiquidateSpCapExceeded => "liquidate_sp_cap_exceeded",
+        }
+    }
+}
 
 /// A parsed zUSD command. Numeric args are the integer literal string (or `None`
 /// if missing / not an integer); `require_pos` enforces the positive-int rule at
@@ -267,27 +366,63 @@ fn is_oracle_fresh(
     seen && now_epoch >= last_update_epoch && now_epoch - last_update_epoch <= max_staleness
 }
 
+/// Proof-carrying view of the only Oracle value permitted to authorize
+/// liquidation. Construction rejects uninitialized, pending, and stale state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FinalizedOracle {
+    price_e8: u128,
+}
+
+impl FinalizedOracle {
+    fn for_liquidation(state: &ZusdState) -> Result<Self, ZusdReject> {
+        if !state.oracle_seen || state.price_e8 == 0 {
+            return Err(ZusdReject::LiquidateOracleUninitialized);
+        }
+        if state.price_pending_e8 != state.price_e8 {
+            return Err(ZusdReject::LiquidatePendingMismatch);
+        }
+        if !is_oracle_fresh(
+            state.now_epoch,
+            state.oracle_last_update_epoch,
+            state.max_oracle_staleness_epochs,
+            state.oracle_seen,
+        ) {
+            return Err(ZusdReject::LiquidateStaleOracle);
+        }
+        Ok(Self {
+            price_e8: state.price_e8,
+        })
+    }
+}
+
 fn decayed_base_rate_bps(
     base_rate_bps: u128,
     now_epoch: u128,
     last_epoch: u128,
     decay_per_epoch_bps: u128,
-) -> u128 {
-    // zusd.py raises if now < last; transitions keep last <= now, so saturating.
-    let elapsed = now_epoch.saturating_sub(last_epoch);
-    let decay = decay_per_epoch_bps.saturating_mul(elapsed);
-    base_rate_bps.saturating_sub(decay)
+) -> Result<u128, ZusdReject> {
+    // State validation establishes `last_epoch <= now_epoch`. BigUint mirrors
+    // Python without overflow or saturating arithmetic in the protocol core.
+    let elapsed = now_epoch - last_epoch;
+    let decay = bu(decay_per_epoch_bps) * bu(elapsed);
+    if decay >= bu(base_rate_bps) {
+        Ok(0)
+    } else {
+        u128::try_from(bu(base_rate_bps) - decay).map_err(|_| ZusdReject::BoundedCheckFailed)
+    }
 }
 
-fn effective_fee_bps(decayed: u128, floor_bps: u128, max_bps: u128) -> u128 {
-    let mut fee = floor_bps.saturating_add(decayed);
+fn effective_fee_bps(decayed: u128, floor_bps: u128, max_bps: u128) -> Result<u128, ZusdReject> {
+    let mut fee = floor_bps
+        .checked_add(decayed)
+        .ok_or(ZusdReject::BoundedCheckFailed)?;
     if fee > max_bps {
         fee = max_bps;
     }
     if fee > BPS_SCALE {
         fee = BPS_SCALE;
     }
-    fee
+    Ok(fee)
 }
 
 fn liquidation_compensation_split(
@@ -367,50 +502,67 @@ pub fn check_invariants(state: &ZusdState) -> Vec<&'static str> {
     if state.free_debt_e8 + state.sp_debt_e8 != state.debt_e8 {
         failed.push("inv_supply_conservation");
     }
+    if state.debt_e8 > state.max_debt_supply_e8 {
+        failed.push("inv_total_debt_cap");
+    }
     if !debt_floor_ok(state.debt_e8, state.min_debt_open_e8) {
         failed.push("inv_debt_floor");
     }
+    failed
+}
+
+/// Economic distress facts are observable state, not representation failures.
+/// They remain deterministic and pure, but do not make an adverse Oracle
+/// observation impossible to commit.
+pub fn check_health_conditions(state: &ZusdState) -> Vec<&'static str> {
+    let mut failed = Vec::new();
+    if !state.oracle_seen || state.price_e8 == 0 {
+        return failed;
+    }
+    if !mcr_ok(
+        state.collateral_e8,
+        state.debt_e8,
+        state.price_e8,
+        state.mcr_bps,
+    ) {
+        failed.push("health_vault_below_mcr");
+    }
     let sys_coll = state.collateral_e8 + state.sp_coll_e8 + state.protocol_collateral_e8;
-    let price_for_solvency = if state.price_e8 > 0 {
-        state.price_e8
-    } else {
-        E8
-    };
-    if !solvent_at_price(sys_coll, state.debt_e8, price_for_solvency) {
-        failed.push("inv_system_no_bad_debt");
+    if !solvent_at_price(sys_coll, state.debt_e8, state.price_e8) {
+        failed.push("health_system_bad_debt");
     }
     failed
 }
 
 // --- arg parsing helpers ------------------------------------------------------
 
-fn validate_state_shape(state: &ZusdState) -> Result<(), &'static str> {
+fn validate_state_shape(state: &ZusdState) -> Result<(), ZusdReject> {
     if state.fields().iter().any(|f| *f > MAX_AMOUNT_E8) {
-        return Err(REJ_BOUNDED_CHECK_FAILED);
+        return Err(ZusdReject::BoundedCheckFailed);
     }
     if state.oracle_last_update_epoch > state.now_epoch
         || state.base_rate_last_epoch > state.now_epoch
     {
-        return Err(REJ_INVARIANT_VIOLATION);
+        return Err(ZusdReject::InvariantViolation);
     }
     if state.oracle_seen {
         if state.price_e8 == 0
             || state.price_pending_e8 == 0
             || state.price_pending_e8 > state.price_e8
         {
-            return Err(REJ_INVARIANT_VIOLATION);
+            return Err(ZusdReject::InvariantViolation);
         }
     } else if state.price_e8 != 0
         || state.price_pending_e8 != 0
         || state.oracle_last_update_epoch != 0
     {
-        return Err(REJ_INVARIANT_VIOLATION);
+        return Err(ZusdReject::InvariantViolation);
     }
     if state.mcr_bps == 0 || state.mcr_bps > state.ccr_bps {
-        return Err(REJ_INVARIANT_VIOLATION);
+        return Err(ZusdReject::InvariantViolation);
     }
     if state.max_debt_e8 > state.max_debt_supply_e8 {
-        return Err(REJ_INVARIANT_VIOLATION);
+        return Err(ZusdReject::InvariantViolation);
     }
     if state.base_rate_bps > BPS_SCALE
         || state.base_rate_decay_per_epoch_bps > BPS_SCALE
@@ -422,7 +574,10 @@ fn validate_state_shape(state: &ZusdState) -> Result<(), &'static str> {
         || state.redemption_fee_max_bps > BPS_SCALE
         || state.liquidation_gas_comp_bps > BPS_SCALE
     {
-        return Err(REJ_INVARIANT_VIOLATION);
+        return Err(ZusdReject::InvariantViolation);
+    }
+    if !check_invariants(state).is_empty() {
+        return Err(ZusdReject::InvariantViolation);
     }
     Ok(())
 }
@@ -430,30 +585,30 @@ fn validate_state_shape(state: &ZusdState) -> Result<(), &'static str> {
 /// `_require_pos_int`: the literal must be a positive integer. **No upper
 /// bound** — exactly like the authority, which rejects huge values only via
 /// downstream command logic. Returns the value as a `BigUint`.
-fn require_pos(arg: &Option<String>) -> Result<BigUint, &'static str> {
-    let s = arg.as_deref().ok_or(REJ_NOT_POSITIVE_INT)?;
+fn require_pos(arg: &Option<String>) -> Result<BigUint, ZusdReject> {
+    let s = arg.as_deref().ok_or(ZusdReject::NotPositiveInt)?;
     if s.starts_with('-') {
-        return Err(REJ_NOT_POSITIVE_INT);
+        return Err(ZusdReject::NotPositiveInt);
     }
-    let v: BigUint = s.parse().map_err(|_| REJ_NOT_POSITIVE_INT)?;
+    let v: BigUint = s.parse().map_err(|_| ZusdReject::NotPositiveInt)?;
     if v == BigUint::ZERO {
-        return Err(REJ_NOT_POSITIVE_INT);
+        return Err(ZusdReject::NotPositiveInt);
     }
     Ok(v)
 }
 
 /// Convert a (validated) BigUint to `u128`; overflow maps to a bound failure.
-fn to_u128(b: &BigUint) -> Result<u128, &'static str> {
-    u128::try_from(b).map_err(|_| REJ_BOUNDED_CHECK_FAILED)
+fn to_u128(b: &BigUint) -> Result<u128, ZusdReject> {
+    u128::try_from(b).map_err(|_| ZusdReject::BoundedCheckFailed)
 }
 
-fn finish(tag: &'static str, ns: ZusdState) -> Result<ZusdAccepted, &'static str> {
+fn finish(tag: &'static str, ns: ZusdState) -> Result<ZusdAccepted, ZusdReject> {
     // `__post_init__` bound portion: every stored amount must be <= MAX_AMOUNT_E8.
     if ns.fields().iter().any(|f| *f > MAX_AMOUNT_E8) {
-        return Err(REJ_BOUNDED_CHECK_FAILED);
+        return Err(ZusdReject::BoundedCheckFailed);
     }
     if !check_invariants(&ns).is_empty() {
-        return Err(REJ_INVARIANT_VIOLATION);
+        return Err(ZusdReject::InvariantViolation);
     }
     let root_bytes = ns.state_root_bytes();
     let rh = receipt_hash(tag, &root_bytes);
@@ -465,7 +620,7 @@ fn finish(tag: &'static str, ns: ZusdState) -> Result<ZusdAccepted, &'static str
 }
 
 /// Apply one zUSD command (single-vault), mirroring `zusd.step`.
-pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'static str> {
+pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, ZusdReject> {
     validate_state_shape(state)?;
     match cmd {
         ZusdCommand::AdvanceEpoch { delta } => {
@@ -480,10 +635,10 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
 
         ZusdCommand::BootstrapOracle { auth_ok, price_e8 } => {
             if state.oracle_seen {
-                return Err("oracle_already_bootstrapped");
+                return Err(ZusdReject::OracleAlreadyBootstrapped);
             }
             if !auth_ok {
-                return Err("bootstrap_requires_auth");
+                return Err(ZusdReject::BootstrapRequiresAuth);
             }
             let p = to_u128(&require_pos(price_e8)?)?;
             let ns = ZusdState {
@@ -498,17 +653,18 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
 
         ZusdCommand::OracleReport { auth_ok, price_e8 } => {
             if !state.oracle_seen {
-                return Err("oracle_not_bootstrapped");
+                return Err(ZusdReject::OracleNotBootstrapped);
             }
             if !auth_ok {
-                return Err("report_requires_auth");
+                return Err(ZusdReject::ReportRequiresAuth);
             }
             let p = require_pos(price_e8)?;
             if p > bu(state.price_pending_e8) {
-                return Err("report_price_not_non_increasing");
+                return Err(ZusdReject::ReportPriceNotNonIncreasing);
             }
             let ns = ZusdState {
                 price_pending_e8: to_u128(&p)?,
+                oracle_last_update_epoch: state.now_epoch,
                 ..state.clone()
             };
             finish("oracle_report", ns)
@@ -516,18 +672,18 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
 
         ZusdCommand::OracleCommit { auth_ok } => {
             if !state.oracle_seen {
-                return Err("oracle_not_bootstrapped");
+                return Err(ZusdReject::OracleNotBootstrapped);
             }
             if !auth_ok {
-                return Err("commit_requires_auth");
+                return Err(ZusdReject::CommitRequiresAuth);
             }
-            if !mcr_ok(
-                state.collateral_e8,
-                state.debt_e8,
-                state.price_pending_e8,
-                state.mcr_bps,
+            if !is_oracle_fresh(
+                state.now_epoch,
+                state.oracle_last_update_epoch,
+                state.max_oracle_staleness_epochs,
+                state.oracle_seen,
             ) {
-                return Err("commit_below_mcr");
+                return Err(ZusdReject::CommitStaleOracle);
             }
             let ns = ZusdState {
                 price_e8: state.price_pending_e8,
@@ -550,14 +706,14 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
         ZusdCommand::WithdrawCollateral { amount_e8 } => {
             let amt = require_pos(amount_e8)?;
             if amt > bu(state.collateral_e8) {
-                return Err("insufficient_collateral");
+                return Err(ZusdReject::InsufficientCollateral);
             }
             if state.debt_e8 > 0 && !risky_ops_allowed(state) {
-                return Err("withdraw_blocked_oracle");
+                return Err(ZusdReject::WithdrawBlockedOracle);
             }
             let post_coll = state.collateral_e8 - to_u128(&amt)?;
             if !mcr_ok(post_coll, state.debt_e8, state.price_e8, state.mcr_bps) {
-                return Err("withdraw_violates_mcr");
+                return Err(ZusdReject::WithdrawViolatesMcr);
             }
             let ns = ZusdState {
                 collateral_e8: post_coll,
@@ -569,34 +725,34 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
         ZusdCommand::MintZusd { amount_e8 } => {
             let amt = require_pos(amount_e8)?;
             if !risky_ops_allowed(state) {
-                return Err("mint_blocked_oracle");
+                return Err(ZusdReject::MintBlockedOracle);
             }
             if state.debt_e8 == 0 && amt < bu(state.min_debt_open_e8) {
-                return Err("mint_below_min_debt");
+                return Err(ZusdReject::MintBelowMinDebt);
             }
             let decayed = decayed_base_rate_bps(
                 state.base_rate_bps,
                 state.now_epoch,
                 state.base_rate_last_epoch,
                 state.base_rate_decay_per_epoch_bps,
-            );
+            )?;
             let fee_bps = effective_fee_bps(
                 decayed,
                 state.borrow_fee_floor_bps,
                 state.borrow_fee_max_bps,
-            );
+            )?;
             let fee_big = mul_div_up(&amt, &bu(fee_bps), BPS_SCALE);
             let debt_delta_big = &amt + &fee_big;
             let new_debt_big = bu(state.debt_e8) + &debt_delta_big;
             if new_debt_big > bu(state.max_debt_e8) {
-                return Err("mint_exceeds_max_debt");
+                return Err(ZusdReject::MintExceedsMaxDebt);
             }
-            if bu(state.free_debt_e8) + &debt_delta_big > bu(state.max_debt_supply_e8) {
-                return Err("mint_exceeds_max_supply");
+            if new_debt_big > bu(state.max_debt_supply_e8) {
+                return Err(ZusdReject::MintExceedsMaxSupply);
             }
             let new_debt = to_u128(&new_debt_big)?;
             if !mcr_ok(state.collateral_e8, new_debt, state.price_e8, state.mcr_bps) {
-                return Err("mint_violates_mcr");
+                return Err(ZusdReject::MintViolatesMcr);
             }
             let fee_e8 = to_u128(&fee_big)?;
             let debt_delta = to_u128(&debt_delta_big)?;
@@ -614,15 +770,15 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
         ZusdCommand::RepayZusd { amount_e8 } => {
             let amt = require_pos(amount_e8)?;
             if amt > bu(state.debt_e8) {
-                return Err("repay_exceeds_debt");
+                return Err(ZusdReject::RepayExceedsDebt);
             }
             if amt > bu(state.free_debt_e8) {
-                return Err("repay_exceeds_free_debt");
+                return Err(ZusdReject::RepayExceedsFreeDebt);
             }
             let amt128 = to_u128(&amt)?;
             let post_debt = state.debt_e8 - amt128;
             if !debt_floor_ok(post_debt, state.min_debt_open_e8) {
-                return Err("repay_below_min_debt");
+                return Err(ZusdReject::RepayBelowMinDebt);
             }
             let ns = ZusdState {
                 debt_e8: post_debt,
@@ -635,10 +791,10 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
         ZusdCommand::DepositSp { amount_e8 } => {
             let amt = require_pos(amount_e8)?;
             if amt > bu(state.free_debt_e8) {
-                return Err("deposit_sp_exceeds_free_debt");
+                return Err(ZusdReject::DepositSpExceedsFreeDebt);
             }
             if bu(state.sp_debt_e8) + &amt > bu(state.max_debt_supply_e8) {
-                return Err("deposit_sp_exceeds_max_supply");
+                return Err(ZusdReject::DepositSpExceedsMaxSupply);
             }
             let amt128 = to_u128(&amt)?;
             let ns = ZusdState {
@@ -652,10 +808,10 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
         ZusdCommand::WithdrawSp { amount_e8 } => {
             let amt = require_pos(amount_e8)?;
             if amt > bu(state.sp_debt_e8) {
-                return Err("withdraw_sp_exceeds_sp_debt");
+                return Err(ZusdReject::WithdrawSpExceedsSpDebt);
             }
             if !risky_ops_allowed(state) {
-                return Err("withdraw_sp_blocked_oracle");
+                return Err(ZusdReject::WithdrawSpBlockedOracle);
             }
             if !mcr_ok(
                 state.collateral_e8,
@@ -663,7 +819,7 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
                 state.price_e8,
                 state.mcr_bps,
             ) {
-                return Err("withdraw_sp_below_mcr");
+                return Err(ZusdReject::WithdrawSpBelowMcr);
             }
             let amt128 = to_u128(&amt)?;
             let ns = ZusdState {
@@ -677,10 +833,10 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
         ZusdCommand::RedeemZusd { amount_e8 } => {
             let amt = require_pos(amount_e8)?;
             if !state.oracle_seen || state.price_e8 == 0 || state.price_pending_e8 == 0 {
-                return Err("redeem_oracle_uninitialized");
+                return Err(ZusdReject::RedeemOracleUninitialized);
             }
             if state.price_pending_e8 != state.price_e8 {
-                return Err("redeem_pending_mismatch");
+                return Err(ZusdReject::RedeemPendingMismatch);
             }
             if !is_oracle_fresh(
                 state.now_epoch,
@@ -688,21 +844,21 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
                 state.max_oracle_staleness_epochs,
                 state.oracle_seen,
             ) {
-                return Err("redeem_stale_oracle");
+                return Err(ZusdReject::RedeemStaleOracle);
             }
             if amt > bu(state.debt_e8) {
-                return Err("redeem_exceeds_debt");
+                return Err(ZusdReject::RedeemExceedsDebt);
             }
             if amt > bu(state.free_debt_e8) {
-                return Err("redeem_exceeds_free_debt");
+                return Err(ZusdReject::RedeemExceedsFreeDebt);
             }
             let amt128 = to_u128(&amt)?;
             let gross_big = (&amt * bu(E8)) / bu(state.price_e8);
             if gross_big == BigUint::ZERO {
-                return Err("redeem_amount_too_small");
+                return Err(ZusdReject::RedeemAmountTooSmall);
             }
             if gross_big > bu(state.collateral_e8) {
-                return Err("redeem_insufficient_collateral");
+                return Err(ZusdReject::RedeemInsufficientCollateral);
             }
             let gross = to_u128(&gross_big)?;
             let decayed = decayed_base_rate_bps(
@@ -710,27 +866,27 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
                 state.now_epoch,
                 state.base_rate_last_epoch,
                 state.base_rate_decay_per_epoch_bps,
-            );
+            )?;
             let fee_bps = effective_fee_bps(
                 decayed,
                 state.redemption_fee_floor_bps,
                 state.redemption_fee_max_bps,
-            );
+            )?;
             let fee_big = mul_div_up(&bu(gross), &bu(fee_bps), BPS_SCALE);
             if fee_big >= bu(gross) {
-                return Err("redeem_fee_consumes_all");
+                return Err(ZusdReject::RedeemFeeConsumesAll);
             }
             let fee = to_u128(&fee_big)?;
             if state.protocol_collateral_e8 + fee > state.max_protocol_coll_e8 {
-                return Err("redeem_protocol_cap_exceeded");
+                return Err(ZusdReject::RedeemProtocolCapExceeded);
             }
             let post_debt = state.debt_e8 - amt128;
             let post_collateral = state.collateral_e8 - gross;
             if !debt_floor_ok(post_debt, state.min_debt_open_e8) {
-                return Err("redeem_below_min_debt");
+                return Err(ZusdReject::RedeemBelowMinDebt);
             }
             if !mcr_ok(post_collateral, post_debt, state.price_e8, state.mcr_bps) {
-                return Err("redeem_violates_mcr");
+                return Err(ZusdReject::RedeemViolatesMcr);
             }
             let ns = ZusdState {
                 debt_e8: post_debt,
@@ -745,22 +901,20 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
         }
 
         ZusdCommand::Liquidate => {
-            if !state.oracle_seen || state.price_pending_e8 == 0 {
-                return Err("liquidate_oracle_uninitialized");
-            }
+            let oracle = FinalizedOracle::for_liquidation(state)?;
             if state.debt_e8 == 0 {
-                return Err("liquidate_no_debt");
+                return Err(ZusdReject::LiquidateNoDebt);
             }
             if mcr_ok(
                 state.collateral_e8,
                 state.debt_e8,
-                state.price_pending_e8,
+                oracle.price_e8,
                 state.mcr_bps,
             ) {
-                return Err("liquidate_not_under_mcr");
+                return Err(ZusdReject::LiquidateNotUnderMcr);
             }
             if state.debt_e8 > state.sp_debt_e8 {
-                return Err("liquidate_sp_cannot_absorb");
+                return Err(ZusdReject::LiquidateSpCannotAbsorb);
             }
             let liquidated_coll = state.collateral_e8;
             let (liquidator_comp, sp_gain) = liquidation_compensation_split(
@@ -768,9 +922,9 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
                 state.liquidation_gas_comp_fixed_collateral_e8,
                 state.liquidation_gas_comp_bps,
             )
-            .ok_or(REJ_BOUNDED_CHECK_FAILED)?;
+            .ok_or(ZusdReject::BoundedCheckFailed)?;
             if state.sp_coll_e8 + sp_gain > state.max_sp_coll_e8 {
-                return Err("liquidate_sp_cap_exceeded");
+                return Err(ZusdReject::LiquidateSpCapExceeded);
             }
             let ns = ZusdState {
                 debt_e8: 0,
@@ -785,7 +939,7 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
             finish("liquidate", ns)
         }
 
-        ZusdCommand::Unknown => Err(REJ_UNKNOWN_ACTION),
+        ZusdCommand::Unknown => Err(ZusdReject::UnknownAction),
     }
 }
 
@@ -870,7 +1024,7 @@ mod tests {
                     amount_e8: amt("1")
                 }
             ),
-            Err("mint_below_min_debt")
+            Err(ZusdReject::MintBelowMinDebt)
         );
     }
 
@@ -885,7 +1039,7 @@ mod tests {
                     amount_e8: amt("20000000000")
                 }
             ),
-            Err("mint_violates_mcr")
+            Err(ZusdReject::MintViolatesMcr)
         );
     }
 
@@ -894,15 +1048,15 @@ mod tests {
         let s = ZusdState::default();
         assert_eq!(
             step(&s, &ZusdCommand::AdvanceEpoch { delta: amt("0") }),
-            Err(REJ_NOT_POSITIVE_INT)
+            Err(ZusdReject::NotPositiveInt)
         );
         assert_eq!(
             step(&s, &ZusdCommand::AdvanceEpoch { delta: amt("-1") }),
-            Err(REJ_NOT_POSITIVE_INT)
+            Err(ZusdReject::NotPositiveInt)
         );
         assert_eq!(
             step(&s, &ZusdCommand::AdvanceEpoch { delta: None }),
-            Err(REJ_NOT_POSITIVE_INT)
+            Err(ZusdReject::NotPositiveInt)
         );
     }
 
@@ -948,7 +1102,7 @@ mod tests {
                     amount_e8: amt("1")
                 }
             ),
-            Err(REJ_INVARIANT_VIOLATION)
+            Err(ZusdReject::InvariantViolation)
         );
     }
 
@@ -973,6 +1127,119 @@ mod tests {
         .unwrap()
         .state;
         assert_ne!(before, after.state_root());
+    }
+
+    #[test]
+    fn mint_counts_stability_pool_debt_against_global_cap() {
+        let state = ZusdState {
+            oracle_seen: true,
+            price_e8: 100 * E8,
+            price_pending_e8: 100 * E8,
+            collateral_e8: 10 * E8,
+            debt_e8: 200 * E8,
+            free_debt_e8: 100 * E8,
+            sp_debt_e8: 100 * E8,
+            max_debt_e8: 200 * E8,
+            max_debt_supply_e8: 200 * E8,
+            ..Default::default()
+        };
+        let before = state.clone();
+        assert_eq!(
+            step(
+                &state,
+                &ZusdCommand::MintZusd {
+                    amount_e8: amt("1")
+                }
+            ),
+            Err(ZusdReject::MintExceedsMaxDebt)
+        );
+        assert_eq!(
+            state, before,
+            "rejection must not mutate the borrowed pre-state"
+        );
+    }
+
+    #[test]
+    fn malformed_state_above_total_debt_cap_is_rejected_at_ingress() {
+        let state = ZusdState {
+            debt_e8: 201 * E8,
+            free_debt_e8: 101 * E8,
+            sp_debt_e8: 100 * E8,
+            max_debt_e8: 200 * E8,
+            max_debt_supply_e8: 200 * E8,
+            ..Default::default()
+        };
+        assert_eq!(
+            step(
+                &state,
+                &ZusdCommand::DepositCollateral {
+                    amount_e8: amt("1")
+                }
+            ),
+            Err(ZusdReject::InvariantViolation)
+        );
+    }
+
+    #[test]
+    fn pending_oracle_cannot_liquidate_but_adverse_finalized_oracle_can() {
+        let state = bootstrap(&ZusdState::default(), "10000000000");
+        let state = step(
+            &state,
+            &ZusdCommand::DepositCollateral {
+                amount_e8: amt("200000000"),
+            },
+        )
+        .unwrap()
+        .state;
+        let state = step(
+            &state,
+            &ZusdCommand::MintZusd {
+                amount_e8: amt("15000000000"),
+            },
+        )
+        .unwrap()
+        .state;
+        let state = step(
+            &state,
+            &ZusdCommand::DepositSp {
+                amount_e8: amt("15000000000"),
+            },
+        )
+        .unwrap()
+        .state;
+        let pending = step(
+            &state,
+            &ZusdCommand::OracleReport {
+                auth_ok: true,
+                price_e8: amt("7000000000"),
+            },
+        )
+        .unwrap()
+        .state;
+
+        assert_eq!(
+            step(&pending, &ZusdCommand::Liquidate),
+            Err(ZusdReject::LiquidatePendingMismatch)
+        );
+
+        let finalized = step(&pending, &ZusdCommand::OracleCommit { auth_ok: true })
+            .unwrap()
+            .state;
+        assert!(check_invariants(&finalized).is_empty());
+        assert!(check_health_conditions(&finalized).contains(&"health_vault_below_mcr"));
+
+        let liquidated = step(&finalized, &ZusdCommand::Liquidate).unwrap().state;
+        assert_eq!(liquidated.debt_e8, 0);
+        assert_eq!(liquidated.collateral_e8, 0);
+    }
+
+    #[test]
+    fn reject_registry_codes_are_stable() {
+        assert_eq!(ZusdReject::CommitStaleOracle.code(), "commit_stale_oracle");
+        assert_eq!(
+            ZusdReject::LiquidatePendingMismatch.code(),
+            "liquidate_pending_mismatch"
+        );
     }
 }
 
@@ -1009,8 +1276,12 @@ mod kani_contracts {
         let last_epoch: u128 = kani::any();
         let decay_per_epoch_bps: u128 = kani::any();
 
+        kani::assume(last_epoch <= now_epoch);
+        kani::assume(base_rate_bps <= BPS_SCALE);
+        kani::assume(decay_per_epoch_bps <= BPS_SCALE);
         let decayed =
-            decayed_base_rate_bps(base_rate_bps, now_epoch, last_epoch, decay_per_epoch_bps);
+            decayed_base_rate_bps(base_rate_bps, now_epoch, last_epoch, decay_per_epoch_bps)
+                .unwrap();
         assert!(decayed <= base_rate_bps);
         if now_epoch <= last_epoch || decay_per_epoch_bps == 0 {
             assert_eq!(decayed, base_rate_bps);
@@ -1023,7 +1294,9 @@ mod kani_contracts {
         let floor_bps: u128 = kani::any();
         let max_bps: u128 = kani::any();
 
-        let fee = effective_fee_bps(decayed, floor_bps, max_bps);
+        kani::assume(floor_bps <= BPS_SCALE);
+        kani::assume(decayed <= BPS_SCALE);
+        let fee = effective_fee_bps(decayed, floor_bps, max_bps).unwrap();
         assert!(fee <= BPS_SCALE);
         assert!(fee <= max_bps || max_bps > BPS_SCALE);
         if floor_bps <= max_bps && max_bps <= BPS_SCALE {

@@ -1,0 +1,25 @@
+# zUSD Liquidation Guard v3 (finalized-price authority)
+#
+# A pending observation is not value-moving authority. Liquidation requires one
+# initialized, fresh finalized price and no pending/finalized mismatch.
+#
+# i1 = finalized_initialized (sbf)
+# i2 = vault_debt (bv[64])
+# i3 = under_mcr_at_finalized (sbf)
+# i4 = sp_debt (bv[64])
+# i5 = vault_coll (bv[64])
+# i6 = sp_coll_before (bv[64])
+# i7 = max_sp_coll (bv[64])
+# i8 = pending_matches_finalized (sbf)
+# i9 = fresh_finalized (sbf)
+# o4 = liquidation_allowed
+
+set charvar off
+
+positive_debt(debt : bv[64]) := debt > { #x0000000000000000 }:bv[64].
+authority_ok(finalized_initialized : sbf, pending_matches_finalized : sbf, fresh_finalized : sbf) := (finalized_initialized = 1:sbf) && (pending_matches_finalized = 1:sbf) && (fresh_finalized = 1:sbf).
+pre_ok(finalized_initialized : sbf, debt : bv[64], under_mcr_at_finalized : sbf, pending_matches_finalized : sbf, fresh_finalized : sbf) := authority_ok(finalized_initialized, pending_matches_finalized, fresh_finalized) && positive_debt(debt) && (under_mcr_at_finalized = 1:sbf).
+debt_absorbable(vault_debt : bv[64], sp_debt : bv[64]) := sp_debt >= vault_debt.
+coll_cap_ok(vault_coll : bv[64], sp_coll_before : bv[64], max_sp_coll : bv[64]) := (max_sp_coll >= sp_coll_before) && ((max_sp_coll - sp_coll_before) >= vault_coll).
+liquidation_allowed(finalized_initialized : sbf, vault_debt : bv[64], under_mcr_at_finalized : sbf, sp_debt : bv[64], vault_coll : bv[64], sp_coll_before : bv[64], max_sp_coll : bv[64], pending_matches_finalized : sbf, fresh_finalized : sbf) := pre_ok(finalized_initialized, vault_debt, under_mcr_at_finalized, pending_matches_finalized, fresh_finalized) && debt_absorbable(vault_debt, sp_debt) && coll_cap_ok(vault_coll, sp_coll_before, max_sp_coll).
+always (o1[t]:sbf = 1:sbf <-> debt_absorbable(i2[t]:bv[64], i4[t]:bv[64])) && (o2[t]:sbf = 1:sbf <-> coll_cap_ok(i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64])) && (o3[t]:sbf = 1:sbf <-> pre_ok(i1[t]:sbf, i2[t]:bv[64], i3[t]:sbf, i8[t]:sbf, i9[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> liquidation_allowed(i1[t]:sbf, i2[t]:bv[64], i3[t]:sbf, i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i8[t]:sbf, i9[t]:sbf)).

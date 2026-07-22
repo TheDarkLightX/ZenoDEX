@@ -19,7 +19,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.core.zusd import ZUSDCommand, ZUSDState, _step_python as step, init_state
+from src.core.zusd import ZUSDCommand, ZUSDState, init_state
+from src.core.zusd import _step_python as step
 from src.state.canonical import domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex
 
 SCHEMA_VERSION = 1
@@ -94,7 +95,7 @@ _ERROR_CODE = {
     "oracle_report requires auth_ok=true": "report_requires_auth",
     "oracle_report requires non-increasing pending price": "report_price_not_non_increasing",
     "oracle_commit requires auth_ok=true": "commit_requires_auth",
-    "oracle_commit blocked: vault below MCR at pending price": "commit_below_mcr",
+    "oracle_commit blocked by stale oracle context": "commit_stale_oracle",
     "insufficient collateral": "insufficient_collateral",
     "withdraw blocked by oracle freeze/staleness/recovery mode": "withdraw_blocked_oracle",
     "withdraw would violate MCR": "withdraw_violates_mcr",
@@ -122,9 +123,11 @@ _ERROR_CODE = {
     "protocol collateral cap exceeded": "redeem_protocol_cap_exceeded",
     "redemption would leave debt below min_debt_open_e8": "redeem_below_min_debt",
     "redemption would violate MCR": "redeem_violates_mcr",
-    "liquidation requires initialized pending oracle price": "liquidate_oracle_uninitialized",
+    "liquidation requires initialized finalized oracle price": "liquidate_oracle_uninitialized",
+    "liquidation blocked by oracle pending mismatch": "liquidate_pending_mismatch",
+    "liquidation blocked by stale finalized oracle": "liquidate_stale_oracle",
     "no debt to liquidate": "liquidate_no_debt",
-    "vault not under MCR at pending price": "liquidate_not_under_mcr",
+    "vault not under MCR at finalized price": "liquidate_not_under_mcr",
     "stability pool cannot absorb debt": "liquidate_sp_cannot_absorb",
     "stability pool collateral cap exceeded": "liquidate_sp_cap_exceeded",
 }
