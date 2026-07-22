@@ -113,6 +113,15 @@ def test_dex_state_nested_public_mutators_fail_closed() -> None:
     pubkey = _pubkey("1")
     state, *_aliases = _state_and_aliases()
 
+    assert not hasattr(state, "__dict__")
+    assert not hasattr(state.balances, "__dict__")
+    assert not hasattr(state.pools["pool"], "__dict__")
+    assert not hasattr(state.lp_balances, "__dict__")
+    assert not hasattr(state.nonces, "__dict__")
+    assert state.perps is not None
+    assert not hasattr(state.perps, "__dict__")
+    assert not hasattr(state.fee_accumulator, "__dict__")
+
     with pytest.raises(TypeError, match="immutable"):
         state.balances.set(pubkey, "A", 2)
     with pytest.raises(TypeError, match="immutable"):
@@ -127,7 +136,6 @@ def test_dex_state_nested_public_mutators_fail_closed() -> None:
         state.lp_balances.set_last_mint_timestamp(pubkey, "pool", 2)
     with pytest.raises(TypeError, match="immutable"):
         state.nonces.set_last(pubkey, 4)
-    assert state.perps is not None
     with pytest.raises(TypeError, match="immutable"):
         state.perps.markets["other"] = object()
 
@@ -283,6 +291,8 @@ def test_optional_module_aliases_are_detached() -> None:
 
     assert state.vault is not None
     assert state.oracle is not None
+    assert not hasattr(state.vault, "__dict__")
+    assert not hasattr(state.oracle, "__dict__")
     assert state.vault.reward_balance == 2
     assert state.oracle.price_timestamp == 5
 

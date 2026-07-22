@@ -83,7 +83,7 @@ class DexConfig:
         return not bool(self.allow_legacy_nonce_free_steps)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class DexState:
     balances: BalanceTable
     pools: Dict[str, PoolState]

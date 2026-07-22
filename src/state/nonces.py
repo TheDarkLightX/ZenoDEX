@@ -18,7 +18,7 @@ from .intents import Intent
 _U32_MAX = 0xFFFFFFFF
 
 
-@dataclass
+@dataclass(slots=True)
 class NonceTable:
     """
     Mutable mapping: sender_pubkey -> last_used_nonce.
@@ -28,11 +28,12 @@ class NonceTable:
     """
 
     _last: Dict[PubKey, int] = field(default_factory=dict)
+    _snapshot_sealed: bool = field(default=False, init=False, repr=False, compare=False)
 
     def __setattr__(self, name: str, value: object) -> None:
         """Prevent base-descriptor writes through a sealed committed subtype."""
 
-        if self.__dict__.get("_snapshot_sealed", False):
+        if getattr(self, "_snapshot_sealed", False):
             raise TypeError("committed nonce snapshot is immutable")
         object.__setattr__(self, name, value)
 

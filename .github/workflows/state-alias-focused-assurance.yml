@@ -71,8 +71,12 @@ jobs:
           python -m ruff check \
             src/core/batch_clearing.py \
             src/core/dex.py \
+            src/core/fees.py \
+            src/core/oracle.py \
+            src/core/perps.py \
             src/core/quote_receipts.py \
             src/core/settlement_strong_validator.py \
+            src/core/vault.py \
             src/integration/tau_gate.py \
             src/state/balances.py \
             src/state/immutable_collections.py \
@@ -105,8 +109,12 @@ jobs:
           python -m py_compile \
             src/core/batch_clearing.py \
             src/core/dex.py \
+            src/core/fees.py \
+            src/core/oracle.py \
+            src/core/perps.py \
             src/core/quote_receipts.py \
             src/core/settlement_strong_validator.py \
+            src/core/vault.py \
             src/integration/tau_gate.py \
             src/state/balances.py \
             src/state/immutable_collections.py \
@@ -120,6 +128,9 @@ jobs:
       - name: Mounted perps compatibility
         run: |
           python -m pytest -q \
+            tests/core/test_fees_bva.py \
+            tests/core/test_oracle_freshness_bva.py \
+            tests/core/test_vault_ref_parity.py \
             tests/integration/test_perp_engine.py \
             tests/integration/test_perp_engine_runtime_gate.py \
             tests/integration/test_perp_engine_auth_guards.py \

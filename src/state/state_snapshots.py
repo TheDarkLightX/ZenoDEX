@@ -34,6 +34,8 @@ def _immutable_state(*_args: object, **_kwargs: object) -> NoReturn:
 class FrozenBalanceTable(BalanceTable):
     """Read-compatible immutable ``BalanceTable`` snapshot."""
 
+    __slots__ = ()
+
     def __init__(self, source: BalanceTable) -> None:
         object.__setattr__(self, "_snapshot_sealed", False)
         BalanceTable.__init__(self)
@@ -43,7 +45,7 @@ class FrozenBalanceTable(BalanceTable):
         object.__setattr__(self, "_snapshot_sealed", True)
 
     def __setattr__(self, name: str, value: object) -> None:
-        if self.__dict__.get("_snapshot_sealed", False):
+        if getattr(self, "_snapshot_sealed", False):
             raise TypeError("committed balance snapshot is immutable")
         object.__setattr__(self, name, value)
 
@@ -62,6 +64,8 @@ class FrozenBalanceTable(BalanceTable):
 
 class FrozenLPTable(LPTable):
     """Read-compatible immutable ``LPTable`` snapshot with metadata."""
+
+    __slots__ = ()
 
     def __init__(self, source: LPTable) -> None:
         object.__setattr__(self, "_snapshot_sealed", False)
@@ -92,7 +96,7 @@ class FrozenLPTable(LPTable):
         object.__setattr__(self, "_snapshot_sealed", True)
 
     def __setattr__(self, name: str, value: object) -> None:
-        if self.__dict__.get("_snapshot_sealed", False):
+        if getattr(self, "_snapshot_sealed", False):
             raise TypeError("committed LP snapshot is immutable")
         object.__setattr__(self, name, value)
 
@@ -152,6 +156,8 @@ class FrozenLPTable(LPTable):
 class FrozenNonceTable(NonceTable):
     """Read-compatible immutable replay-protection snapshot."""
 
+    __slots__ = ()
+
     def __init__(self, source: NonceTable) -> None:
         object.__setattr__(self, "_snapshot_sealed", False)
         NonceTable.__init__(self)
@@ -161,7 +167,7 @@ class FrozenNonceTable(NonceTable):
         object.__setattr__(self, "_snapshot_sealed", True)
 
     def __setattr__(self, name: str, value: object) -> None:
-        if self.__dict__.get("_snapshot_sealed", False):
+        if getattr(self, "_snapshot_sealed", False):
             raise TypeError("committed nonce snapshot is immutable")
         object.__setattr__(self, name, value)
 
@@ -178,13 +184,15 @@ class FrozenNonceTable(NonceTable):
 class FrozenPoolState(PoolState):
     """A canonical ``PoolState`` whose economic fields cannot be reassigned."""
 
+    __slots__ = ()
+
     def __post_init__(self) -> None:
         object.__setattr__(self, "_snapshot_sealed", False)
         PoolState.__post_init__(self)
         object.__setattr__(self, "_snapshot_sealed", True)
 
     def __setattr__(self, name: str, value: object) -> None:
-        if self.__dict__.get("_snapshot_sealed", False):
+        if getattr(self, "_snapshot_sealed", False):
             raise TypeError("committed pool snapshot is immutable")
         object.__setattr__(self, name, value)
 

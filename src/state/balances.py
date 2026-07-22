@@ -24,15 +24,18 @@ class BalanceTable:
     explicitly at serialization / hashing boundaries (see `src/integration/dex_snapshot.py`).
     """
     
+    __slots__ = ("_balances", "_snapshot_sealed")
+
     def __init__(self):
         """Initialize empty balance table."""
+        object.__setattr__(self, "_snapshot_sealed", False)
         # Use tuple keys (pubkey, asset). Deterministic ordering is enforced at call sites via sorting.
         self._balances: Dict[Tuple[PubKey, AssetId], Amount] = {}
 
     def __setattr__(self, name: str, value: object) -> None:
         """Prevent base-descriptor writes through a sealed committed subtype."""
 
-        if self.__dict__.get("_snapshot_sealed", False):
+        if getattr(self, "_snapshot_sealed", False):
             raise TypeError("committed balance snapshot is immutable")
         object.__setattr__(self, name, value)
     

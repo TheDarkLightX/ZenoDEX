@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 BPS_DENOM = 10_000
 
 
@@ -54,7 +53,7 @@ class FeeSplitResult:
                 raise ValueError(f"{name} must be non-negative: {v}")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FeeAccumulatorState:
     """Carries rounding dust in fee units (not scaled)."""
 
@@ -67,10 +66,13 @@ class FeeAccumulatorState:
             raise ValueError("dust must be non-negative")
 
 
+_EMPTY_FEE_ACCUMULATOR_STATE = FeeAccumulatorState()
+
+
 def split_fee_with_dust_carry(
     fee_amount: int,
     params: FeeSplitParams,
-    state: FeeAccumulatorState = FeeAccumulatorState(),
+    state: FeeAccumulatorState = _EMPTY_FEE_ACCUMULATOR_STATE,
 ) -> tuple[FeeSplitResult, FeeAccumulatorState]:
     """
     Split `fee_amount` across (buyback, treasury, rewards) with deterministic floor rounding.
@@ -98,4 +100,3 @@ def split_fee_with_dust_carry(
         ),
         FeeAccumulatorState(dust=dust),
     )
-

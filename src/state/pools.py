@@ -5,7 +5,7 @@ Pool state management for DEX pools.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Tuple
 
@@ -364,7 +364,7 @@ def validate_pool_id_format(pool_id: object, *, allow_symbolic: bool) -> None:
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class PoolState:
     """
     State of a DEX liquidity pool.
@@ -394,11 +394,12 @@ class PoolState:
     created_at: int
     curve_tag: str = CURVE_TAG_CPMM
     curve_params: str = ""
+    _snapshot_sealed: bool = field(default=False, init=False, repr=False, compare=False)
 
     def __setattr__(self, name: str, value: object) -> None:
         """Prevent base-descriptor writes through a sealed committed subtype."""
 
-        if self.__dict__.get("_snapshot_sealed", False):
+        if getattr(self, "_snapshot_sealed", False):
             raise TypeError("committed pool snapshot is immutable")
         object.__setattr__(self, name, value)
     

@@ -56,6 +56,9 @@ CRITICAL_TESTS=(
   tests/core/test_cpmm_u256_safety.py
   tests/core/test_liquidity.py
   tests/core/test_dex_v7_ref_parity.py
+  tests/core/test_fees_bva.py
+  tests/core/test_oracle_freshness_bva.py
+  tests/core/test_vault_ref_parity.py
   tests/core/test_batch_clearing.py
   tests/core/test_batch_clearing_coverage_edges.py
   tests/core/test_batch_auction_settler_v1_ref_parity.py
@@ -117,9 +120,13 @@ echo "== critical: ruff =="
   src/core/liquidity.py \
   src/core/batch_clearing.py \
   src/core/dex.py \
+  src/core/fees.py \
+  src/core/oracle.py \
+  src/core/perps.py \
   src/core/quote_receipts.py \
   src/core/settlement.py \
   src/core/settlement_strong_validator.py \
+  src/core/vault.py \
   src/core/volatility_tier.py \
   src/core/perp_v2 \
   src/integration/perps_api.py \
