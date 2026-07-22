@@ -16,7 +16,46 @@ SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
-REQUIRED_TOOL_IDS = frozenset({"research_kernel", "morph", "esso"})
+EXPECTED_PARENT_HEAD = "3c5ee8b7487048a2dd0a370a64eeb1c294cd9c04"
+EXPECTED_TOOL_EVIDENCE: dict[str, dict[str, Any]] = {
+    "research_kernel": {
+        "repository": "TheDarkLightX/Research-Kernel-MCP",
+        "source_sha": "d9cdfceaa396dd56acfacbd042b89ce633dbc173",
+        "study_head_sha": "3db8716be78dd7593815eec02f902556c5962f3b",
+        "pull_request": 2,
+        "workflow_run": 29854183012,
+        "workflow_conclusion": "success",
+        "artifact_digest": "sha256:68c204ce63e03c8c88e55b2b09fc2cfee087ad0575b04515bbe5cb328d0f03e1",
+        "decision_sha256": "45d77bf10c621a65f261403b806ba571aa67cbedef5f33b0daa061cdad00ffa9",
+    },
+    "morph": {
+        "repository": "TheDarkLightX/Morph",
+        "source_sha": "a26a9f5ddabfa2d5be8e12f8c3546836ace92520",
+        "study_head_sha": "975200d653201a876068bc491ad640f98ee797e2",
+        "pull_request": 4,
+        "workflow_run": 29854232704,
+        "workflow_conclusion": "success",
+        "artifact_digest": "sha256:44df0fe90aae74865b1f553c1ee1b41168b46502172b339bca66af4032593f57",
+        "study_sha256": "9ae9ec325cfdf4cfc06b8c1d23ad16ca6df01bd1c4e0bf7207275a273603ddf9",
+        "license_posture": "private_reference_tool_not_vendored",
+    },
+    "esso": {
+        "repository": "TheDarkLightX/ESSO",
+        "source_sha": "db8a3f8a782a508ada5005a2cf177f25c58f451d",
+        "study_head_sha": "079e06b191d26ed46f3b5ac8210e7a17f4077d97",
+        "pull_request": 4,
+        "workflow_run": 29854496303,
+        "workflow_conclusion": "success",
+        "artifact_digest": "sha256:3c8e18235442f07879ffc1937b53483a191535128e3d1f0e0c9191c0cc5548dd",
+        "license_posture": "private_unlicensed_tool_not_vendored",
+    },
+}
+EXPECTED_ESSO_FINGERPRINTS = {
+    "naive": "393d623b39c58a6c104e8427d86da0af4c5bfa0ffd44dd3ebf5c139b08102015",
+    "repaired": "5820b12530cdd40d1f67c950dfef4c4bb798f2ede514e816424717f7ade1e8d4",
+}
+
+REQUIRED_TOOL_IDS = frozenset(EXPECTED_TOOL_EVIDENCE)
 REQUIRED_REFUTATIONS = frozenset(
     {"claim_disjoint_writes_suffice", "claim_any_matching_is_canonical"}
 )
@@ -70,6 +109,11 @@ def _match(value: Any, pattern: re.Pattern[str], name: str, errors: list[str]) -
         errors.append(f"{name} has invalid format")
 
 
+def _expect_exact(actual: Any, expected: Any, name: str, errors: list[str]) -> None:
+    if actual != expected:
+        errors.append(f"{name} must equal the pinned evidence value")
+
+
 def validate_synthesis(value: Any, *, root: Path = ROOT) -> dict[str, Any]:
     errors: list[str] = []
     obj = _mapping(value, "ledger", errors)
@@ -80,6 +124,7 @@ def validate_synthesis(value: Any, *, root: Path = ROOT) -> dict[str, Any]:
 
     parent = _mapping(obj.get("parent"), "parent", errors)
     _match(parent.get("head_sha"), SHA_RE, "parent.head_sha", errors)
+    _expect_exact(parent.get("head_sha"), EXPECTED_PARENT_HEAD, "parent.head_sha", errors)
     if type(parent.get("pr")) is not int or int(parent.get("pr", 0)) <= 0:
         errors.append("parent.pr must be a positive exact int")
 
@@ -107,6 +152,13 @@ def validate_synthesis(value: Any, *, root: Path = ROOT) -> dict[str, Any]:
         for int_field in ("pull_request", "workflow_run"):
             if type(tool.get(int_field)) is not int or int(tool.get(int_field, 0)) <= 0:
                 errors.append(f"tool_sources.{tool_id}.{int_field} must be a positive exact int")
+        for field, expected in EXPECTED_TOOL_EVIDENCE[tool_id].items():
+            _expect_exact(
+                tool.get(field),
+                expected,
+                f"tool_sources.{tool_id}.{field}",
+                errors,
+            )
 
     rk = _mapping(obj.get("research_kernel_result"), "research_kernel_result", errors)
     if rk.get("supported_scoped_claim") != "claim_typed_parser_boundary":
@@ -139,6 +191,18 @@ def validate_synthesis(value: Any, *, root: Path = ROOT) -> dict[str, Any]:
         errors.append("repaired ESSO model must remain VERIFIED")
     _match(naive.get("fingerprint"), SHA256_RE, "naive_model.fingerprint", errors)
     _match(repaired.get("fingerprint"), SHA256_RE, "repaired_model.fingerprint", errors)
+    _expect_exact(
+        naive.get("fingerprint"),
+        EXPECTED_ESSO_FINGERPRINTS["naive"],
+        "naive_model.fingerprint",
+        errors,
+    )
+    _expect_exact(
+        repaired.get("fingerprint"),
+        EXPECTED_ESSO_FINGERPRINTS["repaired"],
+        "repaired_model.fingerprint",
+        errors,
+    )
     if naive.get("counterexample_query") != "inductive_publish_state":
         errors.append("naive counterexample query mismatch")
     projection = _mapping(
