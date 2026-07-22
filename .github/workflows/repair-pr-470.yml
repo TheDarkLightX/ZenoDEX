@@ -1,0 +1,245 @@
+name: repair-pr-470
+
+on:
+  pull_request:
+    branches:
+      - agent/repair-base-470-20260722
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-pr-470
+  cancel-in-progress: false
+
+jobs:
+  rebuild-and-verify:
+    if: ${{ github.event.pull_request.head.ref == 'agent/zusd-vault-owner-lifecycle-20260721' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact head branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/zusd-vault-owner-lifecycle-20260721
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Detect publication trigger
+        id: trigger
+        shell: bash
+        run: |
+          if test -f .repair-trigger-470; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rebuild focused ownership slice on exact finalized-Oracle head
+        if: steps.trigger.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/owner-slice/src/core /tmp/owner-slice/src/integration
+          mkdir -p /tmp/owner-slice/tests/core /tmp/owner-slice/tests/integration
+          cp src/core/zusd_vault_ownership.py /tmp/owner-slice/src/core/
+          cp src/integration/zusd_monetary_bridge.py /tmp/owner-slice/src/integration/
+          cp tests/core/test_zusd_vault_ownership.py /tmp/owner-slice/tests/core/
+          cp tests/integration/test_zusd_vault_owner_lifecycle.py /tmp/owner-slice/tests/integration/
+
+          git fetch origin agent/zusd-finalized-oracle-authority-20260721
+          test "$(git rev-parse origin/agent/zusd-finalized-oracle-authority-20260721)" = \
+            "56a51be326487037919e1fd09e02724c013a5f31"
+          git reset --hard origin/agent/zusd-finalized-oracle-authority-20260721
+          git clean -fdx
+
+          cp /tmp/owner-slice/src/core/zusd_vault_ownership.py src/core/
+          cp /tmp/owner-slice/src/integration/zusd_monetary_bridge.py src/integration/
+          cp /tmp/owner-slice/tests/core/test_zusd_vault_ownership.py tests/core/
+          cp /tmp/owner-slice/tests/integration/test_zusd_vault_owner_lifecycle.py tests/integration/
+
+      - name: Add one-way v2 migration and regression witnesses
+        if: steps.trigger.outputs.present == 'true'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          bridge = Path("src/integration/zusd_monetary_bridge.py")
+          text = bridge.read_text(encoding="utf-8")
+          needle = '''    owner = (
+              None
+              if owner_raw is None
+              else _canonical_pubkey_wire(
+                  owner_raw,
+                  name="zusd_monetary.vault_owner_pubkey",
+              )
+          )
+          deposits = _parse_account_amount_entries(
+          '''
+          replacement = '''    owner = (
+              None
+              if owner_raw is None
+              else _canonical_pubkey_wire(
+                  owner_raw,
+                  name="zusd_monetary.vault_owner_pubkey",
+              )
+          )
+          # Monetary v2 snapshots emitted before ownership closure could retain an
+          # owner after a terminal withdrawal, redemption, or liquidation. This
+          # authority-reducing migration accepts only that empty-owned legacy shape
+          # and immediately canonicalizes it to empty-unowned. Serialization is
+          # one-way: the stale owner is never emitted again. Non-empty unowned
+          # snapshots remain invalid and are rejected by ZUSDMonetaryState.
+          if (
+              owner is not None
+              and int(core.collateral_e8) == 0
+              and int(core.debt_e8) == 0
+          ):
+              owner = None
+          deposits = _parse_account_amount_entries(
+          '''
+          if text.count(needle) != 1:
+              raise SystemExit(f"owner decoder preimage count={text.count(needle)}")
+          bridge.write_text(text.replace(needle, replacement, 1), encoding="utf-8")
+
+          tests = Path("tests/integration/test_zusd_vault_owner_lifecycle.py")
+          text = tests.read_text(encoding="utf-8")
+          import_needle = '''    _apply_one,
+              init_monetary_state,
+              stability_pool_pubkey,
+          )
+          '''
+          import_replacement = '''    _apply_one,
+              init_monetary_state,
+              stability_pool_pubkey,
+              zusd_monetary_state_from_obj,
+              zusd_monetary_state_to_obj,
+          )
+          '''
+          if text.count(import_needle) != 1:
+              raise SystemExit(f"test import preimage count={text.count(import_needle)}")
+          text = text.replace(import_needle, import_replacement, 1)
+          if "def test_v2_empty_owned_snapshot_migrates_to_canonical_unowned()" in text:
+              raise SystemExit("migration witness already present")
+          text += '''
+
+          def test_v2_empty_owned_snapshot_migrates_to_canonical_unowned() -> None:
+              monetary = init_monetary_state(_config())
+              snapshot = zusd_monetary_state_to_obj(monetary)
+              assert snapshot["schema"] == "zenodex/zusd_monetary_state/v2"
+              assert snapshot["version"] == 2
+              snapshot["vault_owner_pubkey"] = ALICE
+
+              migrated = zusd_monetary_state_from_obj(snapshot)
+
+              assert migrated.core.collateral_e8 == 0
+              assert migrated.core.debt_e8 == 0
+              assert migrated.vault_owner_pubkey is None
+              canonical = zusd_monetary_state_to_obj(migrated)
+              assert canonical["vault_owner_pubkey"] is None
+              assert zusd_monetary_state_from_obj(canonical) == migrated
+
+
+          def test_v2_nonempty_unowned_snapshot_remains_rejected() -> None:
+              monetary = init_monetary_state(_config())
+              nonempty_core = _core_ok(
+                  monetary.core,
+                  "deposit_collateral",
+                  amount_e8=E8,
+              )
+              owned = replace(
+                  monetary,
+                  core=nonempty_core,
+                  vault_owner_pubkey=ALICE,
+              )
+              snapshot = zusd_monetary_state_to_obj(owned)
+              snapshot["vault_owner_pubkey"] = None
+
+              with pytest.raises(ValueError, match="non-empty vault requires"):
+                  zusd_monetary_state_from_obj(snapshot)
+          '''
+          tests.write_text(text, encoding="utf-8")
+          PY
+
+          python -m ruff check --fix \
+            src/core/zusd_vault_ownership.py \
+            src/integration/zusd_monetary_bridge.py \
+            tests/core/test_zusd_vault_ownership.py \
+            tests/integration/test_zusd_vault_owner_lifecycle.py
+          python -m ruff format \
+            src/core/zusd_vault_ownership.py \
+            src/integration/zusd_monetary_bridge.py \
+            tests/core/test_zusd_vault_ownership.py \
+            tests/integration/test_zusd_vault_owner_lifecycle.py
+
+      - name: Verify exact focused review surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin agent/zusd-finalized-oracle-authority-20260721
+          git diff --name-only \
+            origin/agent/zusd-finalized-oracle-authority-20260721...HEAD \
+            | sort > /tmp/actual-paths
+          if test "${{ steps.trigger.outputs.present }}" = "true"; then
+            git diff --name-only | sort > /tmp/actual-paths
+          fi
+          cat > /tmp/expected-paths <<'EOF'
+          src/core/zusd_vault_ownership.py
+          src/integration/zusd_monetary_bridge.py
+          tests/core/test_zusd_vault_ownership.py
+          tests/integration/test_zusd_vault_owner_lifecycle.py
+          EOF
+          sort -o /tmp/expected-paths /tmp/expected-paths
+          diff -u /tmp/expected-paths /tmp/actual-paths
+          test ! -e .repair-trigger-470
+          test ! -e .github/workflows/rebuild-470-clean.yml
+
+      - name: Static validation
+        run: |
+          python -m ruff check \
+            src/core/zusd_vault_ownership.py \
+            src/integration/zusd_monetary_bridge.py \
+            tests/core/test_zusd_vault_ownership.py \
+            tests/integration/test_zusd_vault_owner_lifecycle.py
+          python -m ruff format --check \
+            src/core/zusd_vault_ownership.py \
+            src/integration/zusd_monetary_bridge.py \
+            tests/core/test_zusd_vault_ownership.py \
+            tests/integration/test_zusd_vault_owner_lifecycle.py
+          python -m py_compile \
+            src/core/zusd_vault_ownership.py \
+            src/integration/zusd_monetary_bridge.py
+          python -m mypy \
+            src/core/zusd_vault_ownership.py \
+            src/integration/zusd_monetary_bridge.py
+          git diff --check
+
+      - name: Ownership and compatibility tests
+        run: |
+          python -m pytest -q \
+            tests/core/test_zusd_vault_ownership.py \
+            tests/integration/test_zusd_vault_owner_lifecycle.py \
+            tests/core/test_zusd.py \
+            tests/core/test_zusd_finalized_oracle_authority.py \
+            tests/integration/test_zusd_monetary_wallet_api.py
+
+      - name: Publish clean replacement history
+        if: steps.trigger.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/core/zusd_vault_ownership.py \
+            src/integration/zusd_monetary_bridge.py \
+            tests/core/test_zusd_vault_ownership.py \
+            tests/integration/test_zusd_vault_owner_lifecycle.py
+          git commit -m "fix(zusd): migrate and enforce vault ownership"
+          git push --force origin HEAD:agent/zusd-vault-owner-lifecycle-20260721
