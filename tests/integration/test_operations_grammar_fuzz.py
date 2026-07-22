@@ -31,8 +31,14 @@ def test_operations_grammar_fuzz_signed_intents_discovers_stable_boundary_paths(
     assert "ValueError:Failed to parse signed intent 0: Missing required field: module" in labels
     assert "ValueError:Failed to parse signed intent 0: Invalid module: BadSwap" in labels
     assert "ValueError:Failed to parse signed intent 0: Invalid intent kind: UNKNOWN" in labels
-    assert "ValueError:Failed to parse signed intent 0: signature provided twice (envelope + field)" in labels
-    assert "ValueError:Failed to parse signed intent 0: quote_receipt provided twice (envelope + field)" in labels
+    assert (
+        "ValueError:Failed to parse signed intent 0: signature provided twice (envelope + field)"
+        in labels
+    )
+    assert (
+        "ValueError:Failed to parse signed intent 0: "
+        "quote_receipt provided twice (multiple carriers)"
+    ) in labels
     assert "ValueError:Failed to parse signed intent 1: Missing required field: module" in labels
     assert "repair:signed_ops->drop-envelope-signature" in derivations
     assert "repair:signed_ops->drop-envelope-receipt" in derivations
@@ -75,13 +81,21 @@ def test_operations_grammar_fuzz_cli_emits_expected_schema() -> None:
     )
     payload = json.loads(raw)
     assert payload["schema"] == "zenodex/operations-grammar-fuzz/v1"
-    assert {report["target"] for report in payload["reports"]} == {"signed_intents", "settlement_envelope"}
+    assert {report["target"] for report in payload["reports"]} == {
+        "signed_intents",
+        "settlement_envelope",
+    }
 
 
 def test_operations_minimizer_collapses_duplicate_signature_dead_tail() -> None:
-    witness = minimize_case("signed_intents", "SignedOps->OneEntry ; Entry->DuplicateSignatureSameWithDeadTail")
-    assert witness.outcome_label == "ValueError:Failed to parse signed intent 0: signature provided twice (envelope + field)"
-    assert witness.path_id == "6d2631d647554d13"
+    witness = minimize_case(
+        "signed_intents", "SignedOps->OneEntry ; Entry->DuplicateSignatureSameWithDeadTail"
+    )
+    assert (
+        witness.outcome_label
+        == "ValueError:Failed to parse signed intent 0: signature provided twice (envelope + field)"
+    )
+    assert witness.path_id == "1a88dee4b0a7154e"
     assert witness.original_size > witness.minimized_size
     assert witness.payload == {
         "2": [
@@ -124,7 +138,12 @@ def test_operations_minimizer_cli_emits_expected_schema() -> None:
     assert payload["schema"] == "zenodex/operations-minimized-witness/v1"
     witness = payload["witness"]
     assert witness["target"] == "signed_intents"
-    assert witness["derivation"] == "SignedOps->OneEntry ; Entry->DuplicateSignatureSameWithDeadTail"
-    assert witness["outcome_label"] == "ValueError:Failed to parse signed intent 0: signature provided twice (envelope + field)"
-    assert witness["path_id"] == "6d2631d647554d13"
+    assert (
+        witness["derivation"] == "SignedOps->OneEntry ; Entry->DuplicateSignatureSameWithDeadTail"
+    )
+    assert (
+        witness["outcome_label"]
+        == "ValueError:Failed to parse signed intent 0: signature provided twice (envelope + field)"
+    )
+    assert witness["path_id"] == "1a88dee4b0a7154e"
     assert witness["original_size"] > witness["minimized_size"]

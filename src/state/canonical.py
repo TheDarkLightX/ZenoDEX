@@ -20,8 +20,14 @@ from .immutable_json import FrozenList as JSONFrozenList
 
 CANONICAL_ENCODING_VERSION = 1
 MAX_UVARINT_BITS = 256
+DEFAULT_CANONICAL_JSON_MAX_BYTES = 1_000_000
 
 _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
+_LOWER_HEX_CHARS_RE = re.compile(r"^[0-9a-f]+$")
+
+
+class CanonicalWireEncodingError(ValueError):
+    """Raised when transport bytes are valid data but not the unique wire form."""
 
 
 def _reject_surrogates(s: str) -> None:
@@ -99,6 +105,98 @@ def canonical_json_bytes(value: Any) -> bytes:
         allow_nan=False,
     )
     return text.encode("utf-8")
+
+
+def _reject_duplicate_json_object_pairs(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in out:
+            raise CanonicalWireEncodingError(f"duplicate JSON object key: {key!r}")
+        out[key] = value
+    return out
+
+
+def _reject_json_float(token: str) -> Any:
+    raise CanonicalWireEncodingError(f"floating-point JSON numbers are not canonical: {token!r}")
+
+
+def _reject_json_constant(token: str) -> Any:
+    raise CanonicalWireEncodingError(f"non-finite JSON constant is forbidden: {token!r}")
+
+
+def parse_canonical_json_bytes(
+    data: bytes,
+    *,
+    max_bytes: int = DEFAULT_CANONICAL_JSON_MAX_BYTES,
+    max_depth: int = 64,
+    max_items: int = 200_000,
+) -> Any:
+    """Decode only the unique byte representation emitted by ``canonical_json_bytes``.
+
+    Ordinary JSON parsing is many-to-one: whitespace, key order, duplicate keys,
+    escape spelling, ``-0``, exponent notation, and byte-order marks can all decode
+    to the same apparent value.  Authority-bearing input must instead satisfy:
+
+        canonical_json_bytes(parse(data)) == data
+
+    Duplicate keys and floating-point tokens are rejected before that equality
+    check because an ordinary parser would otherwise erase their ambiguity.
+    """
+
+    if type(data) is not bytes:
+        raise TypeError("canonical JSON transport must be exact bytes")
+    if type(max_bytes) is not int or max_bytes <= 0:
+        raise ValueError("max_bytes must be a positive exact int")
+    if len(data) > max_bytes:
+        raise CanonicalWireEncodingError("canonical JSON transport exceeds max_bytes")
+    try:
+        text = data.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise CanonicalWireEncodingError("canonical JSON transport must be UTF-8") from exc
+    if text.startswith("\ufeff"):
+        raise CanonicalWireEncodingError("canonical JSON transport must not contain a BOM")
+    try:
+        value = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_json_object_pairs,
+            parse_float=_reject_json_float,
+            parse_constant=_reject_json_constant,
+        )
+    except json.JSONDecodeError as exc:
+        raise CanonicalWireEncodingError("invalid canonical JSON transport") from exc
+    bounded_json_utf8_size(
+        value,
+        max_bytes=max_bytes,
+        max_depth=max_depth,
+        max_items=max_items,
+    )
+    if canonical_json_bytes(value) != data:
+        raise CanonicalWireEncodingError(
+            "JSON transport is valid but not in the unique canonical byte form"
+        )
+    return value
+
+
+def parse_canonical_json_object_bytes(
+    data: bytes,
+    *,
+    max_bytes: int = DEFAULT_CANONICAL_JSON_MAX_BYTES,
+    max_depth: int = 64,
+    max_items: int = 200_000,
+) -> dict[str, Any]:
+    """Decode one canonical JSON object, rejecting arrays and scalar roots."""
+
+    value = parse_canonical_json_bytes(
+        data,
+        max_bytes=max_bytes,
+        max_depth=max_depth,
+        max_items=max_items,
+    )
+    if type(value) is not dict:
+        raise CanonicalWireEncodingError("canonical JSON authority value must be an object")
+    return value
 
 
 def bounded_json_utf8_size(
@@ -267,31 +365,42 @@ def encode_bytes(value: bytes) -> bytes:
     return encode_uvarint(len(value_bytes)) + value_bytes
 
 
-def hex_to_bytes_fixed(hex_str: str, *, nbytes: int, name: str) -> bytes:
-    if not isinstance(hex_str, str):
+def require_canonical_hex_fixed(hex_str: str, *, nbytes: int, name: str) -> str:
+    """Accept exactly one fixed-width hex spelling: lowercase and ``0x``-prefixed."""
+
+    if type(hex_str) is not str:
         raise TypeError(f"{name} must be a str")
-    if not isinstance(nbytes, int) or isinstance(nbytes, bool) or nbytes <= 0:
+    if type(nbytes) is not int or nbytes <= 0:
         raise ValueError("nbytes must be a positive int")
     expected_len = 2 + 2 * nbytes
-    if not hex_str.startswith("0x") or len(hex_str) != expected_len:
-        raise ValueError(f"{name} must be a 0x-prefixed {nbytes}-byte hex string")
+    if len(hex_str) != expected_len or not hex_str.startswith("0x"):
+        raise CanonicalWireEncodingError(
+            f"{name} must be canonical lowercase 0x-prefixed {nbytes}-byte hex"
+        )
     body = hex_str[2:]
-    if not _HEX_CHARS_RE.fullmatch(body):
-        raise ValueError(f"{name} must be valid hex")
+    if not _LOWER_HEX_CHARS_RE.fullmatch(body):
+        raise CanonicalWireEncodingError(f"{name} must be valid hex")
+    return hex_str
+
+
+def hex_to_bytes_fixed(hex_str: str, *, nbytes: int, name: str) -> bytes:
+    canonical = require_canonical_hex_fixed(hex_str, nbytes=nbytes, name=name)
     try:
-        out = bytes.fromhex(body)
-    except ValueError as exc:
-        raise ValueError(f"{name} must be valid hex") from exc
-    if len(out) != nbytes:
-        raise ValueError(f"{name} must decode to exactly {nbytes} bytes")
+        out = bytes.fromhex(canonical[2:])
+    except ValueError as exc:  # pragma: no cover - guarded by strict syntax check
+        raise CanonicalWireEncodingError(f"{name} must be valid hex") from exc
+    if len(out) != nbytes:  # pragma: no cover - guarded by exact width check
+        raise CanonicalWireEncodingError(f"{name} must decode to exactly {nbytes} bytes")
     return out
 
 
 def canonical_hex_fixed_allow_0x(hex_str: str, *, nbytes: int, name: str) -> str:
-    """
-    Canonicalize a fixed-size hex string (lowercase, 0x-prefixed).
+    """Normalize builder input to fixed-width lowercase ``0x`` hex.
 
-    Accepts either 0x-prefixed or raw hex input.
+    This permissive helper is for pre-authority construction and authenticated
+    post-processing. It is not a wire decoder. Consensus, signature, receipt, and
+    persistence ingress must use ``require_canonical_hex_fixed`` or
+    ``hex_to_bytes_fixed`` so only one transport spelling is accepted.
     """
     if not isinstance(hex_str, str):
         raise TypeError(f"{name} must be a str")

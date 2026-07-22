@@ -34,6 +34,12 @@ from typing import Any
 
 import pytest
 
+from src.integration.zeno_ledger_v0 import (
+    LEDGER_ROOT_VERSION,
+    canonical_json_bytes_v0,
+    hash_v0,
+    merkle_root_v0,
+)
 from src.state.canonical import (
     CANONICAL_ENCODING_VERSION,
     MAX_UVARINT_BITS,
@@ -46,13 +52,6 @@ from src.state.canonical import (
     hex_to_bytes_fixed,
     sha256_hex,
 )
-from src.integration.zeno_ledger_v0 import (
-    LEDGER_ROOT_VERSION,
-    canonical_json_bytes_v0,
-    hash_v0,
-    merkle_root_v0,
-)
-
 
 # -----------------------------------------------------------------------------
 # A. canonical_json_bytes — adversarial inputs.
@@ -151,7 +150,7 @@ class TestCanonicalJsonBytesAdversarial:
     def test_accepts_unicode_non_ascii_string(self) -> None:
         # Non-surrogate Unicode is fine; ensure_ascii=False preserves it.
         out = canonical_json_bytes("zürich")
-        assert out == "\"zürich\"".encode("utf-8")
+        assert out == '"zürich"'.encode("utf-8")
 
     def test_accepts_embedded_null(self) -> None:
         # Note: JSON allows \\u0000; canonical encoder must too.
@@ -493,10 +492,9 @@ class TestHexToBytesFixed:
         with pytest.raises(ValueError, match="0x-prefixed"):
             hex_to_bytes_fixed("0Xabcd", nbytes=2, name="x")
 
-    def test_accepts_mixed_case_hex_body(self) -> None:
-        # The regex allows both cases for the body.
-        out = hex_to_bytes_fixed("0xAbCd", nbytes=2, name="x")
-        assert out == b"\xab\xcd"
+    def test_rejects_mixed_case_hex_body(self) -> None:
+        with pytest.raises(ValueError, match="valid hex"):
+            hex_to_bytes_fixed("0xAbCd", nbytes=2, name="x")
 
     def test_rejects_wrong_length_short(self) -> None:
         with pytest.raises(ValueError, match="0x-prefixed"):
