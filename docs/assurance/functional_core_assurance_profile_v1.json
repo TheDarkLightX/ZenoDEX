@@ -411,11 +411,17 @@
           "locator": "TheDarkLightX/ZenoDEX#466",
           "status": "pending",
           "sha256": null
+        },
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#475@4631372b327928ee42edff268a1205f41135066f",
+          "status": "pending",
+          "sha256": null
         }
       ],
       "blockers": [
-        "Merge the Python repair.",
-        "Port and differentially prove the same relation in every promoted implementation."
+        "Merge the runtime-bearing Rust/Python repair.",
+        "Prove the same total-debt relation in every remaining promoted implementation."
       ]
     },
     {
@@ -431,11 +437,17 @@
           "locator": "TheDarkLightX/ZenoDEX#467",
           "status": "pending",
           "sha256": null
+        },
+        {
+          "kind": "pull_request",
+          "locator": "TheDarkLightX/ZenoDEX#475@4631372b327928ee42edff268a1205f41135066f",
+          "status": "pending",
+          "sha256": null
         }
       ],
       "blockers": [
-        "Merge the finalized-oracle lifecycle.",
-        "Complete cross-module and cross-implementation oracle authority parity."
+        "Merge the runtime-bearing finalized-oracle lifecycle.",
+        "Complete cross-module and remaining cross-implementation oracle authority parity."
       ]
     },
     {
