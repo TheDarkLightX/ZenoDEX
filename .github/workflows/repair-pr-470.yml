@@ -74,8 +74,9 @@ jobs:
           bridge = Path("src/integration/zusd_monetary_bridge.py")
           text = bridge.read_text(encoding="utf-8")
           marker = "    deposits = _parse_account_amount_entries(\n"
-          migration = textwrap.dedent(
-              '''
+          migration = textwrap.indent(
+              textwrap.dedent(
+                  '''
                   # Monetary v2 snapshots emitted before ownership closure could retain an
                   # owner after a terminal withdrawal, redemption, or liquidation. This
                   # authority-reducing migration accepts only that empty-owned legacy shape
@@ -88,8 +89,10 @@ jobs:
                       and int(core.debt_e8) == 0
                   ):
                       owner = None
-              '''
-          )
+                  '''
+              ),
+              "    ",
+          ).lstrip("\n")
           if text.count(marker) != 1:
               raise SystemExit(f"decoder insertion marker count={text.count(marker)}")
           bridge.write_text(text.replace(marker, migration + marker, 1), encoding="utf-8")
