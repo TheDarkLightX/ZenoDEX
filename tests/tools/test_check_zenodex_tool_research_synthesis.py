@@ -17,6 +17,14 @@ def _ledger() -> dict[str, object]:
     return value
 
 
+def _tool(value: dict[str, object], tool_id: str) -> dict[str, object]:
+    tools = value["tool_sources"]
+    assert isinstance(tools, dict)
+    tool = tools[tool_id]
+    assert isinstance(tool, dict)
+    return tool
+
+
 def test_repository_synthesis_ledger_is_valid() -> None:
     report = validate_synthesis(_ledger(), root=ROOT)
     assert report["ok"] is True, report["errors"]
@@ -26,11 +34,7 @@ def test_repository_synthesis_ledger_is_valid() -> None:
 
 def test_failed_or_stale_workflow_evidence_rejects() -> None:
     value = _ledger()
-    tools = value["tool_sources"]
-    assert isinstance(tools, dict)
-    research_kernel = tools["research_kernel"]
-    assert isinstance(research_kernel, dict)
-    research_kernel["workflow_conclusion"] = "failure"
+    _tool(value, "research_kernel")["workflow_conclusion"] = "failure"
 
     report = validate_synthesis(value, root=ROOT)
     assert report["ok"] is False
@@ -101,12 +105,65 @@ def test_duplicate_decision_priority_rejects() -> None:
 
 def test_tool_source_hashes_are_exact_width() -> None:
     value = _ledger()
-    tools = value["tool_sources"]
-    assert isinstance(tools, dict)
-    esso = tools["esso"]
-    assert isinstance(esso, dict)
-    esso["study_head_sha"] = "deadbeef"
+    _tool(value, "esso")["study_head_sha"] = "deadbeef"
 
     report = validate_synthesis(value, root=ROOT)
     assert report["ok"] is False
     assert any("study_head_sha has invalid format" in error for error in report["errors"])
+
+
+def test_same_width_tool_source_substitution_rejects() -> None:
+    value = _ledger()
+    _tool(value, "research_kernel")["source_sha"] = "0" * 40
+
+    report = validate_synthesis(value, root=ROOT)
+
+    assert report["ok"] is False
+    assert any(
+        "tool_sources.research_kernel.source_sha must equal the pinned evidence value" in error
+        for error in report["errors"]
+    )
+
+
+def test_same_shape_artifact_digest_substitution_rejects() -> None:
+    value = _ledger()
+    _tool(value, "morph")["artifact_digest"] = "sha256:" + ("0" * 64)
+
+    report = validate_synthesis(value, root=ROOT)
+
+    assert report["ok"] is False
+    assert any(
+        "tool_sources.morph.artifact_digest must equal the pinned evidence value" in error
+        for error in report["errors"]
+    )
+
+
+def test_same_shape_result_hash_substitution_rejects() -> None:
+    value = _ledger()
+    _tool(value, "research_kernel")["decision_sha256"] = "0" * 64
+
+    report = validate_synthesis(value, root=ROOT)
+
+    assert report["ok"] is False
+    assert any(
+        "tool_sources.research_kernel.decision_sha256 must equal the pinned evidence value"
+        in error
+        for error in report["errors"]
+    )
+
+
+def test_same_shape_esso_fingerprint_substitution_rejects() -> None:
+    value = _ledger()
+    esso = value["esso_result"]
+    assert isinstance(esso, dict)
+    repaired = esso["repaired_model"]
+    assert isinstance(repaired, dict)
+    repaired["fingerprint"] = "0" * 64
+
+    report = validate_synthesis(value, root=ROOT)
+
+    assert report["ok"] is False
+    assert any(
+        "repaired_model.fingerprint must equal the pinned evidence value" in error
+        for error in report["errors"]
+    )
