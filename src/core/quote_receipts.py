@@ -14,6 +14,7 @@ This supports:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
@@ -54,6 +55,7 @@ from ..core.quote_receipt_hop_replay import (
     replay_and_apply_hop as _replay_and_apply_hop_with_reserve_lookup,
 )
 from ..core.quote_receipt_limits import ROUTE_QUOTE_RECEIPT_MAX_HOPS_PER_LEG
+from ..state.immutable_json import snapshot_json_mapping
 from ..state.pools import PoolState
 
 __all__ = [
@@ -416,13 +418,17 @@ def verify_route_quote_receipt(
 
     Returns (ok, error_code).
     """
-    if not isinstance(receipt, dict):
+    if not isinstance(receipt, Mapping):
         return False, "bad_receipt_type"
-    body = receipt.get("body")
+    try:
+        receipt_snapshot = snapshot_json_mapping(receipt, name="route_quote_receipt")
+    except TypeError:
+        return False, "bad_receipt_type"
+    body = receipt_snapshot.get("body")
     if not isinstance(body, dict):
         return False, "missing_body"
 
-    want_hash = receipt.get("receipt_hash")
+    want_hash = receipt_snapshot.get("receipt_hash")
     precheck_ok, precheck_err, ctx = _precheck_receipt_body(
         body=body,
         want_hash=want_hash,

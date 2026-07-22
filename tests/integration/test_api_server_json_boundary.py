@@ -117,6 +117,9 @@ def test_api_server_fast_quote_domain_error_falls_back_to_exact_router() -> None
         assert body["ok"] is True
         assert body["routing_mode"] == "exact"
         assert body["quote"]["amount_out"] > 0
+        assert type(body["receipt"]) is dict
+        assert type(body["receipt"]["body"]) is dict
+        assert type(body["receipt"]["body"]["legs"]) is list
     finally:
         _stop_test_server(httpd, thread)
 

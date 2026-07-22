@@ -7,6 +7,7 @@ import argparse
 import json
 import sys
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,7 +85,7 @@ def _strategy():
     ).strategy
 
 
-def _market() -> tuple[dict[str, PoolState], dict[str, object]]:
+def _market() -> tuple[dict[str, PoolState], Mapping[str, object]]:
     pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 2_000, 10)}
     quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=100)
     assert quote is not None

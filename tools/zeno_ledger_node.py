@@ -3543,6 +3543,9 @@ def _ui_route_quote_v0(
     from src.integration._dex_api_helpers import (
         quote_to_dict,  # pylint: disable=import-outside-toplevel
     )
+    from src.state.immutable_json import (
+        snapshot_json_mapping,  # pylint: disable=import-outside-toplevel
+    )
 
     if route_kind == "exact_in":
         amount_in = _ui_amount_int_v0(
@@ -3577,11 +3580,14 @@ def _ui_route_quote_v0(
     quote_epoch: int | None = None
     if quote_epoch_raw is not None:
         quote_epoch = _ui_amount_int_v0(quote_epoch_raw, name="quote_epoch", maximum=9_223_372_036_854_775_807, allow_zero=True)
-    receipt = make_route_quote_receipt(
-        kind=route_kind,
-        quote=quote,
-        pools_by_id=pools,
-        quote_epoch=quote_epoch,
+    receipt = snapshot_json_mapping(
+        make_route_quote_receipt(
+            kind=route_kind,
+            quote=quote,
+            pools_by_id=pools,
+            quote_epoch=quote_epoch,
+        ),
+        name="UI route quote receipt",
     )
     return {
         "ok": True,

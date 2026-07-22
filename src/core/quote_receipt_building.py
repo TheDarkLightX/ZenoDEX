@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from typing import Any, Dict, Tuple
 
 from ..core.frontier_signature_root import (
@@ -18,6 +19,7 @@ from ..core.quote_receipt_limits import (
 )
 from ..core.routing import RouteHop, RouteLeg, RouteQuote
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+from ..state.immutable_json import FrozenDict, freeze_json_mapping, snapshot_json_mapping
 from ..state.pools import PoolState
 
 _U32_MAX = (1 << 32) - 1
@@ -360,7 +362,7 @@ def pool_state_fingerprint(pool: PoolState) -> str:
     return sha256_hex(domain_sep_bytes("zenodex.pool_state/v1") + canonical_json_bytes(obj))
 
 
-def receipt_hash(receipt_body: Dict[str, Any]) -> str:
+def receipt_hash(receipt_body: Mapping[str, Any]) -> str:
     return sha256_hex(domain_sep_bytes("zenodex.route_quote_receipt/v1") + canonical_json_bytes(receipt_body))
 
 
@@ -461,7 +463,7 @@ def make_route_quote_receipt(
     pools_by_id: Dict[str, PoolState],
     quote_epoch: int | None = None,
     frontier_signature_binding: FrontierSignatureCertificatesRootBinding | None = None,
-) -> Dict[str, Any]:
+) -> FrozenDict:
     """
     Create a deterministic receipt for a RouteQuote.
 
@@ -515,20 +517,21 @@ def make_route_quote_receipt(
                 frontier_signature_binding=frontier_signature_binding,
             )
         )
-    return receipt
+    return freeze_json_mapping(receipt, name="route_quote_receipt")
 
 
 def attach_frontier_signature_binding_to_route_quote_receipt(
-    receipt: Dict[str, Any],
+    receipt: Mapping[str, Any],
     *,
     frontier_signature_binding: FrontierSignatureCertificatesRootBinding,
     pools_by_id: Dict[str, PoolState] | None = None,
-) -> Dict[str, Any]:
+) -> FrozenDict:
     if not isinstance(frontier_signature_binding, FrontierSignatureCertificatesRootBinding):
         raise TypeError("frontier_signature_binding must be FrontierSignatureCertificatesRootBinding")
-    if not isinstance(receipt, dict):
-        raise TypeError("receipt must be a dict")
-    body = receipt.get("body")
+    if not isinstance(receipt, Mapping):
+        raise TypeError("receipt must be a mapping")
+    receipt_snapshot = snapshot_json_mapping(receipt, name="route_quote_receipt")
+    body = receipt_snapshot.get("body")
     if not isinstance(body, dict):
         raise TypeError("receipt.body must be a dict")
     if (
@@ -544,7 +547,7 @@ def attach_frontier_signature_binding_to_route_quote_receipt(
         frontier_signature_binding.certificates_root
     )
     next_receipt = {
-        **receipt,
+        **receipt_snapshot,
         "body": next_body,
         "receipt_hash": receipt_hash(next_body),
     }
@@ -560,4 +563,7 @@ def attach_frontier_signature_binding_to_route_quote_receipt(
                     frontier_signature_binding=frontier_signature_binding,
                 )
             )
-    return next_receipt
+    return freeze_json_mapping(
+        next_receipt,
+        name="route_quote_receipt_with_frontier_binding",
+    )

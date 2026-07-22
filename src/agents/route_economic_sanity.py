@@ -10,6 +10,7 @@ from ..kernels.python.strategy_route_economic_sanity_guard_v1_adapter import (
     StrategyRouteEconomicSanityPolicy,
     check_strategy_route_economic_sanity,
 )
+from ..state.immutable_json import snapshot_json_mapping
 from ..state.pools import PoolState
 
 ROUTE_METRIC_MAX = 0xFFFFFFFF
@@ -280,11 +281,15 @@ def build_route_economic_sanity_snapshot(
     if not isinstance(pools_by_id, Mapping):
         return None
 
+    try:
+        receipt_snapshot = snapshot_json_mapping(quote_receipt, name="quote_receipt")
+    except TypeError:
+        return None
     verify_ok, verify_error = verify_route_quote_receipt(
-        dict(quote_receipt),
+        receipt_snapshot,
         pools_by_id=dict(pools_by_id),
     )
-    shape = _route_shape_facts(body=quote_receipt.get("body"))
+    shape = _route_shape_facts(body=receipt_snapshot.get("body"))
     metrics = _route_stress_metrics(legs=shape.legs, pools_by_id=pools_by_id)
     classification = check_strategy_route_economic_sanity(
         inputs=StrategyRouteEconomicSanityInputs(

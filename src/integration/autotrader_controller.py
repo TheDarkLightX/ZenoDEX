@@ -41,6 +41,7 @@ from ..kernels.python.strategy_budget_guard_v1_adapter import (
 from ..kernels.python.strategy_execution_guard_v1_adapter import check_order_execution
 from ..kernels.python.strategy_oracle_freshness_guard_v1_adapter import check_oracle_freshness
 from ..kernels.python.strategy_signal_provenance_guard_v1_adapter import check_signal_provenance
+from ..state.immutable_json import snapshot_json_mapping
 from ..state.intents import Intent
 from ..state.pools import PoolState
 from .autotrader_signals import build_quote_receipt_signal_packet
@@ -128,7 +129,7 @@ def _require_u32_int(name: str, value: object, *, minimum: int = 0) -> int:
 
 def _require_safe_receipt_body(receipt: Mapping[str, object]) -> dict[str, object]:
     body = receipt.get("body")
-    if not isinstance(body, dict):
+    if not isinstance(body, Mapping):
         raise ValueError("missing receipt.body")
     return dict(body)
 
@@ -346,6 +347,7 @@ def evaluate_autotrader_quote_receipt(
         raise TypeError("receipt must be a mapping")
     if not isinstance(pools_by_id, Mapping):
         raise TypeError("pools_by_id must be a mapping")
+    receipt_snapshot = snapshot_json_mapping(receipt, name="receipt")
 
     current_epoch = _require_u32_int("current_epoch", current_epoch)
     intent_deadline = _require_u32_int("intent_deadline", intent_deadline, minimum=1)
@@ -405,7 +407,7 @@ def evaluate_autotrader_quote_receipt(
         )
     explain.append(f"slippage_bps={effective_slippage_bps}")
 
-    body = _require_safe_receipt_body(receipt)
+    body = _require_safe_receipt_body(receipt_snapshot)
     receipt_kind = str(body.get("kind", "")).strip().lower()
     receipt_asset_in = str(body.get("asset_in", "")).strip()
     receipt_asset_out = str(body.get("asset_out", "")).strip()
@@ -462,7 +464,7 @@ def evaluate_autotrader_quote_receipt(
         )
     try:
         signal_packet = build_quote_receipt_signal_packet(
-            receipt=receipt,
+            receipt=receipt_snapshot,
             pools_by_id=pools_by_id,
             current_epoch=current_epoch,
         )
@@ -548,7 +550,7 @@ def evaluate_autotrader_quote_receipt(
     guard_state = replace(guard_state, signal_provenance_ok=True)
 
     route_snapshot = build_route_economic_sanity_snapshot(
-        quote_receipt=receipt,
+        quote_receipt=receipt_snapshot,
         pools_by_id=pools_by_id,
     )
     if route_snapshot is None:
@@ -608,7 +610,7 @@ def evaluate_autotrader_quote_receipt(
 
     try:
         built_intents = create_swap_intents_from_quote_receipt(
-            receipt=dict(receipt),
+            receipt=receipt_snapshot,
             pools_by_id=dict(pools_by_id),
             sender_pubkey=strategy.owner_pubkey,
             deadline=intent_deadline,

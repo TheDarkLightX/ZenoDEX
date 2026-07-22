@@ -14,6 +14,7 @@ from src.core.confidential_extension_receipts import (
 )
 from src.core.quote_receipts import make_route_quote_receipt, receipt_hash
 from src.core.routing import RouteHop, RouteLeg, RouteQuote
+from src.state.immutable_json import snapshot_json_mapping
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from tools.check_confidential_route_quote_bundle import (
     DEFAULT_EXTENSION_ID,
@@ -67,7 +68,10 @@ def _quote_receipt() -> dict[str, object]:
             ),
         ),
     )
-    return make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id={pool.pool_id: pool}, quote_epoch=10)
+    return snapshot_json_mapping(
+        make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id={pool.pool_id: pool}, quote_epoch=10),
+        name="test_receipt",
+    )
 
 
 def _measurement_registry(

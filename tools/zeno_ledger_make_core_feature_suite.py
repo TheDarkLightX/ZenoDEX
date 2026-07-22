@@ -13,13 +13,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.core.dex import DexState
-from src.integration.dex_snapshot import snapshot_from_state
-from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0
-from src.state.balances import BalanceTable
-from src.state.lp import LPTable
-from tools.zeno_ledger_make_feature_lane import build_feature_lane_manifest_v0
-from tools.zeno_ledger_make_testnet_bundle import (
+from src.core.dex import DexState  # noqa: E402
+from src.integration.dex_snapshot import snapshot_from_state  # noqa: E402
+from src.integration.zeno_ledger_feature_suite import build_feature_suite_manifest_v0  # noqa: E402
+from src.state.balances import BalanceTable  # noqa: E402
+from src.state.immutable_json import snapshot_json_mapping  # noqa: E402
+from src.state.lp import LPTable  # noqa: E402
+from tools.zeno_ledger_make_feature_lane import build_feature_lane_manifest_v0  # noqa: E402
+from tools.zeno_ledger_make_testnet_bundle import (  # noqa: E402
     DEFAULT_ASSET0,
     DEFAULT_ASSET1,
     DEFAULT_CHAIN_ID,
@@ -1043,11 +1044,14 @@ def build_core_feature_suite_v0(
     )
     if autotrader_quote is None:
         raise RuntimeError("core autotrader quote construction failed")
-    autotrader_receipt = make_route_quote_receipt(
-        kind="exact_in",
-        quote=autotrader_quote,
-        pools_by_id=autotrader_pools,
-        quote_epoch=5,
+    autotrader_receipt = snapshot_json_mapping(
+        make_route_quote_receipt(
+            kind="exact_in",
+            quote=autotrader_quote,
+            pools_by_id=autotrader_pools,
+            quote_epoch=5,
+        ),
+        name="core feature suite autotrader receipt",
     )
     autotrader_bad_receipt = json.loads(json.dumps(autotrader_receipt))
     autotrader_bad_receipt["body"]["amount_in"] = 90

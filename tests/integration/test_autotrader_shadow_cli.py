@@ -3,12 +3,11 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 import tools.autotrader_shadow as autotrader_shadow_cli
-from pathlib import Path
-
 from src.agents.krr_bundle_artifacts import (
     KRRReviewRecord,
     KRRSourceSnapshot,
@@ -21,6 +20,7 @@ from src.agents.strategy_ir import AUTOTRADER_TAU_POLICY_SPECS
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
 from src.state.canonical import sha256_hex
+from src.state.immutable_json import snapshot_json_mapping
 from src.state.pools import PoolState, PoolStatus
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -79,7 +79,10 @@ def _policy_and_market(tmp_path: Path) -> tuple[Path, Path, Path]:
     pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 2_000, 10)}
     quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=100)
     assert quote is not None
-    receipt = make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools, quote_epoch=5)
+    receipt = snapshot_json_mapping(
+        make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools, quote_epoch=5),
+        name="test_receipt",
+    )
 
     policy_path = tmp_path / "policy.json"
     policy_path.write_text(json.dumps(dump_local_policy_document(strategy), indent=2), encoding="utf-8")

@@ -7,6 +7,7 @@ from typing import Any, Mapping
 
 from src.integration._dex_api_helpers import parse_pools, quote_to_dict
 from src.integration.api_server_dex_dispatch import DexRequestContext, DexResponse, _register
+from src.state.immutable_json import snapshot_json_mapping
 
 BOUNDARY_DOMAIN_ERRORS: tuple[type[Exception], ...] = (ImportError, TypeError, ValueError, ArithmeticError)
 """Expected import, parse, and arithmetic failures at the quote API boundary."""
@@ -191,11 +192,14 @@ def _handle_quote(obj: Mapping[str, Any], ctx: DexRequestContext) -> DexResponse
             make_route_quote_receipt,  # pylint: disable=import-outside-toplevel
         )
 
-        receipt = make_route_quote_receipt(
-            kind=inputs.kind,
-            quote=quote,
-            pools_by_id=pools_by_id,
-            quote_epoch=quote_epoch,
+        receipt = snapshot_json_mapping(
+            make_route_quote_receipt(
+                kind=inputs.kind,
+                quote=quote,
+                pools_by_id=pools_by_id,
+                quote_epoch=quote_epoch,
+            ),
+            name="quote receipt",
         )
         return 200, {
             "ok": True,

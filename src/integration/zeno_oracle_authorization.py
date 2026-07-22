@@ -7,6 +7,8 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
+from ..state.immutable_json import snapshot_json_mapping
+
 SCHEMA = "zenodex/oracle-authorization-semantic-binding-check/v1"
 EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
 
@@ -166,7 +168,8 @@ class RuntimeActionFacts:
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    snapshot = snapshot_json_mapping(payload, name="semantic_hash.payload")
+    return json.dumps(snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
 
 
 def semantic_hash(domain: str, payload: Mapping[str, Any]) -> str:
@@ -759,11 +762,12 @@ def check_authorization_for_runtime(
     action facts it is actually about to execute.
     """
 
-    authorization = authorization_from_obj(_authorization_obj_from_payload(authorization_payload))
+    payload_snapshot = snapshot_json_mapping(authorization_payload, name="authorization_payload")
+    authorization = authorization_from_obj(_authorization_obj_from_payload(payload_snapshot))
     opaque_ok, opaque_errors = verify_opaque_authorization(authorization, runtime)
     typed_ok, typed_errors = verify_typed_authorization(authorization, runtime)
-    receipt_graph = _graph_obj_from_payload(authorization_payload)
-    economic_envelope = _economic_envelope_obj_from_payload(authorization_payload)
+    receipt_graph = _graph_obj_from_payload(payload_snapshot)
+    economic_envelope = _economic_envelope_obj_from_payload(payload_snapshot)
     graph_ok = True
     graph_errors: tuple[str, ...] = ()
     if require_receipt_graph or receipt_graph is not None:

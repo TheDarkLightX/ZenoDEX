@@ -18,6 +18,7 @@ from ..core.settlement import (
 )
 from ..state.canonical import canonical_hex_fixed_allow_0x
 from ..state.immutable_collections import deep_thaw_json
+from ..state.immutable_json import freeze_json_mapping, snapshot_json_mapping
 from ..state.intents import Intent, IntentKind
 
 
@@ -55,7 +56,10 @@ def _require_dict_str_keys(value: Any, *, name: str) -> Dict[str, Any]:
 
 
 def _parse_quote_receipt_transport(value: Any, *, name: str) -> Dict[str, Any]:
-    receipt = _require_dict_str_keys(value, name=name)
+    try:
+        receipt = snapshot_json_mapping(value, name=name)
+    except TypeError as exc:
+        raise ValueError(f"{name} must be an exact owned object") from exc
     body = receipt.get("body")
     receipt_hash = receipt.get("receipt_hash")
     if not isinstance(body, dict):
@@ -76,7 +80,7 @@ class SignedIntentEnvelope:
 
     intent: Intent
     signature: Optional[str] = None
-    quote_receipt: Optional[Dict[str, Any]] = None
+    quote_receipt: Optional[Mapping[str, Any]] = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.intent, Intent):
@@ -87,6 +91,16 @@ class SignedIntentEnvelope:
         from ..state.intent_snapshots import freeze_intent
 
         object.__setattr__(self, "intent", freeze_intent(self.intent))
+
+        if self.quote_receipt is not None:
+            object.__setattr__(
+                self,
+                "quote_receipt",
+                freeze_json_mapping(
+                    self.quote_receipt,
+                    name="SignedIntentEnvelope.quote_receipt",
+                ),
+            )
 
 
 @dataclass(frozen=True)

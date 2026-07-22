@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from ..state.immutable_json import snapshot_json_mapping
 from ..state.intents import Intent
 from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
@@ -64,7 +65,8 @@ def protected_swap_runtime_facts(
     now_epoch: int,
 ) -> dict[str, Any]:
     now_epoch_i = _require_non_negative_int(now_epoch, name="now_epoch")
-    body = _receipt_body(receipt)
+    receipt_snapshot = snapshot_json_mapping(receipt, name="receipt")
+    body = _receipt_body(receipt_snapshot)
     kind = str(body.get("kind", "")).strip().lower()
     if kind not in {"exact_in", "exact_out"}:
         raise ValueError("unsupported quote receipt kind")
@@ -72,7 +74,7 @@ def protected_swap_runtime_facts(
     if kind != expected_kind:
         raise ValueError("quote receipt kind mismatch")
 
-    leg_index, leg, hop = _matching_quote_leg(intent, receipt)
+    leg_index, leg, hop = _matching_quote_leg(intent, receipt_snapshot)
     hop_amount_in = hop.get("amount_in")
     hop_amount_out = hop.get("amount_out")
     if not isinstance(hop_amount_in, int) or isinstance(hop_amount_in, bool):

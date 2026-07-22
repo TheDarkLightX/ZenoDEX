@@ -9,6 +9,7 @@ from ..integration.tau_net_client import sign_dex_intent_for_engine
 from ..state.balances import Amount, AssetId, PubKey
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes
 from ..state.immutable_collections import deep_thaw_json
+from ..state.immutable_json import snapshot_json_mapping
 from ..state.intents import Intent, IntentKind, SignedIntent
 
 # For BLS12-381 signing (same as tau-testnet)
@@ -108,6 +109,13 @@ def _quote_receipt_value_error(reason: str, **kwargs: Any) -> ValueError:
     if not details:
         return ValueError(reason)
     return ValueError(f"{reason}: {details}")
+
+
+def _quote_receipt_snapshot(receipt: Mapping[str, Any]) -> dict[str, Any]:
+    try:
+        return snapshot_json_mapping(receipt, name="quote_receipt")
+    except TypeError as exc:
+        raise ValueError("invalid_quote_receipt_body") from exc
 
 
 def create_swap_intent(
@@ -222,7 +230,7 @@ def create_swap_intent(
 
 def create_swap_intent_from_quote_receipt(
     *,
-    receipt: Dict[str, Any],
+    receipt: Mapping[str, Any],
     pools_by_id: Dict[str, Any],
     sender_pubkey: PubKey,
     deadline: int,
@@ -248,11 +256,12 @@ def create_swap_intent_from_quote_receipt(
     # Import lazily to avoid coupling agent code to routing modules unless used.
     from src.core.quote_receipts import verify_route_quote_receipt
 
-    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)
+    receipt_snapshot = _quote_receipt_snapshot(receipt)
+    ok, err = verify_route_quote_receipt(receipt_snapshot, pools_by_id=pools_by_id)
     if not ok:
         raise ValueError(f"invalid_quote_receipt:{err}")
 
-    body = receipt.get("body", {})
+    body = receipt_snapshot.get("body", {})
     if not isinstance(body, dict):
         raise ValueError("invalid_quote_receipt_body")
     kind = str(body.get("kind", "")).strip().lower()
@@ -286,7 +295,7 @@ def create_swap_intent_from_quote_receipt(
     if not pool_id or not asset_in or not asset_out or asset_in == asset_out:
         raise ValueError("invalid_quote_receipt_hop_fields")
 
-    receipt_hash = receipt.get("receipt_hash")
+    receipt_hash = receipt_snapshot.get("receipt_hash")
     if not isinstance(receipt_hash, str) or not receipt_hash:
         raise ValueError("invalid_quote_receipt_hash")
     pool = pools_by_id.get(pool_id)
@@ -375,7 +384,7 @@ def create_swap_intent_from_quote_receipt(
 
 def create_swap_intents_from_quote_receipt(
     *,
-    receipt: Dict[str, Any],
+    receipt: Mapping[str, Any],
     pools_by_id: Dict[str, Any],
     sender_pubkey: PubKey,
     deadline: int,
@@ -412,11 +421,12 @@ def create_swap_intents_from_quote_receipt(
 
     from src.core.quote_receipts import verify_route_quote_receipt
 
-    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)
+    receipt_snapshot = _quote_receipt_snapshot(receipt)
+    ok, err = verify_route_quote_receipt(receipt_snapshot, pools_by_id=pools_by_id)
     if not ok:
         raise ValueError(f"invalid_quote_receipt:{err}")
 
-    body = receipt.get("body", {})
+    body = receipt_snapshot.get("body", {})
     if not isinstance(body, dict):
         raise ValueError("invalid_quote_receipt_body")
     kind = str(body.get("kind", "")).strip().lower()
@@ -432,7 +442,7 @@ def create_swap_intents_from_quote_receipt(
     if not isinstance(legs, list) or not legs:
         raise ValueError("invalid_quote_receipt_legs")
 
-    receipt_hash = receipt.get("receipt_hash")
+    receipt_hash = receipt_snapshot.get("receipt_hash")
     if not isinstance(receipt_hash, str) or not receipt_hash:
         raise ValueError("invalid_quote_receipt_hash")
     receipt_pools = body.get("pools")

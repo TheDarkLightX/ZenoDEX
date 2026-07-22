@@ -83,6 +83,7 @@ from src.integration.tau_net_client import bls_pubkey_hex_from_privkey  # noqa: 
 from src.kernels.python.strategy_budget_guard_v1_adapter import (  # noqa: E402
     StrategyBudgetState,
 )
+from src.state.immutable_collections import deep_thaw_json  # noqa: E402
 from src.state.intents import Intent  # noqa: E402
 from src.state.pools import PoolState, PoolStatus  # noqa: E402
 
@@ -826,7 +827,7 @@ def _live_report_to_dict(
             {
                 "intent": _intent_to_dict(env.intent),
                 "signature": env.signature,
-                "quote_receipt": env.quote_receipt,
+                "quote_receipt": deep_thaw_json(env.quote_receipt),
             }
             for env in report.signed_intents
         ],

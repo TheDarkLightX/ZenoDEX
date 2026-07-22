@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import sys
 
 import pytest
@@ -215,6 +216,7 @@ def test_autotrader_controller_submits_local_dca_receipt() -> None:
 def test_autotrader_controller_rejects_missing_quote_epoch() -> None:
     strategy = _compiled_strategy()
     pools, receipt = _single_hop_receipt()
+    receipt = copy.deepcopy(receipt)
     assert isinstance(receipt["body"], dict)
     receipt["body"].pop("quote_epoch", None)
 
@@ -234,6 +236,7 @@ def test_autotrader_controller_rejects_missing_quote_epoch() -> None:
 def test_autotrader_controller_rejects_invalid_quote_epoch() -> None:
     strategy = _compiled_strategy()
     pools, receipt = _single_hop_receipt()
+    receipt = copy.deepcopy(receipt)
     assert isinstance(receipt["body"], dict)
     receipt["body"]["quote_epoch"] = "bad"
 
@@ -253,6 +256,7 @@ def test_autotrader_controller_rejects_invalid_quote_epoch() -> None:
 def test_autotrader_controller_rejects_out_of_range_quote_epoch() -> None:
     strategy = _compiled_strategy()
     pools, receipt = _single_hop_receipt()
+    receipt = copy.deepcopy(receipt)
     assert isinstance(receipt["body"], dict)
     receipt["body"]["quote_epoch"] = 0x1_0000_0000
 
@@ -312,6 +316,7 @@ def test_autotrader_controller_rejects_future_quote_epoch() -> None:
 def test_autotrader_controller_rejects_invalid_signal_provenance() -> None:
     strategy = _compiled_strategy()
     pools, receipt = _single_hop_receipt()
+    receipt = copy.deepcopy(receipt)
     receipt["receipt_hash"] = "receipt.hash.tampered"
 
     decision = evaluate_autotrader_quote_receipt(

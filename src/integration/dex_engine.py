@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TypeGuard
 
 from ..core.batch_clearing import apply_settlement_pure, compute_settlement
 from ..core.dex import DexConfig, DexState, reject_settlement_public_boundary_error
@@ -127,6 +128,10 @@ def _quote_receipt_intent_context(intent: Intent) -> dict[str, Any]:
         "asset_in": intent.get_field("asset_in"),
         "asset_out": intent.get_field("asset_out"),
     }
+
+
+def _is_quote_receipt_array(value: object) -> TypeGuard[Sequence[Any]]:
+    return isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray))
 
 
 def _validate_and_apply_nonce_batch(*, nonces: NonceTable, intents: list[Intent]) -> tuple[bool, str | None, NonceTable | None]:
@@ -735,7 +740,7 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
             )
 
     legs = body.get("legs")
-    if not isinstance(legs, list) or not legs:
+    if not _is_quote_receipt_array(legs) or not legs:
         return _quote_receipt_error("invalid quote receipt legs", **_quote_receipt_intent_context(intent))
 
     leg_index_raw = intent.get_field("quote_receipt_leg_index")
@@ -758,7 +763,7 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
         if not isinstance(leg, Mapping):
             continue
         hops = leg.get("hops")
-        if isinstance(hops, list) and len(hops) != 1:
+        if _is_quote_receipt_array(hops) and len(hops) != 1:
             for raw_hop in hops:
                 if not isinstance(raw_hop, Mapping):
                     continue
@@ -774,7 +779,7 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
                             hop_count=len(hops),
                         )
             continue
-        if not isinstance(hops, list) or len(hops) != 1:
+        if not _is_quote_receipt_array(hops) or len(hops) != 1:
             continue
         hop = hops[0]
         if not isinstance(hop, Mapping):
@@ -894,7 +899,7 @@ def _validate_quote_receipt_witnesses(
         receipt = envs[0].quote_receipt
         body = receipt.get("body") if isinstance(receipt, Mapping) else None
         legs = body.get("legs") if isinstance(body, Mapping) else None
-        if not isinstance(legs, list) or not legs:
+        if not _is_quote_receipt_array(legs) or not legs:
             return f"invalid quote receipt legs: {envs[0].intent.intent_id}"
 
         observed_leg_indices: List[int] = []

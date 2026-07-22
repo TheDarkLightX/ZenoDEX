@@ -1180,7 +1180,7 @@ def test_quote_receipt_verifier_rejects_non_dict_receipt_type() -> None:
     assert err == "bad_receipt_type"
 
 
-def test_quote_receipt_verifier_rejects_missing_working_pool_via_inconsistent_pool_map() -> None:
+def test_quote_receipt_verifier_rejects_behavior_changing_pool_map_at_boundary() -> None:
     class InconsistentPools(dict[str, str]):
         def __iter__(self):
             return iter(())
@@ -1191,10 +1191,11 @@ def test_quote_receipt_verifier_rejects_missing_working_pool_via_inconsistent_po
     receipt, pools = _single_hop_exact_in_receipt()
     mutated = copy.deepcopy(receipt)
     mutated["body"]["pools"] = InconsistentPools(mutated["body"]["pools"])
-    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+    with pytest.raises(TypeError, match="mapping subclasses"):
+        receipt_hash(mutated["body"])
     ok, err = verify_route_quote_receipt(mutated, pools_by_id=pools)
     assert not ok
-    assert err == "missing_working_pool"
+    assert err == "bad_receipt_type"
 
 
 def test_quote_receipt_verifier_rejects_oversized_pool_snapshot_map() -> None:

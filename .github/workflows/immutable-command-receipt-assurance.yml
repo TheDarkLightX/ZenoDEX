@@ -1,0 +1,94 @@
+# Read-only exact-head certification for immutable command and receipt values.
+name: immutable-command-receipt-assurance
+
+on:
+  pull_request:
+    branches:
+      - agent/functional-core-auth-effect-snapshots-20260719
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  immutable-authority-values:
+    if: github.event.pull_request.head.ref == 'agent/immutable-command-receipt-values-20260721'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Check changed authority surfaces
+        run: |
+          python -m ruff check \
+            src/agents/intent_signer.py \
+            src/agents/route_economic_sanity.py \
+            src/core/quote_receipt_building.py \
+            src/core/quote_receipts.py \
+            src/core/zusd.py \
+            src/integration/autotrader_controller.py \
+            src/integration/dex_dispatch_quote_handlers.py \
+            src/integration/dex_engine.py \
+            src/integration/operations.py \
+            src/integration/zeno_oracle_authorization.py \
+            src/integration/zeno_oracle_routing_authorization.py \
+            src/state/canonical.py \
+            src/state/immutable_json.py \
+            tests/core/test_authority_json_immutability.py \
+            tests/core/test_quote_receipts.py \
+            tests/integration/test_api_server_json_boundary.py \
+            tests/integration/test_operations_grammar_fuzz.py \
+            tests/integration/test_quote_receipt_transport_grammar_fuzz.py \
+            tests/state/test_immutable_json.py
+          python -m mypy \
+            src/agents/intent_signer.py \
+            src/agents/route_economic_sanity.py \
+            src/core/quote_receipt_building.py \
+            src/core/quote_receipts.py \
+            src/core/zusd.py \
+            src/integration/autotrader_controller.py \
+            src/integration/dex_dispatch_quote_handlers.py \
+            src/integration/dex_engine.py \
+            src/integration/operations.py \
+            src/integration/zeno_oracle_authorization.py \
+            src/integration/zeno_oracle_routing_authorization.py \
+            src/state/canonical.py \
+            src/state/immutable_json.py
+          python -m compileall -q src tools
+          git diff --check "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+
+      - name: Replay alias, subclass, parser, and mounted transport witnesses
+        run: |
+          python -m pytest -q \
+            tests/state/test_immutable_json.py \
+            tests/core/test_authority_json_immutability.py \
+            tests/core/test_quote_receipts.py \
+            tests/integration/test_api_server_json_boundary.py \
+            tests/integration/test_autotrader_controller.py \
+            tests/integration/test_operations_grammar_fuzz.py \
+            tests/integration/test_quote_receipt_transport_grammar_fuzz.py \
+            tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py \
+            tests/integration/test_oracle_authorization_semantic_binding.py \
+            tests/integration/test_zeno_oracle_routing_authorization.py
+
+      - name: Run critical-quality gate
+        env:
+          PYTHON: python
+        run: bash tools/run_critical_quality_gate.sh

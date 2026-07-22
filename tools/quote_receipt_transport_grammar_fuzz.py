@@ -24,6 +24,8 @@ import hashlib
 import heapq
 import json
 import sys
+from collections.abc import Mapping
+from collections.abc import Sequence as SequenceABC
 from dataclasses import asdict, dataclass, is_dataclass
 from enum import Enum
 from pathlib import Path
@@ -116,7 +118,7 @@ def _pool(pid: str, a0: str, a1: str, r0: int, r1: int, fee_bps: int = 0) -> Poo
     )
 
 
-def _valid_exact_out_seed() -> tuple[dict[str, Any], dict[str, PoolState]]:
+def _valid_exact_out_seed() -> tuple[Mapping[str, Any], dict[str, PoolState]]:
     pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 1_000, 0)}
     pool = pools["p_ab"]
     amount_out = 50
@@ -150,7 +152,7 @@ def _valid_exact_out_seed() -> tuple[dict[str, Any], dict[str, PoolState]]:
     return make_route_quote_receipt(kind="exact_out", quote=quote, pools_by_id=pools, quote_epoch=7), pools
 
 
-def _valid_exact_in_seed() -> tuple[dict[str, Any], dict[str, PoolState]]:
+def _valid_exact_in_seed() -> tuple[Mapping[str, Any], dict[str, PoolState]]:
     pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 1_000, 0)}
     pool = pools["p_ab"]
     amount_in = 50
@@ -194,11 +196,9 @@ def _stable_jsonable(value: object) -> object:
         return str(value.value)
     if is_dataclass(value):
         return _stable_jsonable(asdict(value))
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         return {str(k): _stable_jsonable(v) for k, v in sorted(value.items(), key=lambda item: str(item[0]))}
-    if isinstance(value, list):
-        return [_stable_jsonable(v) for v in value]
-    if isinstance(value, tuple):
+    if isinstance(value, SequenceABC) and not isinstance(value, (str, bytes, bytearray)):
         return [_stable_jsonable(v) for v in value]
     return value
 

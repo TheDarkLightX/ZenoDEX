@@ -9,6 +9,7 @@ from src.agents.local_policy import dump_local_policy_document
 from src.agents.policy_compiler import compile_policy_candidate
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
+from src.state.immutable_json import snapshot_json_mapping
 from src.state.pools import PoolState, PoolStatus
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -70,7 +71,10 @@ def _receipt_and_pools() -> tuple[dict[str, object], list[dict[str, object]]]:
     pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 2_000, 10)}
     quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=100)
     assert quote is not None
-    receipt = make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools, quote_epoch=5)
+    receipt = snapshot_json_mapping(
+        make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools, quote_epoch=5),
+        name="test_receipt",
+    )
     payloads = [
         {
             "pool_id": pool.pool_id,

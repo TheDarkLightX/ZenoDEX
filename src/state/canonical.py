@@ -10,8 +10,13 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from typing import Any
 
+from .immutable_collections import FrozenDict as OwnedFrozenDict
+from .immutable_collections import FrozenList as OwnedFrozenList
+from .immutable_json import FrozenDict as JSONFrozenDict
+from .immutable_json import FrozenList as JSONFrozenList
 
 CANONICAL_ENCODING_VERSION = 1
 MAX_UVARINT_BITS = 256
@@ -26,6 +31,32 @@ def _reject_surrogates(s: str) -> None:
         o = ord(ch)
         if 0xD800 <= o <= 0xDFFF:
             raise TypeError("surrogate code points are not allowed in canonical encoding")
+
+
+def _canonical_json_projection(value: Any) -> Any:
+    """Project owned immutable JSON collections into builtin encoder values."""
+
+    if value is None or isinstance(value, (bool, int, str)):
+        if isinstance(value, str):
+            _reject_surrogates(value)
+        return value
+    if isinstance(value, float):
+        raise TypeError("floats are not allowed in canonical encoding")
+    if type(value) in (dict, OwnedFrozenDict, JSONFrozenDict):
+        projected: dict[str, Any] = {}
+        for key, child in value.items():
+            if type(key) is not str:
+                raise TypeError("dict keys must be str for canonical encoding")
+            _reject_surrogates(key)
+            projected[key] = _canonical_json_projection(child)
+        return projected
+    if isinstance(value, Mapping):
+        raise TypeError("mapping subclasses are not allowed in canonical encoding")
+    if type(value) in (list, tuple, OwnedFrozenList, JSONFrozenList):
+        return [_canonical_json_projection(item) for item in value]
+    if isinstance(value, (list, tuple)):
+        raise TypeError("sequence subclasses are not allowed in canonical encoding")
+    return value
 
 
 def _reject_floats(value: Any) -> None:
@@ -58,9 +89,10 @@ def canonical_json_bytes(value: Any) -> bytes:
     - allow_nan=False
     - floats rejected (to avoid representation ambiguity)
     """
-    _reject_floats(value)
+    projected = _canonical_json_projection(value)
+    _reject_floats(projected)
     text = json.dumps(
-        value,
+        projected,
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,

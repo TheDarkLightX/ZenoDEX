@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping, cast
 
+from ..state.immutable_json import freeze_json_mapping
 from .zusd_multi_oracle_commit_mcr import check_multi_oracle_commit_mcr
 from .zusd_multi_redeem_selector import select_multi_redeem_vault
 
@@ -253,6 +254,13 @@ class ZUSDState:
 class ZUSDCommand:
     tag: ZUSDCommandTag
     args: Mapping[str, Any]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "args",
+            freeze_json_mapping(self.args, name="ZUSDCommand.args"),
+        )
 
 
 @dataclass(frozen=True)
@@ -799,6 +807,13 @@ class ZUSDMultiState:
 class ZUSDMultiCommand:
     tag: ZUSDCommandTag
     args: Mapping[str, Any]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "args",
+            freeze_json_mapping(self.args, name="ZUSDMultiCommand.args"),
+        )
 
 
 @dataclass(frozen=True)
