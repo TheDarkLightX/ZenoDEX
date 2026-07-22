@@ -6,6 +6,7 @@ on:
       - agent/rust-fcis-policy-inventory-20260722
     paths:
       - ".agent/apply_rust_zusd_source_only.py"
+      - ".agent/normalize_rust_zusd_cap_witness.py"
       - ".github/workflows/apply-rust-zusd-source-only.yml"
 
 permissions:
@@ -41,7 +42,9 @@ jobs:
         run: |
           set -o pipefail
           {
-            python -m py_compile .agent/apply_rust_zusd_source_only.py
+            python -m py_compile \
+              .agent/apply_rust_zusd_source_only.py \
+              .agent/normalize_rust_zusd_cap_witness.py
             git update-index --no-assume-unchanged \
               rust-runtime/crates/zenodex-runtime-core/src/zusd.rs \
               docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json || true
@@ -49,6 +52,9 @@ jobs:
               rust-runtime/crates/zenodex-runtime-core/src/zusd.rs \
               docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json || true
             python .agent/apply_rust_zusd_source_only.py
+            python .agent/normalize_rust_zusd_cap_witness.py
+            python -m ruff check --fix tests/runtime/test_zusd_rust_audit_parity.py
+            python -m ruff format tests/runtime/test_zusd_rust_audit_parity.py
             cargo fmt --manifest-path rust-runtime/Cargo.toml
           } 2>&1 | tee rust-source-application-diagnostics.txt
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
@@ -103,7 +109,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .agent/apply_rust_zusd_source_only.py
+          rm -f \
+            .agent/apply_rust_zusd_source_only.py \
+            .agent/normalize_rust_zusd_cap_witness.py
           rmdir .agent 2>/dev/null || true
           rm -f .github/workflows/apply-rust-zusd-source-only.yml
           rm -f rust-source-application-diagnostics.txt
