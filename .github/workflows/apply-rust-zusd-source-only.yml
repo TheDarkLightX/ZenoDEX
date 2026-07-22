@@ -73,14 +73,24 @@ jobs:
           test -n "$(git diff -- rust-runtime/crates/zenodex-runtime-core/src/zusd.rs)"
           test -n "$(git diff -- docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json)"
 
-      - name: Validate policy and Rust implementation
-        run: |
-          python tools/check_rust_fcis_policy.py --pretty
-          cd rust-runtime
-          cargo fmt --check
-          cargo clippy --locked -p zenodex-runtime-core --all-targets -- -D warnings
-          cargo test --locked -p zenodex-runtime-core zusd
-          cargo build --locked --bin zenodex-runtime
+      - name: Validate Rust FCIS policy
+        run: python tools/check_rust_fcis_policy.py --pretty
+
+      - name: Rust format check
+        working-directory: rust-runtime
+        run: cargo fmt --check
+
+      - name: Rust Clippy
+        working-directory: rust-runtime
+        run: cargo clippy --locked -p zenodex-runtime-core --all-targets -- -D warnings
+
+      - name: Rust zUSD unit tests
+        working-directory: rust-runtime
+        run: cargo test --locked -p zenodex-runtime-core zusd
+
+      - name: Build Rust authority bridge
+        working-directory: rust-runtime
+        run: cargo build --locked --bin zenodex-runtime
 
       - name: Validate Python/Rust audit parity
         run: |
