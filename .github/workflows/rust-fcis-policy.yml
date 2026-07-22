@@ -29,7 +29,7 @@ on:
       - ".github/workflows/rust-fcis-policy.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   policy-lint:
@@ -56,6 +56,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: agent/rust-zusd-audit-parity-20260722
+          fetch-depth: 0
+          persist-credentials: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -63,61 +67,8 @@ jobs:
       - run: python tools/check_rust_fcis_policy.py --pretty
       - run: python -m pytest -q tests/tools/test_check_rust_fcis_policy.py
 
-  rust-core:
-    name: Exact-toolchain Rust core
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: rust-runtime
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Record exact toolchain
-        run: |
-          rustc --version --verbose
-          cargo --version --verbose
-          test "$(rustc --version | awk '{print $2}')" = "1.87.0"
-
-      - name: Locked metadata
-        run: cargo metadata --locked --format-version=1 > /dev/null
-
-      - name: Format
-        run: cargo fmt --check
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-
-      - name: Debug tests
-        run: cargo test --workspace --all-features --locked
-
-      - name: Release tests
-        run: cargo test --workspace --all-features --release --locked
-
-  publish-finalized-oracle-integration-witnesses:
-    name: Publish finalized-Oracle integration witnesses
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/rust-zusd-audit-parity-20260722' }}
-    needs: [policy-lint, policy-validation, rust-core]
-    runs-on: ubuntu-latest
-    concurrency:
-      group: publish-finalized-oracle-integration-witnesses-474
-      cancel-in-progress: true
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: agent/rust-zusd-audit-parity-20260722
-          fetch-depth: 0
-          persist-credentials: true
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install locked development tooling
-        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
-
-      - name: Insert explicit Oracle finalization in integration witnesses
+      - name: Insert explicit Oracle finalization in monetary integration witnesses
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/rust-zusd-audit-parity-20260722' }}
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -249,12 +200,14 @@ jobs:
           python -m ruff format tests/integration/test_tau_testnet_dex_plugin.py
 
       - name: Verify focused integration witnesses
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/rust-zusd-audit-parity-20260722' }}
         run: |
           python -m pytest -q \
             tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim \
             tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper
 
-      - name: Restore assurance workflows and publish clean commit
+      - name: Restore workflows and publish clean test repair
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/rust-zusd-audit-parity-20260722' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -269,3 +222,33 @@ jobs:
           git add -u .github/workflows/fix-474-zusd-finalization-tests.yml
           git commit -m "test(zusd): finalize Oracle before monetary liquidation"
           git push origin HEAD:agent/rust-zusd-audit-parity-20260722
+
+  rust-core:
+    name: Exact-toolchain Rust core
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-runtime
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record exact toolchain
+        run: |
+          rustc --version --verbose
+          cargo --version --verbose
+          test "$(rustc --version | awk '{print $2}')" = "1.87.0"
+
+      - name: Locked metadata
+        run: cargo metadata --locked --format-version=1 > /dev/null
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+      - name: Debug tests
+        run: cargo test --workspace --all-features --locked
+
+      - name: Release tests
+        run: cargo test --workspace --all-features --release --locked
