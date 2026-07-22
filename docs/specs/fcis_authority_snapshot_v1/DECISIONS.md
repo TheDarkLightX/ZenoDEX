@@ -193,6 +193,31 @@ eventually commit at one expected-root compare-and-swap linearization point.
 The snapshot PRs do not claim datastore linearizability or exactly-once
 external delivery.
 
+### FCIS-D017: Heterogeneous record containers use exact-type union dispatch
+
+`RecordUnionOf` is the closed schema for a container whose values are drawn
+from several distinct registered record classes. It selects one `RecordOf`
+variant solely from `type(source) is RegisteredSourceType`. Registered source
+and owned classes are unique, and subclasses, lookalikes, unknown types, and
+fallback variants reject before field access.
+
+Rationale: the mounted perps market map contains four exact market record
+classes. A single `MapOf` value schema and `TaggedRecordOf` over one source
+class cannot represent that accepted language without a second hand-written
+dispatcher.
+
+### FCIS-D018: Character semantics and UTF-8 work have separate bounds
+
+`ExactString` may declare both `max_characters` and `max_utf8_bytes`. The
+character bound preserves the mounted state contract. The byte bound limits
+canonical encoding work. Generic mounted strings use 4,096 characters and a
+16,384-byte conservative UTF-8 ceiling; narrower fields retain their local
+bounds.
+
+Rationale: equating 4,096 characters with 4,096 UTF-8 bytes would reject valid
+multibyte state accepted by the current mounted decoder and silently change
+baseline semantics.
+
 ## Rejected designs
 
 | Design | Decision | Reason |

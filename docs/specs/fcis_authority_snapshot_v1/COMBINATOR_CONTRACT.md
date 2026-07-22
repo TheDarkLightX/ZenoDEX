@@ -64,7 +64,8 @@ new admission behavior.
 Schema =
     ExactInt(minimum, maximum_or_none)
   | ExactBool
-  | ExactString(string_rule, max_utf8_bytes)
+  | ExactString(string_rule, max_utf8_bytes, exact_literal_or_none,
+                exact_utf8_bytes_or_none, max_characters_or_none)
   | ExactBytes(exact_length_or_none, max_length)
   | ExactEnum(enum_tag)
   | Optional(inner)
@@ -72,6 +73,7 @@ Schema =
   | ExactPair(left, right)
   | MapOf(key_schema, value_schema, maximum_items, map_schema_id)
   | RecordOf(record_tag, declared_fields)
+  | RecordUnionOf(ordered_nonempty_record_variants)
   | TaggedRecordOf(record_tag, discriminant_field, discriminant_enum_tag,
                    variants)
 ```
@@ -132,10 +134,18 @@ Check `type(value) is bool`. Do not accept integers `0` or `1`.
 ### ExactString
 
 1. Check `type(value) is str`.
-2. Enforce the declared UTF-8 byte limit.
-3. Enforce one declared rule such as fixed-width lowercase hex, canonical
+2. When declared, enforce the semantic character limit using exact built-in
+   `len` before UTF-8 traversal.
+3. Enforce the declared UTF-8 byte work limit.
+4. Enforce one declared rule such as fixed-width lowercase hex, canonical
    identifier, non-empty text, or exact literal.
-4. Reject noncanonical spelling. Do not normalize at committed admission.
+5. Reject noncanonical spelling. Do not normalize at committed admission.
+
+Character and UTF-8 bounds are separate policy values. The mounted generic
+string limit remains 4,096 Unicode code points, while its conservative UTF-8
+work bound is 16,384 bytes. Narrow ASCII and fixed-width fields declare tighter
+bounds. A violation of either resource dimension returns `BYTE_LIMIT`; no
+caller-controlled text enters the rejection.
 
 Builder normalization is a separate decode-stage operation. An authority value
 arriving at this boundary must already be canonical.
@@ -260,6 +270,21 @@ For `RecordOf(record_tag, fields)`:
 No generic dataclass reflection decides whether a type is accepted. Dataclass
 field inspection is used only by drift tests against a predeclared exact type.
 No `object.__new__` bypass constructs a domain record.
+
+For `RecordUnionOf(variants)`:
+
+1. Require a nonempty exact tuple of exact `RecordOf` schema values.
+2. Require unique record tags and unique registered source/owned classes.
+3. Select a variant only when `type(source) is RegisteredSourceType`.
+4. Delegate to that variant's `RecordOf` admission and construction.
+5. Reject an unknown exact type, subclass, or lookalike as
+   `WRONG_EXACT_TYPE` before reading any source field.
+
+`RecordUnionOf` represents a heterogeneous container whose variants are
+different exact record classes, such as the mounted perps market map.
+`TaggedRecordOf` remains the schema for one exact record class whose declared
+enum field selects an exhaustive field variant. Neither combinator backtracks,
+consults caller behavior, or uses a default variant.
 
 ## 6. Budget and cycle semantics
 

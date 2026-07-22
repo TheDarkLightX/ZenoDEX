@@ -53,6 +53,8 @@ Target: `tests/state/test_snapshot_combinators.py`.
 | `FCIS-T-COMB-020` | admit an exact enum whose `.value` is a retained mutable object, then mutate the source alias | output is a fresh `OwnedEnumV1`; bytes and owned fields remain unchanged |
 | `FCIS-T-COMB-021` | submit a large exact dict under a one-item limit while tracing allocations | `ITEM_LIMIT` occurs before an entry tuple or sort work list proportional to source length |
 | `FCIS-T-COMB-022` | submit an oversized string/bytes map key or aggregate pair-key byte overflow while forbidding sort-value derivation | `BYTE_LIMIT` occurs before any raw key sort; nested pair components share the graph budget |
+| `FCIS-T-COMB-023` | admit a heterogeneous map through an exact record union, then submit a subclass, lookalike, and unknown record | each exact registered class becomes its distinct owned class; all other classes reject before field access |
+| `FCIS-T-COMB-024` | exercise character and UTF-8 byte bounds independently, including multibyte values and map keys | each exact boundary is accepted; either bound plus one returns stable `BYTE_LIMIT` |
 
 ## 3. Owned collection tests
 

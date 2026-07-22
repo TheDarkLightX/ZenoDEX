@@ -157,3 +157,24 @@ key-error selection may then sort only bounded schema-derived built-in values.
 This ordering is required so two noncanonical keys produce the same typed
 rejection under every insertion permutation without allowing rejected input
 size to control comparison work.
+
+## E8. Exact record unions and independent string bounds
+
+Two minimized counterexamples reopen the primitive checkpoint before domain
+mounting:
+
+1. The perps market map contains four distinct exact source classes and four
+   distinct committed counterparts. `MapOf` has one value schema, while
+   `TaggedRecordOf` has one source/owned class pair. The closed algebra therefore
+   adds `RecordUnionOf`, an ordered nonempty tuple of `RecordOf` variants.
+   Dispatch uses only unique registered exact source types. It does not inspect
+   a discriminant, backtrack, or invoke caller behavior.
+2. The mounted state boundary limits general strings to 4,096 characters.
+   `ExactString(max_utf8_bytes=4096)` would instead impose a 4,096-byte limit
+   and reject valid multibyte strings. `ExactString` therefore carries an
+   independent optional character bound and a required UTF-8 work bound.
+
+Both changes preserve stable `BYTE_LIMIT` and `WRONG_EXACT_TYPE` rejection
+codes. They expand only the trusted closed schema language needed to express
+the already-mounted state domain. Domain snapshot functions remain unmounted
+until the production profile and its drift checker are green.

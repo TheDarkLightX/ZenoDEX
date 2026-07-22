@@ -30,6 +30,7 @@ from src.state.snapshot_combinators import (
     OptionalValue,
     RecordOf,
     RecordRegistrationV1,
+    RecordUnionOf,
     SchemaRegistrationV1,
     SequenceOf,
     SequenceSourceKind,
@@ -52,6 +53,15 @@ class _EnumTag(Enum):
 class _RecordTag(Enum):
     POINT = "point"
     TAGGED = "tagged"
+
+
+class _UnionEnumTag(Enum):
+    pass
+
+
+class _UnionRecordTag(Enum):
+    LEFT = "left"
+    RIGHT = "right"
 
 
 class _Color(Enum):
@@ -100,6 +110,28 @@ class _OwnedTagged:
     right: str | None = None
 
 
+@dataclass
+class _SourceUnionLeft:
+    amount: int
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class _OwnedUnionLeft:
+    amount: int
+
+
+@dataclass
+class _SourceUnionRight:
+    label: str
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class _OwnedUnionRight:
+    label: str
+
+
 def _canonical_bytes(_schema_id: str, value: object) -> bytes:
     if type(value) is OwnedMapV1:
         return repr(value.entries).encode("utf-8")
@@ -123,6 +155,18 @@ def _construct_record(
             cast(str | None, values["right"]),
         )
     raise ValueError("unknown test record tag")
+
+
+def _construct_union_record(
+    tag: Enum,
+    fields: tuple[tuple[str, object], ...],
+) -> object:
+    values = dict(fields)
+    if tag is _UnionRecordTag.LEFT:
+        return _OwnedUnionLeft(cast(int, values["amount"]))
+    if tag is _UnionRecordTag.RIGHT:
+        return _OwnedUnionRight(cast(str, values["label"]))
+    raise ValueError("unknown union record tag")
 
 
 def _five_canonical_bytes(_schema_id: str, _value: object) -> bytes:
@@ -200,6 +244,37 @@ def _admit(schema: object, source: object, *, limits=None, encoder=_canonical_by
     )
 
 
+def _admit_union(schema: object, source: object):
+    registry = build_admission_registry_v1(
+        schema_revision="test-union-v1",
+        enum_tag_type=_UnionEnumTag,
+        record_tag_type=_UnionRecordTag,
+        enum_registrations=(),
+        record_registrations=(
+            RecordRegistrationV1(
+                _UnionRecordTag.LEFT,
+                _SourceUnionLeft,
+                _OwnedUnionLeft,
+            ),
+            RecordRegistrationV1(
+                _UnionRecordTag.RIGHT,
+                _SourceUnionRight,
+                _OwnedUnionRight,
+            ),
+        ),
+        schema_registrations=(SchemaRegistrationV1("test/union/v1", schema),),
+    )
+    return _admit_with_registry_v1(
+        registry,
+        "test-union-v1",
+        "test/union/v1",
+        _limits(),
+        source,
+        _construct_union_record,
+        _canonical_bytes,
+    )
+
+
 def test_exact_int_bounds_and_bool_subclass_rejection() -> None:
     schema = ExactInt(-2, 2)
     assert _admit(schema, -2) == AdmitOk(-2)
@@ -245,6 +320,33 @@ def test_string_and_bytes_are_exact_bounded_builtins() -> None:
         AdmitCode.BYTE_LIMIT,
         (),
     )
+
+
+def test_string_character_and_utf8_work_bounds_are_independent() -> None:
+    four_characters = ExactString(
+        StringRuleV1.NON_EMPTY,
+        max_utf8_bytes=16,
+        max_characters=4,
+    )
+    assert _admit(four_characters, "éééé") == AdmitOk("éééé")
+    assert _admit(four_characters, "𐍈𐍈𐍈𐍈") == AdmitOk("𐍈𐍈𐍈𐍈")
+    assert _admit(four_characters, "abcde") == AdmitReject(AdmitCode.BYTE_LIMIT, ())
+
+    seven_bytes = ExactString(
+        StringRuleV1.NON_EMPTY,
+        max_utf8_bytes=7,
+        max_characters=4,
+    )
+    assert _admit(seven_bytes, "éééé") == AdmitReject(AdmitCode.BYTE_LIMIT, ())
+
+    map_schema = MapOf(
+        four_characters,
+        ExactInt(0, 9),
+        4,
+        "test/map/v1",
+    )
+    assert type(_admit(map_schema, {"éééé": 1})) is AdmitOk
+    assert _admit(map_schema, {"abcde": 1}) == AdmitReject(AdmitCode.BYTE_LIMIT, ())
 
 
 def test_invalid_utf8_scalar_and_map_key_return_typed_rejection() -> None:
@@ -517,6 +619,116 @@ def test_record_accepts_only_registered_exact_source() -> None:
         assert _admit(schema, source) == AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ())
 
 
+def test_record_union_dispatches_only_by_registered_exact_source_type() -> None:
+    schema = MapOf(
+        ExactString(StringRuleV1.NON_EMPTY, 8),
+        RecordUnionOf(
+            (
+                RecordOf(
+                    _UnionRecordTag.LEFT,
+                    (DeclaredFieldV1("amount", ExactInt(0, 9)),),
+                ),
+                RecordOf(
+                    _UnionRecordTag.RIGHT,
+                    (
+                        DeclaredFieldV1(
+                            "label",
+                            ExactString(StringRuleV1.NON_EMPTY, 8),
+                        ),
+                    ),
+                ),
+            )
+        ),
+        4,
+        "test/union-map/v1",
+    )
+    result = _admit_union(
+        schema,
+        {
+            "left": _SourceUnionLeft(3),
+            "right": _SourceUnionRight("r"),
+        },
+    )
+    assert type(result) is AdmitOk
+    assert type(result.value) is OwnedMapV1
+    assert result.value["left"] == _OwnedUnionLeft(3)
+    assert result.value["right"] == _OwnedUnionRight("r")
+
+    class _HostileLeft(_SourceUnionLeft):
+        inspected = False
+
+        def __getattribute__(self, name: str):
+            if name not in {"inspected", "__class__"}:
+                type(self).inspected = True
+                raise AssertionError("record union must reject before field access")
+            return object.__getattribute__(self, name)
+
+    @dataclass
+    class _LookalikeLeft:
+        amount: int
+
+    _HostileLeft.inspected = False
+    assert _admit_union(schema, {"bad": _HostileLeft(3)}) == AdmitReject(
+        AdmitCode.WRONG_EXACT_TYPE,
+        ("bad",),
+    )
+    assert _HostileLeft.inspected is False
+    assert _admit_union(schema, {"bad": _LookalikeLeft(3)}) == AdmitReject(
+        AdmitCode.WRONG_EXACT_TYPE,
+        ("bad",),
+    )
+
+
+@pytest.mark.parametrize(
+    "registrations, message",
+    [
+        (
+            (
+                RecordRegistrationV1(
+                    _UnionRecordTag.LEFT,
+                    _SourceUnionLeft,
+                    _OwnedUnionLeft,
+                ),
+                RecordRegistrationV1(
+                    _UnionRecordTag.RIGHT,
+                    _SourceUnionLeft,
+                    _OwnedUnionRight,
+                ),
+            ),
+            "source types must be unique",
+        ),
+        (
+            (
+                RecordRegistrationV1(
+                    _UnionRecordTag.LEFT,
+                    _SourceUnionLeft,
+                    _OwnedUnionLeft,
+                ),
+                RecordRegistrationV1(
+                    _UnionRecordTag.RIGHT,
+                    _SourceUnionRight,
+                    _OwnedUnionLeft,
+                ),
+            ),
+            "owned types must be unique",
+        ),
+    ],
+)
+def test_record_registry_rejects_ambiguous_union_types(
+    registrations: tuple[RecordRegistrationV1, ...],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        build_admission_registry_v1(
+            schema_revision="test-union-v1",
+            enum_tag_type=_UnionEnumTag,
+            record_tag_type=_UnionRecordTag,
+            enum_registrations=(),
+            record_registrations=registrations,
+            schema_registrations=(SchemaRegistrationV1("test/union/v1", ExactInt(0, 1)),),
+        )
+
+
 def test_record_registry_field_drift_fails_closed() -> None:
     schema = RecordOf(
         _RecordTag.POINT,
@@ -721,16 +933,35 @@ def test_registry_rejects_map_key_schema_without_total_order() -> None:
     [
         ExactString(StringRuleV1.EXACT_TEXT, 4_000_001),
         ExactBytes(exact_length=None, max_length=4_000_001),
+        ExactString(StringRuleV1.EXACT_TEXT, 8, max_characters=0),
+        ExactString(StringRuleV1.EXACT_TEXT, 8, max_characters=True),
         ExactString(
             StringRuleV1.EXACT_LITERAL,
             2,
             exact_literal="three",
+        ),
+        ExactString(
+            StringRuleV1.EXACT_LITERAL,
+            8,
+            exact_literal="three",
+            max_characters=4,
         ),
     ],
 )
 def test_registry_rejects_scalar_schema_bounds_outside_policy(schema: object) -> None:
     with pytest.raises(ValueError):
         _registry(schema)
+
+
+def test_registry_rejects_empty_or_duplicate_record_union() -> None:
+    left = RecordOf(
+        _UnionRecordTag.LEFT,
+        (DeclaredFieldV1("amount", ExactInt(0, 9)),),
+    )
+    with pytest.raises(ValueError, match="nonempty exact tuple"):
+        _admit_union(RecordUnionOf(()), _SourceUnionLeft(1))
+    with pytest.raises(ValueError, match="tags must be unique"):
+        _admit_union(RecordUnionOf((left, left)), _SourceUnionLeft(1))
 
 
 def test_tagged_record_requires_exhaustive_variant_registry() -> None:

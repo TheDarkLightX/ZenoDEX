@@ -58,9 +58,9 @@ def test_packet_checker_accepts_clean_packet(tmp_path: Path) -> None:
     assert returncode == 0
     assert report["ok"] is True
     assert report["errors"] == []
-    assert report["declared_test_id_count"] == 100
-    assert report["referenced_test_id_count"] == 77
-    assert report["bound_test_id_count"] == 100
+    assert report["declared_test_id_count"] == 102
+    assert report["referenced_test_id_count"] == 79
+    assert report["bound_test_id_count"] == 102
 
 
 def test_packet_checker_rejects_unbound_mandatory_test(tmp_path: Path) -> None:

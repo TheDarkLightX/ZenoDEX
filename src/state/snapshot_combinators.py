@@ -211,6 +211,7 @@ class ExactString:
     max_utf8_bytes: int
     exact_literal: str | None = None
     exact_utf8_bytes: int | None = None
+    max_characters: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,6 +265,11 @@ class RecordOf:
 
 
 @dataclass(frozen=True, slots=True)
+class RecordUnionOf:
+    variants: tuple[RecordOf, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class TaggedVariantV1:
     discriminant: Enum
     declared_fields: tuple[DeclaredFieldV1, ...]
@@ -288,6 +294,7 @@ SchemaV1 = (
     | ExactPair
     | MapOf
     | RecordOf
+    | RecordUnionOf
     | TaggedRecordOf
 )
 
@@ -424,6 +431,8 @@ def _validate_record_registrations(
     if type(registrations) is not tuple:
         raise TypeError("record registrations must be an exact tuple")
     tags: list[Enum] = []
+    source_types: list[type[object]] = []
+    owned_types: list[type[object]] = []
     for registration in registrations:
         if type(registration) is not RecordRegistrationV1:
             raise TypeError("invalid record registration")
@@ -460,9 +469,15 @@ def _validate_record_registrations(
             # Authority invariant: admitted records cannot retain a mutable object API.
             raise TypeError("registered owned records must be frozen slotted final dataclasses")
         tags.append(registration.tag)
+        source_types.append(registration.source_type)
+        owned_types.append(registration.owned_type)
     declared_tags = (*record_tag_type,)
     if (*tags,) != declared_tags:
         raise ValueError("record registry is not exhaustive and ordered")
+    if len(source_types) != len(set(source_types)):
+        raise ValueError("record source types must be unique")
+    if len(owned_types) != len(set(owned_types)):
+        raise ValueError("record owned types must be unique")
 
 
 def _validate_exact_int_schema(schema: ExactInt) -> None:
@@ -489,6 +504,12 @@ def _validate_exact_string_schema(schema: ExactString) -> None:
         or schema.exact_utf8_bytes > schema.max_utf8_bytes
     ):
         raise ValueError("invalid exact string byte width")
+    if schema.max_characters is not None and (
+        type(schema.max_characters) is not int
+        or schema.max_characters <= 0
+        or schema.max_characters > MAX_CANONICAL_BYTES_V1
+    ):
+        raise ValueError("invalid string character bound")
     if schema.string_rule is StringRuleV1.EXACT_LITERAL:
         if type(schema.exact_literal) is not str:
             raise TypeError("exact literal rule requires an exact string")
@@ -500,6 +521,8 @@ def _validate_exact_string_schema(schema: ExactString) -> None:
             schema.exact_utf8_bytes is not None and len(literal_bytes) != schema.exact_utf8_bytes
         ):
             raise ValueError("exact literal violates its byte bounds")
+        if schema.max_characters is not None and len(schema.exact_literal) > schema.max_characters:
+            raise ValueError("exact literal violates its character bound")
     elif schema.exact_literal is not None:
         raise ValueError("literal data requires the exact literal rule")
 
@@ -584,6 +607,29 @@ def _validate_record_schema(
     )
 
 
+def _validate_record_union_schema(
+    schema: RecordUnionOf,
+    enum_tag_type: type[Enum],
+    record_tag_type: type[Enum],
+    active_schema_ids: set[int],
+) -> None:
+    if type(schema.variants) is not tuple or not schema.variants:
+        raise ValueError("record union variants must be a nonempty exact tuple")
+    record_tags: list[Enum] = []
+    for variant in schema.variants:
+        if type(variant) is not RecordOf:
+            raise TypeError("record union variants must be exact RecordOf values")
+        _validate_record_schema(
+            variant,
+            enum_tag_type,
+            record_tag_type,
+            active_schema_ids,
+        )
+        record_tags.append(variant.record_tag)
+    if len(record_tags) != len(set(record_tags)):
+        raise ValueError("record union tags must be unique")
+
+
 def _validate_tagged_record_schema(
     schema: TaggedRecordOf,
     enum_tag_type: type[Enum],
@@ -636,6 +682,13 @@ def _validate_schema_variant(
         _validate_map_schema(schema, enum_tag_type, record_tag_type, active_schema_ids)
     elif _has_exact_type(schema, RecordOf):
         _validate_record_schema(schema, enum_tag_type, record_tag_type, active_schema_ids)
+    elif _has_exact_type(schema, RecordUnionOf):
+        _validate_record_union_schema(
+            schema,
+            enum_tag_type,
+            record_tag_type,
+            active_schema_ids,
+        )
     elif _has_exact_type(schema, TaggedRecordOf):
         _validate_tagged_record_schema(
             schema,
@@ -873,6 +926,8 @@ def _admit_exact_string(
     limit_reject = _consume_node(context, path)
     if limit_reject is not None:
         return limit_reject
+    if schema.max_characters is not None and len(source) > schema.max_characters:
+        return _reject(AdmitCode.BYTE_LIMIT, path)
     utf8_bytes = _bounded_utf8_length(source, schema.max_utf8_bytes)
     if utf8_bytes is None:
         # Authority invariant: every exact string has one valid UTF-8 representation.
@@ -1133,6 +1188,8 @@ def _key_canonical_reject(
             return _reject(AdmitCode.OUT_OF_RANGE, path)
     elif _has_exact_type(schema, ExactString):
         key_string = cast(str, source)
+        if schema.max_characters is not None and len(key_string) > schema.max_characters:
+            return _reject(AdmitCode.BYTE_LIMIT, path)
         utf8_bytes = _bounded_utf8_length(key_string, schema.max_utf8_bytes)
         if utf8_bytes is None:
             return _reject(AdmitCode.NONCANONICAL_SCALAR, path)
@@ -1228,6 +1285,8 @@ def _preflight_key_sort_bytes(
 
     if _has_exact_type(schema, ExactString):
         key_string = cast(str, source)
+        if schema.max_characters is not None and len(key_string) > schema.max_characters:
+            return _reject(AdmitCode.BYTE_LIMIT, path)
         # Every Unicode code point occupies at least one UTF-8 byte. The exact
         # length check therefore rejects huge keys before scanning their prefix.
         if len(key_string) > min(schema.max_utf8_bytes, remaining_bytes):
@@ -1707,6 +1766,33 @@ def _admit_record(
         context.active_container_ids.remove(id(source))
 
 
+def _admit_record_union(
+    schema: RecordUnionOf,
+    source: object,
+    context: _AdmissionContext,
+    path: FieldPath,
+    depth: int,
+    registry: AdmissionRegistryV1,
+    schema_revision: str,
+) -> AdmitOk[object] | AdmitReject:
+    source_type = type(source)
+    for variant in schema.variants:
+        registration = registry._record_registration(variant.record_tag)
+        if registration is None:
+            return _reject(AdmitCode.UNSUPPORTED_VARIANT, path)
+        if source_type is registration.source_type:
+            return _admit_record(
+                variant,
+                source,
+                context,
+                path,
+                depth,
+                registry,
+                schema_revision,
+            )
+    return _reject(AdmitCode.WRONG_EXACT_TYPE, path)
+
+
 def _tagged_registry_drift(
     schema: TaggedRecordOf,
     registration: RecordRegistrationV1,
@@ -1883,6 +1969,16 @@ def _admit_value(
         )
     if _has_exact_type(schema, RecordOf):
         return _admit_record(
+            schema,
+            source,
+            context,
+            path,
+            depth,
+            registry,
+            schema_revision,
+        )
+    if _has_exact_type(schema, RecordUnionOf):
+        return _admit_record_union(
             schema,
             source,
             context,

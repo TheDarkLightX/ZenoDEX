@@ -1,6 +1,6 @@
 {
   "schema": "zenodex/fcis-authority-snapshot-requirements/v1",
-  "design_lock_version": "1.0.2",
+  "design_lock_version": "1.0.3",
   "claim_status": "blocked",
   "audit_authority": {
     "url": "https://zenodex-oracle-audit-v4.jazzy-harp-9002.chatgpt.site/",
@@ -154,6 +154,14 @@
     "FCIS-T-COMB-019": [
       "FCIS-477-017"
     ],
+    "FCIS-T-COMB-023": [
+      "FCIS-477-004",
+      "FCIS-477-015"
+    ],
+    "FCIS-T-COMB-024": [
+      "FCIS-477-006",
+      "FCIS-477-017"
+    ],
     "FCIS-T-OWNED-004": [
       "FCIS-477-010",
       "FCIS-478-002"
@@ -257,7 +265,7 @@
       "requirement": "Only registered exact records and enums are authoritative.",
       "forbidden": ["arbitrary dataclass reflection", "arbitrary Enum reflection"],
       "source_targets": ["src/state/state_snapshot_schema.py"],
-      "tests": ["FCIS-T-COMB-005", "FCIS-T-COMB-008", "FCIS-T-COMB-020", "FCIS-T-STATIC-006"],
+      "tests": ["FCIS-T-COMB-005", "FCIS-T-COMB-008", "FCIS-T-COMB-020", "FCIS-T-COMB-023", "FCIS-T-STATIC-006"],
       "evidence": ["registry parameterization"],
       "claim_impact": "schema closure remains blocked"
     },
@@ -279,7 +287,7 @@
       "requirement": "All scalar fields use exact primitive types and field-specific bounds; bool never satisfies integer fields.",
       "forbidden": ["scalar subclass", "bool-as-int", "implicit conversion"],
       "source_targets": ["src/state/state_snapshot_schema.py"],
-      "tests": ["FCIS-T-COMB-001", "FCIS-T-COMB-002", "FCIS-T-COMB-003", "FCIS-T-477-002", "FCIS-T-477-015"],
+      "tests": ["FCIS-T-COMB-001", "FCIS-T-COMB-002", "FCIS-T-COMB-003", "FCIS-T-COMB-024", "FCIS-T-477-002", "FCIS-T-477-015"],
       "evidence": ["boundary-value tests"],
       "claim_impact": "exact state domain remains blocked"
     },
@@ -378,7 +386,7 @@
       "requirement": "Every mounted perps market/account variant and nested field is exhaustively registered and exact-validated.",
       "forbidden": ["partial perps registry", "broad nested mapping", "subclass behavior"],
       "source_targets": ["src/state/state_snapshot_schema.py", "src/state/state_snapshots.py"],
-      "tests": ["FCIS-T-477-012", "FCIS-T-477-013", "FCIS-T-477-014", "FCIS-T-477-015"],
+      "tests": ["FCIS-T-COMB-023", "FCIS-T-477-012", "FCIS-T-477-013", "FCIS-T-477-014", "FCIS-T-477-015"],
       "evidence": ["perps variant drift test", "subclass witness"],
       "claim_impact": "perps committed-state ownership remains blocked"
     },
@@ -400,7 +408,7 @@
       "requirement": "Committed construction enforces the mounted depth, item, byte, collection, and string limits.",
       "forbidden": ["decoder-only bounds", "unbounded constructor"],
       "source_targets": ["src/state/snapshot_combinators.py", "src/state/state_snapshot_schema.py"],
-      "tests": ["FCIS-T-COMB-012", "FCIS-T-COMB-013", "FCIS-T-COMB-021", "FCIS-T-COMB-022", "FCIS-T-477-024"],
+      "tests": ["FCIS-T-COMB-012", "FCIS-T-COMB-013", "FCIS-T-COMB-021", "FCIS-T-COMB-022", "FCIS-T-COMB-024", "FCIS-T-477-024"],
       "evidence": ["production-limit boundary tests"],
       "claim_impact": "bounded totality remains blocked"
     },
