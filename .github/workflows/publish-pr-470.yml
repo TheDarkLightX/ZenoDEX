@@ -24,10 +24,7 @@ jobs:
           persist-credentials: true
 
       - name: Require publication trigger
-        id: trigger
-        run: |
-          test -f .repair-trigger-470
-          echo "present=true" >> "$GITHUB_OUTPUT"
+        run: test -f .repair-trigger-470
 
       - uses: actions/setup-python@v5
         with:
@@ -146,7 +143,7 @@ jobs:
             tests/core/test_zusd_vault_ownership.py \
             tests/integration/test_zusd_vault_owner_lifecycle.py
 
-      - name: Validate ownership lifecycle and compatibility
+      - name: Lint and compile
         run: |
           python -m ruff check \
             src/core/zusd_vault_ownership.py \
@@ -161,16 +158,30 @@ jobs:
           python -m py_compile \
             src/core/zusd_vault_ownership.py \
             src/integration/zusd_monetary_bridge.py
+          git diff --check
+
+      - name: Focused type check
+        run: |
           python -m mypy \
             src/core/zusd_vault_ownership.py \
             src/integration/zusd_monetary_bridge.py
-          python -m pytest -q \
+
+      - name: Ownership and migration tests
+        run: |
+          python -m pytest -vv --tb=long \
             tests/core/test_zusd_vault_ownership.py \
-            tests/integration/test_zusd_vault_owner_lifecycle.py \
+            tests/integration/test_zusd_vault_owner_lifecycle.py
+
+      - name: zUSD kernel compatibility
+        run: |
+          python -m pytest -vv --tb=long \
             tests/core/test_zusd.py \
-            tests/core/test_zusd_finalized_oracle_authority.py \
+            tests/core/test_zusd_finalized_oracle_authority.py
+
+      - name: Monetary wallet compatibility
+        run: |
+          python -m pytest -vv --tb=long \
             tests/integration/test_zusd_monetary_wallet_api.py
-          git diff --check
 
       - name: Publish clean four-file history
         run: |
