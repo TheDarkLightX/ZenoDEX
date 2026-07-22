@@ -19,7 +19,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.core.zusd import ZUSDCommand, ZUSDState, _step_python as step, init_state
+from src.core.zusd import ZUSDCommand, ZUSDState, init_state
+from src.core.zusd import _step_python as step
 from src.state.canonical import domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex
 
 SCHEMA_VERSION = 1
@@ -217,9 +218,17 @@ def smoke_tx_sequence() -> list[dict]:
     redeem, plus disaster paths (auth, MCR, min-debt, oracle freeze, ...)."""
     return [
         {"kind": "mint_zusd", "amount_e8": _MINT},  # mint_blocked_oracle (no oracle)
-        {"kind": "bootstrap_oracle", "auth_ok": False, "price_e8": _PRICE},  # bootstrap_requires_auth
+        {
+            "kind": "bootstrap_oracle",
+            "auth_ok": False,
+            "price_e8": _PRICE,
+        },  # bootstrap_requires_auth
         {"kind": "bootstrap_oracle", "auth_ok": True, "price_e8": _PRICE},  # accept
-        {"kind": "bootstrap_oracle", "auth_ok": True, "price_e8": _PRICE},  # oracle_already_bootstrapped
+        {
+            "kind": "bootstrap_oracle",
+            "auth_ok": True,
+            "price_e8": _PRICE,
+        },  # oracle_already_bootstrapped
         {"kind": "mint_zusd", "amount_e8": _MINT},  # mint_violates_mcr (no collateral)
         {"kind": "deposit_collateral", "amount_e8": _COLL},  # accept
         {"kind": "mint_zusd", "amount_e8": 1},  # mint_below_min_debt
@@ -229,8 +238,16 @@ def smoke_tx_sequence() -> list[dict]:
         {"kind": "withdraw_collateral", "amount_e8": _COLL},  # withdraw_violates_mcr (debt open)
         {"kind": "advance_epoch", "delta": 5},  # accept
         {"kind": "advance_epoch", "delta": 0},  # not_positive_int
-        {"kind": "oracle_report", "auth_ok": True, "price_e8": 90_000_000},  # accept (pending <= active)
-        {"kind": "oracle_report", "auth_ok": True, "price_e8": 200_000_000},  # report_price_not_non_increasing
+        {
+            "kind": "oracle_report",
+            "auth_ok": True,
+            "price_e8": 90_000_000,
+        },  # accept (pending <= active)
+        {
+            "kind": "oracle_report",
+            "auth_ok": True,
+            "price_e8": 200_000_000,
+        },  # report_price_not_non_increasing
         {"kind": "mint_zusd", "amount_e8": _MINT},  # mint_blocked_oracle (pending != active)
         {"kind": "oracle_commit", "auth_ok": True},  # accept (commit pending)
         {"kind": "frobnicate", "amount_e8": 1},  # unknown_action

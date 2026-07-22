@@ -16,6 +16,7 @@ for candidate in (str(REPO), str(TOOLS_RUNTIME)):
         sys.path.insert(0, candidate)
 
 from rust_shadow_replay import ShadowError, locate_or_build_cli  # noqa: E402
+
 from src.core import zusd  # noqa: E402
 from src.runtime.authority import (  # noqa: E402
     AuthorityMode,
