@@ -15,6 +15,31 @@ AUDIT = ROOT / "AUDIT_FINDINGS.md"
 COMBINATOR = ROOT / "COMBINATOR_CONTRACT.md"
 DESIGN_PATTERNS = ROOT / "DESIGN_PATTERN_AUDIT.md"
 TEST_FILES = (ROOT / "TEST_MATRIX.md", ROOT / "TEST_MATRIX_PR477_PR478.md")
+CURRENT_ARCHITECTURE_CLAUSES = {
+    "COMBINATOR_CONTRACT.md": ("## 8. Pure persistent transition",),
+    "DECISIONS.md": ("### FCIS-D004: One-way admission and persistent transition values",),
+    "ERRATA.md": ("## E9. Persistent committed transitions replace domain scratch conversion",),
+    "PR477_STATE_SCHEMA.md": ("## 2. Exact committed core inputs",),
+}
+STALE_ARCHITECTURE_CLAUSES = {
+    "COMBINATOR_CONTRACT.md": (
+        "## 8. Scratch conversion",
+        "to_scratch_balance_table(CommittedBalanceTable)",
+    ),
+    "DECISIONS.md": (
+        "### FCIS-D004: Three distinct representations",
+        "SourceBuilder -> CommittedValue -> ScratchBuilder",
+    ),
+    "IMPLEMENTATION_RUNBOOK.md": (
+        "### 2.4 Implement read protocols",
+        "mutating paths call `to_scratch_*` once",
+    ),
+    "PR477_STATE_SCHEMA.md": (
+        "## 2. Read protocols",
+        "### Mutating transition code",
+    ),
+    "PR478_AUTHORITY_EFFECT_SCHEMA.md": ("## 6. Scratch settlement",),
+}
 ALLOWED_STATUS = {"OPEN", "SATISFIED", "VIOLATED", "UNVERIFIED"}
 LEDGER_ROOT_KEYS = {
     "audit_authority",
@@ -215,6 +240,22 @@ def _check_pattern_bindings(data: dict[str, Any], errors: list[str]) -> None:
                     )
 
 
+def _check_transition_architecture(errors: list[str]) -> None:
+    filenames = sorted(set(CURRENT_ARCHITECTURE_CLAUSES) | set(STALE_ARCHITECTURE_CLAUSES))
+    for filename in filenames:
+        try:
+            text = (ROOT / filename).read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            _error(errors, "ARCHITECTURE_DOC_READ", filename)
+            continue
+        for clause in CURRENT_ARCHITECTURE_CLAUSES.get(filename, ()):
+            if clause not in text:
+                _error(errors, "ARCHITECTURE_CLAUSE_MISSING", f"{filename}:{clause}")
+        for clause in STALE_ARCHITECTURE_CLAUSES.get(filename, ()):
+            if clause in text:
+                _error(errors, "STALE_MUTABLE_CORE_CLAUSE", f"{filename}:{clause}")
+
+
 def main() -> int:
     errors: list[str] = []
 
@@ -255,6 +296,7 @@ def main() -> int:
     if data.get("claim_status") != "blocked":
         _error(errors, "CLAIM_STATUS", "must_be_blocked")
     _check_pattern_bindings(data, errors)
+    _check_transition_architecture(errors)
 
     heads = data.get("reviewed_heads")
     if type(heads) is not dict:

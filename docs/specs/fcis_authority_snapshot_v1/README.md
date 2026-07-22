@@ -47,17 +47,19 @@ This packet repairs two representation boundaries:
 ```text
 mutable domain builders
   -> exact, closed admission
-  -> owned committed state                         PR #477
+  -> owned committed state
+  -> pure return-new state transitions             PR #477
 
 mutable/parser-owned command and settlement data
   -> exact, closed admission
-  -> owned authenticated command and effect plan  PR #478
+  -> owned authenticated command
+  -> pure candidate and effect-plan construction  PR #478
 ```
 
 It does not claim to complete the entire ZenoDEX assurance program. Economic
 lifecycle repairs, consensus-derived time, cross-language refinement, atomic
-database commitment, idempotent outbox delivery, persistent collections, and a
-Rust ownership boundary remain separately gated work.
+database commitment, idempotent outbox delivery, structurally shared persistent
+collections, and a Rust ownership boundary remain separately gated work.
 
 ## Required outcome
 
@@ -104,6 +106,9 @@ mutable-base inheritance for a committed value
 constructor bypass with object.__new__
 unbounded recursive authority traversal
 an unregistered record, enum, event, intent kind, or perps market variant
+public to_scratch_* conversion from committed authority state
+structural read protocol or mutable builder at an authority-core entry
+legacy mutable domain construction inside the admission resolver
 ```
 
 ## Claim vocabulary

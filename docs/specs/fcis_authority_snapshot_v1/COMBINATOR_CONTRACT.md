@@ -72,6 +72,7 @@ Schema =
   | SequenceOf(accepted_source_kinds, inner, minimum_items, maximum_items)
   | ExactPair(left, right)
   | MapOf(key_schema, value_schema, maximum_items, map_schema_id)
+  | ExactKeyedMap(declared_fields, map_schema_id)
   | RecordOf(record_tag, declared_fields)
   | RecordUnionOf(ordered_nonempty_record_variants)
   | TaggedRecordOf(record_tag, discriminant_field, discriminant_enum_tag,
@@ -89,6 +90,8 @@ Implementation requirements:
   serializer, or user-provided callable;
 - declarative registry records also carry no callable behavior;
 - every record field is declared in one ordered tuple;
+- every heterogeneous closed map uses `ExactKeyedMap`; its exact string keys,
+  per-key schemas, and traversal order are declared in one ordered tuple;
 - every registry has an import-time or test-time exact field-set drift check;
 - `typing.Any` is forbidden in the combinator and committed-value modules.
 
@@ -172,8 +175,9 @@ It never returns or retains the Python `Enum` singleton. Python enum members
 can contain mutable values and expose mutable instance storage, so retaining
 the member would violate transitive ownership even when the enum class itself
 is exact and closed. Tagged owned records and owned map keys store
-`OwnedEnumV1` values. Scratch conversion resolves the ordinals back through the
-same source-pinned profile registry.
+`OwnedEnumV1` values. A non-authoritative presentation adapter may resolve an
+owned ordinal through the same source-pinned registry; the functional core does
+not reconstruct the mutable enum member.
 
 ## 4. Container semantics
 
@@ -250,6 +254,24 @@ sort operates only on resource-bounded exact built-in scalars, registry
 ordinals, and exact pairs of those values; it never sorts or formats arbitrary
 objects.
 
+### Exact keyed-map algorithm
+
+`ExactKeyedMap` is the closed heterogeneous-map form used for perps and
+clearinghouse state dictionaries:
+
+1. Require an exact builtin dictionary or matching exact `OwnedMapV1`.
+2. Enforce the declared cardinality before field inspection.
+3. Require every source key to have exact `str` type and preflight aggregate
+   UTF-8 work before sorting.
+4. Select unknown keys in canonical string order, then missing keys in declared
+   order.
+5. Admit every value with its declared per-key schema in declared order.
+6. Construct an `OwnedMapV1` whose entries follow declared order.
+7. On committed revalidation, reject noncanonical entry order or index drift
+   instead of silently repairing it.
+
+No domain adapter may duplicate this key-set or per-key admission loop.
+
 ## 5. Record semantics
 
 For `RecordOf(record_tag, fields)`:
@@ -288,7 +310,8 @@ consults caller behavior, or uses a default variant.
 
 ## 6. Budget and cycle semantics
 
-The context is owned by the admission call:
+The interpreter threads an immutable evaluation state through every recursive
+result:
 
 ```text
 AdmissionLimitsV1 {
@@ -298,11 +321,16 @@ AdmissionLimitsV1 {
   field-specific cardinality limits
 }
 
-AdmissionContext {
+AdmissionState {
   limits
   nodes_used
   canonical_bytes_used
-  active_container_ids
+  active_container_ids: tuple
+}
+
+AdmitProgress[T] {
+  value: T
+  next_state: AdmissionState
 }
 ```
 
@@ -318,6 +346,8 @@ Rules:
   encoding; never ask an arbitrary object to serialize itself;
 - check a field-specific container limit before iterating its children;
 - limit failures return the first result under the fixed traversal order.
+- no mutable counter object, mutable cycle set, or context builder is shared
+  across recursive calls.
 
 The implementation may use an iterative stack to avoid Python recursion. If it
 uses recursion, the declared maximum depth must remain well below the
@@ -325,40 +355,45 @@ interpreter recursion limit and must reject before deeper calls.
 
 ## 7. Construction phases
 
-Every domain snapshot function follows this exact order:
+Every domain admission function follows this exact order:
 
 ```text
 exact top-level type
 -> structural/container bounds
 -> exact scalar and child-record admission
--> trusted semantic constructor over fresh builtin scratch
--> semantic invariant check
+-> construct exact immutable committed candidate
+-> pure semantic invariant check over that candidate
 -> committed composition value
 -> canonical projection and byte/root parity check in tests
 ```
 
-Mutable constructors may be used only on fresh, function-local built-in
-dictionaries/lists containing already-admitted built-in scalars. The mutable
-object must not escape. Its normalized output is read back through exact field
-schemas before the committed value is constructed.
+The semantic check must not reconstruct a mutable legacy domain object. If an
+existing invariant is coupled to a mutable class, extract a pure predicate over
+the admitted fields and prove parity against the mounted behavior before using
+it as authority. Admission never normalizes an admitted child or copies a value
+back out of a mutable constructor.
 
-## 8. Scratch conversion
+## 8. Pure persistent transition
 
-Committed values never become mutable in place. A mutable consumer receives a
-new builder:
+Authority-bearing transitions consume only exact committed values and return a
+new exact committed value:
 
 ```text
-to_scratch_balance_table(CommittedBalanceTable) -> BalanceTable
-to_scratch_lp_table(CommittedLPTable) -> LPTable
-to_scratch_nonce_table(CommittedNonceTable) -> NonceTable
-to_scratch_pool(CommittedPoolState) -> PoolState
-to_scratch_intent(OwnedIntent) -> Intent
-to_scratch_settlement(OwnedSettlement) -> Settlement
+Step(CommittedState, TypedCommand, ExplicitContext)
+  -> StepReject(code, path)
+   | StepOk(NewCommittedState, CanonicalEffects, Receipt)
 ```
 
-Each function reconstructs fields explicitly from owned values. It performs no
-`deepcopy`. The returned builder shares no mutable object with the committed
-input. Only the transition-local owner receives it.
+Public `to_scratch_*` functions, mutable domain-builder parameters, and
+structural read protocols at core entry points are forbidden. Domain updates
+use explicitly named return-new functions such as `with_balance_delta` or
+`apply_pool_patch`; an ignored return cannot resemble successful mutation.
+
+An implementation may allocate a fresh private builtin `dict` or `list` inside
+one pure function when profiling requires it. The buffer may contain only
+admitted immutable values, cannot escape through a return, exception, closure,
+global, cache, or callback, and must be discarded on rejection. A static check
+and a differential property against the return-new reference are required.
 
 ## 9. Error precedence
 
@@ -399,6 +434,9 @@ object.__new__ for a domain record
 an else/fallback branch that preserves, copies, coerces, stringifies, or
   serializes an unsupported value
 committed class inheriting from a mutable builder or container
+public to_scratch_* conversion from a committed authority value
+authority-core parameter typed as a structural read protocol or legacy builder
+legacy mutable domain construction inside the admission resolver
 ```
 
 `isinstance` remains acceptable in unrelated compatibility or rendering code.
@@ -414,7 +452,8 @@ This contract mechanically targets:
 - stable traversal and rejection;
 - cycle and resource rejection;
 - immutable committed API under trusted CPython/repository code;
-- one explicit mutable scratch boundary;
+- pure return-new authority transitions;
+- no public mutable post-admission representation;
 - registry drift failure.
 
 It does not prove:

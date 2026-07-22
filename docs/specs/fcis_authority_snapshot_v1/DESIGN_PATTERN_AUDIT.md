@@ -154,52 +154,75 @@ Evidence includes retained-alias mutation, MRO/base-route attacks,
 reinitialization, child-reference inspection, canonical-byte/root stability,
 and corrupted-owned revalidation.
 
-## Pattern FCIS-PAT-THREE-REPRESENTATIONS-V1
+## Pattern FCIS-PAT-PERSISTENT-TRANSITION-V1
 
-**Name:** Source, committed, and scratch representation separation
+**Name:** One-way admission and persistent return-new transition
 
 **Selection:** SELECTED for PR #477 and PR #478
 **Audit bindings:** `STATE-ALIAS-001` through `STATE-ALIAS-006`
 
 ### Applicability and rationale
 
-Use three explicit representations when legacy settlement code requires
-mutation:
+Use one-way admission at compatibility ingress and exact committed values
+throughout the authority core:
 
 ```text
-SourceBuilder
+LegacySource
   -> closed exact admission
   -> CommittedValue
-  -> explicit field projection
-  -> fresh ScratchBuilder
-  -> pure evaluation
-  -> closed exact admission
-  -> new CommittedValue
+
+Step(CommittedValue, TypedCommand, ExplicitContext)
+  -> Reject
+   | Accept(NewCommittedValue, Effects, Receipt)
 ```
 
-The pattern makes ownership transfer and the mutation window visible. It avoids
-passing a sealed committed object to a mutating function and avoids preserving
-a caller alias merely to satisfy an existing mutable API.
+The pattern makes ownership transfer occur exactly once and removes a public
+post-admission mutation window. Old committed versions remain valid for roots,
+replay, proofs, and concurrent readers. Specialized persistent maps may share
+unchanged structure; the initial Python repair may rebuild owned tuples while
+preserving the same return-new semantics.
 
 ### Rejected alternatives
 
 - Mutating a committed value in place.
-- Calling `dataclasses.replace` when it preserves a frozen runtime subtype that
-  the downstream algorithm tries to mutate.
+- Public committed-to-mutable `to_scratch_*` conversion.
+- Re-admitting a mutable post-transition domain builder.
+- Structural read protocols that legacy mutable builders can satisfy.
 - Catching immutability exceptions as normal control flow.
 - Generic thaw or `deepcopy`.
-- Sharing mutable children between scratch and committed values.
+- Sharing mutable children between legacy ingress and committed values.
 
 ### Mechanical guarantee and non-guarantees
 
-Every scratch object is fresh and transaction-local; mutating it cannot alter
-the pre-state. Every accepted post-state is rebuilt and re-admitted as an owned
-value. The pattern does not prove that transition logic is economically correct
-or that the imperative shell commits the result atomically.
+Each accepted transition returns a distinct immutable successor while the
+pre-state remains byte- and behavior-stable. Rejection returns no candidate,
+effect, or receipt. The pattern does not prove that transition logic is
+economically correct or that the imperative shell commits the result
+atomically.
 
-Evidence includes pre-state root stability throughout settlement, scratch alias
-inspection, rejected-transition no-op, old/new canonical parity, and mounted
-consumer tests.
+A leaf function may use a private builtin work buffer only when it cannot
+escape and a differential test proves parity with the return-new reference.
+Python cannot statically prove this non-escape property, so such a buffer is an
+implementation optimization and never a domain representation or public API.
+
+Evidence includes old-root stability throughout settlement, retained-source
+alias inspection, rejected-transition no-output, pure-update/reference parity,
+static rejection of public mutable projections, and mounted consumer tests.
+
+Research basis:
+
+- Functional Software Architecture defines the core as pure functions over
+  immutable values and places stateful infrastructure in the shell:
+  https://functional-architecture.org/functional_core_imperative_shell/
+- Its illegal-state guidance places legacy conversion in an anti-corruption
+  parse layer so downstream calculations receive the stronger value:
+  https://functional-architecture.org/make_illegal_states_unrepresentable/
+- Okasaki's persistence model preserves old versions and shares unchanged
+  structure: https://doi.org/10.1017/CBO9780511530104
+- Launchbury and Peyton Jones permit internal mutation behind a pure interface
+  when a type system proves encapsulation. Python supplies no comparable
+  parametricity guarantee:
+  https://www.microsoft.com/en-us/research/publication/lazy-functional-state-threads/
 
 ## Pattern FCIS-PAT-TYPESTATE-AUTHORITY-V1
 

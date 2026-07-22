@@ -25,6 +25,20 @@ PR #477 addresses committed ownership. PR #478 addresses owned authority and
 effect values plus part of the canonical parser boundary. Neither PR may claim
 closure of the other contracts.
 
+The pure-transition contract is interpreted persistently:
+
+```text
+Step(CommittedState, TypedCommand, ExplicitContext)
+  -> Reject
+   | Accept(NewCommittedState, CanonicalEffects, Receipt)
+```
+
+Core entry points accept exact committed types. Public mutable projections,
+structural protocols shared with legacy builders, and mutable post-transition
+re-admission are outside this relation. A private local work buffer may optimize
+one pure function only when it cannot escape and differential evidence binds it
+to the return-new reference.
+
 ## 2. Typed authority pipeline
 
 ```text

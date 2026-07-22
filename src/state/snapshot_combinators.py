@@ -7,11 +7,13 @@ constructor, callback, source type, or encoder outside a closed registry.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from dataclasses import fields as dataclass_fields
 from enum import Enum, EnumType
 from types import FunctionType, MappingProxyType
-from typing import Callable, Generic, TypeGuard, TypeVar, cast, final
+from typing import Callable, Generic, TypeVar, cast, final
+
+from typing_extensions import TypeIs
 
 from .owned_collections import (
     OwnedEnumV1,
@@ -26,7 +28,7 @@ T = TypeVar("T")
 _MAPPING_PROXY_TYPE: type[object] = type(MappingProxyType({}))
 
 
-def _has_exact_type(value: object, expected_type: type[T]) -> TypeGuard[T]:
+def _has_exact_type(value: object, expected_type: type[T]) -> TypeIs[T]:
     return type(value) is expected_type
 
 
@@ -253,6 +255,14 @@ class MapOf:
 
 
 @dataclass(frozen=True, slots=True)
+class ExactKeyedMap:
+    """A closed exact-string-key map with one schema per declared key."""
+
+    declared_fields: tuple[DeclaredFieldV1, ...]
+    map_schema_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class DeclaredFieldV1:
     name: str
     schema: SchemaV1
@@ -293,6 +303,7 @@ SchemaV1 = (
     | SequenceOf
     | ExactPair
     | MapOf
+    | ExactKeyedMap
     | RecordOf
     | RecordUnionOf
     | TaggedRecordOf
@@ -478,6 +489,8 @@ def _validate_record_registrations(
         raise ValueError("record source types must be unique")
     if len(owned_types) != len(set(owned_types)):
         raise ValueError("record owned types must be unique")
+    if len((*source_types, *owned_types)) != len(set((*source_types, *owned_types))):
+        raise ValueError("record source and owned types must be pairwise distinct")
 
 
 def _validate_exact_int_schema(schema: ExactInt) -> None:
@@ -583,6 +596,23 @@ def _validate_map_schema(
     _validate_schema(schema.value_schema, enum_tag_type, record_tag_type, active_schema_ids)
 
 
+def _validate_exact_keyed_map_schema(
+    schema: ExactKeyedMap,
+    enum_tag_type: type[Enum],
+    record_tag_type: type[Enum],
+    active_schema_ids: set[int],
+) -> None:
+    if type(schema.map_schema_id) is not str or not schema.map_schema_id:
+        raise ValueError("map schema ID must be an exact nonempty string")
+    _validate_declared_fields(
+        schema.declared_fields,
+        enum_tag_type,
+        record_tag_type,
+        active_schema_ids,
+    )
+    _validate_item_bounds(len(schema.declared_fields), len(schema.declared_fields))
+
+
 def _schema_is_valid_map_key(schema: SchemaV1) -> bool:
     if type(schema) in {ExactInt, ExactBool, ExactString, ExactBytes, ExactEnum}:
         return True
@@ -680,6 +710,13 @@ def _validate_schema_variant(
         _validate_pair_schema(schema, enum_tag_type, record_tag_type, active_schema_ids)
     elif _has_exact_type(schema, MapOf):
         _validate_map_schema(schema, enum_tag_type, record_tag_type, active_schema_ids)
+    elif _has_exact_type(schema, ExactKeyedMap):
+        _validate_exact_keyed_map_schema(
+            schema,
+            enum_tag_type,
+            record_tag_type,
+            active_schema_ids,
+        )
     elif _has_exact_type(schema, RecordOf):
         _validate_record_schema(schema, enum_tag_type, record_tag_type, active_schema_ids)
     elif _has_exact_type(schema, RecordUnionOf):
@@ -744,6 +781,8 @@ def _validate_declared_fields(
             raise TypeError("invalid declared field")
         if type(declared_field.name) is not str or not declared_field.name:
             raise ValueError("declared field name must be an exact nonempty string")
+        if _bounded_utf8_length(declared_field.name, MAX_CANONICAL_BYTES_V1) is None:
+            raise ValueError("declared field name must be valid UTF-8")
         names.append(declared_field.name)
         _validate_schema(
             declared_field.schema,
@@ -795,13 +834,21 @@ def build_admission_registry_v1(
     )
 
 
-@dataclass(slots=True)
-class _AdmissionContext:
+@dataclass(frozen=True, slots=True)
+class _AdmissionState:
     limits: ValidatedAdmissionLimitsV1
     record_construction_resolver: RecordConstructionResolverV1
     nodes_used: int = 0
     trusted_scalar_bytes_used: int = 0
-    active_container_ids: set[int] = field(default_factory=set)
+    active_container_ids: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _AdmitProgress(Generic[T]):
+    """An admitted value paired with the next immutable evaluation state."""
+
+    value: T
+    state: _AdmissionState
 
 
 def _reject(code: AdmitCode, path: FieldPath) -> AdmitReject:
@@ -809,47 +856,72 @@ def _reject(code: AdmitCode, path: FieldPath) -> AdmitReject:
 
 
 def _check_depth(
-    context: _AdmissionContext,
+    state: _AdmissionState,
     depth: int,
     path: FieldPath,
 ) -> AdmitReject | None:
-    if depth > context.limits.max_depth:
+    if depth > state.limits.max_depth:
         return _reject(AdmitCode.DEPTH_LIMIT, path)
     return None
 
 
 def _consume_node(
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
-) -> AdmitReject | None:
-    if context.nodes_used >= context.limits.max_nodes:
+) -> _AdmissionState | AdmitReject:
+    if state.nodes_used >= state.limits.max_nodes:
         return _reject(AdmitCode.ITEM_LIMIT, path)
-    context.nodes_used += 1
-    return None
+    return _AdmissionState(
+        state.limits,
+        state.record_construction_resolver,
+        state.nodes_used + 1,
+        state.trusted_scalar_bytes_used,
+        state.active_container_ids,
+    )
 
 
 def _consume_trusted_scalar_bytes(
-    context: _AdmissionContext,
+    state: _AdmissionState,
     byte_count: int,
     path: FieldPath,
-) -> AdmitReject | None:
-    remaining = context.limits.max_canonical_bytes - context.trusted_scalar_bytes_used
+) -> _AdmissionState | AdmitReject:
+    remaining = state.limits.max_canonical_bytes - state.trusted_scalar_bytes_used
     if byte_count > remaining:
         return _reject(AdmitCode.BYTE_LIMIT, path)
-    context.trusted_scalar_bytes_used += byte_count
-    return None
+    return _AdmissionState(
+        state.limits,
+        state.record_construction_resolver,
+        state.nodes_used,
+        state.trusted_scalar_bytes_used + byte_count,
+        state.active_container_ids,
+    )
 
 
 def _enter_active(
-    context: _AdmissionContext,
+    state: _AdmissionState,
     source: object,
     path: FieldPath,
-) -> AdmitReject | None:
+) -> _AdmissionState | AdmitReject:
     source_id = id(source)
-    if source_id in context.active_container_ids:
+    if source_id in state.active_container_ids:
         return _reject(AdmitCode.CYCLE, path)
-    context.active_container_ids.add(source_id)
-    return None
+    return _AdmissionState(
+        state.limits,
+        state.record_construction_resolver,
+        state.nodes_used,
+        state.trusted_scalar_bytes_used,
+        state.active_container_ids + (source_id,),
+    )
+
+
+def _leave_active(state: _AdmissionState, source: object) -> _AdmissionState:
+    return _AdmissionState(
+        state.limits,
+        state.record_construction_resolver,
+        state.nodes_used,
+        state.trusted_scalar_bytes_used,
+        tuple(item for item in state.active_container_ids if item != id(source)),
+    )
 
 
 def _bounded_utf8_length(source: str, maximum: int) -> int | None:
@@ -891,41 +963,43 @@ def _string_is_canonical(
 def _admit_exact_int(
     schema: ExactInt,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
-) -> AdmitOk[object] | AdmitReject:
+) -> _AdmitProgress[object] | AdmitReject:
     if not _has_exact_type(source, int):
         return _reject(AdmitCode.WRONG_EXACT_TYPE, path)
-    limit_reject = _consume_node(context, path)
-    if limit_reject is not None:
-        return limit_reject
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
     if source < schema.minimum or (schema.maximum is not None and source > schema.maximum):
         return _reject(AdmitCode.OUT_OF_RANGE, path)
-    return AdmitOk(source)
+    return _AdmitProgress(source, next_state)
 
 
 def _admit_exact_bool(
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
-) -> AdmitOk[object] | AdmitReject:
+) -> _AdmitProgress[object] | AdmitReject:
     if not _has_exact_type(source, bool):
         return _reject(AdmitCode.WRONG_EXACT_TYPE, path)
-    limit_reject = _consume_node(context, path)
-    return limit_reject if limit_reject is not None else AdmitOk(source)
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    return _AdmitProgress(source, next_state)
 
 
 def _admit_exact_string(
     schema: ExactString,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
-) -> AdmitOk[object] | AdmitReject:
+) -> _AdmitProgress[object] | AdmitReject:
     if not _has_exact_type(source, str):
         return _reject(AdmitCode.WRONG_EXACT_TYPE, path)
-    limit_reject = _consume_node(context, path)
-    if limit_reject is not None:
-        return limit_reject
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
     if schema.max_characters is not None and len(source) > schema.max_characters:
         return _reject(AdmitCode.BYTE_LIMIT, path)
     utf8_bytes = _bounded_utf8_length(source, schema.max_utf8_bytes)
@@ -936,54 +1010,58 @@ def _admit_exact_string(
         return _reject(AdmitCode.BYTE_LIMIT, path)
     if not _string_is_canonical(schema, source, utf8_bytes):
         return _reject(AdmitCode.NONCANONICAL_SCALAR, path)
-    byte_reject = _consume_trusted_scalar_bytes(context, utf8_bytes, path)
-    return byte_reject if byte_reject is not None else AdmitOk(source)
+    next_state = _consume_trusted_scalar_bytes(next_state, utf8_bytes, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    return _AdmitProgress(source, next_state)
 
 
 def _admit_exact_bytes(
     schema: ExactBytes,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
-) -> AdmitOk[object] | AdmitReject:
+) -> _AdmitProgress[object] | AdmitReject:
     if not _has_exact_type(source, bytes):
         return _reject(AdmitCode.WRONG_EXACT_TYPE, path)
-    limit_reject = _consume_node(context, path)
-    if limit_reject is not None:
-        return limit_reject
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
     if len(source) > schema.max_length:
         return _reject(AdmitCode.BYTE_LIMIT, path)
     if schema.exact_length is not None and len(source) != schema.exact_length:
         return _reject(AdmitCode.OUT_OF_RANGE, path)
-    byte_reject = _consume_trusted_scalar_bytes(context, len(source), path)
-    return byte_reject if byte_reject is not None else AdmitOk(source)
+    next_state = _consume_trusted_scalar_bytes(next_state, len(source), path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    return _AdmitProgress(source, next_state)
 
 
 def _admit_scalar(
     schema: SchemaV1,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
-) -> AdmitOk[object] | AdmitReject | None:
+) -> _AdmitProgress[object] | AdmitReject | None:
     if _has_exact_type(schema, ExactInt):
-        return _admit_exact_int(schema, source, context, path)
+        return _admit_exact_int(schema, source, state, path)
     if _has_exact_type(schema, ExactBool):
-        return _admit_exact_bool(source, context, path)
+        return _admit_exact_bool(source, state, path)
     if _has_exact_type(schema, ExactString):
-        return _admit_exact_string(schema, source, context, path)
+        return _admit_exact_string(schema, source, state, path)
     if _has_exact_type(schema, ExactBytes):
-        return _admit_exact_bytes(schema, source, context, path)
+        return _admit_exact_bytes(schema, source, state, path)
     return None
 
 
 def _admit_enum(
     schema: ExactEnum,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
     registry: AdmissionRegistryV1,
     schema_revision: str,
-) -> AdmitOk[object] | AdmitReject:
+) -> _AdmitProgress[object] | AdmitReject:
     registration = registry._enum_registration(schema.enum_tag)
     tag_ordinal = registry._enum_registration_index(schema.enum_tag)
     if registration is None or tag_ordinal is None:
@@ -1008,16 +1086,17 @@ def _admit_enum(
         return _reject(AdmitCode.WRONG_EXACT_TYPE, path)
     if member_ordinal is None:
         return _reject(AdmitCode.UNSUPPORTED_VARIANT, path)
-    limit_reject = _consume_node(context, path)
-    if limit_reject is not None:
-        return limit_reject
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
     # Authority invariant: a mutable Enum singleton never enters committed state.
-    return AdmitOk(
+    return _AdmitProgress(
         _owned_enum_from_admitted(
             schema_revision,
             tag_ordinal,
             member_ordinal,
-        )
+        ),
+        next_state,
     )
 
 
@@ -1055,12 +1134,12 @@ def _source_kind_matches(
 def _admit_sequence(
     schema: SequenceOf,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
     depth: int,
     registry: AdmissionRegistryV1,
     schema_revision: str,
-) -> AdmitOk[object] | AdmitReject:
+) -> _AdmitProgress[object] | AdmitReject:
     if not _source_kind_matches(source, schema.accepted_source_kinds):
         return _reject(AdmitCode.WRONG_CONTAINER, path)
     owned_source = cast(list[object] | tuple[object, ...], source)
@@ -1068,82 +1147,80 @@ def _admit_sequence(
     if (
         item_count < schema.minimum_items
         or item_count > schema.maximum_items
-        or item_count > context.limits.max_collection_items
+        or item_count > state.limits.max_collection_items
     ):
         return _reject(AdmitCode.ITEM_LIMIT, path)
-    node_reject = _consume_node(context, path)
-    if node_reject is not None:
-        return node_reject
-    cycle_reject = _enter_active(context, source, path)
-    if cycle_reject is not None:
-        return cycle_reject
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    next_state = _enter_active(next_state, source, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
     owned_items: list[object] = []
-    try:
-        for index in range(item_count):
-            result = _admit_value(
-                schema.inner,
-                owned_source[index],
-                context,
-                path + (index,),
-                depth + 1,
-                registry,
-                schema_revision,
-            )
-            if _has_exact_type(result, AdmitReject):
-                return result
-            admitted = cast(AdmitOk[object], result)
-            owned_items.append(admitted.value)
-    finally:
-        context.active_container_ids.remove(id(source))
-    return AdmitOk(tuple(owned_items))
+    for index in range(item_count):
+        result = _admit_value(
+            schema.inner,
+            owned_source[index],
+            next_state,
+            path + (index,),
+            depth + 1,
+            registry,
+            schema_revision,
+        )
+        if _has_exact_type(result, AdmitReject):
+            return result
+        admitted = result
+        owned_items.append(admitted.value)
+        next_state = admitted.state
+    return _AdmitProgress(tuple(owned_items), _leave_active(next_state, source))
 
 
 def _admit_pair(
     schema: ExactPair,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
     depth: int,
     registry: AdmissionRegistryV1,
     schema_revision: str,
-) -> AdmitOk[object] | AdmitReject:
+) -> _AdmitProgress[object] | AdmitReject:
     if not _has_exact_type(source, tuple) or len(source) != 2:
         return _reject(AdmitCode.WRONG_CONTAINER, path)
     owned_source = cast(tuple[object, object], source)
-    node_reject = _consume_node(context, path)
-    if node_reject is not None:
-        return node_reject
-    cycle_reject = _enter_active(context, source, path)
-    if cycle_reject is not None:
-        return cycle_reject
-    try:
-        left = _admit_value(
-            schema.left,
-            owned_source[0],
-            context,
-            path + (0,),
-            depth + 1,
-            registry,
-            schema_revision,
-        )
-        if _has_exact_type(left, AdmitReject):
-            return left
-        right = _admit_value(
-            schema.right,
-            owned_source[1],
-            context,
-            path + (1,),
-            depth + 1,
-            registry,
-            schema_revision,
-        )
-        if _has_exact_type(right, AdmitReject):
-            return right
-        admitted_left = cast(AdmitOk[object], left)
-        admitted_right = cast(AdmitOk[object], right)
-        return AdmitOk((admitted_left.value, admitted_right.value))
-    finally:
-        context.active_container_ids.remove(id(source))
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    next_state = _enter_active(next_state, source, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    left = _admit_value(
+        schema.left,
+        owned_source[0],
+        next_state,
+        path + (0,),
+        depth + 1,
+        registry,
+        schema_revision,
+    )
+    if _has_exact_type(left, AdmitReject):
+        return left
+    admitted_left = left
+    right = _admit_value(
+        schema.right,
+        owned_source[1],
+        admitted_left.state,
+        path + (1,),
+        depth + 1,
+        registry,
+        schema_revision,
+    )
+    if _has_exact_type(right, AdmitReject):
+        return right
+    admitted_right = right
+    return _AdmitProgress(
+        (admitted_left.value, admitted_right.value),
+        _leave_active(admitted_right.state, source),
+    )
 
 
 def _key_has_exact_shape(
@@ -1314,7 +1391,7 @@ def _preflight_key_sort_bytes(
         )
         if _has_exact_type(left, AdmitReject):
             return left
-        left_bytes = cast(int, left)
+        left_bytes = left
         right = _preflight_key_sort_bytes(
             schema.right,
             key_pair[1],
@@ -1323,17 +1400,17 @@ def _preflight_key_sort_bytes(
         )
         if _has_exact_type(right, AdmitReject):
             return right
-        return left_bytes + cast(int, right)
+        return left_bytes + right
     return 0
 
 
 def _preflight_map_key_sort_bytes(
     schema: MapOf,
     entries: tuple[tuple[object, object], ...],
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
 ) -> AdmitReject | None:
-    remaining_bytes = context.limits.max_canonical_bytes - context.trusted_scalar_bytes_used
+    remaining_bytes = state.limits.max_canonical_bytes - state.trusted_scalar_bytes_used
     for key, _value in entries:
         key_bytes = _preflight_key_sort_bytes(
             schema.key_schema,
@@ -1343,43 +1420,47 @@ def _preflight_map_key_sort_bytes(
         )
         if _has_exact_type(key_bytes, AdmitReject):
             return key_bytes
-        remaining_bytes -= cast(int, key_bytes)
+        remaining_bytes -= key_bytes
     return None
 
 
 def _admit_owned_key(
     schema: SchemaV1,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
     depth: int,
     registry: AdmissionRegistryV1,
     schema_revision: str,
-) -> AdmitOk[object] | AdmitReject:
-    depth_reject = _check_depth(context, depth, path)
+) -> _AdmitProgress[object] | AdmitReject:
+    depth_reject = _check_depth(state, depth, path)
     if depth_reject is not None:
         return depth_reject
-    node_reject = _consume_node(context, path)
-    if node_reject is not None:
-        return node_reject
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
     if _has_exact_type(schema, ExactString):
         key_string = cast(str, source)
         utf8_bytes = _bounded_utf8_length(key_string, schema.max_utf8_bytes)
         if utf8_bytes is None:
             return _reject(AdmitCode.NONCANONICAL_SCALAR, path)
-        byte_reject = _consume_trusted_scalar_bytes(
-            context,
+        next_state = _consume_trusted_scalar_bytes(
+            next_state,
             utf8_bytes,
             path,
         )
-        return byte_reject if byte_reject is not None else AdmitOk(source)
+        if _has_exact_type(next_state, AdmitReject):
+            return next_state
+        return _AdmitProgress(source, next_state)
     if _has_exact_type(schema, ExactBytes):
-        byte_reject = _consume_trusted_scalar_bytes(
-            context,
+        next_state = _consume_trusted_scalar_bytes(
+            next_state,
             len(cast(bytes, source)),
             path,
         )
-        return byte_reject if byte_reject is not None else AdmitOk(source)
+        if _has_exact_type(next_state, AdmitReject):
+            return next_state
+        return _AdmitProgress(source, next_state)
     if _has_exact_type(schema, ExactEnum):
         registration = registry._enum_registration(schema.enum_tag)
         tag_ordinal = registry._enum_registration_index(schema.enum_tag)
@@ -1397,19 +1478,20 @@ def _admit_owned_key(
             )
         if member_ordinal < 0:
             return _reject(AdmitCode.UNSUPPORTED_VARIANT, path)
-        return AdmitOk(
+        return _AdmitProgress(
             _owned_enum_from_admitted(
                 schema_revision,
                 tag_ordinal,
                 member_ordinal,
-            )
+            ),
+            next_state,
         )
     if _has_exact_type(schema, ExactPair):
         key = cast(tuple[object, object], source)
         left_result = _admit_owned_key(
             schema.left,
             key[0],
-            context,
+            next_state,
             path,
             depth + 1,
             registry,
@@ -1420,7 +1502,7 @@ def _admit_owned_key(
         right_result = _admit_owned_key(
             schema.right,
             key[1],
-            context,
+            left_result.state,
             path,
             depth + 1,
             registry,
@@ -1428,10 +1510,10 @@ def _admit_owned_key(
         )
         if _has_exact_type(right_result, AdmitReject):
             return right_result
-        owned_left = cast(AdmitOk[object], left_result)
-        owned_right = cast(AdmitOk[object], right_result)
-        return AdmitOk((owned_left.value, owned_right.value))
-    return AdmitOk(source)
+        owned_left = left_result
+        owned_right = right_result
+        return _AdmitProgress((owned_left.value, owned_right.value), owned_right.state)
+    return _AdmitProgress(source, next_state)
 
 
 def _map_source_entries(
@@ -1484,12 +1566,19 @@ def _owned_map_index_matches_entries(
     trusted_index = cast(Mapping[object, object], index)
     if len(trusted_index) != len(entries):
         return False
-    missing = object()
-    try:
-        return all(trusted_index.get(key, missing) is value for key, value in entries)
-    except Exception:
-        # Exact key validation runs first; any remaining lookup fault is corruption.
+    # Inspect the exact built-in mapping proxy without hashing or comparing a
+    # potentially corrupt stored key. The private identity index contains only
+    # builtin integer IDs and never escapes this pure validation call.
+    index_entries = tuple(trusted_index.items())
+    by_identity = {id(key): (key, value) for key, value in index_entries}
+    if len(by_identity) != len(entries):
         return False
+    return all(
+        id(key) in by_identity
+        and by_identity[id(key)][0] is key
+        and by_identity[id(key)][1] is value
+        for key, value in entries
+    )
 
 
 def _map_value_path(path: FieldPath, key: object) -> FieldPath:
@@ -1501,13 +1590,13 @@ def _map_value_path(path: FieldPath, key: object) -> FieldPath:
 def _admit_map(
     schema: MapOf,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
     depth: int,
     registry: AdmissionRegistryV1,
     schema_revision: str,
-) -> AdmitOk[object] | AdmitReject:
-    maximum_items = min(schema.maximum_items, context.limits.max_collection_items)
+) -> _AdmitProgress[object] | AdmitReject:
+    maximum_items = min(schema.maximum_items, state.limits.max_collection_items)
     source_entries = _map_source_entries(
         source,
         schema_revision,
@@ -1516,99 +1605,197 @@ def _admit_map(
     )
     if _has_exact_type(source_entries, AdmitReject):
         return AdmitReject(source_entries.code, path)
-    entries = cast(tuple[tuple[object, object], ...], source_entries)
+    entries = source_entries
     item_count = len(entries)
     if item_count > maximum_items:
         return _reject(AdmitCode.ITEM_LIMIT, path)
-    node_reject = _consume_node(context, path)
-    if node_reject is not None:
-        return node_reject
-    cycle_reject = _enter_active(context, source, path)
-    if cycle_reject is not None:
-        return cycle_reject
-    try:
-        for key, _value in entries:
-            if not _key_has_exact_shape(schema.key_schema, key, registry):
-                return _reject(AdmitCode.WRONG_KEY_TYPE, path)
-        key_resource_reject = _preflight_map_key_sort_bytes(
-            schema,
-            entries,
-            context,
-            path,
-        )
-        if key_resource_reject is not None:
-            return key_resource_reject
-        # Authority invariant: key errors are selected by canonical key order,
-        # so rejected output cannot depend on caller dictionary insertion order.
-        # Resource preflight above proves these raw built-in comparisons bounded.
-        sorted_entries_with_keys = tuple(
-            sorted(
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    next_state = _enter_active(next_state, source, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    for key, _value in entries:
+        if not _key_has_exact_shape(schema.key_schema, key, registry):
+            return _reject(AdmitCode.WRONG_KEY_TYPE, path)
+    key_resource_reject = _preflight_map_key_sort_bytes(
+        schema,
+        entries,
+        next_state,
+        path,
+    )
+    if key_resource_reject is not None:
+        return key_resource_reject
+    # Authority invariant: key errors are selected by canonical key order,
+    # so rejected output cannot depend on caller dictionary insertion order.
+    # Resource preflight above proves these raw built-in comparisons bounded.
+    sorted_entries_with_keys = tuple(
+        sorted(
+            (
                 (
-                    (
-                        _key_sort_value(schema.key_schema, key, registry),
-                        key,
-                        value,
-                    )
-                    for key, value in entries
-                ),
-                key=lambda entry: entry[0],
-            )
+                    _key_sort_value(schema.key_schema, key, registry),
+                    key,
+                    value,
+                )
+                for key, value in entries
+            ),
+            key=lambda entry: entry[0],
         )
-        for index in range(1, len(sorted_entries_with_keys)):
-            if sorted_entries_with_keys[index - 1][0] == sorted_entries_with_keys[index][0]:
-                return _reject(AdmitCode.REGISTRY_DRIFT, path)
-        sorted_entries = tuple((key, value) for _sort_key, key, value in sorted_entries_with_keys)
-
-        for key, _value in sorted_entries:
-            canonical_reject = _key_canonical_reject(
-                schema.key_schema,
-                key,
-                path,
-                registry,
-                schema_revision,
-            )
-            if canonical_reject is not None:
-                return canonical_reject
-        if not _owned_map_index_matches_entries(source, sorted_entries):
+    )
+    for index in range(1, len(sorted_entries_with_keys)):
+        if sorted_entries_with_keys[index - 1][0] == sorted_entries_with_keys[index][0]:
             return _reject(AdmitCode.REGISTRY_DRIFT, path)
+    sorted_entries = tuple((key, value) for _sort_key, key, value in sorted_entries_with_keys)
 
-        owned_entries: list[tuple[object, object]] = []
-        for key, value in sorted_entries:
-            key_result = _admit_owned_key(
-                schema.key_schema,
-                key,
-                context,
-                path,
-                depth + 1,
-                registry,
-                schema_revision,
-            )
-            if _has_exact_type(key_result, AdmitReject):
-                return key_result
-            value_path = _map_value_path(path, key)
-            result = _admit_value(
-                schema.value_schema,
-                value,
-                context,
-                value_path,
-                depth + 1,
-                registry,
-                schema_revision,
-            )
-            if _has_exact_type(result, AdmitReject):
-                return result
-            admitted_key = cast(AdmitOk[object], key_result)
-            admitted = cast(AdmitOk[object], result)
-            owned_entries.append((admitted_key.value, admitted.value))
-        return AdmitOk(
-            _owned_map_from_admitted(
-                tuple(owned_entries),
-                schema_revision,
-                schema.map_schema_id,
-            )
+    for key, _value in sorted_entries:
+        canonical_reject = _key_canonical_reject(
+            schema.key_schema,
+            key,
+            path,
+            registry,
+            schema_revision,
         )
-    finally:
-        context.active_container_ids.remove(id(source))
+        if canonical_reject is not None:
+            return canonical_reject
+    if type(source) is OwnedMapV1 and entries != sorted_entries:
+        return _reject(AdmitCode.REGISTRY_DRIFT, path)
+    if not _owned_map_index_matches_entries(source, sorted_entries):
+        return _reject(AdmitCode.REGISTRY_DRIFT, path)
+
+    owned_entries: list[tuple[object, object]] = []
+    for key, value in sorted_entries:
+        key_result = _admit_owned_key(
+            schema.key_schema,
+            key,
+            next_state,
+            path,
+            depth + 1,
+            registry,
+            schema_revision,
+        )
+        if _has_exact_type(key_result, AdmitReject):
+            return key_result
+        admitted_key = key_result
+        value_path = _map_value_path(path, key)
+        result = _admit_value(
+            schema.value_schema,
+            value,
+            admitted_key.state,
+            value_path,
+            depth + 1,
+            registry,
+            schema_revision,
+        )
+        if _has_exact_type(result, AdmitReject):
+            return result
+        admitted = result
+        owned_entries.append((admitted_key.value, admitted.value))
+        next_state = admitted.state
+    return _AdmitProgress(
+        _owned_map_from_admitted(
+            tuple(owned_entries),
+            schema_revision,
+            schema.map_schema_id,
+        ),
+        _leave_active(next_state, source),
+    )
+
+
+def _admit_exact_keyed_map(
+    schema: ExactKeyedMap,
+    source: object,
+    state: _AdmissionState,
+    path: FieldPath,
+    depth: int,
+    registry: AdmissionRegistryV1,
+    schema_revision: str,
+) -> _AdmitProgress[object] | AdmitReject:
+    declared_count = len(schema.declared_fields)
+    maximum_items = min(declared_count, state.limits.max_collection_items)
+    source_entries = _map_source_entries(
+        source,
+        schema_revision,
+        schema.map_schema_id,
+        maximum_items,
+    )
+    if _has_exact_type(source_entries, AdmitReject):
+        return AdmitReject(source_entries.code, path)
+    if len(source_entries) != declared_count:
+        return _reject(AdmitCode.ITEM_LIMIT, path)
+
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    next_state = _enter_active(next_state, source, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+
+    for key, _value in source_entries:
+        if type(key) is not str:
+            return _reject(AdmitCode.WRONG_KEY_TYPE, path)
+    string_keyed_entries = tuple((cast(str, key), value) for key, value in source_entries)
+    remaining_bytes = next_state.limits.max_canonical_bytes - next_state.trusted_scalar_bytes_used
+    for key, _value in string_keyed_entries:
+        key_length = _bounded_utf8_length(key, remaining_bytes)
+        if key_length is None:
+            return _reject(AdmitCode.NONCANONICAL_SCALAR, path)
+        if key_length > remaining_bytes:
+            return _reject(AdmitCode.BYTE_LIMIT, path)
+        remaining_bytes -= key_length
+
+    declared_names = tuple(field.name for field in schema.declared_fields)
+    source_names = tuple(sorted(key for key, _value in string_keyed_entries))
+    for source_name in source_names:
+        if source_name not in declared_names:
+            return _reject(AdmitCode.UNKNOWN_FIELD, path + (source_name,))
+    for declared_name in declared_names:
+        if declared_name not in source_names:
+            return _reject(AdmitCode.MISSING_FIELD, path + (declared_name,))
+
+    value_by_name = {key: value for key, value in string_keyed_entries}
+    ordered_source_entries = tuple((name, value_by_name[name]) for name in declared_names)
+    if type(source) is OwnedMapV1 and source_entries != ordered_source_entries:
+        return _reject(AdmitCode.REGISTRY_DRIFT, path)
+    if not _owned_map_index_matches_entries(source, ordered_source_entries):
+        return _reject(AdmitCode.REGISTRY_DRIFT, path)
+
+    owned_entries: list[tuple[object, object]] = []
+    for declared_field in schema.declared_fields:
+        field_path = path + (declared_field.name,)
+        next_state = _consume_node(next_state, field_path)
+        if _has_exact_type(next_state, AdmitReject):
+            return next_state
+        key_length = _bounded_utf8_length(
+            declared_field.name,
+            next_state.limits.max_canonical_bytes,
+        )
+        if key_length is None:  # pragma: no cover - registry validation excludes this
+            return _reject(AdmitCode.REGISTRY_DRIFT, field_path)
+        next_state = _consume_trusted_scalar_bytes(next_state, key_length, field_path)
+        if _has_exact_type(next_state, AdmitReject):
+            return next_state
+        value_result = _admit_value(
+            declared_field.schema,
+            value_by_name[declared_field.name],
+            next_state,
+            field_path,
+            depth + 1,
+            registry,
+            schema_revision,
+        )
+        if _has_exact_type(value_result, AdmitReject):
+            return value_result
+        owned_entries.append((declared_field.name, value_result.value))
+        next_state = value_result.state
+
+    return _AdmitProgress(
+        _owned_map_from_admitted(
+            tuple(owned_entries),
+            schema_revision,
+            schema.map_schema_id,
+        ),
+        _leave_active(next_state, source),
+    )
 
 
 def _registered_record_fields(registration: RecordRegistrationV1) -> tuple[str, ...]:
@@ -1655,23 +1842,23 @@ def _record_instance_field_reject(
 
 def _construct_owned_record(
     registration: RecordRegistrationV1,
-    values: dict[str, object],
-    context: _AdmissionContext,
+    values: tuple[tuple[str, object], ...],
+    state: _AdmissionState,
     path: FieldPath,
-) -> AdmitOk[object] | AdmitReject:
+) -> _AdmitProgress[object] | AdmitReject:
     try:
         # Authority invariant: the profile owns construction and semantic checks;
         # declarative registry data never becomes executable constructor behavior.
-        owned = context.record_construction_resolver(
+        owned = state.record_construction_resolver(
             registration.tag,
-            tuple(values.items()),
+            values,
         )
     except Exception:
         # Authority invariant: trusted resolver faults produce no partial output.
         return _reject(AdmitCode.DOMAIN_INVARIANT, path)
     if type(owned) is not registration.owned_type:
         return _reject(AdmitCode.REGISTRY_DRIFT, path)
-    for field_name, admitted_value in values.items():
+    for field_name, admitted_value in values:
         try:
             owned_value = object.__getattribute__(owned, field_name)
         except AttributeError:
@@ -1680,19 +1867,20 @@ def _construct_owned_record(
             # Authority invariant: the trusted resolver validates and packages
             # admitted children; it cannot normalize or replace their meaning.
             return _reject(AdmitCode.REGISTRY_DRIFT, path)
-    return AdmitOk(owned)
+    return _AdmitProgress(owned, state)
 
 
 def _admit_declared_record_fields(
     source: object,
     declared_fields: tuple[DeclaredFieldV1, ...],
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
     depth: int,
     registry: AdmissionRegistryV1,
     schema_revision: str,
-) -> dict[str, object] | AdmitReject:
-    values: dict[str, object] = {}
+) -> _AdmitProgress[tuple[tuple[str, object], ...]] | AdmitReject:
+    values: list[tuple[str, object]] = []
+    next_state = state
     for declared_field in declared_fields:
         field_path = path + (declared_field.name,)
         try:
@@ -1702,7 +1890,7 @@ def _admit_declared_record_fields(
         result = _admit_value(
             declared_field.schema,
             raw_value,
-            context,
+            next_state,
             field_path,
             depth + 1,
             registry,
@@ -1710,24 +1898,25 @@ def _admit_declared_record_fields(
         )
         if _has_exact_type(result, AdmitReject):
             return result
-        admitted = cast(AdmitOk[object], result)
-        values[declared_field.name] = admitted.value
-    return values
+        admitted = result
+        values.append((declared_field.name, admitted.value))
+        next_state = admitted.state
+    return _AdmitProgress(tuple(values), next_state)
 
 
 def _admit_record(
     schema: RecordOf,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
     depth: int,
     registry: AdmissionRegistryV1,
     schema_revision: str,
-) -> AdmitOk[object] | AdmitReject:
+) -> _AdmitProgress[object] | AdmitReject:
     registration = registry._record_registration(schema.record_tag)
     if registration is None:
         return _reject(AdmitCode.UNSUPPORTED_VARIANT, path)
-    if type(source) is not registration.source_type:
+    if type(source) not in {registration.source_type, registration.owned_type}:
         return _reject(AdmitCode.WRONG_EXACT_TYPE, path)
     declared_names = tuple(item.name for item in schema.declared_fields)
     if (
@@ -1742,49 +1931,58 @@ def _admit_record(
     )
     if unknown_field_reject is not None:
         return unknown_field_reject
-    node_reject = _consume_node(context, path)
-    if node_reject is not None:
-        return node_reject
-    cycle_reject = _enter_active(context, source, path)
-    if cycle_reject is not None:
-        return cycle_reject
-    try:
-        values = _admit_declared_record_fields(
-            source,
-            schema.declared_fields,
-            context,
-            path,
-            depth,
-            registry,
-            schema_revision,
-        )
-        if _has_exact_type(values, AdmitReject):
-            return values
-        admitted_values = cast(dict[str, object], values)
-        return _construct_owned_record(registration, admitted_values, context, path)
-    finally:
-        context.active_container_ids.remove(id(source))
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    next_state = _enter_active(next_state, source, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    values = _admit_declared_record_fields(
+        source,
+        schema.declared_fields,
+        next_state,
+        path,
+        depth,
+        registry,
+        schema_revision,
+    )
+    if _has_exact_type(values, AdmitReject):
+        return values
+    admitted_values = values
+    result = _construct_owned_record(
+        registration,
+        admitted_values.value,
+        admitted_values.state,
+        path,
+    )
+    if _has_exact_type(result, AdmitReject):
+        return result
+    admitted_record = result
+    return _AdmitProgress(
+        admitted_record.value,
+        _leave_active(admitted_record.state, source),
+    )
 
 
 def _admit_record_union(
     schema: RecordUnionOf,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
     depth: int,
     registry: AdmissionRegistryV1,
     schema_revision: str,
-) -> AdmitOk[object] | AdmitReject:
+) -> _AdmitProgress[object] | AdmitReject:
     source_type = type(source)
     for variant in schema.variants:
         registration = registry._record_registration(variant.record_tag)
         if registration is None:
             return _reject(AdmitCode.UNSUPPORTED_VARIANT, path)
-        if source_type is registration.source_type:
+        if source_type in {registration.source_type, registration.owned_type}:
             return _admit_record(
                 variant,
                 source,
-                context,
+                state,
                 path,
                 depth,
                 registry,
@@ -1826,16 +2024,16 @@ def _tagged_registry_drift(
 def _admit_tagged_record(
     schema: TaggedRecordOf,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
     depth: int,
     registry: AdmissionRegistryV1,
     schema_revision: str,
-) -> AdmitOk[object] | AdmitReject:
+) -> _AdmitProgress[object] | AdmitReject:
     registration = registry._record_registration(schema.record_tag)
     if registration is None:
         return _reject(AdmitCode.UNSUPPORTED_VARIANT, path)
-    if type(source) is not registration.source_type:
+    if type(source) not in {registration.source_type, registration.owned_type}:
         return _reject(AdmitCode.WRONG_EXACT_TYPE, path)
     enum_registration = registry._enum_registration(schema.discriminant_enum_tag)
     if enum_registration is None:
@@ -1876,62 +2074,73 @@ def _admit_tagged_record(
         return _reject(AdmitCode.UNSUPPORTED_VARIANT, discriminant_path)
     selected = schema.variants[member_ordinal]
 
-    node_reject = _consume_node(context, path)
-    if node_reject is not None:
-        return node_reject
-    cycle_reject = _enter_active(context, source, path)
-    if cycle_reject is not None:
-        return cycle_reject
-    try:
-        values = _admit_declared_record_fields(
-            source,
-            selected.declared_fields,
-            context,
-            path,
-            depth,
-            registry,
-            schema_revision,
-        )
-        if _has_exact_type(values, AdmitReject):
-            return values
-        admitted_values = cast(dict[str, object], values)
-        return _construct_owned_record(registration, admitted_values, context, path)
-    finally:
-        context.active_container_ids.remove(id(source))
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    next_state = _enter_active(next_state, source, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    values = _admit_declared_record_fields(
+        source,
+        selected.declared_fields,
+        next_state,
+        path,
+        depth,
+        registry,
+        schema_revision,
+    )
+    if _has_exact_type(values, AdmitReject):
+        return values
+    admitted_values = values
+    result = _construct_owned_record(
+        registration,
+        admitted_values.value,
+        admitted_values.state,
+        path,
+    )
+    if _has_exact_type(result, AdmitReject):
+        return result
+    admitted_record = result
+    return _AdmitProgress(
+        admitted_record.value,
+        _leave_active(admitted_record.state, source),
+    )
 
 
 def _admit_value(
     schema: SchemaV1,
     source: object,
-    context: _AdmissionContext,
+    state: _AdmissionState,
     path: FieldPath,
     depth: int,
     registry: AdmissionRegistryV1,
     schema_revision: str,
-) -> AdmitOk[object] | AdmitReject:
-    depth_reject = _check_depth(context, depth, path)
+) -> _AdmitProgress[object] | AdmitReject:
+    depth_reject = _check_depth(state, depth, path)
     if depth_reject is not None:
         return depth_reject
-    scalar_result = _admit_scalar(schema, source, context, path)
+    scalar_result = _admit_scalar(schema, source, state, path)
     if scalar_result is not None:
         return scalar_result
     if _has_exact_type(schema, ExactEnum):
         return _admit_enum(
             schema,
             source,
-            context,
+            state,
             path,
             registry,
             schema_revision,
         )
     if _has_exact_type(schema, OptionalValue):
         if source is None:
-            node_reject = _consume_node(context, path)
-            return node_reject if node_reject is not None else AdmitOk(None)
+            next_state = _consume_node(state, path)
+            if _has_exact_type(next_state, AdmitReject):
+                return next_state
+            return _AdmitProgress(None, next_state)
         return _admit_value(
             schema.inner,
             source,
-            context,
+            state,
             path,
             depth,
             registry,
@@ -1941,7 +2150,7 @@ def _admit_value(
         return _admit_sequence(
             schema,
             source,
-            context,
+            state,
             path,
             depth,
             registry,
@@ -1951,7 +2160,7 @@ def _admit_value(
         return _admit_pair(
             schema,
             source,
-            context,
+            state,
             path,
             depth,
             registry,
@@ -1961,7 +2170,17 @@ def _admit_value(
         return _admit_map(
             schema,
             source,
-            context,
+            state,
+            path,
+            depth,
+            registry,
+            schema_revision,
+        )
+    if _has_exact_type(schema, ExactKeyedMap):
+        return _admit_exact_keyed_map(
+            schema,
+            source,
+            state,
             path,
             depth,
             registry,
@@ -1971,7 +2190,7 @@ def _admit_value(
         return _admit_record(
             schema,
             source,
-            context,
+            state,
             path,
             depth,
             registry,
@@ -1981,7 +2200,7 @@ def _admit_value(
         return _admit_record_union(
             schema,
             source,
-            context,
+            state,
             path,
             depth,
             registry,
@@ -1991,7 +2210,7 @@ def _admit_value(
         return _admit_tagged_record(
             schema,
             source,
-            context,
+            state,
             path,
             depth,
             registry,
@@ -2034,11 +2253,11 @@ def _admit_with_registry_v1(
     if registration is None:
         return _reject(AdmitCode.UNSUPPORTED_VARIANT, ())
 
-    context = _AdmissionContext(validated_limits, record_construction_resolver)
+    initial_state = _AdmissionState(validated_limits, record_construction_resolver)
     result = _admit_value(
         registration.schema,
         source,
-        context,
+        initial_state,
         (),
         0,
         registry,
@@ -2047,7 +2266,7 @@ def _admit_with_registry_v1(
     if _has_exact_type(result, AdmitReject):
         return result
     try:
-        admitted = cast(AdmitOk[object], result)
+        admitted = result
         canonical_bytes = canonical_encoder_resolver(schema_id, admitted.value)
     except Exception:
         # Authority invariant: encoding faults never authorize an unbounded value.
@@ -2056,7 +2275,7 @@ def _admit_with_registry_v1(
         return _reject(AdmitCode.REGISTRY_DRIFT, ())
     if len(canonical_bytes) > validated_limits.max_canonical_bytes:
         return _reject(AdmitCode.BYTE_LIMIT, ())
-    return result
+    return AdmitOk(admitted.value)
 
 
 def format_admit_path(path: FieldPath) -> str:
@@ -2067,7 +2286,7 @@ def format_admit_path(path: FieldPath) -> str:
         if _has_exact_type(part, int):
             rendered += f"[{part}]"
         else:
-            text_part = cast(str, part)
+            text_part = part
             escaped = text_part.replace("\\", "\\\\").replace('"', '\\"')
             rendered += f'["{escaped}"]'
     return rendered

@@ -58,9 +58,9 @@ def test_packet_checker_accepts_clean_packet(tmp_path: Path) -> None:
     assert returncode == 0
     assert report["ok"] is True
     assert report["errors"] == []
-    assert report["declared_test_id_count"] == 102
-    assert report["referenced_test_id_count"] == 79
-    assert report["bound_test_id_count"] == 102
+    assert report["declared_test_id_count"] == 103
+    assert report["referenced_test_id_count"] == 84
+    assert report["bound_test_id_count"] == 103
 
 
 def test_packet_checker_rejects_unbound_mandatory_test(tmp_path: Path) -> None:
@@ -200,3 +200,26 @@ def test_packet_checker_rejects_design_pattern_document_drift(tmp_path: Path) ->
     assert returncode == 1
     assert report["ok"] is False
     assert "PATTERN_DOC_MISSING:FCIS-PAT-CLOSED-ADMISSION-V1" in report["errors"]
+
+
+def test_packet_checker_rejects_stale_mutable_core_architecture(tmp_path: Path) -> None:
+    packet = _copy_packet(tmp_path)
+    contract_path = packet / "COMBINATOR_CONTRACT.md"
+    text = contract_path.read_text(encoding="utf-8")
+    contract_path.write_text(
+        text.replace(
+            "## 8. Pure persistent transition",
+            "## 8. Scratch conversion",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    returncode, report = _run_checker(packet)
+
+    assert returncode == 1
+    assert report["ok"] is False
+    assert report["errors"] == [
+        "ARCHITECTURE_CLAUSE_MISSING:COMBINATOR_CONTRACT.md:## 8. Pure persistent transition",
+        "STALE_MUTABLE_CORE_CLAUSE:COMBINATOR_CONTRACT.md:## 8. Scratch conversion",
+    ]

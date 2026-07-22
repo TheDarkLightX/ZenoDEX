@@ -22,6 +22,7 @@ from src.state.snapshot_combinators import (
     ExactBytes,
     ExactEnum,
     ExactInt,
+    ExactKeyedMap,
     ExactPair,
     ExactString,
     LimitProfileCode,
@@ -553,6 +554,49 @@ def test_map_is_owned_and_canonically_ordered() -> None:
     assert owned["a"] == 1
 
 
+def test_exact_keyed_map_uses_declared_order_and_per_key_schema() -> None:
+    schema = ExactKeyedMap(
+        (
+            DeclaredFieldV1("count", ExactInt(0, 9)),
+            DeclaredFieldV1("enabled", ExactBool()),
+        ),
+        "test/keyed-map/v1",
+    )
+    first = _admit(schema, {"enabled": True, "count": 2})
+    second = _admit(schema, {"count": 2, "enabled": True})
+    assert type(first) is AdmitOk
+    assert type(second) is AdmitOk
+    assert type(first.value) is OwnedMapV1
+    assert first.value.entries == (("count", 2), ("enabled", True))
+    assert second.value == first.value
+
+    revalidated = _admit(schema, first.value)
+    assert type(revalidated) is AdmitOk
+    assert revalidated.value == first.value
+    assert revalidated.value is not first.value
+
+    assert _admit(schema, {"count": 2, "enabled": 1}) == AdmitReject(
+        AdmitCode.WRONG_EXACT_TYPE,
+        ("enabled",),
+    )
+    assert _admit(schema, {"count": 2, "extra": True}) == AdmitReject(
+        AdmitCode.UNKNOWN_FIELD,
+        ("extra",),
+    )
+
+
+def test_exact_keyed_map_cardinality_rejects_before_field_inspection() -> None:
+    schema = ExactKeyedMap(
+        (DeclaredFieldV1("required", ExactInt(0, 9)),),
+        "test/keyed-map/v1",
+    )
+    assert _admit(schema, {}) == AdmitReject(AdmitCode.ITEM_LIMIT, ())
+    assert _admit(schema, {"required": 1, "extra": object()}) == AdmitReject(
+        AdmitCode.ITEM_LIMIT,
+        (),
+    )
+
+
 def test_enum_map_keys_are_copied_into_owned_ordinals() -> None:
     schema = MapOf(
         ExactEnum(_EnumTag.COLOR),
@@ -606,6 +650,7 @@ def test_record_accepts_only_registered_exact_source() -> None:
         ),
     )
     assert _admit(schema, _SourcePoint(3, "p")) == AdmitOk(_OwnedPoint(3, "p"))
+    assert _admit(schema, _OwnedPoint(3, "p")) == AdmitOk(_OwnedPoint(3, "p"))
 
     @dataclass
     class _Lookalike:
@@ -1557,6 +1602,20 @@ def test_owned_map_revalidation_requires_matching_schema_metadata() -> None:
     assert type(second) is AdmitOk
     assert second.value == first.value
     assert second.value is not first.value
+
+
+def test_corrupted_owned_map_entry_order_is_not_silently_repaired() -> None:
+    schema = MapOf(
+        ExactString(StringRuleV1.NON_EMPTY, 8),
+        ExactInt(0, 9),
+        4,
+        "test/map/v1",
+    )
+    first = _admit(schema, {"a": 1, "b": 2})
+    assert type(first) is AdmitOk
+    object.__setattr__(first.value, "_entries", (("b", 2), ("a", 1)))
+
+    assert _admit(schema, first.value) == AdmitReject(AdmitCode.REGISTRY_DRIFT, ())
 
 
 def test_corrupted_owned_map_metadata_rejects_without_behavior_hooks() -> None:

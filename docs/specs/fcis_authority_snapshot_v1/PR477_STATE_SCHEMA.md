@@ -1,7 +1,7 @@
 # PR #477 Committed-State Schema
 
-This file is normative for the PR #477 repair. It defines accepted source
-builders, committed outputs, exact field rules, scratch conversion, and caller
+This file is normative for the PR #477 repair. It defines accepted legacy
+ingress values, committed outputs, exact field rules, pure updates, and caller
 migration.
 
 ## 1. Target type graph
@@ -22,37 +22,24 @@ DexState
 Its admission boundary delegates to eight field-specific snapshot functions.
 There is no optional-module catch-all.
 
-## 2. Read protocols
+## 2. Exact committed core inputs
 
-Create narrow protocols in `src/state/read_protocols.py` so deterministic
-readers do not require mutable classes:
+Authority-bearing readers and transitions accept the exact committed classes
+listed in section 1. They do not accept structural protocols, mutable source
+classes, or unions that include both. This prevents a legacy mutable builder
+from satisfying a read-shaped interface and crossing the ownership boundary.
 
 ```text
-BalanceView
-  get(pubkey, asset) -> int
-  get_all_balances() -> Mapping[(str, str), int]
-  verify_non_negative() -> bool
-
-LPView
-  get(pubkey, pool_id) -> int
-  get_all_balances()
-  get_last_mint_timestamp(...)
-  get_all_last_mint_timestamps()
-  get_duration_risk_metadata(...)
-  get_all_duration_risk_metadata()
-  verify_non_negative()
-
-NonceView
-  get_last(pubkey) -> int
-  get(pubkey) -> int
-  get_all() -> Mapping[str, int]
-
-PoolView
-  read-only named pool fields
+CommittedBalanceTableV1
+CommittedLPTableV1
+CommittedNonceTableV1
+CommittedPoolStateV1
 ```
 
-The protocols contain no mutator. Mutating code accepts exact scratch builder
-types, never a view.
+Serialization or UI adapters may define non-authoritative projection protocols,
+but those protocols cannot appear in the normative core call graph. Core
+updates are module-level pure functions with exact committed input and output
+types.
 
 ## 3. Balance table
 
@@ -83,10 +70,11 @@ checks. Read the exact builtin dictionary through trusted direct access.
 `CommittedBalanceTableV1` uses composition. It stores canonical sorted entries
 and a fresh private read-only index. It does not inherit `BalanceTable`.
 
-### Scratch
+### Pure updates
 
-`to_scratch_balance_table` constructs a new exact `BalanceTable` and fills it
-from owned entries. No mutable child is shared.
+Balance transitions use a return-new function with an explicit result, for
+example `apply_balance_delta(pre, key, add, sub) -> Reject | CommittedBalanceTableV1`.
+There is no public conversion back to `BalanceTable`.
 
 ### Numeric nonclaim
 
@@ -126,12 +114,12 @@ is an exact nonnegative integer. Additional invariants:
 - LP amounts and supply respect existing `DEX_LP_*` domain constants wherever
   the mounted transition already requires them.
 
-### Output and scratch
+### Output and pure updates
 
 `CommittedLPTableV1` uses five owned maps behind one read-only aggregate. It
-does not inherit `LPTable`. `to_scratch_lp_table` reconstructs a fresh exact
-builder in this order: balances, mint timestamps, remove timestamps, churn
-tiers, churn-update timestamps.
+does not inherit `LPTable`. LP transitions return a new committed aggregate and
+update balances, mint timestamps, remove timestamps, churn tiers, and
+churn-update timestamps as one candidate before invariant checking.
 
 ## 5. Nonce table
 
@@ -147,11 +135,12 @@ and `0 <= nonce <= 0xffffffff`. Use canonical key order. Do not call
 `canonical_hex_fixed_allow_0x` on a string subclass; exact string admission
 comes first.
 
-### Output and scratch
+### Output and pure updates
 
 `CommittedNonceTableV1` uses composition and does not inherit `NonceTable`.
-`to_scratch_nonce_table` returns a new exact builder. Nonce validation operates
-on `NonceView`; nonce application operates on scratch.
+Nonce validation and application accept the exact committed type. Application
+returns a new committed nonce table or a typed rejection; it never mutates or
+reconstructs `NonceTable`.
 
 ## 6. Pools
 
@@ -193,8 +182,9 @@ Order of operations:
 6. construct distinct `CommittedPoolStateV1`.
 
 Do not call `copy_pool_state` before admission. The committed pool does not
-inherit `PoolState`. `to_scratch_pool` explicitly constructs a new
-`PoolState`. Batch clearing must mutate only those scratch pools.
+inherit `PoolState`. Batch clearing computes an immutable pool patch or a new
+`CommittedPoolStateV1` from the exact committed pre-state. Application returns
+the complete committed pool map as part of the same candidate.
 
 ## 7. Vault, Oracle, and fee accumulator
 
@@ -283,8 +273,8 @@ Global state rules:
   normalization is decode-stage behavior and rejects here;
 - every other declared value is an exact integer;
 - each integer uses the current perps kernel/domain bound for that named field;
-- construct a fresh mutable `PerpMarketState` only after exact admission, run
-  its semantic invariants, then project into the committed type;
+- construct the exact immutable committed candidate after admission and run a
+  pure semantic invariant predicate over its fields;
 - no constructor-added default is permitted at committed admission; all fields
   must already be present.
 
@@ -356,33 +346,34 @@ partially admitted `DexState` escapes.
 
 ## 10. Caller migration
 
-### Pure readers
+### Pure readers and transitions
 
-Update annotations to the read protocols. Expected readers include state-root,
-support-root, snapshot encoding, quote/validation logic, and pure settlement
-validation. They must not convert back to mutable values.
+Update authority-bearing reader annotations to exact committed classes.
+State-root, support-root, snapshot encoding, quote validation, and settlement
+validation read those immutable values directly.
 
-### Mutating transition code
-
-Update each mutating path to create scratch once:
+Replace each mutating path with a return-new transition:
 
 ```text
 committed pre-state
-  -> one explicit to_scratch conversion per mutated component
-  -> deterministic calculation and mutation of local scratch
-  -> DexState construction re-admits the complete successor
+  -> deterministic calculation of immutable domain patches
+  -> validate complete candidate
+  -> new committed state + exact effects + receipt
 ```
 
 High-risk callers include batch clearing/application, Tau gate settlement,
 perps integration, zUSD monetary bridge, testnet plugin, and nonce application.
 Search all direct calls to `set`, `add`, `subtract`, pool field assignment,
-`dataclasses.replace`, and mutable table copy helpers.
+`dataclasses.replace`, mutable table copy helpers, and `to_scratch_*`. Replace
+them at a domain boundary rather than hiding them behind a compatibility
+protocol.
 
 ### Forbidden compatibility shortcut
 
 Do not make committed types inherit mutable types so old annotations continue
-to pass. Do not add mutator methods that always raise. Update the contract and
-callers explicitly.
+to pass. Do not add mutator methods that always raise, expose a structural
+protocol accepted by both stages, or create a public mutable projection. Update
+the contract and callers explicitly.
 
 ## 11. Observable compatibility
 

@@ -34,13 +34,20 @@ separately.
 
 ## 3. Ownership and construction
 
-- [ ] Source, committed, and scratch representations are distinct.
+- [ ] Legacy source admission is one-way and core inputs/outputs are exact
+      committed values.
 - [ ] Committed collections and records have no mutable base.
 - [ ] No `object.__new__` or skipped invariant construction exists.
 - [ ] Reinitialization and base-initializer regressions pass.
 - [ ] Already-owned-looking values are revalidated.
-- [ ] Every getter/projection returns immutable data or a fresh scratch value.
-- [ ] No mutable source or scratch child reaches committed state.
+- [ ] Every getter/projection returns immutable data.
+- [ ] No mutable source child reaches committed state.
+- [ ] No public `to_scratch_*`, structural core protocol, mutable domain-builder
+      parameter, or mutable post-transition re-admission exists.
+- [ ] Every value-moving transition returns a new committed candidate or a
+      typed rejection with no candidate/effect/receipt.
+- [ ] Any private builtin work buffer is non-escaping and differential-tested
+      against the return-new reference.
 - [ ] The CPython trusted-code nonclaim remains explicit.
 
 ## 4. Authority phases for #478

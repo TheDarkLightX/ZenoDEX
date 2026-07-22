@@ -242,10 +242,10 @@ pre-state/policy. A caller-constructible frozen record is not authentication.
 
 ### Source
 
-The candidate edge accepts exact `Settlement` or exact `OwnedSettlementV1`.
-All mutable fields are admitted before validator execution. The validator sees
-either the owned value through read protocols or one explicit fresh scratch
-settlement constructed from it.
+The legacy ingress accepts exact `Settlement` or exact `OwnedSettlementV1` and
+returns exact `OwnedSettlementV1`. All mutable fields are admitted before
+validator execution. Authority validators and transition functions accept only
+the exact owned settlement.
 
 ### Owned settlement
 
@@ -336,12 +336,17 @@ After exact field admission, enforce:
 - current strong settlement conservation and proof-carrying checks;
 - final owned candidate is the exact value used to build effects.
 
-## 6. Scratch settlement
+## 6. Pure settlement transition
 
-`to_scratch_settlement(OwnedSettlementV1)` reconstructs exact mutable
-`Settlement`, `Fill`, and delta builders field by field. Events are projected
-only from exact owned JSON. No `deepcopy` appears. The scratch object is local
-to validation/application and never becomes the accepted effect value.
+Settlement validation, application, and effect construction consume the same
+exact `OwnedSettlementV1`. Application computes immutable balance, reserve, LP,
+nonce, and event patches and returns a new committed candidate. There is no
+public `to_scratch_settlement`, mutable settlement projection, or second
+reconstruction of command meaning after authentication.
+
+A leaf implementation may allocate a private builtin work buffer from admitted
+immutable values. It remains inside one pure function and is tested
+differentially against the return-new reference relation.
 
 ## 7. Effect plan and result
 

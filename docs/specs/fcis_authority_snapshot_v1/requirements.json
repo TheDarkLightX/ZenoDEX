@@ -1,6 +1,6 @@
 {
   "schema": "zenodex/fcis-authority-snapshot-requirements/v1",
-  "design_lock_version": "1.0.3",
+  "design_lock_version": "1.1.0",
   "claim_status": "blocked",
   "audit_authority": {
     "url": "https://zenodex-oracle-audit-v4.jazzy-harp-9002.chatgpt.site/",
@@ -11,7 +11,7 @@
   "required_pattern_ids": [
     "FCIS-PAT-CLOSED-ADMISSION-V1",
     "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
-    "FCIS-PAT-THREE-REPRESENTATIONS-V1",
+    "FCIS-PAT-PERSISTENT-TRANSITION-V1",
     "FCIS-PAT-TYPESTATE-AUTHORITY-V1",
     "FCIS-PAT-SAME-CANDIDATE-EFFECT-V1",
     "FCIS-PAT-CHECKER-DERIVED-PROMOTION-V1"
@@ -21,22 +21,22 @@
       "STATE-ALIAS-001": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
         "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
-        "FCIS-PAT-THREE-REPRESENTATIONS-V1"
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
       ],
       "STATE-ALIAS-002": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
         "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
-        "FCIS-PAT-THREE-REPRESENTATIONS-V1"
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
       ],
       "STATE-ALIAS-003": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
         "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
-        "FCIS-PAT-THREE-REPRESENTATIONS-V1"
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
       ],
       "STATE-ALIAS-004": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
         "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
-        "FCIS-PAT-THREE-REPRESENTATIONS-V1"
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
       ],
       "STATE-ALIAS-005": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
@@ -46,7 +46,7 @@
       "STATE-ALIAS-006": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
         "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
-        "FCIS-PAT-THREE-REPRESENTATIONS-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1",
         "FCIS-PAT-SAME-CANDIDATE-EFFECT-V1"
       ]
     },
@@ -54,22 +54,22 @@
       "IMMUTABILITY-ALIAS-01": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
         "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
-        "FCIS-PAT-THREE-REPRESENTATIONS-V1"
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
       ],
       "IMMUTABILITY-ALIAS-02": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
         "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
-        "FCIS-PAT-THREE-REPRESENTATIONS-V1"
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
       ],
       "IMMUTABILITY-ALIAS-03": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
         "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
-        "FCIS-PAT-THREE-REPRESENTATIONS-V1"
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
       ],
       "IMMUTABILITY-ALIAS-04": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
         "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
-        "FCIS-PAT-THREE-REPRESENTATIONS-V1"
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
       ],
       "IMMUTABILITY-ALIAS-05": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
@@ -79,14 +79,14 @@
       "IMMUTABILITY-ALIAS-06": [
         "FCIS-PAT-CLOSED-ADMISSION-V1",
         "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
-        "FCIS-PAT-THREE-REPRESENTATIONS-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1",
         "FCIS-PAT-SAME-CANDIDATE-EFFECT-V1"
       ]
     }
   },
   "test_bindings": {
     "FCIS-PROP-002": [
-      "FCIS-477-018"
+      "FCIS-477-010"
     ],
     "FCIS-PROP-003": [
       "FCIS-477-008"
@@ -219,6 +219,9 @@
     "broad Mapping Sequence Iterable set or frozenset admission",
     "broad isinstance for a declared authority source",
     "mutable-base inheritance for committed values",
+    "public committed-to-mutable conversion",
+    "structural protocol at an authority-core entry",
+    "legacy mutable domain construction inside admission resolution",
     "object.__new__ constructor bypass",
     "unbounded recursive authority traversal",
     "unregistered authority variant",
@@ -328,11 +331,11 @@
       "id": "FCIS-477-010",
       "pr": 477,
       "status": "OPEN",
-      "requirement": "Committed balance, LP, nonce, and pool values do not inherit mutable tables or containers.",
-      "forbidden": ["mutable-base inheritance", "base initializer bypass"],
-      "source_targets": ["src/state/state_snapshots.py", "src/state/read_protocols.py"],
-      "tests": ["FCIS-T-477-003", "FCIS-T-477-005", "FCIS-T-OWNED-003", "FCIS-T-STATIC-004"],
-      "evidence": ["MRO audit", "base-route regressions"],
+      "requirement": "Committed balance, LP, nonce, and pool values do not inherit mutable tables or containers, and authority transitions return new committed values without public mutable projection.",
+      "forbidden": ["mutable-base inheritance", "base initializer bypass", "public to_scratch conversion", "mutable domain builder in the core"],
+      "source_targets": ["src/state/state_snapshots.py", "src/state/state_transitions.py"],
+      "tests": ["FCIS-T-477-003", "FCIS-T-477-005", "FCIS-T-477-009", "FCIS-T-477-016", "FCIS-T-477-023", "FCIS-T-OWNED-003", "FCIS-T-STATIC-004", "FCIS-T-STATIC-012", "FCIS-PROP-002"],
+      "evidence": ["MRO audit", "base-route regressions", "pure-update differential replay"],
       "claim_impact": "state alias family remains blocked"
     },
     {
@@ -361,8 +364,8 @@
       "id": "FCIS-477-013",
       "pr": 477,
       "status": "OPEN",
-      "requirement": "Pool fields are exact-validated before a semantic PoolState constructor is called.",
-      "forbidden": ["constructor-driven normalization of untrusted field"],
+      "requirement": "Pool fields are exact-validated before exact committed construction and pure pool invariant evaluation.",
+      "forbidden": ["constructor-driven normalization of untrusted field", "legacy mutable PoolState construction inside admission"],
       "source_targets": ["src/state/state_snapshots.py", "src/state/state_snapshot_schema.py"],
       "tests": ["FCIS-T-477-008"],
       "evidence": ["hostile pool field tests"],
@@ -419,7 +422,7 @@
       "requirement": "Tests and the AST checker cover the complete declared accepted language and each prior witness family.",
       "forbidden": ["representative examples only", "dead checker rule"],
       "source_targets": ["tests/state", "tests/core/test_dex_state_immutability.py", "tools/check_fcis_authority_snapshot_contract.py"],
-      "tests": ["FCIS-T-STATIC-001", "FCIS-T-STATIC-010", "FCIS-T-STATIC-011", "FCIS-PROP-001", "FCIS-PROP-008"],
+      "tests": ["FCIS-T-STATIC-001", "FCIS-T-STATIC-010", "FCIS-T-STATIC-011", "FCIS-T-STATIC-012", "FCIS-PROP-001", "FCIS-PROP-008"],
       "evidence": ["checker mutation suite", "requirements coverage"],
       "claim_impact": "PR 477 review readiness remains blocked"
     },

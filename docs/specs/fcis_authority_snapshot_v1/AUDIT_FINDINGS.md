@@ -135,8 +135,8 @@ PR #477 and PR #478 are therefore **not ready to merge** at the pinned heads.
 - Counterexample shape: mutable base initialization or unbound base methods can
   reset seal state or reach mutable implementation details. In particular,
   `BalanceTable.__init__` and `LPTable.__init__` explicitly set the seal false.
-- Required closure: distinct composition-based committed types implementing
-  read protocols, plus explicit `to_scratch_*` conversion functions.
+- Required closure: distinct composition-based committed types plus pure
+  return-new transition functions that accept only those exact committed types.
 
 ### FCIS-477-011: Previously frozen values are trusted without full validation
 
@@ -195,8 +195,8 @@ PR #477 and PR #478 are therefore **not ready to merge** at the pinned heads.
   - trusted constructors normalize mutable dictionaries, so source, normalized,
     and committed meanings are not explicit stages.
 - Required closure: exhaustive perps variant registry, exact builtin map source,
-  exact scalar prevalidation, fresh constructor scratch, postcondition check,
-  and immediate sealing.
+  exact scalar prevalidation, exact immutable candidate construction, pure
+  postcondition check, and immediate sealing.
 
 ### FCIS-477-016: Error selection is not a stable protocol
 
@@ -296,8 +296,9 @@ PR #477 and PR #478 are therefore **not ready to merge** at the pinned heads.
 - Status: CONFIRMED
 - Source: `FrozenFill(Fill)`, frozen delta subclasses, and
   `FrozenSettlement(Settlement)`
-- Required closure: distinct owned records with explicit conversion to fresh
-  scratch records for validators that still require mutable base values.
+- Required closure: distinct owned records and validators/application functions
+  that consume the exact owned records and return immutable patches or a new
+  committed candidate.
 
 ### FCIS-478-009: Seal metadata leaks into the dataclass schema
 
@@ -349,8 +350,9 @@ PR #477 and PR #478 are therefore **not ready to merge** at the pinned heads.
 - Severity: P0
 - Status: CONFIRMED
 - Source: `DexEffects.__post_init__` uses `isinstance(self.settlement, Settlement)`
-- Required closure: accept exact scratch `Settlement` at the conversion edge or
-  exact `OwnedSettlement` at the committed edge. Do not use subtype admission.
+- Required closure: accept exact `OwnedSettlement` throughout the authority
+  core. Legacy mutable settlement admission ends at the outer conversion edge.
+  Do not use subtype or structural-protocol admission.
 
 ### FCIS-478-015: Canonical JSON bounds are not bound to snapshots
 

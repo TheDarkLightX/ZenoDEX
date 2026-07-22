@@ -63,7 +63,7 @@ Target: `tests/state/test_snapshot_combinators.py`.
 | `FCIS-T-OWNED-001` | retain source collection aliases | later source mutation has no effect |
 | `FCIS-T-OWNED-002` | call `OwnedMapV1.__init__` twice | deterministic reject; bytes and contents unchanged |
 | `FCIS-T-OWNED-003` | invoke old base-class mutator/initializer shapes | impossible because no mutable base exists |
-| `FCIS-T-OWNED-004` | mutate a projection or scratch conversion | committed value remains unchanged |
+| `FCIS-T-OWNED-004` | mutate a non-authoritative presentation projection | committed value remains unchanged; no mutable core projection exists |
 | `FCIS-T-OWNED-005` | encode all insertion permutations | identical canonical order and bytes |
 | `FCIS-T-OWNED-006` | try to insert an unowned child via public construction | no bypass; closed admission is required |
 | `FCIS-T-OWNED-007` | inspect mutable bases, `__dict__`, and child references | none are exposed by committed collections |

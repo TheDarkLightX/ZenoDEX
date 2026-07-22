@@ -33,8 +33,10 @@ checker, and PR #477 parity requirements in requirements.json.
 
 Non-negotiable design:
 
-- SourceBuilder -> CommittedValue -> ScratchBuilder are distinct values.
-- Committed values use composition and read-only protocols. They never inherit
+- Legacy source admission is one-way: `LegacySource -> CommittedValue`.
+- Authority transitions accept exact committed values and return a new exact
+  committed value, effects, and receipt or a typed rejection.
+- Committed values use composition and exact committed-type APIs. They never inherit
   dict, list, BalanceTable, LPTable, Intent, Settlement, or another mutable
   domain class.
 - Authority admission is a total, bounded, closed tagged combinator algebra.
@@ -48,7 +50,10 @@ Non-negotiable design:
 - All accepted children are owned data. Canonical bytes are defined by the
   existing versioned encoder, not object layout.
 - Build all field candidates before publishing a DexState.
-- Convert committed values to a fresh scratch builder before any mutation.
+- Do not expose `to_scratch_*`, accept a mutable builder in the functional
+  core, or re-admit a mutable post-transition builder.
+- A private builtin work buffer is allowed only inside one pure function, must
+  not escape, and requires differential parity with a return-new reference.
 
 Forbidden:
 
@@ -59,6 +64,9 @@ Forbidden:
 - callable fields in schema or registry records, or a caller-selected profile;
 - broad isinstance for a declared authority source;
 - mutable-base inheritance;
+- structural read protocols at authority-core entry points;
+- public committed-to-mutable conversion;
+- legacy mutable domain construction inside the admission resolver;
 - object.__new__ constructor bypass;
 - unbounded recursion;
 - trusting an already-owned-looking value without full validation;
@@ -73,16 +81,18 @@ Execution order:
 1. Add every mandatory failing witness for shared combinators, owned
    collections, and PR #477. Prove the pinned implementation fails them.
 2. Implement snapshot_combinators.py and its stable result/error algebra.
-3. Implement OwnedEnumV1 and OwnedMapV1 by composition and read-only protocols.
-   Exact Python Enum members are source values only; copy tag/member ordinals.
-4. Implement exact table/pool schemas and source/scratch conversions.
+3. Implement OwnedEnumV1 and OwnedMapV1 by composition with read-only exact
+   methods. Exact Python Enum members are source values only; copy tag/member
+   ordinals.
+4. Implement exact table/pool schemas and one-way legacy-source admission.
 5. Implement explicit vault, Oracle, fee, and complete perps variant schemas.
 6. After the registry is complete, implement `state_admission_profile.py` as
    the only mounted binding of the private registry-aware interpreter.
    Mutation-test its exact four-argument facade and repository-wide call-site
    allowlist.
 7. Wire DexState atomically.
-8. Migrate readers to protocols and mutators to scratch builders.
+8. Migrate authority readers to exact committed types and mutators to pure
+   return-new transition functions.
 9. Prove canonical bytes, state/support roots, and valid mounted behavior match
    the pinned baseline on a full fixture.
 10. Implement the AST contract checker and mutation-kill every rule.

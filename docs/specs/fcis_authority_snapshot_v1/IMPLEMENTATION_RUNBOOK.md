@@ -32,10 +32,11 @@ file, field, caller, and counterexample.
 ```text
 src/state/snapshot_combinators.py
 src/state/owned_collections.py
-src/state/read_protocols.py
+src/state/state_snapshot_values.py
 src/state/state_snapshot_schema.py
 src/state/state_admission_profile.py
 src/state/state_snapshots.py
+src/state/state_transitions.py
 tools/check_fcis_authority_snapshot_contract.py
 tests/state/test_snapshot_combinators.py
 tests/state/test_state_admission_profile.py
@@ -122,10 +123,12 @@ Create `owned_collections.py`:
 
 Run the collection tests before continuing.
 
-### 2.4 Implement read protocols
+### 2.4 Implement exact committed values
 
-Create the protocols from `PR477_STATE_SCHEMA.md`. Change pure-reader
-annotations only. Do not add mutators to protocols to avoid call-site edits.
+Create the distinct frozen/slotted committed values from
+`PR477_STATE_SCHEMA.md`. Authority-bearing readers and transitions accept those
+exact types. Do not add a structural protocol that a legacy mutable builder can
+satisfy.
 
 ### 2.5 Implement balance, LP, nonce, and pool snapshots
 
@@ -134,18 +137,15 @@ registries. In `state_snapshots.py`, implement:
 
 ```text
 snapshot_balance_table
-to_scratch_balance_table
 snapshot_lp_table
-to_scratch_lp_table
 snapshot_nonce_table
-to_scratch_nonce_table
 snapshot_pool
-to_scratch_pool
 snapshot_pool_map
 ```
 
 Delete the old `Frozen*` subclasses. Validate exact internals before calling a
-source getter or mutable setter. Run focused table/pool tests.
+source getter or mutable setter. Do not construct a legacy mutable domain value
+inside the admission resolver. Run focused table/pool tests.
 
 ### 2.6 Implement optional module snapshots
 
@@ -193,16 +193,18 @@ field order identical to the normative order in the schema.
 Add tests proving a late-field rejection exposes no state and does not mutate
 any source builder.
 
-### 2.9 Migrate readers and mutators
+### 2.9 Migrate readers and transitions
 
 Use `rg` to enumerate every call to table mutators, pool field assignment,
 `dataclasses.replace`, and old copy helpers.
 
-- pure readers receive read protocols;
-- mutating paths call `to_scratch_*` once at the start of the transaction;
-- no mutable scratch or child is inserted into committed state without
-  `DexState` admission;
+- authority readers receive exact committed classes;
+- mutating paths become pure return-new functions in `state_transitions.py`;
+- no public `to_scratch_*` conversion or mutable domain-builder parameter is
+  added;
 - no caller mutates a committed value and catches the error as control flow;
+- an optional private builtin work buffer stays inside one function and has a
+  differential test against the return-new reference;
 - no compatibility inheritance is reintroduced.
 
 Run focused tests after each subsystem migration rather than changing all
@@ -276,15 +278,15 @@ committed admission requires canonical values and does not normalize.
 ### 3.5 Implement OwnedIntentV1
 
 Delete `FrozenIntent(Intent)`. Implement the distinct owned record, exact source
-registry, kind-indexed admission, tuple batch output, signed-message encoding,
-and scratch conversion. Update signer, relayer, nonce validator, DEX core, and
-integration consumers to use the same owned value.
+registry, kind-indexed admission, tuple batch output, and signed-message
+encoding. Update signer, relayer, nonce validator, DEX core, and integration
+consumers to use the same exact owned value.
 
 ### 3.6 Implement owned settlement records
 
 Delete all `Frozen*(mutable base)` settlement classes. Implement exact owned
-records and explicit candidate/scratch conversion. Ensure no seal field enters
-the dataclass schema.
+records and pure candidate/effect construction. Ensure no seal field enters the
+dataclass schema and no mutable settlement projection enters the core.
 
 Inventory current event producers. Preserve event payload semantics through
 bounded owned JSON and record `EVENT-TYPING-001` as open. Do not invent event

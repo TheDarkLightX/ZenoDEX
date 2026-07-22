@@ -466,6 +466,55 @@ def test_checker_rejects_set_valued_frozen_authority_schema(tmp_path: Path) -> N
     assert "OPEN_AUTHORITY_SCHEMA" in _codes(_run(tmp_path, source))
 
 
+def test_checker_rejects_mutable_dataclass_evaluation_state(tmp_path: Path) -> None:
+    source = (
+        "from dataclasses import dataclass\n"
+        "@dataclass(slots=True)\n"
+        "class AdmissionContext:\n"
+        "    nodes_used: int = 0\n"
+    )
+    assert "MUTABLE_CORE_STATE" in _codes(_run(tmp_path, source))
+
+
+def test_checker_rejects_public_scratch_conversion_in_core_tree(tmp_path: Path) -> None:
+    state_dir = tmp_path / "src" / "state"
+    state_dir.mkdir(parents=True)
+    (state_dir / "state_transitions.py").write_text(
+        "def to_scratch_balances(value: object) -> dict:\n    return {}\n",
+        encoding="utf-8",
+    )
+    assert "MUTABLE_CORE_BOUNDARY" in _codes(_run(tmp_path, _COMPLIANT))
+
+
+def test_checker_rejects_structural_view_at_core_boundary(tmp_path: Path) -> None:
+    source = (
+        "class BalanceView:\n"
+        "    pass\n"
+        "def apply_delta(state: BalanceView) -> BalanceView:\n"
+        "    return state\n"
+    )
+    assert "STRUCTURAL_CORE_BOUNDARY" in _codes(_run(tmp_path, source))
+
+
+def test_checker_rejects_legacy_mutable_constructor_in_profile(tmp_path: Path) -> None:
+    profile = tmp_path / "src" / "state" / "state_admission_profile.py"
+    profile.parent.mkdir(parents=True)
+    profile.write_text(
+        "from src.state.snapshot_combinators import _admit_with_registry_v1\n"
+        "FCIS_REQUIRED_REGISTRY_IDS = ('test/root/v1',)\n"
+        "FCIS_REGISTERED_REGISTRY_IDS = ('test/root/v1',)\n"
+        "_REGISTRY = object()\n"
+        "def _construct(tag, fields):\n"
+        "    return BalanceTable()\n"
+        "def _encode(schema_id, value):\n"
+        "    return b''\n"
+        "def admit(schema_revision, schema_id, validated_limits, source):\n"
+        "    return _admit_with_registry_v1(_REGISTRY, schema_revision, schema_id, validated_limits, source, _construct, _encode)\n",
+        encoding="utf-8",
+    )
+    assert "LEGACY_MUTABLE_CONSTRUCTION" in _codes(_run(tmp_path, _COMPLIANT))
+
+
 def test_checker_rejects_registry_drift(tmp_path: Path) -> None:
     source = """
 FCIS_REQUIRED_REGISTRY_IDS = ("enum/a", "record/b")

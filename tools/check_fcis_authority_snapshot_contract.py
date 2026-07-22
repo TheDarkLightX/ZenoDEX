@@ -77,6 +77,22 @@ _PROFILE_ENGINE_NAMES = {
     "snapshot_combinators._admit_with_registry_v1",
     "src.state.snapshot_combinators._admit_with_registry_v1",
 }
+_LEGACY_MUTABLE_CONSTRUCTORS = {
+    "BalanceTable",
+    "FeeAccumulatorState",
+    "LPTable",
+    "NonceTable",
+    "OracleState",
+    "PerpsState",
+    "PoolState",
+    "VaultState",
+}
+_STRUCTURAL_CORE_VIEW_NAMES = {
+    "BalanceView",
+    "LPView",
+    "NonceView",
+    "PoolView",
+}
 
 
 @dataclass(frozen=True, order=True, slots=True)
@@ -206,6 +222,30 @@ class _AuthorityVisitor(ast.NodeVisitor):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         if node.name in _RECONSTRUCTION_METHODS:
             self._add(node, "FORBIDDEN_RECONSTRUCTION", node.name)
+        if node.name.startswith("to_scratch_") and self.relative_path.startswith(
+            ("src/core/", "src/state/")
+        ):
+            self._add(node, "MUTABLE_CORE_BOUNDARY", node.name)
+        if not node.name.startswith("_"):
+            annotations = tuple(
+                annotation
+                for annotation in (
+                    node.returns,
+                    *(argument.annotation for argument in node.args.posonlyargs),
+                    *(argument.annotation for argument in node.args.args),
+                    *(argument.annotation for argument in node.args.kwonlyargs),
+                )
+                if annotation is not None
+            )
+            for annotation in annotations:
+                for annotation_node in ast.walk(annotation):
+                    annotation_name = _last_name(annotation_node)
+                    if annotation_name in _STRUCTURAL_CORE_VIEW_NAMES:
+                        self._add(
+                            annotation_node,
+                            "STRUCTURAL_CORE_BOUNDARY",
+                            annotation_name,
+                        )
         if (
             self.relative_path.endswith(_PROFILE_PATH_SUFFIX)
             and not self.function_names
@@ -293,6 +333,25 @@ class _AuthorityVisitor(ast.NodeVisitor):
             base_name = _last_name(base)
             if base_name in _MUTABLE_BASE_NAMES:
                 self._add(node, "MUTABLE_BASE", base_name)
+        dataclass_decorator = next(
+            (
+                decorator
+                for decorator in node.decorator_list
+                if (
+                    _last_name(decorator) == "dataclass"
+                    or (type(decorator) is ast.Call and _last_name(decorator.func) == "dataclass")
+                )
+            ),
+            None,
+        )
+        frozen_dataclass = type(dataclass_decorator) is ast.Call and any(
+            keyword.arg == "frozen"
+            and type(keyword.value) is ast.Constant
+            and keyword.value.value is True
+            for keyword in dataclass_decorator.keywords
+        )
+        if dataclass_decorator is not None and not frozen_dataclass:
+            self._add(node, "MUTABLE_CORE_STATE", node.name)
         frozen_dataclass = any(
             type(decorator) is ast.Call
             and _last_name(decorator.func) == "dataclass"
@@ -337,6 +396,16 @@ class _AuthorityVisitor(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         called = self._resolve(node.func)
+        called_tail = called.rsplit(".", 1)[-1] if called is not None else None
+        if (
+            self.relative_path.endswith(_PROFILE_PATH_SUFFIX)
+            and called_tail in _LEGACY_MUTABLE_CONSTRUCTORS
+        ):
+            self._add(
+                node,
+                "LEGACY_MUTABLE_CONSTRUCTION",
+                called or called_tail or "",
+            )
         if (
             called
             in {
@@ -376,7 +445,6 @@ class _AuthorityVisitor(ast.NodeVisitor):
             )
             if broad:
                 self._add(node, "BROAD_ADMISSION", ",".join(broad))
-        called_tail = called.rsplit(".", 1)[-1] if called is not None else None
         if called_tail in _COERCIVE_CONTAINER_NAMES and node.args:
             first_argument = node.args[0]
             current_parameters = self.function_parameters[-1] if self.function_parameters else set()
@@ -647,6 +715,9 @@ _SENSITIVE_SOURCE_CODES = {
     "PROFILE_BINDING_ESCAPE",
     "REGISTRY_BEHAVIOR_FIELD",
     "REGISTRY_BINDING_ESCAPE",
+    "LEGACY_MUTABLE_CONSTRUCTION",
+    "MUTABLE_CORE_BOUNDARY",
+    "STRUCTURAL_CORE_BOUNDARY",
     "SYNTAX_ERROR",
 }
 

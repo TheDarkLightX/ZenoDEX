@@ -100,6 +100,9 @@ reflective dataclass or enum admission
 broad isinstance at declared authority types
 generic Mapping, Sequence, Iterable, set, or frozenset admission
 mutable-base inheritance for committed values
+public committed-to-mutable conversion or mutable domain builder in core
+structural protocol at an authority-core entry
+legacy mutable constructor inside admission resolution
 object.__new__ constructor bypass
 unbounded recursive traversal
 unregistered records, enums, events, intents, or perps variants

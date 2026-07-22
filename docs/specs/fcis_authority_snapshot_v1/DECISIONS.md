@@ -41,27 +41,45 @@ fail closed. There is no fallback copy or reflective discovery.
 Rationale: the earlier generic `deep_freeze(Any) -> Any` accepted a larger
 language than the protocol and made caller behavior part of admission.
 
-### FCIS-D004: Three distinct representations
+### FCIS-D004: One-way admission and persistent transition values
 
-Each mutable subsystem has three explicit stages:
+Legacy mutable values may appear only at an outer compatibility ingress:
 
 ```text
-SourceBuilder -> CommittedValue -> ScratchBuilder
+LegacySource
+  -> closed exact admission
+  -> CommittedValue
+
+Step(CommittedValue, TypedCommand, ExplicitContext)
+  -> Reject
+   | Accept(NewCommittedValue, EffectPlan, Receipt)
 ```
 
-`SourceBuilder` may be mutable and caller-owned. `CommittedValue` owns its
-complete graph and exposes reads only. `ScratchBuilder` is a fresh local copy,
-may mutate during one transition, never escapes, and is discarded on reject.
+`LegacySource` may be mutable and caller-owned. Admission owns and validates its
+complete graph once. Authority-bearing core functions accept and return exact
+committed values. They do not expose `to_scratch_*`, accept a structural view
+that a legacy builder can satisfy, or re-admit a mutable domain builder after
+each transition.
 
-Rationale: using one inheritance hierarchy for mutable and committed values
-left base-class mutation and reinitialization paths reachable.
+A pure function may use a fresh private builtin work buffer as an implementation
+detail when profiling justifies it. The buffer is created inside the function,
+shares no mutable child with caller input, never crosses a function or module
+boundary, is discarded on rejection, and is compared against a return-new pure
+reference. Such a buffer is not a third domain representation and does not
+weaken the normative transition relation.
+
+Rationale: persistent return-new semantics keep old roots valid, eliminate a
+public mutation window, and directly match replay and refinement claims. Python
+cannot type-enforce the non-escape property used by ST-style encapsulated
+mutation, so whole-domain scratch conversion is too weak for the normative
+authority boundary.
 
 ### FCIS-D005: Composition for committed collections and tables
 
 Committed enums, maps, sequences, balances, LP tables, nonce tables, pools,
 intents, settlements, fills, and deltas must not inherit from mutable runtime
-classes or built-in mutable containers. They use composition and read-only
-protocols. Registered Python enum members are source values only; admission
+classes or built-in mutable containers. They use composition and exact
+committed-type APIs. Registered Python enum members are source values only; admission
 copies their profile-relative tag/member ordinals into `OwnedEnumV1`.
 
 Rationale: overridden mutators do not block unbound base descriptors,
@@ -154,10 +172,12 @@ interpreter compromise.
 
 ### FCIS-D012: Persistent structures are a later PR
 
-Owned persistent maps/vectors with structural sharing are part of the official
-plan after the correctness repair. Promotion requires benchmarks, dependency
-and license review, canonical iteration/encoding parity, state-root parity,
-nested immutability, memory bounds, and adversarial denial-of-service evidence.
+Return-new persistent transition semantics apply immediately. The first repair
+may implement an update by rebuilding an owned tuple/map, even when that costs
+`O(n)`. Specialized persistent maps/vectors with structural sharing remain a
+later performance PR. Promotion requires benchmarks, dependency and license
+review, canonical iteration/encoding parity, state-root parity, nested
+immutability, memory bounds, and adversarial denial-of-service evidence.
 
 Rationale: persistent structures can reduce O(n) ownership cost, while changing
 representation now would mix correctness repair with performance migration.
@@ -218,6 +238,18 @@ Rationale: equating 4,096 characters with 4,096 UTF-8 bytes would reject valid
 multibyte state accepted by the current mounted decoder and silently change
 baseline semantics.
 
+### FCIS-D019: Closed heterogeneous maps use one keyed-map combinator
+
+`ExactKeyedMap` declares an exact ordered string-key set and one child schema
+per key. It owns cardinality checks, exact key checks, canonical rejection
+precedence, per-key traversal, resource accounting, owned-map construction,
+and committed-value revalidation.
+
+Rationale: perps and clearinghouse global-state dictionaries contain booleans
+and integers with field-specific bounds. A uniform `MapOf` cannot express that
+language. Hand-written field loops would create a second admission system and
+allow schema, budget, and rejection precedence to drift.
+
 ## Rejected designs
 
 | Design | Decision | Reason |
@@ -228,6 +260,9 @@ baseline semantics.
 | Frozen subclass of `dict`, `list`, or mutable domain class | Rejected | Base mutation/reinitialization bypass |
 | `MappingProxyType` over caller storage | Rejected | Read-only view retains the caller alias |
 | Set/frozenset as canonical protocol order | Rejected | Iteration order is not a canonical ABI |
+| Public `to_scratch_*` conversion from committed authority state | Rejected | Creates a second mutable domain representation and makes non-escape a Python convention |
+| Structural read protocol at an authority-core entry | Rejected | A mutable legacy builder can satisfy the protocol and cross the ownership boundary |
+| Re-admit a mutable post-transition builder | Rejected | Duplicates validation and makes one transition depend on a mutation/copy-back window |
 | Compatibility coercion at committed boundary | Rejected | Expands accepted language and creates encoding aliases |
 | Rewrite whole core in Rust in these PRs | Deferred | Excess scope; thin boundary follows exact Python contract |
 | Persistent map migration in these PRs | Deferred | Requires independent parity, benchmark, and dependency evidence |

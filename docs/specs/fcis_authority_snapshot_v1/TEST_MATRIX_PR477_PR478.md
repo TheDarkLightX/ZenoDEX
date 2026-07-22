@@ -20,7 +20,7 @@ in `tests/state/test_state_snapshot_schema_drift.py`.
 | `FCIS-T-477-006` | retain nonce aliases and attempt replay-relevant mutation | committed nonce and replay behavior unchanged |
 | `FCIS-T-477-007` | retain pool map, pool object, and every mutable child alias | reserves, fees, curve/config, quotes, bytes, and root unchanged |
 | `FCIS-T-477-008` | pool subclass, dataclass lookalike, scalar subclasses, corrupt pool internals | exact reject before semantic `PoolState` construction |
-| `FCIS-T-477-009` | mutate fresh scratch balance/LP/nonce/pool values | committed source unchanged; resnapshot reflects only explicit changes |
+| `FCIS-T-477-009` | apply valid balance/LP/nonce/pool return-new updates | old committed value/root unchanged; successor contains only the explicit change |
 
 ### Optional modules and perps
 
@@ -32,7 +32,7 @@ in `tests/state/test_state_snapshot_schema_drift.py`.
 | `FCIS-T-477-013` | behavior-changing perps subclass at top level and nested in maps | exact reject; behavior methods not called |
 | `FCIS-T-477-014` | temporary new dataclass field or registry variant | drift gate names the missing field or variant |
 | `FCIS-T-477-015` | bool, subclass, below-minimum, and above-maximum in each perps scalar family | stable field-specific reject before update code |
-| `FCIS-T-477-016` | mutate fresh perps scratch and resnapshot | old state unchanged; new state has only explicit change |
+| `FCIS-T-477-016` | apply a valid perps return-new transition | old state unchanged; successor has only the explicit change |
 
 ### Atomic admission and parity
 
@@ -44,7 +44,7 @@ in `tests/state/test_state_snapshot_schema_drift.py`.
 | `FCIS-T-477-020` | rejected transition from committed state | no state, effect, receipt, nonce, outbox, or source mutation |
 | `FCIS-T-477-021` | stateful quote, settle, LP, nonce, perps, reject, retry sequence | old roots stable; successors owned; retry deterministic |
 | `FCIS-T-477-022` | property mutates every retained source alias | committed bytes and behavior invariant |
-| `FCIS-T-477-023` | `snapshot(to_scratch(snapshot(x)))` on valid corpus | bytes and roots equal `snapshot(x)` |
+| `FCIS-T-477-023` | run each pure committed update and its pinned legacy reference on a valid corpus | accepted/rejected result, successor bytes, roots, effects, and errors agree |
 | `FCIS-T-477-024` | mounted item/byte limits at bound and one over | behavior matches `FCIS-D009` |
 
 ## 2. PR #478 owned JSON and canonical ingress
@@ -107,12 +107,13 @@ Target: `tests/tools/test_check_fcis_authority_snapshot_contract.py`.
 | `FCIS-T-STATIC-009` | requirement lacks mapped test/evidence | nonzero uncovered-requirement result |
 | `FCIS-T-STATIC-010` | compliant miniature tree | zero with sorted JSON rule results |
 | `FCIS-T-STATIC-011` | alias a private admission/owned-construction capability or replace the profile result | nonzero private-capability or profile-facade result |
+| `FCIS-T-STATIC-012` | add public `to_scratch_*`, a structural authority-core protocol, or mutable domain construction in the admission resolver | nonzero mutable-core-boundary result |
 
 ## 6. Required properties
 
 ```text
 FCIS-PROP-001  source-alias mutation invariance
-FCIS-PROP-002  scratch round-trip canonical equality
+FCIS-PROP-002  return-new update preserves the old version and matches the pinned reference
 FCIS-PROP-003  canonical map permutation invariance
 FCIS-PROP-004  deterministic rejection permutation invariance
 FCIS-PROP-005  Python encoder parity with existing strict reference

@@ -178,3 +178,36 @@ Both changes preserve stable `BYTE_LIMIT` and `WRONG_EXACT_TYPE` rejection
 codes. They expand only the trusted closed schema language needed to express
 the already-mounted state domain. Domain snapshot functions remain unmounted
 until the production profile and its drift checker are green.
+
+## E9. Persistent committed transitions replace domain scratch conversion
+
+The earlier three-representation rule is withdrawn. The normative authority
+path is now:
+
+```text
+LegacySource
+  -> closed exact admission
+  -> CommittedValue
+
+Step(CommittedValue, TypedCommand, ExplicitContext)
+  -> Reject
+   | Accept(NewCommittedValue, CanonicalEffects, Receipt)
+```
+
+There is no public `to_scratch_*` conversion, structural read protocol at an
+authority-core entry, mutable domain-builder parameter, or mutable
+post-transition value that is re-admitted into committed state. Existing
+mutating callers must be converted to explicitly named return-new transition
+functions.
+
+A pure function may allocate a private builtin `dict` or `list` for a profiled
+leaf calculation. The buffer is not a domain representation. It must be created
+inside the function from admitted immutable values, remain unreachable from all
+outputs and callbacks, be discarded on rejection, and match a return-new pure
+reference under differential tests. The static checker rejects public mutable
+projection APIs and mutable legacy constructors inside admission resolvers.
+
+This change preserves the later persistent-collection plan. The immediate
+Python implementation may rebuild an owned map in `O(n)` while keeping
+persistent return-new semantics. Structural sharing is a later representation
+optimization gated by canonical-byte/root parity and benchmarks.
