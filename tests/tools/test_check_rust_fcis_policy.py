@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import copy
 
-from tools.check_rust_fcis_policy import DEFAULT_MANIFEST, _load_json, _production_source, validate_manifest
+from tools.check_rust_fcis_policy import (
+    DEFAULT_MANIFEST,
+    _load_json,
+    _production_source,
+    validate_manifest,
+)
 
 
 def _manifest() -> dict:
@@ -24,7 +29,9 @@ def test_duplicate_surface_id_fails_closed() -> None:
 
 def test_partial_rust_authority_cannot_be_release_eligible() -> None:
     manifest = _manifest()
-    zusd = next(surface for surface in manifest["surfaces"] if surface["surface_id"] == "zusd_single_vault")
+    zusd = next(
+        surface for surface in manifest["surfaces"] if surface["surface_id"] == "zusd_single_vault"
+    )
     zusd["release_status"] = "eligible"
 
     errors = validate_manifest(manifest)
@@ -34,7 +41,9 @@ def test_partial_rust_authority_cannot_be_release_eligible() -> None:
 
 def test_value_moving_surface_requires_atomic_candidate_commit_before_eligibility() -> None:
     manifest = _manifest()
-    balances = next(surface for surface in manifest["surfaces"] if surface["surface_id"] == "balances")
+    balances = next(
+        surface for surface in manifest["surfaces"] if surface["surface_id"] == "balances"
+    )
     balances["release_status"] = "eligible"
 
     errors = validate_manifest(manifest)
@@ -49,7 +58,9 @@ def test_released_claim_rejects_blockers_and_policy_exceptions() -> None:
     errors = validate_manifest(manifest)
 
     assert any("released claim has blocked surfaces" in error for error in errors)
-    assert any("released claim may not retain temporary policy exceptions" in error for error in errors)
+    assert any(
+        "released claim may not retain temporary policy exceptions" in error for error in errors
+    )
 
 
 def test_unknown_rust_module_fails_closed() -> None:

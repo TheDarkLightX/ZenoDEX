@@ -46,7 +46,10 @@ HARD_FORBIDDEN_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("UnsafeCell", re.compile(r"\bUnsafeCell\b")),
     ("Mutex", re.compile(r"\bMutex\b")),
     ("RwLock", re.compile(r"\bRwLock\b")),
-    ("atomic type", re.compile(r"\bAtomic(?:Bool|U8|U16|U32|U64|Usize|I8|I16|I32|I64|Isize|Ptr)\b")),
+    (
+        "atomic type",
+        re.compile(r"\bAtomic(?:Bool|U8|U16|U32|U64|Usize|I8|I16|I32|I64|Isize|Ptr)\b"),
+    ),
     ("system time", re.compile(r"\bstd::time\b")),
     ("environment access", re.compile(r"\bstd::env\b")),
     ("filesystem access", re.compile(r"\bstd::fs\b")),
@@ -244,21 +247,31 @@ def validate_manifest(manifest: dict[str, Any]) -> list[str]:
             errors.append(f"{surface_id}: invalid kind {kind!r}")
 
         modules = surface.get("rust_modules")
-        if not isinstance(modules, list) or not modules or not all(
-            isinstance(item, str) and item for item in modules
+        if (
+            not isinstance(modules, list)
+            or not modules
+            or not all(isinstance(item, str) and item for item in modules)
         ):
             errors.append(f"{surface_id}: rust_modules must be a non-empty string list")
             modules = []
         for module in modules:
             previous = modules_seen.get(module)
             if previous is not None:
-                errors.append(f"Rust module {module!r} is assigned to both {previous!r} and {surface_id!r}")
+                errors.append(
+                    f"Rust module {module!r} is assigned to both {previous!r} and {surface_id!r}"
+                )
             modules_seen[module] = surface_id
             path = CORE_ROOT / f"{module}.rs"
             if not path.exists():
                 errors.append(f"{surface_id}: missing Rust module file {path.relative_to(ROOT)}")
 
-        for field in ("rust_entrypoints", "python_sources", "formal_artifacts", "value_domains", "known_blockers"):
+        for field in (
+            "rust_entrypoints",
+            "python_sources",
+            "formal_artifacts",
+            "value_domains",
+            "known_blockers",
+        ):
             value = surface.get(field)
             if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
                 errors.append(f"{surface_id}: {field} must be a string list")
@@ -272,7 +285,10 @@ def validate_manifest(manifest: dict[str, Any]) -> list[str]:
 
         if public_authority not in set(manifest.get("authority_modes", [])) | INTERNAL_AUTHORITY:
             errors.append(f"{surface_id}: invalid public_testnet_authority")
-        if production_authority not in set(manifest.get("authority_modes", [])) | INTERNAL_AUTHORITY:
+        if (
+            production_authority
+            not in set(manifest.get("authority_modes", [])) | INTERNAL_AUTHORITY
+        ):
             errors.append(f"{surface_id}: invalid production_strict_authority")
         if cbc_grade not in set(manifest.get("cbc_grades", [])):
             errors.append(f"{surface_id}: invalid cbc_grade")
@@ -285,14 +301,25 @@ def validate_manifest(manifest: dict[str, Any]) -> list[str]:
 
         if production_authority in RUST_AUTHORITY_MODES and cbc_grade != "full":
             errors.append(f"{surface_id}: production Rust authority requires full CBC grade")
-        if public_authority in RUST_AUTHORITY_MODES and cbc_grade != "full" and release_status != "blocked":
+        if (
+            public_authority in RUST_AUTHORITY_MODES
+            and cbc_grade != "full"
+            and release_status != "blocked"
+        ):
             errors.append(f"{surface_id}: partial Rust authority must remain release-blocked")
-        if kind == "value_moving" and atomic_commit != "proved_linearizable_atomic_candidate_commit":
+        if (
+            kind == "value_moving"
+            and atomic_commit != "proved_linearizable_atomic_candidate_commit"
+        ):
             if release_status != "blocked":
-                errors.append(f"{surface_id}: value-moving surface without proved atomic commit must be blocked")
+                errors.append(
+                    f"{surface_id}: value-moving surface without proved atomic commit must be blocked"
+                )
         if kind == "value_moving" and public_authority in RUST_AUTHORITY_MODES:
             if effect_ownership in {"not_applicable", ""}:
-                errors.append(f"{surface_id}: Rust value authority requires explicit effect ownership status")
+                errors.append(
+                    f"{surface_id}: Rust value authority requires explicit effect ownership status"
+                )
 
     if set(modules_seen) != required_modules:
         missing = sorted(required_modules - set(modules_seen))
@@ -312,7 +339,9 @@ def validate_manifest(manifest: dict[str, Any]) -> list[str]:
         else:
             channel = toolchain.get("toolchain", {}).get("channel")
             if not isinstance(channel, str) or re.fullmatch(r"\d+\.\d+\.\d+", channel) is None:
-                errors.append("Rust toolchain channel must be an exact x.y.z release, not stable/beta/nightly")
+                errors.append(
+                    "Rust toolchain channel must be an exact x.y.z release, not stable/beta/nightly"
+                )
 
     if not CARGO_LOCK.exists():
         errors.append("rust-runtime/Cargo.lock must be committed")
@@ -326,7 +355,9 @@ def validate_manifest(manifest: dict[str, Any]) -> list[str]:
         if strict_profile.default != "python_authority":
             errors.append("production-strict authority default must remain python_authority")
         if strict_profile.per_surface or strict_profile.promoted:
-            errors.append("production-strict may not promote Rust surfaces while release claim is blocked")
+            errors.append(
+                "production-strict may not promote Rust surfaces while release claim is blocked"
+            )
 
         for surface in surfaces:
             if not isinstance(surface, dict):
@@ -345,7 +376,9 @@ def validate_manifest(manifest: dict[str, Any]) -> list[str]:
                 )
             promoted = profile_surface in public_profile.promoted
             if expected in RUST_AUTHORITY_MODES and expected != "rust_shadow" and not promoted:
-                errors.append(f"{surface_id}: Rust authority is not listed in public-testnet promoted_surfaces")
+                errors.append(
+                    f"{surface_id}: Rust authority is not listed in public-testnet promoted_surfaces"
+                )
             if expected in {"python_authority", "rust_shadow"} and promoted:
                 errors.append(f"{surface_id}: non-Rust authority must not be listed as promoted")
 
@@ -401,7 +434,9 @@ def main(argv: list[str] | None = None) -> int:
     errors = validate_manifest(manifest)
     result = {
         "schema": "zenodex.rust_fcis_policy_validation.v1",
-        "manifest": str(args.manifest.relative_to(ROOT) if args.manifest.is_relative_to(ROOT) else args.manifest),
+        "manifest": str(
+            args.manifest.relative_to(ROOT) if args.manifest.is_relative_to(ROOT) else args.manifest
+        ),
         "ok": not errors,
         "error_count": len(errors),
         "errors": errors,
