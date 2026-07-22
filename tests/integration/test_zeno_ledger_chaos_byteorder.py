@@ -49,7 +49,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _CONSENSUS_CRITICAL_SOURCES = (
     "src/state/app_root.py",
     "src/state/canonical.py",
+    "src/state/immutable_collections.py",
+    "src/state/immutable_json.py",
+    "src/state/intent_snapshots.py",
     "src/state/jmt.py",
+    "src/state/state_snapshots.py",
     "src/integration/zeno_ledger_v0.py",
     "src/integration/zeno_ledger_signer_registry.py",
     "src/integration/zeno_ledger_signature.py",
