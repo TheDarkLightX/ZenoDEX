@@ -98,12 +98,14 @@ jobs:
         working-directory: rust-runtime
         run: cargo build --locked --bin zenodex-runtime
 
-      - name: Validate Python/Rust audit parity
-        run: |
-          python -m pytest -q \
-            tests/runtime/test_zusd_rust_audit_parity.py \
-            tests/runtime/test_zusd_conformance.py \
-            tests/runtime/test_zusd_live_path.py
+      - name: Audit-critical Python/Rust sequences
+        run: python -m pytest -vv --tb=long tests/runtime/test_zusd_rust_audit_parity.py
+
+      - name: Existing Python/Rust zUSD conformance
+        run: python -m pytest -vv --tb=long tests/runtime/test_zusd_conformance.py
+
+      - name: Existing zUSD authority live path
+        run: python -m pytest -vv --tb=long tests/runtime/test_zusd_live_path.py
 
       - name: Stage and prove the review diff contains Rust
         shell: bash
