@@ -239,11 +239,14 @@ For an exact source dict:
    Do not include the offending key in the stable error.
 4. Recursively preflight every string/bytes key component against its declared
    bound and the remaining graph-wide byte budget. Reject before sorting.
-5. Derive the schema's non-behavioral sort value for each bounded key.
-6. Sort those values, then verify key canonicality in that order.
-7. Copy enum keys to `OwnedEnumV1` and recursively own pair keys.
-8. Admit values in sorted-key order.
-9. Construct `entries`, then the fresh private index.
+5. Preflight exact-integer ranges and owned-enum registry metadata recursively,
+   replacing invalid or out-of-range raw magnitudes with bounded tagged sort
+   sentinels. Raw attacker-sized integers never participate in comparison.
+6. Derive the schema's non-behavioral bounded sort value for each key.
+7. Sort those values, then verify key canonicality in that order.
+8. Copy enum keys to `OwnedEnumV1` and recursively own pair keys.
+9. Admit values in sorted-key order.
+10. Construct `entries`, then the fresh private index.
 
 Committed admission never normalizes keys. A noncanonical spelling rejects, so
 there is no post-normalization collision class at this boundary. Raw JSON
@@ -252,7 +255,9 @@ duplicate names are rejected by the byte parser before a dictionary exists.
 This avoids error precedence depending on insertion order. The preliminary
 sort operates only on resource-bounded exact built-in scalars, registry
 ordinals, and exact pairs of those values; it never sorts or formats arbitrary
-objects.
+objects. An `ExactInt` used anywhere inside a map-key schema must have finite
+bounds no wider than 256 bits; registry construction rejects a wider or
+unbounded key domain.
 
 ### Exact keyed-map algorithm
 

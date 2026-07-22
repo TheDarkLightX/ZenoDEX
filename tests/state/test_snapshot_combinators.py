@@ -974,6 +974,21 @@ def test_registry_rejects_map_key_schema_without_total_order() -> None:
 
 
 @pytest.mark.parametrize(
+    "key_schema",
+    [
+        ExactInt(0, None),
+        ExactInt(0, 1 << 256),
+        ExactPair(ExactString(StringRuleV1.NON_EMPTY, 8), ExactInt(-(1 << 256), 1)),
+    ],
+)
+def test_registry_rejects_unbounded_integer_map_key_sort_work(
+    key_schema: object,
+) -> None:
+    with pytest.raises(ValueError, match="integer map key|sortable width"):
+        _registry(MapOf(key_schema, ExactInt(0, 1), 1, "test/map/v1"))
+
+
+@pytest.mark.parametrize(
     "schema",
     [
         ExactString(StringRuleV1.EXACT_TEXT, 4_000_001),
@@ -1270,6 +1285,64 @@ def test_aggregate_map_key_bytes_reject_before_sort_value_derivation(
         AdmitCode.BYTE_LIMIT,
         (),
     )
+
+
+def test_out_of_range_integer_map_key_uses_bounded_sort_value() -> None:
+    import src.state.snapshot_combinators as combinators
+
+    schema = MapOf(ExactInt(0, 9), ExactInt(0, 9), 2, "test/map/v1")
+    source = {1 << 1_000_000: 1}
+
+    assert combinators._key_sort_value(
+        schema.key_schema,
+        next(iter(source)),
+        _registry(schema),
+    ) == (2, 0)
+    assert _admit(schema, source) == AdmitReject(AdmitCode.OUT_OF_RANGE, ())
+
+
+def test_corrupted_enum_map_key_uses_bounded_sort_value() -> None:
+    import src.state.snapshot_combinators as combinators
+
+    accepted = _admit(ExactEnum(_EnumTag.COLOR), _Color.RED)
+    assert type(accepted) is AdmitOk
+    owned = cast(OwnedEnumV1, accepted.value)
+    object.__setattr__(owned, "_member_ordinal", 1 << 1_000_000)
+
+    schema = MapOf(
+        ExactEnum(_EnumTag.COLOR),
+        ExactInt(0, 9),
+        2,
+        "test/map/v1",
+    )
+    assert combinators._key_sort_value(
+        schema.key_schema,
+        owned,
+        _registry(schema),
+    ) == (2, 0)
+    assert _admit(schema, {owned: 1}) == AdmitReject(
+        AdmitCode.REGISTRY_DRIFT,
+        (),
+    )
+
+
+def test_pair_key_domain_preflight_is_insertion_order_independent() -> None:
+    schema = MapOf(
+        ExactPair(ExactInt(0, 9), ExactEnum(_EnumTag.COLOR)),
+        ExactInt(0, 9),
+        2,
+        "test/map/v1",
+    )
+    accepted = _admit(ExactEnum(_EnumTag.COLOR), _Color.RED)
+    assert type(accepted) is AdmitOk
+    owned = cast(OwnedEnumV1, accepted.value)
+    object.__setattr__(owned, "_member_ordinal", 1 << 1_000_000)
+    first = {(10, _Color.RED): 1, (1, owned): 2}
+    second = {(1, owned): 2, (10, _Color.RED): 1}
+
+    expected = AdmitReject(AdmitCode.REGISTRY_DRIFT, ())
+    assert _admit(schema, first) == expected
+    assert _admit(schema, second) == expected
 
 
 def test_trusted_scalar_bytes_use_one_graph_wide_pre_encoding_budget() -> None:

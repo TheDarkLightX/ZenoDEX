@@ -36,6 +36,7 @@ MAX_ADMISSION_DEPTH_V1 = 64
 MAX_ADMISSION_NODES_V1 = 200_000
 MAX_CANONICAL_BYTES_V1 = 4_000_000
 MAX_COLLECTION_ITEMS_V1 = 200_000
+MAX_SORTABLE_KEY_INTEGER_BITS_V1 = 256
 
 
 class AdmitCode(Enum):
@@ -591,9 +592,25 @@ def _validate_map_schema(
         raise ValueError("map schema ID must be an exact nonempty string")
     if not _schema_is_valid_map_key(schema.key_schema):
         raise TypeError("map key schema has no canonical total order")
+    _validate_map_key_sort_bounds(schema.key_schema)
     _validate_item_bounds(0, schema.maximum_items)
     _validate_schema(schema.key_schema, enum_tag_type, record_tag_type, active_schema_ids)
     _validate_schema(schema.value_schema, enum_tag_type, record_tag_type, active_schema_ids)
+
+
+def _validate_map_key_sort_bounds(schema: SchemaV1) -> None:
+    if _has_exact_type(schema, ExactInt):
+        if schema.maximum is None:
+            raise ValueError("integer map keys require a finite maximum")
+        if (
+            abs(schema.minimum).bit_length() > MAX_SORTABLE_KEY_INTEGER_BITS_V1
+            or abs(schema.maximum).bit_length() > MAX_SORTABLE_KEY_INTEGER_BITS_V1
+        ):
+            raise ValueError("integer map-key bounds exceed the sortable width")
+        return
+    if _has_exact_type(schema, ExactPair):
+        _validate_map_key_sort_bounds(schema.left)
+        _validate_map_key_sort_bounds(schema.right)
 
 
 def _validate_exact_keyed_map_schema(
@@ -1325,7 +1342,12 @@ def _key_sort_value(
     registry: AdmissionRegistryV1,
 ) -> KeySortValue:
     if _has_exact_type(schema, ExactInt):
-        return cast(int, source)
+        key_int = cast(int, source)
+        if key_int < schema.minimum:
+            return (0, 0)
+        if schema.maximum is not None and key_int > schema.maximum:
+            return (2, 0)
+        return (1, key_int)
     if _has_exact_type(schema, ExactBool):
         return cast(bool, source)
     if _has_exact_type(schema, ExactString):
@@ -1340,15 +1362,27 @@ def _key_sort_value(
         )
     if _has_exact_type(schema, ExactEnum):
         registration = registry._enum_registration(schema.enum_tag)
-        if registration is None:
-            return -1
+        tag_ordinal = registry._enum_registration_index(schema.enum_tag)
+        if registration is None or tag_ordinal is None:
+            return (-1, 0)
         if type(source) is OwnedEnumV1:
             metadata = _owned_enum_metadata(source)
-            return -1 if metadata is None else metadata[2]
+            if metadata is None:
+                return (0, 0)
+            owned_revision, owned_tag_ordinal, owned_member_ordinal = metadata
+            if (
+                len(owned_revision) != len(registry.schema_revision)
+                or owned_revision != registry.schema_revision
+                or owned_tag_ordinal != tag_ordinal
+            ):
+                return (0, 1)
+            if owned_member_ordinal >= len(registration.enum_type):
+                return (2, 0)
+            return (1, owned_member_ordinal)
         for index, member in enumerate(registration.enum_type):
             if member is source:
-                return index
-        return -1
+                return (1, index)
+        return (-1, 1)
     return 0
 
 
@@ -1628,7 +1662,7 @@ def _admit_map(
         return key_resource_reject
     # Authority invariant: key errors are selected by canonical key order,
     # so rejected output cannot depend on caller dictionary insertion order.
-    # Resource preflight above proves these raw built-in comparisons bounded.
+    # Raw integers and enum ordinals are reduced to bounded tagged values.
     sorted_entries_with_keys = tuple(
         sorted(
             (
@@ -1642,9 +1676,6 @@ def _admit_map(
             key=lambda entry: entry[0],
         )
     )
-    for index in range(1, len(sorted_entries_with_keys)):
-        if sorted_entries_with_keys[index - 1][0] == sorted_entries_with_keys[index][0]:
-            return _reject(AdmitCode.REGISTRY_DRIFT, path)
     sorted_entries = tuple((key, value) for _sort_key, key, value in sorted_entries_with_keys)
 
     for key, _value in sorted_entries:
@@ -1657,6 +1688,9 @@ def _admit_map(
         )
         if canonical_reject is not None:
             return canonical_reject
+    for index in range(1, len(sorted_entries_with_keys)):
+        if sorted_entries_with_keys[index - 1][0] == sorted_entries_with_keys[index][0]:
+            return _reject(AdmitCode.REGISTRY_DRIFT, path)
     if type(source) is OwnedMapV1 and entries != sorted_entries:
         return _reject(AdmitCode.REGISTRY_DRIFT, path)
     if not _owned_map_index_matches_entries(source, sorted_entries):
