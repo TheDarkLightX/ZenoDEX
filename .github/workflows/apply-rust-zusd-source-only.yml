@@ -98,8 +98,30 @@ jobs:
         working-directory: rust-runtime
         run: cargo build --locked --bin zenodex-runtime
 
-      - name: Audit-critical Python/Rust sequences
-        run: python -m pytest -vv --tb=long tests/runtime/test_zusd_rust_audit_parity.py
+      - name: Cap rejection parity
+        run: |
+          python -m pytest -vv --tb=long \
+            tests/runtime/test_zusd_rust_audit_parity.py::test_rust_mint_above_shared_vault_and_supply_cap_rejects
+
+      - name: Exact cap parity
+        run: |
+          python -m pytest -vv --tb=long \
+            tests/runtime/test_zusd_rust_audit_parity.py::test_rust_mint_accepts_exact_total_debt_cap
+
+      - name: Pending observation authority parity
+        run: |
+          python -m pytest -vv --tb=long \
+            tests/runtime/test_zusd_rust_audit_parity.py::test_pending_observation_has_no_rust_liquidation_authority
+
+      - name: Adverse finalization and liquidation parity
+        run: |
+          python -m pytest -vv --tb=long \
+            tests/runtime/test_zusd_rust_audit_parity.py::test_adverse_price_can_finalize_before_rust_liquidation
+
+      - name: Stale finalized Oracle parity
+        run: |
+          python -m pytest -vv --tb=long \
+            tests/runtime/test_zusd_rust_audit_parity.py::test_stale_finalized_price_has_no_rust_liquidation_authority
 
       - name: Existing Python/Rust zUSD conformance
         run: python -m pytest -vv --tb=long tests/runtime/test_zusd_conformance.py
