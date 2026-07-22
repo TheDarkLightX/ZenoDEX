@@ -27,8 +27,38 @@ jobs:
         run: |
           python -m pip install --require-hashes -r requirements-dev.lock.txt
 
-      - name: Run Zeno Oracle MVP plus Devnet Alpha replay gate
-        run: bash scripts/check_zeno_oracle_devnet_alpha.sh
+      - name: Run Zeno Oracle MVP core gate
+        run: bash scripts/check_zeno_oracle_mvp.sh
+
+      - name: Check critical Oracle action map
+        run: python3 tools/check_zeno_oracle_critical_action_map.py
+
+      - name: Replay O3 receipt flow
+        run: python3 tools/zeno_oracle_o3_receipt_flow_replay.py --format text
+
+      - name: Test O3 receipt flow
+        run: pytest -q tests/test_zeno_oracle_o3_receipt_flow_replay.py
+
+      - name: Test Oracle devnet service and disaster harness
+        run: pytest -q tests/test_zenodex_oracle_devnet_service.py tests/test_zenodex_oracle_devnet_disaster_harness.py
+
+      - name: Replay Oracle reporter economics
+        run: python3 tools/zenodex_oracle_reporter_economics_replay.py self-test
+
+      - name: Run Oracle devnet disaster harness
+        run: python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
+
+      - name: Run Oracle disaster-class corpus
+        run: python3 tools/zeno_oracle_disaster_class_corpus.py --format text
+
+      - name: Check Oracle disaster obligation certificate
+        run: python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
+
+      - name: Check Oracle workflow evidence status
+        run: python3 tools/zeno_oracle_workflow_evidence_status.py --format text --skip-morph
+
+      - name: Audit Oracle Devnet Alpha
+        run: python3 tools/zenodex_oracle_devnet_alpha_audit.py
 
       - name: Build Zeno Oracle Devnet Alpha RC package
         run: bash scripts/package_zeno_oracle_rc.sh zeno-oracle-devnet-alpha-rc1
