@@ -1,17 +1,22 @@
 name: fix-474-zusd-finalization-tests
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/rust-zusd-audit-parity-20260722
+      - agent/rust-fcis-policy-inventory-20260722
     paths:
       - ".github/workflows/fix-474-zusd-finalization-tests.yml"
+
+concurrency:
+  group: fix-474-zusd-finalization-tests
+  cancel-in-progress: true
 
 permissions:
   contents: write
 
 jobs:
   patch-test-publish:
+    if: ${{ github.event.pull_request.head.ref == 'agent/rust-zusd-audit-parity-20260722' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
