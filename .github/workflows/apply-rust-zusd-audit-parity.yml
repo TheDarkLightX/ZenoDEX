@@ -58,17 +58,40 @@ jobs:
         if: steps.transform.outputs.exit_code != '0'
         run: exit 1
 
-      - name: Canonicalize changed sources
+      - name: Ruff safe fixes
+        id: ruff
+        continue-on-error: true
+        shell: bash
         run: |
+          set -o pipefail
           python -m ruff check --fix \
             src/core/zusd.py \
             tools/runtime/zusd_kernel_lib.py \
-            tests/runtime/test_zusd_rust_audit_parity.py
+            tests/runtime/test_zusd_rust_audit_parity.py \
+            2>&1 | tee ruff-diagnostics.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Ruff diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-zusd-ruff-diagnostics
+          path: ruff-diagnostics.txt
+          if-no-files-found: error
+
+      - name: Enforce Ruff result
+        if: steps.ruff.outputs.exit_code != '0'
+        run: exit 1
+
+      - name: Ruff format
+        run: |
           python -m ruff format \
             src/core/zusd.py \
             tools/runtime/zusd_kernel_lib.py \
             tests/runtime/test_zusd_rust_audit_parity.py
-          cargo fmt --manifest-path rust-runtime/Cargo.toml
+
+      - name: Rust format
+        run: cargo fmt --manifest-path rust-runtime/Cargo.toml
 
       - name: Validate Rust FCIS inventory
         run: python tools/check_rust_fcis_policy.py --pretty
@@ -95,7 +118,7 @@ jobs:
           rm -f .agent/apply_rust_zusd_audit_parity.py
           rmdir .agent 2>/dev/null || true
           rm -f .github/workflows/apply-rust-zusd-audit-parity.yml
-          rm -f transformation-diagnostics.txt
+          rm -f transformation-diagnostics.txt ruff-diagnostics.txt
           git add -A
           git commit -m "fix(runtime): align Rust zUSD with audited authority"
           git push origin HEAD:agent/rust-zusd-audit-parity-20260722
