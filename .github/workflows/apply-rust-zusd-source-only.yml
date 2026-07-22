@@ -1,0 +1,89 @@
+name: apply-rust-zusd-source-only
+
+on:
+  pull_request:
+    branches:
+      - agent/rust-fcis-policy-inventory-20260722
+    paths:
+      - ".agent/apply_rust_zusd_source_only.py"
+      - ".github/workflows/apply-rust-zusd-source-only.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-verify-publish:
+    if: ${{ github.event.pull_request.head.ref == 'agent/rust-zusd-audit-parity-20260722' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/rust-zusd-audit-parity-20260722
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Configure publication identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Clear any index suppression and apply exact Rust source transformation
+        run: |
+          git update-index --no-assume-unchanged \
+            rust-runtime/crates/zenodex-runtime-core/src/zusd.rs \
+            docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json || true
+          git update-index --no-skip-worktree \
+            rust-runtime/crates/zenodex-runtime-core/src/zusd.rs \
+            docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json || true
+          python .agent/apply_rust_zusd_source_only.py
+          cargo fmt --manifest-path rust-runtime/Cargo.toml
+
+      - name: Assert tracked Rust and inventory diffs exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --stat
+          test -n "$(git diff -- rust-runtime/crates/zenodex-runtime-core/src/zusd.rs)"
+          test -n "$(git diff -- docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json)"
+
+      - name: Validate policy and Rust implementation
+        run: |
+          python tools/check_rust_fcis_policy.py --pretty
+          cd rust-runtime
+          cargo fmt --check
+          cargo clippy --locked -p zenodex-runtime-core --all-targets -- -D warnings
+          cargo test --locked -p zenodex-runtime-core zusd
+          cargo build --locked --bin zenodex-runtime
+
+      - name: Validate Python/Rust audit parity
+        run: |
+          python -m pytest -q \
+            tests/runtime/test_zusd_rust_audit_parity.py \
+            tests/runtime/test_zusd_conformance.py \
+            tests/runtime/test_zusd_live_path.py
+
+      - name: Stage and prove the review diff contains Rust
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .agent/apply_rust_zusd_source_only.py
+          rmdir .agent 2>/dev/null || true
+          rm -f .github/workflows/apply-rust-zusd-source-only.yml
+          git add -A
+          git add --force \
+            rust-runtime/crates/zenodex-runtime-core/src/zusd.rs \
+            docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json
+          git diff --cached --name-only | tee staged-paths.txt
+          grep -Fx "rust-runtime/crates/zenodex-runtime-core/src/zusd.rs" staged-paths.txt
+          grep -Fx "docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json" staged-paths.txt
+          rm -f staged-paths.txt
+          git add -A
+          git commit -m "fix(runtime): publish Rust zUSD authority parity"
+          git push origin HEAD:agent/rust-zusd-audit-parity-20260722
