@@ -5,11 +5,11 @@ Pool state management for DEX pools.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Tuple
 
-from .balances import Amount, AssetId
+from .balances import Amount, AssetId, _SnapshotSealMixin
 from .canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 
 CURVE_TAG_CPMM = "CPMM"
@@ -365,7 +365,7 @@ def validate_pool_id_format(pool_id: object, *, allow_symbolic: bool) -> None:
 
 
 @dataclass(slots=True)
-class PoolState:
+class PoolState(_SnapshotSealMixin):
     """
     State of a DEX liquidity pool.
     
@@ -394,14 +394,6 @@ class PoolState:
     created_at: int
     curve_tag: str = CURVE_TAG_CPMM
     curve_params: str = ""
-    _snapshot_sealed: bool = field(default=False, init=False, repr=False, compare=False)
-
-    def __setattr__(self, name: str, value: object) -> None:
-        """Prevent base-descriptor writes through a sealed committed subtype."""
-
-        if getattr(self, "_snapshot_sealed", False):
-            raise TypeError("committed pool snapshot is immutable")
-        object.__setattr__(self, name, value)
     
     def __post_init__(self):
         """Validate pool state invariants."""
@@ -482,7 +474,12 @@ class PoolState:
         )
 
 
-def copy_pool_state(source: PoolState) -> PoolState:
+def copy_pool_state(
+    source: PoolState,
+    *,
+    reserve0: Amount | None = None,
+    reserve1: Amount | None = None,
+) -> PoolState:
     """Return an exact mutable scratch copy of one pool value.
 
     dataclasses.replace preserves subclasses. That is unsafe when a sealed
@@ -495,8 +492,8 @@ def copy_pool_state(source: PoolState) -> PoolState:
         pool_id=source.pool_id,
         asset0=source.asset0,
         asset1=source.asset1,
-        reserve0=source.reserve0,
-        reserve1=source.reserve1,
+        reserve0=source.reserve0 if reserve0 is None else reserve0,
+        reserve1=source.reserve1 if reserve1 is None else reserve1,
         fee_bps=source.fee_bps,
         lp_supply=source.lp_supply,
         status=source.status,

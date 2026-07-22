@@ -730,10 +730,7 @@ def _replay_and_apply_hop(
     )
     if not replay.replay_ok:
         return False, route_quote_receipt_hop_replay_error(replay), None
-    next_pool = copy_pool_state(pool)
-    next_pool.reserve0 = int(replay.next_reserve0)
-    next_pool.reserve1 = int(replay.next_reserve1)
-    return True, "ok", next_pool
+    return True, "ok", copy_pool_state(pool, reserve0=replay.next_reserve0, reserve1=replay.next_reserve1)
 
 
 def verify_route_quote_receipt(

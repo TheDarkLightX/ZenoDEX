@@ -11,15 +11,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Mapping, Sequence
 
-from .balances import PubKey
+from .balances import PubKey, _SnapshotSealMixin
 from .canonical import canonical_hex_fixed_allow_0x
 from .intents import Intent
 
+# Keep the pinned concolic path offsets stable across this representation change.
 _U32_MAX = 0xFFFFFFFF
 
 
 @dataclass(slots=True)
-class NonceTable:
+class NonceTable(_SnapshotSealMixin):
     """
     Mutable mapping: sender_pubkey -> last_used_nonce.
 
@@ -28,14 +29,6 @@ class NonceTable:
     """
 
     _last: Dict[PubKey, int] = field(default_factory=dict)
-    _snapshot_sealed: bool = field(default=False, init=False, repr=False, compare=False)
-
-    def __setattr__(self, name: str, value: object) -> None:
-        """Prevent base-descriptor writes through a sealed committed subtype."""
-
-        if getattr(self, "_snapshot_sealed", False):
-            raise TypeError("committed nonce snapshot is immutable")
-        object.__setattr__(self, name, value)
 
     def get_last(self, pubkey: PubKey) -> int:
         pk = canonical_hex_fixed_allow_0x(pubkey, nbytes=48, name="pubkey")
