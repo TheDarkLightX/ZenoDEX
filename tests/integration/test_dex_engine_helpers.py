@@ -10,6 +10,7 @@ import pytest
 
 import src.integration.dex_engine as dex_engine
 from src.core.dex import DexConfig, DexState
+from src.core.fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult
 from src.core.settlement import Fill, FillAction, Settlement
 from src.integration.dex_engine import (
     DexEngineConfig,
@@ -1195,16 +1196,36 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
         settlement_env=SettlementEnvelope(settlement=settlement, proof=None),
         computed_settlement=settlement,
     )
-    monkeypatch.setattr(dex_engine, "split_fee_with_dust_carry", lambda **kwargs: ("split", "next-fee"))
+    fee_split = FeeSplitResult(
+        buyback_amount=2,
+        treasury_amount=2,
+        rewards_amount=2,
+        dust_carried=1,
+    )
+    next_fee_state = FeeAccumulatorState(dust=1)
+    monkeypatch.setattr(
+        dex_engine,
+        "split_fee_with_dust_carry",
+        lambda **kwargs: (fee_split, next_fee_state),
+    )
     res = apply_ops(
-        config=DexEngineConfig(dex_config=DexConfig(fee_split_params=object()), require_settlement_match=False),
+        config=DexEngineConfig(
+            dex_config=DexConfig(
+                fee_split_params=FeeSplitParams(
+                    buyback_bps=3_333,
+                    treasury_bps=3_333,
+                    rewards_bps=3_334,
+                )
+            ),
+            require_settlement_match=False,
+        ),
         state=state,
         operations={"2": "ignored"},
         block_timestamp=0,
     )
     assert res.ok is True
     assert res.state is not None
-    assert res.state.fee_accumulator == "next-fee"
+    assert res.state.fee_accumulator == next_fee_state
 
     proof = {"scheme": "dummy", "pre_state_commitment": "0x1", "batch_commitment": "0x2"}
     _patch_apply_ops_happy_path(

@@ -52,6 +52,7 @@ jobs:
             src/state/pools.py \
             src/state/state_snapshots.py \
             tests/core/test_dex_state_immutability.py \
+            tests/integration/test_dex_engine_helpers.py \
             tests/integration/test_perp_engine.py \
             tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py \
             tests/integration/test_tau_state_principal_migration.py \
@@ -107,6 +108,7 @@ jobs:
             src/state/nonces.py \
             src/state/pools.py \
             src/state/state_snapshots.py \
+            tests/integration/test_dex_engine_helpers.py \
             tests/integration/test_perp_engine.py \
             tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py \
             tests/integration/test_tau_state_principal_migration.py \
@@ -140,6 +142,7 @@ jobs:
       - name: Mounted immutable-state compatibility
         run: |
           python -m pytest -q \
+            tests/integration/test_dex_engine_helpers.py \
             tests/integration/test_perp_engine.py \
             tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py \
             tests/integration/test_tau_state_principal_migration.py \
