@@ -201,6 +201,161 @@
       ]
     },
     {
+      "contract_id": "zusd_oracle_commit_guard_v3",
+      "spec_path": "src/tau_specs/recommended/zusd_oracle_commit_guard_v3.tau",
+      "run_mode": "repl",
+      "style": "host_projected_boolean_gate",
+      "summary": "Finalization gate whose freshness fact is projected from the pending report epoch and whose admission is independent of vault health.",
+      "control_inputs": [
+        {"slot": "i1", "name": "oracle_seen", "meaning": "an oracle input has been observed"},
+        {"slot": "i2", "name": "pending_initialized", "meaning": "the pending price is initialized"},
+        {"slot": "i3", "name": "pending_le_active", "meaning": "the current downward-only report policy is satisfied"},
+        {"slot": "i4", "name": "auth_ok", "meaning": "oracle commit authorization passed"},
+        {"slot": "i5", "name": "fresh_pending", "meaning": "the pending report epoch is in the committed freshness window"}
+      ],
+      "data_inputs": [],
+      "outputs": [
+        {"slot": "o1", "name": "env_ok", "meaning": "the pending observation is initialized, policy-conforming, and fresh"},
+        {"slot": "o2", "name": "policy_ok", "meaning": "oracle commit authorization passed"},
+        {"slot": "o3", "name": "pending_valid", "meaning": "the pending observation is initialized and satisfies the direction policy"},
+        {"slot": "o4", "name": "oracle_commit_allowed", "meaning": "all projected commit conditions hold"}
+      ],
+      "assumptions": [
+        "The host derives fresh_pending from oracle_pending_report_epoch, not the previous finalized epoch.",
+        "The host validates exact state and command types before constructing these booleans.",
+        "Tau combines projected facts and does not perform price or epoch arithmetic."
+      ],
+      "non_goals": [
+        "Vault health or MCR admission.",
+        "Oracle signature verification.",
+        "Oracle report parsing and canonical encoding."
+      ],
+      "guarantees": [
+        {
+          "id": "G_fresh_authorized_pending_report_can_finalize",
+          "description": "A fresh initialized pending report with valid policy and authorization is admitted even when vault health changes.",
+          "cases": [
+            {
+              "id": "all_projected_facts_true_accepts",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+              ]
+            }
+          ]
+        }
+      ],
+      "forbidden_behaviors": [
+        {
+          "id": "F_missing_pending_authority_rejected",
+          "description": "Uninitialized, stale, direction-invalid, or unauthorized pending reports are rejected.",
+          "cases": [
+            {
+              "id": "stale_pending_report_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 0}
+              ],
+              "expected": [
+                {"o1": 0, "o2": 1, "o3": 1, "o4": 0}
+              ]
+            },
+            {
+              "id": "unauthorized_commit_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 0, "i5": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 0, "o3": 1, "o4": 0}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "contract_id": "zusd_liquidation_guard_v3",
+      "spec_path": "src/tau_specs/recommended/zusd_liquidation_guard_v3.tau",
+      "run_mode": "repl",
+      "style": "host_projected_boolean_and_bounded_data_gate",
+      "summary": "Liquidation gate requiring a fresh finalized price, pending/finalized agreement, finalized-price MCR failure, debt coverage, and collateral-cap safety.",
+      "control_inputs": [
+        {"slot": "i1", "name": "finalized_initialized", "meaning": "the finalized Oracle price is initialized"},
+        {"slot": "i3", "name": "under_mcr_at_finalized", "meaning": "the target vault is below MCR at the finalized price"},
+        {"slot": "i8", "name": "pending_matches_finalized", "meaning": "no uncommitted price mismatch exists"},
+        {"slot": "i9", "name": "fresh_finalized", "meaning": "the finalized report epoch is in the committed freshness window"}
+      ],
+      "data_inputs": [
+        {"slot": "i2", "name": "vault_debt", "meaning": "target vault debt in bounded base units"},
+        {"slot": "i4", "name": "sp_debt", "meaning": "stability-pool debt capacity in bounded base units"},
+        {"slot": "i5", "name": "vault_coll", "meaning": "target vault collateral in bounded base units"},
+        {"slot": "i6", "name": "sp_coll_before", "meaning": "stability-pool collateral before liquidation"},
+        {"slot": "i7", "name": "max_sp_coll", "meaning": "committed stability-pool collateral cap"}
+      ],
+      "outputs": [
+        {"slot": "o1", "name": "debt_absorbable", "meaning": "the stability pool can absorb the complete target debt"},
+        {"slot": "o2", "name": "coll_cap_ok", "meaning": "credited collateral remains within the committed cap"},
+        {"slot": "o3", "name": "pre_ok", "meaning": "finalized-price authority and target risk facts hold"},
+        {"slot": "o4", "name": "liquidation_allowed", "meaning": "all authority, risk, debt, and collateral conditions hold"}
+      ],
+      "assumptions": [
+        "The host derives fresh_finalized from oracle_last_update_epoch.",
+        "The host computes under_mcr_at_finalized from the finalized price.",
+        "The host proves pending_matches_finalized by exact integer price equality.",
+        "Inputs are exact bounded integers before Tau evaluation."
+      ],
+      "non_goals": [
+        "Oracle signature verification or report parsing.",
+        "MCR multiplication and division inside Tau.",
+        "Claimant ownership and mounted custody transfer.",
+        "Partial Stability Pool offset or residual insolvency."
+      ],
+      "guarantees": [
+        {
+          "id": "G_finalized_authority_and_capacity_admit_liquidation",
+          "description": "A fresh finalized under-MCR vault with no pending mismatch and sufficient bounded capacity is admitted.",
+          "cases": [
+            {
+              "id": "all_authority_and_capacity_facts_true_accepts",
+              "steps": [
+                {"i1": 1, "i2": 150, "i3": 1, "i4": 200, "i5": 30, "i6": 10, "i7": 100, "i8": 1, "i9": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+              ]
+            }
+          ]
+        }
+      ],
+      "forbidden_behaviors": [
+        {
+          "id": "F_unfinalized_or_stale_authority_rejected",
+          "description": "A pending mismatch or stale finalized report cannot authorize liquidation.",
+          "cases": [
+            {
+              "id": "pending_mismatch_rejects",
+              "steps": [
+                {"i1": 1, "i2": 150, "i3": 1, "i4": 200, "i5": 30, "i6": 10, "i7": 100, "i8": 0, "i9": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 0, "o4": 0}
+              ]
+            },
+            {
+              "id": "stale_finalized_report_rejects",
+              "steps": [
+                {"i1": 1, "i2": 150, "i3": 1, "i4": 200, "i5": 30, "i6": 10, "i7": 100, "i8": 1, "i9": 0}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 0, "o4": 0}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
       "contract_id": "autotrader_tx_envelope_guard_v1",
       "spec_path": "src/tau_specs/recommended/autotrader_tx_envelope_guard_v1.tau",
       "run_mode": "repl",

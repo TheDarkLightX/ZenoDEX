@@ -52,7 +52,7 @@ def test_pending_price_freezes_risky_ops() -> None:
     assert "freeze" in (r_withdraw.error or "")
 
 
-def test_oracle_commit_requires_mcr_at_pending_price() -> None:
+def test_oracle_commit_finalizes_distressed_price() -> None:
     s = init_state()
     s = _bootstrap(s, price_e8=100 * E8)
     s = _ok(s, "deposit_collateral", amount_e8=2 * E8)
@@ -60,8 +60,11 @@ def test_oracle_commit_requires_mcr_at_pending_price() -> None:
     s = _ok(s, "oracle_report", price_e8=50 * E8, auth_ok=True)
 
     r = step(s, ZUSDCommand(tag="oracle_commit", args={"auth_ok": True}))
-    assert not r.ok
-    assert "below MCR" in (r.error or "")
+    assert r.ok, r.error
+    assert r.state is not None
+    assert r.state.price_e8 == 50 * E8
+    assert r.state.price_pending_e8 == 50 * E8
+    assert check_invariants(r.state) == []
 
 
 def test_oracle_commit_rejects_observation_stale_by_one_epoch() -> None:
@@ -77,20 +80,21 @@ def test_oracle_commit_rejects_observation_stale_by_one_epoch() -> None:
     assert r.error == "oracle_commit blocked: pending observation is stale"
 
 
-def test_liquidation_rejects_stale_pending_observation() -> None:
+def test_liquidation_rejects_stale_finalized_observation() -> None:
     s = ZUSDState(max_oracle_staleness_epochs=2)
     s = _bootstrap(s, price_e8=100 * E8)
     s = _ok(s, "deposit_collateral", amount_e8=2 * E8)
     s = _ok(s, "mint_zusd", amount_e8=150 * E8)
     s = _ok(s, "deposit_sp", amount_e8=150 * E8)
     s = _ok(s, "oracle_report", price_e8=70 * E8, auth_ok=True)
+    s = _ok(s, "oracle_commit", auth_ok=True)
     s = _ok(s, "advance_epoch", delta=3)
 
     r = step(s, ZUSDCommand(tag="liquidate", args={}))
 
     assert not r.ok
     assert r.state is None
-    assert r.error == "liquidation blocked: pending observation is stale"
+    assert r.error == "liquidation blocked by stale finalized oracle"
 
 
 def test_recovery_mode_blocks_mint_and_withdraw() -> None:
@@ -112,13 +116,14 @@ def test_recovery_mode_blocks_mint_and_withdraw() -> None:
     assert "recovery mode" in (r_withdraw.error or "")
 
 
-def test_liquidation_under_pending_price_moves_debt_to_sp() -> None:
+def test_liquidation_under_finalized_price_moves_debt_to_sp() -> None:
     s = init_state()
     s = _bootstrap(s, price_e8=100 * E8)
     s = _ok(s, "deposit_collateral", amount_e8=2 * E8)
     s = _ok(s, "mint_zusd", amount_e8=150 * E8)
     s = _ok(s, "deposit_sp", amount_e8=150 * E8)
     s = _ok(s, "oracle_report", price_e8=70 * E8, auth_ok=True)
+    s = _ok(s, "oracle_commit", auth_ok=True)
 
     r = step(s, ZUSDCommand(tag="liquidate", args={}))
     assert r.ok, r.error
@@ -138,6 +143,7 @@ def test_liquidation_at_107_percent_cr_uses_current_full_collateral_policy() -> 
     s = _ok(s, "mint_zusd", amount_e8=100 * E8)
     s = _ok(s, "deposit_sp", amount_e8=100 * E8)
     s = _ok(s, "oracle_report", price_e8=1 * E8, auth_ok=True)
+    s = _ok(s, "oracle_commit", auth_ok=True)
 
     r = step(s, ZUSDCommand(tag="liquidate", args={}))
     assert r.ok, r.error
@@ -167,6 +173,7 @@ def test_liquidation_gas_compensation_hook_pays_before_sp_gain() -> None:
     s = _ok(s, "mint_zusd", amount_e8=500 * E8)
     s = _ok(s, "deposit_sp", amount_e8=500 * E8)
     s = _ok(s, "oracle_report", price_e8=50 * E8, auth_ok=True)
+    s = _ok(s, "oracle_commit", auth_ok=True)
 
     r = step(s, ZUSDCommand(tag="liquidate", args={}))
     assert r.ok, r.error

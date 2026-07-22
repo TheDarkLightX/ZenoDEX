@@ -3889,3 +3889,60 @@ def build_pool_params_binding_guard_v1_step(
         "i6": _sbf("pool_id_ok", pool_id_ok),
         "i7": _sbf("binding_ok", binding_ok),
     }
+
+
+# Finalized-price authority specs. V2 refs remain for historical replay;
+# live transition admission uses V3.
+ZUSD_ORACLE_COMMIT_GUARD_V3 = TauSpecRef(
+    spec_id="zusd_oracle_commit_guard_v3",
+    path=RECOMMENDED_SPECS_DIR / "zusd_oracle_commit_guard_v3.tau",
+    gate_output="o4",
+)
+
+ZUSD_LIQUIDATION_GUARD_V3 = TauSpecRef(
+    spec_id="zusd_liquidation_guard_v3",
+    path=RECOMMENDED_SPECS_DIR / "zusd_liquidation_guard_v3.tau",
+    gate_output="o4",
+)
+
+
+def build_zusd_oracle_commit_guard_v3_step(
+    *,
+    oracle_seen: int,
+    pending_initialized: int,
+    pending_le_active: int,
+    auth_ok: int,
+    fresh_ok: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("oracle_seen", oracle_seen),
+        "i2": _sbf("pending_initialized", pending_initialized),
+        "i3": _sbf("pending_le_active", pending_le_active),
+        "i4": _sbf("auth_ok", auth_ok),
+        "i5": _sbf("fresh_ok", fresh_ok),
+    }
+
+
+def build_zusd_liquidation_guard_v3_step(
+    *,
+    finalized_initialized: int,
+    vault_debt: int,
+    under_mcr_at_finalized: int,
+    sp_debt: int,
+    vault_coll: int,
+    sp_coll_before: int,
+    max_sp_coll: int,
+    pending_matches_finalized: int,
+    fresh_finalized: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("finalized_initialized", finalized_initialized),
+        "i2": _u64("vault_debt", vault_debt),
+        "i3": _sbf("under_mcr_at_finalized", under_mcr_at_finalized),
+        "i4": _u64("sp_debt", sp_debt),
+        "i5": _u64("vault_coll", vault_coll),
+        "i6": _u64("sp_coll_before", sp_coll_before),
+        "i7": _u64("max_sp_coll", max_sp_coll),
+        "i8": _sbf("pending_matches_finalized", pending_matches_finalized),
+        "i9": _sbf("fresh_finalized", fresh_finalized),
+    }

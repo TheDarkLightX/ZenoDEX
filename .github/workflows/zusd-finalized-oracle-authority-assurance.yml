@@ -1,0 +1,87 @@
+# Read-only exact-head certification for finalized zUSD Oracle authority.
+name: zusd-finalized-oracle-authority-assurance
+
+on:
+  pull_request:
+    branches:
+      - agent/zusd-total-debt-cap-20260721
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  zusd-finalized-oracle-authority:
+    if: github.event.pull_request.head.ref == 'agent/zusd-finalized-oracle-authority-20260721'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.3"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Check finalized-oracle source and witnesses
+        run: |
+          python -m ruff check src/core/zusd.py src/integration/tau_witness.py src/integration/zusd_tau_gate.py tests/core/test_zusd_finalized_oracle_authority.py tests/formal/test_lean_zusd_pending_observation_freshness.py tests/integration/test_zusd_tau_gate_edges.py tests/tau/test_zusd_finalized_oracle_specs.py
+          python -m mypy src/core/zusd.py src/integration/tau_witness.py src/integration/zusd_tau_gate.py
+          python -m py_compile src/core/zusd.py src/integration/tau_witness.py src/integration/zusd_tau_gate.py tests/core/test_zusd_finalized_oracle_authority.py tests/formal/test_lean_zusd_pending_observation_freshness.py tests/integration/test_zusd_tau_gate_edges.py tests/tau/test_zusd_finalized_oracle_specs.py
+          git diff --check "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+
+      - name: Replay runtime and Tau projection witnesses
+        run: |
+          python -m pytest -q tests/core/test_zusd_finalized_oracle_authority.py tests/core/test_zusd.py tests/core/test_zusd_multi.py tests/integration/test_zusd_tau_gate_edges.py tests/tau/test_zusd_finalized_oracle_specs.py
+
+      - name: Set up pinned Lean toolchain
+        run: |
+          set -euo pipefail
+          toolchain="$(cat lean-mathlib/lean-toolchain)"
+          case "${toolchain}" in
+            leanprover/lean4:v*) version="${toolchain#leanprover/lean4:v}" ;;
+            *)
+              echo "unsupported Lean toolchain: ${toolchain}" >&2
+              exit 1
+              ;;
+          esac
+          curl --fail --location --retry 3 --output /tmp/lean-linux.tar.zst "https://github.com/leanprover/lean4/releases/download/v${version}/lean-${version}-linux.tar.zst"
+          mkdir -p "${HOME}/.local/lean"
+          tar --zstd -xf /tmp/lean-linux.tar.zst -C "${HOME}/.local/lean" --strip-components=1
+          echo "${HOME}/.local/lean/bin" >> "${GITHUB_PATH}"
+
+      - name: Restore pinned Mathlib dependency
+        run: |
+          set -euo pipefail
+          mathlib_rev="a3a10db0e9d66acbebf76c5e6a135066525ac900"
+          git clone --filter=blob:none --no-checkout https://github.com/leanprover-community/mathlib4.git external/mathlib4
+          git -C external/mathlib4 fetch --depth 1 origin "${mathlib_rev}"
+          git -C external/mathlib4 checkout --detach "${mathlib_rev}"
+          test "$(git -C external/mathlib4 rev-parse HEAD)" = "${mathlib_rev}"
+          cd lean-mathlib
+          lake update
+          lake exe cache get
+
+      - name: Check the recovery theorem and runtime differential
+        run: |
+          cd lean-mathlib
+          lake build Proofs.ZUSDPendingObservationFreshness
+          cd ..
+          python -m pytest -q tests/formal/test_lean_zusd_pending_observation_freshness.py
+
+      - name: Run critical-quality gate
+        env:
+          PYTHON: python
+        run: bash tools/run_critical_quality_gate.sh
