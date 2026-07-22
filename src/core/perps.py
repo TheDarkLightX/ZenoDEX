@@ -16,8 +16,9 @@ Units note:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Dict, Literal
+from typing import Dict, Literal, TypeGuard
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
 from . import perps_fixed_validation as _fixed_validation
@@ -70,7 +71,7 @@ def _pubkey_bytes48_or_none(pubkey: str) -> bytes | None:
         return None
 
 
-def _is_non_bool_int(value: object) -> bool:
+def _is_non_bool_int(value: object) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
@@ -337,10 +338,10 @@ def _validate_isolated_market_header(
         raise ValueError(f"unsupported perps market kind: {kind}")
     if not _is_non_empty_str(quote_asset):
         raise TypeError("quote_asset must be a non-empty string")
-    if not isinstance(global_state, dict):
-        raise TypeError("global_state must be a dict")
-    if not isinstance(accounts, dict):
-        raise TypeError("accounts must be a dict")
+    if not isinstance(global_state, Mapping):
+        raise TypeError("global_state must be a mapping")
+    if not isinstance(accounts, Mapping):
+        raise TypeError("accounts must be a mapping")
 
 
 def _ensure_isolated_global_defaults(global_state: Dict[str, Value]) -> None:
@@ -491,11 +492,19 @@ class PerpMarketState:
     funding_closeout_receiver_claim_lots_quote: tuple[tuple[str, str, int, int], ...] = ()
 
     def __post_init__(self) -> None:
+        # A committed market may be supplied by an immutable Mapping. Normalize
+        # into fresh local builders before applying legacy defaults and phase
+        # normalization so dataclasses.replace never mutates or rejects the
+        # committed source mapping.
+        owned_global_state = dict(self.global_state)
+        owned_accounts = dict(self.accounts)
+        object.__setattr__(self, "global_state", owned_global_state)
+        object.__setattr__(self, "accounts", owned_accounts)
         _validate_isolated_market_header(
             kind=self.kind,
             quote_asset=self.quote_asset,
-            global_state=self.global_state,
-            accounts=self.accounts,
+            global_state=owned_global_state,
+            accounts=owned_accounts,
         )
         _ensure_isolated_global_defaults(self.global_state)
         _validate_isolated_global_keys(self.global_state)
@@ -787,8 +796,11 @@ class PerpsState:
             raise TypeError("version must be a positive int")
         if self.version not in (PERPS_STATE_VERSION_V4, PERPS_STATE_VERSION_V5):
             raise ValueError(f"unsupported perps state version: {self.version}")
-        if not isinstance(self.markets, dict):
-            raise TypeError("markets must be a dict")
+        if not isinstance(self.markets, Mapping):
+            raise TypeError("markets must be a mapping")
+        # Preserve immutable structural sharing at the committed boundary while
+        # giving this newly constructed local value its own mutable builder.
+        object.__setattr__(self, "markets", dict(self.markets))
         if self.version == PERPS_STATE_VERSION_V4:
             for market_id, market in self.markets.items():
                 if not isinstance(market_id, str):

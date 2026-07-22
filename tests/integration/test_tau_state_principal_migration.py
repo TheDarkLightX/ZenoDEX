@@ -116,7 +116,11 @@ def test_tau_state_migration_is_atomic_complete_and_idempotent() -> None:
 
 def test_tau_state_migration_rejects_alias_collision_without_mutation() -> None:
     legacy = _state_with_raw_principal()
-    legacy.balances.set(CANONICAL, QUOTE_ASSET, 5)
+    balances = BalanceTable()
+    for (pubkey, asset), amount in legacy.balances.get_all_balances().items():
+        balances.set(pubkey, asset, amount)
+    balances.set(CANONICAL, QUOTE_ASSET, 5)
+    legacy = replace(legacy, balances=balances)
 
     with pytest.raises(ValueError, match="ambiguous principal spellings"):
         canonicalize_legacy_tau_state_principals(legacy)

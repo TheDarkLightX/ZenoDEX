@@ -282,16 +282,10 @@ def reject_settlement_public_boundary_error(
         return None
     for intent_id, action in settlement.included_intents:
         if action == FillAction.REJECT:
-            return (
-                "settlement contains rejected intent at public DEX boundary: "
-                f"{intent_id}"
-            )
+            return f"settlement contains rejected intent at public DEX boundary: {intent_id}"
     for fill in settlement.fills:
         if fill.action == FillAction.REJECT:
-            return (
-                "settlement contains rejected fill at public DEX boundary: "
-                f"{fill.intent_id}"
-            )
+            return f"settlement contains rejected fill at public DEX boundary: {fill.intent_id}"
     return None
 
 

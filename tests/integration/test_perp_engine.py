@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from src.core.dex import DexState
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
@@ -878,21 +880,22 @@ def test_set_position_rejects_malformed_oracle_snapshot_zero_index() -> None:
 
     assert state.perps is not None
     market = state.perps.markets[market_id]
-    # Simulate an in-memory corrupted oracle snapshot (invalid reachable state).
-    # Snapshot parsing should fail-closed on this, but runtime code should still
-    # reject actions when fed malformed state.
-    market.global_state["oracle_seen"] = True
-    market.global_state["oracle_last_update_epoch"] = int(market.global_state.get("now_epoch", 0))
-    market.global_state["index_price_e8"] = 0
-
-    res = _apply_result(
-        state=state,
-        tx_sender_pubkey=alice,
-        operator_pubkey=operator,
-        ops=[_op(market_id, "set_position", account_pubkey=alice, new_position_base=10)],
+    malformed_global_state = dict(market.global_state)
+    malformed_global_state["oracle_seen"] = True
+    malformed_global_state["oracle_last_update_epoch"] = int(
+        malformed_global_state.get("now_epoch", 0)
     )
-    assert res.ok is False
-    assert res.error == "pre_invariant:inv_oracle_seen_positive_index"
+    malformed_global_state["index_price_e8"] = 0
+
+    # Committed mappings reject mutation, and the typed market constructor
+    # rejects the malformed replacement before it can reach runtime dispatch.
+    with pytest.raises(TypeError, match="immutable"):
+        market.global_state["index_price_e8"] = 0
+    with pytest.raises(
+        ValueError,
+        match="index_price_e8 must be positive when oracle_seen is true",
+    ):
+        replace(market, global_state=malformed_global_state)
 
 
 def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:

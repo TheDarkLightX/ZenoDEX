@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import MappingProxyType
+
 import pytest
 
 from src.core.batch_clearing import apply_settlement_pure
@@ -8,7 +10,7 @@ from src.core.perps import PERPS_STATE_VERSION_V5, PerpMarketState, PerpsState
 from src.core.settlement import ReserveDelta, Settlement
 from src.integration.dex_snapshot import snapshot_from_state
 from src.state.balances import BalanceTable
-from src.state.immutable_collections import FrozenList, deep_freeze
+from src.state.immutable_collections import FrozenDict, FrozenList, deep_freeze
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
 from src.state.pools import PoolState, PoolStatus
@@ -160,6 +162,34 @@ def test_deep_freeze_owns_nested_lists_and_mappings() -> None:
         dict.__setitem__(frozen[0], "amounts", [9])
     with pytest.raises(TypeError, match="immutable"):
         frozen[0]["amounts"].append(9)
+
+
+def test_frozen_collection_constructors_recursively_own_nested_values() -> None:
+    mapping_source = {"payload": [{"amount": 1}]}
+    list_source = [{"amounts": [2]}]
+    frozen_mapping = FrozenDict(mapping_source)
+    frozen_list = FrozenList(list_source)
+
+    mapping_source["payload"][0]["amount"] = 99
+    list_source[0]["amounts"].append(3)
+
+    assert frozen_mapping["payload"][0]["amount"] == 1
+    assert tuple(frozen_list[0]["amounts"]) == (2,)
+    with pytest.raises(TypeError, match="immutable"):
+        frozen_mapping["payload"][0]["amount"] = 7
+    with pytest.raises(TypeError, match="immutable"):
+        frozen_list[0]["amounts"].append(4)
+
+
+def test_deep_freeze_owns_generic_mapping_backing_storage() -> None:
+    backing = {"amounts": [1]}
+    frozen = deep_freeze(MappingProxyType(backing))
+
+    backing["amounts"].append(2)
+
+    assert tuple(frozen["amounts"]) == (1,)
+    with pytest.raises(TypeError, match="immutable"):
+        frozen["amounts"].append(3)
 
 
 class _AdversarialPerpMarket(PerpMarketState):

@@ -7,6 +7,7 @@ import pytest
 from src.core.dex import DexState
 from src.core.perps import PERPS_STATE_VERSION_V5, PerpsState
 from src.core.zusd import E8
+from src.integration.dex_snapshot import snapshot_from_state
 from src.integration.zusd_monetary_bridge import (
     ZUSDMonetaryConfig,
     apply_zusd_monetary_ops,
@@ -440,7 +441,7 @@ def test_accepted_result_effects_are_transitively_immutable() -> None:
     assert result.effects[0].to_obj()["effects"]["amount_e8"] == E8
 
 
-def test_accepted_result_detaches_mutable_dex_children_from_prestate() -> None:
+def test_accepted_result_owns_mutable_children_and_safely_shares_immutable_children() -> None:
     config = _config()
     pool = PoolState(
         pool_id="pool-a",
@@ -464,6 +465,7 @@ def test_accepted_result_detaches_mutable_dex_children_from_prestate() -> None:
         lp_balances=lp_balances,
         perps=perps,
     )
+    prestate_root_before = snapshot_from_state(prestate).commitment_hex()
 
     result = apply_zusd_monetary_ops(
         config=config,
@@ -492,12 +494,19 @@ def test_accepted_result_detaches_mutable_dex_children_from_prestate() -> None:
     assert result.state.lp_balances is not prestate.lp_balances
     assert result.state.perps is not prestate.perps
     assert result.state.perps is not None
-    assert result.state.perps.markets is not prestate.perps.markets
+    # Unchanged, transitively immutable children may be structurally shared.
+    assert result.state.perps.markets is prestate.perps.markets
+    result_root_before = snapshot_from_state(result.state).commitment_hex()
 
-    result.state.pools[pool.pool_id].reserve0 = 999
-    result.state.lp_balances.set(ACTOR, pool.pool_id, 99)
-    result.state.perps.markets["forged"] = "invalid-market"  # type: ignore[assignment]
+    with pytest.raises(TypeError, match="immutable"):
+        result.state.pools[pool.pool_id].reserve0 = 999
+    with pytest.raises(TypeError, match="immutable"):
+        result.state.lp_balances.set(ACTOR, pool.pool_id, 99)
+    with pytest.raises(TypeError, match="immutable"):
+        result.state.perps.markets["forged"] = "invalid-market"  # type: ignore[index]
 
     assert prestate.pools[pool.pool_id].reserve0 == 10
     assert prestate.lp_balances.get(ACTOR, pool.pool_id) == 3
     assert prestate.perps.markets == {}
+    assert snapshot_from_state(prestate).commitment_hex() == prestate_root_before
+    assert snapshot_from_state(result.state).commitment_hex() == result_root_before

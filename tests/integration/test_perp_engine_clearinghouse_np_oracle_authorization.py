@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from src.core.dex import DexState
 from src.integration import perp_engine
 from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
@@ -39,10 +41,16 @@ def _ready_np_market(*, market_id: str, operator: str, quote_asset: str) -> DexS
     assert res.ok is True, res.error
     assert res.state is not None and res.state.perps is not None
     market = res.state.perps.markets[market_id]
-    market.global_state["clearing_price_seen"] = 1
-    market.global_state["clearing_price_epoch"] = int(market.global_state["now_epoch"])
-    market.global_state["clearing_price_e8"] = 100_000_000
-    return res.state
+    global_state = dict(market.global_state)
+    global_state["clearing_price_seen"] = 1
+    global_state["clearing_price_epoch"] = int(global_state["now_epoch"])
+    global_state["clearing_price_e8"] = 100_000_000
+    ready_market = replace(market, global_state=global_state)
+    ready_perps = replace(
+        res.state.perps,
+        markets={**res.state.perps.markets, market_id: ready_market},
+    )
+    return replace(res.state, perps=ready_perps)
 
 
 def test_tau_identity_profile_commits_canonical_np_join_account() -> None:
@@ -85,9 +93,7 @@ def test_tau_identity_profile_commits_canonical_np_join_account() -> None:
     assert joined.ok is True, joined.error
     assert joined.state is not None and joined.state.perps is not None
     market = joined.state.perps.markets[market_id]
-    assert tuple(account_state.pubkey for account_state in market.accounts) == (
-        "0x" + account,
-    )
+    assert tuple(account_state.pubkey for account_state in market.accounts) == ("0x" + account,)
 
 
 def test_clearinghouse_np_rejects_malformed_runtime_facts(monkeypatch) -> None:
@@ -133,7 +139,9 @@ def test_clearinghouse_np_rejects_malformed_runtime_facts(monkeypatch) -> None:
         facts["now_epoch"] = False
         return facts
 
-    monkeypatch.setattr(perp_engine, "_perps_clearinghouse_settle_oracle_runtime_facts", malformed_runtime_facts)
+    monkeypatch.setattr(
+        perp_engine, "_perps_clearinghouse_settle_oracle_runtime_facts", malformed_runtime_facts
+    )
 
     res = apply_perp_ops(
         config=config,
@@ -153,4 +161,6 @@ def test_clearinghouse_np_rejects_malformed_runtime_facts(monkeypatch) -> None:
     )
 
     assert res.ok is False
-    assert res.error == "clearinghouse_settle_oracle_authorization_rejected: malformed runtime facts"
+    assert (
+        res.error == "clearinghouse_settle_oracle_authorization_rejected: malformed runtime facts"
+    )

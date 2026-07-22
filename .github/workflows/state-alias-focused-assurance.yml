@@ -43,6 +43,7 @@ jobs:
             src/core/batch_clearing_compute.py \
             src/core/dex.py \
             src/core/fees.py \
+            src/core/perps.py \
             src/core/settlement_replay_context.py \
             src/state/balances.py \
             src/state/immutable_collections.py \
@@ -50,13 +51,18 @@ jobs:
             src/state/nonces.py \
             src/state/pools.py \
             src/state/state_snapshots.py \
-            tests/core/test_dex_state_immutability.py
+            tests/core/test_dex_state_immutability.py \
+            tests/integration/test_perp_engine.py \
+            tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py \
+            tests/integration/test_tau_state_principal_migration.py \
+            tests/integration/test_zusd_monetary_policy_persistence.py
           python -m ruff format --check \
             src/core/batch_clearing.py \
             src/core/batch_clearing_apply_settlement.py \
             src/core/batch_clearing_compute.py \
             src/core/dex.py \
             src/core/fees.py \
+            src/core/perps.py \
             src/core/settlement_replay_context.py \
             src/state/balances.py \
             src/state/immutable_collections.py \
@@ -64,7 +70,11 @@ jobs:
             src/state/nonces.py \
             src/state/pools.py \
             src/state/state_snapshots.py \
-            tests/core/test_dex_state_immutability.py
+            tests/core/test_dex_state_immutability.py \
+            tests/integration/test_perp_engine.py \
+            tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py \
+            tests/integration/test_tau_state_principal_migration.py \
+            tests/integration/test_zusd_monetary_policy_persistence.py
 
       - name: Mypy
         run: |
@@ -73,6 +83,7 @@ jobs:
             src/core/batch_clearing_apply_settlement.py \
             src/core/batch_clearing_compute.py \
             src/core/dex.py \
+            src/core/perps.py \
             src/core/settlement_replay_context.py \
             src/state/balances.py \
             src/state/immutable_collections.py \
@@ -88,13 +99,18 @@ jobs:
             src/core/batch_clearing_apply_settlement.py \
             src/core/batch_clearing_compute.py \
             src/core/dex.py \
+            src/core/perps.py \
             src/core/settlement_replay_context.py \
             src/state/balances.py \
             src/state/immutable_collections.py \
             src/state/lp.py \
             src/state/nonces.py \
             src/state/pools.py \
-            src/state/state_snapshots.py
+            src/state/state_snapshots.py \
+            tests/integration/test_perp_engine.py \
+            tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py \
+            tests/integration/test_tau_state_principal_migration.py \
+            tests/integration/test_zusd_monetary_policy_persistence.py
 
       - name: Diff hygiene
         run: git diff --check
@@ -120,3 +136,11 @@ jobs:
           python -m pytest -q \
             tests/core/test_settlement.py \
             tests/core/test_settlement_strong_validator.py
+
+      - name: Mounted immutable-state compatibility
+        run: |
+          python -m pytest -q \
+            tests/integration/test_perp_engine.py \
+            tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py \
+            tests/integration/test_tau_state_principal_migration.py \
+            tests/integration/test_zusd_monetary_policy_persistence.py

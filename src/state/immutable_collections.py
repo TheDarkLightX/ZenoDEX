@@ -33,8 +33,9 @@ class FrozenDict(Mapping[Any, Any]):
         source: Mapping[Any, Any] | Iterable[tuple[Any, Any]] = (),
     ) -> None:
         # MappingProxyType is safe only because it wraps this fresh private copy.
-        # The caller never receives the mutable backing dictionary.
-        snapshot = dict(source)
+        # The caller never receives the mutable backing dictionary, and every
+        # nested key/value is recursively detached before admission.
+        snapshot = {deep_freeze(key): deep_freeze(item) for key, item in dict(source).items()}
         object.__setattr__(self, "_data", MappingProxyType(snapshot))
 
     def __setattr__(self, _name: str, _value: object) -> NoReturn:
@@ -84,7 +85,11 @@ class FrozenList(Sequence[Any]):
     _items: tuple[Any, ...]
 
     def __init__(self, source: Iterable[Any] = ()) -> None:
-        object.__setattr__(self, "_items", tuple(source))
+        object.__setattr__(
+            self,
+            "_items",
+            tuple(deep_freeze(item) for item in source),
+        )
 
     @staticmethod
     def _immutable(*_args: object, **_kwargs: object) -> NoReturn:
@@ -158,10 +163,10 @@ def deep_freeze(value: Any) -> Any:
 
     if isinstance(value, (FrozenDict, FrozenList)):
         return value
-    if isinstance(value, dict):
-        return FrozenDict((deep_freeze(key), deep_freeze(item)) for key, item in value.items())
+    if isinstance(value, Mapping):
+        return FrozenDict(value.items())
     if isinstance(value, list):
-        return FrozenList(deep_freeze(item) for item in value)
+        return FrozenList(value)
     if isinstance(value, tuple):
         return tuple(deep_freeze(item) for item in value)
     if isinstance(value, (set, frozenset)):
