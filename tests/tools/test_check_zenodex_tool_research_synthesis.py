@@ -146,8 +146,7 @@ def test_same_shape_result_hash_substitution_rejects() -> None:
 
     assert report["ok"] is False
     assert any(
-        "tool_sources.research_kernel.decision_sha256 must equal the pinned evidence value"
-        in error
+        "tool_sources.research_kernel.decision_sha256 must equal the pinned evidence value" in error
         for error in report["errors"]
     )
 
