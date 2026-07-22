@@ -86,3 +86,15 @@ mod tests {
 
     assert "panic!" not in production
     assert "pub fn total" in production
+
+
+def test_missing_formal_artifact_fails_closed() -> None:
+    manifest = _manifest()
+    zusd = next(
+        surface for surface in manifest["surfaces"] if surface["surface_id"] == "zusd_single_vault"
+    )
+    zusd["formal_artifacts"] = ["formal/does-not-exist.json"]
+
+    errors = validate_manifest(manifest)
+
+    assert any("formal_artifact does not exist" in error for error in errors)

@@ -86,10 +86,16 @@
     {
       "surface_id": "arith",
       "kind": "authority_support",
-      "rust_modules": ["arith"],
-      "rust_entrypoints": ["zenodex_runtime_core::arith::*"],
+      "rust_modules": [
+        "arith"
+      ],
+      "rust_entrypoints": [
+        "zenodex_runtime_core::arith::*"
+      ],
       "python_sources": [],
-      "formal_artifacts": ["docs/runtime/receipts/cbc_runtime_core_kani_v1/"],
+      "formal_artifacts": [
+        "docs/runtime/receipts/cbc_runtime_core_kani_v1/"
+      ],
       "public_testnet_authority": "internal_support",
       "production_strict_authority": "internal_support",
       "cbc_grade": "full",
@@ -102,13 +108,17 @@
     {
       "surface_id": "canonical",
       "kind": "authority_support",
-      "rust_modules": ["canonical"],
+      "rust_modules": [
+        "canonical"
+      ],
       "rust_entrypoints": [
         "zenodex_runtime_core::canonical::encode_uvarint",
         "zenodex_runtime_core::canonical::canonical_json_bytes",
         "zenodex_runtime_core::canonical::hex_to_bytes_fixed"
       ],
-      "python_sources": ["src/state/canonical.py"],
+      "python_sources": [
+        "src/state/canonical.py"
+      ],
       "formal_artifacts": [
         "docs/runtime/receipts/cbc_runtime_core_kani_v1/",
         "docs/runtime/receipts/canonical_hex_pair_decoder_kani_2026_05_31/"
@@ -119,7 +129,11 @@
       "release_status": "blocked",
       "effect_ownership": "not_applicable",
       "atomic_commit": "not_applicable",
-      "value_domains": ["authority_bytes", "state_roots", "receipt_hashes"],
+      "value_domains": [
+        "authority_bytes",
+        "state_roots",
+        "receipt_hashes"
+      ],
       "known_blockers": [
         "RUST-FCIS-PANIC-001",
         "Full Vec/String encoders, SHA-256 wrapper, duplicate-object-key ingress, and complete strict-parser refinement remain outside complete implementation proof."
@@ -128,17 +142,27 @@
     {
       "surface_id": "state_root",
       "kind": "authority_support",
-      "rust_modules": ["state_root"],
-      "rust_entrypoints": ["zenodex_runtime_core::state_root::*"],
-      "python_sources": ["src/state/state_root.py"],
-      "formal_artifacts": ["docs/runtime/receipts/cbc_runtime_core_kani_v1/"],
+      "rust_modules": [
+        "state_root"
+      ],
+      "rust_entrypoints": [
+        "zenodex_runtime_core::state_root::*"
+      ],
+      "python_sources": [
+        "src/state/state_root.py"
+      ],
+      "formal_artifacts": [
+        "docs/runtime/receipts/cbc_runtime_core_kani_v1/"
+      ],
       "public_testnet_authority": "rust_authority_with_python_shadow",
       "production_strict_authority": "python_authority",
       "cbc_grade": "partial",
       "release_status": "blocked",
       "effect_ownership": "not_applicable",
       "atomic_commit": "not_applicable",
-      "value_domains": ["committed_state_identity"],
+      "value_domains": [
+        "committed_state_identity"
+      ],
       "known_blockers": [
         "Full section encoding, duplicate detection, BigUint curve-parameter parsing, and SHA-256 remain differential/property backed."
       ]
@@ -146,36 +170,61 @@
     {
       "surface_id": "replay_guard",
       "kind": "authority_support",
-      "rust_modules": ["replay_guard"],
-      "rust_entrypoints": ["zenodex_runtime_core::replay_guard::admit"],
-      "python_sources": ["src/core/replay_guard.py", "src/state/nonces.py"],
-      "formal_artifacts": ["docs/runtime/receipts/cbc_runtime_core_kani_v1/"],
+      "rust_modules": [
+        "replay_guard"
+      ],
+      "rust_entrypoints": [
+        "zenodex_runtime_core::replay_guard::admit"
+      ],
+      "python_sources": [
+        "src/core/replay_guard.py",
+        "src/state/nonces.py"
+      ],
+      "formal_artifacts": [
+        "docs/runtime/receipts/cbc_runtime_core_kani_v1/"
+      ],
       "public_testnet_authority": "rust_authority_with_python_shadow",
       "production_strict_authority": "python_authority",
       "cbc_grade": "full",
       "release_status": "eligible",
       "effect_ownership": "rust_complete_for_surface",
       "atomic_commit": "not_proved_in_composed_shell",
-      "value_domains": ["nonce_authority", "replay_identity"],
-      "known_blockers": ["RUST-FCIS-PANIC-002", "Composed atomic commit with the value-moving candidate remains unproved."]
+      "value_domains": [
+        "nonce_authority",
+        "replay_identity"
+      ],
+      "known_blockers": [
+        "RUST-FCIS-PANIC-002",
+        "Composed atomic commit with the value-moving candidate remains unproved."
+      ]
     },
     {
       "surface_id": "balances",
       "kind": "value_moving",
-      "rust_modules": ["balance_kernel"],
+      "rust_modules": [
+        "balance_kernel"
+      ],
       "rust_entrypoints": [
         "zenodex_runtime_core::balance_kernel::credit",
         "zenodex_runtime_core::balance_kernel::transfer"
       ],
-      "python_sources": ["src/core/balance_kernel.py", "src/state/balances.py"],
-      "formal_artifacts": ["docs/runtime/receipts/cbc_runtime_core_kani_v1/"],
+      "python_sources": [
+        "src/core/balance_kernel.py",
+        "src/state/balances.py"
+      ],
+      "formal_artifacts": [
+        "docs/runtime/receipts/cbc_runtime_core_kani_v1/"
+      ],
       "public_testnet_authority": "rust_authority_with_python_shadow",
       "production_strict_authority": "python_authority",
       "cbc_grade": "full",
       "release_status": "blocked",
       "effect_ownership": "rust_state_and_receipt_only",
       "atomic_commit": "not_proved_in_composed_shell",
-      "value_domains": ["wallet_balances", "asset_supply"],
+      "value_domains": [
+        "wallet_balances",
+        "asset_supply"
+      ],
       "known_blockers": [
         "RUST-FCIS-PANIC-003",
         "Value-Movement Closure requires Rust-owned composed effects, nonce, receipt, and outbox commitment."
@@ -184,9 +233,15 @@
     {
       "surface_id": "fee_router",
       "kind": "value_moving",
-      "rust_modules": ["fee_router"],
-      "rust_entrypoints": ["zenodex_runtime_core::fee_router::route_fee"],
-      "python_sources": ["src/core/fee_router.py"],
+      "rust_modules": [
+        "fee_router"
+      ],
+      "rust_entrypoints": [
+        "zenodex_runtime_core::fee_router::route_fee"
+      ],
+      "python_sources": [
+        "src/core/fee_router.py"
+      ],
       "formal_artifacts": [
         "src/kernels/dex/protocol_fee_router_4way_dust_core_v1.yaml",
         "docs/runtime/receipts/protocol_fee_router_4way_dust_core_v1/",
@@ -198,34 +253,60 @@
       "release_status": "blocked",
       "effect_ownership": "rust_accumulator_and_receipt",
       "atomic_commit": "not_proved_in_composed_shell",
-      "value_domains": ["protocol_fees", "host_fees", "staker_fees", "reserve", "buyburn"],
-      "known_blockers": ["External claimant settlement and atomic outbox composition remain outside this surface."]
+      "value_domains": [
+        "protocol_fees",
+        "host_fees",
+        "staker_fees",
+        "reserve",
+        "buyburn"
+      ],
+      "known_blockers": [
+        "External claimant settlement and atomic outbox composition remain outside this surface."
+      ]
     },
     {
       "surface_id": "burn_receipts",
       "kind": "value_moving",
-      "rust_modules": ["burn_receipts"],
-      "rust_entrypoints": ["zenodex_runtime_core::burn_receipts::verify_rails"],
-      "python_sources": ["src/core/burn_receipts.py"],
-      "formal_artifacts": ["docs/runtime/receipts/cbc_runtime_core_kani_v1/"],
+      "rust_modules": [
+        "burn_receipts"
+      ],
+      "rust_entrypoints": [
+        "zenodex_runtime_core::burn_receipts::verify_rails"
+      ],
+      "python_sources": [
+        "src/core/burn_receipts.py"
+      ],
+      "formal_artifacts": [
+        "docs/runtime/receipts/cbc_runtime_core_kani_v1/"
+      ],
       "public_testnet_authority": "rust_authority_with_python_shadow",
       "production_strict_authority": "python_authority",
       "cbc_grade": "full",
       "release_status": "blocked",
       "effect_ownership": "python_envelope_rust_rails",
       "atomic_commit": "not_proved_in_composed_shell",
-      "value_domains": ["token_burn", "burn_budget", "supply"],
-      "known_blockers": ["Python still owns receipt-envelope parsing and canonical JSON hashing before the Rust rail tuple."]
+      "value_domains": [
+        "token_burn",
+        "burn_budget",
+        "supply"
+      ],
+      "known_blockers": [
+        "Python still owns receipt-envelope parsing and canonical JSON hashing before the Rust rail tuple."
+      ]
     },
     {
       "surface_id": "cpmm_settlement",
       "kind": "value_moving",
-      "rust_modules": ["cpmm_swap"],
+      "rust_modules": [
+        "cpmm_swap"
+      ],
       "rust_entrypoints": [
         "zenodex_runtime_core::cpmm_swap::swap_exact_in",
         "zenodex_runtime_core::cpmm_swap::swap_exact_out"
       ],
-      "python_sources": ["src/kernels/python/settlement_swap_runtime_v1.py"],
+      "python_sources": [
+        "src/kernels/python/settlement_swap_runtime_v1.py"
+      ],
       "formal_artifacts": [
         "src/kernels/dex/ce_corpus_cpmm_swap.jsonl",
         "docs/runtime/receipts/cbc_runtime_core_kani_v1/"
@@ -236,7 +317,12 @@
       "release_status": "blocked",
       "effect_ownership": "quote_and_pool_successor_only",
       "atomic_commit": "not_proved_in_composed_shell",
-      "value_domains": ["pool_reserves", "swap_inputs", "swap_outputs", "swap_fees"],
+      "value_domains": [
+        "pool_reserves",
+        "swap_inputs",
+        "swap_outputs",
+        "swap_fees"
+      ],
       "known_blockers": [
         "Full live-domain exact-in/exact-out arithmetic and multi-pool orchestration remain outside complete implementation proof.",
         "Rust-owned complete effects and atomic pool/balance commit remain open."
@@ -245,12 +331,19 @@
     {
       "surface_id": "zusd_single_vault",
       "kind": "value_moving",
-      "rust_modules": ["zusd"],
-      "rust_entrypoints": ["zenodex_runtime_core::zusd::step"],
-      "python_sources": ["src/core/zusd.py"],
+      "rust_modules": [
+        "zusd"
+      ],
+      "rust_entrypoints": [
+        "zenodex_runtime_core::zusd::step"
+      ],
+      "python_sources": [
+        "src/core/zusd.py"
+      ],
       "formal_artifacts": [
-        "src/tau_specs/recommended/zusd_liquidation_guard_v3.tau",
-        "src/tau_specs/recommended/zusd_oracle_commit_guard_v3.tau",
+        "src/kernels/dex/zusd_oracle_recovery_lifecycle_v1.yaml",
+        "tools/zusd_liquidation_assurance_manifest.json",
+        "tools/zusd_oracle_commit_assurance_manifest.json",
         "docs/runtime/receipts/cbc_runtime_core_kani_v1/"
       ],
       "public_testnet_authority": "rust_authority_with_python_shadow",
@@ -277,17 +370,30 @@
     {
       "surface_id": "perp_math",
       "kind": "authority_support",
-      "rust_modules": ["perp_math"],
-      "rust_entrypoints": ["zenodex_runtime_core::perp_math::*"],
-      "python_sources": ["src/core/perp_v2/math.py"],
-      "formal_artifacts": ["docs/runtime/receipts/cbc_runtime_core_kani_v1/"],
+      "rust_modules": [
+        "perp_math"
+      ],
+      "rust_entrypoints": [
+        "zenodex_runtime_core::perp_math::*"
+      ],
+      "python_sources": [
+        "src/core/perp_v2/math.py"
+      ],
+      "formal_artifacts": [
+        "docs/runtime/receipts/cbc_runtime_core_kani_v1/"
+      ],
       "public_testnet_authority": "rust_authority_with_python_shadow",
       "production_strict_authority": "python_authority",
       "cbc_grade": "partial",
       "release_status": "blocked",
       "effect_ownership": "not_applicable",
       "atomic_commit": "not_applicable",
-      "value_domains": ["perp_margin", "pnl", "funding", "liquidation_math"],
+      "value_domains": [
+        "perp_margin",
+        "pnl",
+        "funding",
+        "liquidation_math"
+      ],
       "known_blockers": [
         "RUST-FCIS-PANIC-004",
         "Full symbolic live-domain multiplication/division remains differential/property backed."
@@ -314,15 +420,27 @@
         "zenodex_runtime_core::perp_set_market_params::*",
         "zenodex_runtime_core::perp_settle_epoch::*"
       ],
-      "python_sources": ["src/integration/perp_engine.py", "src/core/perp_v2/**"],
-      "formal_artifacts": ["docs/runtime/receipts/cbc_runtime_core_kani_v1/"],
+      "python_sources": [
+        "src/integration/perp_engine.py",
+        "src/core/perp_v2/**"
+      ],
+      "formal_artifacts": [
+        "docs/runtime/receipts/cbc_runtime_core_kani_v1/"
+      ],
       "public_testnet_authority": "rust_shadow",
       "production_strict_authority": "python_authority",
       "cbc_grade": "partial",
       "release_status": "blocked",
       "effect_ownership": "mixed_by_operation",
       "atomic_commit": "not_proved_in_composed_shell",
-      "value_domains": ["perp_collateral", "positions", "pnl", "funding", "liquidation", "fees"],
+      "value_domains": [
+        "perp_collateral",
+        "positions",
+        "pnl",
+        "funding",
+        "liquidation",
+        "fees"
+      ],
       "known_blockers": [
         "Deep account-safety, settlement accumulation, partial-liquidation arithmetic, and complete effect/receipt composition remain partial.",
         "Clearinghouse Oracle-authorization parity remains separately tracked."
@@ -331,8 +449,12 @@
     {
       "surface_id": "error",
       "kind": "authority_support",
-      "rust_modules": ["error"],
-      "rust_entrypoints": ["zenodex_runtime_core::error::*"],
+      "rust_modules": [
+        "error"
+      ],
+      "rust_entrypoints": [
+        "zenodex_runtime_core::error::*"
+      ],
       "python_sources": [],
       "formal_artifacts": [],
       "public_testnet_authority": "internal_support",

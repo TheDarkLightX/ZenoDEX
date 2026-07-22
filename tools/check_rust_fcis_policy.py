@@ -276,6 +276,15 @@ def validate_manifest(manifest: dict[str, Any]) -> list[str]:
             if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
                 errors.append(f"{surface_id}: {field} must be a string list")
 
+        formal_artifacts = surface.get("formal_artifacts")
+        if isinstance(formal_artifacts, list):
+            for artifact in formal_artifacts:
+                if not isinstance(artifact, str) or not artifact:
+                    continue
+                artifact_path = ROOT / artifact
+                if not artifact_path.exists():
+                    errors.append(f"{surface_id}: formal_artifact does not exist: {artifact}")
+
         public_authority = surface.get("public_testnet_authority")
         production_authority = surface.get("production_strict_authority")
         cbc_grade = surface.get("cbc_grade")
