@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: agent/zusd-vault-owner-lifecycle-20260721
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: true
 
       - uses: actions/setup-python@v5
@@ -53,10 +53,9 @@ jobs:
           cp tests/core/test_zusd_vault_ownership.py /tmp/owner-slice/tests/core/
           cp tests/integration/test_zusd_vault_owner_lifecycle.py /tmp/owner-slice/tests/integration/
 
-          git fetch origin agent/zusd-finalized-oracle-authority-20260721
-          test "$(git rev-parse origin/agent/zusd-finalized-oracle-authority-20260721)" = \
-            "56a51be326487037919e1fd09e02724c013a5f31"
-          git reset --hard origin/agent/zusd-finalized-oracle-authority-20260721
+          git fetch --depth 1 origin agent/zusd-finalized-oracle-authority-20260721
+          test "$(git rev-parse FETCH_HEAD)" = "56a51be326487037919e1fd09e02724c013a5f31"
+          git reset --hard FETCH_HEAD
           git clean -fdx
 
           cp /tmp/owner-slice/src/core/zusd_vault_ownership.py src/core/
@@ -167,21 +166,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin agent/zusd-finalized-oracle-authority-20260721
           if test "${{ steps.trigger.outputs.present }}" = "true"; then
             git diff --name-only | sort > /tmp/actual-paths
           else
-            git diff --name-only \
-              origin/agent/zusd-finalized-oracle-authority-20260721...HEAD \
-              | sort > /tmp/actual-paths
+            git fetch --depth 1 origin agent/zusd-finalized-oracle-authority-20260721
+            git diff --name-only FETCH_HEAD...HEAD | sort > /tmp/actual-paths
           fi
-          cat > /tmp/expected-paths <<'EOF'
-          src/core/zusd_vault_ownership.py
-          src/integration/zusd_monetary_bridge.py
-          tests/core/test_zusd_vault_ownership.py
-          tests/integration/test_zusd_vault_owner_lifecycle.py
-          EOF
-          sort -o /tmp/expected-paths /tmp/expected-paths
+          printf '%s\n' \
+            src/core/zusd_vault_ownership.py \
+            src/integration/zusd_monetary_bridge.py \
+            tests/core/test_zusd_vault_ownership.py \
+            tests/integration/test_zusd_vault_owner_lifecycle.py \
+            | sort > /tmp/expected-paths
+          echo "Actual review paths:"
+          cat /tmp/actual-paths
           diff -u /tmp/expected-paths /tmp/actual-paths
           test ! -e .repair-trigger-470
           test ! -e .github/workflows/rebuild-470-clean.yml
