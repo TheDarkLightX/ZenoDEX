@@ -31,6 +31,19 @@ trusted core. They may propose candidates only after the finite candidate domain
 objective, normalization, and tie-break are protocol values, and the sequential
 core can replay the candidate exactly.
 
+## Evidence binding rule
+
+The synthesis ledger is not satisfied by hashes that merely have the right
+length. Its validator pins the exact parent head, tool repositories, tool source
+commits, study commits, pull-request numbers, workflow-run identifiers,
+workflow conclusions, artifact digests, stable result hashes, and ESSO model
+fingerprints used for this result. A same-width SHA or digest substitution is a
+failed evidence check, even when every other field remains structurally valid.
+
+This is still local release evidence rather than a proof supplied by the remote
+tools. Research Kernel, Morph, and ESSO results enter the assurance case only
+through the exact recorded artifacts and the explicit nonclaims below.
+
 ## What each tool was allowed to establish
 
 ### Research Kernel
@@ -180,174 +193,69 @@ SoundFootprint(leftFP, leftTask)
   = execute(rightTask) ∘ execute(leftTask)
 ```
 
-It also formalizes the `x/y` counterexample showing that disjoint writes alone do
-not imply commutation.
+The theorem is abstract. Production promotion requires a concrete extractor for
+every promoted command profile and evidence that actual runtime reads, writes,
+and contextual dependencies are contained in the declared footprint.
 
-The decisive runtime obligation is now explicit:
+## Concrete ZenoDEX consequence
 
-> For every promoted command profile, prove that the concrete footprint extractor
-> satisfies `SoundFootprint` and that every worker computes its patch from the
-> same immutable pre-state and execution-context hash.
+The current `zeno_ledger_conflict_graph_v0` should remain an admission aid. Its
+single `touched_cells` set does not establish the read/write/context relation
+needed by the theorem above.
 
-## Revised deterministic-parallel pipeline
-
-The pipeline should be:
+A promoted footprint value must bind at least:
 
 ```text
-CanonicalCommandBytes
-→ TypedCommand
-→ AuthenticatedCommand
-→ FootprintCertificate
-→ immutable snapshot-bound worker evaluation
-→ complete immutable patch
-→ dynamic trace ⊆ declared footprint check
-→ component-level commutation certificate
-→ canonical join and rejection order
-→ exact sequential differential replay
-→ AtomicCandidate {
-     expected_pre_root,
-     execution_context_hash,
-     algorithm_version,
-     next_state,
-     effects,
-     receipt,
-     nonce_updates,
-     outbox
-   }
-→ linearizable expected-root commit
+command hash
+pre-state root
+execution-context hash
+algorithm version
+policy version
+read cells
+write cells
+context cells
+possible effect kinds
 ```
 
-A task must remain sequential when any of these is true:
-
-- its read, write, or context footprint is unknown;
-- its patch depends on completion order;
-- it uses a non-fixed arithmetic reduction tree;
-- it shares a pool, vault, nonce, claimant, fee accumulator, Oracle lifecycle, or
-  other contextual authority with another task;
-- exact parallel/sequential encoding equality has not been demonstrated.
-
-## Revised research program
-
-### 1. Footprint refinement before value-moving parallelism
-
-Instrument the normative sequential core to record actual reads, writes, and
-context dependencies. For each command profile require:
+The normative sequential core should be instrumented to establish:
 
 ```text
-ActualReadTrace    ⊆ DeclaredReadSet
-ActualWriteTrace   ⊆ DeclaredWriteSet
-ActualContextTrace ⊆ DeclaredContextSet
+ActualReads    ⊆ DeclaredReads
+ActualWrites   ⊆ DeclaredWrites
+ActualContexts ⊆ DeclaredContexts
 ```
 
-Any escape is a test failure and a production fail-closed condition. Then run
-schedule, worker-count, retry, and partition-profile differential replay:
+An escape from any declared set must force conservative global conflict or
+sequential execution.
+
+## Revised engineering order
+
+1. **Source-derived typed authority grammar and concrete round-trip refinement.**
+2. **Sound read/write/context footprints with dynamic trace containment.**
+3. **One atomic state/effect/receipt/nonce/outbox candidate commit.**
+4. **Separate bounded zUSD lifecycle machines and a checked composition rule.**
+5. **Canonical finite matching/flow certificates replayed by the sequential core.**
+
+The complete promotion equality remains:
 
 ```text
-Encode(ParallelStepₚ(S,C,X))
+Encode(ParallelStep(S, C, X))
 =
-Encode(SequentialStep(S,C,X))
+Encode(SequentialStep(S, C, X))
 ```
 
-for rejection, state, effects, roots, receipt, nonce changes, and outbox.
+including acceptance, rejection precedence, successor state, effects, receipt,
+roots, nonces, fee allocation, rounding residue, and outbox entries.
 
-### 2. Atomic candidate storage refinement
+## Explicit nonclaims
 
-The ESSO model should be refined to the actual persistence implementation. The
-proof obligation is stronger than abstract compare-and-swap:
-
-```text
-root mismatch
-→ no state
-→ no nonce
-→ no effect
-→ no receipt
-→ no outbox
-
-root match
-→ all five become durable in one linearization point
-```
-
-Then exercise crashes before, during, and after commit and duplicate/reordered
-outbox delivery.
-
-### 3. zUSD lifecycle decomposition
-
-Follow Morph’s assume-guarantee result. Model separately:
-
-1. canonical redemption traversal and debt-floor handling;
-2. partial Stability Pool offset;
-3. residual debt redistribution;
-4. Recovery Mode bands;
-5. shutdown and terminal settlement;
-6. fee claimant, cancellation, and no-prior-staker custody.
-
-For each slice:
-
-```text
-ESSO bounded model and counterexample search
-→ generated reference transition
-→ differential runtime oracle
-→ Lean conservation/lifecycle theorem
-→ composition theorem
-```
-
-Do not write one large transition first and attempt to prove it afterward.
-
-### 4. Generated typed authority grammars
-
-Treat parser construction as an equivalence/refinement project:
-
-```text
-source grammar
-↔ canonical encoder
-↔ Python parser
-↔ Rust parser
-↔ Tau adapter
-↔ proof guest
-```
-
-Required properties are complete consumption, exact re-encoding, bounded
-resources, stable typed errors, and identical acceptance/rejection across every
-implementation.
-
-### 5. Canonical allocation certificates
-
-For matching, flow, or Walrasian proposals, require:
-
-- a finite complete candidate domain;
-- an exact integer/rational objective;
-- a unique total canonical key;
-- a compact feasibility and optimality certificate;
-- deterministic remainder assignment;
-- replay by the sequential economic core.
-
-The deterministic-NC matching result can improve candidate construction, but it
-does not replace any of these consensus obligations.
-
-## Tool and licensing boundary
-
-Research Kernel MCP is Apache-2.0 and can be integrated as a research/evidence
-service. Morph and ESSO were accessed from the owner’s private repositories and
-were used through their own exact-head workflows. Their implementations are not
-vendored into ZenoDEX. Only source hashes, result hashes, scoped conclusions, and
-formal obligations are retained here.
-
-## Evidence bindings
-
-The machine-readable companion ledger records:
-
-- exact source and study heads;
-- PR and workflow-run IDs;
-- GitHub artifact digests;
-- Research Kernel decision hash;
-- Morph stable-study hash;
-- ESSO naive and repaired verification fingerprints;
-- explicit nonclaims.
-
-## Final operating thesis
-
-ZenoDEX may promote value-moving parallel execution only when every command has a
-proved sound footprint over one immutable snapshot, the resulting complete
-patches commute and join canonically, exact output bytes equal the normative
-sequential core, and the complete candidate is published at one linearizable
-expected-root commit point.
+- Research Kernel’s supported status is a local promotion decision, not an
+  external mathematical proof.
+- Morph results remain advisory until a ZenoDEX-specific verifier and strict
+  replay establish the claimed relation.
+- ESSO’s result is bounded; it does not prove the production datastore or crash
+  recovery implementation.
+- The Lean result does not prove the current runtime footprint extractor sound.
+- Remaining zUSD redemption, liquidation, redistribution, recovery, and
+  shutdown lifecycles are not closed.
+- Arbitrary value-moving parallel execution is not promoted.
