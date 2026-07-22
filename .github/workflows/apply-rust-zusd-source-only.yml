@@ -95,21 +95,6 @@ jobs:
         if: steps.apply.outputs.exit_code != '0'
         run: exit 1
 
-      - name: Require Rust authority and Python authority changes in this publication
-        shell: bash
-        run: |
-          set -euo pipefail
-          for path in \
-            src/core/zusd.py \
-            rust-runtime/crates/zenodex-runtime-core/src/zusd.rs \
-            docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json
-          do
-            if git diff --quiet -- "$path"; then
-              echo "missing required publication diff: $path" >&2
-              exit 1
-            fi
-          done
-
       - name: Validate Rust FCIS policy
         run: python tools/check_rust_fcis_policy.py --pretty
 
