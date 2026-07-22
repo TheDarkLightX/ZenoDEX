@@ -1,0 +1,176 @@
+name: fix-473-formal-artifacts
+
+on:
+  push:
+    branches:
+      - agent/rust-fcis-policy-inventory-20260722
+    paths:
+      - ".github/workflows/fix-473-formal-artifacts.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-473-formal-artifacts
+  cancel-in-progress: false
+
+jobs:
+  patch-test-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/rust-fcis-policy-inventory-20260722
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Pin existing zUSD evidence and validate every formal path
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+
+          inventory_path = Path("docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json")
+          manifest = json.loads(inventory_path.read_text(encoding="utf-8"))
+          zusd = next(
+              surface
+              for surface in manifest["surfaces"]
+              if surface["surface_id"] == "zusd_single_vault"
+          )
+          zusd["formal_artifacts"] = [
+              "src/kernels/dex/zusd_oracle_recovery_lifecycle_v1.yaml",
+              "tools/zusd_liquidation_assurance_manifest.json",
+              "tools/zusd_oracle_commit_assurance_manifest.json",
+              "docs/runtime/receipts/cbc_runtime_core_kani_v1/",
+          ]
+          inventory_path.write_text(
+              json.dumps(manifest, indent=2, ensure_ascii=True) + "\n",
+              encoding="utf-8",
+          )
+
+          checker_path = Path("tools/check_rust_fcis_policy.py")
+          text = checker_path.read_text(encoding="utf-8")
+          needle = '''        for field in (
+              "rust_entrypoints",
+              "python_sources",
+              "formal_artifacts",
+              "value_domains",
+              "known_blockers",
+          ):
+              value = surface.get(field)
+              if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                  errors.append(f"{surface_id}: {field} must be a string list")
+
+          public_authority = surface.get("public_testnet_authority")
+          '''
+          replacement = '''        for field in (
+              "rust_entrypoints",
+              "python_sources",
+              "formal_artifacts",
+              "value_domains",
+              "known_blockers",
+          ):
+              value = surface.get(field)
+              if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                  errors.append(f"{surface_id}: {field} must be a string list")
+
+          formal_artifacts = surface.get("formal_artifacts")
+          if isinstance(formal_artifacts, list):
+              for artifact in formal_artifacts:
+                  if not isinstance(artifact, str) or not artifact:
+                      continue
+                  artifact_path = ROOT / artifact
+                  if not artifact_path.exists():
+                      errors.append(
+                          f"{surface_id}: formal_artifact does not exist: {artifact}"
+                      )
+
+          public_authority = surface.get("public_testnet_authority")
+          '''
+          if text.count(needle) != 1:
+              raise SystemExit(f"checker insertion preimage count={text.count(needle)}")
+          checker_path.write_text(text.replace(needle, replacement, 1), encoding="utf-8")
+
+          tests_path = Path("tests/tools/test_check_rust_fcis_policy.py")
+          text = tests_path.read_text(encoding="utf-8")
+          marker = "def test_missing_formal_artifact_fails_closed()"
+          if marker in text:
+              raise SystemExit("formal-artifact witness already exists")
+          text += '''
+
+          def test_missing_formal_artifact_fails_closed() -> None:
+              manifest = _manifest()
+              zusd = next(
+                  surface
+                  for surface in manifest["surfaces"]
+                  if surface["surface_id"] == "zusd_single_vault"
+              )
+              zusd["formal_artifacts"] = ["formal/does-not-exist.json"]
+
+              errors = validate_manifest(manifest)
+
+              assert any("formal_artifact does not exist" in error for error in errors)
+          '''
+          tests_path.write_text(text, encoding="utf-8")
+
+          workflow_path = Path(".github/workflows/rust-fcis-policy.yml")
+          text = workflow_path.read_text(encoding="utf-8")
+          needle = '''      - "src/integration/perp_engine.py"
+              - "config/deploy/**"
+          '''
+          replacement = '''      - "src/integration/perp_engine.py"
+              - "src/kernels/**"
+              - "src/tau_specs/**"
+              - "formal/**"
+              - "zk/**"
+              - "tools/*assurance_manifest.json"
+              - "docs/runtime/receipts/**"
+              - "config/deploy/**"
+          '''
+          if text.count(needle) != 2:
+              raise SystemExit(f"workflow filter preimage count={text.count(needle)}")
+          workflow_path.write_text(text.replace(needle, replacement), encoding="utf-8")
+          PY
+
+          python -m ruff check --fix \
+            tools/check_rust_fcis_policy.py \
+            tests/tools/test_check_rust_fcis_policy.py
+          python -m ruff format \
+            tools/check_rust_fcis_policy.py \
+            tests/tools/test_check_rust_fcis_policy.py
+
+      - name: Validate the strengthened policy
+        run: |
+          python -m py_compile tools/check_rust_fcis_policy.py
+          python tools/check_rust_fcis_policy.py --pretty
+          python -m pytest -q tests/tools/test_check_rust_fcis_policy.py
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          yaml.safe_load(Path(".github/workflows/rust-fcis-policy.yml").read_text())
+          PY
+          git diff --check
+
+      - name: Publish normal source changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/fix-473-formal-artifacts.yml
+          git add \
+            .github/workflows/rust-fcis-policy.yml \
+            docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json \
+            tools/check_rust_fcis_policy.py \
+            tests/tools/test_check_rust_fcis_policy.py
+          git add -u .github/workflows/fix-473-formal-artifacts.yml
+          git commit -m "fix(rust): bind FCIS inventory to existing formal evidence"
+          git push origin HEAD:agent/rust-fcis-policy-inventory-20260722
