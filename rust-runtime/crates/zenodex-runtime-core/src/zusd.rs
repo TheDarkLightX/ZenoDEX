@@ -20,6 +20,7 @@ pub const E8: u128 = 100_000_000;
 pub const BPS_SCALE: u128 = 10_000;
 /// Authority bound (`10**30`); every stored amount must be `<= MAX_AMOUNT_E8`.
 pub const MAX_AMOUNT_E8: u128 = 1_000_000_000_000_000_000_000_000_000_000;
+const _: () = assert!(MAX_AMOUNT_E8 <= u128::MAX / 3);
 
 const STATE_LABEL: &str = "zusd_state";
 const RECEIPT_LABEL: &str = "zusd_receipt";
@@ -342,7 +343,7 @@ fn risky_ops_allowed(state: &ZusdState) -> bool {
     !in_recovery_mode(state)
 }
 
-/// Mirrors `zusd.check_invariants`; returns the list of failed codes.
+/// Hard accounting and representation invariants.
 pub fn check_invariants(state: &ZusdState) -> Vec<&'static str> {
     let mut failed = Vec::new();
     if state.oracle_last_update_epoch > state.now_epoch {
@@ -367,17 +368,36 @@ pub fn check_invariants(state: &ZusdState) -> Vec<&'static str> {
     if state.free_debt_e8 + state.sp_debt_e8 != state.debt_e8 {
         failed.push("inv_supply_conservation");
     }
+    if state.debt_e8 > state.max_debt_supply_e8 {
+        failed.push("inv_total_debt_cap");
+    }
     if !debt_floor_ok(state.debt_e8, state.min_debt_open_e8) {
         failed.push("inv_debt_floor");
     }
-    let sys_coll = state.collateral_e8 + state.sp_coll_e8 + state.protocol_collateral_e8;
-    let price_for_solvency = if state.price_e8 > 0 {
-        state.price_e8
-    } else {
-        E8
-    };
-    if !solvent_at_price(sys_coll, state.debt_e8, price_for_solvency) {
-        failed.push("inv_system_no_bad_debt");
+    failed
+}
+
+/// Finalized-price health facts. Distress remains representable state.
+pub fn check_health_conditions(state: &ZusdState) -> Vec<&'static str> {
+    let mut failed = Vec::new();
+    if !state.oracle_seen || state.price_e8 == 0 {
+        return failed;
+    }
+    if state.debt_e8 > 0
+        && !mcr_ok(
+            state.collateral_e8,
+            state.debt_e8,
+            state.price_e8,
+            state.mcr_bps,
+        )
+    {
+        failed.push("health_vault_below_mcr");
+    }
+    // Each term is structurally bounded by MAX_AMOUNT_E8. The compile-time
+    // assertion above proves this exact sum fits u128 without saturation.
+    let system_collateral = state.collateral_e8 + state.sp_coll_e8 + state.protocol_collateral_e8;
+    if !solvent_at_price(system_collateral, state.debt_e8, state.price_e8) {
+        failed.push("health_system_bad_debt");
     }
     failed
 }
@@ -422,6 +442,9 @@ fn validate_state_shape(state: &ZusdState) -> Result<(), &'static str> {
         || state.redemption_fee_max_bps > BPS_SCALE
         || state.liquidation_gas_comp_bps > BPS_SCALE
     {
+        return Err(REJ_INVARIANT_VIOLATION);
+    }
+    if !check_invariants(state).is_empty() {
         return Err(REJ_INVARIANT_VIOLATION);
     }
     Ok(())
@@ -521,13 +544,13 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
             if !auth_ok {
                 return Err("commit_requires_auth");
             }
-            if !mcr_ok(
-                state.collateral_e8,
-                state.debt_e8,
-                state.price_pending_e8,
-                state.mcr_bps,
+            if !is_oracle_fresh(
+                state.now_epoch,
+                state.oracle_last_update_epoch,
+                state.max_oracle_staleness_epochs,
+                state.oracle_seen,
             ) {
-                return Err("commit_below_mcr");
+                return Err("commit_stale_oracle_context");
             }
             let ns = ZusdState {
                 price_e8: state.price_pending_e8,
@@ -591,7 +614,7 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
             if new_debt_big > bu(state.max_debt_e8) {
                 return Err("mint_exceeds_max_debt");
             }
-            if bu(state.free_debt_e8) + &debt_delta_big > bu(state.max_debt_supply_e8) {
+            if new_debt_big > bu(state.max_debt_supply_e8) {
                 return Err("mint_exceeds_max_supply");
             }
             let new_debt = to_u128(&new_debt_big)?;
@@ -745,8 +768,19 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
         }
 
         ZusdCommand::Liquidate => {
-            if !state.oracle_seen || state.price_pending_e8 == 0 {
+            if !state.oracle_seen || state.price_e8 == 0 {
                 return Err("liquidate_oracle_uninitialized");
+            }
+            if state.price_pending_e8 != state.price_e8 {
+                return Err("liquidate_pending_mismatch");
+            }
+            if !is_oracle_fresh(
+                state.now_epoch,
+                state.oracle_last_update_epoch,
+                state.max_oracle_staleness_epochs,
+                state.oracle_seen,
+            ) {
+                return Err("liquidate_stale_oracle");
             }
             if state.debt_e8 == 0 {
                 return Err("liquidate_no_debt");
@@ -754,7 +788,7 @@ pub fn step(state: &ZusdState, cmd: &ZusdCommand) -> Result<ZusdAccepted, &'stat
             if mcr_ok(
                 state.collateral_e8,
                 state.debt_e8,
-                state.price_pending_e8,
+                state.price_e8,
                 state.mcr_bps,
             ) {
                 return Err("liquidate_not_under_mcr");
@@ -973,6 +1007,161 @@ mod tests {
         .unwrap()
         .state;
         assert_ne!(before, after.state_root());
+    }
+
+    fn cap_state() -> ZusdState {
+        ZusdState {
+            oracle_seen: true,
+            price_e8: 100 * E8,
+            price_pending_e8: 100 * E8,
+            collateral_e8: 100 * E8,
+            debt_e8: 1_400 * E8,
+            free_debt_e8: 100 * E8,
+            sp_debt_e8: 1_300 * E8,
+            max_debt_e8: 1_500 * E8,
+            max_debt_supply_e8: 1_500 * E8,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn mint_accepts_exact_total_debt_cap() {
+        let accepted = step(
+            &cap_state(),
+            &ZusdCommand::MintZusd {
+                amount_e8: amt(&(100 * E8).to_string()),
+            },
+        )
+        .unwrap();
+        assert_eq!(accepted.state.debt_e8, 1_500 * E8);
+        assert_eq!(accepted.state.free_debt_e8, 200 * E8);
+        assert_eq!(accepted.state.sp_debt_e8, 1_300 * E8);
+        assert!(check_invariants(&accepted.state).is_empty());
+    }
+
+    #[test]
+    fn mint_above_shared_vault_and_supply_cap_rejects() {
+        assert_eq!(
+            step(
+                &cap_state(),
+                &ZusdCommand::MintZusd {
+                    amount_e8: amt(&(101 * E8).to_string()),
+                },
+            ),
+            Err("mint_exceeds_max_debt")
+        );
+    }
+
+    #[test]
+    fn forged_total_debt_above_cap_is_invalid_state() {
+        let forged = ZusdState {
+            oracle_seen: true,
+            price_e8: 100 * E8,
+            price_pending_e8: 100 * E8,
+            collateral_e8: 100 * E8,
+            debt_e8: 1_600 * E8,
+            free_debt_e8: 300 * E8,
+            sp_debt_e8: 1_300 * E8,
+            max_debt_e8: 1_500 * E8,
+            max_debt_supply_e8: 1_500 * E8,
+            ..Default::default()
+        };
+        assert!(check_invariants(&forged).contains(&"inv_total_debt_cap"));
+        assert_eq!(
+            step(
+                &forged,
+                &ZusdCommand::DepositCollateral {
+                    amount_e8: amt("1"),
+                },
+            ),
+            Err(REJ_INVARIANT_VIOLATION)
+        );
+    }
+
+    fn pending_distress() -> ZusdState {
+        let state = bootstrap(&ZusdState::default(), &(100 * E8).to_string());
+        let state = step(
+            &state,
+            &ZusdCommand::DepositCollateral {
+                amount_e8: amt(&(2 * E8).to_string()),
+            },
+        )
+        .unwrap()
+        .state;
+        let state = step(
+            &state,
+            &ZusdCommand::MintZusd {
+                amount_e8: amt(&(150 * E8).to_string()),
+            },
+        )
+        .unwrap()
+        .state;
+        let state = step(
+            &state,
+            &ZusdCommand::DepositSp {
+                amount_e8: amt(&(150 * E8).to_string()),
+            },
+        )
+        .unwrap()
+        .state;
+        step(
+            &state,
+            &ZusdCommand::OracleReport {
+                auth_ok: true,
+                price_e8: amt(&(70 * E8).to_string()),
+            },
+        )
+        .unwrap()
+        .state
+    }
+
+    #[test]
+    fn pending_price_cannot_liquidate_before_finalization() {
+        assert_eq!(
+            step(&pending_distress(), &ZusdCommand::Liquidate),
+            Err("liquidate_pending_mismatch")
+        );
+    }
+
+    #[test]
+    fn adverse_price_finalizes_then_authorizes_liquidation() {
+        let finalized = step(
+            &pending_distress(),
+            &ZusdCommand::OracleCommit { auth_ok: true },
+        )
+        .unwrap()
+        .state;
+        assert_eq!(finalized.price_e8, 70 * E8);
+        assert!(check_invariants(&finalized).is_empty());
+        let health = check_health_conditions(&finalized);
+        assert!(health.contains(&"health_vault_below_mcr"));
+        assert!(health.contains(&"health_system_bad_debt"));
+
+        let liquidated = step(&finalized, &ZusdCommand::Liquidate).unwrap();
+        assert_eq!(liquidated.state.debt_e8, 0);
+        assert_eq!(liquidated.state.collateral_e8, 0);
+    }
+
+    #[test]
+    fn stale_finalized_price_cannot_liquidate() {
+        let finalized = step(
+            &pending_distress(),
+            &ZusdCommand::OracleCommit { auth_ok: true },
+        )
+        .unwrap()
+        .state;
+        let stale = step(
+            &finalized,
+            &ZusdCommand::AdvanceEpoch {
+                delta: amt(&(finalized.max_oracle_staleness_epochs + 1).to_string()),
+            },
+        )
+        .unwrap()
+        .state;
+        assert_eq!(
+            step(&stale, &ZusdCommand::Liquidate),
+            Err("liquidate_stale_oracle")
+        );
     }
 }
 

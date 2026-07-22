@@ -47,7 +47,9 @@ def _require_pos_int(v: Any, *, name: str) -> int:
     return int(v)
 
 
-def _is_oracle_fresh(*, now_epoch: int, last_update_epoch: int, max_staleness_epochs: int, oracle_seen: bool) -> bool:
+def _is_oracle_fresh(
+    *, now_epoch: int, last_update_epoch: int, max_staleness_epochs: int, oracle_seen: bool
+) -> bool:
     if not oracle_seen:
         return False
     if max_staleness_epochs < 0:
@@ -103,7 +105,9 @@ def _mul_div_up(a: int, b: int, den: int) -> int:
     return ((a * b) + den - 1) // den
 
 
-def _decayed_base_rate_bps(*, base_rate_bps: int, now_epoch: int, last_epoch: int, decay_per_epoch_bps: int) -> int:
+def _decayed_base_rate_bps(
+    *, base_rate_bps: int, now_epoch: int, last_epoch: int, decay_per_epoch_bps: int
+) -> int:
     if now_epoch < last_epoch:
         raise ValueError("base-rate last epoch cannot be in the future")
     elapsed = now_epoch - last_epoch
@@ -207,7 +211,11 @@ class ZUSDState:
             if self.price_pending_e8 > self.price_e8:
                 raise ValueError("require price_pending_e8 <= price_e8")
         else:
-            if self.price_e8 != 0 or self.price_pending_e8 != 0 or self.oracle_last_update_epoch != 0:
+            if (
+                self.price_e8 != 0
+                or self.price_pending_e8 != 0
+                or self.oracle_last_update_epoch != 0
+            ):
                 raise ValueError("oracle-not-seen state must be zeroed")
         if not (0 < self.mcr_bps <= self.ccr_bps):
             raise ValueError("require 0 < mcr_bps <= ccr_bps")
@@ -290,7 +298,7 @@ _ERROR_CODE = {
     "oracle_report requires auth_ok=true": "report_requires_auth",
     "oracle_report requires non-increasing pending price": "report_price_not_non_increasing",
     "oracle_commit requires auth_ok=true": "commit_requires_auth",
-    "oracle_commit blocked: vault below MCR at pending price": "commit_below_mcr",
+    "oracle_commit blocked by stale oracle context": "commit_stale_oracle_context",
     "insufficient collateral": "insufficient_collateral",
     "withdraw blocked by oracle freeze/staleness/recovery mode": "withdraw_blocked_oracle",
     "withdraw would violate MCR": "withdraw_violates_mcr",
@@ -318,9 +326,11 @@ _ERROR_CODE = {
     "protocol collateral cap exceeded": "redeem_protocol_cap_exceeded",
     "redemption would leave debt below min_debt_open_e8": "redeem_below_min_debt",
     "redemption would violate MCR": "redeem_violates_mcr",
-    "liquidation requires initialized pending oracle price": "liquidate_oracle_uninitialized",
+    "liquidation requires initialized finalized oracle price": "liquidate_oracle_uninitialized",
+    "liquidation blocked by oracle pending mismatch": "liquidate_pending_mismatch",
+    "liquidation blocked by stale finalized oracle": "liquidate_stale_oracle",
     "no debt to liquidate": "liquidate_no_debt",
-    "vault not under MCR at pending price": "liquidate_not_under_mcr",
+    "vault not under MCR at finalized price": "liquidate_not_under_mcr",
     "stability pool cannot absorb debt": "liquidate_sp_cannot_absorb",
     "stability pool collateral cap exceeded": "liquidate_sp_cap_exceeded",
 }
@@ -380,7 +390,9 @@ def _state_from_doc(doc: Mapping[str, Any]) -> ZUSDState:
     return ZUSDState(**kwargs)
 
 
-def _result_to_authority_doc(state: ZUSDState, cmd: ZUSDCommand, result: ZUSDStepResult) -> dict[str, Any]:
+def _result_to_authority_doc(
+    state: ZUSDState, cmd: ZUSDCommand, result: ZUSDStepResult
+) -> dict[str, Any]:
     pre_root = _state_root(state)
     if result.ok:
         if result.state is None:
@@ -395,7 +407,10 @@ def _result_to_authority_doc(state: ZUSDState, cmd: ZUSDCommand, result: ZUSDSte
             "receipt": {"tag": str(cmd.tag)},
             "pre_state_root": pre_root,
             "post_state_root": post_root,
-            "post_state": {k: (str(v) if k != "oracle_seen" else v) for k, v in _state_json(result.state).items()},
+            "post_state": {
+                k: (str(v) if k != "oracle_seen" else v)
+                for k, v in _state_json(result.state).items()
+            },
         }
     return {
         "version": 1,
@@ -406,7 +421,9 @@ def _result_to_authority_doc(state: ZUSDState, cmd: ZUSDCommand, result: ZUSDSte
         "receipt": None,
         "pre_state_root": pre_root,
         "post_state_root": pre_root,
-        "post_state": {k: (str(v) if k != "oracle_seen" else v) for k, v in _state_json(state).items()},
+        "post_state": {
+            k: (str(v) if k != "oracle_seen" else v) for k, v in _state_json(state).items()
+        },
     }
 
 
@@ -428,7 +445,9 @@ def _authority_docs_agree(left: dict[str, Any], right: dict[str, Any]) -> bool:
     return True
 
 
-def _authority_doc_to_result(doc: dict[str, Any], *, python_shadow: ZUSDStepResult | None = None) -> ZUSDStepResult:
+def _authority_doc_to_result(
+    doc: dict[str, Any], *, python_shadow: ZUSDStepResult | None = None
+) -> ZUSDStepResult:
     if bool(doc.get("accept")):
         state_doc = doc.get("post_state")
         if not isinstance(state_doc, Mapping):
@@ -462,23 +481,48 @@ def in_recovery_mode(state: ZUSDState) -> bool:
 
 
 def check_invariants(state: ZUSDState) -> list[str]:
+    """Return hard accounting and representation invariant failures."""
+
     failed: list[str] = []
     if state.oracle_seen and (state.price_e8 <= 0 or state.price_pending_e8 <= 0):
         failed.append("inv_oracle_seen_positive_prices")
     if state.oracle_seen and state.price_pending_e8 > state.price_e8:
         failed.append("inv_pending_le_active")
-    if not state.oracle_seen and (state.price_e8 != 0 or state.price_pending_e8 != 0 or state.oracle_last_update_epoch != 0):
+    if not state.oracle_seen and (
+        state.price_e8 != 0 or state.price_pending_e8 != 0 or state.oracle_last_update_epoch != 0
+    ):
         failed.append("inv_oracle_unseen_zeroed")
     if (state.free_debt_e8 + state.sp_debt_e8) != state.debt_e8:
         failed.append("inv_supply_conservation")
-    if not _debt_floor_ok(debt_e8=state.debt_e8, min_debt_open_e8=state.min_debt_open_e8):
-        failed.append("inv_debt_floor")
-    if not _solvent_at_price(
-        collateral_e8=state.collateral_e8 + state.sp_coll_e8 + state.protocol_collateral_e8,
+    if state.debt_e8 > state.max_debt_supply_e8:
+        failed.append("inv_total_debt_cap")
+    if not _debt_floor_ok(
         debt_e8=state.debt_e8,
-        price_e8=state.price_e8 if state.price_e8 > 0 else E8,
+        min_debt_open_e8=state.min_debt_open_e8,
     ):
-        failed.append("inv_system_no_bad_debt")
+        failed.append("inv_debt_floor")
+    return failed
+
+
+def check_health_conditions(state: ZUSDState) -> list[str]:
+    """Return finalized-price health facts without rejecting representable state."""
+
+    failed: list[str] = []
+    if not state.oracle_seen or state.price_e8 <= 0:
+        return failed
+    if state.debt_e8 > 0 and not _mcr_ok(
+        collateral_e8=state.collateral_e8,
+        debt_e8=state.debt_e8,
+        price_e8=state.price_e8,
+        mcr_bps=state.mcr_bps,
+    ):
+        failed.append("health_vault_below_mcr")
+    if not _solvent_at_price(
+        collateral_e8=(state.collateral_e8 + state.sp_coll_e8 + state.protocol_collateral_e8),
+        debt_e8=state.debt_e8,
+        price_e8=state.price_e8,
+    ):
+        failed.append("health_system_bad_debt")
     return failed
 
 
@@ -505,7 +549,9 @@ _ZUSDHandlerResult = object  # tuple[ZUSDState, dict] on success, or ZUSDStepRes
 
 def _zusd_h_advance_epoch(state: ZUSDState, cmd: ZUSDCommand):
     delta = _require_pos_int(cmd.args.get("delta"), name="delta")
-    ns = ZUSDState(**{**state.__dict__, "now_epoch": _bounded_add(state.now_epoch, delta, name="now_epoch")})
+    ns = ZUSDState(
+        **{**state.__dict__, "now_epoch": _bounded_add(state.now_epoch, delta, name="now_epoch")}
+    )
     return ns, {"event": "epoch_advanced", "delta": delta}
 
 
@@ -544,14 +590,16 @@ def _zusd_h_oracle_commit(state: ZUSDState, cmd: ZUSDCommand):
         return ZUSDStepResult(ok=False, error="oracle not bootstrapped")
     if not bool(cmd.args.get("auth_ok", False)):
         return ZUSDStepResult(ok=False, error="oracle_commit requires auth_ok=true")
-    # Commit only when vault remains above MCR at pending price.
-    if not _mcr_ok(
-        collateral_e8=state.collateral_e8,
-        debt_e8=state.debt_e8,
-        price_e8=state.price_pending_e8,
-        mcr_bps=state.mcr_bps,
+    if not _is_oracle_fresh(
+        now_epoch=state.now_epoch,
+        last_update_epoch=state.oracle_last_update_epoch,
+        max_staleness_epochs=state.max_oracle_staleness_epochs,
+        oracle_seen=state.oracle_seen,
     ):
-        return ZUSDStepResult(ok=False, error="oracle_commit blocked: vault below MCR at pending price")
+        return ZUSDStepResult(
+            ok=False,
+            error="oracle_commit blocked by stale oracle context",
+        )
     ns = ZUSDState(
         **{
             **state.__dict__,
@@ -564,7 +612,12 @@ def _zusd_h_oracle_commit(state: ZUSDState, cmd: ZUSDCommand):
 
 def _zusd_h_deposit_collateral(state: ZUSDState, cmd: ZUSDCommand):
     amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
-    ns = ZUSDState(**{**state.__dict__, "collateral_e8": _bounded_add(state.collateral_e8, amt, name="collateral_e8")})
+    ns = ZUSDState(
+        **{
+            **state.__dict__,
+            "collateral_e8": _bounded_add(state.collateral_e8, amt, name="collateral_e8"),
+        }
+    )
     return ns, {"event": "collateral_deposited", "amount_e8": amt}
 
 
@@ -573,7 +626,9 @@ def _zusd_h_withdraw_collateral(state: ZUSDState, cmd: ZUSDCommand):
     if amt > state.collateral_e8:
         return ZUSDStepResult(ok=False, error="insufficient collateral")
     if state.debt_e8 > 0 and not _risky_ops_allowed(state):
-        return ZUSDStepResult(ok=False, error="withdraw blocked by oracle freeze/staleness/recovery mode")
+        return ZUSDStepResult(
+            ok=False, error="withdraw blocked by oracle freeze/staleness/recovery mode"
+        )
     post_coll = state.collateral_e8 - amt
     if not _mcr_ok(
         collateral_e8=post_coll,
@@ -589,7 +644,9 @@ def _zusd_h_withdraw_collateral(state: ZUSDState, cmd: ZUSDCommand):
 def _zusd_h_mint_zusd(state: ZUSDState, cmd: ZUSDCommand):
     amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
     if not _risky_ops_allowed(state):
-        return ZUSDStepResult(ok=False, error="mint blocked by oracle freeze/staleness/recovery mode")
+        return ZUSDStepResult(
+            ok=False, error="mint blocked by oracle freeze/staleness/recovery mode"
+        )
     if state.debt_e8 == 0 and amt < state.min_debt_open_e8:
         return ZUSDStepResult(ok=False, error="mint below min_debt_open_e8")
     decayed_base_rate = _decayed_base_rate_bps(
@@ -608,7 +665,7 @@ def _zusd_h_mint_zusd(state: ZUSDState, cmd: ZUSDCommand):
     new_debt = state.debt_e8 + debt_delta
     if new_debt > state.max_debt_e8:
         return ZUSDStepResult(ok=False, error="mint exceeds per-vault max_debt_e8")
-    if (state.free_debt_e8 + debt_delta) > state.max_debt_supply_e8:
+    if new_debt > state.max_debt_supply_e8:
         return ZUSDStepResult(ok=False, error="mint exceeds max_debt_supply_e8")
     if not _mcr_ok(
         collateral_e8=state.collateral_e8,
@@ -676,7 +733,9 @@ def _zusd_h_withdraw_sp(state: ZUSDState, cmd: ZUSDCommand):
     if amt > state.sp_debt_e8:
         return ZUSDStepResult(ok=False, error="withdraw_sp exceeds sp_debt")
     if not _risky_ops_allowed(state):
-        return ZUSDStepResult(ok=False, error="withdraw_sp blocked by oracle freeze/staleness/recovery mode")
+        return ZUSDStepResult(
+            ok=False, error="withdraw_sp blocked by oracle freeze/staleness/recovery mode"
+        )
     if not _mcr_ok(
         collateral_e8=state.collateral_e8,
         debt_e8=state.debt_e8,
@@ -770,23 +829,44 @@ def _zusd_h_redeem_zusd(state: ZUSDState, cmd: ZUSDCommand):
 
 
 def _zusd_h_liquidate(state: ZUSDState, cmd: ZUSDCommand):
-    if not state.oracle_seen or state.price_pending_e8 <= 0:
-        return ZUSDStepResult(ok=False, error="liquidation requires initialized pending oracle price")
+    if not state.oracle_seen or state.price_e8 <= 0:
+        return ZUSDStepResult(
+            ok=False,
+            error="liquidation requires initialized finalized oracle price",
+        )
+    if state.price_pending_e8 != state.price_e8:
+        return ZUSDStepResult(
+            ok=False,
+            error="liquidation blocked by oracle pending mismatch",
+        )
+    if not _is_oracle_fresh(
+        now_epoch=state.now_epoch,
+        last_update_epoch=state.oracle_last_update_epoch,
+        max_staleness_epochs=state.max_oracle_staleness_epochs,
+        oracle_seen=state.oracle_seen,
+    ):
+        return ZUSDStepResult(
+            ok=False,
+            error="liquidation blocked by stale finalized oracle",
+        )
     if state.debt_e8 <= 0:
         return ZUSDStepResult(ok=False, error="no debt to liquidate")
-    under_mcr = not _mcr_ok(
+    if _mcr_ok(
         collateral_e8=state.collateral_e8,
         debt_e8=state.debt_e8,
-        price_e8=state.price_pending_e8,
+        price_e8=state.price_e8,
         mcr_bps=state.mcr_bps,
-    )
-    if not under_mcr:
-        return ZUSDStepResult(ok=False, error="vault not under MCR at pending price")
+    ):
+        return ZUSDStepResult(ok=False, error="vault not under MCR at finalized price")
     if state.debt_e8 > state.sp_debt_e8:
         return ZUSDStepResult(ok=False, error="stability pool cannot absorb debt")
     liquidated_debt = state.debt_e8
     liquidated_coll = state.collateral_e8
-    variable_comp = _mul_div_up(liquidated_coll, state.liquidation_gas_comp_bps, BPS_SCALE)
+    variable_comp = _mul_div_up(
+        liquidated_coll,
+        state.liquidation_gas_comp_bps,
+        BPS_SCALE,
+    )
     requested_comp = state.liquidation_gas_comp_fixed_collateral_e8 + variable_comp
     liquidator_comp = min(liquidated_coll, requested_comp)
     sp_collateral_gain = liquidated_coll - liquidator_comp
@@ -986,7 +1066,11 @@ class ZUSDMultiState:
             if self.price_pending_e8 > self.price_e8:
                 raise ValueError("require price_pending_e8 <= price_e8")
         else:
-            if self.price_e8 != 0 or self.price_pending_e8 != 0 or self.oracle_last_update_epoch != 0:
+            if (
+                self.price_e8 != 0
+                or self.price_pending_e8 != 0
+                or self.oracle_last_update_epoch != 0
+            ):
                 raise ValueError("oracle-not-seen state must be zeroed")
         if not (0 < self.mcr_bps <= self.ccr_bps):
             raise ValueError("require 0 < mcr_bps <= ccr_bps")
@@ -1070,7 +1154,9 @@ def check_multi_invariants(state: ZUSDMultiState) -> list[str]:
         failed.append("inv_oracle_seen_positive_prices")
     if state.oracle_seen and state.price_pending_e8 > state.price_e8:
         failed.append("inv_pending_le_active")
-    if not state.oracle_seen and (state.price_e8 != 0 or state.price_pending_e8 != 0 or state.oracle_last_update_epoch != 0):
+    if not state.oracle_seen and (
+        state.price_e8 != 0 or state.price_pending_e8 != 0 or state.oracle_last_update_epoch != 0
+    ):
         failed.append("inv_oracle_unseen_zeroed")
 
     td = _total_debt(state)
@@ -1122,7 +1208,9 @@ def _multi_risky_ops_allowed(state: ZUSDMultiState) -> bool:
 
 def _zusd_mh_advance_epoch(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
     delta = _require_pos_int(cmd.args.get("delta"), name="delta")
-    ns = ZUSDMultiState(**{**state.__dict__, "now_epoch": _bounded_add(state.now_epoch, delta, name="now_epoch")})
+    ns = ZUSDMultiState(
+        **{**state.__dict__, "now_epoch": _bounded_add(state.now_epoch, delta, name="now_epoch")}
+    )
     return ns, {"event": "epoch_advanced", "delta": delta}
 
 
@@ -1151,7 +1239,9 @@ def _zusd_mh_oracle_report(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
         return ZUSDMultiStepResult(ok=False, error="oracle_report requires auth_ok=true")
     p = _require_pos_int(cmd.args.get("price_e8"), name="price_e8")
     if p > state.price_pending_e8:
-        return ZUSDMultiStepResult(ok=False, error="oracle_report requires non-increasing pending price")
+        return ZUSDMultiStepResult(
+            ok=False, error="oracle_report requires non-increasing pending price"
+        )
     ns = ZUSDMultiState(**{**state.__dict__, "price_pending_e8": p})
     return ns, {"event": "oracle_reported", "price_pending_e8": p}
 
@@ -1170,9 +1260,13 @@ def _zusd_mh_oracle_commit(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
         vault_b_debt_e8=state.vault_b.debt_e8,
     )
     if not mcr_pending.vault_a_mcr_ok:
-        return ZUSDMultiStepResult(ok=False, error="oracle_commit blocked: vault a below MCR at pending price")
+        return ZUSDMultiStepResult(
+            ok=False, error="oracle_commit blocked: vault a below MCR at pending price"
+        )
     if not mcr_pending.vault_b_mcr_ok:
-        return ZUSDMultiStepResult(ok=False, error="oracle_commit blocked: vault b below MCR at pending price")
+        return ZUSDMultiStepResult(
+            ok=False, error="oracle_commit blocked: vault b below MCR at pending price"
+        )
     ns = ZUSDMultiState(
         **{
             **state.__dict__,
@@ -1187,7 +1281,10 @@ def _zusd_mh_deposit_collateral(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
     amt = _require_pos_int(cmd.args.get("amount_e8"), name="amount_e8")
     vid = _parse_vault_id(cmd.args)
     v = _get_vault(state, vid)
-    nv = ZUSDVault(collateral_e8=_bounded_add(v.collateral_e8, amt, name="vault.collateral_e8"), debt_e8=v.debt_e8)
+    nv = ZUSDVault(
+        collateral_e8=_bounded_add(v.collateral_e8, amt, name="vault.collateral_e8"),
+        debt_e8=v.debt_e8,
+    )
     ns = _set_vault(state, vid, nv)
     return ns, {"event": "collateral_deposited", "vault": vid, "amount_e8": amt}
 
@@ -1199,7 +1296,9 @@ def _zusd_mh_withdraw_collateral(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
     if amt > v.collateral_e8:
         return ZUSDMultiStepResult(ok=False, error="insufficient collateral")
     if v.debt_e8 > 0 and not _multi_risky_ops_allowed(state):
-        return ZUSDMultiStepResult(ok=False, error="withdraw blocked by oracle freeze/staleness/recovery mode")
+        return ZUSDMultiStepResult(
+            ok=False, error="withdraw blocked by oracle freeze/staleness/recovery mode"
+        )
     new_coll = v.collateral_e8 - amt
     if not _mcr_ok(
         collateral_e8=new_coll,
@@ -1217,7 +1316,9 @@ def _zusd_mh_mint_zusd(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
     vid = _parse_vault_id(cmd.args)
     v = _get_vault(state, vid)
     if not _multi_risky_ops_allowed(state):
-        return ZUSDMultiStepResult(ok=False, error="mint blocked by oracle freeze/staleness/recovery mode")
+        return ZUSDMultiStepResult(
+            ok=False, error="mint blocked by oracle freeze/staleness/recovery mode"
+        )
     if v.debt_e8 == 0 and amt < state.min_debt_open_e8:
         return ZUSDMultiStepResult(ok=False, error="mint below min_debt_open_e8")
     decayed_base_rate = _decayed_base_rate_bps(
@@ -1275,7 +1376,9 @@ def _zusd_mh_repay_zusd(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
         return ZUSDMultiStepResult(ok=False, error="repay exceeds free debt balance")
     post_debt = v.debt_e8 - amt
     if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
-        return ZUSDMultiStepResult(ok=False, error="repay would leave vault debt below min_debt_open_e8")
+        return ZUSDMultiStepResult(
+            ok=False, error="repay would leave vault debt below min_debt_open_e8"
+        )
     ns0 = _set_vault(state, vid, ZUSDVault(collateral_e8=v.collateral_e8, debt_e8=post_debt))
     ns = ZUSDMultiState(**{**ns0.__dict__, "free_debt_e8": state.free_debt_e8 - amt})
     return ns, {"event": "zusd_repaid", "vault": vid, "amount_e8": amt}
@@ -1302,7 +1405,9 @@ def _zusd_mh_withdraw_sp(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
     if amt > state.sp_debt_e8:
         return ZUSDMultiStepResult(ok=False, error="withdraw_sp exceeds sp_debt")
     if not _multi_risky_ops_allowed(state):
-        return ZUSDMultiStepResult(ok=False, error="withdraw_sp blocked by oracle freeze/staleness/recovery mode")
+        return ZUSDMultiStepResult(
+            ok=False, error="withdraw_sp blocked by oracle freeze/staleness/recovery mode"
+        )
     if not _mcr_ok(
         collateral_e8=state.vault_a.collateral_e8,
         debt_e8=state.vault_a.debt_e8,
@@ -1372,7 +1477,9 @@ def _zusd_mh_redeem_zusd(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
         if amt > v.debt_e8:
             return ZUSDMultiStepResult(ok=False, error="redemption exceeds vault debt")
         if gross_collateral_e8 > v.collateral_e8:
-            return ZUSDMultiStepResult(ok=False, error="insufficient vault collateral for redemption")
+            return ZUSDMultiStepResult(
+                ok=False, error="insufficient vault collateral for redemption"
+            )
         post_debt = v.debt_e8 - amt
         post_collateral = v.collateral_e8 - gross_collateral_e8
         if not _mcr_ok(
@@ -1394,7 +1501,9 @@ def _zusd_mh_redeem_zusd(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
             min_debt_open_e8=state.min_debt_open_e8,
         )
         if selection.selected_vault is None:
-            return ZUSDMultiStepResult(ok=False, error="no redeemable vault for amount under policy")
+            return ZUSDMultiStepResult(
+                ok=False, error="no redeemable vault for amount under policy"
+            )
         vid = selection.selected_vault
         if selection.selected_post_collateral_e8 is None or selection.selected_post_debt_e8 is None:
             return ZUSDMultiStepResult(ok=False, error="redeem selection missing post-state")
@@ -1404,7 +1513,9 @@ def _zusd_mh_redeem_zusd(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
         return ZUSDMultiStepResult(ok=False, error="vault must be 'a' or 'b'")
 
     if not _debt_floor_ok(debt_e8=post_debt, min_debt_open_e8=state.min_debt_open_e8):
-        return ZUSDMultiStepResult(ok=False, error="redemption would leave vault debt below min_debt_open_e8")
+        return ZUSDMultiStepResult(
+            ok=False, error="redemption would leave vault debt below min_debt_open_e8"
+        )
 
     collateral_out_e8 = gross_collateral_e8 - redemption_fee_coll_e8
 
@@ -1432,7 +1543,9 @@ def _zusd_mh_redeem_zusd(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
 
 def _zusd_mh_liquidate(state: ZUSDMultiState, cmd: ZUSDMultiCommand):
     if not state.oracle_seen or state.price_pending_e8 <= 0:
-        return ZUSDMultiStepResult(ok=False, error="liquidation requires initialized pending oracle price")
+        return ZUSDMultiStepResult(
+            ok=False, error="liquidation requires initialized pending oracle price"
+        )
     vid = _parse_vault_id(cmd.args)
     v = _get_vault(state, vid)
     if v.debt_e8 <= 0:

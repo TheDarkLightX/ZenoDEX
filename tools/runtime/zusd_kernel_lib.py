@@ -19,7 +19,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.core.zusd import ZUSDCommand, ZUSDState, _step_python as step, init_state
+from src.core.zusd import ZUSDCommand, ZUSDState, init_state
+from src.core.zusd import _step_python as step
 from src.state.canonical import domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex
 
 SCHEMA_VERSION = 1
@@ -94,7 +95,7 @@ _ERROR_CODE = {
     "oracle_report requires auth_ok=true": "report_requires_auth",
     "oracle_report requires non-increasing pending price": "report_price_not_non_increasing",
     "oracle_commit requires auth_ok=true": "commit_requires_auth",
-    "oracle_commit blocked: vault below MCR at pending price": "commit_below_mcr",
+    "oracle_commit blocked by stale oracle context": "commit_stale_oracle_context",
     "insufficient collateral": "insufficient_collateral",
     "withdraw blocked by oracle freeze/staleness/recovery mode": "withdraw_blocked_oracle",
     "withdraw would violate MCR": "withdraw_violates_mcr",
@@ -122,9 +123,11 @@ _ERROR_CODE = {
     "protocol collateral cap exceeded": "redeem_protocol_cap_exceeded",
     "redemption would leave debt below min_debt_open_e8": "redeem_below_min_debt",
     "redemption would violate MCR": "redeem_violates_mcr",
-    "liquidation requires initialized pending oracle price": "liquidate_oracle_uninitialized",
+    "liquidation requires initialized finalized oracle price": "liquidate_oracle_uninitialized",
+    "liquidation blocked by oracle pending mismatch": "liquidate_pending_mismatch",
+    "liquidation blocked by stale finalized oracle": "liquidate_stale_oracle",
     "no debt to liquidate": "liquidate_no_debt",
-    "vault not under MCR at pending price": "liquidate_not_under_mcr",
+    "vault not under MCR at finalized price": "liquidate_not_under_mcr",
     "stability pool cannot absorb debt": "liquidate_sp_cannot_absorb",
     "stability pool collateral cap exceeded": "liquidate_sp_cap_exceeded",
 }
@@ -217,9 +220,17 @@ def smoke_tx_sequence() -> list[dict]:
     redeem, plus disaster paths (auth, MCR, min-debt, oracle freeze, ...)."""
     return [
         {"kind": "mint_zusd", "amount_e8": _MINT},  # mint_blocked_oracle (no oracle)
-        {"kind": "bootstrap_oracle", "auth_ok": False, "price_e8": _PRICE},  # bootstrap_requires_auth
+        {
+            "kind": "bootstrap_oracle",
+            "auth_ok": False,
+            "price_e8": _PRICE,
+        },  # bootstrap_requires_auth
         {"kind": "bootstrap_oracle", "auth_ok": True, "price_e8": _PRICE},  # accept
-        {"kind": "bootstrap_oracle", "auth_ok": True, "price_e8": _PRICE},  # oracle_already_bootstrapped
+        {
+            "kind": "bootstrap_oracle",
+            "auth_ok": True,
+            "price_e8": _PRICE,
+        },  # oracle_already_bootstrapped
         {"kind": "mint_zusd", "amount_e8": _MINT},  # mint_violates_mcr (no collateral)
         {"kind": "deposit_collateral", "amount_e8": _COLL},  # accept
         {"kind": "mint_zusd", "amount_e8": 1},  # mint_below_min_debt
@@ -229,8 +240,16 @@ def smoke_tx_sequence() -> list[dict]:
         {"kind": "withdraw_collateral", "amount_e8": _COLL},  # withdraw_violates_mcr (debt open)
         {"kind": "advance_epoch", "delta": 5},  # accept
         {"kind": "advance_epoch", "delta": 0},  # not_positive_int
-        {"kind": "oracle_report", "auth_ok": True, "price_e8": 90_000_000},  # accept (pending <= active)
-        {"kind": "oracle_report", "auth_ok": True, "price_e8": 200_000_000},  # report_price_not_non_increasing
+        {
+            "kind": "oracle_report",
+            "auth_ok": True,
+            "price_e8": 90_000_000,
+        },  # accept (pending <= active)
+        {
+            "kind": "oracle_report",
+            "auth_ok": True,
+            "price_e8": 200_000_000,
+        },  # report_price_not_non_increasing
         {"kind": "mint_zusd", "amount_e8": _MINT},  # mint_blocked_oracle (pending != active)
         {"kind": "oracle_commit", "auth_ok": True},  # accept (commit pending)
         {"kind": "frobnicate", "amount_e8": 1},  # unknown_action
