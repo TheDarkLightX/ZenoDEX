@@ -790,6 +790,66 @@ auditor, live-wrapper, supervisor, and TEE/operator artifacts. The manifest
 builder recomputes lane hashes and sidecar-relative paths; it does not
 synthesize the external evidence.
 
+### Persistent Authoritative State Performance Milestone
+
+Schedule this as a dedicated future PR after PRs #459 and #460 close
+transitive ownership for committed state, signed commands, and accepted
+effects. Complete it before parallel value-moving execution depends on
+structural sharing for throughput. This is a representation and performance
+refinement. It does not replace the current security closures or raise the
+production posture by itself.
+
+Target owned persistent maps and vectors that path-copy changed nodes and
+share unchanged immutable structure. A persistent balanced map should target
+logarithmic lookup, update, and new-node allocation per changed key. Initial
+conversion and full canonical serialization remain linear in state size
+unless a separately verified incremental-root design is introduced.
+
+Construction rules:
+
+1. Keep authoritative state in the persistent representation across the
+   transition chain. Rebuilding it from ordinary dictionaries at every
+   boundary would retain the current linear-copy cost.
+2. Own every node and nested value. A read-only view over a caller-owned
+   mutable container does not satisfy transitive immutability.
+3. Define canonical iteration and encoding independently of tree shape,
+   insertion history, hash seed, object identity, process, and library
+   implementation details.
+4. Require observable parity with the current sequential reference:
+
+   ~~~text
+   PersistentStepV1(pre_state, commands, execution_context)
+     =
+   SequentialStepV1(pre_state, commands, execution_context)
+   ~~~
+
+   Equality covers acceptance or rejection and precedence, post-state,
+   canonical roots, effects, receipts, nonces, fees, rounding, and residue.
+5. Permit mutable builders only when they are fresh, exclusive, local to one
+   transition, non-escaping, and discarded completely on rejection.
+6. Treat incremental Merkle hashing as a separate refinement boundary. A
+   persistent container alone does not establish an incremental-root proof.
+7. Version migration and canonical representation. Reject mixed-version
+   states unless an exact migration and rollback path is specified and tested.
+
+Required evidence:
+
+- retained-alias, base-class bypass, getter, and nested-value mutation tests;
+- byte-for-byte canonical encoding and state-root parity with the reference;
+- stateful and differential insert, update, delete, retry, reject, migrate,
+  rollback, and replay tests;
+- BVA for empty, singleton, maximum-size, key-order, collision, and
+  pathologically concentrated update cases;
+- benchmarks for construction, lookup, update, iteration, canonical encoding,
+  root computation, memory, and retained historical versions;
+- dependency review covering determinism, license, maintenance, transitive
+  size, version pinning, denial-of-service behavior, and a removal path;
+- Python, Rust, and proof-guest golden vectors where the representation crosses
+  a language or proof boundary.
+
+Promote the representation only when realistic workloads show a measurable
+improvement and all consensus-visible outputs remain identical.
+
 ### Deterministic-By-Construction Parallel Execution Milestone
 
 Position this milestone after committed-state, signed-command, and accepted-
