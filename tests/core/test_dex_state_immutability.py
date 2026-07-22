@@ -149,9 +149,7 @@ def test_snapshot_seal_flags_do_not_enter_dataclass_schemas() -> None:
     assert "_snapshot_sealed" not in asdict(nonce_builder)
     assert "_snapshot_sealed" not in asdict(pool_builder)
     assert "_snapshot_sealed" not in {item.name for item in fields(state.nonces)}
-    assert "_snapshot_sealed" not in {
-        item.name for item in fields(state.pools["pool"])
-    }
+    assert "_snapshot_sealed" not in {item.name for item in fields(state.pools["pool"])}
 
 
 def test_dex_state_rejects_builtin_base_class_mutator_bypass() -> None:
