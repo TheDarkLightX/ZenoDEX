@@ -23,6 +23,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - name: Merge the latest FCIS policy base
+        run: |
+          git fetch origin agent/rust-fcis-policy-inventory-20260722
+          git merge --no-edit origin/agent/rust-fcis-policy-inventory-20260722
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
