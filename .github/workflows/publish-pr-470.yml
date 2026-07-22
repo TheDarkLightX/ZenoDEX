@@ -167,10 +167,31 @@ jobs:
             src/integration/zusd_monetary_bridge.py
 
       - name: Ownership and migration tests
+        id: ownership_tests
+        continue-on-error: true
+        shell: bash
         run: |
+          set -o pipefail
           python -m pytest -vv --tb=long \
+            --junitxml=ownership-migration-junit.xml \
             tests/core/test_zusd_vault_ownership.py \
-            tests/integration/test_zusd_vault_owner_lifecycle.py
+            tests/integration/test_zusd_vault_owner_lifecycle.py \
+            2>&1 | tee ownership-migration.log
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload ownership test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-470-ownership-migration-diagnostics
+          path: |
+            ownership-migration.log
+            ownership-migration-junit.xml
+          if-no-files-found: error
+
+      - name: Enforce ownership and migration tests
+        if: steps.ownership_tests.outputs.exit_code != '0'
+        run: exit 1
 
       - name: zUSD kernel compatibility
         run: |
