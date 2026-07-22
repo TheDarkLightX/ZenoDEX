@@ -91,7 +91,25 @@ jobs:
             tests/runtime/test_zusd_rust_audit_parity.py
 
       - name: Rust format
-        run: cargo fmt --manifest-path rust-runtime/Cargo.toml
+        id: rustfmt
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo fmt --manifest-path rust-runtime/Cargo.toml 2>&1 | tee rustfmt-diagnostics.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Rust format diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-zusd-rustfmt-diagnostics
+          path: rustfmt-diagnostics.txt
+          if-no-files-found: error
+
+      - name: Enforce Rust format result
+        if: steps.rustfmt.outputs.exit_code != '0'
+        run: exit 1
 
       - name: Validate Rust FCIS inventory
         run: python tools/check_rust_fcis_policy.py --pretty
@@ -118,7 +136,7 @@ jobs:
           rm -f .agent/apply_rust_zusd_audit_parity.py
           rmdir .agent 2>/dev/null || true
           rm -f .github/workflows/apply-rust-zusd-audit-parity.yml
-          rm -f transformation-diagnostics.txt ruff-diagnostics.txt
+          rm -f transformation-diagnostics.txt ruff-diagnostics.txt rustfmt-diagnostics.txt
           git add -A
           git commit -m "fix(runtime): align Rust zUSD with audited authority"
           git push origin HEAD:agent/rust-zusd-audit-parity-20260722
