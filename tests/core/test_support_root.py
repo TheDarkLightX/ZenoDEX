@@ -583,7 +583,7 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
         )
 
 
-def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> None:
+def test_compute_support_state_root_rejects_duplicate_and_noncanonical_support_keys() -> None:
     pk = "0x" + "11" * 48
     pool_id = "0x" + "aa" * 32
     asset = "0x" + "01" * 32
@@ -597,10 +597,10 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             balances=balances,
             pools={},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=((pk, asset), (pk.upper().replace("0X", "0x"), asset)), pool_ids=(), lp_keys=(), nonce_keys=()),
+            support=BatchStateSupport(balance_keys=((pk, asset), (pk, asset)), pool_ids=(), lp_keys=(), nonce_keys=()),
         )
 
-    with pytest.raises(ValueError, match="duplicate decoded pool_id"):
+    with pytest.raises(ValueError, match="pool_id must be valid hex"):
         compute_support_state_root(
             balances=BalanceTable(),
             pools={pool_id: _pool(pool_id, asset, "0x" + "02" * 32), pool_id.upper().replace("0X", "0x"): _pool(pool_id.upper().replace("0X", "0x"), asset, "0x" + "02" * 32)},
@@ -613,7 +613,7 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             balances=BalanceTable(),
             pools={},
             lp_balances=lp,
-            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id), (pk.upper().replace("0X", "0x"), pool_id)), nonce_keys=()),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id), (pk, pool_id)), nonce_keys=()),
         )
 
 

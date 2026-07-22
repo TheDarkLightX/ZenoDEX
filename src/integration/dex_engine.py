@@ -134,7 +134,9 @@ def _is_quote_receipt_array(value: object) -> TypeGuard[Sequence[Any]]:
     return isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray))
 
 
-def _validate_and_apply_nonce_batch(*, nonces: NonceTable, intents: list[Intent]) -> tuple[bool, str | None, NonceTable | None]:
+def _validate_and_apply_nonce_batch(
+    *, nonces: NonceTable, intents: list[Intent]
+) -> tuple[bool, str | None, NonceTable | None]:
     return validate_and_apply_intent_nonce_batch(
         nonces=nonces,
         intents=intents,
@@ -184,6 +186,9 @@ class DexEngineConfig:
     # Tau adapter policy: authenticate the original payload, then project BLS
     # identities into the committed-state spelling used by Tau snapshots.
     canonicalize_authenticated_bls_principals: bool = False
+    # Strict profiles require quote receipts as an inner canonical JSON string.
+    # A pre-decoded object cannot prove which byte spelling crossed the boundary.
+    require_canonical_quote_receipt_transport: bool = False
 
     # DoS limits (applied before expensive hashing/signature verification):
     max_intents: int = 256
@@ -199,7 +204,9 @@ class DexEngineConfig:
 
     # Proof policy:
     proof_config: ProofVerifierConfig = ProofVerifierConfig()
-    require_proof_when_present: bool = False  # if True: reject txs with intents unless proof is present
+    require_proof_when_present: bool = (
+        False  # if True: reject txs with intents unless proof is present
+    )
 
     # Signature replay protection:
     # Bind per-intent signatures to a specific chain/network deployment.
@@ -254,11 +261,17 @@ class DexEngineConfig:
     fault_injection: Optional[DexFaultInjectionConfig] = None
 
     def __post_init__(self) -> None:
-        if self.require_settlement_certificate and self.settlement_end_to_end_certificate_inputs is None:
+        if (
+            self.require_settlement_certificate
+            and self.settlement_end_to_end_certificate_inputs is None
+        ):
             raise ValueError(
                 "require_settlement_certificate=True requires settlement_end_to_end_certificate_inputs"
             )
-        if self.require_settlement_end_to_end_certificate and self.settlement_end_to_end_certificate_inputs is None:
+        if (
+            self.require_settlement_end_to_end_certificate
+            and self.settlement_end_to_end_certificate_inputs is None
+        ):
             raise ValueError(
                 "require_settlement_end_to_end_certificate=True requires settlement_end_to_end_certificate_inputs"
             )
@@ -266,7 +279,9 @@ class DexEngineConfig:
         if self.settlement_certificate_proof_flags is not None and not isinstance(
             self.settlement_certificate_proof_flags, SettlementProofFlags
         ):
-            raise TypeError("settlement_certificate_proof_flags must be a SettlementProofFlags instance")
+            raise TypeError(
+                "settlement_certificate_proof_flags must be a SettlementProofFlags instance"
+            )
         if self.settlement_end_to_end_certificate_inputs is not None and not isinstance(
             self.settlement_end_to_end_certificate_inputs, SettlementEndToEndCertificateInputs
         ):
@@ -294,6 +309,8 @@ class DexEngineConfig:
             self.lp_duration_risk_policy, LPDurationRiskPolicy
         ):
             raise TypeError("lp_duration_risk_policy must be an LPDurationRiskPolicy")
+        if type(self.require_canonical_quote_receipt_transport) is not bool:
+            raise TypeError("require_canonical_quote_receipt_transport must be a bool")
         if not isinstance(self.allow_uniform_batch_certificate, bool):
             raise TypeError("allow_uniform_batch_certificate must be a bool")
         if not isinstance(self.require_uniform_batch_certificate_for_supported_swaps, bool):
@@ -310,7 +327,9 @@ class DexEngineConfig:
             or self.require_uniform_batch_v2_bounded_grid_optimality
             or self.require_uniform_batch_v3_exact_out_grid_optimality
         ) and not self.allow_uniform_batch_certificate:
-            raise ValueError("strict UPBA requirements require allow_uniform_batch_certificate=True")
+            raise ValueError(
+                "strict UPBA requirements require allow_uniform_batch_certificate=True"
+            )
 
 
 def make_strict_upba_engine_config(**overrides: Any) -> DexEngineConfig:
@@ -329,6 +348,7 @@ def make_strict_upba_engine_config(**overrides: Any) -> DexEngineConfig:
             "allow_missing_settlement": False,
             "require_settlement_match": True,
             "require_intent_signatures": True,
+            "require_canonical_quote_receipt_transport": True,
             "allow_external_tools": False,
             "consensus_mode": True,
             "allow_uniform_batch_certificate": True,
@@ -348,6 +368,9 @@ def strict_upba_engine_config_facts_v0(config: DexEngineConfig) -> dict[str, Any
         "allow_missing_settlement": config.allow_missing_settlement,
         "require_settlement_match": config.require_settlement_match,
         "require_intent_signatures": config.require_intent_signatures,
+        "require_canonical_quote_receipt_transport": (
+            config.require_canonical_quote_receipt_transport
+        ),
         "allow_external_tools": config.allow_external_tools,
         "consensus_mode": config.consensus_mode,
         "settlement_validation": config.dex_config.settlement_validation,
@@ -381,7 +404,9 @@ class _InjectedFault(RuntimeError):
         self.stage = stage
 
 
-def _hex_to_bytes_allow_0x(hex_str: str, *, name: str, expected_nbytes: Optional[int] = None) -> bytes:
+def _hex_to_bytes_allow_0x(
+    hex_str: str, *, name: str, expected_nbytes: Optional[int] = None
+) -> bytes:
     if not isinstance(hex_str, str):
         raise TypeError(f"{name} must be a string")
     s = hex_str[2:] if hex_str.lower().startswith("0x") else hex_str
@@ -389,11 +414,17 @@ def _hex_to_bytes_allow_0x(hex_str: str, *, name: str, expected_nbytes: Optional
         raise ValueError(f"{name} must be non-empty hex")
 
     if expected_nbytes is not None:
-        if not isinstance(expected_nbytes, int) or isinstance(expected_nbytes, bool) or expected_nbytes <= 0:
+        if (
+            not isinstance(expected_nbytes, int)
+            or isinstance(expected_nbytes, bool)
+            or expected_nbytes <= 0
+        ):
             raise ValueError("expected_nbytes must be a positive int")
         expected_hex_len = 2 * expected_nbytes
         if len(s) != expected_hex_len:
-            raise ValueError(f"{name} must be {expected_nbytes} bytes (hex length {expected_hex_len})")
+            raise ValueError(
+                f"{name} must be {expected_nbytes} bytes (hex length {expected_hex_len})"
+            )
 
     if len(s) % 2 != 0:
         raise ValueError(f"{name} must have an even number of hex chars")
@@ -474,7 +505,9 @@ def _verify_intent_signature_bytes(
     if G2Basic is None:
         return False, "py_ecc.bls.G2Basic unavailable"
     try:
-        pubkey_bytes = _hex_to_bytes_allow_0x(sender_pubkey_hex, name="sender_pubkey", expected_nbytes=48)
+        pubkey_bytes = _hex_to_bytes_allow_0x(
+            sender_pubkey_hex, name="sender_pubkey", expected_nbytes=48
+        )
         sig_bytes = _hex_to_bytes_allow_0x(signature_hex, name="signature", expected_nbytes=96)
 
         msg = domain_sep_bytes(f"dex_intent_sig:{chain_id}", version=1) + signing_payload_bytes
@@ -513,7 +546,9 @@ def _verify_all_intent_signatures(
         if sender_b is None:
             return False, "tx_sender_pubkey must be a 48-byte hex pubkey for unsigned intents"
         for env in intents:
-            intent_b = _pubkey_bytes48_or_none(env.intent.sender_pubkey, name="intent.sender_pubkey")
+            intent_b = _pubkey_bytes48_or_none(
+                env.intent.sender_pubkey, name="intent.sender_pubkey"
+            )
             if intent_b is None or intent_b != sender_b:
                 return False, f"intent sender mismatch: {env.intent.intent_id}"
         return True, None
@@ -522,7 +557,9 @@ def _verify_all_intent_signatures(
         if env.signature is None:
             if allow_tx_sender_bypass:
                 sender_b = _pubkey_bytes48_or_none(tx_sender_pubkey, name="tx_sender_pubkey")
-                intent_b = _pubkey_bytes48_or_none(env.intent.sender_pubkey, name="intent.sender_pubkey")
+                intent_b = _pubkey_bytes48_or_none(
+                    env.intent.sender_pubkey, name="intent.sender_pubkey"
+                )
                 if sender_b is not None and intent_b is not None and intent_b == sender_b:
                     continue
             return False, f"missing intent signature: {env.intent.intent_id}"
@@ -670,7 +707,9 @@ def _validate_raw_intent_ops(config: DexEngineConfig, raw_intents: Any) -> Optio
     total_raw_bytes = 0
     for i, entry in enumerate(raw_intents):
         try:
-            total_raw_bytes += bounded_json_utf8_size(entry, max_bytes=config.max_intent_entry_bytes)
+            total_raw_bytes += bounded_json_utf8_size(
+                entry, max_bytes=config.max_intent_entry_bytes
+            )
         except ValueError:
             return f"intent operation too large: index {i}"
         except Exception as exc:
@@ -694,7 +733,9 @@ def _validate_intent_preconditions(
     return None
 
 
-def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str, Any]) -> Optional[str]:
+def _validate_intent_against_quote_receipt(
+    intent: Intent, receipt: Mapping[str, Any]
+) -> Optional[str]:
     if intent.kind.value not in {"SWAP_EXACT_IN", "SWAP_EXACT_OUT"}:
         return _quote_receipt_error(
             "quote receipt only supported for swap intents",
@@ -704,7 +745,9 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
 
     body = receipt.get("body")
     if not isinstance(body, Mapping):
-        return _quote_receipt_error("invalid quote receipt body", **_quote_receipt_intent_context(intent))
+        return _quote_receipt_error(
+            "invalid quote receipt body", **_quote_receipt_intent_context(intent)
+        )
     kind = str(body.get("kind", "")).strip().lower()
     expected_kind = "exact_in" if intent.kind.value == "SWAP_EXACT_IN" else "exact_out"
     if kind != expected_kind:
@@ -718,7 +761,11 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
     pool_id = intent.get_field("pool_id")
     asset_in = intent.get_field("asset_in")
     asset_out = intent.get_field("asset_out")
-    if not isinstance(pool_id, str) or not isinstance(asset_in, str) or not isinstance(asset_out, str):
+    if (
+        not isinstance(pool_id, str)
+        or not isinstance(asset_in, str)
+        or not isinstance(asset_out, str)
+    ):
         return _quote_receipt_error(
             "invalid quote receipt-bound swap fields",
             **_quote_receipt_intent_context(intent),
@@ -726,11 +773,15 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
 
     pools = body.get("pools")
     if not isinstance(pools, Mapping):
-        return _quote_receipt_error("invalid quote receipt pools", **_quote_receipt_intent_context(intent))
+        return _quote_receipt_error(
+            "invalid quote receipt pools", **_quote_receipt_intent_context(intent)
+        )
     quote_pool_fp = intent.get_field("quote_pool_fingerprint")
     if quote_pool_fp is not None:
         if not isinstance(quote_pool_fp, str) or not quote_pool_fp:
-            return _quote_receipt_error("invalid quote_pool_fingerprint", **_quote_receipt_intent_context(intent))
+            return _quote_receipt_error(
+                "invalid quote_pool_fingerprint", **_quote_receipt_intent_context(intent)
+            )
         if pools.get(pool_id) != quote_pool_fp:
             return _quote_receipt_error(
                 "quote receipt pool fingerprint mismatch",
@@ -741,13 +792,21 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
 
     legs = body.get("legs")
     if not _is_quote_receipt_array(legs) or not legs:
-        return _quote_receipt_error("invalid quote receipt legs", **_quote_receipt_intent_context(intent))
+        return _quote_receipt_error(
+            "invalid quote receipt legs", **_quote_receipt_intent_context(intent)
+        )
 
     leg_index_raw = intent.get_field("quote_receipt_leg_index")
     candidate_legs: list[tuple[int, Any]]
     if leg_index_raw is not None:
-        if not isinstance(leg_index_raw, int) or isinstance(leg_index_raw, bool) or leg_index_raw < 0:
-            return _quote_receipt_error("invalid quote_receipt_leg_index", **_quote_receipt_intent_context(intent))
+        if (
+            not isinstance(leg_index_raw, int)
+            or isinstance(leg_index_raw, bool)
+            or leg_index_raw < 0
+        ):
+            return _quote_receipt_error(
+                "invalid quote_receipt_leg_index", **_quote_receipt_intent_context(intent)
+            )
         if leg_index_raw >= len(legs):
             return _quote_receipt_error(
                 "quote receipt leg index out of range",
@@ -770,7 +829,11 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
                 hop_pool_id = str(raw_hop.get("pool_id", "")).strip()
                 hop_asset_in = str(raw_hop.get("asset_in", "")).strip()
                 hop_asset_out = str(raw_hop.get("asset_out", "")).strip()
-                if hop_pool_id == pool_id and hop_asset_in == asset_in and hop_asset_out == asset_out:
+                if (
+                    hop_pool_id == pool_id
+                    and hop_asset_in == asset_in
+                    and hop_asset_out == asset_out
+                ):
                     saw_multi_hop_match = True
                     if leg_index_raw is not None:
                         return _quote_receipt_error(
@@ -802,8 +865,15 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
             amount_in = intent.get_field("amount_in")
             min_amount_out = intent.get_field("min_amount_out", 0)
             if not isinstance(amount_in, int) or isinstance(amount_in, bool):
-                return _quote_receipt_error("invalid amount_in for quote receipt binding", **_quote_receipt_intent_context(intent))
-            if not isinstance(min_amount_out, int) or isinstance(min_amount_out, bool) or min_amount_out < 0:
+                return _quote_receipt_error(
+                    "invalid amount_in for quote receipt binding",
+                    **_quote_receipt_intent_context(intent),
+                )
+            if (
+                not isinstance(min_amount_out, int)
+                or isinstance(min_amount_out, bool)
+                or min_amount_out < 0
+            ):
                 return _quote_receipt_error(
                     "invalid min_amount_out for quote receipt binding",
                     **_quote_receipt_intent_context(intent),
@@ -822,8 +892,15 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
         amount_out = intent.get_field("amount_out")
         max_amount_in = intent.get_field("max_amount_in")
         if not isinstance(amount_out, int) or isinstance(amount_out, bool):
-            return _quote_receipt_error("invalid amount_out for quote receipt binding", **_quote_receipt_intent_context(intent))
-        if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
+            return _quote_receipt_error(
+                "invalid amount_out for quote receipt binding",
+                **_quote_receipt_intent_context(intent),
+            )
+        if (
+            not isinstance(max_amount_in, int)
+            or isinstance(max_amount_in, bool)
+            or max_amount_in < 0
+        ):
             return _quote_receipt_error(
                 "invalid max_amount_in for quote receipt binding",
                 **_quote_receipt_intent_context(intent),
@@ -845,8 +922,12 @@ def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str,
             **_quote_receipt_intent_context(intent),
         )
     if leg_index_raw is not None:
-        return _quote_receipt_error("intent does not match quote receipt leg", **_quote_receipt_intent_context(intent))
-    return _quote_receipt_error("intent does not match quote receipt", **_quote_receipt_intent_context(intent))
+        return _quote_receipt_error(
+            "intent does not match quote receipt leg", **_quote_receipt_intent_context(intent)
+        )
+    return _quote_receipt_error(
+        "intent does not match quote receipt", **_quote_receipt_intent_context(intent)
+    )
 
 
 def _validate_quote_receipt_witnesses(
@@ -859,7 +940,9 @@ def _validate_quote_receipt_witnesses(
         quote_hash = env.intent.get_field("quote_receipt_hash")
         receipt = env.quote_receipt
         if quote_hash is not None and receipt is None:
-            return _quote_receipt_error("missing quote receipt witness", **_quote_receipt_intent_context(env.intent))
+            return _quote_receipt_error(
+                "missing quote receipt witness", **_quote_receipt_intent_context(env.intent)
+            )
         if receipt is None:
             continue
         if quote_hash is None:
@@ -869,7 +952,9 @@ def _validate_quote_receipt_witnesses(
                 witness_hash=receipt.get("receipt_hash") if isinstance(receipt, Mapping) else None,
             )
         if not isinstance(quote_hash, str) or not quote_hash:
-            return _quote_receipt_error("invalid quote_receipt_hash", **_quote_receipt_intent_context(env.intent))
+            return _quote_receipt_error(
+                "invalid quote_receipt_hash", **_quote_receipt_intent_context(env.intent)
+            )
         ok, receipt_verify_err = verify_route_quote_receipt(receipt, pools_by_id=pools)
         if not ok:
             return _quote_receipt_error(
@@ -988,7 +1073,11 @@ def _validate_protected_swap_oracle_authorizations(
                 **_quote_receipt_intent_context(env.intent),
             )
         if not bool(result.get("typed_ok", False)):
-            errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
+            errors = (
+                result.get("typed_errors")
+                or result.get("opaque_errors")
+                or ["typed authorization rejected"]
+            )
             return _quote_receipt_error(
                 "oracle_authorization_rejected: " + "; ".join(str(err) for err in errors),
                 **_quote_receipt_intent_context(env.intent),
@@ -1017,7 +1106,9 @@ def _validate_critical_settlement_oracle_authorization(
     if not isinstance(auth, Mapping):
         return "critical settlement oracle_authorization must be an object"
     if price_history is None:
-        return "critical settlement oracle authorization requires settlement_certificate_price_history"
+        return (
+            "critical settlement oracle authorization requires settlement_certificate_price_history"
+        )
     try:
         pre_state_hash = compute_state_root(
             balances=state.balances,
@@ -1038,8 +1129,14 @@ def _validate_critical_settlement_oracle_authorization(
     except Exception as exc:
         return f"critical_settlement_oracle_authorization_rejected: {_clean_error(exc)}"
     if not bool(result.get("typed_ok", False)):
-        errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
-        return "critical_settlement_oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
+        errors = (
+            result.get("typed_errors")
+            or result.get("opaque_errors")
+            or ["typed authorization rejected"]
+        )
+        return "critical_settlement_oracle_authorization_rejected: " + "; ".join(
+            str(err) for err in errors
+        )
     return None
 
 
@@ -1098,14 +1195,22 @@ def _is_supported_uniform_batch_swap_family(intents: List[Intent]) -> bool:
             min_amount_out = intent.get_field("min_amount_out")
             if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
                 return False
-            if not isinstance(min_amount_out, int) or isinstance(min_amount_out, bool) or min_amount_out < 0:
+            if (
+                not isinstance(min_amount_out, int)
+                or isinstance(min_amount_out, bool)
+                or min_amount_out < 0
+            ):
                 return False
         else:
             amount_out = intent.get_field("amount_out")
             max_amount_in = intent.get_field("max_amount_in")
             if not isinstance(amount_out, int) or isinstance(amount_out, bool) or amount_out <= 0:
                 return False
-            if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
+            if (
+                not isinstance(max_amount_in, int)
+                or isinstance(max_amount_in, bool)
+                or max_amount_in < 0
+            ):
                 return False
         current_pair = frozenset((asset_in, asset_out))
         if pool_id is None:
@@ -1177,11 +1282,22 @@ def apply_ops(
         _fault_stage(config, "after_raw_validation")
 
         try:
-            signed_intents = parse_signed_intents(operations)
+            if config.require_canonical_quote_receipt_transport:
+                signed_intents = parse_signed_intents(
+                    operations,
+                    require_canonical_quote_receipt_transport=True,
+                )
+            else:
+                # Preserve the historical one-argument call path for non-strict
+                # builders and test doubles. Only strict profiles need the new
+                # canonical-carrier policy argument.
+                signed_intents = parse_signed_intents(operations)
         except ValueError as exc:
             return DexTxResult(ok=False, error=f"invalid intents: {_clean_error(exc)}")
         if len(signed_intents) > config.max_intents:
-            return DexTxResult(ok=False, error=f"too many intents: {len(signed_intents)} > {config.max_intents}")
+            return DexTxResult(
+                ok=False, error=f"too many intents: {len(signed_intents)} > {config.max_intents}"
+            )
         _fault_stage(config, "after_intent_parse")
 
         try:
@@ -1195,13 +1311,19 @@ def apply_ops(
             getattr(settlement_env, "uniform_batch_certificate", None) if settlement_env else None
         )
         uniform_batch_optimality_certificate = (
-            getattr(settlement_env, "uniform_batch_optimality_certificate", None) if settlement_env else None
+            getattr(settlement_env, "uniform_batch_optimality_certificate", None)
+            if settlement_env
+            else None
         )
         uniform_batch_v2_bounded_grid = (
-            getattr(settlement_env, "uniform_batch_v2_bounded_grid", None) if settlement_env else None
+            getattr(settlement_env, "uniform_batch_v2_bounded_grid", None)
+            if settlement_env
+            else None
         )
         uniform_batch_v3_exact_out_grid = (
-            getattr(settlement_env, "uniform_batch_v3_exact_out_grid", None) if settlement_env else None
+            getattr(settlement_env, "uniform_batch_v3_exact_out_grid", None)
+            if settlement_env
+            else None
         )
         if uniform_batch_optimality_certificate is not None and uniform_batch_certificate is None:
             return DexTxResult(
@@ -1218,17 +1340,26 @@ def apply_ops(
                 ok=False,
                 error="uniform batch v3 exact-out grid evidence requires uniform batch certificate",
             )
-        if uniform_batch_v2_bounded_grid is not None and uniform_batch_optimality_certificate is None:
+        if (
+            uniform_batch_v2_bounded_grid is not None
+            and uniform_batch_optimality_certificate is None
+        ):
             return DexTxResult(
                 ok=False,
                 error="uniform batch v2 bounded-grid evidence requires optimality certificate",
             )
-        if uniform_batch_v3_exact_out_grid is not None and uniform_batch_optimality_certificate is None:
+        if (
+            uniform_batch_v3_exact_out_grid is not None
+            and uniform_batch_optimality_certificate is None
+        ):
             return DexTxResult(
                 ok=False,
                 error="uniform batch v3 exact-out grid evidence requires optimality certificate",
             )
-        if uniform_batch_v2_bounded_grid is not None and uniform_batch_v3_exact_out_grid is not None:
+        if (
+            uniform_batch_v2_bounded_grid is not None
+            and uniform_batch_v3_exact_out_grid is not None
+        ):
             return DexTxResult(
                 ok=False,
                 error="uniform batch bounded-grid evidence provided twice",
@@ -1300,12 +1431,16 @@ def apply_ops(
                 )
         else:
             execution_intents = signed_payload_intents
-        if proof_scheme in {
-            "recompute_batch_v1",
-            "recompute_batch_v2",
-            "recompute_batch_v3",
-            "recompute_batch_v4",
-        } and execution_intents != signed_payload_intents:
+        if (
+            proof_scheme
+            in {
+                "recompute_batch_v1",
+                "recompute_batch_v2",
+                "recompute_batch_v3",
+                "recompute_batch_v4",
+            }
+            and execution_intents != signed_payload_intents
+        ):
             return DexTxResult(
                 ok=False,
                 error=(
@@ -1319,7 +1454,9 @@ def apply_ops(
             and uniform_batch_certificate is None
             and _is_supported_uniform_batch_swap_family(validation_intents)
         ):
-            return DexTxResult(ok=False, error="uniform batch certificate required for supported swaps")
+            return DexTxResult(
+                ok=False, error="uniform batch certificate required for supported swaps"
+            )
 
         next_nonces: Optional[NonceTable] = None
         if execution_intents:
@@ -1355,8 +1492,13 @@ def apply_ops(
                         ok=False,
                         error=f"uniform batch certificate pool not found: {cert.pool_id}",
                     )
-                if config.require_uniform_batch_optimality_certificate and uniform_batch_optimality_certificate is None:
-                    return DexTxResult(ok=False, error="uniform batch optimality certificate required")
+                if (
+                    config.require_uniform_batch_optimality_certificate
+                    and uniform_batch_optimality_certificate is None
+                ):
+                    return DexTxResult(
+                        ok=False, error="uniform batch optimality certificate required"
+                    )
                 if (
                     config.require_uniform_batch_v2_bounded_grid_optimality
                     and cert.policy_id == UNIFORM_BATCH_POLICY_V2_ID
@@ -1375,12 +1517,18 @@ def apply_ops(
                         ok=False,
                         error="uniform batch v3 exact-out grid evidence required",
                     )
-                if uniform_batch_v2_bounded_grid is not None and cert.policy_id != UNIFORM_BATCH_POLICY_V2_ID:
+                if (
+                    uniform_batch_v2_bounded_grid is not None
+                    and cert.policy_id != UNIFORM_BATCH_POLICY_V2_ID
+                ):
                     return DexTxResult(
                         ok=False,
                         error="uniform batch v2 bounded-grid evidence requires v2 uniform batch certificate",
                     )
-                if uniform_batch_v3_exact_out_grid is not None and cert.policy_id != UNIFORM_BATCH_POLICY_V3_ID:
+                if (
+                    uniform_batch_v3_exact_out_grid is not None
+                    and cert.policy_id != UNIFORM_BATCH_POLICY_V3_ID
+                ):
                     return DexTxResult(
                         ok=False,
                         error="uniform batch v3 exact-out grid evidence requires v3 uniform batch certificate",
@@ -1388,16 +1536,20 @@ def apply_ops(
                 if uniform_batch_optimality_certificate is not None:
                     if uniform_batch_v2_bounded_grid is not None:
                         try:
-                            optimality_result = verify_uniform_batch_v2_bounded_grid_optimality_certificate_v1(
-                                optimality_certificate=uniform_batch_optimality_certificate,
-                                uniform_batch_certificate=cert,
-                                intents=validation_intents,
-                                pool=pool,
-                                balances=state.balances,
-                                max_price_num=uniform_batch_v2_bounded_grid["max_price_num"],
-                                max_price_den=uniform_batch_v2_bounded_grid["max_price_den"],
-                                fill_vectors=uniform_batch_v2_bounded_grid["fill_vectors"],
-                                expected_table_root=uniform_batch_v2_bounded_grid.get("table_root"),
+                            optimality_result = (
+                                verify_uniform_batch_v2_bounded_grid_optimality_certificate_v1(
+                                    optimality_certificate=uniform_batch_optimality_certificate,
+                                    uniform_batch_certificate=cert,
+                                    intents=validation_intents,
+                                    pool=pool,
+                                    balances=state.balances,
+                                    max_price_num=uniform_batch_v2_bounded_grid["max_price_num"],
+                                    max_price_den=uniform_batch_v2_bounded_grid["max_price_den"],
+                                    fill_vectors=uniform_batch_v2_bounded_grid["fill_vectors"],
+                                    expected_table_root=uniform_batch_v2_bounded_grid.get(
+                                        "table_root"
+                                    ),
+                                )
                             )
                         except KeyError as exc:
                             return DexTxResult(
@@ -1412,14 +1564,16 @@ def apply_ops(
                             max_price_num, max_price_den = _v3_exact_out_grid_bounds(
                                 uniform_batch_v3_exact_out_grid
                             )
-                            optimality_result = verify_uniform_batch_v3_exact_out_grid_optimality_certificate_v1(
-                                optimality_certificate=uniform_batch_optimality_certificate,
-                                uniform_batch_certificate=cert,
-                                intents=validation_intents,
-                                pool=pool,
-                                balances=state.balances,
-                                max_price_num=max_price_num,
-                                max_price_den=max_price_den,
+                            optimality_result = (
+                                verify_uniform_batch_v3_exact_out_grid_optimality_certificate_v1(
+                                    optimality_certificate=uniform_batch_optimality_certificate,
+                                    uniform_batch_certificate=cert,
+                                    intents=validation_intents,
+                                    pool=pool,
+                                    balances=state.balances,
+                                    max_price_num=max_price_num,
+                                    max_price_den=max_price_den,
+                                )
                             )
                         except ValueError as exc:
                             return DexTxResult(
@@ -1502,7 +1656,9 @@ def apply_ops(
             state=state,
             block_timestamp=block_timestamp,
             price_history=config.settlement_certificate_price_history,
-            require_authorization=bool(config.require_oracle_authorization_for_critical_settlements),
+            require_authorization=bool(
+                config.require_oracle_authorization_for_critical_settlements
+            ),
         )
         if err is not None:
             return DexTxResult(ok=False, error=err)
@@ -1514,7 +1670,8 @@ def apply_ops(
         proof_preverified = False
         effective_settlement_end_to_end_inputs = config.settlement_end_to_end_certificate_inputs
         using_end_to_end_certificate = bool(
-            config.require_settlement_end_to_end_certificate or config.require_settlement_certificate
+            config.require_settlement_end_to_end_certificate
+            or config.require_settlement_certificate
         )
 
         if proof is not None and verifier_enforcing:
@@ -1523,7 +1680,9 @@ def apply_ops(
             try:
                 require_normal_form(execution_intents, strict_lp_order=True)
             except IntentNormalFormError as exc:
-                return DexTxResult(ok=False, error=f"intents not in normal form: {_clean_error(exc)}")
+                return DexTxResult(
+                    ok=False, error=f"intents not in normal form: {_clean_error(exc)}"
+                )
 
             try:
                 if proof_scheme in ("recompute_batch_v3", "recompute_batch_v4"):
@@ -1553,9 +1712,13 @@ def apply_ops(
                 else:
                     settlement_obj_for_commit = _settlement_commitment_dict(settlement)
             except Exception as exc:
-                return DexTxResult(ok=False, error=f"invalid settlement payload for commitment: {exc}")
+                return DexTxResult(
+                    ok=False, error=f"invalid settlement payload for commitment: {exc}"
+                )
             try:
-                bounded_json_utf8_size(settlement_obj_for_commit, max_bytes=config.max_settlement_bytes)
+                bounded_json_utf8_size(
+                    settlement_obj_for_commit, max_bytes=config.max_settlement_bytes
+                )
             except ValueError:
                 return DexTxResult(ok=False, error="settlement payload too large")
             except Exception as exc:
@@ -1627,7 +1790,9 @@ def apply_ops(
             require_settlement_certificate=bool(config.require_settlement_certificate),
             settlement_proof_flags=config.settlement_certificate_proof_flags,
             settlement_price_history=config.settlement_certificate_price_history,
-            require_settlement_end_to_end_certificate=bool(config.require_settlement_end_to_end_certificate),
+            require_settlement_end_to_end_certificate=bool(
+                config.require_settlement_end_to_end_certificate
+            ),
             settlement_end_to_end_certificate_inputs=effective_settlement_end_to_end_inputs,
             uniform_batch_certificate=uniform_batch_certificate,
             protocol_fee_share_bps=config.dex_config.protocol_fee_share_bps,
@@ -1705,7 +1870,12 @@ def apply_ops(
                 )
             except Exception as exc:
                 return DexTxResult(ok=False, error=f"invalid proof mining context: {exc}")
-        return DexTxResult(ok=True, state=next_state, settlement=settlement, proof_mining_context=proof_mining_context)
+        return DexTxResult(
+            ok=True,
+            state=next_state,
+            settlement=settlement,
+            proof_mining_context=proof_mining_context,
+        )
     except _InjectedFault as exc:
         return DexTxResult(ok=False, error=str(exc))
     except Exception:

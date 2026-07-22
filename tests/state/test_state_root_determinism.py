@@ -223,7 +223,7 @@ def test_state_root_rejects_invalid_balance_and_lp_amounts() -> None:
         compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)
 
 
-def test_state_root_rejects_duplicate_decoded_lp_keys() -> None:
+def test_state_root_rejects_noncanonical_uppercase_lp_pubkey() -> None:
     pk_lower = "0x" + "aa" * 48
     pk_upper = "0x" + "AA" * 48
     pool_id = "0x" + "11" * 32
@@ -232,7 +232,7 @@ def test_state_root_rejects_duplicate_decoded_lp_keys() -> None:
     lp.set(pk_lower, pool_id, 1)
     lp.set(pk_upper, pool_id, 2)
 
-    with pytest.raises(ValueError, match="duplicate decoded \\(pubkey, pool_id\\)"):
+    with pytest.raises(ValueError, match="pubkey must be valid hex"):
         compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)
 
 
@@ -263,7 +263,9 @@ def test_state_root_rejects_pool_id_mismatch_unknown_status_and_invalid_scalars(
         created_at=pool.created_at,
     )
     with pytest.raises(ValueError, match="pool_id mismatch"):
-        compute_state_root(balances=BalanceTable(), pools={pool_id: mismatch}, lp_balances=LPTable())
+        compute_state_root(
+            balances=BalanceTable(), pools={pool_id: mismatch}, lp_balances=LPTable()
+        )
 
     pool.status = object()  # type: ignore[assignment]
     with pytest.raises(ValueError, match="unknown pool status"):
@@ -280,7 +282,9 @@ def test_state_root_rejects_pool_id_mismatch_unknown_status_and_invalid_scalars(
     )
     bad_pool.reserve0 = True  # type: ignore[assignment]
     with pytest.raises(ValueError, match="invalid pool reserve0"):
-        compute_state_root(balances=BalanceTable(), pools={_pool_id2: bad_pool}, lp_balances=LPTable())
+        compute_state_root(
+            balances=BalanceTable(), pools={_pool_id2: bad_pool}, lp_balances=LPTable()
+        )
 
 
 def test_state_root_changes_when_curve_configuration_changes() -> None:
@@ -314,8 +318,12 @@ def test_state_root_changes_when_curve_configuration_changes() -> None:
         curve_params='{"mu_num":2,"mu_den":3}',
     )
 
-    root_a = compute_state_root(balances=BalanceTable(), pools={pool_id: pool_a}, lp_balances=LPTable())
-    root_b = compute_state_root(balances=BalanceTable(), pools={pool_id: pool_b}, lp_balances=LPTable())
+    root_a = compute_state_root(
+        balances=BalanceTable(), pools={pool_id: pool_a}, lp_balances=LPTable()
+    )
+    root_b = compute_state_root(
+        balances=BalanceTable(), pools={pool_id: pool_b}, lp_balances=LPTable()
+    )
     assert root_a != root_b
 
 
@@ -344,7 +352,7 @@ def test_state_root_commits_lp_duration_risk_metadata() -> None:
     assert root_without_metadata != root_with_metadata
 
 
-def test_state_root_rejects_duplicate_decoded_lp_duration_risk_keys() -> None:
+def test_state_root_rejects_noncanonical_uppercase_lp_duration_pubkey() -> None:
     pk_lower = "0x" + "aa" * 48
     pk_upper = "0x" + "AA" * 48
     pool_id = "0x" + "33" * 32
@@ -354,7 +362,7 @@ def test_state_root_rejects_duplicate_decoded_lp_duration_risk_keys() -> None:
     lp.set_last_mint_timestamp(pk_lower, pool_id, 1)
     lp.set_last_remove_timestamp(pk_upper, pool_id, 2)
 
-    with pytest.raises(ValueError, match="duplicate decoded \\(pubkey, pool_id\\) in lp_duration_risk"):
+    with pytest.raises(ValueError, match="pubkey must be valid hex"):
         compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)
 
 
@@ -380,7 +388,7 @@ def test_state_root_rejects_corrupt_lp_duration_risk_metadata(
         compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)
 
 
-def test_state_root_rejects_duplicate_decoded_nonce_pubkeys() -> None:
+def test_state_root_rejects_noncanonical_uppercase_nonce_pubkey() -> None:
     pk_lower = "0x" + "aa" * 48
     pk_upper = "0x" + "AA" * 48
 
@@ -388,7 +396,7 @@ def test_state_root_rejects_duplicate_decoded_nonce_pubkeys() -> None:
     nonces._last[pk_lower] = 1
     nonces._last[pk_upper] = 2
 
-    with pytest.raises(ValueError, match="duplicate decoded pubkey in nonces"):
+    with pytest.raises(ValueError, match="pubkey must be valid hex"):
         compute_state_root(
             balances=BalanceTable(),
             pools={},

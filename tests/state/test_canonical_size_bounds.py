@@ -60,7 +60,12 @@ def test_bounded_json_utf8_size_never_underestimates_canonical_json_bytes() -> N
         *random_strings,
         {"k": "v"},
         {"k": special_strings},
-        {"nested": {"a": special_strings, "b": [random_strings[:10], {"x": random_strings[10:20]}]}},
+        {
+            "nested": {
+                "a": special_strings,
+                "b": [random_strings[:10], {"x": random_strings[10:20]}],
+            }
+        },
         [special_strings, random_strings[:20], {"k": random_strings[20:40]}],
     ]
 
@@ -126,7 +131,9 @@ def test_varint_and_bytes_encoders_reject_invalid_types() -> None:
         encode_bytes("nope")  # type: ignore[arg-type]
 
 
-def test_hex_helpers_reject_bad_type_and_can_cover_defensive_fromhex_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_hex_helpers_reject_bad_type_and_can_cover_defensive_fromhex_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     with pytest.raises(TypeError, match="x must be a str"):
         hex_to_bytes_fixed(7, nbytes=1, name="x")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="nbytes must be a positive int"):
@@ -144,7 +151,9 @@ def test_hex_helpers_reject_bad_type_and_can_cover_defensive_fromhex_paths(monke
         hex_to_bytes_fixed("0xaa", nbytes=1, name="x")
 
 
-def test_hex_helpers_cover_decode_length_and_canonical_allow_0x_guards(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_hex_helpers_cover_decode_length_and_canonical_allow_0x_guards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class _ShortBytes:
         @staticmethod
         def fromhex(_body: str) -> bytes:

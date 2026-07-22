@@ -83,7 +83,12 @@ def _feature_extension_inputs() -> SettlementFeatureExtensionInputs:
     )
 
 
-def _swap_intent(*, sender: str = "0x" + "11" * 48, intent_id: str | None = None, fields: Optional[dict[str, Any]] = None) -> Intent:
+def _swap_intent(
+    *,
+    sender: str = "0x" + "11" * 48,
+    intent_id: str | None = None,
+    fields: Optional[dict[str, Any]] = None,
+) -> Intent:
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     return Intent(
@@ -200,18 +205,28 @@ def _patch_apply_ops_happy_path(
             [b"{}" for _ in signed_intents],
         ),
     )
-    monkeypatch.setattr(dex_engine, "_verify_all_intent_signatures", lambda *args, **kwargs: (True, None))
+    monkeypatch.setattr(
+        dex_engine, "_verify_all_intent_signatures", lambda *args, **kwargs: (True, None)
+    )
     monkeypatch.setattr(dex_engine, "_validate_quote_receipt_witnesses", lambda **kwargs: None)
-    monkeypatch.setattr(dex_engine, "_validate_and_apply_nonce_batch", lambda **kwargs: (True, None, kwargs["nonces"]))
+    monkeypatch.setattr(
+        dex_engine,
+        "_validate_and_apply_nonce_batch",
+        lambda **kwargs: (True, None, kwargs["nonces"]),
+    )
     monkeypatch.setattr(dex_engine, "compute_settlement", lambda **kwargs: settlement)
     monkeypatch.setattr(dex_engine, "validate_operations", lambda **kwargs: validate_result)
-    monkeypatch.setattr(dex_engine, "_verify_proof_if_present", lambda *args, **kwargs: verify_result)
+    monkeypatch.setattr(
+        dex_engine, "_verify_proof_if_present", lambda *args, **kwargs: verify_result
+    )
     monkeypatch.setattr(
         dex_engine,
         "apply_settlement_pure",
         lambda **kwargs: (kwargs["balances"], kwargs["pools"], kwargs["lp_balances"]),
     )
-    monkeypatch.setattr(dex_engine, "make_proof_verifier", lambda config: _DummyVerifier((True, None)))
+    monkeypatch.setattr(
+        dex_engine, "make_proof_verifier", lambda config: _DummyVerifier((True, None))
+    )
     return envs
 
 
@@ -324,8 +339,20 @@ def test_dex_engine_config_rejects_malformed_certificate_price_history() -> None
 def test_dex_engine_config_allows_unified_inputs_under_existing_certificate_flag() -> None:
     packet = build_settlement_spot_price_packet(
         entries=(
-            SettlementSpotPriceEntry(asset="0x" + "01" * 32, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
-            SettlementSpotPriceEntry(asset="0x" + "02" * 32, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+            SettlementSpotPriceEntry(
+                asset="0x" + "01" * 32,
+                price=100,
+                observed_epoch=95,
+                age_epochs=5,
+                source_id="oracle:a",
+            ),
+            SettlementSpotPriceEntry(
+                asset="0x" + "02" * 32,
+                price=120,
+                observed_epoch=97,
+                age_epochs=3,
+                source_id="oracle:b",
+            ),
         ),
         now_epoch=100,
         max_staleness_epochs=10,
@@ -346,13 +373,20 @@ def test_dex_engine_config_allows_unified_inputs_under_existing_certificate_flag
 def test_validate_external_tool_policy_covers_consensus_and_disable_paths() -> None:
     assert (
         _validate_external_tool_policy(
-            DexEngineConfig(consensus_mode=True, proof_config=DexEngineConfig().proof_config.__class__(enabled=True))
+            DexEngineConfig(
+                consensus_mode=True,
+                proof_config=DexEngineConfig().proof_config.__class__(enabled=True),
+            )
         )
         == "external tools not permitted in consensus_mode"
     )
     assert (
         _validate_external_tool_policy(
-            DexEngineConfig(consensus_mode=False, allow_external_tools=False, proof_config=DexEngineConfig().proof_config.__class__(enabled=True))
+            DexEngineConfig(
+                consensus_mode=False,
+                allow_external_tools=False,
+                proof_config=DexEngineConfig().proof_config.__class__(enabled=True),
+            )
         )
         == "external tools disabled (set DexEngineConfig.allow_external_tools=True)"
     )
@@ -360,17 +394,38 @@ def test_validate_external_tool_policy_covers_consensus_and_disable_paths() -> N
 
 
 def test_validate_raw_operation_guards_fail_early() -> None:
-    config = DexEngineConfig(max_settlement_op_bytes=32, max_settlement_fills=1, max_intents=1, max_intent_entry_bytes=32, max_total_intent_entry_bytes=32)
+    config = DexEngineConfig(
+        max_settlement_op_bytes=32,
+        max_settlement_fills=1,
+        max_intents=1,
+        max_intent_entry_bytes=32,
+        max_total_intent_entry_bytes=32,
+    )
     assert _validate_raw_settlement_op(config, ["bad"]) == "operations['3'] must be an object"
-    assert _validate_raw_settlement_op(config, {"fills": [{}, {}]}) == "too many settlement fills: 2 > 1"
-    assert _validate_raw_settlement_op(config, {"blob": "A" * 100}) == "settlement operation too large"
+    assert (
+        _validate_raw_settlement_op(config, {"fills": [{}, {}]})
+        == "too many settlement fills: 2 > 1"
+    )
+    assert (
+        _validate_raw_settlement_op(config, {"blob": "A" * 100}) == "settlement operation too large"
+    )
     assert _validate_raw_intent_ops(config, [{}, {}]) == "too many intents: 2 > 1"
-    assert _validate_raw_intent_ops(config, [{"x": "A" * 100}]) == "intent operation too large: index 0"
+    assert (
+        _validate_raw_intent_ops(config, [{"x": "A" * 100}])
+        == "intent operation too large: index 0"
+    )
     assert _validate_raw_intent_ops(config, "not-a-list") is None
 
 
-def test_validate_raw_operation_guards_report_invalid_payloads_and_total_size(monkeypatch: pytest.MonkeyPatch) -> None:
-    config = DexEngineConfig(max_settlement_op_bytes=128, max_intents=4, max_intent_entry_bytes=64, max_total_intent_entry_bytes=10)
+def test_validate_raw_operation_guards_report_invalid_payloads_and_total_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = DexEngineConfig(
+        max_settlement_op_bytes=128,
+        max_intents=4,
+        max_intent_entry_bytes=64,
+        max_total_intent_entry_bytes=10,
+    )
 
     def bad_size(_value: object, *, max_bytes: int) -> int:
         if max_bytes == config.max_settlement_op_bytes:
@@ -378,18 +433,39 @@ def test_validate_raw_operation_guards_report_invalid_payloads_and_total_size(mo
         raise RuntimeError("bad intent encoding")
 
     monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", bad_size)
-    assert _validate_raw_settlement_op(config, {"x": 1}) == "invalid settlement operation: bad settlement encoding"
-    assert _validate_raw_intent_ops(config, [{"x": 1}]) == "invalid intent operation: bad intent encoding"
+    assert (
+        _validate_raw_settlement_op(config, {"x": 1})
+        == "invalid settlement operation: bad settlement encoding"
+    )
+    assert (
+        _validate_raw_intent_ops(config, [{"x": 1}])
+        == "invalid intent operation: bad intent encoding"
+    )
 
-    monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", lambda value, *, max_bytes: 6)
-    assert _validate_raw_intent_ops(config, [{"a": 1}, {"b": 2}]) == "total intent operation too large"
+    monkeypatch.setattr(
+        "src.integration.dex_engine.bounded_json_utf8_size", lambda value, *, max_bytes: 6
+    )
+    assert (
+        _validate_raw_intent_ops(config, [{"a": 1}, {"b": 2}]) == "total intent operation too large"
+    )
 
 
 def test_validate_intent_preconditions_rejects_missing_or_expired_batches() -> None:
     intent = _swap_intent(intent_id=_iid(7))
-    assert _validate_intent_preconditions(intents=[], settlement=_empty_settlement_env(proof=None).settlement, block_timestamp=0) == "settlement provided without intents"
-    assert _validate_intent_preconditions(intents=[intent], settlement=None, block_timestamp=101) == f"Intent expired: {intent.intent_id}"
-    assert _validate_intent_preconditions(intents=[intent], settlement=None, block_timestamp=100) is None
+    assert (
+        _validate_intent_preconditions(
+            intents=[], settlement=_empty_settlement_env(proof=None).settlement, block_timestamp=0
+        )
+        == "settlement provided without intents"
+    )
+    assert (
+        _validate_intent_preconditions(intents=[intent], settlement=None, block_timestamp=101)
+        == f"Intent expired: {intent.intent_id}"
+    )
+    assert (
+        _validate_intent_preconditions(intents=[intent], settlement=None, block_timestamp=100)
+        is None
+    )
 
 
 def test_sanitize_intents_after_quote_receipt_validation_strips_transport_fields() -> None:
@@ -406,7 +482,9 @@ def test_sanitize_intents_after_quote_receipt_validation_strips_transport_fields
     assert sanitized.get_field("quote_pool_fingerprint") == "fingerprint"
 
 
-def test_validate_intent_against_quote_receipt_rejects_non_swap_and_invalid_receipt_shapes() -> None:
+def test_validate_intent_against_quote_receipt_rejects_non_swap_and_invalid_receipt_shapes() -> (
+    None
+):
     add_liq = Intent(
         module="TauSwap",
         version="0.1",
@@ -416,11 +494,18 @@ def test_validate_intent_against_quote_receipt_rejects_non_swap_and_invalid_rece
         deadline=100,
         fields={"pool_id": "0x" + "aa" * 32},
     )
-    assert "quote receipt only supported for swap intents" in _validate_intent_against_quote_receipt(add_liq, _receipt())  # type: ignore[arg-type]
+    assert (
+        "quote receipt only supported for swap intents"
+        in _validate_intent_against_quote_receipt(add_liq, _receipt())
+    )  # type: ignore[arg-type]
 
     swap = _swap_intent(intent_id=_iid(31))
-    assert "invalid quote receipt body" in _validate_intent_against_quote_receipt(swap, {"body": None})  # type: ignore[arg-type]
-    assert "quote receipt kind mismatch" in _validate_intent_against_quote_receipt(swap, _receipt(kind="exact_out"))  # type: ignore[arg-type]
+    assert "invalid quote receipt body" in _validate_intent_against_quote_receipt(
+        swap, {"body": None}
+    )  # type: ignore[arg-type]
+    assert "quote receipt kind mismatch" in _validate_intent_against_quote_receipt(
+        swap, _receipt(kind="exact_out")
+    )  # type: ignore[arg-type]
     assert "invalid quote receipt-bound swap fields" in _validate_intent_against_quote_receipt(
         _swap_intent(intent_id=_iid(32), fields={"pool_id": 7}),  # type: ignore[arg-type]
         _receipt(),
@@ -454,15 +539,32 @@ def test_validate_intent_against_quote_receipt_covers_leg_index_and_exact_in_rej
     )  # type: ignore[arg-type]
     assert "intent does not match quote receipt leg" in _validate_intent_against_quote_receipt(
         _swap_intent(intent_id=_iid(39), fields={"quote_receipt_leg_index": 0}),
-        _receipt(legs=[{"hops": [{"pool_id": "0x" + "bb" * 32, "asset_in": "x", "asset_out": "y", "amount_in": 1, "amount_out": 1}]}]),
+        _receipt(
+            legs=[
+                {
+                    "hops": [
+                        {
+                            "pool_id": "0x" + "bb" * 32,
+                            "asset_in": "x",
+                            "asset_out": "y",
+                            "amount_in": 1,
+                            "amount_out": 1,
+                        }
+                    ]
+                }
+            ]
+        ),
     )  # type: ignore[arg-type]
     assert "invalid amount_in for quote receipt binding" in _validate_intent_against_quote_receipt(
         _swap_intent(intent_id=_iid(40), fields={"amount_in": True}),
         _receipt(),
     )  # type: ignore[arg-type]
-    assert "invalid min_amount_out for quote receipt binding" in _validate_intent_against_quote_receipt(
-        _swap_intent(intent_id=_iid(41), fields={"min_amount_out": -1}),
-        _receipt(),
+    assert (
+        "invalid min_amount_out for quote receipt binding"
+        in _validate_intent_against_quote_receipt(
+            _swap_intent(intent_id=_iid(41), fields={"min_amount_out": -1}),
+            _receipt(),
+        )
     )  # type: ignore[arg-type]
     assert "exact-in quote receipt leg mismatch" in _validate_intent_against_quote_receipt(
         _swap_intent(intent_id=_iid(42), fields={"amount_in": 11}),
@@ -501,17 +603,23 @@ def test_validate_intent_against_quote_receipt_covers_multi_hop_and_exact_out_pa
                     },
                 ]
             }
-        ]
+        ],
     )
-    assert "quote receipt multi-hop leg unsupported for direct intent binding" in _validate_intent_against_quote_receipt(exact_out, multi_hop)  # type: ignore[arg-type]
+    assert (
+        "quote receipt multi-hop leg unsupported for direct intent binding"
+        in _validate_intent_against_quote_receipt(exact_out, multi_hop)
+    )  # type: ignore[arg-type]
     assert _validate_intent_against_quote_receipt(exact_out, _receipt(kind="exact_out")) is None
     assert "invalid amount_out for quote receipt binding" in _validate_intent_against_quote_receipt(
         replace(exact_out, fields={**(exact_out.fields or {}), "amount_out": True}),
         _receipt(kind="exact_out"),
     )  # type: ignore[arg-type]
-    assert "invalid max_amount_in for quote receipt binding" in _validate_intent_against_quote_receipt(
-        replace(exact_out, fields={**(exact_out.fields or {}), "max_amount_in": -1}),
-        _receipt(kind="exact_out"),
+    assert (
+        "invalid max_amount_in for quote receipt binding"
+        in _validate_intent_against_quote_receipt(
+            replace(exact_out, fields={**(exact_out.fields or {}), "max_amount_in": -1}),
+            _receipt(kind="exact_out"),
+        )
     )  # type: ignore[arg-type]
     assert "exact-out quote receipt leg mismatch" in _validate_intent_against_quote_receipt(
         replace(exact_out, fields={**(exact_out.fields or {}), "max_amount_in": 9}),
@@ -532,8 +640,20 @@ def test_validate_intent_against_quote_receipt_covers_remaining_defensive_contin
             legs=[
                 {
                     "hops": [
-                        {"pool_id": "other", "asset_in": "x", "asset_out": "y", "amount_in": 1, "amount_out": 1},
-                        {"pool_id": "still-other", "asset_in": "x", "asset_out": "y", "amount_in": 2, "amount_out": 2},
+                        {
+                            "pool_id": "other",
+                            "asset_in": "x",
+                            "asset_out": "y",
+                            "amount_in": 1,
+                            "amount_out": 1,
+                        },
+                        {
+                            "pool_id": "still-other",
+                            "asset_in": "x",
+                            "asset_out": "y",
+                            "amount_in": 2,
+                            "amount_out": 2,
+                        },
                     ]
                 }
             ]
@@ -585,8 +705,12 @@ def test_validate_intent_against_quote_receipt_covers_remaining_defensive_contin
     )  # type: ignore[arg-type]
 
 
-def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_group_checks(monkeypatch: pytest.MonkeyPatch) -> None:
-    env_missing_hash = SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(44)), quote_receipt=_receipt())
+def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_group_checks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    env_missing_hash = SignedIntentEnvelope(
+        intent=_swap_intent(intent_id=_iid(44)), quote_receipt=_receipt()
+    )
     assert "quote receipt provided without quote_receipt_hash" in _validate_quote_receipt_witnesses(
         signed_intents=[env_missing_hash],
         pools={},
@@ -596,16 +720,30 @@ def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_g
         intent=_swap_intent(intent_id=_iid(45), fields={"quote_receipt_hash": ""}),
         quote_receipt=_receipt(),
     )
-    assert "invalid quote_receipt_hash" in _validate_quote_receipt_witnesses(signed_intents=[env_invalid_hash], pools={})  # type: ignore[arg-type]
+    assert "invalid quote_receipt_hash" in _validate_quote_receipt_witnesses(
+        signed_intents=[env_invalid_hash], pools={}
+    )  # type: ignore[arg-type]
 
-    monkeypatch.setattr("src.integration.dex_engine.verify_route_quote_receipt", lambda receipt, pools_by_id: (True, None))
-    monkeypatch.setattr("src.integration.dex_engine._validate_intent_against_quote_receipt", lambda intent, receipt: None)
+    monkeypatch.setattr(
+        "src.integration.dex_engine.verify_route_quote_receipt",
+        lambda receipt, pools_by_id: (True, None),
+    )
+    monkeypatch.setattr(
+        "src.integration.dex_engine._validate_intent_against_quote_receipt",
+        lambda intent, receipt: None,
+    )
 
     good_env = SignedIntentEnvelope(
-        intent=_swap_intent(intent_id=_iid(46), fields={"quote_receipt_hash": "0x" + "ab" * 32, "quote_receipt_leg_index": 0}),
+        intent=_swap_intent(
+            intent_id=_iid(46),
+            fields={"quote_receipt_hash": "0x" + "ab" * 32, "quote_receipt_leg_index": 0},
+        ),
         quote_receipt=_receipt(legs="bad"),  # type: ignore[arg-type]
     )
-    assert _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={}) == f"invalid quote receipt legs: {good_env.intent.intent_id}"
+    assert (
+        _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={})
+        == f"invalid quote receipt legs: {good_env.intent.intent_id}"
+    )
 
     with pytest.raises(TypeError, match="immutable"):
         good_env.intent.get_field = lambda key, default=None: default  # type: ignore[method-assign]
@@ -617,41 +755,67 @@ def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_g
         ),
         quote_receipt=_receipt(),
     )
-    assert "missing quote_receipt_leg_index" in _validate_quote_receipt_witnesses(signed_intents=[missing_leg_env], pools={})  # type: ignore[arg-type]
+    assert "missing quote_receipt_leg_index" in _validate_quote_receipt_witnesses(
+        signed_intents=[missing_leg_env], pools={}
+    )  # type: ignore[arg-type]
 
 
 def test_build_signing_payloads_rejects_invalid_or_oversized_signing_dicts() -> None:
     intent = _swap_intent()
     env = SignedIntentEnvelope(intent=intent, signature=None, quote_receipt=None)
-    signing_dicts, payloads = _build_signing_payloads([env], max_intent_bytes=4096, max_total_intent_bytes=4096)
+    signing_dicts, payloads = _build_signing_payloads(
+        [env], max_intent_bytes=4096, max_total_intent_bytes=4096
+    )
     assert len(signing_dicts) == len(payloads) == 1
 
     salted_intent = _swap_intent(intent_id=_iid(4))
     salted_intent.salt = "salt"
-    signing_dicts, _payloads = _build_signing_payloads([SignedIntentEnvelope(intent=salted_intent)], max_intent_bytes=4096, max_total_intent_bytes=4096)
+    signing_dicts, _payloads = _build_signing_payloads(
+        [SignedIntentEnvelope(intent=salted_intent)],
+        max_intent_bytes=4096,
+        max_total_intent_bytes=4096,
+    )
     assert signing_dicts[0]["salt"] == "salt"
 
     bad_fields_intent = _swap_intent(intent_id=_iid(2))
     bad_fields_intent.fields = 7  # type: ignore[assignment]
     with pytest.raises(TypeError, match="intent.fields must be a mapping"):
-        _build_signing_payloads([SignedIntentEnvelope(intent=bad_fields_intent)], max_intent_bytes=4096, max_total_intent_bytes=4096)
+        _build_signing_payloads(
+            [SignedIntentEnvelope(intent=bad_fields_intent)],
+            max_intent_bytes=4096,
+            max_total_intent_bytes=4096,
+        )
 
     too_large = _swap_intent(intent_id=_iid(3), fields={"blob": "A" * 5000})
-    with pytest.raises(ValueError, match=f"intent signing payload too large: {too_large.intent_id}"):
-        _build_signing_payloads([SignedIntentEnvelope(intent=too_large)], max_intent_bytes=256, max_total_intent_bytes=256)
+    with pytest.raises(
+        ValueError, match=f"intent signing payload too large: {too_large.intent_id}"
+    ):
+        _build_signing_payloads(
+            [SignedIntentEnvelope(intent=too_large)],
+            max_intent_bytes=256,
+            max_total_intent_bytes=256,
+        )
 
 
-def test_build_signing_payloads_covers_invalid_encoding_and_total_size_guards(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_signing_payloads_covers_invalid_encoding_and_total_size_guards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     env = SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(470)))
 
     monkeypatch.setattr(dex_engine, "bounded_json_utf8_size", lambda value, *, max_bytes: 1)
-    monkeypatch.setattr(dex_engine, "canonical_json_bytes", lambda value: (_ for _ in ()).throw(TypeError("bad json")))
+    monkeypatch.setattr(
+        dex_engine,
+        "canonical_json_bytes",
+        lambda value: (_ for _ in ()).throw(TypeError("bad json")),
+    )
     with pytest.raises(ValueError, match=f"invalid intent signing payload: {env.intent.intent_id}"):
         _build_signing_payloads([env], max_intent_bytes=32, max_total_intent_bytes=32)
 
     monkeypatch.setattr(dex_engine, "bounded_json_utf8_size", lambda value, *, max_bytes: 1)
     monkeypatch.setattr(dex_engine, "canonical_json_bytes", lambda value: b"012345")
-    with pytest.raises(ValueError, match=f"intent signing payload too large: {env.intent.intent_id}"):
+    with pytest.raises(
+        ValueError, match=f"intent signing payload too large: {env.intent.intent_id}"
+    ):
         _build_signing_payloads([env], max_intent_bytes=4, max_total_intent_bytes=32)
 
     env2 = SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(471)))
@@ -686,7 +850,10 @@ def test_verify_all_intent_signatures_covers_unsigned_policy_paths() -> None:
         signing_payloads=payload,
         chain_id="tau-net-alpha",
     )
-    assert (ok, err) == (False, "tx_sender_pubkey must be a 48-byte hex pubkey for unsigned intents")
+    assert (ok, err) == (
+        False,
+        "tx_sender_pubkey must be a 48-byte hex pubkey for unsigned intents",
+    )
 
     ok, err = _verify_all_intent_signatures(
         [env],
@@ -709,7 +876,9 @@ def test_verify_all_intent_signatures_covers_unsigned_policy_paths() -> None:
     assert (ok, err) == (True, None)
 
 
-def test_verify_all_intent_signatures_covers_internal_mismatch_and_signature_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_verify_all_intent_signatures_covers_internal_mismatch_and_signature_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     sender = "0x" + "11" * 48
     intent = _swap_intent(sender=sender)
     env = SignedIntentEnvelope(intent=intent, signature="0x" + "22" * 96)
@@ -736,7 +905,10 @@ def test_verify_all_intent_signatures_covers_internal_mismatch_and_signature_fai
     assert (ok, err) == (False, "py_ecc (BLS) not available")
 
     monkeypatch.setattr("src.integration.dex_engine._BLS_AVAILABLE", True)
-    monkeypatch.setattr("src.integration.dex_engine._verify_intent_signature_bytes", lambda **kwargs: (False, "bad sig"))
+    monkeypatch.setattr(
+        "src.integration.dex_engine._verify_intent_signature_bytes",
+        lambda **kwargs: (False, "bad sig"),
+    )
     ok, err = _verify_all_intent_signatures(
         [env],
         require=True,
@@ -766,8 +938,12 @@ def test_verify_all_intent_signatures_covers_missing_signature_without_bypass_an
     )
     assert (ok, err) == (False, f"missing intent signature: {missing_sig_intent.intent_id}")
 
-    env1 = SignedIntentEnvelope(intent=_swap_intent(sender=sender, intent_id=_iid(473)), signature="0x" + "22" * 96)
-    env2 = SignedIntentEnvelope(intent=_swap_intent(sender=sender, intent_id=_iid(474)), signature="0x" + "33" * 96)
+    env1 = SignedIntentEnvelope(
+        intent=_swap_intent(sender=sender, intent_id=_iid(473)), signature="0x" + "22" * 96
+    )
+    env2 = SignedIntentEnvelope(
+        intent=_swap_intent(sender=sender, intent_id=_iid(474)), signature="0x" + "33" * 96
+    )
     monkeypatch.setattr(dex_engine, "_BLS_AVAILABLE", True)
     monkeypatch.setattr(dex_engine, "_verify_intent_signature_bytes", lambda **kwargs: (True, None))
     ok, err = _verify_all_intent_signatures(
@@ -781,7 +957,9 @@ def test_verify_all_intent_signatures_covers_missing_signature_without_bypass_an
     assert (ok, err) == (True, None)
 
 
-def test_verify_intent_signature_bytes_rejects_missing_bls_and_internal_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_verify_intent_signature_bytes_rejects_missing_bls_and_internal_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr("src.integration.dex_engine._BLS_AVAILABLE", False)
     ok, err = _verify_intent_signature_bytes(
         sender_pubkey_hex="0x" + "11" * 48,
@@ -792,7 +970,10 @@ def test_verify_intent_signature_bytes_rejects_missing_bls_and_internal_errors(m
     assert (ok, err) == (False, "py_ecc (BLS) not available")
 
     monkeypatch.setattr("src.integration.dex_engine._BLS_AVAILABLE", True)
-    monkeypatch.setattr("src.integration.dex_engine.domain_sep_bytes", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("domain boom")))
+    monkeypatch.setattr(
+        "src.integration.dex_engine.domain_sep_bytes",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("domain boom")),
+    )
     ok, err = _verify_intent_signature_bytes(
         sender_pubkey_hex="0x" + "11" * 48,
         signature_hex="0x" + "22" * 96,
@@ -803,7 +984,9 @@ def test_verify_intent_signature_bytes_rejects_missing_bls_and_internal_errors(m
     assert err == "intent signature verification error: domain boom"
 
 
-def test_verify_intent_signature_bytes_covers_invalid_signature_and_success(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_verify_intent_signature_bytes_covers_invalid_signature_and_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class _RejectingBLS:
         @staticmethod
         def Verify(pubkey: bytes, message: bytes, signature: bytes) -> bool:
@@ -833,7 +1016,9 @@ def test_verify_intent_signature_bytes_covers_invalid_signature_and_success(monk
     ) == (True, None)
 
 
-def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     verifier = _DummyVerifier((True, None))
 
     assert _verify_proof_if_present(
@@ -874,7 +1059,9 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
     assert _verify_proof_if_present(
         misconfigured,
         intents=[],
-        settlement_env=_empty_settlement_env(proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}),
+        settlement_env=_empty_settlement_env(
+            proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}
+        ),
         require_proof=False,
         verifier_enforcing=True,
         pre_state_commitment="0x1",
@@ -907,7 +1094,9 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
     assert _verify_proof_if_present(
         verifier,
         intents=[],
-        settlement_env=_empty_settlement_env(proof={"pre_state_commitment": "0x9", "batch_commitment": "0x2"}),
+        settlement_env=_empty_settlement_env(
+            proof={"pre_state_commitment": "0x9", "batch_commitment": "0x2"}
+        ),
         require_proof=False,
         verifier_enforcing=True,
         pre_state_commitment="0x1",
@@ -929,7 +1118,9 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
     assert _verify_proof_if_present(
         verifier,
         intents=[],
-        settlement_env=_empty_settlement_env(proof={"pre_state_commitment": "0x1", "batch_commitment": "0x9"}),
+        settlement_env=_empty_settlement_env(
+            proof={"pre_state_commitment": "0x1", "batch_commitment": "0x9"}
+        ),
         require_proof=False,
         verifier_enforcing=True,
         pre_state_commitment="0x1",
@@ -941,7 +1132,9 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
     assert _verify_proof_if_present(
         rejecting,
         intents=[],
-        settlement_env=_empty_settlement_env(proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}),
+        settlement_env=_empty_settlement_env(
+            proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}
+        ),
         require_proof=False,
         verifier_enforcing=True,
         pre_state_commitment="0x1",
@@ -949,7 +1142,11 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
         max_verifier_payload_bytes=1024,
     ) == (False, "proof rejected: bad proof")
 
-    too_large_payload = {"pre_state_commitment": "0x1", "batch_commitment": "0x2", "blob": "A" * 5000}
+    too_large_payload = {
+        "pre_state_commitment": "0x1",
+        "batch_commitment": "0x2",
+        "blob": "A" * 5000,
+    }
     assert _verify_proof_if_present(
         verifier,
         intents=[],
@@ -961,11 +1158,16 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
         max_verifier_payload_bytes=64,
     ) == (False, "proof payload too large")
 
-    monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", lambda payload, *, max_bytes: (_ for _ in ()).throw(TypeError("bad encoding")))
+    monkeypatch.setattr(
+        "src.integration.dex_engine.bounded_json_utf8_size",
+        lambda payload, *, max_bytes: (_ for _ in ()).throw(TypeError("bad encoding")),
+    )
     assert _verify_proof_if_present(
         verifier,
         intents=[],
-        settlement_env=_empty_settlement_env(proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}),
+        settlement_env=_empty_settlement_env(
+            proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}
+        ),
         require_proof=False,
         verifier_enforcing=True,
         pre_state_commitment="0x1",
@@ -973,12 +1175,17 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
         max_verifier_payload_bytes=1024,
     ) == (False, "invalid proof payload encoding")
 
-    monkeypatch.setattr("src.integration.dex_engine.bounded_json_utf8_size", lambda payload, *, max_bytes: (_ for _ in ()).throw(RuntimeError("bad encoding")))
+    monkeypatch.setattr(
+        "src.integration.dex_engine.bounded_json_utf8_size",
+        lambda payload, *, max_bytes: (_ for _ in ()).throw(RuntimeError("bad encoding")),
+    )
     with pytest.raises(RuntimeError, match="bad encoding"):
         _verify_proof_if_present(
             verifier,
             intents=[],
-            settlement_env=_empty_settlement_env(proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}),
+            settlement_env=_empty_settlement_env(
+                proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}
+            ),
             require_proof=False,
             verifier_enforcing=True,
             pre_state_commitment="0x1",
@@ -991,7 +1198,9 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
     assert _verify_proof_if_present(
         ok_verifier,
         intents=[],
-        settlement_env=_empty_settlement_env(proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}),
+        settlement_env=_empty_settlement_env(
+            proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}
+        ),
         require_proof=False,
         verifier_enforcing=True,
         pre_state_commitment="0x1",
@@ -1000,16 +1209,23 @@ def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths(monkey
     ) == (True, None)
 
 
-def test_settlement_canonicalization_helpers_fail_closed_on_malformed_operation(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_settlement_canonicalization_helpers_fail_closed_on_malformed_operation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     settlement = _empty_settlement_env(proof=None).settlement
 
-    monkeypatch.setattr("src.integration.dex_engine.create_settlement_operation", lambda _settlement: {"3": []})
+    monkeypatch.setattr(
+        "src.integration.dex_engine.create_settlement_operation", lambda _settlement: {"3": []}
+    )
     with pytest.raises(TypeError, match="settlement operation must be an object"):
         _settlement_commitment_dict(settlement)
     with pytest.raises(TypeError, match="settlement operation must be an object"):
         _settlement_rewrite_normal_form_dict(settlement)
 
-    monkeypatch.setattr("src.integration.dex_engine.create_settlement_operation", lambda _settlement: {"3": {"fills": {}}})
+    monkeypatch.setattr(
+        "src.integration.dex_engine.create_settlement_operation",
+        lambda _settlement: {"3": {"fills": {}}},
+    )
     with pytest.raises(TypeError, match="settlement.fills must be a list"):
         _settlement_commitment_dict(settlement)
 
@@ -1021,7 +1237,9 @@ def test_settlement_canonicalization_helpers_fail_closed_on_malformed_operation(
         _settlement_commitment_dict(settlement)
 
 
-def test_apply_ops_covers_external_tool_policy_and_intent_parse_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_apply_ops_covers_external_tool_policy_and_intent_parse_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     state = _empty_state()
 
     res = apply_ops(
@@ -1037,16 +1255,30 @@ def test_apply_ops_covers_external_tool_policy_and_intent_parse_errors(monkeypat
     assert res.ok is False
     assert res.error == "external tools not permitted in consensus_mode"
 
-    monkeypatch.setattr(dex_engine, "parse_signed_intents", lambda operations: (_ for _ in ()).throw(ValueError("bad\nintents")))
-    res = apply_ops(config=DexEngineConfig(), state=state, operations={"2": "ignored"}, block_timestamp=0)
+    monkeypatch.setattr(
+        dex_engine,
+        "parse_signed_intents",
+        lambda operations: (_ for _ in ()).throw(ValueError("bad\nintents")),
+    )
+    res = apply_ops(
+        config=DexEngineConfig(), state=state, operations={"2": "ignored"}, block_timestamp=0
+    )
     assert res.error == "invalid intents: bad intents"
 
-    monkeypatch.setattr(dex_engine, "parse_signed_intents", lambda operations: (_ for _ in ()).throw(RuntimeError("boom")))
-    res = apply_ops(config=DexEngineConfig(), state=state, operations={"2": "ignored"}, block_timestamp=0)
+    monkeypatch.setattr(
+        dex_engine,
+        "parse_signed_intents",
+        lambda operations: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    res = apply_ops(
+        config=DexEngineConfig(), state=state, operations={"2": "ignored"}, block_timestamp=0
+    )
     assert res.error == "internal error"
 
 
-def test_apply_ops_covers_too_many_intents_and_settlement_parse_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_apply_ops_covers_too_many_intents_and_settlement_parse_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     state = _empty_state()
     envs = [
         SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(500), fields={"nonce": 1})),
@@ -1062,27 +1294,43 @@ def test_apply_ops_covers_too_many_intents_and_settlement_parse_errors(monkeypat
     assert res.error == "too many intents: 2 > 1"
 
     monkeypatch.setattr(dex_engine, "parse_signed_intents", lambda operations: [])
-    monkeypatch.setattr(dex_engine, "parse_settlement_envelope", lambda operations: (_ for _ in ()).throw(ValueError("bad\nsettlement")))
+    monkeypatch.setattr(
+        dex_engine,
+        "parse_settlement_envelope",
+        lambda operations: (_ for _ in ()).throw(ValueError("bad\nsettlement")),
+    )
     res = apply_ops(config=DexEngineConfig(), state=state, operations={}, block_timestamp=0)
     assert res.error == "invalid settlement: bad settlement"
 
-    monkeypatch.setattr(dex_engine, "parse_settlement_envelope", lambda operations: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        dex_engine,
+        "parse_settlement_envelope",
+        lambda operations: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
     res = apply_ops(config=DexEngineConfig(), state=state, operations={}, block_timestamp=0)
     assert res.error == "internal error"
 
 
-def test_apply_ops_covers_invalid_proof_payload_and_signing_payload_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_apply_ops_covers_invalid_proof_payload_and_signing_payload_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     state = _empty_state()
     monkeypatch.setattr(dex_engine, "parse_signed_intents", lambda operations: [])
     monkeypatch.setattr(
         dex_engine,
         "parse_settlement_envelope",
-        lambda operations: SettlementEnvelope(settlement=_reject_settlement(_iid(510)), proof={"scheme": "dummy"}),
+        lambda operations: SettlementEnvelope(
+            settlement=_reject_settlement(_iid(510)), proof={"scheme": "dummy"}
+        ),
     )
     monkeypatch.setattr(
         dex_engine,
         "bounded_json_utf8_size",
-        lambda value, *, max_bytes: (_ for _ in ()).throw(TypeError("bad proof json")) if value == {"scheme": "dummy"} else 0,
+        lambda value, *, max_bytes: (
+            (_ for _ in ()).throw(TypeError("bad proof json"))
+            if value == {"scheme": "dummy"}
+            else 0
+        ),
     )
     res = apply_ops(
         config=DexEngineConfig(
@@ -1096,11 +1344,14 @@ def test_apply_ops_covers_invalid_proof_payload_and_signing_payload_errors(monke
     )
     assert res.error == "invalid proof payload encoding"
 
-
     monkeypatch.setattr(
         dex_engine,
         "bounded_json_utf8_size",
-        lambda value, *, max_bytes: (_ for _ in ()).throw(RuntimeError("bad proof json")) if value == {"scheme": "dummy"} else 0,
+        lambda value, *, max_bytes: (
+            (_ for _ in ()).throw(RuntimeError("bad proof json"))
+            if value == {"scheme": "dummy"}
+            else 0
+        ),
     )
     res = apply_ops(
         config=DexEngineConfig(
@@ -1114,12 +1365,20 @@ def test_apply_ops_covers_invalid_proof_payload_and_signing_payload_errors(monke
     )
     assert res.error == "internal error"
     _patch_apply_ops_happy_path(monkeypatch)
-    monkeypatch.setattr(dex_engine, "_build_signing_payloads", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("payload boom")))
-    res = apply_ops(config=DexEngineConfig(), state=state, operations={"2": "ignored"}, block_timestamp=0)
+    monkeypatch.setattr(
+        dex_engine,
+        "_build_signing_payloads",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("payload boom")),
+    )
+    res = apply_ops(
+        config=DexEngineConfig(), state=state, operations={"2": "ignored"}, block_timestamp=0
+    )
     assert res.error == "payload boom"
 
 
-def test_apply_ops_covers_missing_settlement_skip_match_and_comparison_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_apply_ops_covers_missing_settlement_skip_match_and_comparison_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     state = _empty_state()
     envs = _patch_apply_ops_happy_path(monkeypatch, settlement_env=None)
     res = apply_ops(
@@ -1172,12 +1431,16 @@ def test_apply_ops_covers_missing_settlement_skip_match_and_comparison_errors(mo
     assert res.error == "invalid settlement payload for comparison"
 
 
-def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     state = _empty_state()
     validation_settlement = _filled_settlement(_iid(519), fee_paid=0)
     envs = _patch_apply_ops_happy_path(
         monkeypatch,
-        signed_intents=[SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(519), fields={"nonce": 1}))],
+        signed_intents=[
+            SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(519), fields={"nonce": 1}))
+        ],
         settlement_env=SettlementEnvelope(settlement=validation_settlement, proof=None),
         computed_settlement=validation_settlement,
         validate_result=(False, None),
@@ -1258,11 +1521,17 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
     internal_settlement = _filled_settlement(_iid(522), fee_paid=0)
     _patch_apply_ops_happy_path(
         monkeypatch,
-        signed_intents=[SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(522), fields={"nonce": 1}))],
+        signed_intents=[
+            SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(522), fields={"nonce": 1}))
+        ],
         settlement_env=SettlementEnvelope(settlement=internal_settlement, proof=None),
         computed_settlement=internal_settlement,
     )
-    monkeypatch.setattr(dex_engine, "apply_settlement_pure", lambda **kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        dex_engine,
+        "apply_settlement_pure",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
     res = apply_ops(
         config=DexEngineConfig(require_settlement_match=False),
         state=state,
@@ -1285,8 +1554,14 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
             "invalid state for commitment: bad state",
         ),
         (
-            {"scheme": "recompute_batch_v4", "pre_state_commitment": "0x1", "batch_commitment": "0x2"},
-            lambda monkeypatch: monkeypatch.setattr(dex_engine, "create_settlement_operation", lambda settlement: {"3": []}),
+            {
+                "scheme": "recompute_batch_v4",
+                "pre_state_commitment": "0x1",
+                "batch_commitment": "0x2",
+            },
+            lambda monkeypatch: monkeypatch.setattr(
+                dex_engine, "create_settlement_operation", lambda settlement: {"3": []}
+            ),
             "invalid settlement payload for commitment: settlement operation must be an object",
         ),
         (
@@ -1303,7 +1578,9 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
             lambda monkeypatch: monkeypatch.setattr(
                 dex_engine,
                 "bounded_json_utf8_size",
-                lambda value, *, max_bytes: (_ for _ in ()).throw(ValueError("too large")) if value == {"fills": []} else 1,
+                lambda value, *, max_bytes: (
+                    (_ for _ in ()).throw(ValueError("too large")) if value == {"fills": []} else 1
+                ),
             ),
             "settlement payload too large",
         ),
@@ -1312,7 +1589,11 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
             lambda monkeypatch: monkeypatch.setattr(
                 dex_engine,
                 "bounded_json_utf8_size",
-                lambda value, *, max_bytes: (_ for _ in ()).throw(RuntimeError("bad settlement payload")) if value == {"fills": []} else 1,
+                lambda value, *, max_bytes: (
+                    (_ for _ in ()).throw(RuntimeError("bad settlement payload"))
+                    if value == {"fills": []}
+                    else 1
+                ),
             ),
             "invalid settlement payload: bad settlement payload",
         ),
@@ -1321,9 +1602,11 @@ def test_apply_ops_covers_validation_fee_split_proof_context_and_internal_error_
             lambda monkeypatch: monkeypatch.setattr(
                 dex_engine,
                 "bounded_json_utf8_size",
-                lambda value, *, max_bytes: (_ for _ in ()).throw(ValueError("batch too large"))
-                if isinstance(value, dict) and value.get("schema") == "zenodex_batch"
-                else 1,
+                lambda value, *, max_bytes: (
+                    (_ for _ in ()).throw(ValueError("batch too large"))
+                    if isinstance(value, dict) and value.get("schema") == "zenodex_batch"
+                    else 1
+                ),
             ),
             "batch payload too large",
         ),
@@ -1348,7 +1631,9 @@ def test_apply_ops_covers_commitment_error_paths(
     settlement = _filled_settlement(_iid(520), fee_paid=1)
     _patch_apply_ops_happy_path(
         monkeypatch,
-        signed_intents=[SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(520), fields={"nonce": 1}))],
+        signed_intents=[
+            SignedIntentEnvelope(intent=_swap_intent(intent_id=_iid(520), fields={"nonce": 1}))
+        ],
         settlement_env=SettlementEnvelope(settlement=settlement, proof=proof),
         computed_settlement=settlement,
     )
@@ -1375,12 +1660,20 @@ def test_apply_ops_rejects_proof_without_settlement(monkeypatch: pytest.MonkeyPa
     state = _empty_state()
     proof = {"scheme": "dummy", "pre_state_commitment": "0x1", "batch_commitment": "0x2"}
     monkeypatch.setattr(dex_engine, "parse_signed_intents", lambda operations: [])
-    monkeypatch.setattr(dex_engine, "parse_settlement_envelope", lambda operations: SimpleNamespace(settlement=None, proof=proof))
+    monkeypatch.setattr(
+        dex_engine,
+        "parse_settlement_envelope",
+        lambda operations: SimpleNamespace(settlement=None, proof=proof),
+    )
     monkeypatch.setattr(dex_engine, "_build_signing_payloads", lambda *args, **kwargs: ([], []))
-    monkeypatch.setattr(dex_engine, "_verify_all_intent_signatures", lambda *args, **kwargs: (True, None))
+    monkeypatch.setattr(
+        dex_engine, "_verify_all_intent_signatures", lambda *args, **kwargs: (True, None)
+    )
     monkeypatch.setattr(dex_engine, "_validate_quote_receipt_witnesses", lambda **kwargs: None)
     monkeypatch.setattr(dex_engine, "validate_operations", lambda **kwargs: (True, None))
-    monkeypatch.setattr(dex_engine, "make_proof_verifier", lambda config: _DummyVerifier((True, None)))
+    monkeypatch.setattr(
+        dex_engine, "make_proof_verifier", lambda config: _DummyVerifier((True, None))
+    )
 
     res = apply_ops(
         config=DexEngineConfig(

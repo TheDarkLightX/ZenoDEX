@@ -1,0 +1,104 @@
+# Read-only exact-head certification for canonical authority encodings.
+name: canonical-wire-assurance
+
+on:
+  pull_request:
+    branches:
+      - agent/immutable-command-receipt-values-20260721
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-authority-encoding:
+    if: github.event.pull_request.head.ref == 'agent/canonical-wire-encoding-20260721'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.3"
+
+      - name: Bind trace-evidence interpreter
+        run: |
+          python -c "import sys; assert sys.version_info[:3] == (3, 12, 3), sys.version"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Check canonical authority surfaces
+        run: |
+          python -m ruff check \
+            src/state/canonical.py \
+            src/integration/operations.py \
+            src/integration/dex_engine.py \
+            tests/state/test_canonical_size_bounds.py \
+            tests/state/test_canonical_wire_encoding.py \
+            tests/state/test_state_root_determinism.py \
+            tests/integration/test_canonical_quote_receipt_transport.py \
+            tests/integration/test_dex_engine_helpers.py \
+            tests/integration/test_operations_grammar_fuzz.py \
+            tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py
+          python -m ruff format --check \
+            src/state/canonical.py \
+            src/integration/operations.py \
+            src/integration/dex_engine.py \
+            tests/state/test_canonical_size_bounds.py \
+            tests/state/test_canonical_wire_encoding.py \
+            tests/state/test_state_root_determinism.py \
+            tests/integration/test_canonical_quote_receipt_transport.py \
+            tests/integration/test_dex_engine_helpers.py \
+            tests/integration/test_operations_grammar_fuzz.py \
+            tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py
+          python -m mypy \
+            src/state/canonical.py \
+            src/integration/operations.py \
+            src/integration/dex_engine.py
+          python -m py_compile \
+            src/state/canonical.py \
+            src/integration/operations.py \
+            src/integration/dex_engine.py
+          git diff --check "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+
+      - name: Replay canonical parser and mounted carrier witnesses
+        run: |
+          python -m pytest -q \
+            tests/state/test_canonical_size_bounds.py \
+            tests/state/test_canonical_wire_encoding.py \
+            tests/integration/test_canonical_quote_receipt_transport.py \
+            tests/integration/test_operations_parsing.py \
+            tests/integration/test_quote_receipt_intents.py \
+            tests/integration/test_dex_engine_helpers.py
+
+      - name: Replay state-root and source-bound grammar witnesses
+        run: |
+          python -m pytest -q \
+            tests/state/test_state_root_determinism.py \
+            tests/integration/test_operations_grammar_fuzz.py \
+            tests/integration/test_quote_receipt_transport_grammar_fuzz.py \
+            tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py
+
+      - name: Replay inherited immutable authority-value witnesses
+        run: |
+          python -m pytest -q \
+            tests/state/test_immutable_json.py \
+            tests/core/test_authority_snapshot_immutability.py \
+            tests/core/test_authority_json_immutability.py
+
+      - name: Run critical-quality gate
+        env:
+          PYTHON: python
+        run: bash tools/run_critical_quality_gate.sh

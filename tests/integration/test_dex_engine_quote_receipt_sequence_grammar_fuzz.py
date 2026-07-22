@@ -52,7 +52,10 @@ def test_dex_engine_quote_receipt_sequence_direct_paths_are_stable() -> None:
     assert report.unique_path_count == 5
     assert "ok:pools=2:nonces=aaaaaaaa=1" in labels
     assert "ok:pools=2:nonces=aaaaaaaa=2" in labels
-    assert any("invalid quote receipt:" in label and "verifier_error='pool_snapshot_mismatch'" in label for label in labels)
+    assert any(
+        "invalid quote receipt:" in label and "verifier_error='pool_snapshot_mismatch'" in label
+        for label in labels
+    )
     assert any("missing quote receipt witness:" in label for label in labels)
     assert any("quote receipt hash mismatch:" in label for label in labels)
     assert "DirectSeq->SingleValidAb" in derivations
@@ -62,7 +65,9 @@ def test_dex_engine_quote_receipt_sequence_direct_paths_are_stable() -> None:
     assert "DirectSeq->ValidThenIndependentHashMismatch" in derivations
 
 
-def test_dex_engine_quote_receipt_live_admission_floor_rejects_stale_transport_without_state_advance() -> None:
+def test_dex_engine_quote_receipt_live_admission_floor_rejects_stale_transport_without_state_advance() -> (
+    None
+):
     config = DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False)
     state = _direct_state()
     first_ops = _make_direct_ops(
@@ -184,7 +189,12 @@ def test_dex_engine_quote_receipt_sequence_targets_are_covered_and_deterministic
 
 def test_dex_engine_quote_receipt_sequence_cli_emits_expected_schema() -> None:
     raw = subprocess.check_output(
-        [sys.executable, str(ROOT_DIR / "tools/dex_engine_quote_receipt_sequence_grammar_fuzz.py"), "--format", "json"],
+        [
+            sys.executable,
+            str(ROOT_DIR / "tools/dex_engine_quote_receipt_sequence_grammar_fuzz.py"),
+            "--format",
+            "json",
+        ],
         text=True,
     )
     payload = json.loads(raw)
@@ -195,11 +205,15 @@ def test_dex_engine_quote_receipt_sequence_cli_emits_expected_schema() -> None:
     }
 
 
-def test_dex_engine_quote_receipt_sequence_minimizer_removes_dead_tail_without_changing_path() -> None:
-    witness = minimize_case("direct_quote_receipt_sequence", "DirectSeq->ValidThenStaleSamePoolWithDeadTail")
+def test_dex_engine_quote_receipt_sequence_minimizer_removes_dead_tail_without_changing_path() -> (
+    None
+):
+    witness = minimize_case(
+        "direct_quote_receipt_sequence", "DirectSeq->ValidThenStaleSamePoolWithDeadTail"
+    )
     assert "invalid quote receipt:" in witness.outcome_label
     assert "verifier_error='pool_snapshot_mismatch'" in witness.outcome_label
-    assert witness.path_id == "34a066c6363f12e8"
+    assert witness.path_id == "21c2509bee15912e"
     assert witness.original_size == 7149
     assert witness.minimized_size == 4776
     assert witness.original_size > witness.minimized_size
@@ -230,17 +244,21 @@ def test_dex_engine_quote_receipt_sequence_minimizer_cli_emits_expected_schema()
     assert witness["target"] == "direct_quote_receipt_sequence"
     assert witness["derivation"] == "DirectSeq->ValidThenStaleSamePoolWithDeadTail"
     assert "invalid quote receipt:" in witness["outcome_label"]
-    assert witness["path_id"] == "34a066c6363f12e8"
+    assert witness["path_id"] == "21c2509bee15912e"
     assert witness["original_size"] == 7149
     assert witness["minimized_size"] == 4776
 
 
-def test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg_projection() -> None:
-    witness = minimize_case("split_quote_receipt_sequence", "SplitSeq->WarmupThenSplitSwappedLegIndices")
+def test_dex_engine_quote_receipt_sequence_minimizer_preserves_swapped_split_leg_projection() -> (
+    None
+):
+    witness = minimize_case(
+        "split_quote_receipt_sequence", "SplitSeq->WarmupThenSplitSwappedLegIndices"
+    )
     assert "intent does not match quote receipt leg:" in witness.outcome_label
     assert "leg_index=1" in witness.outcome_label
     assert "pool_id='p1'" in witness.outcome_label
-    assert witness.path_id == "3458894f591aca68"
+    assert witness.path_id == "4b2ef4810997eb74"
     assert witness.original_size == 10853
     assert witness.minimized_size == 10853
     assert isinstance(witness.payload, dict)
