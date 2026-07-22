@@ -162,6 +162,12 @@ def test_checker_rejects_aliased_broad_isinstance(tmp_path: Path) -> None:
             "from src.state.owned_collections import _owned_enum_from_admitted\n"
             'value = _owned_enum_from_admitted("v1", 0, 0)\n'
         ),
+        (
+            "from src.state.owned_collections import "
+            "_owned_map_from_canonical_transition_v1\n"
+            "value = _owned_map_from_canonical_transition_v1("
+            '(("k", 1),), "v1", "map/v1")\n'
+        ),
     ],
 )
 def test_checker_rejects_owned_factories_outside_interpreter(
@@ -177,6 +183,10 @@ def test_checker_rejects_owned_factories_outside_interpreter(
         ("import src.state.snapshot_combinators as sc\nengine = sc._admit_with_registry_v1\n"),
         ("import src.state.owned_collections as oc\nmake = oc._owned_map_from_admitted\n"),
         ("import src.state.owned_collections as oc\nmake = oc._owned_enum_from_admitted\n"),
+        (
+            "import src.state.owned_collections as oc\n"
+            "make = oc._owned_map_from_canonical_transition_v1\n"
+        ),
         ("import src.state.owned_collections as oc\ntoken = oc._OWNED_MAP_CONSTRUCTION_TOKEN\n"),
         ("import src.state.owned_collections as oc\ntoken = oc._OWNED_ENUM_CONSTRUCTION_TOKEN\n"),
         ("import src.state.snapshot_combinators as sc\ntoken = sc._ADMISSION_REGISTRY_TOKEN\n"),
@@ -196,6 +206,7 @@ def test_checker_rejects_private_capability_attribute_capture(
         ("src.state.snapshot_combinators", "_admit_with_registry_v1"),
         ("src.state.owned_collections", "_owned_map_from_admitted"),
         ("src.state.owned_collections", "_owned_enum_from_admitted"),
+        ("src.state.owned_collections", "_owned_map_from_canonical_transition_v1"),
         ("src.state.owned_collections", "_OWNED_MAP_CONSTRUCTION_TOKEN"),
         ("src.state.owned_collections", "_OWNED_ENUM_CONSTRUCTION_TOKEN"),
         ("src.state.snapshot_combinators", "_ADMISSION_REGISTRY_TOKEN"),

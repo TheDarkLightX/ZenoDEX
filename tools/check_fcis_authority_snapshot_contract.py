@@ -15,6 +15,10 @@ REPORT_SCHEMA = "zenodex/fcis-authority-snapshot-contract-check/v1"
 DEFAULT_AUTHORITY_PATHS = (
     Path("src/state/snapshot_combinators.py"),
     Path("src/state/owned_collections.py"),
+    Path("src/state/state_snapshot_values.py"),
+    Path("src/state/state_snapshot_schema.py"),
+    Path("src/state/state_admission_profile.py"),
+    Path("src/state/state_transitions.py"),
 )
 DEFAULT_REQUIREMENTS_PATH = Path("docs/specs/fcis_authority_snapshot_v1/requirements.json")
 DEFAULT_TEST_MATRIX_PATHS = (
@@ -67,6 +71,7 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
     "_admit_with_registry_v1": "src/state/state_admission_profile.py",
     "_owned_enum_from_admitted": "src/state/snapshot_combinators.py",
     "_owned_map_from_admitted": "src/state/snapshot_combinators.py",
+    "_owned_map_from_canonical_transition_v1": "src/state/state_transitions.py",
     "_OWNED_ENUM_CONSTRUCTION_TOKEN": "src/state/owned_collections.py",
     "_OWNED_MAP_CONSTRUCTION_TOKEN": "src/state/owned_collections.py",
     "_ADMISSION_REGISTRY_TOKEN": "src/state/snapshot_combinators.py",
@@ -462,7 +467,13 @@ class _AuthorityVisitor(ast.NodeVisitor):
         if called_tail in {
             "_owned_enum_from_admitted",
             "_owned_map_from_admitted",
-        } and not self.relative_path.endswith("src/state/snapshot_combinators.py"):
+            "_owned_map_from_canonical_transition_v1",
+        } and not (
+            called_tail in {"_owned_enum_from_admitted", "_owned_map_from_admitted"}
+            and self.relative_path.endswith("src/state/snapshot_combinators.py")
+            or called_tail == "_owned_map_from_canonical_transition_v1"
+            and self.relative_path.endswith("src/state/state_transitions.py")
+        ):
             self._add(node, "OWNED_CONSTRUCTION_ESCAPE", called or called_tail)
         if called_tail == "_admit_with_registry_v1":
             if not self.relative_path.endswith(_PROFILE_PATH_SUFFIX):
@@ -516,35 +527,48 @@ class _AuthorityVisitor(ast.NodeVisitor):
             self._add(node, "REGISTRY_BINDING_ESCAPE", called or called_tail)
         construction_allowlist = {
             "AdmissionRegistryV1": (
-                "src/state/snapshot_combinators.py",
-                "build_admission_registry_v1",
+                (
+                    "src/state/snapshot_combinators.py",
+                    "build_admission_registry_v1",
+                ),
             ),
             "OwnedMapV1": (
-                "src/state/owned_collections.py",
-                "_owned_map_from_admitted",
+                (
+                    "src/state/owned_collections.py",
+                    "_owned_map_from_admitted",
+                ),
+                (
+                    "src/state/owned_collections.py",
+                    "_owned_map_from_canonical_transition_v1",
+                ),
             ),
             "OwnedEnumV1": (
-                "src/state/owned_collections.py",
-                "_owned_enum_from_admitted",
+                (
+                    "src/state/owned_collections.py",
+                    "_owned_enum_from_admitted",
+                ),
             ),
             "ValidatedAdmissionLimitsV1": (
-                "src/state/snapshot_combinators.py",
-                "build_admission_limits_v1",
+                (
+                    "src/state/snapshot_combinators.py",
+                    "build_admission_limits_v1",
+                ),
             ),
         }
-        required_site = construction_allowlist.get(called_tail or "")
+        required_sites = construction_allowlist.get(called_tail or "")
         current_function = self.function_names[-1] if self.function_names else None
-        if required_site is not None and (
-            not self.relative_path.endswith(required_site[0])
-            or current_function != required_site[1]
+        if required_sites is not None and not any(
+            self.relative_path.endswith(required_path) and current_function == required_function
+            for required_path, required_function in required_sites
         ):
+            required_text = "|".join(
+                f"{required_path}:{required_function}"
+                for required_path, required_function in required_sites
+            )
             self._add(
                 node,
                 "CONSTRUCTION_CALLSITE",
-                (
-                    f"{called_tail}:{current_function or '<module>'}:"
-                    f"required={required_site[0]}:{required_site[1]}"
-                ),
+                (f"{called_tail}:{current_function or '<module>'}:required={required_text}"),
             )
         if called_tail in {"owned_type", "source_type"}:
             self._add(node, "DECLARATIVE_REGISTRY_EXECUTION", called or called_tail)

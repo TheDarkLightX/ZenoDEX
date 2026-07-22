@@ -191,6 +191,26 @@ def _owned_map_from_admitted(
     )
 
 
+def _owned_map_from_canonical_transition_v1(
+    entries: tuple[tuple[K, V], ...],
+    schema_revision: str,
+    schema_id: str,
+) -> OwnedMapV1[K, V]:
+    """Trusted freeze edge for one fully validated canonical transition.
+
+    The FCIS authority checker permits this capability only in
+    ``state_transitions.py``. The transition must establish exact types,
+    canonical order, uniqueness, and domain invariants before calling it.
+    """
+
+    return OwnedMapV1(
+        entries,
+        schema_revision,
+        schema_id,
+        _construction_token=_OWNED_MAP_CONSTRUCTION_TOKEN,
+    )
+
+
 def _owned_enum_from_admitted(
     schema_revision: str,
     enum_tag_ordinal: int,
