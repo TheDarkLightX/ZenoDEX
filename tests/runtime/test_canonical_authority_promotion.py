@@ -1,4 +1,4 @@
-"""Promotion-lane tests for the canonical Rust authority surface."""
+"""Authority-demotion and shadow parity tests for canonical encoding."""
 
 from __future__ import annotations
 
@@ -61,13 +61,13 @@ def _patch_rust_stdout(monkeypatch, payload: dict) -> None:
     monkeypatch.setattr(canonical_authority.subprocess, "run", fake_run)
 
 
-def test_public_testnet_profile_promotes_canonical():
+def test_public_testnet_profile_demotes_partial_cbc_canonical():
     profile = load_deploy_profile("public-testnet")
     policy = load_authority_policy(profile)
 
     assert policy.default is AuthorityMode.PYTHON_AUTHORITY
-    assert policy.mode_for(CANONICAL_SURFACE) is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-    assert CANONICAL_SURFACE in policy.promoted_surfaces
+    assert policy.mode_for(CANONICAL_SURFACE) is AuthorityMode.PYTHON_AUTHORITY
+    assert CANONICAL_SURFACE not in policy.promoted_surfaces
     validate_authority_policy(policy, profile_id="public-testnet")
 
 
@@ -81,38 +81,48 @@ def test_production_strict_keeps_python_authority():
     validate_authority_policy(policy, profile_id="production-strict")
 
 
-def test_public_testnet_canonical_runs_rust_authority_with_python_shadow(rust_bin):
+def test_public_testnet_canonical_uses_python_authority(rust_bin):
     profile = load_deploy_profile("public-testnet")
     decision = decide_canonical_cases(_cases(), profile=profile, rust_bin=rust_bin)
 
-    assert decision.authority == "rust"
-    assert decision.shadow_checked is True
-    assert decision.agreed is True
+    assert decision.authority == "python"
+    assert decision.shadow_checked is False
+    assert decision.agreed is None
     assert not diff_results(py_eval_cases(_cases()), decision.result)
 
 
-def test_public_testnet_canonical_rollback_to_python_is_root_preserving(rust_bin):
-    promoted = load_deploy_profile("public-testnet")
-    rollback = copy.deepcopy(promoted)
+def test_public_testnet_canonical_python_fallback_is_root_preserving(rust_bin):
+    demoted = load_deploy_profile("public-testnet")
+    rollback = copy.deepcopy(demoted)
     rollback["runtime_authority_policy"]["per_surface"] = {}
     rollback["runtime_authority_policy"]["promoted_surfaces"] = []
 
-    rust_decision = decide_canonical_cases(_cases(), profile=promoted, rust_bin=rust_bin)
+    current_decision = decide_canonical_cases(
+        _cases(), profile=demoted, rust_bin=rust_bin
+    )
     python_decision = decide_canonical_cases(_cases(), profile=rollback, rust_bin=rust_bin)
 
-    assert rust_decision.authority == "rust"
+    assert current_decision.authority == "python"
     assert python_decision.authority == "python"
-    assert not diff_results(python_decision.result, rust_decision.result)
+    assert not diff_results(python_decision.result, current_decision.result)
 
 
 def test_public_testnet_rejects_half_configured_rust_authority():
     profile = load_deploy_profile("public-testnet")
     broken = copy.deepcopy(profile)
-    broken["runtime_authority_policy"]["promoted_surfaces"] = []
+    broken["runtime_authority_policy"]["per_surface"] = dict(
+        profile["runtime_authority_policy"]["per_surface"]
+    )
+    broken["runtime_authority_policy"]["per_surface"][CANONICAL_SURFACE] = (
+        "rust_authority_with_python_shadow"
+    )
 
     conflicts = evaluate_deploy_profile_consistency(broken, {})
 
-    assert any("half-configured Rust authority" in conflict for conflict in conflicts)
+    assert any(
+        CANONICAL_SURFACE in conflict and "partial-CBC surfaces" in conflict
+        for conflict in conflicts
+    )
 
 
 def test_canonical_json_hash_helper_returns_authority_metadata(rust_bin):
@@ -126,10 +136,10 @@ def test_canonical_json_hash_helper_returns_authority_metadata(rust_bin):
     assert digest.startswith("0x")
     assert metadata == {
         "surface": "canonical",
-        "authority_mode": "rust_authority_with_python_shadow",
-        "decided_by": "rust",
-        "shadow_checked": True,
-        "shadow_agreed": True,
+        "authority_mode": "python_authority",
+        "decided_by": "python",
+        "shadow_checked": False,
+        "shadow_agreed": None,
     }
 
 

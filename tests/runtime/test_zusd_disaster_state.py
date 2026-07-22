@@ -62,28 +62,27 @@ def _cmd(tag: str, **args) -> zusd.ZUSDCommand:
     return zusd.ZUSDCommand(tag, args)
 
 
-def test_public_testnet_profile_promotes_zusd():
+def test_public_testnet_profile_demotes_semantically_stale_zusd():
     profile = load_deploy_profile("public-testnet")
     policy = load_authority_policy(profile)
 
-    assert policy.mode_for("zusd") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-    assert "zusd" in policy.promoted_surfaces
+    assert policy.mode_for("zusd") is AuthorityMode.PYTHON_AUTHORITY
+    assert "zusd" not in policy.promoted_surfaces
 
     broken = dict(profile)
     broken["runtime_authority_policy"] = dict(profile["runtime_authority_policy"])
+    broken["runtime_authority_policy"]["per_surface"] = dict(
+        profile["runtime_authority_policy"]["per_surface"]
+    )
+    broken["runtime_authority_policy"]["per_surface"]["zusd"] = (
+        "rust_authority_with_python_shadow"
+    )
     broken["runtime_authority_policy"]["promoted_surfaces"] = [
-        "balances",
-        "burn_receipts",
-        "canonical",
-        "cpmm_settlement",
-        "fee_router",
-        "perp_math",
-        "perp_stateful",
-        "replay_guard",
-        "state_root",
+        *profile["runtime_authority_policy"]["promoted_surfaces"],
+        "zusd",
     ]
     conflicts = evaluate_deploy_profile_consistency(broken, {})
-    assert any("zusd" in c and "half-configured Rust authority" in c for c in conflicts)
+    assert any("zusd" in c and "partial-CBC surfaces" in c for c in conflicts)
 
 
 def test_stale_snapshot_replay_is_deterministic(rust_env):
