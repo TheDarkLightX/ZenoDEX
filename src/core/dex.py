@@ -33,7 +33,7 @@ from .perps import PerpsState
 from .protocol_fee_policy import canonical_protocol_fee_policy
 from .settlement import FillAction, Settlement
 from .settlement_fill_fields import read_optional_non_negative_fill_int
-from .settlement_snapshots import freeze_settlement
+from .settlement_snapshots import freeze_settlement, snapshot_settlement
 from .settlement_strong_validator import validate_settlement_strong
 from .vault import VaultState
 
@@ -319,7 +319,7 @@ def step_with_candidate_settlement(
     """Verifier path: accept an externally proposed settlement (proof-carrying friendly)."""
     try:
         sealed_intents = freeze_intent_batch(intents)
-        sealed_candidate = freeze_settlement(candidate_settlement)
+        owned_candidate = snapshot_settlement(candidate_settlement)
         ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
             nonces=state.nonces,
             intents=sealed_intents,
@@ -331,7 +331,7 @@ def step_with_candidate_settlement(
             config,
             state,
             sealed_intents,
-            sealed_candidate,
+            owned_candidate,
             next_nonces or state.nonces,
         )
     except _FAIL_CLOSED_STEP_ERRORS as exc:

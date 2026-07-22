@@ -40,6 +40,7 @@ from ..state.canonical import (
     domain_sep_bytes,
     sha256_hex,
 )
+from ..state.immutable_collections import deep_thaw_json
 from ..state.intents import Intent, IntentKind
 from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.state_root import compute_state_root
@@ -1045,7 +1046,7 @@ def _sanitize_intents_after_quote_receipt_validation(intents: List[Intent]) -> L
     """
     out: List[Intent] = []
     for intent in intents:
-        fields = dict(intent.fields or {})
+        fields = deep_thaw_json(intent.fields or {})
         fields.pop("quote_receipt_hash", None)
         fields.pop("quote_receipt_leg_index", None)
         fields.pop("oracle_authorization", None)

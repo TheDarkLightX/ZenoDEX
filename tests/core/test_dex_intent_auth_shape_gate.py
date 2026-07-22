@@ -8,7 +8,7 @@ from src.core.dex_intent_auth_shape_gate import (
 )
 
 
-def test_dex_intent_auth_shape_gate_accepts_intent_object_dict_fields() -> None:
+def test_dex_intent_auth_shape_gate_accepts_intent_object_mapping_fields() -> None:
     outcome = evaluate_dex_intent_auth_shape_gate(
         intent_object_mode=True,
         fields_object_ok=True,
@@ -25,7 +25,7 @@ def test_dex_intent_auth_shape_gate_accepts_intent_object_dict_fields() -> None:
     assert dex_intent_auth_shape_gate_error(outcome) is None
 
 
-def test_dex_intent_auth_shape_gate_rejects_intent_object_non_dict_fields() -> None:
+def test_dex_intent_auth_shape_gate_rejects_intent_object_non_mapping_fields() -> None:
     outcome = evaluate_dex_intent_auth_shape_gate(
         intent_object_mode=True,
         fields_object_ok=False,
@@ -35,7 +35,7 @@ def test_dex_intent_auth_shape_gate_rejects_intent_object_non_dict_fields() -> N
     )
 
     assert outcome.shape_ok is False
-    assert dex_intent_auth_shape_gate_error(outcome) == "intent.fields must be a dict"
+    assert dex_intent_auth_shape_gate_error(outcome) == "intent.fields must be a mapping"
 
 
 def test_dex_intent_auth_shape_gate_accepts_transport_explicit_fields_mapping() -> None:

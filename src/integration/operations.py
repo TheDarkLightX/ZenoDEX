@@ -5,7 +5,6 @@ Handles operation groups "2" (DEX intents) and "3" (DEX settlement).
 """
 
 from collections.abc import Mapping
-from copy import deepcopy
 from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Optional
 
@@ -18,6 +17,7 @@ from ..core.settlement import (
     Settlement,
 )
 from ..state.canonical import canonical_hex_fixed_allow_0x
+from ..state.immutable_collections import deep_thaw_json
 from ..state.intents import Intent, IntentKind
 
 
@@ -65,7 +65,7 @@ def _parse_quote_receipt_transport(value: Any, *, name: str) -> Dict[str, Any]:
     return receipt
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SignedIntentEnvelope:
     """
     Parsed intent with optional per-intent signature.
@@ -77,6 +77,16 @@ class SignedIntentEnvelope:
     intent: Intent
     signature: Optional[str] = None
     quote_receipt: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.intent, Intent):
+            raise TypeError("intent must be an Intent")
+
+        # Keep the mounted signature and quote-validation path bound to one
+        # owned payload instead of a caller-retained mutable builder.
+        from ..state.intent_snapshots import freeze_intent
+
+        object.__setattr__(self, "intent", freeze_intent(self.intent))
 
 
 @dataclass(frozen=True)
@@ -102,7 +112,7 @@ def canonicalize_authenticated_intent_for_execution(intent: Intent) -> Intent:
         nbytes=48,
         name="authenticated intent sender_pubkey",
     )
-    fields = deepcopy(intent.fields or {})
+    fields = deep_thaw_json(intent.fields or {})
     recipient = fields.get("recipient")
     if recipient is not None:
         fields["recipient"] = canonical_hex_fixed_allow_0x(
@@ -633,8 +643,8 @@ def create_intent_operation(intents: List[Intent]) -> Dict[str, Any]:
             for k, v in intent.fields.items():
                 if k in reserved_keys:
                     raise ValueError(f"intent.fields contains reserved key: {k}")
-                intent_dict[k] = v
-        
+                intent_dict[k] = deep_thaw_json(v)
+
         intents_data.append(intent_dict)
     
     return {"2": intents_data}

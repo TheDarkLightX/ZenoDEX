@@ -5,6 +5,7 @@ Pool state management for DEX pools.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Tuple
@@ -36,7 +37,7 @@ def _decode_curve_params_for_tag(
     tag: str,
     curve_params: Optional[object],
     default: dict[str, int],
-) -> dict[object, object]:
+) -> Mapping[object, object]:
     params_obj: object = default if curve_params is None else curve_params
     if isinstance(params_obj, str):
         import json
@@ -45,13 +46,13 @@ def _decode_curve_params_for_tag(
             params_obj = json.loads(params_obj)
         except json.JSONDecodeError as exc:
             raise ValueError(f"invalid curve_params JSON for {tag}: {exc}") from exc
-    if not isinstance(params_obj, dict):
+    if not isinstance(params_obj, Mapping):
         raise ValueError(f"curve_params for {tag} must be a JSON object")
     return params_obj
 
 
 def _curve_param_int(
-    params: dict[object, object],
+    params: Mapping[object, object],
     *,
     tag: str,
     spec: _CurveParamSpec,

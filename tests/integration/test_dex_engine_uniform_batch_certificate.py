@@ -1426,7 +1426,7 @@ def test_engine_rejects_uniform_batch_certificate_when_protocol_fees_enabled() -
             require_intent_signatures=False,
             dex_config=DexConfig(
                 protocol_fee_share_bps=5_000,
-                protocol_fee_recipient_pubkey="protocol_treasury",
+                protocol_fee_recipient_pubkey=SENDER,
             ),
         ),
         state=_state(),

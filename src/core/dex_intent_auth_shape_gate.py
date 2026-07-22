@@ -90,7 +90,7 @@ def evaluate_dex_intent_auth_shape_gate(
 
 def dex_intent_auth_shape_gate_error(outcome: DexIntentAuthShapeGateOutcome) -> str | None:
     if outcome.reject_code == REJECT_INTENT_FIELDS_INVALID:
-        return "intent.fields must be a dict"
+        return "intent.fields must be a mapping"
     if outcome.reject_code == REJECT_EXPLICIT_FIELDS_INVALID:
         return "intent.fields must be a mapping when present"
     return None

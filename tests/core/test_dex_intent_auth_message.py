@@ -10,6 +10,7 @@ from src.core.dex_intent_auth_message import (
     hash_dex_intent_auth_message_v1,
 )
 from src.state.canonical import canonical_json_bytes, domain_sep_bytes
+from src.state.immutable_collections import FrozenDict
 from src.state.intents import Intent, IntentKind
 
 
@@ -120,7 +121,21 @@ def test_build_dex_intent_signing_dict_v1_rejects_transport_non_mapping_explicit
         build_dex_intent_signing_dict_v1(transport)
 
 
-def test_build_dex_intent_signing_dict_v1_rejects_intent_object_non_dict_fields() -> None:
+def test_build_dex_intent_signing_dict_v1_accepts_owned_immutable_mapping_fields() -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id="0x" + "ee" * 32,
+        sender_pubkey="0x" + "77" * 48,
+        deadline=1,
+        fields=FrozenDict({"amount0": 1}),  # type: ignore[arg-type]
+    )
+
+    assert build_dex_intent_signing_dict_v1(intent)["fields"] == {"amount0": 1}
+
+
+def test_build_dex_intent_signing_dict_v1_rejects_intent_object_non_mapping_fields() -> None:
     intent = Intent(
         module="TauSwap",
         version="0.1",
@@ -131,5 +146,5 @@ def test_build_dex_intent_signing_dict_v1_rejects_intent_object_non_dict_fields(
         fields=[],
     )
 
-    with pytest.raises(TypeError, match="intent.fields must be a dict"):
+    with pytest.raises(TypeError, match="intent.fields must be a mapping"):
         build_dex_intent_signing_dict_v1(intent)

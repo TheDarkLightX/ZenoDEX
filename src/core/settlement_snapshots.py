@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import NoReturn
 
@@ -74,8 +75,8 @@ class FrozenSettlement(_SealedSettlementValue, Settlement):
 
 
 def _freeze_fill(fill: Fill) -> FrozenFill:
-    if not isinstance(fill, Fill):
-        raise TypeError("settlement fills must contain Fill values")
+    if type(fill) is not Fill:
+        raise TypeError("settlement fills must contain exact Fill values")
     return FrozenFill(
         intent_id=fill.intent_id,
         action=fill.action,
@@ -96,8 +97,8 @@ def _freeze_fill(fill: Fill) -> FrozenFill:
 
 
 def _freeze_balance_delta(delta: BalanceDelta) -> FrozenBalanceDelta:
-    if not isinstance(delta, BalanceDelta):
-        raise TypeError("balance_deltas must contain BalanceDelta values")
+    if type(delta) is not BalanceDelta:
+        raise TypeError("balance_deltas must contain exact BalanceDelta values")
     return FrozenBalanceDelta(
         pubkey=delta.pubkey,
         asset=delta.asset,
@@ -107,8 +108,8 @@ def _freeze_balance_delta(delta: BalanceDelta) -> FrozenBalanceDelta:
 
 
 def _freeze_reserve_delta(delta: ReserveDelta) -> FrozenReserveDelta:
-    if not isinstance(delta, ReserveDelta):
-        raise TypeError("reserve_deltas must contain ReserveDelta values")
+    if type(delta) is not ReserveDelta:
+        raise TypeError("reserve_deltas must contain exact ReserveDelta values")
     return FrozenReserveDelta(
         pool_id=delta.pool_id,
         asset=delta.asset,
@@ -118,8 +119,8 @@ def _freeze_reserve_delta(delta: ReserveDelta) -> FrozenReserveDelta:
 
 
 def _freeze_lp_delta(delta: LPDelta) -> FrozenLPDelta:
-    if not isinstance(delta, LPDelta):
-        raise TypeError("lp_deltas must contain LPDelta values")
+    if type(delta) is not LPDelta:
+        raise TypeError("lp_deltas must contain exact LPDelta values")
     return FrozenLPDelta(
         pubkey=delta.pubkey,
         pool_id=delta.pool_id,
@@ -131,10 +132,10 @@ def _freeze_lp_delta(delta: LPDelta) -> FrozenLPDelta:
 def freeze_settlement(settlement: Settlement) -> Settlement:
     """Detach a settlement and recursively seal every accepted child value."""
 
-    if not isinstance(settlement, Settlement):
-        raise TypeError("settlement must be a Settlement")
-    if isinstance(settlement, FrozenSettlement):
+    if type(settlement) is FrozenSettlement:
         return settlement
+    if type(settlement) is not Settlement:
+        raise TypeError("settlement must be an exact Settlement")
 
     events: FrozenList | None = None
     if settlement.events is not None:
@@ -156,5 +157,91 @@ def freeze_settlement(settlement: Settlement) -> Settlement:
             _freeze_reserve_delta(delta) for delta in settlement.reserve_deltas
         ),
         lp_deltas=FrozenList(_freeze_lp_delta(delta) for delta in settlement.lp_deltas),
+        events=events,
+    )
+
+
+def _copy_fill(fill: Fill) -> Fill:
+    if type(fill) not in (Fill, FrozenFill):
+        raise TypeError("settlement fills must contain exact Fill values")
+    return Fill(
+        intent_id=deepcopy(fill.intent_id),
+        action=fill.action,
+        reason=deepcopy(fill.reason),
+        amount_in_filled=fill.amount_in_filled,
+        amount_out_filled=fill.amount_out_filled,
+        fee_paid=fill.fee_paid,
+        protocol_fee_paid=fill.protocol_fee_paid,
+        amount0_used=fill.amount0_used,
+        amount1_used=fill.amount1_used,
+        lp_minted=fill.lp_minted,
+        amount0_out=fill.amount0_out,
+        amount1_out=fill.amount1_out,
+        lp_burned=fill.lp_burned,
+        reserve_in_before=fill.reserve_in_before,
+        reserve_out_before=fill.reserve_out_before,
+    )
+
+
+def _copy_balance_delta(delta: BalanceDelta) -> BalanceDelta:
+    if type(delta) not in (BalanceDelta, FrozenBalanceDelta):
+        raise TypeError("balance_deltas must contain exact BalanceDelta values")
+    return BalanceDelta(
+        pubkey=deepcopy(delta.pubkey),
+        asset=deepcopy(delta.asset),
+        delta_add=delta.delta_add,
+        delta_sub=delta.delta_sub,
+    )
+
+
+def _copy_reserve_delta(delta: ReserveDelta) -> ReserveDelta:
+    if type(delta) not in (ReserveDelta, FrozenReserveDelta):
+        raise TypeError("reserve_deltas must contain exact ReserveDelta values")
+    return ReserveDelta(
+        pool_id=deepcopy(delta.pool_id),
+        asset=deepcopy(delta.asset),
+        delta_add=delta.delta_add,
+        delta_sub=delta.delta_sub,
+    )
+
+
+def _copy_lp_delta(delta: LPDelta) -> LPDelta:
+    if type(delta) not in (LPDelta, FrozenLPDelta):
+        raise TypeError("lp_deltas must contain exact LPDelta values")
+    return LPDelta(
+        pubkey=deepcopy(delta.pubkey),
+        pool_id=deepcopy(delta.pool_id),
+        delta_add=delta.delta_add,
+        delta_sub=delta.delta_sub,
+    )
+
+
+def snapshot_settlement(settlement: Settlement) -> Settlement:
+    """Return an exact owned scratch copy for deterministic validation.
+
+    The scratch value is never exposed as authoritative state or an accepted
+    effect. It preserves the exact mutable base schema expected by replay
+    validators while detaching every value from the caller's proposal. Accepted
+    effects cross the separate freeze_settlement boundary.
+    """
+
+    if type(settlement) not in (Settlement, FrozenSettlement):
+        raise TypeError("settlement must be an exact Settlement")
+
+    events = None
+    if settlement.events is not None:
+        events = deepcopy(list(settlement.events))
+
+    return Settlement(
+        module=deepcopy(settlement.module),
+        version=deepcopy(settlement.version),
+        batch_ref=deepcopy(settlement.batch_ref),
+        included_intents=[
+            (deepcopy(intent_id), action) for intent_id, action in settlement.included_intents
+        ],
+        fills=[_copy_fill(fill) for fill in settlement.fills],
+        balance_deltas=[_copy_balance_delta(delta) for delta in settlement.balance_deltas],
+        reserve_deltas=[_copy_reserve_delta(delta) for delta in settlement.reserve_deltas],
+        lp_deltas=[_copy_lp_delta(delta) for delta in settlement.lp_deltas],
         events=events,
     )

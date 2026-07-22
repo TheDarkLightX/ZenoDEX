@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Any, Dict, Mapping
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes
+from ..state.immutable_collections import deep_thaw_json
 from ..state.intents import Intent
 from .dex_intent_auth_shape_gate import (
     dex_intent_auth_shape_gate_error,
@@ -26,14 +27,14 @@ def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict
         fields = {} if intent.fields is None else intent.fields
         shape = evaluate_dex_intent_auth_shape_gate(
             intent_object_mode=1,
-            fields_object_ok=isinstance(fields, dict),
+            fields_object_ok=isinstance(fields, Mapping),
             explicit_fields_present=0,
             explicit_fields_mapping_ok=1,
             salt_present=int(intent.salt is not None),
         )
         if not shape.shape_ok:
             raise TypeError(dex_intent_auth_shape_gate_error(shape) or "invalid intent auth shape")
-        fields = dict(fields)
+        fields = deep_thaw_json(fields)
         signing_dict: Dict[str, Any] = {
             "module": intent.module,
             "version": intent.version,
@@ -68,7 +69,7 @@ def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict
     else:
         if not isinstance(explicit_fields, Mapping):
             raise TypeError("intent.fields must be a mapping when present")
-        fields = dict(explicit_fields)
+        fields = deep_thaw_json(explicit_fields)
 
     signing_dict = {
         "module": intent.get("module"),

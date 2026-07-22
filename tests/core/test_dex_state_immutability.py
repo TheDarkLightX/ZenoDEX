@@ -10,7 +10,7 @@ from src.core.perps import PERPS_STATE_VERSION_V5, PerpMarketState, PerpsState
 from src.core.settlement import ReserveDelta, Settlement
 from src.integration.dex_snapshot import snapshot_from_state
 from src.state.balances import BalanceTable
-from src.state.immutable_collections import FrozenDict, FrozenList, deep_freeze
+from src.state.immutable_collections import FrozenDict, FrozenList, deep_freeze, deep_thaw_json
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
 from src.state.pools import PoolState, PoolStatus
@@ -190,6 +190,22 @@ def test_deep_freeze_owns_generic_mapping_backing_storage() -> None:
     assert tuple(frozen["amounts"]) == (1,)
     with pytest.raises(TypeError, match="immutable"):
         frozen["amounts"].append(3)
+
+
+def test_deep_thaw_json_returns_detached_builtin_containers() -> None:
+    source = {"payload": [{"amounts": [1, 2]}]}
+    frozen = deep_freeze(source)
+
+    projected = deep_thaw_json(frozen)
+
+    assert type(projected) is dict
+    assert type(projected["payload"]) is list
+    assert type(projected["payload"][0]) is dict
+    assert type(projected["payload"][0]["amounts"]) is list
+    assert projected == source
+
+    projected["payload"][0]["amounts"].append(3)
+    assert frozen == {"payload": [{"amounts": [1, 2]}]}
 
 
 class _AdversarialPerpMarket(PerpMarketState):

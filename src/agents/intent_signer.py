@@ -1,12 +1,14 @@
 """Intent creation and signing for autonomous agents."""
 
 import hashlib
+from collections.abc import Mapping
 from typing import Any, Dict, Optional
 
 from ..core.quote_receipts import pool_state_fingerprint
 from ..integration.tau_net_client import sign_dex_intent_for_engine
 from ..state.balances import Amount, AssetId, PubKey
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes
+from ..state.immutable_collections import deep_thaw_json
 from ..state.intents import Intent, IntentKind, SignedIntent
 
 # For BLS12-381 signing (same as tau-testnet)
@@ -631,8 +633,8 @@ def _generate_intent_id(
 
 def _intent_signing_dict(intent: Intent) -> dict[str, Any]:
     fields = intent.fields or {}
-    if not isinstance(fields, dict):
-        raise TypeError("intent.fields must be a dict")
+    if not isinstance(fields, Mapping):
+        raise TypeError("intent.fields must be a mapping")
     out: dict[str, Any] = {
         "module": intent.module,
         "version": intent.version,
@@ -640,7 +642,7 @@ def _intent_signing_dict(intent: Intent) -> dict[str, Any]:
         "intent_id": intent.intent_id,
         "sender_pubkey": intent.sender_pubkey,
         "deadline": int(intent.deadline),
-        "fields": dict(fields),
+        "fields": deep_thaw_json(fields),
     }
     if intent.salt is not None:
         out["salt"] = intent.salt
@@ -659,7 +661,7 @@ def _intent_transport_dict(intent: Intent) -> dict[str, Any]:
     if intent.salt is not None:
         out["salt"] = intent.salt
     if intent.fields:
-        out.update(dict(intent.fields))
+        out.update(deep_thaw_json(intent.fields))
     return out
 
 

@@ -6,12 +6,15 @@ import threading
 import pytest
 
 import src.integration.autotrader_live_api as autotrader_live_api
-from src.integration.autotrader_live_api import handle_autotrader_live_request
-from src.integration.operations import SignedIntentEnvelope, create_signed_intent_operation, parse_intents
-from src.integration.autotrader_supervisor_profile import build_autotrader_supervisor_profile_v1
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from src.agents.intent_signer import sign_intent
-
+from src.integration.autotrader_live_api import handle_autotrader_live_request
+from src.integration.autotrader_supervisor_profile import build_autotrader_supervisor_profile_v1
+from src.integration.operations import (
+    SignedIntentEnvelope,
+    create_signed_intent_operation,
+    parse_intents,
+)
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 
 _STAGE_CERT_HASH = "0x" + "5a" * 32
 _RELEASE_CERT_HASH = "0x" + "98" * 32
@@ -19,6 +22,9 @@ _RELEASE_CERT_HASH = "0x" + "98" * 32
 
 def _balance(payload: str, *, pubkey: str, asset: str) -> int:
     state = json.loads(payload)
+    nested = state.get("dex_state")
+    if isinstance(nested, dict):
+        state = nested
     balances = state.get("balances")
     assert isinstance(balances, list)
     for row in balances:
@@ -200,7 +206,7 @@ def test_autotrader_live_prepare_fixture_builds_signed_receipt_backed_ops(
     assert report["system_compose"]["ok"] is True
     assert report["submit_bundle"]["ok"] is True
     assert report["decision"]["intents"]
-    assert report["operations"]["5"]
+    assert report["operations"]["2"]
     assert report["tau_tx_payload"] is not None
     assert report["tau_tx_payload"]["sequence_number"] == 9
     assert report["tau_tx_payload"]["expiration_time"] == 999
@@ -1649,15 +1655,41 @@ def test_autotrader_live_supervisor_execute_enforces_max_runs_per_process(
 def test_autotrader_live_prepared_default_payload_applies_to_tau_app_bridge(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from src.core.generic_token_authority import (
+        GenericTokenAssetAuthority,
+        GenericTokenAuthorityState,
+    )
     from src.integration import tau_testnet_dex_plugin as plugin
+    from tests.consensus_clock import execution_clock_v1
 
     signer_privkey = 7
     signer_pubkey = "0x" + bls_pubkey_hex_from_privkey(signer_privkey)
     signer_raw = signer_pubkey[2:]
     monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    asset0 = autotrader_live_api._DEFAULT_FIXTURE_ASSET0
+    asset1 = autotrader_live_api._DEFAULT_FIXTURE_ASSET1
     monkeypatch.setenv("TAU_DEX_FAUCET", "1")
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
     monkeypatch.setenv("TAU_DEX_ALLOW_MISSING_SETTLEMENT", "1")
+    config = plugin._build_zusd_monetary_config(chain_id="tau-local")
+    authority = GenericTokenAuthorityState(
+        assets=(
+            GenericTokenAssetAuthority(
+                asset_id=asset0,
+                total_supply_units=0,
+                mint_authority_pubkey=signer_pubkey,
+            ),
+            GenericTokenAssetAuthority(
+                asset_id=asset1,
+                total_supply_units=0,
+                mint_authority_pubkey=signer_pubkey,
+            ),
+        )
+    )
+    genesis_state, _genesis_hash = plugin.build_zusd_policy_bound_genesis_app_state(
+        config=config,
+        generic_token_authority=authority,
+    )
 
     create_pool_intent = {
         "module": "TauSwap",
@@ -1667,13 +1699,13 @@ def test_autotrader_live_prepared_default_payload_applies_to_tau_app_bridge(
         "sender_pubkey": signer_pubkey,
         "deadline": 9999999999,
         "nonce": 1,
-        "asset0": "A",
-        "asset1": "B",
+        "asset0": asset0,
+        "asset1": asset1,
         "fee_bps": 10,
         "amount0": 1000,
         "amount1": 2000,
     }
-    create_pool_intent_obj = parse_intents({"5": [create_pool_intent]})[0]
+    create_pool_intent_obj = parse_intents({"2": [create_pool_intent]})[0]
     create_pool_ops = create_signed_intent_operation(
         [
             SignedIntentEnvelope(
@@ -1683,18 +1715,19 @@ def test_autotrader_live_prepared_default_payload_applies_to_tau_app_bridge(
         ]
     )
     ok, app_state_json, _app_hash, _balances_patch, err = plugin.apply_app_tx(
-        app_state_json="",
+        app_state_json=genesis_state,
         chain_balances={signer_raw: 1},
         operations={
-            "7": {"mint": [[signer_pubkey, "A", 10_000], [signer_pubkey, "B", 10_000]]},
-            "5": create_pool_ops["5"],
+            "7": {"mint": [[signer_pubkey, asset0, 10_000], [signer_pubkey, asset1, 10_000]]},
+            "5": create_pool_ops["2"],
         },
         tx_sender_pubkey=signer_raw,
         block_timestamp=1,
+        execution_clock=execution_clock_v1(chain_id="tau-local", height=1),
     )
     assert ok is True, err
     assert err is None
-    assert _balance(app_state_json, pubkey=signer_pubkey, asset="A") == 9000
+    assert _balance(app_state_json, pubkey=signer_pubkey, asset=asset0) == 9000
 
     status, payload = handle_autotrader_live_request(
         "POST",
@@ -1719,10 +1752,11 @@ def test_autotrader_live_prepared_default_payload_applies_to_tau_app_bridge(
         operations=payload["report"]["operations"],
         tx_sender_pubkey=signer_raw,
         block_timestamp=10,
+        execution_clock=execution_clock_v1(chain_id="tau-local", height=10),
     )
     assert ok is True, err
     assert err is None
-    assert _balance(next_app_state_json, pubkey=signer_pubkey, asset="A") == 8900
+    assert _balance(next_app_state_json, pubkey=signer_pubkey, asset=asset0) == 8900
 
 
 def test_autotrader_live_submit_accepts_background_mined_app_state_change(

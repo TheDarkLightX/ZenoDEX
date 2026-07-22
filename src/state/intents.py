@@ -22,7 +22,7 @@ class IntentKind(Enum):
     SWAP_EXACT_OUT = "SWAP_EXACT_OUT"
 
 
-@dataclass
+@dataclass(slots=True)
 class Intent:
     """
     Base intent structure.
@@ -147,7 +147,7 @@ class CreatePoolIntent(Intent):
             raise ValueError("amount1 must be positive")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SignedIntent:
     """
     Intent with cryptographic signature.

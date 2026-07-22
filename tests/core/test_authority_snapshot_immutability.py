@@ -6,6 +6,7 @@ import pytest
 
 from src.agents.intent_signer import _create_canonical_message
 from src.core.dex import DexEffects
+from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from src.core.settlement import (
     BalanceDelta,
     Fill,
@@ -14,7 +15,14 @@ from src.core.settlement import (
     ReserveDelta,
     Settlement,
 )
+from src.core.settlement_snapshots import snapshot_settlement
+from src.core.uniform_batch_admission import (
+    uniform_batch_admission_intent_set_hash_v1,
+)
+from src.core.uniform_batch_clearing import uniform_batch_intent_set_hash
+from src.integration.operations import SignedIntentEnvelope
 from src.state.intents import Intent, IntentKind, SignedIntent
+from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 
 
 def _intent_id(byte: str) -> str:
@@ -47,8 +55,30 @@ def test_signed_intent_owns_and_seals_the_authenticated_payload() -> None:
         intent=caller_intent,
         signature="0x" + "ab" * 96,
     )
+    mounted = SignedIntentEnvelope(intent=caller_intent)
     authenticated_before = _create_canonical_message(signed.intent)
+    mounted_before = _create_canonical_message(mounted.intent)
 
+    signing_dict_before = build_dex_intent_signing_dict_v1(signed.intent)
+
+    nonce_ok, nonce_error, next_nonces = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[signed.intent],
+        require_all_nonces=False,
+    )
+    assert nonce_ok is True
+    assert nonce_error is None
+    assert next_nonces is not None
+    assert not hasattr(signed, "__dict__")
+    assert not hasattr(signed.intent, "__dict__")
+    assert not hasattr(mounted, "__dict__")
+    assert not hasattr(mounted.intent, "__dict__")
+    assert uniform_batch_intent_set_hash([signed.intent]) == uniform_batch_intent_set_hash(
+        [caller_intent]
+    )
+    assert uniform_batch_admission_intent_set_hash_v1(
+        [signed.intent]
+    ) == uniform_batch_admission_intent_set_hash_v1([caller_intent])
     caller_fields["amount_in"] = 999
     caller_fields["route"]["hops"].append("attacker")
     caller_intent.deadline = 999
@@ -56,12 +86,16 @@ def test_signed_intent_owns_and_seals_the_authenticated_payload() -> None:
 
     assert _create_canonical_message(signed.intent) == authenticated_before
     assert signed.intent.deadline == 123
+    assert _create_canonical_message(mounted.intent) == mounted_before
+    assert build_dex_intent_signing_dict_v1(signed.intent) == signing_dict_before
     assert signed.intent.get_field("amount_in") == 10
     assert signed.intent.get_field("min_amount_out") == 1
     assert signed.intent.get_field("route") == {"hops": ["pool"]}
 
     with pytest.raises(TypeError, match="immutable"):
         signed.intent.set_field("amount_in", 11)
+    with pytest.raises(TypeError, match="immutable"):
+        mounted.intent.set_field("amount_in", 11)
     with pytest.raises(TypeError, match="immutable"):
         signed.intent.deadline = 124
     with pytest.raises(TypeError, match="immutable"):
@@ -99,6 +133,7 @@ def test_dex_effects_owns_and_recursively_seals_settlement_meaning() -> None:
         events=[event],
     )
     effects = DexEffects(settlement=proposal, total_swap_fees=1)
+    owned_candidate = snapshot_settlement(proposal)
 
     proposal.batch_ref = "changed"
     proposal.included_intents.append(("i2", FillAction.REJECT))
@@ -107,6 +142,15 @@ def test_dex_effects_owns_and_recursively_seals_settlement_meaning() -> None:
     reserve_delta.delta_add = 999
     lp_delta.delta_add = 999
     event["payload"]["amounts"].append(999)
+
+    assert type(owned_candidate) is Settlement
+    assert type(owned_candidate.fills[0]) is Fill
+    assert type(owned_candidate.balance_deltas[0]) is BalanceDelta
+    assert type(owned_candidate.reserve_deltas[0]) is ReserveDelta
+    assert type(owned_candidate.lp_deltas[0]) is LPDelta
+    assert owned_candidate.batch_ref == "batch-1"
+    assert owned_candidate.fills[0].fee_paid == 1
+    assert owned_candidate.events == [{"type": "SWAP", "payload": {"amounts": [10, 9]}}]
 
     accepted = effects.settlement
     assert accepted.batch_ref == "batch-1"

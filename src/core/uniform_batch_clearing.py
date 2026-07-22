@@ -13,8 +13,9 @@ from dataclasses import dataclass
 from math import gcd
 from typing import Any, Mapping, Sequence
 
-from ..state.balances import Amount, AssetId, BalanceTable, PubKey
+from ..state.balances import AssetId, BalanceTable, PubKey
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+from ..state.immutable_collections import deep_thaw_json
 from ..state.intents import Intent, IntentKind
 from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 from .cpmm import compute_fee_total
@@ -231,7 +232,7 @@ def uniform_batch_intent_set_hash(intents: Sequence[Intent]) -> str:
                 "sender_pubkey": _require_str(intent.sender_pubkey, name="intent.sender_pubkey"),
                 "deadline": _require_nonnegative_int(intent.deadline, name="intent.deadline"),
                 "salt": intent.salt,
-                "fields": dict(fields),
+                "fields": deep_thaw_json(fields),
             }
         )
     entries.sort(key=lambda entry: entry["intent_id"])
@@ -354,9 +355,10 @@ def _build_uniform_batch_settlement_checked(
     fills: list[Fill] = []
 
     for cert_fill in certificate.fills:
-        intent = intents_by_id.get(cert_fill.intent_id)
-        if intent is None:
+        candidate_intent = intents_by_id.get(cert_fill.intent_id)
+        if candidate_intent is None:
             raise ValueError("certificate fill references unknown intent_id")
+        intent = candidate_intent
         direction = _intent_direction(intent=intent, pool=pool)
         if certificate.policy_id in (UNIFORM_BATCH_POLICY_V1_ID, UNIFORM_BATCH_POLICY_V2_ID):
             amount_in = _require_positive_int(

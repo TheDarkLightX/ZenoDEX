@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+from ..state.immutable_collections import deep_thaw_json
 from ..state.intents import Intent, IntentKind
 from .domain_limits import DEX_SWAP_AMOUNT_MAX
 from .uniform_batch_clearing import (
@@ -305,7 +306,7 @@ def _admission_intent_entry(intent: Intent) -> dict[str, Any]:
         "sender_pubkey": _require_str(intent.sender_pubkey, name="intent.sender_pubkey"),
         "deadline": _require_nonnegative_int(intent.deadline, name="intent.deadline"),
         "salt": intent.salt,
-        "fields": dict(fields),
+        "fields": deep_thaw_json(fields),
     }
 
 
@@ -389,7 +390,7 @@ def _validate_admission_certificate_shape(certificate: UniformBatchAdmissionCert
     _require_sha256_hex(certificate.overflow_intent_set_hash, name="admission.overflow_intent_set_hash")
 
 
-def _validate_eligible_intent_count(intents: Sequence[Intent]) -> None:
+def _validate_eligible_intent_count(intents: object) -> None:
     if not isinstance(intents, Sequence) or isinstance(intents, (str, bytes, bytearray)):
         raise TypeError("eligible_intents must be a sequence")
     if len(intents) > UNIFORM_BATCH_ADMISSION_MAX_ELIGIBLE:

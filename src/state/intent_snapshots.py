@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from typing import Any, NoReturn
 
@@ -17,17 +17,19 @@ def _immutable_intent(*_args: object, **_kwargs: object) -> NoReturn:
 class FrozenIntent(Intent):
     """Read-compatible ``Intent`` whose complete signed meaning is sealed."""
 
+    __slots__ = ("_snapshot_sealed",)
+
     def __post_init__(self) -> None:
         object.__setattr__(self, "_snapshot_sealed", False)
         Intent.__post_init__(self)
         fields = self.fields or {}
-        if not isinstance(fields, dict):
-            raise TypeError("intent.fields must be a dict")
+        if not isinstance(fields, Mapping):
+            raise TypeError("intent.fields must be a mapping")
         object.__setattr__(self, "fields", deep_freeze(fields))
         object.__setattr__(self, "_snapshot_sealed", True)
 
     def __setattr__(self, name: str, value: object) -> None:
-        if self.__dict__.get("_snapshot_sealed", False):
+        if getattr(self, "_snapshot_sealed", False):
             raise TypeError("authenticated intent snapshot is immutable")
         object.__setattr__(self, name, value)
 
@@ -43,11 +45,11 @@ def freeze_intent(intent: Intent) -> Intent:
 
     if not isinstance(intent, Intent):
         raise TypeError("intent must be an Intent")
-    if isinstance(intent, FrozenIntent):
+    if type(intent) is FrozenIntent:
         return intent
     fields = intent.fields or {}
-    if not isinstance(fields, dict):
-        raise TypeError("intent.fields must be a dict")
+    if not isinstance(fields, Mapping):
+        raise TypeError("intent.fields must be a mapping")
     return FrozenIntent(
         module=intent.module,
         version=intent.version,

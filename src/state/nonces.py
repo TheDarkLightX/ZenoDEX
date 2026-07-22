@@ -104,7 +104,7 @@ def validate_and_apply_intent_nonce_batch(
 
     for intent in intents:
         fields = intent.fields or {}
-        nonce_raw = fields.get("nonce") if isinstance(fields, dict) else None
+        nonce_raw = fields.get("nonce") if isinstance(fields, Mapping) else None
         if nonce_raw is None:
             saw_missing = True
             if require_all_nonces:
