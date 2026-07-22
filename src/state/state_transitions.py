@@ -16,6 +16,7 @@ from .owned_collections import (
     OwnedMapV1,
     _owned_map_from_canonical_transition_v1,
 )
+from .snapshot_combinators import MAX_CANONICAL_BYTES_V1
 from .state_snapshot_values import (
     BALANCE_MAP_SCHEMA_ID_V1,
     FCIS_STATE_SCHEMA_REVISION_V1,
@@ -34,6 +35,7 @@ _MAPPING_PROXY_TYPE: type[object] = type(MappingProxyType({}))
 class BalancePatchCodeV1(Enum):
     WRONG_EXACT_TYPE = "wrong_exact_type"
     ITEM_LIMIT = "item_limit"
+    BYTE_LIMIT = "byte_limit"
     NONCANONICAL_KEY = "noncanonical_key"
     OUT_OF_RANGE = "out_of_range"
     EMPTY_PATCH = "empty_patch"
@@ -132,6 +134,26 @@ class BalanceWriteV1:
             raise TypeError("replacement must be an exact positive integer or None")
 
 
+@final
+@dataclass(frozen=True, slots=True)
+class BalanceDeltaV1:
+    """One exact additive balance atom for deterministic reduction."""
+
+    key: BalanceKeyV1
+    net_delta: int
+
+    def __post_init__(self) -> None:
+        key_reject = _balance_key_reject(self.key, ("key",))
+        if key_reject is not None:
+            if key_reject.code is BalancePatchCodeV1.WRONG_EXACT_TYPE:
+                raise TypeError("balance delta key must be an exact pair of strings")
+            raise ValueError("balance delta key is not canonical")
+        if type(self.net_delta) is not int:
+            raise TypeError("balance net_delta must be an exact integer")
+        if self.net_delta == 0:
+            raise ValueError("balance net_delta must be nonzero")
+
+
 def _write_is_noop(write: BalanceWriteV1) -> bool:
     replacement = 0 if write.replacement is None else write.replacement
     return write.expected_old == replacement
@@ -194,6 +216,90 @@ class BalancePatchApplyOkV1:
 
 BalancePatchBuildResultV1 = BalancePatchBuildOkV1 | BalancePatchRejectV1
 BalancePatchApplyResultV1 = BalancePatchApplyOkV1 | BalancePatchRejectV1
+
+
+def _delta_representation_reject(delta: object) -> BalancePatchRejectV1 | None:
+    if type(delta) is not BalanceDeltaV1:
+        return _reject(BalancePatchCodeV1.WRONG_EXACT_TYPE, ("deltas",))
+    key_reject = _balance_key_reject(delta.key, ("deltas", "key"))
+    if key_reject is not None:
+        return key_reject
+    if type(delta.net_delta) is not int:
+        return _reject(BalancePatchCodeV1.WRONG_EXACT_TYPE, ("deltas", "net_delta"))
+    if delta.net_delta == 0:
+        return _reject(BalancePatchCodeV1.NO_OP_WRITE, ("deltas", "net_delta"))
+    return None
+
+
+def _rejection_order_key(reject: BalancePatchRejectV1) -> tuple[str, tuple[tuple[str, str], ...]]:
+    return (
+        reject.code.value,
+        tuple((type(part).__name__, str(part)) for part in reject.path),
+    )
+
+
+def apply_balance_deltas_v1(
+    pre: CommittedBalanceTableV1,
+    deltas: tuple[BalanceDeltaV1, ...],
+) -> BalancePatchApplyResultV1:
+    """Reduce additive atoms canonically and apply one compare-and-replace patch.
+
+    Delta order has no semantic effect. Python integers make the additive
+    reduction exact; no regrouping-dependent overflow or rounding exists.
+    Cancellation to an empty patch returns the validated immutable pre-state.
+    """
+
+    pre_entries = _validated_balance_entries_v1(pre)
+    if type(pre_entries) is BalancePatchRejectV1:
+        return pre_entries
+    if type(deltas) is not tuple:
+        return _reject(BalancePatchCodeV1.WRONG_EXACT_TYPE, ("deltas",))
+    if len(deltas) > MAX_BALANCES_V1:
+        return _reject(BalancePatchCodeV1.ITEM_LIMIT, ("deltas",))
+
+    representation_rejects = tuple(
+        reject
+        for delta in deltas
+        if (reject := _delta_representation_reject(delta)) is not None
+    )
+    if representation_rejects:
+        return min(representation_rejects, key=_rejection_order_key)
+
+    work_bytes = 0
+    for delta in deltas:
+        work_bytes += len(delta.key[0].encode("utf-8"))
+        work_bytes += len(delta.key[1].encode("utf-8"))
+        work_bytes += max(1, (abs(delta.net_delta).bit_length() + 7) // 8)
+        if work_bytes > MAX_CANONICAL_BYTES_V1:
+            return _reject(BalancePatchCodeV1.BYTE_LIMIT, ("deltas",))
+
+    aggregate: dict[BalanceKeyV1, int] = {}
+    for delta in deltas:
+        aggregate[delta.key] = aggregate.get(delta.key, 0) + delta.net_delta
+
+    current_by_key = dict(pre_entries)
+    writes: list[BalanceWriteV1] = []
+    for key, net_delta in sorted(aggregate.items(), key=lambda item: item[0]):
+        if net_delta == 0:
+            continue
+        current = current_by_key.get(key, 0)
+        replacement = current + net_delta
+        if replacement < 0:
+            return _reject(BalancePatchCodeV1.OUT_OF_RANGE, ("deltas", "net_delta"))
+        writes.append(
+            BalanceWriteV1(
+                key=key,
+                expected_old=current,
+                replacement=None if replacement == 0 else replacement,
+            )
+        )
+
+    if not writes:
+        return BalancePatchApplyOkV1(pre)
+    patch_result = build_canonical_balance_patch_v1(tuple(writes))
+    if type(patch_result) is BalancePatchRejectV1:
+        return patch_result
+    return apply_canonical_balance_patch_v1(pre, patch_result.patch)
 
 
 def build_canonical_balance_patch_v1(
@@ -373,6 +479,7 @@ def apply_canonical_balance_patch_v1(
 
 
 __all__ = [
+    "BalanceDeltaV1",
     "BalancePatchApplyOkV1",
     "BalancePatchApplyResultV1",
     "BalancePatchBuildOkV1",
@@ -381,6 +488,7 @@ __all__ = [
     "BalancePatchRejectV1",
     "BalanceWriteV1",
     "CanonicalBalancePatchV1",
+    "apply_balance_deltas_v1",
     "apply_canonical_balance_patch_v1",
     "build_canonical_balance_patch_v1",
 ]

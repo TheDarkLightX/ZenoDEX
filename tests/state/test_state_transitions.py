@@ -9,6 +9,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from src.state.snapshot_combinators import (
+    MAX_CANONICAL_BYTES_V1,
     AdmissionLimitsV1,
     AdmitOk,
     ValidatedAdmissionLimitsV1,
@@ -22,12 +23,14 @@ from src.state.state_snapshot_values import (
     _BalanceSourceV1,
 )
 from src.state.state_transitions import (
+    BalanceDeltaV1,
     BalancePatchApplyOkV1,
     BalancePatchBuildOkV1,
     BalancePatchCodeV1,
     BalancePatchRejectV1,
     BalanceWriteV1,
     CanonicalBalancePatchV1,
+    apply_balance_deltas_v1,
     apply_canonical_balance_patch_v1,
     build_canonical_balance_patch_v1,
 )
@@ -318,3 +321,124 @@ def test_patch_application_matches_logical_map_reference(
     assert type(apply_result) is BalancePatchApplyOkV1
     assert apply_result.state.entries == tuple(sorted(expected_reference.items()))
     assert pre.entries == before
+
+
+def test_delta_reduction_is_permutation_invariant_and_aggregates_duplicate_keys() -> None:
+    pre = _state((("alice", "asset"), 10), (("bob", "asset"), 5))
+    deltas = (
+        BalanceDeltaV1(("alice", "asset"), -3),
+        BalanceDeltaV1(("bob", "asset"), 4),
+        BalanceDeltaV1(("alice", "asset"), 1),
+    )
+
+    results = tuple(apply_balance_deltas_v1(pre, order) for order in permutations(deltas))
+
+    assert all(type(result) is BalancePatchApplyOkV1 for result in results)
+    assert {
+        cast(BalancePatchApplyOkV1, result).state.entries for result in results
+    } == {((('alice', 'asset'), 8), (('bob', 'asset'), 9))}
+    assert pre.entries == ((('alice', 'asset'), 10), (('bob', 'asset'), 5))
+
+
+def test_delta_reduction_cancellation_returns_validated_prestate_without_patch() -> None:
+    pre = _state((("alice", "asset"), 10))
+    result = apply_balance_deltas_v1(
+        pre,
+        (
+            BalanceDeltaV1(("alice", "asset"), 5),
+            BalanceDeltaV1(("alice", "asset"), -5),
+        ),
+    )
+
+    assert result == BalancePatchApplyOkV1(pre)
+    assert result.state is pre
+
+
+def test_delta_reduction_rejects_negative_successor_without_candidate() -> None:
+    pre = _state((("alice", "asset"), 3))
+
+    result = apply_balance_deltas_v1(
+        pre,
+        (BalanceDeltaV1(("alice", "asset"), -4),),
+    )
+
+    assert result == BalancePatchRejectV1(
+        BalancePatchCodeV1.OUT_OF_RANGE,
+        ("deltas", "net_delta"),
+    )
+    assert pre.entries == ((('alice', 'asset'), 3),)
+
+
+def test_delta_reduction_enforces_aggregate_work_byte_budget_before_reduction() -> None:
+    pre = _state()
+    oversized = 1 << (MAX_CANONICAL_BYTES_V1 * 8)
+
+    result = apply_balance_deltas_v1(
+        pre,
+        (BalanceDeltaV1(("alice", "asset"), oversized),),
+    )
+
+    assert result == BalancePatchRejectV1(
+        BalancePatchCodeV1.BYTE_LIMIT,
+        ("deltas",),
+    )
+
+
+@pytest.mark.parametrize("net_delta", [True, 0])
+def test_balance_delta_constructor_rejects_inexact_or_zero_amount(net_delta: object) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        BalanceDeltaV1(("alice", "asset"), net_delta)  # type: ignore[arg-type]
+
+
+@settings(max_examples=100, deadline=None)
+@given(
+    pre_values=st.dictionaries(
+        keys=st.integers(min_value=0, max_value=10),
+        values=st.integers(min_value=1, max_value=1_000),
+        max_size=8,
+    ),
+    raw_deltas=st.lists(
+        st.tuples(
+            st.integers(min_value=0, max_value=10),
+            st.integers(min_value=-100, max_value=100).filter(lambda value: value != 0),
+        ),
+        max_size=20,
+    ),
+)
+def test_delta_reduction_matches_exact_logical_map_reference(
+    pre_values: dict[int, int],
+    raw_deltas: list[tuple[int, int]],
+) -> None:
+    def key(cell: int) -> tuple[str, str]:
+        return (f"account-{cell:02d}", "asset")
+
+    pre = _state(*((key(cell), amount) for cell, amount in pre_values.items()))
+    deltas = tuple(BalanceDeltaV1(key(cell), amount) for cell, amount in raw_deltas)
+    aggregate: dict[tuple[str, str], int] = {}
+    for cell, amount in raw_deltas:
+        cell_key = key(cell)
+        aggregate[cell_key] = aggregate.get(cell_key, 0) + amount
+    expected = {key(cell): amount for cell, amount in pre_values.items()}
+    invalid = any(expected.get(cell_key, 0) + net < 0 for cell_key, net in aggregate.items())
+
+    forward = apply_balance_deltas_v1(pre, deltas)
+    reverse = apply_balance_deltas_v1(pre, tuple(reversed(deltas)))
+
+    if invalid:
+        expected_reject = BalancePatchRejectV1(
+            BalancePatchCodeV1.OUT_OF_RANGE,
+            ("deltas", "net_delta"),
+        )
+        assert forward == reverse == expected_reject
+        return
+
+    for cell_key, net in aggregate.items():
+        replacement = expected.get(cell_key, 0) + net
+        if replacement == 0:
+            expected.pop(cell_key, None)
+        else:
+            expected[cell_key] = replacement
+    assert type(forward) is BalancePatchApplyOkV1
+    assert type(reverse) is BalancePatchApplyOkV1
+    expected_entries = tuple(sorted(expected.items()))
+    assert forward.state.entries == reverse.state.entries == expected_entries
