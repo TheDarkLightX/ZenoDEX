@@ -62,7 +62,7 @@ new admission behavior.
 
 ```text
 Schema =
-    ExactInt(minimum, maximum_or_none)
+    ExactInt(minimum_or_none, maximum_or_none)
   | ExactBool
   | ExactString(string_rule, max_utf8_bytes, exact_literal_or_none,
                 exact_utf8_bytes_or_none, max_characters_or_none)
@@ -256,8 +256,9 @@ This avoids error precedence depending on insertion order. The preliminary
 sort operates only on resource-bounded exact built-in scalars, registry
 ordinals, and exact pairs of those values; it never sorts or formats arbitrary
 objects. An `ExactInt` used anywhere inside a map-key schema must have finite
-bounds no wider than 256 bits; registry construction rejects a wider or
-unbounded key domain.
+lower and upper bounds no wider than 256 bits; registry construction rejects a
+wider or unbounded key domain. A non-key integer may leave either endpoint open
+when the mounted domain has no source-pinned bound.
 
 ### Exact keyed-map algorithm
 

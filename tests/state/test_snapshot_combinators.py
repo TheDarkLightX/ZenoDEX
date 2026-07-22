@@ -290,6 +290,14 @@ def test_exact_int_bounds_and_bool_subclass_rejection() -> None:
     assert _admit(schema, _IntSubclass(1)) == AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ())
 
 
+def test_exact_int_open_endpoints_preserve_unbounded_mounted_domains() -> None:
+    assert _admit(ExactInt(None, None), -(1 << 4096)) == AdmitOk(-(1 << 4096))
+    assert _admit(ExactInt(None, 2), -3) == AdmitOk(-3)
+    assert _admit(ExactInt(-2, None), 1 << 4096) == AdmitOk(1 << 4096)
+    assert _admit(ExactInt(None, 2), 3) == AdmitReject(AdmitCode.OUT_OF_RANGE, ())
+    assert _admit(ExactInt(-2, None), -3) == AdmitReject(AdmitCode.OUT_OF_RANGE, ())
+
+
 def test_exact_int_rejects_before_integer_conversion_hook() -> None:
     class _IntegerLike:
         called = False
@@ -976,6 +984,7 @@ def test_registry_rejects_map_key_schema_without_total_order() -> None:
 @pytest.mark.parametrize(
     "key_schema",
     [
+        ExactInt(None, 1),
         ExactInt(0, None),
         ExactInt(0, 1 << 256),
         ExactPair(ExactString(StringRuleV1.NON_EMPTY, 8), ExactInt(-(1 << 256), 1)),

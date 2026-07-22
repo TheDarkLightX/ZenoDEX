@@ -199,7 +199,7 @@ class SequenceSourceKind(Enum):
 
 @dataclass(frozen=True, slots=True)
 class ExactInt:
-    minimum: int
+    minimum: int | None
     maximum: int | None
 
 
@@ -495,11 +495,15 @@ def _validate_record_registrations(
 
 
 def _validate_exact_int_schema(schema: ExactInt) -> None:
-    if type(schema.minimum) is not int:
-        raise TypeError("ExactInt minimum must be exact int")
+    if schema.minimum is not None and type(schema.minimum) is not int:
+        raise TypeError("ExactInt minimum must be exact int or None")
     if schema.maximum is not None and type(schema.maximum) is not int:
         raise TypeError("ExactInt maximum must be exact int or None")
-    if schema.maximum is not None and schema.maximum < schema.minimum:
+    if (
+        schema.minimum is not None
+        and schema.maximum is not None
+        and schema.maximum < schema.minimum
+    ):
         raise ValueError("ExactInt bounds are inverted")
 
 
@@ -600,8 +604,8 @@ def _validate_map_schema(
 
 def _validate_map_key_sort_bounds(schema: SchemaV1) -> None:
     if _has_exact_type(schema, ExactInt):
-        if schema.maximum is None:
-            raise ValueError("integer map keys require a finite maximum")
+        if schema.minimum is None or schema.maximum is None:
+            raise ValueError("integer map keys require finite bounds")
         if (
             abs(schema.minimum).bit_length() > MAX_SORTABLE_KEY_INTEGER_BITS_V1
             or abs(schema.maximum).bit_length() > MAX_SORTABLE_KEY_INTEGER_BITS_V1
@@ -988,7 +992,9 @@ def _admit_exact_int(
     next_state = _consume_node(state, path)
     if _has_exact_type(next_state, AdmitReject):
         return next_state
-    if source < schema.minimum or (schema.maximum is not None and source > schema.maximum):
+    if (schema.minimum is not None and source < schema.minimum) or (
+        schema.maximum is not None and source > schema.maximum
+    ):
         return _reject(AdmitCode.OUT_OF_RANGE, path)
     return _AdmitProgress(source, next_state)
 
@@ -1278,7 +1284,9 @@ def _key_canonical_reject(
 ) -> AdmitReject | None:
     if _has_exact_type(schema, ExactInt):
         key_int = cast(int, source)
-        if key_int < schema.minimum or (schema.maximum is not None and key_int > schema.maximum):
+        if (schema.minimum is not None and key_int < schema.minimum) or (
+            schema.maximum is not None and key_int > schema.maximum
+        ):
             return _reject(AdmitCode.OUT_OF_RANGE, path)
     elif _has_exact_type(schema, ExactString):
         key_string = cast(str, source)
@@ -1343,7 +1351,7 @@ def _key_sort_value(
 ) -> KeySortValue:
     if _has_exact_type(schema, ExactInt):
         key_int = cast(int, source)
-        if key_int < schema.minimum:
+        if schema.minimum is not None and key_int < schema.minimum:
             return (0, 0)
         if schema.maximum is not None and key_int > schema.maximum:
             return (2, 0)
