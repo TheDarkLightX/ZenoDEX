@@ -1,0 +1,186 @@
+{
+  "schema": "zenodex.rk_morph_esso_synthesis.v1",
+  "generated_at": "2026-07-21T17:55:00Z",
+  "authority": "research_evidence_only",
+  "parent": {
+    "pr": 471,
+    "head_sha": "3c5ee8b7487048a2dd0a370a64eeb1c294cd9c04",
+    "theorem_ledger_schema": "zenodex.theorem_ledger.v1"
+  },
+  "tool_sources": {
+    "research_kernel": {
+      "repository": "TheDarkLightX/Research-Kernel-MCP",
+      "source_sha": "d9cdfceaa396dd56acfacbd042b89ce633dbc173",
+      "study_head_sha": "3db8716be78dd7593815eec02f902556c5962f3b",
+      "pull_request": 2,
+      "workflow_run": 29854183012,
+      "workflow_conclusion": "success",
+      "artifact_digest": "sha256:68c204ce63e03c8c88e55b2b09fc2cfee087ad0575b04515bbe5cb328d0f03e1",
+      "decision_sha256": "45d77bf10c621a65f261403b806ba571aa67cbedef5f33b0daa061cdad00ffa9"
+    },
+    "morph": {
+      "repository": "TheDarkLightX/Morph",
+      "source_sha": "a26a9f5ddabfa2d5be8e12f8c3546836ace92520",
+      "study_head_sha": "975200d653201a876068bc491ad640f98ee797e2",
+      "pull_request": 4,
+      "workflow_run": 29854232704,
+      "workflow_conclusion": "success",
+      "artifact_digest": "sha256:44df0fe90aae74865b1f553c1ee1b41168b46502172b339bca66af4032593f57",
+      "study_sha256": "9ae9ec325cfdf4cfc06b8c1d23ad16ca6df01bd1c4e0bf7207275a273603ddf9",
+      "license_posture": "private_reference_tool_not_vendored"
+    },
+    "esso": {
+      "repository": "TheDarkLightX/ESSO",
+      "source_sha": "db8a3f8a782a508ada5005a2cf177f25c58f451d",
+      "study_head_sha": "079e06b191d26ed46f3b5ac8210e7a17f4077d97",
+      "pull_request": 4,
+      "workflow_run": 29854496303,
+      "workflow_conclusion": "success",
+      "artifact_digest": "sha256:3c8e18235442f07879ffc1937b53483a191535128e3d1f0e0c9191c0cc5548dd",
+      "license_posture": "private_unlicensed_tool_not_vendored"
+    }
+  },
+  "research_kernel_result": {
+    "supported_scoped_claim": "claim_typed_parser_boundary",
+    "refuted_overbroad_claims": [
+      "claim_disjoint_writes_suffice",
+      "claim_any_matching_is_canonical"
+    ],
+    "highest_priority_frontier": [
+      "claim_economic_lifecycle_frontier",
+      "experiment_zusd_lifecycle_models",
+      "experiment_parser_refinement",
+      "experiment_matching_certificate",
+      "experiment_footprint_differential",
+      "claim_parallel_equivalence"
+    ],
+    "recommended_sequence": [
+      "source_derived_typed_authority_grammars_and_concrete_roundtrip_refinement",
+      "sound_read_write_context_footprints_with_dynamic_trace_containment",
+      "atomic_state_effect_receipt_nonce_outbox_commit",
+      "bounded_zusd_lifecycle_models_before_implementation",
+      "canonical_matching_certificates_after_candidate_domain_completeness"
+    ]
+  },
+  "morph_result": {
+    "problem_count": 5,
+    "all_candidates_promotable": false,
+    "top_cross_problem_reformulations": [
+      {
+        "id": "geom_assume_guarantee_factorization",
+        "relation": "reduction",
+        "problem_count": 5,
+        "use": "factor the assurance case and economic lifecycle into contracts whose composition is separately proved"
+      },
+      {
+        "id": "geom_invariant_coordinate_projection",
+        "relation": "reduction",
+        "problem_count": 4,
+        "use": "project large state into the smallest complete invariant and footprint coordinates checked by ESSO and Lean"
+      },
+      {
+        "id": "morph_reformulate_bipartite_as_max_flow",
+        "relation": "equivalence_candidate",
+        "problem_count": 3,
+        "use": "replace indivisible matching with capacity-aware flow only after proving the finite reduction and canonical winner"
+      },
+      {
+        "id": "geom_quotient_symmetry_orbits",
+        "relation": "equivalence_candidate",
+        "problem_count": 2,
+        "use": "reduce bounded lifecycle search by claimant or component symmetries while retaining a checked lifting map"
+      }
+    ],
+    "decisions": [
+      "treat_concrete_parser_refinement_as_generated_equivalence_not_handwritten_tests",
+      "reformulate_parallelism_as_certified_patch_algebra_over_one_snapshot",
+      "decompose_zusd_into_bounded_lifecycle_machines_then_prove_composition",
+      "use_matching_and_equilibrium_solvers_as_untrusted_certificate_proposers",
+      "make_the_assurance_case_a_versioned_fail_closed_transition"
+    ]
+  },
+  "esso_result": {
+    "scope": "finite_bounded_one_step_inductive_invariants_with_z3",
+    "naive_model": {
+      "model_id": "zenodex_atomic_commit_naive",
+      "verdict": "FAILED",
+      "fingerprint": "393d623b39c58a6c104e8427d86da0af4c5bfa0ffd44dd3ebf5c139b08102015",
+      "counterexample_query": "inductive_publish_state",
+      "counterexample_projection": {
+        "pre_phase": "Prepared",
+        "post_phase": "Committed",
+        "pre_state_published": false,
+        "post_state_published": true,
+        "post_effects_published": false,
+        "post_receipt_published": false,
+        "post_outbox_published": false,
+        "root_match": true,
+        "candidate_valid": true,
+        "worker_failed": false
+      }
+    },
+    "repaired_model": {
+      "model_id": "zenodex_atomic_commit_repaired",
+      "verdict": "VERIFIED",
+      "fingerprint": "5820b12530cdd40d1f67c950dfef4c4bb798f2ede514e816424717f7ade1e8d4",
+      "queries": [
+        "init_implies_inv",
+        "inductive_prepare",
+        "inductive_worker_fail",
+        "inductive_reject_stale_or_invalid",
+        "inductive_commit_atomic",
+        "inductive_deliver"
+      ]
+    },
+    "implementation_obligations": [
+      "bind_candidate_to_exact_pre_state_root_and_execution_context_hash",
+      "commit_state_nonce_effect_receipt_and_outbox_in_one_storage_transaction",
+      "prove_concrete_compare_and_swap_linearizable",
+      "prove_external_delivery_idempotent_and_committed_outbox_only",
+      "refine_bounded_control_model_to_real_shell_and_crash_recovery_traces"
+    ]
+  },
+  "new_formal_result": {
+    "artifact": "lean-mathlib/Proofs/ReadWriteStableParallel.lean",
+    "claims": [
+      "disjoint_write_sets_alone_do_not_imply_schedule_independence",
+      "reads_only_plus_writes_within_plus_no_write_write_or_read_write_conflicts_imply_task_commutation"
+    ],
+    "runtime_refinement_obligation": "prove_concrete_footprint_extractor_satisfies_SoundFootprint_for_every_promoted_command_profile"
+  },
+  "decisions": [
+    {
+      "priority": 1,
+      "decision": "instrument_and_certify_dynamic_footprint_containment_before_value_moving_parallelism",
+      "promotion_gate": "every_actual_read_write_context_is_within_the_declared_footprint_and_parallel_bytes_equal_sequential_bytes"
+    },
+    {
+      "priority": 2,
+      "decision": "implement_one_atomic_candidate_commit_boundary",
+      "promotion_gate": "linearizable_expected_root_commit_plus_transactional_outbox_plus_crash_recovery_evidence"
+    },
+    {
+      "priority": 3,
+      "decision": "model_remaining_zusd_lifecycles_separately_then_compose",
+      "promotion_gate": "bounded_counterexample_search_multi_solver_agreement_and_Lean_composition_invariants"
+    },
+    {
+      "priority": 4,
+      "decision": "generate_typed_authority_parsers_from_one_grammar",
+      "promotion_gate": "full_consumption_exact_reencoding_total_bounds_and_cross_language_differential_refinement"
+    },
+    {
+      "priority": 5,
+      "decision": "admit_matching_or_flow_only_through_a_canonical_finite_certificate",
+      "promotion_gate": "candidate_domain_coverage_unique_total_key_and_normative_sequential_replay"
+    }
+  ],
+  "nonclaims": [
+    "research_kernel_supported_is_a_local_promotion_status_not_an_external_proof",
+    "morph_results_are_advisory_until_domain_verifier_and_strict_replay",
+    "esso_verification_is_bounded_and_does_not_prove_the_production_database",
+    "the_new_Lean_theorem_does_not_prove_the_runtime_footprint_extractor_sound",
+    "the_remaining_zusd_economic_lifecycles_are_not_closed",
+    "arbitrary_value_moving_parallel_execution_is_not_promoted"
+  ]
+}

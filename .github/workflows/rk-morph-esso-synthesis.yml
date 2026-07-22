@@ -1,0 +1,110 @@
+name: rk-morph-esso-synthesis
+
+on:
+  push:
+    branches:
+      - agent/rk-morph-esso-synthesis-20260721
+  pull_request:
+    paths:
+      - "lean-mathlib/Proofs/ReadWriteStableParallel.lean"
+      - "lean-mathlib/Proofs/RKMorphESSOSynthesis.lean"
+      - "docs/research/ZENODEX_RK_MORPH_ESSO_SYNTHESIS_2026-07-21.md"
+      - "docs/research/ZENODEX_RK_MORPH_ESSO_SYNTHESIS_V1.json"
+      - "tools/check_zenodex_tool_research_synthesis.py"
+      - "tests/tools/test_check_zenodex_tool_research_synthesis.py"
+      - ".github/workflows/rk-morph-esso-synthesis.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  synthesis-ledger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+      - name: Static checks
+        run: |
+          python -m ruff check \
+            tools/check_zenodex_tool_research_synthesis.py \
+            tests/tools/test_check_zenodex_tool_research_synthesis.py
+          python -m ruff format --check \
+            tools/check_zenodex_tool_research_synthesis.py \
+            tests/tools/test_check_zenodex_tool_research_synthesis.py
+          python -m py_compile \
+            tools/check_zenodex_tool_research_synthesis.py \
+            tests/tools/test_check_zenodex_tool_research_synthesis.py
+      - name: Validate exact-source synthesis ledger
+        run: python tools/check_zenodex_tool_research_synthesis.py --pretty
+      - name: Run fail-closed evidence tests
+        run: python -m pytest -q tests/tools/test_check_zenodex_tool_research_synthesis.py
+
+  lean-footprint-theorem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Lean toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Restore pinned Mathlib source
+        run: |
+          rm -rf external/mathlib4
+          git clone --depth 1 --branch v4.27.0 \
+            https://github.com/leanprover-community/mathlib4.git \
+            external/mathlib4
+      - name: Restore Mathlib compiled cache
+        working-directory: lean-mathlib
+        run: |
+          lake update
+          lake exe cache get
+      - name: Type-check read/write footprint theorem
+        id: lean_direct
+        continue-on-error: true
+        working-directory: lean-mathlib
+        shell: bash
+        run: |
+          set -o pipefail
+          lake env lean Proofs/ReadWriteStableParallel.lean \
+            2>&1 | tee ../lean-footprint-diagnostics.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+      - name: Type-check isolated three-tool synthesis module
+        id: lean_synthesis
+        continue-on-error: true
+        working-directory: lean-mathlib
+        shell: bash
+        run: |
+          set -o pipefail
+          lake env lean Proofs/RKMorphESSOSynthesis.lean \
+            2>&1 | tee ../lean-synthesis-diagnostics.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+      - name: Upload Lean diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: read-write-stable-parallel-lean-diagnostics
+          path: |
+            lean-footprint-diagnostics.txt
+            lean-synthesis-diagnostics.txt
+          if-no-files-found: error
+      - name: Enforce direct theorem type-check
+        if: steps.lean_direct.outputs.exit_code != '0'
+        run: exit 1
+      - name: Enforce synthesis module type-check
+        if: steps.lean_synthesis.outputs.exit_code != '0'
+        run: exit 1
+      - name: Reject proof placeholders
+        run: |
+          ! grep -R -nE '\b(sorry|admit|axiom)\b' \
+            lean-mathlib/Proofs/ReadWriteStableParallel.lean \
+            lean-mathlib/Proofs/RKMorphESSOSynthesis.lean
