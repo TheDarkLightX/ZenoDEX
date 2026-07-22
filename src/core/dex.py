@@ -17,6 +17,13 @@ from ..state.intents import Intent
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.pools import PoolState
+from ..state.state_snapshots import (
+    freeze_balance_table,
+    freeze_lp_table,
+    freeze_nonce_table,
+    freeze_optional_module_state,
+    freeze_pool_mapping,
+)
 from .batch_clearing import (
     apply_settlement_pure,
     compute_settlement,
@@ -88,6 +95,31 @@ class DexState:
     oracle: Optional[OracleState] = None
     fee_accumulator: FeeAccumulatorState = FeeAccumulatorState()
     perps: Optional[PerpsState] = None
+
+    def __post_init__(self) -> None:
+        """Own and seal every value reachable from committed state."""
+
+        object.__setattr__(self, "balances", freeze_balance_table(self.balances))
+        object.__setattr__(self, "pools", freeze_pool_mapping(self.pools))
+        object.__setattr__(self, "lp_balances", freeze_lp_table(self.lp_balances))
+        object.__setattr__(self, "nonces", freeze_nonce_table(self.nonces))
+
+        frozen_vault = freeze_optional_module_state(self.vault)
+        frozen_oracle = freeze_optional_module_state(self.oracle)
+        frozen_fee_accumulator = freeze_optional_module_state(self.fee_accumulator)
+        frozen_perps = freeze_optional_module_state(self.perps)
+        if frozen_vault is not None and type(frozen_vault) is not VaultState:
+            raise TypeError("vault must be an exact VaultState or None")
+        if frozen_oracle is not None and type(frozen_oracle) is not OracleState:
+            raise TypeError("oracle must be an exact OracleState or None")
+        if type(frozen_fee_accumulator) is not FeeAccumulatorState:
+            raise TypeError("fee_accumulator must be an exact FeeAccumulatorState")
+        if frozen_perps is not None and type(frozen_perps) is not PerpsState:
+            raise TypeError("perps must be an exact PerpsState or None")
+        object.__setattr__(self, "vault", frozen_vault)
+        object.__setattr__(self, "oracle", frozen_oracle)
+        object.__setattr__(self, "fee_accumulator", frozen_fee_accumulator)
+        object.__setattr__(self, "perps", frozen_perps)
 
 
 @dataclass(frozen=True)

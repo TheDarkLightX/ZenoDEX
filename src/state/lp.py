@@ -41,6 +41,13 @@ class LPTable:
         self._churn_tiers: Dict[Tuple[PubKey, PoolId], int] = {}
         self._last_churn_update_timestamps: Dict[Tuple[PubKey, PoolId], int] = {}
 
+    def __setattr__(self, name: str, value: object) -> None:
+        """Prevent base-descriptor writes through a sealed committed subtype."""
+
+        if self.__dict__.get("_snapshot_sealed", False):
+            raise TypeError("committed LP snapshot is immutable")
+        object.__setattr__(self, name, value)
+
     def get(self, pubkey: PubKey, pool_id: PoolId) -> Amount:
         """Get LP balance for (pubkey, pool_id). Returns 0 if not found."""
         return self._balances.get((pubkey, pool_id), 0)

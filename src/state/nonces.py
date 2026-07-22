@@ -15,7 +15,6 @@ from .balances import PubKey
 from .canonical import canonical_hex_fixed_allow_0x
 from .intents import Intent
 
-
 _U32_MAX = 0xFFFFFFFF
 
 
@@ -29,6 +28,13 @@ class NonceTable:
     """
 
     _last: Dict[PubKey, int] = field(default_factory=dict)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Prevent base-descriptor writes through a sealed committed subtype."""
+
+        if self.__dict__.get("_snapshot_sealed", False):
+            raise TypeError("committed nonce snapshot is immutable")
+        object.__setattr__(self, name, value)
 
     def get_last(self, pubkey: PubKey) -> int:
         pk = canonical_hex_fixed_allow_0x(pubkey, nbytes=48, name="pubkey")

@@ -13,13 +13,13 @@ IMPORTANT:
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from ..core.liquidity import create_pool
 from ..core.settlement import Fill, FillAction, Settlement
 from ..state.intents import Intent, IntentKind
-from ..state.pools import PoolState
+from ..state.pools import PoolState, copy_pool_state
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
     SETTLEMENT_PRICE_RAILS_ALIGNED_V1,
@@ -27,9 +27,9 @@ from .tau_witness import (
     SWAP_BV32_SAFE_RANGE_GUARD_V1,
     SWAP_EXACT_IN_PROOF_GATE_V1,
     SWAP_EXACT_IN_V1,
-    SWAP_EXACT_OUT_V1,
-    SWAP_EXACT_OUT_PROOF_GATE_V1,
     SWAP_EXACT_IN_V4,
+    SWAP_EXACT_OUT_PROOF_GATE_V1,
+    SWAP_EXACT_OUT_V1,
     SWAP_EXACT_OUT_V4,
     TauSpecRef,
     build_settlement_price_rails_aligned_v1_step,
@@ -37,9 +37,9 @@ from .tau_witness import (
     build_swap_bv32_safe_range_guard_v1_step,
     build_swap_exact_in_proof_gate_v1_step,
     build_swap_exact_in_v1_step,
-    build_swap_exact_out_v1_step,
-    build_swap_exact_out_proof_gate_v1_step,
     build_swap_exact_in_v4_step,
+    build_swap_exact_out_proof_gate_v1_step,
+    build_swap_exact_out_v1_step,
     build_swap_exact_out_v4_step,
 )
 
@@ -74,6 +74,9 @@ class TauGateConfig:
     settlement_profile: str = "off"
     settlement_price_history: Optional[Tuple[int, int, int]] = None
     settlement_module_flags: Optional[TauSettlementModuleFlags] = None
+
+
+_DEFAULT_TAU_GATE_CONFIG = TauGateConfig()
 
 
 def _require_gate_ok(
@@ -118,7 +121,7 @@ def validate_settlement_swaps(
     intents: List[Intent],
     settlement: Settlement,
     pre_pools: Dict[str, PoolState],
-    config: TauGateConfig = TauGateConfig(),
+    config: TauGateConfig = _DEFAULT_TAU_GATE_CONFIG,
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate swap fills in a settlement using Tau specs (fail-closed).
@@ -158,7 +161,7 @@ def validate_settlement_swaps(
             pre = pre_pools.get(pid)
             if pre is None:
                 return None
-            pool = replace(pre)
+            pool = copy_pool_state(pre)
             pools_mut[pid] = pool
             return pool
 

@@ -394,6 +394,13 @@ class PoolState:
     created_at: int
     curve_tag: str = CURVE_TAG_CPMM
     curve_params: str = ""
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Prevent base-descriptor writes through a sealed committed subtype."""
+
+        if self.__dict__.get("_snapshot_sealed", False):
+            raise TypeError("committed pool snapshot is immutable")
+        object.__setattr__(self, name, value)
     
     def __post_init__(self):
         """Validate pool state invariants."""
@@ -472,6 +479,30 @@ class PoolState:
             f"reserves=({self.reserve0}, {self.reserve1}), "
             f"lp_supply={self.lp_supply}, status={self.status.value})"
         )
+
+
+def copy_pool_state(source: PoolState) -> PoolState:
+    """Return an exact mutable scratch copy of one pool value.
+
+    dataclasses.replace preserves subclasses. That is unsafe when a sealed
+    committed pool is copied for local settlement mutation.
+    """
+
+    if not isinstance(source, PoolState):
+        raise TypeError("source must be a PoolState")
+    return PoolState(
+        pool_id=source.pool_id,
+        asset0=source.asset0,
+        asset1=source.asset1,
+        reserve0=source.reserve0,
+        reserve1=source.reserve1,
+        fee_bps=source.fee_bps,
+        lp_supply=source.lp_supply,
+        status=source.status,
+        created_at=source.created_at,
+        curve_tag=source.curve_tag,
+        curve_params=source.curve_params,
+    )
 
 
 def validate_pool_identity(pool: PoolState, *, allow_symbolic: bool) -> None:

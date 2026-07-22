@@ -139,7 +139,6 @@ def _perps_oracle_authorization_bundle(config: object, state: DexState, market_i
     market = state.perps.markets[market_id]
     runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
     observed_epoch = int(market.global_state.get("oracle_last_update_epoch", 0))
-    now_epoch = int(market.global_state.get("now_epoch", 0))
     authorized_value_e8 = int(market.global_state.get("index_price_e8", 0) if value_e8 is None else value_e8)
     authorization = OracleAuthorization(
         consumer_module="zenodex.perps",
@@ -582,9 +581,25 @@ def test_set_position_rejects_malformed_oracle_snapshot_zero_index() -> None:
     # Simulate an in-memory corrupted oracle snapshot (invalid reachable state).
     # Snapshot parsing should fail-closed on this, but runtime code should still
     # reject actions when fed malformed state.
-    market.global_state["oracle_seen"] = True
-    market.global_state["oracle_last_update_epoch"] = int(market.global_state.get("now_epoch", 0))
-    market.global_state["index_price_e8"] = 0
+    corrupted_global_state = dict(market.global_state)
+    corrupted_global_state["oracle_seen"] = True
+    corrupted_global_state["oracle_last_update_epoch"] = int(
+        corrupted_global_state.get("now_epoch", 0)
+    )
+    corrupted_global_state["index_price_e8"] = 0
+    # Deliberately bypass the market constructor to model corrupt persisted
+    # bytes. The committed input remains untouched.
+    corrupted_market = object.__new__(type(market))
+    object.__setattr__(corrupted_market, "quote_asset", market.quote_asset)
+    object.__setattr__(corrupted_market, "global_state", corrupted_global_state)
+    object.__setattr__(corrupted_market, "accounts", dict(market.accounts))
+    object.__setattr__(corrupted_market, "kind", market.kind)
+    corrupted_markets = dict(state.perps.markets)
+    corrupted_markets[market_id] = corrupted_market
+    state = replace(
+        state,
+        perps=replace(state.perps, markets=corrupted_markets),
+    )
 
     res = _apply_result(
         state=state,

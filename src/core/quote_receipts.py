@@ -14,13 +14,13 @@ This supports:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
 from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from ..core.routing import RouteQuote
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
-from ..state.pools import PoolState
+from ..state.pools import PoolState, copy_pool_state
 
 
 def _require_receipt_int(value: Any) -> int | None:
@@ -730,7 +730,10 @@ def _replay_and_apply_hop(
     )
     if not replay.replay_ok:
         return False, route_quote_receipt_hop_replay_error(replay), None
-    return True, "ok", replace(pool, reserve0=int(replay.next_reserve0), reserve1=int(replay.next_reserve1))
+    next_pool = copy_pool_state(pool)
+    next_pool.reserve0 = int(replay.next_reserve0)
+    next_pool.reserve1 = int(replay.next_reserve1)
+    return True, "ok", next_pool
 
 
 def verify_route_quote_receipt(
@@ -852,7 +855,7 @@ def verify_route_quote_receipt(
     )
     if not pool_snapshot.snapshot_ok:
         return False, route_quote_receipt_pool_snapshot_error(pool_snapshot)
-    working_pools = {pid: replace(pools_by_id[pid]) for pid in pools}
+    working_pools = {pid: copy_pool_state(pools_by_id[pid]) for pid in pools}
 
     # Verify hop-by-hop quote semantics.
     total_in = 0

@@ -14,14 +14,14 @@ recomputes canonical deltas/events and requires exact match.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from ..kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 from ..state.balances import AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
-from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
+from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus, copy_pool_state
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .batch_clearing import validate_settlement as validate_settlement_legacy
 from .cpmm import MIN_LP_LOCK, compute_fee_total, swap_exact_in_with_protocol_fee
@@ -394,7 +394,9 @@ def _validate_settlement_strong_impl(
 
     # Replay state (pure local copies).
     balances = _copy_balance_table(pre_balances)
-    pools: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pre_pools.items()}
+    pools: Dict[str, PoolState] = {
+        pool_id: copy_pool_state(pool) for pool_id, pool in pre_pools.items()
+    }
     lp = _copy_lp_table(pre_lp_balances) if pre_lp_balances is not None else LPTable()
 
     expected_events: List[dict] = []

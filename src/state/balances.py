@@ -28,6 +28,13 @@ class BalanceTable:
         """Initialize empty balance table."""
         # Use tuple keys (pubkey, asset). Deterministic ordering is enforced at call sites via sorting.
         self._balances: Dict[Tuple[PubKey, AssetId], Amount] = {}
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Prevent base-descriptor writes through a sealed committed subtype."""
+
+        if self.__dict__.get("_snapshot_sealed", False):
+            raise TypeError("committed balance snapshot is immutable")
+        object.__setattr__(self, name, value)
     
     def get(self, pubkey: PubKey, asset: AssetId) -> Amount:
         """Get balance for (pubkey, asset). Returns 0 if not found."""

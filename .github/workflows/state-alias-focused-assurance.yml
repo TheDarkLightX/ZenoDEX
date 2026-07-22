@@ -1,0 +1,133 @@
+# Read-only exact-head certification for the committed-state alias family.
+name: state-alias-focused-assurance
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: state-alias-focused-assurance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  critical-quality:
+    if: github.event.pull_request.head.ref == 'agent/functional-core-owned-state-snapshots-20260719'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Run critical-quality gate
+        run: bash tools/run_critical_quality_gate.sh
+
+  mounted-state-consumers:
+    if: github.event.pull_request.head.ref == 'agent/functional-core-owned-state-snapshots-20260719'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Source hygiene
+        run: |
+          python -m ruff check \
+            src/core/batch_clearing.py \
+            src/core/dex.py \
+            src/core/quote_receipts.py \
+            src/core/settlement_strong_validator.py \
+            src/integration/tau_gate.py \
+            src/state/balances.py \
+            src/state/immutable_collections.py \
+            src/state/intents.py \
+            src/state/lp.py \
+            src/state/nonces.py \
+            src/state/pools.py \
+            src/state/state_snapshots.py \
+            tests/core/test_dex_state_immutability.py \
+            tests/integration/test_dex_engine_helpers.py \
+            tests/integration/test_perp_engine.py \
+            tests/integration/test_perp_engine_runtime_gate.py \
+            tests/integration/test_perp_engine_oracle_authorization.py
+          python -m ruff format --check \
+            src/state/immutable_collections.py \
+            src/state/state_snapshots.py \
+            tests/core/test_dex_state_immutability.py
+          python -m mypy
+          python -m mypy \
+            src/state/immutable_collections.py \
+            src/state/state_snapshots.py \
+            src/core/dex.py \
+            tests/core/test_dex_state_immutability.py \
+            tests/integration/test_perp_engine_runtime_gate.py \
+            tests/integration/test_perp_engine_oracle_authorization.py
+          git diff --check
+
+      - name: Compile changed Python
+        run: |
+          python -m py_compile \
+            src/core/batch_clearing.py \
+            src/core/dex.py \
+            src/core/quote_receipts.py \
+            src/core/settlement_strong_validator.py \
+            src/integration/tau_gate.py \
+            src/state/balances.py \
+            src/state/immutable_collections.py \
+            src/state/intents.py \
+            src/state/lp.py \
+            src/state/nonces.py \
+            src/state/pools.py \
+            src/state/state_snapshots.py \
+            tests/core/test_dex_state_immutability.py
+
+      - name: Mounted perps compatibility
+        run: |
+          python -m pytest -q \
+            tests/integration/test_perp_engine.py \
+            tests/integration/test_perp_engine_runtime_gate.py \
+            tests/integration/test_perp_engine_auth_guards.py \
+            tests/integration/test_perp_engine_clearinghouse_np_oracle_bridge.py \
+            tests/integration/test_perp_engine_market_params_clearinghouse.py \
+            tests/integration/test_perp_engine_signed_surface_guards.py \
+            tests/integration/test_perp_engine_partial_liquidate.py \
+            tests/integration/test_perp_engine_clearinghouse_3p_transfer.py \
+            tests/integration/test_perp_engine_oracle_authorization.py \
+            tests/integration/test_perp_engine_clearinghouse_2p.py \
+            tests/integration/test_perps_api.py
