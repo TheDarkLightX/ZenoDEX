@@ -92,21 +92,26 @@ def _cap_state() -> zusd.ZUSDState:
         debt_e8=1_400 * E8,
         free_debt_e8=100 * E8,
         sp_debt_e8=1_300 * E8,
-        max_debt_e8=2_000 * E8,
+        max_debt_e8=1_500 * E8,
         max_debt_supply_e8=1_500 * E8,
     )
 
 
-def test_rust_mint_counts_existing_stability_pool_debt(rust_env: Path) -> None:
+def test_rust_mint_above_shared_vault_and_supply_cap_rejects(
+    rust_env: Path,
+) -> None:
     set_active_authority_policy(_policy())
     state = _cap_state()
 
-    rejected = _step_both(state, _cmd("mint_zusd", amount_e8=200 * E8))
+    # The promoted Rust surface is single-vault. Valid parameters require the
+    # per-vault cap to be no greater than the global cap, so this rejection is
+    # selected by the per-vault check before the equivalent total-debt check.
+    rejected = _step_both(state, _cmd("mint_zusd", amount_e8=101 * E8))
 
     assert rejected.ok is False
     assert rejected.state is None
     assert rejected.effects is None
-    assert rejected.error == "mint exceeds max_debt_supply_e8"
+    assert rejected.error == "mint exceeds per-vault max_debt_e8"
     assert state.debt_e8 == 1_400 * E8
 
 

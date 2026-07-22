@@ -298,7 +298,7 @@ _ERROR_CODE = {
     "oracle_report requires auth_ok=true": "report_requires_auth",
     "oracle_report requires non-increasing pending price": "report_price_not_non_increasing",
     "oracle_commit requires auth_ok=true": "commit_requires_auth",
-    "oracle_commit blocked: vault below MCR at pending price": "commit_below_mcr",
+    "oracle_commit blocked by stale oracle context": "commit_stale_oracle_context",
     "insufficient collateral": "insufficient_collateral",
     "withdraw blocked by oracle freeze/staleness/recovery mode": "withdraw_blocked_oracle",
     "withdraw would violate MCR": "withdraw_violates_mcr",
@@ -326,9 +326,11 @@ _ERROR_CODE = {
     "protocol collateral cap exceeded": "redeem_protocol_cap_exceeded",
     "redemption would leave debt below min_debt_open_e8": "redeem_below_min_debt",
     "redemption would violate MCR": "redeem_violates_mcr",
-    "liquidation requires initialized pending oracle price": "liquidate_oracle_uninitialized",
+    "liquidation requires initialized finalized oracle price": "liquidate_oracle_uninitialized",
+    "liquidation blocked by oracle pending mismatch": "liquidate_pending_mismatch",
+    "liquidation blocked by stale finalized oracle": "liquidate_stale_oracle",
     "no debt to liquidate": "liquidate_no_debt",
-    "vault not under MCR at pending price": "liquidate_not_under_mcr",
+    "vault not under MCR at finalized price": "liquidate_not_under_mcr",
     "stability pool cannot absorb debt": "liquidate_sp_cannot_absorb",
     "stability pool collateral cap exceeded": "liquidate_sp_cap_exceeded",
 }
@@ -479,6 +481,8 @@ def in_recovery_mode(state: ZUSDState) -> bool:
 
 
 def check_invariants(state: ZUSDState) -> list[str]:
+    """Return hard accounting and representation invariant failures."""
+
     failed: list[str] = []
     if state.oracle_seen and (state.price_e8 <= 0 or state.price_pending_e8 <= 0):
         failed.append("inv_oracle_seen_positive_prices")
@@ -490,14 +494,35 @@ def check_invariants(state: ZUSDState) -> list[str]:
         failed.append("inv_oracle_unseen_zeroed")
     if (state.free_debt_e8 + state.sp_debt_e8) != state.debt_e8:
         failed.append("inv_supply_conservation")
-    if not _debt_floor_ok(debt_e8=state.debt_e8, min_debt_open_e8=state.min_debt_open_e8):
-        failed.append("inv_debt_floor")
-    if not _solvent_at_price(
-        collateral_e8=state.collateral_e8 + state.sp_coll_e8 + state.protocol_collateral_e8,
+    if state.debt_e8 > state.max_debt_supply_e8:
+        failed.append("inv_total_debt_cap")
+    if not _debt_floor_ok(
         debt_e8=state.debt_e8,
-        price_e8=state.price_e8 if state.price_e8 > 0 else E8,
+        min_debt_open_e8=state.min_debt_open_e8,
     ):
-        failed.append("inv_system_no_bad_debt")
+        failed.append("inv_debt_floor")
+    return failed
+
+
+def check_health_conditions(state: ZUSDState) -> list[str]:
+    """Return finalized-price health facts without rejecting representable state."""
+
+    failed: list[str] = []
+    if not state.oracle_seen or state.price_e8 <= 0:
+        return failed
+    if state.debt_e8 > 0 and not _mcr_ok(
+        collateral_e8=state.collateral_e8,
+        debt_e8=state.debt_e8,
+        price_e8=state.price_e8,
+        mcr_bps=state.mcr_bps,
+    ):
+        failed.append("health_vault_below_mcr")
+    if not _solvent_at_price(
+        collateral_e8=(state.collateral_e8 + state.sp_coll_e8 + state.protocol_collateral_e8),
+        debt_e8=state.debt_e8,
+        price_e8=state.price_e8,
+    ):
+        failed.append("health_system_bad_debt")
     return failed
 
 
@@ -565,15 +590,15 @@ def _zusd_h_oracle_commit(state: ZUSDState, cmd: ZUSDCommand):
         return ZUSDStepResult(ok=False, error="oracle not bootstrapped")
     if not bool(cmd.args.get("auth_ok", False)):
         return ZUSDStepResult(ok=False, error="oracle_commit requires auth_ok=true")
-    # Commit only when vault remains above MCR at pending price.
-    if not _mcr_ok(
-        collateral_e8=state.collateral_e8,
-        debt_e8=state.debt_e8,
-        price_e8=state.price_pending_e8,
-        mcr_bps=state.mcr_bps,
+    if not _is_oracle_fresh(
+        now_epoch=state.now_epoch,
+        last_update_epoch=state.oracle_last_update_epoch,
+        max_staleness_epochs=state.max_oracle_staleness_epochs,
+        oracle_seen=state.oracle_seen,
     ):
         return ZUSDStepResult(
-            ok=False, error="oracle_commit blocked: vault below MCR at pending price"
+            ok=False,
+            error="oracle_commit blocked by stale oracle context",
         )
     ns = ZUSDState(
         **{
@@ -640,7 +665,7 @@ def _zusd_h_mint_zusd(state: ZUSDState, cmd: ZUSDCommand):
     new_debt = state.debt_e8 + debt_delta
     if new_debt > state.max_debt_e8:
         return ZUSDStepResult(ok=False, error="mint exceeds per-vault max_debt_e8")
-    if (state.free_debt_e8 + debt_delta) > state.max_debt_supply_e8:
+    if new_debt > state.max_debt_supply_e8:
         return ZUSDStepResult(ok=False, error="mint exceeds max_debt_supply_e8")
     if not _mcr_ok(
         collateral_e8=state.collateral_e8,
@@ -804,25 +829,44 @@ def _zusd_h_redeem_zusd(state: ZUSDState, cmd: ZUSDCommand):
 
 
 def _zusd_h_liquidate(state: ZUSDState, cmd: ZUSDCommand):
-    if not state.oracle_seen or state.price_pending_e8 <= 0:
+    if not state.oracle_seen or state.price_e8 <= 0:
         return ZUSDStepResult(
-            ok=False, error="liquidation requires initialized pending oracle price"
+            ok=False,
+            error="liquidation requires initialized finalized oracle price",
+        )
+    if state.price_pending_e8 != state.price_e8:
+        return ZUSDStepResult(
+            ok=False,
+            error="liquidation blocked by oracle pending mismatch",
+        )
+    if not _is_oracle_fresh(
+        now_epoch=state.now_epoch,
+        last_update_epoch=state.oracle_last_update_epoch,
+        max_staleness_epochs=state.max_oracle_staleness_epochs,
+        oracle_seen=state.oracle_seen,
+    ):
+        return ZUSDStepResult(
+            ok=False,
+            error="liquidation blocked by stale finalized oracle",
         )
     if state.debt_e8 <= 0:
         return ZUSDStepResult(ok=False, error="no debt to liquidate")
-    under_mcr = not _mcr_ok(
+    if _mcr_ok(
         collateral_e8=state.collateral_e8,
         debt_e8=state.debt_e8,
-        price_e8=state.price_pending_e8,
+        price_e8=state.price_e8,
         mcr_bps=state.mcr_bps,
-    )
-    if not under_mcr:
-        return ZUSDStepResult(ok=False, error="vault not under MCR at pending price")
+    ):
+        return ZUSDStepResult(ok=False, error="vault not under MCR at finalized price")
     if state.debt_e8 > state.sp_debt_e8:
         return ZUSDStepResult(ok=False, error="stability pool cannot absorb debt")
     liquidated_debt = state.debt_e8
     liquidated_coll = state.collateral_e8
-    variable_comp = _mul_div_up(liquidated_coll, state.liquidation_gas_comp_bps, BPS_SCALE)
+    variable_comp = _mul_div_up(
+        liquidated_coll,
+        state.liquidation_gas_comp_bps,
+        BPS_SCALE,
+    )
     requested_comp = state.liquidation_gas_comp_fixed_collateral_e8 + variable_comp
     liquidator_comp = min(liquidated_coll, requested_comp)
     sp_collateral_gain = liquidated_coll - liquidator_comp
