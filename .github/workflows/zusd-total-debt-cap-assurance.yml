@@ -1,0 +1,65 @@
+# Read-only exact-head certification for the authoritative zUSD debt cap.
+name: zusd-total-debt-cap-assurance
+
+on:
+  pull_request:
+    branches:
+      - agent/canonical-wire-encoding-20260721
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  zusd-total-debt-cap:
+    if: github.event.pull_request.head.ref == 'agent/zusd-total-debt-cap-20260721'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.3"
+
+      - name: Install locked development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Check debt-cap source and counterexamples
+        run: |
+          python -m ruff check \
+            src/core/zusd.py \
+            tests/core/test_zusd_total_debt_cap.py
+          python -m ruff format --check \
+            tests/core/test_zusd_total_debt_cap.py
+          python -m mypy \
+            src/core/zusd.py \
+            tests/core/test_zusd_total_debt_cap.py
+          python -m py_compile \
+            src/core/zusd.py \
+            tests/core/test_zusd_total_debt_cap.py
+          git diff --check "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+
+      - name: Replay global-cap and inherited zUSD witnesses
+        run: |
+          python -m pytest -q \
+            tests/core/test_zusd_total_debt_cap.py \
+            tests/core/test_zusd.py \
+            tests/core/test_zusd_multi.py \
+            tests/core/test_zusd_auth_strictness.py \
+            tests/core/test_authority_json_immutability.py
+
+      - name: Run critical-quality gate
+        env:
+          PYTHON: python
+        run: bash tools/run_critical_quality_gate.sh
