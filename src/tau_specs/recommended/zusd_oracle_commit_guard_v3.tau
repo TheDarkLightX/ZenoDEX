@@ -1,0 +1,19 @@
+# zUSD Oracle Commit Guard v3
+#
+# Finalization authority is independent of vault health. An authenticated,
+# initialized, fresh pending observation may become the finalized price even
+# when that price makes a vault liquidatable. Health is derived after commit.
+#
+# i1 = oracle_seen (sbf)
+# i2 = pending_initialized (sbf)
+# i3 = pending_le_active (sbf; current downward-only report policy)
+# i4 = auth_ok (sbf)
+# i5 = fresh_pending (sbf; derived from oracle_pending_report_epoch)
+# o4 = oracle_commit_allowed
+
+set charvar off
+
+env_ok(oracle_seen : sbf, pending_initialized : sbf, pending_le_active : sbf, fresh_pending : sbf) := (oracle_seen = 1:sbf) && (pending_initialized = 1:sbf) && (pending_le_active = 1:sbf) && (fresh_pending = 1:sbf).
+policy_ok(auth_ok : sbf) := auth_ok = 1:sbf.
+oracle_commit_ok(oracle_seen : sbf, pending_initialized : sbf, pending_le_active : sbf, auth_ok : sbf, fresh_pending : sbf) := env_ok(oracle_seen, pending_initialized, pending_le_active, fresh_pending) && policy_ok(auth_ok).
+always (o1[t]:sbf = 1:sbf <-> env_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> policy_ok(i4[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> ((i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf))) && (o4[t]:sbf = 1:sbf <-> oracle_commit_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)).

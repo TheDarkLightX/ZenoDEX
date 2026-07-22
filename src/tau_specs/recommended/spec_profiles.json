@@ -437,9 +437,24 @@
           "spec_path": "src/tau_specs/recommended/zusd_oracle_commit_guard_v2.tau"
         },
         {
+          "variant_id": "oracle_commit_guard_v3",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_oracle_commit_guard_v3.tau"
+        },
+        {
           "variant_id": "liquidation_guard_v2",
           "profile": "tau_only_structural",
           "spec_path": "src/tau_specs/recommended/zusd_liquidation_guard_v2.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "blocked_requires_host_proof_or_upstream_fix",
+            "runtime_admission": false,
+            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
+        },
+        {
+          "variant_id": "liquidation_guard_v3",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_liquidation_guard_v3.tau",
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,

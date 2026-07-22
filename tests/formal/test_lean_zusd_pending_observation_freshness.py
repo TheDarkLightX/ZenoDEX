@@ -10,11 +10,14 @@ from src.core.zusd import E8, ZUSDCommand, ZUSDState, step
 
 CLAIMS = (
     "admitted_bool_eq_true_iff",
-    "commit_admission_implies_observed_not_future",
-    "commit_admission_implies_age_bounded",
-    "liquidation_admission_implies_observed_not_future",
-    "liquidation_admission_implies_age_bounded",
-    "commit_records_observation_epoch",
+    "commit_admission_implies_pending_not_future",
+    "commit_admission_implies_pending_age_bounded",
+    "fresh_pending_admits_commit_after_finalized_staleness",
+    "liquidation_admission_implies_pending_matches_finalized",
+    "liquidation_admission_implies_finalized_not_future",
+    "liquidation_admission_implies_finalized_age_bounded",
+    "commit_records_pending_observation_epoch",
+    "successful_commit_restores_finalized_freshness",
     "commit_does_not_restamp_later_commit_epoch",
 )
 FORBIDDEN_PROOF_TOKENS = ("sorry", "admit", "axiom", "unsafe", "native_decide")
@@ -31,7 +34,9 @@ def _paths() -> tuple[str, Path, Path]:
     return lake, lean_dir, proof
 
 
-def _formal_rows(tmp_path: Path) -> list[tuple[int, int, int, bool, bool, int]]:
+def _formal_rows(
+    tmp_path: Path,
+) -> list[tuple[int, int, int, int, bool, bool, bool, int]]:
     lake, lean_dir, _proof = _paths()
     compile_result = subprocess.run(
         [lake, "build", "Proofs.ZUSDPendingObservationFreshness"],
@@ -42,9 +47,7 @@ def _formal_rows(tmp_path: Path) -> list[tuple[int, int, int, bool, bool, int]]:
         timeout=240,
         check=False,
     )
-    assert compile_result.returncode == 0, (
-        compile_result.stdout + compile_result.stderr
-    )
+    assert compile_result.returncode == 0, compile_result.stdout + compile_result.stderr
     probe = tmp_path / "ZUSDPendingObservationFreshnessVector.lean"
     probe.write_text(
         "import Proofs.ZUSDPendingObservationFreshness\n"
@@ -65,16 +68,18 @@ def _formal_rows(tmp_path: Path) -> list[tuple[int, int, int, bool, bool, int]]:
     output_lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     assert output_lines
     encoded_rows = ast.literal_eval(output_lines[-1]).split(",")
-    rows: list[tuple[int, int, int, bool, bool, int]] = []
+    rows: list[tuple[int, int, int, int, bool, bool, bool, int]] = []
     for encoded_row in encoded_rows:
-        observed, now, maximum, commit, liquidate, recorded = (
+        pending, finalized, now, maximum, matches, commit, liquidate, recorded = (
             int(value) for value in encoded_row.split(":")
         )
         rows.append(
             (
-                observed,
+                pending,
+                finalized,
                 now,
                 maximum,
+                bool(matches),
                 bool(commit),
                 bool(liquidate),
                 recorded,
@@ -85,18 +90,20 @@ def _formal_rows(tmp_path: Path) -> list[tuple[int, int, int, bool, bool, int]]:
 
 def _commit_runtime(
     *,
-    observed_epoch: int,
+    pending_epoch: int,
+    finalized_epoch: int,
     now_epoch: int,
     max_staleness_epochs: int,
+    pending_matches_finalized: bool,
 ) -> tuple[bool, int | None]:
     try:
         state = ZUSDState(
             now_epoch=now_epoch,
             oracle_seen=True,
-            oracle_last_update_epoch=0,
-            oracle_pending_report_epoch=observed_epoch,
+            oracle_last_update_epoch=finalized_epoch,
+            oracle_pending_report_epoch=pending_epoch,
             price_e8=100 * E8,
-            price_pending_e8=90 * E8,
+            price_pending_e8=(100 if pending_matches_finalized else 90) * E8,
             max_oracle_staleness_epochs=max_staleness_epochs,
         )
     except ValueError:
@@ -115,18 +122,20 @@ def _commit_runtime(
 
 def _liquidation_runtime(
     *,
-    observed_epoch: int,
+    pending_epoch: int,
+    finalized_epoch: int,
     now_epoch: int,
     max_staleness_epochs: int,
+    pending_matches_finalized: bool,
 ) -> bool:
     try:
         state = ZUSDState(
             now_epoch=now_epoch,
             oracle_seen=True,
-            oracle_last_update_epoch=0,
-            oracle_pending_report_epoch=observed_epoch,
-            price_e8=100 * E8,
-            price_pending_e8=50 * E8,
+            oracle_last_update_epoch=finalized_epoch,
+            oracle_pending_report_epoch=pending_epoch,
+            price_e8=50 * E8,
+            price_pending_e8=(50 if pending_matches_finalized else 40) * E8,
             max_oracle_staleness_epochs=max_staleness_epochs,
             collateral_e8=E8,
             debt_e8=100 * E8,
@@ -170,20 +179,33 @@ def test_lean_freshness_matrix_matches_python_runtime_boundary(
 ) -> None:
     rows = _formal_rows(tmp_path)
 
-    assert len(rows) == BOUND**3
-    for observed, now, maximum, commit_ok, liquidate_ok, recorded in rows:
+    assert len(rows) == (BOUND**4) * 2
+    for (
+        pending,
+        finalized,
+        now,
+        maximum,
+        matches,
+        commit_ok,
+        liquidate_ok,
+        recorded,
+    ) in rows:
         runtime_commit_ok, runtime_recorded = _commit_runtime(
-            observed_epoch=observed,
+            pending_epoch=pending,
+            finalized_epoch=finalized,
             now_epoch=now,
             max_staleness_epochs=maximum,
+            pending_matches_finalized=matches,
         )
         runtime_liquidate_ok = _liquidation_runtime(
-            observed_epoch=observed,
+            pending_epoch=pending,
+            finalized_epoch=finalized,
             now_epoch=now,
             max_staleness_epochs=maximum,
+            pending_matches_finalized=matches,
         )
 
         assert runtime_commit_ok is commit_ok
         assert runtime_liquidate_ok is liquidate_ok
         if commit_ok:
-            assert runtime_recorded == recorded == observed
+            assert runtime_recorded == recorded == pending
