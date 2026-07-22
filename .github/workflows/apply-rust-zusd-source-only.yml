@@ -78,6 +78,8 @@ jobs:
               tests/core/test_zusd.py \
               tests/runtime/test_zusd_rust_audit_parity.py
             cargo fmt --manifest-path rust-runtime/Cargo.toml
+            git status --short
+            git diff --stat
           } 2>&1 | tee rust-zusd-application-diagnostics.txt
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
@@ -93,20 +95,19 @@ jobs:
         if: steps.apply.outputs.exit_code != '0'
         run: exit 1
 
-      - name: Assert all tracked semantic diffs exist
+      - name: Require Rust authority and Python authority changes in this publication
         shell: bash
         run: |
           set -euo pipefail
-          git diff --stat
           for path in \
             src/core/zusd.py \
-            tools/runtime/zusd_kernel_lib.py \
-            tests/core/test_zusd.py \
-            tests/runtime/test_zusd_rust_audit_parity.py \
             rust-runtime/crates/zenodex-runtime-core/src/zusd.rs \
             docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json
           do
-            test -n "$(git diff -- "$path")"
+            if git diff --quiet -- "$path"; then
+              echo "missing required publication diff: $path" >&2
+              exit 1
+            fi
           done
 
       - name: Validate Rust FCIS policy
@@ -162,7 +163,7 @@ jobs:
       - name: Existing zUSD authority live path
         run: python -m pytest -vv --tb=long tests/runtime/test_zusd_live_path.py
 
-      - name: Stage and prove the review diff contains every authority file
+      - name: Publish and verify the complete PR review range
         shell: bash
         run: |
           set -euo pipefail
@@ -182,7 +183,11 @@ jobs:
             tests/runtime/test_zusd_rust_audit_parity.py \
             rust-runtime/crates/zenodex-runtime-core/src/zusd.rs \
             docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json
-          git diff --cached --name-only | tee staged-paths.txt
+          git commit -m "fix(runtime): align Rust zUSD with audited authority"
+          git fetch origin agent/rust-fcis-policy-inventory-20260722
+          git diff --name-only \
+            origin/agent/rust-fcis-policy-inventory-20260722...HEAD \
+            | tee review-paths.txt
           for path in \
             src/core/zusd.py \
             tools/runtime/zusd_kernel_lib.py \
@@ -191,9 +196,7 @@ jobs:
             rust-runtime/crates/zenodex-runtime-core/src/zusd.rs \
             docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json
           do
-            grep -Fx "$path" staged-paths.txt
+            grep -Fx "$path" review-paths.txt
           done
-          rm -f staged-paths.txt
-          git add -A
-          git commit -m "fix(runtime): align Rust zUSD with audited authority"
+          rm -f review-paths.txt
           git push origin HEAD:agent/rust-zusd-audit-parity-20260722
