@@ -54,4 +54,4 @@ pub use fee_router::{
 pub use replay_guard::{
     admit, AdmissionReceipt, AdmitAccepted, ReplayGuardState, ReplayRejectedReason,
 };
-pub use zusd::{step as zusd_step, ZusdAccepted, ZusdCommand, ZusdState};
+pub use zusd::{step as zusd_step, ZusdAccepted, ZusdCommand, ZusdReject, ZusdState};

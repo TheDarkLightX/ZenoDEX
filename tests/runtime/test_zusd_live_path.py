@@ -16,6 +16,7 @@ for _p in (str(_REPO), str(_TOOLS_RUNTIME)):
         sys.path.insert(0, _p)
 
 from rust_shadow_replay import ShadowError, locate_or_build_cli  # noqa: E402
+
 from src.core import zusd  # noqa: E402
 from src.runtime.authority import (  # noqa: E402
     AuthorityError,
@@ -85,6 +86,43 @@ def test_rust_authority_with_python_shadow_agrees_live(rust_env):
         assert asdict(got.state) == asdict(ref.state)
         rust_state = got.state
         py_state = ref.state
+
+
+def test_rust_authority_finalized_oracle_liquidation_sequence(rust_env):
+    set_active_authority_policy(_policy(AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW))
+    state = zusd.init_state()
+
+    for cmd in (
+        _cmd("bootstrap_oracle", auth_ok=True, price_e8=100 * zusd.E8),
+        _cmd("deposit_collateral", amount_e8=2 * zusd.E8),
+        _cmd("mint_zusd", amount_e8=150 * zusd.E8),
+        _cmd("deposit_sp", amount_e8=150 * zusd.E8),
+        _cmd("oracle_report", auth_ok=True, price_e8=70 * zusd.E8),
+    ):
+        result = zusd.step(state, cmd)
+        assert result.ok, result.error
+        assert result.state is not None
+        state = result.state
+
+    before_reject = state
+    pending_liquidation = zusd.step(state, _cmd("liquidate"))
+    assert pending_liquidation.ok is False
+    assert pending_liquidation.state is None
+    assert pending_liquidation.effects is None
+    assert pending_liquidation.error == "liquidation blocked by oracle pending mismatch"
+    assert state == before_reject
+
+    committed = zusd.step(state, _cmd("oracle_commit", auth_ok=True))
+    assert committed.ok, committed.error
+    assert committed.state is not None
+    assert "health_vault_below_mcr" in zusd.check_health_conditions(committed.state)
+
+    liquidated = zusd.step(committed.state, _cmd("liquidate"))
+    assert liquidated.ok, liquidated.error
+    assert liquidated.state is not None
+    assert liquidated.effects is not None
+    assert liquidated.state.debt_e8 == 0
+    assert liquidated.effects["liquidated_debt_e8"] == 150 * zusd.E8
 
 
 def test_rust_shadow_mode_keeps_python_authoritative_live(rust_env):

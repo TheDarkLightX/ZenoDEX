@@ -1369,7 +1369,7 @@ fn zusd_expected_oracle_value(
         "bootstrap_oracle" | "oracle_report" => u128_field(tx, "price_e8").filter(|v| *v > 0),
         "oracle_commit" => (state.price_pending_e8 > 0).then_some(state.price_pending_e8),
         "mint_zusd" => (state.price_e8 > 0).then_some(state.price_e8),
-        "liquidate" => (state.price_pending_e8 > 0).then_some(state.price_pending_e8),
+        "liquidate" => (state.price_e8 > 0).then_some(state.price_e8),
         _ => None,
     }
 }
@@ -1472,7 +1472,7 @@ fn eval_zusd_tx(state: &ZusdState, tx: &Value) -> Eval<ZusdState> {
             receipt_hash: accepted.receipt_hash,
             next: accepted.state,
         },
-        Err(code) => Eval::Reject(code.to_string()),
+        Err(reject) => Eval::Reject(reject.code().to_string()),
     }
 }
 

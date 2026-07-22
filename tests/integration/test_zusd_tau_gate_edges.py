@@ -191,18 +191,25 @@ def test_zusd_tau_gate_single_checks_cover_all_guard_builders() -> None:
         "advance_epoch",
         delta=1,
     )
+    pending = _single_ok(pending, "oracle_commit", auth_ok=True)
     liquidated = step(pending, ZUSDCommand(tag="liquidate", args={}))
     assert liquidated.ok and liquidated.state is not None
 
     checks = gate._single_checks(pre_state=base, cmd=ZUSDCommand(tag="oracle_commit", args={"auth_ok": True}), post_state=base)
-    assert checks[0][0].spec_id == gate.ZUSD_ORACLE_COMMIT_GUARD_V2.spec_id
+    assert checks[0][0].spec_id == gate.ZUSD_ORACLE_COMMIT_GUARD_V3.spec_id
+    string_auth_checks = gate._single_checks(
+        pre_state=base,
+        cmd=ZUSDCommand(tag="oracle_commit", args={"auth_ok": "yes"}),
+        post_state=base,
+    )
+    assert string_auth_checks[0][1]["i4"] == 0
     assert gate._single_checks(pre_state=funded, cmd=ZUSDCommand(tag="mint_zusd", args={"amount_e8": 120 * E8}), post_state=minted)[0][0].spec_id == gate.ZUSD_MINT_GUARD_V1.spec_id
     assert gate._single_checks(pre_state=minted, cmd=ZUSDCommand(tag="repay_zusd", args={"amount_e8": 20 * E8}), post_state=repaid)[0][0].spec_id == gate.ZUSD_REPAY_GUARD_V1.spec_id
     assert gate._single_checks(pre_state=withdraw, cmd=ZUSDCommand(tag="redeem_zusd", args={"amount_e8": 10 * E8}), post_state=redeem)[0][0].spec_id == gate.ZUSD_REDEEM_GUARD_V1.spec_id
     assert gate._single_checks(pre_state=sp_out, cmd=ZUSDCommand(tag="withdraw_collateral", args={"amount_e8": E8 // 2}), post_state=withdraw)[0][0].spec_id == gate.ZUSD_WITHDRAW_COLLATERAL_GUARD_V1.spec_id
     assert gate._single_checks(pre_state=repaid, cmd=ZUSDCommand(tag="deposit_sp", args={"amount_e8": 10 * E8}), post_state=sp)[0][0].spec_id == gate.ZUSD_DEPOSIT_SP_GUARD_V1.spec_id
     assert gate._single_checks(pre_state=sp, cmd=ZUSDCommand(tag="withdraw_sp", args={"amount_e8": 5 * E8}), post_state=sp_out)[0][0].spec_id == gate.ZUSD_WITHDRAW_SP_GUARD_V1.spec_id
-    assert gate._single_checks(pre_state=pending, cmd=ZUSDCommand(tag="liquidate", args={}), post_state=liquidated.state)[0][0].spec_id == gate.ZUSD_LIQUIDATION_GUARD_V2.spec_id
+    assert gate._single_checks(pre_state=pending, cmd=ZUSDCommand(tag="liquidate", args={}), post_state=liquidated.state)[0][0].spec_id == gate.ZUSD_LIQUIDATION_GUARD_V3.spec_id
     single_unknown_checks = gate._single_checks(
         pre_state=minted,
         cmd=ZUSDCommand(tag="unknown", args={}),  # type: ignore[arg-type]
@@ -228,7 +235,10 @@ def test_zusd_tau_gate_multi_helpers_and_checks_cover_all_paths() -> None:
         "advance_epoch",
         delta=1,
     )
-    liquidated = step_multi(pending, ZUSDMultiCommand(tag="liquidate", args={"vault": "a"}))
+    pending = _multi_ok(pending, "oracle_commit", auth_ok=True)
+    liquidated = step_multi(
+        pending, ZUSDMultiCommand(tag="liquidate", args={"vault": "a"})
+    )
     assert liquidated.ok and liquidated.state is not None
 
     assert gate._multi_vault_for_cmd(minted, ZUSDMultiCommand(tag="mint_zusd", args={"vault": "a"})) == (
@@ -246,7 +256,13 @@ def test_zusd_tau_gate_multi_helpers_and_checks_cover_all_paths() -> None:
     with pytest.raises(ValueError, match="unable to infer"):
         gate._infer_multi_redeem_vault(minted, minted)
 
-    assert gate._multi_checks(pre_state=base, cmd=ZUSDMultiCommand(tag="oracle_commit", args={"auth_ok": True}), post_state=base)[0][0].spec_id == gate.ZUSD_ORACLE_COMMIT_GUARD_V2.spec_id
+    assert gate._multi_checks(pre_state=base, cmd=ZUSDMultiCommand(tag="oracle_commit", args={"auth_ok": True}), post_state=base)[0][0].spec_id == gate.ZUSD_ORACLE_COMMIT_GUARD_V3.spec_id
+    string_auth_checks = gate._multi_checks(
+        pre_state=base,
+        cmd=ZUSDMultiCommand(tag="oracle_commit", args={"auth_ok": "yes"}),
+        post_state=base,
+    )
+    assert string_auth_checks[0][1]["i4"] == 0
     assert gate._multi_checks(pre_state=funded, cmd=ZUSDMultiCommand(tag="mint_zusd", args={"vault": "a", "amount_e8": 120 * E8}), post_state=minted_a)[0][0].spec_id == gate.ZUSD_MINT_GUARD_V1.spec_id
     assert gate._multi_checks(pre_state=minted, cmd=ZUSDMultiCommand(tag="repay_zusd", args={"vault": "a", "amount_e8": 20 * E8}), post_state=repaid)[0][0].spec_id == gate.ZUSD_REPAY_GUARD_V1.spec_id
     assert gate._multi_checks(pre_state=withdraw, cmd=ZUSDMultiCommand(tag="redeem_zusd", args={"vault": "a", "amount_e8": 10 * E8}), post_state=redeem_explicit)[0][0].spec_id == gate.ZUSD_REDEEM_GUARD_V1.spec_id
@@ -256,7 +272,7 @@ def test_zusd_tau_gate_multi_helpers_and_checks_cover_all_paths() -> None:
     assert gate._multi_checks(pre_state=sp_out, cmd=ZUSDMultiCommand(tag="withdraw_collateral", args={"vault": "a", "amount_e8": E8 // 2}), post_state=withdraw)[0][0].spec_id == gate.ZUSD_WITHDRAW_COLLATERAL_GUARD_V1.spec_id
     assert gate._multi_checks(pre_state=repaid, cmd=ZUSDMultiCommand(tag="deposit_sp", args={"amount_e8": 10 * E8}), post_state=sp)[0][0].spec_id == gate.ZUSD_DEPOSIT_SP_GUARD_V1.spec_id
     assert gate._multi_checks(pre_state=sp, cmd=ZUSDMultiCommand(tag="withdraw_sp", args={"amount_e8": 5 * E8}), post_state=sp_out)[0][0].spec_id == gate.ZUSD_WITHDRAW_SP_GUARD_V1.spec_id
-    assert gate._multi_checks(pre_state=pending, cmd=ZUSDMultiCommand(tag="liquidate", args={"vault": "a"}), post_state=liquidated.state)[0][0].spec_id == gate.ZUSD_LIQUIDATION_GUARD_V2.spec_id
+    assert gate._multi_checks(pre_state=pending, cmd=ZUSDMultiCommand(tag="liquidate", args={"vault": "a"}), post_state=liquidated.state)[0][0].spec_id == gate.ZUSD_LIQUIDATION_GUARD_V3.spec_id
     unknown_checks = gate._multi_checks(
         pre_state=minted,
         cmd=ZUSDMultiCommand(tag="unknown", args={}),  # type: ignore[arg-type]

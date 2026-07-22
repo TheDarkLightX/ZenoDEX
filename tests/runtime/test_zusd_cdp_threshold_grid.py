@@ -23,6 +23,7 @@ for _path in (str(REPO), str(TOOLS_RUNTIME)):
         sys.path.insert(0, _path)
 
 from rust_shadow_replay import ShadowError, locate_or_build_cli  # noqa: E402
+
 from src.core import zusd  # noqa: E402
 from src.runtime.rust_invoker import zusd_op  # noqa: E402
 
@@ -279,7 +280,7 @@ def test_liquidation_mcr_boundary_grid_matches_integer_oracle():
                         assert result.state.sp_coll_e8 == collateral_e8
                     else:
                         seen_reject += 1
-                        assert result.error == "vault not under MCR at pending price"
+                        assert result.error == "vault not under MCR at finalized price"
                         assert result.state is None
     assert (seen_accept, seen_reject) == (24, 12)
 

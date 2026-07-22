@@ -27,14 +27,13 @@ from ..core.zusd import (
 from ..core.zusd import (
     step_multi as zusd_step_multi,
 )
-from ..core.zusd_multi_oracle_commit_mcr import check_multi_oracle_commit_mcr
 from ..core.zusd_multi_redeem_selector import select_multi_redeem_vault
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
     ZUSD_DEPOSIT_SP_GUARD_V1,
-    ZUSD_LIQUIDATION_GUARD_V2,
+    ZUSD_LIQUIDATION_GUARD_V3,
     ZUSD_MINT_GUARD_V1,
-    ZUSD_ORACLE_COMMIT_GUARD_V2,
+    ZUSD_ORACLE_COMMIT_GUARD_V3,
     ZUSD_REDEEM_GUARD_V1,
     ZUSD_REPAY_GUARD_V1,
     ZUSD_SUPPLY_CONSERVATION_V2,
@@ -42,9 +41,9 @@ from .tau_witness import (
     ZUSD_WITHDRAW_SP_GUARD_V1,
     TauSpecRef,
     build_zusd_deposit_sp_guard_v1_step,
-    build_zusd_liquidation_guard_v2_step,
+    build_zusd_liquidation_guard_v3_step,
     build_zusd_mint_guard_v1_step,
-    build_zusd_oracle_commit_guard_v2_step,
+    build_zusd_oracle_commit_guard_v3_step,
     build_zusd_redeem_guard_v1_step,
     build_zusd_repay_guard_v1_step,
     build_zusd_supply_conservation_v2_step,
@@ -82,6 +81,10 @@ def _mcr_ok(*, collateral_e8: int, debt_e8: int, price_e8: int, mcr_bps: int) ->
     if debt_e8 == 0:
         return True
     return (collateral_e8 * price_e8 * 10_000) >= (debt_e8 * mcr_bps * 100_000_000)
+
+
+def _cmd_auth_ok(args: Mapping[str, object]) -> bool:
+    return args.get("auth_ok") is True
 
 
 def _single_risky_ops_allowed(state: ZUSDState) -> bool:
@@ -160,12 +163,21 @@ def _single_checks(
     if cmd.tag == "oracle_commit":
         checks.append(
             (
-                ZUSD_ORACLE_COMMIT_GUARD_V2,
-                build_zusd_oracle_commit_guard_v2_step(
+                ZUSD_ORACLE_COMMIT_GUARD_V3,
+                build_zusd_oracle_commit_guard_v3_step(
                     oracle_seen=1 if pre_state.oracle_seen else 0,
-                    pending_le_active=1
-                    if (pre_state.oracle_seen and pre_state.price_pending_e8 > 0 and pre_state.price_e8 > 0 and pre_state.price_pending_e8 <= pre_state.price_e8)
+                    pending_initialized=1
+                    if (pre_state.oracle_seen and pre_state.price_pending_e8 > 0)
                     else 0,
+                    pending_le_active=1
+                    if (
+                        pre_state.oracle_seen
+                        and pre_state.price_pending_e8 > 0
+                        and pre_state.price_e8 > 0
+                        and pre_state.price_pending_e8 <= pre_state.price_e8
+                    )
+                    else 0,
+                    auth_ok=1 if _cmd_auth_ok(cmd.args) else 0,
                     fresh_ok=1
                     if _is_oracle_fresh(
                         now_epoch=pre_state.now_epoch,
@@ -174,19 +186,9 @@ def _single_checks(
                         oracle_seen=pre_state.oracle_seen,
                     )
                     else 0,
-                    auth_ok=1 if bool(cmd.args.get("auth_ok", False)) else 0,
-                    mcr_ok_at_pending=1
-                    if _mcr_ok(
-                        collateral_e8=pre_state.collateral_e8,
-                        debt_e8=pre_state.debt_e8,
-                        price_e8=pre_state.price_pending_e8,
-                        mcr_bps=pre_state.mcr_bps,
-                    )
-                    else 0,
                 ),
             )
         )
-
     elif cmd.tag == "mint_zusd":
         amount = _require_pos_int_arg(cmd.args, "amount_e8")
         checks.append(
@@ -201,7 +203,7 @@ def _single_checks(
                     risky_ops_allowed=1 if _single_risky_ops_allowed(pre_state) else 0,
                     min_open_ok=1 if not (pre_state.debt_e8 == 0 and amount < pre_state.min_debt_open_e8) else 0,
                     max_vault_ok=1 if post_state.debt_e8 <= pre_state.max_debt_e8 else 0,
-                    max_supply_ok=1 if post_state.free_debt_e8 <= pre_state.max_debt_supply_e8 else 0,
+                    max_supply_ok=1 if post_state.debt_e8 <= pre_state.max_debt_supply_e8 else 0,
                     mcr_post_ok=1
                     if _mcr_ok(
                         collateral_e8=pre_state.collateral_e8,
@@ -305,7 +307,7 @@ def _single_checks(
                     sp_before=pre_state.sp_debt_e8,
                     free_after=post_state.free_debt_e8,
                     sp_after=post_state.sp_debt_e8,
-                    max_supply_ok=1 if post_state.sp_debt_e8 <= pre_state.max_debt_supply_e8 else 0,
+                    max_supply_ok=1 if post_state.debt_e8 <= pre_state.max_debt_supply_e8 else 0,
                 ),
             )
         )
@@ -337,15 +339,17 @@ def _single_checks(
     elif cmd.tag == "liquidate":
         checks.append(
             (
-                ZUSD_LIQUIDATION_GUARD_V2,
-                build_zusd_liquidation_guard_v2_step(
-                    pending_init=1 if (pre_state.oracle_seen and pre_state.price_pending_e8 > 0) else 0,
+                ZUSD_LIQUIDATION_GUARD_V3,
+                build_zusd_liquidation_guard_v3_step(
+                    finalized_initialized=1
+                    if (pre_state.oracle_seen and pre_state.price_e8 > 0)
+                    else 0,
                     vault_debt=pre_state.debt_e8,
-                    under_mcr=1
+                    under_mcr_at_finalized=1
                     if not _mcr_ok(
                         collateral_e8=pre_state.collateral_e8,
                         debt_e8=pre_state.debt_e8,
-                        price_e8=pre_state.price_pending_e8,
+                        price_e8=pre_state.price_e8,
                         mcr_bps=pre_state.mcr_bps,
                     )
                     else 0,
@@ -353,10 +357,20 @@ def _single_checks(
                     vault_coll=pre_state.collateral_e8,
                     sp_coll_before=pre_state.sp_coll_e8,
                     max_sp_coll=pre_state.max_sp_coll_e8,
+                    pending_matches_finalized=1
+                    if pre_state.price_pending_e8 == pre_state.price_e8
+                    else 0,
+                    fresh_finalized=1
+                    if _is_oracle_fresh(
+                        now_epoch=pre_state.now_epoch,
+                        last_update_epoch=pre_state.oracle_last_update_epoch,
+                        max_staleness_epochs=pre_state.max_oracle_staleness_epochs,
+                        oracle_seen=pre_state.oracle_seen,
+                    )
+                    else 0,
                 ),
             )
         )
-
     checks.append(
         (
             ZUSD_SUPPLY_CONSERVATION_V2,
@@ -423,22 +437,23 @@ def _multi_checks(
     checks: List[Tuple[TauSpecRef, Dict[str, int]]] = []
 
     if cmd.tag == "oracle_commit":
-        mcr_pending = check_multi_oracle_commit_mcr(
-            price_pending_e8=pre_state.price_pending_e8,
-            mcr_bps=pre_state.mcr_bps,
-            vault_a_collateral_e8=pre_state.vault_a.collateral_e8,
-            vault_a_debt_e8=pre_state.vault_a.debt_e8,
-            vault_b_collateral_e8=pre_state.vault_b.collateral_e8,
-            vault_b_debt_e8=pre_state.vault_b.debt_e8,
-        )
         checks.append(
             (
-                ZUSD_ORACLE_COMMIT_GUARD_V2,
-                build_zusd_oracle_commit_guard_v2_step(
+                ZUSD_ORACLE_COMMIT_GUARD_V3,
+                build_zusd_oracle_commit_guard_v3_step(
                     oracle_seen=1 if pre_state.oracle_seen else 0,
-                    pending_le_active=1
-                    if (pre_state.oracle_seen and pre_state.price_pending_e8 > 0 and pre_state.price_e8 > 0 and pre_state.price_pending_e8 <= pre_state.price_e8)
+                    pending_initialized=1
+                    if (pre_state.oracle_seen and pre_state.price_pending_e8 > 0)
                     else 0,
+                    pending_le_active=1
+                    if (
+                        pre_state.oracle_seen
+                        and pre_state.price_pending_e8 > 0
+                        and pre_state.price_e8 > 0
+                        and pre_state.price_pending_e8 <= pre_state.price_e8
+                    )
+                    else 0,
+                    auth_ok=1 if _cmd_auth_ok(cmd.args) else 0,
                     fresh_ok=1
                     if _is_oracle_fresh(
                         now_epoch=pre_state.now_epoch,
@@ -447,12 +462,9 @@ def _multi_checks(
                         oracle_seen=pre_state.oracle_seen,
                     )
                     else 0,
-                    auth_ok=1 if bool(cmd.args.get("auth_ok", False)) else 0,
-                    mcr_ok_at_pending=1 if mcr_pending.mcr_ok_at_pending else 0,
                 ),
             )
         )
-
     elif cmd.tag == "mint_zusd":
         amount = _require_pos_int_arg(cmd.args, "amount_e8")
         pre_coll, pre_debt = _multi_vault_for_cmd(pre_state, cmd)
@@ -469,7 +481,9 @@ def _multi_checks(
                     risky_ops_allowed=1 if _multi_risky_ops_allowed(pre_state) else 0,
                     min_open_ok=1 if not (pre_debt == 0 and amount < pre_state.min_debt_open_e8) else 0,
                     max_vault_ok=1 if post_debt <= pre_state.max_debt_e8 else 0,
-                    max_supply_ok=1 if post_state.free_debt_e8 <= pre_state.max_debt_supply_e8 else 0,
+                    max_supply_ok=1
+                    if _multi_total_debt(post_state) <= pre_state.max_debt_supply_e8
+                    else 0,
                     mcr_post_ok=1
                     if _mcr_ok(
                         collateral_e8=pre_coll,
@@ -598,7 +612,9 @@ def _multi_checks(
                     sp_before=pre_state.sp_debt_e8,
                     free_after=post_state.free_debt_e8,
                     sp_after=post_state.sp_debt_e8,
-                    max_supply_ok=1 if post_state.sp_debt_e8 <= pre_state.max_debt_supply_e8 else 0,
+                    max_supply_ok=1
+                    if _multi_total_debt(post_state) <= pre_state.max_debt_supply_e8
+                    else 0,
                 ),
             )
         )
@@ -639,15 +655,17 @@ def _multi_checks(
         pre_coll, pre_debt = _multi_vault_for_cmd(pre_state, cmd)
         checks.append(
             (
-                ZUSD_LIQUIDATION_GUARD_V2,
-                build_zusd_liquidation_guard_v2_step(
-                    pending_init=1 if (pre_state.oracle_seen and pre_state.price_pending_e8 > 0) else 0,
+                ZUSD_LIQUIDATION_GUARD_V3,
+                build_zusd_liquidation_guard_v3_step(
+                    finalized_initialized=1
+                    if (pre_state.oracle_seen and pre_state.price_e8 > 0)
+                    else 0,
                     vault_debt=pre_debt,
-                    under_mcr=1
+                    under_mcr_at_finalized=1
                     if not _mcr_ok(
                         collateral_e8=pre_coll,
                         debt_e8=pre_debt,
-                        price_e8=pre_state.price_pending_e8,
+                        price_e8=pre_state.price_e8,
                         mcr_bps=pre_state.mcr_bps,
                     )
                     else 0,
@@ -655,10 +673,20 @@ def _multi_checks(
                     vault_coll=pre_coll,
                     sp_coll_before=pre_state.sp_coll_e8,
                     max_sp_coll=pre_state.max_sp_coll_e8,
+                    pending_matches_finalized=1
+                    if pre_state.price_pending_e8 == pre_state.price_e8
+                    else 0,
+                    fresh_finalized=1
+                    if _is_oracle_fresh(
+                        now_epoch=pre_state.now_epoch,
+                        last_update_epoch=pre_state.oracle_last_update_epoch,
+                        max_staleness_epochs=pre_state.max_oracle_staleness_epochs,
+                        oracle_seen=pre_state.oracle_seen,
+                    )
+                    else 0,
                 ),
             )
         )
-
     checks.append(
         (
             ZUSD_SUPPLY_CONSERVATION_V2,

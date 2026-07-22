@@ -139,8 +139,8 @@
     {
       "expected_accept": true,
       "expected_reject_reason": null,
-      "post_state_root": "0xad5fa8988a5bf6d388db176afdd51713344854536dbc99c5ce21d721f1332bf8",
-      "receipt_hash": "0x90cbe346085ac2e5470315261591a1e6c6a9702232d7545509167552f5157598",
+      "post_state_root": "0x14ddbfbd4a176f30a92b783e566d3843e04e972d254c3002668fb6300b122c5c",
+      "receipt_hash": "0x59789dfce66054e16a5faee66d0ddfb80b8a2783ebb89d85fe21d4db2f9e4445",
       "tx": {
         "auth_ok": true,
         "kind": "oracle_report",
@@ -150,7 +150,7 @@
     {
       "expected_accept": false,
       "expected_reject_reason": "report_price_not_non_increasing",
-      "post_state_root": "0xad5fa8988a5bf6d388db176afdd51713344854536dbc99c5ce21d721f1332bf8",
+      "post_state_root": "0x14ddbfbd4a176f30a92b783e566d3843e04e972d254c3002668fb6300b122c5c",
       "receipt_hash": null,
       "tx": {
         "auth_ok": true,
@@ -161,7 +161,7 @@
     {
       "expected_accept": false,
       "expected_reject_reason": "mint_blocked_oracle",
-      "post_state_root": "0xad5fa8988a5bf6d388db176afdd51713344854536dbc99c5ce21d721f1332bf8",
+      "post_state_root": "0x14ddbfbd4a176f30a92b783e566d3843e04e972d254c3002668fb6300b122c5c",
       "receipt_hash": null,
       "tx": {
         "amount_e8": 20000000000,
