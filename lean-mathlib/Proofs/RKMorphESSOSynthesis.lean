@@ -10,9 +10,10 @@ parent PR's integration module. Importing it checks that the typed parser,
 immutable-patch, and sound read/write-footprint developments coexist in one
 pinned Lean environment.
 
-No external research-tool result is imported as an axiom. Research Kernel stores
-evidence, Morph proposes reformulations, and ESSO checks finite bounded models;
-only the Lean statements imported above contribute formal propositions here.
+No external research-tool result is imported as a trusted premise. Research
+Kernel stores evidence, Morph proposes reformulations, and ESSO checks finite
+bounded models; only the Lean statements imported above contribute formal
+propositions here.
 
 The runtime must still prove concrete parser round trips, footprint-extractor
 soundness, one immutable pre-state, complete patches, canonical join semantics,
