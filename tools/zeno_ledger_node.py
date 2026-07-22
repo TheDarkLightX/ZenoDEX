@@ -3230,13 +3230,19 @@ def _route_receipt_from_ui_payload_v0(payload: Mapping[str, Any]) -> Mapping[str
     receipt = payload.get("quote_receipt", payload.get("quoteReceipt"))
     if not isinstance(receipt, Mapping):
         raise ValueError("quote_receipt must be an object")
-    body = receipt.get("body")
+
+    from src.state.immutable_json import (
+        snapshot_json_mapping,  # pylint: disable=import-outside-toplevel
+    )
+
+    receipt_snapshot = snapshot_json_mapping(receipt, name="UI route quote receipt")
+    body = receipt_snapshot.get("body")
     if not isinstance(body, Mapping):
         raise ValueError("quote_receipt.body must be an object")
-    receipt_hash = receipt.get("receipt_hash")
+    receipt_hash = receipt_snapshot.get("receipt_hash")
     if not isinstance(receipt_hash, str) or not receipt_hash.strip():
         raise ValueError("quote_receipt.receipt_hash must be a non-empty string")
-    return receipt
+    return receipt_snapshot
 
 
 def _ui_route_kind_v0(payload: Mapping[str, Any], receipt_body: Mapping[str, Any]) -> str:

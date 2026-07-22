@@ -30,7 +30,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.12.3"
+
+      - name: Bind trace-evidence interpreter
+        run: |
+          python -c "import sys; assert sys.version_info[:3] == (3, 12, 3), sys.version"
 
       - name: Install locked development tooling
         run: python -m pip install --require-hashes -r requirements-dev.lock.txt

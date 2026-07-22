@@ -68,7 +68,7 @@
     },
     {
       "path": "tools/zeno_ledger_node.py",
-      "sha256": "baf9c9d00136f06a5ca560132d57e72eeb897b23ae50954265b6eef39013656d"
+      "sha256": "5fb1786f0bffd10be84856018c4362c42954f777df641f16a85f6586bc2c5d1c"
     },
     {
       "path": "tests/state/test_app_root.py",

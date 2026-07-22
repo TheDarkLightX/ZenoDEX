@@ -20,6 +20,7 @@ from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop, best_route_exact_out_2hop
 from src.integration.dex_snapshot import snapshot_from_state
 from src.state.balances import BalanceTable
+from src.state.immutable_json import snapshot_json_mapping
 from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus
 from tools.zeno_ledger_make_testnet_bundle import DEFAULT_ASSET0, DEFAULT_ASSET1
@@ -63,7 +64,8 @@ with tempfile.TemporaryDirectory() as td:
         data_dir=Path(td), node_status=node_status, payload=payload, time_ms=1_778_740_101_000,
     )
     op = tx["operations"]["5"][0]
-    print(json.dumps({"op": op, "receipt": receipt}))
+    receipt_transport = snapshot_json_mapping(receipt, name="route parity receipt")
+    print(json.dumps({"op": op, "receipt": receipt_transport}))
 `;
   const result = spawnSync('python3', ['-c', script], {
     cwd: REPO_ROOT,
