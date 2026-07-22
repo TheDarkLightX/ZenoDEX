@@ -21,6 +21,8 @@ from src.core.perps import (
     PerpsState,
 )
 from src.core.vault import VaultState
+from src.state.balances import BalanceTable
+from src.state.lp import LPTable
 from src.state.nonces import NonceTable
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from src.state.snapshot_combinators import (
@@ -46,6 +48,7 @@ from src.state.state_snapshot_schema import (
 from src.state.state_snapshot_values import (
     FCIS_STATE_SCHEMA_REVISION_V1,
     CommittedBalanceTableV1,
+    CommittedFeeAccumulatorStateV1,
     CommittedLPTableV1,
     CommittedNonceTableV1,
     CommittedOracleStateV1,
@@ -54,6 +57,18 @@ from src.state.state_snapshot_values import (
     CommittedVaultStateV1,
     _BalanceSourceV1,
     _LPSourceV1,
+)
+from src.state.state_snapshots import (
+    StateAdmissionError,
+    snapshot_balance_table,
+    snapshot_fee_accumulator,
+    snapshot_lp_table,
+    snapshot_nonce_table,
+    snapshot_oracle,
+    snapshot_perps,
+    snapshot_pool,
+    snapshot_pool_map,
+    snapshot_vault,
 )
 
 
@@ -296,6 +311,171 @@ def test_admission_owns_source_aliases_and_re_admits_committed_values() -> None:
         raise AssertionError(second)
     assert second.value == committed
     assert second.value is not committed
+
+
+def test_balance_snapshot_facade_owns_aliases_and_revalidates_committed_input() -> None:
+    source = BalanceTable()
+    source.set("alice", "asset", 7)
+
+    committed = snapshot_balance_table(source)
+    source.set("alice", "asset", 999)
+    source.set("mallory", "asset", 1)
+
+    assert type(committed) is CommittedBalanceTableV1
+    assert committed.entries == ((('alice', 'asset'), 7),)
+
+    readmitted = snapshot_balance_table(committed)
+    assert readmitted == committed
+    assert readmitted is not committed
+
+
+def test_balance_snapshot_facade_rejects_raw_corruption_before_source_hooks() -> None:
+    class HostileDict(dict[tuple[str, str], int]):
+        iterated = False
+
+        def items(self) -> Never:
+            self.iterated = True
+            raise AssertionError("hostile source hook must not execute")
+
+    hostile = HostileDict({("alice", "asset"): 7})
+    source = BalanceTable()
+    object.__setattr__(source, "_balances", hostile)
+
+    with pytest.raises(StateAdmissionError) as captured:
+        snapshot_balance_table(source)
+
+    assert captured.value.code is AdmitCode.WRONG_CONTAINER
+    assert captured.value.path == ("_balances",)
+    assert hostile.iterated is False
+
+
+@pytest.mark.parametrize(
+    ("key", "amount", "code"),
+    [
+        (("alice", "asset"), True, AdmitCode.WRONG_EXACT_TYPE),
+        (("alice", "asset"), 0, AdmitCode.DOMAIN_INVARIANT),
+        (("alice", 1), 7, AdmitCode.WRONG_KEY_TYPE),
+        (("", "asset"), 7, AdmitCode.NONCANONICAL_SCALAR),
+    ],
+)
+def test_balance_snapshot_facade_rejects_noncanonical_raw_entries(
+    key: object,
+    amount: object,
+    code: AdmitCode,
+) -> None:
+    source = BalanceTable()
+    raw = object.__getattribute__(source, "_balances")
+    raw[key] = amount
+
+    with pytest.raises(StateAdmissionError) as captured:
+        snapshot_balance_table(source)
+
+    assert captured.value.code is code
+
+
+def test_balance_snapshot_facade_rejects_corrupted_owned_value() -> None:
+    source = BalanceTable()
+    source.set("alice", "asset", 7)
+    committed = snapshot_balance_table(source)
+    owned_map = object.__getattribute__(committed, "_balances")
+    object.__setattr__(owned_map, "_entries", ((('alice', 'asset'), True),))
+
+    with pytest.raises(StateAdmissionError) as captured:
+        snapshot_balance_table(committed)
+
+    assert captured.value.code is AdmitCode.REGISTRY_DRIFT
+    assert captured.value.path == ("_balances",)
+
+
+def test_balance_snapshot_has_no_legacy_mutable_base_route() -> None:
+    source = BalanceTable()
+    source.set("alice", "asset", 7)
+    committed = snapshot_balance_table(source)
+    before = committed.entries
+
+    assert not isinstance(committed, BalanceTable)
+    with pytest.raises((AttributeError, TypeError)):
+        BalanceTable.__init__(committed)
+    with pytest.raises(TypeError):
+        BalanceTable.set(committed, "alice", "asset", 9)
+
+    assert committed.entries == before
+
+
+def test_state_snapshot_facades_mount_every_declared_state_family() -> None:
+    lp_source = LPTable()
+    lp_source.set("alice", "pool", 5)
+    lp_source.set_last_mint_timestamp("alice", "pool", 1)
+    lp_source.set_last_remove_timestamp("alice", "pool", 2)
+    lp_source.set_churn_tier("alice", "pool", 3)
+    lp_source.set_last_churn_update_timestamp("alice", "pool", 4)
+    lp = snapshot_lp_table(lp_source)
+
+    nonce_source = NonceTable()
+    nonce_source.set_last(_pubkey("7"), 3)
+    nonces = snapshot_nonce_table(nonce_source)
+
+    pool_source = _pool()
+    pool = snapshot_pool(pool_source)
+    pools = snapshot_pool_map({pool_source.pool_id: pool_source})
+    vault = snapshot_vault(VaultState(2, 1, 0, 0, 0))
+    oracle = snapshot_oracle(OracleState(0, 1))
+    fees = snapshot_fee_accumulator(FeeAccumulatorState(0))
+    perps = snapshot_perps(_perps())
+
+    lp_source.set("alice", "pool", 999)
+    nonce_source.set_last(_pubkey("7"), 4)
+    pool_source.reserve0 = 999
+
+    assert type(lp) is CommittedLPTableV1
+    assert lp.get("alice", "pool") == 5
+    assert lp.get_last_mint_timestamp("alice", "pool") == 1
+    assert type(nonces) is CommittedNonceTableV1
+    assert nonces.get_last(_pubkey("7")) == 3
+    assert type(pool) is CommittedPoolStateV1
+    assert pool.reserve0 == 100
+    assert pools.entries == ((pool.pool_id, pool),)
+    assert type(vault) is CommittedVaultStateV1
+    assert type(oracle) is CommittedOracleStateV1
+    assert type(fees) is CommittedFeeAccumulatorStateV1
+    assert type(perps) is CommittedPerpsStateV1
+
+
+def test_lp_and_nonce_snapshot_facades_reject_hostile_raw_containers_before_hooks() -> None:
+    class HostileDict(dict[object, object]):
+        iterated = False
+
+        def items(self) -> Never:
+            self.iterated = True
+            raise AssertionError("hostile source hook must not execute")
+
+    lp_hostile = HostileDict()
+    lp_source = LPTable()
+    object.__setattr__(lp_source, "_balances", lp_hostile)
+    with pytest.raises(StateAdmissionError) as lp_error:
+        snapshot_lp_table(lp_source)
+    assert lp_error.value == StateAdmissionError(AdmitCode.WRONG_CONTAINER, ("_balances",))
+    assert lp_hostile.iterated is False
+
+    nonce_hostile = HostileDict()
+    nonce_source = NonceTable()
+    object.__setattr__(nonce_source, "_last", nonce_hostile)
+    with pytest.raises(StateAdmissionError) as nonce_error:
+        snapshot_nonce_table(nonce_source)
+    assert nonce_error.value == StateAdmissionError(AdmitCode.WRONG_CONTAINER, ("_last",))
+    assert nonce_hostile.iterated is False
+
+
+def test_explicit_optional_snapshot_families_reject_unregistered_values() -> None:
+    for snapshot in (
+        snapshot_vault,
+        snapshot_oracle,
+        snapshot_fee_accumulator,
+        snapshot_perps,
+    ):
+        with pytest.raises(StateAdmissionError) as captured:
+            snapshot(object())
+        assert captured.value == StateAdmissionError(AdmitCode.WRONG_EXACT_TYPE, ())
 
 
 def test_domain_invariant_rejects_without_partial_owned_value() -> None:

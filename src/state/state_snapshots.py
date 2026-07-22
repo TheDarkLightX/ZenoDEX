@@ -1,30 +1,293 @@
-"""Owned immutable snapshots for committed DEX state.
+"""Closed FCIS snapshot facades and the temporarily mounted legacy snapshots.
 
-Mutable tables remain local builders and settlement scratch space. A committed
-``DexState`` detaches its complete object graph from those builders while
-preserving the established read interfaces.
+The ``snapshot_*`` functions are the target one-way admission boundary. The
+legacy ``Frozen*`` implementations below remain only until their mounted
+callers have migrated to exact committed values and return-new transitions.
+New authority-core code must not depend on those compatibility classes.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, NoReturn
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, NoReturn, cast, final
 
-from ..core.perps import (
-    PerpAccountState,
-    PerpClearinghouse2pMarketState,
-    PerpClearinghouse3pTransferMarketState,
-    PerpClearinghouseNpAccount,
-    PerpClearinghouseNpMarketState,
-    PerpClearinghouseNpPendingIntent,
-    PerpMarketState,
-    PerpsState,
-)
 from .balances import Amount, AssetId, BalanceTable, PubKey
 from .immutable_collections import FrozenDict, deep_freeze
 from .lp import LPTable, PoolId
 from .nonces import NonceTable
+from .owned_collections import OwnedMapV1
 from .pools import PoolState, copy_pool_state
+from .snapshot_combinators import (
+    AdmissionLimitsV1,
+    AdmitCode,
+    AdmitOk,
+    AdmitReject,
+    FieldPath,
+    ValidatedAdmissionLimitsV1,
+    build_admission_limits_v1,
+)
+
+if TYPE_CHECKING:
+    from ..core.fees import FeeAccumulatorState
+    from ..core.oracle import OracleState
+    from ..core.perps import PerpsState
+    from ..core.vault import VaultState
+    from .state_snapshot_values import (
+        CommittedBalanceTableV1,
+        CommittedFeeAccumulatorStateV1,
+        CommittedLPTableV1,
+        CommittedNonceTableV1,
+        CommittedOracleStateV1,
+        CommittedPerpsStateV1,
+        CommittedPoolStateV1,
+        CommittedVaultStateV1,
+    )
+
+
+_STATE_ADMISSION_LIMITS_V1 = build_admission_limits_v1(
+    AdmissionLimitsV1(
+        max_depth=64,
+        max_nodes=200_000,
+        max_canonical_bytes=4_000_000,
+        max_collection_items=200_000,
+    )
+)
+if type(_STATE_ADMISSION_LIMITS_V1) is not ValidatedAdmissionLimitsV1:
+    raise RuntimeError("mounted FCIS state admission limits are invalid")
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class StateAdmissionError(ValueError):
+    """Stable adapter error for one typed no-output admission rejection."""
+
+    code: AdmitCode
+    path: FieldPath
+
+    def __str__(self) -> str:
+        path = ".".join(str(part) for part in self.path)
+        return self.code.value if not path else f"{self.code.value}:{path}"
+
+
+def _raise_admission_reject(reject: AdmitReject) -> NoReturn:
+    raise StateAdmissionError(reject.code, reject.path)
+
+
+def _admit_state_value(schema_id: str, source: object) -> object:
+    from .state_admission_profile import admit
+    from .state_snapshot_values import FCIS_STATE_SCHEMA_REVISION_V1
+
+    result = admit(
+        FCIS_STATE_SCHEMA_REVISION_V1,
+        schema_id,
+        _STATE_ADMISSION_LIMITS_V1,
+        source,
+    )
+    if type(result) is AdmitReject:
+        _raise_admission_reject(result)
+    if type(result) is not AdmitOk:
+        raise RuntimeError("closed state admission returned an impossible result")
+    return result.value
+
+
+def snapshot_balance_table(
+    source: BalanceTable | CommittedBalanceTableV1,
+) -> CommittedBalanceTableV1:
+    """Admit one exact balance source into a distinct owned committed value.
+
+    Legacy source internals are inspected directly before any source behavior
+    can execute. Already-committed inputs traverse the same closed admission
+    relation and are reconstructed only after complete revalidation.
+    """
+
+    # These imports remain local because the full mounted state registry names
+    # core domain source types. Keeping the leaf snapshot module importable
+    # prevents the core package initializer from cycling back through DexState.
+    from .state_snapshot_schema import BALANCE_TABLE_ADMISSION_SCHEMA_ID_V1
+    from .state_snapshot_values import (
+        CommittedBalanceTableV1,
+        _BalanceSourceV1,
+    )
+
+    admission_source: object
+    if type(source) is BalanceTable:
+        try:
+            raw_balances = object.__getattribute__(source, "_balances")
+        except AttributeError:
+            _raise_admission_reject(AdmitReject(AdmitCode.MISSING_FIELD, ("_balances",)))
+        if type(raw_balances) is not dict:
+            _raise_admission_reject(AdmitReject(AdmitCode.WRONG_CONTAINER, ("_balances",)))
+        admission_source = _BalanceSourceV1(raw_balances)
+    elif type(source) is CommittedBalanceTableV1:
+        admission_source = source
+    else:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
+
+    admitted = _admit_state_value(BALANCE_TABLE_ADMISSION_SCHEMA_ID_V1, admission_source)
+    if type(admitted) is not CommittedBalanceTableV1:
+        raise RuntimeError("closed balance admission returned an impossible result")
+    return cast(CommittedBalanceTableV1, admitted)
+
+
+def snapshot_lp_table(source: LPTable | CommittedLPTableV1) -> CommittedLPTableV1:
+    """Admit the five exact LP maps as one owned committed aggregate."""
+
+    from .state_snapshot_schema import LP_TABLE_ADMISSION_SCHEMA_ID_V1
+    from .state_snapshot_values import CommittedLPTableV1, _LPSourceV1
+
+    admission_source: object
+    if type(source) is LPTable:
+        raw_fields: list[object] = []
+        for field_name in (
+            "_balances",
+            "_last_mint_timestamps",
+            "_last_remove_timestamps",
+            "_churn_tiers",
+            "_last_churn_update_timestamps",
+        ):
+            try:
+                raw = object.__getattribute__(source, field_name)
+            except AttributeError:
+                _raise_admission_reject(AdmitReject(AdmitCode.MISSING_FIELD, (field_name,)))
+            if type(raw) is not dict:
+                _raise_admission_reject(AdmitReject(AdmitCode.WRONG_CONTAINER, (field_name,)))
+            raw_fields.append(raw)
+        admission_source = _LPSourceV1(*raw_fields)
+    elif type(source) is CommittedLPTableV1:
+        admission_source = source
+    else:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
+
+    admitted = _admit_state_value(LP_TABLE_ADMISSION_SCHEMA_ID_V1, admission_source)
+    if type(admitted) is not CommittedLPTableV1:
+        raise RuntimeError("closed LP admission returned an impossible result")
+    return cast(CommittedLPTableV1, admitted)
+
+
+def snapshot_nonce_table(
+    source: NonceTable | CommittedNonceTableV1,
+) -> CommittedNonceTableV1:
+    """Admit one exact nonce source without invoking source behavior."""
+
+    from .state_snapshot_schema import NONCE_TABLE_ADMISSION_SCHEMA_ID_V1
+    from .state_snapshot_values import CommittedNonceTableV1
+
+    if type(source) is NonceTable:
+        try:
+            raw = object.__getattribute__(source, "_last")
+        except AttributeError:
+            _raise_admission_reject(AdmitReject(AdmitCode.MISSING_FIELD, ("_last",)))
+        if type(raw) is not dict:
+            _raise_admission_reject(AdmitReject(AdmitCode.WRONG_CONTAINER, ("_last",)))
+        admission_source: object = source
+    elif type(source) is CommittedNonceTableV1:
+        admission_source = source
+    else:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
+
+    admitted = _admit_state_value(NONCE_TABLE_ADMISSION_SCHEMA_ID_V1, admission_source)
+    if type(admitted) is not CommittedNonceTableV1:
+        raise RuntimeError("closed nonce admission returned an impossible result")
+    return cast(CommittedNonceTableV1, admitted)
+
+
+def snapshot_pool(source: PoolState | CommittedPoolStateV1) -> CommittedPoolStateV1:
+    """Admit one exact pool through the closed field and invariant schema."""
+
+    from .state_snapshot_schema import POOL_ADMISSION_SCHEMA_ID_V1
+    from .state_snapshot_values import CommittedPoolStateV1
+
+    if type(source) not in {PoolState, CommittedPoolStateV1}:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
+    admitted = _admit_state_value(POOL_ADMISSION_SCHEMA_ID_V1, source)
+    if type(admitted) is not CommittedPoolStateV1:
+        raise RuntimeError("closed pool admission returned an impossible result")
+    return cast(CommittedPoolStateV1, admitted)
+
+
+def snapshot_pool_map(
+    source: dict[str, PoolState] | OwnedMapV1[str, CommittedPoolStateV1],
+) -> OwnedMapV1[str, CommittedPoolStateV1]:
+    """Admit a canonical pool map and bind each map key to its pool ID."""
+
+    from .state_snapshot_schema import POOL_MAP_ADMISSION_SCHEMA_ID_V1
+    from .state_snapshot_values import CommittedPoolStateV1
+
+    if type(source) not in {dict, OwnedMapV1}:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
+    admitted = _admit_state_value(POOL_MAP_ADMISSION_SCHEMA_ID_V1, source)
+    if type(admitted) is not OwnedMapV1:
+        raise RuntimeError("closed pool-map admission returned an impossible result")
+    return cast(OwnedMapV1[str, CommittedPoolStateV1], admitted)
+
+
+def snapshot_vault(
+    source: None | VaultState | CommittedVaultStateV1,
+) -> None | CommittedVaultStateV1:
+    """Admit the explicit optional vault state family."""
+
+    from ..core.vault import VaultState
+    from .state_snapshot_schema import VAULT_ADMISSION_SCHEMA_ID_V1
+    from .state_snapshot_values import CommittedVaultStateV1
+
+    if source is not None and type(source) not in {VaultState, CommittedVaultStateV1}:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
+    admitted = _admit_state_value(VAULT_ADMISSION_SCHEMA_ID_V1, source)
+    if admitted is not None and type(admitted) is not CommittedVaultStateV1:
+        raise RuntimeError("closed vault admission returned an impossible result")
+    return cast(None | CommittedVaultStateV1, admitted)
+
+
+def snapshot_oracle(
+    source: None | OracleState | CommittedOracleStateV1,
+) -> None | CommittedOracleStateV1:
+    """Admit the explicit optional Oracle state family."""
+
+    from ..core.oracle import OracleState
+    from .state_snapshot_schema import ORACLE_ADMISSION_SCHEMA_ID_V1
+    from .state_snapshot_values import CommittedOracleStateV1
+
+    if source is not None and type(source) not in {OracleState, CommittedOracleStateV1}:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
+    admitted = _admit_state_value(ORACLE_ADMISSION_SCHEMA_ID_V1, source)
+    if admitted is not None and type(admitted) is not CommittedOracleStateV1:
+        raise RuntimeError("closed Oracle admission returned an impossible result")
+    return cast(None | CommittedOracleStateV1, admitted)
+
+
+def snapshot_fee_accumulator(
+    source: FeeAccumulatorState | CommittedFeeAccumulatorStateV1,
+) -> CommittedFeeAccumulatorStateV1:
+    """Admit the exact fee-accumulator state family."""
+
+    from ..core.fees import FeeAccumulatorState
+    from .state_snapshot_schema import FEE_ACCUMULATOR_ADMISSION_SCHEMA_ID_V1
+    from .state_snapshot_values import CommittedFeeAccumulatorStateV1
+
+    if type(source) not in {FeeAccumulatorState, CommittedFeeAccumulatorStateV1}:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
+    admitted = _admit_state_value(FEE_ACCUMULATOR_ADMISSION_SCHEMA_ID_V1, source)
+    if type(admitted) is not CommittedFeeAccumulatorStateV1:
+        raise RuntimeError("closed fee admission returned an impossible result")
+    return cast(CommittedFeeAccumulatorStateV1, admitted)
+
+
+def snapshot_perps(
+    source: None | PerpsState | CommittedPerpsStateV1,
+) -> None | CommittedPerpsStateV1:
+    """Admit every registered perps state variant through one closed schema."""
+
+    from ..core.perps import PerpsState
+    from .state_snapshot_schema import PERPS_ADMISSION_SCHEMA_ID_V1
+    from .state_snapshot_values import CommittedPerpsStateV1
+
+    if source is not None and type(source) not in {PerpsState, CommittedPerpsStateV1}:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
+    admitted = _admit_state_value(PERPS_ADMISSION_SCHEMA_ID_V1, source)
+    if admitted is not None and type(admitted) is not CommittedPerpsStateV1:
+        raise RuntimeError("closed perps admission returned an impossible result")
+    return cast(None | CommittedPerpsStateV1, admitted)
 
 
 def _immutable_state(*_args: object, **_kwargs: object) -> NoReturn:
@@ -266,6 +529,17 @@ def freeze_pool_mapping(source: Mapping[str, PoolState]) -> FrozenDict:
 def _validate_exact_perps_types(source: PerpsState) -> None:
     """Reject behavior-bearing subclasses before committed-state admission."""
 
+    from ..core.perps import (
+        PerpAccountState,
+        PerpClearinghouse2pMarketState,
+        PerpClearinghouse3pTransferMarketState,
+        PerpClearinghouseNpAccount,
+        PerpClearinghouseNpMarketState,
+        PerpClearinghouseNpPendingIntent,
+        PerpMarketState,
+        PerpsState,
+    )
+
     if type(source) is not PerpsState:
         raise TypeError("perps must be an exact PerpsState")
     if type(source.version) is not int:
@@ -303,6 +577,8 @@ def _validate_exact_perps_types(source: PerpsState) -> None:
 def freeze_perps_state(source: PerpsState) -> PerpsState:
     """Own perps state after excluding behavior-changing runtime subclasses."""
 
+    from ..core.perps import PerpsState
+
     _validate_exact_perps_types(source)
     frozen = deep_freeze(source)
     if type(frozen) is not PerpsState:  # pragma: no cover
@@ -313,6 +589,8 @@ def freeze_perps_state(source: PerpsState) -> PerpsState:
 
 def freeze_optional_module_state(value: Any) -> Any:
     """Detach and recursively freeze an optional nested module state."""
+
+    from ..core.perps import PerpsState
 
     if value is None:
         return None
