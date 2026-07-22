@@ -38,7 +38,25 @@ jobs:
         run: python -m pip install --require-hashes -r requirements-dev.lock.txt
 
       - name: Apply exact-source Python and Rust transformation
-        run: python .agent/apply_rust_zusd_audit_parity.py
+        id: transform
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python .agent/apply_rust_zusd_audit_parity.py 2>&1 | tee transformation-diagnostics.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload transformation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-zusd-transformation-diagnostics
+          path: transformation-diagnostics.txt
+          if-no-files-found: error
+
+      - name: Enforce transformation result
+        if: steps.transform.outputs.exit_code != '0'
+        run: exit 1
 
       - name: Canonicalize changed sources
         run: |
@@ -77,6 +95,7 @@ jobs:
           rm -f .agent/apply_rust_zusd_audit_parity.py
           rmdir .agent 2>/dev/null || true
           rm -f .github/workflows/apply-rust-zusd-audit-parity.yml
+          rm -f transformation-diagnostics.txt
           git add -A
           git commit -m "fix(runtime): align Rust zUSD with audited authority"
           git push origin HEAD:agent/rust-zusd-audit-parity-20260722
