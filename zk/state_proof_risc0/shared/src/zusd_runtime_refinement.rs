@@ -783,6 +783,11 @@ fn validate_core_accounting(
     if total_split != core.debt_e8 {
         return Err(TransitionError::InvalidInput("runtime debt split mismatch"));
     }
+    if core.debt_e8 > policy.max_debt_supply_e8 {
+        return Err(TransitionError::InvalidInput(
+            "runtime total debt cap violated",
+        ));
+    }
     if core.debt_e8 == 0 {
         return Err(TransitionError::Unsupported(
             "runtime mint projection excludes vault opening and F21 reserve creation",
@@ -950,7 +955,7 @@ fn expected_core_projection(
         debt_delta_e8,
         "runtime mint free debt overflow",
     )?;
-    if new_debt > input.policy.max_debt_e8 || new_free_debt > input.policy.max_debt_supply_e8 {
+    if new_debt > input.policy.max_debt_e8 || new_debt > input.policy.max_debt_supply_e8 {
         return Err(TransitionError::InvalidInput(
             "runtime mint debt cap exceeded",
         ));
@@ -1771,6 +1776,32 @@ mod tests {
         input.expected_post_projection_hash = hash_state_projection_v1(&input.claimed_post);
     }
 
+    fn total_debt_cap_input(
+        debt_e8: u128,
+        free_debt_e8: u128,
+        sp_debt_e8: u128,
+        cap_e8: u128,
+    ) -> ZusdRuntimeMintProjectionInputV1 {
+        assert_eq!(free_debt_e8.checked_add(sp_debt_e8), Some(debt_e8));
+        assert!(free_debt_e8.is_multiple_of(E8));
+        assert!(sp_debt_e8.is_multiple_of(E8));
+
+        let mut input = input();
+        input.policy.max_debt_e8 = cap_e8;
+        input.policy.max_debt_supply_e8 = cap_e8;
+        input.pre.core.debt_e8 = debt_e8;
+        input.pre.core.free_debt_e8 = free_debt_e8;
+        input.pre.core.sp_debt_e8 = sp_debt_e8;
+        input.pre.core.max_debt_e8 = cap_e8;
+        input.pre.core.max_debt_supply_e8 = cap_e8;
+        input.pre.liabilities.actor_external_balance_units = free_debt_e8 / E8;
+        input.pre.liabilities.stability_pool_escrow_balance_units = sp_debt_e8 / E8;
+        input.pre.liabilities.external_free_liability_e8 = free_debt_e8;
+        input.claimed_post = input.pre.clone();
+        refresh_pre_projection_hashes(&mut input);
+        input
+    }
+
     #[test]
     fn runtime_mint_checker_constructs_exact_protocol_fee_projection() {
         let input = input();
@@ -1824,6 +1855,42 @@ mod tests {
             check_zusd_runtime_mint_projection_v1(&input),
             Err(TransitionError::InvalidInput(
                 "runtime mint post fee projection mismatch"
+            ))
+        ));
+    }
+
+    #[test]
+    fn runtime_mint_checker_counts_stability_pool_debt_against_global_cap() {
+        let input = total_debt_cap_input(1_900 * E8, 100 * E8, 1_800 * E8, 2_000 * E8);
+
+        assert!(matches!(
+            check_zusd_runtime_mint_projection_v1(&input),
+            Err(TransitionError::InvalidInput(
+                "runtime mint debt cap exceeded"
+            ))
+        ));
+    }
+
+    #[test]
+    fn runtime_mint_checker_accepts_exact_global_cap_with_stability_pool_debt() {
+        let mut input = total_debt_cap_input(1_899 * E8, 99 * E8, 1_800 * E8, 2_000 * E8);
+        input.claimed_post = expected_post_projection(&input, E8, 101 * E8).unwrap();
+        refresh_projection_hashes(&mut input);
+
+        let journal = check_zusd_runtime_mint_projection_v1(&input).unwrap();
+        assert_eq!(journal.debt_delta_e8, 101 * E8);
+        assert_eq!(input.claimed_post.core.debt_e8, 2_000 * E8);
+        assert_eq!(input.claimed_post.core.sp_debt_e8, 1_800 * E8);
+    }
+
+    #[test]
+    fn runtime_mint_checker_rejects_prestate_above_global_cap() {
+        let input = total_debt_cap_input(2_001 * E8, 201 * E8, 1_800 * E8, 2_000 * E8);
+
+        assert!(matches!(
+            check_zusd_runtime_mint_projection_v1(&input),
+            Err(TransitionError::InvalidInput(
+                "runtime total debt cap violated"
             ))
         ));
     }

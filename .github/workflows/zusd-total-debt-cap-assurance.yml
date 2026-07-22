@@ -59,6 +59,19 @@ jobs:
             tests/core/test_zusd_auth_strictness.py \
             tests/core/test_authority_json_immutability.py
 
+      - name: Replay the RISC0 total-debt refinement witnesses
+        run: |
+          cargo fmt \
+            --manifest-path zk/state_proof_risc0/Cargo.toml \
+            --all \
+            -- \
+            --check
+          cargo test \
+            --manifest-path zk/state_proof_risc0/Cargo.toml \
+            --locked \
+            -p tau-state-proof-risc0-shared \
+            runtime_mint_checker_
+
       - name: Run critical-quality gate
         env:
           PYTHON: python
