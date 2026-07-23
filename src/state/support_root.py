@@ -75,6 +75,39 @@ def derive_batch_state_support(
 
     The support is used to compute a projected pre-state commitment (support root).
     """
+    return _derive_batch_state_support_for_pool_map_v1(intents, pools=pools)
+
+
+def derive_batch_state_support_committed_v1(
+    intents: Sequence[Intent],
+    *,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> BatchStateSupport:
+    """Derive support from an exact committed pool map.
+
+    Intent ownership remains a PR #478 obligation. This migration-scoped
+    reader closes the state side of the boundary and remains unmounted until
+    the aggregate ``DexState`` switch.
+    """
+
+    from .owned_collections import OwnedMapV1
+    from .state_snapshots import snapshot_pool_map
+
+    if type(pools) is not OwnedMapV1:
+        raise TypeError("pools must be an exact OwnedMapV1")
+    return _derive_batch_state_support_for_pool_map_v1(
+        intents,
+        pools=snapshot_pool_map(pools),
+    )
+
+
+def _derive_batch_state_support_for_pool_map_v1(
+    intents: Sequence[Intent],
+    *,
+    pools: Mapping[str, PoolState] | OwnedMapV1[str, CommittedPoolStateV1],
+) -> BatchStateSupport:
+    """Shared deterministic support relation for the closed pool union."""
+
     balance_keys: set[tuple[str, str]] = set()
     pool_ids: set[str] = set()
     lp_keys: set[tuple[str, str]] = set()
@@ -498,6 +531,26 @@ def compute_support_state_root_for_batch(
 ) -> str:
     support = derive_batch_state_support(intents, pools=pools)
     return compute_support_state_root(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonces,
+    )
+
+
+def compute_support_state_root_for_batch_committed_v1(
+    *,
+    intents: Sequence[Intent],
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    nonces: CommittedNonceTableV1,
+) -> str:
+    """Compute support-root v4 from one exact committed spot snapshot."""
+
+    support = derive_batch_state_support_committed_v1(intents, pools=pools)
+    return compute_support_state_root_with_committed_spot_state_v1(
         balances=balances,
         pools=pools,
         lp_balances=lp_balances,

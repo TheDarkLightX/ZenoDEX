@@ -10,6 +10,7 @@ from src.core.domain_limits import DEX_LP_AMOUNT_MAX, DEX_POOL_RESERVE_MAX
 from src.core.fees import FeeAccumulatorState
 from src.state.balances import BalanceTable
 from src.state.canonical import sha256_hex
+from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
 from src.state.owned_collections import OwnedMapV1
@@ -36,7 +37,11 @@ from src.state.state_snapshots import (
 from src.state.support_root import (
     BatchStateSupport,
     compute_support_state_root,
+    compute_support_state_root_for_batch,
+    compute_support_state_root_for_batch_committed_v1,
     compute_support_state_root_with_committed_spot_state_v1,
+    derive_batch_state_support,
+    derive_batch_state_support_committed_v1,
 )
 
 _PUBKEY_A = "0x" + "11" * 48
@@ -44,6 +49,10 @@ _PUBKEY_B = "0x" + "22" * 48
 _PUBKEY_C = "0x" + "33" * 48
 _ASSET_A = "0x" + "44" * 32
 _ASSET_B = "0x" + "55" * 32
+
+
+def _intent_id(value: int) -> str:
+    return "0x" + f"{value:064x}"
 
 
 def _legacy_state(
@@ -195,6 +204,65 @@ def test_exact_committed_spot_state_preserves_pinned_support_root_v4() -> None:
 
     assert exact_root == legacy_root
     assert exact_root == "0x51e0eae22c183effbe62a3708253de808ffe27dac2338d97318ba27833dc4007"
+
+
+def test_exact_batch_support_and_root_match_the_legacy_reader() -> None:
+    legacy = _legacy_state()
+    balances, pools, lp_balances, nonces, _fees = legacy
+    committed_balances, committed_pools, committed_lp, committed_nonces, _exact_fees = (
+        _committed_state(legacy)
+    )
+    pool_id = next(iter(pools))
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_intent_id(1),
+        sender_pubkey=_PUBKEY_A,
+        deadline=10_000,
+        fields={
+            "pool_id": pool_id,
+            "amount0_desired": 2,
+            "amount1_desired": 3,
+            "amount0_min": 1,
+            "amount1_min": 1,
+            "nonce": 10,
+        },
+    )
+
+    legacy_support = derive_batch_state_support([intent], pools=pools)
+    exact_support = derive_batch_state_support_committed_v1(
+        [intent],
+        pools=committed_pools,
+    )
+    legacy_root = compute_support_state_root_for_batch(
+        intents=[intent],
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        nonces=nonces,
+    )
+    exact_root = compute_support_state_root_for_batch_committed_v1(
+        intents=[intent],
+        balances=committed_balances,
+        pools=committed_pools,
+        lp_balances=committed_lp,
+        nonces=committed_nonces,
+    )
+
+    assert exact_support == legacy_support
+    assert exact_root == legacy_root
+
+
+def test_exact_batch_support_rejects_legacy_pool_maps() -> None:
+    legacy = _legacy_state()
+    _balances, pools, _lp_balances, _nonces, _fees = legacy
+
+    with pytest.raises(TypeError, match="pools must be an exact OwnedMapV1"):
+        derive_batch_state_support_committed_v1(
+            [],
+            pools=cast(OwnedMapV1[str, CommittedPoolStateV1], pools),
+        )
 
 
 @pytest.mark.parametrize("status", tuple(PoolStatus))
