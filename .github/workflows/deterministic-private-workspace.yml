@@ -1,0 +1,122 @@
+name: deterministic-private-workspace
+
+on:
+  push:
+    branches:
+      - agent/deterministic-private-workspace-v1-20260723
+  pull_request:
+    paths:
+      - ".github/workflows/deterministic-private-workspace.yml"
+      - "docs/runtime/DETERMINISTIC_PRIVATE_WORKSPACE_V1.md"
+      - "rust-runtime/crates/zenodex-runtime-core/src/deterministic_worker.rs"
+      - "rust-runtime/crates/zenodex-runtime-core/src/lib.rs"
+      - "config/runtime_fcis/**"
+      - "tools/check_rust_fcis_policy.py"
+      - "tools/check_value_movement_inventory.py"
+      - "tools/fcis_inventory_core.py"
+
+permissions:
+  contents: read
+
+jobs:
+  rust-worker-protocol:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-runtime
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install exact Rust toolchain
+        run: >-
+          rustup toolchain install 1.96.0
+          --profile minimal
+          --component rustfmt
+          --component clippy
+
+      - name: Record compiler fingerprint
+        run: |
+          rustc +1.96.0 --version --verbose
+          cargo +1.96.0 --version --verbose
+
+      - name: Verify formatting
+        run: cargo +1.96.0 fmt --all -- --check
+
+      - name: Core Clippy
+        id: core_clippy
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo +1.96.0 clippy \
+            -p zenodex-runtime-core \
+            --all-targets \
+            --all-features \
+            --locked \
+            -- \
+            -D warnings \
+            2>&1 | tee ../deterministic-worker-core-clippy.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Workspace all-features Clippy
+        id: workspace_clippy
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo +1.96.0 clippy \
+            --workspace \
+            --all-targets \
+            --all-features \
+            --locked \
+            -- \
+            -D warnings \
+            2>&1 | tee ../deterministic-worker-workspace-clippy.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Retain Clippy diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-private-workspace-clippy-diagnostics
+          path: |
+            deterministic-worker-core-clippy.txt
+            deterministic-worker-workspace-clippy.txt
+          if-no-files-found: error
+
+      - name: Enforce core Clippy
+        if: steps.core_clippy.outputs.exit_code != '0'
+        run: exit 1
+
+      - name: Enforce workspace all-features Clippy
+        if: steps.workspace_clippy.outputs.exit_code != '0'
+        run: exit 1
+
+      - name: Deterministic worker tests
+        run: >-
+          cargo +1.96.0 test
+          -p zenodex-runtime-core
+          deterministic_worker
+          --all-features
+          --locked
+
+      - name: Release-mode deterministic worker tests
+        run: >-
+          cargo +1.96.0 test
+          -p zenodex-runtime-core
+          deterministic_worker
+          --all-features
+          --release
+          --locked
+
+  fcis-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Preserve the Rust FCIS ratchet
+        run: python3 tools/check_rust_fcis_policy.py
+      - name: Preserve value-movement classification
+        run: python3 tools/check_value_movement_inventory.py
