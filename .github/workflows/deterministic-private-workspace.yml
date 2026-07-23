@@ -42,8 +42,8 @@ jobs:
       - name: Verify formatting
         run: cargo +1.96.0 fmt --all -- --check
 
-      - name: Clippy
-        id: clippy
+      - name: Core Clippy
+        id: core_clippy
         continue-on-error: true
         shell: bash
         run: |
@@ -55,7 +55,20 @@ jobs:
             --locked \
             -- \
             -D warnings \
-            2>&1 | tee ../deterministic-worker-clippy-diagnostics.txt
+            2>&1 | tee ../deterministic-worker-core-clippy.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Runtime-shadow-equivalent Clippy
+        id: shadow_clippy
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo +1.96.0 clippy \
+            --all-targets \
+            -- \
+            -D warnings \
+            2>&1 | tee ../deterministic-worker-shadow-clippy.txt
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Retain Clippy diagnostics
@@ -63,11 +76,17 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: deterministic-private-workspace-clippy-diagnostics
-          path: deterministic-worker-clippy-diagnostics.txt
+          path: |
+            deterministic-worker-core-clippy.txt
+            deterministic-worker-shadow-clippy.txt
           if-no-files-found: error
 
-      - name: Enforce Clippy
-        if: steps.clippy.outputs.exit_code != '0'
+      - name: Enforce core Clippy
+        if: steps.core_clippy.outputs.exit_code != '0'
+        run: exit 1
+
+      - name: Enforce runtime-shadow-equivalent Clippy
+        if: steps.shadow_clippy.outputs.exit_code != '0'
         run: exit 1
 
       - name: Deterministic worker tests
