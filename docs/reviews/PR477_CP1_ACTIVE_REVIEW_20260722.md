@@ -184,6 +184,32 @@ The primitive-checkpoint grade remains 4.5/5 because production mounting and
 cross-domain parity are intentionally outside CP1. The identified CP1 P1 is
 closed.
 
+Commit `1ff8860b` closes the remaining P2 availability finding. Exact keyed-map
+revalidation previously checked the private identity index against equal field
+name objects from the current registry. An equivalent reconstructed registry
+can own distinct string objects with the same protocol text, so valid committed
+maps could fail closed solely because of process identity. Revalidation now
+checks the index against the map's own exact key objects, while separately
+checking equality, declared closure, and declared order against the registry.
+
+The regression constructs two equal field names with different identities,
+admits under the first exact schema, and re-admits the committed value under the
+second equivalent schema. Corrupt private indexes still reject.
+
+Latest follow-up evidence and hashes:
+
+```text
+snapshot combinator tests                            98 passed
+full tests/state                                     393 passed
+authority checker                                    ok=true
+packet checker                                       ok=true
+
+20355b6eff9a8740207e342c680b9e1197439fcb6956fd57624fc2f8abacb891  src/state/snapshot_combinators.py
+6826ab9fc14a934460110805945edb50be1214c38e8a2eb658492884f227ba13  tests/state/test_snapshot_combinators.py
+```
+
+Both independently identified CP1 follow-up findings are closed.
+
 ## Residual scope
 
 - `src/state/state_admission_profile.py` remains intentionally absent.
