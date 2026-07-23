@@ -82,6 +82,8 @@ _STATE_ADMISSION_REGISTRY_V1 = build_admission_registry_v1(
     record_registrations=RECORD_REGISTRATIONS_V1,
     schema_registrations=SCHEMA_REGISTRATIONS_V1,
 )
+if _STATE_ADMISSION_REGISTRY_V1.schema_ids != FCIS_REGISTERED_REGISTRY_IDS:
+    raise RuntimeError("state admission registry manifest drift")
 
 
 def _record_field(

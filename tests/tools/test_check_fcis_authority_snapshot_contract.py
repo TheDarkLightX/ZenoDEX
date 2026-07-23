@@ -274,7 +274,191 @@ def test_checker_scans_sensitive_calls_outside_explicit_authority_paths(
     assert "PROFILE_BINDING_ESCAPE" in _codes(report)
 
 
-def test_checker_allows_internal_engine_only_in_profile_facade(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "source",
+    (
+        "from src.integration.fcis_spot_shadow import evaluate_fcis_spot_candidate_shadow_v1\n",
+        "from .fcis_spot_shadow import evaluate_fcis_spot_candidate_shadow_v1\n",
+        "import src.integration.fcis_spot_shadow\n",
+        "import importlib\nshadow = importlib.import_module('src.integration.fcis_spot_shadow')\n",
+        "import importlib\n"
+        "module_name = 'src.integration.' + 'fcis_spot_shadow'\n"
+        "shadow = importlib.import_module(module_name)\n",
+        "import importlib\n"
+        "shadow = importlib.import_module('src.integration.' + 'fcis_spot_shadow')\n",
+        "shadow = __import__('src.integration.fcis_spot_shadow')\n",
+    ),
+)
+def test_checker_rejects_shadow_authority_import_anywhere_in_production(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    consumer = tmp_path / "src" / "integration" / "consumer.py"
+    consumer.parent.mkdir(parents=True)
+    consumer.write_text(source, encoding="utf-8")
+
+    assert "SHADOW_AUTHORITY_IMPORT" in _codes(_run(tmp_path, _COMPLIANT))
+
+
+def test_checker_resolves_parent_relative_shadow_import(
+    tmp_path: Path,
+) -> None:
+    consumer = tmp_path / "src" / "core" / "consumer.py"
+    consumer.parent.mkdir(parents=True)
+    consumer.write_text(
+        "from ..integration.fcis_spot_shadow import evaluate_fcis_spot_candidate_shadow_v1\n",
+        encoding="utf-8",
+    )
+
+    assert "SHADOW_AUTHORITY_IMPORT" in _codes(_run(tmp_path, _COMPLIANT))
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        "import importlib\n"
+        "def load():\n"
+        "    module_name = 'src.integration.' + 'fcis_spot_shadow'\n"
+        "    return importlib.import_module(module_name)\n",
+        "import importlib\n"
+        "def load():\n"
+        "    return importlib.import_module(MODULE_NAME)\n"
+        "MODULE_NAME = 'src.integration.fcis_spot_shadow'\n",
+        "import importlib\n"
+        "loader = importlib.import_module\n"
+        "def load():\n"
+        "    return loader('src.integration.fcis_spot_shadow')\n",
+    ),
+)
+def test_checker_rejects_shadow_dynamic_binding_spellings(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    consumer = tmp_path / "src" / "core" / "consumer.py"
+    consumer.parent.mkdir(parents=True)
+    consumer.write_text(source, encoding="utf-8")
+
+    assert "SHADOW_AUTHORITY_IMPORT" in _codes(_run(tmp_path, _COMPLIANT))
+
+
+def test_checker_rejects_shadow_authority_through_an_intermediary(
+    tmp_path: Path,
+) -> None:
+    integration = tmp_path / "src" / "integration"
+    integration.mkdir(parents=True)
+    (integration / "shadow_adapter.py").write_text(
+        "from src.integration.fcis_spot_shadow import evaluate_fcis_spot_candidate_shadow_v1\n",
+        encoding="utf-8",
+    )
+    (integration / "dex_engine.py").write_text(
+        "from src.integration.shadow_adapter import evaluate_fcis_spot_candidate_shadow_v1\n",
+        encoding="utf-8",
+    )
+
+    report = _run(tmp_path, _COMPLIANT)
+    assert "SHADOW_AUTHORITY_IMPORT" in _codes(report)
+    violations = report["violations"]
+    assert type(violations) is list
+    assert any(
+        item["code"] == "SHADOW_AUTHORITY_IMPORT"
+        and item["path"] == "src/integration/shadow_adapter.py"
+        for item in violations
+    )
+
+
+@pytest.mark.parametrize(
+    "profile_relative_path",
+    [
+        "src/state/state_admission_profile.py",
+        "src/state/lp_duration_policy_admission.py",
+    ],
+)
+def test_checker_allows_internal_engine_only_in_explicit_profile_facades(
+    tmp_path: Path,
+    profile_relative_path: str,
+) -> None:
+    profile = tmp_path / profile_relative_path
+    profile.parent.mkdir(parents=True)
+    profile.write_text(
+        "from src.state.snapshot_combinators import _admit_with_registry_v1\n"
+        "FCIS_REQUIRED_REGISTRY_IDS = ('test/root/v1',)\n"
+        "FCIS_REGISTERED_REGISTRY_IDS = ('test/root/v1',)\n"
+        "_REGISTRY = object()\n"
+        "if _REGISTRY.schema_ids != FCIS_REGISTERED_REGISTRY_IDS:\n"
+        "    raise RuntimeError('registry manifest drift')\n"
+        "def _construct(tag, fields):\n"
+        "    return fields\n"
+        "def _encode(schema_id, value):\n"
+        "    return b''\n"
+        "def admit(schema_revision, schema_id, validated_limits, source):\n"
+        "    return _admit_with_registry_v1(_REGISTRY, schema_revision, schema_id, validated_limits, source, _construct, _encode)\n",
+        encoding="utf-8",
+    )
+
+    assert _codes(_run(tmp_path, _COMPLIANT)) == set()
+
+
+@pytest.mark.parametrize(
+    "profile_name",
+    (
+        "state_admission_profile.py",
+        "lp_duration_policy_admission.py",
+    ),
+)
+def test_checker_rejects_nested_suffix_profile_spoof(
+    tmp_path: Path,
+    profile_name: str,
+) -> None:
+    profile = tmp_path / "src" / "rogue" / "src" / "state" / profile_name
+    profile.parent.mkdir(parents=True)
+    profile.write_text(
+        "from src.state.snapshot_combinators import _admit_with_registry_v1\n"
+        "result = _admit_with_registry_v1("
+        "registry, revision, schema, limits, source, construct, encode)\n",
+        encoding="utf-8",
+    )
+
+    report = _run(tmp_path, _COMPLIANT)
+    assert "PRIVATE_AUTHORITY_IMPORT" in _codes(report)
+    assert "PROFILE_BINDING_ESCAPE" in _codes(report)
+
+
+def test_checker_rejects_internal_engine_in_lookalike_profile(tmp_path: Path) -> None:
+    profile = tmp_path / "src" / "state" / "other_admission_profile.py"
+    profile.parent.mkdir(parents=True)
+    profile.write_text(
+        "from src.state.snapshot_combinators import _admit_with_registry_v1\n"
+        "FCIS_REQUIRED_REGISTRY_IDS = ('test/root/v1',)\n"
+        "FCIS_REGISTERED_REGISTRY_IDS = ('test/root/v1',)\n"
+        "_REGISTRY = object()\n"
+        "def _construct(tag, fields):\n"
+        "    return fields\n"
+        "def _encode(schema_id, value):\n"
+        "    return b''\n"
+        "def admit(schema_revision, schema_id, validated_limits, source):\n"
+        "    return _admit_with_registry_v1(_REGISTRY, schema_revision, schema_id, validated_limits, source, _construct, _encode)\n",
+        encoding="utf-8",
+    )
+
+    report = _run(tmp_path, _COMPLIANT)
+    assert "PRIVATE_AUTHORITY_IMPORT" in _codes(report)
+    assert "PROFILE_BINDING_ESCAPE" in _codes(report)
+
+
+def test_checker_rejects_missing_or_empty_profile_registry(tmp_path: Path) -> None:
+    profile = tmp_path / "src" / "state" / "state_admission_profile.py"
+    profile.parent.mkdir(parents=True)
+    profile.write_text(
+        "FCIS_REQUIRED_REGISTRY_IDS = ()\nFCIS_REGISTERED_REGISTRY_IDS = ()\n",
+        encoding="utf-8",
+    )
+
+    assert "PROFILE_REGISTRY_DRIFT" in _codes(_run(tmp_path, _COMPLIANT))
+
+
+def test_checker_requires_registry_manifest_binding_on_the_engine_registry(
+    tmp_path: Path,
+) -> None:
     profile = tmp_path / "src" / "state" / "state_admission_profile.py"
     profile.parent.mkdir(parents=True)
     profile.write_text(
@@ -291,18 +475,32 @@ def test_checker_allows_internal_engine_only_in_profile_facade(tmp_path: Path) -
         encoding="utf-8",
     )
 
-    assert _codes(_run(tmp_path, _COMPLIANT)) == set()
+    assert "PROFILE_REGISTRY_BINDING" in _codes(_run(tmp_path, _COMPLIANT))
 
 
-def test_checker_rejects_missing_or_empty_profile_registry(tmp_path: Path) -> None:
+def test_checker_rejects_manifest_check_bound_to_a_different_registry(
+    tmp_path: Path,
+) -> None:
     profile = tmp_path / "src" / "state" / "state_admission_profile.py"
     profile.parent.mkdir(parents=True)
     profile.write_text(
-        "FCIS_REQUIRED_REGISTRY_IDS = ()\nFCIS_REGISTERED_REGISTRY_IDS = ()\n",
+        "from src.state.snapshot_combinators import _admit_with_registry_v1\n"
+        "FCIS_REQUIRED_REGISTRY_IDS = ('test/root/v1',)\n"
+        "FCIS_REGISTERED_REGISTRY_IDS = ('test/root/v1',)\n"
+        "_REGISTRY = object()\n"
+        "_OTHER_REGISTRY = object()\n"
+        "if _OTHER_REGISTRY.schema_ids != FCIS_REGISTERED_REGISTRY_IDS:\n"
+        "    raise RuntimeError('registry manifest drift')\n"
+        "def _construct(tag, fields):\n"
+        "    return fields\n"
+        "def _encode(schema_id, value):\n"
+        "    return b''\n"
+        "def admit(schema_revision, schema_id, validated_limits, source):\n"
+        "    return _admit_with_registry_v1(_REGISTRY, schema_revision, schema_id, validated_limits, source, _construct, _encode)\n",
         encoding="utf-8",
     )
 
-    assert "PROFILE_REGISTRY_DRIFT" in _codes(_run(tmp_path, _COMPLIANT))
+    assert "PROFILE_REGISTRY_BINDING" in _codes(_run(tmp_path, _COMPLIANT))
 
 
 def test_checker_rejects_caller_selected_profile_binding(tmp_path: Path) -> None:
@@ -320,8 +518,18 @@ def test_checker_rejects_caller_selected_profile_binding(tmp_path: Path) -> None
     assert "PROFILE_FACADE_SHAPE" in _codes(_run(tmp_path, _COMPLIANT))
 
 
-def test_checker_rejects_second_public_profile_entrypoint(tmp_path: Path) -> None:
-    profile = tmp_path / "src" / "state" / "state_admission_profile.py"
+@pytest.mark.parametrize(
+    "profile_relative_path",
+    [
+        "src/state/state_admission_profile.py",
+        "src/state/lp_duration_policy_admission.py",
+    ],
+)
+def test_checker_rejects_second_public_entrypoint_in_each_profile(
+    tmp_path: Path,
+    profile_relative_path: str,
+) -> None:
+    profile = tmp_path / profile_relative_path
     profile.parent.mkdir(parents=True)
     profile.write_text(
         "from src.state.snapshot_combinators import _admit_with_registry_v1\n"

@@ -26,6 +26,9 @@ DEFAULT_AUTHORITY_PATHS = (
     Path("src/state/perps_state_transitions.py"),
     Path("src/state/perps_transition_combinators.py"),
     Path("src/state/lp_duration_transitions.py"),
+    Path("src/state/lp_duration_policy_schema.py"),
+    Path("src/state/lp_duration_policy_admission.py"),
+    Path("src/state/lp_duration_policy_context.py"),
     Path("src/state/pool_creation_transition.py"),
     Path("src/state/state_snapshot_values.py"),
     Path("src/state/state_snapshot_schema.py"),
@@ -83,18 +86,27 @@ _UNTRUSTED_VALUE_NAMES = {
     "state",
     "value",
 }
+_PROFILE_PATHS = (
+    "src/state/state_admission_profile.py",
+    "src/state/lp_duration_policy_admission.py",
+)
+_SHADOW_AUTHORITY_MODULE = "src.integration.fcis_spot_shadow"
+_SHADOW_AUTHORITY_PATH = "src/integration/fcis_spot_shadow.py"
+_SHADOW_AUTHORITY_RESERVED_TOKENS = (
+    "fcis_spot_shadow",
+    "evaluate_fcis_spot_candidate_shadow_v1",
+)
 _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
-    "_admit_with_registry_v1": "src/state/state_admission_profile.py",
-    "_owned_enum_from_admitted": "src/state/snapshot_combinators.py",
-    "_owned_enum_from_canonical_transition_v1": "src/state/pool_creation_transition.py",
-    "_owned_map_from_admitted": "src/state/snapshot_combinators.py",
-    "_owned_map_from_canonical_transition_v1": "src/state/state_transitions.py",
-    "_OWNED_ENUM_CONSTRUCTION_TOKEN": "src/state/owned_collections.py",
-    "_OWNED_MAP_CONSTRUCTION_TOKEN": "src/state/owned_collections.py",
-    "_ADMISSION_REGISTRY_TOKEN": "src/state/snapshot_combinators.py",
-    "_VALIDATED_LIMITS_TOKEN": "src/state/snapshot_combinators.py",
+    "_admit_with_registry_v1": _PROFILE_PATHS,
+    "_owned_enum_from_admitted": ("src/state/snapshot_combinators.py",),
+    "_owned_enum_from_canonical_transition_v1": ("src/state/pool_creation_transition.py",),
+    "_owned_map_from_admitted": ("src/state/snapshot_combinators.py",),
+    "_owned_map_from_canonical_transition_v1": ("src/state/state_transitions.py",),
+    "_OWNED_ENUM_CONSTRUCTION_TOKEN": ("src/state/owned_collections.py",),
+    "_OWNED_MAP_CONSTRUCTION_TOKEN": ("src/state/owned_collections.py",),
+    "_ADMISSION_REGISTRY_TOKEN": ("src/state/snapshot_combinators.py",),
+    "_VALIDATED_LIMITS_TOKEN": ("src/state/snapshot_combinators.py",),
 }
-_PROFILE_PATH_SUFFIX = "src/state/state_admission_profile.py"
 _PROFILE_ENGINE_NAMES = {
     "snapshot_combinators._admit_with_registry_v1",
     "src.state.snapshot_combinators._admit_with_registry_v1",
@@ -115,6 +127,39 @@ _STRUCTURAL_CORE_VIEW_NAMES = {
     "NonceView",
     "PoolView",
 }
+
+
+def _matches_allowed_path(relative_path: str, allowed_paths: tuple[str, ...]) -> bool:
+    return relative_path in allowed_paths
+
+
+def _is_profile_path(relative_path: str) -> bool:
+    return _matches_allowed_path(relative_path, _PROFILE_PATHS)
+
+
+def _shadow_import_detail(
+    relative_path: str,
+    module: str,
+    imported_name: str | None = None,
+    *,
+    level: int = 0,
+) -> str | None:
+    if level:
+        package_parts = relative_path.removesuffix(".py").split("/")[:-1]
+        retained_parts = len(package_parts) - level + 1
+        if retained_parts < 0:
+            return None
+        module_parts = module.split(".") if module else []
+        absolute_module = ".".join((*package_parts[:retained_parts], *module_parts))
+    else:
+        absolute_module = module
+    if absolute_module == _SHADOW_AUTHORITY_MODULE:
+        return (
+            f"{absolute_module}.{imported_name}" if imported_name is not None else absolute_module
+        )
+    if absolute_module == "src.integration" and imported_name == "fcis_spot_shadow":
+        return f"{absolute_module}.{imported_name}"
+    return None
 
 
 @dataclass(frozen=True, order=True, slots=True)
@@ -157,6 +202,7 @@ class _AuthorityVisitor(ast.NodeVisitor):
         self.violations: list[_Violation] = []
         self.module_aliases: dict[str, str] = {}
         self.name_aliases: dict[str, str] = {}
+        self.module_string_constants: dict[str, str] = {}
         self.function_names: list[str] = []
         self.function_parameters: list[set[str]] = []
         self.profile_admit_count = 0
@@ -186,12 +232,49 @@ class _AuthorityVisitor(ast.NodeVisitor):
             return module if not separator else f"{module}.{tail}"
         return qualified
 
+    def _bounded_static_string(self, node: ast.AST) -> str | None:
+        if type(node) is ast.Constant and type(node.value) is str:
+            return node.value if len(node.value) <= 256 else None
+        if type(node) is ast.Name:
+            return self.module_string_constants.get(node.id)
+        if type(node) is ast.BinOp and type(node.op) is ast.Add:
+            left = self._bounded_static_string(node.left)
+            right = self._bounded_static_string(node.right)
+            if left is None or right is None or len(left) + len(right) > 256:
+                return None
+            return left + right
+        return None
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        if not self.function_names:
+            value = self._bounded_static_string(node.value)
+            for target in node.targets:
+                if type(target) is not ast.Name:
+                    continue
+                if value is None:
+                    self.module_string_constants.pop(target.id, None)
+                else:
+                    self.module_string_constants[target.id] = value
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        if not self.function_names and type(node.target) is ast.Name:
+            value = self._bounded_static_string(node.value) if node.value is not None else None
+            if value is None:
+                self.module_string_constants.pop(node.target.id, None)
+            else:
+                self.module_string_constants[node.target.id] = value
+        self.generic_visit(node)
+
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
             local_name = alias.asname or alias.name.split(".", 1)[0]
             self.module_aliases[local_name] = alias.name
             if alias.name in {"pickle", "copyreg"}:
                 self._add(node, "FORBIDDEN_RECONSTRUCTION", alias.name)
+            shadow_detail = _shadow_import_detail(self.relative_path, alias.name)
+            if shadow_detail is not None and self.relative_path != _SHADOW_AUTHORITY_PATH:
+                self._add(node, "SHADOW_AUTHORITY_IMPORT", shadow_detail)
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
@@ -208,8 +291,19 @@ class _AuthorityVisitor(ast.NodeVisitor):
                 self._add(node, "OPEN_AUTHORITY_TYPE", qualified)
             if module == "dataclasses" and alias.name == "is_dataclass":
                 self._add(node, "REFLECTIVE_ADMISSION", qualified)
-            allowed_path = _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST.get(alias.name)
-            if allowed_path is not None and not self.relative_path.endswith(allowed_path):
+            shadow_detail = _shadow_import_detail(
+                self.relative_path,
+                module,
+                alias.name,
+                level=node.level,
+            )
+            if shadow_detail is not None and self.relative_path != _SHADOW_AUTHORITY_PATH:
+                self._add(node, "SHADOW_AUTHORITY_IMPORT", shadow_detail)
+            allowed_paths = _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST.get(alias.name)
+            if allowed_paths is not None and not _matches_allowed_path(
+                self.relative_path,
+                allowed_paths,
+            ):
                 self._add(node, "PRIVATE_AUTHORITY_IMPORT", qualified)
         self.generic_visit(node)
 
@@ -217,15 +311,40 @@ class _AuthorityVisitor(ast.NodeVisitor):
         resolved = self._resolve(node)
         if resolved == "typing.Any" or node.id == "Any":
             self._add(node, "OPEN_AUTHORITY_TYPE", resolved or node.id)
+        if (
+            self.relative_path != _SHADOW_AUTHORITY_PATH
+            and node.id in _SHADOW_AUTHORITY_RESERVED_TOKENS
+        ):
+            self._add(node, "SHADOW_AUTHORITY_IMPORT", node.id)
         self.generic_visit(node)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if self._resolve(node) == "typing.Any":
             self._add(node, "OPEN_AUTHORITY_TYPE", "typing.Any")
-        allowed_path = _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST.get(node.attr)
-        if allowed_path is not None and not self.relative_path.endswith(allowed_path):
+        allowed_paths = _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST.get(node.attr)
+        if allowed_paths is not None and not _matches_allowed_path(
+            self.relative_path,
+            allowed_paths,
+        ):
             # Attribute capture is equivalent to importing the private capability.
             self._add(node, "PRIVATE_AUTHORITY_IMPORT", self._resolve(node) or node.attr)
+        if (
+            self.relative_path != _SHADOW_AUTHORITY_PATH
+            and node.attr in _SHADOW_AUTHORITY_RESERVED_TOKENS
+        ):
+            self._add(node, "SHADOW_AUTHORITY_IMPORT", node.attr)
+        self.generic_visit(node)
+
+    def visit_Constant(self, node: ast.Constant) -> None:
+        if (
+            self.relative_path != _SHADOW_AUTHORITY_PATH
+            and type(node.value) is str
+            and any(token in node.value for token in _SHADOW_AUTHORITY_RESERVED_TOKENS)
+        ):
+            # A reserved lexical token closes ordinary dynamic-import aliases,
+            # local bindings, and forward declarations without attempting to
+            # execute caller-controlled Python during the static check.
+            self._add(node, "SHADOW_AUTHORITY_IMPORT", node.value)
         self.generic_visit(node)
 
     def visit_Subscript(self, node: ast.Subscript) -> None:
@@ -234,8 +353,11 @@ class _AuthorityVisitor(ast.NodeVisitor):
             if type(node.slice) is ast.Constant and type(node.slice.value) is str
             else None
         )
-        allowed_path = _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST.get(symbol or "")
-        if allowed_path is not None and not self.relative_path.endswith(allowed_path):
+        allowed_paths = _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST.get(symbol or "")
+        if allowed_paths is not None and not _matches_allowed_path(
+            self.relative_path,
+            allowed_paths,
+        ):
             # Reflective dictionary lookup imports the same private capability as
             # direct attribute access; spelling must not weaken the boundary.
             self._add(node, "PRIVATE_AUTHORITY_IMPORT", symbol or "")
@@ -269,14 +391,14 @@ class _AuthorityVisitor(ast.NodeVisitor):
                             annotation_name,
                         )
         if (
-            self.relative_path.endswith(_PROFILE_PATH_SUFFIX)
+            _is_profile_path(self.relative_path)
             and not self.function_names
             and not node.name.startswith("_")
             and node.name != "admit"
         ):
             self._add(node, "PROFILE_FACADE_SHAPE", f"extra public function:{node.name}")
         if (
-            self.relative_path.endswith(_PROFILE_PATH_SUFFIX)
+            _is_profile_path(self.relative_path)
             and not self.function_names
             and node.name == "admit"
         ):
@@ -322,7 +444,7 @@ class _AuthorityVisitor(ast.NodeVisitor):
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         if node.name in _RECONSTRUCTION_METHODS:
             self._add(node, "FORBIDDEN_RECONSTRUCTION", node.name)
-        if self.relative_path.endswith(_PROFILE_PATH_SUFFIX) and not self.function_names:
+        if _is_profile_path(self.relative_path) and not self.function_names:
             self._add(node, "PROFILE_FACADE_SHAPE", f"async function:{node.name}")
         self.function_names.append(node.name)
         self.function_parameters.append(self._parameter_names(node.args))
@@ -349,7 +471,7 @@ class _AuthorityVisitor(ast.NodeVisitor):
         return names
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        if self.relative_path.endswith(_PROFILE_PATH_SUFFIX) and not node.name.startswith("_"):
+        if _is_profile_path(self.relative_path) and not node.name.startswith("_"):
             self._add(node, "PROFILE_FACADE_SHAPE", f"public class:{node.name}")
         for base in node.bases:
             base_name = _last_name(base)
@@ -419,10 +541,7 @@ class _AuthorityVisitor(ast.NodeVisitor):
     def visit_Call(self, node: ast.Call) -> None:
         called = self._resolve(node.func)
         called_tail = called.rsplit(".", 1)[-1] if called is not None else None
-        if (
-            self.relative_path.endswith(_PROFILE_PATH_SUFFIX)
-            and called_tail in _LEGACY_MUTABLE_CONSTRUCTORS
-        ):
+        if _is_profile_path(self.relative_path) and called_tail in _LEGACY_MUTABLE_CONSTRUCTORS:
             self._add(
                 node,
                 "LEGACY_MUTABLE_CONSTRUCTION",
@@ -446,12 +565,27 @@ class _AuthorityVisitor(ast.NodeVisitor):
                 if type(symbol_node) is ast.Constant and type(symbol_node.value) is str
                 else None
             )
-            allowed_path = _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST.get(symbol or "")
-            if allowed_path is not None and not self.relative_path.endswith(allowed_path):
+            allowed_paths = _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST.get(symbol or "")
+            if allowed_paths is not None and not _matches_allowed_path(
+                self.relative_path,
+                allowed_paths,
+            ):
                 # Literal reflection is authority import by another spelling.
                 self._add(node, "PRIVATE_AUTHORITY_IMPORT", symbol or "")
         if called in {"copy.copy", "copy.deepcopy"}:
             self._add(node, "FORBIDDEN_COPY", called)
+        if (
+            called
+            in {
+                "__import__",
+                "builtins.__import__",
+                "importlib.import_module",
+            }
+            and node.args
+            and self._bounded_static_string(node.args[0]) == _SHADOW_AUTHORITY_MODULE
+            and self.relative_path != _SHADOW_AUTHORITY_PATH
+        ):
+            self._add(node, "SHADOW_AUTHORITY_IMPORT", _SHADOW_AUTHORITY_MODULE)
         if called is not None and called.split(".", 1)[0] in {"pickle", "copyreg"}:
             self._add(node, "FORBIDDEN_RECONSTRUCTION", called)
         if called in {"dataclasses.is_dataclass", "is_dataclass"}:
@@ -488,15 +622,15 @@ class _AuthorityVisitor(ast.NodeVisitor):
             "_owned_map_from_canonical_transition_v1",
         } and not (
             called_tail in {"_owned_enum_from_admitted", "_owned_map_from_admitted"}
-            and self.relative_path.endswith("src/state/snapshot_combinators.py")
+            and self.relative_path == "src/state/snapshot_combinators.py"
             or called_tail == "_owned_enum_from_canonical_transition_v1"
-            and self.relative_path.endswith("src/state/pool_creation_transition.py")
+            and self.relative_path == "src/state/pool_creation_transition.py"
             or called_tail == "_owned_map_from_canonical_transition_v1"
-            and self.relative_path.endswith("src/state/state_transitions.py")
+            and self.relative_path == "src/state/state_transitions.py"
         ):
             self._add(node, "OWNED_CONSTRUCTION_ESCAPE", called or called_tail)
         if called_tail == "_admit_with_registry_v1":
-            if not self.relative_path.endswith(_PROFILE_PATH_SUFFIX):
+            if not _is_profile_path(self.relative_path):
                 self._add(node, "PROFILE_BINDING_ESCAPE", called or called_tail)
             elif called not in _PROFILE_ENGINE_NAMES:
                 self._add(node, "PROFILE_FACADE_SHAPE", "noncanonical engine binding")
@@ -541,8 +675,8 @@ class _AuthorityVisitor(ast.NodeVisitor):
                             constructor_name,
                             encoder_name,
                         )
-        if called_tail == "build_admission_registry_v1" and not self.relative_path.endswith(
-            _PROFILE_PATH_SUFFIX
+        if called_tail == "build_admission_registry_v1" and not _is_profile_path(
+            self.relative_path
         ):
             self._add(node, "REGISTRY_BINDING_ESCAPE", called or called_tail)
         construction_allowlist = {
@@ -582,7 +716,7 @@ class _AuthorityVisitor(ast.NodeVisitor):
         required_sites = construction_allowlist.get(called_tail or "")
         current_function = self.function_names[-1] if self.function_names else None
         if required_sites is not None and not any(
-            self.relative_path.endswith(required_path) and current_function == required_function
+            self.relative_path == required_path and current_function == required_function
             for required_path, required_function in required_sites
         ):
             required_text = "|".join(
@@ -602,7 +736,7 @@ class _AuthorityVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def finalize(self, module: ast.Module) -> list[_Violation]:
-        if not self.relative_path.endswith(_PROFILE_PATH_SUFFIX):
+        if not _is_profile_path(self.relative_path):
             return []
         if self.profile_admit_count != 1:
             self._add(module, "PROFILE_FACADE_SHAPE", "exactly one module admit")
@@ -613,6 +747,12 @@ class _AuthorityVisitor(ast.NodeVisitor):
             assignments, functions = self._module_bindings(module)
             if assignments.get(registry_name, 0) != 1 or functions.get(registry_name):
                 self._add(module, "PROFILE_FACADE_SHAPE", "module-owned registry binding")
+            if not _has_registry_manifest_binding(module, registry_name):
+                self._add(
+                    module,
+                    "PROFILE_REGISTRY_BINDING",
+                    f"{registry_name}.schema_ids",
+                )
             for resolver_name in (constructor_name, encoder_name):
                 resolver_functions = functions.get(resolver_name, ())
                 if assignments.get(resolver_name, 0) or len(resolver_functions) != 1:
@@ -655,6 +795,48 @@ class _AuthorityVisitor(ast.NodeVisitor):
                 assignments[statement.name] = assignments.get(statement.name, 0) + 1
         functions = {name: tuple(declarations) for name, declarations in functions_mutable.items()}
         return assignments, functions
+
+
+def _has_registry_manifest_binding(module: ast.Module, registry_name: str) -> bool:
+    matches = 0
+    for statement in module.body:
+        if type(statement) is not ast.If or statement.orelse:
+            continue
+        comparison = statement.test
+        if (
+            type(comparison) is not ast.Compare
+            or len(comparison.ops) != 1
+            or type(comparison.ops[0]) is not ast.NotEq
+            or len(comparison.comparators) != 1
+        ):
+            continue
+        left = comparison.left
+        right = comparison.comparators[0]
+        if not (
+            type(left) is ast.Attribute
+            and left.attr == "schema_ids"
+            and type(left.value) is ast.Name
+            and left.value.id == registry_name
+            and type(right) is ast.Name
+            and right.id == "FCIS_REGISTERED_REGISTRY_IDS"
+        ):
+            continue
+        if len(statement.body) != 1 or type(statement.body[0]) is not ast.Raise:
+            continue
+        exception = statement.body[0].exc
+        if (
+            type(exception) is not ast.Call
+            or type(exception.func) is not ast.Name
+            or exception.func.id != "RuntimeError"
+            or len(exception.args) != 1
+            or exception.keywords
+            or type(exception.args[0]) is not ast.Constant
+            or type(exception.args[0].value) is not str
+            or not exception.args[0].value
+        ):
+            continue
+        matches += 1
+    return matches == 1
 
 
 def _assignment_string_tuple(module: ast.Module, name: str) -> tuple[str, ...] | None:
@@ -732,7 +914,7 @@ def _check_registry_constants(
     module: ast.Module,
     relative_path: str,
 ) -> list[_Violation]:
-    is_profile = relative_path.endswith("src/state/state_admission_profile.py")
+    is_profile = _is_profile_path(relative_path)
     drift_code = "PROFILE_REGISTRY_DRIFT" if is_profile else "REGISTRY_DRIFT"
     required = _assignment_string_tuple(module, "FCIS_REQUIRED_REGISTRY_IDS")
     registered = _assignment_string_tuple(module, "FCIS_REGISTERED_REGISTRY_IDS")
@@ -814,6 +996,7 @@ _SENSITIVE_SOURCE_CODES = {
     "PATH_READ_ERROR",
     "PRIVATE_AUTHORITY_IMPORT",
     "PROFILE_FACADE_SHAPE",
+    "PROFILE_REGISTRY_BINDING",
     "PROFILE_REGISTRY_DRIFT",
     "PROFILE_BINDING_ESCAPE",
     "REGISTRY_BEHAVIOR_FIELD",
@@ -822,6 +1005,7 @@ _SENSITIVE_SOURCE_CODES = {
     "MUTABLE_CORE_BOUNDARY",
     "MUTABLE_LOCAL_BUFFER",
     "STRUCTURAL_CORE_BOUNDARY",
+    "SHADOW_AUTHORITY_IMPORT",
     "SYNTAX_ERROR",
 }
 

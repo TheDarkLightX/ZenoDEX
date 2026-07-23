@@ -10,6 +10,7 @@ from src.core.perps import (
 )
 from src.state.pools import PoolStatus
 from src.state.state_admission_profile import (
+    _STATE_ADMISSION_REGISTRY_V1,
     FCIS_REGISTERED_REGISTRY_IDS,
     FCIS_REQUIRED_REGISTRY_IDS,
 )
@@ -53,6 +54,7 @@ def test_schema_registry_ids_are_unique_and_complete() -> None:
     assert observed == KNOWN_STATE_ADMISSION_SCHEMA_IDS_V1
     assert observed == FCIS_REQUIRED_REGISTRY_IDS
     assert observed == FCIS_REGISTERED_REGISTRY_IDS
+    assert _STATE_ADMISSION_REGISTRY_V1.schema_ids == FCIS_REGISTERED_REGISTRY_IDS
     assert len(observed) == len(set(observed))
 
 
