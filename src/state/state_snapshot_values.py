@@ -6,6 +6,7 @@ These records contain only exact scalars, tuples, ``OwnedEnumV1``, and
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from dataclasses import dataclass
 from typing import TypeVar, cast, final
 
@@ -601,6 +602,27 @@ class CommittedPerpMarketStateV1:
             if account.position_base != 0 and account.entry_price_e8 != index_price:
                 raise ValueError("open isolated account entry price must equal index price")
 
+    def global_value(self, field: str) -> PerpsValueV1:
+        """Return one declared global field without exposing a mutable projection."""
+
+        _require_exact_string(field)
+        return self.global_state[field]
+
+    def get_account(self, pubkey: str) -> CommittedPerpAccountStateV1 | None:
+        """Return one exact account by its canonical authority key."""
+
+        return self.accounts.get(_require_canonical_pubkey(pubkey))
+
+    @property
+    def global_entries(self) -> tuple[tuple[str, PerpsValueV1], ...]:
+        return self.global_state.entries
+
+    @property
+    def account_entries(
+        self,
+    ) -> tuple[tuple[str, CommittedPerpAccountStateV1], ...]:
+        return self.accounts.entries
+
 
 def _require_fixed_clearinghouse_bounds(
     state: dict[str, PerpsValueV1],
@@ -719,6 +741,16 @@ class CommittedPerpClearinghouse2pMarketStateV1:
         )
         _require_fixed_clearinghouse_consistency(state, ("a", "b"))
 
+    def state_value(self, field: str) -> PerpsValueV1:
+        """Return one declared clearinghouse field from the owned state map."""
+
+        _require_exact_string(field)
+        return self.state[field]
+
+    @property
+    def state_entries(self) -> tuple[tuple[str, PerpsValueV1], ...]:
+        return self.state.entries
+
 
 @final
 @dataclass(frozen=True, slots=True)
@@ -750,6 +782,16 @@ class CommittedPerpClearinghouse3pTransferMarketStateV1:
             MAX_CLEARINGHOUSE_3P_AGGREGATE_E8_V1,
         )
         _require_fixed_clearinghouse_consistency(state, ("a", "b", "c"))
+
+    def state_value(self, field: str) -> PerpsValueV1:
+        """Return one declared clearinghouse field from the owned state map."""
+
+        _require_exact_string(field)
+        return self.state[field]
+
+    @property
+    def state_entries(self) -> tuple[tuple[str, PerpsValueV1], ...]:
+        return self.state.entries
 
 
 @final
@@ -910,6 +952,52 @@ class CommittedPerpClearinghouseNpMarketStateV1:
         ):
             raise ValueError("N-party clearinghouse collateral conservation failed")
 
+    def global_value(self, field: str) -> int:
+        """Return one declared N-party global field from the owned state map."""
+
+        _require_exact_string(field)
+        return self.global_state[field]
+
+    def get_account(
+        self,
+        pubkey: str,
+    ) -> CommittedPerpClearinghouseNpAccountV1 | None:
+        """Return one exact account by binary search over canonical tuple order."""
+
+        canonical_pubkey = _require_canonical_pubkey(pubkey)
+        index = bisect_left(
+            self.accounts,
+            canonical_pubkey,
+            key=lambda account: account.pubkey,
+        )
+        if index < len(self.accounts):
+            account = self.accounts[index]
+            if account.pubkey == canonical_pubkey:
+                return account
+        return None
+
+    def get_pending_intent(
+        self,
+        pubkey: str,
+    ) -> CommittedPerpClearinghouseNpPendingIntentV1 | None:
+        """Return the one pending intent associated with a canonical member key."""
+
+        canonical_pubkey = _require_canonical_pubkey(pubkey)
+        index = bisect_left(
+            self.pending_intents,
+            canonical_pubkey,
+            key=lambda intent: intent.pubkey,
+        )
+        if index < len(self.pending_intents):
+            intent = self.pending_intents[index]
+            if intent.pubkey == canonical_pubkey:
+                return intent
+        return None
+
+    @property
+    def global_entries(self) -> tuple[tuple[str, int], ...]:
+        return self.global_state.entries
+
 
 CommittedPerpAnyMarketStateV1 = (
     CommittedPerpMarketStateV1
@@ -948,3 +1036,14 @@ class CommittedPerpsStateV1:
                 and type(market) is not CommittedPerpMarketStateV1
             ):
                 raise ValueError("perps v4 supports isolated markets only")
+
+    def get_market(self, market_id: str) -> CommittedPerpAnyMarketStateV1 | None:
+        """Return one exact market by its canonical committed identifier."""
+
+        return self.markets.get(_require_exact_string(market_id))
+
+    @property
+    def market_entries(
+        self,
+    ) -> tuple[tuple[str, CommittedPerpAnyMarketStateV1], ...]:
+        return self.markets.entries
