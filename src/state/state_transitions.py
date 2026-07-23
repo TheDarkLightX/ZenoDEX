@@ -38,14 +38,47 @@ from .state_snapshot_values import (
     MAX_STATE_STRING_UTF8_BYTES_V1,
     MAX_U32_V1,
     NONCE_MAP_SCHEMA_ID_V1,
+    PERPS_ISOLATED_GLOBAL_MAP_SCHEMA_ID_V1,
     POOL_MAP_SCHEMA_ID_V1,
     BalanceKeyV1,
     CommittedBalanceTableV1,
     CommittedLPTableV1,
     CommittedNonceTableV1,
+    CommittedPerpMarketStateV1,
     CommittedPoolStateV1,
     LPKeyV1,
+    PerpsValueV1,
 )
+
+
+def _committed_isolated_market_from_transition_v1(
+    pre: CommittedPerpMarketStateV1,
+    global_entries: tuple[tuple[str, PerpsValueV1], ...],
+) -> CommittedPerpMarketStateV1:
+    """Trusted freeze edge for a fully evaluated isolated-market successor.
+
+    The caller is a closed exact transition. Only an immutable canonical tuple
+    crosses the module boundary; the caller's private work buffer does not.
+    The committed constructor rechecks the full market and account invariants
+    before the candidate can escape.
+    """
+
+    if type(pre) is not CommittedPerpMarketStateV1:
+        raise TypeError("isolated market pre-state must be exact")
+    if type(global_entries) is not tuple:
+        raise TypeError("isolated market globals must be an exact tuple")
+    globals_owned = _owned_map_from_canonical_transition_v1(
+        global_entries,
+        FCIS_STATE_SCHEMA_REVISION_V1,
+        PERPS_ISOLATED_GLOBAL_MAP_SCHEMA_ID_V1,
+    )
+    return CommittedPerpMarketStateV1(
+        quote_asset=pre.quote_asset,
+        global_state=globals_owned,
+        accounts=pre.accounts,
+        kind=pre.kind,
+    )
+
 
 BalancePatchPathPartV1: TypeAlias = str | int
 BalancePatchPathV1: TypeAlias = tuple[BalancePatchPathPartV1, ...]
