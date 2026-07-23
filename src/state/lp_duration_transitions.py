@@ -300,6 +300,14 @@ def _events_reject_v1(events: object) -> LPDurationTransitionRejectV1 | None:
     return None
 
 
+def validate_lp_duration_events_v1(
+    events: object,
+) -> LPDurationTransitionRejectV1 | None:
+    """Validate the one canonical LP-event language used by composed cores."""
+
+    return _events_reject_v1(events)
+
+
 def _decayed_tier_v1(
     policy: LPDurationRiskPolicyV1,
     *,
@@ -722,4 +730,5 @@ __all__ = (
     "LPDurationTransitionResultV1",
     "apply_guarded_lp_position_events_v1",
     "apply_lp_position_events_v1",
+    "validate_lp_duration_events_v1",
 )
