@@ -75,11 +75,9 @@ fn valid_plan_binds_tree_versions_roots_transition_and_derived_storage_batches()
     assert_eq!(plan.stale_nodes().len(), 1);
     assert!(plan.new_nodes()[0].node_key().nibble_path().is_root());
     assert_eq!(plan.new_nodes()[0].node_hash(), plan.post_root());
-    assert_eq!(
-        plan.new_nodes(),
-        derive_jmt_storage_new_nodes_v1(plan.transition(), plan.target_version())
-            .unwrap()
-    );
+    let expected =
+        derive_jmt_storage_new_nodes_v1(plan.transition(), plan.target_version()).unwrap();
+    assert_eq!(plan.new_nodes(), expected.as_slice());
 }
 
 #[test]
