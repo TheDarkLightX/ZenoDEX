@@ -69,6 +69,24 @@ class FeeAccumulatorState:
 _EMPTY_FEE_ACCUMULATOR_STATE = FeeAccumulatorState()
 
 
+def _split_fee_amounts_v1(
+    *,
+    total: int,
+    buyback_bps: int,
+    treasury_bps: int,
+    rewards_bps: int,
+) -> tuple[int, int, int, int]:
+    """Return exact allocation amounts and residual dust for validated inputs."""
+
+    buyback = (total * buyback_bps) // BPS_DENOM
+    treasury = (total * treasury_bps) // BPS_DENOM
+    rewards = (total * rewards_bps) // BPS_DENOM
+    distributed = buyback + treasury + rewards
+    if distributed > total:
+        raise ArithmeticError("fee split over-distributed")
+    return buyback, treasury, rewards, total - distributed
+
+
 def split_fee_with_dust_carry(
     fee_amount: int,
     params: FeeSplitParams,
@@ -83,13 +101,17 @@ def split_fee_with_dust_carry(
         raise ValueError(f"fee_amount must be a non-negative int, got {fee_amount}")
 
     total = fee_amount + state.dust
-    buyback = (total * params.buyback_bps) // BPS_DENOM
-    treasury = (total * params.treasury_bps) // BPS_DENOM
-    rewards = (total * params.rewards_bps) // BPS_DENOM
-    distributed = buyback + treasury + rewards
-    if distributed > total:
-        raise AssertionError("fee split over-distributed")
-    dust = total - distributed
+    try:
+        buyback, treasury, rewards, dust = _split_fee_amounts_v1(
+            total=total,
+            buyback_bps=params.buyback_bps,
+            treasury_bps=params.treasury_bps,
+            rewards_bps=params.rewards_bps,
+        )
+    except ArithmeticError:
+        # Preserve the mounted exception contract while avoiding an optimized-
+        # away ``assert`` statement on a value-conservation boundary.
+        raise AssertionError("fee split over-distributed") from None
 
     return (
         FeeSplitResult(

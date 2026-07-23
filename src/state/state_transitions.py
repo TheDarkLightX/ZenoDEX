@@ -753,6 +753,17 @@ def _validated_nonce_entries_v1(
     return cast(tuple[tuple[str, int], ...], entries)
 
 
+def validate_committed_nonce_state_v1(
+    pre: CommittedNonceTableV1,
+) -> NoncePatchRejectV1 | None:
+    """Revalidate one exact nonce snapshot without constructing a patch."""
+
+    validated = _validated_nonce_entries_v1(pre)
+    if type(validated) is NoncePatchRejectV1:
+        return validated
+    return None
+
+
 def _validated_nonce_patch_advances_v1(
     patch: object,
 ) -> tuple[NonceAdvanceV1, ...] | NoncePatchRejectV1:
@@ -2138,6 +2149,7 @@ __all__ = [
     "build_canonical_nonce_patch_v1",
     "build_canonical_pool_patch_v1",
     "validate_balance_deltas_v1",
+    "validate_committed_nonce_state_v1",
     "validate_lp_position_deltas_v1",
     "validate_pool_deltas_v1",
 ]

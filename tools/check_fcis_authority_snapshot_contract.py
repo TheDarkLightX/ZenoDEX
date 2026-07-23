@@ -13,6 +13,8 @@ from pathlib import Path
 
 REPORT_SCHEMA = "zenodex/fcis-authority-snapshot-contract-check/v1"
 DEFAULT_AUTHORITY_PATHS = (
+    Path("src/core/fee_accumulator_transition.py"),
+    Path("src/core/nonce_batch_transition.py"),
     Path("src/state/snapshot_combinators.py"),
     Path("src/state/owned_collections.py"),
     Path("src/state/pool_creation_transition.py"),
