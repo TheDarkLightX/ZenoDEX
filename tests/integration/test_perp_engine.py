@@ -1600,6 +1600,95 @@ def test_apply_funding_auto_no_user_absorbs_residual() -> None:
         assert post_coll == pre_coll - fp  # exactly the raw funding; no residual transfer
 
 
+def test_apply_funding_auto_rejects_candidate_that_strands_published_epoch() -> None:
+    """Funding rejection must preserve an executable published settlement path."""
+
+    from src.core.perp_epoch import perp_epoch_isolated_default_fee_pool_max_quote
+    from src.core.perps import (
+        PERPS_STATE_VERSION,
+        PerpAccountState,
+        PerpMarketState,
+        PerpsState,
+    )
+    from src.integration.perp_engine import _kernel_initial_global_state
+
+    market_id = "perp:funding-preserves-composed-settlement"
+    quote_asset = "0x" + "84" * 32
+    operator = "00" * 48
+    max_fee_quote = int(perp_epoch_isolated_default_fee_pool_max_quote())
+
+    global_state = _kernel_initial_global_state()
+    global_state.update(
+        {
+            "now_epoch": 3,
+            "epoch_phase": 0,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 2,
+            "index_price_e8": 100_000_000,
+            "fee_pool_quote": max_fee_quote - 120_000,
+            "fee_income": max_fee_quote - 120_000,
+            "insurance_balance": max_fee_quote - 120_000,
+            "min_notional_for_bounty": 0,
+        }
+    )
+    accounts = {
+        f"{index + 1:096x}": PerpAccountState(
+            position_base=1_000_000,
+            entry_price_e8=100_000_000,
+            collateral_quote=70_000,
+            funding_paid_cumulative=0,
+            funding_last_applied_epoch=2,
+            liquidated_this_step=False,
+        )
+        for index in range(13)
+    }
+    accounts["ff" * 48] = PerpAccountState(
+        position_base=-1_000_000,
+        entry_price_e8=100_000_000,
+        collateral_quote=60_000,
+        funding_paid_cumulative=0,
+        funding_last_applied_epoch=2,
+        liquidated_this_step=False,
+    )
+    state = DexState(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        perps=PerpsState(
+            version=PERPS_STATE_VERSION,
+            markets={
+                market_id: PerpMarketState(
+                    quote_asset=quote_asset,
+                    global_state=global_state,
+                    accounts=accounts,
+                )
+            },
+        ),
+    )
+
+    published = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=105_000_000)],
+    )
+    assert published.ok is True, published.error
+    assert published.state is not None
+
+    funded = _apply_result(
+        state=published.state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "apply_funding_auto")],
+    )
+
+    assert funded.ok is False
+    assert funded.state is None
+    assert funded.effects is None
+    assert funded.error is not None
+    assert funded.error.startswith("apply_funding_auto would destroy mounted settlement path: ")
+
+
 def test_apply_funding_auto_allows_empty_open_interest() -> None:
     market_id = "perp:funding-empty"
     quote_asset = "0x" + "68" * 32
