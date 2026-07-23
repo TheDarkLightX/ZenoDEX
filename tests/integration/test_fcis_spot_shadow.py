@@ -39,9 +39,14 @@ from src.state.state_snapshots import (
     snapshot_lp_table,
     snapshot_pool_map,
 )
+from src.state.support_root import compute_support_state_root_for_batch
 from tools.check_fcis_authority_snapshot_contract import (
     DEFAULT_AUTHORITY_PATHS,
     check_contract,
+)
+
+_EXPECTED_SWAP_POST_SUPPORT_ROOT = (
+    "0x66c43d933bdf3105ea34adb2adf9fc43745b18fd70693998eda71e44d213dbcf"
 )
 
 
@@ -317,6 +322,14 @@ def test_full_step_shadow_matches_legacy_state_snapshot_and_root() -> None:
     assert observed.snapshot_commitment == legacy_snapshot.commitment_hex()
     assert observed.state_root_preimage == legacy_preimage
     assert observed.state_root == sha256_hex(legacy_preimage)
+    assert observed.support_root == compute_support_state_root_for_batch(
+        intents=[intent],
+        balances=legacy_next.balances,
+        pools=legacy_next.pools,
+        lp_balances=legacy_next.lp_balances,
+        nonces=legacy_next.nonces,
+    )
+    assert observed.support_root == _EXPECTED_SWAP_POST_SUPPORT_ROOT
     assert snapshot_from_state(state).canonical_bytes() == pre_snapshot
     assert not hasattr(observed, "balances")
     assert not hasattr(observed, "nonces")

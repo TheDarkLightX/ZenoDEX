@@ -300,6 +300,7 @@ def snapshot_pool_map(
     from .state_snapshot_schema import POOL_MAP_ADMISSION_SCHEMA_ID_V1
     from .state_snapshot_values import CommittedPoolStateV1
 
+    admission_source: object
     if type(source) is FrozenDict:
         frozen_entries = _project_frozen_dict_v1(source, ())
         admission_source = {

@@ -59,6 +59,7 @@ from ..state.state_snapshots import (
     snapshot_pool_map,
     snapshot_vault,
 )
+from ..state.support_root import compute_support_state_root_for_batch_committed_v1
 from .dex_snapshot import DEX_SNAPSHOT_VERSION
 from .lp_position_age_gate import admit_lp_duration_risk_policy_context_v1
 
@@ -175,6 +176,7 @@ class FCISStepShadowReceiptV1:
     canonical_snapshot_bytes: bytes
     state_root_preimage: bytes
     state_root: str
+    support_root: str
     snapshot_commitment: str
 
     def __post_init__(self) -> None:
@@ -187,7 +189,7 @@ class FCISStepShadowReceiptV1:
             raise TypeError("shadow receipt snapshot bytes must be exact")
         if type(self.state_root_preimage) is not bytes:
             raise TypeError("shadow receipt root preimage must be exact")
-        for name in ("state_root", "snapshot_commitment"):
+        for name in ("state_root", "support_root", "snapshot_commitment"):
             value = object.__getattribute__(self, name)
             if type(value) is not str or len(value) != 66 or not value.startswith("0x"):
                 raise TypeError(f"shadow receipt {name} must be a 32-byte hex digest")
@@ -581,6 +583,7 @@ def _evaluate_step_candidate_v1(
 def _encode_step_receipt_v1(
     candidate: _StepCandidateV1,
     *,
+    intents: List[Intent],
     snapshot_version: int,
 ) -> FCISStepShadowResultV1:
     try:
@@ -602,6 +605,13 @@ def _encode_step_receipt_v1(
             nonces=candidate.nonces,
             fee_accumulator=candidate.fee_accumulator,
         )
+        support_root = compute_support_state_root_for_batch_committed_v1(
+            intents=intents,
+            balances=candidate.spot.balances,
+            pools=candidate.spot.pools,
+            lp_balances=candidate.spot.lp_balances,
+            nonces=candidate.nonces,
+        )
     except (StateAdmissionError, TypeError, ValueError) as exc:
         return FCISStepShadowRejectV1(
             FCISStepShadowPhaseV1.ENCODING,
@@ -612,6 +622,7 @@ def _encode_step_receipt_v1(
         canonical_snapshot_bytes=snapshot_bytes,
         state_root_preimage=root_preimage,
         state_root=sha256_hex(root_preimage),
+        support_root=support_root,
         snapshot_commitment=sha256_hex(
             domain_sep_bytes("dex_snapshot", version=snapshot_version) + snapshot_bytes
         ),
@@ -665,6 +676,7 @@ def evaluate_fcis_step_shadow_v1(
         return candidate
     return _encode_step_receipt_v1(
         candidate,
+        intents=intents,
         snapshot_version=exact_context.snapshot_version,
     )
 
