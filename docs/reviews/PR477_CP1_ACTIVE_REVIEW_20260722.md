@@ -133,6 +133,57 @@ e16ea51d2df2aa2cc6df6d98ec14310b609ee86692ca68f987f37806612daec1  docs/specs/fci
 2f436aa1080c70b2c3ec4afdeca099c097e3f280a0721de5bdb365f760941bbe  docs/specs/fcis_authority_snapshot_v1/check_packet.py
 ```
 
+## Independent follow-up closure
+
+A second diff-aware pass found one P1 after the original review: map-key
+preflight bounded string and byte work, while exact integers and
+`OwnedEnumV1` ordinals still reached `_key_sort_value` before their domain
+rejection was selected. Arbitrary-precision hostile values were converted to
+small tagged values inside that helper, but the single preflight boundary was
+incomplete and could drift from canonical rejection order.
+
+Commit `40bc3333` closes the finding. The map admission path now derives one
+bounded preflight record for every exact key component before sorting:
+
+```text
+trusted scalar byte cost
+bounded canonical sort value
+deferred typed canonical rejection
+```
+
+The derivation handles exact integers and owned-enum metadata directly and
+recurses through `ExactPair`. It sorts only these bounded values, then selects
+the first rejection in canonical key order. Oversized aggregate string/byte
+work still rejects before any sort-value derivation.
+
+Added negative evidence forbids `_key_sort_value` from being called for a
+million-bit out-of-range integer and a million-bit corrupt enum ordinal nested
+inside an exact pair. Insertion-order parity remains covered for mixed invalid
+pair keys.
+
+Follow-up evidence:
+
+```text
+snapshot combinator tests                            97 passed
+full tests/state                                     392 passed
+Ruff                                                 passed
+mypy, snapshot_combinators.py                        passed
+authority checker                                    ok=true
+packet checker                                       ok=true
+git diff --check                                     passed
+```
+
+Follow-up hashes:
+
+```text
+7de492e187654f7ce684ec2edd1c2d041c72bbdeeea76e1dc51c14b832764453  src/state/snapshot_combinators.py
+e820d03c6d1d1a82ff49fef50cf628b03a7da1c7f10c37cd753fbc4f0df9dbc4  tests/state/test_snapshot_combinators.py
+```
+
+The primitive-checkpoint grade remains 4.5/5 because production mounting and
+cross-domain parity are intentionally outside CP1. The identified CP1 P1 is
+closed.
+
 ## Residual scope
 
 - `src/state/state_admission_profile.py` remains intentionally absent.
