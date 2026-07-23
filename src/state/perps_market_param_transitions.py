@@ -8,6 +8,7 @@ The result carries no receipt or commit authority and cannot publish itself.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from dataclasses import dataclass
 from typing import TypeAlias, cast, final
 
@@ -16,13 +17,17 @@ from .perps_state_transitions import (
     CanonicalIsolatedGlobalPatchV1,
     IsolatedPerpTransitionCodeV1,
     IsolatedPerpTransitionRejectV1,
-    _build_optional_patch,
+    _build_optional_global_patch_from_entries,
+    _global_entry_value,
     _validated_prestate,
 )
 from .state_snapshot_values import CommittedPerpMarketStateV1, PerpsValueV1
 from .state_transitions import _committed_isolated_market_from_transition_v1
 
+FCIS_MUTABLE_LOCAL_BUFFERS_FORBIDDEN = True
+
 _BPS_SCALE = 10_000
+_GlobalEntriesV1: TypeAlias = tuple[tuple[str, PerpsValueV1], ...]
 _PARAM_BOUNDS: tuple[tuple[str, int, int], ...] = (
     ("depeg_buffer_bps", 0, 5_000),
     ("funding_cap_bps", 1, 10_000),
@@ -103,25 +108,25 @@ def _reject(
     return IsolatedPerpTransitionRejectV1(code, path, reason)
 
 
-def _funded_liquidation_params_ok(values: dict[str, PerpsValueV1]) -> bool:
-    maintenance = cast(int, values["maintenance_margin_bps"])
-    depeg = cast(int, values["depeg_buffer_bps"])
-    max_move = cast(int, values["max_oracle_move_bps"])
-    penalty = cast(int, values["liquidation_penalty_bps"])
+def _funded_liquidation_params_ok(values: _GlobalEntriesV1) -> bool:
+    maintenance = cast(int, _global_entry_value(values, "maintenance_margin_bps"))
+    depeg = cast(int, _global_entry_value(values, "depeg_buffer_bps"))
+    max_move = cast(int, _global_entry_value(values, "max_oracle_move_bps"))
+    penalty = cast(int, _global_entry_value(values, "liquidation_penalty_bps"))
     effective_maintenance = maintenance + depeg
     return penalty * (_BPS_SCALE + max_move) <= _BPS_SCALE * (effective_maintenance - max_move)
 
 
 def _cross_parameter_error(
-    values: dict[str, PerpsValueV1],
+    values: _GlobalEntriesV1,
     *,
     min_collectible_penalty_quote: int,
 ) -> str | None:
-    max_move = cast(int, values["max_oracle_move_bps"])
-    initial = cast(int, values["initial_margin_bps"])
-    maintenance = cast(int, values["maintenance_margin_bps"])
-    depeg = cast(int, values["depeg_buffer_bps"])
-    penalty = cast(int, values["liquidation_penalty_bps"])
+    max_move = cast(int, _global_entry_value(values, "max_oracle_move_bps"))
+    initial = cast(int, _global_entry_value(values, "initial_margin_bps"))
+    maintenance = cast(int, _global_entry_value(values, "maintenance_margin_bps"))
+    depeg = cast(int, _global_entry_value(values, "depeg_buffer_bps"))
+    penalty = cast(int, _global_entry_value(values, "liquidation_penalty_bps"))
     effective_maintenance = maintenance + depeg
     if depeg <= 0:
         return "invalid params: require depeg_buffer_bps > 0"
@@ -136,7 +141,7 @@ def _cross_parameter_error(
     if not _funded_liquidation_params_ok(values):
         return "invalid params: require funded liquidation after max_oracle_move_bps"
 
-    minimum_notional = cast(int, values["min_notional_for_bounty"])
+    minimum_notional = cast(int, _global_entry_value(values, "min_notional_for_bounty"))
     positive_penalty_floor = (_BPS_SCALE + penalty - 1) // penalty
     if minimum_notional < positive_penalty_floor:
         return "invalid params: require min_notional_for_bounty >= ceil(10000 / liquidation_penalty_bps)"
@@ -152,17 +157,17 @@ def _cross_parameter_error(
 
 def _open_position_update_error(
     pre: CommittedPerpMarketStateV1,
-    after: dict[str, PerpsValueV1],
+    after: _GlobalEntriesV1,
 ) -> str | None:
     has_open_positions = any(account.position_base != 0 for _, account in pre.account_entries)
     if not has_open_positions:
         return None
     old_penalty = cast(int, pre.global_value("liquidation_penalty_bps"))
-    new_penalty = cast(int, after["liquidation_penalty_bps"])
+    new_penalty = cast(int, _global_entry_value(after, "liquidation_penalty_bps"))
     if new_penalty > old_penalty:
         return "invalid params: cannot increase liquidation_penalty_bps while positions are open"
     old_minimum = cast(int, pre.global_value("min_notional_for_bounty"))
-    new_minimum = cast(int, after["min_notional_for_bounty"])
+    new_minimum = cast(int, _global_entry_value(after, "min_notional_for_bounty"))
     if new_minimum < old_minimum:
         return "invalid params: cannot decrease min_notional_for_bounty while positions are open"
     return None
@@ -170,12 +175,12 @@ def _open_position_update_error(
 
 def _account_risk_error(
     pre: CommittedPerpMarketStateV1,
-    values: dict[str, PerpsValueV1],
+    values: _GlobalEntriesV1,
 ) -> str | None:
-    max_position = cast(int, values["max_position_abs"])
-    index_price = cast(int, values["index_price_e8"])
-    maintenance = cast(int, values["maintenance_margin_bps"])
-    depeg = cast(int, values["depeg_buffer_bps"])
+    max_position = cast(int, _global_entry_value(values, "max_position_abs"))
+    index_price = cast(int, _global_entry_value(values, "index_price_e8"))
+    maintenance = cast(int, _global_entry_value(values, "maintenance_margin_bps"))
+    depeg = cast(int, _global_entry_value(values, "depeg_buffer_bps"))
     for account_pubkey, account in pre.account_entries:
         if abs(account.position_base) > max_position:
             return f"invalid params: account {account_pubkey} position exceeds new max_position_abs"
@@ -192,15 +197,45 @@ def _account_risk_error(
     return None
 
 
+def _updated_parameter_value(
+    update: IsolatedMarketParamsUpdateV1,
+    field: str,
+    expected: PerpsValueV1,
+) -> PerpsValueV1:
+    index = bisect_left(update.entries, field, key=lambda entry: entry[0])
+    if index < len(update.entries) and update.entries[index][0] == field:
+        return update.entries[index][1]
+    return expected
+
+
+def _entries_with_parameter_update(
+    before: _GlobalEntriesV1,
+    update: IsolatedMarketParamsUpdateV1,
+) -> _GlobalEntriesV1:
+    return tuple(
+        (field, _updated_parameter_value(update, field, expected)) for field, expected in before
+    )
+
+
+def _entries_with_one_value(
+    before: _GlobalEntriesV1,
+    *,
+    field: str,
+    replacement: PerpsValueV1,
+) -> _GlobalEntriesV1:
+    return tuple(
+        (entry_field, replacement if entry_field == field else expected)
+        for entry_field, expected in before
+    )
+
+
 def _evaluate_update(
     pre: CommittedPerpMarketStateV1,
     update: IsolatedMarketParamsUpdateV1,
     *,
     min_collectible_penalty_quote: int,
-) -> dict[str, PerpsValueV1] | IsolatedPerpTransitionRejectV1:
-    values = dict(pre.global_entries)
-    for field, value in update.entries:
-        values[field] = value
+) -> _GlobalEntriesV1 | IsolatedPerpTransitionRejectV1:
+    values = _entries_with_parameter_update(pre.global_entries, update)
     open_position_error = _open_position_update_error(pre, values)
     if open_position_error is not None:
         return _reject(
@@ -209,10 +244,14 @@ def _evaluate_update(
             open_position_error,
         )
 
-    funding_cap = cast(int, values["funding_cap_bps"])
-    funding_rate = cast(int, values["funding_rate_bps"])
+    funding_cap = cast(int, _global_entry_value(values, "funding_cap_bps"))
+    funding_rate = cast(int, _global_entry_value(values, "funding_rate_bps"))
     if abs(funding_rate) > funding_cap:
-        values["funding_rate_bps"] = funding_cap if funding_rate >= 0 else -funding_cap
+        values = _entries_with_one_value(
+            values,
+            field="funding_rate_bps",
+            replacement=funding_cap if funding_rate >= 0 else -funding_cap,
+        )
     error = _cross_parameter_error(
         values,
         min_collectible_penalty_quote=min_collectible_penalty_quote,
@@ -263,7 +302,10 @@ def evaluate_isolated_market_params_v1(
     )
     if type(after) is IsolatedPerpTransitionRejectV1:
         return after
-    patch = _build_optional_patch(dict(validated.global_entries), after)
+    patch = _build_optional_global_patch_from_entries(
+        validated.global_entries,
+        after,
+    )
     if type(patch) is IsolatedPerpTransitionRejectV1:
         return patch
     if patch is None:
@@ -271,7 +313,7 @@ def evaluate_isolated_market_params_v1(
     try:
         candidate = _committed_isolated_market_from_transition_v1(
             validated,
-            tuple(sorted(after.items(), key=lambda item: item[0])),
+            after,
         )
     except (AttributeError, KeyError, TypeError, ValueError):
         return _reject(IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE, ("state",))

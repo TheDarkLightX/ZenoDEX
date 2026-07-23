@@ -35,12 +35,12 @@ from .perps_state_transitions import (
     CanonicalIsolatedGlobalPatchV1,
     IsolatedPerpTransitionCodeV1,
     IsolatedPerpTransitionRejectV1,
+    _build_optional_global_patch_from_entries,
     _global_entries_from_kernel,
     _runtime_gate_reject,
     _validated_prestate,
 )
 from .perps_transition_combinators import (
-    _build_optional_global_patch_from_entries,
     _existing_account_patch_and_entries,
     _first_isolated_reject,
 )

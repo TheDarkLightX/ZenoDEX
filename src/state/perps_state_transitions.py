@@ -27,15 +27,18 @@ from ..core.perp_runtime_risk_gate import (
 )
 from ..core.perp_v2 import step as kernel_step
 from ..core.perp_v2.types import Action, ActionParams, EpochPhase, PerpState
-from ..core.perps import PERP_ISOLATED_GLOBAL_KEYS
+from .state_snapshot_schema import ISOLATED_GLOBAL_FIELD_NAMES_V1
 from .state_snapshot_values import (
     CommittedPerpMarketStateV1,
     PerpsValueV1,
 )
 from .state_transitions import _committed_isolated_market_from_transition_v1
 
+FCIS_MUTABLE_LOCAL_BUFFERS_FORBIDDEN = True
+
 PerpsTransitionPathPartV1: TypeAlias = str | int
 PerpsTransitionPathV1: TypeAlias = tuple[PerpsTransitionPathPartV1, ...]
+_GlobalEntriesV1: TypeAlias = tuple[tuple[str, PerpsValueV1], ...]
 
 
 class IsolatedPerpTransitionCodeV1(Enum):
@@ -69,7 +72,9 @@ class IsolatedPerpTransitionRejectV1:
     def __post_init__(self) -> None:
         if type(self.code) is not IsolatedPerpTransitionCodeV1:
             raise TypeError("isolated perps rejection code must be exact")
-        if type(self.path) is not tuple or any(type(part) not in {str, int} for part in self.path):
+        if type(self.path) is not tuple or any(
+            type(part) is not str and type(part) is not int for part in self.path
+        ):
             raise TypeError("isolated perps rejection path must be exact")
         if self.reason is not None and type(self.reason) is not str:
             raise TypeError("isolated perps rejection reason must be an exact string")
@@ -84,7 +89,7 @@ def _reject(
 
 
 def _is_exact_perps_value(value: object) -> bool:
-    return type(value) in {int, bool}
+    return type(value) is int or type(value) is bool
 
 
 @final
@@ -97,7 +102,7 @@ class IsolatedGlobalWriteV1:
     replacement: PerpsValueV1
 
     def __post_init__(self) -> None:
-        if type(self.field) is not str or self.field not in PERP_ISOLATED_GLOBAL_KEYS:
+        if type(self.field) is not str or self.field not in ISOLATED_GLOBAL_FIELD_NAMES_V1:
             raise ValueError("isolated global write field is not declared")
         if not _is_exact_perps_value(self.expected) or not _is_exact_perps_value(self.replacement):
             raise TypeError("isolated global writes require exact scalar values")
@@ -149,11 +154,36 @@ _PHASE_BY_ORDINAL = (
     EpochPhase.PRICE_PUBLISHED,
     EpochPhase.SETTLED,
 )
-_PHASE_ORDINAL = {
-    EpochPhase.OPEN: 0,
-    EpochPhase.PRICE_PUBLISHED: 1,
-    EpochPhase.SETTLED: 2,
-}
+_KERNEL_GLOBAL_FIELD_ORDER_V1 = (
+    "breaker_active",
+    "breaker_last_trigger_epoch",
+    "claims_paid",
+    "clearing_price_e8",
+    "clearing_price_epoch",
+    "clearing_price_seen",
+    "depeg_buffer_bps",
+    "epoch_phase",
+    "fee_income",
+    "fee_pool_quote",
+    "funding_cap_bps",
+    "funding_rate_bps",
+    "index_price_e8",
+    "initial_insurance",
+    "initial_margin_bps",
+    "insurance_balance",
+    "liquidation_penalty_bps",
+    "maintenance_margin_bps",
+    "mark_price_source_kind",
+    "max_oracle_move_bps",
+    "max_oracle_staleness_epochs",
+    "max_position_abs",
+    "min_notional_for_bounty",
+    "now_epoch",
+    "oracle_last_update_epoch",
+    "oracle_seen",
+)
+if _KERNEL_GLOBAL_FIELD_ORDER_V1 != ISOLATED_GLOBAL_FIELD_NAMES_V1:
+    raise RuntimeError("isolated perps kernel/global registry drift")
 
 
 def _validated_prestate(
@@ -170,84 +200,100 @@ def _validated_prestate(
 
 
 def _kernel_state_from_market(pre: CommittedPerpMarketStateV1) -> PerpState:
-    values = dict(pre.global_entries)
-    phase = _PHASE_BY_ORDINAL[cast(int, values["epoch_phase"])]
+    phase = _PHASE_BY_ORDINAL[cast(int, pre.global_value("epoch_phase"))]
     return PerpState(
-        now_epoch=cast(int, values["now_epoch"]),
+        now_epoch=cast(int, pre.global_value("now_epoch")),
         epoch_phase=phase,
-        breaker_active=cast(bool, values["breaker_active"]),
-        breaker_last_trigger_epoch=cast(int, values["breaker_last_trigger_epoch"]),
-        clearing_price_seen=cast(bool, values["clearing_price_seen"]),
-        clearing_price_epoch=cast(int, values["clearing_price_epoch"]),
-        clearing_price_e8=cast(int, values["clearing_price_e8"]),
-        oracle_seen=cast(bool, values["oracle_seen"]),
-        oracle_last_update_epoch=cast(int, values["oracle_last_update_epoch"]),
-        index_price_e8=cast(int, values["index_price_e8"]),
-        max_oracle_staleness_epochs=cast(int, values["max_oracle_staleness_epochs"]),
-        max_oracle_move_bps=cast(int, values["max_oracle_move_bps"]),
-        initial_margin_bps=cast(int, values["initial_margin_bps"]),
-        maintenance_margin_bps=cast(int, values["maintenance_margin_bps"]),
-        depeg_buffer_bps=cast(int, values["depeg_buffer_bps"]),
-        liquidation_penalty_bps=cast(int, values["liquidation_penalty_bps"]),
-        max_position_abs=cast(int, values["max_position_abs"]),
-        fee_pool_quote=cast(int, values["fee_pool_quote"]),
-        funding_rate_bps=cast(int, values["funding_rate_bps"]),
-        funding_cap_bps=cast(int, values["funding_cap_bps"]),
-        insurance_balance=cast(int, values["insurance_balance"]),
-        initial_insurance=cast(int, values["initial_insurance"]),
-        fee_income=cast(int, values["fee_income"]),
-        claims_paid=cast(int, values["claims_paid"]),
-        min_notional_for_bounty=cast(int, values["min_notional_for_bounty"]),
+        breaker_active=cast(bool, pre.global_value("breaker_active")),
+        breaker_last_trigger_epoch=cast(
+            int,
+            pre.global_value("breaker_last_trigger_epoch"),
+        ),
+        clearing_price_seen=cast(bool, pre.global_value("clearing_price_seen")),
+        clearing_price_epoch=cast(int, pre.global_value("clearing_price_epoch")),
+        clearing_price_e8=cast(int, pre.global_value("clearing_price_e8")),
+        oracle_seen=cast(bool, pre.global_value("oracle_seen")),
+        oracle_last_update_epoch=cast(
+            int,
+            pre.global_value("oracle_last_update_epoch"),
+        ),
+        index_price_e8=cast(int, pre.global_value("index_price_e8")),
+        max_oracle_staleness_epochs=cast(
+            int,
+            pre.global_value("max_oracle_staleness_epochs"),
+        ),
+        max_oracle_move_bps=cast(int, pre.global_value("max_oracle_move_bps")),
+        initial_margin_bps=cast(int, pre.global_value("initial_margin_bps")),
+        maintenance_margin_bps=cast(
+            int,
+            pre.global_value("maintenance_margin_bps"),
+        ),
+        depeg_buffer_bps=cast(int, pre.global_value("depeg_buffer_bps")),
+        liquidation_penalty_bps=cast(
+            int,
+            pre.global_value("liquidation_penalty_bps"),
+        ),
+        max_position_abs=cast(int, pre.global_value("max_position_abs")),
+        fee_pool_quote=cast(int, pre.global_value("fee_pool_quote")),
+        funding_rate_bps=cast(int, pre.global_value("funding_rate_bps")),
+        funding_cap_bps=cast(int, pre.global_value("funding_cap_bps")),
+        insurance_balance=cast(int, pre.global_value("insurance_balance")),
+        initial_insurance=cast(int, pre.global_value("initial_insurance")),
+        fee_income=cast(int, pre.global_value("fee_income")),
+        claims_paid=cast(int, pre.global_value("claims_paid")),
+        min_notional_for_bounty=cast(
+            int,
+            pre.global_value("min_notional_for_bounty"),
+        ),
     )
 
 
-def _global_values_from_kernel(
-    state: PerpState,
-    *,
-    mark_price_source_kind: int,
-) -> dict[str, PerpsValueV1]:
-    return {
-        "now_epoch": state.now_epoch,
-        "epoch_phase": _PHASE_ORDINAL[state.epoch_phase],
-        "breaker_active": state.breaker_active,
-        "breaker_last_trigger_epoch": state.breaker_last_trigger_epoch,
-        "clearing_price_seen": state.clearing_price_seen,
-        "clearing_price_epoch": state.clearing_price_epoch,
-        "clearing_price_e8": state.clearing_price_e8,
-        "mark_price_source_kind": mark_price_source_kind,
-        "oracle_seen": state.oracle_seen,
-        "oracle_last_update_epoch": state.oracle_last_update_epoch,
-        "index_price_e8": state.index_price_e8,
-        "max_oracle_staleness_epochs": state.max_oracle_staleness_epochs,
-        "max_oracle_move_bps": state.max_oracle_move_bps,
-        "initial_margin_bps": state.initial_margin_bps,
-        "maintenance_margin_bps": state.maintenance_margin_bps,
-        "depeg_buffer_bps": state.depeg_buffer_bps,
-        "liquidation_penalty_bps": state.liquidation_penalty_bps,
-        "max_position_abs": state.max_position_abs,
-        "fee_pool_quote": state.fee_pool_quote,
-        "funding_rate_bps": state.funding_rate_bps,
-        "funding_cap_bps": state.funding_cap_bps,
-        "insurance_balance": state.insurance_balance,
-        "initial_insurance": state.initial_insurance,
-        "fee_income": state.fee_income,
-        "claims_paid": state.claims_paid,
-        "min_notional_for_bounty": state.min_notional_for_bounty,
-    }
+def _phase_ordinal(phase: EpochPhase) -> int:
+    if phase is EpochPhase.OPEN:
+        return 0
+    if phase is EpochPhase.PRICE_PUBLISHED:
+        return 1
+    if phase is EpochPhase.SETTLED:
+        return 2
+    raise ValueError("kernel returned an unknown epoch phase")
 
 
 def _global_entries_from_kernel(
     state: PerpState,
     *,
     mark_price_source_kind: int,
-) -> tuple[tuple[str, PerpsValueV1], ...]:
+) -> _GlobalEntriesV1:
     """Return the kernel globals as one immutable canonical module boundary."""
 
-    values = _global_values_from_kernel(
-        state,
-        mark_price_source_kind=mark_price_source_kind,
+    values: tuple[PerpsValueV1, ...] = (
+        state.breaker_active,
+        state.breaker_last_trigger_epoch,
+        state.claims_paid,
+        state.clearing_price_e8,
+        state.clearing_price_epoch,
+        state.clearing_price_seen,
+        state.depeg_buffer_bps,
+        _phase_ordinal(state.epoch_phase),
+        state.fee_income,
+        state.fee_pool_quote,
+        state.funding_cap_bps,
+        state.funding_rate_bps,
+        state.index_price_e8,
+        state.initial_insurance,
+        state.initial_margin_bps,
+        state.insurance_balance,
+        state.liquidation_penalty_bps,
+        state.maintenance_margin_bps,
+        mark_price_source_kind,
+        state.max_oracle_move_bps,
+        state.max_oracle_staleness_epochs,
+        state.max_position_abs,
+        state.min_notional_for_bounty,
+        state.now_epoch,
+        state.oracle_last_update_epoch,
+        state.oracle_seen,
     )
-    return tuple(sorted(values.items(), key=lambda item: item[0]))
+    return tuple(zip(_KERNEL_GLOBAL_FIELD_ORDER_V1, values, strict=True))
 
 
 def _kernel_account_is_unchanged(state: PerpState) -> bool:
@@ -261,33 +307,138 @@ def _kernel_account_is_unchanged(state: PerpState) -> bool:
     )
 
 
+def _global_entry_value(
+    entries: _GlobalEntriesV1,
+    field: str,
+) -> PerpsValueV1:
+    """Read one exact field from a complete canonical global-entry tuple."""
+
+    try:
+        index = ISOLATED_GLOBAL_FIELD_NAMES_V1.index(field)
+    except ValueError as error:
+        raise KeyError(field) from error
+    entry_field, value = entries[index]
+    if entry_field != field:
+        raise ValueError("isolated global entries do not match the declared registry")
+    return value
+
+
 def _build_patch(
-    before: dict[str, PerpsValueV1],
-    after: dict[str, PerpsValueV1],
+    before: _GlobalEntriesV1,
+    after: _GlobalEntriesV1,
 ) -> CanonicalIsolatedGlobalPatchV1 | IsolatedPerpTransitionRejectV1:
-    patch = _build_optional_patch(before, after)
+    patch = _build_optional_global_patch_from_entries(before, after)
     if patch is None:
         return _reject(IsolatedPerpTransitionCodeV1.EMPTY_PATCH, ("patch",))
     return patch
 
 
-def _build_optional_patch(
-    before: dict[str, PerpsValueV1],
-    after: dict[str, PerpsValueV1],
-) -> CanonicalIsolatedGlobalPatchV1 | IsolatedPerpTransitionRejectV1 | None:
-    """Build a canonical global patch when the transition changed globals."""
-
-    writes = tuple(
-        IsolatedGlobalWriteV1(field, before[field], after[field])
-        for field in sorted(PERP_ISOLATED_GLOBAL_KEYS)
-        if type(before[field]) is not type(after[field]) or before[field] != after[field]
+def _validated_global_entry_pair(
+    before_entry: object,
+    after_entry: object,
+    *,
+    index: int,
+    expected_field: str,
+) -> tuple[str, PerpsValueV1, PerpsValueV1] | IsolatedPerpTransitionRejectV1:
+    path = ("patch", "global", index)
+    if (
+        type(before_entry) is not tuple
+        or len(before_entry) != 2
+        or type(after_entry) is not tuple
+        or len(after_entry) != 2
+    ):
+        return _reject(IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE, path)
+    before_field, before_value = before_entry
+    after_field, after_value = after_entry
+    if (
+        type(before_field) is not str
+        or type(after_field) is not str
+        or before_field != expected_field
+        or before_field != after_field
+        or not _is_exact_perps_value(before_value)
+        or not _is_exact_perps_value(after_value)
+    ):
+        return _reject(IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE, path)
+    return (
+        before_field,
+        cast(PerpsValueV1, before_value),
+        cast(PerpsValueV1, after_value),
     )
+
+
+def _validated_global_entry_pairs(
+    before_entries: tuple[object, ...],
+    after_entries: tuple[object, ...],
+) -> tuple[tuple[str, PerpsValueV1, PerpsValueV1], ...] | IsolatedPerpTransitionRejectV1:
+    pair_results = tuple(
+        _validated_global_entry_pair(
+            before_entry,
+            after_entry,
+            index=index,
+            expected_field=ISOLATED_GLOBAL_FIELD_NAMES_V1[index],
+        )
+        for index, (before_entry, after_entry) in enumerate(
+            zip(before_entries, after_entries, strict=True)
+        )
+    )
+    first_reject = next(
+        (result for result in pair_results if type(result) is IsolatedPerpTransitionRejectV1),
+        None,
+    )
+    if first_reject is not None:
+        return first_reject
+    return cast(
+        tuple[tuple[str, PerpsValueV1, PerpsValueV1], ...],
+        pair_results,
+    )
+
+
+def _build_optional_global_patch_from_entries(
+    before: object,
+    after: object,
+) -> CanonicalIsolatedGlobalPatchV1 | IsolatedPerpTransitionRejectV1 | None:
+    """Build one canonical compare-and-replace patch from immutable tuples."""
+
+    if type(before) is not tuple or type(after) is not tuple:
+        return _reject(
+            IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE,
+            ("patch", "global"),
+        )
+    before_entries = cast(tuple[object, ...], before)
+    after_entries = cast(tuple[object, ...], after)
+    if len(before_entries) != len(after_entries) or len(before_entries) != len(
+        ISOLATED_GLOBAL_FIELD_NAMES_V1
+    ):
+        return _reject(
+            IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE,
+            ("patch", "global"),
+        )
+    exact_pairs = _validated_global_entry_pairs(
+        before_entries,
+        after_entries,
+    )
+    if type(exact_pairs) is IsolatedPerpTransitionRejectV1:
+        return exact_pairs
+    try:
+        writes = tuple(
+            IsolatedGlobalWriteV1(field, before_value, after_value)
+            for field, before_value, after_value in exact_pairs
+            if type(before_value) is not type(after_value) or before_value != after_value
+        )
+    except (TypeError, ValueError):
+        return _reject(
+            IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE,
+            ("patch", "global"),
+        )
     if not writes:
         return None
     try:
         return CanonicalIsolatedGlobalPatchV1(writes)
     except (TypeError, ValueError):
-        return _reject(IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE, ("patch",))
+        return _reject(
+            IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE,
+            ("patch", "global"),
+        )
 
 
 def _runtime_gate_reject(
@@ -302,14 +453,15 @@ def _runtime_gate_reject(
             IsolatedPerpTransitionCodeV1.WRONG_EXACT_TYPE,
             ("operator_authorized",),
         )
-    values = dict(pre.global_entries)
     positions_flat = all(account.position_base == 0 for _key, account in pre.account_entries)
     outcome = evaluate_perp_runtime_risk_gate(
         action_kind=action_kind,
         operator_ok=operator_authorized,
         unknown_fields_ok=True,
         sender_binding_ok=True,
-        epoch_settled_ok=(values["oracle_last_update_epoch"] == values["now_epoch"]),
+        epoch_settled_ok=(
+            pre.global_value("oracle_last_update_epoch") == pre.global_value("now_epoch")
+        ),
         positive_price_ok=positive_price_ok,
         positions_flat_ok=positions_flat,
         params_object_ok=True,
@@ -329,7 +481,7 @@ def _apply_global_kernel_action(
     *,
     mark_price_source_kind: int,
 ) -> IsolatedPerpTransitionResultV1:
-    before = dict(pre.global_entries)
+    before = pre.global_entries
     result = kernel_step(_kernel_state_from_market(pre), params)
     if not result.accepted or result.state is None:
         return _reject(
@@ -342,7 +494,7 @@ def _apply_global_kernel_action(
             IsolatedPerpTransitionCodeV1.INTERNAL_ACCOUNT_MUTATION,
             ("kernel", "account"),
         )
-    after = _global_values_from_kernel(
+    after = _global_entries_from_kernel(
         result.state,
         mark_price_source_kind=mark_price_source_kind,
     )
@@ -352,7 +504,7 @@ def _apply_global_kernel_action(
     try:
         candidate = _committed_isolated_market_from_transition_v1(
             pre,
-            tuple(sorted(after.items(), key=lambda item: item[0])),
+            after,
         )
     except (AttributeError, KeyError, TypeError, ValueError):
         return _reject(

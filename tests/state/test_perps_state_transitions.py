@@ -4,6 +4,7 @@ from typing import cast
 
 import pytest
 
+import src.core.perps as perps_module
 from src.core.domain_limits import PERP_ADVANCE_EPOCH_DELTA_MAX
 from src.core.perp_apply_funding_auto_gate import MARK_PRICE_SOURCE_EXTERNAL_MEDIAN
 from src.core.perp_epoch import perp_epoch_isolated_default_apply
@@ -16,6 +17,7 @@ from src.core.perps import (
     PerpsState,
 )
 from src.state.perps_state_transitions import (
+    IsolatedGlobalWriteV1,
     IsolatedPerpTransitionCodeV1,
     IsolatedPerpTransitionOkV1,
     IsolatedPerpTransitionRejectV1,
@@ -23,6 +25,7 @@ from src.state.perps_state_transitions import (
     apply_isolated_clear_breaker_v1,
     apply_isolated_publish_clearing_price_v1,
 )
+from src.state.state_snapshot_schema import ISOLATED_GLOBAL_FIELD_NAMES_V1
 from src.state.state_snapshot_values import CommittedPerpMarketStateV1
 from src.state.state_snapshots import snapshot_perps
 
@@ -132,6 +135,18 @@ def _assert_patch_replays(
         replayed[write.field] = write.replacement
     assert replayed == dict(result.market.global_entries)
     assert result.market.accounts is pre.accounts
+
+
+def test_global_write_registry_is_detached_from_mutable_legacy_key_set() -> None:
+    attacker_field = "attacker_controlled_field"
+    legacy_keys = perps_module.PERP_ISOLATED_GLOBAL_KEYS
+    legacy_keys.add(attacker_field)
+    try:
+        assert attacker_field not in ISOLATED_GLOBAL_FIELD_NAMES_V1
+        with pytest.raises(ValueError, match="field is not declared"):
+            IsolatedGlobalWriteV1(attacker_field, 0, 1)
+    finally:
+        legacy_keys.discard(attacker_field)
 
 
 def test_advance_epoch_matches_the_mounted_kernel_and_returns_one_patch() -> None:

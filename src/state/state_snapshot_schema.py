@@ -363,6 +363,7 @@ def _isolated_global_field_schema(name: str) -> SchemaV1:
 ISOLATED_GLOBAL_FIELDS_V1 = tuple(
     _field(name, _isolated_global_field_schema(name)) for name in sorted(PERP_ISOLATED_GLOBAL_KEYS)
 )
+ISOLATED_GLOBAL_FIELD_NAMES_V1 = tuple(field.name for field in ISOLATED_GLOBAL_FIELDS_V1)
 ISOLATED_GLOBAL_SCHEMA_V1 = ExactKeyedMap(
     ISOLATED_GLOBAL_FIELDS_V1,
     PERPS_ISOLATED_GLOBAL_MAP_SCHEMA_ID_V1,

@@ -32,14 +32,16 @@ from .perps_state_transitions import (
     CanonicalIsolatedGlobalPatchV1,
     IsolatedPerpTransitionCodeV1,
     IsolatedPerpTransitionRejectV1,
-    _build_optional_patch,
-    _global_values_from_kernel,
+    _build_optional_global_patch_from_entries,
+    _global_entries_from_kernel,
     _validated_prestate,
 )
 from .state_snapshot_values import CommittedPerpMarketStateV1
 from .state_transitions import (
     _committed_isolated_market_with_globals_and_accounts_from_transition_v1,
 )
+
+FCIS_MUTABLE_LOCAL_BUFFERS_FORBIDDEN = True
 
 
 @final
@@ -124,19 +126,21 @@ def _freeze_liquidation_candidate(
             ("patch", "accounts"),
         )
 
-    before_globals = dict(pre.global_entries)
-    mark_source = cast(int, before_globals["mark_price_source_kind"])
-    after_globals = _global_values_from_kernel(
+    mark_source = cast(int, pre.global_value("mark_price_source_kind"))
+    after_globals = _global_entries_from_kernel(
         post,
         mark_price_source_kind=mark_source,
     )
-    global_patch = _build_optional_patch(before_globals, after_globals)
+    global_patch = _build_optional_global_patch_from_entries(
+        pre.global_entries,
+        after_globals,
+    )
     if type(global_patch) is IsolatedPerpTransitionRejectV1:
         return global_patch
     try:
         candidate = _committed_isolated_market_with_globals_and_accounts_from_transition_v1(
             pre,
-            tuple(sorted(after_globals.items(), key=lambda item: item[0])),
+            after_globals,
             account_entries,
         )
     except (AttributeError, KeyError, TypeError, ValueError):

@@ -10,23 +10,18 @@ from __future__ import annotations
 from bisect import bisect_left
 from typing import TypeAlias, cast
 
-from ..core.perps import PERP_ISOLATED_GLOBAL_KEYS
 from .perps_account_transitions import (
     CanonicalIsolatedAccountPatchV1,
     IsolatedAccountWriteV1,
     _canonical_pubkey_reject,
 )
 from .perps_state_transitions import (
-    CanonicalIsolatedGlobalPatchV1,
-    IsolatedGlobalWriteV1,
     IsolatedPerpTransitionCodeV1,
     IsolatedPerpTransitionRejectV1,
-    _is_exact_perps_value,
 )
 from .state_snapshot_values import (
     CommittedPerpAccountStateV1,
     CommittedPerpMarketStateV1,
-    PerpsValueV1,
 )
 
 FCIS_MUTABLE_LOCAL_BUFFERS_FORBIDDEN = True
@@ -39,7 +34,6 @@ _AccountPatchAndEntriesV1: TypeAlias = tuple[
     CanonicalIsolatedAccountPatchV1 | None,
     _AccountEntriesV1,
 ]
-_GLOBAL_FIELD_ORDER_V1 = tuple(sorted(PERP_ISOLATED_GLOBAL_KEYS))
 
 
 def _reject(
@@ -162,97 +156,3 @@ def _validated_existing_account_replacements(
             return _reject(IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE, path)
         previous_key = exact_key
     return cast(_AccountEntriesV1, replacements)
-
-
-def _build_optional_global_patch_from_entries(
-    before: object,
-    after: object,
-) -> CanonicalIsolatedGlobalPatchV1 | IsolatedPerpTransitionRejectV1 | None:
-    """Build one canonical global patch from immutable entry tuples."""
-
-    if type(before) is not tuple or type(after) is not tuple:
-        return _reject(
-            IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE,
-            ("patch", "global"),
-        )
-    before_entries = cast(tuple[object, ...], before)
-    after_entries = cast(tuple[object, ...], after)
-    if len(before_entries) != len(after_entries) or len(before_entries) != len(
-        _GLOBAL_FIELD_ORDER_V1
-    ):
-        return _reject(
-            IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE,
-            ("patch", "global"),
-        )
-
-    pair_results = tuple(
-        _validated_global_entry_pair(
-            before_entry,
-            after_entry,
-            index=index,
-            expected_field=_GLOBAL_FIELD_ORDER_V1[index],
-        )
-        for index, (before_entry, after_entry) in enumerate(
-            zip(before_entries, after_entries, strict=True)
-        )
-    )
-    first_reject = _first_isolated_reject(cast(tuple[object, ...], pair_results))
-    if first_reject is not None:
-        return first_reject
-    exact_pairs = cast(
-        tuple[tuple[str, PerpsValueV1, PerpsValueV1], ...],
-        pair_results,
-    )
-    try:
-        writes = tuple(
-            IsolatedGlobalWriteV1(before_field, before_value, after_value)
-            for before_field, before_value, after_value in exact_pairs
-            if type(before_value) is not type(after_value) or before_value != after_value
-        )
-    except (TypeError, ValueError):
-        return _reject(
-            IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE,
-            ("patch", "global"),
-        )
-    if not writes:
-        return None
-    try:
-        return CanonicalIsolatedGlobalPatchV1(writes)
-    except (TypeError, ValueError):
-        return _reject(
-            IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE,
-            ("patch", "global"),
-        )
-
-
-def _validated_global_entry_pair(
-    before_entry: object,
-    after_entry: object,
-    *,
-    index: int,
-    expected_field: str,
-) -> tuple[str, PerpsValueV1, PerpsValueV1] | IsolatedPerpTransitionRejectV1:
-    path = ("patch", "global", index)
-    if (
-        type(before_entry) is not tuple
-        or len(before_entry) != 2
-        or type(after_entry) is not tuple
-        or len(after_entry) != 2
-    ):
-        return _reject(IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE, path)
-    before_field, before_value = before_entry
-    after_field, after_value = after_entry
-    if (
-        type(before_field) is not str
-        or type(after_field) is not str
-        or before_field != expected_field
-        or before_field != after_field
-        or not _is_exact_perps_value(before_value)
-        or not _is_exact_perps_value(after_value)
-    ):
-        return _reject(IsolatedPerpTransitionCodeV1.INVALID_CANDIDATE, path)
-    return (
-        before_field,
-        cast(PerpsValueV1, before_value),
-        cast(PerpsValueV1, after_value),
-    )

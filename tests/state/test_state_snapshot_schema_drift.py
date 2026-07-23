@@ -18,6 +18,7 @@ from src.state.state_snapshot_schema import (
     CH3P_STATE_FIELDS_V1,
     CHNP_GLOBAL_FIELDS_V1,
     ENUM_REGISTRATIONS_V1,
+    ISOLATED_GLOBAL_FIELD_NAMES_V1,
     ISOLATED_GLOBAL_FIELDS_V1,
     KNOWN_STATE_ADMISSION_SCHEMA_IDS_V1,
     RECORD_REGISTRATIONS_V1,
@@ -33,14 +34,8 @@ def test_record_registry_is_exhaustive_ordered_and_field_exact() -> None:
         StateRecordTagV1
     )
     for registration in RECORD_REGISTRATIONS_V1:
-        source_fields = tuple(
-            item.name
-            for item in fields(registration.source_type)  # type: ignore[arg-type]
-        )
-        owned_fields = tuple(
-            item.name
-            for item in fields(registration.owned_type)  # type: ignore[arg-type]
-        )
+        source_fields = tuple(item.name for item in fields(registration.source_type))
+        owned_fields = tuple(item.name for item in fields(registration.owned_type))
         assert source_fields == owned_fields, registration.tag
 
 
@@ -62,6 +57,9 @@ def test_schema_registry_ids_are_unique_and_complete() -> None:
 
 
 def test_perps_key_registries_are_exact_and_canonical() -> None:
+    assert ISOLATED_GLOBAL_FIELD_NAMES_V1 == tuple(
+        field.name for field in ISOLATED_GLOBAL_FIELDS_V1
+    )
     expectations = (
         (ISOLATED_GLOBAL_FIELDS_V1, PERP_ISOLATED_GLOBAL_KEYS),
         (CH2P_STATE_FIELDS_V1, PERP_CLEARINGHOUSE_2P_STATE_KEYS),

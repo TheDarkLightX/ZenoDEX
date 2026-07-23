@@ -7,9 +7,9 @@ from src.state.perps_state_transitions import (
     CanonicalIsolatedGlobalPatchV1,
     IsolatedPerpTransitionCodeV1,
     IsolatedPerpTransitionRejectV1,
+    _build_optional_global_patch_from_entries,
 )
 from src.state.perps_transition_combinators import (
-    _build_optional_global_patch_from_entries,
     _existing_account_patch_and_entries,
 )
 from src.state.state_snapshot_values import CommittedPerpAccountStateV1
