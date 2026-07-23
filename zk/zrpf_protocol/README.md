@@ -34,6 +34,10 @@ The crate currently provides:
 - a `ValidatedSparseMerkleBatchTransitionV1` that chains 1..=64 exact cell
   witnesses in strictly increasing key order, requires one unique economic
   action ID per write, and binds the first and final roots;
+- a `ValidatedJmtStorageUpdatePlanV1` that preserves the existing binary root
+  relation while deriving exact 64-nibble boundary commitments, binding them to
+  one tree identity and strict successor version, and validating canonical
+  hash-bound stale-node candidates;
 - a bounded `ProgramManifestV1` that commits proof backend, program, declared
   build identity inputs, verifier policy, receipt codec, security level, and
   privacy claim;
@@ -89,6 +93,19 @@ It does not authenticate a receipt, atomically persist writes, admit a ledger
 transition, or establish a compressed multiproof. A future compression profile
 must define one canonical multiproof ABI, preserve the same key order and root
 result, reject duplicate keys, and bind the complete canonical write set.
+
+The JMT storage-update profile is an additive storage boundary around that
+existing sparse-Merkle relation. It derives the subtree commitment at every
+four-bit boundary, keeps the first pre-state commitment and final post-state
+commitment for shared paths, and requires the supplied target-version node list
+to match those derivations exactly. Stale candidates must be path-unique,
+historical, touched by the transition, and bound to the derived base hash.
+These values still do not prove that a historical physical node was the live
+node selected by a concrete tree reader, validate a concrete 16-child node
+payload, authorize pruning, persist anything, or change `state_root_v5`.
+The storage adapter and atomic shell commit remain separate assurance layers.
+The design and promotion gates are documented in
+`docs/research/ZENODEX_JMT_STORAGE_BOUNDARY_V1_20260723.md`.
 
 The manifest and task objects are canonical proposals. A manifest becomes
 eligible only after a separately governed release policy authorizes its exact
