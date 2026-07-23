@@ -497,6 +497,43 @@ def test_checker_rejects_mutable_dataclass_evaluation_state(tmp_path: Path) -> N
     assert "MUTABLE_CORE_STATE" in _codes(_run(tmp_path, source))
 
 
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "[]",
+        "{}",
+        "set()",
+        "[item for item in source]",
+        "{item: item for item in source}",
+        "{item for item in source}",
+        "list(source)",
+        "dict(source)",
+    ],
+)
+def test_checker_rejects_mutable_buffers_under_buffer_free_profile(
+    tmp_path: Path,
+    expression: str,
+) -> None:
+    source = (
+        "FCIS_MUTABLE_LOCAL_BUFFERS_FORBIDDEN = True\n"
+        "def build(source: tuple[object, ...]) -> object:\n"
+        f"    candidate = {expression}\n"
+        "    return tuple(candidate)\n"
+    )
+
+    assert "MUTABLE_LOCAL_BUFFER" in _codes(_run(tmp_path, source))
+
+
+def test_checker_accepts_tuple_only_buffer_free_profile(tmp_path: Path) -> None:
+    source = (
+        "FCIS_MUTABLE_LOCAL_BUFFERS_FORBIDDEN = True\n"
+        "def build(source: tuple[object, ...]) -> tuple[object, ...]:\n"
+        "    return tuple(item for item in source)\n"
+    )
+
+    assert _codes(_run(tmp_path, source)) == set()
+
+
 def test_checker_rejects_public_scratch_conversion_in_core_tree(tmp_path: Path) -> None:
     state_dir = tmp_path / "src" / "state"
     state_dir.mkdir(parents=True)

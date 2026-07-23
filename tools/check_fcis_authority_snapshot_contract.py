@@ -19,7 +19,10 @@ DEFAULT_AUTHORITY_PATHS = (
     Path("src/state/owned_collections.py"),
     Path("src/state/perps_account_transitions.py"),
     Path("src/state/perps_collateral_transitions.py"),
+    Path("src/state/perps_funding_transitions.py"),
+    Path("src/state/perps_settlement_transitions.py"),
     Path("src/state/perps_state_transitions.py"),
+    Path("src/state/perps_transition_combinators.py"),
     Path("src/state/pool_creation_transition.py"),
     Path("src/state/state_snapshot_values.py"),
     Path("src/state/state_snapshot_schema.py"),
@@ -35,6 +38,7 @@ DEFAULT_TEST_MATRIX_PATHS = (
     Path("docs/specs/fcis_authority_snapshot_v1/TEST_MATRIX_PR477_PR478.md"),
 )
 TEST_ID_PATTERN = re.compile(r"FCIS-(?:T-[A-Z0-9-]+|PROP-[0-9]{3})")
+_MUTABLE_BUFFER_FREE_MARKER = "FCIS_MUTABLE_LOCAL_BUFFERS_FORBIDDEN"
 
 _BROAD_ISINSTANCE_TARGETS = {
     "Mapping",
@@ -671,6 +675,56 @@ def _assignment_string_tuple(module: ast.Module, name: str) -> tuple[str, ...] |
     return None
 
 
+def _module_exact_true(module: ast.Module, name: str) -> bool:
+    for statement in module.body:
+        target: ast.AST | None = None
+        value: ast.AST | None = None
+        if type(statement) is ast.Assign and len(statement.targets) == 1:
+            target = statement.targets[0]
+            value = statement.value
+        elif type(statement) is ast.AnnAssign:
+            target = statement.target
+            value = statement.value
+        if type(target) is not ast.Name or target.id != name:
+            continue
+        return type(value) is ast.Constant and type(value.value) is bool and value.value is True
+    return False
+
+
+def _mutable_buffer_kind(node: ast.AST) -> str | None:
+    if type(node) in {ast.List, ast.ListComp}:
+        return "list"
+    if type(node) in {ast.Dict, ast.DictComp}:
+        return "dict"
+    if type(node) in {ast.Set, ast.SetComp}:
+        return "set"
+    if type(node) is ast.Call and _last_name(node.func) in {"dict", "list", "set"}:
+        return _last_name(node.func)
+    return None
+
+
+def _check_mutable_local_buffers(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    if not _module_exact_true(module, _MUTABLE_BUFFER_FREE_MARKER):
+        return []
+    violations: list[_Violation] = []
+    for node in ast.walk(module):
+        detail = _mutable_buffer_kind(node)
+        if detail is not None:
+            violations.append(
+                _Violation(
+                    relative_path,
+                    getattr(node, "lineno", 0),
+                    getattr(node, "col_offset", 0),
+                    "MUTABLE_LOCAL_BUFFER",
+                    detail,
+                )
+            )
+    return violations
+
+
 def _check_registry_constants(
     module: ast.Module,
     relative_path: str,
@@ -742,7 +796,12 @@ def _check_authority_path(
     visitor = _AuthorityVisitor(display)
     visitor.visit(module)
     visitor.finalize(module)
-    return display, visitor.violations + _check_registry_constants(module, display)
+    return (
+        display,
+        visitor.violations
+        + _check_registry_constants(module, display)
+        + _check_mutable_local_buffers(module, display),
+    )
 
 
 _SENSITIVE_SOURCE_CODES = {
@@ -758,6 +817,7 @@ _SENSITIVE_SOURCE_CODES = {
     "REGISTRY_BINDING_ESCAPE",
     "LEGACY_MUTABLE_CONSTRUCTION",
     "MUTABLE_CORE_BOUNDARY",
+    "MUTABLE_LOCAL_BUFFER",
     "STRUCTURAL_CORE_BOUNDARY",
     "SYNTAX_ERROR",
 }

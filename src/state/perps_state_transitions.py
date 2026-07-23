@@ -53,6 +53,8 @@ class IsolatedPerpTransitionCodeV1(Enum):
     EMPTY_PATCH = "empty_patch"
     AMOUNT_NOT_POSITIVE = "amount_not_positive"
     MARKET_PARAMS = "market_params"
+    FUNDING_GATE = "funding_gate"
+    SETTLEMENT_PATH = "settlement_path"
 
 
 @final
