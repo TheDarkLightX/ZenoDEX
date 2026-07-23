@@ -14,8 +14,9 @@ snapshot instead of the entire global state.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Sequence, Tuple
+from typing import TYPE_CHECKING, Mapping, Sequence, Tuple
 
+from .balance_commitment import LogicalBalanceEntryV1, _encode_logical_balance_entries_v1
 from .balances import AssetId, BalanceTable, PubKey
 from .canonical import (
     domain_sep_bytes,
@@ -28,6 +29,9 @@ from .intents import Intent, IntentKind
 from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
 from .pools import PoolState, PoolStatus, compute_pool_id
+
+if TYPE_CHECKING:
+    from .state_snapshot_values import CommittedBalanceTableV1
 
 SUPPORT_ROOT_VERSION = 4
 
@@ -102,7 +106,9 @@ def derive_batch_state_support(
                 balance_keys.add((sender, asset1))
                 if isinstance(fee_bps, int) and not isinstance(fee_bps, bool):
                     try:
-                        pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
+                        pool_id = compute_pool_id(
+                            asset0, asset1, fee_bps, curve_tag="CPMM", curve_params=""
+                        )
                         pool_ids.add(pool_id)
                     except Exception:
                         # Invalid CREATE_POOL params; keep support minimal and let validation reject.
@@ -147,22 +153,58 @@ def derive_batch_state_support(
     )
 
 
-def compute_support_state_root(
-    *,
+def _encode_legacy_support_balances_section_v1(
     balances: BalanceTable,
+    support: BatchStateSupport,
+) -> bytes:
+    logical_entries = tuple(
+        ((pubkey, asset), amount)
+        for pubkey, asset in support.balance_keys
+        if (amount := balances.get(pubkey, asset)) != 0
+    )
+    return _encode_logical_balance_entries_v1(
+        logical_entries,
+        duplicate_error="duplicate decoded (pubkey, asset) in support balances",
+    )
+
+
+def _encode_committed_support_balances_section_v1(
+    balances: CommittedBalanceTableV1,
+    support: BatchStateSupport,
+) -> bytes:
+    from .state_snapshot_values import CommittedBalanceTableV1
+    from .state_snapshots import snapshot_balance_table
+
+    if type(balances) is not CommittedBalanceTableV1:
+        raise TypeError("balances must be an exact CommittedBalanceTableV1")
+    admitted = snapshot_balance_table(balances)
+    logical_entries: tuple[LogicalBalanceEntryV1, ...] = tuple(
+        ((pubkey, asset), amount)
+        for pubkey, asset in support.balance_keys
+        if (amount := admitted.get(pubkey, asset)) != 0
+    )
+    return _encode_logical_balance_entries_v1(
+        logical_entries,
+        duplicate_error="duplicate decoded (pubkey, asset) in support balances",
+    )
+
+
+def _compute_support_state_root_from_balances_section_v1(
+    *,
+    balances_section: bytes,
     pools: Mapping[str, PoolState],
     lp_balances: LPTable,
     support: BatchStateSupport,
     nonces: NonceTable | None = None,
 ) -> str:
     """
-    Compute a deterministic commitment over the batch's support.
+    Join one canonical balance section with the remaining support sections.
 
     Entries with zero balance / missing pools are omitted, mirroring the full
     `compute_state_root()` sparsity behavior.
     """
-    if not isinstance(balances, BalanceTable):
-        raise TypeError("balances must be a BalanceTable")
+    if type(balances_section) is not bytes:
+        raise TypeError("balances_section must be exact bytes")
     if not isinstance(lp_balances, LPTable):
         raise TypeError("lp_balances must be an LPTable")
     if not isinstance(support, BatchStateSupport):
@@ -170,30 +212,6 @@ def compute_support_state_root(
     nonce_table = NonceTable() if nonces is None else nonces
     if not isinstance(nonce_table, NonceTable):
         raise TypeError("nonces must be a NonceTable")
-
-    bal_out = bytearray()
-    bal_entries: list[tuple[bytes, bytes, int]] = []
-    bal_seen: set[tuple[bytes, bytes]] = set()
-    for pubkey, asset in support.balance_keys:
-        amount = balances.get(pubkey, asset)
-        if amount == 0:
-            continue
-        pk_b = hex_to_bytes_fixed(pubkey, nbytes=48, name="pubkey")
-        asset_b = hex_to_bytes_fixed(asset, nbytes=32, name="asset")
-        key = (pk_b, asset_b)
-        if key in bal_seen:
-            raise ValueError("duplicate decoded (pubkey, asset) in support balances")
-        bal_seen.add(key)
-        if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
-            raise ValueError(f"invalid balance amount: {amount!r}")
-        bal_entries.append((pk_b, asset_b, amount))
-    bal_entries.sort(key=lambda t: (t[0], t[1]))
-    bal_out += encode_uvarint(len(bal_entries))
-    for pk_b, asset_b, amount in bal_entries:
-        bal_out += pk_b
-        bal_out += asset_b
-        bal_out += encode_uvarint(amount)
-    balances_section = bytes(bal_out)
 
     pool_out = bytearray()
     pool_entries: list[tuple[bytes, PoolState]] = []
@@ -312,7 +330,9 @@ def compute_support_state_root(
             if timestamp is not None:
                 lp_duration_out += encode_uvarint(timestamp)
         lp_duration_out += encode_uvarint(metadata.churn_tier)
-        lp_duration_out += encode_uvarint(1 if metadata.last_churn_update_timestamp is not None else 0)
+        lp_duration_out += encode_uvarint(
+            1 if metadata.last_churn_update_timestamp is not None else 0
+        )
         if metadata.last_churn_update_timestamp is not None:
             lp_duration_out += encode_uvarint(metadata.last_churn_update_timestamp)
     lp_duration_section = bytes(lp_duration_out)
@@ -350,6 +370,69 @@ def compute_support_state_root(
         + encode_bytes(nonce_section)
     )
     return sha256_hex(payload)
+
+
+def compute_support_state_root(
+    *,
+    balances: BalanceTable,
+    pools: Mapping[str, PoolState],
+    lp_balances: LPTable,
+    support: BatchStateSupport,
+    nonces: NonceTable | None = None,
+) -> str:
+    """Compute the existing support-root v4 from one legacy balance table."""
+
+    if not isinstance(balances, BalanceTable):
+        raise TypeError("balances must be a BalanceTable")
+    if not isinstance(lp_balances, LPTable):
+        raise TypeError("lp_balances must be an LPTable")
+    if not isinstance(support, BatchStateSupport):
+        raise TypeError("support must be a BatchStateSupport")
+    nonce_table = NonceTable() if nonces is None else nonces
+    if not isinstance(nonce_table, NonceTable):
+        raise TypeError("nonces must be a NonceTable")
+    return _compute_support_state_root_from_balances_section_v1(
+        balances_section=_encode_legacy_support_balances_section_v1(balances, support),
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonce_table,
+    )
+
+
+def compute_support_state_root_with_committed_balances_v1(
+    *,
+    balances: CommittedBalanceTableV1,
+    pools: Mapping[str, PoolState],
+    lp_balances: LPTable,
+    support: BatchStateSupport,
+    nonces: NonceTable | None = None,
+) -> str:
+    """Compute support-root v4 from an exact committed balance snapshot.
+
+    The function is migration-scoped and unmounted. It changes only the source
+    of the BAL section, then joins that section through the same support-root
+    implementation used by the legacy reader.
+    """
+
+    from .state_snapshot_values import CommittedBalanceTableV1
+
+    if type(balances) is not CommittedBalanceTableV1:
+        raise TypeError("balances must be an exact CommittedBalanceTableV1")
+    if not isinstance(lp_balances, LPTable):
+        raise TypeError("lp_balances must be an LPTable")
+    if not isinstance(support, BatchStateSupport):
+        raise TypeError("support must be a BatchStateSupport")
+    nonce_table = NonceTable() if nonces is None else nonces
+    if not isinstance(nonce_table, NonceTable):
+        raise TypeError("nonces must be a NonceTable")
+    return _compute_support_state_root_from_balances_section_v1(
+        balances_section=_encode_committed_support_balances_section_v1(balances, support),
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonce_table,
+    )
 
 
 def compute_support_state_root_for_batch(
