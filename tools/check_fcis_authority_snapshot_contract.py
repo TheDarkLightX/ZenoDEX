@@ -18,6 +18,7 @@ DEFAULT_AUTHORITY_PATHS = (
     Path("src/state/snapshot_combinators.py"),
     Path("src/state/owned_collections.py"),
     Path("src/state/perps_account_transitions.py"),
+    Path("src/state/perps_collateral_transitions.py"),
     Path("src/state/perps_state_transitions.py"),
     Path("src/state/pool_creation_transition.py"),
     Path("src/state/state_snapshot_values.py"),

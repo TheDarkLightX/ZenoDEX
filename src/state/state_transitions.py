@@ -394,6 +394,17 @@ def apply_balance_deltas_v1(
     return apply_canonical_balance_patch_v1(pre, patch_result.patch)
 
 
+def validate_committed_balance_state_v1(
+    pre: CommittedBalanceTableV1,
+) -> BalancePatchRejectV1 | None:
+    """Revalidate one exact balance state before any authority-bearing read."""
+
+    entries = _validated_balance_entries_v1(pre)
+    if type(entries) is BalancePatchRejectV1:
+        return entries
+    return None
+
+
 def build_canonical_balance_patch_v1(
     writes: tuple[BalanceWriteV1, ...],
 ) -> BalancePatchBuildResultV1:
@@ -2211,6 +2222,7 @@ __all__ = [
     "build_canonical_nonce_patch_v1",
     "build_canonical_pool_patch_v1",
     "validate_balance_deltas_v1",
+    "validate_committed_balance_state_v1",
     "validate_committed_nonce_state_v1",
     "validate_lp_position_deltas_v1",
     "validate_pool_deltas_v1",

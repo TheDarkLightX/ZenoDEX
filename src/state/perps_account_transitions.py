@@ -136,9 +136,11 @@ IsolatedAccountTransitionResultV1: TypeAlias = (
 def _sender_gate_reject(
     account_pubkey: str,
     sender_pubkey: str,
+    *,
+    action_kind: int,
 ) -> IsolatedPerpTransitionRejectV1 | None:
     outcome = evaluate_perp_runtime_risk_gate(
-        action_kind=ACTION_SET_POSITION,
+        action_kind=action_kind,
         operator_ok=True,
         unknown_fields_ok=True,
         sender_binding_ok=account_pubkey == sender_pubkey,
@@ -159,6 +161,8 @@ def _sender_gate_reject(
 def _validated_sender_bound_pubkeys(
     account_pubkey: object,
     sender_pubkey: object,
+    *,
+    action_kind: int,
 ) -> tuple[str, str] | IsolatedPerpTransitionRejectV1:
     account_reject = _canonical_pubkey_reject(account_pubkey, ("account_pubkey",))
     if account_reject is not None:
@@ -168,7 +172,7 @@ def _validated_sender_bound_pubkeys(
         return sender_reject
     account = cast(str, account_pubkey)
     sender = cast(str, sender_pubkey)
-    gate_reject = _sender_gate_reject(account, sender)
+    gate_reject = _sender_gate_reject(account, sender, action_kind=action_kind)
     if gate_reject is not None:
         return gate_reject
     return account, sender
@@ -244,20 +248,16 @@ def _account_candidate(
     return IsolatedAccountTransitionOkV1(candidate, patch)
 
 
-def _set_position_candidate(
+def _apply_account_kernel_action(
     pre: CommittedPerpMarketStateV1,
     *,
     account_pubkey: str,
-    new_position_base: int,
+    params: ActionParams,
 ) -> IsolatedAccountTransitionResultV1:
     account = pre.get_account(account_pubkey) or _empty_account()
     result = kernel_step(
         _kernel_state_with_account(pre, account),
-        ActionParams(
-            action=Action.SET_POSITION,
-            new_position_base=new_position_base,
-            auth_ok=True,
-        ),
+        params,
     )
     if not result.accepted or result.state is None:
         return _reject(
@@ -309,7 +309,11 @@ def apply_isolated_set_position_v1(
     validated = _validated_prestate(pre)
     if type(validated) is IsolatedPerpTransitionRejectV1:
         return validated
-    bound_pubkeys = _validated_sender_bound_pubkeys(account_pubkey, sender_pubkey)
+    bound_pubkeys = _validated_sender_bound_pubkeys(
+        account_pubkey,
+        sender_pubkey,
+        action_kind=ACTION_SET_POSITION,
+    )
     if type(bound_pubkeys) is IsolatedPerpTransitionRejectV1:
         return bound_pubkeys
     canonical_account_pubkey, _canonical_sender_pubkey = bound_pubkeys
@@ -319,8 +323,12 @@ def apply_isolated_set_position_v1(
             ("new_position_base",),
         )
 
-    return _set_position_candidate(
+    return _apply_account_kernel_action(
         validated,
         account_pubkey=canonical_account_pubkey,
-        new_position_base=new_position_base,
+        params=ActionParams(
+            action=Action.SET_POSITION,
+            new_position_base=new_position_base,
+            auth_ok=True,
+        ),
     )

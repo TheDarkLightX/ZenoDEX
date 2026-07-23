@@ -47,6 +47,8 @@ class IsolatedPerpTransitionCodeV1(Enum):
     KERNEL_REJECT = "kernel_reject"
     INTERNAL_ACCOUNT_MUTATION = "internal_account_mutation"
     INTERNAL_GLOBAL_MUTATION = "internal_global_mutation"
+    INSUFFICIENT_BALANCE = "insufficient_balance"
+    BALANCE_PATCH = "balance_patch"
     INVALID_CANDIDATE = "invalid_candidate"
     EMPTY_PATCH = "empty_patch"
 
