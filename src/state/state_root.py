@@ -40,7 +40,14 @@ from .nonces import NonceTable
 from .pools import PoolState, PoolStatus, validate_pool_id_format, validate_pool_identity
 
 if TYPE_CHECKING:
-    from .state_snapshot_values import CommittedBalanceTableV1
+    from .owned_collections import OwnedMapV1
+    from .state_snapshot_values import (
+        CommittedBalanceTableV1,
+        CommittedFeeAccumulatorStateV1,
+        CommittedLPTableV1,
+        CommittedNonceTableV1,
+        CommittedPoolStateV1,
+    )
 
 STATE_ROOT_VERSION = 5
 
@@ -435,6 +442,34 @@ def compute_state_root(
 STATE_ROOT_SECTION_LABELS: tuple[bytes, ...] = (b"BAL", b"POL", b"LPB", b"LPA", b"NNC", b"FEE")
 
 
+def _state_root_preimage_from_sections_v1(
+    *,
+    balances_section: bytes,
+    pools_section: bytes,
+    lp_balances_section: bytes,
+    lp_duration_risk_section: bytes,
+    nonces_section: bytes,
+    fee_section: bytes,
+) -> bytes:
+    """Join six already canonical root-v5 sections in protocol order."""
+
+    sections = {
+        b"BAL": balances_section,
+        b"POL": pools_section,
+        b"LPB": lp_balances_section,
+        b"LPA": lp_duration_risk_section,
+        b"NNC": nonces_section,
+        b"FEE": fee_section,
+    }
+    if any(type(section) is not bytes for section in sections.values()):
+        raise TypeError("state-root sections must be exact bytes")
+    out = bytearray(domain_sep_bytes("state_root", version=STATE_ROOT_VERSION))
+    for label in STATE_ROOT_SECTION_LABELS:
+        out += label
+        out += encode_bytes(sections[label])
+    return bytes(out)
+
+
 def _state_root_preimage_from_balances_section_v1(
     *,
     balances_section: bytes,
@@ -453,19 +488,14 @@ def _state_root_preimage_from_balances_section_v1(
     if not isinstance(nonce_table, NonceTable):
         raise TypeError("nonces must be a NonceTable")
 
-    sections = {
-        b"BAL": balances_section,
-        b"POL": _encode_pools_section(pools),
-        b"LPB": _encode_lp_section(lp_balances),
-        b"LPA": _encode_lp_duration_risk_section(lp_balances),
-        b"NNC": _encode_nonce_section(nonce_table),
-        b"FEE": _encode_fee_section(fee_accumulator),
-    }
-    out = bytearray(domain_sep_bytes("state_root", version=STATE_ROOT_VERSION))
-    for label in STATE_ROOT_SECTION_LABELS:
-        out += label
-        out += encode_bytes(sections[label])
-    return bytes(out)
+    return _state_root_preimage_from_sections_v1(
+        balances_section=balances_section,
+        pools_section=_encode_pools_section(pools),
+        lp_balances_section=_encode_lp_section(lp_balances),
+        lp_duration_risk_section=_encode_lp_duration_risk_section(lp_balances),
+        nonces_section=_encode_nonce_section(nonce_table),
+        fee_section=_encode_fee_section(fee_accumulator),
+    )
 
 
 def state_root_preimage(
@@ -507,6 +537,35 @@ def state_root_preimage_with_committed_balances_v1(
 
     return _state_root_preimage_from_balances_section_v1(
         balances_section=_encode_committed_balances_section_v1(balances),
+        pools=pools,
+        lp_balances=lp_balances,
+        nonces=nonces,
+        fee_accumulator=fee_accumulator,
+    )
+
+
+def state_root_preimage_with_committed_spot_state_v1(
+    *,
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    nonces: CommittedNonceTableV1,
+    fee_accumulator: CommittedFeeAccumulatorStateV1,
+) -> bytes:
+    """Build root-v5 bytes directly from exact committed spot state.
+
+    This migration-scoped reader remains unmounted until the aggregate
+    ``DexState`` owns all five exact values and the Rust-authority reader has
+    matching cross-language evidence. Each input is re-admitted through the
+    one closed state profile before its canonical section is encoded.
+    """
+
+    from .committed_spot_roots import (
+        state_root_preimage_with_committed_spot_state_v1 as _read_exact_root,
+    )
+
+    return _read_exact_root(
+        balances=balances,
         pools=pools,
         lp_balances=lp_balances,
         nonces=nonces,

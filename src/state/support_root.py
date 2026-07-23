@@ -31,7 +31,13 @@ from .nonces import NonceTable
 from .pools import PoolState, PoolStatus, compute_pool_id
 
 if TYPE_CHECKING:
-    from .state_snapshot_values import CommittedBalanceTableV1
+    from .owned_collections import OwnedMapV1
+    from .state_snapshot_values import (
+        CommittedBalanceTableV1,
+        CommittedLPTableV1,
+        CommittedNonceTableV1,
+        CommittedPoolStateV1,
+    )
 
 SUPPORT_ROOT_VERSION = 4
 
@@ -187,6 +193,32 @@ def _encode_committed_support_balances_section_v1(
         logical_entries,
         duplicate_error="duplicate decoded (pubkey, asset) in support balances",
     )
+
+
+def _hash_support_sections_v1(
+    *,
+    balances_section: bytes,
+    pools_section: bytes,
+    lp_section: bytes,
+    lp_duration_section: bytes,
+    nonce_section: bytes,
+) -> str:
+    """Hash five already canonical support-root-v4 sections."""
+
+    sections = (
+        (b"BAL", balances_section),
+        (b"POL", pools_section),
+        (b"LPB", lp_section),
+        (b"LPA", lp_duration_section),
+        (b"NNC", nonce_section),
+    )
+    if any(type(section) is not bytes for _label, section in sections):
+        raise TypeError("support-root sections must be exact bytes")
+    payload = bytearray(domain_sep_bytes("state_support_root", version=SUPPORT_ROOT_VERSION))
+    for label, section in sections:
+        payload += label
+        payload += encode_bytes(section)
+    return sha256_hex(bytes(payload))
 
 
 def _compute_support_state_root_from_balances_section_v1(
@@ -356,20 +388,13 @@ def _compute_support_state_root_from_balances_section_v1(
         nonce_out += encode_uvarint(last_nonce)
     nonce_section = bytes(nonce_out)
 
-    payload = (
-        domain_sep_bytes("state_support_root", version=SUPPORT_ROOT_VERSION)
-        + b"BAL"
-        + encode_bytes(balances_section)
-        + b"POL"
-        + encode_bytes(pools_section)
-        + b"LPB"
-        + encode_bytes(lp_section)
-        + b"LPA"
-        + encode_bytes(lp_duration_section)
-        + b"NNC"
-        + encode_bytes(nonce_section)
+    return _hash_support_sections_v1(
+        balances_section=balances_section,
+        pools_section=pools_section,
+        lp_section=lp_section,
+        lp_duration_section=lp_duration_section,
+        nonce_section=nonce_section,
     )
-    return sha256_hex(payload)
 
 
 def compute_support_state_root(
@@ -432,6 +457,34 @@ def compute_support_state_root_with_committed_balances_v1(
         lp_balances=lp_balances,
         support=support,
         nonces=nonce_table,
+    )
+
+
+def compute_support_state_root_with_committed_spot_state_v1(
+    *,
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    support: BatchStateSupport,
+    nonces: CommittedNonceTableV1,
+) -> str:
+    """Compute support-root v4 directly from exact committed spot state.
+
+    This is a migration-scoped shadow reader. It re-admits every committed
+    input through the closed state profile and preserves the existing support
+    omission, ordering, field, and framing semantics byte for byte.
+    """
+
+    from .committed_spot_roots import (
+        compute_support_state_root_with_committed_spot_state_v1 as _read_exact_support,
+    )
+
+    return _read_exact_support(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonces,
     )
 
 

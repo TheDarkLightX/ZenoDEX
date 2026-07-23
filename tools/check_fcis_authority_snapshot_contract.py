@@ -19,6 +19,7 @@ DEFAULT_AUTHORITY_PATHS = (
     Path("src/state/state_snapshot_schema.py"),
     Path("src/state/state_admission_profile.py"),
     Path("src/state/state_transitions.py"),
+    Path("src/state/committed_spot_roots.py"),
 )
 DEFAULT_REQUIREMENTS_PATH = Path("docs/specs/fcis_authority_snapshot_v1/requirements.json")
 DEFAULT_TEST_MATRIX_PATHS = (
