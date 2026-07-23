@@ -105,6 +105,45 @@ class _ExactSpotReplayStateV1:
             raise TypeError("replay LP balances must be exact committed state")
 
 
+@final
+@dataclass(frozen=True, slots=True)
+class StrongSettlementStateCandidateV1:
+    """Complete exact spot successor produced by one validated settlement replay.
+
+    This is the PR #477 state candidate. The supplied settlement and aggregate
+    effects remain legacy values until PR #478 owns that authority graph, so
+    this value alone does not authorize shell commitment.
+    """
+
+    balances: CommittedBalanceTableV1
+    pools: OwnedMapV1[str, CommittedPoolStateV1]
+    lp_balances: CommittedLPTableV1
+
+    def __post_init__(self) -> None:
+        _ExactSpotReplayStateV1(
+            self.balances,
+            self.pools,
+            self.lp_balances,
+        )
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class StrongSettlementRejectV1:
+    """Typed no-candidate rejection preserving the mounted public reason."""
+
+    reason: str
+
+    def __post_init__(self) -> None:
+        if type(self.reason) is not str or not self.reason:
+            raise TypeError("strong settlement rejection requires an exact reason")
+
+
+StrongSettlementEvaluationResultV1: TypeAlias = (
+    StrongSettlementStateCandidateV1 | StrongSettlementRejectV1
+)
+
+
 _LegacyOrExactBalanceV1: TypeAlias = BalanceTable | CommittedBalanceTableV1
 _LegacyOrExactPoolMapV1: TypeAlias = (
     Dict[str, PoolState] | OwnedMapV1[str, CommittedPoolStateV1]
@@ -161,6 +200,20 @@ def _apply_spot_replay_v1(
         result.pools,
         result.lp_balances,
     )
+
+
+def _strong_reject_v1(reason: str | None) -> StrongSettlementRejectV1:
+    return StrongSettlementRejectV1(
+        reason if type(reason) is str and reason else "settlement invalid"
+    )
+
+
+def _strong_result_tuple_v1(
+    result: StrongSettlementEvaluationResultV1,
+) -> Tuple[bool, Optional[str]]:
+    if type(result) is StrongSettlementRejectV1:
+        return False, result.reason
+    return True, None
 
 
 def _pool_status_text_v1(pool: CommittedPoolStateV1) -> str:
@@ -491,17 +544,19 @@ def validate_settlement_strong(
             pre_pools,
             pre_lp_balances,
         )
-        return _validate_settlement_strong_impl(
-            settlement=settlement,
-            intents=intents,
-            pre_balances=replay_state.balances,
-            pre_pools=replay_state.pools,
-            pre_lp_balances=replay_state.lp_balances,
-            mode=mode,
-            allow_cow_netting=allow_cow_netting,
-            allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
-            protocol_fee_share_bps=protocol_fee_share_bps,
-            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        return _strong_result_tuple_v1(
+            _validate_settlement_strong_impl(
+                settlement=settlement,
+                intents=intents,
+                pre_balances=replay_state.balances,
+                pre_pools=replay_state.pools,
+                pre_lp_balances=replay_state.lp_balances,
+                mode=mode,
+                allow_cow_netting=allow_cow_netting,
+                allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+                protocol_fee_share_bps=protocol_fee_share_bps,
+                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+            )
         )
     except Exception as exc:
         return _strong_crash_result_v1(exc)
@@ -522,6 +577,37 @@ def validate_settlement_strong_committed_v1(
 ) -> Tuple[bool, Optional[str]]:
     """Validate against exact committed values through the same replay relation."""
 
+    return _strong_result_tuple_v1(
+        evaluate_settlement_strong_committed_v1(
+            settlement=settlement,
+            intents=intents,
+            pre_balances=pre_balances,
+            pre_pools=pre_pools,
+            pre_lp_balances=pre_lp_balances,
+            mode=mode,
+            allow_cow_netting=allow_cow_netting,
+            allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        )
+    )
+
+
+def evaluate_settlement_strong_committed_v1(
+    *,
+    settlement: Settlement,
+    intents: List[Intent],
+    pre_balances: CommittedBalanceTableV1,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+    pre_lp_balances: CommittedLPTableV1,
+    mode: str = _MODE_STRONG_REPLAY,
+    allow_cow_netting: bool = False,
+    allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
+) -> StrongSettlementEvaluationResultV1:
+    """Evaluate once and retain the exact successor used by strong replay."""
+
     try:
         replay_state = _ExactSpotReplayStateV1(
             pre_balances,
@@ -541,18 +627,22 @@ def validate_settlement_strong_committed_v1(
             protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
         )
     except Exception as exc:
-        return _strong_crash_result_v1(exc)
+        return _strong_reject_v1(_strong_crash_text_v1(exc))
 
 
 def _strong_crash_result_v1(exc: Exception) -> Tuple[bool, str]:
+    return False, _strong_crash_text_v1(exc)
+
+
+def _strong_crash_text_v1(exc: Exception) -> str:
     detail = str(exc).strip()
     if "\n" in detail or "\r" in detail:
         detail = " ".join(detail.split())
     if len(detail) > 200:
         detail = detail[:200]
     if detail:
-        return False, f"strong validator crashed: {type(exc).__name__}: {detail}"
-    return False, f"strong validator crashed: {type(exc).__name__}"
+        return f"strong validator crashed: {type(exc).__name__}: {detail}"
+    return f"strong validator crashed: {type(exc).__name__}"
 
 
 def _validate_settlement_strong_impl(
@@ -567,18 +657,20 @@ def _validate_settlement_strong_impl(
     allow_snapshot_bound_quote_bindings: bool = False,
     protocol_fee_share_bps: int = 0,
     protocol_fee_recipient_pubkey: Optional[PubKey] = None,
-) -> Tuple[bool, Optional[str]]:
+) -> StrongSettlementEvaluationResultV1:
     """
     Strong settlement validation.
 
     This is intended to be used in `dex.step` as a fail-closed acceptance gate.
     """
     if mode not in _VALIDATION_MODES:
-        return False, f"unsupported validation mode: {mode!r}"
+        return _strong_reject_v1(f"unsupported validation mode: {mode!r}")
     if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
-        return False, "protocol_fee_share_bps must be an int in [0, 10000]"
+        return _strong_reject_v1("protocol_fee_share_bps must be an int in [0, 10000]")
     if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
-        return False, "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
+        return _strong_reject_v1(
+            "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
+        )
 
     ok_index, err_index, settlement_index = _build_settlement_index(
         settlement=settlement,
@@ -586,7 +678,7 @@ def _validate_settlement_strong_impl(
         intents=intents,
     )
     if not ok_index or settlement_index is None:
-        return False, err_index
+        return _strong_reject_v1(err_index)
     intents_by_id = settlement_index.intents_by_id
     fill_by_id = settlement_index.fill_by_id
 
@@ -609,7 +701,9 @@ def _validate_settlement_strong_impl(
     ]
     if route_entry_ids:
         if route_entry_ids != sorted(route_entry_ids):
-            return False, "route intents must be settled in ascending intent_id order"
+            return _strong_reject_v1(
+                "route intents must be settled in ascending intent_id order"
+            )
 
         def _settlement_phase(intent_id: str) -> int:
             kind = intents_by_id[intent_id].kind
@@ -623,7 +717,7 @@ def _validate_settlement_strong_impl(
         for intent_id, _action in settlement.included_intents:
             phase = _settlement_phase(intent_id)
             if phase < prev_phase:
-                return False, (
+                return _strong_reject_v1(
                     "non-canonical settlement phase order at intent_id="
                     f"{intent_id}: routes require CREATE_POOL before route "
                     "before other pool intents"
@@ -644,8 +738,8 @@ def _validate_settlement_strong_impl(
     res_deltas: List[ReserveDelta] = []
     lp_deltas: List[LPDelta] = []
 
-    def fail(msg: str) -> Tuple[bool, Optional[str]]:
-        return False, msg
+    def fail(msg: str) -> StrongSettlementRejectV1:
+        return _strong_reject_v1(msg)
 
     for intent_id, action in settlement.included_intents:
         it = intents_by_id[intent_id]
@@ -1460,19 +1554,19 @@ def _validate_settlement_strong_impl(
 
     ok, err = _check_canonical_deltas(settlement)
     if not ok:
-        return False, err
+        return _strong_reject_v1(err)
 
     if settlement.balance_deltas != expected_balance:
-        return False, "balance_deltas mismatch vs replay"
+        return fail("balance_deltas mismatch vs replay")
     if settlement.reserve_deltas != expected_reserve:
-        return False, "reserve_deltas mismatch vs replay"
+        return fail("reserve_deltas mismatch vs replay")
     if settlement.lp_deltas != expected_lp:
-        return False, "lp_deltas mismatch vs replay"
+        return fail("lp_deltas mismatch vs replay")
 
     exp_events_norm = expected_events
     got_events_norm = settlement.events or []
     if got_events_norm != exp_events_norm:
-        return False, "events mismatch vs replay"
+        return fail("events mismatch vs replay")
 
     # Each accepted replay step already proves balance, reserve, LP-position,
     # and derived LP-supply non-negativity over exact committed state. Global
@@ -1483,9 +1577,13 @@ def _validate_settlement_strong_impl(
         expected_reserve,
     )
     if conservation_error is not None:
-        return False, f"legacy validation failed: {conservation_error}"
+        return fail(f"legacy validation failed: {conservation_error}")
 
-    return True, None
+    return StrongSettlementStateCandidateV1(
+        balances=replay_state.balances,
+        pools=replay_state.pools,
+        lp_balances=replay_state.lp_balances,
+    )
 
 
 def _append_pool_swap_deltas(

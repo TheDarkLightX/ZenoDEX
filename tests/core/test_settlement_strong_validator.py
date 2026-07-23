@@ -7,13 +7,16 @@ from dataclasses import replace
 from typing import Any, cast
 
 import src.core.settlement_strong_validator as strong_validator
-from src.core.batch_clearing import compute_settlement, validate_settlement
+from src.core.batch_clearing import apply_settlement_pure, compute_settlement, validate_settlement
 from src.core.dex import DexConfig, DexState
 from src.core.dex import step as dex_step
 from src.core.liquidity import create_pool
 from src.core.quote_receipts import pool_state_fingerprint
 from src.core.settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
 from src.core.settlement_strong_validator import (
+    StrongSettlementRejectV1,
+    StrongSettlementStateCandidateV1,
+    evaluate_settlement_strong_committed_v1,
     validate_settlement_strong,
     validate_settlement_strong_committed_v1,
 )
@@ -280,6 +283,9 @@ def test_exact_committed_validator_matches_legacy_facade_across_spot_actions() -
     )
 
     for settlement, intent, balances, pools, lp_balances in cases:
+        exact_balances = snapshot_balance_table(balances)
+        exact_pools = snapshot_pool_map(pools)
+        exact_lp_balances = snapshot_lp_table(lp_balances)
         legacy = validate_settlement_strong(
             settlement=copy.deepcopy(settlement),
             intents=[intent],
@@ -290,11 +296,64 @@ def test_exact_committed_validator_matches_legacy_facade_across_spot_actions() -
         exact = validate_settlement_strong_committed_v1(
             settlement=copy.deepcopy(settlement),
             intents=[intent],
-            pre_balances=snapshot_balance_table(balances),
-            pre_pools=snapshot_pool_map(pools),
-            pre_lp_balances=snapshot_lp_table(lp_balances),
+            pre_balances=exact_balances,
+            pre_pools=exact_pools,
+            pre_lp_balances=exact_lp_balances,
         )
         assert exact == legacy == (True, None)
+
+        evaluated = evaluate_settlement_strong_committed_v1(
+            settlement=copy.deepcopy(settlement),
+            intents=[intent],
+            pre_balances=exact_balances,
+            pre_pools=exact_pools,
+            pre_lp_balances=exact_lp_balances,
+        )
+        assert type(evaluated) is StrongSettlementStateCandidateV1
+
+        legacy_next_balances, legacy_next_pools, legacy_next_lp = apply_settlement_pure(
+            copy.deepcopy(settlement),
+            balances,
+            pools,
+            lp_balances,
+        )
+        assert evaluated.balances == snapshot_balance_table(legacy_next_balances)
+        assert evaluated.pools == snapshot_pool_map(legacy_next_pools)
+        assert evaluated.lp_balances == snapshot_lp_table(legacy_next_lp)
+
+        # Evaluation owns a successor and cannot mutate or replace its exact pre-state.
+        assert exact_balances == snapshot_balance_table(balances)
+        assert exact_pools == snapshot_pool_map(pools)
+        assert exact_lp_balances == snapshot_lp_table(lp_balances)
+
+
+def test_exact_committed_evaluator_rejects_without_candidate_and_preserves_reason() -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+    tampered = replace(settlement, balance_deltas=[])
+    exact_balances = snapshot_balance_table(balances)
+    exact_pools = snapshot_pool_map({pool.pool_id: pool})
+    exact_lp_balances = snapshot_lp_table(LPTable())
+
+    evaluated = evaluate_settlement_strong_committed_v1(
+        settlement=tampered,
+        intents=[intent],
+        pre_balances=exact_balances,
+        pre_pools=exact_pools,
+        pre_lp_balances=exact_lp_balances,
+    )
+
+    assert type(evaluated) is StrongSettlementRejectV1
+    assert evaluated.reason == "balance_deltas mismatch vs replay"
+    assert not hasattr(evaluated, "balances")
+    assert not hasattr(evaluated, "pools")
+    assert not hasattr(evaluated, "lp_balances")
+    assert validate_settlement_strong_committed_v1(
+        settlement=tampered,
+        intents=[intent],
+        pre_balances=exact_balances,
+        pre_pools=exact_pools,
+        pre_lp_balances=exact_lp_balances,
+    ) == (False, evaluated.reason)
 
 
 def test_exact_committed_validator_rejects_legacy_state_values() -> None:
