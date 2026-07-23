@@ -1,8 +1,9 @@
 """Pure return-new transitions over exact FCIS committed state values.
 
-The implemented slices define canonical balance, nonce, and aggregate LP patch
-relations. They do not expose mutable projections, depend on collection-library
-tree shape, emit effects, or commit storage. Those remain separate contracts.
+The implemented slices define canonical balance, nonce, aggregate LP, and pool-map
+patch relations. They do not expose mutable projections, depend on
+collection-library tree shape, emit effects, or commit storage. Those remain
+separate contracts.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from enum import Enum
 from types import MappingProxyType
 from typing import TypeAlias, cast, final
 
-from .canonical import canonical_hex_fixed_allow_0x
+from .canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x
 from .owned_collections import (
     OwnedMapV1,
     _owned_map_from_canonical_transition_v1,
@@ -30,14 +31,17 @@ from .state_snapshot_values import (
     MAX_BALANCES_V1,
     MAX_LP_ENTRIES_V1,
     MAX_NONCES_V1,
+    MAX_POOLS_V1,
     MAX_STATE_STRING_CHARACTERS_V1,
     MAX_STATE_STRING_UTF8_BYTES_V1,
     MAX_U32_V1,
     NONCE_MAP_SCHEMA_ID_V1,
+    POOL_MAP_SCHEMA_ID_V1,
     BalanceKeyV1,
     CommittedBalanceTableV1,
     CommittedLPTableV1,
     CommittedNonceTableV1,
+    CommittedPoolStateV1,
     LPKeyV1,
 )
 
@@ -1259,6 +1263,407 @@ def apply_canonical_lp_position_patch_v1(
     return LPPositionPatchApplyOkV1(candidate)
 
 
+PoolPatchPathPartV1: TypeAlias = str | int
+PoolPatchPathV1: TypeAlias = tuple[PoolPatchPathPartV1, ...]
+
+
+class PoolPatchCodeV1(Enum):
+    WRONG_EXACT_TYPE = "wrong_exact_type"
+    ITEM_LIMIT = "item_limit"
+    BYTE_LIMIT = "byte_limit"
+    NONCANONICAL_KEY = "noncanonical_key"
+    INVALID_POOL_STATE = "invalid_pool_state"
+    POOL_ID_MISMATCH = "pool_id_mismatch"
+    EMPTY_PATCH = "empty_patch"
+    DUPLICATE_WRITE = "duplicate_write"
+    NO_OP_WRITE = "no_op_write"
+    NONCANONICAL_PATCH = "noncanonical_patch"
+    EXPECTED_OLD_MISMATCH = "expected_old_mismatch"
+    INVALID_PRESTATE = "invalid_prestate"
+    INVALID_CANDIDATE = "invalid_candidate"
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class PoolPatchRejectV1:
+    """Typed no-output rejection for an internal pool-map patch."""
+
+    code: PoolPatchCodeV1
+    path: PoolPatchPathV1
+
+
+def _pool_reject(code: PoolPatchCodeV1, path: PoolPatchPathV1) -> PoolPatchRejectV1:
+    return PoolPatchRejectV1(code, path)
+
+
+def _pool_key_reject_v1(
+    pool_id: object,
+    path: PoolPatchPathV1,
+) -> PoolPatchRejectV1 | None:
+    if type(pool_id) is not str:
+        return _pool_reject(PoolPatchCodeV1.WRONG_EXACT_TYPE, path)
+    if not pool_id:
+        return _pool_reject(PoolPatchCodeV1.NONCANONICAL_KEY, path)
+    if len(pool_id) > MAX_STATE_STRING_CHARACTERS_V1:
+        return _pool_reject(PoolPatchCodeV1.ITEM_LIMIT, path)
+    try:
+        encoded = pool_id.encode("utf-8")
+    except UnicodeEncodeError:
+        return _pool_reject(PoolPatchCodeV1.NONCANONICAL_KEY, path)
+    if len(encoded) > MAX_STATE_STRING_UTF8_BYTES_V1:
+        return _pool_reject(PoolPatchCodeV1.ITEM_LIMIT, path)
+    return None
+
+
+def _pool_value_shallow_reject_v1(
+    value: object,
+    pool_id: str,
+    path: PoolPatchPathV1,
+) -> PoolPatchRejectV1 | None:
+    if value is None:
+        return None
+    if type(value) is not CommittedPoolStateV1:
+        return _pool_reject(PoolPatchCodeV1.WRONG_EXACT_TYPE, path)
+    try:
+        value_pool_id = object.__getattribute__(value, "pool_id")
+    except AttributeError:
+        return _pool_reject(PoolPatchCodeV1.INVALID_POOL_STATE, path)
+    if type(value_pool_id) is not str:
+        return _pool_reject(PoolPatchCodeV1.INVALID_POOL_STATE, path + ("pool_id",))
+    if value_pool_id != pool_id:
+        return _pool_reject(PoolPatchCodeV1.POOL_ID_MISMATCH, path + ("pool_id",))
+    return None
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class PoolWriteV1:
+    """Compare-and-replace one complete exact pool-map cell."""
+
+    pool_id: str
+    expected: CommittedPoolStateV1 | None
+    replacement: CommittedPoolStateV1 | None
+
+    def __post_init__(self) -> None:
+        key_reject = _pool_key_reject_v1(self.pool_id, ("pool_id",))
+        if key_reject is not None:
+            if key_reject.code is PoolPatchCodeV1.WRONG_EXACT_TYPE:
+                raise TypeError("pool patch key must be an exact string")
+            raise ValueError("pool patch key is not canonical")
+        for field_name in ("expected", "replacement"):
+            value_reject = _pool_value_shallow_reject_v1(
+                object.__getattribute__(self, field_name),
+                self.pool_id,
+                (field_name,),
+            )
+            if value_reject is not None:
+                if value_reject.code is PoolPatchCodeV1.WRONG_EXACT_TYPE:
+                    raise TypeError(f"{field_name} must be an exact committed pool or None")
+                raise ValueError(f"{field_name} does not bind the pool patch key")
+
+
+def _pool_write_shallow_reject_v1(
+    write: object,
+    path: PoolPatchPathV1,
+) -> PoolPatchRejectV1 | None:
+    if type(write) is not PoolWriteV1:
+        return _pool_reject(PoolPatchCodeV1.WRONG_EXACT_TYPE, path)
+    key_reject = _pool_key_reject_v1(write.pool_id, path + ("pool_id",))
+    if key_reject is not None:
+        return key_reject
+    expected_reject = _pool_value_shallow_reject_v1(
+        write.expected,
+        write.pool_id,
+        path + ("expected",),
+    )
+    if expected_reject is not None:
+        return expected_reject
+    return _pool_value_shallow_reject_v1(
+        write.replacement,
+        write.pool_id,
+        path + ("replacement",),
+    )
+
+
+def _pool_value_work_shape_v1(value: CommittedPoolStateV1 | None) -> object:
+    if value is None:
+        return None
+    return (
+        value.pool_id,
+        value.asset0,
+        value.asset1,
+        value.reserve0,
+        value.reserve1,
+        value.fee_bps,
+        value.lp_supply,
+        (
+            value.status.schema_revision,
+            value.status.enum_tag_ordinal,
+            value.status.member_ordinal,
+        ),
+        value.created_at,
+        value.curve_tag,
+        value.curve_params,
+    )
+
+
+def _pool_write_work_bytes_v1(write: PoolWriteV1, remaining: int) -> int | None:
+    try:
+        return bounded_json_utf8_size(
+            (
+                write.pool_id,
+                _pool_value_work_shape_v1(write.expected),
+                _pool_value_work_shape_v1(write.replacement),
+            ),
+            max_bytes=remaining,
+            max_depth=8,
+            max_items=64,
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _admit_pool_patch_value_v1(
+    value: CommittedPoolStateV1 | None,
+    path: PoolPatchPathV1,
+) -> CommittedPoolStateV1 | None | PoolPatchRejectV1:
+    if value is None:
+        return None
+    from .state_snapshots import StateAdmissionError, snapshot_pool
+
+    try:
+        return snapshot_pool(value)
+    except StateAdmissionError as exc:
+        return _pool_reject(PoolPatchCodeV1.INVALID_POOL_STATE, path + exc.path)
+
+
+def _pool_reject_in_mode_v1(
+    reject: PoolPatchRejectV1,
+    invalid_code: PoolPatchCodeV1 | None,
+) -> PoolPatchRejectV1:
+    if invalid_code is None:
+        return reject
+    return _pool_reject(invalid_code, reject.path)
+
+
+def _sanitize_pool_writes_v1(
+    writes: object,
+    *,
+    invalid_code: PoolPatchCodeV1 | None,
+) -> tuple[PoolWriteV1, ...] | PoolPatchRejectV1:
+    if type(writes) is not tuple or not writes:
+        code = PoolPatchCodeV1.EMPTY_PATCH if invalid_code is None else invalid_code
+        return _pool_reject(code, ("writes",))
+    if len(writes) > MAX_POOLS_V1:
+        return _pool_reject(PoolPatchCodeV1.ITEM_LIMIT, ("writes",))
+
+    admitted_writes: list[PoolWriteV1] = []
+    work_bytes = 0
+    for index, write in enumerate(writes):
+        path: PoolPatchPathV1 = ("writes", index)
+        shallow_reject = _pool_write_shallow_reject_v1(write, path)
+        if shallow_reject is not None:
+            return _pool_reject_in_mode_v1(shallow_reject, invalid_code)
+        exact_write = cast(PoolWriteV1, write)
+        admitted_expected = _admit_pool_patch_value_v1(
+            exact_write.expected,
+            path + ("expected",),
+        )
+        if type(admitted_expected) is PoolPatchRejectV1:
+            return _pool_reject_in_mode_v1(admitted_expected, invalid_code)
+        admitted_replacement = _admit_pool_patch_value_v1(
+            exact_write.replacement,
+            path + ("replacement",),
+        )
+        if type(admitted_replacement) is PoolPatchRejectV1:
+            return _pool_reject_in_mode_v1(admitted_replacement, invalid_code)
+        admitted_write = PoolWriteV1(
+            exact_write.pool_id,
+            admitted_expected,
+            admitted_replacement,
+        )
+        write_bytes = _pool_write_work_bytes_v1(
+            admitted_write,
+            MAX_CANONICAL_BYTES_V1 - work_bytes,
+        )
+        if write_bytes is None:
+            return _pool_reject(PoolPatchCodeV1.BYTE_LIMIT, ("writes",))
+        work_bytes += write_bytes
+        admitted_writes.append(admitted_write)
+    return tuple(admitted_writes)
+
+
+def _canonical_pool_writes_reject_v1(
+    writes: tuple[PoolWriteV1, ...],
+    *,
+    invalid_code: PoolPatchCodeV1,
+) -> PoolPatchRejectV1 | None:
+    previous_pool_id: str | None = None
+    for index, write in enumerate(writes):
+        path: PoolPatchPathV1 = ("writes", index)
+        if write.expected == write.replacement:
+            return _pool_reject(invalid_code, path)
+        if previous_pool_id is not None and previous_pool_id >= write.pool_id:
+            return _pool_reject(invalid_code, path + ("pool_id",))
+        previous_pool_id = write.pool_id
+    return None
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class CanonicalPoolPatchV1:
+    """Owned sorted pool writes for one internal pure transition.
+
+    Storage commitment is a later ``AtomicCandidate`` contract that binds the
+    complete pre-state root, effects, receipt, nonce changes, and outbox.
+    """
+
+    writes: tuple[PoolWriteV1, ...]
+
+    def __post_init__(self) -> None:
+        admitted = _sanitize_pool_writes_v1(
+            self.writes,
+            invalid_code=PoolPatchCodeV1.NONCANONICAL_PATCH,
+        )
+        if type(admitted) is PoolPatchRejectV1:
+            raise ValueError("CanonicalPoolPatchV1 requires valid owned writes")
+        reject = _canonical_pool_writes_reject_v1(
+            admitted,
+            invalid_code=PoolPatchCodeV1.NONCANONICAL_PATCH,
+        )
+        if reject is not None:
+            raise ValueError("CanonicalPoolPatchV1 requires canonical writes")
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class PoolPatchBuildOkV1:
+    patch: CanonicalPoolPatchV1
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class PoolPatchApplyOkV1:
+    state: OwnedMapV1[str, CommittedPoolStateV1]
+
+
+PoolPatchBuildResultV1 = PoolPatchBuildOkV1 | PoolPatchRejectV1
+PoolPatchApplyResultV1 = PoolPatchApplyOkV1 | PoolPatchRejectV1
+
+
+def build_canonical_pool_patch_v1(
+    writes: tuple[PoolWriteV1, ...],
+) -> PoolPatchBuildResultV1:
+    """Own and canonically order internal full-pool compare-and-replace writes."""
+
+    admitted = _sanitize_pool_writes_v1(writes, invalid_code=None)
+    if type(admitted) is PoolPatchRejectV1:
+        return admitted
+    canonical = tuple(sorted(admitted, key=lambda write: write.pool_id))
+    for index in range(1, len(canonical)):
+        if canonical[index - 1].pool_id == canonical[index].pool_id:
+            return _pool_reject(
+                PoolPatchCodeV1.DUPLICATE_WRITE,
+                ("writes", "pool_id", canonical[index].pool_id),
+            )
+    for index, write in enumerate(canonical):
+        if write.expected == write.replacement:
+            return _pool_reject(PoolPatchCodeV1.NO_OP_WRITE, ("writes", index))
+    return PoolPatchBuildOkV1(CanonicalPoolPatchV1(canonical))
+
+
+def _validated_pool_patch_writes_v1(
+    patch: object,
+) -> tuple[PoolWriteV1, ...] | PoolPatchRejectV1:
+    if type(patch) is not CanonicalPoolPatchV1:
+        return _pool_reject(PoolPatchCodeV1.WRONG_EXACT_TYPE, ())
+    try:
+        raw_writes = object.__getattribute__(patch, "writes")
+    except AttributeError:
+        return _pool_reject(PoolPatchCodeV1.NONCANONICAL_PATCH, ("writes",))
+    admitted = _sanitize_pool_writes_v1(
+        raw_writes,
+        invalid_code=PoolPatchCodeV1.NONCANONICAL_PATCH,
+    )
+    if type(admitted) is PoolPatchRejectV1:
+        return admitted
+    reject = _canonical_pool_writes_reject_v1(
+        admitted,
+        invalid_code=PoolPatchCodeV1.NONCANONICAL_PATCH,
+    )
+    if reject is not None:
+        return reject
+    return admitted
+
+
+def _validated_pool_map_v1(
+    pre: object,
+) -> OwnedMapV1[str, CommittedPoolStateV1] | PoolPatchRejectV1:
+    if type(pre) is not OwnedMapV1:
+        return _pool_reject(PoolPatchCodeV1.WRONG_EXACT_TYPE, ())
+    from .state_snapshots import StateAdmissionError, snapshot_pool_map
+
+    try:
+        return snapshot_pool_map(cast(OwnedMapV1[str, CommittedPoolStateV1], pre))
+    except StateAdmissionError as exc:
+        return _pool_reject(PoolPatchCodeV1.INVALID_PRESTATE, ("state",) + exc.path)
+
+
+def _pool_candidate_v1(
+    values: dict[str, CommittedPoolStateV1],
+) -> OwnedMapV1[str, CommittedPoolStateV1] | PoolPatchRejectV1:
+    entries = tuple(sorted(values.items(), key=lambda item: item[0]))
+    if len(entries) > MAX_POOLS_V1:
+        return _pool_reject(PoolPatchCodeV1.ITEM_LIMIT, ("state", "pools"))
+    try:
+        candidate = _owned_map_from_canonical_transition_v1(
+            entries,
+            FCIS_STATE_SCHEMA_REVISION_V1,
+            POOL_MAP_SCHEMA_ID_V1,
+        )
+    except (TypeError, ValueError):
+        return _pool_reject(PoolPatchCodeV1.INVALID_CANDIDATE, ("state", "pools"))
+
+    from .state_snapshots import StateAdmissionError, snapshot_pool_map
+
+    try:
+        return snapshot_pool_map(candidate)
+    except StateAdmissionError as exc:
+        return _pool_reject(PoolPatchCodeV1.INVALID_CANDIDATE, ("state",) + exc.path)
+
+
+def apply_canonical_pool_patch_v1(
+    pre: OwnedMapV1[str, CommittedPoolStateV1],
+    patch: CanonicalPoolPatchV1,
+) -> PoolPatchApplyResultV1:
+    """Apply a full-pool patch atomically over one exact immutable pool map."""
+
+    admitted_pre = _validated_pool_map_v1(pre)
+    if type(admitted_pre) is PoolPatchRejectV1:
+        return admitted_pre
+    writes = _validated_pool_patch_writes_v1(patch)
+    if type(writes) is PoolPatchRejectV1:
+        return writes
+
+    updated = dict(admitted_pre.entries)
+    for index, write in enumerate(writes):
+        current = updated.get(write.pool_id)
+        if current != write.expected:
+            return _pool_reject(
+                PoolPatchCodeV1.EXPECTED_OLD_MISMATCH,
+                ("writes", index, "expected"),
+            )
+        if write.replacement is None:
+            updated.pop(write.pool_id, None)
+        else:
+            updated[write.pool_id] = write.replacement
+
+    candidate = _pool_candidate_v1(updated)
+    if type(candidate) is PoolPatchRejectV1:
+        return candidate
+    return PoolPatchApplyOkV1(candidate)
+
+
 __all__ = [
     "BalanceDeltaV1",
     "BalancePatchApplyOkV1",
@@ -1271,6 +1676,7 @@ __all__ = [
     "CanonicalBalancePatchV1",
     "CanonicalLPPositionPatchV1",
     "CanonicalNoncePatchV1",
+    "CanonicalPoolPatchV1",
     "LPPositionPatchApplyOkV1",
     "LPPositionPatchApplyResultV1",
     "LPPositionPatchBuildOkV1",
@@ -1286,11 +1692,20 @@ __all__ = [
     "NoncePatchBuildResultV1",
     "NoncePatchCodeV1",
     "NoncePatchRejectV1",
+    "PoolPatchApplyOkV1",
+    "PoolPatchApplyResultV1",
+    "PoolPatchBuildOkV1",
+    "PoolPatchBuildResultV1",
+    "PoolPatchCodeV1",
+    "PoolPatchRejectV1",
+    "PoolWriteV1",
     "apply_balance_deltas_v1",
     "apply_canonical_balance_patch_v1",
     "apply_canonical_lp_position_patch_v1",
     "apply_canonical_nonce_patch_v1",
+    "apply_canonical_pool_patch_v1",
     "build_canonical_balance_patch_v1",
     "build_canonical_lp_position_patch_v1",
     "build_canonical_nonce_patch_v1",
+    "build_canonical_pool_patch_v1",
 ]
