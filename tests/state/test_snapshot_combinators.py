@@ -13,6 +13,7 @@ import pytest
 from src.state.owned_collections import OwnedEnumV1, OwnedMapV1
 from src.state.snapshot_combinators import (
     AdmissionLimitsV1,
+    AdmissionRegistryV1,
     AdmitCode,
     AdmitOk,
     AdmitReject,
@@ -25,6 +26,7 @@ from src.state.snapshot_combinators import (
     ExactKeyedMap,
     ExactPair,
     ExactString,
+    KeySortValue,
     LimitProfileCode,
     LimitProfileReject,
     MapOf,
@@ -33,6 +35,7 @@ from src.state.snapshot_combinators import (
     RecordRegistrationV1,
     RecordUnionOf,
     SchemaRegistrationV1,
+    SchemaV1,
     SequenceOf,
     SequenceSourceKind,
     StringRuleV1,
@@ -1310,6 +1313,23 @@ def test_out_of_range_integer_map_key_uses_bounded_sort_value() -> None:
     assert _admit(schema, source) == AdmitReject(AdmitCode.OUT_OF_RANGE, ())
 
 
+def test_out_of_range_integer_key_rejects_before_sort_value_derivation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.state.snapshot_combinators as combinators
+
+    def forbidden_sort_value(*_args: object) -> object:
+        raise AssertionError("out-of-range integer reached sort-value derivation")
+
+    monkeypatch.setattr(combinators, "_key_sort_value", forbidden_sort_value)
+    schema = MapOf(ExactInt(0, 9), ExactInt(0, 9), 1, "test/map/v1")
+
+    assert _admit(schema, {1 << 1_000_000: 1}) == AdmitReject(
+        AdmitCode.OUT_OF_RANGE,
+        (),
+    )
+
+
 def test_corrupted_enum_map_key_uses_bounded_sort_value() -> None:
     import src.state.snapshot_combinators as combinators
 
@@ -1330,6 +1350,40 @@ def test_corrupted_enum_map_key_uses_bounded_sort_value() -> None:
         _registry(schema),
     ) == (2, 0)
     assert _admit(schema, {owned: 1}) == AdmitReject(
+        AdmitCode.REGISTRY_DRIFT,
+        (),
+    )
+
+
+def test_corrupted_nested_enum_key_rejects_before_sort_value_derivation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.state.snapshot_combinators as combinators
+
+    accepted = _admit(ExactEnum(_EnumTag.COLOR), _Color.RED)
+    assert type(accepted) is AdmitOk
+    owned = cast(OwnedEnumV1, accepted.value)
+    object.__setattr__(owned, "_member_ordinal", 1 << 1_000_000)
+    original_sort_value = combinators._key_sort_value
+
+    def reject_corrupt_enum_sort(
+        schema: SchemaV1,
+        source: object,
+        registry: AdmissionRegistryV1,
+    ) -> KeySortValue:
+        if type(source) is OwnedEnumV1:
+            raise AssertionError("corrupt enum ordinal reached sort-value derivation")
+        return original_sort_value(schema, source, registry)
+
+    monkeypatch.setattr(combinators, "_key_sort_value", reject_corrupt_enum_sort)
+    schema = MapOf(
+        ExactPair(ExactInt(0, 9), ExactEnum(_EnumTag.COLOR)),
+        ExactInt(0, 9),
+        1,
+        "test/map/v1",
+    )
+
+    assert _admit(schema, {(1, owned): 1}) == AdmitReject(
         AdmitCode.REGISTRY_DRIFT,
         (),
     )

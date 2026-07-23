@@ -312,6 +312,15 @@ SchemaV1 = (
 
 KeySortValue = int | str | bytes | tuple["KeySortValue", ...]
 
+
+@dataclass(frozen=True, slots=True)
+class _KeySortPreflightV1:
+    """One bounded key-order value plus its deferred canonical rejection."""
+
+    trusted_scalar_bytes: int
+    sort_value: KeySortValue
+    canonical_reject: AdmitReject | None
+
 CanonicalEncoderResolverV1 = Callable[[str, object], bytes]
 RecordConstructionResolverV1 = Callable[
     [Enum, tuple[tuple[str, object], ...]],
@@ -1275,75 +1284,6 @@ def _key_has_exact_shape(
     return False
 
 
-def _key_canonical_reject(
-    schema: SchemaV1,
-    source: object,
-    path: FieldPath,
-    registry: AdmissionRegistryV1,
-    schema_revision: str,
-) -> AdmitReject | None:
-    if _has_exact_type(schema, ExactInt):
-        key_int = cast(int, source)
-        if (schema.minimum is not None and key_int < schema.minimum) or (
-            schema.maximum is not None and key_int > schema.maximum
-        ):
-            return _reject(AdmitCode.OUT_OF_RANGE, path)
-    elif _has_exact_type(schema, ExactString):
-        key_string = cast(str, source)
-        if schema.max_characters is not None and len(key_string) > schema.max_characters:
-            return _reject(AdmitCode.BYTE_LIMIT, path)
-        utf8_bytes = _bounded_utf8_length(key_string, schema.max_utf8_bytes)
-        if utf8_bytes is None:
-            return _reject(AdmitCode.NONCANONICAL_SCALAR, path)
-        if utf8_bytes > schema.max_utf8_bytes:
-            return _reject(AdmitCode.BYTE_LIMIT, path)
-        if not _string_is_canonical(schema, key_string, utf8_bytes):
-            return _reject(AdmitCode.NONCANONICAL_SCALAR, path)
-    elif _has_exact_type(schema, ExactBytes):
-        key_bytes = cast(bytes, source)
-        if len(key_bytes) > schema.max_length:
-            return _reject(AdmitCode.BYTE_LIMIT, path)
-        if schema.exact_length is not None and len(key_bytes) != schema.exact_length:
-            return _reject(AdmitCode.OUT_OF_RANGE, path)
-    elif _has_exact_type(schema, ExactEnum):
-        registration = registry._enum_registration(schema.enum_tag)
-        tag_ordinal = registry._enum_registration_index(schema.enum_tag)
-        if registration is None or tag_ordinal is None:
-            return _reject(AdmitCode.UNSUPPORTED_VARIANT, path)
-        if type(source) is registration.enum_type:
-            if not any(member is source for member in registration.enum_type):
-                return _reject(AdmitCode.UNSUPPORTED_VARIANT, path)
-        else:
-            owned_source = cast(OwnedEnumV1, source)
-            metadata = _owned_enum_metadata(owned_source)
-            if metadata is None:
-                return _reject(AdmitCode.REGISTRY_DRIFT, path)
-            owned_revision, owned_tag_ordinal, owned_member_ordinal = metadata
-            if owned_revision != schema_revision or owned_tag_ordinal != tag_ordinal:
-                return _reject(AdmitCode.WRONG_EXACT_TYPE, path)
-            if owned_member_ordinal >= len(registration.enum_type):
-                return _reject(AdmitCode.REGISTRY_DRIFT, path)
-    elif _has_exact_type(schema, ExactPair):
-        key_pair = cast(tuple[object, object], source)
-        left_reject = _key_canonical_reject(
-            schema.left,
-            key_pair[0],
-            path,
-            registry,
-            schema_revision,
-        )
-        if left_reject is not None:
-            return left_reject
-        return _key_canonical_reject(
-            schema.right,
-            key_pair[1],
-            path,
-            registry,
-            schema_revision,
-        )
-    return None
-
-
 def _key_sort_value(
     schema: SchemaV1,
     source: object,
@@ -1394,76 +1334,237 @@ def _key_sort_value(
     return 0
 
 
-def _preflight_key_sort_bytes(
+def _preflight_integer_key(
+    schema: ExactInt,
+    source: object,
+    path: FieldPath,
+) -> _KeySortPreflightV1:
+    key_int = cast(int, source)
+    if schema.minimum is not None and key_int < schema.minimum:
+        return _KeySortPreflightV1(
+            0,
+            (0, 0),
+            _reject(AdmitCode.OUT_OF_RANGE, path),
+        )
+    if schema.maximum is not None and key_int > schema.maximum:
+        return _KeySortPreflightV1(
+            0,
+            (2, 0),
+            _reject(AdmitCode.OUT_OF_RANGE, path),
+        )
+    return _KeySortPreflightV1(0, (1, key_int), None)
+
+
+def _preflight_string_key(
+    schema: ExactString,
+    source: object,
+    remaining_bytes: int,
+    path: FieldPath,
+) -> _KeySortPreflightV1 | AdmitReject:
+    key_string = cast(str, source)
+    if schema.max_characters is not None and len(key_string) > schema.max_characters:
+        return _reject(AdmitCode.BYTE_LIMIT, path)
+    # Every Unicode code point occupies at least one UTF-8 byte. This rejects
+    # huge keys before scanning their prefix.
+    if len(key_string) > min(schema.max_utf8_bytes, remaining_bytes):
+        return _reject(AdmitCode.BYTE_LIMIT, path)
+    utf8_bytes = _bounded_utf8_length(key_string, schema.max_utf8_bytes)
+    if utf8_bytes is None:
+        return _KeySortPreflightV1(
+            len(key_string),
+            key_string,
+            _reject(AdmitCode.NONCANONICAL_SCALAR, path),
+        )
+    if utf8_bytes > schema.max_utf8_bytes or utf8_bytes > remaining_bytes:
+        return _reject(AdmitCode.BYTE_LIMIT, path)
+    canonical_reject = None
+    if not _string_is_canonical(schema, key_string, utf8_bytes):
+        canonical_reject = _reject(AdmitCode.NONCANONICAL_SCALAR, path)
+    return _KeySortPreflightV1(utf8_bytes, key_string, canonical_reject)
+
+
+def _preflight_bytes_key(
+    schema: ExactBytes,
+    source: object,
+    remaining_bytes: int,
+    path: FieldPath,
+) -> _KeySortPreflightV1 | AdmitReject:
+    key_bytes = cast(bytes, source)
+    byte_count = len(key_bytes)
+    if byte_count > schema.max_length or byte_count > remaining_bytes:
+        return _reject(AdmitCode.BYTE_LIMIT, path)
+    canonical_reject = None
+    if schema.exact_length is not None and byte_count != schema.exact_length:
+        canonical_reject = _reject(AdmitCode.OUT_OF_RANGE, path)
+    return _KeySortPreflightV1(byte_count, key_bytes, canonical_reject)
+
+
+def _preflight_owned_enum_key(
+    source: OwnedEnumV1,
+    registration: EnumRegistrationV1,
+    tag_ordinal: int,
+    schema_revision: str,
+    path: FieldPath,
+) -> _KeySortPreflightV1:
+    metadata = _owned_enum_metadata(source)
+    if metadata is None:
+        return _KeySortPreflightV1(
+            0,
+            (0, 0),
+            _reject(AdmitCode.REGISTRY_DRIFT, path),
+        )
+    owned_revision, owned_tag_ordinal, owned_member_ordinal = metadata
+    if (
+        len(owned_revision) != len(schema_revision)
+        or owned_revision != schema_revision
+        or owned_tag_ordinal != tag_ordinal
+    ):
+        return _KeySortPreflightV1(
+            0,
+            (0, 1),
+            _reject(AdmitCode.WRONG_EXACT_TYPE, path),
+        )
+    if owned_member_ordinal >= len(registration.enum_type):
+        return _KeySortPreflightV1(
+            0,
+            (2, 0),
+            _reject(AdmitCode.REGISTRY_DRIFT, path),
+        )
+    return _KeySortPreflightV1(0, (1, owned_member_ordinal), None)
+
+
+def _preflight_enum_key(
+    schema: ExactEnum,
+    source: object,
+    path: FieldPath,
+    registry: AdmissionRegistryV1,
+    schema_revision: str,
+) -> _KeySortPreflightV1:
+    registration = registry._enum_registration(schema.enum_tag)
+    tag_ordinal = registry._enum_registration_index(schema.enum_tag)
+    if registration is None or tag_ordinal is None:
+        return _KeySortPreflightV1(
+            0,
+            (-1, 0),
+            _reject(AdmitCode.UNSUPPORTED_VARIANT, path),
+        )
+    if type(source) is OwnedEnumV1:
+        return _preflight_owned_enum_key(
+            source,
+            registration,
+            tag_ordinal,
+            schema_revision,
+            path,
+        )
+    for index, member in enumerate(registration.enum_type):
+        if member is source:
+            return _KeySortPreflightV1(0, (1, index), None)
+    return _KeySortPreflightV1(
+        0,
+        (-1, 1),
+        _reject(AdmitCode.UNSUPPORTED_VARIANT, path),
+    )
+
+
+def _preflight_pair_key(
+    schema: ExactPair,
+    source: object,
+    remaining_bytes: int,
+    path: FieldPath,
+    registry: AdmissionRegistryV1,
+    schema_revision: str,
+) -> _KeySortPreflightV1 | AdmitReject:
+    key_pair = cast(tuple[object, object], source)
+    left = _preflight_key_sort_value(
+        schema.left,
+        key_pair[0],
+        remaining_bytes,
+        path,
+        registry,
+        schema_revision,
+    )
+    if _has_exact_type(left, AdmitReject):
+        return left
+    right = _preflight_key_sort_value(
+        schema.right,
+        key_pair[1],
+        remaining_bytes - left.trusted_scalar_bytes,
+        path,
+        registry,
+        schema_revision,
+    )
+    if _has_exact_type(right, AdmitReject):
+        return right
+    return _KeySortPreflightV1(
+        left.trusted_scalar_bytes + right.trusted_scalar_bytes,
+        (left.sort_value, right.sort_value),
+        left.canonical_reject or right.canonical_reject,
+    )
+
+
+def _preflight_key_sort_value(
     schema: SchemaV1,
     source: object,
     remaining_bytes: int,
     path: FieldPath,
-) -> int | AdmitReject:
-    """Bound string/bytes comparison work before deriving raw sort values."""
+    registry: AdmissionRegistryV1,
+    schema_revision: str,
+) -> _KeySortPreflightV1 | AdmitReject:
+    """Derive a bounded sort value before any caller key reaches sorting."""
 
+    if _has_exact_type(schema, ExactInt):
+        return _preflight_integer_key(schema, source, path)
+    if _has_exact_type(schema, ExactBool):
+        return _KeySortPreflightV1(0, cast(bool, source), None)
     if _has_exact_type(schema, ExactString):
-        key_string = cast(str, source)
-        if schema.max_characters is not None and len(key_string) > schema.max_characters:
-            return _reject(AdmitCode.BYTE_LIMIT, path)
-        # Every Unicode code point occupies at least one UTF-8 byte. The exact
-        # length check therefore rejects huge keys before scanning their prefix.
-        if len(key_string) > min(schema.max_utf8_bytes, remaining_bytes):
-            return _reject(AdmitCode.BYTE_LIMIT, path)
-        utf8_bytes = _bounded_utf8_length(key_string, schema.max_utf8_bytes)
-        if utf8_bytes is None:
-            # A bounded surrogate-containing key is safe to order as text and
-            # receives NONCANONICAL_SCALAR in canonical key order later.
-            return len(key_string)
-        if utf8_bytes > schema.max_utf8_bytes or utf8_bytes > remaining_bytes:
-            return _reject(AdmitCode.BYTE_LIMIT, path)
-        return utf8_bytes
+        return _preflight_string_key(schema, source, remaining_bytes, path)
     if _has_exact_type(schema, ExactBytes):
-        byte_count = len(cast(bytes, source))
-        if byte_count > schema.max_length or byte_count > remaining_bytes:
-            return _reject(AdmitCode.BYTE_LIMIT, path)
-        return byte_count
+        return _preflight_bytes_key(schema, source, remaining_bytes, path)
+    if _has_exact_type(schema, ExactEnum):
+        return _preflight_enum_key(schema, source, path, registry, schema_revision)
     if _has_exact_type(schema, ExactPair):
-        key_pair = cast(tuple[object, object], source)
-        left = _preflight_key_sort_bytes(
-            schema.left,
-            key_pair[0],
+        return _preflight_pair_key(
+            schema,
+            source,
             remaining_bytes,
             path,
+            registry,
+            schema_revision,
         )
-        if _has_exact_type(left, AdmitReject):
-            return left
-        left_bytes = left
-        right = _preflight_key_sort_bytes(
-            schema.right,
-            key_pair[1],
-            remaining_bytes - left_bytes,
-            path,
-        )
-        if _has_exact_type(right, AdmitReject):
-            return right
-        return left_bytes + right
-    return 0
+    return _KeySortPreflightV1(0, 0, None)
 
 
-def _preflight_map_key_sort_bytes(
+def _preflight_map_key_sort_values(
     schema: MapOf,
     entries: tuple[tuple[object, object], ...],
     state: _AdmissionState,
     path: FieldPath,
-) -> AdmitReject | None:
+    registry: AdmissionRegistryV1,
+    schema_revision: str,
+) -> tuple[tuple[KeySortValue, object, object, AdmitReject | None], ...] | AdmitReject:
     remaining_bytes = state.limits.max_canonical_bytes - state.trusted_scalar_bytes_used
+    preflight_entries: list[tuple[KeySortValue, object, object, AdmitReject | None]] = []
     for key, _value in entries:
-        key_bytes = _preflight_key_sort_bytes(
+        preflight = _preflight_key_sort_value(
             schema.key_schema,
             key,
             remaining_bytes,
             path,
+            registry,
+            schema_revision,
         )
-        if _has_exact_type(key_bytes, AdmitReject):
-            return key_bytes
-        remaining_bytes -= key_bytes
-    return None
+        if _has_exact_type(preflight, AdmitReject):
+            return preflight
+        remaining_bytes -= preflight.trusted_scalar_bytes
+        preflight_entries.append(
+            (
+                preflight.sort_value,
+                key,
+                _value,
+                preflight.canonical_reject,
+            )
+        )
+    return tuple(sorted(preflight_entries, key=lambda entry: entry[0]))
 
 
 def _admit_owned_key(
@@ -1660,44 +1761,29 @@ def _admit_map(
     for key, _value in entries:
         if not _key_has_exact_shape(schema.key_schema, key, registry):
             return _reject(AdmitCode.WRONG_KEY_TYPE, path)
-    key_resource_reject = _preflight_map_key_sort_bytes(
+    preflight_entries = _preflight_map_key_sort_values(
         schema,
         entries,
         next_state,
         path,
+        registry,
+        schema_revision,
     )
-    if key_resource_reject is not None:
-        return key_resource_reject
+    if _has_exact_type(preflight_entries, AdmitReject):
+        return preflight_entries
     # Authority invariant: key errors are selected by canonical key order,
     # so rejected output cannot depend on caller dictionary insertion order.
-    # Raw integers and enum ordinals are reduced to bounded tagged values.
-    sorted_entries_with_keys = tuple(
-        sorted(
-            (
-                (
-                    _key_sort_value(schema.key_schema, key, registry),
-                    key,
-                    value,
-                )
-                for key, value in entries
-            ),
-            key=lambda entry: entry[0],
-        )
-    )
-    sorted_entries = tuple((key, value) for _sort_key, key, value in sorted_entries_with_keys)
-
-    for key, _value in sorted_entries:
-        canonical_reject = _key_canonical_reject(
-            schema.key_schema,
-            key,
-            path,
-            registry,
-            schema_revision,
-        )
+    # Every sort value is already bounded and domain-checked. Caller-provided
+    # arbitrary-precision integers and forged enum ordinals never reach sort.
+    for _sort_key, _key, _value, canonical_reject in preflight_entries:
         if canonical_reject is not None:
             return canonical_reject
-    for index in range(1, len(sorted_entries_with_keys)):
-        if sorted_entries_with_keys[index - 1][0] == sorted_entries_with_keys[index][0]:
+    sorted_entries = tuple(
+        (key, value)
+        for _sort_key, key, value, _canonical_reject in preflight_entries
+    )
+    for index in range(1, len(preflight_entries)):
+        if preflight_entries[index - 1][0] == preflight_entries[index][0]:
             return _reject(AdmitCode.REGISTRY_DRIFT, path)
     if type(source) is OwnedMapV1 and entries != sorted_entries:
         return _reject(AdmitCode.REGISTRY_DRIFT, path)
