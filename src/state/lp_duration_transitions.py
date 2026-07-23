@@ -1,10 +1,12 @@
 """Exact return-new LP position and duration-risk transitions.
 
 The mounted integration path still updates legacy ``LPTable`` metadata after a
-settlement.  This module defines the exact FCIS leaf that will replace that
+settlement. This module defines the exact FCIS leaf that will replace that
 two-phase balance-then-metadata mutation during the atomic ``DexState``
 migration. One accepted event determines the balance and metadata replacement
-from the same immutable pre-state. Rejection exposes no candidate.
+from the same immutable pre-state. The guarded entry point performs its age
+preflight over those admitted values before building the candidate. Rejection
+exposes no candidate.
 """
 
 from __future__ import annotations
@@ -47,6 +49,10 @@ class LPDurationTransitionCodeV1(Enum):
     NONCANONICAL_EVENTS = "noncanonical_events"
     DUPLICATE_EVENT = "duplicate_event"
     SAME_BATCH_ADD_REMOVE = "same_batch_add_remove"
+    AGE_METADATA_MISSING = "age_metadata_missing"
+    MINT_TIMESTAMP_IN_FUTURE = "mint_timestamp_in_future"
+    CHURN_TIMESTAMP_IN_FUTURE = "churn_timestamp_in_future"
+    POSITION_LOCKED = "position_locked"
     INVALID_PRESTATE = "invalid_prestate"
     DOMAIN_INVARIANT = "domain_invariant"
     INVALID_CANDIDATE = "invalid_candidate"
@@ -182,12 +188,29 @@ def _policy_reject_v1(policy: object) -> LPDurationTransitionRejectV1 | None:
         return _reject(LPDurationTransitionCodeV1.OUT_OF_RANGE, ("policy",))
     if exact.max_age_seconds and exact.base_age_seconds > exact.max_age_seconds:
         return _reject(LPDurationTransitionCodeV1.DOMAIN_INVARIANT, ("policy",))
-    if (
-        sum(max(1, (value.bit_length() + 7) // 8) for value in fields + (exact.multiplier,))
-        > MAX_CANONICAL_BYTES_V1
-    ):
+    if _policy_work_bytes_v1(exact) > MAX_CANONICAL_BYTES_V1:
         return _reject(LPDurationTransitionCodeV1.BYTE_LIMIT, ("policy",))
     return None
+
+
+def _integer_work_bytes_v1(value: int) -> int:
+    return max(1, (value.bit_length() + 7) // 8)
+
+
+def _policy_work_bytes_v1(policy: LPDurationRiskPolicyV1 | None) -> int:
+    if policy is None:
+        return 0
+    return sum(
+        _integer_work_bytes_v1(value)
+        for value in (
+            policy.base_age_seconds,
+            policy.max_age_seconds,
+            policy.churn_window_seconds,
+            policy.decay_seconds,
+            policy.multiplier,
+            policy.max_churn_tier,
+        )
+    )
 
 
 def _event_reject_v1(
@@ -225,6 +248,27 @@ def _event_work_bytes_v1(event: LPDurationEventV1) -> int:
         + max(1, (event.delta_add.bit_length() + 7) // 8)
         + max(1, (event.delta_sub.bit_length() + 7) // 8)
     )
+
+
+def _minimum_age_reject_v1(
+    min_age_seconds: object,
+) -> LPDurationTransitionRejectV1 | None:
+    if type(min_age_seconds) is not int:
+        return _reject(
+            LPDurationTransitionCodeV1.WRONG_EXACT_TYPE,
+            ("min_age_seconds",),
+        )
+    if min_age_seconds < 0:
+        return _reject(
+            LPDurationTransitionCodeV1.OUT_OF_RANGE,
+            ("min_age_seconds",),
+        )
+    if _integer_work_bytes_v1(min_age_seconds) > MAX_CANONICAL_BYTES_V1:
+        return _reject(
+            LPDurationTransitionCodeV1.BYTE_LIMIT,
+            ("min_age_seconds",),
+        )
+    return None
 
 
 def _events_reject_v1(events: object) -> LPDurationTransitionRejectV1 | None:
@@ -273,6 +317,63 @@ def _decayed_tier_v1(
     return max(
         0,
         bounded_tier - ((now - last_update_timestamp) // policy.decay_seconds),
+    )
+
+
+def _scaled_age_at_most_v1(
+    *,
+    base_age_seconds: int,
+    multiplier: int,
+    tier: int,
+    elapsed_seconds: int,
+) -> bool:
+    """Compare ``base * multiplier**tier`` without constructing huge powers."""
+
+    if base_age_seconds == 0:
+        return True
+    if base_age_seconds > elapsed_seconds:
+        return False
+    if tier == 0 or multiplier == 1:
+        return True
+
+    # multiplier >= 2, so an exponent at least this bit length already exceeds
+    # the elapsed bound. This keeps work logarithmic in a bounded exponent even
+    # when the committed tier itself is an adversarially large exact integer.
+    if tier >= max(1, elapsed_seconds.bit_length()):
+        return False
+
+    value = base_age_seconds
+    factor = multiplier
+    remaining = tier
+    while remaining:
+        if remaining & 1:
+            if value > elapsed_seconds // factor:
+                return False
+            value *= factor
+        remaining >>= 1
+        if remaining:
+            if factor > elapsed_seconds // factor:
+                factor = elapsed_seconds + 1
+            else:
+                factor *= factor
+    return True
+
+
+def _progressive_age_is_met_v1(
+    policy: LPDurationRiskPolicyV1,
+    *,
+    tier: int,
+    elapsed_seconds: int,
+) -> bool:
+    if policy.base_age_seconds == 0:
+        return True
+    if policy.max_age_seconds and policy.max_age_seconds <= elapsed_seconds:
+        return True
+    return _scaled_age_at_most_v1(
+        base_age_seconds=policy.base_age_seconds,
+        multiplier=policy.multiplier,
+        tier=tier,
+        elapsed_seconds=elapsed_seconds,
     )
 
 
@@ -388,30 +489,87 @@ def _validated_inputs_v1(
         return _reject(LPDurationTransitionCodeV1.WRONG_EXACT_TYPE, ("now",))
     if now < 0:
         return _reject(LPDurationTransitionCodeV1.OUT_OF_RANGE, ("now",))
-    if max(1, (now.bit_length() + 7) // 8) > MAX_CANONICAL_BYTES_V1:
+    if _integer_work_bytes_v1(now) > MAX_CANONICAL_BYTES_V1:
         return _reject(LPDurationTransitionCodeV1.BYTE_LIMIT, ("now",))
     policy_reject = _policy_reject_v1(policy)
     if policy_reject is not None:
         return policy_reject
-    if policy is not None:
-        first_same_batch_index = next(
-            (
-                index
-                for index, event in enumerate(events)
-                if event.delta_add > 0 and event.delta_sub > 0
-            ),
-            None,
-        )
-        if first_same_batch_index is not None:
-            return _reject(
-                LPDurationTransitionCodeV1.SAME_BATCH_ADD_REMOVE,
-                ("events", first_same_batch_index),
-            )
     return _LPDurationInputsV1(
         pre,
         events,
         _LPDurationContextV1(now, policy),
     )
+
+
+def _same_batch_reject_v1(
+    inputs: _LPDurationInputsV1,
+) -> LPDurationTransitionRejectV1 | None:
+    first_same_batch_index = next(
+        (
+            index
+            for index, event in enumerate(inputs.events)
+            if event.delta_add > 0 and event.delta_sub > 0
+        ),
+        None,
+    )
+    if first_same_batch_index is None:
+        return None
+    return _reject(
+        LPDurationTransitionCodeV1.SAME_BATCH_ADD_REMOVE,
+        ("events", first_same_batch_index),
+    )
+
+
+def _lp_age_preflight_v1(
+    inputs: _LPDurationInputsV1,
+    *,
+    min_age_seconds: int,
+) -> LPDurationTransitionRejectV1 | None:
+    if min_age_seconds == 0 and inputs.context.policy is None:
+        return None
+    same_batch_reject = _same_batch_reject_v1(inputs)
+    if same_batch_reject is not None:
+        return same_batch_reject
+
+    for index, event in enumerate(inputs.events):
+        if event.delta_sub == 0:
+            continue
+        current = _position_value_v1(inputs.pre, event.key)
+        last_mint = current.last_mint_timestamp
+        path: LPDurationPathV1 = ("events", index, "last_mint_timestamp")
+        if last_mint is None:
+            return _reject(LPDurationTransitionCodeV1.AGE_METADATA_MISSING, path)
+        if last_mint > inputs.context.now:
+            return _reject(
+                LPDurationTransitionCodeV1.MINT_TIMESTAMP_IN_FUTURE,
+                path,
+            )
+
+        elapsed_seconds = inputs.context.now - last_mint
+        policy = inputs.context.policy
+        if policy is None:
+            if elapsed_seconds < min_age_seconds:
+                return _reject(LPDurationTransitionCodeV1.POSITION_LOCKED, path)
+            continue
+        try:
+            tier = _decayed_tier_v1(
+                policy,
+                tier=current.churn_tier,
+                last_update_timestamp=current.last_churn_update_timestamp,
+                now=inputs.context.now,
+            )
+        except ValueError:
+            return _reject(
+                LPDurationTransitionCodeV1.CHURN_TIMESTAMP_IN_FUTURE,
+                ("events", index, "last_churn_update_timestamp"),
+            )
+        if elapsed_seconds < min_age_seconds or not _progressive_age_is_met_v1(
+            policy,
+            tier=tier,
+            elapsed_seconds=elapsed_seconds,
+        ):
+            return _reject(LPDurationTransitionCodeV1.POSITION_LOCKED, path)
+    return None
 
 
 def _duration_writes_v1(
@@ -488,7 +646,7 @@ def apply_lp_position_events_v1(
     now: int,
     policy: LPDurationRiskPolicyV1 | None,
 ) -> LPDurationTransitionResultV1:
-    """Apply accepted LP balance and metadata events as one exact candidate."""
+    """Apply admitted LP balance and metadata events as one exact candidate."""
 
     inputs = _validated_inputs_v1(
         pre_state,
@@ -498,6 +656,57 @@ def apply_lp_position_events_v1(
     )
     if type(inputs) is LPDurationTransitionRejectV1:
         return inputs
+    if inputs.context.policy is not None:
+        same_batch_reject = _same_batch_reject_v1(inputs)
+        if same_batch_reject is not None:
+            return same_batch_reject
+    writes = _duration_writes_v1(inputs)
+    if type(writes) is LPDurationTransitionRejectV1:
+        return writes
+    return _apply_duration_writes_v1(inputs.pre, writes)
+
+
+def apply_guarded_lp_position_events_v1(
+    pre_state: CommittedLPTableV1,
+    events: tuple[LPDurationEventV1, ...],
+    *,
+    now: int,
+    min_age_seconds: int,
+    policy: LPDurationRiskPolicyV1 | None,
+) -> LPDurationTransitionResultV1:
+    """Preflight LP age and build one exact lifecycle candidate.
+
+    Rejection order is minimum-age representation, lifecycle input admission,
+    aggregate context budget, same-batch conflict, canonical remove-key age,
+    then candidate construction. The age gate reads the same owned pre-state
+    and canonical events used to construct the returned candidate. Rejection
+    exposes neither candidate state nor patch.
+    """
+
+    minimum_age_reject = _minimum_age_reject_v1(min_age_seconds)
+    if minimum_age_reject is not None:
+        return minimum_age_reject
+    inputs = _validated_inputs_v1(
+        pre_state,
+        events,
+        now=now,
+        policy=policy,
+    )
+    if type(inputs) is LPDurationTransitionRejectV1:
+        return inputs
+    context_work_bytes = (
+        _integer_work_bytes_v1(inputs.context.now)
+        + _integer_work_bytes_v1(min_age_seconds)
+        + _policy_work_bytes_v1(inputs.context.policy)
+    )
+    if context_work_bytes > MAX_CANONICAL_BYTES_V1:
+        return _reject(LPDurationTransitionCodeV1.BYTE_LIMIT, ("context",))
+    age_reject = _lp_age_preflight_v1(
+        inputs,
+        min_age_seconds=min_age_seconds,
+    )
+    if age_reject is not None:
+        return age_reject
     writes = _duration_writes_v1(inputs)
     if type(writes) is LPDurationTransitionRejectV1:
         return writes
@@ -511,5 +720,6 @@ __all__ = (
     "LPDurationTransitionOkV1",
     "LPDurationTransitionRejectV1",
     "LPDurationTransitionResultV1",
+    "apply_guarded_lp_position_events_v1",
     "apply_lp_position_events_v1",
 )

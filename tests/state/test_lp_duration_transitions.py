@@ -9,6 +9,7 @@ from src.core.settlement import LPDelta, Settlement
 from src.integration.lp_position_age_gate import (
     LPDurationRiskPolicy,
     apply_lp_mint_timestamps_after_settlement,
+    validate_lp_settlement_age_gate,
 )
 from src.state.lp import LPTable
 from src.state.lp_duration_transitions import (
@@ -17,6 +18,7 @@ from src.state.lp_duration_transitions import (
     LPDurationTransitionCodeV1,
     LPDurationTransitionOkV1,
     LPDurationTransitionRejectV1,
+    apply_guarded_lp_position_events_v1,
     apply_lp_position_events_v1,
 )
 from src.state.state_snapshot_values import DEX_LP_AMOUNT_MAX
@@ -625,3 +627,329 @@ def test_lp_position_overflow_rejects_without_candidate() -> None:
     assert result.path == ("events", 0, "balance")
     assert not hasattr(result, "state")
     assert not hasattr(result, "patch")
+
+
+def test_exact_age_guard_accepts_boundary_and_returns_lifecycle_candidate() -> None:
+    pre = snapshot_lp_table(_legacy_lp(balance=10, last_mint=8))
+    events = (LPDurationEventV1(("owner", "pool"), 0, 1),)
+
+    guarded = apply_guarded_lp_position_events_v1(
+        pre,
+        events,
+        now=10,
+        min_age_seconds=2,
+        policy=None,
+    )
+    lifecycle = apply_lp_position_events_v1(
+        pre,
+        events,
+        now=10,
+        policy=None,
+    )
+
+    assert type(guarded) is LPDurationTransitionOkV1
+    assert guarded == lifecycle
+    assert pre.get("owner", "pool") == 10
+
+
+def test_exact_age_guard_rejects_stale_by_one_without_candidate() -> None:
+    pre = snapshot_lp_table(_legacy_lp(balance=10, last_mint=9))
+
+    result = apply_guarded_lp_position_events_v1(
+        pre,
+        (LPDurationEventV1(("owner", "pool"), 0, 1),),
+        now=10,
+        min_age_seconds=2,
+        policy=None,
+    )
+
+    assert type(result) is LPDurationTransitionRejectV1
+    assert result.code is LPDurationTransitionCodeV1.POSITION_LOCKED
+    assert result.path == ("events", 0, "last_mint_timestamp")
+    assert not hasattr(result, "state")
+    assert not hasattr(result, "patch")
+    assert pre == snapshot_lp_table(_legacy_lp(balance=10, last_mint=9))
+
+
+def test_exact_age_guard_rejects_missing_and_future_mint_metadata() -> None:
+    missing = apply_guarded_lp_position_events_v1(
+        snapshot_lp_table(_legacy_lp(balance=10, last_mint=None)),
+        (LPDurationEventV1(("owner", "pool"), 0, 1),),
+        now=10,
+        min_age_seconds=1,
+        policy=None,
+    )
+    future = apply_guarded_lp_position_events_v1(
+        snapshot_lp_table(_legacy_lp(balance=10, last_mint=11)),
+        (LPDurationEventV1(("owner", "pool"), 0, 1),),
+        now=10,
+        min_age_seconds=1,
+        policy=None,
+    )
+
+    assert type(missing) is LPDurationTransitionRejectV1
+    assert missing.code is LPDurationTransitionCodeV1.AGE_METADATA_MISSING
+    assert missing.path == ("events", 0, "last_mint_timestamp")
+    assert type(future) is LPDurationTransitionRejectV1
+    assert future.code is LPDurationTransitionCodeV1.MINT_TIMESTAMP_IN_FUTURE
+    assert future.path == ("events", 0, "last_mint_timestamp")
+
+
+def test_exact_age_guard_same_batch_precedes_candidate_failure_when_enabled() -> None:
+    pre = snapshot_lp_table(_legacy_lp(balance=0, last_mint=None))
+
+    result = apply_guarded_lp_position_events_v1(
+        pre,
+        (LPDurationEventV1(("owner", "pool"), 1, 1),),
+        now=10,
+        min_age_seconds=1,
+        policy=None,
+    )
+
+    assert type(result) is LPDurationTransitionRejectV1
+    assert result.code is LPDurationTransitionCodeV1.SAME_BATCH_ADD_REMOVE
+    assert result.path == ("events", 0)
+    assert not hasattr(result, "state")
+
+
+def test_exact_age_guard_same_batch_precedes_all_remove_age_errors() -> None:
+    legacy = LPTable()
+    legacy.set("owner-a", "pool", 10)
+    legacy.set("owner-b", "pool", 10)
+
+    result = apply_guarded_lp_position_events_v1(
+        snapshot_lp_table(legacy),
+        (
+            LPDurationEventV1(("owner-a", "pool"), 0, 1),
+            LPDurationEventV1(("owner-b", "pool"), 1, 1),
+        ),
+        now=10,
+        min_age_seconds=1,
+        policy=None,
+    )
+
+    assert type(result) is LPDurationTransitionRejectV1
+    assert result.code is LPDurationTransitionCodeV1.SAME_BATCH_ADD_REMOVE
+    assert result.path == ("events", 1)
+
+
+def test_exact_age_guard_selects_first_canonical_remove_error() -> None:
+    legacy = LPTable()
+    legacy.set("owner-a", "pool", 10)
+    legacy.set("owner-b", "pool", 10)
+    legacy.set_last_mint_timestamp("owner-b", "pool", 11)
+
+    result = apply_guarded_lp_position_events_v1(
+        snapshot_lp_table(legacy),
+        (
+            LPDurationEventV1(("owner-a", "pool"), 0, 1),
+            LPDurationEventV1(("owner-b", "pool"), 0, 1),
+        ),
+        now=10,
+        min_age_seconds=1,
+        policy=None,
+    )
+
+    assert type(result) is LPDurationTransitionRejectV1
+    assert result.code is LPDurationTransitionCodeV1.AGE_METADATA_MISSING
+    assert result.path == ("events", 0, "last_mint_timestamp")
+
+
+def test_exact_progressive_age_guard_matches_mounted_policy_grid() -> None:
+    legacy_policy = _legacy_policy()
+    exact_policy = _policy()
+    events = (LPDurationEventV1(("owner", "pool"), 0, 1),)
+
+    for tier, last_update, now in product((0, 1, 2, 5), (None, 0, 100), (100, 180, 340)):
+        if last_update is not None and last_update > now:
+            continue
+        legacy = _legacy_lp(balance=10, last_mint=100)
+        legacy.set_churn_tier("owner", "pool", tier)
+        if last_update is not None:
+            legacy.set_last_churn_update_timestamp("owner", "pool", last_update)
+        exact = snapshot_lp_table(legacy)
+        settlement = _settlement(
+            owner="owner",
+            pool_id="pool",
+            delta_add=0,
+            delta_sub=1,
+        )
+
+        mounted_error = validate_lp_settlement_age_gate(
+            settlement=settlement,
+            intents=[],
+            lp_balances=legacy,
+            block_timestamp=now,
+            min_lp_position_age_seconds=0,
+            duration_risk_policy=legacy_policy,
+        )
+        exact_result = apply_guarded_lp_position_events_v1(
+            exact,
+            events,
+            now=now,
+            min_age_seconds=0,
+            policy=exact_policy,
+        )
+
+        assert (type(exact_result) is LPDurationTransitionOkV1) is (mounted_error is None)
+        if mounted_error is not None:
+            assert type(exact_result) is LPDurationTransitionRejectV1
+            assert exact_result.code is LPDurationTransitionCodeV1.POSITION_LOCKED
+
+
+def test_exact_age_guard_rejects_future_churn_update_without_candidate() -> None:
+    legacy = _legacy_lp(balance=10, last_mint=1)
+    legacy.set_churn_tier("owner", "pool", 1)
+    legacy.set_last_churn_update_timestamp("owner", "pool", 11)
+
+    result = apply_guarded_lp_position_events_v1(
+        snapshot_lp_table(legacy),
+        (LPDurationEventV1(("owner", "pool"), 0, 1),),
+        now=10,
+        min_age_seconds=0,
+        policy=_policy(),
+    )
+
+    assert type(result) is LPDurationTransitionRejectV1
+    assert result.code is LPDurationTransitionCodeV1.CHURN_TIMESTAMP_IN_FUTURE
+    assert result.path == ("events", 0, "last_churn_update_timestamp")
+    assert not hasattr(result, "state")
+
+
+def test_exact_age_guard_future_churn_metadata_precedes_fixed_age_lock() -> None:
+    legacy = _legacy_lp(balance=10, last_mint=9)
+    legacy.set_churn_tier("owner", "pool", 1)
+    legacy.set_last_churn_update_timestamp("owner", "pool", 11)
+
+    result = apply_guarded_lp_position_events_v1(
+        snapshot_lp_table(legacy),
+        (LPDurationEventV1(("owner", "pool"), 0, 1),),
+        now=10,
+        min_age_seconds=100,
+        policy=_policy(),
+    )
+
+    assert type(result) is LPDurationTransitionRejectV1
+    assert result.code is LPDurationTransitionCodeV1.CHURN_TIMESTAMP_IN_FUTURE
+    assert result.path == ("events", 0, "last_churn_update_timestamp")
+
+
+def test_exact_age_guard_handles_huge_uncapped_tier_without_materializing_power() -> None:
+    legacy = _legacy_lp(balance=10, last_mint=0)
+    legacy.set_churn_tier("owner", "pool", 1 << 10_000)
+    policy = LPDurationRiskPolicyV1(
+        base_age_seconds=1,
+        max_age_seconds=0,
+        multiplier=2,
+        max_churn_tier=0,
+    )
+
+    result = apply_guarded_lp_position_events_v1(
+        snapshot_lp_table(legacy),
+        (LPDurationEventV1(("owner", "pool"), 0, 1),),
+        now=10,
+        min_age_seconds=0,
+        policy=policy,
+    )
+
+    assert type(result) is LPDurationTransitionRejectV1
+    assert result.code is LPDurationTransitionCodeV1.POSITION_LOCKED
+
+
+def test_exact_age_guard_huge_tier_multiplier_one_matches_legacy_math() -> None:
+    legacy = _legacy_lp(balance=10, last_mint=0)
+    huge_tier = 1 << 10_000
+    legacy.set_churn_tier("owner", "pool", huge_tier)
+    policy = LPDurationRiskPolicyV1(
+        base_age_seconds=7,
+        max_age_seconds=0,
+        multiplier=1,
+        max_churn_tier=0,
+    )
+
+    result = apply_guarded_lp_position_events_v1(
+        snapshot_lp_table(legacy),
+        (LPDurationEventV1(("owner", "pool"), 0, 1),),
+        now=7,
+        min_age_seconds=0,
+        policy=policy,
+    )
+
+    assert type(result) is LPDurationTransitionOkV1
+
+
+def test_exact_age_guard_huge_tier_uses_declared_maximum_age_cap() -> None:
+    legacy = _legacy_lp(balance=10, last_mint=0)
+    legacy.set_churn_tier("owner", "pool", 1 << 10_000)
+    policy = LPDurationRiskPolicyV1(
+        base_age_seconds=1,
+        max_age_seconds=7,
+        multiplier=2,
+        max_churn_tier=0,
+    )
+
+    result = apply_guarded_lp_position_events_v1(
+        snapshot_lp_table(legacy),
+        (LPDurationEventV1(("owner", "pool"), 0, 1),),
+        now=7,
+        min_age_seconds=0,
+        policy=policy,
+    )
+
+    assert type(result) is LPDurationTransitionOkV1
+
+
+@pytest.mark.parametrize(
+    ("min_age_seconds", "code"),
+    (
+        (cast(Any, True), LPDurationTransitionCodeV1.WRONG_EXACT_TYPE),
+        (-1, LPDurationTransitionCodeV1.OUT_OF_RANGE),
+        (1 << 32_000_000, LPDurationTransitionCodeV1.BYTE_LIMIT),
+    ),
+    ids=("boolean_alias", "negative", "byte_limit"),
+)
+def test_exact_age_guard_revalidates_minimum_age(
+    min_age_seconds: object,
+    code: LPDurationTransitionCodeV1,
+) -> None:
+    result = apply_guarded_lp_position_events_v1(
+        snapshot_lp_table(_legacy_lp()),
+        (LPDurationEventV1(("owner", "pool"), 0, 1),),
+        now=10,
+        min_age_seconds=cast(Any, min_age_seconds),
+        policy=None,
+    )
+
+    assert type(result) is LPDurationTransitionRejectV1
+    assert result.code is code
+    assert result.path == ("min_age_seconds",)
+
+
+def test_exact_age_guard_minimum_age_error_precedes_other_invalid_inputs() -> None:
+    result = apply_guarded_lp_position_events_v1(
+        cast(Any, object()),
+        cast(Any, []),
+        now=cast(Any, -1),
+        min_age_seconds=cast(Any, True),
+        policy=cast(Any, object()),
+    )
+
+    assert type(result) is LPDurationTransitionRejectV1
+    assert result.code is LPDurationTransitionCodeV1.WRONG_EXACT_TYPE
+    assert result.path == ("min_age_seconds",)
+
+
+def test_exact_age_guard_bounds_aggregate_context_bytes() -> None:
+    two_point_one_megabytes = 1 << (8 * 2_100_000)
+
+    result = apply_guarded_lp_position_events_v1(
+        snapshot_lp_table(_legacy_lp()),
+        (LPDurationEventV1(("owner", "pool"), 0, 1),),
+        now=two_point_one_megabytes,
+        min_age_seconds=two_point_one_megabytes,
+        policy=None,
+    )
+
+    assert type(result) is LPDurationTransitionRejectV1
+    assert result.code is LPDurationTransitionCodeV1.BYTE_LIMIT
+    assert result.path == ("context",)
