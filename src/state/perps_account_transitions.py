@@ -221,20 +221,13 @@ def _account_candidate(
     account_pubkey: str,
     replacement: CommittedPerpAccountStateV1,
 ) -> IsolatedAccountTransitionOkV1 | IsolatedPerpTransitionRejectV1:
-    entries = pre.account_entries
-    keys = tuple(key for key, _account in entries)
-    index = bisect_left(keys, account_pubkey)
-    expected = entries[index][1] if index < len(entries) and keys[index] == account_pubkey else None
-    if expected == replacement:
+    patch, candidate_entries = _account_patch_and_entries(
+        pre,
+        account_pubkey=account_pubkey,
+        replacement=replacement,
+    )
+    if patch is None:
         return IsolatedAccountTransitionOkV1(pre, None)
-
-    write = IsolatedAccountWriteV1(account_pubkey, expected, replacement)
-    patch = CanonicalIsolatedAccountPatchV1((write,))
-    replacement_entry = ((account_pubkey, replacement),)
-    if expected is None:
-        candidate_entries = entries[:index] + replacement_entry + entries[index:]
-    else:
-        candidate_entries = entries[:index] + replacement_entry + entries[index + 1 :]
     try:
         candidate = _committed_isolated_market_with_accounts_from_transition_v1(
             pre,
@@ -246,6 +239,39 @@ def _account_candidate(
             ("state", "accounts"),
         )
     return IsolatedAccountTransitionOkV1(candidate, patch)
+
+
+def _account_patch_and_entries(
+    pre: CommittedPerpMarketStateV1,
+    *,
+    account_pubkey: str,
+    replacement: CommittedPerpAccountStateV1,
+) -> tuple[
+    CanonicalIsolatedAccountPatchV1 | None,
+    tuple[tuple[str, CommittedPerpAccountStateV1], ...],
+]:
+    """Build one canonical account patch and immutable successor entries.
+
+    This helper creates values only.  It does not freeze or expose a partial
+    market candidate, which lets a caller combine the entries with global
+    writes at one atomic committed-state boundary.
+    """
+
+    entries = pre.account_entries
+    keys = tuple(key for key, _account in entries)
+    index = bisect_left(keys, account_pubkey)
+    expected = entries[index][1] if index < len(entries) and keys[index] == account_pubkey else None
+    if expected == replacement:
+        return None, entries
+
+    write = IsolatedAccountWriteV1(account_pubkey, expected, replacement)
+    patch = CanonicalIsolatedAccountPatchV1((write,))
+    replacement_entry = ((account_pubkey, replacement),)
+    if expected is None:
+        candidate_entries = entries[:index] + replacement_entry + entries[index:]
+    else:
+        candidate_entries = entries[:index] + replacement_entry + entries[index + 1 :]
+    return patch, candidate_entries
 
 
 def _apply_account_kernel_action(

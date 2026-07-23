@@ -109,6 +109,44 @@ def _committed_isolated_market_with_accounts_from_transition_v1(
     )
 
 
+def _committed_isolated_market_with_globals_and_accounts_from_transition_v1(
+    pre: CommittedPerpMarketStateV1,
+    global_entries: tuple[tuple[str, PerpsValueV1], ...],
+    account_entries: tuple[tuple[str, CommittedPerpAccountStateV1], ...],
+) -> CommittedPerpMarketStateV1:
+    """Trusted freeze edge for one atomic global-and-account successor.
+
+    Some isolated-perps actions, including partial liquidation, update an
+    account and protocol accumulators in the same transition.  Both canonical
+    entry tuples must therefore cross one freeze edge and be revalidated as a
+    single committed market.  Neither a globals-only nor an accounts-only
+    candidate is constructed or exposed.
+    """
+
+    if type(pre) is not CommittedPerpMarketStateV1:
+        raise TypeError("isolated market pre-state must be exact")
+    if type(global_entries) is not tuple:
+        raise TypeError("isolated market globals must be an exact tuple")
+    if type(account_entries) is not tuple:
+        raise TypeError("isolated market accounts must be an exact tuple")
+    globals_owned = _owned_map_from_canonical_transition_v1(
+        global_entries,
+        FCIS_STATE_SCHEMA_REVISION_V1,
+        PERPS_ISOLATED_GLOBAL_MAP_SCHEMA_ID_V1,
+    )
+    accounts_owned = _owned_map_from_canonical_transition_v1(
+        account_entries,
+        FCIS_STATE_SCHEMA_REVISION_V1,
+        PERPS_ISOLATED_ACCOUNT_MAP_SCHEMA_ID_V1,
+    )
+    return CommittedPerpMarketStateV1(
+        quote_asset=pre.quote_asset,
+        global_state=globals_owned,
+        accounts=accounts_owned,
+        kind=pre.kind,
+    )
+
+
 BalancePatchPathPartV1: TypeAlias = str | int
 BalancePatchPathV1: TypeAlias = tuple[BalancePatchPathPartV1, ...]
 _MAPPING_PROXY_TYPE: type[object] = type(MappingProxyType({}))

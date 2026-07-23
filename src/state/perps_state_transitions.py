@@ -262,13 +262,25 @@ def _build_patch(
     before: dict[str, PerpsValueV1],
     after: dict[str, PerpsValueV1],
 ) -> CanonicalIsolatedGlobalPatchV1 | IsolatedPerpTransitionRejectV1:
+    patch = _build_optional_patch(before, after)
+    if patch is None:
+        return _reject(IsolatedPerpTransitionCodeV1.EMPTY_PATCH, ("patch",))
+    return patch
+
+
+def _build_optional_patch(
+    before: dict[str, PerpsValueV1],
+    after: dict[str, PerpsValueV1],
+) -> CanonicalIsolatedGlobalPatchV1 | IsolatedPerpTransitionRejectV1 | None:
+    """Build a canonical global patch when the transition changed globals."""
+
     writes = tuple(
         IsolatedGlobalWriteV1(field, before[field], after[field])
         for field in sorted(PERP_ISOLATED_GLOBAL_KEYS)
         if type(before[field]) is not type(after[field]) or before[field] != after[field]
     )
     if not writes:
-        return _reject(IsolatedPerpTransitionCodeV1.EMPTY_PATCH, ("patch",))
+        return None
     try:
         return CanonicalIsolatedGlobalPatchV1(writes)
     except (TypeError, ValueError):
