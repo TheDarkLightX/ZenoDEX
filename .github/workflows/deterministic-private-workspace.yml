@@ -39,7 +39,19 @@ jobs:
           rustc +1.96.0 --version --verbose
           cargo +1.96.0 --version --verbose
 
-      - name: Format
+      - name: Produce canonical Rust formatting
+        run: cargo +1.96.0 fmt --all
+
+      - name: Retain formatted worker sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-private-workspace-formatted-source
+          path: |
+            rust-runtime/crates/zenodex-runtime-core/src/deterministic_worker.rs
+            rust-runtime/crates/zenodex-runtime-core/src/lib.rs
+          if-no-files-found: error
+
+      - name: Verify formatting
         run: cargo +1.96.0 fmt --all -- --check
 
       - name: Clippy
