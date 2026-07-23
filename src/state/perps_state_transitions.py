@@ -51,6 +51,7 @@ class IsolatedPerpTransitionCodeV1(Enum):
     BALANCE_PATCH = "balance_patch"
     INVALID_CANDIDATE = "invalid_candidate"
     EMPTY_PATCH = "empty_patch"
+    AMOUNT_NOT_POSITIVE = "amount_not_positive"
 
 
 @final

@@ -4,6 +4,7 @@ from typing import cast
 
 from src.core.perp_apply_funding_auto_gate import MARK_PRICE_SOURCE_EXTERNAL_MEDIAN
 from src.core.perp_epoch import perp_epoch_isolated_default_apply
+from src.core.perp_v2.math import MAX_COLLATERAL
 from src.core.perps import (
     PERPS_STATE_VERSION_V5,
     PerpAccountState,
@@ -13,7 +14,9 @@ from src.core.perps import (
 from src.state.balances import BalanceTable
 from src.state.perps_collateral_transitions import (
     IsolatedCollateralTransitionOkV1,
+    IsolatedInsuranceDepositTransitionOkV1,
     apply_isolated_deposit_collateral_v1,
+    apply_isolated_deposit_insurance_v1,
     apply_isolated_withdraw_collateral_v1,
 )
 from src.state.perps_state_transitions import (
@@ -81,14 +84,19 @@ def _legacy_account(
 
 def _exact_market(
     accounts: dict[str, PerpAccountState],
+    *,
+    global_overrides: dict[str, int | bool] | None = None,
 ) -> CommittedPerpMarketStateV1:
+    global_state = _global()
+    if global_overrides is not None:
+        global_state.update(global_overrides)
     committed = snapshot_perps(
         PerpsState(
             version=PERPS_STATE_VERSION_V5,
             markets={
                 "perp:test": PerpMarketState(
                     quote_asset=_QUOTE,
-                    global_state=_global(),
+                    global_state=global_state,
                     accounts=accounts,
                 )
             },
@@ -377,3 +385,159 @@ def test_corrupted_balance_prestate_rejects_before_command_evaluation() -> None:
         ("balances", "state", "balances"),
         BalancePatchCodeV1.INVALID_PRESTATE.value,
     )
+
+
+def test_insurance_deposit_returns_one_wallet_and_global_candidate() -> None:
+    market = _exact_market(
+        {_ALICE: _legacy_account()},
+        global_overrides={"initial_insurance": 10, "insurance_balance": 10},
+    )
+    balances, source_balances = _exact_balances(1_000)
+
+    result = apply_isolated_deposit_insurance_v1(
+        market,
+        balances,
+        account_pubkey=_ALICE,
+        sender_pubkey=_ALICE,
+        amount=250,
+    )
+
+    assert type(result) is IsolatedInsuranceDepositTransitionOkV1
+    assert result.balances.get(_ALICE, _QUOTE) == 750
+    assert result.market.global_value("initial_insurance") == 260
+    assert result.market.global_value("insurance_balance") == 260
+    assert result.market.accounts is market.accounts
+    assert {
+        write.field: (write.expected, write.replacement)
+        for write in result.global_patch.writes
+    } == {
+        "initial_insurance": (10, 260),
+        "insurance_balance": (10, 260),
+    }
+    assert result.balance_patch.writes[0].expected_old == 1_000
+    assert result.balance_patch.writes[0].replacement == 750
+
+    source_balances.set(_ALICE, _QUOTE, 99_999)
+    assert balances.get(_ALICE, _QUOTE) == 1_000
+    assert result.balances.get(_ALICE, _QUOTE) == 750
+
+
+def test_insurance_deposit_is_not_blocked_by_distressed_account() -> None:
+    market = _exact_market(
+        {_BOB: _legacy_account(collateral_quote=0, position_base=1_000)},
+    )
+    balances, _source_balances = _exact_balances(50)
+
+    result = apply_isolated_deposit_insurance_v1(
+        market,
+        balances,
+        account_pubkey=_ALICE,
+        sender_pubkey=_ALICE,
+        amount=50,
+    )
+
+    assert type(result) is IsolatedInsuranceDepositTransitionOkV1
+    assert result.market.accounts is market.accounts
+    assert result.market.get_account(_BOB) is market.get_account(_BOB)
+    assert result.market.global_value("insurance_balance") == 50
+
+
+def test_insurance_sender_binding_precedes_amount_typing() -> None:
+    market = _exact_market({})
+    balances, _source_balances = _exact_balances(50)
+
+    result = apply_isolated_deposit_insurance_v1(
+        market,
+        balances,
+        account_pubkey=_ALICE,
+        sender_pubkey=_BOB,
+        amount=cast(int, True),
+    )
+
+    assert result == IsolatedPerpTransitionRejectV1(
+        IsolatedPerpTransitionCodeV1.RUNTIME_GUARD,
+        ("gate",),
+        "SenderBindingInvalid",
+    )
+
+
+def test_insurance_requires_a_positive_exact_amount() -> None:
+    market = _exact_market({})
+    balances, _source_balances = _exact_balances(50)
+
+    wrong_type = apply_isolated_deposit_insurance_v1(
+        market,
+        balances,
+        account_pubkey=_ALICE,
+        sender_pubkey=_ALICE,
+        amount=cast(int, True),
+    )
+    zero = apply_isolated_deposit_insurance_v1(
+        market,
+        balances,
+        account_pubkey=_ALICE,
+        sender_pubkey=_ALICE,
+        amount=0,
+    )
+
+    assert wrong_type == IsolatedPerpTransitionRejectV1(
+        IsolatedPerpTransitionCodeV1.WRONG_EXACT_TYPE,
+        ("amount",),
+    )
+    assert zero == IsolatedPerpTransitionRejectV1(
+        IsolatedPerpTransitionCodeV1.AMOUNT_NOT_POSITIVE,
+        ("amount",),
+    )
+
+
+def test_insurance_insufficient_balance_precedes_kernel_overflow() -> None:
+    market = _exact_market(
+        {},
+        global_overrides={
+            "initial_insurance": MAX_COLLATERAL,
+            "insurance_balance": MAX_COLLATERAL,
+        },
+    )
+    balances, _source_balances = _exact_balances(0)
+
+    result = apply_isolated_deposit_insurance_v1(
+        market,
+        balances,
+        account_pubkey=_ALICE,
+        sender_pubkey=_ALICE,
+        amount=1,
+    )
+
+    assert result == IsolatedPerpTransitionRejectV1(
+        IsolatedPerpTransitionCodeV1.INSUFFICIENT_BALANCE,
+        ("balances", _ALICE, _QUOTE),
+    )
+    assert not hasattr(result, "market")
+    assert not hasattr(result, "balances")
+
+
+def test_insurance_kernel_overflow_rejects_without_wallet_candidate() -> None:
+    market = _exact_market(
+        {},
+        global_overrides={
+            "initial_insurance": MAX_COLLATERAL,
+            "insurance_balance": MAX_COLLATERAL,
+        },
+    )
+    balances, _source_balances = _exact_balances(1)
+
+    result = apply_isolated_deposit_insurance_v1(
+        market,
+        balances,
+        account_pubkey=_ALICE,
+        sender_pubkey=_ALICE,
+        amount=1,
+    )
+
+    assert result == IsolatedPerpTransitionRejectV1(
+        IsolatedPerpTransitionCodeV1.KERNEL_REJECT,
+        ("kernel",),
+        "guard",
+    )
+    assert balances.get(_ALICE, _QUOTE) == 1
+    assert market.global_value("initial_insurance") == MAX_COLLATERAL
