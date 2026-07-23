@@ -1,13 +1,13 @@
 """Pure return-new transitions over exact FCIS committed state values.
 
-The implemented slices define canonical balance and nonce patch relations. They do
-not expose mutable projections, depend on collection-library tree shape, emit
-effects, or commit storage. Those remain separate contracts.
+The implemented slices define canonical balance, nonce, and aggregate LP patch
+relations. They do not expose mutable projections, depend on collection-library
+tree shape, emit effects, or commit storage. Those remain separate contracts.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from types import MappingProxyType
 from typing import TypeAlias, cast, final
@@ -20,8 +20,15 @@ from .owned_collections import (
 from .snapshot_combinators import MAX_CANONICAL_BYTES_V1
 from .state_snapshot_values import (
     BALANCE_MAP_SCHEMA_ID_V1,
+    DEX_LP_AMOUNT_MAX,
     FCIS_STATE_SCHEMA_REVISION_V1,
+    LP_BALANCE_MAP_SCHEMA_ID_V1,
+    LP_CHURN_TIER_MAP_SCHEMA_ID_V1,
+    LP_LAST_CHURN_UPDATE_MAP_SCHEMA_ID_V1,
+    LP_LAST_MINT_MAP_SCHEMA_ID_V1,
+    LP_LAST_REMOVE_MAP_SCHEMA_ID_V1,
     MAX_BALANCES_V1,
+    MAX_LP_ENTRIES_V1,
     MAX_NONCES_V1,
     MAX_STATE_STRING_CHARACTERS_V1,
     MAX_STATE_STRING_UTF8_BYTES_V1,
@@ -29,7 +36,9 @@ from .state_snapshot_values import (
     NONCE_MAP_SCHEMA_ID_V1,
     BalanceKeyV1,
     CommittedBalanceTableV1,
+    CommittedLPTableV1,
     CommittedNonceTableV1,
+    LPKeyV1,
 )
 
 BalancePatchPathPartV1: TypeAlias = str | int
@@ -799,6 +808,457 @@ def apply_canonical_nonce_patch_v1(
     return NoncePatchApplyOkV1(CommittedNonceTableV1(owned))
 
 
+LPPositionPatchPathPartV1: TypeAlias = str | int
+LPPositionPatchPathV1: TypeAlias = tuple[LPPositionPatchPathPartV1, ...]
+_LP_MAP_SCHEMA_IDS_V1 = (
+    LP_BALANCE_MAP_SCHEMA_ID_V1,
+    LP_LAST_MINT_MAP_SCHEMA_ID_V1,
+    LP_LAST_REMOVE_MAP_SCHEMA_ID_V1,
+    LP_CHURN_TIER_MAP_SCHEMA_ID_V1,
+    LP_LAST_CHURN_UPDATE_MAP_SCHEMA_ID_V1,
+)
+
+
+class LPPositionPatchCodeV1(Enum):
+    WRONG_EXACT_TYPE = "wrong_exact_type"
+    ITEM_LIMIT = "item_limit"
+    BYTE_LIMIT = "byte_limit"
+    NONCANONICAL_KEY = "noncanonical_key"
+    OUT_OF_RANGE = "out_of_range"
+    DOMAIN_INVARIANT = "domain_invariant"
+    EMPTY_PATCH = "empty_patch"
+    DUPLICATE_WRITE = "duplicate_write"
+    NO_OP_WRITE = "no_op_write"
+    NONCANONICAL_PATCH = "noncanonical_patch"
+    EXPECTED_OLD_MISMATCH = "expected_old_mismatch"
+    INVALID_PRESTATE = "invalid_prestate"
+    INVALID_CANDIDATE = "invalid_candidate"
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class LPPositionPatchRejectV1:
+    """Typed no-output rejection for one aggregate LP-position patch."""
+
+    code: LPPositionPatchCodeV1
+    path: LPPositionPatchPathV1
+
+
+def _lp_reject(
+    code: LPPositionPatchCodeV1,
+    path: LPPositionPatchPathV1,
+) -> LPPositionPatchRejectV1:
+    return LPPositionPatchRejectV1(code, path)
+
+
+def _lp_key_reject_v1(
+    key: object,
+    path: LPPositionPatchPathV1,
+) -> LPPositionPatchRejectV1 | None:
+    if type(key) is not tuple or len(key) != 2:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, path)
+    for index, component in enumerate(key):
+        component_path = path + (index,)
+        if type(component) is not str:
+            return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, component_path)
+        if not component:
+            return _lp_reject(LPPositionPatchCodeV1.NONCANONICAL_KEY, component_path)
+        if len(component) > MAX_STATE_STRING_CHARACTERS_V1:
+            return _lp_reject(LPPositionPatchCodeV1.ITEM_LIMIT, component_path)
+        try:
+            encoded = component.encode("utf-8")
+        except UnicodeEncodeError:
+            return _lp_reject(LPPositionPatchCodeV1.NONCANONICAL_KEY, component_path)
+        if len(encoded) > MAX_STATE_STRING_UTF8_BYTES_V1:
+            return _lp_reject(LPPositionPatchCodeV1.ITEM_LIMIT, component_path)
+    return None
+
+
+def _optional_nonnegative_int_reject_v1(
+    value: object,
+    path: LPPositionPatchPathV1,
+) -> LPPositionPatchRejectV1 | None:
+    if value is None:
+        return None
+    if type(value) is not int:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, path)
+    if value < 0:
+        return _lp_reject(LPPositionPatchCodeV1.OUT_OF_RANGE, path)
+    return None
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class LPPositionValueV1:
+    """Complete semantic value for one LP balance and duration-risk key."""
+
+    balance: int = 0
+    last_mint_timestamp: int | None = None
+    last_remove_timestamp: int | None = None
+    churn_tier: int = 0
+    last_churn_update_timestamp: int | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.balance) is not int:
+            raise TypeError("LP position balance must be an exact integer")
+        if not 0 <= self.balance <= DEX_LP_AMOUNT_MAX:
+            raise ValueError("LP position balance is outside the committed domain")
+        for field_name in (
+            "last_mint_timestamp",
+            "last_remove_timestamp",
+            "last_churn_update_timestamp",
+        ):
+            value = object.__getattribute__(self, field_name)
+            if value is not None and type(value) is not int:
+                raise TypeError(f"{field_name} must be None or an exact integer")
+            if value is not None and value < 0:
+                raise ValueError(f"{field_name} must be nonnegative")
+        if type(self.churn_tier) is not int:
+            raise TypeError("churn_tier must be an exact integer")
+        if self.churn_tier < 0:
+            raise ValueError("churn_tier must be nonnegative")
+        if self.last_mint_timestamp is not None and self.balance == 0:
+            raise ValueError("last_mint_timestamp requires a positive LP balance")
+
+
+_EMPTY_LP_POSITION_V1 = LPPositionValueV1()
+
+
+def _lp_position_value_reject_v1(
+    value: object,
+    path: LPPositionPatchPathV1,
+) -> LPPositionPatchRejectV1 | None:
+    if type(value) is not LPPositionValueV1:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, path)
+    if type(value.balance) is not int:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, path + ("balance",))
+    if not 0 <= value.balance <= DEX_LP_AMOUNT_MAX:
+        return _lp_reject(LPPositionPatchCodeV1.OUT_OF_RANGE, path + ("balance",))
+    for field_name in (
+        "last_mint_timestamp",
+        "last_remove_timestamp",
+        "last_churn_update_timestamp",
+    ):
+        reject = _optional_nonnegative_int_reject_v1(
+            object.__getattribute__(value, field_name),
+            path + (field_name,),
+        )
+        if reject is not None:
+            return reject
+    if type(value.churn_tier) is not int:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, path + ("churn_tier",))
+    if value.churn_tier < 0:
+        return _lp_reject(LPPositionPatchCodeV1.OUT_OF_RANGE, path + ("churn_tier",))
+    if value.last_mint_timestamp is not None and value.balance == 0:
+        return _lp_reject(LPPositionPatchCodeV1.DOMAIN_INVARIANT, path)
+    return None
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class LPPositionWriteV1:
+    """Compare-and-replace all five committed maps for one LP position key."""
+
+    key: LPKeyV1
+    expected: LPPositionValueV1
+    replacement: LPPositionValueV1
+
+    def __post_init__(self) -> None:
+        key_reject = _lp_key_reject_v1(self.key, ("key",))
+        if key_reject is not None:
+            if key_reject.code is LPPositionPatchCodeV1.WRONG_EXACT_TYPE:
+                raise TypeError("LP position key must be an exact pair of strings")
+            raise ValueError("LP position key is not canonical")
+        for field_name in ("expected", "replacement"):
+            value_reject = _lp_position_value_reject_v1(
+                object.__getattribute__(self, field_name),
+                (field_name,),
+            )
+            if value_reject is not None:
+                if value_reject.code is LPPositionPatchCodeV1.WRONG_EXACT_TYPE:
+                    raise TypeError(f"{field_name} must be an exact LPPositionValueV1")
+                raise ValueError(f"{field_name} violates the LP position domain")
+
+
+def _lp_write_reject_v1(
+    write: object,
+    path: LPPositionPatchPathV1,
+) -> LPPositionPatchRejectV1 | None:
+    if type(write) is not LPPositionWriteV1:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, path)
+    key_reject = _lp_key_reject_v1(write.key, path + ("key",))
+    if key_reject is not None:
+        return key_reject
+    expected_reject = _lp_position_value_reject_v1(write.expected, path + ("expected",))
+    if expected_reject is not None:
+        return expected_reject
+    return _lp_position_value_reject_v1(write.replacement, path + ("replacement",))
+
+
+def _lp_write_work_bytes_v1(write: LPPositionWriteV1) -> int:
+    total = len(write.key[0].encode("utf-8")) + len(write.key[1].encode("utf-8"))
+    for value in (write.expected, write.replacement):
+        for scalar in (
+            value.balance,
+            value.last_mint_timestamp,
+            value.last_remove_timestamp,
+            value.churn_tier,
+            value.last_churn_update_timestamp,
+        ):
+            if scalar is not None:
+                total += max(1, (scalar.bit_length() + 7) // 8)
+    return total
+
+
+def _canonical_lp_writes_reject_v1(
+    writes: object,
+    *,
+    invalid_code: LPPositionPatchCodeV1,
+) -> LPPositionPatchRejectV1 | None:
+    if type(writes) is not tuple or not writes:
+        return _lp_reject(invalid_code, ("writes",))
+    if len(writes) > MAX_LP_ENTRIES_V1:
+        return _lp_reject(LPPositionPatchCodeV1.ITEM_LIMIT, ("writes",))
+
+    previous_key: LPKeyV1 | None = None
+    work_bytes = 0
+    for index, write in enumerate(writes):
+        path: LPPositionPatchPathV1 = ("writes", index)
+        representation_reject = _lp_write_reject_v1(write, path)
+        if representation_reject is not None:
+            return _lp_reject(invalid_code, representation_reject.path)
+        exact_write = cast(LPPositionWriteV1, write)
+        if exact_write.expected == exact_write.replacement:
+            return _lp_reject(invalid_code, path)
+        if previous_key is not None and previous_key >= exact_write.key:
+            return _lp_reject(invalid_code, path + ("key",))
+        previous_key = exact_write.key
+        work_bytes += _lp_write_work_bytes_v1(exact_write)
+        if work_bytes > MAX_CANONICAL_BYTES_V1:
+            return _lp_reject(LPPositionPatchCodeV1.BYTE_LIMIT, ("writes",))
+    return None
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class CanonicalLPPositionPatchV1:
+    """Sorted duplicate-free complete writes over aggregate LP positions."""
+
+    writes: tuple[LPPositionWriteV1, ...]
+
+    def __post_init__(self) -> None:
+        reject = _canonical_lp_writes_reject_v1(
+            self.writes,
+            invalid_code=LPPositionPatchCodeV1.NONCANONICAL_PATCH,
+        )
+        if reject is not None:
+            raise ValueError("CanonicalLPPositionPatchV1 requires canonical writes")
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class LPPositionPatchBuildOkV1:
+    patch: CanonicalLPPositionPatchV1
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class LPPositionPatchApplyOkV1:
+    state: CommittedLPTableV1
+
+
+LPPositionPatchBuildResultV1 = LPPositionPatchBuildOkV1 | LPPositionPatchRejectV1
+LPPositionPatchApplyResultV1 = LPPositionPatchApplyOkV1 | LPPositionPatchRejectV1
+
+
+def build_canonical_lp_position_patch_v1(
+    writes: tuple[LPPositionWriteV1, ...],
+) -> LPPositionPatchBuildResultV1:
+    """Canonicalize complete LP-position writes before consulting pre-state."""
+
+    if type(writes) is not tuple:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, ("writes",))
+    if not writes:
+        return _lp_reject(LPPositionPatchCodeV1.EMPTY_PATCH, ("writes",))
+    if len(writes) > MAX_LP_ENTRIES_V1:
+        return _lp_reject(LPPositionPatchCodeV1.ITEM_LIMIT, ("writes",))
+
+    work_bytes = 0
+    for index, write in enumerate(writes):
+        representation_reject = _lp_write_reject_v1(write, ("writes", index))
+        if representation_reject is not None:
+            return representation_reject
+        work_bytes += _lp_write_work_bytes_v1(write)
+        if work_bytes > MAX_CANONICAL_BYTES_V1:
+            return _lp_reject(LPPositionPatchCodeV1.BYTE_LIMIT, ("writes",))
+
+    canonical = tuple(sorted(writes, key=lambda write: write.key))
+    for index in range(1, len(canonical)):
+        if canonical[index - 1].key == canonical[index].key:
+            duplicate_key = canonical[index].key
+            return _lp_reject(
+                LPPositionPatchCodeV1.DUPLICATE_WRITE,
+                ("writes", "key", duplicate_key[0], duplicate_key[1]),
+            )
+    for index, write in enumerate(canonical):
+        if write.expected == write.replacement:
+            return _lp_reject(LPPositionPatchCodeV1.NO_OP_WRITE, ("writes", index))
+    return LPPositionPatchBuildOkV1(CanonicalLPPositionPatchV1(canonical))
+
+
+def _lp_positions_from_committed_v1(
+    pre: CommittedLPTableV1,
+) -> dict[LPKeyV1, LPPositionValueV1] | LPPositionPatchRejectV1:
+    from .state_snapshots import StateAdmissionError, snapshot_lp_table
+
+    if type(pre) is not CommittedLPTableV1:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, ())
+    try:
+        admitted = snapshot_lp_table(pre)
+    except StateAdmissionError as exc:
+        return _lp_reject(LPPositionPatchCodeV1.INVALID_PRESTATE, ("state",) + exc.path)
+
+    positions: dict[LPKeyV1, LPPositionValueV1] = {
+        key: LPPositionValueV1(balance=amount) for key, amount in admitted.balance_entries
+    }
+    for key, timestamp in admitted.last_mint_entries:
+        positions[key] = replace(
+            positions.get(key, _EMPTY_LP_POSITION_V1), last_mint_timestamp=timestamp
+        )
+    for key, timestamp in admitted.last_remove_entries:
+        positions[key] = replace(
+            positions.get(key, _EMPTY_LP_POSITION_V1),
+            last_remove_timestamp=timestamp,
+        )
+    for key, tier in admitted.churn_tier_entries:
+        positions[key] = replace(positions.get(key, _EMPTY_LP_POSITION_V1), churn_tier=tier)
+    for key, timestamp in admitted.last_churn_update_entries:
+        positions[key] = replace(
+            positions.get(key, _EMPTY_LP_POSITION_V1),
+            last_churn_update_timestamp=timestamp,
+        )
+    return positions
+
+
+def _validated_lp_patch_writes_v1(
+    patch: object,
+) -> tuple[LPPositionWriteV1, ...] | LPPositionPatchRejectV1:
+    if type(patch) is not CanonicalLPPositionPatchV1:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, ())
+    try:
+        writes = object.__getattribute__(patch, "writes")
+    except AttributeError:
+        return _lp_reject(LPPositionPatchCodeV1.NONCANONICAL_PATCH, ("writes",))
+    reject = _canonical_lp_writes_reject_v1(
+        writes,
+        invalid_code=LPPositionPatchCodeV1.NONCANONICAL_PATCH,
+    )
+    if reject is not None:
+        return reject
+    return cast(tuple[LPPositionWriteV1, ...], writes)
+
+
+def _candidate_lp_table_v1(
+    positions: dict[LPKeyV1, LPPositionValueV1],
+) -> CommittedLPTableV1 | LPPositionPatchRejectV1:
+    position_items = tuple(sorted(positions.items(), key=lambda item: item[0]))
+    balance_entries = tuple(
+        (key, value.balance) for key, value in position_items if value.balance > 0
+    )
+    last_mint_entries = tuple(
+        (key, value.last_mint_timestamp)
+        for key, value in position_items
+        if value.last_mint_timestamp is not None
+    )
+    last_remove_entries = tuple(
+        (key, value.last_remove_timestamp)
+        for key, value in position_items
+        if value.last_remove_timestamp is not None
+    )
+    churn_tier_entries = tuple(
+        (key, value.churn_tier) for key, value in position_items if value.churn_tier > 0
+    )
+    last_churn_update_entries = tuple(
+        (key, value.last_churn_update_timestamp)
+        for key, value in position_items
+        if value.last_churn_update_timestamp is not None
+    )
+    entry_groups = (
+        balance_entries,
+        last_mint_entries,
+        last_remove_entries,
+        churn_tier_entries,
+        last_churn_update_entries,
+    )
+    if sum(len(entries) for entries in entry_groups) > MAX_LP_ENTRIES_V1:
+        return _lp_reject(LPPositionPatchCodeV1.ITEM_LIMIT, ("state", "lp_balances"))
+
+    try:
+        owned_maps = tuple(
+            _owned_map_from_canonical_transition_v1(
+                entries,
+                FCIS_STATE_SCHEMA_REVISION_V1,
+                schema_id,
+            )
+            for entries, schema_id in zip(entry_groups, _LP_MAP_SCHEMA_IDS_V1, strict=True)
+        )
+        candidate = CommittedLPTableV1(
+            owned_maps[0],
+            owned_maps[1],
+            owned_maps[2],
+            owned_maps[3],
+            owned_maps[4],
+        )
+    except (TypeError, ValueError):
+        return _lp_reject(LPPositionPatchCodeV1.INVALID_CANDIDATE, ("state", "lp_balances"))
+    return _revalidate_lp_candidate_v1(candidate)
+
+
+def _revalidate_lp_candidate_v1(
+    candidate: CommittedLPTableV1,
+) -> CommittedLPTableV1 | LPPositionPatchRejectV1:
+    """Run the one closed admission boundary over the completed candidate."""
+
+    from .state_snapshots import StateAdmissionError, snapshot_lp_table
+
+    try:
+        return snapshot_lp_table(candidate)
+    except StateAdmissionError as exc:
+        return _lp_reject(LPPositionPatchCodeV1.INVALID_CANDIDATE, ("state",) + exc.path)
+
+
+def apply_canonical_lp_position_patch_v1(
+    pre: CommittedLPTableV1,
+    patch: CanonicalLPPositionPatchV1,
+) -> LPPositionPatchApplyResultV1:
+    """Apply all balance and duration-risk fields as one immutable candidate."""
+
+    positions = _lp_positions_from_committed_v1(pre)
+    if type(positions) is LPPositionPatchRejectV1:
+        return positions
+    writes = _validated_lp_patch_writes_v1(patch)
+    if type(writes) is LPPositionPatchRejectV1:
+        return writes
+
+    updated = dict(positions)
+    for index, write in enumerate(writes):
+        current = updated.get(write.key, _EMPTY_LP_POSITION_V1)
+        if current != write.expected:
+            return _lp_reject(
+                LPPositionPatchCodeV1.EXPECTED_OLD_MISMATCH,
+                ("writes", index, "expected"),
+            )
+        if write.replacement == _EMPTY_LP_POSITION_V1:
+            updated.pop(write.key, None)
+        else:
+            updated[write.key] = write.replacement
+
+    candidate = _candidate_lp_table_v1(updated)
+    if type(candidate) is LPPositionPatchRejectV1:
+        return candidate
+    return LPPositionPatchApplyOkV1(candidate)
+
+
 __all__ = [
     "BalanceDeltaV1",
     "BalancePatchApplyOkV1",
@@ -809,7 +1269,16 @@ __all__ = [
     "BalancePatchRejectV1",
     "BalanceWriteV1",
     "CanonicalBalancePatchV1",
+    "CanonicalLPPositionPatchV1",
     "CanonicalNoncePatchV1",
+    "LPPositionPatchApplyOkV1",
+    "LPPositionPatchApplyResultV1",
+    "LPPositionPatchBuildOkV1",
+    "LPPositionPatchBuildResultV1",
+    "LPPositionPatchCodeV1",
+    "LPPositionPatchRejectV1",
+    "LPPositionValueV1",
+    "LPPositionWriteV1",
     "NonceAdvanceV1",
     "NoncePatchApplyOkV1",
     "NoncePatchApplyResultV1",
@@ -819,7 +1288,9 @@ __all__ = [
     "NoncePatchRejectV1",
     "apply_balance_deltas_v1",
     "apply_canonical_balance_patch_v1",
+    "apply_canonical_lp_position_patch_v1",
     "apply_canonical_nonce_patch_v1",
     "build_canonical_balance_patch_v1",
+    "build_canonical_lp_position_patch_v1",
     "build_canonical_nonce_patch_v1",
 ]
