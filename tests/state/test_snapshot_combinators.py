@@ -1816,6 +1816,31 @@ def test_corrupted_owned_map_exact_index_is_not_silently_repaired() -> None:
     assert _admit(schema, first.value) == AdmitReject(AdmitCode.REGISTRY_DRIFT, ())
 
 
+def test_exact_keyed_map_revalidates_under_equal_reconstructed_field_names() -> None:
+    first_name = bytes.fromhex("62616c616e6365").decode("ascii")
+    second_name = bytearray.fromhex("62616c616e6365").decode("ascii")
+    assert first_name == second_name
+    assert first_name is not second_name
+    first_schema = ExactKeyedMap(
+        (DeclaredFieldV1(first_name, ExactInt(0, 9)),),
+        "test/exact-map/v1",
+    )
+    second_schema = ExactKeyedMap(
+        (DeclaredFieldV1(second_name, ExactInt(0, 9)),),
+        "test/exact-map/v1",
+    )
+
+    first = _admit(first_schema, {first_name: 7})
+    assert type(first) is AdmitOk
+    assert type(first.value) is OwnedMapV1
+    second = _admit(second_schema, first.value)
+
+    assert type(second) is AdmitOk
+    assert type(second.value) is OwnedMapV1
+    assert second.value.entries == ((second_name, 7),)
+    assert second.value.entries[0][0] is second_name
+
+
 def test_owned_map_all_insertion_permutations_have_identical_order_and_bytes() -> None:
     schema = MapOf(
         ExactString(StringRuleV1.NON_EMPTY, 8),

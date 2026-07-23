@@ -1884,7 +1884,10 @@ def _admit_exact_keyed_map(
     ordered_source_entries = tuple((name, value_by_name[name]) for name in declared_names)
     if type(source) is OwnedMapV1 and source_entries != ordered_source_entries:
         return _reject(AdmitCode.REGISTRY_DRIFT, path)
-    if not _owned_map_index_matches_entries(source, ordered_source_entries):
+    # Validate an owned map's index against its own exact key objects. An
+    # equivalent reconstructed registry may hold equal declared-name strings
+    # with different identities; registry identity is not protocol state.
+    if not _owned_map_index_matches_entries(source, source_entries):
         return _reject(AdmitCode.REGISTRY_DRIFT, path)
 
     owned_entries: list[tuple[object, object]] = []
