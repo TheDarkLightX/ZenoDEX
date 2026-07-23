@@ -25,6 +25,7 @@ from src.state.state_snapshot_schema import (
     StateEnumTagV1,
     StateRecordTagV1,
 )
+from src.state.state_snapshot_values import POOL_STATUS_MEMBER_VALUES_V1
 
 
 def test_record_registry_is_exhaustive_ordered_and_field_exact() -> None:
@@ -49,6 +50,7 @@ def test_enum_registry_is_exhaustive_and_pool_status_order_is_pinned() -> None:
     )
     assert ENUM_REGISTRATIONS_V1[0].enum_type is PoolStatus
     assert tuple(member.name for member in PoolStatus) == ("ACTIVE", "FROZEN", "DISABLED")
+    assert tuple(member.value for member in PoolStatus) == POOL_STATUS_MEMBER_VALUES_V1
 
 
 def test_schema_registry_ids_are_unique_and_complete() -> None:
