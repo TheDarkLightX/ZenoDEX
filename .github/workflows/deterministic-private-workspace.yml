@@ -58,17 +58,20 @@ jobs:
             2>&1 | tee ../deterministic-worker-core-clippy.txt
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Runtime-shadow-equivalent Clippy
-        id: shadow_clippy
+      - name: Workspace all-features Clippy
+        id: workspace_clippy
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
           cargo +1.96.0 clippy \
+            --workspace \
             --all-targets \
+            --all-features \
+            --locked \
             -- \
             -D warnings \
-            2>&1 | tee ../deterministic-worker-shadow-clippy.txt
+            2>&1 | tee ../deterministic-worker-workspace-clippy.txt
           echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Retain Clippy diagnostics
@@ -78,15 +81,15 @@ jobs:
           name: deterministic-private-workspace-clippy-diagnostics
           path: |
             deterministic-worker-core-clippy.txt
-            deterministic-worker-shadow-clippy.txt
+            deterministic-worker-workspace-clippy.txt
           if-no-files-found: error
 
       - name: Enforce core Clippy
         if: steps.core_clippy.outputs.exit_code != '0'
         run: exit 1
 
-      - name: Enforce runtime-shadow-equivalent Clippy
-        if: steps.shadow_clippy.outputs.exit_code != '0'
+      - name: Enforce workspace all-features Clippy
+        if: steps.workspace_clippy.outputs.exit_code != '0'
         run: exit 1
 
       - name: Deterministic worker tests
