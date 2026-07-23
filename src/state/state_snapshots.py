@@ -9,6 +9,7 @@ New authority-core code must not depend on those compatibility classes.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, NoReturn, cast, final
 
 from .balances import Amount, AssetId, BalanceTable, PubKey
@@ -54,6 +55,8 @@ _STATE_ADMISSION_LIMITS_V1 = build_admission_limits_v1(
 )
 if type(_STATE_ADMISSION_LIMITS_V1) is not ValidatedAdmissionLimitsV1:
     raise RuntimeError("mounted FCIS state admission limits are invalid")
+
+_MAPPING_PROXY_TYPE: type[object] = type(MappingProxyType({}))
 
 
 @final
@@ -121,8 +124,42 @@ def _admit_state_value(schema_id: str, source: object) -> object:
     return result.value
 
 
+def _project_frozen_dict_v1(source: FrozenDict, path: FieldPath) -> dict[Any, Any]:
+    """Detach one exact repository-owned compatibility map without hooks."""
+
+    if type(source) is not FrozenDict:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, path))
+    try:
+        raw = object.__getattribute__(source, "_data")
+    except AttributeError:
+        _raise_admission_reject(AdmitReject(AdmitCode.MISSING_FIELD, path))
+    if type(raw) is not _MAPPING_PROXY_TYPE:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_CONTAINER, path))
+    return dict(cast(Mapping[Any, Any], raw))
+
+
+def _project_frozen_pool_v1(source: FrozenPoolState) -> PoolState:
+    """Lower one exact legacy compatibility pool into a fresh base value."""
+
+    if type(source) is not FrozenPoolState:
+        _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
+    return PoolState(
+        pool_id=object.__getattribute__(source, "pool_id"),
+        asset0=object.__getattribute__(source, "asset0"),
+        asset1=object.__getattribute__(source, "asset1"),
+        reserve0=object.__getattribute__(source, "reserve0"),
+        reserve1=object.__getattribute__(source, "reserve1"),
+        fee_bps=object.__getattribute__(source, "fee_bps"),
+        lp_supply=object.__getattribute__(source, "lp_supply"),
+        status=object.__getattribute__(source, "status"),
+        created_at=object.__getattribute__(source, "created_at"),
+        curve_tag=object.__getattribute__(source, "curve_tag"),
+        curve_params=object.__getattribute__(source, "curve_params"),
+    )
+
+
 def snapshot_balance_table(
-    source: BalanceTable | CommittedBalanceTableV1,
+    source: BalanceTable | FrozenBalanceTable | CommittedBalanceTableV1,
 ) -> CommittedBalanceTableV1:
     """Admit one exact balance source into a distinct owned committed value.
 
@@ -141,7 +178,14 @@ def snapshot_balance_table(
     )
 
     admission_source: object
-    if type(source) is BalanceTable:
+    if type(source) is FrozenBalanceTable:
+        try:
+            frozen_balances = object.__getattribute__(source, "_balances")
+        except AttributeError:
+            _raise_admission_reject(AdmitReject(AdmitCode.MISSING_FIELD, ("_balances",)))
+        raw_balances = _project_frozen_dict_v1(frozen_balances, ("_balances",))
+        admission_source = _BalanceSourceV1(raw_balances)
+    elif type(source) is BalanceTable:
         try:
             raw_balances = object.__getattribute__(source, "_balances")
         except AttributeError:
@@ -160,14 +204,16 @@ def snapshot_balance_table(
     return cast(CommittedBalanceTableV1, admitted)
 
 
-def snapshot_lp_table(source: LPTable | CommittedLPTableV1) -> CommittedLPTableV1:
+def snapshot_lp_table(
+    source: LPTable | FrozenLPTable | CommittedLPTableV1,
+) -> CommittedLPTableV1:
     """Admit the five exact LP maps as one owned committed aggregate."""
 
     from .state_snapshot_schema import LP_TABLE_ADMISSION_SCHEMA_ID_V1
     from .state_snapshot_values import CommittedLPTableV1, _LPSourceV1
 
     admission_source: object
-    if type(source) is LPTable:
+    if type(source) in {LPTable, FrozenLPTable}:
         raw_fields: list[object] = []
         for field_name in (
             "_balances",
@@ -180,8 +226,12 @@ def snapshot_lp_table(source: LPTable | CommittedLPTableV1) -> CommittedLPTableV
                 raw = object.__getattribute__(source, field_name)
             except AttributeError:
                 _raise_admission_reject(AdmitReject(AdmitCode.MISSING_FIELD, (field_name,)))
-            if type(raw) is not dict:
-                _raise_admission_reject(AdmitReject(AdmitCode.WRONG_CONTAINER, (field_name,)))
+            if type(source) is FrozenLPTable:
+                raw = _project_frozen_dict_v1(raw, (field_name,))
+            elif type(raw) is not dict:
+                _raise_admission_reject(
+                    AdmitReject(AdmitCode.WRONG_CONTAINER, (field_name,))
+                )
             raw_fields.append(raw)
         admission_source = _LPSourceV1(*raw_fields)
     elif type(source) is CommittedLPTableV1:
@@ -222,31 +272,47 @@ def snapshot_nonce_table(
     return cast(CommittedNonceTableV1, admitted)
 
 
-def snapshot_pool(source: PoolState | CommittedPoolStateV1) -> CommittedPoolStateV1:
+def snapshot_pool(
+    source: PoolState | FrozenPoolState | CommittedPoolStateV1,
+) -> CommittedPoolStateV1:
     """Admit one exact pool through the closed field and invariant schema."""
 
     from .state_snapshot_schema import POOL_ADMISSION_SCHEMA_ID_V1
     from .state_snapshot_values import CommittedPoolStateV1
 
-    if type(source) not in {PoolState, CommittedPoolStateV1}:
+    if type(source) is FrozenPoolState:
+        admission_source: object = _project_frozen_pool_v1(source)
+    elif type(source) in {PoolState, CommittedPoolStateV1}:
+        admission_source = source
+    else:
         _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
-    admitted = _admit_state_value(POOL_ADMISSION_SCHEMA_ID_V1, source)
+    admitted = _admit_state_value(POOL_ADMISSION_SCHEMA_ID_V1, admission_source)
     if type(admitted) is not CommittedPoolStateV1:
         raise RuntimeError("closed pool admission returned an impossible result")
     return cast(CommittedPoolStateV1, admitted)
 
 
 def snapshot_pool_map(
-    source: dict[str, PoolState] | OwnedMapV1[str, CommittedPoolStateV1],
+    source: dict[str, PoolState]
+    | FrozenDict
+    | OwnedMapV1[str, CommittedPoolStateV1],
 ) -> OwnedMapV1[str, CommittedPoolStateV1]:
     """Admit a canonical pool map and bind each map key to its pool ID."""
 
     from .state_snapshot_schema import POOL_MAP_ADMISSION_SCHEMA_ID_V1
     from .state_snapshot_values import CommittedPoolStateV1
 
-    if type(source) not in {dict, OwnedMapV1}:
+    if type(source) is FrozenDict:
+        frozen_entries = _project_frozen_dict_v1(source, ())
+        admission_source = {
+            pool_id: _project_frozen_pool_v1(pool)
+            for pool_id, pool in frozen_entries.items()
+        }
+    elif type(source) in {dict, OwnedMapV1}:
+        admission_source = source
+    else:
         _raise_admission_reject(AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ()))
-    admitted = _admit_state_value(POOL_MAP_ADMISSION_SCHEMA_ID_V1, source)
+    admitted = _admit_state_value(POOL_MAP_ADMISSION_SCHEMA_ID_V1, admission_source)
     if type(admitted) is not OwnedMapV1:
         raise RuntimeError("closed pool-map admission returned an impossible result")
     return cast(OwnedMapV1[str, CommittedPoolStateV1], admitted)

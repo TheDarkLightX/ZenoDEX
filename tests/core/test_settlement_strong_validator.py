@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import replace
+from typing import Any, cast
 
 import src.core.settlement_strong_validator as strong_validator
 from src.core.batch_clearing import compute_settlement, validate_settlement
@@ -11,10 +13,18 @@ from src.core.dex import step as dex_step
 from src.core.liquidity import create_pool
 from src.core.quote_receipts import pool_state_fingerprint
 from src.core.settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
-from src.core.settlement_strong_validator import validate_settlement_strong
+from src.core.settlement_strong_validator import (
+    validate_settlement_strong,
+    validate_settlement_strong_committed_v1,
+)
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
+from src.state.state_snapshots import (
+    snapshot_balance_table,
+    snapshot_lp_table,
+    snapshot_pool_map,
+)
 
 
 def _iid(n: int) -> str:
@@ -201,6 +211,106 @@ def _setup_remove_liquidity_context() -> tuple[str, str, str, str, PoolState, Ba
     )
     settlement = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
     return pk, asset0, asset1, pool_id, pool, balances, lp_balances, intent, settlement
+
+
+def test_exact_committed_validator_matches_legacy_facade_across_spot_actions() -> None:
+    _pk, _asset0, _asset1, create_balances, create_intent, create_settlement = (
+        _setup_create_pool_context()
+    )
+    *_swap_prefix, swap_pool, swap_balances, swap_intent, swap_settlement = (
+        _setup_swap_context()
+    )
+    swap_pool_id = swap_pool.pool_id
+    *_out_prefix, out_pool, out_balances, out_intent, out_settlement = (
+        _setup_swap_exact_out_context()
+    )
+    out_pool_id = out_pool.pool_id
+    (
+        *_add_prefix,
+        add_pool,
+        add_balances,
+        add_lp,
+        add_intent,
+        add_settlement,
+    ) = _setup_add_liquidity_context()
+    add_pool_id = add_pool.pool_id
+    (
+        *_remove_prefix,
+        remove_pool,
+        remove_balances,
+        remove_lp,
+        remove_intent,
+        remove_settlement,
+    ) = _setup_remove_liquidity_context()
+    remove_pool_id = remove_pool.pool_id
+
+    cases: tuple[
+        tuple[Settlement, Intent, BalanceTable, dict[str, PoolState], LPTable],
+        ...,
+    ] = (
+        (create_settlement, create_intent, create_balances, {}, LPTable()),
+        (
+            swap_settlement,
+            swap_intent,
+            swap_balances,
+            {swap_pool_id: swap_pool},
+            LPTable(),
+        ),
+        (
+            out_settlement,
+            out_intent,
+            out_balances,
+            {out_pool_id: out_pool},
+            LPTable(),
+        ),
+        (
+            add_settlement,
+            add_intent,
+            add_balances,
+            {add_pool_id: add_pool},
+            add_lp,
+        ),
+        (
+            remove_settlement,
+            remove_intent,
+            remove_balances,
+            {remove_pool_id: remove_pool},
+            remove_lp,
+        ),
+    )
+
+    for settlement, intent, balances, pools, lp_balances in cases:
+        legacy = validate_settlement_strong(
+            settlement=copy.deepcopy(settlement),
+            intents=[intent],
+            pre_balances=balances,
+            pre_pools=pools,
+            pre_lp_balances=lp_balances,
+        )
+        exact = validate_settlement_strong_committed_v1(
+            settlement=copy.deepcopy(settlement),
+            intents=[intent],
+            pre_balances=snapshot_balance_table(balances),
+            pre_pools=snapshot_pool_map(pools),
+            pre_lp_balances=snapshot_lp_table(lp_balances),
+        )
+        assert exact == legacy == (True, None)
+
+
+def test_exact_committed_validator_rejects_legacy_state_values() -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+    runtime_exact_validator = cast(Any, validate_settlement_strong_committed_v1)
+
+    ok, error = runtime_exact_validator(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool.pool_id: pool},
+        pre_lp_balances=LPTable(),
+    )
+
+    assert ok is False
+    assert error == "strong validator crashed: TypeError: replay balances must be exact committed state"
 
 
 def test_quote_binding_error_without_context_returns_reason() -> None:
@@ -2328,7 +2438,11 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     def _boom_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
 
-    monkeypatch.setattr(strong_validator, "swap_exact_in_for_pool", _boom_exact_in)
+    monkeypatch.setattr(
+        strong_validator,
+        "swap_exact_in_for_committed_pool_v1",
+        _boom_exact_in,
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -2444,7 +2558,11 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     def _boom_exact_out(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
 
-    monkeypatch.setattr(strong_validator, "swap_exact_out_for_pool", _boom_exact_out)
+    monkeypatch.setattr(
+        strong_validator,
+        "swap_exact_out_for_committed_pool_v1",
+        _boom_exact_out,
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],

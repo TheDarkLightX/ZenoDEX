@@ -61,7 +61,11 @@ from src.state.state_snapshot_values import (
     _LPSourceV1,
 )
 from src.state.state_snapshots import (
+    FrozenBalanceTable,
     StateAdmissionError,
+    freeze_balance_table,
+    freeze_lp_table,
+    freeze_pool_mapping,
     snapshot_balance_table,
     snapshot_fee_accumulator,
     snapshot_lp_table,
@@ -336,6 +340,39 @@ def test_balance_snapshot_facade_owns_aliases_and_revalidates_committed_input() 
     readmitted = snapshot_balance_table(committed)
     assert readmitted == committed
     assert readmitted is not committed
+
+
+def test_snapshot_facades_bridge_exact_repository_owned_legacy_snapshots() -> None:
+    balances = BalanceTable()
+    balances.set("alice", "asset", 7)
+    frozen_balances = freeze_balance_table(balances)
+
+    lp_source = LPTable()
+    lp_source.set("alice", _pool().pool_id, 5)
+    frozen_lp = freeze_lp_table(lp_source)
+
+    pool = _pool()
+    frozen_pools = freeze_pool_mapping({pool.pool_id: pool})
+
+    assert snapshot_balance_table(frozen_balances).entries == (
+        (("alice", "asset"), 7),
+    )
+    assert snapshot_lp_table(frozen_lp).get("alice", pool.pool_id) == 5
+    assert snapshot_pool_map(frozen_pools).entries[0][1].reserve0 == pool.reserve0
+
+
+def test_snapshot_facade_rejects_caller_defined_frozen_subclass() -> None:
+    class CallerFrozenBalance(FrozenBalanceTable):
+        pass
+
+    source = BalanceTable()
+    source.set("alice", "asset", 7)
+
+    with pytest.raises(StateAdmissionError) as captured:
+        snapshot_balance_table(CallerFrozenBalance(source))
+
+    assert captured.value.code is AdmitCode.WRONG_EXACT_TYPE
+    assert captured.value.path == ()
 
 
 def test_balance_snapshot_facade_rejects_raw_corruption_before_source_hooks() -> None:
