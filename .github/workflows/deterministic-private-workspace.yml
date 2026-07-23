@@ -16,11 +16,7 @@ on:
       - "tools/fcis_inventory_core.py"
 
 permissions:
-  contents: write
-
-concurrency:
-  group: deterministic-private-workspace-publish
-  cancel-in-progress: false
+  contents: read
 
 jobs:
   rust-worker-protocol:
@@ -30,10 +26,6 @@ jobs:
         working-directory: rust-runtime
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/deterministic-private-workspace-v1-20260723
-          fetch-depth: 0
-          persist-credentials: true
 
       - name: Install exact Rust toolchain
         run: >-
@@ -47,39 +39,18 @@ jobs:
           rustc +1.96.0 --version --verbose
           cargo +1.96.0 --version --verbose
 
-      - name: Produce canonical Rust formatting
-        run: cargo +1.96.0 fmt --all
-
       - name: Verify formatting
         run: cargo +1.96.0 fmt --all -- --check
 
       - name: Clippy
-        id: clippy
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          cargo +1.96.0 clippy \
-            -p zenodex-runtime-core \
-            --all-targets \
-            --all-features \
-            --locked \
-            -- \
-            -D warnings \
-            2>&1 | tee ../deterministic-worker-publish-clippy.txt
-          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-
-      - name: Retain publisher Clippy diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deterministic-worker-publisher-clippy
-          path: deterministic-worker-publish-clippy.txt
-          if-no-files-found: error
-
-      - name: Enforce Clippy
-        if: steps.clippy.outputs.exit_code != '0'
-        run: exit 1
+        run: >-
+          cargo +1.96.0 clippy
+          -p zenodex-runtime-core
+          --all-targets
+          --all-features
+          --locked
+          --
+          -D warnings
 
       - name: Deterministic worker tests
         run: >-
@@ -97,24 +68,6 @@ jobs:
           --all-features
           --release
           --locked
-
-      - name: Publish canonical Rust source once
-        working-directory: .
-        shell: bash
-        run: |
-          set -euo pipefail
-          paths=(
-            rust-runtime/crates/zenodex-runtime-core/src/deterministic_worker.rs
-            rust-runtime/crates/zenodex-runtime-core/src/lib.rs
-          )
-          if git diff --quiet -- "${paths[@]}"; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- "${paths[@]}"
-          git commit -m "style(runtime): canonicalize deterministic worker protocol"
-          git push origin HEAD:agent/deterministic-private-workspace-v1-20260723
 
   fcis-policy:
     runs-on: ubuntu-latest
