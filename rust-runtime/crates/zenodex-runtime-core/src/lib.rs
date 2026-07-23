@@ -6,7 +6,7 @@
 //! accounting, zUSD, burn rails, CPMM settlement arithmetic, state roots,
 //! canonical encodings, receipt hashes, and stateless perps math. Each surface
 //! is built against an authoritative Python runtime or encoder and must agree
-//! with it bit-for-bit on every golden trace or vector corpus (see
+/! with it bit-for-bit on every golden trace or vector corpus (see
 //! `docs/runtime/`).
 //!
 //! Design rules enforced here (see the migration "Hard Rules"):
@@ -19,13 +19,14 @@
 //! * No panics in public transition functions: every transition returns
 //!   `Result<Accepted, RejectedReason>` and never falls back silently.
 //! * Canonical output is built from explicit, ordered byte encodings
-//!   ([`canonical`]) — never from unordered map iteration.
+//!   ([`canonical]) — never from unordered map iteration.
 
 pub mod arith;
 pub mod balance_kernel;
 pub mod burn_receipts;
 pub mod canonical;
 pub mod cpmm_swap;
+pub mod deterministic_worker;
 pub mod error;
 pub mod fee_router;
 pub mod perp_account_ops;
