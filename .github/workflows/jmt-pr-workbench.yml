@@ -4,12 +4,13 @@ on:
   push:
     branches:
       - agent/jmt-storage-update-plan-v1
+  pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  group: jmt-pr-workbench-${{ github.ref }}
+  group: jmt-pr-workbench-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
