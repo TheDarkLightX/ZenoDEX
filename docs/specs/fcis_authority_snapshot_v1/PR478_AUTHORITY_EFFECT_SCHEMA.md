@@ -364,12 +364,21 @@ constructs the total once and passes the same semantic value to both invariant
 and effect construction. No mutable dictionary is the authoritative effect
 plan.
 
-`DexStepResult` remains an exhaustive result:
+`DexStepResult` becomes the exhaustive aggregate result required by E10:
 
 ```text
-Accept -> exact DexState + exact OwnedDexEffectsV1 + no error
-Reject -> no state + no effects + stable non-empty reject code/details
+Accept
+  -> exact DexState + exact OwnedDexEffectsV1 + canonical receipt
+Reject
+  -> no successor + no authoritative effects + canonical rejection receipt
+CommittedFailure
+  -> exact DexState + exact OwnedDexEffectsV1 + canonical failure receipt
 ```
+
+PR #478 owns these values and their canonical projection. Atomic root-bound
+publication, receipt storage, replay updates, and outbox-record commitment are
+the later shell contract; they are never modeled as a post-commit best-effort
+receipt write.
 
 ## 8. Canonical projection
 

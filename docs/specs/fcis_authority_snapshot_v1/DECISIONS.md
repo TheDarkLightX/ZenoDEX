@@ -12,8 +12,10 @@ the code change.
 ```text
 immutable state + typed command + committed policy + explicit evidence
   -> pure total transition
-  -> typed reject
-   | owned next state + canonical effect plan + receipt
+  -> Reject(reject reason, receipt)
+   | Accept(owned next state, canonical commit plan, receipt)
+   | CommittedFailure(failure reason, owned next state,
+                      canonical commit plan, receipt)
 ```
 
 The shell acquires authenticated context, loads state, invokes the transition,
@@ -50,10 +52,15 @@ LegacySource
   -> closed exact admission
   -> CommittedValue
 
-Step(CommittedValue, TypedCommand, ExplicitContext)
+DomainStep(CommittedValue, TypedCommand, ExplicitContext)
   -> Reject
    | Accept(NewCommittedValue, EffectPlan, Receipt)
 ```
+
+`DomainStep` is the two-way leaf relation for domains that have no
+protocol-defined committed failure. The aggregate DEX command relation uses
+the three-way result in FCIS-D001. Only aggregate `Reject` has the unchanged
+state and no-authoritative-effects law.
 
 `LegacySource` may be mutable and caller-owned. Admission owns and validates its
 complete graph once. Authority-bearing core functions accept and return exact
@@ -208,10 +215,13 @@ partition.
 
 ### FCIS-D016: Atomic candidate commit is a separate shell obligation
 
-State, effects, receipt, nonce/nullifier changes, roots, and outbox entries must
-eventually commit at one expected-root compare-and-swap linearization point.
-The snapshot PRs do not claim datastore linearizability or exactly-once
-external delivery.
+The shell commits one `CommitBundle` at one expected-root compare-and-swap
+linearization point. Its `CommitPlan` contains authoritative state, value,
+nonce/nullifier, and receipt records. Its `OutboxPlan` contains immutable
+records for later event, proof, index, or notification delivery. Both plans are
+committed atomically as data; external delivery occurs afterward under
+receipt-derived idempotency keys. The snapshot PRs do not claim datastore
+linearizability or exactly-once external delivery.
 
 ### FCIS-D017: Heterogeneous record containers use exact-type union dispatch
 
@@ -225,6 +235,19 @@ Rationale: the mounted perps market map contains four exact market record
 classes. A single `MapOf` value schema and `TaggedRecordOf` over one source
 class cannot represent that accepted language without a second hand-written
 dispatcher.
+
+### FCIS-D020: Canonical encoding and protocol order are separate contracts
+
+Canonical encoding defines one accepted byte representation. Protocol order
+defines which semantic value precedes another for selection, folding, or
+tie-breaking. One byte key may implement both only when a versioned law and
+cross-language vectors prove that lexicographic key order equals the declared
+protocol order and that equal order keys imply equal semantic values.
+
+Unordered domains are normalized by their declared protocol order.
+Semantically ordered domains, including nonce order, route hops, proof ancestry,
+and price-time priority, preserve and validate that order rather than being
+re-sorted by an unrelated encoding key.
 
 ### FCIS-D018: Character semantics and UTF-8 work have separate bounds
 

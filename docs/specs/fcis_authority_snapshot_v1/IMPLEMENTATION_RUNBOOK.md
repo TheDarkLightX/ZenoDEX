@@ -296,7 +296,9 @@ tags in this PR.
 
 Construct effects from the exact owned settlement used by validation and state
 application. Derive/check total fee consistency. Update `DexStepResult` to use
-the exact effect type and preserve reject-is-no-output.
+the exact effect type and the three-way aggregate result from E10. Preserve
+reject-is-no-successor/no-authoritative-effects; represent an intentional state
+change after a failed request as `CommittedFailure`.
 
 ### 3.8 Parity and integration
 

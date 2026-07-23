@@ -171,10 +171,14 @@ LegacySource
   -> closed exact admission
   -> CommittedValue
 
-Step(CommittedValue, TypedCommand, ExplicitContext)
+DomainStep(CommittedValue, TypedCommand, ExplicitContext)
   -> Reject
    | Accept(NewCommittedValue, Effects, Receipt)
 ```
+
+This is the leaf relation for a domain with no protocol-defined committed
+failure. The aggregate DEX relation is the three-way `Decision` from
+`ERRATA.md` E10. Only aggregate `Reject` is an unchanged-state no-op.
 
 The pattern makes ownership transfer occur exactly once and removes a public
 post-admission mutation window. Old committed versions remain valid for roots,
@@ -194,11 +198,12 @@ preserving the same return-new semantics.
 
 ### Mechanical guarantee and non-guarantees
 
-Each accepted transition returns a distinct immutable successor while the
-pre-state remains byte- and behavior-stable. Rejection returns no candidate,
-effect, or receipt. The pattern does not prove that transition logic is
-economically correct or that the imperative shell commits the result
-atomically.
+Each accepted leaf transition returns a distinct immutable successor while the
+pre-state remains byte- and behavior-stable. Leaf rejection returns no
+candidate or effect. Aggregate rejection retains its canonical rejection
+receipt while returning no successor or authoritative effect. The pattern does
+not prove that transition logic is economically correct or that the imperative
+shell commits the result atomically.
 
 A leaf function may use a private builtin work buffer only when it cannot
 escape and a differential test proves parity with the return-new reference.

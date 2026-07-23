@@ -29,9 +29,14 @@ The pure-transition contract is interpreted persistently:
 
 ```text
 Step(CommittedState, TypedCommand, ExplicitContext)
-  -> Reject
-   | Accept(NewCommittedState, CanonicalEffects, Receipt)
+  -> Reject(RejectReason, Receipt)
+   | Accept(NewCommittedState, CommitPlan, Receipt)
+   | CommittedFailure(FailureReason, NewCommittedState,
+                      CommitPlan, Receipt)
 ```
+
+Only `Reject` is a no-op. A leaf domain without a protocol-defined committed
+failure may use the narrower `DomainStep` relation from `ERRATA.md` E9.
 
 Core entry points accept exact committed types. Public mutable projections,
 structural protocols shared with legacy builders, and mutable post-transition
@@ -124,20 +129,25 @@ overflow behavior.
 The shell's eventual committed unit is:
 
 ```text
-AtomicCandidate {
+CommitBundle {
   expected_pre_root,
   execution_context_hash,
   algorithm_version,
   next_state,
   next_state_root,
-  effects,
-  effects_root,
+  commit_plan,
+  commit_plan_root,
   receipt,
   receipt_root,
-  nonce_updates,
-  outbox_entries
+  replay_updates,
+  outbox_plan
 }
 ```
+
+`CommitPlan` contains authoritative state/value/replay changes. `OutboxPlan`
+contains immutable delivery records that are part of the atomic commit even
+though external delivery occurs later. Every outbox entry has a
+receipt-derived idempotency key.
 
 Required storage semantics:
 

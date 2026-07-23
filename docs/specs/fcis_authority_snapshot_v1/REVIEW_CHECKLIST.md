@@ -44,8 +44,12 @@ separately.
 - [ ] No mutable source child reaches committed state.
 - [ ] No public `to_scratch_*`, structural core protocol, mutable domain-builder
       parameter, or mutable post-transition re-admission exists.
-- [ ] Every value-moving transition returns a new committed candidate or a
-      typed rejection with no candidate/effect/receipt.
+- [ ] Every two-way leaf transition returns a new committed candidate or a
+      typed rejection with no candidate or authoritative effect.
+- [ ] Every aggregate transition is exactly
+      `Accept | Reject | CommittedFailure`; only `Reject` has no successor or
+      authoritative effect, and every aggregate outcome has a canonical
+      receipt.
 - [ ] Any private builtin work buffer is non-escaping and differential-tested
       against the return-new reference.
 - [ ] The CPython trusted-code nonclaim remains explicit.
