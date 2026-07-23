@@ -172,15 +172,33 @@ The versioned transition claim has this shape:
 StepP(State, Command, Context)
   -> Reject(Error)
    | Accept(NextState, Effects, Receipt)
+   | CommittedFailure(Failure, NextState, Effects, Receipt)
 ```
 
 The complete release profile separately tracks totality, deterministic bytes,
-reject-is-no-output, invariant preservation, same-candidate output derivation,
+ordinary-reject-is-no-successor, committed-failure state changes, invariant
+preservation, same-candidate output derivation,
 canonical encoding injectivity, implementation refinement, parallel
 equivalence when enabled, atomic commitment, and exact evidence binding. The
 profile remains blocked while any required contract is open.
 
-## 7. Priority after #477 and #478
+## 7. Deterministic combinator claim boundaries
+
+Canonical encoding and protocol ordering are distinct interfaces. An ordered
+fold consumes a sequence whose order rule is explicit and versioned. It sorts
+an unordered domain by protocol order, preserves a semantically ordered domain,
+and does not inherit container iteration as protocol behavior.
+
+An exact bounded search binds its complete candidate-domain definition,
+objective, total tie-break, winner, and replayable optimality evidence. A
+deterministic heuristic binds its algorithm and feasibility evidence and makes
+no global optimality claim.
+
+Exact remainder allocation separately states conservation, deterministic
+priority, and any fairness objective. The receipt binds the priority policy and
+all keys or precommitted seed material that selected recipients.
+
+## 8. Priority after #477 and #478
 
 The synthesis priority is preserved:
 

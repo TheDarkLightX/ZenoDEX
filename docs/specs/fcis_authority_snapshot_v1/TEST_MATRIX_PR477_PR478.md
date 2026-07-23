@@ -41,7 +41,7 @@ in `tests/state/test_state_snapshot_schema_drift.py`.
 | `FCIS-T-477-017` | final `DexState` field invalid after earlier fields are valid | no state escapes; every source remains unchanged |
 | `FCIS-T-477-018` | trusted fixture corrupts an already-owned value | full revalidation rejects; owned-looking values are not blindly trusted |
 | `FCIS-T-477-019` | full state with every optional module and perps variant | bytes, state/support roots, reads, and transition effects equal pinned baseline |
-| `FCIS-T-477-020` | rejected transition from committed state | no state, effect, receipt, nonce, outbox, or source mutation |
+| `FCIS-T-477-020` | rejected leaf transition from committed state | no successor, patch, aggregate effect, nonce, outbox, or source mutation |
 | `FCIS-T-477-021` | stateful quote, settle, LP, nonce, perps, reject, retry sequence | old roots stable; successors owned; retry deterministic |
 | `FCIS-T-477-022` | property mutates every retained source alias | committed bytes and behavior invariant |
 | `FCIS-T-477-023` | run each pure committed update and its pinned legacy reference on a valid corpus | accepted/rejected result, successor bytes, roots, effects, and errors agree |
@@ -85,7 +85,7 @@ Targets: `tests/state/test_owned_json.py` and the existing strict-decoder tests.
 | `FCIS-T-478-020` | event payload at JSON bounds and with forbidden values | bounded owned JSON; `EVENT-TYPING-001` remains open |
 | `FCIS-T-478-021` | effect receives wrong settlement type, subclass, or recomputed lookalike | reject; exact owned settlement required |
 | `FCIS-T-478-022` | accepted step with fees, fills, events, and deltas | state, effect, receipt, and hashes use one owned candidate |
-| `FCIS-T-478-023` | reject at final effect consistency check | no state, settlement, effect, receipt, nonce, or outbox escapes |
+| `FCIS-T-478-023` | aggregate reject at final effect consistency check | canonical rejection receipt only; no successor, settlement, authoritative effect, nonce/replay update, or outbox record escapes |
 | `FCIS-T-478-024` | canonical full settlement/effect fixture | bytes, hashes, fees, ordering, and mounted behavior equal baseline |
 | `FCIS-T-478-025` | sign, queue, reorder attempt, execute, retry/replay sequence | signed meaning, order, nonce, and rejection remain deterministic |
 | `FCIS-T-478-026` | property partitions and rejoins canonical intent batch | sequence unchanged; no element aliases source data |
@@ -118,7 +118,7 @@ FCIS-PROP-003  canonical map permutation invariance
 FCIS-PROP-004  deterministic rejection permutation invariance
 FCIS-PROP-005  Python encoder parity with existing strict reference
 FCIS-PROP-006  pinned versus repaired behavior on canonical valid corpus
-FCIS-PROP-007  reject-is-no-output across every admission phase
+FCIS-PROP-007  admission/leaf reject is no-output; aggregate reject is rejection-receipt-only
 FCIS-PROP-008  source registry equals parser/runtime/adapter registry
 FCIS-PROP-009  one accepted value has one accepted authority encoding
 FCIS-PROP-010  equal state/command/context replay is byte-identical

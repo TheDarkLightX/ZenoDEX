@@ -52,15 +52,17 @@ LegacySource
   -> closed exact admission
   -> CommittedValue
 
-DomainStep(CommittedValue, TypedCommand, ExplicitContext)
-  -> Reject
-   | Accept(NewCommittedValue, EffectPlan, Receipt)
+LeafStep(CommittedValue, TypedDelta, ExplicitContext)
+  -> LeafReject(StableReason)
+   | LeafOk(NewCommittedValue, CanonicalPatch)
 ```
 
-`DomainStep` is the two-way leaf relation for domains that have no
-protocol-defined committed failure. The aggregate DEX command relation uses
-the three-way result in FCIS-D001. Only aggregate `Reject` has the unchanged
-state and no-authoritative-effects law.
+`LeafStep` is the two-way relation for state-patch leaves that have no
+protocol-defined committed failure. It does not independently issue the
+aggregate receipt or authorize shell effects. The aggregate DEX command
+relation uses the three-way result in FCIS-D001 and derives all aggregate
+outputs from one complete evaluated candidate. Only aggregate `Reject` has the
+unchanged-state and no-authoritative-effects law.
 
 `LegacySource` may be mutable and caller-owned. Admission owns and validates its
 complete graph once. Authority-bearing core functions accept and return exact
@@ -216,12 +218,13 @@ partition.
 ### FCIS-D016: Atomic candidate commit is a separate shell obligation
 
 The shell commits one `CommitBundle` at one expected-root compare-and-swap
-linearization point. Its `CommitPlan` contains authoritative state, value,
-nonce/nullifier, and receipt records. Its `OutboxPlan` contains immutable
-records for later event, proof, index, or notification delivery. Both plans are
-committed atomically as data; external delivery occurs afterward under
-receipt-derived idempotency keys. The snapshot PRs do not claim datastore
-linearizability or exactly-once external delivery.
+linearization point. Its `CommitPlan` contains authoritative state, value, and
+nonce/nullifier changes. The bundle separately contains the authoritative
+receipt. Its `OutboxPlan` contains immutable records for later event, proof,
+index, or notification delivery. The receipt and both plans are committed
+atomically as data; external delivery occurs afterward under receipt-derived
+idempotency keys. The snapshot PRs do not claim datastore linearizability or
+exactly-once external delivery.
 
 ### FCIS-D017: Heterogeneous record containers use exact-type union dispatch
 
@@ -235,19 +238,6 @@ Rationale: the mounted perps market map contains four exact market record
 classes. A single `MapOf` value schema and `TaggedRecordOf` over one source
 class cannot represent that accepted language without a second hand-written
 dispatcher.
-
-### FCIS-D020: Canonical encoding and protocol order are separate contracts
-
-Canonical encoding defines one accepted byte representation. Protocol order
-defines which semantic value precedes another for selection, folding, or
-tie-breaking. One byte key may implement both only when a versioned law and
-cross-language vectors prove that lexicographic key order equals the declared
-protocol order and that equal order keys imply equal semantic values.
-
-Unordered domains are normalized by their declared protocol order.
-Semantically ordered domains, including nonce order, route hops, proof ancestry,
-and price-time priority, preserve and validate that order rather than being
-re-sorted by an unrelated encoding key.
 
 ### FCIS-D018: Character semantics and UTF-8 work have separate bounds
 
@@ -272,6 +262,53 @@ Rationale: perps and clearinghouse global-state dictionaries contain booleans
 and integers with field-specific bounds. A uniform `MapOf` cannot express that
 language. Hand-written field loops would create a second admission system and
 allow schema, budget, and rejection precedence to drift.
+
+### FCIS-D020: Canonical encoding and protocol order are separate contracts
+
+Canonical encoding defines one accepted byte representation. Protocol order
+defines which semantic value precedes another for selection, folding, or
+tie-breaking. One byte key may implement both only when a versioned law and
+cross-language vectors prove that lexicographic key order equals the declared
+protocol order and that equal order keys imply equal semantic values.
+
+Unordered domains are normalized by their declared protocol order.
+Semantically ordered domains, including nonce order, route hops, proof ancestry,
+and price-time priority, preserve and validate that order rather than being
+re-sorted by an unrelated encoding key.
+
+### FCIS-D021: Exact search claims require replayable completeness evidence
+
+A bounded search may claim a global optimum only when the candidate domain is
+finite and complete under a versioned definition, the objective and total
+tie-break are exact, and the result carries replayable completeness or
+optimality evidence. A deterministic heuristic carries a feasibility witness
+and an explicit nonclaim of global optimality.
+
+Rationale: deterministic enumeration selects one answer reproducibly, while a
+global optimality claim additionally depends on candidate-domain completeness.
+
+### FCIS-D022: Remainder policy separates conservation, determinism, and fairness
+
+An exact remainder allocator must conserve every atom and bind one versioned
+priority policy in its receipt. Stable identifier order, rotation from a
+precommitted epoch seed, and a signed salt fixed before outcome knowledge are
+distinct policies. A policy is not described as fair unless its threat model
+and allocation objective justify that claim.
+
+Rationale: a deterministic priority can systematically favor identifiers that
+participants control.
+
+### FCIS-D023: Semantic state and operational indexes have separate authority
+
+Canonical semantic state defines protocol equality, encoding, and roots.
+Operational red-black trees, B-trees, HAMTs, caches, and database indexes are
+rebuildable representations whose lookups must refine semantic lookup. Dropping
+or changing an operational index cannot change canonical bytes, roots, or
+transition results.
+
+Rationale: persistent collections can improve sparse-update performance without
+allowing library layout, balancing history, or insertion order to become
+consensus semantics.
 
 ## Rejected designs
 

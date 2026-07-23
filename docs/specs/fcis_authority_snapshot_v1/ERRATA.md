@@ -189,14 +189,17 @@ LegacySource
   -> closed exact admission
   -> CommittedValue
 
-DomainStep(CommittedValue, TypedCommand, ExplicitContext)
-  -> Reject
-   | Accept(NewCommittedValue, CanonicalEffects, Receipt)
+LeafStep(CommittedValue, TypedDelta, ExplicitContext)
+  -> LeafReject(StableReason)
+   | LeafOk(NewCommittedValue, CanonicalPatch)
 ```
 
-`DomainStep` is the leaf transition shape used by this state-migration packet.
-It applies only where the domain has no protocol-defined committed-failure
-transition. The aggregate DEX command boundary is governed by E10.
+`LeafStep` is the state-patch transition shape used by this state-migration
+packet. It applies only where the leaf has no protocol-defined
+committed-failure transition. It does not independently issue the aggregate
+receipt or authorize external effects. The aggregate DEX command boundary
+derives its receipt and commit plan from the complete evaluated candidate and
+is governed by E10.
 
 There is no public `to_scratch_*` conversion, structural read protocol at an
 authority-core entry, mutable domain-builder parameter, or mutable
@@ -218,9 +221,10 @@ optimization gated by canonical-byte/root parity and benchmarks.
 
 ## E10. Aggregate outcome and commit-bundle semantics
 
-The Formal Methods Philosophy FCIS tutorial is the semantic baseline for the
-aggregate core/shell contract. The specialized ZenoDEX pattern reports and
-this migration packet refine that contract for their narrower surfaces.
+The [Formal Methods Philosophy FCIS tutorial](https://thedarklightx.github.io/Formal_Methods_Philosophy/tutorials/functional-core-imperative-shell-values-as-boundaries/)
+is the semantic baseline for the aggregate core/shell contract. The specialized
+ZenoDEX pattern reports and this migration packet refine that contract for
+their narrower surfaces.
 
 The aggregate command result is a closed three-way value:
 

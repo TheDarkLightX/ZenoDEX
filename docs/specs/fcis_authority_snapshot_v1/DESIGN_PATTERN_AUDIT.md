@@ -171,14 +171,15 @@ LegacySource
   -> closed exact admission
   -> CommittedValue
 
-DomainStep(CommittedValue, TypedCommand, ExplicitContext)
-  -> Reject
-   | Accept(NewCommittedValue, Effects, Receipt)
+LeafStep(CommittedValue, TypedDelta, ExplicitContext)
+  -> LeafReject(StableReason)
+   | LeafOk(NewCommittedValue, CanonicalPatch)
 ```
 
-This is the leaf relation for a domain with no protocol-defined committed
-failure. The aggregate DEX relation is the three-way `Decision` from
-`ERRATA.md` E10. Only aggregate `Reject` is an unchanged-state no-op.
+This is the state-patch leaf relation for a domain with no protocol-defined
+committed failure. It does not issue the aggregate receipt. The aggregate DEX
+relation is the three-way `Decision` from `ERRATA.md` E10. Only aggregate
+`Reject` is an unchanged-state no-op.
 
 The pattern makes ownership transfer occur exactly once and removes a public
 post-admission mutation window. Old committed versions remain valid for roots,

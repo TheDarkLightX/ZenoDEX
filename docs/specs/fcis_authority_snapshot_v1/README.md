@@ -25,14 +25,16 @@ with an older clause, the errata controls. Continue in this order:
    language.
 6. `PR478_AUTHORITY_EFFECT_SCHEMA.md` defines the command, settlement, effect,
    and JSON language.
-7. `DESIGN_PATTERN_AUDIT.md` records the pattern, rationale, guarantees,
+7. `PR477_MOUNTED_MIGRATION.md` defines the no-partial-mount sequence and
+   authoritative caller migration.
+8. `DESIGN_PATTERN_AUDIT.md` records the pattern, rationale, guarantees,
    non-guarantees, and audit bindings for each repair.
-8. `IMPLEMENTATION_RUNBOOK.md` gives the exact implementation sequence.
-9. `TEST_MATRIX.md` defines mandatory negative and parity evidence.
-10. `CONTEXT_DRIFT_PROTOCOL.md` defines mandatory re-entry and review checks.
-11. `IMPLEMENTATION_AGENT_PROMPT.md` is the prompt to give the implementation
+9. `IMPLEMENTATION_RUNBOOK.md` gives the exact implementation sequence.
+10. `TEST_MATRIX.md` defines mandatory negative and parity evidence.
+11. `CONTEXT_DRIFT_PROTOCOL.md` defines mandatory re-entry and review checks.
+12. `IMPLEMENTATION_AGENT_PROMPT.md` is the prompt to give the implementation
    agent.
-12. `requirements.json` is the machine-readable requirement ledger.
+13. `requirements.json` is the machine-readable requirement ledger.
 
 The normative continuation files are
 `ASSURANCE_FACTORIZATION_ADDENDUM.md` and

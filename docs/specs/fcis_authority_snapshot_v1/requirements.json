@@ -1,6 +1,6 @@
 {
   "schema": "zenodex/fcis-authority-snapshot-requirements/v1",
-  "design_lock_version": "1.1.0",
+  "design_lock_version": "1.2.0",
   "claim_status": "blocked",
   "audit_authority": {
     "url": "https://zenodex-oracle-audit-v4.jazzy-harp-9002.chatgpt.site/",
@@ -188,6 +188,7 @@
     "DESIGN_PATTERN_AUDIT.md",
     "COMBINATOR_CONTRACT.md",
     "PR477_STATE_SCHEMA.md",
+    "PR477_MOUNTED_MIGRATION.md",
     "PR478_AUTHORITY_EFFECT_SCHEMA.md",
     "IMPLEMENTATION_RUNBOOK.md",
     "TEST_MATRIX.md",
@@ -650,7 +651,7 @@
       "id": "FCIS-PROC-005",
       "pr": 478,
       "status": "OPEN",
-      "requirement": "Every admission and rejected transition returns no partial candidate, state, effect, receipt, nonce, or outbox value.",
+      "requirement": "Every admission and leaf reject returns no partial candidate, successor, patch, effect, nonce, or outbox value. Aggregate Reject returns only its canonical rejection receipt and no successor, authoritative effect, replay update, or outbox record.",
       "forbidden": [
         "partial candidate on reject",
         "state or effect leakage on reject"
@@ -666,7 +667,7 @@
         "FCIS-PROP-007"
       ],
       "evidence": [
-        "reject-is-no-output property and mounted no-op tests"
+        "admission and leaf reject no-output property plus aggregate rejection-receipt-only tests"
       ],
       "claim_impact": "rejection atomicity remains blocked"
     }

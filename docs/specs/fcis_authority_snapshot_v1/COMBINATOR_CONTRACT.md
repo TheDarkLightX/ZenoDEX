@@ -385,14 +385,15 @@ Authority-bearing transitions consume only exact committed values and return a
 new exact committed value:
 
 ```text
-DomainStep(CommittedState, TypedCommand, ExplicitContext)
+LeafStep(CommittedState, TypedDelta, ExplicitContext)
   -> StepReject(code, path)
-   | StepOk(NewCommittedState, CanonicalEffects, Receipt)
+   | StepOk(NewCommittedState, CanonicalPatch)
 ```
 
-This two-way shape is limited to a leaf domain with no protocol-defined
-committed failure. The aggregate command result is the three-way `Decision`
-defined by `ERRATA.md` E10.
+This two-way shape is limited to a state-patch leaf with no protocol-defined
+committed failure. It does not issue an aggregate receipt. The aggregate
+command result is the three-way `Decision` defined by `ERRATA.md` E10 and owns
+receipt and commit-plan derivation.
 
 Public `to_scratch_*` functions, mutable domain-builder parameters, and
 structural read protocols at core entry points are forbidden. Domain updates

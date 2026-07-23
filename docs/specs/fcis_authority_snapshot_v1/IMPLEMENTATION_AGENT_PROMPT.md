@@ -35,9 +35,9 @@ Non-negotiable design:
 
 - Legacy source admission is one-way: `LegacySource -> CommittedValue`.
 - Leaf authority transitions accept exact committed values and return a new
-  exact committed value, effects, and receipt or a typed rejection. Aggregate
-  DEX transitions use `Accept | Reject | CommittedFailure`; only `Reject` is a
-  no-op.
+  exact committed value plus canonical patch, or a typed rejection. They do not
+  independently issue aggregate receipts. Aggregate DEX transitions use
+  `Accept | Reject | CommittedFailure`; only `Reject` is a no-op.
 - Committed values use composition and exact committed-type APIs. They never inherit
   dict, list, BalanceTable, LPTable, Intent, Settlement, or another mutable
   domain class.
