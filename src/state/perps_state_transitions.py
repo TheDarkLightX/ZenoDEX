@@ -52,6 +52,7 @@ class IsolatedPerpTransitionCodeV1(Enum):
     INVALID_CANDIDATE = "invalid_candidate"
     EMPTY_PATCH = "empty_patch"
     AMOUNT_NOT_POSITIVE = "amount_not_positive"
+    MARKET_PARAMS = "market_params"
 
 
 @final
