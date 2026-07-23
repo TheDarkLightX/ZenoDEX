@@ -189,10 +189,14 @@ LegacySource
   -> closed exact admission
   -> CommittedValue
 
-Step(CommittedValue, TypedCommand, ExplicitContext)
+DomainStep(CommittedValue, TypedCommand, ExplicitContext)
   -> Reject
    | Accept(NewCommittedValue, CanonicalEffects, Receipt)
 ```
+
+`DomainStep` is the leaf transition shape used by this state-migration packet.
+It applies only where the domain has no protocol-defined committed-failure
+transition. The aggregate DEX command boundary is governed by E10.
 
 There is no public `to_scratch_*` conversion, structural read protocol at an
 authority-core entry, mutable domain-builder parameter, or mutable
@@ -211,3 +215,38 @@ This change preserves the later persistent-collection plan. The immediate
 Python implementation may rebuild an owned map in `O(n)` while keeping
 persistent return-new semantics. Structural sharing is a later representation
 optimization gated by canonical-byte/root parity and benchmarks.
+
+## E10. Aggregate outcome and commit-bundle semantics
+
+The Formal Methods Philosophy FCIS tutorial is the semantic baseline for the
+aggregate core/shell contract. The specialized ZenoDEX pattern reports and
+this migration packet refine that contract for their narrower surfaces.
+
+The aggregate command result is a closed three-way value:
+
+```text
+Decision
+  = Accept(NewCommittedState, CommitPlan, Receipt)
+  | Reject(RejectReason, Receipt)
+  | CommittedFailure(FailureReason, NewCommittedState, CommitPlan, Receipt)
+```
+
+Only `Reject` has the unchanged-state and no-authoritative-effects law.
+`CommittedFailure` is required whenever an unsuccessful requested operation
+intentionally consumes a nonce, charges a fee, advances a breaker, records a
+failed attempt, or otherwise changes authoritative state. A leaf domain with
+no such transition may continue to expose the two-way `DomainStep` from E9.
+
+The imperative shell atomically publishes one root-bound commit bundle. The
+bundle includes the expected pre-root, next root or canonical patch, receipt,
+replay/nullifier or nonce updates, authoritative protocol effects, and outbox
+records. A root mismatch publishes none of them. External delivery happens
+after commitment from those outbox records under receipt-derived idempotency
+keys.
+
+Internal balance, pool, LP, and nonce patches in PR #477 are deterministic
+leaf transition values. Their exact per-cell preconditions do not replace the
+aggregate expected-pre-root check, receipt binding, or atomic commit bundle.
+Likewise, canonical encoding and protocol ordering are separate contracts;
+byte ordering may implement protocol ordering only when an explicit law and
+cross-language vectors establish their equivalence.
