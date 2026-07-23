@@ -95,6 +95,7 @@ _SHADOW_AUTHORITY_PATH = "src/integration/fcis_spot_shadow.py"
 _SHADOW_AUTHORITY_RESERVED_TOKENS = (
     "fcis_spot_shadow",
     "evaluate_fcis_spot_candidate_shadow_v1",
+    "evaluate_fcis_step_shadow_v1",
 )
 _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
     "_admit_with_registry_v1": _PROFILE_PATHS,

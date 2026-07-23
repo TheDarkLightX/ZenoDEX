@@ -201,7 +201,7 @@ def snapshot_balance_table(
     admitted = _admit_state_value(BALANCE_TABLE_ADMISSION_SCHEMA_ID_V1, admission_source)
     if type(admitted) is not CommittedBalanceTableV1:
         raise RuntimeError("closed balance admission returned an impossible result")
-    return cast(CommittedBalanceTableV1, admitted)
+    return admitted
 
 
 def snapshot_lp_table(
@@ -229,9 +229,7 @@ def snapshot_lp_table(
             if type(source) is FrozenLPTable:
                 raw = _project_frozen_dict_v1(raw, (field_name,))
             elif type(raw) is not dict:
-                _raise_admission_reject(
-                    AdmitReject(AdmitCode.WRONG_CONTAINER, (field_name,))
-                )
+                _raise_admission_reject(AdmitReject(AdmitCode.WRONG_CONTAINER, (field_name,)))
             raw_fields.append(raw)
         admission_source = _LPSourceV1(*raw_fields)
     elif type(source) is CommittedLPTableV1:
@@ -242,25 +240,27 @@ def snapshot_lp_table(
     admitted = _admit_state_value(LP_TABLE_ADMISSION_SCHEMA_ID_V1, admission_source)
     if type(admitted) is not CommittedLPTableV1:
         raise RuntimeError("closed LP admission returned an impossible result")
-    return cast(CommittedLPTableV1, admitted)
+    return admitted
 
 
 def snapshot_nonce_table(
-    source: NonceTable | CommittedNonceTableV1,
+    source: NonceTable | FrozenNonceTable | CommittedNonceTableV1,
 ) -> CommittedNonceTableV1:
     """Admit one exact nonce source without invoking source behavior."""
 
     from .state_snapshot_schema import NONCE_TABLE_ADMISSION_SCHEMA_ID_V1
-    from .state_snapshot_values import CommittedNonceTableV1
+    from .state_snapshot_values import CommittedNonceTableV1, _NonceSourceV1
 
-    if type(source) is NonceTable:
+    if type(source) in {NonceTable, FrozenNonceTable}:
         try:
             raw = object.__getattribute__(source, "_last")
         except AttributeError:
             _raise_admission_reject(AdmitReject(AdmitCode.MISSING_FIELD, ("_last",)))
-        if type(raw) is not dict:
+        if type(source) is FrozenNonceTable:
+            raw = _project_frozen_dict_v1(raw, ("_last",))
+        elif type(raw) is not dict:
             _raise_admission_reject(AdmitReject(AdmitCode.WRONG_CONTAINER, ("_last",)))
-        admission_source: object = source
+        admission_source: object = _NonceSourceV1(raw)
     elif type(source) is CommittedNonceTableV1:
         admission_source = source
     else:
@@ -269,7 +269,7 @@ def snapshot_nonce_table(
     admitted = _admit_state_value(NONCE_TABLE_ADMISSION_SCHEMA_ID_V1, admission_source)
     if type(admitted) is not CommittedNonceTableV1:
         raise RuntimeError("closed nonce admission returned an impossible result")
-    return cast(CommittedNonceTableV1, admitted)
+    return admitted
 
 
 def snapshot_pool(
@@ -289,13 +289,11 @@ def snapshot_pool(
     admitted = _admit_state_value(POOL_ADMISSION_SCHEMA_ID_V1, admission_source)
     if type(admitted) is not CommittedPoolStateV1:
         raise RuntimeError("closed pool admission returned an impossible result")
-    return cast(CommittedPoolStateV1, admitted)
+    return admitted
 
 
 def snapshot_pool_map(
-    source: dict[str, PoolState]
-    | FrozenDict
-    | OwnedMapV1[str, CommittedPoolStateV1],
+    source: dict[str, PoolState] | FrozenDict | OwnedMapV1[str, CommittedPoolStateV1],
 ) -> OwnedMapV1[str, CommittedPoolStateV1]:
     """Admit a canonical pool map and bind each map key to its pool ID."""
 
@@ -305,8 +303,7 @@ def snapshot_pool_map(
     if type(source) is FrozenDict:
         frozen_entries = _project_frozen_dict_v1(source, ())
         admission_source = {
-            pool_id: _project_frozen_pool_v1(pool)
-            for pool_id, pool in frozen_entries.items()
+            pool_id: _project_frozen_pool_v1(pool) for pool_id, pool in frozen_entries.items()
         }
     elif type(source) in {dict, OwnedMapV1}:
         admission_source = source
@@ -332,7 +329,7 @@ def snapshot_vault(
     admitted = _admit_state_value(VAULT_ADMISSION_SCHEMA_ID_V1, source)
     if admitted is not None and type(admitted) is not CommittedVaultStateV1:
         raise RuntimeError("closed vault admission returned an impossible result")
-    return cast(None | CommittedVaultStateV1, admitted)
+    return admitted
 
 
 def snapshot_oracle(
@@ -349,7 +346,7 @@ def snapshot_oracle(
     admitted = _admit_state_value(ORACLE_ADMISSION_SCHEMA_ID_V1, source)
     if admitted is not None and type(admitted) is not CommittedOracleStateV1:
         raise RuntimeError("closed Oracle admission returned an impossible result")
-    return cast(None | CommittedOracleStateV1, admitted)
+    return admitted
 
 
 def snapshot_fee_accumulator(
@@ -366,7 +363,7 @@ def snapshot_fee_accumulator(
     admitted = _admit_state_value(FEE_ACCUMULATOR_ADMISSION_SCHEMA_ID_V1, source)
     if type(admitted) is not CommittedFeeAccumulatorStateV1:
         raise RuntimeError("closed fee admission returned an impossible result")
-    return cast(CommittedFeeAccumulatorStateV1, admitted)
+    return admitted
 
 
 def snapshot_perps(
@@ -383,7 +380,7 @@ def snapshot_perps(
     admitted = _admit_state_value(PERPS_ADMISSION_SCHEMA_ID_V1, source)
     if admitted is not None and type(admitted) is not CommittedPerpsStateV1:
         raise RuntimeError("closed perps admission returned an impossible result")
-    return cast(None | CommittedPerpsStateV1, admitted)
+    return admitted
 
 
 def _immutable_state(*_args: object, **_kwargs: object) -> NoReturn:

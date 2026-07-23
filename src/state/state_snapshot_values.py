@@ -208,6 +208,14 @@ class _LPSourceV1:
 
 @final
 @dataclass(frozen=True, slots=True)
+class _NonceSourceV1:
+    """Non-authoritative exact projection of one legacy nonce table."""
+
+    _last: object
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class CommittedBalanceTableV1:
     _balances: OwnedMapV1[BalanceKeyV1, int]
 

@@ -341,17 +341,25 @@ def test_checker_rejects_shadow_dynamic_binding_spellings(
     assert "SHADOW_AUTHORITY_IMPORT" in _codes(_run(tmp_path, _COMPLIANT))
 
 
+@pytest.mark.parametrize(
+    "shadow_function",
+    (
+        "evaluate_fcis_spot_candidate_shadow_v1",
+        "evaluate_fcis_step_shadow_v1",
+    ),
+)
 def test_checker_rejects_shadow_authority_through_an_intermediary(
     tmp_path: Path,
+    shadow_function: str,
 ) -> None:
     integration = tmp_path / "src" / "integration"
     integration.mkdir(parents=True)
     (integration / "shadow_adapter.py").write_text(
-        "from src.integration.fcis_spot_shadow import evaluate_fcis_spot_candidate_shadow_v1\n",
+        f"from src.integration.fcis_spot_shadow import {shadow_function}\n",
         encoding="utf-8",
     )
     (integration / "dex_engine.py").write_text(
-        "from src.integration.shadow_adapter import evaluate_fcis_spot_candidate_shadow_v1\n",
+        f"from src.integration.shadow_adapter import {shadow_function}\n",
         encoding="utf-8",
     )
 

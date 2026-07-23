@@ -8,8 +8,13 @@ JSON bytes; no mutable projection escapes to an authority caller.
 from __future__ import annotations
 
 from ..core.perps import PERPS_STATE_VERSION_V5
-from .canonical import canonical_json_bytes
+from .canonical import bounded_json_utf8_size, canonical_json_bytes
 from .owned_collections import OwnedMapV1
+from .snapshot_combinators import (
+    MAX_ADMISSION_DEPTH_V1,
+    MAX_ADMISSION_NODES_V1,
+    MAX_CANONICAL_BYTES_V1,
+)
 from .state_snapshot_values import (
     CommittedBalanceTableV1,
     CommittedFeeAccumulatorStateV1,
@@ -261,10 +266,9 @@ def _perps_market_v1(
 ) -> dict[str, object]:
     if type(market) is CommittedPerpMarketStateV1:
         return _isolated_market_v1(market_id, market, perps_version=perps_version)
-    if type(market) in {
-        CommittedPerpClearinghouse2pMarketStateV1,
-        CommittedPerpClearinghouse3pTransferMarketStateV1,
-    }:
+    if type(market) is CommittedPerpClearinghouse2pMarketStateV1:
+        return _fixed_market_v1(market_id, market)
+    if type(market) is CommittedPerpClearinghouse3pTransferMarketStateV1:
         return _fixed_market_v1(market_id, market)
     if type(market) is CommittedPerpClearinghouseNpMarketStateV1:
         return _np_market_v1(market_id, market)
@@ -333,4 +337,10 @@ def canonical_snapshot_bytes_from_committed_state_v1(
     }
     if version >= 2:
         data["perps"] = _perps_v1(admitted_perps)
+    bounded_json_utf8_size(
+        data,
+        max_bytes=MAX_CANONICAL_BYTES_V1,
+        max_depth=MAX_ADMISSION_DEPTH_V1,
+        max_items=MAX_ADMISSION_NODES_V1,
+    )
     return canonical_json_bytes(data)

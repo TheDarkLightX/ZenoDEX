@@ -7,6 +7,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+import src.state.committed_dex_snapshot as committed_dex_snapshot
 from src.core.dex import DexState
 from src.core.domain_limits import DEX_LP_AMOUNT_MAX, DEX_POOL_RESERVE_MAX
 from src.core.fees import FeeAccumulatorState
@@ -344,6 +345,26 @@ def test_exact_snapshot_revalidates_corrupted_graph_and_rejects_legacy_types() -
         canonical_snapshot_bytes_from_committed_state_v1(
             version=4,
             balances=cast(CommittedBalanceTableV1, sources[0]),
+            pools=committed[1],
+            lp_balances=committed[2],
+            nonces=committed[3],
+            fee_accumulator=committed[4],
+            vault=committed[5],
+            oracle=committed[6],
+            perps=committed[7],
+        )
+
+
+def test_exact_snapshot_enforces_the_graph_wide_item_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    committed = _committed_values(_legacy_sources())
+    monkeypatch.setattr(committed_dex_snapshot, "MAX_ADMISSION_NODES_V1", 1)
+
+    with pytest.raises(ValueError, match="json item count exceeds max_items"):
+        canonical_snapshot_bytes_from_committed_state_v1(
+            version=4,
+            balances=committed[0],
             pools=committed[1],
             lp_balances=committed[2],
             nonces=committed[3],

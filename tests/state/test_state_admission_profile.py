@@ -59,12 +59,14 @@ from src.state.state_snapshot_values import (
     CommittedVaultStateV1,
     _BalanceSourceV1,
     _LPSourceV1,
+    _NonceSourceV1,
 )
 from src.state.state_snapshots import (
     FrozenBalanceTable,
     StateAdmissionError,
     freeze_balance_table,
     freeze_lp_table,
+    freeze_nonce_table,
     freeze_pool_mapping,
     snapshot_balance_table,
     snapshot_fee_accumulator,
@@ -258,9 +260,10 @@ def test_profile_admits_core_sources_to_distinct_owned_values() -> None:
         raise AssertionError(lp_result)
     assert type(lp_result.value) is CommittedLPTableV1
 
-    nonce_source = NonceTable()
-    nonce_source.set_last(_pubkey("7"), 3)
-    nonce_result = _admit(NONCE_TABLE_ADMISSION_SCHEMA_ID_V1, nonce_source)
+    nonce_result = _admit(
+        NONCE_TABLE_ADMISSION_SCHEMA_ID_V1,
+        _NonceSourceV1({_pubkey("7"): 3}),
+    )
     if type(nonce_result) is not AdmitOk:
         raise AssertionError(nonce_result)
     assert type(nonce_result.value) is CommittedNonceTableV1
@@ -335,7 +338,7 @@ def test_balance_snapshot_facade_owns_aliases_and_revalidates_committed_input() 
     source.set("mallory", "asset", 1)
 
     assert type(committed) is CommittedBalanceTableV1
-    assert committed.entries == ((('alice', 'asset'), 7),)
+    assert committed.entries == ((("alice", "asset"), 7),)
 
     readmitted = snapshot_balance_table(committed)
     assert readmitted == committed
@@ -354,9 +357,7 @@ def test_snapshot_facades_bridge_exact_repository_owned_legacy_snapshots() -> No
     pool = _pool()
     frozen_pools = freeze_pool_mapping({pool.pool_id: pool})
 
-    assert snapshot_balance_table(frozen_balances).entries == (
-        (("alice", "asset"), 7),
-    )
+    assert snapshot_balance_table(frozen_balances).entries == ((("alice", "asset"), 7),)
     assert snapshot_lp_table(frozen_lp).get("alice", pool.pool_id) == 5
     assert snapshot_pool_map(frozen_pools).entries[0][1].reserve0 == pool.reserve0
 
@@ -424,7 +425,7 @@ def test_balance_snapshot_facade_rejects_corrupted_owned_value() -> None:
     source.set("alice", "asset", 7)
     committed = snapshot_balance_table(source)
     owned_map = object.__getattribute__(committed, "_balances")
-    object.__setattr__(owned_map, "_entries", ((('alice', 'asset'), True),))
+    object.__setattr__(owned_map, "_entries", ((("alice", "asset"), True),))
 
     with pytest.raises(StateAdmissionError) as captured:
         snapshot_balance_table(committed)
@@ -485,6 +486,18 @@ def test_state_snapshot_facades_mount_every_declared_state_family() -> None:
     assert type(oracle) is CommittedOracleStateV1
     assert type(fees) is CommittedFeeAccumulatorStateV1
     assert type(perps) is CommittedPerpsStateV1
+
+
+def test_nonce_snapshot_facade_admits_the_mounted_frozen_nonce_table() -> None:
+    source = NonceTable()
+    source.set_last(_pubkey("7"), 3)
+    mounted = freeze_nonce_table(source)
+
+    committed = snapshot_nonce_table(mounted)
+    source.set_last(_pubkey("7"), 4)
+
+    assert type(committed) is CommittedNonceTableV1
+    assert committed.get_last(_pubkey("7")) == 3
 
 
 def test_lp_and_nonce_snapshot_facades_reject_hostile_raw_containers_before_hooks() -> None:

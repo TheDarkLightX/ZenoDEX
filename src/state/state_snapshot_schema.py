@@ -38,7 +38,6 @@ from ..core.perps import (
     PerpsState,
 )
 from ..core.vault import VaultState
-from .nonces import NonceTable
 from .pools import PoolState, PoolStatus
 from .snapshot_combinators import (
     DeclaredFieldV1,
@@ -109,6 +108,7 @@ from .state_snapshot_values import (
     CommittedVaultStateV1,
     _BalanceSourceV1,
     _LPSourceV1,
+    _NonceSourceV1,
 )
 
 
@@ -651,7 +651,7 @@ RECORD_REGISTRATIONS_V1 = (
     ),
     RecordRegistrationV1(
         StateRecordTagV1.NONCE_TABLE,
-        NonceTable,
+        _NonceSourceV1,
         CommittedNonceTableV1,
     ),
     RecordRegistrationV1(StateRecordTagV1.POOL, PoolState, CommittedPoolStateV1),
