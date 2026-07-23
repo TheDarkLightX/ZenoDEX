@@ -9,7 +9,6 @@ New authority-core code must not depend on those compatibility classes.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NoReturn, cast, final
 
 from .balances import Amount, AssetId, BalanceTable, PubKey
@@ -58,16 +57,47 @@ if type(_STATE_ADMISSION_LIMITS_V1) is not ValidatedAdmissionLimitsV1:
 
 
 @final
-@dataclass(frozen=True, slots=True)
 class StateAdmissionError(ValueError):
-    """Stable adapter error for one typed no-output admission rejection."""
+    """Stable shell-edge exception for one typed no-output rejection.
 
-    code: AdmitCode
-    path: FieldPath
+    Exceptions must allow the interpreter to attach traceback and context
+    state while they propagate. The immutable authority value remains the
+    ``AdmitReject`` passed to this adapter; this exception only transports its
+    exact code and path across an existing exception-based API boundary.
+    """
+
+    __slots__ = ("_code", "_path")
+
+    _code: AdmitCode
+    _path: FieldPath
+
+    def __init__(self, code: AdmitCode, path: FieldPath) -> None:
+        self._code = code
+        self._path = path
+        super().__init__(code, path)
+
+    @property
+    def code(self) -> AdmitCode:
+        return self._code
+
+    @property
+    def path(self) -> FieldPath:
+        return self._path
 
     def __str__(self) -> str:
         path = ".".join(str(part) for part in self.path)
         return self.code.value if not path else f"{self.code.value}:{path}"
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            type(other) is StateAdmissionError
+            and self.code is other.code
+            and self.path == other.path
+        )
+
+    # Value-equal exceptions are intentionally unhashable. A process-randomized
+    # hash over field-path strings must never become part of rejection logic.
+    __hash__ = None  # type: ignore[assignment]
 
 
 def _raise_admission_reject(reject: AdmitReject) -> NoReturn:

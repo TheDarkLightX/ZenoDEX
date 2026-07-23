@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Never, cast
 
 import pytest
@@ -70,6 +72,13 @@ from src.state.state_snapshots import (
     snapshot_pool_map,
     snapshot_vault,
 )
+
+
+@contextmanager
+def _propagation_frame() -> Iterator[None]:
+    """Exercise traceback attachment performed during exception unwinding."""
+
+    yield
 
 
 def _limits() -> ValidatedAdmissionLimitsV1:
@@ -476,6 +485,14 @@ def test_explicit_optional_snapshot_families_reject_unregistered_values() -> Non
         with pytest.raises(StateAdmissionError) as captured:
             snapshot(object())
         assert captured.value == StateAdmissionError(AdmitCode.WRONG_EXACT_TYPE, ())
+
+
+def test_state_admission_error_allows_traceback_attachment_during_unwinding() -> None:
+    with pytest.raises(StateAdmissionError) as captured:
+        with _propagation_frame():
+            snapshot_fee_accumulator(object())
+
+    assert captured.value == StateAdmissionError(AdmitCode.WRONG_EXACT_TYPE, ())
 
 
 def test_domain_invariant_rejects_without_partial_owned_value() -> None:
