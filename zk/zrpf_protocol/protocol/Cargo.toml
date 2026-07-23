@@ -62,6 +62,10 @@ name = "sparse_merkle_batch_transition_v1"
 path = "tests/sparse_merkle_batch_transition_v1.rs"
 
 [[test]]
+name = "jmt_storage_update_plan_v1"
+path = "tests/jmt_storage_update_plan_v1.rs"
+
+[[test]]
 name = "task_manifest_v1"
 path = "tests/task_manifest_v1.rs"
 
