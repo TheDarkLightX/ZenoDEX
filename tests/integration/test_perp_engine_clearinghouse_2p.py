@@ -18,7 +18,6 @@ from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
-
 _CHAIN_ID = "tau-test"
 _BLOCK_TIMESTAMP = 1
 _DEADLINE = 10_000

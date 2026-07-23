@@ -35,18 +35,18 @@ not required at runtime.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import re
+import sys
 from dataclasses import dataclass, fields, replace
 from functools import lru_cache
 from importlib.util import module_from_spec, spec_from_file_location
-import hashlib
-import json
 from pathlib import Path
-import re
-import sys
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
-from ..core.dex import DexState
 from ..core import perp_np_clearinghouse as _np_core
+from ..core.dex import DexState
 from ..core.perp_apply_funding_auto_gate import (
     MARK_PRICE_SOURCE_EXTERNAL_MEDIAN,
     PerpApplyFundingAutoGateOutcome,
@@ -65,30 +65,6 @@ from ..core.perp_epoch import (
     perp_epoch_isolated_default_fee_pool_max_quote,
     perp_epoch_isolated_default_initial_state,
 )
-from ..core.perp_np_matching import Intent as _NpIntent
-from ..core.perp_v2.funding_rule import compute_funding_rate_bps
-from ..core.perp_v2.math import MAX_COLLATERAL
-from ..core.perp_v2.math import funding_payment as _perp_v2_funding_payment
-from ..core.perp_v2.math import is_oracle_fresh as _perp_v2_is_oracle_fresh
-from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
-from ..core.perp_v2.math import settle_price as _perp_v2_settle_price
-from ..core.perps import (
-    PerpAnyMarketState,
-    PERP_CLEARINGHOUSE_2P_STATE_KEYS,
-    PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS,
-    PERP_GLOBAL_KEYS,
-    PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
-    PERPS_STATE_VERSION,
-    PERPS_STATE_VERSION_V5,
-    PerpAccountState,
-    PerpClearinghouse2pMarketState,
-    PerpClearinghouse3pTransferMarketState,
-    PerpClearinghouseNpAccount as _NpAccount,
-    PerpClearinghouseNpMarketState as _NpMarketState,
-    PerpClearinghouseNpPendingIntent as _NpPendingIntent,
-    PerpMarketState,
-    PerpsState,
-)
 from ..core.perp_market_version_prefix_guard import (
     REJECT_CH2P_PREFIX_MISMATCH,
     REJECT_CH3P_PREFIX_MISMATCH,
@@ -96,6 +72,7 @@ from ..core.perp_market_version_prefix_guard import (
     REJECT_ISOLATED_PREFIX_CONFLICT,
     evaluate_perp_market_version_prefix_guard,
 )
+from ..core.perp_np_matching import Intent as _NpIntent
 from ..core.perp_runtime_risk_gate import (
     ACTION_ADVANCE_EPOCH as RUNTIME_ACTION_ADVANCE_EPOCH,
 )
@@ -147,6 +124,32 @@ from ..core.perp_submission_auth_message import (
     PERP_OP_AUTH_SIGNED_FIELD_KEYS_V1,
     build_perp_op_auth_signing_dict_v1,
     hash_perp_op_auth_message_v1,
+)
+from ..core.perp_v2.math import MAX_COLLATERAL
+from ..core.perp_v2.math import funding_payment as _perp_v2_funding_payment
+from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
+from ..core.perps import (
+    PERP_CLEARINGHOUSE_2P_STATE_KEYS,
+    PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS,
+    PERP_GLOBAL_KEYS,
+    PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
+    PERPS_STATE_VERSION,
+    PERPS_STATE_VERSION_V5,
+    PerpAccountState,
+    PerpAnyMarketState,
+    PerpClearinghouse2pMarketState,
+    PerpClearinghouse3pTransferMarketState,
+    PerpMarketState,
+    PerpsState,
+)
+from ..core.perps import (
+    PerpClearinghouseNpAccount as _NpAccount,
+)
+from ..core.perps import (
+    PerpClearinghouseNpMarketState as _NpMarketState,
+)
+from ..core.perps import (
+    PerpClearinghouseNpPendingIntent as _NpPendingIntent,
 )
 from ..state.balances import BalanceTable
 from ..state.canonical import (
@@ -4393,7 +4396,7 @@ def _commit_materialized_rust_accept(
 def _apply_materialized_isolated_op_rust_authority(
     *, ctx: _PerpApplyCtx, i: int, op: PerpOp, market: PerpMarketState
 ) -> Optional[str]:
-    from src.runtime.authority import AuthorityError, AuthorityMode, active_mode, decide
+    from src.runtime.authority import AuthorityError, active_mode, decide
     from src.runtime.rust_invoker import perp_isolated_op
 
     if op.action not in _PERP_STATEFUL_RUST_AUTHORITY_ACTIONS:
