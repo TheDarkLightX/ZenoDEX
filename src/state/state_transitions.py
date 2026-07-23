@@ -38,12 +38,14 @@ from .state_snapshot_values import (
     MAX_STATE_STRING_UTF8_BYTES_V1,
     MAX_U32_V1,
     NONCE_MAP_SCHEMA_ID_V1,
+    PERPS_ISOLATED_ACCOUNT_MAP_SCHEMA_ID_V1,
     PERPS_ISOLATED_GLOBAL_MAP_SCHEMA_ID_V1,
     POOL_MAP_SCHEMA_ID_V1,
     BalanceKeyV1,
     CommittedBalanceTableV1,
     CommittedLPTableV1,
     CommittedNonceTableV1,
+    CommittedPerpAccountStateV1,
     CommittedPerpMarketStateV1,
     CommittedPoolStateV1,
     LPKeyV1,
@@ -76,6 +78,33 @@ def _committed_isolated_market_from_transition_v1(
         quote_asset=pre.quote_asset,
         global_state=globals_owned,
         accounts=pre.accounts,
+        kind=pre.kind,
+    )
+
+
+def _committed_isolated_market_with_accounts_from_transition_v1(
+    pre: CommittedPerpMarketStateV1,
+    account_entries: tuple[tuple[str, CommittedPerpAccountStateV1], ...],
+) -> CommittedPerpMarketStateV1:
+    """Trusted freeze edge for canonical isolated-account successors.
+
+    Only the immutable account-entry tuple crosses the module boundary. The
+    unchanged exact global map is structurally shared with the pre-state.
+    """
+
+    if type(pre) is not CommittedPerpMarketStateV1:
+        raise TypeError("isolated market pre-state must be exact")
+    if type(account_entries) is not tuple:
+        raise TypeError("isolated market accounts must be an exact tuple")
+    accounts_owned = _owned_map_from_canonical_transition_v1(
+        account_entries,
+        FCIS_STATE_SCHEMA_REVISION_V1,
+        PERPS_ISOLATED_ACCOUNT_MAP_SCHEMA_ID_V1,
+    )
+    return CommittedPerpMarketStateV1(
+        quote_asset=pre.quote_asset,
+        global_state=pre.global_state,
+        accounts=accounts_owned,
         kind=pre.kind,
     )
 

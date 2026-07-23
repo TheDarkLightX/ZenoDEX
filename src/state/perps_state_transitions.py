@@ -40,11 +40,13 @@ PerpsTransitionPathV1: TypeAlias = tuple[PerpsTransitionPathPartV1, ...]
 
 class IsolatedPerpTransitionCodeV1(Enum):
     WRONG_EXACT_TYPE = "wrong_exact_type"
+    NONCANONICAL_ACCOUNT = "noncanonical_account"
     INVALID_PRESTATE = "invalid_prestate"
     RUNTIME_GUARD = "runtime_guard"
     MARK_PRICE_SOURCE = "mark_price_source"
     KERNEL_REJECT = "kernel_reject"
     INTERNAL_ACCOUNT_MUTATION = "internal_account_mutation"
+    INTERNAL_GLOBAL_MUTATION = "internal_global_mutation"
     INVALID_CANDIDATE = "invalid_candidate"
     EMPTY_PATCH = "empty_patch"
 
@@ -226,6 +228,20 @@ def _global_values_from_kernel(
         "claims_paid": state.claims_paid,
         "min_notional_for_bounty": state.min_notional_for_bounty,
     }
+
+
+def _global_entries_from_kernel(
+    state: PerpState,
+    *,
+    mark_price_source_kind: int,
+) -> tuple[tuple[str, PerpsValueV1], ...]:
+    """Return the kernel globals as one immutable canonical module boundary."""
+
+    values = _global_values_from_kernel(
+        state,
+        mark_price_source_kind=mark_price_source_kind,
+    )
+    return tuple(sorted(values.items(), key=lambda item: item[0]))
 
 
 def _kernel_account_is_unchanged(state: PerpState) -> bool:
