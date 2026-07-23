@@ -210,6 +210,7 @@ def test_apply_lp_patch_updates_all_five_maps_atomically() -> None:
     result = apply_canonical_lp_position_patch_v1(pre, patch)
 
     assert type(result) is LPPositionPatchApplyOkV1
+    assert result.patch is patch
     assert result.state is not pre
     assert type(result.state) is CommittedLPTableV1
     assert _all_entries(pre) == before

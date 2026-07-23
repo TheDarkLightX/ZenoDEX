@@ -162,6 +162,7 @@ def test_apply_two_cell_patch_is_atomic_and_preserves_prestate() -> None:
     result = apply_canonical_balance_patch_v1(pre, patch)
 
     assert type(result) is BalancePatchApplyOkV1
+    assert result.patch is patch
     assert result.state is not pre
     assert pre.entries == before
     assert result.state.entries == (
@@ -334,10 +335,10 @@ def test_delta_reduction_is_permutation_invariant_and_aggregates_duplicate_keys(
     results = tuple(apply_balance_deltas_v1(pre, order) for order in permutations(deltas))
 
     assert all(type(result) is BalancePatchApplyOkV1 for result in results)
-    assert {
-        cast(BalancePatchApplyOkV1, result).state.entries for result in results
-    } == {((('alice', 'asset'), 8), (('bob', 'asset'), 9))}
-    assert pre.entries == ((('alice', 'asset'), 10), (('bob', 'asset'), 5))
+    assert {cast(BalancePatchApplyOkV1, result).state.entries for result in results} == {
+        ((("alice", "asset"), 8), (("bob", "asset"), 9))
+    }
+    assert pre.entries == ((("alice", "asset"), 10), (("bob", "asset"), 5))
 
 
 def test_delta_reduction_cancellation_returns_validated_prestate_without_patch() -> None:
@@ -350,8 +351,9 @@ def test_delta_reduction_cancellation_returns_validated_prestate_without_patch()
         ),
     )
 
-    assert result == BalancePatchApplyOkV1(pre)
+    assert result == BalancePatchApplyOkV1(pre, None)
     assert result.state is pre
+    assert result.patch is None
 
 
 def test_delta_reduction_rejects_negative_successor_without_candidate() -> None:
@@ -366,7 +368,7 @@ def test_delta_reduction_rejects_negative_successor_without_candidate() -> None:
         BalancePatchCodeV1.OUT_OF_RANGE,
         ("deltas", "net_delta"),
     )
-    assert pre.entries == ((('alice', 'asset'), 3),)
+    assert pre.entries == ((("alice", "asset"), 3),)
 
 
 def test_delta_reduction_enforces_aggregate_work_byte_budget_before_reduction() -> None:

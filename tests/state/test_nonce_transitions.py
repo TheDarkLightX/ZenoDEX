@@ -103,6 +103,7 @@ def test_apply_nonce_patch_updates_existing_and_new_senders_without_mutating_pre
     result = apply_canonical_nonce_patch_v1(pre, patch)
 
     assert type(result) is NoncePatchApplyOkV1
+    assert result.patch is patch
     assert result.state is not pre
     assert result.state.entries == (
         (_pubkey(1), 6),

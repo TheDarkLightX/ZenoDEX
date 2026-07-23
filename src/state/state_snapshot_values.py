@@ -78,6 +78,7 @@ MAX_U32_V1 = 0xFFFF_FFFF
 
 # PoolStatus is the first and currently only enum registration in this profile.
 POOL_STATUS_ENUM_TAG_ORDINAL_V1 = 0
+POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1 = 0
 POOL_STATUS_MEMBER_COUNT_V1 = 3
 
 

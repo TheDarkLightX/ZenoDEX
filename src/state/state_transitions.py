@@ -142,7 +142,7 @@ class BalanceWriteV1:
                 raise TypeError("balance key must be an exact pair of strings")
             if key_reject.code is BalancePatchCodeV1.ITEM_LIMIT:
                 raise ValueError("balance key exceeds its mounted limit")
-            key_component = self.key[key_reject.path[-1]]
+            key_component = self.key[cast(int, key_reject.path[-1])]
             if key_component == "":
                 raise ValueError("balance key components must be nonempty")
             raise ValueError("balance key must contain Unicode scalar strings")
@@ -232,6 +232,7 @@ class BalancePatchBuildOkV1:
 @dataclass(frozen=True, slots=True)
 class BalancePatchApplyOkV1:
     state: CommittedBalanceTableV1
+    patch: CanonicalBalancePatchV1 | None
 
 
 BalancePatchBuildResultV1 = BalancePatchBuildOkV1 | BalancePatchRejectV1
@@ -258,6 +259,32 @@ def _rejection_order_key(reject: BalancePatchRejectV1) -> tuple[str, tuple[tuple
     )
 
 
+def validate_balance_deltas_v1(
+    deltas: object,
+) -> BalancePatchRejectV1 | None:
+    """Validate one unordered balance-delta family without reading state."""
+
+    if type(deltas) is not tuple:
+        return _reject(BalancePatchCodeV1.WRONG_EXACT_TYPE, ("deltas",))
+    if len(deltas) > MAX_BALANCES_V1:
+        return _reject(BalancePatchCodeV1.ITEM_LIMIT, ("deltas",))
+
+    representation_rejects = tuple(
+        reject for delta in deltas if (reject := _delta_representation_reject(delta)) is not None
+    )
+    if representation_rejects:
+        return min(representation_rejects, key=_rejection_order_key)
+
+    work_bytes = 0
+    for delta in cast(tuple[BalanceDeltaV1, ...], deltas):
+        work_bytes += len(delta.key[0].encode("utf-8"))
+        work_bytes += len(delta.key[1].encode("utf-8"))
+        work_bytes += max(1, (abs(delta.net_delta).bit_length() + 7) // 8)
+        if work_bytes > MAX_CANONICAL_BYTES_V1:
+            return _reject(BalancePatchCodeV1.BYTE_LIMIT, ("deltas",))
+    return None
+
+
 def apply_balance_deltas_v1(
     pre: CommittedBalanceTableV1,
     deltas: tuple[BalanceDeltaV1, ...],
@@ -272,24 +299,9 @@ def apply_balance_deltas_v1(
     pre_entries = _validated_balance_entries_v1(pre)
     if type(pre_entries) is BalancePatchRejectV1:
         return pre_entries
-    if type(deltas) is not tuple:
-        return _reject(BalancePatchCodeV1.WRONG_EXACT_TYPE, ("deltas",))
-    if len(deltas) > MAX_BALANCES_V1:
-        return _reject(BalancePatchCodeV1.ITEM_LIMIT, ("deltas",))
-
-    representation_rejects = tuple(
-        reject for delta in deltas if (reject := _delta_representation_reject(delta)) is not None
-    )
-    if representation_rejects:
-        return min(representation_rejects, key=_rejection_order_key)
-
-    work_bytes = 0
-    for delta in deltas:
-        work_bytes += len(delta.key[0].encode("utf-8"))
-        work_bytes += len(delta.key[1].encode("utf-8"))
-        work_bytes += max(1, (abs(delta.net_delta).bit_length() + 7) // 8)
-        if work_bytes > MAX_CANONICAL_BYTES_V1:
-            return _reject(BalancePatchCodeV1.BYTE_LIMIT, ("deltas",))
+    delta_reject = validate_balance_deltas_v1(deltas)
+    if delta_reject is not None:
+        return delta_reject
 
     aggregate: dict[BalanceKeyV1, int] = {}
     for delta in deltas:
@@ -313,7 +325,7 @@ def apply_balance_deltas_v1(
         )
 
     if not writes:
-        return BalancePatchApplyOkV1(pre)
+        return BalancePatchApplyOkV1(pre, None)
     patch_result = build_canonical_balance_patch_v1(tuple(writes))
     if type(patch_result) is BalancePatchRejectV1:
         return patch_result
@@ -493,7 +505,7 @@ def apply_canonical_balance_patch_v1(
         FCIS_STATE_SCHEMA_REVISION_V1,
         BALANCE_MAP_SCHEMA_ID_V1,
     )
-    return BalancePatchApplyOkV1(CommittedBalanceTableV1(owned))
+    return BalancePatchApplyOkV1(CommittedBalanceTableV1(owned), patch)
 
 
 NoncePatchPathPartV1: TypeAlias = str | int
@@ -644,6 +656,7 @@ class NoncePatchBuildOkV1:
 @dataclass(frozen=True, slots=True)
 class NoncePatchApplyOkV1:
     state: CommittedNonceTableV1
+    patch: CanonicalNoncePatchV1 | None
 
 
 NoncePatchBuildResultV1 = NoncePatchBuildOkV1 | NoncePatchRejectV1
@@ -811,7 +824,7 @@ def apply_canonical_nonce_patch_v1(
         FCIS_STATE_SCHEMA_REVISION_V1,
         NONCE_MAP_SCHEMA_ID_V1,
     )
-    return NoncePatchApplyOkV1(CommittedNonceTableV1(owned))
+    return NoncePatchApplyOkV1(CommittedNonceTableV1(owned), patch)
 
 
 LPPositionPatchPathPartV1: TypeAlias = str | int
@@ -1096,6 +1109,7 @@ class LPPositionPatchBuildOkV1:
 @dataclass(frozen=True, slots=True)
 class LPPositionPatchApplyOkV1:
     state: CommittedLPTableV1
+    patch: CanonicalLPPositionPatchV1 | None
 
 
 LPPositionPatchBuildResultV1 = LPPositionPatchBuildOkV1 | LPPositionPatchRejectV1
@@ -1287,7 +1301,7 @@ def apply_canonical_lp_position_patch_v1(
     candidate = _candidate_lp_table_v1(updated)
     if type(candidate) is LPPositionPatchRejectV1:
         return candidate
-    return LPPositionPatchApplyOkV1(candidate)
+    return LPPositionPatchApplyOkV1(candidate, patch)
 
 
 def _lp_delta_reject_v1(delta: object) -> LPPositionPatchRejectV1 | None:
@@ -1318,6 +1332,32 @@ def _lp_delta_rejection_order_v1(
     )
 
 
+def validate_lp_position_deltas_v1(
+    deltas: object,
+) -> LPPositionPatchRejectV1 | None:
+    """Validate one unordered LP-delta family without reading state."""
+
+    if type(deltas) is not tuple:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, ("deltas",))
+    if len(deltas) > MAX_LP_ENTRIES_V1:
+        return _lp_reject(LPPositionPatchCodeV1.ITEM_LIMIT, ("deltas",))
+
+    representation_rejects = tuple(
+        reject for delta in deltas if (reject := _lp_delta_reject_v1(delta)) is not None
+    )
+    if representation_rejects:
+        return min(representation_rejects, key=_lp_delta_rejection_order_v1)
+
+    work_bytes = 0
+    for delta in cast(tuple[LPPositionDeltaV1, ...], deltas):
+        work_bytes += len(delta.key[0].encode("utf-8"))
+        work_bytes += len(delta.key[1].encode("utf-8"))
+        work_bytes += max(1, (abs(delta.net_delta).bit_length() + 7) // 8)
+        if work_bytes > MAX_CANONICAL_BYTES_V1:
+            return _lp_reject(LPPositionPatchCodeV1.BYTE_LIMIT, ("deltas",))
+    return None
+
+
 def apply_lp_position_deltas_v1(
     pre: CommittedLPTableV1,
     deltas: tuple[LPPositionDeltaV1, ...],
@@ -1332,25 +1372,12 @@ def apply_lp_position_deltas_v1(
     positions = _lp_positions_from_committed_v1(pre)
     if type(positions) is LPPositionPatchRejectV1:
         return positions
-    if type(deltas) is not tuple:
-        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, ("deltas",))
-    if len(deltas) > MAX_LP_ENTRIES_V1:
-        return _lp_reject(LPPositionPatchCodeV1.ITEM_LIMIT, ("deltas",))
+    delta_reject = validate_lp_position_deltas_v1(deltas)
+    if delta_reject is not None:
+        return delta_reject
 
-    representation_rejects = tuple(
-        reject for delta in deltas if (reject := _lp_delta_reject_v1(delta)) is not None
-    )
-    if representation_rejects:
-        return min(representation_rejects, key=_lp_delta_rejection_order_v1)
-
-    work_bytes = 0
     aggregate: dict[LPKeyV1, int] = {}
     for delta in deltas:
-        work_bytes += len(delta.key[0].encode("utf-8"))
-        work_bytes += len(delta.key[1].encode("utf-8"))
-        work_bytes += max(1, (abs(delta.net_delta).bit_length() + 7) // 8)
-        if work_bytes > MAX_CANONICAL_BYTES_V1:
-            return _lp_reject(LPPositionPatchCodeV1.BYTE_LIMIT, ("deltas",))
         aggregate[delta.key] = aggregate.get(delta.key, 0) + delta.net_delta
 
     writes: list[LPPositionWriteV1] = []
@@ -1372,7 +1399,7 @@ def apply_lp_position_deltas_v1(
         writes.append(LPPositionWriteV1(key, current, replacement))
 
     if not writes:
-        return LPPositionPatchApplyOkV1(pre)
+        return LPPositionPatchApplyOkV1(pre, None)
     patch_result = build_canonical_lp_position_patch_v1(tuple(writes))
     if type(patch_result) is LPPositionPatchRejectV1:
         return patch_result
@@ -1709,6 +1736,7 @@ class PoolPatchBuildOkV1:
 @dataclass(frozen=True, slots=True)
 class PoolPatchApplyOkV1:
     state: OwnedMapV1[str, CommittedPoolStateV1]
+    patch: CanonicalPoolPatchV1 | None
 
 
 PoolPatchBuildResultV1 = PoolPatchBuildOkV1 | PoolPatchRejectV1
@@ -1825,7 +1853,7 @@ def apply_canonical_pool_patch_v1(
     candidate = _pool_candidate_v1(updated)
     if type(candidate) is PoolPatchRejectV1:
         return candidate
-    return PoolPatchApplyOkV1(candidate)
+    return PoolPatchApplyOkV1(candidate, patch)
 
 
 def _pool_reserve_delta_reject_v1(delta: object) -> PoolPatchRejectV1 | None:
@@ -1948,6 +1976,21 @@ def _aggregate_pool_deltas_v1(
     )
 
 
+def validate_pool_deltas_v1(
+    reserve_deltas: object,
+    supply_deltas: object,
+) -> PoolPatchRejectV1 | None:
+    """Validate unordered pool-delta families without reading pool state."""
+
+    nets = _aggregate_pool_deltas_v1(
+        cast(tuple[PoolReserveDeltaV1, ...], reserve_deltas),
+        cast(tuple[PoolSupplyDeltaV1, ...], supply_deltas),
+    )
+    if type(nets) is PoolPatchRejectV1:
+        return nets
+    return None
+
+
 def _pool_delta_replacement_v1(
     current: CommittedPoolStateV1,
     reserve_entries: tuple[tuple[str, int], ...],
@@ -2038,7 +2081,7 @@ def apply_pool_deltas_v1(
         return writes
 
     if not writes:
-        return PoolPatchApplyOkV1(admitted_pre)
+        return PoolPatchApplyOkV1(admitted_pre, None)
     patch_result = build_canonical_pool_patch_v1(writes)
     if type(patch_result) is PoolPatchRejectV1:
         return patch_result
@@ -2094,4 +2137,7 @@ __all__ = [
     "build_canonical_lp_position_patch_v1",
     "build_canonical_nonce_patch_v1",
     "build_canonical_pool_patch_v1",
+    "validate_balance_deltas_v1",
+    "validate_lp_position_deltas_v1",
+    "validate_pool_deltas_v1",
 ]

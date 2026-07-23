@@ -13,6 +13,11 @@ from src.core.settlement import LPDelta, ReserveDelta, Settlement
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 from src.state.owned_collections import OwnedMapV1
+from src.state.pool_creation_transition import (
+    PoolCreationBuildOkV1,
+    PoolCreationV1,
+    build_committed_pool_creation_v1,
+)
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from src.state.state_snapshot_values import CommittedPoolStateV1
 from src.state.state_snapshots import snapshot_pool, snapshot_pool_map
@@ -102,6 +107,60 @@ def _patch(*writes: PoolWriteV1) -> CanonicalPoolPatchV1:
     if type(result) is not PoolPatchBuildOkV1:
         raise AssertionError(f"test pool patch construction failed: {result!r}")
     return result.patch
+
+
+def test_pool_creation_builds_exact_active_empty_pool_without_legacy_constructor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30)
+
+    def _forbidden_legacy_constructor(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("legacy PoolState construction escaped into the exact transition")
+
+    monkeypatch.setattr(PoolState, "__init__", _forbidden_legacy_constructor)
+    result = build_committed_pool_creation_v1(
+        PoolCreationV1(
+            pool_id=pool_id,
+            asset0=asset0,
+            asset1=asset1,
+            fee_bps=30,
+            created_at=7,
+            curve_tag="CPMM",
+            curve_params="",
+        )
+    )
+
+    assert type(result) is PoolCreationBuildOkV1
+    pool = result.pool
+    assert type(pool) is CommittedPoolStateV1
+    assert (pool.reserve0, pool.reserve1, pool.lp_supply) == (0, 0, 0)
+    assert pool.status.member_ordinal == 0
+    assert pool.pool_id == pool_id
+
+
+def test_pool_creation_revalidates_corrupted_input_without_candidate() -> None:
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    creation = PoolCreationV1(
+        pool_id=compute_pool_id(asset0, asset1, 30),
+        asset0=asset0,
+        asset1=asset1,
+        fee_bps=30,
+        created_at=7,
+        curve_tag="CPMM",
+        curve_params="",
+    )
+    object.__setattr__(creation, "fee_bps", True)
+
+    result = build_committed_pool_creation_v1(creation)
+
+    assert result == PoolPatchRejectV1(
+        PoolPatchCodeV1.WRONG_EXACT_TYPE,
+        ("creation", "fee_bps"),
+    )
+    assert not hasattr(result, "pool")
 
 
 def test_pool_patch_builder_is_permutation_invariant() -> None:
@@ -209,6 +268,7 @@ def test_apply_pool_patch_inserts_updates_and_deletes_atomically() -> None:
     result = apply_canonical_pool_patch_v1(pre, patch)
 
     assert type(result) is PoolPatchApplyOkV1
+    assert result.patch is patch
     assert result.state is not pre
     assert pre.entries == before
     assert tuple(pool_id for pool_id, _pool in result.state.entries) == tuple(

@@ -15,10 +15,12 @@ REPORT_SCHEMA = "zenodex/fcis-authority-snapshot-contract-check/v1"
 DEFAULT_AUTHORITY_PATHS = (
     Path("src/state/snapshot_combinators.py"),
     Path("src/state/owned_collections.py"),
+    Path("src/state/pool_creation_transition.py"),
     Path("src/state/state_snapshot_values.py"),
     Path("src/state/state_snapshot_schema.py"),
     Path("src/state/state_admission_profile.py"),
     Path("src/state/state_transitions.py"),
+    Path("src/state/spot_state_transitions.py"),
     Path("src/state/committed_spot_roots.py"),
     Path("src/state/committed_dex_snapshot.py"),
 )
@@ -72,6 +74,7 @@ _UNTRUSTED_VALUE_NAMES = {
 _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
     "_admit_with_registry_v1": "src/state/state_admission_profile.py",
     "_owned_enum_from_admitted": "src/state/snapshot_combinators.py",
+    "_owned_enum_from_canonical_transition_v1": "src/state/pool_creation_transition.py",
     "_owned_map_from_admitted": "src/state/snapshot_combinators.py",
     "_owned_map_from_canonical_transition_v1": "src/state/state_transitions.py",
     "_OWNED_ENUM_CONSTRUCTION_TOKEN": "src/state/owned_collections.py",
@@ -468,11 +471,14 @@ class _AuthorityVisitor(ast.NodeVisitor):
                 self._add(node, "COERCIVE_CONTAINER_COPY", called or called_tail)
         if called_tail in {
             "_owned_enum_from_admitted",
+            "_owned_enum_from_canonical_transition_v1",
             "_owned_map_from_admitted",
             "_owned_map_from_canonical_transition_v1",
         } and not (
             called_tail in {"_owned_enum_from_admitted", "_owned_map_from_admitted"}
             and self.relative_path.endswith("src/state/snapshot_combinators.py")
+            or called_tail == "_owned_enum_from_canonical_transition_v1"
+            and self.relative_path.endswith("src/state/pool_creation_transition.py")
             or called_tail == "_owned_map_from_canonical_transition_v1"
             and self.relative_path.endswith("src/state/state_transitions.py")
         ):
@@ -548,6 +554,10 @@ class _AuthorityVisitor(ast.NodeVisitor):
                 (
                     "src/state/owned_collections.py",
                     "_owned_enum_from_admitted",
+                ),
+                (
+                    "src/state/owned_collections.py",
+                    "_owned_enum_from_canonical_transition_v1",
                 ),
             ),
             "ValidatedAdmissionLimitsV1": (

@@ -224,3 +224,23 @@ def _owned_enum_from_admitted(
         member_ordinal,
         _construction_token=_OWNED_ENUM_CONSTRUCTION_TOKEN,
     )
+
+
+def _owned_enum_from_canonical_transition_v1(
+    schema_revision: str,
+    enum_tag_ordinal: int,
+    member_ordinal: int,
+) -> OwnedEnumV1:
+    """Trusted enum construction edge for one closed state transition.
+
+    The FCIS authority checker permits this capability only in the closed pool
+    creation transition. Callers must choose tag and member ordinals from the
+    source-owned profile, never from authority input without exact validation.
+    """
+
+    return OwnedEnumV1(
+        schema_revision,
+        enum_tag_ordinal,
+        member_ordinal,
+        _construction_token=_OWNED_ENUM_CONSTRUCTION_TOKEN,
+    )
