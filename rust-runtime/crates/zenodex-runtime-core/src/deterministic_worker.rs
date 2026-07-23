@@ -473,10 +473,7 @@ pub enum WorkerProtocolError {
     #[error("worker output budget exceeded for partition {partition}")]
     OutputExceeded { partition: u32 },
     #[error("worker operational failure in partition {partition} with code {failure_code}")]
-    OperationalFailure {
-        partition: u32,
-        failure_code: u32,
-    },
+    OperationalFailure { partition: u32, failure_code: u32 },
     #[error("worker access conflict between partitions {left_partition} and {right_partition}")]
     AccessConflict {
         left_partition: u32,
