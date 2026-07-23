@@ -22,6 +22,7 @@ DEFAULT_AUTHORITY_PATHS = (
     Path("src/state/perps_funding_transitions.py"),
     Path("src/state/perps_liquidation_transitions.py"),
     Path("src/state/perps_market_param_transitions.py"),
+    Path("src/state/perps_aggregate_transitions.py"),
     Path("src/state/perps_settlement_transitions.py"),
     Path("src/state/perps_state_transitions.py"),
     Path("src/state/perps_transition_combinators.py"),

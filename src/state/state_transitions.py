@@ -40,13 +40,16 @@ from .state_snapshot_values import (
     NONCE_MAP_SCHEMA_ID_V1,
     PERPS_ISOLATED_ACCOUNT_MAP_SCHEMA_ID_V1,
     PERPS_ISOLATED_GLOBAL_MAP_SCHEMA_ID_V1,
+    PERPS_MARKET_MAP_SCHEMA_ID_V1,
     POOL_MAP_SCHEMA_ID_V1,
     BalanceKeyV1,
     CommittedBalanceTableV1,
     CommittedLPTableV1,
     CommittedNonceTableV1,
     CommittedPerpAccountStateV1,
+    CommittedPerpAnyMarketStateV1,
     CommittedPerpMarketStateV1,
+    CommittedPerpsStateV1,
     CommittedPoolStateV1,
     LPKeyV1,
     PerpsValueV1,
@@ -144,6 +147,33 @@ def _committed_isolated_market_with_globals_and_accounts_from_transition_v1(
         global_state=globals_owned,
         accounts=accounts_owned,
         kind=pre.kind,
+    )
+
+
+def _committed_perps_with_markets_from_transition_v1(
+    pre: CommittedPerpsStateV1,
+    market_entries: tuple[tuple[str, CommittedPerpAnyMarketStateV1], ...],
+) -> CommittedPerpsStateV1:
+    """Trusted freeze edge for one complete canonical perps market map.
+
+    The caller supplies an immutable, sorted, duplicate-free entry tuple after
+    evaluating the full compare-and-replace patch. The exact aggregate
+    constructor rechecks version and market-variant constraints before the
+    candidate can escape.
+    """
+
+    if type(pre) is not CommittedPerpsStateV1:
+        raise TypeError("perps pre-state must be exact")
+    if type(market_entries) is not tuple:
+        raise TypeError("perps market entries must be an exact tuple")
+    markets_owned = _owned_map_from_canonical_transition_v1(
+        market_entries,
+        FCIS_STATE_SCHEMA_REVISION_V1,
+        PERPS_MARKET_MAP_SCHEMA_ID_V1,
+    )
+    return CommittedPerpsStateV1(
+        version=pre.version,
+        markets=markets_owned,
     )
 
 

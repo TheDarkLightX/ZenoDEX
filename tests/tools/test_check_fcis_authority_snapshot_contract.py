@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from tools.check_fcis_authority_snapshot_contract import check_contract
+from tools.check_fcis_authority_snapshot_contract import (
+    DEFAULT_AUTHORITY_PATHS,
+    check_contract,
+)
 
 _COMPLIANT = """
 from dataclasses import dataclass
@@ -22,6 +25,10 @@ def exact(value: object) -> int:
         raise TypeError("exact int required")
     return value
 """
+
+
+def test_default_authority_paths_cover_exact_perps_aggregate_transition() -> None:
+    assert Path("src/state/perps_aggregate_transitions.py") in DEFAULT_AUTHORITY_PATHS
 
 
 def _run(tmp_path: Path, source: str, *, unrelated: str | None = None):
