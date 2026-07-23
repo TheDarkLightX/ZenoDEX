@@ -54,14 +54,32 @@ jobs:
         run: cargo +1.96.0 fmt --all -- --check
 
       - name: Clippy
-        run: >-
-          cargo +1.96.0 clippy
-          -p zenodex-runtime-core
-          --all-targets
-          --all-features
-          --locked
-          --
-          -D warnings
+        id: clippy
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo +1.96.0 clippy \
+            -p zenodex-runtime-core \
+            --all-targets \
+            --all-features \
+            --locked \
+            -- \
+            -D warnings \
+            2>&1 | tee ../deterministic-worker-publish-clippy.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Retain publisher Clippy diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-worker-publisher-clippy
+          path: deterministic-worker-publish-clippy.txt
+          if-no-files-found: error
+
+      - name: Enforce Clippy
+        if: steps.clippy.outputs.exit_code != '0'
+        run: exit 1
 
       - name: Deterministic worker tests
         run: >-
