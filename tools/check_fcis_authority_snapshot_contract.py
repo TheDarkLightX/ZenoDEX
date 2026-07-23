@@ -25,6 +25,7 @@ DEFAULT_AUTHORITY_PATHS = (
     Path("src/state/perps_settlement_transitions.py"),
     Path("src/state/perps_state_transitions.py"),
     Path("src/state/perps_transition_combinators.py"),
+    Path("src/state/lp_duration_transitions.py"),
     Path("src/state/pool_creation_transition.py"),
     Path("src/state/state_snapshot_values.py"),
     Path("src/state/state_snapshot_schema.py"),

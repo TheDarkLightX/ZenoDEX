@@ -1015,6 +1015,14 @@ def _lp_key_reject_v1(
     return None
 
 
+def validate_lp_position_key_v1(
+    key: object,
+) -> LPPositionPatchRejectV1 | None:
+    """Validate one exact LP-position key without consulting committed state."""
+
+    return _lp_key_reject_v1(key, ("key",))
+
+
 def _optional_nonnegative_int_reject_v1(
     value: object,
     path: LPPositionPatchPathV1,
@@ -2262,6 +2270,7 @@ __all__ = [
     "validate_balance_deltas_v1",
     "validate_committed_balance_state_v1",
     "validate_committed_nonce_state_v1",
+    "validate_lp_position_key_v1",
     "validate_lp_position_deltas_v1",
     "validate_pool_deltas_v1",
 ]
