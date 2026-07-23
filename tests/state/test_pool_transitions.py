@@ -5,7 +5,7 @@ from types import MappingProxyType
 from typing import cast
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from src.core.batch_clearing import apply_settlement_pure
@@ -22,8 +22,11 @@ from src.state.state_transitions import (
     PoolPatchBuildOkV1,
     PoolPatchCodeV1,
     PoolPatchRejectV1,
+    PoolReserveDeltaV1,
+    PoolSupplyDeltaV1,
     PoolWriteV1,
     apply_canonical_pool_patch_v1,
+    apply_pool_deltas_v1,
     build_canonical_pool_patch_v1,
 )
 
@@ -319,6 +322,155 @@ def test_pool_patch_replays_legacy_settlement_pool_projection() -> None:
     assert pre[legacy.pool_id].lp_supply == 50
 
 
+def test_pool_delta_reduction_is_permutation_invariant() -> None:
+    legacy = _legacy_pool(0, reserve0=100, reserve1=200, lp_supply=50)
+    pre = _state(legacy)
+    reserve_deltas = (
+        PoolReserveDeltaV1(legacy.pool_id, legacy.asset0, 11),
+        PoolReserveDeltaV1(legacy.pool_id, legacy.asset0, -2),
+        PoolReserveDeltaV1(legacy.pool_id, legacy.asset1, -5),
+        PoolReserveDeltaV1(legacy.pool_id, legacy.asset1, 1),
+    )
+    supply_deltas = (
+        PoolSupplyDeltaV1(legacy.pool_id, 3),
+        PoolSupplyDeltaV1(legacy.pool_id, -1),
+    )
+
+    results = tuple(
+        apply_pool_deltas_v1(pre, reserve_order, supply_order)
+        for reserve_order in permutations(reserve_deltas)
+        for supply_order in permutations(supply_deltas)
+    )
+
+    assert all(type(result) is PoolPatchApplyOkV1 for result in results)
+    states = tuple(cast(PoolPatchApplyOkV1, result).state for result in results)
+    assert all(state.entries == states[0].entries for state in states)
+    candidate = states[0][legacy.pool_id]
+    assert candidate.reserve0 == 109
+    assert candidate.reserve1 == 196
+    assert candidate.lp_supply == 52
+    assert pre[legacy.pool_id].reserve0 == 100
+    assert pre[legacy.pool_id].reserve1 == 200
+    assert pre[legacy.pool_id].lp_supply == 50
+
+
+def test_pool_delta_replays_legacy_settlement_pool_projection() -> None:
+    legacy = _legacy_pool(0, reserve0=100, reserve1=200, lp_supply=50)
+    pre = _state(legacy)
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[
+            ReserveDelta(legacy.pool_id, legacy.asset0, delta_add=9, delta_sub=0),
+            ReserveDelta(legacy.pool_id, legacy.asset1, delta_add=0, delta_sub=4),
+        ],
+        lp_deltas=[LPDelta("alice", legacy.pool_id, delta_add=3, delta_sub=0)],
+    )
+
+    _balances, legacy_pools, _lp = apply_settlement_pure(
+        settlement,
+        BalanceTable(),
+        {legacy.pool_id: legacy},
+        LPTable(),
+    )
+    result = apply_pool_deltas_v1(
+        pre,
+        (
+            PoolReserveDeltaV1(legacy.pool_id, legacy.asset0, 9),
+            PoolReserveDeltaV1(legacy.pool_id, legacy.asset1, -4),
+        ),
+        (PoolSupplyDeltaV1(legacy.pool_id, 3),),
+    )
+
+    assert type(result) is PoolPatchApplyOkV1
+    assert result.state.entries == snapshot_pool_map(legacy_pools).entries
+
+
+def test_pool_delta_validates_references_before_cancellation() -> None:
+    legacy = _legacy_pool(0)
+    pre = _state(legacy)
+
+    unknown_reserve = apply_pool_deltas_v1(
+        pre,
+        (
+            PoolReserveDeltaV1("missing", "asset", 1),
+            PoolReserveDeltaV1("missing", "asset", -1),
+        ),
+        (),
+    )
+    unknown_supply = apply_pool_deltas_v1(
+        pre,
+        (),
+        (
+            PoolSupplyDeltaV1("missing", 1),
+            PoolSupplyDeltaV1("missing", -1),
+        ),
+    )
+    wrong_asset = apply_pool_deltas_v1(
+        pre,
+        (
+            PoolReserveDeltaV1(legacy.pool_id, "wrong-asset", 1),
+            PoolReserveDeltaV1(legacy.pool_id, "wrong-asset", -1),
+        ),
+        (),
+    )
+
+    assert unknown_reserve == PoolPatchRejectV1(
+        PoolPatchCodeV1.UNKNOWN_POOL,
+        ("pools", "missing"),
+    )
+    assert unknown_supply == unknown_reserve
+    assert wrong_asset == PoolPatchRejectV1(
+        PoolPatchCodeV1.ASSET_MISMATCH,
+        ("pools", legacy.pool_id, "asset"),
+    )
+    assert all(
+        not hasattr(result, "state") for result in (unknown_reserve, unknown_supply, wrong_asset)
+    )
+    assert pre[legacy.pool_id].reserve0 == 100
+    assert pre[legacy.pool_id].reserve1 == 200
+    assert pre[legacy.pool_id].lp_supply == 50
+
+
+@pytest.mark.parametrize("kind", ("reserve", "supply"))
+def test_pool_delta_rejects_out_of_range_without_candidate_or_prestate_mutation(
+    kind: str,
+) -> None:
+    pre = _legacy_pool(0, reserve0=0, lp_supply=0)
+    committed = _state(pre)
+    before = committed.entries
+    reserve_atoms = (PoolReserveDeltaV1(pre.pool_id, pre.asset0, -1),) if kind == "reserve" else ()
+    supply_atoms = (PoolSupplyDeltaV1(pre.pool_id, -1),) if kind == "supply" else ()
+
+    result = apply_pool_deltas_v1(committed, reserve_atoms, supply_atoms)
+
+    assert result == PoolPatchRejectV1(
+        PoolPatchCodeV1.OUT_OF_RANGE,
+        ("pools", pre.pool_id),
+    )
+    assert not hasattr(result, "state")
+    assert committed.entries == before
+
+
+def test_pool_delta_constructor_and_application_reject_nonexact_values() -> None:
+    legacy = _legacy_pool(0)
+    with pytest.raises(TypeError, match="exact integer"):
+        PoolReserveDeltaV1(legacy.pool_id, legacy.asset0, True)
+    with pytest.raises(ValueError, match="nonzero"):
+        PoolSupplyDeltaV1(legacy.pool_id, 0)
+
+    delta = PoolReserveDeltaV1(legacy.pool_id, legacy.asset0, 1)
+    object.__setattr__(delta, "net_delta", True)
+    assert apply_pool_deltas_v1(_state(legacy), (delta,), ()) == PoolPatchRejectV1(
+        PoolPatchCodeV1.WRONG_EXACT_TYPE,
+        ("reserve_deltas", "net_delta"),
+    )
+
+
 @settings(max_examples=100, deadline=None)
 @given(
     pre_values=st.dictionaries(
@@ -400,3 +552,89 @@ def test_pool_patch_matches_logical_map_and_legacy_reference(
     expected = snapshot_pool_map({pool.pool_id: pool for pool in expected_legacy.values()})
     assert result.state.entries == expected.entries
     assert pre.entries == before
+
+
+@settings(max_examples=100, deadline=None)
+@given(
+    reserve0=st.integers(min_value=0, max_value=10_000),
+    reserve1=st.integers(min_value=0, max_value=10_000),
+    lp_supply=st.integers(min_value=0, max_value=10_000),
+    reserve0_delta=st.integers(min_value=-100, max_value=100),
+    reserve1_delta=st.integers(min_value=-100, max_value=100),
+    supply_delta=st.integers(min_value=-100, max_value=100),
+)
+def test_pool_delta_reduction_matches_legacy_reference(
+    reserve0: int,
+    reserve1: int,
+    lp_supply: int,
+    reserve0_delta: int,
+    reserve1_delta: int,
+    supply_delta: int,
+) -> None:
+    assume(any(delta != 0 for delta in (reserve0_delta, reserve1_delta, supply_delta)))
+    assume(reserve0 + reserve0_delta >= 0)
+    assume(reserve1 + reserve1_delta >= 0)
+    assume(lp_supply + supply_delta >= 0)
+    legacy = _legacy_pool(
+        0,
+        reserve0=reserve0,
+        reserve1=reserve1,
+        lp_supply=lp_supply,
+    )
+    pre = _state(legacy)
+    reserve_atoms = tuple(
+        PoolReserveDeltaV1(legacy.pool_id, asset, delta)
+        for asset, delta in (
+            (legacy.asset0, reserve0_delta),
+            (legacy.asset1, reserve1_delta),
+        )
+        if delta != 0
+    )
+    supply_atoms = (PoolSupplyDeltaV1(legacy.pool_id, supply_delta),) if supply_delta != 0 else ()
+    legacy_lp = LPTable()
+    if lp_supply > 0:
+        legacy_lp.set("alice", legacy.pool_id, lp_supply)
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[
+            ReserveDelta(
+                legacy.pool_id,
+                asset,
+                delta_add=max(delta, 0),
+                delta_sub=max(-delta, 0),
+            )
+            for asset, delta in (
+                (legacy.asset0, reserve0_delta),
+                (legacy.asset1, reserve1_delta),
+            )
+            if delta != 0
+        ],
+        lp_deltas=(
+            [
+                LPDelta(
+                    "alice",
+                    legacy.pool_id,
+                    delta_add=max(supply_delta, 0),
+                    delta_sub=max(-supply_delta, 0),
+                )
+            ]
+            if supply_delta != 0
+            else []
+        ),
+    )
+
+    result = apply_pool_deltas_v1(pre, reserve_atoms, supply_atoms)
+    _balances, legacy_pools, _lp = apply_settlement_pure(
+        settlement,
+        BalanceTable(),
+        {legacy.pool_id: legacy},
+        legacy_lp,
+    )
+
+    assert type(result) is PoolPatchApplyOkV1
+    assert result.state.entries == snapshot_pool_map(legacy_pools).entries

@@ -5,7 +5,7 @@ from types import MappingProxyType
 from typing import cast
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from src.state.lp import LPTable
@@ -13,6 +13,7 @@ from src.state.state_snapshot_values import CommittedLPTableV1
 from src.state.state_snapshots import snapshot_lp_table
 from src.state.state_transitions import (
     CanonicalLPPositionPatchV1,
+    LPPositionDeltaV1,
     LPPositionPatchApplyOkV1,
     LPPositionPatchBuildOkV1,
     LPPositionPatchCodeV1,
@@ -20,6 +21,7 @@ from src.state.state_transitions import (
     LPPositionValueV1,
     LPPositionWriteV1,
     apply_canonical_lp_position_patch_v1,
+    apply_lp_position_deltas_v1,
     build_canonical_lp_position_patch_v1,
 )
 
@@ -251,6 +253,90 @@ def test_apply_lp_patch_preserves_valid_metadata_only_position() -> None:
     assert result.state.last_churn_update_entries == ((("alice", "pool"), 8),)
 
 
+def test_lp_delta_reduction_is_permutation_invariant_and_preserves_metadata() -> None:
+    before = LPPositionValueV1(
+        balance=10,
+        last_mint_timestamp=2,
+        last_remove_timestamp=3,
+        churn_tier=1,
+        last_churn_update_timestamp=4,
+    )
+    pre = _state((("alice", "pool"), before))
+    deltas = (
+        LPPositionDeltaV1(("alice", "pool"), -4),
+        LPPositionDeltaV1(("alice", "pool"), 1),
+        LPPositionDeltaV1(("bob", "pool"), 5),
+    )
+
+    results = tuple(apply_lp_position_deltas_v1(pre, ordering) for ordering in permutations(deltas))
+
+    assert all(type(result) is LPPositionPatchApplyOkV1 for result in results)
+    states = tuple(cast(LPPositionPatchApplyOkV1, result).state for result in results)
+    assert all(_all_entries(state) == _all_entries(states[0]) for state in states)
+    assert states[0].balance_entries == (
+        (("alice", "pool"), 7),
+        (("bob", "pool"), 5),
+    )
+    assert states[0].last_mint_entries == ((("alice", "pool"), 2),)
+    assert states[0].last_remove_entries == ((("alice", "pool"), 3),)
+    assert states[0].churn_tier_entries == ((("alice", "pool"), 1),)
+    assert states[0].last_churn_update_entries == ((("alice", "pool"), 4),)
+
+
+def test_lp_delta_burn_to_zero_clears_only_last_mint_metadata() -> None:
+    before = LPPositionValueV1(
+        balance=4,
+        last_mint_timestamp=2,
+        last_remove_timestamp=3,
+        churn_tier=1,
+        last_churn_update_timestamp=4,
+    )
+    pre = _state((("alice", "pool"), before))
+
+    result = apply_lp_position_deltas_v1(
+        pre,
+        (LPPositionDeltaV1(("alice", "pool"), -4),),
+    )
+
+    assert type(result) is LPPositionPatchApplyOkV1
+    assert result.state.balance_entries == ()
+    assert result.state.last_mint_entries == ()
+    assert result.state.last_remove_entries == ((("alice", "pool"), 3),)
+    assert result.state.churn_tier_entries == ((("alice", "pool"), 1),)
+    assert result.state.last_churn_update_entries == ((("alice", "pool"), 4),)
+
+
+def test_lp_delta_rejects_out_of_range_without_candidate_or_prestate_mutation() -> None:
+    pre = _state((("alice", "pool"), LPPositionValueV1(balance=2)))
+    before = _all_entries(pre)
+
+    result = apply_lp_position_deltas_v1(
+        pre,
+        (LPPositionDeltaV1(("alice", "pool"), -3),),
+    )
+
+    assert result == LPPositionPatchRejectV1(
+        LPPositionPatchCodeV1.OUT_OF_RANGE,
+        ("deltas", "net_delta"),
+    )
+    assert not hasattr(result, "state")
+    assert _all_entries(pre) == before
+
+
+def test_lp_delta_constructor_and_application_reject_nonexact_values() -> None:
+    with pytest.raises(TypeError, match="exact integer"):
+        LPPositionDeltaV1(("alice", "pool"), True)
+    with pytest.raises(ValueError, match="nonzero"):
+        LPPositionDeltaV1(("alice", "pool"), 0)
+
+    delta = LPPositionDeltaV1(("alice", "pool"), 1)
+    object.__setattr__(delta, "net_delta", True)
+    assert apply_lp_position_deltas_v1(_state(), (delta,)) == LPPositionPatchRejectV1(
+        LPPositionPatchCodeV1.WRONG_EXACT_TYPE,
+        ("deltas", "net_delta"),
+    )
+
+
 def test_apply_lp_expected_mismatch_returns_no_candidate() -> None:
     actual = LPPositionValueV1(balance=5, last_mint_timestamp=2)
     pre = _state((("alice", "pool"), actual))
@@ -394,5 +480,52 @@ def test_lp_patch_matches_logical_map_and_legacy_reference(
         _set_legacy_position(legacy, key(index), value)
     for index, replacement in replacements.items():
         _set_legacy_position(legacy, key(index), replacement)
+    assert _all_entries(result.state) == _all_entries(snapshot_lp_table(legacy))
+    assert _all_entries(pre) == before
+
+
+@settings(max_examples=100, deadline=None)
+@given(
+    pre_values=st.dictionaries(
+        keys=st.integers(min_value=0, max_value=12),
+        values=_position_values(),
+        max_size=8,
+    ),
+    delta_by=st.dictionaries(
+        keys=st.integers(min_value=0, max_value=12),
+        values=st.integers(min_value=-20, max_value=20).filter(lambda value: value != 0),
+        min_size=1,
+        max_size=8,
+    ),
+)
+def test_lp_delta_reduction_matches_legacy_reference(
+    pre_values: dict[int, LPPositionValueV1],
+    delta_by: dict[int, int],
+) -> None:
+    def key(index: int) -> tuple[str, str]:
+        return (f"account-{index:02d}", "pool")
+
+    assume(
+        all(
+            0 <= pre_values.get(index, _EMPTY).balance + delta <= 1_000
+            for index, delta in delta_by.items()
+        )
+    )
+    pre = _state(*((key(index), value) for index, value in pre_values.items()))
+    before = _all_entries(pre)
+    deltas = tuple(LPPositionDeltaV1(key(index), delta) for index, delta in delta_by.items())
+
+    result = apply_lp_position_deltas_v1(pre, deltas)
+
+    assert type(result) is LPPositionPatchApplyOkV1
+    legacy = LPTable()
+    for index, value in pre_values.items():
+        _set_legacy_position(legacy, key(index), value)
+    for index, delta in delta_by.items():
+        pubkey, pool_id = key(index)
+        if delta > 0:
+            legacy.add(pubkey, pool_id, delta)
+        else:
+            legacy.subtract(pubkey, pool_id, -delta)
     assert _all_entries(result.state) == _all_entries(snapshot_lp_table(legacy))
     assert _all_entries(pre) == before

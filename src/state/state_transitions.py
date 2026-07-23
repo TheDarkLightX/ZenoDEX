@@ -18,10 +18,12 @@ from .owned_collections import (
     OwnedMapV1,
     _owned_map_from_canonical_transition_v1,
 )
-from .snapshot_combinators import MAX_CANONICAL_BYTES_V1
+from .snapshot_combinators import MAX_CANONICAL_BYTES_V1, MAX_COLLECTION_ITEMS_V1
 from .state_snapshot_values import (
     BALANCE_MAP_SCHEMA_ID_V1,
     DEX_LP_AMOUNT_MAX,
+    DEX_LP_SUPPLY_MAX,
+    DEX_POOL_RESERVE_MAX,
     FCIS_STATE_SCHEMA_REVISION_V1,
     LP_BALANCE_MAP_SCHEMA_ID_V1,
     LP_CHURN_TIER_MAP_SCHEMA_ID_V1,
@@ -928,6 +930,31 @@ class LPPositionValueV1:
 _EMPTY_LP_POSITION_V1 = LPPositionValueV1()
 
 
+@final
+@dataclass(frozen=True, slots=True)
+class LPPositionDeltaV1:
+    """One exact additive LP-balance atom for canonical reduction.
+
+    Duration-risk metadata is part of the aggregate position value and is
+    preserved by this balance-only operation. Burning a position to zero clears
+    its last-mint timestamp, matching the mounted ``LPTable.set`` behavior.
+    """
+
+    key: LPKeyV1
+    net_delta: int
+
+    def __post_init__(self) -> None:
+        key_reject = _lp_key_reject_v1(self.key, ("key",))
+        if key_reject is not None:
+            if key_reject.code is LPPositionPatchCodeV1.WRONG_EXACT_TYPE:
+                raise TypeError("LP position delta key must be an exact pair of strings")
+            raise ValueError("LP position delta key is not canonical")
+        if type(self.net_delta) is not int:
+            raise TypeError("LP position net_delta must be an exact integer")
+        if self.net_delta == 0:
+            raise ValueError("LP position net_delta must be nonzero")
+
+
 def _lp_position_value_reject_v1(
     value: object,
     path: LPPositionPatchPathV1,
@@ -1263,6 +1290,95 @@ def apply_canonical_lp_position_patch_v1(
     return LPPositionPatchApplyOkV1(candidate)
 
 
+def _lp_delta_reject_v1(delta: object) -> LPPositionPatchRejectV1 | None:
+    if type(delta) is not LPPositionDeltaV1:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, ("deltas",))
+    key_reject = _lp_key_reject_v1(delta.key, ("deltas", "key"))
+    if key_reject is not None:
+        return key_reject
+    if type(delta.net_delta) is not int:
+        return _lp_reject(
+            LPPositionPatchCodeV1.WRONG_EXACT_TYPE,
+            ("deltas", "net_delta"),
+        )
+    if delta.net_delta == 0:
+        return _lp_reject(
+            LPPositionPatchCodeV1.NO_OP_WRITE,
+            ("deltas", "net_delta"),
+        )
+    return None
+
+
+def _lp_delta_rejection_order_v1(
+    reject: LPPositionPatchRejectV1,
+) -> tuple[str, tuple[tuple[str, str], ...]]:
+    return (
+        reject.code.value,
+        tuple((type(part).__name__, str(part)) for part in reject.path),
+    )
+
+
+def apply_lp_position_deltas_v1(
+    pre: CommittedLPTableV1,
+    deltas: tuple[LPPositionDeltaV1, ...],
+) -> LPPositionPatchApplyResultV1:
+    """Reduce LP balance atoms canonically and return one immutable candidate.
+
+    The exact pre-state is revalidated before work begins. Delta ordering has no
+    semantic effect. No mutable ``LPTable`` is constructed, and rejection
+    returns no successor value.
+    """
+
+    positions = _lp_positions_from_committed_v1(pre)
+    if type(positions) is LPPositionPatchRejectV1:
+        return positions
+    if type(deltas) is not tuple:
+        return _lp_reject(LPPositionPatchCodeV1.WRONG_EXACT_TYPE, ("deltas",))
+    if len(deltas) > MAX_LP_ENTRIES_V1:
+        return _lp_reject(LPPositionPatchCodeV1.ITEM_LIMIT, ("deltas",))
+
+    representation_rejects = tuple(
+        reject for delta in deltas if (reject := _lp_delta_reject_v1(delta)) is not None
+    )
+    if representation_rejects:
+        return min(representation_rejects, key=_lp_delta_rejection_order_v1)
+
+    work_bytes = 0
+    aggregate: dict[LPKeyV1, int] = {}
+    for delta in deltas:
+        work_bytes += len(delta.key[0].encode("utf-8"))
+        work_bytes += len(delta.key[1].encode("utf-8"))
+        work_bytes += max(1, (abs(delta.net_delta).bit_length() + 7) // 8)
+        if work_bytes > MAX_CANONICAL_BYTES_V1:
+            return _lp_reject(LPPositionPatchCodeV1.BYTE_LIMIT, ("deltas",))
+        aggregate[delta.key] = aggregate.get(delta.key, 0) + delta.net_delta
+
+    writes: list[LPPositionWriteV1] = []
+    for key, net_delta in sorted(aggregate.items(), key=lambda item: item[0]):
+        if net_delta == 0:
+            continue
+        current = positions.get(key, _EMPTY_LP_POSITION_V1)
+        replacement_balance = current.balance + net_delta
+        if not 0 <= replacement_balance <= DEX_LP_AMOUNT_MAX:
+            return _lp_reject(
+                LPPositionPatchCodeV1.OUT_OF_RANGE,
+                ("deltas", "net_delta"),
+            )
+        replacement = replace(
+            current,
+            balance=replacement_balance,
+            last_mint_timestamp=(current.last_mint_timestamp if replacement_balance > 0 else None),
+        )
+        writes.append(LPPositionWriteV1(key, current, replacement))
+
+    if not writes:
+        return LPPositionPatchApplyOkV1(pre)
+    patch_result = build_canonical_lp_position_patch_v1(tuple(writes))
+    if type(patch_result) is LPPositionPatchRejectV1:
+        return patch_result
+    return apply_canonical_lp_position_patch_v1(pre, patch_result.patch)
+
+
 PoolPatchPathPartV1: TypeAlias = str | int
 PoolPatchPathV1: TypeAlias = tuple[PoolPatchPathPartV1, ...]
 
@@ -1273,6 +1389,9 @@ class PoolPatchCodeV1(Enum):
     BYTE_LIMIT = "byte_limit"
     NONCANONICAL_KEY = "noncanonical_key"
     INVALID_POOL_STATE = "invalid_pool_state"
+    UNKNOWN_POOL = "unknown_pool"
+    ASSET_MISMATCH = "asset_mismatch"
+    OUT_OF_RANGE = "out_of_range"
     POOL_ID_MISMATCH = "pool_id_mismatch"
     EMPTY_PATCH = "empty_patch"
     DUPLICATE_WRITE = "duplicate_write"
@@ -1294,6 +1413,51 @@ class PoolPatchRejectV1:
 
 def _pool_reject(code: PoolPatchCodeV1, path: PoolPatchPathV1) -> PoolPatchRejectV1:
     return PoolPatchRejectV1(code, path)
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class PoolReserveDeltaV1:
+    """One exact additive reserve atom for a named pool asset."""
+
+    pool_id: str
+    asset: str
+    net_delta: int
+
+    def __post_init__(self) -> None:
+        for field_name in ("pool_id", "asset"):
+            reject = _pool_key_reject_v1(
+                object.__getattribute__(self, field_name),
+                (field_name,),
+            )
+            if reject is not None:
+                if reject.code is PoolPatchCodeV1.WRONG_EXACT_TYPE:
+                    raise TypeError(f"{field_name} must be an exact string")
+                raise ValueError(f"{field_name} is not canonical")
+        if type(self.net_delta) is not int:
+            raise TypeError("pool reserve net_delta must be an exact integer")
+        if self.net_delta == 0:
+            raise ValueError("pool reserve net_delta must be nonzero")
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class PoolSupplyDeltaV1:
+    """One exact additive LP-supply atom for a named pool."""
+
+    pool_id: str
+    net_delta: int
+
+    def __post_init__(self) -> None:
+        reject = _pool_key_reject_v1(self.pool_id, ("pool_id",))
+        if reject is not None:
+            if reject.code is PoolPatchCodeV1.WRONG_EXACT_TYPE:
+                raise TypeError("pool_id must be an exact string")
+            raise ValueError("pool_id is not canonical")
+        if type(self.net_delta) is not int:
+            raise TypeError("pool supply net_delta must be an exact integer")
+        if self.net_delta == 0:
+            raise ValueError("pool supply net_delta must be nonzero")
 
 
 def _pool_key_reject_v1(
@@ -1664,6 +1828,223 @@ def apply_canonical_pool_patch_v1(
     return PoolPatchApplyOkV1(candidate)
 
 
+def _pool_reserve_delta_reject_v1(delta: object) -> PoolPatchRejectV1 | None:
+    if type(delta) is not PoolReserveDeltaV1:
+        return _pool_reject(PoolPatchCodeV1.WRONG_EXACT_TYPE, ("reserve_deltas",))
+    for field_name in ("pool_id", "asset"):
+        reject = _pool_key_reject_v1(
+            object.__getattribute__(delta, field_name),
+            ("reserve_deltas", field_name),
+        )
+        if reject is not None:
+            return reject
+    if type(delta.net_delta) is not int:
+        return _pool_reject(
+            PoolPatchCodeV1.WRONG_EXACT_TYPE,
+            ("reserve_deltas", "net_delta"),
+        )
+    if delta.net_delta == 0:
+        return _pool_reject(
+            PoolPatchCodeV1.NO_OP_WRITE,
+            ("reserve_deltas", "net_delta"),
+        )
+    return None
+
+
+def _pool_supply_delta_reject_v1(delta: object) -> PoolPatchRejectV1 | None:
+    if type(delta) is not PoolSupplyDeltaV1:
+        return _pool_reject(PoolPatchCodeV1.WRONG_EXACT_TYPE, ("supply_deltas",))
+    reject = _pool_key_reject_v1(delta.pool_id, ("supply_deltas", "pool_id"))
+    if reject is not None:
+        return reject
+    if type(delta.net_delta) is not int:
+        return _pool_reject(
+            PoolPatchCodeV1.WRONG_EXACT_TYPE,
+            ("supply_deltas", "net_delta"),
+        )
+    if delta.net_delta == 0:
+        return _pool_reject(
+            PoolPatchCodeV1.NO_OP_WRITE,
+            ("supply_deltas", "net_delta"),
+        )
+    return None
+
+
+def _pool_delta_rejection_order_v1(
+    reject: PoolPatchRejectV1,
+) -> tuple[str, tuple[tuple[str, str], ...]]:
+    return (
+        reject.code.value,
+        tuple((type(part).__name__, str(part)) for part in reject.path),
+    )
+
+
+def _pool_delta_work_bytes_v1(*values: object) -> int:
+    total = 0
+    for value in values:
+        if type(value) is str:
+            total += len(value.encode("utf-8"))
+        elif type(value) is int:
+            total += max(1, (abs(value).bit_length() + 7) // 8)
+    return total
+
+
+@dataclass(frozen=True, slots=True)
+class _PoolDeltaNetsV1:
+    reserve_entries: tuple[tuple[tuple[str, str], int], ...]
+    supply_entries: tuple[tuple[str, int], ...]
+
+
+def _aggregate_pool_deltas_v1(
+    reserve_deltas: tuple[PoolReserveDeltaV1, ...],
+    supply_deltas: tuple[PoolSupplyDeltaV1, ...],
+) -> _PoolDeltaNetsV1 | PoolPatchRejectV1:
+    if type(reserve_deltas) is not tuple:
+        return _pool_reject(PoolPatchCodeV1.WRONG_EXACT_TYPE, ("reserve_deltas",))
+    if type(supply_deltas) is not tuple:
+        return _pool_reject(PoolPatchCodeV1.WRONG_EXACT_TYPE, ("supply_deltas",))
+    if len(reserve_deltas) + len(supply_deltas) > MAX_COLLECTION_ITEMS_V1:
+        return _pool_reject(PoolPatchCodeV1.ITEM_LIMIT, ("deltas",))
+
+    representation_rejects = tuple(
+        reject
+        for delta in reserve_deltas
+        if (reject := _pool_reserve_delta_reject_v1(delta)) is not None
+    ) + tuple(
+        reject
+        for delta in supply_deltas
+        if (reject := _pool_supply_delta_reject_v1(delta)) is not None
+    )
+    if representation_rejects:
+        return min(representation_rejects, key=_pool_delta_rejection_order_v1)
+
+    reserve_net: dict[tuple[str, str], int] = {}
+    supply_net: dict[str, int] = {}
+    work_bytes = 0
+    for reserve_delta in reserve_deltas:
+        work_bytes += _pool_delta_work_bytes_v1(
+            reserve_delta.pool_id,
+            reserve_delta.asset,
+            reserve_delta.net_delta,
+        )
+        if work_bytes > MAX_CANONICAL_BYTES_V1:
+            return _pool_reject(PoolPatchCodeV1.BYTE_LIMIT, ("reserve_deltas",))
+        key = (reserve_delta.pool_id, reserve_delta.asset)
+        reserve_net[key] = reserve_net.get(key, 0) + reserve_delta.net_delta
+    for supply_delta in supply_deltas:
+        work_bytes += _pool_delta_work_bytes_v1(
+            supply_delta.pool_id,
+            supply_delta.net_delta,
+        )
+        if work_bytes > MAX_CANONICAL_BYTES_V1:
+            return _pool_reject(PoolPatchCodeV1.BYTE_LIMIT, ("supply_deltas",))
+        supply_net[supply_delta.pool_id] = (
+            supply_net.get(supply_delta.pool_id, 0) + supply_delta.net_delta
+        )
+
+    return _PoolDeltaNetsV1(
+        tuple(sorted(reserve_net.items(), key=lambda item: item[0])),
+        tuple(sorted(supply_net.items(), key=lambda item: item[0])),
+    )
+
+
+def _pool_delta_replacement_v1(
+    current: CommittedPoolStateV1,
+    reserve_entries: tuple[tuple[str, int], ...],
+    supply_net: int,
+) -> CommittedPoolStateV1 | PoolPatchRejectV1:
+    reserve0 = current.reserve0
+    reserve1 = current.reserve1
+    for asset, net_delta in reserve_entries:
+        if asset == current.asset0:
+            reserve0 += net_delta
+        elif asset == current.asset1:
+            reserve1 += net_delta
+        else:
+            return _pool_reject(
+                PoolPatchCodeV1.ASSET_MISMATCH,
+                ("pools", current.pool_id, "asset"),
+            )
+    lp_supply = current.lp_supply + supply_net
+    if not (
+        0 <= reserve0 <= DEX_POOL_RESERVE_MAX
+        and 0 <= reserve1 <= DEX_POOL_RESERVE_MAX
+        and 0 <= lp_supply <= DEX_LP_SUPPLY_MAX
+    ):
+        return _pool_reject(
+            PoolPatchCodeV1.OUT_OF_RANGE,
+            ("pools", current.pool_id),
+        )
+    try:
+        return replace(
+            current,
+            reserve0=reserve0,
+            reserve1=reserve1,
+            lp_supply=lp_supply,
+        )
+    except (TypeError, ValueError):
+        return _pool_reject(
+            PoolPatchCodeV1.INVALID_POOL_STATE,
+            ("pools", current.pool_id),
+        )
+
+
+def _pool_delta_writes_v1(
+    pre: OwnedMapV1[str, CommittedPoolStateV1],
+    nets: _PoolDeltaNetsV1,
+) -> tuple[PoolWriteV1, ...] | PoolPatchRejectV1:
+    reserve_by_pool: dict[str, list[tuple[str, int]]] = {}
+    for (pool_id, asset), net_delta in nets.reserve_entries:
+        reserve_by_pool.setdefault(pool_id, []).append((asset, net_delta))
+    supply_by_pool = dict(nets.supply_entries)
+    touched_pool_ids = sorted(set(reserve_by_pool) | set(supply_by_pool))
+
+    writes: list[PoolWriteV1] = []
+    for pool_id in touched_pool_ids:
+        current = pre.get(pool_id)
+        if current is None:
+            return _pool_reject(
+                PoolPatchCodeV1.UNKNOWN_POOL,
+                ("pools", pool_id),
+            )
+        replacement = _pool_delta_replacement_v1(
+            current,
+            tuple(reserve_by_pool.get(pool_id, ())),
+            supply_by_pool.get(pool_id, 0),
+        )
+        if type(replacement) is PoolPatchRejectV1:
+            return replacement
+        if replacement == current:
+            continue
+        writes.append(PoolWriteV1(pool_id, current, replacement))
+    return tuple(writes)
+
+
+def apply_pool_deltas_v1(
+    pre: OwnedMapV1[str, CommittedPoolStateV1],
+    reserve_deltas: tuple[PoolReserveDeltaV1, ...],
+    supply_deltas: tuple[PoolSupplyDeltaV1, ...],
+) -> PoolPatchApplyResultV1:
+    """Reduce reserve and LP-supply atoms into complete immutable pool writes."""
+
+    admitted_pre = _validated_pool_map_v1(pre)
+    if type(admitted_pre) is PoolPatchRejectV1:
+        return admitted_pre
+    nets = _aggregate_pool_deltas_v1(reserve_deltas, supply_deltas)
+    if type(nets) is PoolPatchRejectV1:
+        return nets
+    writes = _pool_delta_writes_v1(admitted_pre, nets)
+    if type(writes) is PoolPatchRejectV1:
+        return writes
+
+    if not writes:
+        return PoolPatchApplyOkV1(admitted_pre)
+    patch_result = build_canonical_pool_patch_v1(writes)
+    if type(patch_result) is PoolPatchRejectV1:
+        return patch_result
+    return apply_canonical_pool_patch_v1(admitted_pre, patch_result.patch)
+
+
 __all__ = [
     "BalanceDeltaV1",
     "BalancePatchApplyOkV1",
@@ -1677,6 +2058,7 @@ __all__ = [
     "CanonicalLPPositionPatchV1",
     "CanonicalNoncePatchV1",
     "CanonicalPoolPatchV1",
+    "LPPositionDeltaV1",
     "LPPositionPatchApplyOkV1",
     "LPPositionPatchApplyResultV1",
     "LPPositionPatchBuildOkV1",
@@ -1698,12 +2080,16 @@ __all__ = [
     "PoolPatchBuildResultV1",
     "PoolPatchCodeV1",
     "PoolPatchRejectV1",
+    "PoolReserveDeltaV1",
+    "PoolSupplyDeltaV1",
     "PoolWriteV1",
     "apply_balance_deltas_v1",
     "apply_canonical_balance_patch_v1",
     "apply_canonical_lp_position_patch_v1",
     "apply_canonical_nonce_patch_v1",
     "apply_canonical_pool_patch_v1",
+    "apply_lp_position_deltas_v1",
+    "apply_pool_deltas_v1",
     "build_canonical_balance_patch_v1",
     "build_canonical_lp_position_patch_v1",
     "build_canonical_nonce_patch_v1",
