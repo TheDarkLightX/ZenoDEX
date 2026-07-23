@@ -2,14 +2,16 @@
 //!
 //! V1 carries every full 256-sibling path. It establishes deterministic root
 //! continuity and exact write equality only; it supplies no proof receipt,
-//! atomic persistence, settlement, or ledger authority. A future compressed
-//! multiproof must preserve this canonical write order and root-chain result.
+//! atomic persistence, settlement, or ledger authority. The additive
+//! JMT-storage profile derives canonical nibble-boundary commitments and binds
+//! them to versioned node/stale metadata without changing this root relation.
 
 mod batch;
 mod bounded;
 mod codec;
 mod entry;
 mod error;
+mod jmt_storage_update_plan_v1;
 
 pub use batch::{SparseMerkleBatchTransitionInputV1, ValidatedSparseMerkleBatchTransitionV1};
 pub use codec::{
@@ -18,6 +20,7 @@ pub use codec::{
 };
 pub use entry::{SparseMerkleBatchEntryInputV1, SparseMerkleBatchEntryV1};
 pub use error::SparseMerkleBatchTransitionErrorV1;
+pub use jmt_storage_update_plan_v1::*;
 
 use crate::SPARSE_MERKLE_CELL_TRANSITION_WITNESS_BYTES_V1;
 
