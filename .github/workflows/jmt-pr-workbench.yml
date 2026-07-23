@@ -1,0 +1,109 @@
+name: jmt-pr-workbench
+
+on:
+  push:
+    branches:
+      - agent/jmt-storage-update-plan-v1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jmt-pr-workbench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  protocol:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Record toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version
+          cargo --version
+          cargo-clippy --version
+          rustfmt --version
+
+      - name: Check governed source inventory
+        id: source-closure
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from tools.zrpf_v3_source_closure import build_source_closure
+          document = build_source_closure(Path.cwd())
+          print(document["file_count"])
+          print(document["sha256"])
+          PY
+
+      - name: Check formatting
+        id: fmt
+        continue-on-error: true
+        shell: bash
+        run: cargo fmt --manifest-path zk/zrpf_protocol/Cargo.toml --all -- --check
+
+      - name: Run protocol tests
+        id: test
+        continue-on-error: true
+        shell: bash
+        run: cargo test --manifest-path zk/zrpf_protocol/Cargo.toml --locked --all-targets
+
+      - name: Run protocol clippy
+        id: clippy
+        continue-on-error: true
+        shell: bash
+        run: cargo clippy --manifest-path zk/zrpf_protocol/Cargo.toml --locked --all-targets -- -D warnings
+
+      - name: Run protocol doctests
+        id: doc
+        continue-on-error: true
+        shell: bash
+        run: cargo test --manifest-path zk/zrpf_protocol/Cargo.toml --locked --doc
+
+      - name: Archive checked-out source
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude=.git \
+            --exclude='*/target' \
+            --exclude='*.tar.gz' \
+            -czf "${RUNNER_TEMP}/zenodex-jmt-pr-source.tar.gz" .
+
+      - name: Upload checked-out source
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v6
+        with:
+          name: zenodex-jmt-pr-source
+          path: ${{ runner.temp }}/zenodex-jmt-pr-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Enforce all workbench checks
+        if: always()
+        shell: bash
+        env:
+          SOURCE_CLOSURE: ${{ steps.source-closure.outcome }}
+          FMT: ${{ steps.fmt.outcome }}
+          TEST: ${{ steps.test.outcome }}
+          CLIPPY: ${{ steps.clippy.outcome }}
+          DOC: ${{ steps.doc.outcome }}
+        run: |
+          set -euo pipefail
+          printf 'source-closure=%s fmt=%s test=%s clippy=%s doc=%s\n' \
+            "${SOURCE_CLOSURE}" "${FMT}" "${TEST}" "${CLIPPY}" "${DOC}"
+          test "${SOURCE_CLOSURE}" = success
+          test "${FMT}" = success
+          test "${TEST}" = success
+          test "${CLIPPY}" = success
+          test "${DOC}" = success
