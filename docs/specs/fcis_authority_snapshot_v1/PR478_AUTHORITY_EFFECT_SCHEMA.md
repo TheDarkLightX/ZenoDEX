@@ -65,7 +65,7 @@ and no copy protocol. A source dict cannot call it directly.
 OwnedIntentV1 {
   module: "TauSwap"
   version: "0.1"
-  kind: exact IntentKind
+  kind: exact OwnedEnumV1 admitted from exact IntentKind
   intent_id: canonical 32-byte lowercase 0x hex
   sender_pubkey: canonical 48-byte lowercase 0x hex
   deadline: exact nonnegative int
@@ -281,7 +281,7 @@ At most 256 entries. Intent IDs are unique. Order is the declared batch order.
 | Field | Rule |
 | --- | --- |
 | `intent_id` | exact canonical 32-byte ID |
-| `action` | exact `FillAction` |
+| `action` | exact `OwnedEnumV1` admitted from exact `FillAction` |
 | `reason` | `None` or exact bounded string |
 | `amount_in_filled` | `None` or exact nonnegative bounded amount |
 | `amount_out_filled` | same |

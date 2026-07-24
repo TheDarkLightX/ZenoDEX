@@ -68,11 +68,15 @@ Schema =
                 exact_utf8_bytes_or_none, max_characters_or_none)
   | ExactBytes(exact_length_or_none, max_length)
   | ExactEnum(enum_tag)
+  | BoundedJsonValue(map_schema_id, maximum_container_items,
+                     maximum_integer_bits, max_string_characters,
+                     max_string_utf8_bytes)
   | Optional(inner)
   | SequenceOf(accepted_source_kinds, inner, minimum_items, maximum_items)
   | ExactPair(left, right)
   | MapOf(key_schema, value_schema, maximum_items, map_schema_id)
-  | ExactKeyedMap(declared_fields, map_schema_id)
+  | ExactKeyedMap(declared_fields, map_schema_id,
+                  required_field_names_or_none)
   | RecordOf(record_tag, declared_fields)
   | RecordUnionOf(ordered_nonempty_record_variants)
   | TaggedRecordOf(record_tag, discriminant_field, discriminant_enum_tag,
@@ -152,6 +156,10 @@ caller-controlled text enters the rejection.
 
 Builder normalization is a separate decode-stage operation. An authority value
 arriving at this boundary must already be canonical.
+
+`LOWERCASE_0X_HEX` requires an exact `0x` prefix and one or more lowercase
+hexadecimal digits. Fixed-width uses declare `exact_utf8_bytes` including the
+prefix.
 
 ### ExactBytes
 
@@ -262,21 +270,50 @@ when the mounted domain has no source-pinned bound.
 
 ### Exact keyed-map algorithm
 
-`ExactKeyedMap` is the closed heterogeneous-map form used for perps and
-clearinghouse state dictionaries:
+`ExactKeyedMap` is the closed heterogeneous-map form used for perps,
+clearinghouse, and kind-indexed intent field dictionaries:
 
 1. Require an exact builtin dictionary or matching exact `OwnedMapV1`.
-2. Enforce the declared cardinality before field inspection.
+2. Enforce cardinality between the number of required names and the number of
+   declared names before field inspection.
 3. Require every source key to have exact `str` type and preflight aggregate
    UTF-8 work before sorting.
-4. Select unknown keys in canonical string order, then missing keys in declared
+4. Select unknown keys in canonical string order, then missing required keys in
+   required-field order.
+5. Admit every present value with its declared per-key schema in declared
    order.
-5. Admit every value with its declared per-key schema in declared order.
-6. Construct an `OwnedMapV1` whose entries follow declared order.
+6. Construct an `OwnedMapV1` whose entries are the present keys in declared
+   order.
 7. On committed revalidation, reject noncanonical entry order or index drift
    instead of silently repairing it.
 
+`required_field_names=None` means every declared field is required. An explicit
+required tuple is unique, is a declared-field subset, and follows declared
+order. Missing and explicit `None` are different states.
+
 No domain adapter may duplicate this key-set or per-key admission loop.
+
+### Bounded JSON algorithm
+
+`BoundedJsonValue` is a closed recursive interpreter case rather than a
+self-referential schema object. It accepts only exact JSON scalars, exact
+list/tuple arrays, and exact dict/matching-owned-map objects. Its deterministic
+algorithm is:
+
+1. Reject an unsupported exact type before invoking any hook.
+2. Admit `None`, bool, bounded int, or bounded canonical string directly.
+3. For list/tuple, check the per-container item bound, enter shared cycle
+   tracking, and admit elements in index order into an exact tuple.
+4. For dict/owned map, check the per-container item bound and exact-string key
+   shape before sorting.
+5. Preflight every key against the string and remaining-byte limits.
+6. Sort keys lexicographically, require owned entry order and index coherence
+   on revalidation, and admit values in that order.
+7. Construct a fresh `OwnedMapV1` with the schema's JSON-object schema ID.
+
+Every container and occurrence consumes the shared node/depth/byte budget.
+Strict authority-byte parsing and exact canonical re-encoding remain separate
+required stages.
 
 ## 5. Record semantics
 

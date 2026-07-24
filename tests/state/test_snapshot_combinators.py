@@ -17,6 +17,7 @@ from src.state.snapshot_combinators import (
     AdmitCode,
     AdmitOk,
     AdmitReject,
+    BoundedJsonValue,
     DeclaredFieldV1,
     EnumRegistrationV1,
     ExactBool,
@@ -175,6 +176,26 @@ def _construct_union_record(
 
 def _five_canonical_bytes(_schema_id: str, _value: object) -> bytes:
     return b"12345"
+
+
+def _empty_canonical_bytes(_schema_id: str, _value: object) -> bytes:
+    return b""
+
+
+def _bounded_json_schema(
+    *,
+    maximum_container_items: int = 8,
+    maximum_integer_bits: int = 256,
+    max_string_characters: int = 4_096,
+    max_string_utf8_bytes: int = 16_384,
+) -> BoundedJsonValue:
+    return BoundedJsonValue(
+        "test/json-object/v1",
+        maximum_container_items,
+        maximum_integer_bits,
+        max_string_characters,
+        max_string_utf8_bytes,
+    )
 
 
 def _construct_wrong_point(
@@ -398,6 +419,21 @@ def test_exact_literal_is_data_not_a_callback() -> None:
     assert _admit(schema, "LITERAL") == AdmitReject(AdmitCode.NONCANONICAL_SCALAR, ())
 
 
+def test_lowercase_prefixed_hex_has_one_exact_spelling() -> None:
+    schema = ExactString(
+        StringRuleV1.LOWERCASE_0X_HEX,
+        6,
+        exact_utf8_bytes=6,
+    )
+    assert _admit(schema, "0x01af") == AdmitOk("0x01af")
+    for source in ("01af", "0X01af", "0x01AF", "0x", "0x1af"):
+        assert _admit(schema, source) == AdmitReject(
+            AdmitCode.NONCANONICAL_SCALAR,
+            (),
+        )
+    assert _admit(schema, " 0x01af") == AdmitReject(AdmitCode.BYTE_LIMIT, ())
+
+
 @pytest.mark.parametrize(
     "source",
     [_ForeignColor.RED, _NumericColor.RED, 1, "red"],
@@ -606,6 +642,190 @@ def test_exact_keyed_map_cardinality_rejects_before_field_inspection() -> None:
         AdmitCode.ITEM_LIMIT,
         (),
     )
+
+
+def test_exact_keyed_map_declares_optional_members_without_adapter_logic() -> None:
+    schema = ExactKeyedMap(
+        (
+            DeclaredFieldV1("required", ExactInt(0, 9)),
+            DeclaredFieldV1("optional", OptionalValue(ExactInt(0, 9))),
+        ),
+        "test/optional-keyed-map/v1",
+        ("required",),
+    )
+    absent = _admit(schema, {"required": 2})
+    explicit_none = _admit(schema, {"optional": None, "required": 2})
+    assert type(absent) is AdmitOk
+    assert type(explicit_none) is AdmitOk
+    assert cast(OwnedMapV1[object, object], absent.value).entries == (
+        ("required", 2),
+    )
+    assert cast(OwnedMapV1[object, object], explicit_none.value).entries == (
+        ("required", 2),
+        ("optional", None),
+    )
+    assert absent.value != explicit_none.value
+
+    revalidated = _admit(schema, explicit_none.value)
+    assert revalidated == explicit_none
+    assert type(revalidated) is AdmitOk
+    assert revalidated.value is not explicit_none.value
+
+    assert _admit(schema, {"optional": 1}) == AdmitReject(
+        AdmitCode.MISSING_FIELD,
+        ("required",),
+    )
+    assert _admit(schema, {"extra": 1}) == AdmitReject(
+        AdmitCode.UNKNOWN_FIELD,
+        ("extra",),
+    )
+
+
+@pytest.mark.parametrize(
+    "required_names, error_type, message",
+    [
+        (["first"], TypeError, "exact tuple"),
+        (("first", "first"), ValueError, "unique"),
+        (("unknown",), ValueError, "not declared"),
+        (("second", "first"), ValueError, "declared order"),
+        ((1,), TypeError, "exact strings"),
+    ],
+)
+def test_registry_rejects_invalid_exact_keyed_map_required_sets(
+    required_names: object,
+    error_type: type[Exception],
+    message: str,
+) -> None:
+    schema = ExactKeyedMap(
+        (
+            DeclaredFieldV1("first", ExactInt(0, 9)),
+            DeclaredFieldV1("second", ExactInt(0, 9)),
+        ),
+        "test/optional-keyed-map/v1",
+        cast(tuple[str, ...], required_names),
+    )
+    with pytest.raises(error_type, match=message):
+        _registry(schema)
+
+
+def test_bounded_json_recursively_owns_and_canonically_orders_values() -> None:
+    schema = _bounded_json_schema()
+    inner = {"beta": "ok"}
+    items = [None, True, 7]
+    source: dict[str, object] = {"z": items, "a": inner}
+
+    first = _admit(schema, source)
+    second = _admit(schema, {"a": {"beta": "ok"}, "z": [None, True, 7]})
+    assert type(first) is AdmitOk
+    assert type(second) is AdmitOk
+    assert type(first.value) is OwnedMapV1
+    owned = cast(OwnedMapV1[str, object], first.value)
+    assert owned.entries[0][0] == "a"
+    assert owned.entries[1] == ("z", (None, True, 7))
+    assert type(owned["a"]) is OwnedMapV1
+    assert cast(OwnedMapV1[str, object], owned["a"]).entries == (("beta", "ok"),)
+    assert second.value == first.value
+
+    inner["beta"] = "changed"
+    items.append(9)
+    source["new"] = False
+    assert cast(OwnedMapV1[str, object], owned["a"])["beta"] == "ok"
+    assert owned["z"] == (None, True, 7)
+    assert "new" not in owned
+
+    revalidated = _admit(schema, owned)
+    assert revalidated == first
+    assert type(revalidated) is AdmitOk
+    assert revalidated.value is not owned
+    rebuilt = cast(OwnedMapV1[str, object], revalidated.value)
+    assert rebuilt["a"] is not owned["a"]
+
+
+def test_bounded_json_rejects_unsupported_exact_types_without_hooks() -> None:
+    class _DictSubclass(dict[str, object]):
+        called = False
+
+        def items(self):
+            self.called = True
+            raise AssertionError("must not call")
+
+    class _Hostile:
+        called = False
+
+        def __iter__(self):
+            self.called = True
+            raise AssertionError("must not iterate")
+
+    schema = _bounded_json_schema()
+    subclass = _DictSubclass({"a": 1})
+    hostile = _Hostile()
+    for source in (1.0, b"bytes", subclass, hostile):
+        assert _admit(schema, source) == AdmitReject(
+            AdmitCode.WRONG_EXACT_TYPE,
+            (),
+        )
+    assert subclass.called is False
+    assert hostile.called is False
+
+
+def test_bounded_json_enforces_integer_and_string_bounds() -> None:
+    integer_schema = _bounded_json_schema(maximum_integer_bits=4)
+    assert _admit(integer_schema, 15) == AdmitOk(15)
+    assert _admit(integer_schema, -15) == AdmitOk(-15)
+    assert _admit(integer_schema, 16) == AdmitReject(AdmitCode.OUT_OF_RANGE, ())
+    assert _admit(integer_schema, -16) == AdmitReject(AdmitCode.OUT_OF_RANGE, ())
+
+    string_schema = _bounded_json_schema(
+        max_string_characters=2,
+        max_string_utf8_bytes=4,
+    )
+    assert _admit(string_schema, "éé") == AdmitOk("éé")
+    assert _admit(string_schema, "abc") == AdmitReject(AdmitCode.BYTE_LIMIT, ())
+    assert _admit(string_schema, "𐍈x") == AdmitReject(AdmitCode.BYTE_LIMIT, ())
+
+
+def test_bounded_json_uses_shared_cycle_depth_node_item_and_byte_budgets() -> None:
+    schema = _bounded_json_schema(maximum_container_items=2)
+    direct: list[object] = []
+    direct.append(direct)
+    assert _admit(schema, direct) == AdmitReject(AdmitCode.CYCLE, (0,))
+
+    mapping: dict[str, object] = {}
+    mapping["self"] = mapping
+    assert _admit(schema, mapping) == AdmitReject(AdmitCode.CYCLE, ("self",))
+
+    assert _admit(schema, [[]], limits=_limits(max_depth=1)) == AdmitOk(((),))
+    assert _admit(schema, [[None]], limits=_limits(max_depth=1)) == AdmitReject(
+        AdmitCode.DEPTH_LIMIT,
+        (0, 0),
+    )
+    assert _admit(
+        schema,
+        [None],
+        limits=_limits(max_nodes=2, max_collection_items=2),
+    ) == AdmitOk((None,))
+    assert _admit(
+        schema,
+        [None, None],
+        limits=_limits(max_nodes=2, max_collection_items=2),
+    ) == AdmitReject(AdmitCode.ITEM_LIMIT, (1,))
+    assert _admit(schema, [1, 2, 3]) == AdmitReject(AdmitCode.ITEM_LIMIT, ())
+    assert _admit(
+        schema,
+        {"a": "éé"},
+        limits=_limits(max_canonical_bytes=4),
+        encoder=_empty_canonical_bytes,
+    ) == AdmitReject(AdmitCode.BYTE_LIMIT, ("a",))
+
+
+def test_bounded_json_rejects_corrupted_owned_map_order() -> None:
+    schema = _bounded_json_schema()
+    accepted = _admit(schema, {"a": 1, "b": 2})
+    assert type(accepted) is AdmitOk
+    owned = cast(OwnedMapV1[str, object], accepted.value)
+    object.__setattr__(owned, "_entries", tuple(reversed(owned.entries)))
+
+    assert _admit(schema, owned) == AdmitReject(AdmitCode.REGISTRY_DRIFT, ())
 
 
 def test_enum_map_keys_are_copied_into_owned_ordinals() -> None:
@@ -1022,6 +1242,26 @@ def test_registry_rejects_unbounded_integer_map_key_sort_work(
 )
 def test_registry_rejects_scalar_schema_bounds_outside_policy(schema: object) -> None:
     with pytest.raises(ValueError):
+        _registry(schema)
+
+
+@pytest.mark.parametrize(
+    "schema, error_type",
+    [
+        (BoundedJsonValue("", 1, 1, 1, 1), ValueError),
+        (BoundedJsonValue("json", -1, 1, 1, 1), ValueError),
+        (BoundedJsonValue("json", 1, 0, 1, 1), ValueError),
+        (BoundedJsonValue("json", 1, 257, 1, 1), ValueError),
+        (BoundedJsonValue("json", 1, True, 1, 1), ValueError),
+        (BoundedJsonValue("json", 1, 1, 0, 1), ValueError),
+        (BoundedJsonValue("json", 1, 1, 1, 0), ValueError),
+    ],
+)
+def test_registry_rejects_bounded_json_schema_outside_policy(
+    schema: BoundedJsonValue,
+    error_type: type[Exception],
+) -> None:
+    with pytest.raises(error_type):
         _registry(schema)
 
 

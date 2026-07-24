@@ -21,6 +21,7 @@ CURRENT_ARCHITECTURE_CLAUSES = {
     "ERRATA.md": (
         "## E9. Persistent committed transitions replace domain scratch conversion",
         "## E11. State ownership, authority ownership, and final mounting are separate review stages",
+        "## E12. Closed authority-graph algebra extensions",
     ),
     "PR477_MOUNTED_MIGRATION.md": (
         "### M5. Prepare the reviewed atomic-mount candidate",

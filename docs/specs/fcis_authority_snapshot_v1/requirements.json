@@ -1,6 +1,6 @@
 {
   "schema": "zenodex/fcis-authority-snapshot-requirements/v1",
-  "design_lock_version": "1.3.0",
+  "design_lock_version": "1.4.0",
   "claim_status": "blocked",
   "audit_authority": {
     "url": "https://zenodex-oracle-audit-v4.jazzy-harp-9002.chatgpt.site/",
@@ -207,6 +207,8 @@
   "mounted_limits": {
     "canonical_json_depth": 64,
     "canonical_json_items": 200000,
+    "canonical_json_integer_bits": 256,
+    "canonical_json_string_utf8_bytes": 16384,
     "dex_state_bytes": 4000000,
     "balances": 200000,
     "pools": 50000,

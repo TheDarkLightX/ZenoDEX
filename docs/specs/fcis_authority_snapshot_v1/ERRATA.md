@@ -295,3 +295,85 @@ Deletion of `Frozen*`, `deep_freeze`, copy-based settlement application, seal
 flags, and compatibility projections happens in the atomic-mount unit after
 old/new parity is recorded. This preserves the comparison oracle without
 allowing it to survive the promoted authority boundary.
+
+## E12. Closed authority-graph algebra extensions
+
+The state-substrate review established that four PR #478 field shapes cannot be
+expressed by the original closed schema sum. They are added here before any
+owned intent or settlement module is implemented. Domain adapters must not
+replace these additions with hand-written validation.
+
+### Bounded recursive JSON
+
+The schema sum adds one exact `BoundedJsonValue` variant. It is interpreted by
+the same admission engine and represents only:
+
+```text
+None
+exact bool
+exact int with magnitude bit length at most 256
+exact canonical string with at most 4,096 characters and 16,384 UTF-8 bytes
+exact list at decoded ingress or exact tuple at owned/builder revalidation
+exact dict at decoded ingress or exact matching OwnedMapV1 at revalidation
+```
+
+Arrays become exact tuples. Objects become exact `OwnedMapV1` values whose
+exact-string keys are ordered lexicographically after bounded key preflight.
+Each container has the schema's item bound and also consumes the shared depth,
+node, and byte budgets. Cycles reject. Unsupported objects reject before
+iteration, hashing, formatting, or caller behavior.
+
+The exact tuple input is compatibility for already-owned values and exact
+in-memory builders. Strict raw-byte ingress still produces lists and dicts and
+must separately reject duplicate keys, floats, negative-zero spelling, partial
+consumption, and noncanonical re-encoding. `BoundedJsonValue` does not replace
+that parser contract.
+
+The 256-bit policy follows the existing bounded canonical JSON artifact
+profile: `abs(value).bit_length() <= 256`. A narrower domain field declares a
+narrower non-JSON schema.
+
+### Optional exact keyed-map members
+
+`ExactKeyedMap` adds:
+
+```text
+required_field_names: None | exact tuple[exact declared field name, ...]
+```
+
+`None` preserves the prior rule that every declared field is required. An
+explicit tuple must be unique, be a subset of declared names, and follow
+declared-field order. The accepted cardinality is between the number of
+required fields and the number of declared fields. Unknown members reject in
+canonical string order. Missing required members reject in required-field
+order. Present values are admitted in declared-field order; absent optional
+members are omitted. An explicit `None` is distinct from absence and succeeds
+only when the field schema is `OptionalValue`.
+
+### Canonical prefixed hexadecimal strings
+
+`StringRuleV1` adds `LOWERCASE_0X_HEX`. It requires exact prefix `0x`, at least
+one hexadecimal digit, and only lowercase `0-9a-f` digits after the prefix.
+Fixed-width hashes and keys also declare their exact total UTF-8 byte length.
+
+### Enum ownership controls
+
+E7 remains controlling. `ExactEnum` accepts an exact registered source enum
+member and returns a fresh `OwnedEnumV1`; it never stores or reconstructs the
+source singleton. PR #478 phrases such as `exact IntentKind` and
+`exact FillAction` mean:
+
+```text
+exact registered source member
+  -> ExactEnum admission
+  -> exact owned tag/member ordinals in the committed graph
+```
+
+Core code compares or renders those ordinals through source-owned exhaustive
+helpers. It must not use `__getattribute__` masquerading, an enum-preserving
+schema variant, or a property that reconstructs and retains a mutable enum
+member.
+
+These additions remain inside the one profile binding from E6. No authority
+module may call `_admit_with_registry_v1` directly or build a second production
+registry.
