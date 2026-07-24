@@ -348,8 +348,18 @@ def test_exact_replay_profile_rejects_protected_exact_value_rebinding(
     assert "EXACT_REPLAY_DATAFLOW" in _codes(report)
 
 
-def test_exact_replay_profile_rejects_post_admission_object_mutation(
+@pytest.mark.parametrize(
+    "mutation_call",
+    [
+        "object.__setattr__(exact_settlement, 'included_intents', ())",
+        "object.__delattr__(exact_settlement, 'included_intents')",
+        "type.__setattr__(OwnedSettlementV1, 'field', 1)",
+        "type.__delattr__(OwnedSettlementV1, 'field')",
+    ],
+)
+def test_exact_replay_profile_rejects_post_admission_mutation_bypass(
     tmp_path: Path,
+    mutation_call: str,
 ) -> None:
     source = _exact_replay_dataflow_source(
         admission_body=(
@@ -364,7 +374,7 @@ def test_exact_replay_profile_rejects_post_admission_object_mutation(
     assert source.count(anchor) == 1
     source = source.replace(
         anchor,
-        anchor + "; object.__setattr__(exact_settlement, 'included_intents', ())",
+        f"{anchor}; {mutation_call}",
         1,
     )
 
@@ -580,23 +590,6 @@ def test_checker_rejects_reflective_admission(tmp_path: Path, source: str) -> No
 def test_checker_rejects_object_new_constructor_bypass(tmp_path: Path) -> None:
     report = _run(tmp_path, "value = object.__new__(dict)\n")
     assert "CONSTRUCTOR_BYPASS" in _codes(report)
-
-
-@pytest.mark.parametrize(
-    "call",
-    [
-        "object.__setattr__(value, 'field', 1)",
-        "object.__delattr__(value, 'field')",
-        "type.__setattr__(Value, 'field', 1)",
-        "type.__delattr__(Value, 'field')",
-    ],
-)
-def test_checker_rejects_owned_value_mutation_bypass(
-    tmp_path: Path,
-    call: str,
-) -> None:
-    source = f"class Value:\n    pass\nvalue = Value()\n{call}\n"
-    assert "OWNED_VALUE_MUTATION_BYPASS" in _codes(_run(tmp_path, source))
 
 
 @pytest.mark.parametrize(

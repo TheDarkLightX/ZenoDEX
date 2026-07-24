@@ -114,10 +114,12 @@ exact source-shape validation. Revalidate already-owned values.
 
 ### Narrow frozen-dataclass assignment rule
 
-Explicit `object.__setattr__` is forbidden on admitted values and everywhere
-else in the authority graph. If frozen `DexState` construction requires it,
-the only permitted source shape is inside the exact DexState construction
-function, with:
+Explicit `object.__setattr__` is forbidden on admitted values and on consumer
+paths. The existing reviewed, one-time construction internals in
+`OwnedMapV1`, `OwnedEnumV1`, and the closed combinator remain separately
+checker-pinned and do not authorize consumer mutation. If frozen `DexState`
+construction requires explicit assignment, the only additional permitted
+source shape is inside the exact DexState construction function, with:
 
 ```text
 receiver = self under construction

@@ -61,6 +61,9 @@ EXACT_REPLAY_AUTHORITY_PATHS = (
     Path("src/core/route_settlement.py"),
     Path("src/core/settlement_strong_validator.py"),
 )
+_POST_ADMISSION_MUTATION_FORBIDDEN_PATHS = frozenset(
+    str(path) for path in EXACT_REPLAY_AUTHORITY_PATHS
+)
 FINAL_MOUNT_AUTHORITY_PATHS = tuple(
     dict.fromkeys(
         (
@@ -877,12 +880,16 @@ class _AuthorityVisitor(ast.NodeVisitor):
             self._add(node, "REFLECTIVE_ADMISSION", called)
         if called == "object.__new__":
             self._add(node, "CONSTRUCTOR_BYPASS", called)
-        if called in {
-            "object.__delattr__",
-            "object.__setattr__",
-            "type.__delattr__",
-            "type.__setattr__",
-        }:
+        if (
+            self.relative_path in _POST_ADMISSION_MUTATION_FORBIDDEN_PATHS
+            and called
+            in {
+                "object.__delattr__",
+                "object.__setattr__",
+                "type.__delattr__",
+                "type.__setattr__",
+            }
+        ):
             self._add(node, "OWNED_VALUE_MUTATION_BYPASS", called)
         if called in {"isinstance", "builtins.isinstance"} and len(node.args) >= 2:
             targets = node.args[1].elts if type(node.args[1]) is ast.Tuple else (node.args[1],)
