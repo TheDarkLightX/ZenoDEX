@@ -24,6 +24,17 @@ from src.core.perps import (
 )
 from src.core.vault import VaultState
 from src.state.balances import BalanceTable
+from src.state.legacy_state_snapshots import (
+    FrozenBalanceTable,
+    admit_legacy_balance_for_differential_v1,
+    admit_legacy_lp_for_differential_v1,
+    admit_legacy_nonce_for_differential_v1,
+    admit_legacy_pool_map_for_differential_v1,
+    freeze_balance_table,
+    freeze_lp_table,
+    freeze_nonce_table,
+    freeze_pool_mapping,
+)
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
@@ -62,12 +73,7 @@ from src.state.state_snapshot_values import (
     _NonceSourceV1,
 )
 from src.state.state_snapshots import (
-    FrozenBalanceTable,
     StateAdmissionError,
-    freeze_balance_table,
-    freeze_lp_table,
-    freeze_nonce_table,
-    freeze_pool_mapping,
     snapshot_balance_table,
     snapshot_fee_accumulator,
     snapshot_lp_table,
@@ -345,7 +351,7 @@ def test_balance_snapshot_facade_owns_aliases_and_revalidates_committed_input() 
     assert readmitted is not committed
 
 
-def test_snapshot_facades_bridge_exact_repository_owned_legacy_snapshots() -> None:
+def test_snapshot_facades_reject_mounted_legacy_snapshots() -> None:
     balances = BalanceTable()
     balances.set("alice", "asset", 7)
     frozen_balances = freeze_balance_table(balances)
@@ -357,9 +363,45 @@ def test_snapshot_facades_bridge_exact_repository_owned_legacy_snapshots() -> No
     pool = _pool()
     frozen_pools = freeze_pool_mapping({pool.pool_id: pool})
 
-    assert snapshot_balance_table(frozen_balances).entries == ((("alice", "asset"), 7),)
-    assert snapshot_lp_table(frozen_lp).get("alice", pool.pool_id) == 5
-    assert snapshot_pool_map(frozen_pools).entries[0][1].reserve0 == pool.reserve0
+    for snapshot, source in (
+        (snapshot_balance_table, frozen_balances),
+        (snapshot_lp_table, frozen_lp),
+        (snapshot_pool_map, frozen_pools),
+    ):
+        with pytest.raises(StateAdmissionError) as captured:
+            snapshot(source)
+        assert captured.value == StateAdmissionError(AdmitCode.WRONG_EXACT_TYPE, ())
+
+
+def test_legacy_oracle_adapters_return_only_exact_committed_values() -> None:
+    balances = BalanceTable()
+    balances.set("alice", "asset", 7)
+
+    pool = _pool()
+    lp = LPTable()
+    lp.set("alice", pool.pool_id, 5)
+
+    nonces = NonceTable()
+    nonces.set_last(_pubkey("7"), 3)
+
+    exact_balances = admit_legacy_balance_for_differential_v1(
+        freeze_balance_table(balances)
+    )
+    exact_lp = admit_legacy_lp_for_differential_v1(freeze_lp_table(lp))
+    exact_nonces = admit_legacy_nonce_for_differential_v1(
+        freeze_nonce_table(nonces)
+    )
+    exact_pools = admit_legacy_pool_map_for_differential_v1(
+        freeze_pool_mapping({pool.pool_id: pool})
+    )
+
+    assert type(exact_balances) is CommittedBalanceTableV1
+    assert exact_balances.entries == ((("alice", "asset"), 7),)
+    assert type(exact_lp) is CommittedLPTableV1
+    assert exact_lp.get("alice", pool.pool_id) == 5
+    assert type(exact_nonces) is CommittedNonceTableV1
+    assert exact_nonces.get_last(_pubkey("7")) == 3
+    assert exact_pools.entries[0][1] == snapshot_pool(pool)
 
 
 def test_snapshot_facade_rejects_caller_defined_frozen_subclass() -> None:
@@ -488,16 +530,15 @@ def test_state_snapshot_facades_mount_every_declared_state_family() -> None:
     assert type(perps) is CommittedPerpsStateV1
 
 
-def test_nonce_snapshot_facade_admits_the_mounted_frozen_nonce_table() -> None:
+def test_nonce_snapshot_facade_rejects_the_mounted_frozen_nonce_table() -> None:
     source = NonceTable()
     source.set_last(_pubkey("7"), 3)
     mounted = freeze_nonce_table(source)
 
-    committed = snapshot_nonce_table(mounted)
-    source.set_last(_pubkey("7"), 4)
+    with pytest.raises(StateAdmissionError) as captured:
+        snapshot_nonce_table(mounted)
 
-    assert type(committed) is CommittedNonceTableV1
-    assert committed.get_last(_pubkey("7")) == 3
+    assert captured.value == StateAdmissionError(AdmitCode.WRONG_EXACT_TYPE, ())
 
 
 def test_lp_and_nonce_snapshot_facades_reject_hostile_raw_containers_before_hooks() -> None:

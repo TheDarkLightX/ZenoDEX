@@ -40,6 +40,12 @@ from ..state.fcis_execution_context_values import (
     FCISStepExecutionContextV1,
 )
 from ..state.intents import Intent
+from ..state.legacy_state_snapshots import (
+    admit_legacy_balance_for_differential_v1,
+    admit_legacy_lp_for_differential_v1,
+    admit_legacy_nonce_for_differential_v1,
+    admit_legacy_pool_map_for_differential_v1,
+)
 from ..state.lp_duration_policy_values import LPDurationRiskPolicyV1
 from ..state.owned_collections import OwnedMapV1
 from ..state.snapshot_combinators import AdmitCode, AdmitOk, AdmitReject, format_admit_path
@@ -55,13 +61,9 @@ from ..state.state_snapshot_values import (
 )
 from ..state.state_snapshots import (
     StateAdmissionError,
-    snapshot_balance_table,
     snapshot_fee_accumulator,
-    snapshot_lp_table,
-    snapshot_nonce_table,
     snapshot_oracle,
     snapshot_perps,
-    snapshot_pool_map,
     snapshot_vault,
 )
 from .dex_snapshot import DEX_SNAPSHOT_VERSION
@@ -343,13 +345,13 @@ def _admit_legacy_state_v1(
 ) -> _ExactLegacyStateProjectionV1 | FCISStepShadowRejectV1:
     field_name = "balances"
     try:
-        balances = snapshot_balance_table(state.balances)
+        balances = admit_legacy_balance_for_differential_v1(state.balances)
         field_name = "pools"
-        pools = snapshot_pool_map(state.pools)
+        pools = admit_legacy_pool_map_for_differential_v1(state.pools)
         field_name = "lp_balances"
-        lp_balances = snapshot_lp_table(state.lp_balances)
+        lp_balances = admit_legacy_lp_for_differential_v1(state.lp_balances)
         field_name = "nonces"
-        nonces = snapshot_nonce_table(state.nonces)
+        nonces = admit_legacy_nonce_for_differential_v1(state.nonces)
         field_name = "vault"
         vault = snapshot_vault(state.vault)
         field_name = "oracle"
@@ -442,9 +444,9 @@ def evaluate_fcis_spot_candidate_shadow_v1(
     if type(policy) is FCISStepShadowRejectV1:
         return StrongSettlementRejectV1(policy.reason)
     try:
-        balances = snapshot_balance_table(state.balances)
-        pools = snapshot_pool_map(state.pools)
-        lp_balances = snapshot_lp_table(state.lp_balances)
+        balances = admit_legacy_balance_for_differential_v1(state.balances)
+        pools = admit_legacy_pool_map_for_differential_v1(state.pools)
+        lp_balances = admit_legacy_lp_for_differential_v1(state.lp_balances)
     except StateAdmissionError as error:
         return StrongSettlementRejectV1(
             f"shadow state admission rejected: {error.code.value}:{format_admit_path(error.path)}"

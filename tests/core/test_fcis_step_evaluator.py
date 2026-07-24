@@ -26,15 +26,17 @@ from src.state.fcis_execution_context_values import (
     FCISStepExecutionContextSourceV1,
 )
 from src.state.intents import Intent, IntentKind
+from src.state.legacy_state_snapshots import (
+    admit_legacy_balance_for_differential_v1,
+    admit_legacy_lp_for_differential_v1,
+    admit_legacy_nonce_for_differential_v1,
+    admit_legacy_pool_map_for_differential_v1,
+)
 from src.state.state_root import state_root_preimage_with_committed_spot_state_v1
 from src.state.state_snapshots import (
-    snapshot_balance_table,
     snapshot_fee_accumulator,
-    snapshot_lp_table,
-    snapshot_nonce_table,
     snapshot_oracle,
     snapshot_perps,
-    snapshot_pool_map,
     snapshot_vault,
 )
 
@@ -118,10 +120,10 @@ def _evaluate(
     context: object,
 ):
     return evaluate_fcis_step_candidate_v1(
-        balances=snapshot_balance_table(state.balances),
-        pools=snapshot_pool_map(state.pools),
-        lp_balances=snapshot_lp_table(state.lp_balances),
-        nonces=snapshot_nonce_table(state.nonces),
+        balances=admit_legacy_balance_for_differential_v1(state.balances),
+        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
+        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
+        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
         vault=snapshot_vault(state.vault),
         oracle=snapshot_oracle(state.oracle),
         fee_accumulator=snapshot_fee_accumulator(state.fee_accumulator),
@@ -134,9 +136,9 @@ def _evaluate(
 
 def test_exact_step_evaluator_retains_one_candidate_and_all_leaf_patches() -> None:
     state, intent, settlement = _swap_case()
-    pre_balances = snapshot_balance_table(state.balances)
-    pre_pools = snapshot_pool_map(state.pools)
-    pre_nonces = snapshot_nonce_table(state.nonces)
+    pre_balances = admit_legacy_balance_for_differential_v1(state.balances)
+    pre_pools = admit_legacy_pool_map_for_differential_v1(state.pools)
+    pre_nonces = admit_legacy_nonce_for_differential_v1(state.nonces)
 
     result = _evaluate(state, settlement, [intent], _context_source())
 
@@ -149,19 +151,19 @@ def test_exact_step_evaluator_retains_one_candidate_and_all_leaf_patches() -> No
     assert candidate.nonce_patch is not None
     assert candidate.fee_allocation is not None
     assert candidate.nonces.get_last(intent.sender_pubkey) == 1
-    assert snapshot_balance_table(state.balances) == pre_balances
-    assert snapshot_pool_map(state.pools) == pre_pools
-    assert snapshot_nonce_table(state.nonces) == pre_nonces
+    assert admit_legacy_balance_for_differential_v1(state.balances) == pre_balances
+    assert admit_legacy_pool_map_for_differential_v1(state.pools) == pre_pools
+    assert admit_legacy_nonce_for_differential_v1(state.nonces) == pre_nonces
 
 
 def test_evidence_binds_same_candidate_context_and_pre_post_roots() -> None:
     state, intent, settlement = _swap_case()
     context = _context_source()
     pre_root_preimage = state_root_preimage_with_committed_spot_state_v1(
-        balances=snapshot_balance_table(state.balances),
-        pools=snapshot_pool_map(state.pools),
-        lp_balances=snapshot_lp_table(state.lp_balances),
-        nonces=snapshot_nonce_table(state.nonces),
+        balances=admit_legacy_balance_for_differential_v1(state.balances),
+        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
+        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
+        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
         fee_accumulator=snapshot_fee_accumulator(state.fee_accumulator),
     )
 
@@ -212,10 +214,10 @@ def test_invalid_eighth_state_field_rejects_without_partial_candidate() -> None:
     object.__setattr__(exact_perps, "version", True)
 
     result = evaluate_fcis_step_candidate_v1(
-        balances=snapshot_balance_table(state.balances),
-        pools=snapshot_pool_map(state.pools),
-        lp_balances=snapshot_lp_table(state.lp_balances),
-        nonces=snapshot_nonce_table(state.nonces),
+        balances=admit_legacy_balance_for_differential_v1(state.balances),
+        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
+        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
+        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
         vault=snapshot_vault(state.vault),
         oracle=snapshot_oracle(state.oracle),
         fee_accumulator=snapshot_fee_accumulator(state.fee_accumulator),

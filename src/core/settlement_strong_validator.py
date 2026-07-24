@@ -20,6 +20,11 @@ from typing import Dict, List, Optional, Tuple, TypeAlias, final
 from ..kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 from ..state.balances import AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
+from ..state.legacy_state_snapshots import (
+    admit_legacy_balance_for_differential_v1,
+    admit_legacy_lp_for_differential_v1,
+    admit_legacy_pool_map_for_differential_v1,
+)
 from ..state.lp import LPTable
 from ..state.lp_duration_transitions import (
     LPDurationEventV1,
@@ -212,12 +217,26 @@ def _admit_exact_replay_state_v1(
     pre_pools: _LegacyOrExactPoolMapV1,
     pre_lp_balances: _LegacyOrExactLPV1 | None,
 ) -> _ExactSpotReplayStateV1:
+    balances = (
+        snapshot_balance_table(pre_balances)
+        if type(pre_balances) is CommittedBalanceTableV1
+        else admit_legacy_balance_for_differential_v1(pre_balances)
+    )
+    pools = (
+        snapshot_pool_map(pre_pools)
+        if type(pre_pools) is OwnedMapV1
+        else admit_legacy_pool_map_for_differential_v1(pre_pools)
+    )
+    lp_source = pre_lp_balances if pre_lp_balances is not None else LPTable()
+    lp_balances = (
+        snapshot_lp_table(lp_source)
+        if type(lp_source) is CommittedLPTableV1
+        else admit_legacy_lp_for_differential_v1(lp_source)
+    )
     return _ExactSpotReplayStateV1(
-        balances=snapshot_balance_table(pre_balances),
-        pools=snapshot_pool_map(pre_pools),
-        lp_balances=snapshot_lp_table(
-            pre_lp_balances if pre_lp_balances is not None else LPTable()
-        ),
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
     )
 
 

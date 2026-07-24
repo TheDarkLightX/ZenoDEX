@@ -12,8 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPORT_SCHEMA = "zenodex/fcis-authority-snapshot-contract-check/v1"
-DEFAULT_AUTHORITY_PATHS = (
-    Path("src/core/dex.py"),
+STATE_SUBSTRATE_AUTHORITY_PATHS = (
     Path("src/core/fcis_step_evaluation_values.py"),
     Path("src/core/fcis_step_evaluator.py"),
     Path("src/core/fee_accumulator_transition.py"),
@@ -50,6 +49,30 @@ DEFAULT_AUTHORITY_PATHS = (
     Path("src/state/committed_spot_roots.py"),
     Path("src/state/committed_dex_snapshot.py"),
 )
+AUTHORITY_GRAPH_AUTHORITY_PATHS = (
+    Path("src/state/owned_json.py"),
+    Path("src/state/intent_schema.py"),
+    Path("src/state/intent_snapshots.py"),
+    Path("src/core/settlement_schema.py"),
+    Path("src/core/settlement_snapshots.py"),
+)
+FINAL_MOUNT_AUTHORITY_PATHS = tuple(
+    dict.fromkeys(
+        (
+            Path("src/core/dex.py"),
+            Path("src/core/settlement_strong_validator.py"),
+            Path("src/state/legacy_state_snapshots.py"),
+            *STATE_SUBSTRATE_AUTHORITY_PATHS,
+            *AUTHORITY_GRAPH_AUTHORITY_PATHS,
+        )
+    )
+)
+DEFAULT_AUTHORITY_PATHS = FINAL_MOUNT_AUTHORITY_PATHS
+_AUTHORITY_PATHS_BY_PROFILE = {
+    "state-substrate": STATE_SUBSTRATE_AUTHORITY_PATHS,
+    "authority-graph": AUTHORITY_GRAPH_AUTHORITY_PATHS,
+    "final-mount": FINAL_MOUNT_AUTHORITY_PATHS,
+}
 DEFAULT_REQUIREMENTS_PATH = Path("docs/specs/fcis_authority_snapshot_v1/requirements.json")
 DEFAULT_TEST_MATRIX_PATHS = (
     Path("docs/specs/fcis_authority_snapshot_v1/TEST_MATRIX.md"),
@@ -1236,6 +1259,7 @@ def check_contract(
     authority_paths: tuple[Path, ...],
     requirements_path: Path | None,
     test_matrix_paths: tuple[Path, ...],
+    profile: str = "custom",
 ) -> dict[str, object]:
     """Check supplied authority paths plus sensitive call sites across ``src``."""
 
@@ -1254,6 +1278,7 @@ def check_contract(
     return {
         "checked_paths": sorted(checked_paths),
         "ok": not unique_violations,
+        "profile": profile,
         "schema": REPORT_SCHEMA,
         "sensitive_source_glob": "src/**/*.py",
         "violations": [violation.as_json() for violation in unique_violations],
@@ -1264,6 +1289,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--authority-path", type=Path, action="append")
+    parser.add_argument(
+        "--profile",
+        choices=tuple(_AUTHORITY_PATHS_BY_PROFILE),
+        default="final-mount",
+    )
     parser.add_argument("--requirements", type=Path, default=DEFAULT_REQUIREMENTS_PATH)
     parser.add_argument("--test-matrix", type=Path, action="append")
     parser.add_argument("--skip-requirements", action="store_true")
@@ -1273,7 +1303,10 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    authority_paths = tuple(args.authority_path or DEFAULT_AUTHORITY_PATHS)
+    profile = "custom" if args.authority_path else args.profile
+    authority_paths = tuple(
+        args.authority_path or _AUTHORITY_PATHS_BY_PROFILE[args.profile]
+    )
     test_matrix_paths = tuple(args.test_matrix or DEFAULT_TEST_MATRIX_PATHS)
     requirements_path = None if args.skip_requirements else args.requirements
     report = check_contract(
@@ -1281,6 +1314,7 @@ def main(argv: list[str] | None = None) -> int:
         authority_paths=authority_paths,
         requirements_path=requirements_path,
         test_matrix_paths=test_matrix_paths,
+        profile=profile,
     )
     print(json.dumps(report, sort_keys=True, separators=(",", ":")))
     return 0 if report["ok"] else 1

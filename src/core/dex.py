@@ -14,16 +14,16 @@ from typing import Any, Dict, List, Optional
 
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
-from ..state.lp import LPTable
-from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
-from ..state.pools import PoolState
-from ..state.state_snapshots import (
+from ..state.legacy_state_snapshots import (
     freeze_balance_table,
     freeze_lp_table,
     freeze_nonce_table,
     freeze_optional_module_state,
     freeze_pool_mapping,
 )
+from ..state.lp import LPTable
+from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
+from ..state.pools import PoolState
 from .batch_clearing import (
     apply_settlement_pure,
     compute_settlement,

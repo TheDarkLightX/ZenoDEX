@@ -32,6 +32,11 @@ from src.integration.lp_position_age_gate import (
 from src.state import BalanceTable, LPTable
 from src.state.canonical import sha256_hex
 from src.state.intents import Intent, IntentKind
+from src.state.legacy_state_snapshots import (
+    admit_legacy_balance_for_differential_v1,
+    admit_legacy_lp_for_differential_v1,
+    admit_legacy_pool_map_for_differential_v1,
+)
 from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from src.state.state_root import state_root_preimage
 from src.state.state_snapshots import (
@@ -194,9 +199,9 @@ def _swap_case() -> tuple[DexState, Intent, Settlement, LPDurationRiskPolicy]:
 
 def test_shadow_candidate_matches_legacy_add_and_duration_application() -> None:
     state, intent, settlement, pool_id, policy = _add_liquidity_case()
-    pre_balances = snapshot_balance_table(state.balances)
-    pre_pools = snapshot_pool_map(state.pools)
-    pre_lp = snapshot_lp_table(state.lp_balances)
+    pre_balances = admit_legacy_balance_for_differential_v1(state.balances)
+    pre_pools = admit_legacy_pool_map_for_differential_v1(state.pools)
+    pre_lp = admit_legacy_lp_for_differential_v1(state.lp_balances)
 
     observed = _shadow(
         state=state,
@@ -225,9 +230,9 @@ def test_shadow_candidate_matches_legacy_add_and_duration_application() -> None:
     assert observed.pools == snapshot_pool_map(next_pools)
     assert observed.lp_balances == snapshot_lp_table(next_lp)
     assert observed.lp_balances.get_last_mint_timestamp(intent.sender_pubkey, pool_id) == 700
-    assert snapshot_balance_table(state.balances) == pre_balances
-    assert snapshot_pool_map(state.pools) == pre_pools
-    assert snapshot_lp_table(state.lp_balances) == pre_lp
+    assert admit_legacy_balance_for_differential_v1(state.balances) == pre_balances
+    assert admit_legacy_pool_map_for_differential_v1(state.pools) == pre_pools
+    assert admit_legacy_lp_for_differential_v1(state.lp_balances) == pre_lp
 
 
 def test_shadow_replay_rejection_matches_the_legacy_strong_validator() -> None:

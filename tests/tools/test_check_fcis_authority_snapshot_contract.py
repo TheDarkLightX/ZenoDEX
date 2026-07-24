@@ -6,7 +6,10 @@ from pathlib import Path
 import pytest
 
 from tools.check_fcis_authority_snapshot_contract import (
+    AUTHORITY_GRAPH_AUTHORITY_PATHS,
     DEFAULT_AUTHORITY_PATHS,
+    FINAL_MOUNT_AUTHORITY_PATHS,
+    STATE_SUBSTRATE_AUTHORITY_PATHS,
     check_contract,
 )
 
@@ -33,6 +36,8 @@ def exact(value: object) -> int:
         "src/core/dex.py",
         "src/core/fcis_step_evaluation_values.py",
         "src/core/fcis_step_evaluator.py",
+        "src/core/settlement_strong_validator.py",
+        "src/state/legacy_state_snapshots.py",
         "src/state/state_snapshots.py",
         "src/state/perps_aggregate_transitions.py",
         "src/state/fcis_execution_context_admission.py",
@@ -42,6 +47,26 @@ def test_default_authority_paths_cover_mounted_and_exact_authority(
     path: str,
 ) -> None:
     assert Path(path) in DEFAULT_AUTHORITY_PATHS
+
+
+def test_e11_profiles_keep_review_units_and_final_mount_distinct() -> None:
+    dex = Path("src/core/dex.py")
+    mixed_settlement_consumer = Path("src/core/settlement_strong_validator.py")
+    legacy = Path("src/state/legacy_state_snapshots.py")
+    owned_intent = Path("src/state/intent_snapshots.py")
+
+    assert dex not in STATE_SUBSTRATE_AUTHORITY_PATHS
+    assert mixed_settlement_consumer not in STATE_SUBSTRATE_AUTHORITY_PATHS
+    assert legacy not in STATE_SUBSTRATE_AUTHORITY_PATHS
+    assert owned_intent not in STATE_SUBSTRATE_AUTHORITY_PATHS
+    assert owned_intent in AUTHORITY_GRAPH_AUTHORITY_PATHS
+    assert dex not in AUTHORITY_GRAPH_AUTHORITY_PATHS
+    assert legacy not in AUTHORITY_GRAPH_AUTHORITY_PATHS
+    assert dex in FINAL_MOUNT_AUTHORITY_PATHS
+    assert mixed_settlement_consumer in FINAL_MOUNT_AUTHORITY_PATHS
+    assert legacy in FINAL_MOUNT_AUTHORITY_PATHS
+    assert set(STATE_SUBSTRATE_AUTHORITY_PATHS) < set(FINAL_MOUNT_AUTHORITY_PATHS)
+    assert set(AUTHORITY_GRAPH_AUTHORITY_PATHS) < set(FINAL_MOUNT_AUTHORITY_PATHS)
 
 
 def _run(tmp_path: Path, source: str, *, unrelated: str | None = None):
