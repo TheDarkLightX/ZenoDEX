@@ -1,0 +1,38 @@
+# Temporary read-only source export used to materialize the exact M4 starting tree.
+name: fcis-m4-source-export
+
+on:
+  pull_request:
+    branches:
+      - agent/fcis-pr454-reviewed-port-20260723
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Archive repository source
+        run: tar --exclude=.git -czf "$RUNNER_TEMP/zenodex-source.tar.gz" .
+
+      - name: Upload exact source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenodex-source-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/zenodex-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
