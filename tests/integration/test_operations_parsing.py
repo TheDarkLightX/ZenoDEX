@@ -3,18 +3,17 @@ from __future__ import annotations
 import pytest
 
 from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
+from src.core.settlement import Settlement
 from src.integration.operations import (
-    SignedIntentEnvelope,
     _parse_intent,
     create_intent_operation,
-    create_signed_intent_operation,
     create_settlement_operation,
+    create_signed_intent_operation,
     parse_intents,
     parse_settlement,
     parse_settlement_envelope,
     parse_signed_intents,
 )
-from src.core.settlement import Settlement
 from src.state.intents import Intent, IntentKind
 from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 
@@ -76,7 +75,9 @@ def test_parse_signed_intents_rejects_double_signature() -> None:
 
 def test_parse_signed_intents_rejects_differing_double_signature() -> None:
     ops = {"2": [[{**_min_intent_dict(), "signature": "0xsig-a"}, "0xsig-b"]]}
-    with pytest.raises(ValueError, match="signature provided twice \\(envelope \\+ field\\) and differs"):
+    with pytest.raises(
+        ValueError, match="signature provided twice \\(envelope \\+ field\\) and differs"
+    ):
         parse_signed_intents(ops)
 
 
@@ -94,7 +95,14 @@ def test_parse_signed_intents_rejects_malformed_quote_receipt_envelope() -> None
 
 
 def test_parse_signed_intents_rejects_quote_receipt_without_hash() -> None:
-    ops = {"2": [[_min_intent_dict(), {"body": {"schema": "zenodex/route_quote_receipt/v1"}, "receipt_hash": ""}]]}
+    ops = {
+        "2": [
+            [
+                _min_intent_dict(),
+                {"body": {"schema": "zenodex/route_quote_receipt/v1"}, "receipt_hash": ""},
+            ]
+        ]
+    }
     with pytest.raises(ValueError, match=r"quote_receipt\.receipt_hash must be a non-empty string"):
         parse_signed_intents(ops)
 
@@ -119,7 +127,9 @@ def test_parse_signed_intents_rejects_oversized_signature() -> None:
 
 def test_create_signed_intent_operation_roundtrips_transport_metadata() -> None:
     receipt = {"body": {"schema": "zenodex/route_quote_receipt/v1"}, "receipt_hash": "0xabc"}
-    env = parse_signed_intents({"2": [{**_min_intent_dict(), "signature": "0xsig", "quote_receipt": receipt}]})[0]
+    env = parse_signed_intents(
+        {"2": [{**_min_intent_dict(), "signature": "0xsig", "quote_receipt": receipt}]}
+    )[0]
     ops = create_signed_intent_operation([env])
     assert ops["2"][0]["signature"] == "0xsig"
     assert ops["2"][0]["quote_receipt"] == receipt
@@ -159,7 +169,9 @@ def test_parse_signed_intents_output_rejects_duplicate_nonce_after_carrier_norma
     assert updated is None
 
 
-def test_parse_signed_intents_output_rejects_duplicate_nonce_after_sender_canonicalization() -> None:
+def test_parse_signed_intents_output_rejects_duplicate_nonce_after_sender_canonicalization() -> (
+    None
+):
     sender_lower = "0x" + "ab" * 48
     sender_upper = "0x" + ("ab" * 48).upper()
     first = {
@@ -371,7 +383,9 @@ def test_parse_intents_handles_missing_group_and_rejects_invalid_shapes() -> Non
     with pytest.raises(ValueError, match=r"operations\['2'\] must be a list"):
         parse_intents({"2": {}})
 
-    with pytest.raises(ValueError, match="Failed to parse intent 0: Missing required field: module"):
+    with pytest.raises(
+        ValueError, match="Failed to parse intent 0: Missing required field: module"
+    ):
         parse_intents({"2": [{"version": "0.1"}]})
 
 
@@ -467,8 +481,12 @@ def test_parse_settlement_rejects_invalid_included_intent_action() -> None:
     with pytest.raises(ValueError, match="Invalid action: UNKNOWN"):
         parse_settlement(ops)
 
-    with pytest.raises(ValueError, match="included_intents entries must be \\[intent_id, action\\]"):
-        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "included_intents": [["id-only"]]}})
+    with pytest.raises(
+        ValueError, match="included_intents entries must be \\[intent_id, action\\]"
+    ):
+        parse_settlement(
+            {"3": {"module": "TauSwap", "version": "0.1", "included_intents": [["id-only"]]}}
+        )
 
 
 def test_parse_settlement_rejects_non_object_fill_entry() -> None:
@@ -544,7 +562,10 @@ def test_parse_settlement_rejects_invalid_module_version_and_constructor_failure
     with pytest.raises(ValueError, match="Invalid version: 9.9"):
         parse_settlement({"3": {"module": "TauSwap", "version": "9.9"}})
 
-    with pytest.raises(ValueError, match="Invalid settlement: included_intents contains duplicate intent_id entries"):
+    with pytest.raises(
+        ValueError,
+        match="Invalid settlement: included_intents contains duplicate intent_id entries",
+    ):
         parse_settlement(
             {
                 "3": {

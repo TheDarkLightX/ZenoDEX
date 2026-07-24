@@ -396,3 +396,44 @@ variant. It then admits all fields in declared dataclass order. Reordering the
 source record to place `kind` first would be an unnecessary compatibility
 change, while requiring the discriminant to be first would make the declared
 closed schema unable to represent the mounted type.
+
+## E14. Settlement event omission has one owned normal form
+
+The mounted settlement encoder omits `events` when the source field is `None`
+or an empty list. Authority admission must not retain both source spellings as
+distinct owned values with identical canonical bytes.
+
+The owned settlement normal form is:
+
+```text
+events = None
+       | tuple[OwnedJsonObjectV1, ...] with 1..200,000 entries
+```
+
+An empty source list rejects at authority admission. Callers that mean absence
+provide `None`. A present sequence is admitted through the closed bounded
+owned-JSON schema and contains at least one event.
+
+## E15. One record tag may declare an exact source-type union
+
+Some mounted records have multiple exact source dataclass classes with the
+same protocol fields and one owned normal form. Intent admission is the current
+case: exact `Intent`, `SwapIntent`, `RouteIntent`, `CreatePoolIntent`, and
+`ValidatedIntent` all have the same declared field order and produce exact
+`OwnedIntentV1`.
+
+`RecordRegistrationV1` therefore adds one declarative exact tuple:
+
+```text
+additional_source_types: tuple[type[object], ...] = ()
+```
+
+The primary and additional source classes must be exact dataclasses, unique
+across the complete registry, distinct from every owned class, and have field
+names identical to the primary source in identical order. Registry construction
+rejects source-field drift. `RecordOf` and `TaggedRecordOf` dispatch only by
+exact `type(source)` membership in this closed tuple or by the exact owned type.
+
+The original source enters the interpreter. A wrapper, projection record,
+manual type dispatch, or pre-projected batch is forbidden because it can erase
+undeclared fields and change first-rejection precedence.

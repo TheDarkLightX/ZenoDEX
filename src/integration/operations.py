@@ -6,8 +6,9 @@ Handles operation groups "2" (DEX intents) and "3" (DEX settlement).
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
+from ..core.dex_intent_auth_message import canonicalize_dex_intent_identifier_if_decodable
 from ..core.domain_limits import (
     DEX_LP_AMOUNT_MAX,
     DEX_LP_SUPPLY_MAX,
@@ -15,15 +16,15 @@ from ..core.domain_limits import (
     DEX_SWAP_AMOUNT_MAX,
 )
 from ..core.settlement import (
-    Settlement,
-    FillAction,
-    Fill,
     BalanceDelta,
-    ReserveDelta,
+    Fill,
+    FillAction,
     LPDelta,
+    ReserveDelta,
+    Settlement,
 )
-from ..core.dex_intent_auth_message import canonicalize_dex_intent_identifier_if_decodable
-from ..state.intents import Intent, IntentKind
+from ..state.intent_field_registry import intent_allowed_field_names_v1
+from ..state.intents import Intent, IntentKind, ValidatedIntent
 from ..state.pools import normalize_curve_config, normalize_pool_asset_pair
 
 POOL_FEE_BPS_MIN = 0
@@ -131,18 +132,6 @@ class SignedIntentEnvelope:
     quote_receipt: Optional[Dict[str, Any]] = None
 
 
-@dataclass
-class ValidatedIntent(Intent):
-    """
-    Intent admitted through the operations parser normal-form boundary.
-
-    The state-layer `Intent` type remains generic for generated fixtures and
-    internal proof/test construction. User-supplied operations cross this
-    boundary only after common fields, kind-specific fields, and unknown fields
-    have been validated.
-    """
-
-
 @dataclass(frozen=True)
 class SettlementEnvelope:
     settlement: Settlement
@@ -173,7 +162,9 @@ def _parse_fill_action(value: Any, *, name: str, error_prefix: str) -> FillActio
 def _parse_included_intent_entry(entry: Any) -> tuple[str, FillAction]:
     if not isinstance(entry, (list, tuple)) or len(entry) != 2:
         raise ValueError("included_intents entries must be [intent_id, action]")
-    intent_id_s = _require_str(entry[0], name="included_intents.intent_id", non_empty=True, max_len=256)
+    intent_id_s = _require_str(
+        entry[0], name="included_intents.intent_id", non_empty=True, max_len=256
+    )
     action = _parse_fill_action(
         entry[1],
         name="included_intents.action",
@@ -183,7 +174,10 @@ def _parse_included_intent_entry(entry: Any) -> tuple[str, FillAction]:
 
 
 def _parse_included_intents(value: Any) -> list[tuple[str, FillAction]]:
-    return [_parse_included_intent_entry(entry) for entry in _require_list_or_empty(value, name="settlement.included_intents")]
+    return [
+        _parse_included_intent_entry(entry)
+        for entry in _require_list_or_empty(value, name="settlement.included_intents")
+    ]
 
 
 def _parse_fill(fill_data: Any) -> Fill:
@@ -195,7 +189,9 @@ def _parse_fill(fill_data: Any) -> Fill:
         name="fill.action",
         error_prefix="Invalid fill action",
     )
-    intent_id_s = _require_str(fill_data.get("intent_id"), name="fill.intent_id", non_empty=True, max_len=256)
+    intent_id_s = _require_str(
+        fill_data.get("intent_id"), name="fill.intent_id", non_empty=True, max_len=256
+    )
     reason = fill_data.get("reason")
     if reason is not None:
         reason = _require_str(reason, name="fill.reason", non_empty=False, max_len=4096)
@@ -204,7 +200,9 @@ def _parse_fill(fill_data: Any) -> Fill:
         intent_id=intent_id_s,
         action=action,
         reason=reason,
-        amount_in_filled=_optional_int(fill_data.get("amount_in_filled"), name="fill.amount_in_filled", non_negative=True),
+        amount_in_filled=_optional_int(
+            fill_data.get("amount_in_filled"), name="fill.amount_in_filled", non_negative=True
+        ),
         amount_out_filled=_optional_int(
             fill_data.get("amount_out_filled"), name="fill.amount_out_filled", non_negative=True
         ),
@@ -214,12 +212,24 @@ def _parse_fill(fill_data: Any) -> Fill:
             name="fill.protocol_fee_paid",
             non_negative=True,
         ),
-        amount0_used=_optional_int(fill_data.get("amount0_used"), name="fill.amount0_used", non_negative=True),
-        amount1_used=_optional_int(fill_data.get("amount1_used"), name="fill.amount1_used", non_negative=True),
-        lp_minted=_optional_int(fill_data.get("lp_minted"), name="fill.lp_minted", non_negative=True),
-        amount0_out=_optional_int(fill_data.get("amount0_out"), name="fill.amount0_out", non_negative=True),
-        amount1_out=_optional_int(fill_data.get("amount1_out"), name="fill.amount1_out", non_negative=True),
-        lp_burned=_optional_int(fill_data.get("lp_burned"), name="fill.lp_burned", non_negative=True),
+        amount0_used=_optional_int(
+            fill_data.get("amount0_used"), name="fill.amount0_used", non_negative=True
+        ),
+        amount1_used=_optional_int(
+            fill_data.get("amount1_used"), name="fill.amount1_used", non_negative=True
+        ),
+        lp_minted=_optional_int(
+            fill_data.get("lp_minted"), name="fill.lp_minted", non_negative=True
+        ),
+        amount0_out=_optional_int(
+            fill_data.get("amount0_out"), name="fill.amount0_out", non_negative=True
+        ),
+        amount1_out=_optional_int(
+            fill_data.get("amount1_out"), name="fill.amount1_out", non_negative=True
+        ),
+        lp_burned=_optional_int(
+            fill_data.get("lp_burned"), name="fill.lp_burned", non_negative=True
+        ),
         reserve_in_before=_optional_int(
             fill_data.get("reserve_in_before"),
             name="fill.reserve_in_before",
@@ -237,10 +247,18 @@ def _parse_balance_delta(value: Any) -> BalanceDelta:
     if not isinstance(value, dict):
         raise ValueError("balance_deltas entries must be objects")
     return BalanceDelta(
-        pubkey=_require_str(value.get("pubkey"), name="balance_delta.pubkey", non_empty=True, max_len=512),
-        asset=_require_str(value.get("asset"), name="balance_delta.asset", non_empty=True, max_len=256),
-        delta_add=_require_int(value.get("delta_add", 0), name="balance_delta.delta_add", non_negative=True),
-        delta_sub=_require_int(value.get("delta_sub", 0), name="balance_delta.delta_sub", non_negative=True),
+        pubkey=_require_str(
+            value.get("pubkey"), name="balance_delta.pubkey", non_empty=True, max_len=512
+        ),
+        asset=_require_str(
+            value.get("asset"), name="balance_delta.asset", non_empty=True, max_len=256
+        ),
+        delta_add=_require_int(
+            value.get("delta_add", 0), name="balance_delta.delta_add", non_negative=True
+        ),
+        delta_sub=_require_int(
+            value.get("delta_sub", 0), name="balance_delta.delta_sub", non_negative=True
+        ),
     )
 
 
@@ -248,10 +266,18 @@ def _parse_reserve_delta(value: Any) -> ReserveDelta:
     if not isinstance(value, dict):
         raise ValueError("reserve_deltas entries must be objects")
     return ReserveDelta(
-        pool_id=_require_str(value.get("pool_id"), name="reserve_delta.pool_id", non_empty=True, max_len=256),
-        asset=_require_str(value.get("asset"), name="reserve_delta.asset", non_empty=True, max_len=256),
-        delta_add=_require_int(value.get("delta_add", 0), name="reserve_delta.delta_add", non_negative=True),
-        delta_sub=_require_int(value.get("delta_sub", 0), name="reserve_delta.delta_sub", non_negative=True),
+        pool_id=_require_str(
+            value.get("pool_id"), name="reserve_delta.pool_id", non_empty=True, max_len=256
+        ),
+        asset=_require_str(
+            value.get("asset"), name="reserve_delta.asset", non_empty=True, max_len=256
+        ),
+        delta_add=_require_int(
+            value.get("delta_add", 0), name="reserve_delta.delta_add", non_negative=True
+        ),
+        delta_sub=_require_int(
+            value.get("delta_sub", 0), name="reserve_delta.delta_sub", non_negative=True
+        ),
     )
 
 
@@ -259,10 +285,18 @@ def _parse_lp_delta(value: Any) -> LPDelta:
     if not isinstance(value, dict):
         raise ValueError("lp_deltas entries must be objects")
     return LPDelta(
-        pubkey=_require_str(value.get("pubkey"), name="lp_delta.pubkey", non_empty=True, max_len=512),
-        pool_id=_require_str(value.get("pool_id"), name="lp_delta.pool_id", non_empty=True, max_len=256),
-        delta_add=_require_int(value.get("delta_add", 0), name="lp_delta.delta_add", non_negative=True),
-        delta_sub=_require_int(value.get("delta_sub", 0), name="lp_delta.delta_sub", non_negative=True),
+        pubkey=_require_str(
+            value.get("pubkey"), name="lp_delta.pubkey", non_empty=True, max_len=512
+        ),
+        pool_id=_require_str(
+            value.get("pool_id"), name="lp_delta.pool_id", non_empty=True, max_len=256
+        ),
+        delta_add=_require_int(
+            value.get("delta_add", 0), name="lp_delta.delta_add", non_negative=True
+        ),
+        delta_sub=_require_int(
+            value.get("delta_sub", 0), name="lp_delta.delta_sub", non_negative=True
+        ),
     )
 
 
@@ -280,13 +314,13 @@ def _parse_events(value: Any) -> Optional[list[dict[str, Any]]]:
 def parse_intents(operations: Dict[str, Any]) -> List[ValidatedIntent]:
     """
     Parse intents from transaction operations["2"].
-    
+
     Args:
         operations: Transaction operations dictionary
-        
+
     Returns:
         List of Intent objects
-        
+
     Raises:
         ValueError: If operations structure is invalid
     """
@@ -295,11 +329,11 @@ def parse_intents(operations: Dict[str, Any]) -> List[ValidatedIntent]:
 
     if "2" not in operations:
         return []
-    
+
     intents_data = operations["2"]
     if not isinstance(intents_data, list):
         raise ValueError(f"operations['2'] must be a list, got {type(intents_data)}")
-    
+
     intents: list[ValidatedIntent] = []
     for i, intent_data in enumerate(intents_data):
         try:
@@ -307,11 +341,13 @@ def parse_intents(operations: Dict[str, Any]) -> List[ValidatedIntent]:
             intents.append(intent)
         except Exception as e:
             raise ValueError(f"Failed to parse intent {i}: {e}") from e
-    
+
     return intents
 
 
-def _unpack_signed_intent_entry(entry: Any) -> tuple[Dict[str, Any], Optional[str], Optional[Dict[str, Any]]]:
+def _unpack_signed_intent_entry(
+    entry: Any,
+) -> tuple[Dict[str, Any], Optional[str], Optional[Dict[str, Any]]]:
     signature = None
     signature_in_dict = None
     quote_receipt = None
@@ -389,7 +425,11 @@ def parse_signed_intents(operations: Dict[str, Any]) -> List[SignedIntentEnvelop
         try:
             intent_data, signature, quote_receipt = _unpack_signed_intent_entry(entry)
             intent = _parse_intent(intent_data)
-            out.append(SignedIntentEnvelope(intent=intent, signature=signature, quote_receipt=quote_receipt))
+            out.append(
+                SignedIntentEnvelope(
+                    intent=intent, signature=signature, quote_receipt=quote_receipt
+                )
+            )
         except Exception as e:
             raise ValueError(f"Failed to parse signed intent {i}: {e}") from e
     return out
@@ -398,10 +438,10 @@ def parse_signed_intents(operations: Dict[str, Any]) -> List[SignedIntentEnvelop
 def _parse_intent(intent_data: Dict[str, Any]) -> ValidatedIntent:
     """
     Parse a single intent from JSON data.
-    
+
     Args:
         intent_data: Intent dictionary
-        
+
     Returns:
         Intent object
     """
@@ -413,35 +453,40 @@ def _parse_intent(intent_data: Dict[str, Any]) -> ValidatedIntent:
         if field not in intent_data:
             raise ValueError(f"Missing required field: {field}")
 
-    module = _require_str(intent_data.get("module"), name="intent.module", non_empty=True, max_len=64)
+    module = _require_str(
+        intent_data.get("module"), name="intent.module", non_empty=True, max_len=64
+    )
     if module != "TauSwap":
         raise ValueError(f"Invalid module: {module}")
 
-    version = _require_str(intent_data.get("version"), name="intent.version", non_empty=True, max_len=64)
+    version = _require_str(
+        intent_data.get("version"), name="intent.version", non_empty=True, max_len=64
+    )
     if version != "0.1":
         raise ValueError(f"Invalid version: {version}")
 
     kind_raw = _require_str(intent_data.get("kind"), name="intent.kind", non_empty=True, max_len=64)
-    intent_id = _require_str(intent_data.get("intent_id"), name="intent.intent_id", non_empty=True, max_len=256)
-    sender_pubkey = _require_str(intent_data.get("sender_pubkey"), name="intent.sender_pubkey", non_empty=True, max_len=512)
+    intent_id = _require_str(
+        intent_data.get("intent_id"), name="intent.intent_id", non_empty=True, max_len=256
+    )
+    sender_pubkey = _require_str(
+        intent_data.get("sender_pubkey"), name="intent.sender_pubkey", non_empty=True, max_len=512
+    )
     deadline = _require_int(intent_data.get("deadline"), name="intent.deadline", non_negative=True)
     salt = intent_data.get("salt")
     if salt is not None:
         salt = _require_str(salt, name="intent.salt", non_empty=True, max_len=4096)
-    
+
     # Parse kind
     try:
         kind = IntentKind(kind_raw)
     except ValueError as e:
         raise ValueError(f"Invalid intent kind: {kind_raw}") from e
-    
+
     # Extract fields (everything except common fields)
     common_fields = {"module", "version", "kind", "intent_id", "sender_pubkey", "deadline", "salt"}
-    fields = {
-        k: v for k, v in intent_data.items()
-        if k not in common_fields
-    }
-    
+    fields = {k: v for k, v in intent_data.items() if k not in common_fields}
+
     intent = ValidatedIntent(
         module=module,
         version=version,
@@ -454,101 +499,13 @@ def _parse_intent(intent_data: Dict[str, Any]) -> ValidatedIntent:
     )
     _canonicalize_decodable_intent_identifiers(intent)
     _validate_intent_fields(intent)
-    
+
     return intent
 
 
-_COMMON_INTENT_FIELD_KEYS = frozenset(
-    {
-        "nonce",
-        "recipient",
-        "submission_order",
-        "quote_receipt_hash",
-        "quote_pool_fingerprint",
-        "quote_receipt_leg_index",
-        "oracle_authorization",
-    }
-)
-
-_KIND_INTENT_FIELD_KEYS = {
-    IntentKind.SWAP_EXACT_IN: frozenset(
-        {
-            "pool_id",
-            "asset_in",
-            "asset_out",
-            "amount_in",
-            "min_amount_out",
-        }
-    ),
-    IntentKind.SWAP_EXACT_OUT: frozenset(
-        {
-            "pool_id",
-            "asset_in",
-            "asset_out",
-            "amount_out",
-            "max_amount_in",
-        }
-    ),
-    IntentKind.CREATE_POOL: frozenset(
-        {
-            "asset0",
-            "asset1",
-            "fee_bps",
-            "amount0",
-            "amount1",
-            "created_at",
-            "curve_tag",
-            "curve_params",
-        }
-    ),
-    IntentKind.ADD_LIQUIDITY: frozenset(
-        {
-            "pool_id",
-            "amount0_desired",
-            "amount1_desired",
-            "amount0_min",
-            "amount1_min",
-        }
-    ),
-    IntentKind.REMOVE_LIQUIDITY: frozenset(
-        {
-            "pool_id",
-            "lp_amount",
-            "amount0_min",
-            "amount1_min",
-        }
-    ),
-    IntentKind.ROUTE_EXACT_IN: frozenset(
-        {
-            "asset_in",
-            "asset_out",
-            "leg_indices",
-            "total_amount_in",
-            "total_min_amount_out",
-            # Engine-internal fields are listed here so user-supplied values
-            # reach the route witness gate, where they are rejected with the
-            # route-specific reserved-field error.
-            "route_legs",
-            "route_pool_fingerprints",
-        }
-    ),
-    IntentKind.ROUTE_EXACT_OUT: frozenset(
-        {
-            "asset_in",
-            "asset_out",
-            "leg_indices",
-            "total_amount_out",
-            "total_max_amount_in",
-            "route_legs",
-            "route_pool_fingerprints",
-        }
-    ),
-}
-
-
 def _reject_unknown_intent_fields(fields: Dict[str, Any], *, intent_kind: IntentKind) -> None:
-    allowed = _COMMON_INTENT_FIELD_KEYS | _KIND_INTENT_FIELD_KEYS.get(intent_kind, frozenset())
-    unknown = sorted(set(fields) - allowed)
+    allowed = intent_allowed_field_names_v1(intent_kind)
+    unknown = sorted(key for key in fields if key not in allowed)
     if unknown:
         joined = ", ".join(unknown)
         raise ValueError(f"unsupported field for {intent_kind.value}: {joined}")
@@ -560,7 +517,9 @@ def _require_field(fields: Dict[str, Any], key: str, *, intent_kind: IntentKind)
     return fields[key]
 
 
-def _require_field_str(fields: Dict[str, Any], key: str, *, intent_kind: IntentKind, max_len: int = 256) -> str:
+def _require_field_str(
+    fields: Dict[str, Any], key: str, *, intent_kind: IntentKind, max_len: int = 256
+) -> str:
     return _require_str(
         _require_field(fields, key, intent_kind=intent_kind),
         name=f"intent.{key}",
@@ -593,11 +552,23 @@ def _validate_common_intent_fields(fields: Dict[str, Any]) -> None:
     if "submission_order" in fields:
         _require_int_range(fields["submission_order"], name="intent.submission_order", minimum=0)
     if "quote_receipt_hash" in fields:
-        _require_str(fields["quote_receipt_hash"], name="intent.quote_receipt_hash", non_empty=True, max_len=512)
+        _require_str(
+            fields["quote_receipt_hash"],
+            name="intent.quote_receipt_hash",
+            non_empty=True,
+            max_len=512,
+        )
     if "quote_pool_fingerprint" in fields:
-        _require_str(fields["quote_pool_fingerprint"], name="intent.quote_pool_fingerprint", non_empty=True, max_len=512)
+        _require_str(
+            fields["quote_pool_fingerprint"],
+            name="intent.quote_pool_fingerprint",
+            non_empty=True,
+            max_len=512,
+        )
     if "quote_receipt_leg_index" in fields:
-        _require_int_range(fields["quote_receipt_leg_index"], name="intent.quote_receipt_leg_index", minimum=0)
+        _require_int_range(
+            fields["quote_receipt_leg_index"], name="intent.quote_receipt_leg_index", minimum=0
+        )
     if "oracle_authorization" in fields:
         _require_dict_str_keys(fields["oracle_authorization"], name="intent.oracle_authorization")
 
@@ -677,7 +648,9 @@ def _validate_create_pool_intent_fields(intent: Intent, fields: Dict[str, Any]) 
     if "created_at" in fields:
         _require_int_range(fields["created_at"], name="intent.created_at", minimum=0)
     try:
-        normalize_curve_config(curve_tag=fields.get("curve_tag"), curve_params=fields.get("curve_params"))
+        normalize_curve_config(
+            curve_tag=fields.get("curve_tag"), curve_params=fields.get("curve_params")
+        )
     except Exception as exc:
         raise ValueError(f"invalid curve configuration: {exc}") from exc
 
@@ -748,7 +721,12 @@ def _validate_route_intent_fields(intent: Intent, fields: Dict[str, Any]) -> Non
     # gate so errors stay tied to the validated quote receipt.
     kind = intent.kind
     if "quote_receipt_hash" in fields:
-        _require_str(fields["quote_receipt_hash"], name="intent.quote_receipt_hash", non_empty=True, max_len=512)
+        _require_str(
+            fields["quote_receipt_hash"],
+            name="intent.quote_receipt_hash",
+            non_empty=True,
+            max_len=512,
+        )
     if "asset_in" in fields:
         _require_str(fields["asset_in"], name="intent.asset_in", non_empty=True, max_len=256)
     if "asset_out" in fields:
@@ -830,13 +808,13 @@ def _validate_intent_fields(intent: Intent) -> None:
 def parse_settlement(operations: Dict[str, Any]) -> Optional[Settlement]:
     """
     Parse settlement from transaction operations["3"].
-    
+
     Args:
         operations: Transaction operations dictionary
-        
+
     Returns:
         Settlement object or None if not present
-        
+
     Raises:
         ValueError: If operations structure is invalid
     """
@@ -845,11 +823,11 @@ def parse_settlement(operations: Dict[str, Any]) -> Optional[Settlement]:
 
     if "3" not in operations:
         return None
-    
+
     settlement_data = operations["3"]
     if not isinstance(settlement_data, dict):
         raise ValueError(f"operations['3'] must be a dict, got {type(settlement_data)}")
-    
+
     return _parse_settlement(settlement_data)
 
 
@@ -897,7 +875,9 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
             raise ValueError("settlement uniform_batch_certificate must be an object")
         uniform_batch_certificate = raw_uniform_batch_certificate
 
-    raw_uniform_batch_optimality_certificate = settlement_data.get("uniform_batch_optimality_certificate")
+    raw_uniform_batch_optimality_certificate = settlement_data.get(
+        "uniform_batch_optimality_certificate"
+    )
     uniform_batch_optimality_certificate = None
     if raw_uniform_batch_optimality_certificate is not None:
         if not isinstance(raw_uniform_batch_optimality_certificate, dict):
@@ -947,36 +927,51 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
 def _parse_settlement(settlement_data: Dict[str, Any]) -> Settlement:
     """
     Parse settlement from dictionary.
-    
+
     Args:
         settlement_data: Settlement dictionary
-        
+
     Returns:
         Settlement object
     """
     settlement_data = _require_dict_str_keys(settlement_data, name="settlement")
 
-    module = _require_str(settlement_data.get("module"), name="settlement.module", non_empty=True, max_len=64)
+    module = _require_str(
+        settlement_data.get("module"), name="settlement.module", non_empty=True, max_len=64
+    )
     if module != "TauSwap":
         raise ValueError(f"Invalid module: {module}")
 
-    version = _require_str(settlement_data.get("version"), name="settlement.version", non_empty=True, max_len=64)
+    version = _require_str(
+        settlement_data.get("version"), name="settlement.version", non_empty=True, max_len=64
+    )
     if version != "0.1":
         raise ValueError(f"Invalid version: {version}")
 
     included_intents = _parse_included_intents(settlement_data.get("included_intents", []))
-    fills = [_parse_fill(fill_data) for fill_data in _require_list_or_empty(settlement_data.get("fills", []), name="settlement.fills")]
+    fills = [
+        _parse_fill(fill_data)
+        for fill_data in _require_list_or_empty(
+            settlement_data.get("fills", []), name="settlement.fills"
+        )
+    ]
     balance_deltas = [
         _parse_balance_delta(entry)
-        for entry in _require_list_or_empty(settlement_data.get("balance_deltas", []), name="settlement.balance_deltas")
+        for entry in _require_list_or_empty(
+            settlement_data.get("balance_deltas", []), name="settlement.balance_deltas"
+        )
     ]
     reserve_deltas = [
         _parse_reserve_delta(entry)
-        for entry in _require_list_or_empty(settlement_data.get("reserve_deltas", []), name="settlement.reserve_deltas")
+        for entry in _require_list_or_empty(
+            settlement_data.get("reserve_deltas", []), name="settlement.reserve_deltas"
+        )
     ]
     lp_deltas = [
         _parse_lp_delta(entry)
-        for entry in _require_list_or_empty(settlement_data.get("lp_deltas", []), name="settlement.lp_deltas")
+        for entry in _require_list_or_empty(
+            settlement_data.get("lp_deltas", []), name="settlement.lp_deltas"
+        )
     ]
 
     batch_ref = settlement_data.get("batch_ref", "")
@@ -986,7 +981,7 @@ def _parse_settlement(settlement_data: Dict[str, Any]) -> Settlement:
         raise ValueError("settlement.batch_ref must be a string")
 
     events = _parse_events(settlement_data.get("events"))
-    
+
     try:
         settlement = Settlement(
             module=module,
@@ -1001,17 +996,17 @@ def _parse_settlement(settlement_data: Dict[str, Any]) -> Settlement:
         )
     except Exception as exc:
         raise ValueError(f"Invalid settlement: {exc}") from exc
-    
+
     return settlement
 
 
 def create_intent_operation(intents: List[Intent]) -> Dict[str, Any]:
     """
     Create operations["2"] structure from intents.
-    
+
     Args:
         intents: List of Intent objects
-        
+
     Returns:
         Dictionary for operations["2"]
     """
@@ -1037,18 +1032,18 @@ def create_intent_operation(intents: List[Intent]) -> Dict[str, Any]:
             "sender_pubkey": intent.sender_pubkey,
             "deadline": intent.deadline,
         }
-        
+
         if intent.salt:
             intent_dict["salt"] = intent.salt
-        
+
         if intent.fields:
             for k, v in intent.fields.items():
                 if k in reserved_keys:
                     raise ValueError(f"intent.fields contains reserved key: {k}")
                 intent_dict[k] = v
-        
+
         intents_data.append(intent_dict)
-    
+
     return {"2": intents_data}
 
 
@@ -1059,22 +1054,24 @@ def create_signed_intent_operation(signed_intents: List[SignedIntentEnvelope]) -
     """
     base = create_intent_operation([env.intent for env in signed_intents])
     intents_data = base["2"]
-    for entry, env in zip(intents_data, signed_intents):
+    for entry, env in zip(intents_data, signed_intents, strict=True):
         if env.signature is not None:
             _require_str(env.signature, name="signature", non_empty=True, max_len=4096)
             entry["signature"] = env.signature
         if env.quote_receipt is not None:
-            entry["quote_receipt"] = _parse_quote_receipt_transport(env.quote_receipt, name="quote_receipt")
+            entry["quote_receipt"] = _parse_quote_receipt_transport(
+                env.quote_receipt, name="quote_receipt"
+            )
     return {"2": intents_data}
 
 
 def create_settlement_operation(settlement: Settlement) -> Dict[str, Any]:
     """
     Create operations["3"] structure from settlement.
-    
+
     Args:
         settlement: Settlement object
-        
+
     Returns:
         Dictionary for operations["3"]
     """
@@ -1083,8 +1080,7 @@ def create_settlement_operation(settlement: Settlement) -> Dict[str, Any]:
         "version": settlement.version,
         "batch_ref": settlement.batch_ref,
         "included_intents": [
-            [intent_id, action.value]
-            for intent_id, action in settlement.included_intents
+            [intent_id, action.value] for intent_id, action in settlement.included_intents
         ],
         "fills": [
             {
@@ -1134,8 +1130,8 @@ def create_settlement_operation(settlement: Settlement) -> Dict[str, Any]:
             for delta in settlement.lp_deltas
         ],
     }
-    
+
     if settlement.events:
         settlement_data["events"] = settlement.events
-    
+
     return {"3": settlement_data}

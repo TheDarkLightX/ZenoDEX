@@ -51,6 +51,7 @@ STATE_SUBSTRATE_AUTHORITY_PATHS = (
 )
 AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/state/owned_json.py"),
+    Path("src/state/intent_field_registry.py"),
     Path("src/state/intent_schema.py"),
     Path("src/state/intent_snapshots.py"),
     Path("src/core/settlement_schema.py"),
@@ -495,6 +496,86 @@ class _AuthorityVisitor(ast.NodeVisitor):
             ("src/core/", "src/state/")
         ):
             self._add(node, "MUTABLE_CORE_BOUNDARY", node.name)
+        if self.relative_path == "src/state/intent_snapshots.py" and node.name in {
+            "snapshot_intent",
+            "admit_intent_batch",
+        }:
+            body = node.body
+            if (
+                body
+                and type(body[0]) is ast.Expr
+                and type(body[0].value) is ast.Constant
+                and type(body[0].value.value) is str
+            ):
+                body = body[1:]
+            while body and type(body[0]) in {ast.Import, ast.ImportFrom}:
+                body = body[1:]
+            first_statement = body[0] if body else None
+            direct_admission = (
+                type(first_statement) is ast.Assign
+                and len(first_statement.targets) == 1
+                and type(first_statement.targets[0]) is ast.Name
+                and first_statement.targets[0].id == "admitted"
+                and type(first_statement.value) is ast.Call
+                and _last_name(first_statement.value.func) == "_admit_graph_value"
+                and len(first_statement.value.args) == 2
+                and type(first_statement.value.args[1]) is ast.Name
+                and first_statement.value.args[1].id == "source"
+                and not first_statement.value.keywords
+            )
+            guard_statement = body[1] if len(body) > 1 else None
+            guard_calls = (
+                tuple(
+                    expression
+                    for expression in ast.walk(guard_statement.test)
+                    if type(expression) is ast.Call
+                )
+                if type(guard_statement) is ast.If
+                else ()
+            )
+            exact_guard = (
+                type(guard_statement) is ast.If
+                and len(guard_statement.body) == 1
+                and type(guard_statement.body[0]) is ast.Raise
+                and not guard_statement.orelse
+                and bool(guard_calls)
+                and all(_last_name(call.func) in {"any", "type"} for call in guard_calls)
+                and not any(
+                    type(expression) in {ast.Assign, ast.AnnAssign, ast.NamedExpr}
+                    for expression in ast.walk(guard_statement.test)
+                )
+            )
+            return_statement = body[2] if len(body) > 2 else None
+            exact_return = type(return_statement) is ast.Return and (
+                (
+                    type(return_statement.value) is ast.Name
+                    and return_statement.value.id == "admitted"
+                )
+                or (
+                    type(return_statement.value) is ast.Call
+                    and _last_name(return_statement.value.func) == "cast"
+                    and len(return_statement.value.args) == 2
+                    and type(return_statement.value.args[1]) is ast.Name
+                    and return_statement.value.args[1].id == "admitted"
+                    and not return_statement.value.keywords
+                )
+            )
+            source_reused = any(
+                type(expression) is ast.Name
+                and expression.id == "source"
+                and type(expression.ctx) is ast.Load
+                for statement in body[1:]
+                for expression in ast.walk(statement)
+            )
+            if not (
+                len(body) == 3
+                and not node.decorator_list
+                and direct_admission
+                and exact_guard
+                and exact_return
+                and not source_reused
+            ):
+                self._add(node, "MANUAL_SOURCE_PROJECTION", node.name)
         if not node.name.startswith("_"):
             annotations = tuple(
                 annotation
@@ -596,6 +677,11 @@ class _AuthorityVisitor(ast.NodeVisitor):
         return names
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        if (
+            self.relative_path == "src/state/intent_snapshots.py"
+            and node.name == "_IntentAdmissionSourceV1"
+        ):
+            self._add(node, "MANUAL_SOURCE_PROJECTION", node.name)
         if _is_profile_path(self.relative_path) and not node.name.startswith("_"):
             self._add(node, "PROFILE_FACADE_SHAPE", f"public class:{node.name}")
         for base in node.bases:
@@ -1304,9 +1390,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     profile = "custom" if args.authority_path else args.profile
-    authority_paths = tuple(
-        args.authority_path or _AUTHORITY_PATHS_BY_PROFILE[args.profile]
-    )
+    authority_paths = tuple(args.authority_path or _AUTHORITY_PATHS_BY_PROFILE[args.profile])
     test_matrix_paths = tuple(args.test_matrix or DEFAULT_TEST_MATRIX_PATHS)
     requirements_path = None if args.skip_requirements else args.requirements
     report = check_contract(

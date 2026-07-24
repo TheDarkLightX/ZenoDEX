@@ -23,6 +23,8 @@ CURRENT_ARCHITECTURE_CLAUSES = {
         "## E11. State ownership, authority ownership, and final mounting are separate review stages",
         "## E12. Closed authority-graph algebra extensions",
         "## E13. Tagged discriminants follow declared record order",
+        "## E14. Settlement event omission has one owned normal form",
+        "## E15. One record tag may declare an exact source-type union",
     ),
     "MOUNTED_ENVELOPE_INVENTORY.md": (
         "## 3. Signature, sender, authentication policy, and domain frame",

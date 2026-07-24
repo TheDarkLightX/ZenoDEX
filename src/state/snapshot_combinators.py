@@ -334,6 +334,7 @@ class _KeySortPreflightV1:
     sort_value: KeySortValue
     canonical_reject: AdmitReject | None
 
+
 CanonicalEncoderResolverV1 = Callable[[str, object], bytes]
 RecordConstructionResolverV1 = Callable[
     [Enum, tuple[tuple[str, object], ...]],
@@ -354,6 +355,7 @@ class RecordRegistrationV1:
     tag: Enum
     source_type: type[object]
     owned_type: type[object]
+    additional_source_types: tuple[type[object], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -472,13 +474,27 @@ def _validate_record_registrations(
             raise TypeError("invalid record registration")
         if type(registration.tag) is not record_tag_type:
             raise ValueError("record registration tag drift")
-        if type(registration.source_type) is not type or type(registration.owned_type) is not type:
+        if type(registration.additional_source_types) is not tuple:
+            raise TypeError("additional record source types must be an exact tuple")
+        registered_source_types = (
+            registration.source_type,
+            *registration.additional_source_types,
+        )
+        if (
+            any(type(source_type) is not type for source_type in registered_source_types)
+            or type(registration.owned_type) is not type
+        ):
             raise TypeError("registered records must be exact classes")
         try:
-            dataclass_fields(registration.source_type)  # type: ignore[arg-type]
+            source_field_sets = tuple(
+                tuple(field.name for field in dataclass_fields(source_type))  # type: ignore[arg-type]
+                for source_type in registered_source_types
+            )
             dataclass_fields(registration.owned_type)  # type: ignore[arg-type]
         except TypeError as exc:
             raise TypeError("registered records must be dataclasses") from exc
+        if any(fields != source_field_sets[0] for fields in source_field_sets[1:]):
+            raise ValueError("record source field drift")
         owned_parameters = getattr(registration.owned_type, "__dataclass_params__", None)
         owned_field_names = {
             item.name
@@ -503,7 +519,7 @@ def _validate_record_registrations(
             # Authority invariant: admitted records cannot retain a mutable object API.
             raise TypeError("registered owned records must be frozen slotted final dataclasses")
         tags.append(registration.tag)
-        source_types.append(registration.source_type)
+        source_types.extend(registered_source_types)
         owned_types.append(registration.owned_type)
     declared_tags = (*record_tag_type,)
     if (*tags,) != declared_tags:
@@ -1846,8 +1862,7 @@ def _admit_map(
         if canonical_reject is not None:
             return canonical_reject
     sorted_entries = tuple(
-        (key, value)
-        for _sort_key, key, value, _canonical_reject in preflight_entries
+        (key, value) for _sort_key, key, value, _canonical_reject in preflight_entries
     )
     for index in range(1, len(preflight_entries)):
         if preflight_entries[index - 1][0] == preflight_entries[index][0]:
@@ -1954,9 +1969,7 @@ def _preflight_bounded_json_map_entries(
         if type(key) is not str:
             return _reject(AdmitCode.WRONG_KEY_TYPE, path)
     string_schema = _bounded_json_string_schema(schema)
-    remaining_bytes = (
-        state.limits.max_canonical_bytes - state.trusted_scalar_bytes_used
-    )
+    remaining_bytes = state.limits.max_canonical_bytes - state.trusted_scalar_bytes_used
     preflight_entries: list[tuple[str, object, AdmitReject | None]] = []
     for key, value in source_entries:
         exact_key = cast(str, key)
@@ -1977,9 +1990,7 @@ def _preflight_bounded_json_map_entries(
     for index in range(1, len(sorted_preflight)):
         if sorted_preflight[index - 1][0] == sorted_preflight[index][0]:
             return _reject(AdmitCode.REGISTRY_DRIFT, path)
-    return tuple(
-        (key, value) for key, value, _canonical_reject in sorted_preflight
-    )
+    return tuple((key, value) for key, value, _canonical_reject in sorted_preflight)
 
 
 def _admit_bounded_json_map(
@@ -2118,12 +2129,8 @@ def _preflight_exact_keyed_map_entries(
     for key, _value in source_entries:
         if type(key) is not str:
             return _reject(AdmitCode.WRONG_KEY_TYPE, path)
-    string_keyed_entries = tuple(
-        (cast(str, key), value) for key, value in source_entries
-    )
-    remaining_bytes = (
-        state.limits.max_canonical_bytes - state.trusted_scalar_bytes_used
-    )
+    string_keyed_entries = tuple((cast(str, key), value) for key, value in source_entries)
+    remaining_bytes = state.limits.max_canonical_bytes - state.trusted_scalar_bytes_used
     for key, _value in string_keyed_entries:
         key_length = _bounded_utf8_length(key, remaining_bytes)
         if key_length is None:
@@ -2134,9 +2141,7 @@ def _preflight_exact_keyed_map_entries(
 
     declared_names = tuple(field.name for field in schema.declared_fields)
     required_names = (
-        declared_names
-        if schema.required_field_names is None
-        else schema.required_field_names
+        declared_names if schema.required_field_names is None else schema.required_field_names
     )
     source_names = tuple(sorted(key for key, _value in string_keyed_entries))
     for source_name in source_names:
@@ -2147,11 +2152,7 @@ def _preflight_exact_keyed_map_entries(
             return _reject(AdmitCode.MISSING_FIELD, path + (required_name,))
 
     value_by_name = {key: value for key, value in string_keyed_entries}
-    return tuple(
-        (name, value_by_name[name])
-        for name in declared_names
-        if name in value_by_name
-    )
+    return tuple((name, value_by_name[name]) for name in declared_names if name in value_by_name)
 
 
 def _admit_exact_keyed_map_fields(
@@ -2212,9 +2213,7 @@ def _admit_exact_keyed_map(
     declared_count = len(schema.declared_fields)
     declared_names = tuple(field.name for field in schema.declared_fields)
     required_names = (
-        declared_names
-        if schema.required_field_names is None
-        else schema.required_field_names
+        declared_names if schema.required_field_names is None else schema.required_field_names
     )
     maximum_items = min(declared_count, state.limits.max_collection_items)
     source_entries = _map_source_entries(
@@ -2279,6 +2278,22 @@ def _registered_record_fields(registration: RecordRegistrationV1) -> tuple[str, 
         for record_field in dataclass_fields(
             registration.source_type  # type: ignore[arg-type]
         )
+    )
+
+
+def _record_source_types(
+    registration: RecordRegistrationV1,
+) -> tuple[type[object], ...]:
+    return (registration.source_type, *registration.additional_source_types)
+
+
+def _registered_record_source_fields_match(
+    registration: RecordRegistrationV1,
+) -> bool:
+    expected = _registered_record_fields(registration)
+    return all(
+        tuple(record_field.name for record_field in dataclass_fields(source_type)) == expected  # type: ignore[arg-type]
+        for source_type in _record_source_types(registration)
     )
 
 
@@ -2391,11 +2406,12 @@ def _admit_record(
     registration = registry._record_registration(schema.record_tag)
     if registration is None:
         return _reject(AdmitCode.UNSUPPORTED_VARIANT, path)
-    if type(source) not in {registration.source_type, registration.owned_type}:
+    if type(source) not in (*_record_source_types(registration), registration.owned_type):
         return _reject(AdmitCode.WRONG_EXACT_TYPE, path)
     declared_names = tuple(item.name for item in schema.declared_fields)
     if (
-        _registered_record_fields(registration) != declared_names
+        not _registered_record_source_fields_match(registration)
+        or _registered_record_fields(registration) != declared_names
         or _owned_record_fields(registration) != declared_names
     ):
         return _reject(AdmitCode.REGISTRY_DRIFT, path)
@@ -2453,7 +2469,7 @@ def _admit_record_union(
         registration = registry._record_registration(variant.record_tag)
         if registration is None:
             return _reject(AdmitCode.UNSUPPORTED_VARIANT, path)
-        if source_type in {registration.source_type, registration.owned_type}:
+        if source_type in (*_record_source_types(registration), registration.owned_type):
             return _admit_record(
                 variant,
                 source,
@@ -2476,7 +2492,7 @@ def _tagged_registry_drift(
         return True
     registered = _registered_record_fields(registration)
     owned = _owned_record_fields(registration)
-    if registered != owned:
+    if not _registered_record_source_fields_match(registration) or registered != owned:
         return True
     for variant in schema.variants:
         if type(variant.discriminant) is not enum_registration.enum_type:
@@ -2487,11 +2503,7 @@ def _tagged_registry_drift(
         if field_names != registered:
             return True
         discriminant_schema = next(
-            (
-                field
-                for field in variant.declared_fields
-                if field.name == schema.discriminant_field
-            ),
+            (field for field in variant.declared_fields if field.name == schema.discriminant_field),
             None,
         )
         if (
@@ -2515,7 +2527,7 @@ def _admit_tagged_record(
     registration = registry._record_registration(schema.record_tag)
     if registration is None:
         return _reject(AdmitCode.UNSUPPORTED_VARIANT, path)
-    if type(source) not in {registration.source_type, registration.owned_type}:
+    if type(source) not in (*_record_source_types(registration), registration.owned_type):
         return _reject(AdmitCode.WRONG_EXACT_TYPE, path)
     enum_registration = registry._enum_registration(schema.discriminant_enum_tag)
     if enum_registration is None:

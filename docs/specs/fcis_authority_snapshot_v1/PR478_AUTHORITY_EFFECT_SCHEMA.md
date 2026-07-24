@@ -323,6 +323,11 @@ payloads. It does not establish a typed event semantics. `EVENT-TYPING-001`
 remains an explicit blocker for the full FCIS profile; a later source-derived
 tagged event registry must replace the JSON carrier.
 
+The mounted encoder omits both `None` and an empty source list. Per E14, the
+owned normal form admits only `None` or a present tuple with 1..200,000 events.
+An empty source list rejects so two distinct owned values cannot share the same
+canonical bytes.
+
 ### Settlement invariants
 
 After exact field admission, enforce:

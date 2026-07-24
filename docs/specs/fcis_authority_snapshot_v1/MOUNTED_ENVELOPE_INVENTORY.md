@@ -225,13 +225,15 @@ fills: ordered Fill records
 balance_deltas: ordered BalanceDelta records
 reserve_deltas: ordered ReserveDelta records
 lp_deltas: ordered LPDelta records
-events: None | ordered bounded JSON objects
+events: None | 1..200,000 ordered bounded JSON objects
 ```
 
 `FillAction` is admitted to a fresh `OwnedEnumV1`; no source enum singleton is
 retained. All identifiers, optional fill fields, amount bounds, uniqueness,
 coverage, and order rules are defined in `PR478_AUTHORITY_EFFECT_SCHEMA.md`.
 Events remain bounded owned JSON under the open `EVENT-TYPING-001` obligation.
+An empty event sequence is not an owned normal form; E14 requires `None` for
+absence because the mounted encoder omits both source spellings.
 
 ## 7. Proof payload
 

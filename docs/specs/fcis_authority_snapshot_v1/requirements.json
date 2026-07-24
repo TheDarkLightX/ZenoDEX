@@ -1,6 +1,6 @@
 {
   "schema": "zenodex/fcis-authority-snapshot-requirements/v1",
-  "design_lock_version": "1.6.0",
+  "design_lock_version": "1.8.0",
   "claim_status": "blocked",
   "audit_authority": {
     "url": "https://zenodex-oracle-audit-v4.jazzy-harp-9002.chatgpt.site/",
@@ -461,11 +461,11 @@
       "id": "FCIS-478-003",
       "pr": 478,
       "status": "OPEN",
-      "requirement": "Intent admission uses exact registered source and closed per-kind field schemas.",
-      "forbidden": ["Intent subtype admission", "plain mapping admission"],
-      "source_targets": ["src/state/intent_schema.py", "src/state/intent_snapshots.py"],
+      "requirement": "Intent admission passes each original exact registered source through the one closed interpreter and closed per-kind field schemas.",
+      "forbidden": ["Intent subtype admission", "plain mapping admission", "manual source projection before admission"],
+      "source_targets": ["src/state/snapshot_combinators.py", "src/state/intent_schema.py", "src/state/intent_snapshots.py"],
       "tests": ["FCIS-T-478-007", "FCIS-T-478-008", "FCIS-T-478-009"],
-      "evidence": ["all-kind parameterization"],
+      "evidence": ["all-kind parameterization", "undeclared source field and batch precedence regressions"],
       "claim_impact": "signed command meaning remains blocked"
     },
     {
@@ -505,9 +505,9 @@
       "id": "FCIS-478-007",
       "pr": 478,
       "status": "OPEN",
-      "requirement": "Parser, snapshot, runtime, and checker import one exhaustive intent schema registry.",
+      "requirement": "Parser, snapshot, runtime, and checker import one dependency-light exhaustive intent field registry.",
       "forbidden": ["duplicated field lists", "silent kind drift"],
-      "source_targets": ["src/state/intent_schema.py", "src/integration/operations.py"],
+      "source_targets": ["src/state/intent_field_registry.py", "src/state/intent_schema.py", "src/integration/operations.py"],
       "tests": ["FCIS-T-478-014", "FCIS-PROP-008"],
       "evidence": ["intent registry drift test"],
       "claim_impact": "cross-layer intent refinement remains blocked"
@@ -549,8 +549,8 @@
       "id": "FCIS-478-011",
       "pr": 478,
       "status": "OPEN",
-      "requirement": "Current events use bounded owned JSON and retain EVENT-TYPING-001 as an explicit open obligation.",
-      "forbidden": ["arbitrary unbounded event value", "false typed-event claim"],
+      "requirement": "Current events use bounded owned JSON, admit only None or a nonempty event tuple as the canonical owned normal form, and retain EVENT-TYPING-001 as an explicit open obligation.",
+      "forbidden": ["arbitrary unbounded event value", "empty owned event tuple", "false typed-event claim"],
       "source_targets": ["src/core/settlement_schema.py", "src/state/owned_json.py"],
       "tests": ["FCIS-T-478-020"],
       "evidence": ["event JSON boundary tests"],

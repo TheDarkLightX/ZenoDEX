@@ -7,8 +7,38 @@ from typing import cast
 
 from src.state import snapshot_combinators
 
+from ..core.settlement_schema import (
+    SETTLEMENT_ADMISSION_SCHEMA_ID_V1,
+    SETTLEMENT_ENUM_REGISTRATIONS_V1,
+    SETTLEMENT_RECORD_REGISTRATIONS_V1,
+    SETTLEMENT_SCHEMA_REGISTRATIONS_V1,
+)
+from ..core.settlement_snapshots import (
+    OwnedSettlementV1,
+    _construct_settlement_record,
+    _project_owned_settlement,
+)
 from ..state.canonical import bounded_json_utf8_size, canonical_json_bytes
+from .intent_schema import (
+    INTENT_ADMISSION_SCHEMA_ID_V1,
+    INTENT_BATCH_ADMISSION_SCHEMA_ID_V1,
+    INTENT_ENUM_REGISTRATIONS_V1,
+    INTENT_RECORD_REGISTRATIONS_V1,
+    INTENT_SCHEMA_REGISTRATIONS_V1,
+)
+from .intent_snapshots import (
+    OwnedIntentV1,
+    _construct_intent_record,
+    _project_owned_intent,
+)
 from .owned_collections import OwnedEnumV1, OwnedMapV1
+from .owned_json import (
+    JSON_SCHEMA_REGISTRATIONS_V1,
+    OWNED_JSON_OBJECT_ADMISSION_SCHEMA_ID_V1,
+    OWNED_JSON_VALUE_ADMISSION_SCHEMA_ID_V1,
+    OwnedJsonValueV1,
+    _project_owned_json_unchecked,
+)
 from .snapshot_combinators import (
     AdmitOk,
     AdmitReject,
@@ -61,6 +91,11 @@ FCIS_REQUIRED_REGISTRY_IDS = (
     "zenodex/fcis/state/oracle/v1",
     "zenodex/fcis/state/fee-accumulator/v1",
     "zenodex/fcis/state/perps/v1",
+    "zenodex/fcis/authority/json-value/v1",
+    "zenodex/fcis/authority/json-object/v1",
+    "zenodex/fcis/authority/intent/v1",
+    "zenodex/fcis/authority/intent-batch/v1",
+    "zenodex/fcis/authority/settlement/v1",
 )
 FCIS_REGISTERED_REGISTRY_IDS = (
     "zenodex/fcis/state/balance-table/v1",
@@ -72,15 +107,42 @@ FCIS_REGISTERED_REGISTRY_IDS = (
     "zenodex/fcis/state/oracle/v1",
     "zenodex/fcis/state/fee-accumulator/v1",
     "zenodex/fcis/state/perps/v1",
+    "zenodex/fcis/authority/json-value/v1",
+    "zenodex/fcis/authority/json-object/v1",
+    "zenodex/fcis/authority/intent/v1",
+    "zenodex/fcis/authority/intent-batch/v1",
+    "zenodex/fcis/authority/settlement/v1",
+)
+
+_KNOWN_ADMISSION_SCHEMA_IDS_V1 = (
+    *KNOWN_STATE_ADMISSION_SCHEMA_IDS_V1,
+    OWNED_JSON_VALUE_ADMISSION_SCHEMA_ID_V1,
+    OWNED_JSON_OBJECT_ADMISSION_SCHEMA_ID_V1,
+    INTENT_ADMISSION_SCHEMA_ID_V1,
+    INTENT_BATCH_ADMISSION_SCHEMA_ID_V1,
+    SETTLEMENT_ADMISSION_SCHEMA_ID_V1,
 )
 
 _STATE_ADMISSION_REGISTRY_V1 = build_admission_registry_v1(
     schema_revision=FCIS_STATE_SCHEMA_REVISION_V1,
     enum_tag_type=StateEnumTagV1,
     record_tag_type=StateRecordTagV1,
-    enum_registrations=ENUM_REGISTRATIONS_V1,
-    record_registrations=RECORD_REGISTRATIONS_V1,
-    schema_registrations=SCHEMA_REGISTRATIONS_V1,
+    enum_registrations=(
+        *ENUM_REGISTRATIONS_V1,
+        *INTENT_ENUM_REGISTRATIONS_V1,
+        *SETTLEMENT_ENUM_REGISTRATIONS_V1,
+    ),
+    record_registrations=(
+        *RECORD_REGISTRATIONS_V1,
+        *INTENT_RECORD_REGISTRATIONS_V1,
+        *SETTLEMENT_RECORD_REGISTRATIONS_V1,
+    ),
+    schema_registrations=(
+        *SCHEMA_REGISTRATIONS_V1,
+        *JSON_SCHEMA_REGISTRATIONS_V1,
+        *INTENT_SCHEMA_REGISTRATIONS_V1,
+        *SETTLEMENT_SCHEMA_REGISTRATIONS_V1,
+    ),
 )
 if _STATE_ADMISSION_REGISTRY_V1.schema_ids != FCIS_REGISTERED_REGISTRY_IDS:
     raise RuntimeError("state admission registry manifest drift")
@@ -233,6 +295,16 @@ def _construct_state_record(
             cast(int, _record_field(values, 0, "version")),
             cast(OwnedMapV1[str, object], _record_field(values, 1, "markets")),
         )
+    if record_tag is StateRecordTagV1.INTENT:
+        return _construct_intent_record(values)
+    if record_tag in (
+        StateRecordTagV1.FILL,
+        StateRecordTagV1.BALANCE_DELTA,
+        StateRecordTagV1.RESERVE_DELTA,
+        StateRecordTagV1.LP_DELTA,
+        StateRecordTagV1.SETTLEMENT,
+    ):
+        return _construct_settlement_record(record_tag, values)
     raise ValueError("unsupported state record tag or field registry drift")
 
 
@@ -257,10 +329,10 @@ def _project_owned(value: object) -> object:
     if type(value) is OwnedMapV1:
         return _project_map(cast(OwnedMapV1[object, object], value))
     if type(value) is CommittedBalanceTableV1:
-        balance = value
+        balance = cast(CommittedBalanceTableV1, value)
         return {"_balances": _project_owned(balance._balances)}
     if type(value) is CommittedLPTableV1:
-        lp = value
+        lp = cast(CommittedLPTableV1, value)
         return {
             "_balances": _project_owned(lp._balances),
             "_last_mint_timestamps": _project_owned(lp._last_mint_timestamps),
@@ -269,10 +341,10 @@ def _project_owned(value: object) -> object:
             "_last_churn_update_timestamps": _project_owned(lp._last_churn_update_timestamps),
         }
     if type(value) is CommittedNonceTableV1:
-        nonce = value
+        nonce = cast(CommittedNonceTableV1, value)
         return {"_last": _project_owned(nonce._last)}
     if type(value) is CommittedPoolStateV1:
-        pool = value
+        pool = cast(CommittedPoolStateV1, value)
         return {
             "pool_id": pool.pool_id,
             "asset0": pool.asset0,
@@ -287,7 +359,7 @@ def _project_owned(value: object) -> object:
             "curve_params": pool.curve_params,
         }
     if type(value) is CommittedVaultStateV1:
-        vault = value
+        vault = cast(CommittedVaultStateV1, value)
         return {
             "acc_reward_per_share": vault.acc_reward_per_share,
             "last_update_acc": vault.last_update_acc,
@@ -296,16 +368,16 @@ def _project_owned(value: object) -> object:
             "staked_lp_shares": vault.staked_lp_shares,
         }
     if type(value) is CommittedOracleStateV1:
-        oracle = value
+        oracle = cast(CommittedOracleStateV1, value)
         return {
             "price_timestamp": oracle.price_timestamp,
             "max_staleness_seconds": oracle.max_staleness_seconds,
         }
     if type(value) is CommittedFeeAccumulatorStateV1:
-        fees = value
+        fees = cast(CommittedFeeAccumulatorStateV1, value)
         return {"dust": fees.dust}
     if type(value) is CommittedPerpAccountStateV1:
-        account = value
+        account = cast(CommittedPerpAccountStateV1, value)
         return {
             "position_base": account.position_base,
             "entry_price_e8": account.entry_price_e8,
@@ -315,7 +387,7 @@ def _project_owned(value: object) -> object:
             "liquidated_this_step": account.liquidated_this_step,
         }
     if type(value) is CommittedPerpMarketStateV1:
-        isolated = value
+        isolated = cast(CommittedPerpMarketStateV1, value)
         return {
             "quote_asset": isolated.quote_asset,
             "global_state": _project_owned(isolated.global_state),
@@ -323,7 +395,7 @@ def _project_owned(value: object) -> object:
             "kind": isolated.kind,
         }
     if type(value) is CommittedPerpClearinghouse2pMarketStateV1:
-        ch2p = value
+        ch2p = cast(CommittedPerpClearinghouse2pMarketStateV1, value)
         return {
             "quote_asset": ch2p.quote_asset,
             "account_a_pubkey": ch2p.account_a_pubkey,
@@ -332,7 +404,7 @@ def _project_owned(value: object) -> object:
             "kind": ch2p.kind,
         }
     if type(value) is CommittedPerpClearinghouse3pTransferMarketStateV1:
-        ch3p = value
+        ch3p = cast(CommittedPerpClearinghouse3pTransferMarketStateV1, value)
         return {
             "quote_asset": ch3p.quote_asset,
             "account_a_pubkey": ch3p.account_a_pubkey,
@@ -342,7 +414,7 @@ def _project_owned(value: object) -> object:
             "kind": ch3p.kind,
         }
     if type(value) is CommittedPerpClearinghouseNpAccountV1:
-        np_account = value
+        np_account = cast(CommittedPerpClearinghouseNpAccountV1, value)
         return {
             "pubkey": np_account.pubkey,
             "position_base": np_account.position_base,
@@ -352,7 +424,7 @@ def _project_owned(value: object) -> object:
             "nonce": np_account.nonce,
         }
     if type(value) is CommittedPerpClearinghouseNpPendingIntentV1:
-        pending = value
+        pending = cast(CommittedPerpClearinghouseNpPendingIntentV1, value)
         return {
             "pubkey": pending.pubkey,
             "target_base": pending.target_base,
@@ -362,7 +434,7 @@ def _project_owned(value: object) -> object:
             "expiry_epoch": pending.expiry_epoch,
         }
     if type(value) is CommittedPerpClearinghouseNpMarketStateV1:
-        np_market = value
+        np_market = cast(CommittedPerpClearinghouseNpMarketStateV1, value)
         return {
             "quote_asset": np_market.quote_asset,
             "global_state": _project_owned(np_market.global_state),
@@ -371,13 +443,13 @@ def _project_owned(value: object) -> object:
             "kind": np_market.kind,
         }
     if type(value) is CommittedPerpsStateV1:
-        perps = value
+        perps = cast(CommittedPerpsStateV1, value)
         return {"version": perps.version, "markets": _project_owned(perps.markets)}
     raise TypeError("canonical state projection received an unsupported exact type")
 
 
 def _canonical_state_encoder(schema_id: str, value: object) -> bytes:
-    if type(schema_id) is not str or schema_id not in KNOWN_STATE_ADMISSION_SCHEMA_IDS_V1:
+    if type(schema_id) is not str or schema_id not in _KNOWN_ADMISSION_SCHEMA_IDS_V1:
         raise ValueError("unknown state admission schema ID")
     expected_types: dict[str, tuple[type[object], ...]] = {
         BALANCE_TABLE_ADMISSION_SCHEMA_ID_V1: (CommittedBalanceTableV1,),
@@ -389,6 +461,18 @@ def _canonical_state_encoder(schema_id: str, value: object) -> bytes:
         ORACLE_ADMISSION_SCHEMA_ID_V1: (type(None), CommittedOracleStateV1),
         FEE_ACCUMULATOR_ADMISSION_SCHEMA_ID_V1: (CommittedFeeAccumulatorStateV1,),
         PERPS_ADMISSION_SCHEMA_ID_V1: (type(None), CommittedPerpsStateV1),
+        OWNED_JSON_VALUE_ADMISSION_SCHEMA_ID_V1: (
+            type(None),
+            bool,
+            int,
+            str,
+            tuple,
+            OwnedMapV1,
+        ),
+        OWNED_JSON_OBJECT_ADMISSION_SCHEMA_ID_V1: (OwnedMapV1,),
+        INTENT_ADMISSION_SCHEMA_ID_V1: (OwnedIntentV1,),
+        INTENT_BATCH_ADMISSION_SCHEMA_ID_V1: (tuple,),
+        SETTLEMENT_ADMISSION_SCHEMA_ID_V1: (OwnedSettlementV1,),
     }
     if type(value) not in expected_types[schema_id]:
         raise TypeError("state admission schema and result type disagree")
@@ -396,7 +480,23 @@ def _canonical_state_encoder(schema_id: str, value: object) -> bytes:
         pool_map = cast(OwnedMapV1[str, CommittedPoolStateV1], value)
         if any(pool_id != pool.pool_id for pool_id, pool in pool_map.entries):
             raise ValueError("pool map key does not bind its committed pool")
-    projection = _project_owned(value)
+    projection: object
+    if schema_id in (
+        OWNED_JSON_VALUE_ADMISSION_SCHEMA_ID_V1,
+        OWNED_JSON_OBJECT_ADMISSION_SCHEMA_ID_V1,
+    ):
+        projection = _project_owned_json_unchecked(cast(OwnedJsonValueV1, value))
+    elif schema_id == INTENT_ADMISSION_SCHEMA_ID_V1:
+        projection = _project_owned_intent(cast(OwnedIntentV1, value))
+    elif schema_id == INTENT_BATCH_ADMISSION_SCHEMA_ID_V1:
+        intent_batch = cast(tuple[OwnedIntentV1, ...], value)
+        if any(type(intent) is not OwnedIntentV1 for intent in intent_batch):
+            raise TypeError("intent-batch admission returned a foreign value")
+        projection = [_project_owned_intent(intent) for intent in intent_batch]
+    elif schema_id == SETTLEMENT_ADMISSION_SCHEMA_ID_V1:
+        projection = _project_owned_settlement(cast(OwnedSettlementV1, value))
+    else:
+        projection = _project_owned(value)
     bounded_json_utf8_size(
         projection,
         max_bytes=4_000_000,

@@ -108,6 +108,23 @@ class _SourceTagged:
     right: str | None = None
 
 
+@dataclass
+class _AlternateSourceTagged:
+    module: str
+    kind: _Kind
+    left: int | None = None
+    right: str | None = None
+
+
+@dataclass
+class _DriftedSourceTagged:
+    module: str
+    kind: _Kind
+    left: int | None = None
+    right: str | None = None
+    undeclared: int = 0
+
+
 @final
 @dataclass(frozen=True, slots=True)
 class _OwnedTagged:
@@ -214,7 +231,11 @@ def _construct_wrong_point(
     )
 
 
-def _registry(schema: object):
+def _registry(
+    schema: object,
+    *,
+    tagged_additional_source_types: tuple[type[object], ...] = (),
+):
     return build_admission_registry_v1(
         schema_revision="test-v1",
         enum_tag_type=_EnumTag,
@@ -233,6 +254,7 @@ def _registry(schema: object):
                 _RecordTag.TAGGED,
                 _SourceTagged,
                 _OwnedTagged,
+                additional_source_types=tagged_additional_source_types,
             ),
         ),
         schema_registrations=(SchemaRegistrationV1("test/root/v1", schema),),
@@ -269,6 +291,21 @@ def _admit(schema: object, source: object, *, limits=None, encoder=_canonical_by
         source,
         _construct_record,
         encoder,
+    )
+
+
+def _admit_tagged_source_union(schema: object, source: object):
+    return _admit_with_registry_v1(
+        _registry(
+            schema,
+            tagged_additional_source_types=(_AlternateSourceTagged,),
+        ),
+        "test-v1",
+        "test/root/v1",
+        _limits(),
+        source,
+        _construct_record,
+        _canonical_bytes,
     )
 
 
@@ -660,9 +697,7 @@ def test_exact_keyed_map_declares_optional_members_without_adapter_logic() -> No
     explicit_none = _admit(schema, {"optional": None, "required": 2})
     assert type(absent) is AdmitOk
     assert type(explicit_none) is AdmitOk
-    assert cast(OwnedMapV1[object, object], absent.value).entries == (
-        ("required", 2),
-    )
+    assert cast(OwnedMapV1[object, object], absent.value).entries == (("required", 2),)
     assert cast(OwnedMapV1[object, object], explicit_none.value).entries == (
         ("required", 2),
         ("optional", None),
@@ -1343,9 +1378,7 @@ def test_tagged_record_supports_nonleading_discriminant_and_exhaustive_registry(
     assert _admit(
         incomplete,
         _SourceTagged("TauSwap", _Kind.LEFT, left=2),
-    ) == AdmitReject(
-        AdmitCode.REGISTRY_DRIFT, ()
-    )
+    ) == AdmitReject(AdmitCode.REGISTRY_DRIFT, ())
 
 
 def test_tagged_record_rejects_variant_that_relies_on_constructor_defaults() -> None:
@@ -1934,11 +1967,62 @@ def test_registry_records_are_declarative_and_carry_no_behavior() -> None:
         "tag",
         "source_type",
         "owned_type",
+        "additional_source_types",
     )
     assert tuple(field.name for field in dataclass_fields(SchemaRegistrationV1)) == (
         "schema_id",
         "schema",
     )
+
+
+def test_tagged_record_exact_source_union_is_admitted_inside_the_interpreter() -> None:
+    schema = TaggedRecordOf(
+        _RecordTag.TAGGED,
+        "kind",
+        _EnumTag.KIND,
+        (
+            TaggedVariantV1(
+                _Kind.LEFT,
+                (
+                    DeclaredFieldV1("module", ExactString(StringRuleV1.EXACT_TEXT, 32)),
+                    DeclaredFieldV1("kind", ExactEnum(_EnumTag.KIND)),
+                    DeclaredFieldV1("left", OptionalValue(ExactInt(0, 10))),
+                    DeclaredFieldV1(
+                        "right",
+                        OptionalValue(ExactString(StringRuleV1.EXACT_TEXT, 32)),
+                    ),
+                ),
+            ),
+            TaggedVariantV1(
+                _Kind.RIGHT,
+                (
+                    DeclaredFieldV1("module", ExactString(StringRuleV1.EXACT_TEXT, 32)),
+                    DeclaredFieldV1("kind", ExactEnum(_EnumTag.KIND)),
+                    DeclaredFieldV1("left", OptionalValue(ExactInt(0, 10))),
+                    DeclaredFieldV1(
+                        "right",
+                        OptionalValue(ExactString(StringRuleV1.EXACT_TEXT, 32)),
+                    ),
+                ),
+            ),
+        ),
+    )
+    result = _admit_tagged_source_union(
+        schema,
+        _AlternateSourceTagged("TauSwap", _Kind.LEFT, left=3),
+    )
+    assert type(result) is AdmitOk
+    assert type(result.value) is _OwnedTagged
+    assert result.value.module == "TauSwap"
+    assert result.value.left == 3
+
+
+def test_record_source_union_rejects_declared_field_drift_at_registry_build() -> None:
+    with pytest.raises(ValueError, match="source field drift"):
+        _registry(
+            ExactInt(0, 1),
+            tagged_additional_source_types=(_DriftedSourceTagged,),
+        )
 
 
 def test_internal_engine_rejects_dynamic_resolver_before_source_inspection() -> None:

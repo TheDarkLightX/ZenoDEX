@@ -54,12 +54,14 @@ def test_e11_profiles_keep_review_units_and_final_mount_distinct() -> None:
     mixed_settlement_consumer = Path("src/core/settlement_strong_validator.py")
     legacy = Path("src/state/legacy_state_snapshots.py")
     owned_intent = Path("src/state/intent_snapshots.py")
+    intent_registry = Path("src/state/intent_field_registry.py")
 
     assert dex not in STATE_SUBSTRATE_AUTHORITY_PATHS
     assert mixed_settlement_consumer not in STATE_SUBSTRATE_AUTHORITY_PATHS
     assert legacy not in STATE_SUBSTRATE_AUTHORITY_PATHS
     assert owned_intent not in STATE_SUBSTRATE_AUTHORITY_PATHS
     assert owned_intent in AUTHORITY_GRAPH_AUTHORITY_PATHS
+    assert intent_registry in AUTHORITY_GRAPH_AUTHORITY_PATHS
     assert dex not in AUTHORITY_GRAPH_AUTHORITY_PATHS
     assert legacy not in AUTHORITY_GRAPH_AUTHORITY_PATHS
     assert dex in FINAL_MOUNT_AUTHORITY_PATHS
@@ -67,6 +69,80 @@ def test_e11_profiles_keep_review_units_and_final_mount_distinct() -> None:
     assert legacy in FINAL_MOUNT_AUTHORITY_PATHS
     assert set(STATE_SUBSTRATE_AUTHORITY_PATHS) < set(FINAL_MOUNT_AUTHORITY_PATHS)
     assert set(AUTHORITY_GRAPH_AUTHORITY_PATHS) < set(FINAL_MOUNT_AUTHORITY_PATHS)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+def snapshot_intent(source: object) -> object:
+    projected = tuple(vars(source).items())
+    return _admit_graph_value('intent', projected)
+""",
+        """
+def admit_intent_batch(source: object) -> object:
+    if type(source) is not list:
+        raise TypeError
+    admitted = _admit_graph_value('intent-batch', source)
+    return admitted
+""",
+        """
+def snapshot_intent(source: object) -> object:
+    admitted = _admit_graph_value('intent', source)
+    if type(admitted) is not object:
+        raise RuntimeError
+    return source
+""",
+        """
+def snapshot_intent(source: object) -> object:
+    admitted = _admit_graph_value('intent', source)
+    if type(admitted) is not object:
+        raise RuntimeError
+    return project(source)
+""",
+        """
+def snapshot_intent(source: object) -> object:
+    admitted = _admit_graph_value('intent', source)
+    if type(admitted) is not object:
+        raise RuntimeError
+    return replacement(admitted)
+""",
+        """
+def _replace_result(function):
+    def replacement(source):
+        return source
+    return replacement
+
+@_replace_result
+def snapshot_intent(source: object) -> object:
+    admitted = _admit_graph_value('intent', source)
+    if type(admitted) is not object:
+        raise RuntimeError
+    return admitted
+""",
+        """
+from dataclasses import dataclass
+@dataclass(frozen=True, slots=True)
+class _IntentAdmissionSourceV1:
+    value: object
+""",
+    ],
+)
+def test_checker_rejects_manual_intent_source_projection(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    relative = Path("src/state/intent_snapshots.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(source, encoding="utf-8")
+    report = check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+    )
+    assert "MANUAL_SOURCE_PROJECTION" in _codes(report)
 
 
 def _run(tmp_path: Path, source: str, *, unrelated: str | None = None):

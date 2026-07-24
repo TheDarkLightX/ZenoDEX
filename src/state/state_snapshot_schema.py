@@ -114,6 +114,8 @@ from .state_snapshot_values import (
 
 class StateEnumTagV1(Enum):
     POOL_STATUS = "pool_status"
+    INTENT_KIND = "intent_kind"
+    FILL_ACTION = "fill_action"
 
 
 class StateRecordTagV1(Enum):
@@ -132,6 +134,23 @@ class StateRecordTagV1(Enum):
     PERP_CLEARINGHOUSE_NP_PENDING_INTENT = "perp_clearinghouse_np_pending_intent"
     PERP_CLEARINGHOUSE_NP_MARKET = "perp_clearinghouse_np_market"
     PERPS = "perps"
+    INTENT = "intent"
+    FILL = "fill"
+    BALANCE_DELTA = "balance_delta"
+    RESERVE_DELTA = "reserve_delta"
+    LP_DELTA = "lp_delta"
+    SETTLEMENT = "settlement"
+
+
+def state_enum_tag_ordinal_v1(tag: StateEnumTagV1) -> int:
+    """Return the schema-revision-pinned registry ordinal for one enum tag."""
+
+    if type(tag) is not StateEnumTagV1:
+        raise TypeError("state enum tag must be exact StateEnumTagV1")
+    for ordinal, declared in enumerate(StateEnumTagV1):
+        if declared is tag:
+            return ordinal
+    raise ValueError("state enum tag registry drift")
 
 
 BALANCE_TABLE_ADMISSION_SCHEMA_ID_V1 = "zenodex/fcis/state/balance-table/v1"
