@@ -36,6 +36,7 @@ REQUIRED_SUPPORTED_IDS = frozenset(
 
 REQUIRED_GAP_IDS = frozenset(
     {
+        "proof_required_authenticated_authority",
         "uniform_batch_upba_v2_v3_real_proof",
         "oracle_critical_action_real_proof",
         "zusd_lifecycle_real_proof",
@@ -49,6 +50,7 @@ REQUIRED_GAP_IDS = frozenset(
 
 REQUIRED_NON_CLAIMS = frozenset(
     {
+        "does_not_claim_proof_required_cryptographic_authority",
         "does_not_claim_complete_spot_block_zk_proof",
         "does_not_claim_upba_zk_execution",
         "does_not_claim_oracle_truth_or_governance",

@@ -3,6 +3,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 PRODUCTION_ROOTS = tuple(ROOT / name for name in ("src", "tools", "bin", "scripts"))
 PRODUCTION_FILES = (ROOT / "sitecustomize.py",)
@@ -12,6 +14,24 @@ DURABLE_STORE = ROOT / "src/integration/recursive_stark_admission_store.py"
 DURABLE_ENGINE = ROOT / "src/integration/_recursive_stark_admission_store_engine.py"
 DURABLE_HASHES = ROOT / "src/integration/_recursive_stark_admission_store_hashes.py"
 SETTLEMENT_AUTHORITY = ROOT / "src/core/_zrpf_settlement_commit_authority.py"
+SETTLEMENT_CERTIFICATE_AUTHORITY = (
+    ROOT / "src/core/_zrpf_settlement_certificate_authority.py"
+)
+SETTLEMENT_VERIFIER_ADAPTER = (
+    ROOT / "src/integration/zrpf_settlement_verifier_adapter.py"
+)
+SOURCE_OPENED_V6_VERIFIER_ADAPTER = (
+    ROOT / "src/integration/zrpf_source_opened_spot_v6_verifier_adapter.py"
+)
+SPOT_V7_FIRECRACKER_AUTHORITY = (
+    ROOT / "src/integration/_zrpf_spot_v7_firecracker_authority.py"
+)
+SPOT_V7_FIRECRACKER_OUTPUT = (
+    ROOT / "src/integration/_zrpf_spot_v7_firecracker_output.py"
+)
+SPOT_V7_ATOMIC_STORE = (
+    ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
+)
 
 PRIVATE_CAPABILITY_TYPE = "_AuthenticatedRecursiveStarkRootFacts"
 PRIVATE_SEAL = "_AUTHENTICATED_FACTS_SEAL"
@@ -21,6 +41,27 @@ PRIVATE_PROVENANCE = "_RecursiveStarkVerificationProvenance"
 PRIVATE_SNAPSHOT = "_RecursiveStarkAdmissionIndexSnapshot"
 PRIVATE_PLANNER = "_plan_authenticated_recursive_stark_root"
 PRIVATE_DURABLE_COMMIT = "_commit_authenticated_recursive_stark_root"
+PRIVATE_SOURCE_OPENED_V6_SEAL = "_seal_verified_result"
+PRIVATE_FIRECRACKER_AUTHORITY_NAMES = frozenset(
+    {
+        "_GovernedRuntimeSealV1",
+        "_GovernedBinderSealV1",
+        "_GOVERNED_RUNTIME_SEAL_V1",
+        "_GOVERNED_BINDER_SEAL_V1",
+        "_GovernedJailedFirecrackerExecutionV1",
+        "_GovernedFirecrackerSpotV7SettlementV1",
+        "_bind_governed_firecracker_spot_v7_settlement_v1",
+        "_require_governed_firecracker_spot_v7_authority_available_v1",
+        "_commit_governed_firecracker_capability",
+        "_candidate_for_binder",
+        "_candidate_for_atomic_store",
+        "_DecodedCommittedSpotV7OutputV1",
+        "_BoundCommittedSpotV7CandidateV1",
+        "_decode_exact_committed_spot_v7_output_v1",
+        "_bind_decoded_spot_v7_output_to_candidate_v1",
+        "_revalidate_bound_spot_v7_candidate_v1",
+    }
+)
 PRIVATE_AUTHORITY_NAMES = frozenset(
     {
         PRIVATE_CAPABILITY_TYPE,
@@ -31,6 +72,11 @@ PRIVATE_AUTHORITY_NAMES = frozenset(
         PRIVATE_SNAPSHOT,
         PRIVATE_PLANNER,
     }
+)
+PROTECTED_AUTHORITY_NAMES = (
+    PRIVATE_AUTHORITY_NAMES
+    | frozenset({PRIVATE_SOURCE_OPENED_V6_SEAL})
+    | PRIVATE_FIRECRACKER_AUTHORITY_NAMES
 )
 PRIVATE_ADAPTER_IMPORTS = frozenset(
     {
@@ -44,6 +90,17 @@ PRIVATE_STORE_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE, PRIVATE_PLANNER})
 PRIVATE_ENGINE_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE, PRIVATE_SNAPSHOT})
 PRIVATE_HASH_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE})
 PRIVATE_SETTLEMENT_AUTHORITY_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE})
+PRIVATE_SETTLEMENT_CERTIFICATE_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE})
+PRIVATE_SETTLEMENT_VERIFIER_IMPORTS = frozenset({PRIVATE_MINT, PRIVATE_PROVENANCE})
+PRIVATE_SOURCE_OPENED_V6_REFERENCES = PRIVATE_SETTLEMENT_VERIFIER_IMPORTS | frozenset(
+    {PRIVATE_SOURCE_OPENED_V6_SEAL}
+)
+PRIVATE_FIRECRACKER_STORE_REFERENCES = frozenset(
+    {
+        "_GovernedFirecrackerSpotV7SettlementV1",
+        "_require_governed_firecracker_spot_v7_authority_available_v1",
+    }
+)
 RETIRED_PUBLIC_AUTHORITY_NAMES = frozenset(
     {
         "VerifiedRecursiveStarkRootFacts",
@@ -57,7 +114,7 @@ DATA_ONLY_ADMISSION_RESULT = "RecursiveStarkAdmissionResult"
 def test_private_admission_symbols_are_absent_from_other_production_modules() -> None:
     violations: list[str] = []
     for path in _production_python_paths():
-        if path == CORE:
+        if path in {CORE, SPOT_V7_FIRECRACKER_AUTHORITY, SPOT_V7_FIRECRACKER_OUTPUT}:
             continue
         allowed = {
             PINNED_ADAPTER: PRIVATE_ADAPTER_IMPORTS,
@@ -65,6 +122,10 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             DURABLE_ENGINE: PRIVATE_ENGINE_IMPORTS,
             DURABLE_HASHES: PRIVATE_HASH_IMPORTS,
             SETTLEMENT_AUTHORITY: PRIVATE_SETTLEMENT_AUTHORITY_IMPORTS,
+            SETTLEMENT_CERTIFICATE_AUTHORITY: PRIVATE_SETTLEMENT_CERTIFICATE_IMPORTS,
+            SETTLEMENT_VERIFIER_ADAPTER: PRIVATE_SETTLEMENT_VERIFIER_IMPORTS,
+            SOURCE_OPENED_V6_VERIFIER_ADAPTER: PRIVATE_SOURCE_OPENED_V6_REFERENCES,
+            SPOT_V7_ATOMIC_STORE: PRIVATE_FIRECRACKER_STORE_REFERENCES,
         }.get(path, frozenset())
         tree = _parse(path)
         for node in ast.walk(tree):
@@ -73,6 +134,246 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 violations.append(f"{path.relative_to(ROOT)}:{_line(node)}:{name}")
 
     assert violations == []
+
+
+@pytest.mark.parametrize(
+    "path",
+    (SPOT_V7_FIRECRACKER_AUTHORITY, SPOT_V7_FIRECRACKER_OUTPUT),
+)
+def test_firecracker_authority_symbols_have_no_public_alias_or_export(path: Path) -> None:
+    tree = _parse(path)
+
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _public_top_level_authority_reachability(tree) == []
+
+
+def test_firecracker_authority_ratchet_rejects_seal_and_binder_alias_mutants() -> None:
+    source = SPOT_V7_FIRECRACKER_AUTHORITY.read_text(encoding="utf-8")
+    mutant = ast.parse(
+        source
+        + "\npublic_runtime_seal = _GOVERNED_RUNTIME_SEAL_V1\n"
+        + "public_settlement_binder = _bind_governed_firecracker_spot_v7_settlement_v1\n",
+        filename=str(SPOT_V7_FIRECRACKER_AUTHORITY),
+    )
+
+    assert _public_authority_alias_violations(mutant) == [
+        "public_runtime_seal:_GOVERNED_RUNTIME_SEAL_V1",
+        "public_settlement_binder:_bind_governed_firecracker_spot_v7_settlement_v1",
+    ]
+
+    public_wrapper = ast.parse(
+        """
+def public_capability(runtime):
+    return _GovernedFirecrackerSpotV7SettlementV1(
+        runtime_execution=runtime,
+        seal=_GOVERNED_BINDER_SEAL_V1,
+    )
+""",
+        filename="public_firecracker_capability_wrapper.py",
+    )
+    assert _public_top_level_authority_reachability(public_wrapper) == [
+        "public_capability"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("path", "class_name", "method_name"),
+    [
+        (
+            SETTLEMENT_VERIFIER_ADAPTER,
+            "PinnedSettlementCertificateVerifierV1",
+            "_verify_authenticated_certificate",
+        ),
+        (
+            SOURCE_OPENED_V6_VERIFIER_ADAPTER,
+            "PinnedSourceOpenedSpotSettlementVerifierV6",
+            "_seal_verified_result",
+        ),
+    ],
+)
+def test_settlement_adapters_mint_recursive_authority_once_inside_verification(
+    path: Path,
+    class_name: str,
+    method_name: str,
+) -> None:
+    tree = _parse(path)
+    verifier = _class(tree, class_name)
+    minting_method = _method(verifier, method_name)
+
+    private_imports = {
+        (imported.name, imported.asname)
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "src.core.recursive_stark_admission"
+        for imported in node.names
+        if imported.name in PRIVATE_AUTHORITY_NAMES
+    }
+    assert private_imports == {
+        (name, None) for name in PRIVATE_SETTLEMENT_VERIFIER_IMPORTS
+    }
+    assert (
+        _reserved_adapter_binding_violations(
+            tree,
+            allowed_imports=PRIVATE_SETTLEMENT_VERIFIER_IMPORTS,
+            allowed_definitions=(
+                frozenset({PRIVATE_SOURCE_OPENED_V6_SEAL})
+                if path == SOURCE_OPENED_V6_VERIFIER_ADAPTER
+                else frozenset()
+            ),
+        )
+        == []
+    )
+    assert _private_adapter_reference_violations(tree, minting_method) == []
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _direct_name_call_count(minting_method, PRIVATE_MINT) == 1
+    assert _direct_name_call_count(minting_method, PRIVATE_PROVENANCE) == 1
+    for method in verifier.body:
+        if not isinstance(method, ast.FunctionDef) or method is minting_method:
+            continue
+        assert _direct_name_call_count(method, PRIVATE_MINT) == 0
+        assert _direct_name_call_count(method, PRIVATE_PROVENANCE) == 0
+
+
+def test_source_opened_v6_authority_seal_has_one_ordered_production_caller() -> None:
+    tree = _parse(SOURCE_OPENED_V6_VERIFIER_ADAPTER)
+    verifier = _class(tree, "PinnedSourceOpenedSpotSettlementVerifierV6")
+    verify_and_seal = _method(verifier, "_verify_and_seal")
+    seal = _method(verifier, PRIVATE_SOURCE_OPENED_V6_SEAL)
+
+    calls = {
+        name: [
+            node
+            for node in ast.walk(verify_and_seal)
+            if isinstance(node, ast.Call) and _call_name(node) == name
+        ]
+        for name in (
+            "_execute_verifier_once",
+            "_parse_source_opened_spot_v6_response",
+            PRIVATE_SOURCE_OPENED_V6_SEAL,
+        )
+    }
+    assert {name: len(nodes) for name, nodes in calls.items()} == {
+        "_execute_verifier_once": 1,
+        "_parse_source_opened_spot_v6_response": 1,
+        PRIVATE_SOURCE_OPENED_V6_SEAL: 1,
+    }
+    assert (
+        _line(calls["_execute_verifier_once"][0])
+        < _line(calls["_parse_source_opened_spot_v6_response"][0])
+        < _line(calls[PRIVATE_SOURCE_OPENED_V6_SEAL][0])
+        < _line(seal)
+    )
+
+    callers = _production_authority_method_callers(PRIVATE_SOURCE_OPENED_V6_SEAL)
+    assert len(callers) == 1
+    assert callers[0] == (
+        "src/integration/zrpf_source_opened_spot_v6_verifier_adapter.py:"
+        f"{_line(calls[PRIVATE_SOURCE_OPENED_V6_SEAL][0])}"
+    )
+
+
+def test_source_opened_v6_authority_seal_rejects_public_alias_and_external_call_mutants() -> None:
+    source = SOURCE_OPENED_V6_VERIFIER_ADAPTER.read_text(encoding="utf-8")
+    alias_mutant = ast.parse(
+        source
+        + "\n\npublic_authority_alias = "
+        + "PinnedSourceOpenedSpotSettlementVerifierV6._seal_verified_result\n",
+        filename=str(SOURCE_OPENED_V6_VERIFIER_ADAPTER),
+    )
+    external_call_mutant = ast.parse(
+        "verifier._seal_verified_result(parsed, request)\n",
+        filename="external_authority_bypass.py",
+    )
+    class_alias_mutant = ast.parse(
+        source,
+        filename=str(SOURCE_OPENED_V6_VERIFIER_ADAPTER),
+    )
+    mutant_verifier = _class(
+        class_alias_mutant,
+        "PinnedSourceOpenedSpotSettlementVerifierV6",
+    )
+    mutant_verifier.body.append(
+        ast.parse(
+            f"public_seal = {PRIVATE_SOURCE_OPENED_V6_SEAL}\n",
+            filename="class_scope_authority_alias.py",
+        ).body[0]
+    )
+
+    assert _public_authority_alias_violations(alias_mutant) == [
+        f"public_authority_alias:{PRIVATE_SOURCE_OPENED_V6_SEAL}"
+    ]
+    assert _authority_method_call_lines(
+        external_call_mutant,
+        PRIVATE_SOURCE_OPENED_V6_SEAL,
+    ) == [1]
+    assert _public_authority_alias_violations(class_alias_mutant) == [
+        "PinnedSourceOpenedSpotSettlementVerifierV6.public_seal:"
+        f"{PRIVATE_SOURCE_OPENED_V6_SEAL}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [SETTLEMENT_VERIFIER_ADAPTER, SOURCE_OPENED_V6_VERIFIER_ADAPTER],
+)
+def test_settlement_adapter_ratchet_rejects_public_recursive_authority_alias_mutant(
+    path: Path,
+) -> None:
+    source = path.read_text(encoding="utf-8")
+    mutant = ast.parse(
+        source + f"\n\npublic_mint_alias = {PRIVATE_MINT}\n",
+        filename=str(path),
+    )
+
+    assert _public_authority_alias_violations(mutant) == [
+        f"public_mint_alias:{PRIVATE_MINT}"
+    ]
+    assert _private_adapter_reference_violations(
+        mutant,
+        _method(
+            _class(
+                mutant,
+                (
+                    "PinnedSettlementCertificateVerifierV1"
+                    if path == SETTLEMENT_VERIFIER_ADAPTER
+                    else "PinnedSourceOpenedSpotSettlementVerifierV6"
+                ),
+            ),
+            (
+                "_verify_authenticated_certificate"
+                if path == SETTLEMENT_VERIFIER_ADAPTER
+                else "_seal_verified_result"
+            ),
+        ),
+    ) != []
+
+
+@pytest.mark.parametrize(
+    "path",
+    [SETTLEMENT_VERIFIER_ADAPTER, SOURCE_OPENED_V6_VERIFIER_ADAPTER],
+)
+def test_settlement_adapter_ratchet_rejects_reserved_binding_and_export_mutants(
+    path: Path,
+) -> None:
+    source = path.read_text(encoding="utf-8")
+    shadow = ast.parse(
+        source + f"\n\ndef {PRIVATE_MINT}(*_args, **_kwargs):\n    return None\n",
+        filename=str(path),
+    )
+    exported = ast.parse(
+        source + f'\n\n__all__ = ["{PRIVATE_MINT}"]\n',
+        filename=str(path),
+    )
+
+    assert (
+        _reserved_adapter_binding_violations(
+            shadow,
+            allowed_imports=PRIVATE_SETTLEMENT_VERIFIER_IMPORTS,
+        )
+        != []
+    )
+    assert _private_authority_all_exports(exported) == [f"__all__:{PRIVATE_MINT}"]
 
 
 def test_automatic_root_python_hook_is_in_governed_inventory() -> None:
@@ -382,10 +683,10 @@ def _parse(path: Path) -> ast.Module:
 def _private_authority_reference(node: ast.AST) -> str | None:
     if isinstance(node, ast.ImportFrom):
         for imported in node.names:
-            if imported.name in PRIVATE_AUTHORITY_NAMES:
+            if imported.name in PROTECTED_AUTHORITY_NAMES:
                 return imported.name
     name = _node_name(node)
-    return name if name in PRIVATE_AUTHORITY_NAMES else None
+    return name if name in PROTECTED_AUTHORITY_NAMES else None
 
 
 def _node_name(node: ast.AST) -> str | None:
@@ -466,9 +767,33 @@ def _public_top_level_authority_reachability(tree: ast.Module) -> list[str]:
 
 
 def _public_authority_alias_violations(tree: ast.Module) -> list[str]:
-    authority_names = _authority_alias_names(tree)
     violations: set[str] = set()
-    for node in tree.body:
+    module_authority_names = _authority_alias_names(tree)
+    violations.update(
+        _public_authority_alias_violations_in_body(
+            tree.body,
+            authority_names=module_authority_names,
+            scope_name="",
+        )
+    )
+    violations.update(
+        _public_class_authority_alias_violations(
+            tree.body,
+            inherited_authority_names=module_authority_names,
+            parent_scope="",
+        )
+    )
+    return sorted(violations)
+
+
+def _public_authority_alias_violations_in_body(
+    body: list[ast.stmt],
+    *,
+    authority_names: set[str],
+    scope_name: str,
+) -> set[str]:
+    violations: set[str] = set()
+    for node in body:
         if not isinstance(node, (ast.Assign, ast.AnnAssign)):
             continue
         sources = (
@@ -477,12 +802,44 @@ def _public_authority_alias_violations(tree: ast.Module) -> list[str]:
         if not sources:
             continue
         violations.update(
-            f"{target}:{source}"
+            f"{scope_name + '.' if scope_name else ''}{target}:{source}"
             for target in _assignment_names(node)
             if not target.startswith("_")
             for source in sources
         )
-    return sorted(violations)
+    return violations
+
+
+def _public_class_authority_alias_violations(
+    body: list[ast.stmt],
+    *,
+    inherited_authority_names: set[str],
+    parent_scope: str,
+) -> set[str]:
+    violations: set[str] = set()
+    for node in body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        scope_name = f"{parent_scope}.{node.name}" if parent_scope else node.name
+        authority_names = _authority_alias_names_in_body(
+            node.body,
+            initial_names=inherited_authority_names,
+        )
+        violations.update(
+            _public_authority_alias_violations_in_body(
+                node.body,
+                authority_names=authority_names,
+                scope_name=scope_name,
+            )
+        )
+        violations.update(
+            _public_class_authority_alias_violations(
+                node.body,
+                inherited_authority_names=authority_names,
+                parent_scope=scope_name,
+            )
+        )
+    return violations
 
 
 def _private_authority_all_exports(tree: ast.Module) -> list[str]:
@@ -507,9 +864,23 @@ def _private_authority_all_exports(tree: ast.Module) -> list[str]:
 
 
 def _authority_alias_names(tree: ast.Module) -> set[str]:
-    authority_names = set(PRIVATE_AUTHORITY_NAMES)
+    authority_names = set(PROTECTED_AUTHORITY_NAMES)
     authority_names.update(_authority_reaching_top_level_function_names(tree))
-    assignments = tuple(node for node in tree.body if isinstance(node, (ast.Assign, ast.AnnAssign)))
+    return _authority_alias_names_in_body(
+        tree.body,
+        initial_names=authority_names,
+    )
+
+
+def _authority_alias_names_in_body(
+    body: list[ast.stmt],
+    *,
+    initial_names: set[str],
+) -> set[str]:
+    authority_names = set(initial_names)
+    assignments = tuple(
+        node for node in body if isinstance(node, (ast.Assign, ast.AnnAssign))
+    )
     while True:
         discovered = {
             target
@@ -535,7 +906,7 @@ def _authority_reaching_top_level_function_names(tree: ast.Module) -> set[str]:
         for node in tree.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
-    authority_reaching = set(PRIVATE_AUTHORITY_NAMES)
+    authority_reaching = set(PROTECTED_AUTHORITY_NAMES)
     while True:
         discovered = {
             name
@@ -586,35 +957,61 @@ def _private_adapter_reference_violations(
     return violations
 
 
-def _reserved_adapter_binding_violations(tree: ast.Module) -> list[str]:
+def _reserved_adapter_binding_violations(
+    tree: ast.Module,
+    *,
+    allowed_imports: frozenset[str] = PRIVATE_ADAPTER_IMPORTS,
+    allowed_definitions: frozenset[str] = frozenset(),
+) -> list[str]:
     parents = _parent_map(tree)
     violations: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if node.name in PRIVATE_AUTHORITY_NAMES:
+            if (
+                node.name in PROTECTED_AUTHORITY_NAMES
+                and node.name not in allowed_definitions
+            ):
                 violations.append(f"{_line(node)}:definition:{node.name}")
-        elif isinstance(node, ast.arg) and node.arg in PRIVATE_AUTHORITY_NAMES:
+        elif isinstance(node, ast.arg) and node.arg in PROTECTED_AUTHORITY_NAMES:
             violations.append(f"{_line(node)}:argument:{node.arg}")
         elif (
             isinstance(node, ast.Name)
             and isinstance(node.ctx, ast.Store)
-            and node.id in PRIVATE_AUTHORITY_NAMES
+            and node.id in PROTECTED_AUTHORITY_NAMES
         ):
             violations.append(f"{_line(node)}:binding:{node.id}")
         elif isinstance(node, ast.alias):
             local_name = node.asname or node.name.rsplit(".", 1)[-1]
-            if local_name not in PRIVATE_AUTHORITY_NAMES:
+            if local_name not in PROTECTED_AUTHORITY_NAMES:
                 continue
             parent = parents.get(node)
             is_exact_allowed_import = (
                 isinstance(parent, ast.ImportFrom)
                 and parent.module == "src.core.recursive_stark_admission"
-                and node.name in PRIVATE_ADAPTER_IMPORTS
+                and node.name in allowed_imports
                 and node.asname is None
             )
             if not is_exact_allowed_import:
                 violations.append(f"{_line(node)}:import:{local_name}")
     return violations
+
+
+def _authority_method_call_lines(tree: ast.AST, method_name: str) -> list[int]:
+    return sorted(
+        _line(node)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == method_name
+    )
+
+
+def _production_authority_method_callers(method_name: str) -> list[str]:
+    callers: list[str] = []
+    for path in _production_python_paths():
+        for line in _authority_method_call_lines(_parse(path), method_name):
+            callers.append(f"{path.relative_to(ROOT)}:{line}")
+    return sorted(callers)
 
 
 def _line(node: ast.AST) -> int:

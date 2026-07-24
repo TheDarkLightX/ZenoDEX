@@ -18,12 +18,23 @@ from src.integration.zeno_ledger_v0 import (  # noqa: E402
     validate_header_body_roots_v0,
     validate_proof_metadata_header_binding_v0,
 )
-from tools.zeno_ledger_risc0_proof_metadata import build_risc0_proof_metadata_v0  # noqa: E402
+from tools.zeno_ledger_risc0_proof_metadata import (  # noqa: E402
+    build_header_derived_risc0_proof_metadata_diagnostic_v0,
+)
 
 REPORT_SCHEMA = "zenodex.risc0_real_proof_smoke.v0"
 CHECK_REPORT_SCHEMA = "zenodex.risc0_real_proof_smoke_report_check.v0"
 LEDGER_BINDING_SCHEMA = "zenodex.risc0_real_proof_smoke.ledger_binding.v0"
 PROOF_TYPE = "risc0.zenodex_spot_transition.v1"
+EXPECTED_HEADER_DERIVED_FIELDS = [
+    "chain_id",
+    "height",
+    "pre_state_root",
+    "post_state_root",
+    "tx_root",
+    "evidence_root",
+    "body_root",
+]
 DEFAULT_REQUIRED_CASES = frozenset(
     {
         "empty",
@@ -76,6 +87,19 @@ def validate_risc0_real_proof_smoke_report_v0(
         if binding:
             if binding.get("schema") != LEDGER_BINDING_SCHEMA:
                 item_errors.append(f"cases[{index}].ledger_binding.schema mismatch")
+            if binding.get("status") != "non_authoritative_header_derived_metadata":
+                item_errors.append(f"cases[{index}].ledger_binding.status mismatch")
+            if binding.get("authority_scope") != "none":
+                item_errors.append(f"cases[{index}].ledger_binding.authority_scope mismatch")
+            if binding.get("header_derived_fields") != EXPECTED_HEADER_DERIVED_FIELDS:
+                item_errors.append(f"cases[{index}].ledger_binding.header_derived_fields mismatch")
+            for key in (
+                "proof_authority_satisfied",
+                "settlement_authority",
+                "production_authority",
+            ):
+                if binding.get(key) is not False:
+                    item_errors.append(f"cases[{index}].ledger_binding.{key} must be false")
             for key in (
                 "ok",
                 "header_bound",
@@ -284,7 +308,7 @@ def _validate_artifact_binding(
         errors.append(f"{prefix}.proof_metadata_header_binding rejected: {exc}")
 
     try:
-        rebuilt = build_risc0_proof_metadata_v0(
+        rebuilt = build_header_derived_risc0_proof_metadata_diagnostic_v0(
             proof_envelope=proof,
             header=header,
             conflict_schedule_hash=str(metadata.get("conflict_schedule_hash")),

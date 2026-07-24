@@ -5,6 +5,17 @@ edition = "2021"
 description = "Evidence-only harness for the ZRPF RISC0 V1 leaf adapter"
 publish = false
 
+[features]
+default = ["legacy-methods", "spot-v6-methods"]
+legacy-methods = ["dep:zenodex-zrpf-risc0-methods"]
+retained-value-aggregate-v5-harness = []
+spot-v6-methods = ["dep:zenodex-zrpf-risc0-spot-v6-methods"]
+
+[[bin]]
+name = "prove_retained_value_aggregate_v5"
+path = "src/bin/prove_retained_value_aggregate_v5.rs"
+required-features = ["retained-value-aggregate-v5-harness"]
+
 [dependencies]
 base64 = "0.22.1"
 hex = "0.4.3"
@@ -17,9 +28,16 @@ sha2 = "0.10.9"
 tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared" }
 zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol" }
 zenodex-zrpf-risc0-aggregate-shared = { path = "../aggregate_shared" }
-zenodex-zrpf-risc0-methods = { path = "../methods" }
+zenodex-zrpf-risc0-methods = { path = "../methods", optional = true }
 zenodex-zrpf-risc0-semantic-shared = { path = "../semantic_shared" }
 zenodex-zrpf-risc0-shared = { path = "../shared" }
+zenodex-zrpf-risc0-spot-settlement-v6-shared = { path = "../spot_settlement_v6_shared" }
+zenodex-zrpf-risc0-spot-settlement-root-policy-v6 = { path = "../spot_settlement_root_policy_v6" }
+zenodex-zrpf-risc0-spot-value-aggregate-l1-policy-v6 = { path = "../spot_value_aggregate_l1_policy_v6" }
+zenodex-zrpf-risc0-spot-value-aggregate-l2-policy-v6 = { path = "../spot_value_aggregate_l2_policy_v6" }
+zenodex-zrpf-risc0-spot-value-aggregate-root-policy-v6 = { path = "../spot_value_aggregate_root_policy_v6" }
+zenodex-zrpf-risc0-spot-value-leaf-v6-shared = { path = "../spot_value_leaf_v6_shared" }
+zenodex-zrpf-risc0-spot-v6-methods = { path = "../spot_v6_methods", optional = true }
 zenodex-zrpf-risc0-value-aggregate-l2-policy = { path = "../value_aggregate_l2_policy" }
 zenodex-zrpf-risc0-value-aggregate-root-policy = { path = "../value_aggregate_root_policy" }
 zenodex-zrpf-risc0-value-aggregate-shared = { path = "../value_aggregate_shared" }

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import base64
 import copy
+import errno
 import hashlib
 import json
+import os
 import pickle
-import socket
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -121,15 +122,13 @@ def _verifier_script(
     response_mutation: tuple[str, object] | None = None,
     legacy_boolean_response: bool = False,
     noncanonical_journal: bool = False,
-    persistent_child_socket: Path | None = None,
+    persistent_child_fifo: Path | None = None,
     persistent_child_sentinel: Path | None = None,
 ) -> Path:
-    if (persistent_child_socket is None) != (persistent_child_sentinel is None):
-        raise ValueError("persistent child socket and sentinel must be provided together")
+    if (persistent_child_fifo is None) != (persistent_child_sentinel is None):
+        raise ValueError("persistent child FIFO and sentinel must be provided together")
     mutation_json = json.dumps(response_mutation)
-    child_socket_path = (
-        str(persistent_child_socket) if persistent_child_socket is not None else None
-    )
+    child_fifo_path = str(persistent_child_fifo) if persistent_child_fifo is not None else None
     child_sentinel_path = (
         str(persistent_child_sentinel) if persistent_child_sentinel is not None else None
     )
@@ -138,28 +137,23 @@ import base64
 import json
 import os
 from pathlib import Path
-import socket
 import sys
 
 counter = Path({str(counter_path)!r})
 count = int(counter.read_text()) if counter.exists() else 0
 counter.write_text(str(count + 1))
-child_socket_path = {child_socket_path!r}
-if child_socket_path is not None:
+child_fifo_path = {child_fifo_path!r}
+if child_fifo_path is not None:
     ready_read, ready_write = os.pipe()
     child_pid = os.fork()
     if child_pid == 0:
         os.close(ready_read)
-        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        server.bind(child_socket_path)
-        server.listen(1)
+        os.mkfifo(child_fifo_path, 0o600)
+        fifo = os.open(child_fifo_path, os.O_RDWR)
         os.write(ready_write, b"1")
         os.close(ready_write)
-        connection, _ = server.accept()
-        with connection:
-            connection.recv(1)
-            Path({child_sentinel_path!r}).write_text("leaked", encoding="utf-8")
-            connection.sendall(b"1")
+        os.read(fifo, 1)
+        Path({child_sentinel_path!r}).write_text("leaked", encoding="utf-8")
         os._exit(0)
     os.close(ready_write)
     if os.read(ready_read, 1) != b"1":
@@ -198,7 +192,7 @@ def _make_verifier(
     response_mutation: tuple[str, object] | None = None,
     legacy_boolean_response: bool = False,
     noncanonical_journal: bool = False,
-    persistent_child_socket: Path | None = None,
+    persistent_child_fifo: Path | None = None,
     persistent_child_sentinel: Path | None = None,
 ) -> tuple[
     PinnedZenoLedgerRisc0VerifierV1,
@@ -226,7 +220,7 @@ def _make_verifier(
         response_mutation=response_mutation,
         legacy_boolean_response=legacy_boolean_response,
         noncanonical_journal=noncanonical_journal,
-        persistent_child_socket=persistent_child_socket,
+        persistent_child_fifo=persistent_child_fifo,
         persistent_child_sentinel=persistent_child_sentinel,
     )
     executable_sha256 = hashlib.sha256(executable.read_bytes()).hexdigest()
@@ -261,7 +255,7 @@ def _verify(
     *,
     checkpoint: dict[str, Any] | None = None,
 ):
-    return verifier.verify_and_bind_header(
+    return verifier.observe_and_bind_header(
         proof_artifact_json=artifact,
         proof_metadata=metadata,
         header=header,
@@ -283,7 +277,7 @@ def test_verification_executes_once_and_emits_non_promotable_observation(tmp_pat
     )
 
     assert counter.read_text(encoding="utf-8") == "1"
-    assert observation.status == "authenticated_metadata_v0_risc0_verification"
+    assert observation.status == "non_authoritative_metadata_v0_risc0_observation"
     assert observation.production_promotable is False
     assert observation.proof_metadata_schema == "zenodex/zeno_ledger/proof_metadata/v0"
     assert observation.missing_production_bindings == (
@@ -298,6 +292,15 @@ def test_verification_executes_once_and_emits_non_promotable_observation(tmp_pat
     )
     assert observation.header_proof_journal_hash == header["proof_journal_hash"]
     assert observation.registry_id == registry["registry_id"]
+
+
+def test_diagnostic_verifier_exposes_no_authority_named_entrypoint(tmp_path: Path) -> None:
+    verifier, _metadata, _header, _registry, _artifact, _counter = _make_verifier(tmp_path)
+
+    assert not hasattr(verifier, "verify_and_bind_header")
+    assert not hasattr(verifier, "verify_and_bind_required_profile")
+    assert callable(verifier.observe_and_bind_header)
+    assert callable(verifier.observe_and_bind_required_profile)
 
 
 def test_private_authenticated_capability_requires_module_seal() -> None:
@@ -536,22 +539,13 @@ def test_verifier_descendant_is_terminated_after_leader_exit(
     legacy_boolean_response: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def allow_child_processes(
-        _process_id: int,
-        *,
-        timeout_seconds: int,
-        max_address_space_bytes: int,
-        max_stack_bytes: int,
-    ) -> None:
-        del timeout_seconds, max_address_space_bytes, max_stack_bytes
-
-    monkeypatch.setattr(pinned_process, "_apply_resource_limits", allow_child_processes)
-    child_socket = tmp_path / "persistent-child.sock"
+    monkeypatch.setattr(pinned_process, "MAX_VERIFIER_PROCESSES", 32_768)
+    child_fifo = tmp_path / "persistent-child.fifo"
     child_sentinel = tmp_path / "persistent-child-sentinel.txt"
     verifier, metadata, header, registry, artifact, _counter = _make_verifier(
         tmp_path,
         legacy_boolean_response=legacy_boolean_response,
-        persistent_child_socket=child_socket,
+        persistent_child_fifo=child_fifo,
         persistent_child_sentinel=child_sentinel,
     )
 
@@ -561,10 +555,7 @@ def test_verifier_descendant_is_terminated_after_leader_exit(
     else:
         _verify(verifier, metadata, header, registry, artifact)
 
-    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    try:
-        with pytest.raises((ConnectionRefusedError, FileNotFoundError)):
-            probe.connect(str(child_socket))
-    finally:
-        probe.close()
+    with pytest.raises(OSError) as caught:
+        os.open(child_fifo, os.O_WRONLY | os.O_NONBLOCK)
+    assert caught.value.errno == errno.ENXIO
     assert not child_sentinel.exists()

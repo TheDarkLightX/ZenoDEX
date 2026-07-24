@@ -20,8 +20,8 @@ def test_partition_splits_intents_that_touch_disjoint_state() -> None:
     b0 = "0x" + "03" * 32
     b1 = "0x" + "04" * 32
 
-    pool1 = "0x" + "aa" * 32
-    pool2 = "0x" + "bb" * 32
+    pool1 = compute_pool_id(a0, a1, 30)
+    pool2 = compute_pool_id(b0, b1, 30)
 
     pools = {
         pool1: PoolState(pool_id=pool1, asset0=a0, asset1=a1, reserve0=1000, reserve1=2000, fee_bps=30, lp_supply=1, status=PoolStatus.ACTIVE, created_at=0),
@@ -58,7 +58,7 @@ def test_partition_groups_intents_that_write_same_pool() -> None:
 
     a0 = "0x" + "01" * 32
     a1 = "0x" + "02" * 32
-    pool1 = "0x" + "aa" * 32
+    pool1 = compute_pool_id(a0, a1, 30)
 
     pools = {
         pool1: PoolState(pool_id=pool1, asset0=a0, asset1=a1, reserve0=1000, reserve1=2000, fee_bps=30, lp_supply=1, status=PoolStatus.ACTIVE, created_at=0),
@@ -124,9 +124,9 @@ def test_partition_treats_add_liquidity_into_new_pool_as_reading_sender_assets()
 
     # If add_liq didn't read pk_b's balances, it could be (incorrectly) grouped as independent
     # from other intents that write pk_b's balances in those assets. Use a dummy swap that writes pk_b/a0.
-    pool_other = "0x" + "aa" * 32
+    pool_other = compute_pool_id(asset0, asset1, 31)
     pools = {
-        pool_other: PoolState(pool_id=pool_other, asset0=asset0, asset1=asset1, reserve0=1000, reserve1=2000, fee_bps=30, lp_supply=1, status=PoolStatus.ACTIVE, created_at=0),
+        pool_other: PoolState(pool_id=pool_other, asset0=asset0, asset1=asset1, reserve0=1000, reserve1=2000, fee_bps=31, lp_supply=1, status=PoolStatus.ACTIVE, created_at=0),
     }
     swap_touching_pkb = Intent(
         module="TauSwap",

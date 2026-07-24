@@ -170,6 +170,55 @@ impl EconomicActionBatchV1 {
         Ok(batch)
     }
 
+    /// Merges proof-neutral action batches disclosed by separate subtrees.
+    ///
+    /// This function authenticates no receipt. A receipt-verifying guest must
+    /// first derive each input batch from its exact authenticated child. The
+    /// merge then flattens all actions into one bounded canonical set, so the
+    /// existing action, grant-spend, and consumed-object uniqueness checks run
+    /// across subtree boundaries rather than once per child.
+    pub fn merge_subtree_batches(batches: Vec<Self>) -> Result<Self, EconomicActionBatchErrorV1> {
+        let first = batches
+            .first()
+            .ok_or(EconomicActionBatchErrorV1::EmptyActions)?;
+        let application_id = first.application_id;
+        let chain_or_domain_id = first.chain_or_domain_id;
+        let epoch_id = first.epoch_id;
+        let pre_state_root = first.pre_state_root;
+        let mut action_count = 0_usize;
+
+        for batch in &batches {
+            batch.validate_self_consistency()?;
+            if batch.application_id != application_id {
+                return Err(EconomicActionBatchErrorV1::ApplicationMismatch);
+            }
+            if batch.chain_or_domain_id != chain_or_domain_id {
+                return Err(EconomicActionBatchErrorV1::DomainMismatch);
+            }
+            if batch.epoch_id != epoch_id {
+                return Err(EconomicActionBatchErrorV1::SubtreeEpochMismatch);
+            }
+            if batch.pre_state_root != pre_state_root {
+                return Err(EconomicActionBatchErrorV1::PreStateMismatch);
+            }
+            action_count = action_count.checked_add(batch.actions.len()).ok_or(
+                EconomicActionBatchErrorV1::ArithmeticOverflow("subtree_action_count"),
+            )?;
+            if action_count > MAX_ECONOMIC_ACTIONS_PER_BATCH_V1 {
+                return Err(EconomicActionBatchErrorV1::TooManyActions {
+                    actual: action_count,
+                    maximum: MAX_ECONOMIC_ACTIONS_PER_BATCH_V1,
+                });
+            }
+        }
+
+        let mut actions = Vec::with_capacity(action_count);
+        for batch in batches {
+            actions.extend(batch.actions);
+        }
+        Self::new(epoch_id, pre_state_root, actions)
+    }
+
     pub fn validate_self_consistency(&self) -> Result<(), EconomicActionBatchErrorV1> {
         if self.batch_version != ECONOMIC_ACTION_BATCH_VERSION_V1 {
             return Err(EconomicActionBatchErrorV1::InvalidVersion(

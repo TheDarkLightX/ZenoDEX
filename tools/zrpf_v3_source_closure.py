@@ -39,6 +39,7 @@ WORKSPACE_AUXILIARY_ROWS: tuple[tuple[str, str], ...] = tuple(
         "zk/state_proof_risc0/cli/src/recursive_wire/application/perps.rs",
         "zk/state_proof_risc0/cli/src/recursive_wire/application/spot.rs",
         "zk/state_proof_risc0/cli/src/recursive_wire/application/zusd.rs",
+        "zk/state_proof_risc0/cli/src/spot_authority.rs",
         "zk/state_proof_risc0/cli/src/strict_json.rs",
         "zk/state_proof_risc0/methods/Cargo.toml",
         "zk/state_proof_risc0/methods/aggregate/Cargo.toml",
@@ -149,10 +150,285 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
     )
 )
 
+CURRENT_ZRPF_ROWS: tuple[tuple[str, str], ...] = (
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/methods/v2_leaf_adapter/Cargo.toml",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/methods/v2_leaf_adapter/src/main.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/cli.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/source.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/tests.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/shared/src/adapter_input_v2.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/shared/src/source_policy_v2.rs",
+    ),
+    (
+        "current_source_adapter_v2",
+        "zk/zrpf_risc0/shared/src/v2_leaf_adapter.rs",
+    ),
+    (
+        "parallel_shard_epoch_protocol_v1",
+        "zk/zrpf_protocol/protocol/src/parallel_shard_epoch_v1/codec.rs",
+    ),
+    (
+        "parallel_shard_epoch_protocol_v1",
+        "zk/zrpf_protocol/protocol/src/parallel_shard_epoch_v1/epoch.rs",
+    ),
+    (
+        "parallel_shard_epoch_protocol_v1",
+        "zk/zrpf_protocol/protocol/src/parallel_shard_epoch_v1/error.rs",
+    ),
+    (
+        "parallel_shard_epoch_protocol_v1",
+        "zk/zrpf_protocol/protocol/src/parallel_shard_epoch_v1/hash.rs",
+    ),
+    (
+        "parallel_shard_epoch_protocol_v1",
+        "zk/zrpf_protocol/protocol/src/parallel_shard_epoch_v1/mod.rs",
+    ),
+    (
+        "parallel_shard_epoch_protocol_v1",
+        "zk/zrpf_protocol/protocol/src/parallel_shard_epoch_v1/shard.rs",
+    ),
+    (
+        "settlement_admission_protocol_v1",
+        "zk/zrpf_protocol/protocol/src/settlement_admission_v1/codec.rs",
+    ),
+    (
+        "settlement_admission_protocol_v1",
+        "zk/zrpf_protocol/protocol/src/settlement_admission_v1/error.rs",
+    ),
+    (
+        "settlement_admission_protocol_v1",
+        "zk/zrpf_protocol/protocol/src/settlement_admission_v1/hash.rs",
+    ),
+    (
+        "settlement_admission_protocol_v1",
+        "zk/zrpf_protocol/protocol/src/settlement_admission_v1/journal.rs",
+    ),
+    (
+        "settlement_admission_protocol_v1",
+        "zk/zrpf_protocol/protocol/src/settlement_admission_v1/mod.rs",
+    ),
+    (
+        "assurance_compiler_source",
+        "zk/zrpf_protocol/protocol/tests/parallel_shard_epoch_v1.rs",
+    ),
+    (
+        "assurance_compiler_source",
+        "zk/zrpf_protocol/protocol/tests/settlement_admission_v1.rs",
+    ),
+    (
+        "verification_harness_v6",
+        "zk/zrpf_risc0/harness/src/bin/compute_risc0_image_id_file.rs",
+    ),
+    (
+        "verification_harness_v5",
+        "zk/zrpf_risc0/harness/src/bin/prove_retained_value_aggregate_v5.rs",
+    ),
+    (
+        "verification_harness_v5",
+        "zk/zrpf_risc0/harness/src/bin/prove_retained_value_aggregate_v5/artifact_io.rs",
+    ),
+    (
+        "verification_harness_v5",
+        "zk/zrpf_risc0/harness/src/bin/prove_retained_value_aggregate_v5/cli.rs",
+    ),
+    (
+        "verification_harness_v5",
+        "zk/zrpf_risc0/harness/src/bin/prove_retained_value_aggregate_v5/report.rs",
+    ),
+    (
+        "verification_harness_v5",
+        "zk/zrpf_risc0/harness/src/bin/prove_retained_value_aggregate_v5/tests.rs",
+    ),
+    (
+        "verification_harness_v6",
+        "zk/zrpf_risc0/harness/src/bin/prove_source_opened_spot_settlement_v6.rs",
+    ),
+    (
+        "verification_harness_v6",
+        "zk/zrpf_risc0/harness/src/bin/prove_spot_value_aggregate_l1_v6.rs",
+    ),
+    (
+        "verification_harness_v6",
+        "zk/zrpf_risc0/harness/src/bin/prove_spot_value_aggregate_l2_v6.rs",
+    ),
+    (
+        "verification_harness_v6",
+        "zk/zrpf_risc0/harness/src/bin/prove_spot_value_leaf_v6.rs",
+    ),
+    (
+        "settlement_guest_v6",
+        "zk/zrpf_risc0/methods/source_opened_spot_settlement_v6/Cargo.toml",
+    ),
+    (
+        "settlement_guest_v6",
+        "zk/zrpf_risc0/methods/source_opened_spot_settlement_v6/src/main.rs",
+    ),
+    (
+        "value_aggregate_guest_v6",
+        "zk/zrpf_risc0/methods/spot_value_aggregate_l1_v6/Cargo.toml",
+    ),
+    (
+        "value_aggregate_guest_v6",
+        "zk/zrpf_risc0/methods/spot_value_aggregate_l1_v6/src/main.rs",
+    ),
+    (
+        "value_aggregate_guest_v6",
+        "zk/zrpf_risc0/methods/spot_value_aggregate_l2_v6/Cargo.toml",
+    ),
+    (
+        "value_aggregate_guest_v6",
+        "zk/zrpf_risc0/methods/spot_value_aggregate_l2_v6/src/main.rs",
+    ),
+    (
+        "value_leaf_guest_v6",
+        "zk/zrpf_risc0/methods/spot_value_leaf_v6/Cargo.toml",
+    ),
+    (
+        "value_leaf_guest_v6",
+        "zk/zrpf_risc0/methods/spot_value_leaf_v6/src/main.rs",
+    ),
+    (
+        "settlement_root_policy_v6",
+        "zk/zrpf_risc0/spot_settlement_root_policy_v6/Cargo.toml",
+    ),
+    (
+        "settlement_root_policy_v6",
+        "zk/zrpf_risc0/spot_settlement_root_policy_v6/src/lib.rs",
+    ),
+    (
+        "settlement_mapping_v6",
+        "zk/zrpf_risc0/spot_settlement_v6_shared/Cargo.toml",
+    ),
+    (
+        "settlement_mapping_v6",
+        "zk/zrpf_risc0/spot_settlement_v6_shared/src/codec.rs",
+    ),
+    (
+        "settlement_mapping_v6",
+        "zk/zrpf_risc0/spot_settlement_v6_shared/src/composition.rs",
+    ),
+    (
+        "settlement_mapping_v6",
+        "zk/zrpf_risc0/spot_settlement_v6_shared/src/error.rs",
+    ),
+    (
+        "settlement_mapping_v6",
+        "zk/zrpf_risc0/spot_settlement_v6_shared/src/lib.rs",
+    ),
+    (
+        "settlement_mapping_v6",
+        "zk/zrpf_risc0/spot_settlement_v6_shared/src/relation.rs",
+    ),
+    (
+        "settlement_mapping_v6",
+        "zk/zrpf_risc0/spot_settlement_v6_shared/src/replay.rs",
+    ),
+    (
+        "assurance_compiler_source",
+        "zk/zrpf_risc0/spot_settlement_v6_shared/tests/source_opened_settlement_v6.rs",
+    ),
+    ("guest_build_orchestrator_v6", "zk/zrpf_risc0/spot_v6_methods/Cargo.toml"),
+    ("guest_build_orchestrator_v6", "zk/zrpf_risc0/spot_v6_methods/build.rs"),
+    ("guest_build_orchestrator_v6", "zk/zrpf_risc0/spot_v6_methods/src/lib.rs"),
+    (
+        "value_aggregate_l1_policy_v6",
+        "zk/zrpf_risc0/spot_value_aggregate_l1_policy_v6/Cargo.toml",
+    ),
+    (
+        "value_aggregate_l1_policy_v6",
+        "zk/zrpf_risc0/spot_value_aggregate_l1_policy_v6/src/lib.rs",
+    ),
+    (
+        "value_aggregate_l2_policy_v6",
+        "zk/zrpf_risc0/spot_value_aggregate_l2_policy_v6/Cargo.toml",
+    ),
+    (
+        "value_aggregate_l2_policy_v6",
+        "zk/zrpf_risc0/spot_value_aggregate_l2_policy_v6/src/lib.rs",
+    ),
+    (
+        "value_aggregate_root_policy_v6",
+        "zk/zrpf_risc0/spot_value_aggregate_root_policy_v6/Cargo.toml",
+    ),
+    (
+        "value_aggregate_root_policy_v6",
+        "zk/zrpf_risc0/spot_value_aggregate_root_policy_v6/src/lib.rs",
+    ),
+    (
+        "value_leaf_mapping_v6",
+        "zk/zrpf_risc0/spot_value_leaf_v6_shared/Cargo.toml",
+    ),
+    (
+        "value_leaf_mapping_v6",
+        "zk/zrpf_risc0/spot_value_leaf_v6_shared/src/compose.rs",
+    ),
+    (
+        "value_leaf_mapping_v6",
+        "zk/zrpf_risc0/spot_value_leaf_v6_shared/src/error.rs",
+    ),
+    (
+        "value_leaf_mapping_v6",
+        "zk/zrpf_risc0/spot_value_leaf_v6_shared/src/input.rs",
+    ),
+    (
+        "value_leaf_mapping_v6",
+        "zk/zrpf_risc0/spot_value_leaf_v6_shared/src/lib.rs",
+    ),
+    (
+        "value_leaf_mapping_v6",
+        "zk/zrpf_risc0/spot_value_leaf_v6_shared/src/statement.rs",
+    ),
+    (
+        "assurance_compiler_source",
+        "zk/zrpf_risc0/spot_value_leaf_v6_shared/tests/source_opened_v6.rs",
+    ),
+    (
+        "verification_harness_v6",
+        "zk/zrpf_risc0/verifier/src/bin/source_opened_spot_settlement_verifier_v6.rs",
+    ),
+    (
+        "verification_harness_v6",
+        "zk/zrpf_risc0/verifier/src/bin/source_opened_spot_v6_chain_verifier.rs",
+    ),
+    (
+        "verification_harness_v6",
+        "zk/zrpf_risc0/verifier/src/spot_settlement_v6.rs",
+    ),
+    (
+        "verification_harness_v6",
+        "zk/zrpf_risc0/verifier/src/spot_value_leaf_v6.rs",
+    ),
+)
+
 SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
     sorted(
         (
             *AUXILIARY_RUST_ROWS,
+            *CURRENT_ZRPF_ROWS,
             *WORKSPACE_AUXILIARY_ROWS,
             (
                 "economic_action_protocol_v1",
@@ -201,6 +477,10 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             (
                 "data_availability_protocol_v1",
                 "zk/zrpf_protocol/protocol/src/full_blob_da_v1/mod.rs",
+            ),
+            (
+                "data_availability_protocol_v1",
+                "zk/zrpf_protocol/protocol/src/full_blob_da_v1/policy.rs",
             ),
             (
                 "settlement_certificate_protocol_v1",

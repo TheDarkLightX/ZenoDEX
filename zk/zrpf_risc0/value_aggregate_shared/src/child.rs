@@ -8,6 +8,10 @@ use zenodex_zrpf_protocol_v3::{
     ValueAggregateOperationalCommitmentsV5,
 };
 use zenodex_zrpf_risc0_shared::derive_risc0_verified_claim_binding_v1;
+use zenodex_zrpf_risc0_spot_value_leaf_v6_shared::{
+    decode_exact_source_opened_spot_value_leaf_statement_v6,
+    source_opened_spot_value_leaf_program_manifest_root_v6,
+};
 
 use crate::{
     GovernedValueChildIdentityV5, ValueAggregateRecompositionErrorV5,
@@ -45,6 +49,21 @@ pub(crate) fn level_two_children(
         .enumerate()
         .map(|(index, (bytes, identity))| {
             level_two_child(index, bytes, *identity, policy.expected_scope())
+        })
+        .collect()
+}
+
+pub(crate) fn level_one_source_opened_spot_children(
+    child_bytes: &[Vec<u8>],
+    policy: &ValueAggregateRecompositionPolicyV5,
+) -> Result<Vec<RecompositionChildV5>, ValueAggregateRecompositionErrorV5> {
+    policy.require_input_count(child_bytes.len())?;
+    child_bytes
+        .iter()
+        .zip(policy.child_identities())
+        .enumerate()
+        .map(|(index, (bytes, identity))| {
+            level_one_source_opened_spot_child(index, bytes, *identity, policy.expected_scope())
         })
         .collect()
 }
@@ -129,6 +148,55 @@ fn level_two_child(
         proposal.proposal_commitment(),
         proposal.semantic_subtree().clone(),
         proposal.operational_commitments(),
+    )
+}
+
+fn level_one_source_opened_spot_child(
+    index: usize,
+    bytes: &[u8],
+    identity: GovernedValueChildIdentityV5,
+    scope: &NodeScopeV3,
+) -> Result<RecompositionChildV5, ValueAggregateRecompositionErrorV5> {
+    let statement = decode_exact_source_opened_spot_value_leaf_statement_v6(bytes)
+        .map_err(|_| ValueAggregateRecompositionErrorV5::ChildV6StatementDecode(index))?;
+    let structural = statement.structural_adapter_journal();
+    if structural.scope() != scope {
+        return Err(ValueAggregateRecompositionErrorV5::ChildScopeMismatch(
+            index,
+        ));
+    }
+    if statement.proof_profile_id() != identity.expected_profile_id() {
+        return Err(ValueAggregateRecompositionErrorV5::ChildProfileMismatch(
+            index,
+        ));
+    }
+    let expected_manifest =
+        source_opened_spot_value_leaf_program_manifest_root_v6(identity.expected_program_id())
+            .map_err(|_| ValueAggregateRecompositionErrorV5::ChildCommitmentDerivation(index))?;
+    if expected_manifest != identity.expected_manifest_root() {
+        return Err(ValueAggregateRecompositionErrorV5::ChildManifestMismatch(
+            index,
+        ));
+    }
+    if structural.node_kind() != NodeKindV3::Leaf
+        || structural.immediate_child_count() != 0
+        || structural.leaf_count() != 1
+        || statement.semantic_subtree().leaf_count() != 1
+    {
+        return Err(ValueAggregateRecompositionErrorV5::ChildNotSingletonLeaf(
+            index,
+        ));
+    }
+    descriptor_from_material(
+        index,
+        0,
+        identity,
+        bytes,
+        statement.statement_hash(),
+        statement.semantic_subtree().clone(),
+        statement
+            .operational_commitments_v5()
+            .map_err(|_| ValueAggregateRecompositionErrorV5::ChildCommitmentDerivation(index))?,
     )
 }
 

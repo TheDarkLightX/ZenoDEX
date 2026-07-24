@@ -28,7 +28,9 @@ pub use guest_input::{
 };
 pub use input::{ValueAggregateLevelOneInputV5, ValueAggregateLevelTwoInputV5};
 pub use level_one::{
+    compose_source_opened_spot_value_aggregate_level_one_after_receipt_verification_v6,
     compose_value_aggregate_level_one_after_receipt_verification_v5,
+    recompose_expected_source_opened_spot_value_aggregate_level_one_v6,
     recompose_expected_value_aggregate_level_one_v5,
 };
 pub use level_two::{

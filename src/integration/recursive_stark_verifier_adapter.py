@@ -8,21 +8,12 @@ and emit root-bound element facts before this module admits anything.
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
-import os
-import resource
-import selectors
-import signal
-import stat
-import struct
-import subprocess
-import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, BinaryIO, Mapping, NoReturn, Self, cast, final
+from typing import TYPE_CHECKING, Any, Mapping, NoReturn, Self, final
 
 from src.core.recursive_stark_admission import (
     RecursiveStarkAdmissionResult,
@@ -33,6 +24,12 @@ from src.core.recursive_stark_admission import (
     _AuthenticatedRecursiveStarkRootFacts,
     _mint_recursive_stark_root_facts_after_verification,
     _RecursiveStarkVerificationProvenance,
+)
+from src.integration._zeno_ledger_pinned_verifier_process_v1 import (
+    PinnedVerifierProcessError,
+    PinnedVerifierProcessFailure,
+    VerifierExecutableFormatV1,
+    execute_pinned_verifier_once,
 )
 from src.integration.recursive_stark_release_binding import (
     load_recursive_stark_release_binding_v1,
@@ -52,7 +49,6 @@ MAX_AUTHORITY_MANIFEST_BYTES = 1024 * 1024
 MAX_VERIFIER_REQUEST_BYTES = 64 * 1024 * 1024
 MAX_VERIFIER_STDOUT_BYTES = 16 * 1024 * 1024
 MAX_VERIFIER_STDERR_BYTES = 1024 * 1024
-MAX_VERIFIER_EXECUTABLE_BYTES = 256 * 1024 * 1024
 DEFAULT_VERIFIER_ADDRESS_SPACE_BYTES = 2 * 1024 * 1024 * 1024
 DEFAULT_VERIFIER_STACK_BYTES = 32 * 1024 * 1024
 
@@ -260,49 +256,20 @@ class PinnedRecursiveStarkVerifier:
         )
         request_bytes = _bounded_canonical_json_bytes(request, "verification request")
         request_sha256 = hashlib.sha256(request_bytes).hexdigest()
-        executable_fd: int | None = None
         try:
-            executable_fd, actual_hash = _sealed_executable_snapshot(
-                self.executable,
-                executable_format=self.executable_format,
-            )
-            if actual_hash != self.sha256:
-                raise RecursiveStarkVerificationError("recursive verifier binary hash mismatch")
-            process = subprocess.Popen(
-                [f"/proc/self/fd/{executable_fd}"],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                start_new_session=True,
-                pass_fds=(executable_fd,),
-                cwd="/",
-                env=_verifier_environment(),
-            )
-            try:
-                self._apply_resource_limits(process.pid)
-            except (OSError, ValueError) as exc:
-                _terminate_process_group(process)
-                raise RecursiveStarkVerificationError(
-                    f"failed to apply recursive verifier resource limits: {exc}"
-                ) from exc
-            stdout, stderr, completed_returncode = _communicate_bounded(
-                process,
+            stdout = execute_pinned_verifier_once(
+                executable=self.executable,
+                expected_sha256=self.sha256,
+                executable_format=VerifierExecutableFormatV1(self.executable_format.value),
                 request_bytes=request_bytes,
                 timeout_seconds=self.timeout_seconds,
+                max_address_space_bytes=self.max_address_space_bytes,
+                max_stack_bytes=self.max_stack_bytes,
+                max_stdout_bytes=MAX_VERIFIER_STDOUT_BYTES,
+                max_stderr_bytes=MAX_VERIFIER_STDERR_BYTES,
             )
-        except subprocess.TimeoutExpired as exc:
-            raise RecursiveStarkVerificationError("recursive verifier timed out") from exc
-        except OSError as exc:
-            raise RecursiveStarkVerificationError(
-                f"recursive verifier process failed: {exc}"
-            ) from exc
-        finally:
-            if executable_fd is not None:
-                os.close(executable_fd)
-        if completed_returncode != 0:
-            raise RecursiveStarkVerificationError(
-                f"recursive verifier exited with status {completed_returncode}"
-            )
+        except PinnedVerifierProcessError as exc:
+            raise _recursive_process_error(exc) from exc
         try:
             payload = json.loads(
                 stdout,
@@ -331,27 +298,24 @@ class PinnedRecursiveStarkVerifier:
             provenance,
         )
 
-    def _apply_resource_limits(self, process_id: int) -> None:
-        resource.prlimit(
-            process_id,
-            resource.RLIMIT_AS,
-            (self.max_address_space_bytes, self.max_address_space_bytes),
+
+def _recursive_process_error(
+    error: PinnedVerifierProcessError,
+) -> RecursiveStarkVerificationError:
+    if error.reason is PinnedVerifierProcessFailure.EXECUTABLE_HASH_MISMATCH:
+        return RecursiveStarkVerificationError("recursive verifier binary hash mismatch")
+    if error.reason is PinnedVerifierProcessFailure.TIMEOUT:
+        return RecursiveStarkVerificationError("recursive verifier timed out")
+    if error.reason is PinnedVerifierProcessFailure.EXECUTABLE_INVALID:
+        return RecursiveStarkVerificationError(
+            f"recursive verifier executable invalid: {error.detail}"
         )
-        resource.prlimit(
-            process_id,
-            resource.RLIMIT_STACK,
-            (self.max_stack_bytes, self.max_stack_bytes),
-        )
-        cpu_seconds = self.timeout_seconds + 1
-        resource.prlimit(
-            process_id,
-            resource.RLIMIT_CPU,
-            (cpu_seconds, cpu_seconds),
-        )
-        resource.prlimit(process_id, resource.RLIMIT_CORE, (0, 0))
-        resource.prlimit(process_id, resource.RLIMIT_FSIZE, (0, 0))
-        resource.prlimit(process_id, resource.RLIMIT_NOFILE, (32, 32))
-        resource.prlimit(process_id, resource.RLIMIT_NPROC, (1, 1))
+    if error.reason is PinnedVerifierProcessFailure.OUTPUT_INVALID:
+        detail = error.detail.replace("verifier stdout exceeds byte limit", "stdout exceeds limit")
+        return RecursiveStarkVerificationError(f"recursive verifier {detail}")
+    return RecursiveStarkVerificationError(
+        f"recursive verifier process failed: {error.detail}"
+    )
 
 
 def recursive_stark_authority_manifest_bytes_v1(
@@ -649,218 +613,6 @@ def _bounded_canonical_json_bytes(value: object, label: str) -> bytes:
             f"{label} exceeds {MAX_VERIFIER_REQUEST_BYTES} byte limit"
         )
     return encoded
-
-
-def _sealed_executable_snapshot(
-    path: Path,
-    *,
-    executable_format: RecursiveVerifierExecutableFormat,
-) -> tuple[int, str]:
-    if not hasattr(os, "memfd_create"):
-        raise RecursiveStarkVerificationError("sealed verifier execution requires memfd_create")
-    source_flags = os.O_RDONLY | os.O_CLOEXEC
-    if hasattr(os, "O_NOFOLLOW"):
-        source_flags |= os.O_NOFOLLOW
-    source_fd = os.open(path, source_flags)
-    memfd = -1
-    try:
-        source_stat = os.fstat(source_fd)
-        if not stat.S_ISREG(source_stat.st_mode):
-            raise RecursiveStarkVerificationError(
-                "recursive verifier executable must be a regular non-symlink file"
-            )
-        if source_stat.st_size <= 0 or source_stat.st_size > MAX_VERIFIER_EXECUTABLE_BYTES:
-            raise RecursiveStarkVerificationError("recursive verifier executable size is invalid")
-        memfd = os.memfd_create(
-            "zenodex-recursive-stark-verifier",
-            flags=os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING,
-        )
-        digest = hashlib.sha256()
-        copied_bytes = 0
-        while True:
-            chunk = os.read(source_fd, 1024 * 1024)
-            if not chunk:
-                break
-            copied_bytes += len(chunk)
-            if copied_bytes > MAX_VERIFIER_EXECUTABLE_BYTES:
-                raise RecursiveStarkVerificationError(
-                    "recursive verifier executable exceeds size limit"
-                )
-            digest.update(chunk)
-            view = memoryview(chunk)
-            while view:
-                written = os.write(memfd, view)
-                if written <= 0:
-                    raise RecursiveStarkVerificationError(
-                        "failed to copy recursive verifier executable"
-                    )
-                view = view[written:]
-        if copied_bytes != source_stat.st_size:
-            raise RecursiveStarkVerificationError(
-                "recursive verifier executable changed while being copied"
-            )
-        os.fchmod(memfd, 0o500)
-        os.lseek(memfd, 0, os.SEEK_SET)
-        if executable_format is RecursiveVerifierExecutableFormat.STATIC_ELF_X86_64:
-            _require_static_x86_64_elf(memfd, copied_bytes)
-        elif executable_format is not RecursiveVerifierExecutableFormat.TEST_SCRIPT:
-            raise RecursiveStarkVerificationError(
-                "recursive verifier executable format unsupported"
-            )
-        seals = fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL
-        fcntl.fcntl(memfd, fcntl.F_ADD_SEALS, seals)
-        return memfd, digest.hexdigest()
-    except Exception:
-        if memfd >= 0:
-            os.close(memfd)
-        raise
-    finally:
-        os.close(source_fd)
-
-
-def _require_static_x86_64_elf(descriptor: int, file_size: int) -> None:
-    header = os.pread(descriptor, 64, 0)
-    if len(header) != 64 or header[:4] != b"\x7fELF":
-        raise RecursiveStarkVerificationError("recursive verifier must be a static ELF")
-    if header[4] != 2 or header[5] != 1 or header[6] != 1:
-        raise RecursiveStarkVerificationError(
-            "recursive verifier ELF class, byte order, or version unsupported"
-        )
-    elf_type, machine = struct.unpack_from("<HH", header, 16)
-    if elf_type not in (2, 3) or machine != 62:
-        raise RecursiveStarkVerificationError("recursive verifier must be an x86_64 executable ELF")
-    program_header_offset = struct.unpack_from("<Q", header, 32)[0]
-    program_header_size, program_header_count = struct.unpack_from("<HH", header, 54)
-    if program_header_size < 56 or program_header_count == 0:
-        raise RecursiveStarkVerificationError("recursive verifier ELF program headers invalid")
-    table_size = program_header_size * program_header_count
-    if (
-        program_header_offset > file_size
-        or table_size > file_size
-        or program_header_offset + table_size > file_size
-    ):
-        raise RecursiveStarkVerificationError("recursive verifier ELF program headers truncated")
-    program_headers = os.pread(descriptor, table_size, program_header_offset)
-    if len(program_headers) != table_size:
-        raise RecursiveStarkVerificationError("recursive verifier ELF program headers truncated")
-    for index in range(program_header_count):
-        program_type = struct.unpack_from(
-            "<I",
-            program_headers,
-            index * program_header_size,
-        )[0]
-        if program_type == 3:
-            raise RecursiveStarkVerificationError(
-                "recursive verifier ELF has a dynamic interpreter"
-            )
-
-
-def _verifier_environment() -> dict[str, str]:
-    return {
-        "PATH": "/usr/bin:/bin",
-        "LANG": "C",
-        "LC_ALL": "C",
-        "TZ": "UTC",
-        "RISC0_DEV_MODE": "0",
-    }
-
-
-def _communicate_bounded(
-    process: subprocess.Popen[bytes],
-    *,
-    request_bytes: bytes,
-    timeout_seconds: int,
-) -> tuple[bytes, bytes, int]:
-    if process.stdin is None or process.stdout is None or process.stderr is None:
-        _terminate_process_group(process)
-        raise RecursiveStarkVerificationError("recursive verifier pipes unavailable")
-
-    selector = selectors.DefaultSelector()
-    streams = (process.stdin, process.stdout, process.stderr)
-    for stream in streams:
-        os.set_blocking(stream.fileno(), False)
-    selector.register(process.stdin, selectors.EVENT_WRITE, "stdin")
-    selector.register(process.stdout, selectors.EVENT_READ, "stdout")
-    selector.register(process.stderr, selectors.EVENT_READ, "stderr")
-
-    request_offset = 0
-    stdout = bytearray()
-    stderr = bytearray()
-    deadline = time.monotonic() + timeout_seconds
-    try:
-        while selector.get_map():
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise subprocess.TimeoutExpired(process.args, timeout_seconds)
-            events = selector.select(remaining)
-            if not events:
-                raise subprocess.TimeoutExpired(process.args, timeout_seconds)
-            for key, _mask in events:
-                stream = cast(BinaryIO, key.fileobj)
-                if key.data == "stdin":
-                    if request_offset == len(request_bytes):
-                        selector.unregister(stream)
-                        stream.close()
-                        continue
-                    try:
-                        written = os.write(
-                            stream.fileno(),
-                            request_bytes[request_offset : request_offset + 64 * 1024],
-                        )
-                    except BrokenPipeError:
-                        selector.unregister(stream)
-                        stream.close()
-                    else:
-                        request_offset += written
-                        if request_offset == len(request_bytes):
-                            selector.unregister(stream)
-                            stream.close()
-                    continue
-
-                try:
-                    chunk = os.read(stream.fileno(), 64 * 1024)
-                except BlockingIOError:
-                    continue
-                if not chunk:
-                    selector.unregister(stream)
-                    stream.close()
-                    continue
-                output = stdout if key.data == "stdout" else stderr
-                output.extend(chunk)
-                limit = (
-                    MAX_VERIFIER_STDOUT_BYTES if key.data == "stdout" else MAX_VERIFIER_STDERR_BYTES
-                )
-                if len(output) > limit:
-                    raise RecursiveStarkVerificationError(
-                        f"recursive verifier {key.data} exceeds limit"
-                    )
-
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise subprocess.TimeoutExpired(process.args, timeout_seconds)
-        returncode = process.wait(timeout=remaining)
-        return bytes(stdout), bytes(stderr), returncode
-    except Exception:
-        _terminate_process_group(process)
-        raise
-    finally:
-        selector.close()
-        for stream in streams:
-            if not stream.closed:
-                stream.close()
-
-
-def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is None:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait()
 
 
 def _reject_duplicate_object_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:

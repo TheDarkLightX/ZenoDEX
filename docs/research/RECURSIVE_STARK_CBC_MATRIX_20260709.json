@@ -1,11 +1,11 @@
 {
   "schema": "zenodex/recursive_stark_cbc_matrix/v1",
   "status": "critical_code_cbc_obligation_matrix",
-  "updated_at": "2026-07-12",
+  "updated_at": "2026-07-13",
   "promotion_boundary": {
     "public_claim_allowed": false,
     "production_ready": false,
-    "claim_status": "v1_v2_current_image_local_recursive_proofs_and_temporary_v3_structural_tree_verified",
+    "claim_status": "recorded_v3_historical_evidence_retained_temporary_v3_structural_tree_verified_current_v1_v2_reproof_pending_after_guest_source_drift",
     "non_claims": [
       "no_production_ready_recursive_starks",
       "no_full_zk_execution_for_all_value_moving_surfaces",
@@ -33,6 +33,7 @@
       "no_fresh_zrpf_semantic_v2_receipt_evidence",
       "no_generic_v4_runtime_identity_authority",
       "no_authenticated_historical_execution_provenance_for_v1_live_replay_record",
+      "no_current_v1_or_v2_image_receipt_evidence_after_recorded_guest_source_closure_drift",
       "no_zrpf_16x4_profile"
     ]
   },
@@ -613,7 +614,7 @@
       "id": "RS-CBC-014",
       "title": "Fresh current-image recursive proof smoke exists before proof-backed claim",
       "severity": "critical",
-      "status": "implemented",
+      "status": "pending",
       "defense_layer": "detected_at_commit",
       "disaster_state": "local unit tests are promoted as real recursive proof evidence",
       "construction_rule": "produce and verify at least one real recursive root proof and malformed-proof reject before implementation claim",
@@ -766,7 +767,7 @@
         },
         {
           "path": "tests/test_check_risc0_recursive_active_reproof_v3.py",
-          "symbol": "test_active_reproof_reference_accepts"
+          "symbol": "test_historical_active_reproof_reference_accepts"
         },
         {
           "path": "zk/recursive_stark_v2_active_reproof_risc0/src/bin/verify_recursive_v2_pair.rs",
@@ -778,15 +779,15 @@
         "cd zk/state_proof_risc0 && RISC0_PROVER=ipc <PINNED_CARGO> run --frozen --release --target x86_64-unknown-linux-gnu -p tau-state-proof-risc0-cli < <ROOT_REQUEST>",
         "python3 tools/check_risc0_recursive_rebuild_evidence.py --workspace-root <workspace> --workspace-archive <archive> --artifact-report <report> --program-directory <programs> --static-verifier <verifier> --root-proof <proof> --positive-verify-request <positive-request> --verified-transcript <transcript> --malformed-root-proof <mutated-proof> --malformed-verify-request <mutated-request> --malformed-reject-transcript <reject-transcript> --json",
         "python3 tools/check_risc0_recursive_live_replay.py --workspace-root <workspace> --workspace-archive <archive> --artifact-report <report> --program-directory <programs> --static-verifier <verifier> --root-proof <proof> --positive-verify-request <positive-request> --verified-transcript <transcript> --malformed-root-proof <mutated-proof> --malformed-verify-request <mutated-request> --malformed-reject-transcript <reject-transcript> --runtime-directory <private-new-runtime-directory> --json",
-        "python3 tools/check_risc0_recursive_live_replay_evidence.py --json",
+        "python3 tools/check_risc0_recursive_live_replay_evidence.py --json --historical-recorded-source",
         "python3 tools/check_risc0_recursive_v2_rebuild_evidence.py --build-target-root <TARGET> --inner-artifact <INNER> --root-artifact <ROOT> --missing-assumption-transcript <NEGATIVE> --risc0-home <RISC0_HOME> --cargo-home <CARGO_HOME> --json",
         "python3 tools/check_risc0_recursive_v2_two_leaf_source_pinned_evidence.py --spot-leaf <SPOT> --zusd-leaf <ZUSD> --inner-artifact <TWO_LEAF_INNER> --root-artifact <TWO_LEAF_ROOT> --release-harness <HARNESS> --one-leaf-verifier <ONE_LEAF_VERIFIER> --two-leaf-verifier <TWO_LEAF_VERIFIER> --r0vm <PINNED_R0VM> --json",
         "python3 tools/check_risc0_recursive_v2_same_profile_two_spot_evidence.py --baseline-spot-leaf <SPOT_A> --distinct-spot-leaf <SPOT_B> --duplicate-source-alias-leaf <SPOT_ALIAS> --inner-artifact <SAME_PROFILE_INNER> --root-artifact <SAME_PROFILE_ROOT> --release-harness <HARNESS> --two-leaf-verifier <TWO_LEAF_VERIFIER> --json",
         "python3 tools/check_recursive_stark_replay_bundle.py <bundle> --expected-manifest-sha256 <sha256>",
-        "python3 tools/check_risc0_recursive_active_reproof_v3.py"
+        "python3 tools/check_risc0_recursive_active_reproof_v3.py --historical-recorded-source"
       ],
-      "next_action": "preserve the active V3 reference and rerun its checker after every V1 or V2 source, toolchain, verifier, receipt-profile, or evidence change",
-      "non_claim": "the active V3 reference establishes only same-host bounded current-image computational integrity for the recorded two-leaf V1 and V2 proof trees; no public replay, cross-host reproducibility, network isolation, sandbox, semantic conservation, data availability, durable ledger admission, privacy, settlement, release, or production claim follows"
+      "next_action": "preserve the V3 reference as historical evidence for commit 793a98f73a52ac3722d4c453495fed16a1a14c41 and create additive fresh proof evidence before restoring any current V1/V2 image claim",
+      "non_claim": "the retained V3 reference establishes only historical same-host bounded computational integrity for its recorded source and image identities; current V1/V2 image evidence, public replay, cross-host reproducibility, network isolation, sandbox, semantic conservation, data availability, durable ledger admission, privacy, settlement, release, and production authority remain unproved"
     },
     {
       "id": "RS-CBC-015",
@@ -1375,6 +1376,14 @@
         {
           "path": "docs/research/ZRPF_DURABLE_REPLAY_ADMISSION_CBC_SPEC_20260712.md",
           "symbol": "Scoped positive claim"
+        },
+        {
+          "path": "src/integration/zrpf_source_opened_spot_v6_verifier_adapter.py",
+          "symbol": "PinnedSourceOpenedSpotSettlementVerifierV6"
+        },
+        {
+          "path": "src/integration/zrpf_atomic_settlement_store.py",
+          "symbol": "SQLiteZrpfAtomicSettlementStoreV1"
         }
       ],
       "test_refs": [
@@ -1413,14 +1422,23 @@
         {
           "path": "tests/integration/test_recursive_stark_admission_authority_boundary.py",
           "symbol": "test_private_durable_commit_has_one_production_caller"
+        },
+        {
+          "path": "tests/integration/test_zrpf_source_opened_spot_v6_verifier_adapter.py",
+          "symbol": "test_real_cli_schema_projects_and_atomically_persists_every_exact_artifact"
+        },
+        {
+          "path": "tests/integration/test_zrpf_atomic_settlement_store.py",
+          "symbol": "test_restart_rejects_v6_profile_downgrade"
         }
       ],
       "external_commands": [
         "python3 -m pytest -q tests/core/test_recursive_stark_exact_once_admission.py tests/integration/test_recursive_stark_verifier_adapter.py tests/integration/test_recursive_stark_durable_admission_store.py tests/integration/test_recursive_stark_admission_authority_boundary.py",
+        "python3 -m pytest -q tests/integration/test_zrpf_settlement_admission_journal_codec.py tests/integration/test_zrpf_source_opened_spot_v6_verifier_adapter.py tests/integration/test_zrpf_atomic_settlement_store.py",
         "python3 tools/check_recursive_stark_cbc_spec.py"
       ],
-      "next_action": "integrate the fresh receipt-authenticated semantic V2 authority pair and independently derived economic effect plan into one ZenoLedger transaction sharing this replay commit point; add power-loss and storage-rollback fault injection, an external head-anchor policy, large-history resource benchmarks, and a governed live release config source",
-      "non_claim": "the implemented store commits local replay indexes and a canonical recovery outcome only; it does not commit balances, collateral, mint or burn, fees, rewards, carry, message delivery, application state, semantic V2 authority pairs, or settlement effects; hostile same-UID access, storage rollback, network filesystems, public release authority, and production readiness remain outside the claim"
+      "next_action": "connect the receipt-authenticated V6 settlement-admission association to one live ZenoLedger transaction that verifies the current pre-state root, applies typed cell and balance transitions, advances the governed epoch, and commits finality and external data-availability policy; add power-loss and storage-rollback fault injection, an external head-anchor policy, large-history resource benchmarks, and a governed release config source",
+      "non_claim": "SQLite schema V4 atomically commits the exact V6 receipt, guest input, admission journal, replay blob, content certificate, settlement certificate, effect plan, governed identities, Python projection binding, replay indexes, and one recoverable outcome; it does not mutate live ZenoLedger balances or application state, establish provider retrievability or external finality, validate an end-user signature or grant registry, resist hostile same-UID code or storage rollback, support network filesystems, or grant release, settlement, or production authority"
     }
   ]
 }

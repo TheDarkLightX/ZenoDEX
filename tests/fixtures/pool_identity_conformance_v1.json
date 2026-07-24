@@ -1,0 +1,274 @@
+{
+  "schema": "zenodex.pool_identity_conformance.v1",
+  "claim_boundary": {
+    "authoritative_pool_ids_are_parameter_bound": true,
+    "guest_codec_host_validation_only": true,
+    "risc0_proof_generated": false,
+    "settlement_authority": false,
+    "symbolic_pool_id_compatibility": "local_test_only_non_authoritative"
+  },
+  "pool_identity": {
+    "asset0": "0x1111111111111111111111111111111111111111111111111111111111111111",
+    "asset1": "0x2222222222222222222222222222222222222222222222222222222222222222",
+    "fee_bps": 30,
+    "curve_tag": "CPMM",
+    "curve_params": "",
+    "pool_id": "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686"
+  },
+  "creation": {
+    "creator_pubkey": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "amount0": 1000000,
+    "amount1": 2000000,
+    "created_at": 7,
+    "expected_lp_minted": 1413213,
+    "expected_lp_supply": 1414213
+  },
+  "dex_snapshot_v4": {
+    "version": 4,
+    "balances": [],
+    "pools": [
+      {
+        "pool_id": "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+        "asset0": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "asset1": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "reserve0": 1000000,
+        "reserve1": 2000000,
+        "fee_bps": 30,
+        "lp_supply": 1414213,
+        "status": "ACTIVE",
+        "created_at": 7,
+        "curve_tag": "CPMM",
+        "curve_params": ""
+      }
+    ],
+    "lp_balances": [],
+    "lp_mint_timestamps": [],
+    "lp_duration_risk": [],
+    "nonces": [],
+    "fee_accumulator": {
+      "dust": 0
+    },
+    "vault": null,
+    "oracle": null,
+    "perps": null
+  },
+  "state_root_v5_input": {
+    "balances": [],
+    "pools": [
+      {
+        "pool_id": "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+        "asset0": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "asset1": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "reserve0": 1000000,
+        "reserve1": 2000000,
+        "fee_bps": 30,
+        "lp_supply": 1414213,
+        "status": "active",
+        "created_at": 7,
+        "curve_tag": "CPMM",
+        "curve_params": ""
+      }
+    ],
+    "lp_balances": [],
+    "lp_duration_risk": [],
+    "nonces": [],
+    "fee_accumulator": {
+      "dust": 0
+    }
+  },
+  "guest_snapshot_v1": {
+    "version": 1,
+    "balances": [],
+    "pools": [
+      {
+        "pool_id": "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+        "asset0": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "asset1": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "reserve0": 1000000,
+        "reserve1": 2000000,
+        "fee_bps": 30,
+        "lp_supply": 1414213,
+        "status": "ACTIVE",
+        "created_at": 7
+      }
+    ],
+    "lp_balances": [],
+    "fee_accumulator": {
+      "dust": 0
+    },
+    "vault": null,
+    "oracle": null
+  },
+  "intents": {
+    "create_pool": {
+      "module": "TauSwap",
+      "version": "0.1",
+      "kind": "CREATE_POOL",
+      "intent_id": "0x0101010101010101010101010101010101010101010101010101010101010101",
+      "sender_pubkey": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "deadline": 100,
+      "fields": {
+        "asset0": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "asset1": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "fee_bps": 30,
+        "amount0": 1000000,
+        "amount1": 2000000
+      }
+    },
+    "swap_exact_in": {
+      "module": "TauSwap",
+      "version": "0.1",
+      "kind": "SWAP_EXACT_IN",
+      "intent_id": "0x0202020202020202020202020202020202020202020202020202020202020202",
+      "sender_pubkey": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "deadline": 100,
+      "fields": {
+        "pool_id": "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+        "asset_in": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "asset_out": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "amount_in": 10000,
+        "min_amount_out": 1,
+        "recipient": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    }
+  },
+  "expected": {
+    "state_root_v5": "0x00b3a0c31f8a04fa36200d36052ddf903efe38b91ee36c6fc0974d1021657611",
+    "intent_access": {
+      "create_pool": {
+        "reads": [
+          [
+            "BAL",
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "0x1111111111111111111111111111111111111111111111111111111111111111"
+          ],
+          [
+            "BAL",
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "0x2222222222222222222222222222222222222222222222222222222222222222"
+          ],
+          [
+            "POL",
+            "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+            ""
+          ]
+        ],
+        "writes": [
+          [
+            "BAL",
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "0x1111111111111111111111111111111111111111111111111111111111111111"
+          ],
+          [
+            "BAL",
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "0x2222222222222222222222222222222222222222222222222222222222222222"
+          ],
+          [
+            "LPB",
+            "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686"
+          ],
+          [
+            "LPB",
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686"
+          ],
+          [
+            "POL",
+            "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+            ""
+          ]
+        ]
+      },
+      "swap_exact_in": {
+        "reads": [
+          [
+            "BAL",
+            "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "0x1111111111111111111111111111111111111111111111111111111111111111"
+          ],
+          [
+            "POL",
+            "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+            ""
+          ]
+        ],
+        "writes": [
+          [
+            "BAL",
+            "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "0x2222222222222222222222222222222222222222222222222222222222222222"
+          ],
+          [
+            "BAL",
+            "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "0x1111111111111111111111111111111111111111111111111111111111111111"
+          ],
+          [
+            "POL",
+            "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+            ""
+          ]
+        ]
+      }
+    },
+    "conflict_graph_v0": {
+      "schema": "zenodex/zeno_ledger/conflict_graph/v0",
+      "transaction_count": 2,
+      "vertices": [
+        {
+          "index": 0,
+          "tx_hash": "0x9e9cab001f54534e4f6b546078278188d8919b223bab14ac3b4756aa1ca223ba",
+          "touched_cells": [
+            "balance:0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:0x1111111111111111111111111111111111111111111111111111111111111111",
+            "balance:0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:0x2222222222222222222222222222222222222222222222222222222222222222",
+            "lp_position:0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+            "nonce:0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "pool:0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+            "pool_reserve:0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686:0x1111111111111111111111111111111111111111111111111111111111111111",
+            "pool_reserve:0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686:0x2222222222222222222222222222222222222222222222222222222222222222"
+          ],
+          "touched_cell_count": 7
+        },
+        {
+          "index": 1,
+          "tx_hash": "0x4dfd4f1e5363130ab6595c1793347eb3256ceba610defa022991ce1534d0fa5b",
+          "touched_cells": [
+            "balance:0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:0x2222222222222222222222222222222222222222222222222222222222222222",
+            "balance:0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc:0x1111111111111111111111111111111111111111111111111111111111111111",
+            "nonce:0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "pool:0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+            "pool_reserve:0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686:0x1111111111111111111111111111111111111111111111111111111111111111",
+            "pool_reserve:0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686:0x2222222222222222222222222222222222222222222222222222222222222222"
+          ],
+          "touched_cell_count": 6
+        }
+      ],
+      "edges": [
+        {
+          "left_index": 0,
+          "right_index": 1,
+          "shared_cells": [
+            "pool:0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686",
+            "pool_reserve:0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686:0x1111111111111111111111111111111111111111111111111111111111111111",
+            "pool_reserve:0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686:0x2222222222222222222222222222222222222222222222222222222222222222"
+          ]
+        }
+      ],
+      "edge_count": 1,
+      "components": [
+        {
+          "component_id": 0,
+          "transaction_indices": [
+            0,
+            1
+          ],
+          "transaction_count": 2
+        }
+      ],
+      "component_count": 1,
+      "conflict_graph_hash": "0x5e943bce49f16651e7fbf907bb677e928165e443ec9630e6f6aab9fc74d503c3"
+    }
+  }
+}

@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from src.integration.zeno_ledger_profile import sample_zeno_sovereign_testnet_profile_v0
 from src.integration.zeno_ledger_signature import (
     bls_public_key_hex_from_private_key_v0,
     build_bls_signed_artifact_envelope_v0,
@@ -216,9 +217,53 @@ def test_light_client_checkpoint_accepts_header_checkpoint_and_quorum(tmp_path: 
     )
 
     assert report["ok"] is True
+    assert report["status"] == "structural_diagnostic_accepted"
+    assert report["structural_diagnostic_verified"] is True
+    assert report["range_replay_verified"] is False
     assert report["range_verify_report"]["checked_heights"] == [1, 2]
     assert report["quorum_report"]["accepted_weight"] == 2
     assert report["checkpoint_hash"]
+    assert report["proof_authority_required"] is False
+    assert report["proof_authority_satisfied"] is False
+    assert report["proof_authority_capable"] is False
+    assert report["settlement_authority"] is False
+    assert report["production_authority"] is False
+
+
+def test_light_client_rejects_proof_required_profile_structural_promotion(
+    tmp_path: Path,
+) -> None:
+    headers_dir, bodies_dir, checkpoints_dir, registry, envelopes = _fixture(tmp_path)
+    profile_path = tmp_path / "proof-required-profile.json"
+    _write_json(
+        profile_path,
+        sample_zeno_sovereign_testnet_profile_v0(
+            chain_id="zeno-ledger-light-client-testnet-0",
+            config_digest=_root("config"),
+            sequencer_set_hash=_root("sequencer-set"),
+            token_symbol="tZENO",
+            token_asset_id=_root("token"),
+            proof_required=True,
+        ),
+    )
+
+    report = validate_light_client_checkpoint_v0(
+        headers_dir=headers_dir,
+        bodies_dir=bodies_dir,
+        checkpoints_dir=checkpoints_dir,
+        registry=registry,
+        envelopes=envelopes,
+        from_height=1,
+        to_height=2,
+        profile_path=profile_path,
+    )
+
+    assert report["ok"] is False
+    assert report["range_replay_verified"] is False
+    assert report["proof_authority_required"] is True
+    assert report["proof_authority_satisfied"] is False
+    assert report["proof_authority_capable"] is False
+    assert any("proof-required profile cannot be promoted" in error for error in report["errors"])
 
 
 def test_light_client_checkpoint_rejects_threshold_shortfall(tmp_path: Path) -> None:

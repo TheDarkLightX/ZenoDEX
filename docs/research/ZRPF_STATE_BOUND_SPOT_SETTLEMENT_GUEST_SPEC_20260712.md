@@ -2,8 +2,9 @@
 
 Date: 2026-07-12
 
-Status: implemented with the rebuilt L2 image identity pinned; settlement guest
-image identity, receipt evidence, sealed host verifier, and admission pending
+Status: original V2 boundary implemented; source-opened V6 successor, pinned
+program identities, sealed host verifier, and local atomic admission implemented;
+checked retained full-chain proof evidence pending; settlement authority false
 
 ## Claim Scope
 
@@ -26,6 +27,44 @@ verify_assumption(governed_l2_image_id, exact_v5_proposal_bytes)
 The implementation provides source-level and deterministic host evidence plus
 the rebuilt L2 image identity. It does not provide the settlement guest image
 identity or a verified settlement receipt in this slice.
+
+## Source-opened V6 successor
+
+The additive V6 profile closes the exact source-to-plan binding for one ordinary
+Spot action without changing the original V2 wire. Its governed chain is:
+
+```text
+authenticated Spot source receipt
+  -> governed V1 adapter receipt
+  -> source-opened Spot value leaf V6
+  -> Value Aggregate L1 V6
+  -> Value Aggregate L2 V6
+  -> source-opened Spot settlement V6
+  -> exact ZRPFSAV1 admission journal
+```
+
+The pinned V6 image IDs are:
+
+| Program | RISC0 image ID |
+| --- | --- |
+| source-opened Spot value leaf V6 | `67494a413c729cbb4b6095036425ba0b86edcc30625c19b525409f8e8ff022d1` |
+| Spot value aggregate L1 V6 | `a2b4c32ef76c0a81643f1758c476fc21f6a7c2afd11d2a6e08fae022418e2e15` |
+| Spot value aggregate L2 V6 | `5c8f94b4ada70ad5ba0d6ac6bd6b0055a9e148c329372e7b24a81249ff07a76f` |
+| source-opened Spot settlement V6 | `73a1c5c275d85f39443f68803932df9caac670b420b9948b7e7b2dffe1f2e98d` |
+
+The V6 settlement guest verifies the exact L2 receipt before interpreting its
+journal, recomposes the singleton leaf-to-L1-to-L2 relation, reconstructs the
+source-opened replay bytes, derives the full-blob content certificate, validates
+one sparse-Merkle transition witness and two conserved ordinary asset rows, and
+commits the exact settlement certificate plus exact effect plan in the fixed
+admission journal. The strict host verifier verifies that receipt once and
+independently recomposes the journal from the exact guest input.
+
+The Python verifier adapter checks the same frame independently and the SQLite
+V4 store persists the exact receipt, guest input, journal, replay, content
+certificate, certificate, plan, governed identities, and projection binding in
+one local transaction. The harness uses deterministic synthetic sparse-Merkle
+siblings, so the resulting roots are not live ZenoLedger roots.
 
 ## Receipt-First Input Boundary
 
@@ -148,15 +187,22 @@ The canonical certificate is at most the protocol's 1,024-byte bound.
 
 ## Explicit Non-Claims
 
-This slice provides no settlement guest image identity, generated settlement
-guest ELF, settlement receipt, proof replay, sealed host verifier,
-receipt-profile admission, malformed-seal evidence, DA persistence or
-retrievability proof, source finality, authorization-grant existence, durable
-replay protection, atomic ledger update, settlement authority, release
-authority, privacy, throughput, or production authority.
+The original V2 slice provides no current settlement receipt or promotion
+authority. The V6 successor supplies pinned program identities, recursive guest
+implementations, a sealed verifier, exact receipt-to-plan admission framing,
+and local atomic persistence. Its checked retained complete-chain proof record
+is still pending.
 
-The future sealed verifier must authenticate the settlement receipt under the
-rebuilt settlement image, require exact canonical certificate bytes, and bind
-independent expected scope before any admission decision. Durable value
-movement additionally requires atomic application of independently checked
-effects and replay protections.
+Neither slice proves live authorization-grant existence, live ZenoLedger
+sparse-Merkle membership, live balance mutation, source-chain finality,
+provider retrievability, externally governed data availability, Tau or other
+external finality, rollback-resistant storage, governed release, settlement or
+production authority, privacy, throughput, general fanout, or maximum-topology
+operation.
+
+The V6 sealed verifier now authenticates the settlement receipt under the
+pinned settlement image, requires exact canonical admission-journal bytes, and
+binds the exact guest input and singleton execution projection. Promotion to
+durable value movement still requires atomic application of those checked
+effects to a live ledger pre-state, live authorization consumption, governed
+release policy, and external finality.

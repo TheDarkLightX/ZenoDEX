@@ -1,0 +1,18 @@
+[package]
+name = "zenodex-zrpf-risc0-spot-value-aggregate-l1-v6"
+version = "0.1.0"
+edition = "2021"
+description = "RISC0 guest for source-opened ordinary Spot V6 level-one aggregation"
+publish = false
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.5", default-features = false, features = ["std", "unstable"] }
+zenodex-zrpf-protocol-v3 = { path = "../../../zrpf_protocol/protocol", default-features = false }
+zenodex-zrpf-risc0-shared = { path = "../../shared", default-features = false }
+zenodex-zrpf-risc0-spot-value-aggregate-l1-policy-v6 = { path = "../../spot_value_aggregate_l1_policy_v6", default-features = false }
+zenodex-zrpf-risc0-spot-value-leaf-v6-shared = { path = "../../spot_value_leaf_v6_shared", default-features = false }
+zenodex-zrpf-risc0-value-aggregate-shared = { path = "../../value_aggregate_shared", default-features = false }
+
+[[bin]]
+name = "zenodex-zrpf-risc0-spot-value-aggregate-l1-v6"
+path = "src/main.rs"

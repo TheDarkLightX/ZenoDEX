@@ -1,0 +1,132 @@
+{
+  "schema": "zenodex/zrpf_source_opened_spot_v6_build_record/v3",
+  "recorded_at": "2026-07-13",
+  "source_observation": {
+    "repository_commit": "87c7a5b1146482d7a55428179ed6d3453b43a7e7",
+    "repository_tree": "25299d0dc26ec9cf7e7ae4ea664e4c9d8278b820",
+    "source_root_sha256": "3846316073e51005fa0045a1357859270a80f7e06e4a85c9550ad1f1948219b1",
+    "source_file_count": 238,
+    "source_bytes": 2528898
+  },
+  "toolchain": {
+    "rustc": "rustc 1.94.1-dev (06e01cb0d 2026-04-09)",
+    "cargo": "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)",
+    "r0vm": "risc0-r0vm 3.0.5 sha256:36c016a5bb2ded5bd1f8f92cc487e6ffaeb1e95ec05850c983081a0f716b515b",
+    "cargo_risczero": "cargo-risczero 3.0.5 sha256:45aba69689cef25d81237f3ff62456fc96ff1e23f75adfcd16f7c8b8c1606619",
+    "risc0_zkvm": "3.0.5",
+    "cargo_lock_sha256": "949ac01057adb3fda82cb5fc9be916124ee1101fe912febb4845115616350d2a",
+    "target": "riscv32im-risc0-zkvm-elf",
+    "build_jobs": 2,
+    "offline": true,
+    "locked": true
+  },
+  "programs": [
+    {
+      "stage": "spot_value_leaf_v6",
+      "package": "zenodex-zrpf-risc0-spot-value-leaf-v6",
+      "artifact_file": "spot_value_leaf_v6.bin",
+      "program_binary_bytes": 1191196,
+      "program_binary_sha256": "28e6ed98c89f62a4439a1e63c6c5173c927209923f1f24733d0f67d155d0da74",
+      "image_id_hex": "67494a413c729cbb4b6095036425ba0b86edcc30625c19b525409f8e8ff022d1",
+      "image_id_words_le": [
+        1095387495,
+        3147592252,
+        60121163,
+        196748644,
+        818736518,
+        3038338146,
+        2392801317,
+        3508727951
+      ],
+      "verified_child_stage": "adapter_v3",
+      "verified_child_image_id": "4caf9aa0a1ed0e1f08d43549bafd0f25a2e75125862cd7e31edbbfa520cd8760"
+    },
+    {
+      "stage": "spot_value_aggregate_l1_v6",
+      "package": "zenodex-zrpf-risc0-spot-value-aggregate-l1-v6",
+      "artifact_file": "spot_value_aggregate_l1_v6.bin",
+      "program_binary_bytes": 635236,
+      "program_binary_sha256": "2368aa13b18398e49460067f6907e30339b856e8439a464b4ddb4e7a9970a1f9",
+      "image_id_hex": "a2b4c32ef76c0a81643f1758c476fc21f6a7c2afd11d2a6e08fae022418e2e15",
+      "image_id_words_le": [
+        784577698,
+        2164944119,
+        1477918564,
+        570193604,
+        2948769782,
+        1848253905,
+        585169416,
+        355372609
+      ],
+      "verified_child_stage": "spot_value_leaf_v6",
+      "verified_child_image_id": "67494a413c729cbb4b6095036425ba0b86edcc30625c19b525409f8e8ff022d1"
+    },
+    {
+      "stage": "spot_value_aggregate_l2_v6",
+      "package": "zenodex-zrpf-risc0-spot-value-aggregate-l2-v6",
+      "artifact_file": "spot_value_aggregate_l2_v6.bin",
+      "program_binary_bytes": 546376,
+      "program_binary_sha256": "3439541629e1c0376cea111061cadd2594218c501cc8485249ef2a50ff824908",
+      "image_id_hex": "5c8f94b4ada70ad5ba0d6ac6bd6b0055a9e148c329372e7b24a81249ff07a76f",
+      "image_id_words_le": [
+        3029634908,
+        3574245293,
+        3328839098,
+        1426090941,
+        3276333481,
+        2066626345,
+        1225959460,
+        1873217535
+      ],
+      "verified_child_stage": "spot_value_aggregate_l1_v6",
+      "verified_child_image_id": "a2b4c32ef76c0a81643f1758c476fc21f6a7c2afd11d2a6e08fae022418e2e15"
+    },
+    {
+      "stage": "source_opened_spot_settlement_v6",
+      "package": "zenodex-zrpf-risc0-source-opened-spot-settlement-v6",
+      "artifact_file": "source_opened_spot_settlement_v6.bin",
+      "program_binary_bytes": 2039876,
+      "program_binary_sha256": "dc192506cf8ff97824aa98b90eb8b62bd43ece5ccb1af7d2ba085e5faf865309",
+      "image_id_hex": "73a1c5c275d85f39443f68803932df9caac670b420b9948b7e7b2dffe1f2e98d",
+      "image_id_words_le": [
+        3267731827,
+        962582645,
+        2154315588,
+        2631873081,
+        3027289770,
+        2341779744,
+        4281170814,
+        2380919521
+      ],
+      "verified_child_stage": "spot_value_aggregate_l2_v6",
+      "verified_child_image_id": "5c8f94b4ada70ad5ba0d6ac6bd6b0055a9e148c329372e7b24a81249ff07a76f"
+    }
+  ],
+  "publisher_reported_observations": {
+    "commands_reported_executed": {
+      "artifact_hashes_recorded": true,
+      "cargo_build_locked": true,
+      "clean_external_target_verified": true,
+      "image_ids_recomputed_from_program_binaries": true,
+      "policy_dependencies_compiled": true,
+      "risc0_guests_built": true,
+      "source_snapshot_captured": true
+    },
+    "same_host_current_v6_images_built": true
+  },
+  "claims": {
+    "four_guest_program_binary_identities_recorded": true,
+    "local_path_dependency_graph_complete": true,
+    "selected_source_closure_matches_commit": true,
+    "complete_build_input_closure_verified": false,
+    "cross_host_reproducible_build": false,
+    "durable_atomic_admission_verified": false,
+    "global_worktree_cleanliness_verified": false,
+    "historical_build_commands_independently_verified": false,
+    "production_authority": false,
+    "proofs_generated": false,
+    "release_authority": false,
+    "settlement_authority": false,
+    "source_to_program_binary_provenance_verified": false
+  }
+}

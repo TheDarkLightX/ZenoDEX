@@ -20,6 +20,7 @@ use crate::{ValueAggregateLevelOneInputV5, ValueAggregateLevelTwoInputV5};
 pub const VALUE_AGGREGATE_GUEST_INPUT_SCHEMA_V5: u16 = 1;
 const LEVEL_ONE_V4_CHILDREN_TAG: u8 = 1;
 const LEVEL_TWO_V5_CHILDREN_TAG: u8 = 2;
+const LEVEL_ONE_SOURCE_OPENED_SPOT_V6_CHILDREN_TAG: u8 = 3;
 const HEADER_BYTES: usize = 2 + 1 + 1;
 const CHILD_LENGTH_BYTES: usize = 4;
 const MAX_CHILD_BYTES: usize = if MAX_NODE_JOURNAL_BYTES_V4 > MAX_VALUE_AGGREGATE_PROPOSAL_BYTES_V5
@@ -40,6 +41,7 @@ pub const MAX_VALUE_AGGREGATE_GUEST_INPUT_BYTES_V5: usize =
 /// composition wrapper.
 pub enum ValueAggregateGuestInputV5 {
     LevelOne(ValueAggregateLevelOneInputV5),
+    LevelOneSourceOpenedSpotV6(ValueAggregateLevelOneInputV5),
     LevelTwo(ValueAggregateLevelTwoInputV5),
 }
 
@@ -103,6 +105,10 @@ pub fn encode_value_aggregate_guest_input_v5(
         ValueAggregateGuestInputV5::LevelOne(input) => {
             (LEVEL_ONE_V4_CHILDREN_TAG, input.child_journal_bytes())
         }
+        ValueAggregateGuestInputV5::LevelOneSourceOpenedSpotV6(input) => (
+            LEVEL_ONE_SOURCE_OPENED_SPOT_V6_CHILDREN_TAG,
+            input.child_journal_bytes(),
+        ),
         ValueAggregateGuestInputV5::LevelTwo(input) => {
             (LEVEL_TWO_V5_CHILDREN_TAG, input.child_proposal_bytes())
         }
@@ -182,6 +188,12 @@ pub fn decode_exact_value_aggregate_guest_input_v5(
             ValueAggregateLevelOneInputV5::new(children)
                 .map_err(|_| ValueAggregateGuestInputErrorV5::NonCanonicalEncoding)?,
         ),
+        LEVEL_ONE_SOURCE_OPENED_SPOT_V6_CHILDREN_TAG => {
+            ValueAggregateGuestInputV5::LevelOneSourceOpenedSpotV6(
+                ValueAggregateLevelOneInputV5::new(children)
+                    .map_err(|_| ValueAggregateGuestInputErrorV5::NonCanonicalEncoding)?,
+            )
+        }
         LEVEL_TWO_V5_CHILDREN_TAG => ValueAggregateGuestInputV5::LevelTwo(
             ValueAggregateLevelTwoInputV5::new(children)
                 .map_err(|_| ValueAggregateGuestInputErrorV5::NonCanonicalEncoding)?,
@@ -196,7 +208,9 @@ pub fn decode_exact_value_aggregate_guest_input_v5(
 
 fn maximum_child_bytes(tag: u8) -> Result<usize, ValueAggregateGuestInputErrorV5> {
     match tag {
-        LEVEL_ONE_V4_CHILDREN_TAG => Ok(MAX_NODE_JOURNAL_BYTES_V4),
+        LEVEL_ONE_V4_CHILDREN_TAG | LEVEL_ONE_SOURCE_OPENED_SPOT_V6_CHILDREN_TAG => {
+            Ok(MAX_NODE_JOURNAL_BYTES_V4)
+        }
         LEVEL_TWO_V5_CHILDREN_TAG => Ok(MAX_VALUE_AGGREGATE_PROPOSAL_BYTES_V5),
         _ => Err(ValueAggregateGuestInputErrorV5::InvalidChildWireKind(tag)),
     }

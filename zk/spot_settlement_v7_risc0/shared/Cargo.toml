@@ -1,0 +1,38 @@
+[package]
+name = "zenodex-zrpf-risc0-spot-settlement-v7-shared"
+version = "0.1.0"
+edition = "2021"
+description = "Proof-neutral canonical Spot settlement V7 recursive composition"
+publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+name = "canonical_boundaries_v1"
+path = "tests/canonical_boundaries_v1.rs"
+
+[[test]]
+name = "source_execution_contract_v1"
+path = "tests/source_execution_contract_v1.rs"
+
+[dependencies]
+postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
+sha2 = { version = "0.10.9", default-features = false }
+tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared", default-features = false }
+zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol" }
+zenodex-zrpf-risc0-shared = { path = "../../zrpf_risc0/shared", default-features = false }
+zenodex-zrpf-risc0-spot-settlement-v6-shared = { path = "../../zrpf_risc0/spot_settlement_v6_shared", default-features = false }
+zenodex-zrpf-risc0-value-node-shared = { path = "../../zrpf_risc0/value_node_shared", default-features = false }
+zenodex-zrpf-risc0-spot-settlement-v7-child-policy = { path = "../child_policy" }
+zenodex-zrpf-risc0-spot-settlement-v7-effect-binding-shared = { path = "../../spot_settlement_v7_effect_binding_shared" }
+zenodex-zrpf-risc0-spot-state-root-v5-bridge-shared = { path = "../../spot_state_root_v5_bridge_shared" }
+zenodex-zrpf-risc0-spot-state-root-v7-semantic-shared = { path = "../../spot_state_root_v7_semantic_shared" }
+
+[dev-dependencies]
+serde_json = "1.0.140"

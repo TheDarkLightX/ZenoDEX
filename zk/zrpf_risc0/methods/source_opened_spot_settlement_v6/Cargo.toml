@@ -1,0 +1,19 @@
+[package]
+name = "zenodex-zrpf-risc0-source-opened-spot-settlement-v6"
+version = "0.1.0"
+edition = "2021"
+description = "RISC0 guest for source-opened ordinary Spot V6 settlement certificates"
+publish = false
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.5", default-features = false, features = ["std", "unstable"] }
+zenodex-zrpf-protocol-v3 = { path = "../../../zrpf_protocol/protocol", default-features = false }
+zenodex-zrpf-risc0-shared = { path = "../../shared", default-features = false }
+zenodex-zrpf-risc0-spot-settlement-v6-shared = { path = "../../spot_settlement_v6_shared", default-features = false }
+zenodex-zrpf-risc0-spot-value-aggregate-root-policy-v6 = { path = "../../spot_value_aggregate_root_policy_v6", default-features = false }
+
+[[bin]]
+name = "zenodex-zrpf-risc0-source-opened-spot-settlement-v6"
+path = "src/main.rs"
+test = false
+bench = false

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -24,12 +25,12 @@ def _validate_coherent_mutation(
         checker._canonical_sha256(document),
     )
     with pytest.raises(checker.RecordError) as rejected:
-        checker.validate_evidence(document)
+        checker.validate_evidence(document, historical_recorded_source=True)
     return rejected.value
 
 
 def test_committed_live_replay_record_is_exact_and_non_authoritative() -> None:
-    report = checker.check_retained_evidence()
+    report = checker.check_retained_evidence(historical_recorded_source=True)
 
     assert report["ok"] is True
     assert report["record_integrity_verified"] is True
@@ -38,6 +39,14 @@ def test_committed_live_replay_record_is_exact_and_non_authoritative() -> None:
     assert report["release_authority"] is False
     assert report["settlement_authority"] is False
     assert report["production_authority"] is False
+    assert report["historical_checker_source_closure_reconstructed"] is True
+
+
+def test_live_replay_record_rejects_the_changed_current_checker_source() -> None:
+    report = checker.check_retained_evidence()
+
+    assert report["ok"] is False
+    assert report["error_codes"] == ["CHECKER_SOURCE"]
 
 
 def test_historical_reference_is_separate_from_future_active_reproof_path() -> None:
@@ -48,8 +57,34 @@ def test_historical_reference_is_separate_from_future_active_reproof_path() -> N
         "config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json"
     )
     assert (
-        checker.HISTORICAL_REFERENCE_RELATIVE_PATH != checker.FUTURE_ACTIVE_REFERENCE_RELATIVE_PATH
+        checker.HISTORICAL_REFERENCE_RELATIVE_PATH
+        != checker.FUTURE_ACTIVE_REFERENCE_RELATIVE_PATH
     )
+
+
+@pytest.mark.parametrize(
+    ("operation", "message"),
+    [
+        ("blob", "Git object read timed out"),
+        ("revision", "Git revision lookup timed out"),
+    ],
+)
+def test_historical_git_timeout_fails_closed(
+    operation: str,
+    message: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def time_out(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd="git", timeout=10)
+
+    monkeypatch.setattr(checker.subprocess, "run", time_out)
+
+    with pytest.raises(checker.RecordError, match=message) as rejected:
+        if operation == "blob":
+            checker._historical_blob(checker.ROOT, "README.md")
+        else:
+            checker._historical_checker_source_closure(checker.ROOT)
+    assert rejected.value.code == "HISTORICAL_SOURCE"
 
 
 def test_unknown_field_rejects_even_with_coherently_updated_digest(
@@ -205,7 +240,10 @@ def test_bound_source_read_failure_returns_rejected_report(
     assert report["error_codes"] == ["CHECKER_SOURCE"]
 
 
-def test_bound_reference_read_failure_returns_rejected_report(tmp_path: Path) -> None:
+def test_bound_reference_read_failure_returns_rejected_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     root = tmp_path / "repo"
     evidence = root / checker.EVIDENCE_PATH.relative_to(checker.ROOT)
     evidence.parent.mkdir(parents=True)
@@ -214,6 +252,12 @@ def test_bound_reference_read_failure_returns_rejected_report(tmp_path: Path) ->
         destination = root / relative_path
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(checker.ROOT / relative_path, destination)
+    expected_closure = _document()["checker_source_closure"]
+    monkeypatch.setattr(
+        checker.live.support,
+        "checker_source_closure",
+        lambda _repository_root: expected_closure,
+    )
 
     report = checker.check_retained_evidence(repository_root=root)
 

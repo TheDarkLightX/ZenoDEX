@@ -168,7 +168,7 @@ fn derive_subtree_fields(
         .scope()
         .canonical_hash()
         .map_err(SpotSemanticValueErrorV1::Structural)?;
-    let lane_id_hash = hash_lane_id(
+    let lane_id_hash = spot_lane_id_hash_v1(
         state
             .lane_id
             .as_deref()

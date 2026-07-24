@@ -461,13 +461,78 @@ def _looks_like_tauswap_intent_stream_v0(value: object) -> bool:
     return str(module) == "TauSwap"
 
 
-def _normalize_dex_operations_for_apply_v0(operations: Mapping[str, Any]) -> dict[str, Any]:
+def _normalize_dex_operations_for_apply_v0(
+    operations: Mapping[str, Any],
+    *,
+    outer_transaction_nonce: object | None = None,
+) -> dict[str, Any]:
     normalized = dict(operations)
     if "2" not in normalized and _looks_like_tauswap_intent_stream_v0(normalized.get("5")):
         normalized["2"] = normalized["5"]
     if "3" not in normalized and "6" in normalized:
         normalized["3"] = normalized["6"]
+    if "2" in normalized and outer_transaction_nonce is not None:
+        normalized["2"] = _bind_outer_transaction_nonce_to_intents_v0(
+            normalized["2"],
+            outer_transaction_nonce=outer_transaction_nonce,
+        )
     return normalized
+
+
+def _bind_outer_transaction_nonce_to_intents_v0(
+    value: object,
+    *,
+    outer_transaction_nonce: object,
+) -> object:
+    """Bridge the strict singleton tx nonce into the runtime intent schema.
+
+    The legacy RISC0 Spot input advances one ingress nonce per transaction,
+    while the Python runtime stores the nonce on each intent.  The relation is
+    unambiguous only for one intent. Existing multi-intent runtime envelopes
+    that already carry per-intent nonces remain outside this bridge.
+    """
+
+    if not isinstance(value, list) or not value:
+        return value
+    parsed_nonce = _require_nonnegative_int(
+        outer_transaction_nonce,
+        name="outer transaction nonce",
+    )
+    if parsed_nonce <= 0 or parsed_nonce > 0xFFFFFFFF:
+        raise ValueError("outer transaction nonce must be in 1..u32::MAX")
+
+    cloned_entries: list[object] = []
+    intent_refs: list[dict[str, Any]] = []
+    missing_nonce_count = 0
+    for entry in value:
+        if isinstance(entry, dict):
+            intent = dict(entry)
+            cloned: object = intent
+        elif isinstance(entry, (list, tuple)) and entry and isinstance(entry[0], dict):
+            intent = dict(entry[0])
+            pair = list(entry)
+            pair[0] = intent
+            cloned = pair
+        else:
+            cloned_entries.append(entry)
+            continue
+        if "nonce" not in intent:
+            missing_nonce_count += 1
+        intent_refs.append(intent)
+        cloned_entries.append(cloned)
+
+    if missing_nonce_count:
+        if len(value) != 1 or missing_nonce_count != 1:
+            raise ValueError(
+                "multiple nonce-free intents cannot share one outer transaction nonce"
+            )
+        intent_refs[0]["nonce"] = parsed_nonce
+        return cloned_entries
+
+    if len(cloned_entries) == 1 and len(intent_refs) == 1:
+        if intent_refs[0].get("nonce") != parsed_nonce:
+            raise ValueError("intent nonce does not match outer transaction nonce")
+    return cloned_entries
 
 
 def _extract_tx_block_timestamp_v0(tx: object, *, index: int, default: int | None) -> int:
@@ -513,7 +578,11 @@ def apply_body_transactions_v0(
     for index, tx in enumerate(executed_body["transactions"]):
         tx_hash = tx_hash_v0(tx)
         try:
-            operations = _normalize_dex_operations_for_apply_v0(_extract_tx_operations_v0(tx, index=index))
+            tx_obj = _require_mapping(tx, name=f"transactions[{index}]")
+            operations = _normalize_dex_operations_for_apply_v0(
+                _extract_tx_operations_v0(tx, index=index),
+                outer_transaction_nonce=tx_obj.get("nonce"),
+            )
             block_timestamp = _extract_tx_block_timestamp_v0(
                 tx,
                 index=index,

@@ -28,13 +28,13 @@
     {
       "id": "replay_bound_range_verification",
       "claim_id": "py:zeno_ledger:replay_bound_range_v0",
-      "coverage": "Strict ZenoLedger range verification anchors a canonical pre-state snapshot, binds a float-free governed engine configuration, carries replayed state across linked headers, executes each body exactly once, and requires exact post-state roots and rejection receipts. Structural diagnostics cannot authorize watcher attestations.",
+      "coverage": "Strict ZenoLedger range verification anchors a canonical pre-state snapshot, binds a float-free governed engine configuration, carries replayed state across linked headers, executes each supported transaction body exactly once, and requires exact post-state roots and rejection receipts. V0 rejects nonempty body-level settlement_envelopes because it has no governed executor for that effect surface. Structural diagnostics cannot authorize watcher attestations.",
       "proof_kind": "deterministic_replay_v0"
     },
     {
       "id": "proof_required_range_replay",
       "claim_id": "py:zeno_ledger:proof_required_profile_metadata_replay_v0",
-      "coverage": "ZenoLedger range verifier requires proof metadata per checked height when the active profile or bridge policy requires proof journals.",
+      "coverage": "Metadata-only diagnostic coverage: ZenoLedger requires header-bound proof metadata per checked height when the active profile or bridge policy requires proof journals. This surface does not satisfy cryptographic proof authority and proof-required replay fails closed at the typed consumer obligation.",
       "proof_kind": "metadata_replay"
     },
     {
@@ -51,6 +51,11 @@
     }
   ],
   "gap_surfaces": [
+    {
+      "id": "proof_required_authenticated_authority",
+      "required_for": "Cryptographic proof_required and proof-journal bridge authority",
+      "gap": "The typed final-consumer port rejects caller booleans and records a pending obligation. The V0 replay configuration still does not consensus-bind the authority-manifest digest, verifier-registry identity, and strict private authenticated result. A cycle-free replay_engine_config/v1 must commit the complete governed proof-authority policy before proof_authority_satisfied can become true."
+    },
     {
       "id": "uniform_batch_upba_v2_v3_real_proof",
       "required_for": "UPBA proof coverage",
@@ -100,6 +105,8 @@
     "does_not_claim_proof_market_zk_execution",
     "does_not_claim_light_client_state_transition_replay",
     "does_not_claim_light_client_finality",
-    "does_not_claim_recursive_epoch_proof_soundness"
+    "does_not_claim_recursive_epoch_proof_soundness",
+    "does_not_claim_proof_required_cryptographic_authority",
+    "does_not_claim_body_level_settlement_envelope_replay"
   ]
 }

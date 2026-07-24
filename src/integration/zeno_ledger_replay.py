@@ -8,6 +8,11 @@ from typing import Any, Mapping
 from src.core.dex import DexConfig, DexState
 from src.integration.dex_engine import DexEngineConfig
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
+from src.integration.zeno_ledger_proof_authority_consumer_v1 import (
+    GovernedProofAuthorityBindingV1,
+    governed_proof_authority_binding_document_v1,
+    parse_governed_proof_authority_binding_v1,
+)
 from src.integration.zeno_ledger_v0 import (
     dex_state_root_v0,
     hash_v0,
@@ -17,6 +22,9 @@ from src.integration.zeno_ledger_v0 import (
 
 REPLAY_ENGINE_CONFIG_SCHEMA = "zenodex/zeno_ledger/replay_engine_config/v0"
 REPLAY_ENGINE_CONFIG_PROFILE = "bounded_dex_engine_v0"
+REPLAY_ENGINE_CONFIG_SCHEMA_V1 = "zenodex/zeno_ledger/replay_engine_config/v1"
+REPLAY_ENGINE_CONFIG_PROFILE_V1 = "bounded_dex_engine_proof_authority_v1"
+_MAX_U64 = (1 << 64) - 1
 
 
 def _require_bool(value: object, *, name: str) -> bool:
@@ -37,12 +45,26 @@ def _require_nonnegative_int(value: object, *, name: str) -> int:
     return value
 
 
+def _require_u64(value: object, *, name: str) -> int:
+    parsed = _require_nonnegative_int(value, name=name)
+    if parsed > _MAX_U64:
+        raise ValueError(f"{name} must fit in a u64")
+    return parsed
+
+
 def _require_optional_str(value: object, *, name: str) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str) or value == "":
         raise ValueError(f"{name} must be null or a non-empty str")
     return value
+
+
+def _require_optional_ascii_str(value: object, *, name: str) -> str | None:
+    parsed = _require_optional_str(value, name=name)
+    if parsed is not None and not parsed.isascii():
+        raise ValueError(f"{name} must contain only ASCII characters")
+    return parsed
 
 
 def _canonical_config_projection(value: object) -> object:
@@ -88,6 +110,14 @@ def replay_engine_config_document_v0(config: DexEngineConfig) -> dict[str, Any]:
     )
     if config != replay_config:
         raise ValueError("engine config is outside bounded_dex_engine_v0")
+    _require_u64(
+        config.min_lp_position_age_seconds,
+        name="engine_config.config.min_lp_position_age_seconds",
+    )
+    _require_optional_ascii_str(
+        config.dex_config.protocol_fee_recipient_pubkey,
+        name="engine_config.config.dex_config.protocol_fee_recipient_pubkey",
+    )
     return {
         "schema": REPLAY_ENGINE_CONFIG_SCHEMA,
         "profile": REPLAY_ENGINE_CONFIG_PROFILE,
@@ -139,12 +169,12 @@ def parse_replay_engine_config_v0(
         ),
         dex_config=DexConfig(
             protocol_fee_share_bps=protocol_fee_share_bps,
-            protocol_fee_recipient_pubkey=_require_optional_str(
+            protocol_fee_recipient_pubkey=_require_optional_ascii_str(
                 dex_config_obj.get("protocol_fee_recipient_pubkey"),
                 name="engine_config.config.dex_config.protocol_fee_recipient_pubkey",
             ),
         ),
-        min_lp_position_age_seconds=_require_nonnegative_int(
+        min_lp_position_age_seconds=_require_u64(
             config_obj.get("min_lp_position_age_seconds"),
             name="engine_config.config.min_lp_position_age_seconds",
         ),
@@ -160,6 +190,72 @@ def replay_engine_config_digest_v0(document: Mapping[str, Any]) -> str:
 
     _config, canonical_document = parse_replay_engine_config_v0(document)
     return hash_v0("zeno_ledger_replay_engine_config_v0", canonical_document)
+
+
+def replay_engine_config_document_v1(
+    config: DexEngineConfig,
+    *,
+    proof_authority_policy: GovernedProofAuthorityBindingV1,
+) -> dict[str, Any]:
+    """Return the cycle-free config V1 that commits proof-authority policy."""
+
+    if type(proof_authority_policy) is not GovernedProofAuthorityBindingV1:
+        raise TypeError(
+            "proof_authority_policy must be exactly GovernedProofAuthorityBindingV1"
+        )
+    v0_document = replay_engine_config_document_v0(config)
+    if proof_authority_policy.chain_id != config.chain_id:
+        raise ValueError("proof-authority policy chain_id does not match engine config")
+    return {
+        "schema": REPLAY_ENGINE_CONFIG_SCHEMA_V1,
+        "profile": REPLAY_ENGINE_CONFIG_PROFILE_V1,
+        "config": v0_document["config"],
+        "proof_authority_policy": governed_proof_authority_binding_document_v1(
+            proof_authority_policy
+        ),
+    }
+
+
+def parse_replay_engine_config_v1(
+    document: Mapping[str, Any],
+) -> tuple[DexEngineConfig, GovernedProofAuthorityBindingV1, dict[str, Any]]:
+    """Parse exact config V1 without accepting a V0 policy projection."""
+
+    obj = dict(document)
+    if set(obj) != {"schema", "profile", "config", "proof_authority_policy"}:
+        raise ValueError("replay engine config V1 keys mismatch")
+    if obj.get("schema") != REPLAY_ENGINE_CONFIG_SCHEMA_V1:
+        raise ValueError("replay engine config V1 schema mismatch")
+    if obj.get("profile") != REPLAY_ENGINE_CONFIG_PROFILE_V1:
+        raise ValueError("replay engine config V1 profile mismatch")
+    config_obj = obj.get("config")
+    if not isinstance(config_obj, Mapping):
+        raise TypeError("engine_config.config must be a JSON object")
+    policy_obj = obj.get("proof_authority_policy")
+    if not isinstance(policy_obj, Mapping):
+        raise TypeError("engine_config.proof_authority_policy must be a JSON object")
+    config, _v0_canonical = parse_replay_engine_config_v0(
+        {
+            "schema": REPLAY_ENGINE_CONFIG_SCHEMA,
+            "profile": REPLAY_ENGINE_CONFIG_PROFILE,
+            "config": dict(config_obj),
+        }
+    )
+    policy = parse_governed_proof_authority_binding_v1(policy_obj)
+    canonical_document = replay_engine_config_document_v1(
+        config,
+        proof_authority_policy=policy,
+    )
+    if obj != canonical_document:
+        raise ValueError("replay engine config V1 is not canonical")
+    return config, policy, canonical_document
+
+
+def replay_engine_config_digest_v1(document: Mapping[str, Any]) -> str:
+    """Hash a validated config V1 including the complete governed policy."""
+
+    _config, _policy, canonical_document = parse_replay_engine_config_v1(document)
+    return hash_v0("zeno_ledger_replay_engine_config_v1", canonical_document)
 
 
 def load_replay_snapshot_v0(snapshot: Mapping[str, Any]) -> tuple[DexState, dict[str, Any]]:
@@ -188,6 +284,13 @@ def validate_replay_bound_block_v0(
 ) -> DexState:
     """Validate and replay one block, returning the only admissible next state."""
 
+    # V0 replays transactions only. A body-level settlement envelope is a
+    # separately committed effect surface, so accepting one without a governed
+    # executor would overstate state_replay_checked.
+    if body.get("settlement_envelopes") != []:
+        raise ValueError(
+            "body settlement_envelopes are not supported by replay-bound v0"
+        )
     if header.get("config_digest") != config_digest:
         raise ValueError("header config_digest does not match governed engine config")
     if header.get("chain_id") != config.chain_id:

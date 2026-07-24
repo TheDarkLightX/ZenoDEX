@@ -22,6 +22,11 @@ pub const PROOF_TYPE: &str = "risc0.zenodex_spot_transition.v1";
 pub const JOURNAL_VERSION: u32 = 1;
 
 pub const MIN_LP_LOCK: u128 = 1000;
+// Consensus-domain limits mirrored from src/core/domain_limits.py.
+pub const DEX_POOL_RESERVE_MAX: u128 = 3_000_000_000;
+pub const DEX_SWAP_AMOUNT_MAX: u128 = 3_000_000_000;
+pub const DEX_LP_AMOUNT_MAX: u128 = 1_000_000_000;
+pub const DEX_LP_SUPPLY_MAX: u128 = 3_000_000_000;
 pub const MAX_PRESTATE_TX_ORDER_ORACLE_TXS: usize = 8;
 pub const MAX_FPT_ROUTE_PACKING_TXS: usize = 16;
 pub const MAX_FPT_ROUTE_PACKING_POOL_IDS: usize = 64;
@@ -722,6 +727,67 @@ struct RemoveLiquidityConservationAudit<'a> {
     lp_amount: u128,
 }
 
+fn require_domain_max(
+    value: u128,
+    maximum: u128,
+    error: &'static str,
+) -> Result<(), TransitionError> {
+    if value > maximum {
+        return Err(TransitionError::InvalidInput(error));
+    }
+    Ok(())
+}
+
+fn require_pool_domain(pool: &DexPoolEntryV1) -> Result<(), TransitionError> {
+    require_domain_max(
+        pool.reserve0,
+        DEX_POOL_RESERVE_MAX,
+        "pool.reserve0 exceeds domain max",
+    )?;
+    require_domain_max(
+        pool.reserve1,
+        DEX_POOL_RESERVE_MAX,
+        "pool.reserve1 exceeds domain max",
+    )?;
+    require_domain_max(
+        pool.lp_supply,
+        DEX_LP_SUPPLY_MAX,
+        "pool.lp_supply exceeds domain max",
+    )
+}
+
+fn require_canonical_pool_identity(pool: &DexPoolEntryV1) -> Result<(), TransitionError> {
+    let asset0 = canonical_pool_asset_id(&pool.asset0);
+    let asset1 = canonical_pool_asset_id(&pool.asset1);
+    if asset0.is_empty() || asset1.is_empty() {
+        return Err(TransitionError::InvalidInput(
+            "snapshot pool assets must be non-empty",
+        ));
+    }
+    if pool.asset0 != asset0 || pool.asset1 != asset1 {
+        return Err(TransitionError::InvalidInput(
+            "snapshot pool assets must use canonical encoding",
+        ));
+    }
+    if asset0 >= asset1 {
+        return Err(TransitionError::InvalidInput(
+            "snapshot pool assets must be in canonical order",
+        ));
+    }
+    if pool.fee_bps > 10_000 {
+        return Err(TransitionError::InvalidInput(
+            "snapshot pool fee_bps out of range",
+        ));
+    }
+    let expected = compute_pool_id(&asset0, &asset1, pool.fee_bps, CURVE_TAG, CURVE_PARAMS);
+    if pool.pool_id != expected {
+        return Err(TransitionError::InvalidInput(
+            "snapshot pool_id does not match canonical pool identity",
+        ));
+    }
+    Ok(())
+}
+
 /// Route conservation audit: verifies the full value chain balances.
 /// sender_debit -> pool_1_in -> pool_1_out -> pool_2_in -> ... -> recipient_credit
 /// No value created or destroyed at any hop.
@@ -820,9 +886,11 @@ impl DexStateV1 {
             if pool.pool_id.is_empty() {
                 return Err(TransitionError::InvalidInput("snapshot pool_id empty"));
             }
+            require_canonical_pool_identity(&pool)?;
             if pools.contains_key(&pool.pool_id) {
                 return Err(TransitionError::InvalidInput("duplicate snapshot pool_id"));
             }
+            require_pool_domain(&pool)?;
             pools.insert(pool.pool_id.clone(), pool);
         }
 
@@ -1149,6 +1217,16 @@ impl DexStateV1 {
                 "initial deposits must be positive",
             ));
         }
+        require_domain_max(
+            intent.amount0,
+            DEX_LP_AMOUNT_MAX,
+            "amount0 exceeds domain max",
+        )?;
+        require_domain_max(
+            intent.amount1,
+            DEX_LP_AMOUNT_MAX,
+            "amount1 exceeds domain max",
+        )?;
         if intent.fee_bps > 10_000 {
             return Err(TransitionError::InvalidInput("fee_bps out of range"));
         }
@@ -1183,6 +1261,19 @@ impl DexStateV1 {
         }
         let lp_to_creator = lp_supply_total - MIN_LP_LOCK;
 
+        let next_pool = DexPoolEntryV1 {
+            pool_id: pool_id.clone(),
+            asset0: intent.asset0.clone(),
+            asset1: intent.asset1.clone(),
+            reserve0: intent.amount0,
+            reserve1: intent.amount1,
+            fee_bps: intent.fee_bps,
+            lp_supply: lp_supply_total,
+            status: "ACTIVE".to_string(),
+            created_at: 0,
+        };
+        require_pool_domain(&next_pool)?;
+
         // Withdraw from sender only after all pool-creation validity checks pass.
         self.sub_balance(&intent.sender_pubkey, &intent.asset0, intent.amount0)?;
         self.sub_balance(&intent.sender_pubkey, &intent.asset1, intent.amount1)?;
@@ -1190,20 +1281,7 @@ impl DexStateV1 {
         self.add_lp(&intent.sender_pubkey, &pool_id, lp_to_creator)?;
         self.add_lp(LP_LOCK_PUBKEY, &pool_id, MIN_LP_LOCK)?;
 
-        self.pools.insert(
-            pool_id.clone(),
-            DexPoolEntryV1 {
-                pool_id: pool_id.clone(),
-                asset0: intent.asset0.clone(),
-                asset1: intent.asset1.clone(),
-                reserve0: intent.amount0,
-                reserve1: intent.amount1,
-                fee_bps: intent.fee_bps,
-                lp_supply: lp_supply_total,
-                status: "ACTIVE".to_string(),
-                created_at: 0,
-            },
-        );
+        self.pools.insert(pool_id.clone(), next_pool);
         self.audit_create_pool_conservation(CreatePoolConservationAudit {
             pre_state: &pre_state,
             pool_id: &pool_id,
@@ -1868,6 +1946,16 @@ impl DexStateV1 {
         if intent.amount_in == 0 {
             return Err(TransitionError::InvalidInput("amount_in must be positive"));
         }
+        require_domain_max(
+            intent.amount_in,
+            DEX_SWAP_AMOUNT_MAX,
+            "amount_in exceeds domain max",
+        )?;
+        require_domain_max(
+            intent.min_amount_out,
+            DEX_SWAP_AMOUNT_MAX,
+            "min_amount_out exceeds domain max",
+        )?;
         if intent.asset_in == NATIVE_ASSET || intent.asset_out == NATIVE_ASSET {
             return Err(TransitionError::Unsupported(
                 "native asset unsupported in proof v1",
@@ -1883,6 +1971,7 @@ impl DexStateV1 {
         if pool.status != "ACTIVE" {
             return Err(TransitionError::InvalidInput("pool not active"));
         }
+        require_pool_domain(&pool)?;
         if !((intent.asset_in == pool.asset0 && intent.asset_out == pool.asset1)
             || (intent.asset_in == pool.asset1 && intent.asset_out == pool.asset0))
         {
@@ -1901,6 +1990,14 @@ impl DexStateV1 {
         } else {
             (pool.reserve1, pool.reserve0)
         };
+        let gross_post_reserve = reserve_in
+            .checked_add(intent.amount_in)
+            .ok_or(TransitionError::Arithmetic("reserve_in overflow"))?;
+        require_domain_max(
+            gross_post_reserve,
+            DEX_POOL_RESERVE_MAX,
+            "swap would exceed reserve_in domain max",
+        )?;
 
         if pool.fee_bps > 10_000 {
             return Err(TransitionError::InvalidInput("pool fee_bps out of range"));
@@ -2021,6 +2118,16 @@ impl DexStateV1 {
                 "max_amount_in must be positive",
             ));
         }
+        require_domain_max(
+            intent.amount_out,
+            DEX_SWAP_AMOUNT_MAX,
+            "amount_out exceeds domain max",
+        )?;
+        require_domain_max(
+            intent.max_amount_in,
+            DEX_SWAP_AMOUNT_MAX,
+            "max_amount_in exceeds domain max",
+        )?;
         if intent.asset_in == NATIVE_ASSET || intent.asset_out == NATIVE_ASSET {
             return Err(TransitionError::Unsupported(
                 "native asset unsupported in proof v1",
@@ -2036,6 +2143,7 @@ impl DexStateV1 {
         if pool.status != "ACTIVE" {
             return Err(TransitionError::InvalidInput("pool not active"));
         }
+        require_pool_domain(&pool)?;
         if !((intent.asset_in == pool.asset0 && intent.asset_out == pool.asset1)
             || (intent.asset_in == pool.asset1 && intent.asset_out == pool.asset0))
         {
@@ -2087,6 +2195,19 @@ impl DexStateV1 {
                 .ok_or(TransitionError::Arithmetic("gross_in mul overflow"))?,
             denom_fee,
         );
+        require_domain_max(
+            gross_in,
+            DEX_SWAP_AMOUNT_MAX,
+            "required amount_in exceeds domain max",
+        )?;
+        let gross_post_reserve = reserve_in
+            .checked_add(gross_in)
+            .ok_or(TransitionError::Arithmetic("reserve_in overflow"))?;
+        require_domain_max(
+            gross_post_reserve,
+            DEX_POOL_RESERVE_MAX,
+            "swap would exceed reserve_in domain max",
+        )?;
         if gross_in > intent.max_amount_in {
             return Err(TransitionError::InvalidInput("max_amount_in exceeded"));
         }
@@ -2222,6 +2343,16 @@ impl DexStateV1 {
                         "total_amount_in must be positive",
                     ));
                 }
+                require_domain_max(
+                    intent.total_amount_in,
+                    DEX_SWAP_AMOUNT_MAX,
+                    "total_amount_in exceeds domain max",
+                )?;
+                require_domain_max(
+                    intent.total_min_amount_out,
+                    DEX_SWAP_AMOUNT_MAX,
+                    "total_min_amount_out exceeds domain max",
+                )?;
                 if intent.total_amount_in
                     > self.get_balance(&intent.sender_pubkey, &intent.asset_in)
                 {
@@ -2246,6 +2377,7 @@ impl DexStateV1 {
                     if pool.status != "ACTIVE" {
                         return Err(TransitionError::InvalidInput("route pool not active"));
                     }
+                    require_pool_domain(&pool)?;
                     let asset_out = if current_asset == pool.asset0 {
                         pool.asset1.clone()
                     } else if current_asset == pool.asset1 {
@@ -2312,6 +2444,7 @@ impl DexStateV1 {
                             .checked_sub(amount_out)
                             .ok_or(TransitionError::Arithmetic("route reserve0 underflow"))?;
                     }
+                    require_pool_domain(&next_pool)?;
                     let leg_asset_in = current_asset.clone();
                     self.pools.insert(pool_id.clone(), next_pool);
                     route_pool_audits.push(RoutePoolAudit {
@@ -2352,6 +2485,16 @@ impl DexStateV1 {
                         "total_amount_out must be positive",
                     ));
                 }
+                require_domain_max(
+                    intent.total_amount_out,
+                    DEX_SWAP_AMOUNT_MAX,
+                    "total_amount_out exceeds domain max",
+                )?;
+                require_domain_max(
+                    intent.total_max_amount_in,
+                    DEX_SWAP_AMOUNT_MAX,
+                    "total_max_amount_in exceeds domain max",
+                )?;
                 // For exact-out route, walk legs in reverse to compute required input.
                 // Each leg is a single-pool exact-out swap.
                 let mut required_in = intent.total_amount_out;
@@ -2368,6 +2511,7 @@ impl DexStateV1 {
                     if pool.status != "ACTIVE" {
                         return Err(TransitionError::InvalidInput("route pool not active"));
                     }
+                    require_pool_domain(&pool)?;
                     let out_asset = assets.last().unwrap().clone();
                     let in_asset = if out_asset == pool.asset0 {
                         pool.asset1.clone()
@@ -2406,6 +2550,11 @@ impl DexStateV1 {
                             .ok_or(TransitionError::Arithmetic("route gross_in mul overflow"))?,
                         denom_fee,
                     );
+                    require_domain_max(
+                        gross_in,
+                        DEX_SWAP_AMOUNT_MAX,
+                        "route required amount_in exceeds domain max",
+                    )?;
                     required_in = gross_in;
                     assets.push(in_asset);
                 }
@@ -2498,6 +2647,7 @@ impl DexStateV1 {
                             .checked_sub(target_out)
                             .ok_or(TransitionError::Arithmetic("route reserve0 underflow"))?;
                     }
+                    require_pool_domain(&next_pool)?;
                     let leg_asset_in = current_asset.clone();
                     self.pools.insert(pool_id.clone(), next_pool);
                     route_pool_audits.push(RoutePoolAudit {
@@ -2564,6 +2714,14 @@ impl DexStateV1 {
                 "desired amounts must be positive",
             ));
         }
+        for (value, error) in [
+            (intent.amount0_desired, "amount0_desired exceeds domain max"),
+            (intent.amount1_desired, "amount1_desired exceeds domain max"),
+            (intent.amount0_min, "amount0_min exceeds domain max"),
+            (intent.amount1_min, "amount1_min exceeds domain max"),
+        ] {
+            require_domain_max(value, DEX_LP_AMOUNT_MAX, error)?;
+        }
 
         let pre_state = self.clone();
         let pool = self
@@ -2574,6 +2732,7 @@ impl DexStateV1 {
         if pool.status != "ACTIVE" {
             return Err(TransitionError::InvalidInput("pool not active"));
         }
+        require_pool_domain(&pool)?;
         if pool.asset0 == NATIVE_ASSET || pool.asset1 == NATIVE_ASSET {
             return Err(TransitionError::Unsupported(
                 "native asset unsupported in proof v1",
@@ -2640,10 +2799,6 @@ impl DexStateV1 {
             return Err(TransitionError::InvalidInput("insufficient balance"));
         }
 
-        self.sub_balance(&intent.sender_pubkey, &pool.asset0, amount0_used)?;
-        self.sub_balance(&intent.sender_pubkey, &pool.asset1, amount1_used)?;
-        self.add_lp(&intent.recipient, &intent.pool_id, lp_minted)?;
-
         let mut next_pool = pool.clone();
         next_pool.reserve0 = next_pool
             .reserve0
@@ -2657,6 +2812,11 @@ impl DexStateV1 {
             .lp_supply
             .checked_add(lp_minted)
             .ok_or(TransitionError::Arithmetic("lp_supply overflow"))?;
+        require_pool_domain(&next_pool)?;
+
+        self.sub_balance(&intent.sender_pubkey, &pool.asset0, amount0_used)?;
+        self.sub_balance(&intent.sender_pubkey, &pool.asset1, amount1_used)?;
+        self.add_lp(&intent.recipient, &intent.pool_id, lp_minted)?;
         self.pools.insert(intent.pool_id.clone(), next_pool);
         self.audit_add_liquidity_conservation(AddLiquidityConservationAudit {
             pre_state: &pre_state,
@@ -2700,6 +2860,21 @@ impl DexStateV1 {
         if intent.lp_amount == 0 {
             return Err(TransitionError::InvalidInput("lp_amount must be positive"));
         }
+        require_domain_max(
+            intent.lp_amount,
+            DEX_LP_SUPPLY_MAX,
+            "lp_amount exceeds domain max",
+        )?;
+        require_domain_max(
+            intent.amount0_min,
+            DEX_POOL_RESERVE_MAX,
+            "amount0_min exceeds domain max",
+        )?;
+        require_domain_max(
+            intent.amount1_min,
+            DEX_POOL_RESERVE_MAX,
+            "amount1_min exceeds domain max",
+        )?;
 
         let pre_state = self.clone();
         let pool = self
@@ -2710,6 +2885,7 @@ impl DexStateV1 {
         if pool.status != "ACTIVE" {
             return Err(TransitionError::InvalidInput("pool not active"));
         }
+        require_pool_domain(&pool)?;
         if pool.asset0 == NATIVE_ASSET || pool.asset1 == NATIVE_ASSET {
             return Err(TransitionError::Unsupported(
                 "native asset unsupported in proof v1",
@@ -5517,7 +5693,9 @@ mod tests {
     const PROTOCOL_FEE_RECIPIENT: &str =
         "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
     const POOL_ID: &str = "0xcc9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686";
-    const POOL_ID_2: &str = "0xdd9c112f06b5ba4cd276419759e7b3e203ede2c64aa45ba75e24fa4609d9c686";
+    const POOL_ID_2: &str = "0xf19012291c8a7803ca9be5f88790e96faf893dfe57cbc475b3b43e2f35faa857";
+    const CHAIN_POOL_ID: &str =
+        "0x533f9c12407365b43940616e88019044bd6c607e1bb4a1f7efc0b9012896dd9b";
 
     fn empty_snapshot() -> DexSnapshotV1 {
         DexSnapshotV1 {
@@ -5678,7 +5856,7 @@ mod tests {
             amount: 0,
         });
         snapshot.pools.push(DexPoolEntryV1 {
-            pool_id: "CHAIN_POOL".to_string(),
+            pool_id: CHAIN_POOL_ID.to_string(),
             asset0: ASSET1.to_string(),
             asset1: ASSET2.to_string(),
             reserve0: 1_500_000,
@@ -5703,7 +5881,7 @@ mod tests {
             },
             RouteLegV1 {
                 hops: alloc::vec![RouteLegHopV1 {
-                    pool_id: "CHAIN_POOL".to_string(),
+                    pool_id: CHAIN_POOL_ID.to_string(),
                 }],
             },
         ];
@@ -5722,7 +5900,7 @@ mod tests {
             },
             RouteLegV1 {
                 hops: alloc::vec![RouteLegHopV1 {
-                    pool_id: "CHAIN_POOL".to_string(),
+                    pool_id: CHAIN_POOL_ID.to_string(),
                 }],
             },
         ];
@@ -5789,6 +5967,10 @@ mod tests {
     }
 
     fn route_tx(intent: RouteIntentV1) -> TauTxV1 {
+        single_intent_tx(DexIntentV1::Route(intent))
+    }
+
+    fn single_intent_tx(intent: DexIntentV1) -> TauTxV1 {
         TauTxV1 {
             sender_pubkey: SENDER.to_string(),
             app_ops: TauTxAppOpsV1 {
@@ -5797,7 +5979,7 @@ mod tests {
                 has_intents: true,
                 intents: alloc::vec![SignedIntentV1 {
                     signature: None,
-                    intent: DexIntentV1::Route(intent),
+                    intent,
                 }],
             },
         }
@@ -7173,7 +7355,7 @@ mod tests {
         for (pool_index, pool_id) in pool_ids.iter().enumerate() {
             let mut narrow = route_tx_for_pool_ids(
                 &alloc::format!("route-fpt-narrow-{pool_index}"),
-                &[pool_id.clone()],
+                core::slice::from_ref(pool_id),
             );
             retarget_tx_sender(&mut narrow, &alloc::format!("fpt-narrow-{pool_index}"));
             txs.push(narrow);
@@ -7207,7 +7389,7 @@ mod tests {
         for (pool_index, pool_id) in pool_ids.iter().enumerate() {
             let mut narrow = route_tx_for_pool_ids(
                 &alloc::format!("route-fpt-barrier-narrow-{pool_index}"),
-                &[pool_id.clone()],
+                core::slice::from_ref(pool_id),
             );
             retarget_tx_sender(&mut narrow, "fpt-shared-sender");
             txs.push(narrow);
@@ -7243,7 +7425,7 @@ mod tests {
         for (pool_index, pool_id) in pool_ids.iter().enumerate() {
             let mut narrow = route_tx_for_pool_ids(
                 &alloc::format!("route-writer-aware-narrow-{pool_index}"),
-                &[pool_id.clone()],
+                core::slice::from_ref(pool_id),
             );
             retarget_tx_sender(
                 &mut narrow,
@@ -7286,7 +7468,7 @@ mod tests {
         for (pool_index, pool_id) in pool_ids.iter().enumerate() {
             let mut narrow = route_tx_for_pool_ids(
                 &alloc::format!("route-prefix-tail-narrow-{pool_index}"),
-                &[pool_id.clone()],
+                core::slice::from_ref(pool_id),
             );
             retarget_tx_sender(
                 &mut narrow,
@@ -7362,7 +7544,7 @@ mod tests {
         for (pool_index, pool_id) in pool_ids.iter().enumerate() {
             let mut narrow = route_tx_for_pool_ids(
                 &alloc::format!("route-prefix-dp-narrow-{pool_index}"),
-                &[pool_id.clone()],
+                core::slice::from_ref(pool_id),
             );
             retarget_tx_sender(
                 &mut narrow,
@@ -7621,6 +7803,63 @@ mod tests {
     }
 
     #[test]
+    fn create_pool_domain_limit_accepts_max_and_rejects_max_plus_one() {
+        let mut snapshot = empty_snapshot();
+        snapshot.balances = alloc::vec![
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET0.to_string(),
+                amount: DEX_LP_AMOUNT_MAX + 1,
+            },
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET1.to_string(),
+                amount: DEX_LP_AMOUNT_MAX + 1,
+            },
+        ];
+        let base_intent = CreatePoolIntentV1 {
+            module: "TauSwap".to_string(),
+            version: "v1".to_string(),
+            intent_id: "create-domain-boundary".to_string(),
+            sender_pubkey: SENDER.to_string(),
+            deadline: 100,
+            asset0: ASSET0.to_string(),
+            asset1: ASSET1.to_string(),
+            fee_bps: 30,
+            amount0: DEX_LP_AMOUNT_MAX,
+            amount1: DEX_LP_AMOUNT_MAX,
+            salt: None,
+        };
+
+        let mut accepted = DexStateV1::from_snapshot(snapshot.clone()).unwrap();
+        accepted
+            .apply_tx(
+                &single_intent_tx(DexIntentV1::CreatePool(base_intent.clone())),
+                1,
+                &ProtocolFeeConfig::default(),
+            )
+            .unwrap();
+        let pool = &accepted.to_snapshot().pools[0];
+        assert_eq!(pool.reserve0, DEX_LP_AMOUNT_MAX);
+        assert_eq!(pool.reserve1, DEX_LP_AMOUNT_MAX);
+        assert_eq!(pool.lp_supply, DEX_LP_AMOUNT_MAX);
+
+        let mut rejected = DexStateV1::from_snapshot(snapshot).unwrap();
+        let before = rejected.canonical_app_hash_sha256();
+        let mut over = base_intent;
+        over.amount0 = DEX_LP_AMOUNT_MAX + 1;
+        assert!(matches!(
+            rejected.apply_tx(
+                &single_intent_tx(DexIntentV1::CreatePool(over)),
+                1,
+                &ProtocolFeeConfig::default(),
+            ),
+            Err(TransitionError::InvalidInput("amount0 exceeds domain max"))
+        ));
+        assert_eq!(rejected.canonical_app_hash_sha256(), before);
+    }
+
+    #[test]
     fn swap_exact_in_transition_matches_python_fixture() {
         let mut snapshot = empty_snapshot();
         snapshot.balances = alloc::vec![DexBalanceEntryV1 {
@@ -7681,6 +7920,45 @@ mod tests {
             sha256_canonical_dex_snapshot_v1(&post),
             decode_hex_32("168c616c3e9cbc832f9accf6022fcf5153f4611de71115e36a6e540a1230101b"),
         );
+    }
+
+    #[test]
+    fn swap_pool_growth_above_domain_rejects_without_mutation() {
+        let mut snapshot = empty_snapshot();
+        snapshot.balances = alloc::vec![DexBalanceEntryV1 {
+            pubkey: SENDER.to_string(),
+            asset: ASSET0.to_string(),
+            amount: 101,
+        }];
+        snapshot.pools = alloc::vec![pool_entry(DEX_POOL_RESERVE_MAX - 100, 10_000)];
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let before = state.canonical_app_hash_sha256();
+        let intent = SwapExactInIntentV1 {
+            module: "TauSwap".to_string(),
+            version: "v1".to_string(),
+            intent_id: "swap-pool-domain-cap".to_string(),
+            sender_pubkey: SENDER.to_string(),
+            deadline: 100,
+            pool_id: POOL_ID.to_string(),
+            asset_in: ASSET0.to_string(),
+            asset_out: ASSET1.to_string(),
+            amount_in: 101,
+            min_amount_out: 0,
+            recipient: RECIPIENT.to_string(),
+            salt: None,
+        };
+
+        assert!(matches!(
+            state.apply_tx(
+                &single_intent_tx(DexIntentV1::SwapExactIn(intent)),
+                1,
+                &ProtocolFeeConfig::default(),
+            ),
+            Err(TransitionError::InvalidInput(
+                "swap would exceed reserve_in domain max"
+            ))
+        ));
+        assert_eq!(state.canonical_app_hash_sha256(), before);
     }
 
     #[test]
@@ -7803,6 +8081,86 @@ mod tests {
             sha256_canonical_dex_snapshot_v1(&post),
             decode_hex_32("15ba48c3948611ea40af205be1f3186b17f34b77dcf8f88c3d8649dbf7f121ba"),
         );
+    }
+
+    #[test]
+    fn liquidity_domain_rejections_are_noops() {
+        let mut snapshot = empty_snapshot();
+        snapshot.balances = alloc::vec![
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET0.to_string(),
+                amount: DEX_LP_AMOUNT_MAX,
+            },
+            DexBalanceEntryV1 {
+                pubkey: SENDER.to_string(),
+                asset: ASSET1.to_string(),
+                amount: DEX_LP_AMOUNT_MAX,
+            },
+        ];
+        snapshot.pools = alloc::vec![pool_entry(
+            DEX_POOL_RESERVE_MAX - 100,
+            DEX_POOL_RESERVE_MAX - 100,
+        )];
+        snapshot.pools[0].lp_supply = DEX_LP_SUPPLY_MAX - 100;
+        snapshot.lp_balances = alloc::vec![DexLpBalanceEntryV1 {
+            pubkey: SENDER.to_string(),
+            pool_id: POOL_ID.to_string(),
+            amount: DEX_LP_SUPPLY_MAX,
+        }];
+        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let before = state.canonical_app_hash_sha256();
+
+        let add = AddLiquidityIntentV1 {
+            module: "TauSwap".to_string(),
+            version: "v1".to_string(),
+            intent_id: "add-pool-domain-cap".to_string(),
+            sender_pubkey: SENDER.to_string(),
+            deadline: 100,
+            pool_id: POOL_ID.to_string(),
+            amount0_desired: 101,
+            amount1_desired: 101,
+            amount0_min: 0,
+            amount1_min: 0,
+            recipient: SENDER.to_string(),
+            salt: None,
+        };
+        assert!(matches!(
+            state.apply_tx(
+                &single_intent_tx(DexIntentV1::AddLiquidity(add)),
+                1,
+                &ProtocolFeeConfig::default(),
+            ),
+            Err(TransitionError::InvalidInput(
+                "pool.reserve0 exceeds domain max"
+            ))
+        ));
+        assert_eq!(state.canonical_app_hash_sha256(), before);
+
+        let remove = RemoveLiquidityIntentV1 {
+            module: "TauSwap".to_string(),
+            version: "v1".to_string(),
+            intent_id: "remove-domain-cap".to_string(),
+            sender_pubkey: SENDER.to_string(),
+            deadline: 100,
+            pool_id: POOL_ID.to_string(),
+            lp_amount: DEX_LP_SUPPLY_MAX + 1,
+            amount0_min: 0,
+            amount1_min: 0,
+            recipient: SENDER.to_string(),
+            salt: None,
+        };
+        assert!(matches!(
+            state.apply_tx(
+                &single_intent_tx(DexIntentV1::RemoveLiquidity(remove)),
+                1,
+                &ProtocolFeeConfig::default(),
+            ),
+            Err(TransitionError::InvalidInput(
+                "lp_amount exceeds domain max"
+            ))
+        ));
+        assert_eq!(state.canonical_app_hash_sha256(), before);
     }
 
     #[test]
@@ -8009,7 +8367,7 @@ mod tests {
             .canonical_app_hash_sha256();
         let certificate = minimal_frontier_signature_certificate();
         let expected_root =
-            frontier_signature_certificates_root_v1(&[certificate.clone()]).unwrap();
+            frontier_signature_certificates_root_v1(core::slice::from_ref(&certificate)).unwrap();
 
         let input = StateProofInputV1 {
             state_hash: [11u8; 32],
@@ -8416,7 +8774,7 @@ mod tests {
         let quote_state = DexStateV1::from_snapshot(snapshot.clone()).unwrap();
         let certificate = minimal_frontier_signature_certificate();
         let frontier_root =
-            frontier_signature_certificates_root_v1(&[certificate.clone()]).unwrap();
+            frontier_signature_certificates_root_v1(core::slice::from_ref(&certificate)).unwrap();
 
         let mut route_intent = default_route_intent(
             "route-frontier-state-proof",
@@ -9207,11 +9565,14 @@ mod tests {
         let mut snapshot = sender_balance_snapshot(ASSET0, 10);
         let mut pool = pool_entry(1, 4);
         pool.fee_bps = 0;
+        let pool_id = compute_pool_id(ASSET0, ASSET1, 0, CURVE_TAG, CURVE_PARAMS);
+        pool.pool_id = pool_id.clone();
         snapshot.pools = alloc::vec![pool];
         let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
         let fee_config = ProtocolFeeConfig::default();
         let mut intent =
             default_route_intent("route-overdelivery-reserve", "ROUTE_EXACT_OUT", 0, 0, 1, 1);
+        intent.legs[0].hops[0].pool_id = pool_id;
         bind_route_hash(&mut intent, &state, &fee_config);
         let tx = route_tx(intent);
 
@@ -9422,9 +9783,16 @@ mod tests {
         let mut snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
         let pool1 = pool_entry(1_000_000, 2_000_000);
         let mut pool2 = pool_entry(2_000_000, 1_000_000);
-        pool2.pool_id = "POOL2".to_string();
         pool2.asset0 = ASSET1.to_string();
         pool2.asset1 = "ASSET2".to_string();
+        let pool2_id = compute_pool_id(
+            &pool2.asset0,
+            &pool2.asset1,
+            pool2.fee_bps,
+            CURVE_TAG,
+            CURVE_PARAMS,
+        );
+        pool2.pool_id = pool2_id.clone();
         snapshot.pools = alloc::vec![pool1, pool2];
         let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
         let pre_state = state.clone();
@@ -9438,10 +9806,10 @@ mod tests {
             state.pools.insert(POOL_ID.to_string(), p1);
         }
         {
-            let mut p2 = state.pools.get("POOL2").cloned().unwrap();
+            let mut p2 = state.pools.get(&pool2_id).cloned().unwrap();
             p2.reserve0 += 50;
             p2.reserve1 -= 50;
-            state.pools.insert("POOL2".to_string(), p2);
+            state.pools.insert(pool2_id.clone(), p2);
         }
 
         let result = state.audit_route_conservation(RouteConservationAudit {
@@ -9463,7 +9831,7 @@ mod tests {
                     protocol_fee_credit_in: 0,
                 },
                 RoutePoolAudit {
-                    pool_id: "POOL2".to_string(),
+                    pool_id: pool2_id,
                     asset_in: ASSET1.to_string(),
                     asset_out: "ASSET2".to_string(),
                     reserve_in_delta: 50,
@@ -9775,7 +10143,7 @@ mod tests {
         let total_amount_in = intent.total_amount_in;
 
         let first_pool = state.pools.get(POOL_ID).cloned().unwrap();
-        let second_pool = state.pools.get("CHAIN_POOL").cloned().unwrap();
+        let second_pool = state.pools.get(CHAIN_POOL_ID).cloned().unwrap();
         let first_fee = ceil_div_u128(total_amount_in * first_pool.fee_bps as u128, 10_000);
         let first_protocol_fee = first_fee * fee_config.share_bps as u128 / 10_000;
         let first_net_in = total_amount_in - first_fee;
@@ -9804,7 +10172,7 @@ mod tests {
             first_pool.reserve0 + total_amount_in - first_protocol_fee
         );
         assert_eq!(post_first.reserve1, first_pool.reserve1 - first_out);
-        let post_second = state.pools.get("CHAIN_POOL").unwrap();
+        let post_second = state.pools.get(CHAIN_POOL_ID).unwrap();
         assert_eq!(
             post_second.reserve0,
             second_pool.reserve0 + first_out - second_protocol_fee
@@ -9882,7 +10250,7 @@ mod tests {
         let total_amount_out = intent.total_amount_out;
 
         // Reverse pass: compute required_in for second leg, then first leg.
-        let second_pool = state.pools.get("CHAIN_POOL").cloned().unwrap();
+        let second_pool = state.pools.get(CHAIN_POOL_ID).cloned().unwrap();
         let second_net_in = ceil_div_u128(
             second_pool.reserve0 * total_amount_out,
             second_pool.reserve1 - total_amount_out,
@@ -9929,7 +10297,7 @@ mod tests {
         );
         assert_eq!(post_first.reserve1, first_pool.reserve1 - second_target_out);
         // Second pool reserves updated (net of protocol fee).
-        let post_second = state.pools.get("CHAIN_POOL").unwrap();
+        let post_second = state.pools.get(CHAIN_POOL_ID).unwrap();
         assert_eq!(
             post_second.reserve0,
             second_pool.reserve0 + second_gross_in - second_protocol_fee
@@ -9941,286 +10309,156 @@ mod tests {
     }
 
     #[test]
-    fn route_exact_in_rejects_fee_mul_overflow() {
-        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
-        snapshot.pools[0].fee_bps = 10_000;
-        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
-        let fee_config = ProtocolFeeConfig::default();
-        let mut intent = default_route_intent(
-            "route-fee-mul-overflow",
-            "ROUTE_EXACT_IN",
-            u128::MAX,
-            0,
-            0,
-            0,
-        );
-        bind_route_hash(&mut intent, &state, &fee_config);
-        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
-        assert!(
-            matches!(
-                result,
-                Err(TransitionError::Arithmetic("route fee mul overflow"))
-            ),
-            "expected route fee mul overflow, got {:?}",
-            result
-        );
+    fn snapshot_pool_domain_limits_are_enforced() {
+        let mut snapshot = sender_balance_snapshot(ASSET0, DEX_SWAP_AMOUNT_MAX);
+        snapshot.pools[0].reserve0 = DEX_POOL_RESERVE_MAX;
+        snapshot.pools[0].reserve1 = DEX_POOL_RESERVE_MAX;
+        snapshot.pools[0].lp_supply = DEX_LP_SUPPLY_MAX;
+        DexStateV1::from_snapshot(snapshot.clone()).unwrap();
+
+        for (field, expected) in [
+            ("reserve0", "pool.reserve0 exceeds domain max"),
+            ("reserve1", "pool.reserve1 exceeds domain max"),
+            ("lp_supply", "pool.lp_supply exceeds domain max"),
+        ] {
+            let mut over = snapshot.clone();
+            match field {
+                "reserve0" => over.pools[0].reserve0 = DEX_POOL_RESERVE_MAX + 1,
+                "reserve1" => over.pools[0].reserve1 = DEX_POOL_RESERVE_MAX + 1,
+                "lp_supply" => over.pools[0].lp_supply = DEX_LP_SUPPLY_MAX + 1,
+                _ => unreachable!(),
+            }
+            assert!(matches!(
+                DexStateV1::from_snapshot(over),
+                Err(TransitionError::InvalidInput(message)) if message == expected
+            ));
+        }
     }
 
     #[test]
-    fn route_exact_in_rejects_denom_overflow() {
-        let mut snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
-        snapshot.pools[0].reserve0 = u128::MAX;
-        snapshot.pools[0].fee_bps = 0;
-        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
-        let fee_config = ProtocolFeeConfig::default();
-        let mut intent =
-            default_route_intent("route-denom-overflow", "ROUTE_EXACT_IN", 10, 0, 0, 0);
-        bind_route_hash(&mut intent, &state, &fee_config);
-        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
-        assert!(
-            matches!(
-                result,
-                Err(TransitionError::Arithmetic("route denom overflow"))
-            ),
-            "expected route denom overflow, got {:?}",
-            result
-        );
+    fn snapshot_pool_identity_binds_assets_fee_and_canonical_encoding() {
+        let snapshot = sender_balance_snapshot(ASSET0, 1_000);
+        DexStateV1::from_snapshot(snapshot.clone()).unwrap();
+
+        let mut wrong_id = snapshot.clone();
+        wrong_id.pools[0].pool_id =
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string();
+        assert!(matches!(
+            DexStateV1::from_snapshot(wrong_id),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool_id does not match canonical pool identity"
+            ))
+        ));
+
+        let mut uppercase_id = snapshot.clone();
+        uppercase_id.pools[0].pool_id = POOL_ID.to_ascii_uppercase().replacen("0X", "0x", 1);
+        assert!(matches!(
+            DexStateV1::from_snapshot(uppercase_id),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool_id does not match canonical pool identity"
+            ))
+        ));
+
+        let mut wrong_fee = snapshot.clone();
+        wrong_fee.pools[0].fee_bps += 1;
+        assert!(matches!(
+            DexStateV1::from_snapshot(wrong_fee),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool_id does not match canonical pool identity"
+            ))
+        ));
+
+        let mut invalid_fee = snapshot.clone();
+        invalid_fee.pools[0].fee_bps = 10_001;
+        assert!(matches!(
+            DexStateV1::from_snapshot(invalid_fee),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool fee_bps out of range"
+            ))
+        ));
+
+        let mut uppercase_asset = snapshot.clone();
+        uppercase_asset.pools[0].asset0 =
+            "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_string();
+        assert!(matches!(
+            DexStateV1::from_snapshot(uppercase_asset),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool assets must use canonical encoding"
+            ))
+        ));
+
+        let mut reversed_assets = snapshot;
+        reversed_assets.pools[0].asset0 = ASSET1.to_string();
+        reversed_assets.pools[0].asset1 = ASSET0.to_string();
+        assert!(matches!(
+            DexStateV1::from_snapshot(reversed_assets),
+            Err(TransitionError::InvalidInput(
+                "snapshot pool assets must be in canonical order"
+            ))
+        ));
     }
 
     #[test]
-    fn route_exact_in_rejects_numerator_overflow() {
-        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
-        snapshot.pools[0].reserve0 = u128::MAX - 2;
-        snapshot.pools[0].reserve1 = u128::MAX;
-        snapshot.pools[0].fee_bps = 0;
-        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+    fn route_inputs_above_domain_reject_without_mutation() {
         let fee_config = ProtocolFeeConfig::default();
-        let mut intent =
-            default_route_intent("route-numerator-overflow", "ROUTE_EXACT_IN", 2, 0, 0, 0);
-        bind_route_hash(&mut intent, &state, &fee_config);
-        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
-        assert!(
-            matches!(
-                result,
-                Err(TransitionError::Arithmetic("route numerator overflow"))
+        for (kind, amount_in, amount_out, max_amount_in, expected) in [
+            (
+                "ROUTE_EXACT_IN",
+                DEX_SWAP_AMOUNT_MAX + 1,
+                0,
+                0,
+                "total_amount_in exceeds domain max",
             ),
-            "expected route numerator overflow, got {:?}",
-            result
-        );
+            (
+                "ROUTE_EXACT_OUT",
+                0,
+                1,
+                DEX_SWAP_AMOUNT_MAX + 1,
+                "total_max_amount_in exceeds domain max",
+            ),
+        ] {
+            let snapshot = sender_balance_snapshot(ASSET0, DEX_SWAP_AMOUNT_MAX + 1);
+            let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+            let before = state.canonical_app_hash_sha256();
+            let mut intent = default_route_intent(
+                "route-domain-cap",
+                kind,
+                amount_in,
+                0,
+                amount_out,
+                max_amount_in,
+            );
+            bind_route_hash(&mut intent, &state, &fee_config);
+            assert!(matches!(
+                state.apply_tx(&route_tx(intent), 1, &fee_config),
+                Err(TransitionError::InvalidInput(message)) if message == expected
+            ));
+            assert_eq!(state.canonical_app_hash_sha256(), before);
+        }
     }
 
     #[test]
-    fn route_exact_in_rejects_reserve0_overflow() {
-        let mut snapshot = sender_balance_snapshot(ASSET0, 10_000_000);
-        snapshot.pools[0].reserve0 = u128::MAX - 9_000;
-        snapshot.pools[0].reserve1 = u128::MAX - 8_999;
-        snapshot.pools[0].fee_bps = 9_999;
-        snapshot.balances.push(DexBalanceEntryV1 {
-            pubkey: PROTOCOL_FEE_RECIPIENT.to_string(),
-            asset: ASSET0.to_string(),
-            amount: 0,
-        });
+    fn route_pool_growth_above_domain_rejects_without_mutation() {
+        let mut snapshot = sender_balance_snapshot(ASSET0, 101);
+        snapshot.pools[0].reserve0 = DEX_POOL_RESERVE_MAX - 100;
+        snapshot.pools[0].reserve1 = DEX_POOL_RESERVE_MAX;
         let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
-        let fee_config = ProtocolFeeConfig {
-            share_bps: 1_000,
-            recipient_pubkey: Some(PROTOCOL_FEE_RECIPIENT.to_string()),
-        };
-        let mut intent =
-            default_route_intent("route-reserve0-overflow", "ROUTE_EXACT_IN", 10_000, 0, 0, 0);
-        bind_route_hash(&mut intent, &state, &fee_config);
-        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
-        assert!(
-            matches!(
-                result,
-                Err(TransitionError::Arithmetic("route reserve0 overflow"))
-            ),
-            "expected route reserve0 overflow, got {:?}",
-            result
-        );
-    }
-
-    #[test]
-    fn route_exact_out_rejects_net_in_num_overflow() {
-        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
-        snapshot.pools[0].reserve0 = u128::MAX;
-        snapshot.pools[0].reserve1 = u128::MAX;
-        snapshot.pools[0].fee_bps = 0;
-        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
+        let before = state.canonical_app_hash_sha256();
         let fee_config = ProtocolFeeConfig::default();
-        let mut intent = default_route_intent(
-            "route-exact-out-net-in-num-overflow",
-            "ROUTE_EXACT_OUT",
-            0,
-            0,
-            u128::MAX - 1,
-            u128::MAX,
-        );
+        let mut intent = default_route_intent("route-pool-cap", "ROUTE_EXACT_IN", 101, 0, 0, 0);
         bind_route_hash(&mut intent, &state, &fee_config);
-        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
-        assert!(
-            matches!(
-                result,
-                Err(TransitionError::Arithmetic("route net_in num overflow"))
-            ),
-            "expected route net_in num overflow, got {:?}",
-            result
-        );
-    }
 
-    #[test]
-    fn route_exact_out_rejects_gross_in_mul_overflow() {
-        // net_in_num = reserve_in * required_in = u128::MAX * 1 (fits)
-        // net_in = ceil(u128::MAX / 1) = u128::MAX
-        // gross_in = ceil(u128::MAX * 10000 / 9999) -> mul overflow
-        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
-        snapshot.pools[0].reserve0 = u128::MAX;
-        snapshot.pools[0].reserve1 = 2;
-        snapshot.pools[0].fee_bps = 1;
-        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
-        let fee_config = ProtocolFeeConfig::default();
-        let mut intent = default_route_intent(
-            "route-exact-out-gross-in-overflow",
-            "ROUTE_EXACT_OUT",
-            0,
-            0,
-            1,
-            u128::MAX,
-        );
-        bind_route_hash(&mut intent, &state, &fee_config);
         let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
         assert!(
             matches!(
                 result,
-                Err(TransitionError::Arithmetic("route gross_in mul overflow"))
+                Err(TransitionError::InvalidInput(
+                    "pool.reserve0 exceeds domain max"
+                ))
             ),
-            "expected route gross_in mul overflow, got {:?}",
-            result
+            "route pool growth above the domain maximum must reject"
         );
-    }
-
-    #[test]
-    fn route_exact_out_rejects_forward_fee_mul_overflow() {
-        // Reverse pass fits (fee_bps=9999, reserve0=1, reserve1=U128_MAX,
-        // out=U128_MAX-10000): net_in_num=U128_MAX-10000 fits, net_in=ceil((U128_MAX-10000)/10000),
-        // gross_in=ceil(net_in*10000/1) fits. Forward: current_amount*9999 overflows.
-        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
-        snapshot.pools[0].reserve0 = 1;
-        snapshot.pools[0].reserve1 = u128::MAX;
-        snapshot.pools[0].fee_bps = 9_999;
-        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
-        let fee_config = ProtocolFeeConfig::default();
-        let mut intent = default_route_intent(
-            "route-exact-out-fwd-fee-mul-overflow",
-            "ROUTE_EXACT_OUT",
-            0,
-            0,
-            u128::MAX - 10_000,
-            u128::MAX,
-        );
-        bind_route_hash(&mut intent, &state, &fee_config);
-        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
-        assert!(
-            matches!(
-                result,
-                Err(TransitionError::Arithmetic("route fee mul overflow"))
-            ),
-            "expected route fee mul overflow, got {:?}",
-            result
-        );
-    }
-
-    #[test]
-    fn route_exact_out_rejects_forward_denom_overflow() {
-        // Reverse pass fits (fee_bps=0, reserve0=U128_MAX, reserve1=U128_MAX,
-        // out=1): net_in_num=U128_MAX fits, net_in=2, gross_in=2.
-        // Forward: denom=U128_MAX+2 overflows.
-        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
-        snapshot.pools[0].reserve0 = u128::MAX;
-        snapshot.pools[0].reserve1 = u128::MAX;
-        snapshot.pools[0].fee_bps = 0;
-        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
-        let fee_config = ProtocolFeeConfig::default();
-        let mut intent = default_route_intent(
-            "route-exact-out-fwd-denom-overflow",
-            "ROUTE_EXACT_OUT",
-            0,
-            0,
-            1,
-            u128::MAX,
-        );
-        bind_route_hash(&mut intent, &state, &fee_config);
-        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
-        assert!(
-            matches!(
-                result,
-                Err(TransitionError::Arithmetic("route denom overflow"))
-            ),
-            "expected route denom overflow, got {:?}",
-            result
-        );
-    }
-
-    #[test]
-    fn route_exact_out_rejects_forward_numerator_overflow() {
-        // Reverse pass fits (fee_bps=0, reserve0=U128_MAX/2, reserve1=U128_MAX,
-        // out=2): net_in_num=(U128_MAX/2)*2=U128_MAX-1 fits, net_in=2, gross_in=2.
-        // Forward: numerator=U128_MAX*2 overflows.
-        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
-        snapshot.pools[0].reserve0 = u128::MAX / 2;
-        snapshot.pools[0].reserve1 = u128::MAX;
-        snapshot.pools[0].fee_bps = 0;
-        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
-        let fee_config = ProtocolFeeConfig::default();
-        let mut intent = default_route_intent(
-            "route-exact-out-fwd-numerator-overflow",
-            "ROUTE_EXACT_OUT",
-            0,
-            0,
-            2,
-            u128::MAX,
-        );
-        bind_route_hash(&mut intent, &state, &fee_config);
-        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
-        assert!(
-            matches!(
-                result,
-                Err(TransitionError::Arithmetic("route numerator overflow"))
-            ),
-            "expected route numerator overflow, got {:?}",
-            result
-        );
-    }
-
-    #[test]
-    fn route_exact_out_rejects_forward_reserve0_overflow() {
-        // Reverse pass fits (fee_bps=5000, reserve0=U128_MAX-1, reserve1=U128_MAX,
-        // out=1): net_in_num=U128_MAX-1 fits, net_in=1, gross_in=2.
-        // Forward: fee_total=1, net_in=1, denom=U128_MAX fits, numerator=U128_MAX fits,
-        // amount_out=1, reserve_in_delta=2, reserve0+2=U128_MAX+1 overflows.
-        let mut snapshot = sender_balance_snapshot(ASSET0, u128::MAX);
-        snapshot.pools[0].reserve0 = u128::MAX - 1;
-        snapshot.pools[0].reserve1 = u128::MAX;
-        snapshot.pools[0].fee_bps = 5_000;
-        let mut state = DexStateV1::from_snapshot(snapshot).unwrap();
-        let fee_config = ProtocolFeeConfig::default();
-        let mut intent = default_route_intent(
-            "route-exact-out-fwd-reserve0-overflow",
-            "ROUTE_EXACT_OUT",
-            0,
-            0,
-            1,
-            u128::MAX,
-        );
-        bind_route_hash(&mut intent, &state, &fee_config);
-        let result = state.apply_tx(&route_tx(intent), 1, &fee_config);
-        assert!(
-            matches!(
-                result,
-                Err(TransitionError::Arithmetic("route reserve0 overflow"))
-            ),
-            "expected route reserve0 overflow, got {:?}",
-            result
-        );
+        assert_eq!(state.canonical_app_hash_sha256(), before);
     }
 
     #[test]

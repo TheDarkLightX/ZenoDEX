@@ -16,6 +16,7 @@ doctest = false
 [package.metadata.risc0]
 methods = [
   "v1_leaf_adapter",
+  "v2_leaf_adapter",
   "structural_aggregate_l1",
   "structural_aggregate_l2",
   "semantic_epoch",

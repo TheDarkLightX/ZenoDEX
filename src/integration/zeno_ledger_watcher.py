@@ -6,6 +6,7 @@ from typing import Any, Mapping
 
 from src.integration.zeno_ledger_profile import (
     ZERO_ROOT_V0,
+    require_production_proof_authority_v0,
     validate_zeno_ledger_profile_v0,
 )
 from src.integration.zeno_ledger_v0 import hash_v0
@@ -40,6 +41,14 @@ def _require_str(value: object, *, name: str) -> str:
 def _require_nonnegative_int(value: object, *, name: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise ValueError(f"{name} must be a non-negative int")
+    return value
+
+
+def _optional_bool(value: object, *, name: str) -> bool:
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool when present")
     return value
 
 
@@ -79,6 +88,24 @@ def _validate_successful_verify_report(verify_report: Mapping[str, Any]) -> tupl
     for field in REPLAY_BOUND_FACTS_V0:
         if report.get(field) is not True:
             raise ValueError(f"verify_report.{field} must be true")
+    proof_authority_required = _optional_bool(
+        report.get("proof_authority_required"),
+        name="verify_report.proof_authority_required",
+    )
+    proof_authority_satisfied = _optional_bool(
+        report.get("proof_authority_satisfied"),
+        name="verify_report.proof_authority_satisfied",
+    )
+    proof_authority_capable = _optional_bool(
+        report.get("proof_authority_capable"),
+        name="verify_report.proof_authority_capable",
+    )
+    if proof_authority_required:
+        raise ValueError("proof-required report cannot produce a watcher v0 attestation")
+    if proof_authority_satisfied:
+        raise ValueError("watcher v0 cannot authenticate a proof-authority claim")
+    if proof_authority_capable:
+        raise ValueError("watcher v0 cannot consume a proof-authority-capable report")
     errors = report.get("errors")
     if errors != []:
         raise ValueError("verify_report errors must be empty")
@@ -112,6 +139,10 @@ def build_watcher_attestation_v0(
     if profile is not None:
         profile_obj = dict(_require_mapping(profile, name="profile"))
         validate_zeno_ledger_profile_v0(profile_obj)
+        require_production_proof_authority_v0(
+            profile=profile_obj,
+            boundary="watcher_attestation_v0",
+        )
         profile_id = _require_root(profile_obj["profile_id"], name="profile.profile_id")
         profile_name = str(profile_obj["profile_name"])
         deployment_mode = str(profile_obj["deployment_mode"])
@@ -133,6 +164,11 @@ def build_watcher_attestation_v0(
         "last_header_hash": report["last_header_hash"],
         "last_post_state_root": report["last_post_state_root"],
         "last_app_hash": report["last_app_hash"],
+        "proof_authority_required": False,
+        "proof_authority_satisfied": False,
+        "proof_authority_capable": False,
+        "settlement_authority": False,
+        "production_authority": False,
         "verify_report_hash": hash_v0("verify_report_v0", report),
     }
     return {**body, "attestation_hash": hash_v0("watcher_attestation_v0", body)}

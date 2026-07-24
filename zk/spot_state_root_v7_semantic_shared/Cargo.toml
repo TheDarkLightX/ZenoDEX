@@ -1,0 +1,29 @@
+[package]
+name = "zenodex-zrpf-risc0-spot-state-root-v7-semantic-shared"
+version = "0.1.0"
+edition = "2021"
+description = "Proof-neutral bounded Spot state-root V7 semantic ABI"
+publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+name = "semantic_v7"
+path = "tests/semantic_v7.rs"
+
+[dependencies]
+tau-state-proof-risc0-shared = { path = "../state_proof_risc0/shared", default-features = false }
+zenodex-zrpf-risc0-spot-state-root-v5-bridge-shared = { path = "../spot_state_root_v5_bridge_shared" }
+
+[dev-dependencies]
+serde_json = "1.0.140"
+sha2 = "0.10.9"
+
+[workspace]
+resolver = "2"

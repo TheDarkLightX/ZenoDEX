@@ -61,8 +61,36 @@ REVIEWED_WORKSPACES: tuple[WorkspaceSpec, ...] = (
         "zk/zrpf_protocol",
         "zk/zrpf_protocol/Cargo.lock",
     ),
+    WorkspaceSpec(
+        "spot_state_root_v5_bridge_shared",
+        "zk/spot_state_root_v5_bridge_shared",
+        "zk/spot_state_root_v5_bridge_shared/Cargo.lock",
+    ),
+    WorkspaceSpec(
+        "spot_state_root_v7_semantic_shared",
+        "zk/spot_state_root_v7_semantic_shared",
+        "zk/spot_state_root_v7_semantic_shared/Cargo.lock",
+    ),
+    WorkspaceSpec(
+        "spot_settlement_v7_effect_binding_shared",
+        "zk/spot_settlement_v7_effect_binding_shared",
+        "zk/spot_settlement_v7_effect_binding_shared/Cargo.lock",
+    ),
+    WorkspaceSpec(
+        "spot_settlement_v7_risc0",
+        "zk/spot_settlement_v7_risc0",
+        "zk/spot_settlement_v7_risc0/Cargo.lock",
+    ),
 )
-RISC0_WORKSPACE_IDS = frozenset(spec.workspace_id for spec in REVIEWED_WORKSPACES[:4])
+RISC0_WORKSPACE_IDS = frozenset(
+    {
+        "state_proof_risc0",
+        "recursive_stark_v2_risc0",
+        "recursive_stark_v2_active_reproof_risc0",
+        "zrpf_risc0",
+        "spot_settlement_v7_risc0",
+    }
+)
 DispositionKey = tuple[str, str, str, str, str]
 PERMITTED_DISPOSITION_KEYS: frozenset[DispositionKey] = frozenset(
     (workspace_id, "vulnerability", advisory_id, package, version)

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Validate the retained V1 live-replay record without replaying it."""
+"""Validate the retained evidence-era V1 live-replay record without replaying it."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 from collections.abc import Mapping
 from pathlib import Path
@@ -29,6 +30,7 @@ EXPECTED_EVIDENCE_CANONICAL_SHA256 = (
     "f37dbefb27899b06c8ee3bc51f345335a748e0b3d6a1d6a23028b8c32925cc86"
 )
 MAX_EVIDENCE_BYTES = 64 * 1024
+EVIDENCE_RECORD_REVISION = "0a17435af974a79481994c11981b6ae73d519393"
 
 TRUE_FIELDS = frozenset(
     {
@@ -93,6 +95,66 @@ def _reject(code: str, detail: str) -> RecordError:
 def _canonical_sha256(value: object) -> str:
     raw = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
+
+
+def _historical_blob(repository_root: Path, relative_path: str) -> bytes:
+    try:
+        completed = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository_root),
+                "show",
+                f"{EVIDENCE_RECORD_REVISION}:{relative_path}",
+            ],
+            check=False,
+            capture_output=True,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise _reject("HISTORICAL_SOURCE", "Git object read timed out") from exc
+    if completed.returncode != 0:
+        detail = completed.stderr.decode(errors="replace").strip() or "Git object unavailable"
+        raise _reject("HISTORICAL_SOURCE", detail)
+    if len(completed.stdout) > rebuild.MAX_SOURCE_FILE_BYTES:
+        raise _reject("HISTORICAL_SOURCE", "Git object exceeds source byte bound")
+    return completed.stdout
+
+
+def _historical_checker_source_closure(repository_root: Path) -> dict[str, str]:
+    try:
+        resolved = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository_root),
+                "rev-parse",
+                f"{EVIDENCE_RECORD_REVISION}^{{commit}}",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise _reject("HISTORICAL_SOURCE", "Git revision lookup timed out") from exc
+    if resolved.returncode != 0 or resolved.stdout.strip() != EVIDENCE_RECORD_REVISION:
+        raise _reject("HISTORICAL_SOURCE", "evidence record revision unavailable")
+    evidence_path = EVIDENCE_PATH.relative_to(ROOT).as_posix()
+    anchored_evidence = _historical_blob(repository_root, evidence_path)
+    retained_evidence = rebuild._read_regular_path(
+        repository_root / evidence_path,
+        label="historical_live_replay_evidence",
+        max_bytes=MAX_EVIDENCE_BYTES,
+    ).raw
+    if hashlib.sha256(anchored_evidence).hexdigest() != hashlib.sha256(
+        retained_evidence
+    ).hexdigest():
+        raise _reject("HISTORICAL_SOURCE", "retained evidence differs from its Git anchor")
+    return {
+        role: hashlib.sha256(_historical_blob(repository_root, relative_path)).hexdigest()
+        for role, relative_path in live.support.CHECKER_SOURCE_PATHS.items()
+    }
 
 
 def _mapping(value: object, *, label: str) -> Mapping[str, Any]:
@@ -243,6 +305,7 @@ def validate_evidence(
     document: object,
     *,
     repository_root: Path = ROOT,
+    historical_recorded_source: bool = False,
 ) -> Mapping[str, Any]:
     evidence = _mapping(document, label="evidence")
     if set(evidence) != TOP_LEVEL_KEYS:
@@ -259,9 +322,12 @@ def validate_evidence(
     if evidence.get("error_codes") != [] or evidence.get("errors") != []:
         raise _reject("STATUS", "accepted record contains errors")
     _validate_boolean_fields(evidence)
-    if evidence.get("checker_source_closure") != live.support.checker_source_closure(
-        repository_root
-    ):
+    expected_source_closure = (
+        _historical_checker_source_closure(repository_root)
+        if historical_recorded_source
+        else live.support.checker_source_closure(repository_root)
+    )
+    if evidence.get("checker_source_closure") != expected_source_closure:
         raise _reject("CHECKER_SOURCE", "source closure mismatch")
     if evidence.get("runtime_limits") != {
         "input_bytes": live.support.MAX_RUNTIME_INPUT_BYTES,
@@ -292,6 +358,7 @@ def check_retained_evidence(
     path: Path | None = None,
     *,
     repository_root: Path = ROOT,
+    historical_recorded_source: bool = False,
 ) -> dict[str, Any]:
     report = {
         "schema": REPORT_SCHEMA,
@@ -314,7 +381,11 @@ def check_retained_evidence(
             max_bytes=MAX_EVIDENCE_BYTES,
         )
         document = rebuild._parse_json(raw.raw, label="LIVE_REPLAY_EVIDENCE")
-        validate_evidence(document, repository_root=repository_root)
+        validate_evidence(
+            document,
+            repository_root=repository_root,
+            historical_recorded_source=historical_recorded_source,
+        )
     except (rebuild.EvidenceError, live.support.LiveReplayError, RecordError) as exc:
         code = (
             exc.code
@@ -335,6 +406,7 @@ def check_retained_evidence(
         "errors": [],
         "ok": True,
         "record_integrity_verified": True,
+        "historical_checker_source_closure_reconstructed": historical_recorded_source,
         "status": ACCEPTED_STATUS,
     }
 
@@ -343,11 +415,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository-root", type=Path, default=ROOT)
     parser.add_argument("--evidence", type=Path)
+    parser.add_argument("--historical-recorded-source", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     report = check_retained_evidence(
         args.evidence,
         repository_root=args.repository_root,
+        historical_recorded_source=args.historical_recorded_source,
     )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

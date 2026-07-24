@@ -93,7 +93,14 @@ class SealedExecutable:
 
 
 def _stable_regular_file_bytes(path: Path) -> bytes:
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    # A hostile FIFO must reach fstat and reject without blocking before any
+    # subprocess timeout or sandbox boundary exists.
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
     try:
         descriptor = os.open(path, flags)
     except OSError as exc:

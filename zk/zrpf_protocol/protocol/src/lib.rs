@@ -2,10 +2,14 @@
 
 extern crate alloc;
 
+mod checkpoint_finality_v1;
+mod checkpoint_finality_v2;
 mod economic_action_v1;
 mod full_blob_da_v1;
+mod parallel_shard_epoch_v1;
 mod semantic_epoch_v1;
 mod semantic_epoch_v2;
+mod settlement_admission_v1;
 mod settlement_certificate_v1;
 mod settlement_effect_v2;
 mod sparse_merkle_batch_transition_v1;
@@ -15,10 +19,14 @@ mod value_aggregate_v5;
 mod value_node_v4;
 mod value_transfer_v2;
 
+pub use checkpoint_finality_v1::*;
+pub use checkpoint_finality_v2::*;
 pub use economic_action_v1::*;
 pub use full_blob_da_v1::*;
+pub use parallel_shard_epoch_v1::*;
 pub use semantic_epoch_v1::*;
 pub use semantic_epoch_v2::*;
+pub use settlement_admission_v1::*;
 pub use settlement_certificate_v1::*;
 pub use settlement_effect_v2::*;
 pub use sparse_merkle_batch_transition_v1::*;

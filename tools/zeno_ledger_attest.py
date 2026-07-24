@@ -42,7 +42,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--headers-dir", required=True, type=Path)
     parser.add_argument("--bodies-dir", required=True, type=Path)
     parser.add_argument("--checkpoints-dir", type=Path)
-    parser.add_argument("--profile", type=Path)
+    parser.add_argument(
+        "--profile",
+        required=True,
+        type=Path,
+        help="Governed ledger profile whose policy is bound into the attestation",
+    )
     parser.add_argument("--from-height", required=True, type=int)
     parser.add_argument("--to-height", required=True, type=int)
     parser.add_argument("--trusted-prev-header-hash", default=ZERO_ROOT_V0)
@@ -58,9 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
 
-    profile: Mapping[str, Any] | None = None
-    if args.profile is not None:
-        profile = _load_json_object(args.profile)
+    profile = _load_json_object(args.profile)
 
     verify_report = verify_zeno_ledger_v0(
         headers_dir=args.headers_dir,

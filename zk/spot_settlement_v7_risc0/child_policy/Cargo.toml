@@ -1,0 +1,14 @@
+[package]
+name = "zenodex-zrpf-risc0-spot-settlement-v7-child-policy"
+version = "0.1.0"
+edition = "2021"
+description = "Fail-closed final V6 child identity policy for Spot settlement V7"
+publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"

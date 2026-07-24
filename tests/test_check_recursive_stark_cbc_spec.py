@@ -38,6 +38,12 @@ CURRENT_PROOF_REQUIRED_STATEMENTS = frozenset(
         "zrpf_v1_spot_adapter_receipt_v1",
     }
 )
+SOURCE_DRIFT_PENDING_REQUIRED_STATEMENTS = frozenset(
+    {
+        "zrpf_node_v3_structural",
+        "zrpf_v1_spot_adapter_receipt_v1",
+    }
+)
 LIVE_REPLAY_SOURCE_FILES = frozenset(
     checker.recursive_v1_live_record.live.support.CHECKER_SOURCE_PATHS.values()
 )
@@ -48,6 +54,15 @@ def _matrix() -> dict[str, Any]:
     assert errors == []
     assert isinstance(matrix, dict)
     return matrix
+
+
+def _set_full_current_claim(matrix: dict[str, Any]) -> None:
+    matrix["promotion_boundary"]["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
+    matrix["promotion_boundary"]["non_claims"].remove(
+        checker.SOURCE_DRIFT_REPROOF_PENDING_NON_CLAIM
+    )
+    obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-014")
+    obligation["status"] = "implemented"
 
 
 def _repo_copy_for_matrix(tmp_path: Path, matrix: dict[str, Any]) -> Path:
@@ -96,31 +111,40 @@ def test_default_recursive_stark_cbc_matrix_accepts_and_preserves_non_claims() -
     assert report["facts"]["missing_required_obligations"] == []
     assert report["facts"]["typed_statement_count"] == 9
     assert report["facts"]["obligation_count"] == 25
-    assert report["facts"]["implemented_obligation_count"] == 20
-    assert report["facts"]["pending_obligation_count"] == 5
+    assert report["facts"]["implemented_obligation_count"] == 19
+    assert report["facts"]["pending_obligation_count"] == 6
     assert report["matrix_sha256"] == (
-        "sha256:e6aa60a61f51f1d907e3801d6e5ac0d285050f4b527290923c2c93361358d136"
+        "sha256:5f536e6efc519c62b96217d3cffc82a7ddbddd39552ab42419d5e9ffd3583d93"
     )
     assert report["promotion_boundary"]["facts"]["public_claim_allowed"] is False
     assert report["promotion_boundary"]["facts"]["production_ready"] is False
     assert (
         report["promotion_boundary"]["facts"]["claim_status"]
-        == checker.FULL_CURRENT_PROOF_CLAIM_STATUS
+        == checker.SOURCE_DRIFT_REPROOF_PENDING_CLAIM_STATUS
     )
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["active_v3"]
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == [
+        "historical_active_v3"
+    ]
     assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
-        CURRENT_PROOF_REQUIRED_STATEMENTS
+        SOURCE_DRIFT_PENDING_REQUIRED_STATEMENTS
     )
-    assert report["promotion_boundary"]["facts"]["required_implemented_obligations"] == [
+    assert report["promotion_boundary"]["facts"]["required_implemented_obligations"] == []
+    assert report["promotion_boundary"]["facts"]["required_pending_obligations"] == [
         "RS-CBC-014"
     ]
-    assert report["promotion_boundary"]["facts"]["required_pending_obligations"] == []
     assert (
         checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
         not in matrix["promotion_boundary"]["non_claims"]
     )
     assert checker.V1_RECORDED_LIVE_REPLAY_NON_CLAIM in matrix["promotion_boundary"]["non_claims"]
-    assert report["promotion_boundary"]["facts"]["v1_live_replay_record_integrity_verified"]
+    assert (
+        checker.SOURCE_DRIFT_REPROOF_PENDING_NON_CLAIM
+        in matrix["promotion_boundary"]["non_claims"]
+    )
+    assert (
+        report["promotion_boundary"]["facts"]["v1_live_replay_record_integrity_verified"]
+        is True
+    )
     assert "no_canonical_recursive_outer_envelope" in matrix["promotion_boundary"]["non_claims"]
     assert "no_v3_semantic_receipt_authenticated_tree" in matrix["promotion_boundary"]["non_claims"]
     assert (
@@ -583,7 +607,9 @@ def test_same_profile_two_spot_evidence_is_exact_and_claim_limited() -> None:
         assert forbidden not in public_text
 
 
-def test_reproof_pending_status_rejects_fresh_proof_obligation_promotion() -> None:
+def test_superseded_patched_anyhow_status_is_never_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     matrix = _matrix()
     matrix["promotion_boundary"]["claim_status"] = (
         checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS
@@ -591,22 +617,32 @@ def test_reproof_pending_status_rejects_fresh_proof_obligation_promotion() -> No
     matrix["promotion_boundary"]["non_claims"].append(
         checker.PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM
     )
-    for obligation in matrix["obligations"]:
-        if obligation["id"] == "RS-CBC-014":
-            obligation["status"] = "implemented"
-            break
+    monkeypatch.setattr(
+        checker.active_reproof_v3,
+        "validate_historical",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        checker.recursive_v1_live_record,
+        "check_retained_evidence",
+        lambda **_kwargs: {"ok": True},
+    )
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is False
     assert (
-        f"{checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS} requires RS-CBC-014 "
-        "pending until fresh current-image evidence exists" in report["errors"]
+        "promotion_boundary.claim_status is not an accepted reviewed status"
+        in report["promotion_boundary"]["errors"]
     )
 
 
 def test_current_proof_status_requires_rscbc014_implemented() -> None:
     matrix = _matrix()
+    matrix["promotion_boundary"]["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
+    matrix["promotion_boundary"]["non_claims"].remove(
+        checker.SOURCE_DRIFT_REPROOF_PENDING_NON_CLAIM
+    )
     obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-014")
     obligation["status"] = "pending"
 
@@ -619,17 +655,17 @@ def test_current_proof_status_requires_rscbc014_implemented() -> None:
     ) in report["errors"]
 
 
-def test_patched_anyhow_reproof_pending_status_requires_exact_nonclaim() -> None:
+def test_source_drift_reproof_pending_status_requires_exact_nonclaim() -> None:
     matrix = _matrix()
-    matrix["promotion_boundary"]["claim_status"] = (
-        checker.PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS
+    matrix["promotion_boundary"]["non_claims"].remove(
+        checker.SOURCE_DRIFT_REPROOF_PENDING_NON_CLAIM
     )
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is False
     assert (
-        "patched-anyhow reproof-pending status requires its exact current-proof non-claim"
+        "guest-source-drift reproof-pending status requires its exact current-proof non-claim"
         in report["promotion_boundary"]["errors"]
     )
 
@@ -651,6 +687,7 @@ def test_recorded_v1_live_replay_status_requires_accepted_record(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     matrix = _matrix()
+    _set_full_current_claim(matrix)
     monkeypatch.setattr(
         checker.recursive_v1_live_record,
         "check_retained_evidence",
@@ -670,6 +707,7 @@ def test_recorded_v1_live_replay_status_rejects_repository_record_mutation(
     tmp_path: Path,
 ) -> None:
     matrix = _matrix()
+    _set_full_current_claim(matrix)
     root = _repo_copy_for_matrix(tmp_path, matrix)
     evidence_path = root / "docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json"
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
@@ -689,6 +727,7 @@ def test_recorded_v1_live_replay_status_rejects_missing_bound_checker_source(
     tmp_path: Path,
 ) -> None:
     matrix = _matrix()
+    _set_full_current_claim(matrix)
     root = _repo_copy_for_matrix(tmp_path, matrix)
     bound_source = root / next(
         iter(checker.recursive_v1_live_record.live.support.CHECKER_SOURCE_PATHS.values())
@@ -705,6 +744,12 @@ def test_full_current_proof_status_rejects_active_reference_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     matrix = _matrix()
+    matrix["promotion_boundary"]["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
+    matrix["promotion_boundary"]["non_claims"].remove(
+        checker.SOURCE_DRIFT_REPROOF_PENDING_NON_CLAIM
+    )
+    obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-014")
+    obligation["status"] = "implemented"
     monkeypatch.setattr(
         checker.active_reproof_v3,
         "check_reference",
@@ -765,13 +810,15 @@ def test_structural_tree_verified_status_requires_implemented_tree_obligations(
     ) in report["errors"]
 
 
-def test_current_status_consults_active_v3_closure() -> None:
+def test_source_drift_pending_status_requires_historical_active_v3_closure() -> None:
     matrix = _matrix()
 
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is True
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["active_v3"]
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == [
+        "historical_active_v3"
+    ]
 
 
 def test_claim_status_routes_exact_source_closure_policy(
@@ -793,10 +840,62 @@ def test_claim_status_routes_exact_source_closure_policy(
     report = checker.validate_matrix(matrix)
 
     assert report["ok"] is True
-    assert captured == [frozenset({"active_v3"})]
-    assert report["promotion_boundary"]["facts"]["required_source_closures"] == ["active_v3"]
+    assert captured == [frozenset({"historical_active_v3"})]
+    assert report["promotion_boundary"]["facts"]["required_source_closures"] == [
+        "historical_active_v3"
+    ]
     assert report["promotion_boundary"]["facts"]["required_implemented_statements"] == sorted(
-        CURRENT_PROOF_REQUIRED_STATEMENTS
+        SOURCE_DRIFT_PENDING_REQUIRED_STATEMENTS
+    )
+
+
+def test_source_drift_status_rejects_historical_active_v3_anchor_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    matrix = _matrix()
+
+    def reject_historical(*_args: object, **_kwargs: object) -> None:
+        raise checker.active_reproof_v3.CheckError("mutated historical source anchor")
+
+    monkeypatch.setattr(
+        checker.active_reproof_v3,
+        "validate_historical",
+        reject_historical,
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert report["ok"] is False
+    assert (
+        "retained historical active V3 reference rejected: mutated historical source anchor"
+        in report["errors"]
+    )
+
+
+def test_source_drift_status_rejects_historical_v1_live_record_anchor_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    matrix = _matrix()
+    calls: list[bool] = []
+
+    def reject_live_record(**kwargs: object) -> dict[str, bool]:
+        calls.append(kwargs.get("historical_recorded_source") is True)
+        return {"ok": False}
+
+    monkeypatch.setattr(
+        checker.recursive_v1_live_record,
+        "check_retained_evidence",
+        reject_live_record,
+    )
+
+    report = checker.validate_matrix(matrix)
+
+    assert calls == [True]
+    assert report["ok"] is False
+    assert "V1 live-replay record rejected" in report["errors"]
+    assert (
+        report["promotion_boundary"]["facts"]["v1_live_replay_record_integrity_verified"]
+        is False
     )
 
 
@@ -809,6 +908,12 @@ def test_claim_status_rejects_pending_required_typed_statement(
     statement_id: str,
 ) -> None:
     matrix = _matrix()
+    matrix["promotion_boundary"]["claim_status"] = checker.FULL_CURRENT_PROOF_CLAIM_STATUS
+    matrix["promotion_boundary"]["non_claims"].remove(
+        checker.SOURCE_DRIFT_REPROOF_PENDING_NON_CLAIM
+    )
+    obligation = next(item for item in matrix["obligations"] if item["id"] == "RS-CBC-014")
+    obligation["status"] = "implemented"
     statement = next(item for item in matrix["typed_statements"] if item["id"] == statement_id)
     statement["status"] = "pending"
     monkeypatch.setattr(

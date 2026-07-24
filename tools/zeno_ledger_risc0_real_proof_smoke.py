@@ -42,8 +42,10 @@ from src.integration.zeno_ledger_v0 import (  # noqa: E402
     validate_header_body_roots_v0,
     validate_proof_metadata_header_binding_v0,
 )
-from tools.zeno_ledger_risc0_proof_metadata import build_risc0_proof_metadata_v0  # noqa: E402
-
+from tools.zeno_ledger_risc0_proof_metadata import (  # noqa: E402
+    HEADER_DERIVED_FIELDS,
+    build_header_derived_risc0_proof_metadata_diagnostic_v0,
+)
 
 EMPTY_SNAPSHOT_V1: dict[str, Any] = {
     "version": 1,
@@ -231,7 +233,7 @@ def _ledger_binding_for_case(
         proof=proof,
         proof_journal_hash=ZERO_ROOT_V0,
     )
-    metadata = build_risc0_proof_metadata_v0(
+    metadata = build_header_derived_risc0_proof_metadata_diagnostic_v0(
         proof_envelope=proof,
         header=header_unbound,
         conflict_schedule_hash=_root("conflict-schedule", name),
@@ -249,8 +251,9 @@ def _ledger_binding_for_case(
     validate_header_body_roots_v0(header, body)
     validate_proof_metadata_header_binding_v0(metadata, header)
 
-    meta = proof["meta"]
-    assert isinstance(meta, dict)
+    meta = proof.get("meta")
+    if not isinstance(meta, dict):
+        raise TypeError(f"{name}: proof meta must be an object")
     post_state_root_checked = _strip_0x(str(header["post_state_root"])) == meta["post_app_hash"]
     pre_state_root_checked = (
         meta["pre_app_hash"] == ""
@@ -271,6 +274,12 @@ def _ledger_binding_for_case(
     return {
         "schema": "zenodex.risc0_real_proof_smoke.ledger_binding.v0",
         "ok": True,
+        "status": "non_authoritative_header_derived_metadata",
+        "authority_scope": "none",
+        "header_derived_fields": list(HEADER_DERIVED_FIELDS),
+        "proof_authority_satisfied": False,
+        "settlement_authority": False,
+        "production_authority": False,
         "header_bound": True,
         "body_checked": True,
         "post_state_root_checked": post_state_root_checked,

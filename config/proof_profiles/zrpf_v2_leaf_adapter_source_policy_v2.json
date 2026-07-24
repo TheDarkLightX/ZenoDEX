@@ -1,0 +1,44 @@
+{
+  "adapter_profile": "zrpf_v2_leaf_adapter_compatibility_v2",
+  "adapter_program": {
+    "image_id": null,
+    "image_id_words": null,
+    "program_sha256": null
+  },
+  "count_unit": "source_transition_receipt",
+  "non_claims": [
+    "pure_mapping_does_not_authenticate_receipts",
+    "candidate_adapter_identity_is_unpromoted",
+    "no_durable_data_availability",
+    "no_carry_queue_evidence",
+    "no_settlement_or_ledger_admission_authority",
+    "no_release_or_production_authority"
+  ],
+  "production_authority": false,
+  "receipt_authority": false,
+  "release_authority": false,
+  "schema": "zenodex/zrpf_v2_leaf_adapter_source_policy/v2",
+  "source_reference": {
+    "path": "config/proof_profiles/zrpf_current_source_anchor_v2.json",
+    "schema": "zenodex/zrpf_current_source_anchor/v2",
+    "sha256": "e62a9eb2e5f7e90c3b22de6198f2d40f21931d408b5f7b2c86457375c6e6a67f"
+  },
+  "sources": [
+    {
+      "image_id": null,
+      "image_id_words": null,
+      "lane_kind": "spot",
+      "program_sha256": null,
+      "proof_profile": "recursive_spot_leaf_v1",
+      "proof_type": "risc0.zenodex_recursive_spot_leaf.v1",
+      "source_closure_root": null,
+      "source_kind": "spot"
+    }
+  ],
+  "status": "awaiting_deterministic_source_and_adapter_observations",
+  "unsupported_compatibility_fields": [
+    "data_availability_certificate_root",
+    "carry_queue_pre_root",
+    "carry_queue_post_root"
+  ]
+}

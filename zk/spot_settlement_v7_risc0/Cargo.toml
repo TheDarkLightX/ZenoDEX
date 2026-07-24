@@ -1,0 +1,14 @@
+[workspace]
+members = [
+  "child_policy",
+  "shared",
+  "methods",
+  "methods/guest",
+  "verifier",
+  "harness",
+]
+resolver = "2"
+
+[profile.release]
+lto = true
+opt-level = 3

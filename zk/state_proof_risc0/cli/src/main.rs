@@ -8,6 +8,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 
 mod recursive_wire;
+mod spot_authority;
 mod strict_json;
 
 use tau_state_proof_risc0_methods::{
@@ -45,15 +46,15 @@ use tau_state_proof_risc0_shared::{
     SharedPoolFrontierSignatureCertificateV1, SpotRecursiveLeafInputV1, StateProofInputV1,
     StateProofJournalV1, TauTxAppOpsV1, TauTxV1, TxIngressFactV1, ZenoProofInputV1,
     ZusdBalanceEntryV1, ZusdOperationV1, ZusdRecursiveLeafInputV1, ZusdSnapshotV1,
-    ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, PROOF_TYPE,
-    PROOF_TYPE_PERPS_NP, PROOF_TYPE_RECURSIVE, PROOF_TYPE_RECURSIVE_PERPS_NP_LEAF,
-    PROOF_TYPE_RECURSIVE_SPOT_LEAF, PROOF_TYPE_RECURSIVE_SUMMARY_LEAF,
-    PROOF_TYPE_RECURSIVE_ZUSD_LEAF, PROOF_TYPE_ZUSD, RECURSIVE_DOMAIN_SEPARATOR_V1,
-    RECURSIVE_EPOCH_PROFILE_V1, RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_PERPS_NP_LEAF_PROFILE_V1, RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_SPOT_LEAF_PROFILE_V1, RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1, RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES,
-    RECURSIVE_ZUSD_LEAF_PROFILE_V1,
+    ZusdTransitionInputV1, ZusdTransitionJournalV1, ZusdVaultEntryV1, DEX_LP_AMOUNT_MAX,
+    DEX_LP_SUPPLY_MAX, DEX_POOL_RESERVE_MAX, DEX_SWAP_AMOUNT_MAX, PROOF_TYPE, PROOF_TYPE_PERPS_NP,
+    PROOF_TYPE_RECURSIVE, PROOF_TYPE_RECURSIVE_PERPS_NP_LEAF, PROOF_TYPE_RECURSIVE_SPOT_LEAF,
+    PROOF_TYPE_RECURSIVE_SUMMARY_LEAF, PROOF_TYPE_RECURSIVE_ZUSD_LEAF, PROOF_TYPE_ZUSD,
+    RECURSIVE_DOMAIN_SEPARATOR_V1, RECURSIVE_EPOCH_PROFILE_V1,
+    RECURSIVE_PERPS_NP_LEAF_MAX_INPUT_BYTES, RECURSIVE_PERPS_NP_LEAF_PROFILE_V1,
+    RECURSIVE_SPOT_LEAF_MAX_INPUT_BYTES, RECURSIVE_SPOT_LEAF_PROFILE_V1,
+    RECURSIVE_SUMMARY_LEAF_MAX_INPUT_BYTES, RECURSIVE_SUMMARY_LEAF_TEST_PROFILE_V1,
+    RECURSIVE_ZUSD_LEAF_MAX_INPUT_BYTES, RECURSIVE_ZUSD_LEAF_PROFILE_V1,
 };
 
 #[derive(Clone, Copy)]
@@ -104,6 +105,12 @@ struct ReceiptSecurityProfile {
 }
 
 struct VerifiedRecursiveFacts(Value);
+
+struct VerifiedSpotReceipt {
+    receipt: Receipt,
+    journal: StateProofJournalV1,
+    security_profile: ReceiptSecurityProfile,
+}
 
 enum VerificationSuccess {
     Basic,
@@ -158,6 +165,9 @@ fn main() {
         "tau_state_proof_request" => handle_generate(&req),
         "tau_state_proof_verify" => handle_verify(&req),
         "tau_state_proof_txs_commitment" => handle_txs_commitment(&req),
+        spot_authority::SPOT_AUTHORITY_REQUEST_SCHEMA_V1 => {
+            write_json_stdout(&spot_authority::verification_response(&req))
+        }
         _ => {
             eprintln!("unexpected schema");
             std::process::exit(2);
@@ -1048,22 +1058,29 @@ fn try_verify(req: &Value) -> Result<VerificationSuccess, String> {
     if proof_type != PROOF_TYPE {
         return Err("unsupported proof_type".into());
     }
+    try_verify_spot(req, proof, expected_state_hash)?;
+    Ok(VerificationSuccess::Basic)
+}
+
+fn try_verify_spot(
+    req: &Value,
+    proof: &Value,
+    expected_state_hash: [u8; 32],
+) -> Result<VerifiedSpotReceipt, String> {
     validate_embedded_methods();
     check_proof_meta_image_id(proof)?;
 
+    // This is the sole cryptographic receipt-verification call for this Spot
+    // request. Every later authority binding consumes this private value.
     let receipt = decode_verified_receipt_from_proof(proof)?;
-
+    let security_profile = receipt_security_profile(&receipt)?;
     let journal: StateProofJournalV1 = decode_postcard_journal(&receipt, "spot journal")?;
 
     if journal.state_hash != expected_state_hash {
         return Err("journal.state_hash mismatch".into());
     }
+    verify_spot_meta_bindings(proof, &journal)?;
     check_spot_protocol_fee_bindings(req, proof, &journal)?;
-    expect_meta_hash(
-        proof,
-        "tx_execution_order_commitment",
-        journal.tx_execution_order_commitment,
-    )?;
 
     let mut verified_ingress: Option<Vec<TxIngressFactV1>> = None;
 
@@ -1160,7 +1177,11 @@ fn try_verify(req: &Value) -> Result<VerificationSuccess, String> {
         check_nonce_roots(&journal, context_pre_nonces, verified_ingress.as_deref())?;
     }
 
-    Ok(VerificationSuccess::Basic)
+    Ok(VerifiedSpotReceipt {
+        receipt,
+        journal,
+        security_profile,
+    })
 }
 
 fn try_verify_perps_np(
@@ -2572,6 +2593,33 @@ fn obj_u128(
     }
 }
 
+fn parse_domain_u128(
+    obj: &serde_json::Map<String, Value>,
+    key: &str,
+    maximum: u128,
+) -> Result<u128, String> {
+    let value = obj_u128(obj, key, None)?;
+    if value > maximum {
+        return Err(format!("intent.{key} exceeds domain max {maximum}"));
+    }
+    Ok(value)
+}
+
+fn parse_domain_u64(
+    obj: &serde_json::Map<String, Value>,
+    key: &str,
+    maximum: u128,
+) -> Result<u64, String> {
+    let value = obj
+        .get(key)
+        .and_then(Value::as_u64)
+        .ok_or_else(|| format!("intent.{key} missing"))?;
+    if u128::from(value) > maximum {
+        return Err(format!("intent.{key} exceeds domain max {maximum}"));
+    }
+    Ok(value)
+}
+
 fn obj_u64(
     obj: &serde_json::Map<String, Value>,
     key: &str,
@@ -3579,6 +3627,28 @@ fn expect_recursive_asset_delta_rows_meta(
     Ok(())
 }
 
+/// Bind every spot journal root repeated in proposer-controlled proof metadata.
+/// Receipt verification authenticates `journal`; metadata cannot strengthen or
+/// relabel that authenticated statement.
+fn verify_spot_meta_bindings(proof: &Value, journal: &StateProofJournalV1) -> Result<(), String> {
+    expect_meta_hash(proof, "txs_commitment", journal.txs_commitment)?;
+    expect_meta_hash(
+        proof,
+        "tx_execution_order_commitment",
+        journal.tx_execution_order_commitment,
+    )?;
+    expect_meta_hash(proof, "ingress_commitment", journal.ingress_commitment)?;
+    expect_meta_hash(proof, "pre_nonce_root", journal.pre_nonce_root)?;
+    expect_meta_hash(proof, "post_nonce_root", journal.post_nonce_root)?;
+    expect_meta_hash(
+        proof,
+        "accepted_receipts_root",
+        journal.accepted_receipts_root,
+    )?;
+    expect_meta_pre_hash(proof, journal.pre_app_hash_present, journal.pre_app_hash)?;
+    expect_meta_hash(proof, "post_app_hash", journal.post_app_hash)
+}
+
 fn check_spot_protocol_fee_bindings(
     req: &Value,
     proof: &Value,
@@ -4249,14 +4319,8 @@ fn parse_intent_obj(
                 .ok_or_else(|| "intent.fee_bps missing or invalid".to_string())?;
             let fee_bps = u32::try_from(fee_bps_raw)
                 .map_err(|_| "intent.fee_bps must fit in a u32".to_string())?;
-            let amount0 = obj
-                .get("amount0")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount0 missing".to_string())?;
-            let amount1 = obj
-                .get("amount1")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount1 missing".to_string())?;
+            let amount0 = parse_domain_u64(obj, "amount0", DEX_LP_AMOUNT_MAX)?;
+            let amount1 = parse_domain_u64(obj, "amount1", DEX_LP_AMOUNT_MAX)?;
             Ok(tau_state_proof_risc0_shared::DexIntentV1::CreatePool(
                 tau_state_proof_risc0_shared::CreatePoolIntentV1 {
                     module: module.to_string(),
@@ -4286,14 +4350,8 @@ fn parse_intent_obj(
                 .get("asset_out")
                 .and_then(Value::as_str)
                 .ok_or_else(|| "intent.asset_out missing".to_string())?;
-            let amount_in = obj
-                .get("amount_in")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount_in missing".to_string())?;
-            let min_amount_out = obj
-                .get("min_amount_out")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.min_amount_out missing".to_string())?;
+            let amount_in = parse_domain_u64(obj, "amount_in", DEX_SWAP_AMOUNT_MAX)?;
+            let min_amount_out = parse_domain_u64(obj, "min_amount_out", DEX_SWAP_AMOUNT_MAX)?;
             let recipient = obj
                 .get("recipient")
                 .and_then(Value::as_str)
@@ -4320,22 +4378,10 @@ fn parse_intent_obj(
                 .get("pool_id")
                 .and_then(Value::as_str)
                 .ok_or_else(|| "intent.pool_id missing".to_string())?;
-            let amount0_desired = obj
-                .get("amount0_desired")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount0_desired missing".to_string())?;
-            let amount1_desired = obj
-                .get("amount1_desired")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount1_desired missing".to_string())?;
-            let amount0_min = obj
-                .get("amount0_min")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount0_min missing".to_string())?;
-            let amount1_min = obj
-                .get("amount1_min")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount1_min missing".to_string())?;
+            let amount0_desired = parse_domain_u64(obj, "amount0_desired", DEX_LP_AMOUNT_MAX)?;
+            let amount1_desired = parse_domain_u64(obj, "amount1_desired", DEX_LP_AMOUNT_MAX)?;
+            let amount0_min = parse_domain_u64(obj, "amount0_min", DEX_LP_AMOUNT_MAX)?;
+            let amount1_min = parse_domain_u64(obj, "amount1_min", DEX_LP_AMOUNT_MAX)?;
             let recipient = obj
                 .get("recipient")
                 .and_then(Value::as_str)
@@ -4362,18 +4408,9 @@ fn parse_intent_obj(
                 .get("pool_id")
                 .and_then(Value::as_str)
                 .ok_or_else(|| "intent.pool_id missing".to_string())?;
-            let lp_amount = obj
-                .get("lp_amount")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.lp_amount missing".to_string())?;
-            let amount0_min = obj
-                .get("amount0_min")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount0_min missing".to_string())?;
-            let amount1_min = obj
-                .get("amount1_min")
-                .and_then(Value::as_u64)
-                .ok_or_else(|| "intent.amount1_min missing".to_string())?;
+            let lp_amount = parse_domain_u64(obj, "lp_amount", DEX_LP_SUPPLY_MAX)?;
+            let amount0_min = parse_domain_u64(obj, "amount0_min", DEX_POOL_RESERVE_MAX)?;
+            let amount1_min = parse_domain_u64(obj, "amount1_min", DEX_POOL_RESERVE_MAX)?;
             let recipient = obj
                 .get("recipient")
                 .and_then(Value::as_str)
@@ -4407,8 +4444,8 @@ fn parse_intent_obj(
                 .get("asset_out")
                 .and_then(Value::as_str)
                 .ok_or_else(|| "intent.asset_out missing".to_string())?;
-            let amount_out = obj_u128(obj, "amount_out", None)?;
-            let max_amount_in = obj_u128(obj, "max_amount_in", None)?;
+            let amount_out = parse_domain_u128(obj, "amount_out", DEX_SWAP_AMOUNT_MAX)?;
+            let max_amount_in = parse_domain_u128(obj, "max_amount_in", DEX_SWAP_AMOUNT_MAX)?;
             let recipient = obj
                 .get("recipient")
                 .and_then(Value::as_str)
@@ -4542,6 +4579,18 @@ fn parse_route_totals(
             Some(0)
         },
     )?;
+    for (field, value) in [
+        ("total_amount_in", total_amount_in),
+        ("total_min_amount_out", total_min_amount_out),
+        ("total_amount_out", total_amount_out),
+        ("total_max_amount_in", total_max_amount_in),
+    ] {
+        if value > DEX_SWAP_AMOUNT_MAX {
+            return Err(format!(
+                "intent.{field} exceeds domain max {DEX_SWAP_AMOUNT_MAX}"
+            ));
+        }
+    }
     match kind {
         "ROUTE_EXACT_IN" => {
             if total_amount_in == 0 {
@@ -4944,6 +4993,51 @@ mod tests {
             oracle_binding_hash: h(5),
             participant_set_hash: h(6),
         }
+    }
+
+    #[test]
+    fn pool_identity_fixture_passes_host_codec_and_shared_validation() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/pool_identity_conformance_v1.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["claim_boundary"]["risc0_proof_generated"], false);
+        assert_eq!(fixture["claim_boundary"]["settlement_authority"], false);
+
+        let identity = fixture["pool_identity"].as_object().unwrap();
+        let expected_pool_id = identity["pool_id"].as_str().unwrap();
+        let guest_snapshot = fixture["guest_snapshot_v1"].clone();
+        let encoded = serde_json::to_string(&guest_snapshot).unwrap();
+        let parsed = parse_dex_snapshot_json(&encoded).unwrap();
+        assert_eq!(parsed.pools.len(), 1);
+        assert_eq!(parsed.pools[0].pool_id, expected_pool_id);
+        assert_eq!(
+            tau_state_proof_risc0_shared::compute_pool_id(
+                identity["asset0"].as_str().unwrap(),
+                identity["asset1"].as_str().unwrap(),
+                u32::try_from(identity["fee_bps"].as_u64().unwrap()).unwrap(),
+                identity["curve_tag"].as_str().unwrap(),
+                identity["curve_params"].as_str().unwrap(),
+            ),
+            expected_pool_id
+        );
+
+        let state = DexStateV1::from_snapshot(parsed).unwrap();
+        let roundtrip = state.to_snapshot();
+        assert_eq!(roundtrip.pools[0].pool_id, expected_pool_id);
+
+        let mut mutated = guest_snapshot;
+        mutated["pools"][0]["fee_bps"] = json!(31);
+        let parsed_mutation =
+            parse_dex_snapshot_json(&serde_json::to_string(&mutated).unwrap()).unwrap();
+        let error = match DexStateV1::from_snapshot(parsed_mutation) {
+            Ok(_) => panic!("parameter mutation must reject before guest execution"),
+            Err(error) => error,
+        };
+        assert_eq!(
+            transition_error_str(error),
+            "snapshot pool_id does not match canonical pool identity"
+        );
     }
 
     fn recursive_expectations(journal: &RecursiveEpochJournalV1) -> Value {
@@ -6486,6 +6580,14 @@ mod tests {
             "proof": "unused",
             "meta": {
                 "risc0_image_id": hex_u32_words(TAU_STATE_PROOF_GUEST_ID),
+                "txs_commitment": hx(2),
+                "tx_execution_order_commitment": hx(3),
+                "ingress_commitment": hx(4),
+                "pre_nonce_root": hx(5),
+                "post_nonce_root": hx(6),
+                "accepted_receipts_root": hx(7),
+                "pre_app_hash": "",
+                "post_app_hash": hx(8),
                 "protocol_fee_share_bps": protocol_fee_share_bps,
                 "protocol_fee_recipient_pubkey": recipient,
                 "route_price_interval_count": 0,
@@ -6505,6 +6607,36 @@ mod tests {
                 )
             }
         })
+    }
+
+    #[test]
+    fn spot_meta_bindings_reject_every_journal_root_mutation() {
+        let journal = spot_fee_journal(0, None);
+        verify_spot_meta_bindings(&spot_proof_meta(0, Value::Null), &journal).unwrap();
+
+        for key in [
+            "txs_commitment",
+            "tx_execution_order_commitment",
+            "ingress_commitment",
+            "pre_nonce_root",
+            "post_nonce_root",
+            "accepted_receipts_root",
+            "post_app_hash",
+        ] {
+            let mut proof = spot_proof_meta(0, Value::Null);
+            proof["meta"][key] = Value::String(hx(99));
+            assert_eq!(
+                verify_spot_meta_bindings(&proof, &journal).unwrap_err(),
+                format!("proof.meta.{key} mismatch")
+            );
+        }
+
+        let mut proof = spot_proof_meta(0, Value::Null);
+        proof["meta"]["pre_app_hash"] = Value::String(hx(99));
+        assert_eq!(
+            verify_spot_meta_bindings(&proof, &journal).unwrap_err(),
+            "proof.meta.pre_app_hash mismatch"
+        );
     }
 
     fn route_interval_authority_for_root(interval_root: [u8; 32]) -> RoutePriceIntervalAuthorityV1 {
@@ -6710,6 +6842,17 @@ mod tests {
             "amount1_min": 2,
             "recipient": "bob"
         })
+    }
+
+    fn assert_intent_field_domain_limit(mut intent: Value, field: &str, maximum: u128) {
+        intent[field] = Value::from(u64::try_from(maximum).unwrap());
+        parse_intent_obj(intent.as_object().unwrap()).unwrap();
+
+        intent[field] = Value::from(u64::try_from(maximum + 1).unwrap());
+        assert_eq!(
+            parse_intent_obj(intent.as_object().unwrap()).unwrap_err(),
+            format!("intent.{field} exceeds domain max {maximum}")
+        );
     }
 
     #[test]
@@ -7350,10 +7493,10 @@ mod tests {
     }
 
     #[test]
-    fn swap_exact_out_parser_accepts_string_encoded_u128_amounts() {
+    fn swap_exact_out_parser_bounds_string_encoded_u128_amounts() {
         let mut v = swap_exact_out_intent_json();
-        let amount_out = (u64::MAX as u128) + 1;
-        let max_amount_in = amount_out + 9;
+        let amount_out = DEX_SWAP_AMOUNT_MAX;
+        let max_amount_in = DEX_SWAP_AMOUNT_MAX;
         v["amount_out"] = Value::String(amount_out.to_string());
         v["max_amount_in"] = Value::String(max_amount_in.to_string());
 
@@ -7364,6 +7507,74 @@ mod tests {
                 assert_eq!(swap.max_amount_in, max_amount_in);
             }
             _ => panic!("expected exact-out intent"),
+        }
+
+        v["amount_out"] = Value::String((DEX_SWAP_AMOUNT_MAX + 1).to_string());
+        assert_eq!(
+            parse_intent_obj(v.as_object().unwrap()).unwrap_err(),
+            format!(
+                "intent.amount_out exceeds domain max {}",
+                DEX_SWAP_AMOUNT_MAX
+            )
+        );
+    }
+
+    #[test]
+    fn intent_parser_enforces_authoritative_domain_limits() {
+        for field in ["amount0", "amount1"] {
+            assert_intent_field_domain_limit(create_pool_intent_json(), field, DEX_LP_AMOUNT_MAX);
+        }
+        for field in ["amount_in", "min_amount_out"] {
+            assert_intent_field_domain_limit(
+                swap_exact_in_intent_json(),
+                field,
+                DEX_SWAP_AMOUNT_MAX,
+            );
+        }
+        for field in [
+            "amount0_desired",
+            "amount1_desired",
+            "amount0_min",
+            "amount1_min",
+        ] {
+            assert_intent_field_domain_limit(add_liquidity_intent_json(), field, DEX_LP_AMOUNT_MAX);
+        }
+        assert_intent_field_domain_limit(
+            remove_liquidity_intent_json(),
+            "lp_amount",
+            DEX_LP_SUPPLY_MAX,
+        );
+        for field in ["amount0_min", "amount1_min"] {
+            assert_intent_field_domain_limit(
+                remove_liquidity_intent_json(),
+                field,
+                DEX_POOL_RESERVE_MAX,
+            );
+        }
+        for field in ["amount_out", "max_amount_in"] {
+            assert_intent_field_domain_limit(
+                swap_exact_out_intent_json(),
+                field,
+                DEX_SWAP_AMOUNT_MAX,
+            );
+        }
+        for (kind, fields) in [
+            (
+                "ROUTE_EXACT_IN",
+                ["total_amount_in", "total_min_amount_out"],
+            ),
+            (
+                "ROUTE_EXACT_OUT",
+                ["total_amount_out", "total_max_amount_in"],
+            ),
+        ] {
+            for field in fields {
+                assert_intent_field_domain_limit(
+                    route_intent_json(kind),
+                    field,
+                    DEX_SWAP_AMOUNT_MAX,
+                );
+            }
         }
     }
 

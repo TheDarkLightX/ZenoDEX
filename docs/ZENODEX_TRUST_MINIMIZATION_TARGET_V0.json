@@ -50,9 +50,10 @@
       "id": "proof_verification_report_replay",
       "current_status": "replay_supported",
       "supported_surface_id": "proof_verification_report_replay",
-      "trust_effect": "Proof-required replay can require verifier-backed reports instead of accepting metadata alone.",
+      "trust_effect": "Structural diagnostics can check caller-authored report shape; replay-bound verification rejects those report inputs.",
       "residual_limits": [
-        "verifier binary soundness remains in the trusted base"
+        "caller-authored reports carry no cryptographic authority",
+        "replay-bound proof authority requires an opaque authenticated verifier capability"
       ]
     },
     {

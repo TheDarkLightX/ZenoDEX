@@ -24,7 +24,9 @@ from tools.check_zeno_ledger_risc0_real_proof_smoke_report import (
     main,
     validate_risc0_real_proof_smoke_report_v0,
 )
-from tools.zeno_ledger_risc0_proof_metadata import build_risc0_proof_metadata_v0
+from tools.zeno_ledger_risc0_proof_metadata import (
+    build_header_derived_risc0_proof_metadata_diagnostic_v0,
+)
 
 
 def _hex(label: str) -> str:
@@ -47,6 +49,20 @@ def _case(name: str) -> dict[str, object]:
         "ledger_binding": {
             "schema": LEDGER_BINDING_SCHEMA,
             "ok": True,
+            "status": "non_authoritative_header_derived_metadata",
+            "authority_scope": "none",
+            "header_derived_fields": [
+                "chain_id",
+                "height",
+                "pre_state_root",
+                "post_state_root",
+                "tx_root",
+                "evidence_root",
+                "body_root",
+            ],
+            "proof_authority_satisfied": False,
+            "settlement_authority": False,
+            "production_authority": False,
             "header_bound": True,
             "body_checked": True,
             "post_state_root_checked": True,
@@ -169,7 +185,7 @@ def _artifact_report(tmp_path: Path) -> dict[str, object]:
         module_versions_digest=module_versions_digest,
         signature_set_root=ZERO_ROOT_V0,
     )
-    metadata = build_risc0_proof_metadata_v0(
+    metadata = build_header_derived_risc0_proof_metadata_diagnostic_v0(
         proof_envelope=proof,
         header=header_unbound,
         conflict_schedule_hash=_root("schedule"),
@@ -208,6 +224,20 @@ def _artifact_report(tmp_path: Path) -> dict[str, object]:
                 "ledger_binding": {
                     "schema": LEDGER_BINDING_SCHEMA,
                     "ok": True,
+                    "status": "non_authoritative_header_derived_metadata",
+                    "authority_scope": "none",
+                    "header_derived_fields": [
+                        "chain_id",
+                        "height",
+                        "pre_state_root",
+                        "post_state_root",
+                        "tx_root",
+                        "evidence_root",
+                        "body_root",
+                    ],
+                    "proof_authority_satisfied": False,
+                    "settlement_authority": False,
+                    "production_authority": False,
                     "header_bound": True,
                     "body_checked": True,
                     "post_state_root_checked": True,
@@ -304,6 +334,22 @@ def test_risc0_real_proof_smoke_report_rejects_unbound_header() -> None:
 
     assert check["ok"] is False
     assert any("ledger_binding.header_bound must be true" in err for err in check["errors"])
+
+
+def test_risc0_real_proof_smoke_report_rejects_authority_promotion() -> None:
+    report = _report()
+    case = copy.deepcopy(report["cases"][3])  # type: ignore[index]
+    binding = copy.deepcopy(case["ledger_binding"])  # type: ignore[index]
+    binding["production_authority"] = True
+    case["ledger_binding"] = binding
+    report["cases"][3] = case  # type: ignore[index]
+
+    check = validate_risc0_real_proof_smoke_report_v0(report)
+
+    assert check["ok"] is False
+    assert any(
+        "ledger_binding.production_authority must be false" in err for err in check["errors"]
+    )
 
 
 def test_risc0_real_proof_smoke_report_validates_artifact_binding(tmp_path: Path) -> None:

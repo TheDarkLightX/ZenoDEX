@@ -82,6 +82,10 @@ async function makeBundle({ height = 2, chainId = 'zeno-ledger-sdk-testnet-0' } 
   const checkpointHash = await hashV0('light_client_checkpoint_v0', checkpoint);
   const rangeSummary = {
     ok: true,
+    verification_mode: 'structural_diagnostic',
+    structural_diagnostic_verified: true,
+    range_replay_verified: false,
+    proof_authority_satisfied: false,
     checked_heights: headerChain.map((header) => header.height),
     last_header_hash: checkpoint.header_hash,
     from_height: 1,
@@ -105,10 +109,18 @@ async function makeBundle({ height = 2, chainId = 'zeno-ledger-sdk-testnet-0' } 
     verification_summary: {
       schema: 'zenodex.zeno_sdk.browser_checkpoint_verification_summary.v0',
       builder_id: 'node-test',
-      python_range_replay_verified: true,
+      proof_authority_required: false,
+      proof_authority_satisfied: false,
+      proof_authority_capable: false,
+      settlement_authority: false,
+      production_authority: false,
+      python_structural_range_verified: true,
+      python_range_replay_verified: false,
       python_bls_quorum_verified: true,
+      browser_header_chain_verified: false,
+      browser_header_chain_available: true,
       browser_range_replay_verified: false,
-      browser_range_replay_available: true,
+      browser_range_replay_available: false,
       browser_bls_quorum_verified: false,
       browser_bls_quorum_available: false,
       checkpoint_hash: checkpointHash,
@@ -122,14 +134,23 @@ async function makeBundle({ height = 2, chainId = 'zeno-ledger-sdk-testnet-0' } 
       range_summary_hash: await hashV0('browser_checkpoint_range_summary_v0', rangeSummary),
     },
     capabilities: {
-      python_range_replay_verified: true,
+      proof_authority_satisfied: false,
+      proof_authority_capable: false,
+      settlement_authority: false,
+      production_authority: false,
+      python_structural_range_verified: true,
+      python_range_replay_verified: false,
       python_bls_quorum_verified: true,
-      browser_shape_and_hash_verified: true,
+      browser_shape_and_hash_available: true,
+      browser_shape_and_hash_verified: false,
+      browser_header_chain_verified: false,
+      browser_header_chain_available: true,
       browser_range_replay_verified: false,
-      browser_range_replay_available: true,
+      browser_range_replay_available: false,
       browser_bls_quorum_verified: false,
     },
     non_claims: [
+      'browser package v0 has no proof, settlement, or production authority',
       'browser package v0 does not replay full ledger state transitions',
     ],
   };
@@ -146,7 +167,10 @@ test('browser checkpoint bundle verifies shape and hash binding', async () => {
   assert.equal(report.ok, true);
   assert.equal(report.height, 2);
   assert.equal(report.builder_bls_quorum_verified, true);
-  assert.equal(report.browser_range_replay_verified, true);
+  assert.equal(report.status, 'structural_diagnostic_accepted');
+  assert.equal(report.browser_shape_and_hash_verified, true);
+  assert.equal(report.browser_header_chain_verified, true);
+  assert.equal(report.browser_range_replay_verified, false);
   assert.equal(report.browser_bls_quorum_verified, false);
 });
 
@@ -158,6 +182,32 @@ test('browser checkpoint bundle rejects tampering', async () => {
 
   assert.equal(report.ok, false);
   assert.match(report.gaps.join('\n'), /bundle_hash mismatch/);
+});
+
+test('browser checkpoint bundle rejects forged proof authority', async () => {
+  const bundle = await makeBundle();
+  bundle.capabilities.proof_authority_satisfied = true;
+  const { bundle_hash: _drop, ...body } = bundle;
+  void _drop;
+  bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', body);
+
+  const report = await verifyBrowserCheckpointBundleV0(bundle);
+
+  assert.equal(report.ok, false);
+  assert.match(report.gaps.join('\n'), /authority capability flags must remain false/);
+});
+
+test('browser checkpoint bundle rejects structural evidence promoted to range replay', async () => {
+  const bundle = await makeBundle();
+  bundle.verification_summary.python_range_replay_verified = true;
+  const { bundle_hash: _drop, ...body } = bundle;
+  void _drop;
+  bundle.bundle_hash = await hashV0('browser_checkpoint_bundle_v0', body);
+
+  const report = await verifyBrowserCheckpointBundleV0(bundle);
+
+  assert.equal(report.ok, false);
+  assert.match(report.gaps.join('\n'), /must remain a structural diagnostic/);
 });
 
 test('browser checkpoint bundle rejects unknown top-level fields with recomputed hash', async () => {
@@ -248,6 +298,9 @@ test('wallet sync advances monotonically and rejects rollback', async () => {
     updatedAtMs: 1_778_730_000_000,
   });
   assert.equal(initial.ok, true);
+  assert.equal(initial.status, 'structural_checkpoint_tracked');
+  assert.equal(initial.proof_authority_capable, false);
+  assert.equal(initial.settlement_authority, false);
 
   const advanced = await advanceWalletSyncStateV0({
     currentState: initial.state,
