@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from ..core.perps import PERPS_STATE_VERSION_V5
 from .canonical import bounded_json_utf8_size, canonical_json_bytes
+from .dex_snapshot_profile import DEX_SNAPSHOT_SUPPORTED_VERSIONS_V1
 from .owned_collections import OwnedMapV1
 from .snapshot_combinators import (
     MAX_ADMISSION_DEPTH_V1,
@@ -301,6 +302,8 @@ def canonical_snapshot_bytes_from_committed_state_v1(
 
     if type(version) is not int or version <= 0:
         raise ValueError("version must be a positive exact int")
+    if version not in DEX_SNAPSHOT_SUPPORTED_VERSIONS_V1:
+        raise ValueError(f"unsupported snapshot version: {version}")
     admitted_balances = _exact_balances_v1(balances)
     admitted_pools = _exact_pools_v1(pools)
     admitted_lp = _exact_lp_v1(lp_balances)

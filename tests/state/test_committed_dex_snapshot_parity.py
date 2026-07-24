@@ -29,6 +29,7 @@ from src.core.vault import VaultState
 from src.integration.dex_snapshot import snapshot_from_state
 from src.state.balances import BalanceTable
 from src.state.committed_dex_snapshot import canonical_snapshot_bytes_from_committed_state_v1
+from src.state.dex_snapshot_profile import DEX_SNAPSHOT_SUPPORTED_VERSIONS_V1
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
 from src.state.owned_collections import OwnedMapV1
@@ -277,13 +278,46 @@ def _exact_bytes(sources: LegacySourcesV1, *, version: int) -> bytes:
     )
 
 
-@pytest.mark.parametrize("version", (1, 2, 3, 4))
+@pytest.mark.parametrize("version", DEX_SNAPSHOT_SUPPORTED_VERSIONS_V1)
 def test_exact_snapshot_bytes_match_legacy_for_every_supported_version(version: int) -> None:
     sources = _legacy_sources()
 
     exact = _exact_bytes(sources, version=version)
 
     assert exact == _legacy_bytes(sources, version=version)
+
+
+@pytest.mark.parametrize("version", (True, 0, 5))
+def test_exact_and_legacy_snapshot_encoders_reject_unsupported_versions(
+    version: object,
+) -> None:
+    sources = _legacy_sources()
+    committed = _committed_values(sources)
+
+    with pytest.raises(ValueError):
+        canonical_snapshot_bytes_from_committed_state_v1(
+            version=cast(int, version),
+            balances=committed[0],
+            pools=committed[1],
+            lp_balances=committed[2],
+            nonces=committed[3],
+            fee_accumulator=committed[4],
+            vault=committed[5],
+            oracle=committed[6],
+            perps=committed[7],
+        )
+    state = DexState(
+        balances=sources[0],
+        pools=sources[1],
+        lp_balances=sources[2],
+        nonces=sources[3],
+        fee_accumulator=sources[4],
+        vault=sources[5],
+        oracle=sources[6],
+        perps=sources[7],
+    )
+    with pytest.raises(ValueError):
+        snapshot_from_state(state, version=cast(int, version))
 
 
 def test_exact_snapshot_all_optional_and_perps_variants_has_pinned_digest() -> None:

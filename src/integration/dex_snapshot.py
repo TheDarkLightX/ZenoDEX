@@ -42,6 +42,10 @@ from ..state.canonical import (
     domain_sep_bytes,
     sha256_hex,
 )
+from ..state.dex_snapshot_profile import (
+    DEX_SNAPSHOT_MAX_VERSION_V1,
+    DEX_SNAPSHOT_SUPPORTED_VERSIONS_V1,
+)
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
 from ..state.pools import (
@@ -52,7 +56,7 @@ from ..state.pools import (
     validate_pool_identity,
 )
 
-DEX_SNAPSHOT_VERSION = 4
+DEX_SNAPSHOT_VERSION = DEX_SNAPSHOT_MAX_VERSION_V1
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -122,6 +126,8 @@ class DexSnapshot:
 def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION) -> DexSnapshot:
     if not isinstance(version, int) or isinstance(version, bool) or version <= 0:
         raise ValueError("version must be a positive int")
+    if version not in DEX_SNAPSHOT_SUPPORTED_VERSIONS_V1:
+        raise ValueError(f"unsupported snapshot version: {version}")
 
     balances_entries = [
         {"pubkey": pk, "asset": asset, "amount": int(amount)}
@@ -376,7 +382,7 @@ def state_from_snapshot(
     version = snapshot.get("version", DEX_SNAPSHOT_VERSION)
     if not isinstance(version, int) or isinstance(version, bool) or version <= 0:
         raise ValueError("snapshot.version must be a positive int")
-    if version not in (1, 2, 3, 4):
+    if version not in DEX_SNAPSHOT_SUPPORTED_VERSIONS_V1:
         raise ValueError(f"unsupported snapshot version: {version}")
 
     balances = BalanceTable()

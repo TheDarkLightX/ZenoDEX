@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import final
 
-from .lp_duration_transitions import LPDurationRiskPolicyV1
+from .lp_duration_policy_values import LPDurationRiskPolicyV1
 from .snapshot_combinators import (
     DeclaredFieldV1,
     ExactInt,

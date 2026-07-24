@@ -15,6 +15,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import TypeAlias, cast, final
 
+from .lp_duration_policy_values import LPDurationRiskPolicyV1
 from .snapshot_combinators import MAX_CANONICAL_BYTES_V1
 from .state_snapshot_values import (
     DEX_LP_AMOUNT_MAX,
@@ -71,39 +72,6 @@ class LPDurationTransitionRejectV1:
             type(part) is not str and type(part) is not int for part in self.path
         ):
             raise TypeError("LP duration rejection path must be exact")
-
-
-@final
-@dataclass(frozen=True, slots=True)
-class LPDurationRiskPolicyV1:
-    """Data-only exact policy context for accepted LP lifecycle events."""
-
-    base_age_seconds: int = 0
-    max_age_seconds: int = 0
-    churn_window_seconds: int = 0
-    decay_seconds: int = 0
-    multiplier: int = 2
-    max_churn_tier: int = 0
-
-    def __post_init__(self) -> None:
-        for field_name in (
-            "base_age_seconds",
-            "max_age_seconds",
-            "churn_window_seconds",
-            "decay_seconds",
-            "max_churn_tier",
-        ):
-            value = object.__getattribute__(self, field_name)
-            if type(value) is not int:
-                raise TypeError(f"{field_name} must be an exact integer")
-            if value < 0:
-                raise ValueError(f"{field_name} must be an exact nonnegative int")
-        if type(self.multiplier) is not int:
-            raise TypeError("multiplier must be an exact integer")
-        if self.multiplier < 1:
-            raise ValueError("multiplier must be an exact int >= 1")
-        if self.max_age_seconds and self.base_age_seconds > self.max_age_seconds:
-            raise ValueError("base_age_seconds must be <= max_age_seconds")
 
 
 @final

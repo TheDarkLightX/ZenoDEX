@@ -11,7 +11,7 @@ from .lp_duration_policy_schema import (
     LP_DURATION_POLICY_SCHEMA_REVISION_V1,
     LPDurationPolicyAdmissionSourceV1,
 )
-from .lp_duration_transitions import LPDurationRiskPolicyV1
+from .lp_duration_policy_values import LPDurationRiskPolicyV1
 from .snapshot_combinators import (
     AdmissionLimitsV1,
     AdmitOk,

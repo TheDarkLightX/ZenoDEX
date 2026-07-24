@@ -28,9 +28,16 @@ DEFAULT_AUTHORITY_PATHS = (
     Path("src/state/perps_state_transitions.py"),
     Path("src/state/perps_transition_combinators.py"),
     Path("src/state/lp_duration_transitions.py"),
+    Path("src/state/lp_duration_policy_values.py"),
     Path("src/state/lp_duration_policy_schema.py"),
     Path("src/state/lp_duration_policy_admission.py"),
     Path("src/state/lp_duration_policy_context.py"),
+    Path("src/state/dex_snapshot_profile.py"),
+    Path("src/state/fcis_execution_context_values.py"),
+    Path("src/state/fcis_execution_context_schema.py"),
+    Path("src/state/fcis_execution_context_codec.py"),
+    Path("src/state/fcis_execution_context_admission.py"),
+    Path("src/state/fcis_execution_context.py"),
     Path("src/state/pool_creation_transition.py"),
     Path("src/state/state_snapshot_values.py"),
     Path("src/state/state_snapshot_schema.py"),
@@ -92,6 +99,7 @@ _UNTRUSTED_VALUE_NAMES = {
 _PROFILE_PATHS = (
     "src/state/state_admission_profile.py",
     "src/state/lp_duration_policy_admission.py",
+    "src/state/fcis_execution_context_admission.py",
 )
 _SHADOW_AUTHORITY_MODULE = "src.integration.fcis_spot_shadow"
 _SHADOW_AUTHORITY_PATH = "src/integration/fcis_spot_shadow.py"

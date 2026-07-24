@@ -15,7 +15,7 @@ from .lp_duration_policy_schema import (
     LPDurationPolicyEnumTagV1,
     LPDurationPolicyRecordTagV1,
 )
-from .lp_duration_transitions import LPDurationRiskPolicyV1
+from .lp_duration_policy_values import LPDurationRiskPolicyV1
 from .snapshot_combinators import (
     AdmitOk,
     AdmitReject,

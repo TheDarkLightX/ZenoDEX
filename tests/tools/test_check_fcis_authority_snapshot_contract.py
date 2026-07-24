@@ -33,6 +33,7 @@ def exact(value: object) -> int:
         "src/core/dex.py",
         "src/state/state_snapshots.py",
         "src/state/perps_aggregate_transitions.py",
+        "src/state/fcis_execution_context_admission.py",
     ],
 )
 def test_default_authority_paths_cover_mounted_and_exact_authority(
@@ -426,6 +427,7 @@ def test_checker_rejects_shadow_authority_through_an_intermediary(
     [
         "src/state/state_admission_profile.py",
         "src/state/lp_duration_policy_admission.py",
+        "src/state/fcis_execution_context_admission.py",
     ],
 )
 def test_checker_allows_internal_engine_only_in_explicit_profile_facades(
@@ -458,6 +460,7 @@ def test_checker_allows_internal_engine_only_in_explicit_profile_facades(
     (
         "state_admission_profile.py",
         "lp_duration_policy_admission.py",
+        "fcis_execution_context_admission.py",
     ),
 )
 def test_checker_rejects_nested_suffix_profile_spoof(
@@ -578,6 +581,7 @@ def test_checker_rejects_caller_selected_profile_binding(tmp_path: Path) -> None
     [
         "src/state/state_admission_profile.py",
         "src/state/lp_duration_policy_admission.py",
+        "src/state/fcis_execution_context_admission.py",
     ],
 )
 def test_checker_rejects_second_public_entrypoint_in_each_profile(
