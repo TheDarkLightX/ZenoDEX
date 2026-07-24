@@ -223,3 +223,55 @@ def test_packet_checker_rejects_stale_mutable_core_architecture(tmp_path: Path) 
         "ARCHITECTURE_CLAUSE_MISSING:COMBINATOR_CONTRACT.md:## 8. Pure persistent transition",
         "STALE_MUTABLE_CORE_CLAUSE:COMBINATOR_CONTRACT.md:## 8. Scratch conversion",
     ]
+
+
+def test_packet_checker_rejects_missing_mount_sequence_stage(tmp_path: Path) -> None:
+    packet = _copy_packet(tmp_path)
+    ledger = _load_ledger(packet)
+    del ledger["mount_sequence"]["state_substrate"]
+    _write_ledger(packet, ledger)
+
+    returncode, report = _run_checker(packet)
+
+    assert returncode == 1
+    assert report["ok"] is False
+    assert report["errors"] == ["MOUNT_SEQUENCE_KEY:missing:state_substrate"]
+
+
+def test_packet_checker_rejects_extra_mount_sequence_stage(tmp_path: Path) -> None:
+    packet = _copy_packet(tmp_path)
+    ledger = _load_ledger(packet)
+    ledger["mount_sequence"]["legacy_mount"] = "allowed"
+    _write_ledger(packet, ledger)
+
+    returncode, report = _run_checker(packet)
+
+    assert returncode == 1
+    assert report["ok"] is False
+    assert report["errors"] == ["MOUNT_SEQUENCE_KEY:extra:legacy_mount"]
+
+
+def test_packet_checker_rejects_changed_mount_sequence_value(tmp_path: Path) -> None:
+    packet = _copy_packet(tmp_path)
+    ledger = _load_ledger(packet)
+    ledger["mount_sequence"]["atomic_mount"] = "merge_independently"
+    _write_ledger(packet, ledger)
+
+    returncode, report = _run_checker(packet)
+
+    assert returncode == 1
+    assert report["ok"] is False
+    assert report["errors"] == ["MOUNT_SEQUENCE_VALUE:atomic_mount"]
+
+
+def test_packet_checker_rejects_non_object_mount_sequence(tmp_path: Path) -> None:
+    packet = _copy_packet(tmp_path)
+    ledger = _load_ledger(packet)
+    ledger["mount_sequence"] = []
+    _write_ledger(packet, ledger)
+
+    returncode, report = _run_checker(packet)
+
+    assert returncode == 1
+    assert report["ok"] is False
+    assert report["errors"] == ["MOUNT_SEQUENCE_TYPE:mount_sequence"]

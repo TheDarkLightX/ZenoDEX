@@ -4,8 +4,9 @@ Status: **normative repair packet; unresolved design decisions and production cl
 
 This folder is the authoritative implementation packet for repairing the
 committed-state work in PR #477 and the authenticated-command/effect work in
-PR #478. It exists because the earlier implementation drifted from the agreed
-design while chat context was compacted and the branches were reconstructed.
+PR #478, together with their later atomic mounting unit. It exists because the
+earlier implementation drifted from the agreed design while chat context was
+compacted and the branches were reconstructed.
 
 The packet is pinned to the reviewed local heads:
 
@@ -35,6 +36,11 @@ with an older clause, the errata controls. Continue in this order:
 12. `IMPLEMENTATION_AGENT_PROMPT.md` is the prompt to give the implementation
    agent.
 13. `requirements.json` is the machine-readable requirement ledger.
+
+Erratum E11 divides implementation into a state-substrate review unit, an owned
+authority-graph review unit, and one later atomic-mount review unit. The first
+two are evidence-bearing dependencies; neither independently authorizes a
+production merge or a mounted FCIS claim.
 
 The normative continuation files are
 `ASSURANCE_FACTORIZATION_ADDENDUM.md` and

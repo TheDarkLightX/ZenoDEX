@@ -18,7 +18,14 @@ TEST_FILES = (ROOT / "TEST_MATRIX.md", ROOT / "TEST_MATRIX_PR477_PR478.md")
 CURRENT_ARCHITECTURE_CLAUSES = {
     "COMBINATOR_CONTRACT.md": ("## 8. Pure persistent transition",),
     "DECISIONS.md": ("### FCIS-D004: One-way admission and persistent transition values",),
-    "ERRATA.md": ("## E9. Persistent committed transitions replace domain scratch conversion",),
+    "ERRATA.md": (
+        "## E9. Persistent committed transitions replace domain scratch conversion",
+        "## E11. State ownership, authority ownership, and final mounting are separate review stages",
+    ),
+    "PR477_MOUNTED_MIGRATION.md": (
+        "### M5. Prepare the reviewed atomic-mount candidate",
+        "### M6. Remove the obsolete authority representation in the same mount unit",
+    ),
     "PR477_STATE_SCHEMA.md": ("## 2. Exact committed core inputs",),
 }
 STALE_ARCHITECTURE_CLAUSES = {
@@ -47,6 +54,7 @@ LEDGER_ROOT_KEYS = {
     "claim_status",
     "design_lock_version",
     "forbidden_mechanisms",
+    "mount_sequence",
     "mounted_limits",
     "normative_files",
     "required_pattern_ids",
@@ -54,6 +62,11 @@ LEDGER_ROOT_KEYS = {
     "reviewed_heads",
     "schema",
     "test_bindings",
+}
+EXPECTED_MOUNT_SEQUENCE = {
+    "state_substrate": "review_only_until_atomic_mount",
+    "authority_graph": "review_only_until_atomic_mount",
+    "atomic_mount": "first_mounted_promotion_candidate",
 }
 REQUIRED_KEYS = {
     "id",
@@ -166,6 +179,27 @@ def _check_test_bindings(
     for test_id in sorted(declared_tests - bound_tests):
         _error(errors, "TEST_ID_UNBOUND", test_id)
     return bound_tests
+
+
+def _check_mount_sequence(data: dict[str, Any], errors: list[str]) -> None:
+    sequence = data.get("mount_sequence")
+    if type(sequence) is not dict:
+        _error(errors, "MOUNT_SEQUENCE_TYPE", "mount_sequence")
+        return
+
+    actual_keys = set(sequence)
+    expected_keys = set(EXPECTED_MOUNT_SEQUENCE)
+    for key in sorted(expected_keys - actual_keys):
+        _error(errors, "MOUNT_SEQUENCE_KEY", f"missing:{key}")
+    for key in sorted(actual_keys - expected_keys):
+        _error(errors, "MOUNT_SEQUENCE_KEY", f"extra:{key}")
+
+    for key, expected_value in EXPECTED_MOUNT_SEQUENCE.items():
+        if key not in sequence:
+            continue
+        actual_value = sequence[key]
+        if type(actual_value) is not str or actual_value != expected_value:
+            _error(errors, "MOUNT_SEQUENCE_VALUE", key)
 
 
 def _check_pattern_bindings(data: dict[str, Any], errors: list[str]) -> None:
@@ -295,6 +329,7 @@ def main() -> int:
         _error(errors, "SCHEMA", "requirements.json")
     if data.get("claim_status") != "blocked":
         _error(errors, "CLAIM_STATUS", "must_be_blocked")
+    _check_mount_sequence(data, errors)
     _check_pattern_bindings(data, errors)
     _check_transition_architecture(errors)
 

@@ -254,3 +254,44 @@ aggregate expected-pre-root check, receipt binding, or atomic commit bundle.
 Likewise, canonical encoding and protocol ordering are separate contracts;
 byte ordering may implement protocol ordering only when an explicit law and
 cross-language vectors establish their equivalence.
+
+## E11. State ownership, authority ownership, and final mounting are separate review stages
+
+The earlier two-PR landing order is withdrawn because it creates a circular
+promotion obligation. PR #477 cannot mount an aggregate result whose effects,
+receipt, settlement, and command graphs remain mutable, while PR #478 cannot
+be reviewed against the final state boundary until the exact state substrate
+exists.
+
+The normative sequence is therefore:
+
+```text
+state-substrate review unit
+  exact state admission, reads, leaf transitions, production execution context,
+  exact settlement replay, roots, snapshots, and differential evidence
+
+authority-graph review unit
+  owned command, settlement, event, effect, receipt, and three-way Decision values
+
+atomic-mount review unit
+  one switch of all eight DexState fields and every mounted authority consumer
+```
+
+The first two units may be stacked review branches. They are not independent
+production merge candidates. The atomic-mount unit is the first branch allowed
+to claim that the repaired authority path is mounted. It must contain or depend
+on the exact reviewed heads of both earlier units.
+
+Until the atomic-mount evidence passes:
+
+- the legacy implementation remains only as a pinned differential oracle;
+- exact state candidates remain non-authorizing evidence values;
+- the structural checker must report legacy mounted mechanisms when run in its
+  final-mount profile;
+- no `FCIS-477-*` or `FCIS-478-*` requirement is promoted merely because a leaf
+  or shadow suite passes.
+
+Deletion of `Frozen*`, `deep_freeze`, copy-based settlement application, seal
+flags, and compatibility projections happens in the atomic-mount unit after
+old/new parity is recorded. This preserves the comparison oracle without
+allowing it to survive the promoted authority boundary.

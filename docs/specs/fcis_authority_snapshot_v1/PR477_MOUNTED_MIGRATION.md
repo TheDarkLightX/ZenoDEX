@@ -6,6 +6,10 @@ This file closes the gap between the exact committed-value substrate and the
 mounted `DexState` authority path. It must be read after `ERRATA.md`,
 `DECISIONS.md`, and `PR477_STATE_SCHEMA.md`.
 
+Erratum E11 controls the landing sequence. The state substrate and owned
+authority graph are separate review units; the field switch described below
+occurs only in the later atomic-mount review unit that binds both exact heads.
+
 ## 1. Semantic hierarchy
 
 ```text
@@ -184,11 +188,15 @@ Change signatures and implementations together. Do not add compatibility
 mutators or committed-to-legacy projections. Each changed consumer receives a
 focused exact-type negative test and a valid-corpus parity test.
 
-### M5. Switch `DexState` atomically
+### M5. Prepare the reviewed atomic-mount candidate
 
 `DexState.__post_init__` admits all eight field candidates in the fixed order
 from `PR477_STATE_SCHEMA.md`, checks aggregate invariants and canonical size,
 then assigns every candidate. Failure exposes no partially initialized state.
+
+This change is implemented in the atomic-mount review unit from E11, after the
+state substrate and owned authority graph have both passed their independent
+review gates. It is not merged as part of the state-substrate review unit.
 
 At this point:
 
@@ -198,7 +206,7 @@ At this point:
 - aggregate `Reject` retains only its canonical rejection receipt;
 - any protocol-defined committed failure uses the third decision branch.
 
-### M6. Remove the obsolete authority representation
+### M6. Remove the obsolete authority representation in the same mount unit
 
 Only after M5 evidence passes, remove mounted use of:
 
