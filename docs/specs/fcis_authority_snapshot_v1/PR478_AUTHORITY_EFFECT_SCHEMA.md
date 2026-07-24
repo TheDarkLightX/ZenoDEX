@@ -271,7 +271,7 @@ schema or encoder.
 
 ```text
 intent_id  exact canonical 32-byte ID
-action     exact FillAction
+action     exact OwnedEnumV1 admitted from exact FillAction
 ```
 
 At most 256 entries. Intent IDs are unique. Order is the declared batch order.

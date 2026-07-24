@@ -23,6 +23,11 @@ CURRENT_ARCHITECTURE_CLAUSES = {
         "## E11. State ownership, authority ownership, and final mounting are separate review stages",
         "## E12. Closed authority-graph algebra extensions",
     ),
+    "MOUNTED_ENVELOPE_INVENTORY.md": (
+        "## 3. Signature, sender, authentication policy, and domain frame",
+        "## 9. Uniform-batch certificate payloads",
+        "## 10. Review-unit closure and nonclaims",
+    ),
     "PR477_MOUNTED_MIGRATION.md": (
         "### M5. Prepare the reviewed atomic-mount candidate",
         "### M6. Remove the obsolete authority representation in the same mount unit",

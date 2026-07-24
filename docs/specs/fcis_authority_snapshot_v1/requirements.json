@@ -1,6 +1,6 @@
 {
   "schema": "zenodex/fcis-authority-snapshot-requirements/v1",
-  "design_lock_version": "1.4.0",
+  "design_lock_version": "1.5.0",
   "claim_status": "blocked",
   "audit_authority": {
     "url": "https://zenodex-oracle-audit-v4.jazzy-harp-9002.chatgpt.site/",
@@ -195,6 +195,7 @@
     "PR477_STATE_SCHEMA.md",
     "PR477_MOUNTED_MIGRATION.md",
     "PR478_AUTHORITY_EFFECT_SCHEMA.md",
+    "MOUNTED_ENVELOPE_INVENTORY.md",
     "IMPLEMENTATION_RUNBOOK.md",
     "TEST_MATRIX.md",
     "TEST_MATRIX_PR477_PR478.md",
