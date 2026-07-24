@@ -105,7 +105,6 @@ from .route_settlement import (
     validate_route_intent_against_binding,
 )
 from .settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
-from .settlement_schema import fill_action_text_v1
 from .settlement_snapshots import (
     OwnedBalanceDeltaV1,
     OwnedFillV1,
@@ -273,6 +272,8 @@ def _intent_kind_value_v1(intent: _ReplayIntentV1) -> str:
 
 def _fill_action_text_v1(action: FillAction | OwnedEnumV1) -> str:
     if type(action) is OwnedEnumV1:
+        from .settlement_schema import fill_action_text_v1
+
         return fill_action_text_v1(action)
     if type(action) is not FillAction:
         raise TypeError("fill action requires a closed replay type")
@@ -774,9 +775,7 @@ def _validate_quote_binding_metadata(
             **_quote_binding_context(intent),
             intent_kind=_intent_kind_value_v1(intent),
         )
-    if quote_leg_index is not None and (
-        not is_strict_int(quote_leg_index) or quote_leg_index < 0
-    ):
+    if quote_leg_index is not None and (not is_strict_int(quote_leg_index) or quote_leg_index < 0):
         return _quote_binding_error(
             "invalid quote_receipt_leg_index", **_quote_binding_context(intent)
         )
@@ -1260,9 +1259,7 @@ def _validate_settlement_strong_impl(
                 return fail(f"invalid CREATE_POOL amount0 for intent_id={intent_id}")
             if not is_strict_int(amount1) or amount1_value <= 0:
                 return fail(f"invalid CREATE_POOL amount1 for intent_id={intent_id}")
-            if created_at is not None and (
-                not is_strict_int(created_at) or created_at < 0
-            ):
+            if created_at is not None and (not is_strict_int(created_at) or created_at < 0):
                 return fail(f"invalid CREATE_POOL created_at for intent_id={intent_id}")
             created_at_value = 0 if created_at is None else created_at
 

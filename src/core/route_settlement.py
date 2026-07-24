@@ -32,7 +32,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Mapping, Optional, Tuple, TypeAlias, cast
 
-from ..state.intent_schema import intent_kind_text_v1
 from ..state.intent_snapshots import (
     OwnedIntentV1,
     owned_intent_field_v1,
@@ -180,6 +179,8 @@ def _intent_kind_text_v1(intent: _RouteIntentV1) -> str:
 
 def is_route_intent_kind(kind: IntentKind | OwnedEnumV1) -> bool:
     if type(kind) is OwnedEnumV1:
+        from ..state.intent_schema import intent_kind_text_v1
+
         kind_text = intent_kind_text_v1(kind)
         return kind_text in (
             IntentKind.ROUTE_EXACT_IN.value,

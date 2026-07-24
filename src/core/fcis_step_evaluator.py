@@ -55,7 +55,10 @@ from ..state.state_snapshots import (
     snapshot_pool_map,
     snapshot_vault,
 )
-from ..state.support_root import compute_support_state_root_for_batch_owned_committed_v1
+from ..state.support_root import (
+    EXACT_SUPPORT_ROOT_VERSION_V1,
+    compute_support_state_root_for_batch_owned_committed_v1,
+)
 from .fcis_step_evaluation_values import (
     FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1,
     FCIS_STEP_EVALUATOR_ALGORITHM_VERSION_V1,
@@ -150,15 +153,43 @@ def _admit_exact_command_v1(
                 ("intents", index),
                 "step intent requires an exact OwnedIntentV1",
             )
+    field = "settlement"
     try:
         exact_settlement = snapshot_settlement(settlement)
-        exact_intents = admit_intent_batch(intents)
-    except (StateAdmissionError, TypeError, ValueError) as error:
+    except StateAdmissionError as error:
+        path = (field, *error.path)
+        detail = f"{error.code.value}:{format_admit_path(path)}"
+        return _reject(
+            FCISStepEvaluationPhaseV1.COMMAND_ADMISSION,
+            error.code.value,
+            path,
+            f"step command admission rejected: {detail}",
+        )
+    except (TypeError, ValueError):
         return _reject(
             FCISStepEvaluationPhaseV1.COMMAND_ADMISSION,
             "admission_rejected",
-            (),
-            f"step command admission rejected: {error}",
+            (field,),
+            "step command admission rejected: admission_rejected:settlement",
+        )
+    field = "intents"
+    try:
+        exact_intents = admit_intent_batch(intents)
+    except StateAdmissionError as error:
+        path = (field, *error.path)
+        detail = f"{error.code.value}:{format_admit_path(path)}"
+        return _reject(
+            FCISStepEvaluationPhaseV1.COMMAND_ADMISSION,
+            error.code.value,
+            path,
+            f"step command admission rejected: {detail}",
+        )
+    except (TypeError, ValueError):
+        return _reject(
+            FCISStepEvaluationPhaseV1.COMMAND_ADMISSION,
+            "admission_rejected",
+            (field,),
+            "step command admission rejected: admission_rejected:intents",
         )
     return exact_settlement, exact_intents
 
@@ -601,6 +632,7 @@ def _candidate_evidence_v1(
         snapshot_commitment=sha256_hex(
             domain_sep_bytes("dex_snapshot", version=context.snapshot_version) + snapshot_bytes
         ),
+        support_root_version=EXACT_SUPPORT_ROOT_VERSION_V1,
         support_root=support_root,
     )
 

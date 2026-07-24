@@ -31,10 +31,12 @@ from src.integration.lp_position_age_gate import (
 )
 from src.state import BalanceTable, LPTable
 from src.state.canonical import sha256_hex
+from src.state.intent_snapshots import admit_intent_batch
 from src.state.intents import Intent, IntentKind
 from src.state.legacy_state_snapshots import (
     admit_legacy_balance_for_differential_v1,
     admit_legacy_lp_for_differential_v1,
+    admit_legacy_nonce_for_differential_v1,
     admit_legacy_pool_map_for_differential_v1,
 )
 from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
@@ -44,14 +46,21 @@ from src.state.state_snapshots import (
     snapshot_lp_table,
     snapshot_pool_map,
 )
-from src.state.support_root import compute_support_state_root_for_batch
+from src.state.support_root import (
+    EXACT_SUPPORT_ROOT_VERSION_V1,
+    compute_support_state_root_for_batch,
+    compute_support_state_root_for_batch_owned_committed_v1,
+)
 from tools.check_fcis_authority_snapshot_contract import (
     DEFAULT_AUTHORITY_PATHS,
     check_contract,
 )
 
-_EXPECTED_SWAP_POST_SUPPORT_ROOT = (
+_EXPECTED_SWAP_POST_SUPPORT_ROOT_V4 = (
     "0x66c43d933bdf3105ea34adb2adf9fc43745b18fd70693998eda71e44d213dbcf"
+)
+_EXPECTED_SWAP_POST_SUPPORT_ROOT_V5 = (
+    "0xddd7ba5d22debc2c172f02315c8012bc642853421f49aa16b76242fbef91cace"
 )
 
 
@@ -327,14 +336,25 @@ def test_full_step_shadow_matches_legacy_state_snapshot_and_root() -> None:
     assert observed.snapshot_commitment == legacy_snapshot.commitment_hex()
     assert observed.state_root_preimage == legacy_preimage
     assert observed.state_root == sha256_hex(legacy_preimage)
-    assert observed.support_root == compute_support_state_root_for_batch(
+    legacy_support_root_v4 = compute_support_state_root_for_batch(
         intents=[intent],
         balances=legacy_next.balances,
         pools=legacy_next.pools,
         lp_balances=legacy_next.lp_balances,
         nonces=legacy_next.nonces,
     )
-    assert observed.support_root == _EXPECTED_SWAP_POST_SUPPORT_ROOT
+    exact_support_root_v5 = compute_support_state_root_for_batch_owned_committed_v1(
+        intents=admit_intent_batch([intent]),
+        balances=admit_legacy_balance_for_differential_v1(legacy_next.balances),
+        pools=admit_legacy_pool_map_for_differential_v1(legacy_next.pools),
+        lp_balances=admit_legacy_lp_for_differential_v1(legacy_next.lp_balances),
+        nonces=admit_legacy_nonce_for_differential_v1(legacy_next.nonces),
+    )
+    assert legacy_support_root_v4 == _EXPECTED_SWAP_POST_SUPPORT_ROOT_V4
+    assert observed.support_root_version == EXACT_SUPPORT_ROOT_VERSION_V1
+    assert observed.support_root == exact_support_root_v5
+    assert observed.support_root == _EXPECTED_SWAP_POST_SUPPORT_ROOT_V5
+    assert observed.support_root != legacy_support_root_v4
     assert snapshot_from_state(state).canonical_bytes() == pre_snapshot
     assert not hasattr(observed, "balances")
     assert not hasattr(observed, "nonces")
@@ -383,14 +403,44 @@ def test_full_step_shadow_settlement_rejection_has_no_candidate_evidence() -> No
     assert snapshot_from_state(state).canonical_bytes() == pre_snapshot
 
 
-def test_full_step_shadow_preserves_the_mounted_rejected_intent_policy() -> None:
+def test_full_step_shadow_malformed_intent_rejects_at_command_admission() -> None:
+    """Malformed canonical commands reject at COMMAND_ADMISSION per the closed
+    deterministic admission design.  Legacy differential parity applies only
+    to inputs accepted by both profiles."""
     state, intent, _settlement, policy = _swap_case()
-    rejected_intent = replace(
+    malformed_intent = replace(
         intent,
         fields={key: value for key, value in intent.fields.items() if key != "asset_out"},
     )
-    rejected_settlement = compute_settlement(
-        [rejected_intent],
+    context, policy = _step_context(policy)
+
+    observed = evaluate_fcis_step_shadow_v1(
+        state=state,
+        settlement=_settlement,
+        intents=[malformed_intent],
+        context=context,
+        lp_duration_policy=policy,
+    )
+
+    assert type(observed) is FCISStepShadowRejectV1
+    assert observed.phase is FCISStepShadowPhaseV1.COMMAND_ADMISSION
+    assert observed.reason == (
+        'shadow command admission rejected: missing_field:$["intents"][0]["fields"]["asset_out"]'
+    )
+
+
+def test_full_step_shadow_settlement_rejects_fill_for_absent_intent() -> None:
+    """A settlement that references an intent_id absent from the admitted batch
+    rejects at SETTLEMENT.  Both the intent and the settlement are individually
+    well-formed, so both profiles accept the inputs and the rejection is
+    comparable."""
+    state, intent, _settlement, policy = _swap_case()
+    other_intent = replace(
+        intent,
+        intent_id="0x" + "99" * 32,
+    )
+    other_settlement = compute_settlement(
+        [other_intent],
         state.pools,
         state.balances,
         state.lp_balances,
@@ -399,16 +449,14 @@ def test_full_step_shadow_preserves_the_mounted_rejected_intent_policy() -> None
 
     observed = evaluate_fcis_step_shadow_v1(
         state=state,
-        settlement=rejected_settlement,
+        settlement=other_settlement,
         intents=[intent],
         context=context,
         lp_duration_policy=policy,
     )
 
-    assert observed == FCISStepShadowRejectV1(
-        FCISStepShadowPhaseV1.SETTLEMENT,
-        f"settlement rejected intent_id={rejected_intent.intent_id}: MISSING_PARAMS",
-    )
+    assert type(observed) is FCISStepShadowRejectV1
+    assert observed.phase is FCISStepShadowPhaseV1.SETTLEMENT
 
 
 def test_full_step_shadow_invalid_eighth_field_rejects_without_partial_evidence() -> None:

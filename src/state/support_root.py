@@ -25,13 +25,13 @@ from .canonical import (
     hex_to_bytes_fixed,
     sha256_hex,
 )
-from .intent_snapshots import OwnedIntentV1, owned_intent_field_v1, owned_intent_kind_text_v1
 from .intents import Intent, IntentKind
 from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
 from .pools import PoolState, PoolStatus, compute_pool_id
 
 if TYPE_CHECKING:
+    from .intent_snapshots import OwnedIntentV1
     from .owned_collections import OwnedMapV1
     from .state_snapshot_values import (
         CommittedBalanceTableV1,
@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     )
 
 SUPPORT_ROOT_VERSION = 4
+EXACT_SUPPORT_ROOT_VERSION_V1 = 5
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
@@ -239,6 +240,29 @@ def _hash_support_sections_v1(
 ) -> str:
     """Hash five already canonical support-root-v4 sections."""
 
+    return _hash_support_sections_for_version_v1(
+        support_root_version=SUPPORT_ROOT_VERSION,
+        balances_section=balances_section,
+        pools_section=pools_section,
+        lp_section=lp_section,
+        lp_duration_section=lp_duration_section,
+        nonce_section=nonce_section,
+    )
+
+
+def _hash_support_sections_for_version_v1(
+    *,
+    support_root_version: int,
+    balances_section: bytes,
+    pools_section: bytes,
+    lp_section: bytes,
+    lp_duration_section: bytes,
+    nonce_section: bytes,
+) -> str:
+    """Hash canonical support sections under one explicit protocol version."""
+
+    if type(support_root_version) is not int or support_root_version <= 0:
+        raise TypeError("support_root_version must be an exact positive int")
     sections = (
         (b"BAL", balances_section),
         (b"POL", pools_section),
@@ -248,7 +272,7 @@ def _hash_support_sections_v1(
     )
     if any(type(section) is not bytes for _label, section in sections):
         raise TypeError("support-root sections must be exact bytes")
-    payload = bytearray(domain_sep_bytes("state_support_root", version=SUPPORT_ROOT_VERSION))
+    payload = bytearray(domain_sep_bytes("state_support_root", version=support_root_version))
     for label, section in sections:
         payload += label
         payload += encode_bytes(section)
@@ -565,6 +589,44 @@ def compute_support_state_root_for_batch_committed_v1(
     )
 
 
+def _route_support_pool_ids_owned_v1(intent: OwnedIntentV1) -> tuple[str, ...]:
+    """Read route pools from one already-admitted owned route graph."""
+
+    from .intent_snapshots import OwnedIntentV1, owned_intent_field_v1
+    from .owned_collections import OwnedMapV1
+
+    if type(intent) is not OwnedIntentV1:
+        raise TypeError("route support intent must be an exact OwnedIntentV1")
+    raw_legs = owned_intent_field_v1(intent, "route_legs", None)
+    raw_fingerprints = owned_intent_field_v1(
+        intent,
+        "route_pool_fingerprints",
+        None,
+    )
+    if type(raw_legs) is not tuple or not raw_legs:
+        raise ValueError("exact route support requires a nonempty leg tuple")
+    if type(raw_fingerprints) is not OwnedMapV1 or not raw_fingerprints:
+        raise TypeError("exact route support requires an owned fingerprint map")
+
+    leg_pool_ids: list[str] = []
+    for raw_leg in raw_legs:
+        if type(raw_leg) is not OwnedMapV1:
+            raise TypeError("exact route support requires owned leg maps")
+        pool_id = raw_leg.get("pool_id")
+        if type(pool_id) is not str or not pool_id:
+            raise ValueError("exact route support requires nonempty pool ids")
+        leg_pool_ids.append(pool_id)
+    fingerprint_pool_ids = tuple(key for key, _value in raw_fingerprints.entries)
+    if any(type(pool_id) is not str or not pool_id for pool_id in fingerprint_pool_ids):
+        raise ValueError("exact route support fingerprint keys must be nonempty strings")
+    if any(type(value) is not str or not value for _key, value in raw_fingerprints.entries):
+        raise ValueError("exact route support fingerprints must be nonempty strings")
+    canonical_leg_pool_ids = tuple(sorted(set(leg_pool_ids)))
+    if canonical_leg_pool_ids != tuple(sorted(fingerprint_pool_ids)):
+        raise ValueError("exact route support legs and fingerprints disagree")
+    return canonical_leg_pool_ids
+
+
 def _derive_batch_state_support_owned_v1(
     intents: tuple[OwnedIntentV1, ...],
     *,
@@ -577,6 +639,7 @@ def _derive_batch_state_support_owned_v1(
     accepts ``Sequence[Intent]``, or constructs a mutable ``PoolState``.
     """
 
+    from .intent_snapshots import owned_intent_field_v1, owned_intent_kind_text_v1
     from .owned_collections import OwnedMapV1
     from .state_snapshots import snapshot_pool_map
 
@@ -605,7 +668,7 @@ def _derive_batch_state_support_owned_v1(
             continue
         try:
             pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
-        except Exception:
+        except (TypeError, ValueError):
             continue
         created_pool_assets[pool_id] = (asset0, asset1)
 
@@ -627,7 +690,7 @@ def _derive_batch_state_support_owned_v1(
                             asset0, asset1, fee_bps, curve_tag="CPMM", curve_params=""
                         )
                         pool_ids.add(pool_id)
-                    except Exception:
+                    except (TypeError, ValueError):
                         pass
             continue
 
@@ -639,6 +702,21 @@ def _derive_batch_state_support_owned_v1(
             asset_in = owned_intent_field_v1(intent, "asset_in", None)
             if type(asset_in) is str and asset_in:
                 balance_keys.add((sender, asset_in))
+            continue
+
+        if kind_text in (IntentKind.ROUTE_EXACT_IN.value, IntentKind.ROUTE_EXACT_OUT.value):
+            asset_in = owned_intent_field_v1(intent, "asset_in", None)
+            asset_out = owned_intent_field_v1(intent, "asset_out", None)
+            recipient = owned_intent_field_v1(intent, "recipient", sender)
+            if type(asset_in) is not str or not asset_in:
+                raise ValueError("exact route support requires a nonempty input asset")
+            if type(asset_out) is not str or not asset_out:
+                raise ValueError("exact route support requires a nonempty output asset")
+            if type(recipient) is not str or not recipient:
+                raise ValueError("exact route support requires a nonempty recipient")
+            balance_keys.add((sender, asset_in))
+            balance_keys.add((recipient, asset_out))
+            pool_ids.update(_route_support_pool_ids_owned_v1(intent))
             continue
 
         if kind_text == IntentKind.ADD_LIQUIDITY.value:
@@ -669,6 +747,23 @@ def _derive_batch_state_support_owned_v1(
     )
 
 
+def derive_batch_state_support_owned_committed_v1(
+    intents: tuple[OwnedIntentV1, ...],
+    *,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> BatchStateSupport:
+    """Re-admit and derive the unmounted route-complete exact support profile."""
+
+    from .intent_snapshots import OwnedIntentV1, admit_intent_batch
+
+    if type(intents) is not tuple:
+        raise TypeError("intents must be an exact owned tuple")
+    if any(type(intent) is not OwnedIntentV1 for intent in intents):
+        raise TypeError("intents must contain only exact OwnedIntentV1")
+    exact_intents = admit_intent_batch(intents)
+    return _derive_batch_state_support_owned_v1(exact_intents, pools=pools)
+
+
 def compute_support_state_root_for_batch_owned_committed_v1(
     *,
     intents: tuple[OwnedIntentV1, ...],
@@ -677,18 +772,18 @@ def compute_support_state_root_for_batch_owned_committed_v1(
     lp_balances: CommittedLPTableV1,
     nonces: CommittedNonceTableV1,
 ) -> str:
-    """Compute support-root v4 from exact owned intents and committed state.
+    """Compute unmounted route-complete support-root v5 from exact owned input.
 
-    This is the exact promoted support-root reader.  It is independent
-    evidence rather than a wrapper that delegates to the mixed legacy helper.
+    Mounted support-root v4 remains unchanged until verifier/runtime migration
+    evidence authorizes the version switch.
     """
 
-    if type(intents) is not tuple:
-        raise TypeError("intents must be an exact owned tuple")
-    if any(type(intent) is not OwnedIntentV1 for intent in intents):
-        raise TypeError("intents must contain only exact OwnedIntentV1")
-    support = _derive_batch_state_support_owned_v1(intents, pools=pools)
-    return compute_support_state_root_with_committed_spot_state_v1(
+    from .committed_spot_roots import (
+        compute_support_state_root_v5_with_committed_spot_state_v1,
+    )
+
+    support = derive_batch_state_support_owned_committed_v1(intents, pools=pools)
+    return compute_support_state_root_v5_with_committed_spot_state_v1(
         balances=balances,
         pools=pools,
         lp_balances=lp_balances,

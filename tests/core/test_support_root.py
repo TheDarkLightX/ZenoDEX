@@ -4,17 +4,31 @@ from __future__ import annotations
 
 import pytest
 
+import src.state.support_root as support_root_module
 from src.state.balances import BalanceTable
+from src.state.intent_snapshots import OwnedIntentV1, admit_intent_batch
 from src.state.intents import Intent, IntentKind
+from src.state.legacy_state_snapshots import (
+    admit_legacy_balance_for_differential_v1,
+    admit_legacy_lp_for_differential_v1,
+    admit_legacy_nonce_for_differential_v1,
+    admit_legacy_pool_map_for_differential_v1,
+)
 from src.state.lp import LPTable
 from src.state.nonces import NonceTable
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
+from src.state.state_snapshots import StateAdmissionError
 from src.state.support_root import (
+    EXACT_SUPPORT_ROOT_VERSION_V1,
     SUPPORT_ROOT_VERSION,
     BatchStateSupport,
     compute_support_state_root,
     compute_support_state_root_for_batch,
+    compute_support_state_root_for_batch_committed_v1,
+    compute_support_state_root_for_batch_owned_committed_v1,
     derive_batch_state_support,
+    derive_batch_state_support_committed_v1,
+    derive_batch_state_support_owned_committed_v1,
 )
 
 
@@ -24,6 +38,7 @@ def _iid(n: int) -> str:
 
 def test_support_root_version_commits_lp_age_schema() -> None:
     assert SUPPORT_ROOT_VERSION == 4
+    assert EXACT_SUPPORT_ROOT_VERSION_V1 == 5
 
 
 def test_support_root_commits_to_balances_for_add_liquidity_into_new_pool() -> None:
@@ -34,7 +49,9 @@ def test_support_root_commits_to_balances_for_add_liquidity_into_new_pool() -> N
     asset1 = "0x" + "02" * 32
     fee_bps = 30
 
-    pool_id = compute_pool_id(min(asset0, asset1), max(asset0, asset1), fee_bps, curve_tag="CPMM", curve_params="")
+    pool_id = compute_pool_id(
+        min(asset0, asset1), max(asset0, asset1), fee_bps, curve_tag="CPMM", curve_params=""
+    )
 
     create_pool = Intent(
         module="TauSwap",
@@ -84,8 +101,12 @@ def test_support_root_commits_to_balances_for_add_liquidity_into_new_pool() -> N
     pools = {}
     lp = LPTable()
 
-    r1 = compute_support_state_root_for_batch(intents=intents, balances=balances1, pools=pools, lp_balances=lp)
-    r2 = compute_support_state_root_for_batch(intents=intents, balances=balances2, pools=pools, lp_balances=lp)
+    r1 = compute_support_state_root_for_batch(
+        intents=intents, balances=balances1, pools=pools, lp_balances=lp
+    )
+    r2 = compute_support_state_root_for_batch(
+        intents=intents, balances=balances2, pools=pools, lp_balances=lp
+    )
     assert r1 != r2
 
 
@@ -102,7 +123,13 @@ def test_support_root_changes_on_tracked_nonce_change() -> None:
         intent_id=_iid(99),
         sender_pubkey=pk,
         deadline=9999999999,
-        fields={"pool_id": pool_id, "asset_in": asset0, "asset_out": asset1, "amount_in": 5, "min_amount_out": 1},
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 5,
+            "min_amount_out": 1,
+        },
     )
 
     nonces_1 = NonceTable()
@@ -171,7 +198,9 @@ def test_derive_batch_state_support_tracks_swap_and_remove_liquidity_reads() -> 
         fields={"pool_id": pool_id, "lp_amount": 10},
     )
 
-    support = derive_batch_state_support([swap, remove], pools={pool_id: _pool(pool_id, asset0, asset1)})
+    support = derive_batch_state_support(
+        [swap, remove], pools={pool_id: _pool(pool_id, asset0, asset1)}
+    )
     assert support.balance_keys == ((pk, asset0),)
     assert support.pool_ids == (pool_id,)
     assert support.lp_keys == ((pk, pool_id),)
@@ -231,7 +260,12 @@ def test_compute_support_state_root_omits_missing_pools_and_zero_entries() -> No
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
     pool_id = compute_pool_id(asset0, asset1, 30)
-    support = BatchStateSupport(balance_keys=((pk, asset0),), pool_ids=(pool_id,), lp_keys=((pk, pool_id),), nonce_keys=(pk,))
+    support = BatchStateSupport(
+        balance_keys=((pk, asset0),),
+        pool_ids=(pool_id,),
+        lp_keys=((pk, pool_id),),
+        nonce_keys=(pk,),
+    )
 
     root_empty = compute_support_state_root(
         balances=BalanceTable(),
@@ -291,7 +325,13 @@ def test_derive_batch_state_support_covers_invalid_create_pool_and_missing_pool_
         intent_id=_iid(13),
         sender_pubkey=pk,
         deadline=9999999999,
-        fields={"pool_id": "", "asset_in": "", "asset_out": valid_asset1, "amount_in": 1, "min_amount_out": 0},
+        fields={
+            "pool_id": "",
+            "asset_in": "",
+            "asset_out": valid_asset1,
+            "amount_in": 1,
+            "min_amount_out": 0,
+        },
     )
     remove_missing_pool = Intent(
         module="TauSwap",
@@ -313,7 +353,14 @@ def test_derive_batch_state_support_covers_invalid_create_pool_and_missing_pool_
     )
 
     support = derive_batch_state_support(
-        [missing_asset1, bool_fee, noncanonical_assets, invalid_swap, remove_missing_pool, add_unknown_pool],
+        [
+            missing_asset1,
+            bool_fee,
+            noncanonical_assets,
+            invalid_swap,
+            remove_missing_pool,
+            add_unknown_pool,
+        ],
         pools={},
     )
     assert set(support.balance_keys) == {
@@ -327,7 +374,9 @@ def test_derive_batch_state_support_covers_invalid_create_pool_and_missing_pool_
     assert support.nonce_keys == (pk,)
 
 
-def test_derive_batch_state_support_reads_add_liquidity_from_existing_pool_and_created_pool() -> None:
+def test_derive_batch_state_support_reads_add_liquidity_from_existing_pool_and_created_pool() -> (
+    None
+):
     pk = "0x" + "11" * 48
     recipient = "0x" + "22" * 48
     asset0 = "0x" + "01" * 32
@@ -442,7 +491,9 @@ def test_derive_batch_state_support_covers_missing_add_liquidity_pool_and_unknow
     assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=(pk,))
 
 
-def test_compute_support_state_root_covers_positive_lp_section_unknown_status_and_invalid_pool_scalars() -> None:
+def test_compute_support_state_root_covers_positive_lp_section_unknown_status_and_invalid_pool_scalars() -> (
+    None
+):
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
@@ -452,7 +503,12 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
     balances.set(pk, asset0, 7)
     lp = LPTable()
     lp.set(pk, pool_id, 9)
-    support = BatchStateSupport(balance_keys=((pk, asset0),), pool_ids=(pool_id,), lp_keys=((pk, pool_id),), nonce_keys=(pk,))
+    support = BatchStateSupport(
+        balance_keys=((pk, asset0),),
+        pool_ids=(pool_id,),
+        lp_keys=((pk, pool_id),),
+        nonce_keys=(pk,),
+    )
     root = compute_support_state_root(
         balances=balances,
         pools={pool_id: _pool(pool_id, asset0, asset1)},
@@ -468,7 +524,9 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
             balances=BalanceTable(),
             pools={pool_id: bad_status},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()),
+            support=BatchStateSupport(
+                balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()
+            ),
         )
 
     bad_reserve = _pool(pool_id, asset0, asset1)
@@ -478,7 +536,9 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
             balances=BalanceTable(),
             pools={pool_id: bad_reserve},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()),
+            support=BatchStateSupport(
+                balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()
+            ),
         )
 
 
@@ -498,7 +558,12 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             balances=balances,
             pools={},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=((pk, asset), (pk.upper().replace("0X", "0x"), asset)), pool_ids=(), lp_keys=(), nonce_keys=()),
+            support=BatchStateSupport(
+                balance_keys=((pk, asset), (pk.upper().replace("0X", "0x"), asset)),
+                pool_ids=(),
+                lp_keys=(),
+                nonce_keys=(),
+            ),
         )
 
     uppercase_pool = _pool(pool_id, asset, asset1)
@@ -508,7 +573,9 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             balances=BalanceTable(),
             pools={pool_id: _pool(pool_id, asset, asset1), uppercase_pool_id: uppercase_pool},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id, uppercase_pool_id), lp_keys=(), nonce_keys=()),
+            support=BatchStateSupport(
+                balance_keys=(), pool_ids=(pool_id, uppercase_pool_id), lp_keys=(), nonce_keys=()
+            ),
         )
 
     with pytest.raises(ValueError, match="duplicate decoded \\(pubkey, pool_id\\)"):
@@ -516,7 +583,12 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             balances=BalanceTable(),
             pools={},
             lp_balances=lp,
-            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id), (pk.upper().replace("0X", "0x"), pool_id)), nonce_keys=()),
+            support=BatchStateSupport(
+                balance_keys=(),
+                pool_ids=(),
+                lp_keys=((pk, pool_id), (pk.upper().replace("0X", "0x"), pool_id)),
+                nonce_keys=(),
+            ),
         )
 
 
@@ -533,7 +605,9 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
             balances=balances,
             pools={},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=((pk, asset0),), pool_ids=(), lp_keys=(), nonce_keys=()),
+            support=BatchStateSupport(
+                balance_keys=((pk, asset0),), pool_ids=(), lp_keys=(), nonce_keys=()
+            ),
         )
 
     good_balances = BalanceTable()
@@ -545,7 +619,9 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
             balances=good_balances,
             pools={},
             lp_balances=lp,
-            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id),), nonce_keys=()),
+            support=BatchStateSupport(
+                balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id),), nonce_keys=()
+            ),
         )
 
     bad_pool = _pool(pool_id, asset0, asset1)
@@ -555,7 +631,9 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
             balances=BalanceTable(),
             pools={pool_id: bad_pool},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()),
+            support=BatchStateSupport(
+                balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()
+            ),
         )
 
     bad_fee_pool = _pool(pool_id, asset0, asset1)
@@ -565,7 +643,9 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
             balances=BalanceTable(),
             pools={pool_id: bad_fee_pool},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()),
+            support=BatchStateSupport(
+                balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()
+            ),
         )
 
 
@@ -726,7 +806,9 @@ def test_large_mixed_batch_support_root_is_stable_and_sensitive_to_tracked_state
     changed_balances = BalanceTable()
     for pubkey, asset in support.balance_keys:
         changed_balances.set(pubkey, asset, balances.get(pubkey, asset))
-    changed_balances.set(tracked_pubkey, tracked_asset, balances.get(tracked_pubkey, tracked_asset) + 1)
+    changed_balances.set(
+        tracked_pubkey, tracked_asset, balances.get(tracked_pubkey, tracked_asset) + 1
+    )
     assert (
         compute_support_state_root(
             balances=changed_balances,
@@ -769,19 +851,7 @@ def test_large_mixed_batch_support_root_is_stable_and_sensitive_to_tracked_state
     )
 
 
-def test_owned_support_root_matches_legacy_for_valid_swap_corpus() -> None:
-    from src.state.intent_snapshots import admit_intent_batch
-    from src.state.legacy_state_snapshots import (
-        admit_legacy_balance_for_differential_v1,
-        admit_legacy_lp_for_differential_v1,
-        admit_legacy_nonce_for_differential_v1,
-        admit_legacy_pool_map_for_differential_v1,
-    )
-    from src.state.support_root import (
-        compute_support_state_root_for_batch_committed_v1,
-        compute_support_state_root_for_batch_owned_committed_v1,
-    )
-
+def test_owned_support_v5_preserves_swap_support_set_but_changes_root_domain() -> None:
     owner = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
@@ -834,26 +904,148 @@ def test_owned_support_root_matches_legacy_for_valid_swap_corpus() -> None:
         lp_balances=committed_lp,
         nonces=committed_nonces,
     )
-    owned_root = compute_support_state_root_for_batch_owned_committed_v1(
-        intents=admit_intent_batch(intents),
+    exact_intents = admit_intent_batch(intents)
+    exact_root = compute_support_state_root_for_batch_owned_committed_v1(
+        intents=exact_intents,
         balances=committed_balances,
         pools=committed_pools,
         lp_balances=committed_lp,
         nonces=committed_nonces,
     )
 
-    assert legacy_root == owned_root
+    legacy_support = derive_batch_state_support_committed_v1(
+        intents,
+        pools=committed_pools,
+    )
+    exact_support = derive_batch_state_support_owned_committed_v1(
+        exact_intents,
+        pools=committed_pools,
+    )
+    assert exact_support == legacy_support
+    assert exact_root != legacy_root
+
+
+def test_route_complete_v5_tracks_every_leg_pool_while_mounted_v4_stays_pinned() -> None:
+    owner = "0x" + "11" * 48
+    recipient = "0x" + "22" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_a_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool_b_id = compute_pool_id(asset0, asset1, 31, curve_tag="CPMM", curve_params="")
+    pool_a = _pool(pool_a_id, asset0, asset1, fee_bps=30)
+    pool_b = _pool(pool_b_id, asset0, asset1, fee_bps=31)
+    changed_pool_b = PoolState(
+        pool_id=pool_b.pool_id,
+        asset0=pool_b.asset0,
+        asset1=pool_b.asset1,
+        reserve0=pool_b.reserve0 + 1,
+        reserve1=pool_b.reserve1,
+        fee_bps=pool_b.fee_bps,
+        lp_supply=pool_b.lp_supply,
+        status=pool_b.status,
+        created_at=pool_b.created_at,
+        curve_tag=pool_b.curve_tag,
+        curve_params=pool_b.curve_params,
+    )
+    route = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ROUTE_EXACT_IN,
+        intent_id=_iid(901),
+        sender_pubkey=owner,
+        deadline=10_000,
+        fields={
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "recipient": recipient,
+            "leg_indices": [0, 1],
+            "total_amount_in": 100,
+            "total_min_amount_out": 1,
+            "route_legs": [
+                {
+                    "pool_id": pool_a_id,
+                    "asset_in": asset0,
+                    "asset_out": asset1,
+                    "amount_in": 40,
+                    "amount_out": 39,
+                },
+                {
+                    "pool_id": pool_b_id,
+                    "asset_in": asset0,
+                    "asset_out": asset1,
+                    "amount_in": 60,
+                    "amount_out": 58,
+                },
+            ],
+            "route_pool_fingerprints": {
+                pool_a_id: "0x" + "aa" * 32,
+                pool_b_id: "0x" + "bb" * 32,
+            },
+        },
+    )
+    exact_intents = admit_intent_batch([route])
+    balances = BalanceTable()
+    balances.set(owner, asset0, 1_000)
+    committed_balances = admit_legacy_balance_for_differential_v1(balances)
+    committed_lp = admit_legacy_lp_for_differential_v1(LPTable())
+    committed_nonces = admit_legacy_nonce_for_differential_v1(NonceTable())
+    pools_before = admit_legacy_pool_map_for_differential_v1({pool_a_id: pool_a, pool_b_id: pool_b})
+    pools_changed = admit_legacy_pool_map_for_differential_v1(
+        {pool_a_id: pool_a, pool_b_id: changed_pool_b}
+    )
+
+    exact_support = derive_batch_state_support_owned_committed_v1(
+        exact_intents,
+        pools=pools_before,
+    )
+    assert exact_support.balance_keys == ((owner, asset0), (recipient, asset1))
+    assert exact_support.pool_ids == tuple(sorted((pool_a_id, pool_b_id)))
+
+    legacy_before = compute_support_state_root_for_batch_committed_v1(
+        intents=[route],
+        balances=committed_balances,
+        pools=pools_before,
+        lp_balances=committed_lp,
+        nonces=committed_nonces,
+    )
+    legacy_changed = compute_support_state_root_for_batch_committed_v1(
+        intents=[route],
+        balances=committed_balances,
+        pools=pools_changed,
+        lp_balances=committed_lp,
+        nonces=committed_nonces,
+    )
+    exact_before = compute_support_state_root_for_batch_owned_committed_v1(
+        intents=exact_intents,
+        balances=committed_balances,
+        pools=pools_before,
+        lp_balances=committed_lp,
+        nonces=committed_nonces,
+    )
+    exact_changed = compute_support_state_root_for_batch_owned_committed_v1(
+        intents=exact_intents,
+        balances=committed_balances,
+        pools=pools_changed,
+        lp_balances=committed_lp,
+        nonces=committed_nonces,
+    )
+
+    assert legacy_before == legacy_changed
+    assert exact_before != exact_changed
+
+    fingerprints = exact_intents[0].fields["route_pool_fingerprints"]
+    retained_entries = fingerprints.entries
+    object.__setattr__(fingerprints, "_entries", retained_entries[:-1])
+    with pytest.raises(StateAdmissionError) as rejected:
+        derive_batch_state_support_owned_committed_v1(
+            exact_intents,
+            pools=pools_before,
+        )
+    assert rejected.value.path == (0, "fields", "route_pool_fingerprints")
+    assert rejected.value.code.value == "registry_drift"
 
 
 def test_owned_support_root_rejects_non_tuple_intents() -> None:
-    from src.state.legacy_state_snapshots import (
-        admit_legacy_balance_for_differential_v1,
-        admit_legacy_lp_for_differential_v1,
-        admit_legacy_nonce_for_differential_v1,
-        admit_legacy_pool_map_for_differential_v1,
-    )
-    from src.state.support_root import compute_support_state_root_for_batch_owned_committed_v1
-
     balances = admit_legacy_balance_for_differential_v1(BalanceTable())
     pools = admit_legacy_pool_map_for_differential_v1({})
     lp = admit_legacy_lp_for_differential_v1(LPTable())
@@ -867,3 +1059,247 @@ def test_owned_support_root_rejects_non_tuple_intents() -> None:
             lp_balances=lp,
             nonces=nonces,
         )
+
+
+def test_owned_support_v5_covers_all_nonroute_intent_kinds() -> None:
+    owner = "0x" + "11" * 48
+    recipient = "0x" + "22" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    created_pool_id = compute_pool_id(asset0, asset1, 31, curve_tag="CPMM", curve_params="")
+    existing_pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    missing_pool_id = "0x" + "ff" * 32
+    intents = admit_intent_batch(
+        [
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.CREATE_POOL,
+                intent_id=_iid(1_100),
+                sender_pubkey=owner,
+                deadline=10_000,
+                fields={
+                    "asset0": asset0,
+                    "asset1": asset1,
+                    "fee_bps": 31,
+                    "amount0": 100,
+                    "amount1": 200,
+                },
+            ),
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.ADD_LIQUIDITY,
+                intent_id=_iid(1_101),
+                sender_pubkey=owner,
+                deadline=10_000,
+                fields={
+                    "pool_id": created_pool_id,
+                    "recipient": recipient,
+                    "amount0_desired": 10,
+                    "amount1_desired": 20,
+                    "amount0_min": 1,
+                    "amount1_min": 1,
+                },
+            ),
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.ADD_LIQUIDITY,
+                intent_id=_iid(1_102),
+                sender_pubkey=owner,
+                deadline=10_000,
+                fields={
+                    "pool_id": existing_pool_id,
+                    "amount0_desired": 10,
+                    "amount1_desired": 20,
+                    "amount0_min": 1,
+                    "amount1_min": 1,
+                },
+            ),
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.ADD_LIQUIDITY,
+                intent_id=_iid(1_103),
+                sender_pubkey=owner,
+                deadline=10_000,
+                fields={
+                    "pool_id": missing_pool_id,
+                    "amount0_desired": 10,
+                    "amount1_desired": 20,
+                    "amount0_min": 1,
+                    "amount1_min": 1,
+                },
+            ),
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.REMOVE_LIQUIDITY,
+                intent_id=_iid(1_104),
+                sender_pubkey=owner,
+                deadline=10_000,
+                fields={
+                    "pool_id": existing_pool_id,
+                    "lp_amount": 5,
+                    "amount0_min": 0,
+                    "amount1_min": 0,
+                },
+            ),
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.SWAP_EXACT_OUT,
+                intent_id=_iid(1_105),
+                sender_pubkey=owner,
+                deadline=10_000,
+                fields={
+                    "pool_id": existing_pool_id,
+                    "asset_in": asset0,
+                    "asset_out": asset1,
+                    "amount_out": 4,
+                    "max_amount_in": 8,
+                },
+            ),
+        ]
+    )
+    pools = admit_legacy_pool_map_for_differential_v1(
+        {existing_pool_id: _pool(existing_pool_id, asset0, asset1)}
+    )
+
+    support = derive_batch_state_support_owned_committed_v1(intents, pools=pools)
+
+    assert support.balance_keys == ((owner, asset0), (owner, asset1))
+    assert support.pool_ids == tuple(sorted((created_pool_id, existing_pool_id, missing_pool_id)))
+    assert support.lp_keys == tuple(
+        sorted(
+            (
+                (owner, existing_pool_id),
+                (owner, missing_pool_id),
+                (recipient, created_pool_id),
+            )
+        )
+    )
+    assert support.nonce_keys == (owner,)
+
+
+def _owned_route_for_support_defensive_test() -> OwnedIntentV1:
+    owner = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    return admit_intent_batch(
+        [
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.ROUTE_EXACT_IN,
+                intent_id=_iid(1_200),
+                sender_pubkey=owner,
+                deadline=10_000,
+                fields={
+                    "asset_in": asset0,
+                    "asset_out": asset1,
+                    "leg_indices": [0],
+                    "total_amount_in": 10,
+                    "total_min_amount_out": 1,
+                    "route_legs": [
+                        {
+                            "pool_id": pool_id,
+                            "asset_in": asset0,
+                            "asset_out": asset1,
+                            "amount_in": 10,
+                            "amount_out": 9,
+                        }
+                    ],
+                    "route_pool_fingerprints": {pool_id: "0x" + "aa" * 32},
+                },
+            )
+        ]
+    )[0]
+
+
+def _replace_owned_field_lookup_for_test(
+    intent: OwnedIntentV1,
+    field_name: str,
+    replacement: object,
+) -> None:
+    replacement_index: dict[str, object] = dict(intent.fields.entries)
+    replacement_index[field_name] = replacement
+    object.__setattr__(intent.fields, "_index", replacement_index)
+
+
+def test_route_support_reader_rejects_corrupted_owned_graphs() -> None:
+    with pytest.raises(TypeError, match="exact OwnedIntentV1"):
+        support_root_module._route_support_pool_ids_owned_v1(object())
+
+    intent = _owned_route_for_support_defensive_test()
+    _replace_owned_field_lookup_for_test(intent, "route_legs", [])
+    with pytest.raises(ValueError, match="nonempty leg tuple"):
+        support_root_module._route_support_pool_ids_owned_v1(intent)
+
+    intent = _owned_route_for_support_defensive_test()
+    _replace_owned_field_lookup_for_test(intent, "route_legs", ())
+    with pytest.raises(ValueError, match="nonempty leg tuple"):
+        support_root_module._route_support_pool_ids_owned_v1(intent)
+
+    intent = _owned_route_for_support_defensive_test()
+    _replace_owned_field_lookup_for_test(intent, "route_pool_fingerprints", {})
+    with pytest.raises(TypeError, match="owned fingerprint map"):
+        support_root_module._route_support_pool_ids_owned_v1(intent)
+
+    intent = _owned_route_for_support_defensive_test()
+    _replace_owned_field_lookup_for_test(intent, "route_legs", (object(),))
+    with pytest.raises(TypeError, match="owned leg maps"):
+        support_root_module._route_support_pool_ids_owned_v1(intent)
+
+    intent = _owned_route_for_support_defensive_test()
+    leg = intent.fields["route_legs"][0]
+    leg_index: dict[str, object] = dict(leg.entries)
+    leg_index["pool_id"] = ""
+    object.__setattr__(leg, "_index", leg_index)
+    with pytest.raises(ValueError, match="nonempty pool ids"):
+        support_root_module._route_support_pool_ids_owned_v1(intent)
+
+    intent = _owned_route_for_support_defensive_test()
+    fingerprints = intent.fields["route_pool_fingerprints"]
+    pool_id, fingerprint = fingerprints.entries[0]
+    object.__setattr__(fingerprints, "_entries", (("", fingerprint),))
+    with pytest.raises(ValueError, match="fingerprint keys"):
+        support_root_module._route_support_pool_ids_owned_v1(intent)
+
+    intent = _owned_route_for_support_defensive_test()
+    fingerprints = intent.fields["route_pool_fingerprints"]
+    pool_id, _fingerprint = fingerprints.entries[0]
+    object.__setattr__(fingerprints, "_entries", ((pool_id, ""),))
+    with pytest.raises(ValueError, match="fingerprints must be nonempty"):
+        support_root_module._route_support_pool_ids_owned_v1(intent)
+
+    intent = _owned_route_for_support_defensive_test()
+    fingerprints = intent.fields["route_pool_fingerprints"]
+    object.__setattr__(fingerprints, "_entries", (("different-pool", "fingerprint"),))
+    with pytest.raises(ValueError, match="legs and fingerprints disagree"):
+        support_root_module._route_support_pool_ids_owned_v1(intent)
+
+
+def test_owned_support_v5_rejects_wrong_exact_container_members_and_pool_map() -> None:
+    legacy_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(1_300),
+        sender_pubkey="0x" + "11" * 48,
+        deadline=10_000,
+        fields={
+            "pool_id": "pool",
+            "asset_in": "asset0",
+            "asset_out": "asset1",
+            "amount_in": 1,
+            "min_amount_out": 0,
+        },
+    )
+    with pytest.raises(TypeError, match="only exact OwnedIntentV1"):
+        derive_batch_state_support_owned_committed_v1((legacy_intent,), pools={})
+
+    with pytest.raises(TypeError, match="pools must be an exact OwnedMapV1"):
+        derive_batch_state_support_owned_committed_v1((), pools={})

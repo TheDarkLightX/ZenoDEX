@@ -1,8 +1,9 @@
 """Shadow root readers for the exact committed spot-state graph.
 
-These functions preserve the existing state-root v5 and support-root v4 byte
-languages while consuming only exact committed FCIS values. They remain
-unmounted until ``DexState`` migration and Rust-authority parity are complete.
+These functions preserve the existing state-root v5 and mounted support-root
+v4 byte languages while consuming only exact committed FCIS values.  The
+route-complete support-root v5 encoder is separate and unmounted.  Every exact
+reader remains unmounted until its verifier/runtime parity gate is complete.
 """
 
 from __future__ import annotations
@@ -28,9 +29,11 @@ from .state_snapshots import (
     snapshot_pool_map,
 )
 from .support_root import (
+    EXACT_SUPPORT_ROOT_VERSION_V1,
+    SUPPORT_ROOT_VERSION,
     BatchStateSupport,
     _encode_committed_support_balances_section_v1,
-    _hash_support_sections_v1,
+    _hash_support_sections_for_version_v1,
 )
 
 
@@ -331,11 +334,53 @@ def compute_support_state_root_with_committed_spot_state_v1(
 ) -> str:
     """Build support-root v4 after closed re-admission of spot fields."""
 
+    return _compute_support_state_root_for_version_v1(
+        support_root_version=SUPPORT_ROOT_VERSION,
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonces,
+    )
+
+
+def compute_support_state_root_v5_with_committed_spot_state_v1(
+    *,
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    support: BatchStateSupport,
+    nonces: CommittedNonceTableV1,
+) -> str:
+    """Build the unmounted route-complete support-root v5 profile."""
+
+    return _compute_support_state_root_for_version_v1(
+        support_root_version=EXACT_SUPPORT_ROOT_VERSION_V1,
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonces,
+    )
+
+
+def _compute_support_state_root_for_version_v1(
+    *,
+    support_root_version: int,
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    support: BatchStateSupport,
+    nonces: CommittedNonceTableV1,
+) -> str:
+    """Encode one exact support set under an explicit root profile."""
+
     support = _require_exact_support_v1(support)
     admitted_pools = _admit_exact_pools_v1(pools)
     admitted_lp = _admit_exact_lp_v1(lp_balances)
     admitted_nonces = _admit_exact_nonces_v1(nonces)
-    return _hash_support_sections_v1(
+    return _hash_support_sections_for_version_v1(
+        support_root_version=support_root_version,
         balances_section=_encode_committed_support_balances_section_v1(balances, support),
         pools_section=_encode_support_pools_v1(admitted_pools, support),
         lp_section=_encode_support_lp_balances_v1(admitted_lp, support),

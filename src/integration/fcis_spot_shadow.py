@@ -68,6 +68,7 @@ from ..state.state_snapshots import (
     snapshot_perps,
     snapshot_vault,
 )
+from ..state.support_root import EXACT_SUPPORT_ROOT_VERSION_V1
 from .dex_snapshot import DEX_SNAPSHOT_VERSION
 from .lp_position_age_gate import admit_lp_duration_risk_policy_context_v1
 
@@ -180,6 +181,7 @@ class FCISStepShadowReceiptV1:
     canonical_snapshot_bytes: bytes
     state_root_preimage: bytes
     state_root: str
+    support_root_version: int
     support_root: str
     snapshot_commitment: str
 
@@ -193,6 +195,8 @@ class FCISStepShadowReceiptV1:
             raise TypeError("shadow receipt snapshot bytes must be exact")
         if type(self.state_root_preimage) is not bytes:
             raise TypeError("shadow receipt root preimage must be exact")
+        if self.support_root_version != EXACT_SUPPORT_ROOT_VERSION_V1:
+            raise ValueError("unexpected shadow exact support-root version")
         for field_name in ("state_root", "support_root", "snapshot_commitment"):
             value = object.__getattribute__(self, field_name)
             if type(value) is not str or len(value) != 66 or not value.startswith("0x"):
@@ -412,6 +416,7 @@ def _shadow_result_v1(
         canonical_snapshot_bytes=evidence.canonical_snapshot_bytes,
         state_root_preimage=evidence.post_state_root_preimage,
         state_root=evidence.post_state_root,
+        support_root_version=evidence.support_root_version,
         support_root=evidence.support_root,
         snapshot_commitment=evidence.snapshot_commitment,
     )
@@ -500,13 +505,22 @@ def evaluate_fcis_step_shadow_v1(
     exact_state = _admit_legacy_state_v1(state)
     if type(exact_state) is FCISStepShadowRejectV1:
         return exact_state
+    command_field = "settlement"
     try:
         owned_settlement = snapshot_settlement(settlement)
+        command_field = "intents"
         owned_intents = admit_intent_batch(intents)
-    except Exception as error:
+    except StateAdmissionError as error:
+        path = (command_field, *error.path)
+        detail = f"{error.code.value}:{format_admit_path(path)}"
         return FCISStepShadowRejectV1(
             FCISStepShadowPhaseV1.COMMAND_ADMISSION,
-            f"shadow command admission rejected: {error}",
+            f"shadow command admission rejected: {detail}",
+        )
+    except (TypeError, ValueError):
+        return FCISStepShadowRejectV1(
+            FCISStepShadowPhaseV1.COMMAND_ADMISSION,
+            (f"shadow command admission rejected: admission_rejected:{command_field}"),
         )
     result = evaluate_fcis_step_candidate_v1(
         balances=exact_state.balances,

@@ -14,7 +14,6 @@ from ..state.owned_json import (
     _admit_graph_value,
     _project_owned_json_unchecked,
 )
-from ..state.state_snapshot_schema import StateRecordTagV1
 from .settlement import Settlement
 
 
@@ -224,6 +223,8 @@ def _construct_settlement_record(
     record_tag: Enum,
     values: tuple[tuple[str, object], ...],
 ) -> object:
+    from ..state.state_snapshot_schema import StateRecordTagV1
+
     if record_tag is StateRecordTagV1.FILL and len(values) == 15:
         return _construct_fill(values)
     if record_tag is StateRecordTagV1.BALANCE_DELTA and len(values) == 4:

@@ -19,6 +19,7 @@ from ..state.state_snapshot_values import (
     CommittedVaultStateV1,
 )
 from ..state.state_transitions import CanonicalNoncePatchV1
+from ..state.support_root import EXACT_SUPPORT_ROOT_VERSION_V1
 from .settlement_strong_validator import StrongSettlementStateCandidateV1
 
 FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1 = "zenodex/fcis/spot-step-evaluator/v1"
@@ -138,6 +139,7 @@ class FCISStepEvaluationEvidenceV1:
     snapshot_version: int
     canonical_snapshot_bytes: bytes
     snapshot_commitment: str
+    support_root_version: int
     support_root: str
 
     def __post_init__(self) -> None:
@@ -164,6 +166,8 @@ class FCISStepEvaluationEvidenceV1:
                 raise TypeError(f"{field_name} must be a lowercase 32-byte hex digest")
         if type(self.snapshot_version) is not int or self.snapshot_version <= 0:
             raise TypeError("snapshot version must be an exact positive int")
+        if self.support_root_version != EXACT_SUPPORT_ROOT_VERSION_V1:
+            raise ValueError("unexpected FCIS exact support-root version")
 
 
 @final

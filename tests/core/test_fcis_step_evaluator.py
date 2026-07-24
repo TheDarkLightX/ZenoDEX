@@ -20,13 +20,13 @@ from src.core.perps import PERPS_STATE_VERSION_V4, PerpsState
 from src.core.settlement import Settlement
 from src.core.settlement_snapshots import snapshot_settlement
 from src.state import BalanceTable, LPTable
-from src.state.intent_snapshots import admit_intent_batch
 from src.state.fcis_execution_context_values import (
     FCISFeeSplitPolicySourceV1,
     FCISSettlementExecutionContextSourceV1,
     FCISSettlementModeV1,
     FCISStepExecutionContextSourceV1,
 )
+from src.state.intent_snapshots import admit_intent_batch
 from src.state.intents import Intent, IntentKind
 from src.state.legacy_state_snapshots import (
     admit_legacy_balance_for_differential_v1,
@@ -121,7 +121,9 @@ def _evaluate(
     intents: object,
     context: object,
 ):
-    owned_settlement = snapshot_settlement(settlement) if type(settlement) is Settlement else settlement
+    owned_settlement = (
+        snapshot_settlement(settlement) if type(settlement) is Settlement else settlement
+    )
     owned_intents = admit_intent_batch(intents) if type(intents) is list else intents
     return evaluate_fcis_step_candidate_v1(
         balances=admit_legacy_balance_for_differential_v1(state.balances),
@@ -380,43 +382,109 @@ def test_exact_command_admission_rejects_intent_subclass_in_tuple() -> None:
     assert result.path == ("intents", 0)
 
 
-def test_exact_step_evaluator_differential_matches_legacy_shadow() -> None:
-    from src.core.fees import FeeSplitParams
-    from src.integration.fcis_spot_shadow import (
-        FCISStepShadowReceiptV1,
-        FCISStepShadowContextV1,
-        FCISSpotShadowContextV1,
-        evaluate_fcis_step_shadow_v1,
+def test_exact_command_readmission_rejects_corrupted_owned_settlement_with_stable_path() -> None:
+    state, intent, settlement = _swap_case()
+    owned_settlement = snapshot_settlement(settlement)
+    object.__setattr__(owned_settlement, "batch_ref", 1)
+
+    result = _evaluate(
+        state,
+        owned_settlement,
+        admit_intent_batch([intent]),
+        _context_source(),
     )
+
+    assert result == FCISStepEvaluationRejectV1(
+        FCISStepEvaluationPhaseV1.COMMAND_ADMISSION,
+        "wrong_exact_type",
+        ("settlement", "batch_ref"),
+        'step command admission rejected: wrong_exact_type:$["settlement"]["batch_ref"]',
+    )
+    assert not hasattr(result, "candidate")
+    assert not hasattr(result, "evidence")
+
+
+def test_exact_command_readmission_rejects_corrupted_owned_intent_with_stable_path() -> None:
+    state, intent, settlement = _swap_case()
+    owned_intents = admit_intent_batch([intent])
+    object.__setattr__(owned_intents[0], "sender_pubkey", "bad")
+
+    result = _evaluate(
+        state,
+        snapshot_settlement(settlement),
+        owned_intents,
+        _context_source(),
+    )
+
+    assert result == FCISStepEvaluationRejectV1(
+        FCISStepEvaluationPhaseV1.COMMAND_ADMISSION,
+        "noncanonical_scalar",
+        ("intents", 0, "sender_pubkey"),
+        ('step command admission rejected: noncanonical_scalar:$["intents"][0]["sender_pubkey"]'),
+    )
+    assert not hasattr(result, "candidate")
+    assert not hasattr(result, "evidence")
+
+
+def test_exact_step_path_does_not_call_legacy_differential_callbacks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, intent, settlement = _swap_case()
+
+    def forbidden_legacy_call(**_kwargs: object) -> object:
+        raise AssertionError("legacy differential callback reached exact path")
+
+    monkeypatch.setattr(
+        "src.core.fcis_step_evaluator._evaluate_spot_legacy_for_differential_v1",
+        forbidden_legacy_call,
+    )
+    monkeypatch.setattr(
+        "src.state.support_root.compute_support_state_root_for_batch_committed_v1",
+        forbidden_legacy_call,
+    )
+
+    result = _evaluate(state, settlement, [intent], _context_source())
+
+    assert type(result) is FCISStepEvaluationOkV1
+    assert result.candidate.nonces.get_last(intent.sender_pubkey) == 1
+    assert result.evidence.support_root_version == 5
+
+
+def test_exact_step_evaluator_matches_independent_legacy_oracle() -> None:
+    """Compare the exact evaluator against the independent legacy oracle
+    (``_evaluate_spot_legacy_for_differential_v1``), not the shadow adapter
+    which now delegates to the exact path.  Both paths receive the same
+    well-formed inputs (accepted by both profiles) and must produce
+    identical post-state balances, pools, and lp_balances."""
+    from src.core.fcis_step_evaluator import _evaluate_spot_legacy_for_differential_v1
+    from src.core.settlement_strong_validator import (
+        StrongSettlementRejectV1,
+        StrongSettlementStateCandidateV1,
+    )
+    from src.state.fcis_execution_context import admit_fcis_step_execution_context_v1
+    from src.state.snapshot_combinators import AdmitOk
 
     state, intent, settlement = _swap_case()
-    context = _context_source()
+    context_source = _context_source()
+    exact_context = admit_fcis_step_execution_context_v1(context_source)
+    if type(exact_context) is not AdmitOk:
+        raise AssertionError("context admission failed")
 
-    exact_result = _evaluate(state, settlement, [intent], context)
-    shadow_context = FCISStepShadowContextV1(
-        settlement=FCISSpotShadowContextV1(
-            now=700,
-            min_lp_position_age_seconds=0,
-            mode="strong_replay",
-            allow_cow_netting=False,
-            allow_snapshot_bound_quote_bindings=False,
-            protocol_fee_share_bps=0,
-            protocol_fee_recipient_pubkey=None,
-        ),
-        require_all_nonces=True,
-        reject_settlements_with_rejected_intents=True,
-        fee_split_params=FeeSplitParams(3_333, 3_333, 3_334),
-        snapshot_version=4,
-    )
-    shadow_result = evaluate_fcis_step_shadow_v1(
-        state=state,
+    exact_result = _evaluate(state, settlement, [intent], context_source)
+    assert type(exact_result) is FCISStepEvaluationOkV1
+
+    legacy_result = _evaluate_spot_legacy_for_differential_v1(
+        balances=admit_legacy_balance_for_differential_v1(state.balances),
+        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
+        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
         settlement=settlement,
         intents=[intent],
-        context=shadow_context,
-        lp_duration_policy=None,
+        context=exact_context.value,
     )
+    assert type(legacy_result) is StrongSettlementStateCandidateV1
+    assert not isinstance(legacy_result, StrongSettlementRejectV1)
 
-    assert type(exact_result) is FCISStepEvaluationOkV1
-    assert type(shadow_result) is FCISStepShadowReceiptV1
-    assert exact_result.evidence.post_state_root == shadow_result.state_root
-    assert exact_result.evidence.support_root == shadow_result.support_root
+    exact_candidate = exact_result.candidate.spot
+    assert exact_candidate.balances == legacy_result.balances
+    assert exact_candidate.pools == legacy_result.pools
+    assert exact_candidate.lp_balances == legacy_result.lp_balances

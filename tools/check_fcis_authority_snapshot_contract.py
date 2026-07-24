@@ -64,11 +64,12 @@ EXACT_REPLAY_AUTHORITY_PATHS = (
 EXACT_CONSUMERS_AUTHORITY_PATHS = (
     Path("src/core/fcis_step_evaluator.py"),
     Path("src/core/nonce_batch_transition.py"),
+    *EXACT_REPLAY_AUTHORITY_PATHS,
     Path("src/state/support_root.py"),
     Path("src/integration/fcis_spot_shadow.py"),
 )
 _POST_ADMISSION_MUTATION_FORBIDDEN_PATHS = frozenset(
-    str(path) for path in EXACT_REPLAY_AUTHORITY_PATHS
+    str(path) for path in EXACT_CONSUMERS_AUTHORITY_PATHS
 )
 FINAL_MOUNT_AUTHORITY_PATHS = tuple(
     dict.fromkeys(
@@ -94,69 +95,73 @@ _AUTHORITY_PATHS_BY_PROFILE = {
 _PROFILE_COMPATIBILITY_ALLOWLISTS = {
     "exact-replay": frozenset(
         {
-            ("src/core/route_settlement.py", 237, 11, "BROAD_ADMISSION", "str"),
-            ("src/core/route_settlement.py", 261, 11, "BROAD_ADMISSION", "Mapping"),
-            ("src/core/route_settlement.py", 264, 11, "BROAD_ADMISSION", "Mapping"),
-            ("src/core/route_settlement.py", 286, 11, "BROAD_ADMISSION", "Mapping"),
-            ("src/core/route_settlement.py", 294, 15, "BROAD_ADMISSION", "Mapping"),
-            ("src/core/route_settlement.py", 303, 15, "BROAD_ADMISSION", "Mapping"),
-            ("src/core/route_settlement.py", 408, 13, "BROAD_ADMISSION", "Mapping"),
-            ("src/core/route_settlement.py", 421, 17, "BROAD_ADMISSION", "Mapping"),
-            ("src/core/route_settlement.py", 513, 11, "BROAD_ADMISSION", "str"),
+            ("src/core/route_settlement.py", 238, 11, "BROAD_ADMISSION", "str"),
+            ("src/core/route_settlement.py", 262, 11, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 265, 11, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 287, 11, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 295, 15, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 304, 15, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 409, 13, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 422, 17, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 514, 11, "BROAD_ADMISSION", "str"),
             (
                 "src/core/settlement_strong_validator.py",
-                448,
+                449,
                 27,
                 "COERCIVE_CONTAINER_COPY",
                 "tuple",
             ),
-            ("src/core/settlement_strong_validator.py", 633, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 637, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 637, 48, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 641, 15, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 643, 15, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 790, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 799, 42, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1238, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1252, 19, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1252, 50, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1515, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1526, 19, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1526, 52, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1555, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1557, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1615, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1617, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1709, 20, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1714, 19, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2242, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2248, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2264, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2270, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2286, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2292, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 634, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 638, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 638, 48, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 642, 15, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 644, 15, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 789, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 798, 42, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1237, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1251, 19, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1251, 50, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1512, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1523, 19, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1523, 52, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1552, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1554, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1612, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1614, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1706, 20, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1711, 19, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2239, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2245, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2261, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2267, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2283, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2289, 16, "BROAD_ADMISSION", "int"),
         }
     ),
     "exact-consumers": frozenset(
         {
-            ("src/state/support_root.py", 124, 15, "BROAD_ADMISSION", "str"),
-            ("src/state/support_root.py", 126, 15, "BROAD_ADMISSION", "str"),
-            ("src/state/support_root.py", 128, 15, "BROAD_ADMISSION", "int"),
-            ("src/state/support_root.py", 144, 15, "BROAD_ADMISSION", "str"),
-            ("src/state/support_root.py", 144, 43, "BROAD_ADMISSION", "str"),
-            ("src/state/support_root.py", 147, 19, "BROAD_ADMISSION", "int"),
-            ("src/state/support_root.py", 159, 11, "BROAD_ADMISSION", "str"),
-            ("src/state/support_root.py", 164, 15, "BROAD_ADMISSION", "str"),
-            ("src/state/support_root.py", 169, 15, "BROAD_ADMISSION", "str"),
-            ("src/state/support_root.py", 171, 19, "BROAD_ADMISSION", "str"),
-            ("src/state/support_root.py", 184, 15, "BROAD_ADMISSION", "str"),
-            ("src/state/support_root.py", 311, 19, "BROAD_ADMISSION", "int"),
-            ("src/state/support_root.py", 341, 15, "BROAD_ADMISSION", "int"),
-            ("src/state/support_root.py", 376, 20, "BROAD_ADMISSION", "int"),
-            ("src/state/support_root.py", 380, 16, "BROAD_ADMISSION", "int"),
+            ("src/state/support_root.py", 125, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 127, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 129, 15, "BROAD_ADMISSION", "int"),
+            ("src/state/support_root.py", 145, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 145, 43, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 148, 19, "BROAD_ADMISSION", "int"),
+            ("src/state/support_root.py", 160, 11, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 165, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 170, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 172, 19, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 185, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 335, 19, "BROAD_ADMISSION", "int"),
+            ("src/state/support_root.py", 365, 15, "BROAD_ADMISSION", "int"),
+            ("src/state/support_root.py", 400, 20, "BROAD_ADMISSION", "int"),
+            ("src/state/support_root.py", 404, 16, "BROAD_ADMISSION", "int"),
         }
     ),
 }
+_PROFILE_COMPATIBILITY_ALLOWLISTS["exact-consumers"] = (
+    _PROFILE_COMPATIBILITY_ALLOWLISTS["exact-consumers"]
+    | _PROFILE_COMPATIBILITY_ALLOWLISTS["exact-replay"]
+)
 DEFAULT_REQUIREMENTS_PATH = Path("docs/specs/fcis_authority_snapshot_v1/requirements.json")
 DEFAULT_TEST_MATRIX_PATHS = (
     Path("docs/specs/fcis_authority_snapshot_v1/TEST_MATRIX.md"),
@@ -907,16 +912,12 @@ class _AuthorityVisitor(ast.NodeVisitor):
             self._add(node, "REFLECTIVE_ADMISSION", called)
         if called == "object.__new__":
             self._add(node, "CONSTRUCTOR_BYPASS", called)
-        if (
-            self.relative_path in _POST_ADMISSION_MUTATION_FORBIDDEN_PATHS
-            and called
-            in {
-                "object.__delattr__",
-                "object.__setattr__",
-                "type.__delattr__",
-                "type.__setattr__",
-            }
-        ):
+        if self.relative_path in _POST_ADMISSION_MUTATION_FORBIDDEN_PATHS and called in {
+            "object.__delattr__",
+            "object.__setattr__",
+            "type.__delattr__",
+            "type.__setattr__",
+        }:
             self._add(node, "OWNED_VALUE_MUTATION_BYPASS", called)
         if called in {"isinstance", "builtins.isinstance"} and len(node.args) >= 2:
             targets = node.args[1].elts if type(node.args[1]) is ast.Tuple else (node.args[1],)
@@ -1755,6 +1756,428 @@ def _check_exact_replay_shape(
     return violations
 
 
+def _add_exact_consumer_violation(
+    violations: list[_Violation],
+    *,
+    relative_path: str,
+    node: ast.AST,
+    detail: str,
+) -> None:
+    violations.append(
+        _Violation(
+            relative_path,
+            getattr(node, "lineno", 0),
+            getattr(node, "col_offset", 0),
+            "EXACT_CONSUMER_DATAFLOW",
+            detail,
+        )
+    )
+
+
+def _check_exact_command_admission_v1(
+    admission: ast.FunctionDef,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    if not _has_named_call_assignment(
+        admission,
+        target_name="exact_settlement",
+        call_name="snapshot_settlement",
+        positional_names=("settlement",),
+    ) or not _has_named_call_assignment(
+        admission,
+        target_name="exact_intents",
+        call_name="admit_intent_batch",
+        positional_names=("intents",),
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=admission,
+            detail="admission-results-not-bound",
+        )
+    if not _has_single_bindings(admission, ("exact_settlement", "exact_intents")):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=admission,
+            detail="admission-exact-values-rebound",
+        )
+    if not _has_named_tuple_return(admission, ("exact_settlement", "exact_intents")):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=admission,
+            detail="admission-results-not-returned",
+        )
+    admission_returns = tuple(node for node in ast.walk(admission) if type(node) is ast.Return)
+    for invalid_return in (
+        node
+        for node in admission_returns
+        if not _is_named_tuple_return(node, ("exact_settlement", "exact_intents"))
+        and not _is_named_reject_return(node, "_reject")
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=invalid_return,
+            detail="admission-has-raw-or-unknown-return",
+        )
+    return violations
+
+
+def _check_exact_command_sinks_v1(
+    entry: ast.FunctionDef,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    if not _has_named_call_assignment(
+        entry,
+        target_name="command",
+        call_name="_admit_exact_command_v1",
+        positional_names=("settlement", "intents"),
+    ) or not _has_named_tuple_assignment(
+        entry,
+        target_names=("exact_settlement", "exact_intents"),
+        source_name="command",
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=entry,
+            detail="entry-does-not-destructure-admitted-command",
+        )
+    if not _has_single_bindings(entry, ("command", "exact_settlement", "exact_intents")):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=entry,
+            detail="entry-exact-values-rebound",
+        )
+
+    required_sink_arguments = {
+        "_nonce_candidate_v1": {"intents": "exact_intents"},
+        "_spot_candidate_v1": {
+            "settlement": "exact_settlement",
+            "intents": "exact_intents",
+        },
+        "_fee_candidate_v1": {"settlement": "exact_settlement"},
+        "_candidate_evidence_v1": {"intents": "exact_intents"},
+    }
+    entry_calls = _function_calls(entry)
+    for sink_name, expected_arguments in required_sink_arguments.items():
+        sink_calls = tuple(call for call in entry_calls if _last_name(call.func) == sink_name)
+        if len(sink_calls) != 1 or not _call_has_named_keywords(sink_calls[0], expected_arguments):
+            _add_exact_consumer_violation(
+                violations,
+                relative_path=relative_path,
+                node=entry,
+                detail=f"sink-does-not-consume-admitted-command:{sink_name}",
+            )
+    return violations
+
+
+def _check_exact_consumer_annotations_v1(
+    functions: dict[str, ast.FunctionDef],
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    exact_annotations = {
+        "_evaluate_spot_v1": {
+            "settlement": "OwnedSettlementV1",
+            "intents": "tuple[OwnedIntentV1,...]",
+        },
+        "_nonce_candidate_v1": {"intents": "tuple[OwnedIntentV1,...]"},
+        "_spot_candidate_v1": {
+            "settlement": "OwnedSettlementV1",
+            "intents": "tuple[OwnedIntentV1,...]",
+        },
+        "_fee_candidate_v1": {"settlement": "OwnedSettlementV1"},
+        "_candidate_evidence_v1": {"intents": "tuple[OwnedIntentV1,...]"},
+    }
+    for function_name, expected in exact_annotations.items():
+        function = functions[function_name]
+        annotations = {
+            argument.arg: argument.annotation
+            for argument in (*function.args.args, *function.args.kwonlyargs)
+        }
+        for field, expected_annotation in expected.items():
+            actual = _normalized_annotation(annotations.get(field))
+            if actual != expected_annotation:
+                _add_exact_consumer_violation(
+                    violations,
+                    relative_path=relative_path,
+                    node=function,
+                    detail=(f"annotation:{function_name}:{field}:{actual or '<missing>'}"),
+                )
+    return violations
+
+
+def _check_exact_consumer_projection_v1(
+    functions: dict[str, ast.FunctionDef],
+    required_names: tuple[str, ...],
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    forbidden_calls = {
+        "BalanceTable",
+        "Intent",
+        "LPTable",
+        "PoolState",
+        "Settlement",
+        "deep_freeze",
+        "deepcopy",
+        "project_owned_json",
+        "_project_owned_json_unchecked",
+    }
+    for function_name in required_names:
+        function = functions[function_name]
+        for call in _function_calls(function):
+            called = _last_name(call.func) or ""
+            if called in forbidden_calls or "legacy" in called.lower():
+                _add_exact_consumer_violation(
+                    violations,
+                    relative_path=relative_path,
+                    node=call,
+                    detail=f"legacy-or-mutable-call:{function_name}:{called}",
+                )
+        for node in ast.walk(function):
+            if type(node) is ast.Attribute and node.attr == "get_field":
+                _add_exact_consumer_violation(
+                    violations,
+                    relative_path=relative_path,
+                    node=node,
+                    detail=f"reflective-intent-read:{function_name}",
+                )
+    return violations
+
+
+def _top_level_functions_v1(module: ast.Module) -> dict[str, ast.FunctionDef]:
+    return {
+        statement.name: statement for statement in module.body if type(statement) is ast.FunctionDef
+    }
+
+
+def _call_uses_names_v1(
+    call: ast.Call,
+    *,
+    positional: tuple[str, ...] = (),
+    keywords: dict[str, str] | None = None,
+) -> bool:
+    actual_positional = tuple(
+        argument.id if type(argument) is ast.Name else "" for argument in call.args
+    )
+    return actual_positional == positional and _call_has_named_keywords(
+        call,
+        {} if keywords is None else keywords,
+    )
+
+
+def _check_exact_nonce_consumer_shape_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    if relative_path != "src/core/nonce_batch_transition.py":
+        return []
+    functions = _top_level_functions_v1(module)
+    function = functions.get("validate_and_apply_intent_nonce_batch_committed_v1")
+    if function is None:
+        return [
+            _Violation(
+                relative_path,
+                0,
+                0,
+                "EXACT_CONSUMER_DATAFLOW",
+                "missing:validate_and_apply_intent_nonce_batch_committed_v1",
+            )
+        ]
+    violations: list[_Violation] = []
+    annotations = {
+        argument.arg: _normalized_annotation(argument.annotation)
+        for argument in (*function.args.args, *function.args.kwonlyargs)
+    }
+    if annotations.get("intents") != "tuple[OwnedIntentV1,...]":
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=function,
+            detail=f"nonce-intents-annotation:{annotations.get('intents') or '<missing>'}",
+        )
+    if not _has_named_call_assignment(
+        function,
+        target_name="exact_intents",
+        call_name="admit_intent_batch",
+        positional_names=("intents",),
+    ) or not _has_single_bindings(function, ("exact_intents",)):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=function,
+            detail="nonce-admission-result-not-single-bound",
+        )
+    admission_lines = tuple(
+        node.lineno
+        for node in ast.walk(function)
+        if type(node) is ast.Assign
+        and any(
+            type(target) is ast.Name and target.id == "exact_intents" for target in node.targets
+        )
+        and type(node.value) is ast.Call
+        and _last_name(node.value.func) == "admit_intent_batch"
+    )
+    if admission_lines:
+        admission_line = admission_lines[0]
+        for loop in (
+            node
+            for node in ast.walk(function)
+            if type(node) is ast.For and node.lineno > admission_line
+        ):
+            if type(loop.iter) is ast.Name and loop.iter.id == "intents":
+                _add_exact_consumer_violation(
+                    violations,
+                    relative_path=relative_path,
+                    node=loop,
+                    detail="nonce-raw-intents-used-after-admission",
+                )
+    return violations + _check_exact_consumer_projection_v1(
+        functions,
+        ("validate_and_apply_intent_nonce_batch_committed_v1",),
+        relative_path,
+    )
+
+
+def _check_exact_support_consumer_shape_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    if relative_path != "src/state/support_root.py":
+        return []
+    functions = _top_level_functions_v1(module)
+    required = (
+        "_derive_batch_state_support_owned_v1",
+        "derive_batch_state_support_owned_committed_v1",
+        "compute_support_state_root_for_batch_owned_committed_v1",
+    )
+    missing = tuple(name for name in required if name not in functions)
+    if missing:
+        return [
+            _Violation(
+                relative_path,
+                0,
+                0,
+                "EXACT_CONSUMER_DATAFLOW",
+                f"missing:{','.join(missing)}",
+            )
+        ]
+    violations: list[_Violation] = []
+    admission = functions["derive_batch_state_support_owned_committed_v1"]
+    if not _has_named_call_assignment(
+        admission,
+        target_name="exact_intents",
+        call_name="admit_intent_batch",
+        positional_names=("intents",),
+    ) or not _has_single_bindings(admission, ("exact_intents",)):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=admission,
+            detail="support-admission-result-not-single-bound",
+        )
+    admission_returns = tuple(
+        node
+        for node in ast.walk(admission)
+        if type(node) is ast.Return
+        and type(node.value) is ast.Call
+        and _last_name(node.value.func) == "_derive_batch_state_support_owned_v1"
+    )
+    if len(admission_returns) != 1 or not _call_uses_names_v1(
+        admission_returns[0].value,
+        positional=("exact_intents",),
+        keywords={"pools": "pools"},
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=admission,
+            detail="support-private-derive-does-not-consume-admitted-intents",
+        )
+
+    root = functions["compute_support_state_root_for_batch_owned_committed_v1"]
+    root_calls = _function_calls(root)
+    derive_calls = tuple(
+        call
+        for call in root_calls
+        if _last_name(call.func) == "derive_batch_state_support_owned_committed_v1"
+    )
+    encoder_calls = tuple(
+        call
+        for call in root_calls
+        if _last_name(call.func) == "compute_support_state_root_v5_with_committed_spot_state_v1"
+    )
+    if len(derive_calls) != 1 or not _call_uses_names_v1(
+        derive_calls[0],
+        positional=("intents",),
+        keywords={"pools": "pools"},
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=root,
+            detail="support-root-does-not-use-readmitted-support",
+        )
+    if len(encoder_calls) != 1:
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=root,
+            detail="support-root-does-not-use-unmounted-v5-encoder",
+        )
+    return violations + _check_exact_consumer_projection_v1(
+        functions,
+        required,
+        relative_path,
+    )
+
+
+def _check_exact_consumer_shape(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    """Prove that the M4 evaluator consumes only its admitted command graph."""
+
+    if relative_path != "src/core/fcis_step_evaluator.py":
+        return []
+    functions = {
+        statement.name: statement for statement in module.body if type(statement) is ast.FunctionDef
+    }
+    required_names = (
+        "_admit_exact_command_v1",
+        "_evaluate_spot_v1",
+        "_nonce_candidate_v1",
+        "_spot_candidate_v1",
+        "_fee_candidate_v1",
+        "_candidate_evidence_v1",
+        "evaluate_fcis_step_candidate_v1",
+    )
+    missing = tuple(name for name in required_names if name not in functions)
+    if missing:
+        return [
+            _Violation(
+                relative_path,
+                0,
+                0,
+                "EXACT_CONSUMER_DATAFLOW",
+                f"missing:{','.join(missing)}",
+            )
+        ]
+    return (
+        _check_exact_command_admission_v1(functions["_admit_exact_command_v1"], relative_path)
+        + _check_exact_command_sinks_v1(functions["evaluate_fcis_step_candidate_v1"], relative_path)
+        + _check_exact_consumer_annotations_v1(functions, relative_path)
+        + _check_exact_consumer_projection_v1(functions, required_names, relative_path)
+    )
+
+
 def _check_authority_path(
     repo_root: Path,
     relative_path: Path,
@@ -1791,7 +2214,10 @@ def _check_authority_path(
         visitor.violations
         + _check_registry_constants(module, display)
         + _check_mutable_local_buffers(module, display)
-        + _check_exact_replay_shape(module, display),
+        + _check_exact_replay_shape(module, display)
+        + _check_exact_consumer_shape(module, display)
+        + _check_exact_nonce_consumer_shape_v1(module, display)
+        + _check_exact_support_consumer_shape_v1(module, display),
     )
 
 

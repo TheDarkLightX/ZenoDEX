@@ -198,6 +198,8 @@ echo "== critical: FCIS authority snapshot contract =="
   --profile authority-graph --json
 "$PY" "$ROOT_DIR/tools/check_fcis_authority_snapshot_contract.py" \
   --profile exact-replay --json
+"$PY" "$ROOT_DIR/tools/check_fcis_authority_snapshot_contract.py" \
+  --profile exact-consumers --json
 "$PY" "$ROOT_DIR/docs/specs/fcis_authority_snapshot_v1/check_packet.py"
 "$PY" -m pytest -q tests/tools/test_check_fcis_authority_snapshot_contract.py
 

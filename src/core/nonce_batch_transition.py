@@ -13,9 +13,10 @@ from enum import Enum
 from typing import TypeAlias, cast, final
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
-from ..state.intent_snapshots import OwnedIntentV1, owned_intent_field_v1
+from ..state.intent_snapshots import OwnedIntentV1, admit_intent_batch, owned_intent_field_v1
 from ..state.intents import Intent
 from ..state.state_snapshot_values import MAX_U32_V1, CommittedNonceTableV1
+from ..state.state_snapshots import StateAdmissionError
 from ..state.state_transitions import (
     CanonicalNoncePatchV1,
     NonceAdvanceV1,
@@ -122,6 +123,13 @@ def validate_and_apply_intent_nonce_batch_committed_v1(
             IntentNonceBatchCodeV1.WRONG_EXACT_TYPE,
             "nonce policy rejected",
         )
+    try:
+        exact_intents = admit_intent_batch(intents)
+    except (StateAdmissionError, TypeError, ValueError):
+        return _reject(
+            IntentNonceBatchCodeV1.WRONG_EXACT_TYPE,
+            "nonce policy rejected",
+        )
 
     prestate_reject = validate_committed_nonce_state_v1(nonces)
     if prestate_reject is not None:
@@ -129,14 +137,14 @@ def validate_and_apply_intent_nonce_batch_committed_v1(
             IntentNonceBatchCodeV1.INVALID_PRESTATE,
             _patch_reject_reason(prestate_reject),
         )
-    if not intents:
+    if not exact_intents:
         return IntentNonceBatchOkV1(nonces, None)
 
     per_sender: dict[str, list[int]] = {}
     saw_nonce = False
     saw_missing = False
 
-    for intent in intents:
+    for intent in exact_intents:
         nonce_raw = owned_intent_field_v1(intent, "nonce", None)
         if nonce_raw is None:
             saw_missing = True
