@@ -377,3 +377,22 @@ member.
 These additions remain inside the one profile binding from E6. No authority
 module may call `_admit_with_registry_v1` directly or build a second production
 registry.
+
+## E13. Tagged discriminants follow declared record order
+
+`TaggedRecordOf.discriminant_field` names one declared field whose schema is
+the matching `ExactEnum`. The discriminant may appear at any position in the
+record's exact dataclass field order. Every variant must still declare every
+record field exactly once and in that exact order.
+
+This correction preserves the mounted `Intent` layout:
+
+```text
+module, version, kind, intent_id, sender_pubkey, deadline, salt, fields
+```
+
+The interpreter reads only the named discriminant to select the exhaustive
+variant. It then admits all fields in declared dataclass order. Reordering the
+source record to place `kind` first would be an unnecessary compatibility
+change, while requiring the discriminant to be first would make the declared
+closed schema unable to represent the mounted type.

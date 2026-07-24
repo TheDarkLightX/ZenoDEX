@@ -348,8 +348,11 @@ For `RecordUnionOf(variants)`:
 `RecordUnionOf` represents a heterogeneous container whose variants are
 different exact record classes, such as the mounted perps market map.
 `TaggedRecordOf` remains the schema for one exact record class whose declared
-enum field selects an exhaustive field variant. Neither combinator backtracks,
-consults caller behavior, or uses a default variant.
+enum field selects an exhaustive field variant. The named discriminant may
+appear anywhere in the exact declared dataclass field order; it need not be the
+first field. Every variant still declares every field exactly once in that
+order. Neither combinator backtracks, consults caller behavior, or uses a
+default variant.
 
 ## 6. Budget and cycle semantics
 

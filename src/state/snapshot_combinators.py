@@ -2486,9 +2486,16 @@ def _tagged_registry_drift(
         field_names = tuple(field.name for field in variant.declared_fields)
         if field_names != registered:
             return True
-        discriminant_schema = variant.declared_fields[0]
+        discriminant_schema = next(
+            (
+                field
+                for field in variant.declared_fields
+                if field.name == schema.discriminant_field
+            ),
+            None,
+        )
         if (
-            discriminant_schema.name != schema.discriminant_field
+            discriminant_schema is None
             or not _has_exact_type(discriminant_schema.schema, ExactEnum)
             or discriminant_schema.schema.enum_tag is not schema.discriminant_enum_tag
         ):

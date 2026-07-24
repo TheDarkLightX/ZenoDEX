@@ -102,6 +102,7 @@ class _OwnedPoint:
 
 @dataclass
 class _SourceTagged:
+    module: str
     kind: _Kind
     left: int | None = None
     right: str | None = None
@@ -110,6 +111,7 @@ class _SourceTagged:
 @final
 @dataclass(frozen=True, slots=True)
 class _OwnedTagged:
+    module: str
     kind: OwnedEnumV1
     left: int | None = None
     right: str | None = None
@@ -155,6 +157,7 @@ def _construct_record(
         )
     if tag is _RecordTag.TAGGED:
         return _OwnedTagged(
+            cast(str, values["module"]),
             cast(OwnedEnumV1, values["kind"]),
             cast(int | None, values["left"]),
             cast(str | None, values["right"]),
@@ -1276,7 +1279,7 @@ def test_registry_rejects_empty_or_duplicate_record_union() -> None:
         _admit_union(RecordUnionOf((left, left)), _SourceUnionLeft(1))
 
 
-def test_tagged_record_requires_exhaustive_variant_registry() -> None:
+def test_tagged_record_supports_nonleading_discriminant_and_exhaustive_registry() -> None:
     complete = TaggedRecordOf(
         _RecordTag.TAGGED,
         "kind",
@@ -1285,6 +1288,14 @@ def test_tagged_record_requires_exhaustive_variant_registry() -> None:
             TaggedVariantV1(
                 _Kind.LEFT,
                 (
+                    DeclaredFieldV1(
+                        "module",
+                        ExactString(
+                            StringRuleV1.EXACT_LITERAL,
+                            8,
+                            exact_literal="TauSwap",
+                        ),
+                    ),
                     DeclaredFieldV1("kind", ExactEnum(_EnumTag.KIND)),
                     DeclaredFieldV1("left", OptionalValue(ExactInt(0, 9))),
                     DeclaredFieldV1(
@@ -1296,6 +1307,14 @@ def test_tagged_record_requires_exhaustive_variant_registry() -> None:
             TaggedVariantV1(
                 _Kind.RIGHT,
                 (
+                    DeclaredFieldV1(
+                        "module",
+                        ExactString(
+                            StringRuleV1.EXACT_LITERAL,
+                            8,
+                            exact_literal="TauSwap",
+                        ),
+                    ),
                     DeclaredFieldV1("kind", ExactEnum(_EnumTag.KIND)),
                     DeclaredFieldV1("left", OptionalValue(ExactInt(0, 9))),
                     DeclaredFieldV1(
@@ -1306,9 +1325,10 @@ def test_tagged_record_requires_exhaustive_variant_registry() -> None:
             ),
         ),
     )
-    admitted = _admit(complete, _SourceTagged(_Kind.LEFT, left=2))
+    admitted = _admit(complete, _SourceTagged("TauSwap", _Kind.LEFT, left=2))
     assert type(admitted) is AdmitOk
     assert type(admitted.value) is _OwnedTagged
+    assert admitted.value.module == "TauSwap"
     assert type(admitted.value.kind) is OwnedEnumV1
     assert admitted.value.kind.member_ordinal == 0
     assert admitted.value.left == 2
@@ -1320,7 +1340,10 @@ def test_tagged_record_requires_exhaustive_variant_registry() -> None:
         _EnumTag.KIND,
         (complete.variants[0],),
     )
-    assert _admit(incomplete, _SourceTagged(_Kind.LEFT, left=2)) == AdmitReject(
+    assert _admit(
+        incomplete,
+        _SourceTagged("TauSwap", _Kind.LEFT, left=2),
+    ) == AdmitReject(
         AdmitCode.REGISTRY_DRIFT, ()
     )
 
@@ -1334,6 +1357,14 @@ def test_tagged_record_rejects_variant_that_relies_on_constructor_defaults() -> 
             TaggedVariantV1(
                 _Kind.LEFT,
                 (
+                    DeclaredFieldV1(
+                        "module",
+                        ExactString(
+                            StringRuleV1.EXACT_LITERAL,
+                            8,
+                            exact_literal="TauSwap",
+                        ),
+                    ),
                     DeclaredFieldV1("kind", ExactEnum(_EnumTag.KIND)),
                     DeclaredFieldV1("left", OptionalValue(ExactInt(0, 9))),
                 ),
@@ -1341,6 +1372,14 @@ def test_tagged_record_rejects_variant_that_relies_on_constructor_defaults() -> 
             TaggedVariantV1(
                 _Kind.RIGHT,
                 (
+                    DeclaredFieldV1(
+                        "module",
+                        ExactString(
+                            StringRuleV1.EXACT_LITERAL,
+                            8,
+                            exact_literal="TauSwap",
+                        ),
+                    ),
                     DeclaredFieldV1("kind", ExactEnum(_EnumTag.KIND)),
                     DeclaredFieldV1(
                         "right",
@@ -1350,7 +1389,10 @@ def test_tagged_record_rejects_variant_that_relies_on_constructor_defaults() -> 
             ),
         ),
     )
-    assert _admit(schema, _SourceTagged(_Kind.LEFT, left=2)) == AdmitReject(
+    assert _admit(
+        schema,
+        _SourceTagged("TauSwap", _Kind.LEFT, left=2),
+    ) == AdmitReject(
         AdmitCode.REGISTRY_DRIFT,
         (),
     )

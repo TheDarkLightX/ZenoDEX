@@ -22,6 +22,7 @@ CURRENT_ARCHITECTURE_CLAUSES = {
         "## E9. Persistent committed transitions replace domain scratch conversion",
         "## E11. State ownership, authority ownership, and final mounting are separate review stages",
         "## E12. Closed authority-graph algebra extensions",
+        "## E13. Tagged discriminants follow declared record order",
     ),
     "MOUNTED_ENVELOPE_INVENTORY.md": (
         "## 3. Signature, sender, authentication policy, and domain frame",
