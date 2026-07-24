@@ -767,3 +767,103 @@ def test_large_mixed_batch_support_root_is_stable_and_sensitive_to_tracked_state
         )
         != root
     )
+
+
+def test_owned_support_root_matches_legacy_for_valid_swap_corpus() -> None:
+    from src.state.intent_snapshots import admit_intent_batch
+    from src.state.legacy_state_snapshots import (
+        admit_legacy_balance_for_differential_v1,
+        admit_legacy_lp_for_differential_v1,
+        admit_legacy_nonce_for_differential_v1,
+        admit_legacy_pool_map_for_differential_v1,
+    )
+    from src.state.support_root import (
+        compute_support_state_root_for_batch_committed_v1,
+        compute_support_state_root_for_batch_owned_committed_v1,
+    )
+
+    owner = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=2_000_000,
+        reserve1=2_000_000,
+        fee_bps=30,
+        lp_supply=2_000_000,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    pools = {pool_id: pool}
+    balances = BalanceTable()
+    balances.set(owner, asset0, 10_000_000)
+    lp = LPTable()
+    nonces = NonceTable()
+    nonces.set_last(owner, 0)
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(1),
+        sender_pubkey=owner,
+        deadline=10_000,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 100_000,
+            "min_amount_out": 1,
+            "nonce": 1,
+        },
+    )
+    intents = [intent]
+
+    committed_balances = admit_legacy_balance_for_differential_v1(balances)
+    committed_pools = admit_legacy_pool_map_for_differential_v1(pools)
+    committed_lp = admit_legacy_lp_for_differential_v1(lp)
+    committed_nonces = admit_legacy_nonce_for_differential_v1(nonces)
+
+    legacy_root = compute_support_state_root_for_batch_committed_v1(
+        intents=intents,
+        balances=committed_balances,
+        pools=committed_pools,
+        lp_balances=committed_lp,
+        nonces=committed_nonces,
+    )
+    owned_root = compute_support_state_root_for_batch_owned_committed_v1(
+        intents=admit_intent_batch(intents),
+        balances=committed_balances,
+        pools=committed_pools,
+        lp_balances=committed_lp,
+        nonces=committed_nonces,
+    )
+
+    assert legacy_root == owned_root
+
+
+def test_owned_support_root_rejects_non_tuple_intents() -> None:
+    from src.state.legacy_state_snapshots import (
+        admit_legacy_balance_for_differential_v1,
+        admit_legacy_lp_for_differential_v1,
+        admit_legacy_nonce_for_differential_v1,
+        admit_legacy_pool_map_for_differential_v1,
+    )
+    from src.state.support_root import compute_support_state_root_for_batch_owned_committed_v1
+
+    balances = admit_legacy_balance_for_differential_v1(BalanceTable())
+    pools = admit_legacy_pool_map_for_differential_v1({})
+    lp = admit_legacy_lp_for_differential_v1(LPTable())
+    nonces = admit_legacy_nonce_for_differential_v1(NonceTable())
+
+    with pytest.raises(TypeError, match="intents must be an exact owned tuple"):
+        compute_support_state_root_for_batch_owned_committed_v1(
+            intents=[],
+            balances=balances,
+            pools=pools,
+            lp_balances=lp,
+            nonces=nonces,
+        )

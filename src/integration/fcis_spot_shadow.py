@@ -23,6 +23,7 @@ from ..core.fcis_step_evaluator import (
 )
 from ..core.fees import FeeSplitParams
 from ..core.settlement import Settlement
+from ..core.settlement_snapshots import snapshot_settlement
 from ..core.settlement_strong_validator import (
     StrongSettlementEvaluationResultV1,
     StrongSettlementRejectV1,
@@ -39,6 +40,7 @@ from ..state.fcis_execution_context_values import (
     FCISStepExecutionContextSourceV1,
     FCISStepExecutionContextV1,
 )
+from ..state.intent_snapshots import admit_intent_batch
 from ..state.intents import Intent
 from ..state.legacy_state_snapshots import (
     admit_legacy_balance_for_differential_v1,
@@ -482,12 +484,30 @@ def evaluate_fcis_step_shadow_v1(
             FCISStepShadowPhaseV1.STATE_ADMISSION,
             "shadow state requires an exact DexState",
         )
+    if type(settlement) is not Settlement:
+        return FCISStepShadowRejectV1(
+            FCISStepShadowPhaseV1.COMMAND_ADMISSION,
+            "shadow settlement requires an exact legacy Settlement",
+        )
+    if type(intents) is not list:
+        return FCISStepShadowRejectV1(
+            FCISStepShadowPhaseV1.COMMAND_ADMISSION,
+            "shadow intents require an exact legacy list",
+        )
     exact_context = _admit_legacy_step_context_v1(context, lp_duration_policy)
     if type(exact_context) is FCISStepShadowRejectV1:
         return exact_context
     exact_state = _admit_legacy_state_v1(state)
     if type(exact_state) is FCISStepShadowRejectV1:
         return exact_state
+    try:
+        owned_settlement = snapshot_settlement(settlement)
+        owned_intents = admit_intent_batch(intents)
+    except Exception as error:
+        return FCISStepShadowRejectV1(
+            FCISStepShadowPhaseV1.COMMAND_ADMISSION,
+            f"shadow command admission rejected: {error}",
+        )
     result = evaluate_fcis_step_candidate_v1(
         balances=exact_state.balances,
         pools=exact_state.pools,
@@ -497,8 +517,8 @@ def evaluate_fcis_step_shadow_v1(
         oracle=exact_state.oracle,
         fee_accumulator=exact_state.fee_accumulator,
         perps=exact_state.perps,
-        settlement=settlement,
-        intents=intents,
+        settlement=owned_settlement,
+        intents=owned_intents,
         context=exact_context,
     )
     return _shadow_result_v1(result)

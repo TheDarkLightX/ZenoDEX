@@ -61,6 +61,12 @@ EXACT_REPLAY_AUTHORITY_PATHS = (
     Path("src/core/route_settlement.py"),
     Path("src/core/settlement_strong_validator.py"),
 )
+EXACT_CONSUMERS_AUTHORITY_PATHS = (
+    Path("src/core/fcis_step_evaluator.py"),
+    Path("src/core/nonce_batch_transition.py"),
+    Path("src/state/support_root.py"),
+    Path("src/integration/fcis_spot_shadow.py"),
+)
 _POST_ADMISSION_MUTATION_FORBIDDEN_PATHS = frozenset(
     str(path) for path in EXACT_REPLAY_AUTHORITY_PATHS
 )
@@ -73,6 +79,7 @@ FINAL_MOUNT_AUTHORITY_PATHS = tuple(
             *STATE_SUBSTRATE_AUTHORITY_PATHS,
             *AUTHORITY_GRAPH_AUTHORITY_PATHS,
             *EXACT_REPLAY_AUTHORITY_PATHS,
+            *EXACT_CONSUMERS_AUTHORITY_PATHS,
         )
     )
 )
@@ -81,6 +88,7 @@ _AUTHORITY_PATHS_BY_PROFILE = {
     "state-substrate": STATE_SUBSTRATE_AUTHORITY_PATHS,
     "authority-graph": AUTHORITY_GRAPH_AUTHORITY_PATHS,
     "exact-replay": EXACT_REPLAY_AUTHORITY_PATHS,
+    "exact-consumers": EXACT_CONSUMERS_AUTHORITY_PATHS,
     "final-mount": FINAL_MOUNT_AUTHORITY_PATHS,
 }
 _PROFILE_COMPATIBILITY_ALLOWLISTS = {
@@ -127,6 +135,25 @@ _PROFILE_COMPATIBILITY_ALLOWLISTS = {
             ("src/core/settlement_strong_validator.py", 2270, 16, "BROAD_ADMISSION", "int"),
             ("src/core/settlement_strong_validator.py", 2286, 16, "BROAD_ADMISSION", "int"),
             ("src/core/settlement_strong_validator.py", 2292, 16, "BROAD_ADMISSION", "int"),
+        }
+    ),
+    "exact-consumers": frozenset(
+        {
+            ("src/state/support_root.py", 124, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 126, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 128, 15, "BROAD_ADMISSION", "int"),
+            ("src/state/support_root.py", 144, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 144, 43, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 147, 19, "BROAD_ADMISSION", "int"),
+            ("src/state/support_root.py", 159, 11, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 164, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 169, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 171, 19, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 184, 15, "BROAD_ADMISSION", "str"),
+            ("src/state/support_root.py", 311, 19, "BROAD_ADMISSION", "int"),
+            ("src/state/support_root.py", 341, 15, "BROAD_ADMISSION", "int"),
+            ("src/state/support_root.py", 376, 20, "BROAD_ADMISSION", "int"),
+            ("src/state/support_root.py", 380, 16, "BROAD_ADMISSION", "int"),
         }
     ),
 }

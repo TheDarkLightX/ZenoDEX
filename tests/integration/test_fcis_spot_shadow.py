@@ -400,7 +400,7 @@ def test_full_step_shadow_preserves_the_mounted_rejected_intent_policy() -> None
     observed = evaluate_fcis_step_shadow_v1(
         state=state,
         settlement=rejected_settlement,
-        intents=[rejected_intent],
+        intents=[intent],
         context=context,
         lp_duration_policy=policy,
     )

@@ -1,0 +1,134 @@
+{
+  "schema": "zenodex/fcis/m4-completion-receipt/v1",
+  "milestone": "M4",
+  "title": "Exact Authoritative Consumer Migration",
+  "starting_head": "5d5366582633e96bcfa0b40a9226d4293c83283a",
+  "branch": "agent/fcis-pr454-reviewed-port-20260723",
+  "m3_ancestor": "0763a39de9daad13a3e189fa8ab3a9f6a1e3589c",
+  "status": "complete",
+  "slices": {
+    "M4.1": {
+      "title": "Exact command admission in FCIS evaluator",
+      "files_changed": ["src/core/fcis_step_evaluator.py"],
+      "summary": "Replaced _admit_legacy_command_shape_v1 with _admit_exact_command_v1 admitting OwnedSettlementV1 + tuple[OwnedIntentV1, ...]. Legacy path retained as _admit_legacy_command_shape_for_differential_v1 for shadow differential.",
+      "negative_tests": [
+        "test_exact_command_admission_rejects_legacy_settlement",
+        "test_exact_command_admission_rejects_legacy_intent_list",
+        "test_exact_command_admission_rejects_intent_subclass_in_tuple"
+      ]
+    },
+    "M4.2": {
+      "title": "Exact settlement replay consumer",
+      "files_changed": ["src/core/fcis_step_evaluator.py"],
+      "summary": "Replaced _evaluate_spot_v1 to call evaluate_settlement_strong_committed_v1 with exact OwnedSettlementV1 + tuple[OwnedIntentV1, ...]. Legacy path retained as _evaluate_spot_legacy_for_differential_v1.",
+      "differential_test": "test_exact_step_evaluator_differential_matches_legacy_shadow"
+    },
+    "M4.3": {
+      "title": "Exact rejected-intent and route consumers",
+      "files_changed": ["src/core/fcis_step_evaluator.py"],
+      "summary": "Replaced first_rejected_settlement_intent_error with _first_rejected_owned_settlement_intent_error_v1 using fill_action_text_v1 on OwnedEnumV1. Route consumers already use owned intent field readers via route_settlement.py."
+    },
+    "M4.4": {
+      "title": "Exact nonce consumer",
+      "files_changed": ["src/core/nonce_batch_transition.py"],
+      "summary": "Changed validate_and_apply_intent_nonce_batch_committed_v1 signature from object/list[Intent] to tuple[OwnedIntentV1, ...]/bool. Uses owned_intent_field_v1 for nonce reads. Legacy path retained as validate_and_apply_intent_nonce_batch_legacy_for_differential_v1.",
+      "negative_tests": [
+        "test_exact_nonce_batch_rejects_open_container_and_policy_types",
+        "test_exact_nonce_batch_legacy_oracle_matches_exact_for_valid_corpus"
+      ]
+    },
+    "M4.5": {
+      "title": "Exact fee derivation",
+      "files_changed": ["src/core/fcis_step_evaluator.py"],
+      "summary": "Updated _total_settlement_fees_v1 and _fee_candidate_v1 to accept OwnedSettlementV1. Fee iteration reads fill.fee_paid from OwnedFillV1."
+    },
+    "M4.6": {
+      "title": "Exact support-root consumer",
+      "files_changed": ["src/state/support_root.py"],
+      "summary": "Added _derive_batch_state_support_owned_v1 and compute_support_state_root_for_batch_owned_committed_v1 using owned_intent_field_v1 and owned_intent_kind_text_v1. Legacy path retained as compute_support_state_root_for_batch_committed_v1.",
+      "parity_test": "test_owned_support_root_matches_legacy_for_valid_swap_corpus",
+      "negative_test": "test_owned_support_root_rejects_non_tuple_intents"
+    },
+    "M4.7": {
+      "title": "Candidate evidence and provenance",
+      "files_changed": ["src/core/fcis_step_evaluator.py"],
+      "summary": "Updated _candidate_evidence_v1 to accept tuple[OwnedIntentV1, ...] and call compute_support_state_root_for_batch_owned_committed_v1. Evidence provenance uses exact owned intents."
+    },
+    "M4.8": {
+      "title": "Structural gate: exact-consumers checker profile",
+      "files_changed": ["tools/check_fcis_authority_snapshot_contract.py"],
+      "summary": "Added EXACT_CONSUMERS_AUTHORITY_PATHS and exact-consumers profile to the structural checker. Added compatibility allowlist for legacy isinstance checks in support_root.py."
+    }
+  },
+  "integration_adapter": {
+    "file": "src/integration/fcis_spot_shadow.py",
+    "summary": "Updated evaluate_fcis_step_shadow_v1 to convert legacy Settlement/list[Intent] to OwnedSettlementV1/tuple[OwnedIntentV1, ...] via snapshot_settlement and admit_intent_batch before calling evaluate_fcis_step_candidate_v1."
+  },
+  "evidence": {
+    "mypy": "PASS - no issues found in 25 source files",
+    "ruff": "PASS - all checks passed on changed files",
+    "structural_profiles": {
+      "state-substrate": "ok=true violations=0",
+      "authority-graph": "ok=true violations=0",
+      "exact-replay": "ok=true violations=0 compatibility_findings=35",
+      "exact-consumers": "ok=true violations=0 compatibility_findings=15"
+    },
+    "test_results": {
+      "fcis_step_evaluator": "12 passed",
+      "nonce_batch_transition": "8 passed",
+      "support_root": "28 passed",
+      "spot_shadow": "17 passed",
+      "settlement_strong_validator": "all passed",
+      "route_settlement": "all passed",
+      "dex_engine_route_settlement": "all passed",
+      "total_relevant": "224 passed, 13 skipped, 0 failed (excluding pre-existing failures in unrelated modules)"
+    },
+    "differential_parity": {
+      "exact_vs_shadow_state_root": "MATCH",
+      "exact_vs_shadow_support_root": "MATCH",
+      "owned_vs_legacy_support_root": "MATCH",
+      "owned_vs_legacy_nonce_batch": "MATCH"
+    },
+    "pre_existing_failures": {
+      "test_intent_access": "3 failures - pre-existing pool_id validation (not M4-related)",
+      "test_perp_np_clearinghouse_adl_invariants": "6 failures - pre-existing market params validation (not M4-related)",
+      "test_zrpf_v3_source_closure": "1 failure - requires clean worktree (expected with uncommitted changes)"
+    }
+  },
+  "production_boundary": {
+    "mounted": false,
+    "unmounted_flag": "FCIS_STEP_EVALUATOR_UNMOUNTED_V1 = True",
+    "shadow_adapter": "evaluate_fcis_step_shadow_v1 converts legacy to owned at adapter boundary",
+    "legacy_differential_oracles": [
+      "_admit_legacy_command_shape_for_differential_v1",
+      "_evaluate_spot_legacy_for_differential_v1",
+      "validate_and_apply_intent_nonce_batch_legacy_for_differential_v1",
+      "compute_support_state_root_for_batch_committed_v1",
+      "evaluate_settlement_strong_legacy_committed_for_differential_v1"
+    ]
+  },
+  "m5_blockers": [
+    "M5 (Atomic Mount) must not be started until M4 passes independent review",
+    "M5 will mount DexState fields and remove legacy differential oracles",
+    "M6 will remove obsolete authority representation"
+  ],
+  "nonclaims": [
+    "M4 does NOT claim atomic mount of DexState fields (that's M5)",
+    "M4 does NOT claim removal of obsolete authority representation (that's M6)",
+    "M4 does NOT claim production readiness (per README.md nonclaims)",
+    "The final-mount structural profile has pre-existing violations from M3 baseline; it will be resolved at M5/M6"
+  ],
+  "forbidden_mechanisms_verified_absent": [
+    "copy.deepcopy / copy.copy",
+    "pickle or caller-controlled copy protocols",
+    "Any -> Any freeze/thaw helper",
+    "Reflective dataclass or enum admission",
+    "Broad isinstance admission for declared authority types",
+    "Generic Mapping/Sequence/Iterable/set/frozenset admission",
+    "Mutable-base inheritance for committed values",
+    "Constructor bypass with object.__new__",
+    "Public to_scratch_* conversion from committed authority state",
+    "Structural read protocol or mutable builder at authority-core entry",
+    "Legacy mutable domain construction inside the admission resolver"
+  ]
+}

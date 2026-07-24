@@ -25,6 +25,7 @@ from .canonical import (
     hex_to_bytes_fixed,
     sha256_hex,
 )
+from .intent_snapshots import OwnedIntentV1, owned_intent_field_v1, owned_intent_kind_text_v1
 from .intents import Intent, IntentKind
 from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
@@ -547,9 +548,146 @@ def compute_support_state_root_for_batch_committed_v1(
     lp_balances: CommittedLPTableV1,
     nonces: CommittedNonceTableV1,
 ) -> str:
-    """Compute support-root v4 from one exact committed spot snapshot."""
+    """Compute support-root v4 from one exact committed spot snapshot.
+
+    This is the legacy differential oracle.  It accepts ``Sequence[Intent]``
+    and uses ``intent.get_field``.  The exact promoted path uses
+    ``compute_support_state_root_for_batch_owned_committed_v1``.
+    """
 
     support = derive_batch_state_support_committed_v1(intents, pools=pools)
+    return compute_support_state_root_with_committed_spot_state_v1(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonces,
+    )
+
+
+def _derive_batch_state_support_owned_v1(
+    intents: tuple[OwnedIntentV1, ...],
+    *,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> BatchStateSupport:
+    """Derive support from exact owned intents and an exact committed pool map.
+
+    This is the exact support derivation.  It uses ``owned_intent_field_v1``
+    and ``owned_intent_kind_text_v1`` and never calls ``Intent.get_field``,
+    accepts ``Sequence[Intent]``, or constructs a mutable ``PoolState``.
+    """
+
+    from .owned_collections import OwnedMapV1
+    from .state_snapshots import snapshot_pool_map
+
+    if type(pools) is not OwnedMapV1:
+        raise TypeError("pools must be an exact OwnedMapV1")
+    exact_pools = snapshot_pool_map(pools)
+
+    balance_keys: set[tuple[str, str]] = set()
+    pool_ids: set[str] = set()
+    lp_keys: set[tuple[str, str]] = set()
+    nonce_keys: set[str] = set()
+
+    created_pool_assets: dict[str, tuple[str, str]] = {}
+    for intent in intents:
+        kind_text = owned_intent_kind_text_v1(intent)
+        if kind_text != IntentKind.CREATE_POOL.value:
+            continue
+        asset0 = owned_intent_field_v1(intent, "asset0", None)
+        asset1 = owned_intent_field_v1(intent, "asset1", None)
+        fee_bps = owned_intent_field_v1(intent, "fee_bps", None)
+        if type(asset0) is not str or not asset0:
+            continue
+        if type(asset1) is not str or not asset1:
+            continue
+        if type(fee_bps) is not int or type(fee_bps) is bool:
+            continue
+        try:
+            pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
+        except Exception:
+            continue
+        created_pool_assets[pool_id] = (asset0, asset1)
+
+    for intent in intents:
+        sender = intent.sender_pubkey
+        nonce_keys.add(sender)
+        kind_text = owned_intent_kind_text_v1(intent)
+
+        if kind_text == IntentKind.CREATE_POOL.value:
+            asset0 = owned_intent_field_v1(intent, "asset0", None)
+            asset1 = owned_intent_field_v1(intent, "asset1", None)
+            fee_bps = owned_intent_field_v1(intent, "fee_bps", None)
+            if type(asset0) is str and type(asset1) is str:
+                balance_keys.add((sender, asset0))
+                balance_keys.add((sender, asset1))
+                if type(fee_bps) is int and type(fee_bps) is not bool:
+                    try:
+                        pool_id = compute_pool_id(
+                            asset0, asset1, fee_bps, curve_tag="CPMM", curve_params=""
+                        )
+                        pool_ids.add(pool_id)
+                    except Exception:
+                        pass
+            continue
+
+        pool_id = owned_intent_field_v1(intent, "pool_id", None)
+        if type(pool_id) is str and pool_id:
+            pool_ids.add(pool_id)
+
+        if kind_text in (IntentKind.SWAP_EXACT_IN.value, IntentKind.SWAP_EXACT_OUT.value):
+            asset_in = owned_intent_field_v1(intent, "asset_in", None)
+            if type(asset_in) is str and asset_in:
+                balance_keys.add((sender, asset_in))
+            continue
+
+        if kind_text == IntentKind.ADD_LIQUIDITY.value:
+            if type(pool_id) is str and pool_id:
+                recipient = owned_intent_field_v1(intent, "recipient", sender)
+                if type(recipient) is str and recipient:
+                    lp_keys.add((recipient, pool_id))
+                if pool_id in exact_pools:
+                    pool = exact_pools[pool_id]
+                    balance_keys.add((sender, pool.asset0))
+                    balance_keys.add((sender, pool.asset1))
+                elif pool_id in created_pool_assets:
+                    asset0, asset1 = created_pool_assets[pool_id]
+                    balance_keys.add((sender, asset0))
+                    balance_keys.add((sender, asset1))
+            continue
+
+        if kind_text == IntentKind.REMOVE_LIQUIDITY.value:
+            if type(pool_id) is str and pool_id:
+                lp_keys.add((sender, pool_id))
+            continue
+
+    return BatchStateSupport(
+        balance_keys=tuple(sorted(balance_keys, key=lambda t: (t[0], t[1]))),
+        pool_ids=tuple(sorted(pool_ids)),
+        lp_keys=tuple(sorted(lp_keys, key=lambda t: (t[0], t[1]))),
+        nonce_keys=tuple(sorted(nonce_keys)),
+    )
+
+
+def compute_support_state_root_for_batch_owned_committed_v1(
+    *,
+    intents: tuple[OwnedIntentV1, ...],
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    nonces: CommittedNonceTableV1,
+) -> str:
+    """Compute support-root v4 from exact owned intents and committed state.
+
+    This is the exact promoted support-root reader.  It is independent
+    evidence rather than a wrapper that delegates to the mixed legacy helper.
+    """
+
+    if type(intents) is not tuple:
+        raise TypeError("intents must be an exact owned tuple")
+    if any(type(intent) is not OwnedIntentV1 for intent in intents):
+        raise TypeError("intents must contain only exact OwnedIntentV1")
+    support = _derive_batch_state_support_owned_v1(intents, pools=pools)
     return compute_support_state_root_with_committed_spot_state_v1(
         balances=balances,
         pools=pools,

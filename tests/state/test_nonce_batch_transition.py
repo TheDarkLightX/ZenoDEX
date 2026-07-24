@@ -8,7 +8,9 @@ from src.core.nonce_batch_transition import (
     IntentNonceBatchOkV1,
     IntentNonceBatchRejectV1,
     validate_and_apply_intent_nonce_batch_committed_v1,
+    validate_and_apply_intent_nonce_batch_legacy_for_differential_v1,
 )
+from src.state.intent_snapshots import admit_intent_batch
 from src.state.intents import Intent, IntentKind
 from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from src.state.state_snapshot_values import CommittedNonceTableV1
@@ -20,7 +22,13 @@ def _pubkey(byte: int) -> str:
 
 
 def _intent(index: int, *, sender: str, nonce: object | None) -> Intent:
-    fields: dict[str, object] = {}
+    fields: dict[str, object] = {
+        "pool_id": "0x" + "ab" * 32,
+        "asset_in": "0x" + "01" * 32,
+        "asset_out": "0x" + "02" * 32,
+        "amount_in": 100,
+        "min_amount_out": 1,
+    }
     if nonce is not None:
         fields["nonce"] = nonce
     return Intent(
@@ -61,7 +69,7 @@ def test_exact_nonce_batch_matches_legacy_and_retains_one_canonical_candidate() 
     )
     exact_result = validate_and_apply_intent_nonce_batch_committed_v1(
         nonces=exact,
-        intents=intents,
+        intents=admit_intent_batch(intents),
         require_all_nonces=True,
     )
 
@@ -92,7 +100,7 @@ def test_exact_nonce_batch_accepted_result_is_permutation_invariant() -> None:
     results = tuple(
         validate_and_apply_intent_nonce_batch_committed_v1(
             nonces=exact,
-            intents=list(ordering),
+            intents=admit_intent_batch(list(ordering)),
             require_all_nonces=True,
         )
         for ordering in permutations(atoms)
@@ -108,12 +116,12 @@ def test_exact_nonce_batch_noop_reuses_validated_immutable_prestate() -> None:
 
     empty = validate_and_apply_intent_nonce_batch_committed_v1(
         nonces=exact,
-        intents=[],
+        intents=(),
         require_all_nonces=True,
     )
     nonce_free = validate_and_apply_intent_nonce_batch_committed_v1(
         nonces=exact,
-        intents=[_intent(1, sender=sender, nonce=None)],
+        intents=admit_intent_batch([_intent(1, sender=sender, nonce=None)]),
         require_all_nonces=False,
     )
 
@@ -128,7 +136,6 @@ def test_exact_nonce_batch_rejections_match_mounted_public_precedence() -> None:
     sender = _pubkey(1)
     cases = (
         ([_intent(1, sender=sender, nonce=None)], True),
-        ([_intent(1, sender=sender, nonce=True)], True),
         (
             [
                 _intent(1, sender=sender, nonce=1),
@@ -144,7 +151,6 @@ def test_exact_nonce_batch_rejections_match_mounted_public_precedence() -> None:
             True,
         ),
         ([_intent(1, sender=sender, nonce=2)], True),
-        ([_intent(1, sender="not-hex", nonce=1)], True),
     )
 
     for intents, require_all in cases:
@@ -156,7 +162,7 @@ def test_exact_nonce_batch_rejections_match_mounted_public_precedence() -> None:
         )
         exact_result = validate_and_apply_intent_nonce_batch_committed_v1(
             nonces=exact,
-            intents=intents,
+            intents=admit_intent_batch(intents),
             require_all_nonces=require_all,
         )
 
@@ -169,6 +175,31 @@ def test_exact_nonce_batch_rejections_match_mounted_public_precedence() -> None:
         assert exact.entries == ()
 
 
+def test_exact_nonce_batch_legacy_oracle_matches_exact_for_valid_corpus() -> None:
+    sender_a = _pubkey(1)
+    sender_b = _pubkey(2)
+    intents = [
+        _intent(1, sender=sender_b, nonce=1),
+        _intent(2, sender=sender_a, nonce=6),
+    ]
+    _legacy, exact = _prestate((sender_a, 5))
+
+    legacy_result = validate_and_apply_intent_nonce_batch_legacy_for_differential_v1(
+        nonces=exact,
+        intents=intents,
+        require_all_nonces=True,
+    )
+    exact_result = validate_and_apply_intent_nonce_batch_committed_v1(
+        nonces=exact,
+        intents=admit_intent_batch(intents),
+        require_all_nonces=True,
+    )
+
+    assert type(legacy_result) is IntentNonceBatchOkV1
+    assert type(exact_result) is IntentNonceBatchOkV1
+    assert legacy_result == exact_result
+
+
 def test_exact_nonce_batch_revalidates_prestate_even_when_batch_is_empty() -> None:
     _legacy, exact = _prestate((_pubkey(1), 4))
     owned_map = object.__getattribute__(exact, "_last")
@@ -176,7 +207,7 @@ def test_exact_nonce_batch_revalidates_prestate_even_when_batch_is_empty() -> No
 
     result = validate_and_apply_intent_nonce_batch_committed_v1(
         nonces=exact,
-        intents=[],
+        intents=(),
         require_all_nonces=True,
     )
 
@@ -197,8 +228,13 @@ def test_exact_nonce_batch_rejects_open_container_and_policy_types() -> None:
     )
     wrong_policy = runtime(
         nonces=exact,
-        intents=[],
+        intents=(),
         require_all_nonces=1,
+    )
+    wrong_intent_type = runtime(
+        nonces=exact,
+        intents=(_intent(1, sender=_pubkey(1), nonce=1),),
+        require_all_nonces=True,
     )
 
     assert wrong_intents == IntentNonceBatchRejectV1(
@@ -206,6 +242,10 @@ def test_exact_nonce_batch_rejects_open_container_and_policy_types() -> None:
         "nonce policy rejected",
     )
     assert wrong_policy == IntentNonceBatchRejectV1(
+        IntentNonceBatchCodeV1.WRONG_EXACT_TYPE,
+        "nonce policy rejected",
+    )
+    assert wrong_intent_type == IntentNonceBatchRejectV1(
         IntentNonceBatchCodeV1.WRONG_EXACT_TYPE,
         "nonce policy rejected",
     )

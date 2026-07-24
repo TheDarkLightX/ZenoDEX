@@ -24,6 +24,10 @@ from ..state.fcis_execution_context_values import (
     FCISStepExecutionContextV1,
     settlement_mode_label_v1,
 )
+from ..state.intent_snapshots import (
+    OwnedIntentV1,
+    admit_intent_batch,
+)
 from ..state.intents import Intent
 from ..state.lp_duration_policy_context import admit_optional_lp_duration_policy_v1
 from ..state.lp_duration_policy_values import LPDurationRiskPolicyV1
@@ -51,7 +55,7 @@ from ..state.state_snapshots import (
     snapshot_pool_map,
     snapshot_vault,
 )
-from ..state.support_root import compute_support_state_root_for_batch_committed_v1
+from ..state.support_root import compute_support_state_root_for_batch_owned_committed_v1
 from .fcis_step_evaluation_values import (
     FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1,
     FCIS_STEP_EVALUATOR_ALGORITHM_VERSION_V1,
@@ -73,11 +77,14 @@ from .nonce_batch_transition import (
     IntentNonceBatchRejectV1,
     validate_and_apply_intent_nonce_batch_committed_v1,
 )
-from .settlement import Settlement, first_rejected_settlement_intent_error
+from .settlement import Settlement
+from .settlement_schema import fill_action_text_v1
+from .settlement_snapshots import OwnedSettlementV1, snapshot_settlement
 from .settlement_strong_validator import (
     StrongSettlementEvaluationResultV1,
     StrongSettlementRejectV1,
     StrongSettlementStateCandidateV1,
+    evaluate_settlement_strong_committed_v1,
     evaluate_settlement_strong_legacy_committed_for_differential_v1,
 )
 
@@ -108,11 +115,59 @@ def _reject(
     return FCISStepEvaluationRejectV1(phase, code, path, public_reason)
 
 
-def _admit_legacy_command_shape_v1(
+def _admit_exact_command_v1(
+    settlement: object,
+    intents: object,
+) -> tuple[OwnedSettlementV1, tuple[OwnedIntentV1, ...]] | FCISStepEvaluationRejectV1:
+    """Admit one exact owned command graph at the evaluator boundary."""
+
+    if type(settlement) is not OwnedSettlementV1:
+        return _reject(
+            FCISStepEvaluationPhaseV1.COMMAND_ADMISSION,
+            "wrong_exact_type",
+            ("settlement",),
+            "step settlement requires an exact OwnedSettlementV1",
+        )
+    if type(intents) is not tuple:
+        return _reject(
+            FCISStepEvaluationPhaseV1.COMMAND_ADMISSION,
+            "wrong_exact_type",
+            ("intents",),
+            "step intents require an exact owned tuple",
+        )
+    if len(intents) > MAX_LEGACY_INTENTS_V1:
+        return _reject(
+            FCISStepEvaluationPhaseV1.COMMAND_ADMISSION,
+            "item_limit",
+            ("intents",),
+            "step intent batch exceeds the mounted limit",
+        )
+    for index, intent in enumerate(intents):
+        if type(intent) is not OwnedIntentV1:
+            return _reject(
+                FCISStepEvaluationPhaseV1.COMMAND_ADMISSION,
+                "wrong_exact_type",
+                ("intents", index),
+                "step intent requires an exact OwnedIntentV1",
+            )
+    try:
+        exact_settlement = snapshot_settlement(settlement)
+        exact_intents = admit_intent_batch(intents)
+    except (StateAdmissionError, TypeError, ValueError) as error:
+        return _reject(
+            FCISStepEvaluationPhaseV1.COMMAND_ADMISSION,
+            "admission_rejected",
+            (),
+            f"step command admission rejected: {error}",
+        )
+    return exact_settlement, exact_intents
+
+
+def _admit_legacy_command_shape_for_differential_v1(
     settlement: object,
     intents: object,
 ) -> tuple[Settlement, list[Intent]] | FCISStepEvaluationRejectV1:
-    """Bound the temporary PR #478 carrier without claiming owned authority."""
+    """Temporary unmounted oracle for the pre-M4 legacy command graph."""
 
     if type(settlement) is not Settlement:
         return _reject(
@@ -144,6 +199,22 @@ def _admit_legacy_command_shape_v1(
                 "step intent requires an exact legacy Intent",
             )
     return settlement, intents
+
+
+def _first_rejected_owned_settlement_intent_error_v1(
+    settlement: OwnedSettlementV1,
+) -> str | None:
+    """Return the mounted first-rejected-intent error for an owned settlement."""
+
+    fills_by_id = {fill.intent_id: fill for fill in settlement.fills}
+    for intent_id, action in settlement.included_intents:
+        if fill_action_text_v1(action) == "FILL":
+            continue
+        fill = fills_by_id.get(intent_id)
+        action_text = fill_action_text_v1(action)
+        reason = fill.reason if fill is not None and fill.reason else action_text
+        return f"settlement rejected intent_id={intent_id}: {reason}"
+    return None
 
 
 def _context_reject_v1(reject: AdmitReject) -> FCISStepEvaluationRejectV1:
@@ -260,10 +331,41 @@ def _evaluate_spot_v1(
     balances: CommittedBalanceTableV1,
     pools: OwnedMapV1[str, CommittedPoolStateV1],
     lp_balances: CommittedLPTableV1,
+    settlement: OwnedSettlementV1,
+    intents: tuple[OwnedIntentV1, ...],
+    context: FCISStepExecutionContextV1,
+) -> StrongSettlementEvaluationResultV1:
+    settlement_context = context.settlement
+    return evaluate_settlement_strong_committed_v1(
+        settlement=settlement,
+        intents=intents,
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=lp_balances,
+        now=settlement_context.now,
+        min_lp_position_age_seconds=settlement_context.min_lp_position_age_seconds,
+        lp_duration_policy=context.lp_duration_policy,
+        mode=settlement_mode_label_v1(settlement_context.mode),
+        allow_cow_netting=settlement_context.allow_cow_netting,
+        allow_snapshot_bound_quote_bindings=(
+            settlement_context.allow_snapshot_bound_quote_bindings
+        ),
+        protocol_fee_share_bps=settlement_context.protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=settlement_context.protocol_fee_recipient_pubkey,
+    )
+
+
+def _evaluate_spot_legacy_for_differential_v1(
+    *,
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
     settlement: Settlement,
     intents: list[Intent],
     context: FCISStepExecutionContextV1,
 ) -> StrongSettlementEvaluationResultV1:
+    """Temporary unmounted oracle for the pre-M4 legacy command graph."""
+
     settlement_context = context.settlement
     return evaluate_settlement_strong_legacy_committed_for_differential_v1(
         settlement=settlement,
@@ -287,7 +389,7 @@ def _evaluate_spot_v1(
 def _nonce_candidate_v1(
     *,
     state: _ExactStepStateV1,
-    intents: list[Intent],
+    intents: tuple[OwnedIntentV1, ...],
     context: FCISStepExecutionContextV1,
 ) -> IntentNonceBatchOkV1 | FCISStepEvaluationRejectV1:
     result = validate_and_apply_intent_nonce_batch_committed_v1(
@@ -315,8 +417,8 @@ def _nonce_candidate_v1(
 def _spot_candidate_v1(
     *,
     state: _ExactStepStateV1,
-    settlement: Settlement,
-    intents: list[Intent],
+    settlement: OwnedSettlementV1,
+    intents: tuple[OwnedIntentV1, ...],
     context: FCISStepExecutionContextV1,
 ) -> StrongSettlementStateCandidateV1 | FCISStepEvaluationRejectV1:
     result: object = _evaluate_spot_v1(
@@ -342,7 +444,7 @@ def _spot_candidate_v1(
             "step settlement transition returned an impossible result",
         )
     if context.reject_settlements_with_rejected_intents:
-        rejected_intent_error = first_rejected_settlement_intent_error(settlement)
+        rejected_intent_error = _first_rejected_owned_settlement_intent_error_v1(settlement)
         if rejected_intent_error is not None:
             return _reject(
                 FCISStepEvaluationPhaseV1.SETTLEMENT,
@@ -354,7 +456,7 @@ def _spot_candidate_v1(
 
 
 def _total_settlement_fees_v1(
-    settlement: Settlement,
+    settlement: OwnedSettlementV1,
 ) -> int | FCISStepEvaluationRejectV1:
     total = 0
     for index, fill in enumerate(settlement.fills):
@@ -375,7 +477,7 @@ def _total_settlement_fees_v1(
 def _fee_candidate_v1(
     *,
     state: _ExactStepStateV1,
-    settlement: Settlement,
+    settlement: OwnedSettlementV1,
     context: FCISStepExecutionContextV1,
 ) -> tuple[CommittedFeeAccumulatorStateV1, FCISFeeAllocationV1 | None] | FCISStepEvaluationRejectV1:
     policy = context.fee_split_policy
@@ -448,7 +550,7 @@ def _candidate_evidence_v1(
     *,
     candidate: FCISStepCandidateV1,
     context: FCISStepExecutionContextV1,
-    intents: list[Intent],
+    intents: tuple[OwnedIntentV1, ...],
     pre_binding: tuple[bytes, str, bytes, str],
 ) -> FCISStepEvaluationEvidenceV1 | FCISStepEvaluationRejectV1:
     context_bytes, context_hash, preimage, pre_root = pre_binding
@@ -471,7 +573,7 @@ def _candidate_evidence_v1(
             nonces=candidate.nonces,
             fee_accumulator=candidate.fee_accumulator,
         )
-        support_root = compute_support_state_root_for_batch_committed_v1(
+        support_root = compute_support_state_root_for_batch_owned_committed_v1(
             intents=intents,
             balances=candidate.spot.balances,
             pools=candidate.spot.pools,
@@ -519,7 +621,7 @@ def evaluate_fcis_step_candidate_v1(
 ) -> FCISStepEvaluationResultV1:
     """Evaluate one exact local candidate without mounting authority."""
 
-    command = _admit_legacy_command_shape_v1(settlement, intents)
+    command = _admit_exact_command_v1(settlement, intents)
     if type(command) is FCISStepEvaluationRejectV1:
         return command
     exact_context = _admit_context_v1(context)
@@ -594,9 +696,15 @@ def evaluate_fcis_spot_candidate_v1(
     context: object,
     lp_duration_policy: object,
 ) -> StrongSettlementEvaluationResultV1:
-    """Evaluate only the exact spot candidate for shadow differential tests."""
+    """Evaluate only the exact spot candidate for shadow differential tests.
 
-    command = _admit_legacy_command_shape_v1(settlement, intents)
+    This is a temporary unmounted legacy differential oracle.  It admits the
+    pre-M4 legacy command graph and delegates to the legacy differential
+    evaluator.  The exact evaluator path uses ``_admit_exact_command_v1`` and
+    ``evaluate_settlement_strong_committed_v1``.
+    """
+
+    command = _admit_legacy_command_shape_for_differential_v1(settlement, intents)
     if type(command) is FCISStepEvaluationRejectV1:
         reject = cast(FCISStepEvaluationRejectV1, command)
         return StrongSettlementRejectV1(reject.public_reason)
@@ -636,7 +744,7 @@ def evaluate_fcis_spot_candidate_v1(
         lp_duration_policy=policy_result.value,
         snapshot_version=1,
     )
-    return _evaluate_spot_v1(
+    return _evaluate_spot_legacy_for_differential_v1(
         balances=exact_balances,
         pools=exact_pools,
         lp_balances=exact_lp_balances,

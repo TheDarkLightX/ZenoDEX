@@ -13,6 +13,7 @@ from enum import Enum
 from typing import TypeAlias, cast, final
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
+from ..state.intent_snapshots import OwnedIntentV1, owned_intent_field_v1
 from ..state.intents import Intent
 from ..state.state_snapshot_values import MAX_U32_V1, CommittedNonceTableV1
 from ..state.state_transitions import (
@@ -95,16 +96,124 @@ def _positive_u32(value: object) -> int | None:
 def validate_and_apply_intent_nonce_batch_committed_v1(
     *,
     nonces: CommittedNonceTableV1,
-    intents: object,
-    require_all_nonces: object,
+    intents: tuple[OwnedIntentV1, ...],
+    require_all_nonces: bool,
 ) -> IntentNonceBatchResultV1:
     """Validate current nonce policy and produce one immutable successor.
 
-    Rejection precedence and public messages match
-    ``validate_and_apply_intent_nonce_batch`` for its canonical input domain.
-    An empty or nonce-free accepted batch reuses the immutable pre-state and
-    carries no patch.
+    The exact promoted input is ``tuple[OwnedIntentV1, ...]``.  Rejection
+    precedence and public messages match the legacy oracle for its canonical
+    input domain.  An empty or nonce-free accepted batch reuses the immutable
+    pre-state and carries no patch.
     """
+
+    if type(require_all_nonces) is not bool:
+        return _reject(
+            IntentNonceBatchCodeV1.WRONG_EXACT_TYPE,
+            "nonce policy rejected",
+        )
+    if type(intents) is not tuple:
+        return _reject(
+            IntentNonceBatchCodeV1.WRONG_EXACT_TYPE,
+            "nonce policy rejected",
+        )
+    if any(type(intent) is not OwnedIntentV1 for intent in intents):
+        return _reject(
+            IntentNonceBatchCodeV1.WRONG_EXACT_TYPE,
+            "nonce policy rejected",
+        )
+
+    prestate_reject = validate_committed_nonce_state_v1(nonces)
+    if prestate_reject is not None:
+        return _reject(
+            IntentNonceBatchCodeV1.INVALID_PRESTATE,
+            _patch_reject_reason(prestate_reject),
+        )
+    if not intents:
+        return IntentNonceBatchOkV1(nonces, None)
+
+    per_sender: dict[str, list[int]] = {}
+    saw_nonce = False
+    saw_missing = False
+
+    for intent in intents:
+        nonce_raw = owned_intent_field_v1(intent, "nonce", None)
+        if nonce_raw is None:
+            saw_missing = True
+            if require_all_nonces:
+                return _reject(
+                    IntentNonceBatchCodeV1.INVALID_NONCE,
+                    "Missing/invalid nonce",
+                )
+            continue
+
+        nonce = _positive_u32(nonce_raw)
+        if nonce is None:
+            return _reject(
+                IntentNonceBatchCodeV1.INVALID_NONCE,
+                "Missing/invalid nonce",
+            )
+        try:
+            sender = canonical_hex_fixed_allow_0x(
+                intent.sender_pubkey,
+                nbytes=48,
+                name="sender_pubkey",
+            )
+        except (TypeError, ValueError) as exc:
+            return _reject(
+                IntentNonceBatchCodeV1.INVALID_SENDER,
+                f"invalid sender_pubkey for nonce accounting: {exc}",
+            )
+        per_sender.setdefault(sender, []).append(nonce)
+        saw_nonce = True
+
+    if saw_nonce and saw_missing:
+        return _reject(
+            IntentNonceBatchCodeV1.MIXED_NONCE_PRESENCE,
+            "nonce presence must be consistent across batch",
+        )
+    if not saw_nonce:
+        return IntentNonceBatchOkV1(nonces, None)
+
+    advances: list[NonceAdvanceV1] = []
+    for sender, nonce_list in per_sender.items():
+        if len(nonce_list) != len(set(nonce_list)):
+            return _reject(
+                IntentNonceBatchCodeV1.DUPLICATE_NONCE,
+                "duplicate nonce in batch",
+            )
+        nonce_list_sorted = sorted(nonce_list)
+        last = nonces.get_last(sender)
+        expected = list(range(last + 1, last + 1 + len(nonce_list_sorted)))
+        if nonce_list_sorted != expected:
+            return _reject(
+                IntentNonceBatchCodeV1.INVALID_SEQUENCE,
+                "nonce sequence invalid",
+            )
+        advances.append(NonceAdvanceV1(sender, last, expected[-1]))
+
+    built = build_canonical_nonce_patch_v1(tuple(advances))
+    if type(built) is not NoncePatchBuildOkV1:
+        return _reject(
+            IntentNonceBatchCodeV1.PATCH_REJECTED,
+            _patch_reject_reason(built),
+        )
+    applied = apply_canonical_nonce_patch_v1(nonces, built.patch)
+    if type(applied) is not NoncePatchApplyOkV1:
+        return _reject(
+            IntentNonceBatchCodeV1.PATCH_REJECTED,
+            _patch_reject_reason(applied),
+        )
+    return IntentNonceBatchOkV1(applied.state, applied.patch)
+
+
+def validate_and_apply_intent_nonce_batch_legacy_for_differential_v1(
+    *,
+    nonces: CommittedNonceTableV1,
+    intents: list[Intent] | tuple[Intent, ...],
+    require_all_nonces: bool,
+) -> IntentNonceBatchResultV1:
+    """Temporary unmounted oracle for the pre-M4 legacy intent graph."""
 
     if type(require_all_nonces) is not bool:
         return _reject(
@@ -117,7 +226,6 @@ def validate_and_apply_intent_nonce_batch_committed_v1(
             "nonce policy rejected",
         )
     exact_intents = cast(list[Intent] | tuple[Intent, ...], intents)
-    exact_require_all_nonces = require_all_nonces
 
     prestate_reject = validate_committed_nonce_state_v1(nonces)
     if prestate_reject is not None:
@@ -137,7 +245,7 @@ def validate_and_apply_intent_nonce_batch_committed_v1(
         nonce_raw = fields.get("nonce") if type(fields) is dict else None
         if nonce_raw is None:
             saw_missing = True
-            if exact_require_all_nonces:
+            if require_all_nonces:
                 return _reject(
                     IntentNonceBatchCodeV1.INVALID_NONCE,
                     "Missing/invalid nonce",
@@ -210,4 +318,5 @@ __all__ = [
     "IntentNonceBatchRejectV1",
     "IntentNonceBatchResultV1",
     "validate_and_apply_intent_nonce_batch_committed_v1",
+    "validate_and_apply_intent_nonce_batch_legacy_for_differential_v1",
 ]
