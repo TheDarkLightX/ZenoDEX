@@ -265,7 +265,7 @@ pub fn canonical_spot_asset_name_v1(asset_id: [u8; 32]) -> String {
     canonical_asset_name(asset_id)
 }
 
-pub(super) fn hash_lane_id(lane_id: &str) -> Result<CommitmentV3, SpotSemanticValueErrorV1> {
+pub fn spot_lane_id_hash_v1(lane_id: &str) -> Result<CommitmentV3, SpotSemanticValueErrorV1> {
     let mut hasher = domain_hasher(LANE_ID_HASH_DOMAIN_V1)?;
     write_str(&mut hasher, lane_id)?;
     hash_to_commitment(hasher)

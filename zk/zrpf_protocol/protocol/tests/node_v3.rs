@@ -185,7 +185,7 @@ fn fully_saturated_eight_by_eight_tree_hits_the_declared_bounds() {
                 partition as u64,
                 partition as u64 + 1,
                 partition as u8 + 1,
-                1,
+                MAX_OPERATIONS_PER_LEAF_V3,
             );
             leaves.push(descriptor(&node, partition as u8 + 100));
         }
@@ -201,8 +201,7 @@ fn fully_saturated_eight_by_eight_tree_hits_the_declared_bounds() {
         MAX_IMMEDIATE_CHILDREN_V3 as u8
     );
     assert_eq!(root.leaf_count(), MAX_LEAF_COUNT_V3);
-    assert_eq!(root.operation_count(), MAX_LEAF_COUNT_V3);
-    assert!(root.operation_count() <= MAX_OPERATIONS_PER_ROOT_V3);
+    assert_eq!(root.operation_count(), MAX_OPERATIONS_PER_ROOT_V3);
     assert_eq!(root.subtree_node_count(), MAX_SUBTREE_NODE_COUNT_V3);
     assert_eq!(root.partition(), PartitionV3::new(0, 64).unwrap());
 }

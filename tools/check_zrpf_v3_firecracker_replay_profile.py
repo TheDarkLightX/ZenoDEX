@@ -24,6 +24,7 @@ support = importlib.import_module(f"{_MODULE_PREFIX}zrpf_v3_replay_evidence_supp
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE_PATH = REPO_ROOT / "config/proof_profiles/zrpf_v3_firecracker_replay_profile_v1.json"
 MAX_PROFILE_BYTES = 64 * 1024
+MAX_PROFILE_JSON_NESTING = 64
 EXPECTED_PROFILE_CANONICAL_SHA256 = (
     "e7ab29b1327cd89dd7180cd45aed9663fdb9234d738f7acb51412bb576c8c88e"
 )
@@ -497,6 +498,7 @@ def _validate_profile_document(
     profile: Any = None
     try:
         raw = _read_bounded_regular(profile_path)
+        _require_bounded_json_nesting(raw)
         profile = support.strict_json_loads(raw)
     except (
         OSError,
@@ -541,8 +543,40 @@ def _validate_profile_document(
     return validation, governed_profile
 
 
-def build_report(*, include_host_probe: bool) -> dict[str, Any]:
-    validation, profile = _validate_profile_document(PROFILE_PATH)
+def _require_bounded_json_nesting(raw: bytes) -> None:
+    """Reject pathological container depth before recursive JSON decoding."""
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for byte in raw:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif byte == ord("\\"):
+                escaped = True
+            elif byte == ord('"'):
+                in_string = False
+            continue
+        if byte == ord('"'):
+            in_string = True
+        elif byte in (ord("["), ord("{")):
+            depth += 1
+            if depth > MAX_PROFILE_JSON_NESTING:
+                raise ValueError("profile JSON nesting exceeds the fixed bound")
+        elif byte in (ord("]"), ord("}")):
+            depth -= 1
+            if depth < 0:
+                raise ValueError("profile JSON container closing is unbalanced")
+
+
+def build_report(
+    *,
+    include_host_probe: bool,
+    profile_path: Path | None = None,
+) -> dict[str, Any]:
+    governed_profile_path = PROFILE_PATH if profile_path is None else profile_path
+    validation, profile = _validate_profile_document(governed_profile_path)
     probe: dict[str, Any] | None = None
     if include_host_probe and profile is not None:
         probe = host_probe.evaluate_host_facts(
@@ -578,13 +612,20 @@ def build_report(*, include_host_probe: bool) -> dict[str, Any]:
     }
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    profile_path: Path | None = None,
+) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--probe-host", action="store_true")
     parser.add_argument("--require-ready", action="store_true")
     arguments = parser.parse_args(argv)
     try:
-        report = build_report(include_host_probe=arguments.probe_host)
+        report = build_report(
+            include_host_probe=arguments.probe_host,
+            profile_path=profile_path,
+        )
     except (OSError, RecursionError, ValueError):
         print("error: Firecracker profile check failed closed", file=sys.stderr)
         return 2

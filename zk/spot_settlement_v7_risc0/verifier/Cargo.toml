@@ -1,0 +1,31 @@
+[package]
+name = "zenodex-zrpf-risc0-spot-settlement-v7-verifier"
+version = "0.1.0"
+edition = "2021"
+description = "Sealed verifier boundary for source-opened Spot settlement V7"
+publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "spot_settlement_v7_proof_verifier"
+path = "src/bin/spot_settlement_v7_proof_verifier.rs"
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.5", features = ["disable-dev-mode"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "=1.0.150"
+sha2 = "0.10.9"
+tau-state-proof-risc0-shared = { path = "../../state_proof_risc0/shared" }
+zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol" }
+zenodex-zrpf-risc0-shared = { path = "../../zrpf_risc0/shared" }
+zenodex-zrpf-risc0-verifier = { path = "../../zrpf_risc0/verifier" }
+zenodex-zrpf-risc0-spot-settlement-v7-child-policy = { path = "../child_policy" }
+zenodex-zrpf-risc0-spot-settlement-v7-methods = { path = "../methods" }
+zenodex-zrpf-risc0-spot-settlement-v7-shared = { path = "../shared" }

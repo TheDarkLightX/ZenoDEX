@@ -95,11 +95,21 @@ jobs:
           python3 tools/check_risc0_dependency_audit.py \
             --output internal/risc0_dependency_audit.json
 
-      - name: Upload RISC0 dependency audit report
+      - name: Enforce clean privileged netns helper dependency audit
+        run: |
+          cargo audit \
+            --file tools/zrpf_firecracker_netns_helper/Cargo.lock \
+            --deny warnings \
+            --json \
+            > internal/zrpf_firecracker_netns_helper_dependency_audit.json
+
+      - name: Upload Rust dependency audit reports
         if: always()
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: risc0-dependency-audit
-          path: internal/risc0_dependency_audit.json
+          path: |
+            internal/risc0_dependency_audit.json
+            internal/zrpf_firecracker_netns_helper_dependency_audit.json
           if-no-files-found: warn
           retention-days: 14

@@ -34,6 +34,7 @@ sealed_executable = importlib.import_module(
 PACKAGE = "zenodex-zrpf-risc0-replay-verifier"
 BINARY = "zenodex-zrpf-risc0-replay-verifier"
 MAX_PROCESS_OUTPUT = 16 * 1024 * 1024
+MAX_FAILURE_DIAGNOSTIC_BYTES = 2 * 1024
 MAX_EVIDENCE_BYTES = 4 * 1024 * 1024
 FORBIDDEN_GRAPH_TOKENS = (
     "bonsai-sdk",
@@ -250,6 +251,7 @@ def verify_source_anchor(repo_root: Path) -> list[str]:
             env=environment.clean_environment(),
             timeout=30,
             profile=process_runner.ProcessProfile.TOOL,
+            phase="source_anchor_tag",
         )
         tree = _run(
             ["git", "show", "-s", "--format=%T", support.SOURCE_COMMIT],
@@ -257,6 +259,7 @@ def verify_source_anchor(repo_root: Path) -> list[str]:
             env=environment.clean_environment(),
             timeout=30,
             profile=process_runner.ProcessProfile.TOOL,
+            phase="source_anchor_tree",
         )
     except RuntimeError:
         return ["source anchor commit is unavailable"]
@@ -407,6 +410,7 @@ def _selected_dependency_graph(context: LiveContext) -> tuple[str, ...]:
         env=context.env,
         timeout=120,
         profile=process_runner.ProcessProfile.BUILD,
+        phase="selected_dependency_graph",
     ).stdout
     dependency_graph = _canonical_dependency_graph(graph, context.source_root)
     graph_text = "\n".join(dependency_graph)
@@ -443,6 +447,7 @@ def _build_and_replay(context: LiveContext, graph: tuple[str, ...]) -> LiveRepla
         env=context.env,
         timeout=600,
         profile=process_runner.ProcessProfile.BUILD,
+        phase="build_replay_verifier",
     )
     _require_snapshot_closure(context.source_root)
     binary = context.target_directory / "release" / BINARY
@@ -454,6 +459,7 @@ def _build_and_replay(context: LiveContext, graph: tuple[str, ...]) -> LiveRepla
             timeout=120,
             profile=process_runner.ProcessProfile.REPLAY,
             pass_fds=executable.pass_fds,
+            phase="replay_normal_environment",
         )
         dev_env = context.env.copy()
         dev_env["RISC0_DEV_MODE"] = "1"
@@ -464,6 +470,7 @@ def _build_and_replay(context: LiveContext, graph: tuple[str, ...]) -> LiveRepla
             timeout=120,
             profile=process_runner.ProcessProfile.REPLAY,
             pass_fds=executable.pass_fds,
+            phase="replay_dev_environment",
         )
         if normal.stderr or dev.stderr or normal.stdout != dev.stdout:
             raise RuntimeError("normal and dev-environment replay outputs differ")
@@ -563,6 +570,7 @@ def _run(
     env: dict[str, str],
     timeout: int,
     profile: Any,
+    phase: str,
     pass_fds: tuple[int, ...] = (),
 ) -> subprocess.CompletedProcess[bytes]:
     process = process_runner.run_bounded(
@@ -577,7 +585,14 @@ def _run(
         )
     )
     if process.returncode != 0:
-        raise RuntimeError("subprocess exit code mismatch")
+        diagnostic = process.stderr or process.stdout
+        tail = diagnostic[-MAX_FAILURE_DIAGNOSTIC_BYTES:].decode(
+            "utf-8", errors="backslashreplace"
+        )
+        raise RuntimeError(
+            "subprocess failed: "
+            f"phase={phase} returncode={process.returncode} diagnostic_tail={tail!r}"
+        )
     return process
 
 

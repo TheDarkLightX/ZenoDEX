@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from pathlib import Path
 
+import pytest
+
+from src.integration.zeno_ledger_profile import sample_zeno_sovereign_testnet_profile_v0
 from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_v0 import hash_v0
 from src.integration.zeno_sdk_browser_bundle_v0 import (
@@ -22,7 +24,6 @@ from tests.test_check_zeno_ledger_light_client_checkpoint import (
 )
 from tools.build_zeno_sdk_browser_bundle import build_browser_bundle_from_files, main
 from tools.zeno_ledger_verify import ZERO_ROOT
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -54,6 +55,21 @@ def test_build_browser_bundle_accepts_verified_light_client_fixture(tmp_path: Pa
     assert bundle["schema"] == BROWSER_CHECKPOINT_BUNDLE_SCHEMA_V0
     assert bundle["capabilities"]["python_bls_quorum_verified"] is True
     assert bundle["capabilities"]["browser_bls_quorum_verified"] is False
+    assert bundle["capabilities"]["proof_authority_satisfied"] is False
+    assert bundle["capabilities"]["proof_authority_capable"] is False
+    assert bundle["capabilities"]["settlement_authority"] is False
+    assert bundle["capabilities"]["production_authority"] is False
+    assert bundle["capabilities"]["python_structural_range_verified"] is True
+    assert bundle["capabilities"]["python_range_replay_verified"] is False
+    assert bundle["capabilities"]["browser_shape_and_hash_available"] is True
+    assert bundle["capabilities"]["browser_shape_and_hash_verified"] is False
+    assert bundle["capabilities"]["browser_header_chain_available"] is True
+    assert bundle["capabilities"]["browser_header_chain_verified"] is False
+    assert bundle["capabilities"]["browser_range_replay_available"] is False
+    assert bundle["capabilities"]["browser_range_replay_verified"] is False
+    assert bundle["verification_summary"]["proof_authority_required"] is False
+    assert bundle["verification_summary"]["proof_authority_satisfied"] is False
+    assert bundle["verification_summary"]["proof_authority_capable"] is False
     assert bundle["verification_summary"]["checkpoint_hash"].startswith("0x")
     validate_browser_checkpoint_bundle_v0(bundle)
 
@@ -171,6 +187,82 @@ def test_browser_bundle_rejects_false_capability_with_recomputed_hash(tmp_path: 
         raise AssertionError("false python BLS capability was accepted")
 
 
+def test_browser_bundle_rejects_forged_proof_authority_capability(tmp_path: Path) -> None:
+    headers_dir, bodies_dir, checkpoints_dir, registry_path, envelope_paths = _write_fixture_files(
+        tmp_path
+    )
+    bundle = build_browser_bundle_from_files(
+        headers_dir=headers_dir,
+        bodies_dir=bodies_dir,
+        checkpoints_dir=checkpoints_dir,
+        registry_path=registry_path,
+        envelope_paths=envelope_paths,
+        from_height=1,
+        to_height=2,
+    )
+    bundle["capabilities"]["proof_authority_satisfied"] = True
+    body = {key: bundle[key] for key in bundle if key != "bundle_hash"}
+    bundle["bundle_hash"] = hash_v0("browser_checkpoint_bundle_v0", body)
+
+    with pytest.raises(ValueError, match="proof_authority_satisfied must be false"):
+        validate_browser_checkpoint_bundle_v0(bundle)
+
+
+def test_browser_bundle_rejects_structural_report_promoted_to_range_replay(
+    tmp_path: Path,
+) -> None:
+    headers_dir, bodies_dir, checkpoints_dir, registry_path, envelope_paths = _write_fixture_files(
+        tmp_path
+    )
+    bundle = build_browser_bundle_from_files(
+        headers_dir=headers_dir,
+        bodies_dir=bodies_dir,
+        checkpoints_dir=checkpoints_dir,
+        registry_path=registry_path,
+        envelope_paths=envelope_paths,
+        from_height=1,
+        to_height=2,
+    )
+    bundle["verification_summary"]["python_range_replay_verified"] = True
+    body = {key: bundle[key] for key in bundle if key != "bundle_hash"}
+    bundle["bundle_hash"] = hash_v0("browser_checkpoint_bundle_v0", body)
+
+    with pytest.raises(ValueError, match="range replay verification must remain false"):
+        validate_browser_checkpoint_bundle_v0(bundle)
+
+
+def test_browser_bundle_rejects_proof_required_profile(tmp_path: Path) -> None:
+    headers_dir, bodies_dir, checkpoints_dir, registry_path, envelope_paths = _write_fixture_files(
+        tmp_path
+    )
+    profile_path = tmp_path / "proof-required-profile.json"
+    _write_json(
+        profile_path,
+        sample_zeno_sovereign_testnet_profile_v0(
+            chain_id="zeno-ledger-light-client-testnet-0",
+            config_digest=hash_v0("light_client_test_root", {"label": "config"}),
+            sequencer_set_hash=hash_v0(
+                "light_client_test_root", {"label": "sequencer-set"}
+            ),
+            token_symbol="tZENO",
+            token_asset_id=hash_v0("light_client_test_root", {"label": "token"}),
+            proof_required=True,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="light client checkpoint verification rejected"):
+        build_browser_bundle_from_files(
+            headers_dir=headers_dir,
+            bodies_dir=bodies_dir,
+            checkpoints_dir=checkpoints_dir,
+            registry_path=registry_path,
+            envelope_paths=envelope_paths,
+            from_height=1,
+            to_height=2,
+            profile_path=profile_path,
+        )
+
+
 def test_wallet_sync_state_rejects_rollback(tmp_path: Path) -> None:
     headers_dir, bodies_dir, checkpoints_dir, registry_path, envelope_paths = _write_fixture_files(tmp_path)
     bundle = build_browser_bundle_from_files(
@@ -275,6 +367,7 @@ def test_build_browser_bundle_cli_writes_bundle(tmp_path: Path, capsys) -> None:
     report = json.loads(capsys.readouterr().out)
     assert code == 0
     assert report["ok"] is True
+    assert report["status"] == "structural_diagnostic_packaged"
     assert out.is_file()
     bundle = json.loads(out.read_text(encoding="utf-8"))
     assert bundle["bundle_hash"] == report["bundle_hash"]

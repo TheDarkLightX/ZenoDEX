@@ -292,9 +292,9 @@
     },
     {
       "id": "proof_required_profile_metadata_and_report_replay",
-      "description": "Proof-required range verification and per-height proof-verification reports prevent metadata-only proof lanes from being accepted as verifier-backed replay.",
+      "description": "Structural diagnostics can check header-bound proof metadata and caller-authored per-height report shape. Replay-bound verification rejects those report inputs before verifier execution, so they cannot satisfy proof authority.",
       "required_for": [
-        "proof_required_path_closure"
+        "proof_report_structural_diagnostics"
       ],
       "coverage_status": "covered_scoped",
       "verifier_mode": "proof_metadata_and_report_replay",
@@ -310,14 +310,18 @@
       ],
       "evidence_paths": [
         "tools/zeno_ledger_verify.py",
-        "tests/integration/test_zeno_ledger_verify_cli.py"
+        "tests/integration/test_zeno_ledger_verify_cli.py",
+        "tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py",
+        "docs/research/ZENO_LEDGER_PROOF_REQUIRED_V0_QUARANTINE_CBC_SPEC_20260713.md"
       ],
       "checker_commands": [
-        "pytest -q tests/integration/test_zeno_ledger_verify_cli.py"
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_verify_cli.py::test_proof_required_profile_structural_mode_only_checks_metadata tests/integration/test_zeno_ledger_verify_cli.py::test_structural_mode_can_check_untrusted_proof_report_shape",
+        "python3 -m pytest -q tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py::test_replay_bound_authority_rejects_caller_authored_report_lane"
       ],
       "limits": [
-        "does not verify zkVM cryptography by itself",
-        "does not count as transition proof coverage"
+        "caller-authored reports do not verify zkVM cryptography",
+        "caller-authored reports do not count as transition proof coverage",
+        "replay-bound proof authority requires a separate opaque authenticated verifier capability"
       ]
     },
     {

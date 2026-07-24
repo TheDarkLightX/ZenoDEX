@@ -43,6 +43,14 @@ def test_pinned_recursive_verifier_cannot_be_subclassed() -> None:
         types.new_class("BypassVerifier", (PinnedRecursiveStarkVerifier,))
 
 
+def test_recursive_adapter_uses_pre_exec_process_contract() -> None:
+    source = Path(verifier_adapter.__file__).read_text(encoding="utf-8")
+
+    assert "execute_pinned_verifier_once" in source
+    assert "resource.prlimit" not in source
+    assert "subprocess.Popen" not in source
+
+
 def _facts_payload() -> dict[str, object]:
     child_claims = (_hash(4), _hash(5))
     receipt_ids = (_hash(6), _hash(7))
@@ -132,6 +140,7 @@ def _write_pinned_verifier(
     response: dict[str, object],
     *,
     require_sanitized_environment: bool = False,
+    require_pre_exec_contract: bool = False,
 ) -> str:
     environment_check = ""
     if require_sanitized_environment:
@@ -144,10 +153,31 @@ def _write_pinned_verifier(
             "    'RISC0_DEV_MODE': '0', 'TZ': 'UTC'\n"
             "}\n"
         )
+    pre_exec_check = ""
+    if require_pre_exec_contract:
+        pre_exec_check = (
+            "import errno, resource, socket\n"
+            "status = open('/proc/self/status', encoding='ascii').read()\n"
+            "assert 'NoNewPrivs:\\t1' in status\n"
+            f"assert resource.getrlimit(resource.RLIMIT_AS) == ({2 * 1024 * 1024 * 1024},) * 2\n"
+            f"assert resource.getrlimit(resource.RLIMIT_STACK) == ({32 * 1024 * 1024},) * 2\n"
+            "assert resource.getrlimit(resource.RLIMIT_CPU) == (61, 61)\n"
+            f"assert resource.getrlimit(resource.RLIMIT_FSIZE) == ({16 * 1024 * 1024},) * 2\n"
+            "assert resource.getrlimit(resource.RLIMIT_NOFILE) == (32, 32)\n"
+            "assert resource.getrlimit(resource.RLIMIT_NPROC) == (1, 1)\n"
+            "for family in (socket.AF_INET, socket.AF_UNIX):\n"
+            "    try:\n"
+            "        socket.socket(family, socket.SOCK_STREAM)\n"
+            "    except OSError as exc:\n"
+            "        assert exc.errno == errno.EPERM\n"
+            "    else:\n"
+            "        raise AssertionError('socket creation unexpectedly succeeded')\n"
+        )
     script = (
         "#!/usr/bin/env python3\n"
         "import json, sys\n"
         f"{environment_check}"
+        f"{pre_exec_check}"
         "json.load(sys.stdin)\n"
         f"print({json.dumps(json.dumps(response, sort_keys=True))})\n"
     )
@@ -259,6 +289,24 @@ def test_pinned_adapter_executes_sealed_snapshot_with_sanitized_environment(
     )
     monkeypatch.setenv("LD_PRELOAD", "/tmp/attacker.so")
     monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/attacker")
+    adapter = _adapter(executable, executable_hash)
+
+    result = adapter.verify_and_admit(
+        state=RecursiveStarkAdmissionState(),
+        proof={"proof_type": "risc0.zenodex_recursive_epoch.v1"},
+        recursive_input={"disclosure": "fixture"},
+    )
+
+    assert result.accepted is True
+
+
+def test_pinned_adapter_observes_pre_exec_security_contract(tmp_path: Path) -> None:
+    executable = tmp_path / "recursive-verifier"
+    executable_hash = _write_pinned_verifier(
+        executable,
+        _response(),
+        require_pre_exec_contract=True,
+    )
     adapter = _adapter(executable, executable_hash)
 
     result = adapter.verify_and_admit(

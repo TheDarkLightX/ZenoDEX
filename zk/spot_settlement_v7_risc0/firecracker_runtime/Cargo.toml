@@ -1,0 +1,61 @@
+[package]
+name = "zenodex-zrpf-spot-v7-firecracker-runtime"
+version = "0.1.0"
+edition = "2021"
+description = "Authority-neutral Spot V7 Firecracker binary protocol and PID-1 mechanics"
+publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = []
+authority-verifier = [
+  "dep:zenodex-zrpf-risc0-spot-settlement-v7-child-policy",
+  "dep:zenodex-zrpf-risc0-spot-settlement-v7-methods",
+  "dep:zenodex-zrpf-risc0-spot-settlement-v7-verifier",
+]
+
+[[bin]]
+name = "zenodex-zrpf-spot-v7-firecracker-protocol-init"
+path = "src/bin/spot_v7_firecracker_protocol_init.rs"
+
+[[bin]]
+name = "zenodex-zrpf-spot-v7-firecracker-authority-init"
+path = "src/bin/spot_v7_firecracker_authority_init.rs"
+required-features = ["authority-verifier"]
+
+[[bin]]
+name = "spot-v7-firecracker-protocol-vector-v1"
+path = "src/bin/protocol_vector_v1.rs"
+
+[[bin]]
+name = "spot-v7-firecracker-negative-vector-v1"
+path = "src/bin/protocol_negative_vector_v1.rs"
+
+[[bin]]
+name = "spot-v7-firecracker-authority-input-vector-v1"
+path = "src/bin/authority_input_vector_v1.rs"
+
+[[test]]
+name = "protocol_v1"
+path = "tests/protocol_v1.rs"
+
+[[test]]
+name = "authority_input_v1"
+path = "tests/authority_input_v1.rs"
+
+[dependencies]
+hex = { version = "=0.4.3", default-features = false, features = ["alloc"] }
+sha2 = { version = "=0.10.9", default-features = false, features = ["std"] }
+zenodex-zrpf-risc0-spot-settlement-v7-child-policy = { path = "../child_policy", optional = true }
+zenodex-zrpf-risc0-spot-settlement-v7-methods = { path = "../methods", optional = true }
+zenodex-zrpf-risc0-spot-settlement-v7-verifier = { path = "../verifier", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "=1.1.4", default-features = false, features = ["fs", "mount", "std", "system"] }

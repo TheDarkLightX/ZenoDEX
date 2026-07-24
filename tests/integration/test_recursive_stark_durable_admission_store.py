@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import src.core.recursive_stark_admission as recursive_stark_admission
 import src.integration._recursive_stark_admission_store_history as admission_history
 import src.integration.recursive_stark_admission_store as admission_store
 from src.core.recursive_stark_admission import (
@@ -103,6 +104,20 @@ def _store(
     tmp_path: Path, name: str = "zrpf-admission.sqlite3"
 ) -> SQLiteRecursiveStarkAdmissionStore:
     return SQLiteRecursiveStarkAdmissionStore(tmp_path / name)
+
+
+def _persistent_replay_index_counts(store: SQLiteRecursiveStarkAdmissionStore) -> tuple[int, ...]:
+    tables = (
+        "zrpf_admissions",
+        "zrpf_child_claims",
+        "zrpf_accepted_receipts",
+        "zrpf_cross_shard_messages",
+    )
+    with sqlite3.connect(store.path) as connection:
+        return tuple(
+            int(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+            for table in tables
+        )
 
 
 def test_store_initializes_private_delete_extra_schema_and_genesis(tmp_path: Path) -> None:
@@ -324,6 +339,89 @@ def test_replay_conflicts_preserve_core_precedence_and_are_database_noops(
     assert store.read_cursor() == committed.head_cursor
 
 
+@pytest.mark.parametrize(
+    (
+        "capacity",
+        "initial_child_ids",
+        "initial_receipt_ids",
+        "initial_message_ids",
+        "candidate_receipt_ids",
+        "candidate_message_ids",
+    ),
+    (
+        (1, (_hash(1_100),), (), (), (), ()),
+        (2, (_hash(1_100), _hash(1_101)), (), (), (), ()),
+        (2, (_hash(1_100),), (_hash(1_200), _hash(1_201)), (), (_hash(2_200),), ()),
+        (2, (_hash(1_100),), (), (_hash(1_300), _hash(1_301)), (), (_hash(2_300),)),
+    ),
+    ids=("root-slot", "child-claim", "receipt", "message"),
+)
+def test_durable_index_capacity_reject_rolls_back_and_retry_can_commit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capacity: int,
+    initial_child_ids: tuple[str, ...],
+    initial_receipt_ids: tuple[str, ...],
+    initial_message_ids: tuple[str, ...],
+    candidate_receipt_ids: tuple[str, ...],
+    candidate_message_ids: tuple[str, ...],
+) -> None:
+    store = _store(tmp_path)
+    first = store._commit_authenticated_recursive_stark_root(
+        expected_cursor=store.read_cursor(),
+        authenticated_root=_authenticated(
+            _facts(
+                root=1,
+                epoch=7,
+                child_ids=initial_child_ids,
+                receipt_ids=initial_receipt_ids,
+                message_ids=initial_message_ids,
+            )
+        ),
+    )
+    before_cursor = first.head_cursor
+    before_counts = _persistent_replay_index_counts(store)
+    candidate = _authenticated(
+        _facts(
+            root=2,
+            epoch=8,
+            child_ids=(_hash(2_100),),
+            receipt_ids=candidate_receipt_ids,
+            message_ids=candidate_message_ids,
+        ),
+        request_byte="66",
+    )
+    production_capacity = recursive_stark_admission.MAX_ADMISSION_INDEX_ENTRIES
+    monkeypatch.setattr(recursive_stark_admission, "MAX_ADMISSION_INDEX_ENTRIES", capacity)
+
+    rejected = store._commit_authenticated_recursive_stark_root(
+        expected_cursor=before_cursor,
+        authenticated_root=candidate,
+    )
+
+    assert rejected.accepted is False
+    assert (
+        rejected.reject_reason
+        is RecursiveStarkAdmissionRejectReason.ADMISSION_INDEX_CAPACITY_EXCEEDED
+    )
+    assert rejected.head_cursor == before_cursor
+    assert store.read_cursor() == before_cursor
+    assert store.get_committed_receipt(_hash(2)) is None
+    assert _persistent_replay_index_counts(store) == before_counts
+
+    monkeypatch.setattr(
+        recursive_stark_admission,
+        "MAX_ADMISSION_INDEX_ENTRIES",
+        production_capacity,
+    )
+    retried = store._commit_authenticated_recursive_stark_root(
+        expected_cursor=before_cursor,
+        authenticated_root=candidate,
+    )
+    assert retried.committed is True
+    assert retried.head_cursor.revision == 2
+
+
 def test_release_unbound_authenticated_value_cannot_enter_durable_store(tmp_path: Path) -> None:
     store = _store(tmp_path)
 
@@ -506,9 +604,7 @@ def test_two_processes_racing_same_root_commit_once_and_recover_one_outcome(
         os.close(write_fd)
     os.write(start_write, b"12")
     os.close(start_write)
-    dispositions = sorted(
-        os.read(read_fd, 64).decode("ascii") for read_fd, _ in result_pipes
-    )
+    dispositions = sorted(os.read(read_fd, 64).decode("ascii") for read_fd, _ in result_pipes)
     for read_fd, _ in result_pipes:
         os.close(read_fd)
     statuses = [os.waitpid(process_id, 0)[1] for process_id in process_ids]

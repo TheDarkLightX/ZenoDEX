@@ -2,7 +2,8 @@
 
 Date: 2026-07-12
 
-Status: implemented protocol nucleus; deterministic local tests only
+Status: implemented protocol nucleus and bounded proof-neutral subtree merge;
+deterministic local tests only
 
 ## Scoped claim
 
@@ -18,7 +19,8 @@ Status: implemented protocol nucleus; deterministic local tests only
   one canonical authorization grant;
 - `EconomicActionBatchV1`, a bounded canonical batch that derives the action,
   authorization, effect, and consumed-object roots required by a later
-  semantic proof.
+  semantic proof. Its subtree merge flattens already-derived action batches and
+  reruns the same global uniqueness rules across their former boundaries.
 
 All three identities exclude proof program or image identity, receipt bytes or
 codec, intent salt, and signature bytes or encoding. Changing only those
@@ -66,6 +68,37 @@ The batch commitment binds its version, derived application and domain, epoch,
 pre-state root, action count, and all six roots. The exact Postcard codec is
 bounded to 524,288 bytes, rejects trailing and noncanonical bytes, and caps its
 sequence visitor before accepting a 65th action.
+
+## Cross-subtree proof-neutral merge
+
+`EconomicActionBatchV1::merge_subtree_batches` accepts validated proof-neutral
+batches for one application, domain, epoch, and pre-state root. It validates
+each input again, bounds the flattened action count to 64 before allocating the
+result, moves every action into one canonical batch, and reruns global checks
+for:
+
+- duplicate canonical economic-action IDs;
+- duplicate action-bound authorization bindings;
+- duplicate grant-and-nonce spend nullifiers;
+- consumed objects repeated across former subtree boundaries.
+
+The positive test proves that merging two distinct one-action batches produces
+the same canonical bytes and commitment as direct construction of the same
+two-action batch. An adversarial test constructs two independently
+self-consistent one-action batches carrying the same canonical action while
+untrusted L1 source-envelope labels differ in partition, program ID, journal
+hash, and receipt encoding. The merge rejects `DuplicateAction`. A second test
+uses distinct actions with one grant-and-nonce spend identity and rejects
+`DuplicateAuthorizationGrantSpend`. Epoch relabeling also rejects before the
+flattened batch is constructed.
+
+These tests exercise deterministic identity and merge logic. They do not use
+or authenticate two proof receipts. Semantic Epoch V2 and Value Aggregate V5
+do not currently disclose a canonical `EconomicActionRecordV1` for each
+descendant. The source-opened Spot V6 settlement profile derives one singleton
+action. A future multi-action settlement guest must verify every exact child
+receipt, derive each action record from authenticated application semantics,
+then call this merge before emitting its settlement certificate.
 
 ## Economic action record
 
@@ -225,11 +258,17 @@ This nucleus does not establish:
 
 - correct derivation of `action_type_id`, `action_semantics_hash`, or
   `effect_commitment` from a ZenoDEX transition;
+- an explicit multi-operation index field in V1. A future multi-operation
+  profile must either derive that index into its authenticated
+  `action_semantics_hash` under a reviewed canonical rule or version the action
+  record to carry it directly;
 - validity, ownership, signature verification, revocation, expiry at admission
   time, quorum, or scope sufficiency of an authorization grant;
 - uniqueness of an authorization grant identifier across a governed registry;
 - authorization or monotonic-counter enforcement of `authorization_nonce`;
 - receipt authentication or binding to a Semantic V2 verified receipt;
+- authenticated derivation and cross-subtree merge of economic actions inside
+  a multi-leaf settlement guest;
 - Python parity for the complete batch and root preimages beyond the shared
   action-binding and grant-spend vectors;
 - Tau, ZenoLedger, or another-language batch parity;

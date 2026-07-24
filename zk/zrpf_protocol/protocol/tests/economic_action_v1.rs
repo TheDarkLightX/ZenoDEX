@@ -29,6 +29,8 @@ const EFFECT_COMMITMENTS_ROOT_DOMAIN_V1: &[u8] =
     b"zenodex.zrpf.economic_effect_commitments_root.v1";
 const CONSUMED_OBJECTS_ROOT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.economic_consumed_objects_root.v1";
 const BATCH_COMMITMENT_DOMAIN_V1: &[u8] = b"zenodex.zrpf.economic_action_batch.v1";
+const BASELINE_TEST_NONCE_LABEL: &[u8] = b"base-action-nonce";
+const DISTINCT_TEST_NONCE_LABEL: &[u8] = b"first-action-nonce";
 
 fn commitment(seed: u8) -> CommitmentV3 {
     CommitmentV3::new([seed.max(1); 32]).unwrap()
@@ -38,6 +40,10 @@ fn indexed_commitment(index: usize) -> CommitmentV3 {
     let mut bytes = [91; 32];
     bytes[28..].copy_from_slice(&(index as u32 + 1).to_be_bytes());
     CommitmentV3::new(bytes).unwrap()
+}
+
+fn deterministic_test_nonce(label: &[u8]) -> u64 {
+    u64::try_from(label.len()).unwrap()
 }
 
 fn base_input(consumed_object_ids: Vec<CommitmentV3>) -> EconomicActionRecordInputV1 {
@@ -337,6 +343,123 @@ fn proof_receipt_salt_and_signature_representations_do_not_change_identity() {
     let second = derive_ignoring_representation(&record, grant_id, representations[1]);
 
     assert_eq!(first, second);
+}
+
+#[derive(Clone)]
+struct UntrustedL1SourceEncodingFixture {
+    partition_start: u32,
+    source_program_id: [u8; 32],
+    source_journal_hash: [u8; 32],
+    receipt_encoding: &'static str,
+    action: AuthorizedEconomicActionV1,
+}
+
+#[test]
+fn cross_l1_source_reencoding_of_one_action_rejects_at_the_canonical_batch_boundary() {
+    let canonical_action = authorized_action(
+        record(vec![indexed_commitment(0), indexed_commitment(1)]),
+        9,
+    );
+    let left = UntrustedL1SourceEncodingFixture {
+        partition_start: 0,
+        source_program_id: [61; 32],
+        source_journal_hash: [62; 32],
+        receipt_encoding: "risc0-succinct-postcard",
+        action: canonical_action.clone(),
+    };
+    let right = UntrustedL1SourceEncodingFixture {
+        partition_start: 1,
+        source_program_id: [71; 32],
+        source_journal_hash: [72; 32],
+        receipt_encoding: "independent-backend-envelope",
+        action: canonical_action,
+    };
+
+    assert_ne!(left.partition_start, right.partition_start);
+    assert_ne!(left.source_program_id, right.source_program_id);
+    assert_ne!(left.source_journal_hash, right.source_journal_hash);
+    assert_ne!(left.receipt_encoding, right.receipt_encoding);
+    assert_eq!(
+        left.action.action_id().unwrap(),
+        right.action.action_id().unwrap()
+    );
+
+    let left_batch = EconomicActionBatchV1::new(25, commitment(6), vec![left.action]).unwrap();
+    let right_batch = EconomicActionBatchV1::new(25, commitment(6), vec![right.action]).unwrap();
+    left_batch.validate_self_consistency().unwrap();
+    right_batch.validate_self_consistency().unwrap();
+
+    assert_eq!(
+        EconomicActionBatchV1::merge_subtree_batches(vec![left_batch, right_batch]).unwrap_err(),
+        EconomicActionBatchErrorV1::DuplicateAction
+    );
+}
+
+#[test]
+fn cross_l1_distinct_actions_reusing_one_grant_nonce_reject_at_the_nullifier_boundary() {
+    let shared_nonce = deterministic_test_nonce(BASELINE_TEST_NONCE_LABEL);
+    let left_action = authorized_action(varied_record(shared_nonce, 7, 8, Vec::new()), 9);
+    let right_action = authorized_action(varied_record(shared_nonce, 10, 11, Vec::new()), 9);
+    assert_ne!(
+        left_action.action_id().unwrap(),
+        right_action.action_id().unwrap()
+    );
+    assert_eq!(
+        left_action.authorization_grant_spend().unwrap(),
+        right_action.authorization_grant_spend().unwrap()
+    );
+
+    let left_batch = EconomicActionBatchV1::new(25, commitment(6), vec![left_action]).unwrap();
+    let right_batch = EconomicActionBatchV1::new(25, commitment(6), vec![right_action]).unwrap();
+
+    assert_eq!(
+        EconomicActionBatchV1::merge_subtree_batches(vec![left_batch, right_batch]).unwrap_err(),
+        EconomicActionBatchErrorV1::DuplicateAuthorizationGrantSpend
+    );
+}
+
+#[test]
+fn subtree_batch_merge_matches_direct_canonical_construction() {
+    let first_nonce = deterministic_test_nonce(BASELINE_TEST_NONCE_LABEL);
+    let second_nonce = deterministic_test_nonce(DISTINCT_TEST_NONCE_LABEL);
+    assert_ne!(first_nonce, second_nonce);
+    let first = authorized_action(
+        varied_record(first_nonce, 7, 8, vec![indexed_commitment(0)]),
+        9,
+    );
+    let second = authorized_action(
+        varied_record(second_nonce, 10, 11, vec![indexed_commitment(1)]),
+        10,
+    );
+    let expected =
+        EconomicActionBatchV1::new(25, commitment(6), vec![first.clone(), second.clone()]).unwrap();
+    let merged = EconomicActionBatchV1::merge_subtree_batches(vec![
+        EconomicActionBatchV1::new(25, commitment(6), vec![second]).unwrap(),
+        EconomicActionBatchV1::new(25, commitment(6), vec![first]).unwrap(),
+    ])
+    .unwrap();
+
+    assert_eq!(merged, expected);
+    assert_eq!(
+        merged.canonical_commitment().unwrap(),
+        expected.canonical_commitment().unwrap()
+    );
+}
+
+#[test]
+fn subtree_batch_merge_rejects_epoch_relabeling() {
+    let first_nonce = deterministic_test_nonce(BASELINE_TEST_NONCE_LABEL);
+    let second_nonce = deterministic_test_nonce(DISTINCT_TEST_NONCE_LABEL);
+    assert_ne!(first_nonce, second_nonce);
+    let first = authorized_action(varied_record(first_nonce, 7, 8, Vec::new()), 9);
+    let second = authorized_action(varied_record(second_nonce, 10, 11, Vec::new()), 10);
+    let first_batch = EconomicActionBatchV1::new(25, commitment(6), vec![first]).unwrap();
+    let second_batch = EconomicActionBatchV1::new(26, commitment(6), vec![second]).unwrap();
+
+    assert_eq!(
+        EconomicActionBatchV1::merge_subtree_batches(vec![first_batch, second_batch]).unwrap_err(),
+        EconomicActionBatchErrorV1::SubtreeEpochMismatch
+    );
 }
 
 #[test]
@@ -707,8 +830,17 @@ fn json_wire_rejects_unknown_fields_and_duplicate_consumed_objects() {
 
 #[test]
 fn action_batch_is_order_independent_and_commits_every_replay_identity() {
-    let first = authorized_action(varied_record(17, 7, 8, vec![indexed_commitment(0)]), 9);
-    let second = authorized_action(varied_record(18, 10, 11, vec![indexed_commitment(1)]), 9);
+    let first_nonce = deterministic_test_nonce(BASELINE_TEST_NONCE_LABEL);
+    let second_nonce = deterministic_test_nonce(DISTINCT_TEST_NONCE_LABEL);
+    assert_ne!(first_nonce, second_nonce);
+    let first = authorized_action(
+        varied_record(first_nonce, 7, 8, vec![indexed_commitment(0)]),
+        9,
+    );
+    let second = authorized_action(
+        varied_record(second_nonce, 10, 11, vec![indexed_commitment(1)]),
+        9,
+    );
     let forward =
         EconomicActionBatchV1::new(25, commitment(6), vec![first.clone(), second.clone()]).unwrap();
     let reverse = EconomicActionBatchV1::new(25, commitment(6), vec![second, first]).unwrap();
@@ -808,8 +940,9 @@ fn action_batch_roots_match_independent_preimage_reconstruction() {
 
 #[test]
 fn action_batch_rejects_grant_nonce_alias_across_distinct_actions() {
-    let first = authorized_action(varied_record(17, 7, 8, Vec::new()), 9);
-    let second = authorized_action(varied_record(17, 10, 11, Vec::new()), 9);
+    let shared_nonce = deterministic_test_nonce(BASELINE_TEST_NONCE_LABEL);
+    let first = authorized_action(varied_record(shared_nonce, 7, 8, Vec::new()), 9);
+    let second = authorized_action(varied_record(shared_nonce, 10, 11, Vec::new()), 9);
     assert_ne!(first.action_id().unwrap(), second.action_id().unwrap());
     assert_eq!(
         first.authorization_grant_spend().unwrap(),

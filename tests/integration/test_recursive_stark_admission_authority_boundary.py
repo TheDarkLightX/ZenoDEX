@@ -3,6 +3,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 PRODUCTION_ROOTS = tuple(ROOT / name for name in ("src", "tools", "bin", "scripts"))
 PRODUCTION_FILES = (ROOT / "sitecustomize.py",)
@@ -12,7 +14,81 @@ DURABLE_STORE = ROOT / "src/integration/recursive_stark_admission_store.py"
 DURABLE_ENGINE = ROOT / "src/integration/_recursive_stark_admission_store_engine.py"
 DURABLE_HASHES = ROOT / "src/integration/_recursive_stark_admission_store_hashes.py"
 SETTLEMENT_AUTHORITY = ROOT / "src/core/_zrpf_settlement_commit_authority.py"
-
+SETTLEMENT_CERTIFICATE_AUTHORITY = ROOT / "src/core/_zrpf_settlement_certificate_authority.py"
+SETTLEMENT_VERIFIER_ADAPTER = ROOT / "src/integration/zrpf_settlement_verifier_adapter.py"
+SOURCE_OPENED_V6_VERIFIER_ADAPTER = (
+    ROOT / "src/integration/zrpf_source_opened_spot_v6_verifier_adapter.py"
+)
+SPOT_V7_FIRECRACKER_AUTHORITY = ROOT / "src/integration/_zrpf_spot_v7_firecracker_authority.py"
+SPOT_V7_FIRECRACKER_OUTPUT = ROOT / "src/integration/_zrpf_spot_v7_firecracker_output.py"
+SPOT_V7_FIRECRACKER_EXECUTION_BINDING = (
+    ROOT / "src/integration/_zrpf_spot_v7_firecracker_execution_binding.py"
+)
+SPOT_V7_SETTLEMENT_ENVELOPE_CODEC = (
+    ROOT / "src/integration/_zrpf_spot_v7_settlement_envelope_codec.py"
+)
+SPOT_V7_SETTLEMENT_ENVELOPE_REPLAY = (
+    ROOT / "src/integration/_zrpf_spot_v7_settlement_envelope_replay.py"
+)
+SPOT_V7_OPERATIONAL_GATE = ROOT / "src/integration/_zrpf_spot_v7_operational_gate.py"
+SPOT_V7_OPERATIONAL_CAPABILITY_V2 = (
+    ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v2.py"
+)
+SPOT_V7_OPERATIONAL_POLICY_PROVENANCE = (
+    ROOT / "src/integration/zrpf_spot_v7_operational_policy_provenance.py"
+)
+SPOT_V7_OPERATIONAL_POLICY_V3 = ROOT / "src/integration/_zrpf_spot_v7_operational_policy_v3.py"
+SPOT_V7_OPERATIONAL_POLICY_PROVENANCE_V2 = (
+    ROOT / "src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py"
+)
+SPOT_V7_LAGGED_CHECKPOINT_BEACON = ROOT / "src/integration/zrpf_spot_v7_lagged_checkpoint_beacon.py"
+SPOT_V7_OPERATIONAL_POLICY_STORE = (
+    ROOT / "src/integration/_zrpf_spot_v7_operational_policy_store.py"
+)
+SPOT_V7_OPERATIONAL_STORE = ROOT / "src/integration/_zrpf_spot_v7_operational_store.py"
+SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER = (
+    ROOT / "src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py"
+)
+SPOT_V7_CHECKPOINT_FINALITY_CHECKER_ADAPTER = (
+    ROOT / "src/integration/zrpf_spot_v7_checkpoint_finality_checker_adapter.py"
+)
+SAMPLED_RETRIEVABILITY_VERIFIER = (
+    ROOT / "src/integration/zrpf_sampled_retrievability_v1/verifier.py"
+)
+SPOT_V7_GOVERNED_DA_PREREQUISITE = ROOT / "src/integration/zrpf_spot_v7_governed_da_prerequisite.py"
+SPOT_V7_GOVERNED_DA_PREREQUISITE_V2 = (
+    ROOT / "src/integration/zrpf_spot_v7_governed_da_prerequisite_v2.py"
+)
+SPOT_V7_LONGITUDINAL_RETRIEVABILITY = (
+    ROOT / "src/integration/zrpf_spot_v7_longitudinal_retrievability.py"
+)
+SPOT_V7_FINALIZED_DA_RESPONSE_INCLUSION = (
+    ROOT / "src/integration/zrpf_spot_v7_finalized_da_response_inclusion.py"
+)
+SPOT_V7_PINNED_PROOF_OBSERVATION = ROOT / "src/integration/_zrpf_spot_v7_authenticated_proof_v1.py"
+SPOT_V7_OPERATIONAL_CAPABILITY_V3 = (
+    ROOT / "src/integration/_zrpf_spot_v7_operational_capability_v3.py"
+)
+SPOT_V7_ATOMIC_SCHEMA_V4 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_schema_v4.py"
+SPOT_V7_ATOMIC_RECORDS_V4 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_records_v4.py"
+SPOT_V7_ATOMIC_HISTORY_V4 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_history_v4.py"
+SPOT_V7_ATOMIC_EVIDENCE_V4 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_evidence_v4.py"
+SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4 = (
+    ROOT / "src/integration/zrpf_spot_v7_atomic_operational_store_v4.py"
+)
+SPOT_V7_ATOMIC_ENGINE_V5 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_engine_v5.py"
+SPOT_V7_ATOMIC_HISTORY_V5 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_history_v5.py"
+SPOT_V7_ATOMIC_SCHEMA_V5 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_schema_v5.py"
+SPOT_V7_ATOMIC_OPERATIONAL_STORE_V5 = (
+    ROOT / "src/integration/zrpf_spot_v7_atomic_operational_store_v5.py"
+)
+SPOT_V7_ATOMIC_ENGINE_V6 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_engine_v6.py"
+SPOT_V7_ATOMIC_HISTORY_V6 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_history_v6.py"
+SPOT_V7_ATOMIC_SCHEMA_V6 = ROOT / "src/integration/_zrpf_spot_v7_atomic_settlement_schema_v6.py"
+SPOT_V7_ATOMIC_OPERATIONAL_STORE_V6 = (
+    ROOT / "src/integration/zrpf_spot_v7_atomic_operational_store_v6.py"
+)
+SPOT_V7_ATOMIC_STORE = ROOT / "src/integration/zrpf_spot_v7_atomic_settlement_store.py"
 PRIVATE_CAPABILITY_TYPE = "_AuthenticatedRecursiveStarkRootFacts"
 PRIVATE_SEAL = "_AUTHENTICATED_FACTS_SEAL"
 PRIVATE_MINT = "_mint_recursive_stark_root_facts_after_verification"
@@ -21,6 +97,228 @@ PRIVATE_PROVENANCE = "_RecursiveStarkVerificationProvenance"
 PRIVATE_SNAPSHOT = "_RecursiveStarkAdmissionIndexSnapshot"
 PRIVATE_PLANNER = "_plan_authenticated_recursive_stark_root"
 PRIVATE_DURABLE_COMMIT = "_commit_authenticated_recursive_stark_root"
+PRIVATE_SOURCE_OPENED_V6_SEAL = "_seal_verified_result"
+PRIVATE_FIRECRACKER_AUTHORITY_NAMES = frozenset(
+    {
+        "_GovernedRuntimeSealV1",
+        "_GovernedBinderSealV1",
+        "_GOVERNED_RUNTIME_SEAL_V1",
+        "_GOVERNED_BINDER_SEAL_V1",
+        "_GovernedJailedFirecrackerExecutionV1",
+        "_GovernedFirecrackerSpotV7SettlementV1",
+        "_bind_governed_firecracker_spot_v7_settlement_v1",
+        "_require_governed_firecracker_spot_v7_authority_available_v1",
+        "_commit_governed_firecracker_capability",
+        "_candidate_for_binder",
+        "_candidate_for_atomic_store",
+        "_DecodedCommittedSpotV7OutputV1",
+        "_BoundCommittedSpotV7CandidateV1",
+        "_decode_exact_committed_spot_v7_output_v1",
+        "_bind_decoded_spot_v7_output_to_candidate_v1",
+        "_revalidate_bound_spot_v7_candidate_v1",
+    }
+)
+PRIVATE_OPERATIONAL_POLICY_MINT_NAMES = frozenset(
+    {
+        "_GovernedOperationalPolicyMaterialV2",
+        "_GOVERNED_OPERATIONAL_POLICY_SEAL_V2",
+    }
+)
+PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES = frozenset(
+    {
+        "_AuthenticatedSpotV7OperationalPolicyReleasePinsV1",
+        "_AUTHENTICATED_OPERATIONAL_POLICY_RELEASE_PINS_SEAL_V1",
+        "load_governed_spot_v7_operational_policy_v2",
+    }
+)
+PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES = frozenset({"_GovernedOperationalPolicyProvenanceV1"})
+PRIVATE_OPERATIONAL_POLICY_V3_NAMES = frozenset(
+    {
+        "_GovernedOperationalPolicyMaterialV3",
+        "_GovernedOperationalPolicyProvenanceV2",
+        "_GovernedOperationalPolicySealV3",
+        "_GOVERNED_OPERATIONAL_POLICY_SEAL_V3",
+        "_GovernedSpotV7OperationalPolicyV3",
+        "_mint_governed_spot_v7_operational_policy_v3",
+        "_require_governed_operational_policy_v3",
+    }
+)
+PRIVATE_OPERATIONAL_POLICY_V3_RELEASE_HANDOFF_NAMES = frozenset(
+    {
+        "_AuthenticatedOperationalPolicyReleasePinsSealV2",
+        "_AUTHENTICATED_OPERATIONAL_POLICY_RELEASE_PINS_SEAL_V2",
+        "_AuthenticatedSpotV7OperationalPolicyReleasePinsV2",
+        "load_governed_spot_v7_operational_policy_v3",
+    }
+)
+PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES = frozenset(
+    {
+        "_GovernedLaggedCheckpointBeaconSealV1",
+        "_GOVERNED_LAGGED_CHECKPOINT_BEACON_SEAL_V1",
+        "_GovernedSpotV7LaggedCheckpointBeaconV1",
+        "_require_governed_lagged_checkpoint_beacon_v1",
+    }
+)
+PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES = frozenset(
+    {
+        "_AuthenticatedEvidenceSealV1",
+        "_AUTHENTICATED_EVIDENCE_SEAL_V1",
+        "_AuthenticatedSampledRetrievabilityEvidenceV1",
+        "_projection_for_spot_v7_da_prerequisite_v1",
+    }
+)
+PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES = frozenset(
+    {
+        "_GovernedSpotV7DataAvailabilityPrerequisiteSealV1",
+        "_GOVERNED_SPOT_V7_DA_PREREQUISITE_SEAL_V1",
+        "_GovernedSpotV7DataAvailabilityPrerequisiteV1",
+        "_bind_governed_spot_v7_da_prerequisite_v1",
+        "_require_authenticated_sampled_response_v1",
+        "_projection_for_downstream_binding_v1",
+    }
+)
+PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES = frozenset(
+    {
+        "_GovernedSampledResponseSealV1",
+        "_GOVERNED_SAMPLED_RESPONSE_SEAL_V1",
+        "_GovernedSpotV7SampledResponseV1",
+        "_bind_governed_spot_v7_sampled_response_v1",
+        "_require_governed_sampled_response",
+        "_GovernedDaPrerequisiteSealV2",
+        "_GOVERNED_DA_PREREQUISITE_SEAL_V2",
+        "_GovernedSpotV7DataAvailabilityPrerequisiteV2",
+        "_bind_governed_spot_v7_da_prerequisite_v2",
+        "_projection_for_downstream_binding_v2",
+    }
+)
+PRIVATE_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_NAMES = frozenset(
+    {
+        "_SpotV7LongitudinalRetrievabilityProjectionV1",
+        "_GovernedSpotV7LongitudinalRetrievabilitySealV1",
+        "_GOVERNED_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_SEAL_V1",
+        "_GovernedSpotV7LongitudinalRetrievabilityV1",
+        "_bind_bounded_spot_v7_longitudinal_retrievability_v1",
+        "_projection_for_longitudinal_downstream_binding_v1",
+    }
+)
+PRIVATE_SPOT_V7_FINALIZED_DA_RESPONSE_INCLUSION_NAMES = frozenset(
+    {
+        "_FinalizedSampledResponseInclusionProjectionV1",
+        "_FinalizedSampledResponseInclusionSealV1",
+        "_FINALIZED_SAMPLED_RESPONSE_INCLUSION_SEAL_V1",
+        "_AuthenticatedFinalizedSampledResponseInclusionV1",
+        "_projection_for_da_store_v5",
+    }
+)
+PRIVATE_SPOT_V7_PINNED_PROOF_OBSERVATION_NAMES = frozenset(
+    {
+        "_PinnedSpotV7ProofProjectionDataV1",
+        "_PinnedSpotV7SemanticProofObservationSealV1",
+        "_PINNED_SPOT_V7_SEMANTIC_PROOF_OBSERVATION_SEAL_V1",
+        "_PinnedSpotV7SemanticProofObservationV1",
+    }
+)
+PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES = frozenset(
+    {
+        "_AuthenticatedCheckpointFinalityProjectionV3",
+        "_AuthenticatedCheckpointFinalitySealV3",
+        "_AUTHENTICATED_CHECKPOINT_FINALITY_SEAL_V3",
+        "_AuthenticatedExactCheckpointFinalityTransitionV3",
+        "_derive_exact_finality_capability_v3",
+    }
+)
+PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_AUTHORITY_NAMES = frozenset(
+    {
+        "_CheckpointFinalityCheckerInvocationEvidenceV1",
+        "_CheckpointFinalityCheckerInvocationArtifactsV1",
+        "_CrossCheckedAuthenticatedCheckpointFinalityTransitionV1",
+        "_finality_for_operational_join_v3",
+        "_invocation_artifacts_for_operational_join_v3",
+        "_revalidate_cross_checked_transition_v1",
+    }
+)
+PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_CONSUMER_NAMES = frozenset(
+    {
+        "_CheckpointFinalityCheckerInvocationArtifactsV1",
+        "_CrossCheckedAuthenticatedCheckpointFinalityTransitionV1",
+        "_finality_for_operational_join_v3",
+        "_invocation_artifacts_for_operational_join_v3",
+    }
+)
+PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES = frozenset(
+    {
+        "_SpotV7OperationalCommitPacketV3",
+        "_SpotV7AtomicEconomicCommitSealV3",
+        "_SPOT_V7_ATOMIC_ECONOMIC_COMMIT_SEAL_V3",
+        "_NonTransferableSpotV7AtomicOperationalCapabilityV3",
+        "_SpotV7AtomicEconomicCommitCapabilityV3",
+        "_bind_spot_v7_operational_commit_capability_v3",
+        "_require_finality_v3",
+        "_build_operational_commit_packet_v3",
+        "_packet_for_atomic_store_v4",
+        "_commit_operational_capability_v3",
+    }
+)
+PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES = frozenset(
+    {
+        "_ResolvedSpotV7SettlementEntryV4",
+        "_ResolvedSpotV7OperationalHistoryV4",
+        "_resolve_operational_history_outside_transaction_v4",
+        "_empty_resolved_operational_history_locked_v4",
+        "_append_resolved_operational_history_v4",
+    }
+)
+PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES = frozenset(
+    {
+        "_SpotV7DormantAuthorityProvenanceV5",
+        "_SpotV7DormantAuthorityPacketV5",
+        "_DormantSpotV7AuthorityPrerequisiteSealV5",
+        "_DORMANT_SPOT_V7_AUTHORITY_PREREQUISITE_SEAL_V5",
+        "_NonTransferableDormantSpotV7AuthorityPrerequisitesV5",
+        "_DormantSpotV7AuthorityPrerequisitesV5",
+        "_seal_test_only_dormant_spot_v7_authority_prerequisites_v5",
+        "_require_fresh_governed_release_and_runtime_evidence_v5",
+        "_persist_authority_provenance_v5",
+        "_validate_authority_provenance_row_v5",
+    }
+)
+PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES = frozenset(
+    {
+        "_ResolvedSpotV7AuthorityEntryV5",
+        "_ResolvedSpotV7OperationalHistoryV5",
+        "_resolve_operational_history_outside_transaction_v5",
+        "_empty_resolved_operational_history_locked_v5",
+        "_append_resolved_operational_history_v5",
+    }
+)
+PRIVATE_SPOT_V7_FINALITY_INVOCATION_V6_AUTHORITY_NAMES = frozenset(
+    {
+        "_finality_invocation_v6_reject_reason_locked",
+        "_persist_finality_invocation_v6",
+        "_stored_finality_invocation_matches_v6",
+        "_validate_finality_invocation_row_v6",
+        "_stored_invocation_artifacts_v6",
+        "_invocation_artifacts_for_packet_v6",
+        "_checker_input_from_packet_v6",
+        "_checker_policy_v6",
+        "_checker_binding_v6",
+    }
+)
+PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V6_AUTHORITY_NAMES = frozenset(
+    {
+        "_SpotV7OperationalHistoryChangedV6",
+        "_SpotV7OperationalHistoryAnchorV6",
+        "_ResolvedSpotV7OperationalHistoryV6",
+        "_capture_operational_history_anchor_locked_v6",
+        "_resolve_operational_history_outside_transaction_v6",
+        "_empty_resolved_operational_history_locked_v6",
+        "_append_resolved_operational_history_v6",
+        "_validate_complete_spot_v7_operational_history_v6",
+    }
+)
+PRIVATE_SPOT_V7_OPERATIONAL_STORE_V6_AUTHORITY_NAMES = frozenset(
+    {"_commit_authority_prerequisites_v6"}
+)
 PRIVATE_AUTHORITY_NAMES = frozenset(
     {
         PRIVATE_CAPABILITY_TYPE,
@@ -31,6 +329,32 @@ PRIVATE_AUTHORITY_NAMES = frozenset(
         PRIVATE_SNAPSHOT,
         PRIVATE_PLANNER,
     }
+)
+PROTECTED_AUTHORITY_NAMES = (
+    PRIVATE_AUTHORITY_NAMES
+    | frozenset({PRIVATE_SOURCE_OPENED_V6_SEAL})
+    | PRIVATE_FIRECRACKER_AUTHORITY_NAMES
+    | PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
+    | PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
+    | PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES
+    | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+    | PRIVATE_OPERATIONAL_POLICY_V3_RELEASE_HANDOFF_NAMES
+    | PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES
+    | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_NAMES
+    | PRIVATE_SPOT_V7_FINALIZED_DA_RESPONSE_INCLUSION_NAMES
+    | PRIVATE_SPOT_V7_PINNED_PROOF_OBSERVATION_NAMES
+    | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+    | PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+    | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_FINALITY_INVOCATION_V6_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V6_AUTHORITY_NAMES
+    | PRIVATE_SPOT_V7_OPERATIONAL_STORE_V6_AUTHORITY_NAMES
 )
 PRIVATE_ADAPTER_IMPORTS = frozenset(
     {
@@ -44,6 +368,30 @@ PRIVATE_STORE_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE, PRIVATE_PLANNER})
 PRIVATE_ENGINE_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE, PRIVATE_SNAPSHOT})
 PRIVATE_HASH_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE})
 PRIVATE_SETTLEMENT_AUTHORITY_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE})
+PRIVATE_SETTLEMENT_CERTIFICATE_IMPORTS = frozenset({PRIVATE_CAPABILITY_TYPE})
+PRIVATE_SETTLEMENT_VERIFIER_IMPORTS = frozenset({PRIVATE_MINT, PRIVATE_PROVENANCE})
+PRIVATE_SOURCE_OPENED_V6_REFERENCES = PRIVATE_SETTLEMENT_VERIFIER_IMPORTS | frozenset(
+    {PRIVATE_SOURCE_OPENED_V6_SEAL}
+)
+PRIVATE_FIRECRACKER_STORE_REFERENCES = frozenset(
+    {
+        "_GovernedFirecrackerSpotV7SettlementV1",
+        "_require_governed_firecracker_spot_v7_authority_available_v1",
+    }
+)
+PRIVATE_FIRECRACKER_EXECUTION_BINDING_REFERENCES = frozenset(
+    {
+        "_BoundCommittedSpotV7CandidateV1",
+        "_bind_decoded_spot_v7_output_to_candidate_v1",
+        "_decode_exact_committed_spot_v7_output_v1",
+    }
+)
+PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES = frozenset(
+    {
+        "_GovernedFirecrackerSpotV7SettlementV1",
+        "_candidate_for_atomic_store",
+    }
+)
 RETIRED_PUBLIC_AUTHORITY_NAMES = frozenset(
     {
         "VerifiedRecursiveStarkRootFacts",
@@ -57,7 +405,7 @@ DATA_ONLY_ADMISSION_RESULT = "RecursiveStarkAdmissionResult"
 def test_private_admission_symbols_are_absent_from_other_production_modules() -> None:
     violations: list[str] = []
     for path in _production_python_paths():
-        if path == CORE:
+        if path in {CORE, SPOT_V7_FIRECRACKER_AUTHORITY, SPOT_V7_FIRECRACKER_OUTPUT}:
             continue
         allowed = {
             PINNED_ADAPTER: PRIVATE_ADAPTER_IMPORTS,
@@ -65,6 +413,129 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
             DURABLE_ENGINE: PRIVATE_ENGINE_IMPORTS,
             DURABLE_HASHES: PRIVATE_HASH_IMPORTS,
             SETTLEMENT_AUTHORITY: PRIVATE_SETTLEMENT_AUTHORITY_IMPORTS,
+            SETTLEMENT_CERTIFICATE_AUTHORITY: PRIVATE_SETTLEMENT_CERTIFICATE_IMPORTS,
+            SETTLEMENT_VERIFIER_ADAPTER: PRIVATE_SETTLEMENT_VERIFIER_IMPORTS,
+            SOURCE_OPENED_V6_VERIFIER_ADAPTER: PRIVATE_SOURCE_OPENED_V6_REFERENCES,
+            SPOT_V7_ATOMIC_STORE: PRIVATE_FIRECRACKER_STORE_REFERENCES,
+            SPOT_V7_FIRECRACKER_EXECUTION_BINDING: (
+                PRIVATE_FIRECRACKER_EXECUTION_BINDING_REFERENCES
+            ),
+            SPOT_V7_SETTLEMENT_ENVELOPE_CODEC: (PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES),
+            SPOT_V7_SETTLEMENT_ENVELOPE_REPLAY: (PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES),
+            SPOT_V7_OPERATIONAL_GATE: PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES,
+            SPOT_V7_OPERATIONAL_CAPABILITY_V2: (
+                PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+                | PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
+                | PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
+            ),
+            SPOT_V7_OPERATIONAL_POLICY_PROVENANCE: (
+                PRIVATE_OPERATIONAL_POLICY_MINT_NAMES
+                | PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
+                | PRIVATE_OPERATIONAL_POLICY_RELEASE_HANDOFF_NAMES
+            ),
+            SPOT_V7_OPERATIONAL_POLICY_V3: (
+                PRIVATE_OPERATIONAL_POLICY_MINT_NAMES | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+            ),
+            SPOT_V7_OPERATIONAL_POLICY_PROVENANCE_V2: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_OPERATIONAL_POLICY_V3_RELEASE_HANDOFF_NAMES
+            ),
+            SPOT_V7_LAGGED_CHECKPOINT_BEACON: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES | PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES
+            ),
+            SPOT_V7_OPERATIONAL_POLICY_STORE: (PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES),
+            SPOT_V7_OPERATIONAL_STORE: PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES,
+            SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER: (
+                PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+                | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+            ),
+            SPOT_V7_CHECKPOINT_FINALITY_CHECKER_ADAPTER: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_AUTHORITY_NAMES
+            ),
+            SAMPLED_RETRIEVABILITY_VERIFIER: (PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES),
+            SPOT_V7_GOVERNED_DA_PREREQUISITE: (
+                PRIVATE_OPERATIONAL_POLICY_PROVENANCE_NAMES
+                | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_GOVERNED_DA_AUTHORITY_NAMES
+            ),
+            SPOT_V7_GOVERNED_DA_PREREQUISITE_V2: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_LAGGED_CHECKPOINT_BEACON_NAMES
+                | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
+            ),
+            SPOT_V7_LONGITUDINAL_RETRIEVABILITY: (
+                PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_LONGITUDINAL_RETRIEVABILITY_NAMES
+            ),
+            SPOT_V7_FINALIZED_DA_RESPONSE_INCLUSION: (
+                PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_FINALIZED_DA_RESPONSE_INCLUSION_NAMES
+            ),
+            SPOT_V7_PINNED_PROOF_OBSERVATION: (PRIVATE_SPOT_V7_PINNED_PROOF_OBSERVATION_NAMES),
+            SPOT_V7_OPERATIONAL_CAPABILITY_V3: (
+                PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+                | PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_GOVERNED_DA_V2_AUTHORITY_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_CONSUMER_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_SCHEMA_V4: PRIVATE_OPERATIONAL_POLICY_V3_NAMES,
+            SPOT_V7_ATOMIC_RECORDS_V4: (PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES),
+            SPOT_V7_ATOMIC_HISTORY_V4: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_FIRECRACKER_OPERATIONAL_REFERENCES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_EVIDENCE_V4: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES | PRIVATE_SAMPLED_RETRIEVABILITY_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_ENGINE_V5: (
+                PRIVATE_SPOT_V7_OPERATIONAL_V3_AUTHORITY_NAMES | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+            ),
+            SPOT_V7_ATOMIC_HISTORY_V5: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V4_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_SCHEMA_V5: PRIVATE_OPERATIONAL_POLICY_V3_NAMES,
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V5: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_ENGINE_V6: (
+                PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_V3_AUTHORITY_NAMES
+                | PRIVATE_CHECKPOINT_FINALITY_CROSSCHECK_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_FINALITY_INVOCATION_V6_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_HISTORY_V6: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V5_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_FINALITY_INVOCATION_V6_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V6_AUTHORITY_NAMES
+            ),
+            SPOT_V7_ATOMIC_SCHEMA_V6: PRIVATE_OPERATIONAL_POLICY_V3_NAMES,
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V6: (
+                PRIVATE_OPERATIONAL_POLICY_V3_NAMES
+                | PRIVATE_SPOT_V7_AUTHORITY_V5_NAMES
+                | PRIVATE_SPOT_V7_FINALITY_INVOCATION_V6_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_HISTORY_V6_AUTHORITY_NAMES
+                | PRIVATE_SPOT_V7_OPERATIONAL_STORE_V6_AUTHORITY_NAMES
+            ),
         }.get(path, frozenset())
         tree = _parse(path)
         for node in ast.walk(tree):
@@ -73,6 +544,725 @@ def test_private_admission_symbols_are_absent_from_other_production_modules() ->
                 violations.append(f"{path.relative_to(ROOT)}:{_line(node)}:{name}")
 
     assert violations == []
+
+
+def test_operational_policy_provenance_is_the_only_production_policy_mint() -> None:
+    callers: list[str] = []
+    for path in _production_python_paths():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and _call_name(node) == "_GovernedSpotV7OperationalPolicyV2"
+            ):
+                callers.append(f"{path.relative_to(ROOT)}:{_line(node)}")
+
+    assert len(callers) == 1
+    assert callers[0].split(":", maxsplit=1)[0] == (
+        "src/integration/zrpf_spot_v7_operational_policy_provenance.py"
+    )
+
+    tree = _parse(SPOT_V7_OPERATIONAL_POLICY_PROVENANCE)
+    loader = _function(tree, "load_governed_spot_v7_operational_policy_v2")
+    ordered_calls = (
+        "_open_authenticated_release_context",
+        "_parse_manifest_v1",
+        "_require_manifest_binding",
+        "_require_active_release_context",
+        "_verify_release_quorum",
+        "_GovernedSpotV7OperationalPolicyV2",
+    )
+    call_lines = {
+        name: [
+            _line(node)
+            for node in ast.walk(loader)
+            if isinstance(node, ast.Call) and _call_name(node) == name
+        ]
+        for name in ordered_calls
+    }
+    assert {name: len(lines) for name, lines in call_lines.items()} == {
+        name: 1 for name in ordered_calls
+    }
+    assert tuple(call_lines[name][0] for name in ordered_calls) == tuple(
+        sorted(call_lines[name][0] for name in ordered_calls)
+    )
+
+
+def test_operational_policy_release_handoff_has_no_production_mint_or_consumer() -> None:
+    forbidden_calls: dict[str, list[str]] = {
+        "_AuthenticatedSpotV7OperationalPolicyReleasePinsV1": [],
+        "load_governed_spot_v7_operational_policy_v2": [],
+    }
+    for path in _production_python_paths():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = _call_name(node)
+            if name in forbidden_calls:
+                forbidden_calls[name].append(f"{path.relative_to(ROOT)}:{_line(node)}")
+
+    assert forbidden_calls == {
+        "_AuthenticatedSpotV7OperationalPolicyReleasePinsV1": [],
+        "load_governed_spot_v7_operational_policy_v2": [],
+    }
+
+
+def test_operational_policy_v3_has_one_mint_and_no_production_loader_consumer() -> None:
+    constructor_calls: list[str] = []
+    mint_calls: list[str] = []
+    loader_calls: list[str] = []
+    for path in _production_python_paths():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = _call_name(node)
+            location = f"{path.relative_to(ROOT)}:{_line(node)}"
+            if name == "_GovernedSpotV7OperationalPolicyV3":
+                constructor_calls.append(location)
+            elif name == "_mint_governed_spot_v7_operational_policy_v3":
+                mint_calls.append(location)
+            elif name == "load_governed_spot_v7_operational_policy_v3":
+                loader_calls.append(location)
+
+    assert len(constructor_calls) == 1
+    assert constructor_calls[0].split(":", maxsplit=1)[0] == (
+        "src/integration/_zrpf_spot_v7_operational_policy_v3.py"
+    )
+    assert len(mint_calls) == 1
+    assert mint_calls[0].split(":", maxsplit=1)[0] == (
+        "src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py"
+    )
+    assert loader_calls == []
+
+
+def test_finality_v3_and_operational_v3_have_exact_production_mint_paths() -> None:
+    callers: dict[str, list[str]] = {
+        "_AuthenticatedExactCheckpointFinalityTransitionV3": [],
+        "_derive_exact_finality_capability_v3": [],
+        "_SpotV7AtomicEconomicCommitCapabilityV3": [],
+        "_bind_spot_v7_operational_commit_capability_v3": [],
+        "_commit_operational_capability_v3": [],
+    }
+    for path in _production_python_paths():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = _call_name(node)
+            if name in callers:
+                callers[name].append(f"{path.relative_to(ROOT)}:{_line(node)}")
+
+    finality_path = "src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py"
+    capability_path = "src/integration/_zrpf_spot_v7_operational_capability_v3.py"
+    assert {
+        name: [location.split(":", maxsplit=1)[0] for location in locations]
+        for name, locations in callers.items()
+    } == {
+        "_AuthenticatedExactCheckpointFinalityTransitionV3": [finality_path],
+        "_derive_exact_finality_capability_v3": [finality_path],
+        "_SpotV7AtomicEconomicCommitCapabilityV3": [capability_path],
+        "_bind_spot_v7_operational_commit_capability_v3": [],
+        "_commit_operational_capability_v3": [],
+    }
+
+
+def test_operational_v3_store_packet_projection_has_exact_consumers() -> None:
+    callers: list[str] = []
+    for path in _production_python_paths():
+        tree = _parse(path)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and _call_name(node) == "_packet_for_atomic_store_v4":
+                callers.append(f"{path.relative_to(ROOT)}:{_line(node)}")
+
+    assert [location.split(":", maxsplit=1)[0] for location in callers] == [
+        "src/integration/_zrpf_spot_v7_atomic_settlement_engine_v5.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_engine_v5.py",
+        "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
+        "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
+        "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
+        "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
+        "src/integration/zrpf_spot_v7_atomic_operational_store_v4.py",
+        "src/integration/zrpf_spot_v7_atomic_operational_store_v4.py",
+    ]
+
+
+def test_cross_checked_finality_mint_follows_one_verified_execution() -> None:
+    tree = _parse(SPOT_V7_CHECKPOINT_FINALITY_CHECKER_ADAPTER)
+    checker = _class(tree, "PinnedSpotV7CheckpointFinalityCheckerV1")
+    cross_check = _method(checker, "cross_check_authenticated")
+    ordered_calls = {
+        name: [
+            node
+            for node in ast.walk(cross_check)
+            if isinstance(node, ast.Call) and _call_name(node) == name
+        ]
+        for name in (
+            "_execute_checker",
+            "_parse_checker_response_v1",
+        )
+    }
+
+    assert {name: len(nodes) for name, nodes in ordered_calls.items()} == {
+        "_execute_checker": 1,
+        "_parse_checker_response_v1": 1,
+    }
+    allocations = [
+        node
+        for node in ast.walk(cross_check)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "object"
+        and node.func.attr == "__new__"
+    ]
+    assert len(allocations) == 1
+    assert (
+        _line(ordered_calls["_execute_checker"][0])
+        < _line(ordered_calls["_parse_checker_response_v1"][0])
+        < _line(allocations[0])
+    )
+    assert not any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "_seal_cross_checked_result_after_execution"
+        for node in ast.walk(checker)
+    )
+
+
+def test_operational_join_uses_exact_unbound_checkpoint_checker_method() -> None:
+    tree = _parse(SPOT_V7_OPERATIONAL_CAPABILITY_V3)
+    binder = _function(tree, "_bind_spot_v7_operational_commit_capability_v3")
+    calls = [
+        node
+        for node in ast.walk(binder)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "PinnedSpotV7CheckpointFinalityCheckerV1"
+        and node.func.attr == "cross_check_authenticated"
+    ]
+
+    assert len(calls) == 1
+    assert len(calls[0].args) == 1
+    assert isinstance(calls[0].args[0], ast.Name)
+    assert calls[0].args[0].id == "checker"
+
+
+def test_v4_settlement_resolver_is_only_invoked_outside_sqlite_transactions() -> None:
+    history_tree = _parse(SPOT_V7_ATOMIC_HISTORY_V4)
+    resolver_calls = [
+        node
+        for node in ast.walk(history_tree)
+        if isinstance(node, ast.Call) and _call_name(node) == "settlement_resolver"
+    ]
+    assert len(resolver_calls) == 1
+    resolver_call_helper = _function(
+        history_tree,
+        "_resolve_settlement_entry",
+    )
+    assert resolver_calls[0] in frozenset(ast.walk(resolver_call_helper))
+    settlement_entry_callers = [
+        node
+        for node in ast.walk(history_tree)
+        if isinstance(node, ast.Call) and _call_name(node) == "_resolve_settlement_entry"
+    ]
+    assert len(settlement_entry_callers) == 1
+    resolver_phase = _function(
+        history_tree,
+        "_resolve_operational_history_outside_transaction_v4",
+    )
+    assert settlement_entry_callers[0] in frozenset(ast.walk(resolver_phase))
+
+    validator = _function(
+        history_tree,
+        "_validate_complete_spot_v7_operational_history_v4",
+    )
+    validator_arguments = {
+        argument.arg for argument in (*validator.args.args, *validator.args.kwonlyargs)
+    }
+    assert "settlement_resolver" not in validator_arguments
+    assert "actual_anchor" not in validator_arguments
+    assert "resolved_history" in validator_arguments
+    assert (
+        _direct_name_call_count(
+            validator,
+            "_capture_operational_history_anchor_locked_v4",
+        )
+        == 1
+    )
+
+    store_tree = _parse(SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4)
+    outside_method = _method(
+        _class(store_tree, "SQLiteSpotV7AtomicOperationalStoreV4"),
+        "_resolve_history_outside_transaction_v4",
+    )
+    close_lines = [
+        _line(node)
+        for node in ast.walk(outside_method)
+        if isinstance(node, ast.Call) and _call_name(node) == "close"
+    ]
+    resolve_lines = [
+        _line(node)
+        for node in ast.walk(outside_method)
+        if isinstance(node, ast.Call)
+        and _call_name(node) == "_resolve_operational_history_outside_transaction_v4"
+    ]
+    assert len(close_lines) == 1
+    assert len(resolve_lines) == 1
+    assert close_lines[0] < resolve_lines[0]
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        SPOT_V7_FIRECRACKER_AUTHORITY,
+        SPOT_V7_FIRECRACKER_OUTPUT,
+        SPOT_V7_FIRECRACKER_EXECUTION_BINDING,
+        SPOT_V7_OPERATIONAL_GATE,
+        SPOT_V7_OPERATIONAL_CAPABILITY_V2,
+    ),
+)
+def test_firecracker_authority_symbols_have_no_public_alias_or_export(path: Path) -> None:
+    tree = _parse(path)
+
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _public_top_level_authority_reachability(tree) == []
+
+
+def test_combined_da_authority_symbols_have_no_public_alias_or_export() -> None:
+    tree = _parse(SPOT_V7_GOVERNED_DA_PREREQUISITE)
+
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _public_top_level_authority_reachability(tree) == []
+
+
+@pytest.mark.parametrize(
+    ("path", "expected_public_reachability"),
+    (
+        (SPOT_V7_OPERATIONAL_POLICY_V3, []),
+        (
+            SPOT_V7_OPERATIONAL_POLICY_PROVENANCE_V2,
+            [
+                "load_governed_spot_v7_operational_policy_v3",
+                "spot_v7_operational_policy_manifest_bytes_v2",
+                "spot_v7_operational_policy_manifest_payload_hash_v2",
+            ],
+        ),
+        (
+            SPOT_V7_LAGGED_CHECKPOINT_BEACON,
+            ["bind_governed_spot_v7_lagged_checkpoint_beacon_v1"],
+        ),
+        (SPOT_V7_GOVERNED_DA_PREREQUISITE_V2, []),
+        (SPOT_V7_LONGITUDINAL_RETRIEVABILITY, []),
+    ),
+)
+def test_v3_governed_da_authority_has_exact_public_reachability(
+    path: Path,
+    expected_public_reachability: list[str],
+) -> None:
+    tree = _parse(path)
+
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _public_top_level_authority_reachability(tree) == (expected_public_reachability)
+
+
+@pytest.mark.parametrize(
+    ("path", "expected_public_reachability"),
+    (
+        (
+            SPOT_V7_ZENO_LEDGER_FINALITY_ADAPTER,
+            [
+                "SpotV7ZenoLedgerCheckpointFinalityAdapterV2.authenticate",
+                "SpotV7ZenoLedgerCheckpointFinalityAdapterV3.authenticate",
+            ],
+        ),
+        (
+            SPOT_V7_CHECKPOINT_FINALITY_CHECKER_ADAPTER,
+            ["PinnedSpotV7CheckpointFinalityCheckerV1.cross_check_authenticated"],
+        ),
+        (SPOT_V7_OPERATIONAL_CAPABILITY_V3, []),
+        (SPOT_V7_ATOMIC_SCHEMA_V4, []),
+        (SPOT_V7_ATOMIC_RECORDS_V4, []),
+        (SPOT_V7_ATOMIC_HISTORY_V4, []),
+        (SPOT_V7_ATOMIC_EVIDENCE_V4, []),
+        (
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4,
+            [
+                "SQLiteSpotV7AtomicOperationalStoreV4.get_receipt",
+                "SQLiteSpotV7AtomicOperationalStoreV4.read_cells",
+                "SQLiteSpotV7AtomicOperationalStoreV4.read_cursor",
+            ],
+        ),
+        (SPOT_V7_ATOMIC_ENGINE_V5, []),
+        (SPOT_V7_ATOMIC_HISTORY_V5, []),
+        (SPOT_V7_ATOMIC_SCHEMA_V5, []),
+        (
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V5,
+            [
+                "SQLiteSpotV7AtomicOperationalStoreV5.get_receipt",
+                "SQLiteSpotV7AtomicOperationalStoreV5.read_cells",
+                "SQLiteSpotV7AtomicOperationalStoreV5.read_cursor",
+            ],
+        ),
+        (SPOT_V7_ATOMIC_ENGINE_V6, []),
+        (SPOT_V7_ATOMIC_HISTORY_V6, []),
+        (SPOT_V7_ATOMIC_SCHEMA_V6, []),
+        (
+            SPOT_V7_ATOMIC_OPERATIONAL_STORE_V6,
+            [
+                "SQLiteSpotV7AtomicOperationalStoreV6.get_receipt",
+                "SQLiteSpotV7AtomicOperationalStoreV6."
+                "manifest_pinned_checkpoint_finality_cross_check_executed",
+                "SQLiteSpotV7AtomicOperationalStoreV6.read_cells",
+                "SQLiteSpotV7AtomicOperationalStoreV6.read_cursor",
+            ],
+        ),
+    ),
+)
+def test_finality_v3_and_operational_stores_have_exact_public_reachability(
+    path: Path,
+    expected_public_reachability: list[str],
+) -> None:
+    tree = _parse(path)
+
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _public_top_level_authority_reachability(tree) == (expected_public_reachability)
+
+
+def test_operational_v4_public_reads_reach_only_the_outside_transaction_resolver() -> None:
+    tree = _parse(SPOT_V7_ATOMIC_OPERATIONAL_STORE_V4)
+
+    assert _public_method_protected_symbol_reachability(
+        tree,
+        class_name="SQLiteSpotV7AtomicOperationalStoreV4",
+    ) == {
+        "get_receipt": ("_resolve_operational_history_outside_transaction_v4",),
+        "read_cells": ("_resolve_operational_history_outside_transaction_v4",),
+        "read_cursor": ("_resolve_operational_history_outside_transaction_v4",),
+    }
+
+
+def test_operational_v5_public_reads_reach_only_the_outside_transaction_resolver() -> None:
+    tree = _parse(SPOT_V7_ATOMIC_OPERATIONAL_STORE_V5)
+
+    assert _public_method_protected_symbol_reachability(
+        tree,
+        class_name="SQLiteSpotV7AtomicOperationalStoreV5",
+    ) == {
+        "get_receipt": ("_resolve_operational_history_outside_transaction_v5",),
+        "read_cells": ("_resolve_operational_history_outside_transaction_v5",),
+        "read_cursor": ("_resolve_operational_history_outside_transaction_v5",),
+    }
+
+
+def test_operational_v6_public_reads_reach_only_the_outside_transaction_resolver() -> None:
+    tree = _parse(SPOT_V7_ATOMIC_OPERATIONAL_STORE_V6)
+
+    assert _public_method_protected_symbol_reachability(
+        tree,
+        class_name="SQLiteSpotV7AtomicOperationalStoreV6",
+    ) == {
+        name: (
+            "_capture_operational_history_anchor_locked_v6",
+            "_resolve_operational_history_outside_transaction_v6",
+            "_validate_complete_spot_v7_operational_history_v6",
+        )
+        for name in (
+            "get_receipt",
+            "manifest_pinned_checkpoint_finality_cross_check_executed",
+            "read_cells",
+            "read_cursor",
+        )
+    }
+
+
+def test_sampled_retrievability_exposes_only_the_exact_verifier_mint() -> None:
+    tree = _parse(SAMPLED_RETRIEVABILITY_VERIFIER)
+
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _public_top_level_authority_reachability(tree) == ["verify_exact_evidence_v1"]
+
+
+def test_firecracker_static_binding_factory_and_expected_document_ratchets() -> None:
+    tree = _parse(SPOT_V7_FIRECRACKER_EXECUTION_BINDING)
+    classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
+    result_class = classes["_AuthorityFalseSpotV7FirecrackerExecutionBindingV1"]
+    assert not any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "_from_verified"
+        for node in result_class.body
+    )
+
+    immutable_names = {
+        "_LIFECYCLE_AUTHORITY_NONCLAIM_ITEMS_V1",
+        "_LAUNCH_CONTROL_FACT_ITEMS_V1",
+        "_FINISH_CONTROL_FACT_ITEMS_V1",
+    }
+    assignments = {
+        node.target.id: node.value
+        for node in tree.body
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id in immutable_names
+    }
+    assert set(assignments) == immutable_names
+    assert all(isinstance(value, ast.Tuple) for value in assignments.values())
+
+    verifier = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_verify_authority_false_spot_v7_firecracker_execution_binding_v1"
+    )
+    all_result_allocations = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "object"
+        and node.func.attr == "__new__"
+    ]
+    verifier_result_allocations = [
+        node
+        for node in ast.walk(verifier)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "object"
+        and node.func.attr == "__new__"
+    ]
+    assert len(all_result_allocations) == 1
+    assert verifier_result_allocations == all_result_allocations
+
+
+def test_firecracker_authority_ratchet_rejects_seal_and_binder_alias_mutants() -> None:
+    source = SPOT_V7_FIRECRACKER_AUTHORITY.read_text(encoding="utf-8")
+    mutant = ast.parse(
+        source
+        + "\npublic_runtime_seal = _GOVERNED_RUNTIME_SEAL_V1\n"
+        + "public_settlement_binder = _bind_governed_firecracker_spot_v7_settlement_v1\n",
+        filename=str(SPOT_V7_FIRECRACKER_AUTHORITY),
+    )
+
+    assert _public_authority_alias_violations(mutant) == [
+        "public_runtime_seal:_GOVERNED_RUNTIME_SEAL_V1",
+        "public_settlement_binder:_bind_governed_firecracker_spot_v7_settlement_v1",
+    ]
+
+    public_wrapper = ast.parse(
+        """
+def public_capability(runtime):
+    return _GovernedFirecrackerSpotV7SettlementV1(
+        runtime_execution=runtime,
+        seal=_GOVERNED_BINDER_SEAL_V1,
+    )
+""",
+        filename="public_firecracker_capability_wrapper.py",
+    )
+    assert _public_top_level_authority_reachability(public_wrapper) == ["public_capability"]
+
+
+@pytest.mark.parametrize(
+    ("path", "class_name", "method_name"),
+    [
+        (
+            SETTLEMENT_VERIFIER_ADAPTER,
+            "PinnedSettlementCertificateVerifierV1",
+            "_verify_authenticated_certificate",
+        ),
+        (
+            SOURCE_OPENED_V6_VERIFIER_ADAPTER,
+            "PinnedSourceOpenedSpotSettlementVerifierV6",
+            "_seal_verified_result",
+        ),
+    ],
+)
+def test_settlement_adapters_mint_recursive_authority_once_inside_verification(
+    path: Path,
+    class_name: str,
+    method_name: str,
+) -> None:
+    tree = _parse(path)
+    verifier = _class(tree, class_name)
+    minting_method = _method(verifier, method_name)
+
+    private_imports = {
+        (imported.name, imported.asname)
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "src.core.recursive_stark_admission"
+        for imported in node.names
+        if imported.name in PRIVATE_AUTHORITY_NAMES
+    }
+    assert private_imports == {(name, None) for name in PRIVATE_SETTLEMENT_VERIFIER_IMPORTS}
+    assert (
+        _reserved_adapter_binding_violations(
+            tree,
+            allowed_imports=PRIVATE_SETTLEMENT_VERIFIER_IMPORTS,
+            allowed_definitions=(
+                frozenset({PRIVATE_SOURCE_OPENED_V6_SEAL})
+                if path == SOURCE_OPENED_V6_VERIFIER_ADAPTER
+                else frozenset()
+            ),
+        )
+        == []
+    )
+    assert _private_adapter_reference_violations(tree, minting_method) == []
+    assert _public_authority_alias_violations(tree) == []
+    assert _private_authority_all_exports(tree) == []
+    assert _direct_name_call_count(minting_method, PRIVATE_MINT) == 1
+    assert _direct_name_call_count(minting_method, PRIVATE_PROVENANCE) == 1
+    for method in verifier.body:
+        if not isinstance(method, ast.FunctionDef) or method is minting_method:
+            continue
+        assert _direct_name_call_count(method, PRIVATE_MINT) == 0
+        assert _direct_name_call_count(method, PRIVATE_PROVENANCE) == 0
+
+
+def test_source_opened_v6_authority_seal_has_one_ordered_production_caller() -> None:
+    tree = _parse(SOURCE_OPENED_V6_VERIFIER_ADAPTER)
+    verifier = _class(tree, "PinnedSourceOpenedSpotSettlementVerifierV6")
+    verify_and_seal = _method(verifier, "_verify_and_seal")
+    seal = _method(verifier, PRIVATE_SOURCE_OPENED_V6_SEAL)
+
+    calls = {
+        name: [
+            node
+            for node in ast.walk(verify_and_seal)
+            if isinstance(node, ast.Call) and _call_name(node) == name
+        ]
+        for name in (
+            "_execute_verifier_once",
+            "_parse_source_opened_spot_v6_response",
+            PRIVATE_SOURCE_OPENED_V6_SEAL,
+        )
+    }
+    assert {name: len(nodes) for name, nodes in calls.items()} == {
+        "_execute_verifier_once": 1,
+        "_parse_source_opened_spot_v6_response": 1,
+        PRIVATE_SOURCE_OPENED_V6_SEAL: 1,
+    }
+    assert (
+        _line(calls["_execute_verifier_once"][0])
+        < _line(calls["_parse_source_opened_spot_v6_response"][0])
+        < _line(calls[PRIVATE_SOURCE_OPENED_V6_SEAL][0])
+        < _line(seal)
+    )
+
+    callers = _production_authority_method_callers(PRIVATE_SOURCE_OPENED_V6_SEAL)
+    assert len(callers) == 1
+    assert callers[0] == (
+        "src/integration/zrpf_source_opened_spot_v6_verifier_adapter.py:"
+        f"{_line(calls[PRIVATE_SOURCE_OPENED_V6_SEAL][0])}"
+    )
+
+
+def test_source_opened_v6_authority_seal_rejects_public_alias_and_external_call_mutants() -> None:
+    source = SOURCE_OPENED_V6_VERIFIER_ADAPTER.read_text(encoding="utf-8")
+    alias_mutant = ast.parse(
+        source
+        + "\n\npublic_authority_alias = "
+        + "PinnedSourceOpenedSpotSettlementVerifierV6._seal_verified_result\n",
+        filename=str(SOURCE_OPENED_V6_VERIFIER_ADAPTER),
+    )
+    external_call_mutant = ast.parse(
+        "verifier._seal_verified_result(parsed, request)\n",
+        filename="external_authority_bypass.py",
+    )
+    class_alias_mutant = ast.parse(
+        source,
+        filename=str(SOURCE_OPENED_V6_VERIFIER_ADAPTER),
+    )
+    mutant_verifier = _class(
+        class_alias_mutant,
+        "PinnedSourceOpenedSpotSettlementVerifierV6",
+    )
+    mutant_verifier.body.append(
+        ast.parse(
+            f"public_seal = {PRIVATE_SOURCE_OPENED_V6_SEAL}\n",
+            filename="class_scope_authority_alias.py",
+        ).body[0]
+    )
+
+    assert _public_authority_alias_violations(alias_mutant) == [
+        f"public_authority_alias:{PRIVATE_SOURCE_OPENED_V6_SEAL}"
+    ]
+    assert _authority_method_call_lines(
+        external_call_mutant,
+        PRIVATE_SOURCE_OPENED_V6_SEAL,
+    ) == [1]
+    assert _public_authority_alias_violations(class_alias_mutant) == [
+        f"PinnedSourceOpenedSpotSettlementVerifierV6.public_seal:{PRIVATE_SOURCE_OPENED_V6_SEAL}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [SETTLEMENT_VERIFIER_ADAPTER, SOURCE_OPENED_V6_VERIFIER_ADAPTER],
+)
+def test_settlement_adapter_ratchet_rejects_public_recursive_authority_alias_mutant(
+    path: Path,
+) -> None:
+    source = path.read_text(encoding="utf-8")
+    mutant = ast.parse(
+        source + f"\n\npublic_mint_alias = {PRIVATE_MINT}\n",
+        filename=str(path),
+    )
+
+    assert _public_authority_alias_violations(mutant) == [f"public_mint_alias:{PRIVATE_MINT}"]
+    assert (
+        _private_adapter_reference_violations(
+            mutant,
+            _method(
+                _class(
+                    mutant,
+                    (
+                        "PinnedSettlementCertificateVerifierV1"
+                        if path == SETTLEMENT_VERIFIER_ADAPTER
+                        else "PinnedSourceOpenedSpotSettlementVerifierV6"
+                    ),
+                ),
+                (
+                    "_verify_authenticated_certificate"
+                    if path == SETTLEMENT_VERIFIER_ADAPTER
+                    else "_seal_verified_result"
+                ),
+            ),
+        )
+        != []
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [SETTLEMENT_VERIFIER_ADAPTER, SOURCE_OPENED_V6_VERIFIER_ADAPTER],
+)
+def test_settlement_adapter_ratchet_rejects_reserved_binding_and_export_mutants(
+    path: Path,
+) -> None:
+    source = path.read_text(encoding="utf-8")
+    shadow = ast.parse(
+        source + f"\n\ndef {PRIVATE_MINT}(*_args, **_kwargs):\n    return None\n",
+        filename=str(path),
+    )
+    exported = ast.parse(
+        source + f'\n\n__all__ = ["{PRIVATE_MINT}"]\n',
+        filename=str(path),
+    )
+
+    assert (
+        _reserved_adapter_binding_violations(
+            shadow,
+            allowed_imports=PRIVATE_SETTLEMENT_VERIFIER_IMPORTS,
+        )
+        != []
+    )
+    assert _private_authority_all_exports(exported) == [f"__all__:{PRIVATE_MINT}"]
 
 
 def test_automatic_root_python_hook_is_in_governed_inventory() -> None:
@@ -382,10 +1572,10 @@ def _parse(path: Path) -> ast.Module:
 def _private_authority_reference(node: ast.AST) -> str | None:
     if isinstance(node, ast.ImportFrom):
         for imported in node.names:
-            if imported.name in PRIVATE_AUTHORITY_NAMES:
+            if imported.name in PROTECTED_AUTHORITY_NAMES:
                 return imported.name
     name = _node_name(node)
-    return name if name in PRIVATE_AUTHORITY_NAMES else None
+    return name if name in PROTECTED_AUTHORITY_NAMES else None
 
 
 def _node_name(node: ast.AST) -> str | None:
@@ -465,10 +1655,98 @@ def _public_top_level_authority_reachability(tree: ast.Module) -> list[str]:
     return sorted(violations)
 
 
+def _public_method_protected_symbol_reachability(
+    tree: ast.Module,
+    *,
+    class_name: str,
+) -> dict[str, tuple[str, ...]]:
+    class_node = _class(tree, class_name)
+    top_level_graph = {
+        node.name: {
+            name
+            for descendant in ast.walk(node)
+            if isinstance(descendant, ast.Call)
+            if (name := _call_name(descendant)) is not None
+        }
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    top_level_reach = _protected_symbol_reachability(top_level_graph)
+    method_graph = {
+        node.name: {
+            name
+            for descendant in ast.walk(node)
+            if isinstance(descendant, ast.Call)
+            if (name := _call_name(descendant)) is not None
+        }
+        for node in class_node.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    method_reach = {
+        name: set(calls & PROTECTED_AUTHORITY_NAMES)
+        | {protected for called in calls for protected in top_level_reach.get(called, frozenset())}
+        for name, calls in method_graph.items()
+    }
+    while True:
+        changed = False
+        for name, calls in method_graph.items():
+            before = len(method_reach[name])
+            method_reach[name].update(
+                protected for called in calls for protected in method_reach.get(called, set())
+            )
+            changed = changed or len(method_reach[name]) != before
+        if not changed:
+            return {
+                name: tuple(sorted(reachable))
+                for name, reachable in sorted(method_reach.items())
+                if not name.startswith("_") and reachable
+            }
+
+
+def _protected_symbol_reachability(
+    call_graph: dict[str, set[str]],
+) -> dict[str, frozenset[str]]:
+    reachable = {name: set(calls & PROTECTED_AUTHORITY_NAMES) for name, calls in call_graph.items()}
+    while True:
+        changed = False
+        for name, calls in call_graph.items():
+            before = len(reachable[name])
+            reachable[name].update(
+                protected for called in calls for protected in reachable.get(called, set())
+            )
+            changed = changed or len(reachable[name]) != before
+        if not changed:
+            return {name: frozenset(symbols) for name, symbols in reachable.items()}
+
+
 def _public_authority_alias_violations(tree: ast.Module) -> list[str]:
-    authority_names = _authority_alias_names(tree)
     violations: set[str] = set()
-    for node in tree.body:
+    module_authority_names = _authority_alias_names(tree)
+    violations.update(
+        _public_authority_alias_violations_in_body(
+            tree.body,
+            authority_names=module_authority_names,
+            scope_name="",
+        )
+    )
+    violations.update(
+        _public_class_authority_alias_violations(
+            tree.body,
+            inherited_authority_names=module_authority_names,
+            parent_scope="",
+        )
+    )
+    return sorted(violations)
+
+
+def _public_authority_alias_violations_in_body(
+    body: list[ast.stmt],
+    *,
+    authority_names: set[str],
+    scope_name: str,
+) -> set[str]:
+    violations: set[str] = set()
+    for node in body:
         if not isinstance(node, (ast.Assign, ast.AnnAssign)):
             continue
         sources = (
@@ -477,12 +1755,44 @@ def _public_authority_alias_violations(tree: ast.Module) -> list[str]:
         if not sources:
             continue
         violations.update(
-            f"{target}:{source}"
+            f"{scope_name + '.' if scope_name else ''}{target}:{source}"
             for target in _assignment_names(node)
             if not target.startswith("_")
             for source in sources
         )
-    return sorted(violations)
+    return violations
+
+
+def _public_class_authority_alias_violations(
+    body: list[ast.stmt],
+    *,
+    inherited_authority_names: set[str],
+    parent_scope: str,
+) -> set[str]:
+    violations: set[str] = set()
+    for node in body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        scope_name = f"{parent_scope}.{node.name}" if parent_scope else node.name
+        authority_names = _authority_alias_names_in_body(
+            node.body,
+            initial_names=inherited_authority_names,
+        )
+        violations.update(
+            _public_authority_alias_violations_in_body(
+                node.body,
+                authority_names=authority_names,
+                scope_name=scope_name,
+            )
+        )
+        violations.update(
+            _public_class_authority_alias_violations(
+                node.body,
+                inherited_authority_names=authority_names,
+                parent_scope=scope_name,
+            )
+        )
+    return violations
 
 
 def _private_authority_all_exports(tree: ast.Module) -> list[str]:
@@ -507,9 +1817,21 @@ def _private_authority_all_exports(tree: ast.Module) -> list[str]:
 
 
 def _authority_alias_names(tree: ast.Module) -> set[str]:
-    authority_names = set(PRIVATE_AUTHORITY_NAMES)
+    authority_names = set(PROTECTED_AUTHORITY_NAMES)
     authority_names.update(_authority_reaching_top_level_function_names(tree))
-    assignments = tuple(node for node in tree.body if isinstance(node, (ast.Assign, ast.AnnAssign)))
+    return _authority_alias_names_in_body(
+        tree.body,
+        initial_names=authority_names,
+    )
+
+
+def _authority_alias_names_in_body(
+    body: list[ast.stmt],
+    *,
+    initial_names: set[str],
+) -> set[str]:
+    authority_names = set(initial_names)
+    assignments = tuple(node for node in body if isinstance(node, (ast.Assign, ast.AnnAssign)))
     while True:
         discovered = {
             target
@@ -535,7 +1857,7 @@ def _authority_reaching_top_level_function_names(tree: ast.Module) -> set[str]:
         for node in tree.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
-    authority_reaching = set(PRIVATE_AUTHORITY_NAMES)
+    authority_reaching = set(PROTECTED_AUTHORITY_NAMES)
     while True:
         discovered = {
             name
@@ -586,35 +1908,58 @@ def _private_adapter_reference_violations(
     return violations
 
 
-def _reserved_adapter_binding_violations(tree: ast.Module) -> list[str]:
+def _reserved_adapter_binding_violations(
+    tree: ast.Module,
+    *,
+    allowed_imports: frozenset[str] = PRIVATE_ADAPTER_IMPORTS,
+    allowed_definitions: frozenset[str] = frozenset(),
+) -> list[str]:
     parents = _parent_map(tree)
     violations: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if node.name in PRIVATE_AUTHORITY_NAMES:
+            if node.name in PROTECTED_AUTHORITY_NAMES and node.name not in allowed_definitions:
                 violations.append(f"{_line(node)}:definition:{node.name}")
-        elif isinstance(node, ast.arg) and node.arg in PRIVATE_AUTHORITY_NAMES:
+        elif isinstance(node, ast.arg) and node.arg in PROTECTED_AUTHORITY_NAMES:
             violations.append(f"{_line(node)}:argument:{node.arg}")
         elif (
             isinstance(node, ast.Name)
             and isinstance(node.ctx, ast.Store)
-            and node.id in PRIVATE_AUTHORITY_NAMES
+            and node.id in PROTECTED_AUTHORITY_NAMES
         ):
             violations.append(f"{_line(node)}:binding:{node.id}")
         elif isinstance(node, ast.alias):
             local_name = node.asname or node.name.rsplit(".", 1)[-1]
-            if local_name not in PRIVATE_AUTHORITY_NAMES:
+            if local_name not in PROTECTED_AUTHORITY_NAMES:
                 continue
             parent = parents.get(node)
             is_exact_allowed_import = (
                 isinstance(parent, ast.ImportFrom)
                 and parent.module == "src.core.recursive_stark_admission"
-                and node.name in PRIVATE_ADAPTER_IMPORTS
+                and node.name in allowed_imports
                 and node.asname is None
             )
             if not is_exact_allowed_import:
                 violations.append(f"{_line(node)}:import:{local_name}")
     return violations
+
+
+def _authority_method_call_lines(tree: ast.AST, method_name: str) -> list[int]:
+    return sorted(
+        _line(node)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == method_name
+    )
+
+
+def _production_authority_method_callers(method_name: str) -> list[str]:
+    callers: list[str] = []
+    for path in _production_python_paths():
+        for line in _authority_method_call_lines(_parse(path), method_name):
+            callers.append(f"{path.relative_to(ROOT)}:{line}")
+    return sorted(callers)
 
 
 def _line(node: ast.AST) -> int:

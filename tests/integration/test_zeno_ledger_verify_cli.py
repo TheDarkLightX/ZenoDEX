@@ -700,7 +700,7 @@ def test_run_local_builds_structured_proof_metadata(tmp_path: Path) -> None:
     assert verify_with_metadata_payload["proof_metadata_checked_heights"] == [1]
 
 
-def test_proof_required_profile_requires_metadata_replay(tmp_path: Path) -> None:
+def test_proof_required_profile_structural_mode_only_checks_metadata(tmp_path: Path) -> None:
     body = _body(1)
     body_path = tmp_path / "input_body.json"
     out_dir = tmp_path / "ledger"
@@ -792,10 +792,14 @@ def test_proof_required_profile_requires_metadata_replay(tmp_path: Path) -> None
     )
     assert with_metadata.returncode == 0, with_metadata.stderr
     with_payload = json.loads(with_metadata.stdout)
+    assert with_payload["status"] == "structural_diagnostic_accepted"
+    assert with_payload["proof_authority_required"] is True
+    assert with_payload["proof_authority_satisfied"] is False
+    assert with_payload["production_authority"] is False
     assert with_payload["proof_metadata_checked_heights"] == [1]
 
 
-def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> None:
+def test_structural_mode_can_check_untrusted_proof_report_shape(tmp_path: Path) -> None:
     body = _body(1)
     body_path = tmp_path / "input_body.json"
     out_dir = tmp_path / "ledger"
@@ -895,6 +899,9 @@ def test_verify_can_require_proof_verification_report_replay(tmp_path: Path) -> 
     )
     assert with_report.returncode == 0, with_report.stderr
     with_report_payload = json.loads(with_report.stdout)
+    assert with_report_payload["status"] == "structural_diagnostic_accepted"
+    assert with_report_payload["proof_authority_satisfied"] is False
+    assert with_report_payload["production_authority"] is False
     assert with_report_payload["proof_metadata_checked_heights"] == [1]
     assert with_report_payload["proof_verification_checked_heights"] == [1]
 

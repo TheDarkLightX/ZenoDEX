@@ -8,6 +8,7 @@ root itself (determinism, order-independence, sensitivity, rejection).
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -99,6 +100,15 @@ def test_rust_matches_python_static(rust_bin):
     roots = {r["state_root"] for r in py}
     assert len(roots) == len(py)
     _assert_agrees(states, rust_bin)
+
+
+def test_pool_identity_conformance_fixture_matches_python_and_rust(rust_bin):
+    fixture_path = _REPO / "tests" / "fixtures" / "pool_identity_conformance_v1.json"
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    state = fixture["state_root_v5_input"]
+
+    assert lib.state_root_from_json(state) == fixture["expected"]["state_root_v5"]
+    _assert_agrees([state], rust_bin)
 
 
 @pytest.mark.parametrize("seed", [1, 5, 42, 20260529])

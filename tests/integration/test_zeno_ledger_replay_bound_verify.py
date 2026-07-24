@@ -368,6 +368,7 @@ def test_replay_bound_range_accepts_only_with_all_authority_checks(tmp_path: Pat
         "config_binding_checked",
     ):
         assert report[field] is True
+    assert report["proof_authority_capable"] is False
     attestation = build_watcher_attestation_v0(
         verify_report=report,
         watcher_id="watcher-410",
@@ -375,6 +376,21 @@ def test_replay_bound_range_accepts_only_with_all_authority_checks(tmp_path: Pat
         verifier_ref="JAMES-410-20260713",
     )
     assert attestation["status"] == "range_verified"
+    assert attestation["proof_authority_required"] is False
+    assert attestation["proof_authority_satisfied"] is False
+    assert attestation["proof_authority_capable"] is False
+    assert attestation["settlement_authority"] is False
+    assert attestation["production_authority"] is False
+
+    forged_proof_required = deepcopy(report)
+    forged_proof_required["proof_authority_required"] = True
+    with pytest.raises(ValueError, match="proof-required report"):
+        build_watcher_attestation_v0(
+            verify_report=forged_proof_required,
+            watcher_id="watcher-410",
+            observed_time_ms=1_778_730_000_000,
+            verifier_ref="JAMES-410-20260713",
+        )
 
 
 def test_replay_bound_range_rejects_fabricated_post_state_root(tmp_path: Path) -> None:
@@ -397,6 +413,54 @@ def test_replay_bound_range_rejects_fabricated_post_state_root(tmp_path: Path) -
     assert report["ok"] is False
     assert report["checked_heights"] == []
     assert any("post_state_root does not match re-executed body state" in error for error in report["errors"])
+
+
+def test_replay_bound_range_rejects_unexecuted_settlement_envelopes(
+    tmp_path: Path,
+) -> None:
+    state = _empty_state()
+    body = _empty_body(1)
+    body["settlement_envelopes"] = [
+        {
+            "schema": "adversarial/unexecuted_settlement_envelope/v0",
+            "claimed_value_effect": _root("unexecuted-value-effect"),
+        }
+    ]
+    inputs = _write_single_height(
+        tmp_path,
+        body=body,
+        pre_state=state,
+        post_state_root=dex_state_root_v0(state),
+    )
+
+    structural = verify_zeno_ledger_v0(
+        headers_dir=inputs[0],
+        bodies_dir=inputs[1],
+        checkpoints_dir=None,
+        profile_path=None,
+        from_height=1,
+        to_height=1,
+        mode=STRUCTURAL_DIAGNOSTIC_MODE,
+    )
+    replay_bound = _strict_verify(
+        headers_dir=inputs[0],
+        bodies_dir=inputs[1],
+        snapshots_dir=inputs[2],
+        config_path=inputs[3],
+        to_height=1,
+    )
+
+    assert structural["ok"] is True
+    assert replay_bound["ok"] is False
+    assert replay_bound["state_replay_checked"] is False
+    assert replay_bound["checked_heights"] == []
+    assert replay_bound["last_header_hash"] is None
+    assert replay_bound["last_post_state_root"] is None
+    assert replay_bound["last_app_hash"] is None
+    assert any(
+        "body settlement_envelopes are not supported by replay-bound v0" in error
+        for error in replay_bound["errors"]
+    )
 
 
 @pytest.mark.parametrize("mutation", ["forged", "missing", "duplicated", "reordered"])
@@ -591,7 +655,7 @@ def test_watcher_attestation_rejects_structural_diagnostic_report(tmp_path: Path
         )
 
 
-def test_attest_cli_refuses_structural_report_and_accepts_replay_bound_range(
+def test_attest_cli_refuses_unprofiled_structural_and_replay_bound_ranges(
     tmp_path: Path,
 ) -> None:
     state = _empty_state()
@@ -641,12 +705,9 @@ def test_attest_cli_refuses_structural_report_and_accepts_replay_bound_range(
         capture_output=True,
     )
 
-    structural_report = json.loads(structural.stdout)
-    replay_bound_report = json.loads(replay_bound.stdout)
-    assert structural.returncode == 1
-    assert structural_report["ok"] is False
-    assert structural_report["verify_report"]["status"] == "structural_diagnostic_accepted"
-    assert replay_bound.returncode == 0, replay_bound.stderr
-    assert replay_bound_report["ok"] is True
-    assert replay_bound_report["verify_report"]["status"] == "range_verified"
-    assert replay_bound_report["attestation"]["status"] == "range_verified"
+    assert structural.returncode == 2
+    assert structural.stdout == ""
+    assert "--profile" in structural.stderr
+    assert replay_bound.returncode == 2
+    assert replay_bound.stdout == ""
+    assert "--profile" in replay_bound.stderr

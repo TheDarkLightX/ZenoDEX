@@ -10,6 +10,7 @@ pub enum EconomicActionBatchErrorV1 {
     TooManyActions { actual: usize, maximum: usize },
     ApplicationMismatch,
     DomainMismatch,
+    SubtreeEpochMismatch,
     EpochOutsideActionValidity,
     PreStateMismatch,
     DuplicateAction,
@@ -61,6 +62,9 @@ impl EconomicActionBatchErrorV1 {
             }
             Self::DomainMismatch => {
                 formatter.write_str("economic actions use different chain or domain IDs")
+            }
+            Self::SubtreeEpochMismatch => {
+                formatter.write_str("economic action subtree batches use different epochs")
             }
             Self::EpochOutsideActionValidity => {
                 formatter.write_str("batch epoch is outside an action validity interval")

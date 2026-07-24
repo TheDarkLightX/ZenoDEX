@@ -4,7 +4,10 @@ use zenodex_zrpf_protocol_v3::{
     merge_semantic_subtrees_v2, ProposedValueAggregateV5, ValueAggregateProposalInputV5,
 };
 
-use crate::child::{level_one_children, reject_duplicate_children};
+use crate::child::{
+    level_one_children, level_one_source_opened_spot_children, reject_duplicate_children,
+    RecompositionChildV5,
+};
 use crate::{
     ValueAggregateLevelOneInputV5, ValueAggregateRecompositionErrorV5,
     ValueAggregateRecompositionPolicyV5,
@@ -20,6 +23,26 @@ pub fn recompose_expected_value_aggregate_level_one_v5(
     policy: &ValueAggregateRecompositionPolicyV5,
 ) -> Result<ProposedValueAggregateV5, ValueAggregateRecompositionErrorV5> {
     let children = level_one_children(input.child_journal_bytes(), policy)?;
+    derive_level_one_proposal(children, policy)
+}
+
+/// Recompose one level-one V5 proposal from exact source-opened ordinary Spot
+/// V6 statements and parent-governed child identities.
+///
+/// Receipt verification remains an explicit precondition of the corresponding
+/// guest wrapper. This proof-neutral function grants no authority by itself.
+pub fn recompose_expected_source_opened_spot_value_aggregate_level_one_v6(
+    input: &ValueAggregateLevelOneInputV5,
+    policy: &ValueAggregateRecompositionPolicyV5,
+) -> Result<ProposedValueAggregateV5, ValueAggregateRecompositionErrorV5> {
+    let children = level_one_source_opened_spot_children(input.child_journal_bytes(), policy)?;
+    derive_level_one_proposal(children, policy)
+}
+
+fn derive_level_one_proposal(
+    children: Vec<RecompositionChildV5>,
+    policy: &ValueAggregateRecompositionPolicyV5,
+) -> Result<ProposedValueAggregateV5, ValueAggregateRecompositionErrorV5> {
     reject_duplicate_children(&children)?;
     let subtrees = children
         .iter()
@@ -47,4 +70,11 @@ pub fn compose_value_aggregate_level_one_after_receipt_verification_v5(
     policy: &ValueAggregateRecompositionPolicyV5,
 ) -> Result<ProposedValueAggregateV5, ValueAggregateRecompositionErrorV5> {
     recompose_expected_value_aggregate_level_one_v5(input, policy)
+}
+
+pub fn compose_source_opened_spot_value_aggregate_level_one_after_receipt_verification_v6(
+    input: &ValueAggregateLevelOneInputV5,
+    policy: &ValueAggregateRecompositionPolicyV5,
+) -> Result<ProposedValueAggregateV5, ValueAggregateRecompositionErrorV5> {
+    recompose_expected_source_opened_spot_value_aggregate_level_one_v6(input, policy)
 }

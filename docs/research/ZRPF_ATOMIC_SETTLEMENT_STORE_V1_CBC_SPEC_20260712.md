@@ -2,7 +2,8 @@
 
 Date: 2026-07-12
 
-Status: atomic transaction mechanics implemented and tested;
+Status: atomic transaction mechanics and the source-opened Spot V6 association
+implemented and tested; final retained V6 proof evidence pending;
 `settlement_authority=false`
 
 ## Scoped positive claim
@@ -39,7 +40,35 @@ authority_blocked_reason =
 SQLite constraints, typed receipts, and restart validation reject any attempt
 to change those fields in V1.
 
-## Missing proof-binding seam
+## Source-opened Spot V6 extension
+
+The schema V4 extension closes the receipt-to-plan association for one bounded
+source-opened ordinary Spot profile. The implemented authenticated path is:
+
+```text
+exact settlement receipt bytes + exact settlement guest-input bytes
+  -> pinned Rust verifier executes once
+  -> settlement image, profile, manifest, and journal authenticate
+  -> exact guest input independently recomposes the expected journal
+  -> strict Python decoder checks the same ZRPFSAV1 frame
+  -> private _AuthenticatedSourceOpenedSpotV6SettlementV1
+  -> one BEGIN IMMEDIATE transaction
+```
+
+That transaction persists the exact settlement receipt, guest input,
+settlement-admission journal, reconstructed source-opened replay blob,
+full-blob content certificate, settlement certificate, effect plan, governed
+program identities, receipt-security identities, Python execution projection,
+projection binding, and all replay and nullifier rows. Restart validation
+rehashes and redecodes those artifacts and rederives their associations.
+
+The V6 journal authenticates the exact settlement certificate and exact effect
+plan used by this singleton ordinary Spot profile. This closes the former
+host-selected-plan seam for that profile only. It does not prove that a live
+ZenoLedger balance tree was read or mutated, and every durable result continues
+to fix `settlement_authority=false`.
+
+## Legacy Semantic V2 proof-binding seam
 
 The current Semantic Epoch V2 proposal authenticates:
 
@@ -82,6 +111,12 @@ sealed `_AuthenticatedSettlementCommitV1`. The dedicated test module alone uses
 the private seal to construct `settlement_authority=false` inputs. Those markers
 are manually minted fixtures, not independently verified receipt outputs.
 
+The source-opened Spot V6 path does not use this legacy binder. Its dedicated
+settlement guest derives the plan and commits it inside the fixed admission
+journal, and its sealed Rust and Python verifiers reconstruct that journal from
+the exact guest input. Other profiles remain blocked until they obtain an
+equivalent receipt-authenticated mapping.
+
 ## Authority flow
 
 Current evidence flow:
@@ -116,9 +151,23 @@ verified Semantic V3 receipt
   -> same atomic transaction kernel
 ```
 
+Implemented bounded V6 flow:
+
+```text
+verified source-opened Spot settlement V6 receipt
+  -> exact guest-input recomposition
+  -> authenticated ZRPFSAV1 certificate-and-plan journal
+  -> private Python V6 association
+  -> atomic exact-artifact, replay, projection, and effect-plan persistence
+  -> data-only receipt(settlement_authority=false)
+```
+
 The proof-neutral plan cannot call the mutating store path. The store exposes no
-public `commit` or `commit_settlement` method. Its private transaction method
-requires the exact sealed type and release-bound recursive-root provenance.
+public `commit` or `commit_settlement` method. Its legacy private transaction
+method requires the exact sealed type and release-bound recursive-root
+provenance. The V6 private method additionally requires the exact sealed
+source-opened verifier result and its receipt, guest-input, admission-journal,
+content-certificate, replay, and projection bindings.
 
 ## Database profile
 
@@ -159,6 +208,13 @@ count, settlement revision, and plan count must remain equal. Every plan stores
 the corresponding admission revision, and startup plus each locked transaction
 requires a one-to-one root-and-revision linkage. A split history fails closed
 before conflict evaluation or new row insertion.
+
+Schema V4 also maintains a monotonic source-opened association count. Migration
+to V4 rejects any database with prior certificate history because that history
+cannot be retroactively associated with exact receipt and guest-input bytes.
+New V6 rows must preserve a one-to-one association among the receipt, admission
+journal, replay blob, content certificate, certificate, plan, projection, and
+the admitted root.
 
 ## Transaction ordering
 
@@ -230,29 +286,41 @@ The focused suite covers:
 - an architecture scan restricting private seal and constructor use to their
   definition and the dedicated test module.
 
+The V6 extension additionally covers exact external-verifier request and
+response framing, independent admission-journal decoding, projection binding,
+concurrent commit behavior, exact retry, restart reconstruction, deletion
+downgrade rejection, and mutation of every persisted proof-association
+artifact. These tests establish local transactional and binding behavior. The
+final retained real-proof evidence remains a separate promotion gate.
+
 ## Explicit non-claims
 
-This V1 kernel does not establish:
+This V1 kernel and its V4 source-opened extension do not establish:
 
-- a receipt-authenticated settlement-plan commitment;
+- a receipt-authenticated settlement-plan commitment for profiles other than
+  the bounded source-opened ordinary Spot V6 profile;
 - a production settlement capability;
 - semantic correctness or canonical derivation of economic actions;
-- proof that cell writes produce the post-state root;
+- proof that the persisted cell writes mutate a live ledger from the committed
+  pre-state root to the committed post-state root;
 - balance non-negativity or application-specific state validity;
 - complete cross-language plan parity;
-- data availability, schedule validity, carry continuity, or remote delivery;
+- provider retrievability, externally governed data availability, schedule
+  validity, carry continuity, or remote delivery;
 - a deployed ZenoLedger state-tree update;
 - hostile same-interpreter or same-UID resistance;
 - storage rollback resistance;
+- external finality or governed release authorization;
 - settlement, release, public, privacy, or production authority.
 
 ## Next promotion gate
 
-Semantic V3 must journal the exact settlement-plan commitment and every
-authority-relevant root, or journal enough canonical data for the guest and
-outer verifier to derive those values without host discretion. A sealed
-production binder may be added only after an actual receipt verifies that
-surface under a governed program identity and manifest. The transaction kernel
-must then apply or verify a ledger-native state-transition witness proving that
-the committed cell writes transform the authenticated pre-state root into the
-post-state root.
+Every additional semantic profile must journal the exact settlement-plan
+commitment and every authority-relevant root, or journal enough canonical data
+for the guest and outer verifier to derive those values without host
+discretion. The source-opened Spot V6 profile implements that bounded binding;
+its checked retained proof record remains pending. Promotion to settlement
+authority additionally requires a ledger-native transition that atomically
+applies or verifies the committed cell writes against the live authenticated
+pre-state, advances the live post-state, consumes live authorization grants,
+and binds governed release and external finality policy.

@@ -97,6 +97,28 @@ integer_field!(require_u128_field, u128, "an unsigned 128-bit integer");
 integer_field!(require_i32_field, i32, "a signed 32-bit integer");
 integer_field!(require_i128_field, i128, "a signed 128-bit integer");
 
+pub(super) fn require_u128_max_field(
+    object: &Map<String, Value>,
+    context: &str,
+    field: &str,
+    maximum: u128,
+) -> Result<(), String> {
+    let field_context = format!("{context}.{field}");
+    let value = required_field(object, context, field)?;
+    require_integer::<u128>(value, &field_context, "an unsigned 128-bit integer")?;
+    let number = value
+        .as_number()
+        .ok_or_else(|| format!("{field_context} must be an unsigned 128-bit integer"))?;
+    let parsed = number
+        .to_string()
+        .parse::<u128>()
+        .map_err(|_| format!("{field_context} must be an unsigned 128-bit integer"))?;
+    if parsed > maximum {
+        return Err(format!("{field_context} exceeds domain max {maximum}"));
+    }
+    Ok(())
+}
+
 pub(super) fn require_bytes32_field(
     object: &Map<String, Value>,
     context: &str,
@@ -264,7 +286,8 @@ mod tests {
     use serde_json::{json, Map, Value};
     use tau_state_proof_risc0_shared::{
         DexIntentV1, PerpsNpActionV1, PerpsNpRecursiveLeafInputV1, SpotRecursiveLeafInputV1,
-        ZusdOperationV1, ZusdRecursiveLeafInputV1,
+        ZusdOperationV1, ZusdRecursiveLeafInputV1, DEX_LP_AMOUNT_MAX, DEX_LP_SUPPLY_MAX,
+        DEX_POOL_RESERVE_MAX, DEX_SWAP_AMOUNT_MAX,
     };
 
     type WireValidator = fn(&Value) -> Result<(), String>;
@@ -952,6 +975,103 @@ mod tests {
             arbitrary_number("340282366920938463463374607431768211455");
         validate_spot(&maximum).unwrap();
         serde_json::from_value::<SpotRecursiveLeafInputV1>(maximum).unwrap();
+    }
+
+    #[test]
+    fn spot_recursive_wire_enforces_authoritative_domain_limits() {
+        let cases = [
+            (
+                "/spot_input/pre_state/pools/0/reserve0",
+                DEX_POOL_RESERVE_MAX,
+            ),
+            (
+                "/spot_input/pre_state/pools/0/reserve1",
+                DEX_POOL_RESERVE_MAX,
+            ),
+            ("/spot_input/pre_state/pools/0/lp_supply", DEX_LP_SUPPLY_MAX),
+            (
+                "/spot_input/txs/0/app_ops/intents/0/intent/CreatePool/amount0",
+                DEX_LP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/0/intent/CreatePool/amount1",
+                DEX_LP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/1/intent/SwapExactIn/amount_in",
+                DEX_SWAP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/1/intent/SwapExactIn/min_amount_out",
+                DEX_SWAP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/2/intent/AddLiquidity/amount0_desired",
+                DEX_LP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/2/intent/AddLiquidity/amount1_desired",
+                DEX_LP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/2/intent/AddLiquidity/amount0_min",
+                DEX_LP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/2/intent/AddLiquidity/amount1_min",
+                DEX_LP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/3/intent/RemoveLiquidity/lp_amount",
+                DEX_LP_SUPPLY_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/3/intent/RemoveLiquidity/amount0_min",
+                DEX_POOL_RESERVE_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/3/intent/RemoveLiquidity/amount1_min",
+                DEX_POOL_RESERVE_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/4/intent/SwapExactOut/amount_out",
+                DEX_SWAP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/4/intent/SwapExactOut/max_amount_in",
+                DEX_SWAP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/5/intent/Route/total_amount_in",
+                DEX_SWAP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/5/intent/Route/total_min_amount_out",
+                DEX_SWAP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/5/intent/Route/total_amount_out",
+                DEX_SWAP_AMOUNT_MAX,
+            ),
+            (
+                "/spot_input/txs/0/app_ops/intents/5/intent/Route/total_max_amount_in",
+                DEX_SWAP_AMOUNT_MAX,
+            ),
+        ];
+
+        for (pointer, maximum) in cases {
+            let mut exact = spot_fixture();
+            *exact.pointer_mut(pointer).unwrap() = json!(maximum);
+            validate_spot(&exact).unwrap();
+
+            let mut over = spot_fixture();
+            *over.pointer_mut(pointer).unwrap() = json!(maximum + 1);
+            let error = validate_spot(&over).unwrap_err();
+            assert!(
+                error.contains(&format!("exceeds domain max {maximum}")),
+                "wrong rejection for {pointer}: {error}"
+            );
+        }
     }
 
     #[test]

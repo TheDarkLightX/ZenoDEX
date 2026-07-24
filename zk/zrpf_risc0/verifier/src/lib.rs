@@ -30,9 +30,18 @@ pub mod historical_semantic_epoch_v1;
 #[path = "spot_value_leaf_v4.rs"]
 pub mod historical_spot_value_leaf_v4;
 mod semantic_epoch_v2;
+mod spot_settlement_v6;
+mod spot_value_leaf_v6;
 mod value_aggregate_v5;
 
 pub use semantic_epoch_v2::{VerifiedSemanticEpochReceiptErrorV2, VerifiedSemanticEpochReceiptV2};
+pub use spot_settlement_v6::{
+    VerifiedSourceOpenedSpotSettlementAdmissionV6,
+    VerifiedSourceOpenedSpotSettlementReceiptErrorV6, VerifiedSourceOpenedSpotSettlementReceiptV6,
+};
+pub use spot_value_leaf_v6::{
+    VerifiedSourceOpenedSpotValueLeafReceiptErrorV6, VerifiedSourceOpenedSpotValueLeafReceiptV6,
+};
 pub use value_aggregate_v5::{
     ExpectedValueAggregateReceiptIdentityV5, VerifiedValueAggregateReceiptErrorV5,
     VerifiedValueAggregateReceiptV5,
@@ -768,6 +777,19 @@ mod tests {
                 .expect("duplicate field must reject"),
             VerifiedNodeReceiptErrorV3::ReceiptJsonDecode
         );
+    }
+
+    #[test]
+    fn exact_maximum_malformed_receipt_rejects_during_json_preflight() {
+        let maximum_sized_malformed = vec![b' '; MAX_CANONICAL_RECEIPT_BYTES_V3];
+
+        assert!(matches!(
+            VerifiedNodeReceiptV3::verify_canonical_succinct_bytes(
+                &maximum_sized_malformed,
+                IMAGE_ID,
+            ),
+            Err(VerifiedNodeReceiptErrorV3::ReceiptJsonDecode)
+        ));
     }
 
     #[test]

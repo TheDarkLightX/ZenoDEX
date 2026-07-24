@@ -6,6 +6,7 @@ use super::{
     ValueAggregateChildDescriptorV5, ValueAggregateErrorV5,
     ValueAggregateOperationalCommitmentsInputV5, ValueAggregateOperationalCommitmentsV5,
 };
+use crate::MAX_IMMEDIATE_CHILDREN_V3;
 use crate::{CommitmentV3, ProfileIdV3, ProgramIdV3};
 
 const CHILD_DESCRIPTOR_DOMAIN_V5: &[u8] = b"zenodex.zrpf.value_child_descriptor.v5";
@@ -158,13 +159,36 @@ pub(super) fn proposal_commitment_v5(
 fn derive_operational_commitments(
     children: &[ValueAggregateChildDescriptorV5],
 ) -> Result<ValueAggregateOperationalCommitmentsV5, ValueAggregateErrorV5> {
+    let commitments = children
+        .iter()
+        .map(ValueAggregateChildDescriptorV5::operational_commitments)
+        .collect::<Vec<_>>();
+    aggregate_value_operational_commitments_v5(&commitments)
+}
+
+/// Derive the canonical ordered operational root for one bounded aggregation
+/// level without requiring proof-neutral child descriptors.
+///
+/// This is used by a settlement verifier to rederive a singleton V6 leaf's L1
+/// and L2 operational commitments from source-opened data. It authenticates no
+/// receipt and grants no data-availability, schedule, carry, or ledger authority.
+pub fn aggregate_value_operational_commitments_v5(
+    children: &[ValueAggregateOperationalCommitmentsV5],
+) -> Result<ValueAggregateOperationalCommitmentsV5, ValueAggregateErrorV5> {
+    if children.is_empty() {
+        return Err(ValueAggregateErrorV5::EmptyChildren);
+    }
+    if children.len() > MAX_IMMEDIATE_CHILDREN_V3 {
+        return Err(ValueAggregateErrorV5::TooManyChildren {
+            actual: children.len(),
+            maximum: MAX_IMMEDIATE_CHILDREN_V3,
+        });
+    }
     macro_rules! ordered_root {
         ($domain:expr, $getter:ident) => {
             commitment_root(
                 $domain,
-                children
-                    .iter()
-                    .map(|child| child.operational_commitments().$getter().into_bytes()),
+                children.iter().map(|child| child.$getter().into_bytes()),
             )?
         };
     }

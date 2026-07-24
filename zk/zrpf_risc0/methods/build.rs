@@ -21,6 +21,8 @@ fn write_placeholder(methods_rs: &std::path::Path) {
 // must reject the empty ELF and all-zero image ID.
 pub const ZENODEX_ZRPF_RISC0_V1_LEAF_ADAPTER_ELF: &[u8] = &[];
 pub const ZENODEX_ZRPF_RISC0_V1_LEAF_ADAPTER_ID: [u32; 8] = [0; 8];
+pub const ZENODEX_ZRPF_RISC0_V2_LEAF_ADAPTER_ELF: &[u8] = &[];
+pub const ZENODEX_ZRPF_RISC0_V2_LEAF_ADAPTER_ID: [u32; 8] = [0; 8];
 pub const ZENODEX_ZRPF_RISC0_STRUCTURAL_AGGREGATE_L1_ELF: &[u8] = &[];
 pub const ZENODEX_ZRPF_RISC0_STRUCTURAL_AGGREGATE_L1_ID: [u32; 8] = [0; 8];
 pub const ZENODEX_ZRPF_RISC0_STRUCTURAL_AGGREGATE_L2_ELF: &[u8] = &[];

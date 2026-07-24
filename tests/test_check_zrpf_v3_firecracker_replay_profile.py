@@ -298,20 +298,23 @@ def test_profile_rejects_duplicate_keys_symlink_and_empty_file(tmp_path: Path) -
 
 def test_deep_json_rejects_without_cli_traceback(
     tmp_path: Path,
-    monkeypatch,
     capsys,
 ) -> None:
     deep = tmp_path / "deep.json"
     deep.write_bytes(b'{"x":' + b"[" * 1_200 + b"0" + b"]" * 1_200 + b"}\n")
-    monkeypatch.setattr(checker, "PROFILE_PATH", deep)
-
-    exit_code = checker.main([])
+    exit_code = checker.main([], profile_path=deep)
     captured = capsys.readouterr()
 
     assert exit_code == 1
     assert "profile_input_rejected" in captured.out
     assert captured.err == ""
     assert deep.as_posix() not in captured.out
+
+
+def test_json_nesting_preflight_ignores_container_bytes_inside_strings() -> None:
+    raw = b'{"value":"[\\\"{still a string}\\\"]"}\n'
+
+    checker._require_bounded_json_nesting(raw)
 
 
 def test_cli_rejects_unknown_arguments() -> None:

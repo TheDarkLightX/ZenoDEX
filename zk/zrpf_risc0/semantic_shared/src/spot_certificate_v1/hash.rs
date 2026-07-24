@@ -61,6 +61,22 @@ pub(super) fn derive_empty_carry_continuity_root_v1(
     commitment(hasher)
 }
 
+pub(super) fn derive_empty_carry_continuity_root_v2(
+    proposal: &ProposedValueAggregateV5,
+    plan: &SettlementEffectPlanV2,
+) -> Result<CommitmentV3, OrdinarySpotSettlementCertificateErrorV1> {
+    let operational = proposal.operational_commitments();
+    let mut hasher = domain_hasher(b"zenodex.zrpf.ordinary_spot_empty_carry_continuity.v2")?;
+    hasher.update(2_u16.to_be_bytes());
+    hasher.update(operational.carry_queue_pre_root().as_bytes());
+    hasher.update(operational.carry_queue_post_root().as_bytes());
+    hasher.update(0_u16.to_be_bytes());
+    hasher.update(plan.message_effects_root().as_bytes());
+    hasher.update(0_u16.to_be_bytes());
+    hasher.update(plan.carry_effects_root().as_bytes());
+    commitment(hasher)
+}
+
 fn domain_hasher(domain: &[u8]) -> Result<Sha256, OrdinarySpotSettlementCertificateErrorV1> {
     let length = u16::try_from(domain.len())
         .map_err(|_| OrdinarySpotSettlementCertificateErrorV1::ArithmeticOverflow("hash_domain"))?;

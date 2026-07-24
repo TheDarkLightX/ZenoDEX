@@ -88,6 +88,13 @@ fn validate_shared_leaf_policy(
     {
         return Err(SemanticEpochErrorV1::LeafProgramMismatch);
     }
+    let expected_profile = leaves[0].leaf_profile_id();
+    if leaves
+        .iter()
+        .any(|leaf| leaf.leaf_profile_id() != expected_profile)
+    {
+        return Err(SemanticEpochErrorV1::LeafProfileMismatch);
+    }
     Ok(())
 }
 

@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from src.core._zrpf_settlement_certificate_authority import (
+    SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1,
+)
 from src.core._zrpf_settlement_commit_authority import (
     SETTLEMENT_AUTHORITY_BLOCKED_REASON_V1,
 )
@@ -38,6 +41,12 @@ class ZrpfAtomicSettlementRejectReasonV1(str, Enum):
     DUPLICATE_MESSAGE_EFFECT = "zrpf.atomic_settlement.duplicate_message_effect"
     DUPLICATE_CARRY_EFFECT = "zrpf.atomic_settlement.duplicate_carry_effect"
     DUPLICATE_REWARD_EFFECT = "zrpf.atomic_settlement.duplicate_reward_effect"
+    CERTIFICATE_IDENTITY_CONFLICT = (
+        "zrpf.atomic_settlement.certificate_identity_conflict"
+    )
+    EPOCH_NOT_MONOTONIC = "zrpf.atomic_settlement.epoch_not_monotonic"
+    DUPLICATE_ACTION_NULLIFIER = "zrpf.atomic_settlement.duplicate_action_nullifier"
+    DUPLICATE_CONSUMED_OBJECT = "zrpf.atomic_settlement.duplicate_consumed_object"
 
 
 class ZrpfAtomicSettlementDispositionV1(str, Enum):
@@ -156,8 +165,142 @@ class DurableZrpfAtomicSettlementResultV1:
         return False
 
 
+@dataclass(frozen=True, slots=True)
+class DurableAuthenticatedSettlementCertificateReceiptV1:
+    """Exact persisted certificate identity with explicit authority non-claim."""
+
+    certificate_journal_hash: str
+    semantic_root_journal_hash: str
+    normalized_plan_commitment: str
+    effect_plan_commitment: str
+    proof_tree_root: str
+    dependency_manifest_root: str
+    data_availability_certificate_root: str
+    schedule_certificate_root: str
+    carry_continuity_certificate_root: str
+    source_opened_replay_sha256: str
+    data_availability_certificate_sha256: str
+    settlement_receipt_id: str
+    settlement_claim_hash: str
+    settlement_image_id: str
+    settlement_profile_id: str
+    settlement_revision: int
+    epoch_id: int
+    previous_state_root: str
+    result_state_root: str
+    settlement_authority: bool
+    authority_blocked_reason: str
+
+    def __post_init__(self) -> None:
+        for name in (
+            "certificate_journal_hash",
+            "semantic_root_journal_hash",
+            "normalized_plan_commitment",
+            "effect_plan_commitment",
+            "proof_tree_root",
+            "dependency_manifest_root",
+            "data_availability_certificate_root",
+            "schedule_certificate_root",
+            "carry_continuity_certificate_root",
+            "settlement_receipt_id",
+            "settlement_claim_hash",
+            "settlement_image_id",
+            "previous_state_root",
+            "result_state_root",
+        ):
+            _hash_bytes(getattr(self, name), name=f"certificate receipt {name}")
+        for name in (
+            "source_opened_replay_sha256",
+            "data_availability_certificate_sha256",
+        ):
+            value = getattr(self, name)
+            if type(value) is not str or len(value) != 64:
+                raise ValueError(f"certificate receipt {name} must be lowercase SHA-256 hex")
+            if any(character not in "0123456789abcdef" for character in value):
+                raise ValueError(f"certificate receipt {name} must be lowercase SHA-256 hex")
+        if (
+            type(self.settlement_revision) is not int
+            or not 1 <= self.settlement_revision <= MAX_SETTLEMENT_REVISION_V1
+        ):
+            raise ValueError("certificate settlement_revision is out of bounds")
+        if type(self.epoch_id) is not int or not 0 <= self.epoch_id <= (1 << 64) - 1:
+            raise ValueError("certificate epoch_id is out of bounds")
+        if type(self.settlement_profile_id) is not str or not self.settlement_profile_id:
+            raise ValueError("certificate settlement_profile_id must be nonempty")
+        if self.settlement_authority is not False:
+            raise ValueError("certificate settlement authority must remain false")
+        if (
+            self.authority_blocked_reason
+            != SETTLEMENT_CERTIFICATE_AUTHORITY_BLOCKED_REASON_V1
+        ):
+            raise ValueError("certificate authority blocked reason mismatch")
+
+
+@dataclass(frozen=True, slots=True)
+class DurableZrpfStateBoundSettlementResultV1:
+    """Atomic base result paired with the authenticated certificate receipt."""
+
+    atomic_result: DurableZrpfAtomicSettlementResultV1
+    certificate_receipt: DurableAuthenticatedSettlementCertificateReceiptV1 | None
+
+    def __post_init__(self) -> None:
+        if type(self.atomic_result) is not DurableZrpfAtomicSettlementResultV1:
+            raise TypeError("atomic_result must be exact durable atomic settlement result")
+        accepted = self.atomic_result.disposition is not ZrpfAtomicSettlementDispositionV1.REJECTED
+        if accepted:
+            if (
+                type(self.certificate_receipt)
+                is not DurableAuthenticatedSettlementCertificateReceiptV1
+            ):
+                raise ValueError("accepted state-bound settlement requires a certificate receipt")
+        elif self.certificate_receipt is not None:
+            raise ValueError("rejected state-bound settlement cannot contain a certificate receipt")
+
+    @property
+    def disposition(self) -> ZrpfAtomicSettlementDispositionV1:
+        return self.atomic_result.disposition
+
+    @property
+    def committed(self) -> bool:
+        return self.atomic_result.committed
+
+    @property
+    def idempotent_replay(self) -> bool:
+        return self.atomic_result.idempotent_replay
+
+    @property
+    def settlement_authority(self) -> bool:
+        return False
+
+    @property
+    def admission_head(self) -> DurableRecursiveStarkAdmissionCursor:
+        return self.atomic_result.admission_head
+
+    @property
+    def settlement_head(self) -> DurableZrpfSettlementCursorV1:
+        return self.atomic_result.settlement_head
+
+    @property
+    def admission_receipt(self) -> DurableRecursiveStarkAdmissionReceipt | None:
+        return self.atomic_result.admission_receipt
+
+    @property
+    def settlement_receipt(self) -> DurableZrpfSettlementReceiptV1 | None:
+        return self.atomic_result.settlement_receipt
+
+    @property
+    def recursive_reject_reason(self) -> RecursiveStarkAdmissionRejectReason | None:
+        return self.atomic_result.recursive_reject_reason
+
+    @property
+    def settlement_reject_reason(self) -> ZrpfAtomicSettlementRejectReasonV1 | None:
+        return self.atomic_result.settlement_reject_reason
+
+
 __all__ = [
+    "DurableAuthenticatedSettlementCertificateReceiptV1",
     "DurableZrpfAtomicSettlementResultV1",
+    "DurableZrpfStateBoundSettlementResultV1",
     "DurableZrpfSettlementCursorV1",
     "DurableZrpfSettlementReceiptV1",
     "ZrpfAtomicSettlementDispositionV1",

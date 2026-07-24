@@ -1,12 +1,33 @@
 from __future__ import annotations
 
+import re
+import tomllib
 from pathlib import Path
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/zrpf-assurance.yml"
 DOCKERFILE = ROOT / ".docker/zrpf-assurance.Dockerfile"
+ZRPF_WORKSPACE = ROOT / "zk/zrpf_risc0/Cargo.toml"
+
+
+def _zrpf_workspace_packages() -> tuple[set[str], set[str]]:
+    workspace = tomllib.loads(ZRPF_WORKSPACE.read_text(encoding="utf-8"))
+    host_packages: set[str] = set()
+    guest_packages: set[str] = set()
+    for member in workspace["workspace"]["members"]:
+        manifest = ZRPF_WORKSPACE.parent / member / "Cargo.toml"
+        package = tomllib.loads(manifest.read_text(encoding="utf-8"))["package"]["name"]
+        if member.startswith("methods/"):
+            guest_packages.add(package)
+        else:
+            host_packages.add(package)
+    return host_packages, guest_packages
+
+
+def _cargo_package_args(command: str) -> list[str]:
+    return re.findall(r"(?:^|\s)-p\s+([A-Za-z0-9_-]+)(?=\s|$)", command)
 
 
 def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
@@ -19,6 +40,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
 
     assert document["permissions"] == {"contents": "read"}
     assert document["jobs"].keys() == {"zrpf-assurance"}
+    assert job["timeout-minutes"] >= 120
     assert workflow_events["pull_request"] is None
     assert "paths" not in workflow_events
     assert "pull_request_target" not in raw
@@ -26,6 +48,19 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert steps["Checkout full source history"]["with"] == {
         "fetch-depth": 0,
         "persist-credentials": False,
+    }
+    assert steps["Set up Node for browser-verifier assurance"]["uses"] == (
+        "actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e"
+    )
+    assert steps["Set up Node for browser-verifier assurance"]["with"] == {
+        "node-version": "22",
+        "cache": "npm",
+        "cache-dependency-path": "tools/dex-ui/package-lock.json",
+    }
+    assert steps["Install lockfile-bound browser-verifier dependencies"] == {
+        "name": "Install lockfile-bound browser-verifier dependencies",
+        "working-directory": "tools/dex-ui",
+        "run": "npm ci --ignore-scripts --no-audit --no-fund",
     }
     tag_check = steps["Verify durable source-anchor tags"]["run"]
     assert "zrpf-v3-source-anchor-20260711" in tag_check
@@ -47,7 +82,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert 'checkout --detach "${source_head}"' in replay_command
     assert "--live" in replay_command
     assert 'live_report="internal/zrpf-ci-live-replay.pending.json"' in replay_command
-    assert "' | tee \"${live_report}\"" in replay_command
+    assert '\' | tee "${live_report}"' in replay_command
     assert 'mv "${live_report}" internal/zrpf-ci-live-replay.json' in replay_command
     assert "json.loads(report_path.read_text" in replay_command
     assert 'value.get("ok") is not True' in replay_command
@@ -59,14 +94,82 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "v1.94.1-rust-x86_64-unknown-linux-gnu:/risc0/toolchains/" in replay_command
     python_assurance = steps["Run Python and evidence assurance"]["run"]
     rust_assurance = steps["Run Rust protocol and verifier assurance"]["run"]
+    assert rust_assurance.count("--features test-only-candidate-source-policy") == 2
+    shared_source = (ROOT / "zk/zrpf_risc0/shared/src/lib.rs").read_text(encoding="utf-8")
+    assert (
+        '#[cfg(all(feature = "test-only-candidate-source-policy", target_os = "zkvm"))]'
+        in shared_source
+    )
+    assert (
+        'compile_error!("test-only candidate source policy is forbidden on the zkVM target");'
+        in shared_source
+    )
+    for relative_manifest in (
+        "zk/zrpf_risc0/spot_value_leaf_v6_shared/Cargo.toml",
+        "zk/zrpf_risc0/spot_settlement_v6_shared/Cargo.toml",
+    ):
+        manifest = tomllib.loads((ROOT / relative_manifest).read_text(encoding="utf-8"))
+        assert manifest["test"][0]["required-features"] == ["test-only-candidate-source-policy"]
     active_replay = steps[
         "Build governed host verifiers and cryptographically replay retained roots"
     ]["run"]
-    guest_assurance = steps["Build pinned current RISC0 guests"]["run"]
+    current_guest_build = steps["Build pinned current RISC0 guests"]["run"]
+    guest_assurance = steps["Check every ZRPF guest on the zkVM target"]["run"]
+    assert "candidate-source-policy-zkvm-reject.log" in guest_assurance
+    assert "zrpf-candidate-policy-negative-check" in guest_assurance
+    assert "-p zenodex-zrpf-risc0-shared" in guest_assurance
+    assert "--features test-only-candidate-source-policy" in guest_assurance
+    assert "test-only candidate source policy is forbidden on the zkVM target" in guest_assurance
     cargo_acquisition = steps["Acquire lockfile-bound Cargo sources"]["run"]
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in cargo_acquisition
+    assert (
+        "--manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml"
+        in cargo_acquisition
+    )
+    assert "--manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml" in (cargo_acquisition)
+    assert "--manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml" in (cargo_acquisition)
+    assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in cargo_acquisition
+    assert "--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml" in (cargo_acquisition)
+    assert "--manifest-path zk/zrpf_checkpoint_finality_checker/Cargo.toml" in (cargo_acquisition)
+    assert "--manifest-path tools/zrpf_firecracker_netns_helper/Cargo.toml" in (cargo_acquisition)
+    assert 'replay_anchor_commit="ff76ff9c1dc307f0e7dc5afd009e2961f2e36f21"' in cargo_acquisition
+    assert 'anchor_checkout="${RUNNER_TEMP}/zrpf-v3-source-anchor-fetch"' in (cargo_acquisition)
+    assert (
+        'git -c core.hooksPath=/dev/null worktree add --detach "${anchor_checkout}"'
+        in cargo_acquisition
+    )
+    assert '"${replay_anchor_commit}"' in cargo_acquisition
+    assert '--manifest-path "${anchor_checkout}/zk/zrpf_risc0/Cargo.toml"' in cargo_acquisition
+    assert "git worktree remove --force" in cargo_acquisition
     assert "tools/check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
     assert "tests/test_check_zrpf_v1_leaf_adapter_source_policy.py" in python_assurance
+    assert "tools/check_zrpf_current_source_adapter_v2.py" in python_assurance
+    assert "tests/test_check_zrpf_current_source_adapter_v2.py" in python_assurance
+    assert "tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py" in python_assurance
+    assert "tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py" in python_assurance
+    assert "tools/plan_zrpf_remote_reproof_handoff_v2.py" in python_assurance
+    assert "tools/check_zrpf_stage_execution_profile_v1.py" in python_assurance
+    assert "tools/zrpf_paid_run_prerequisites_v1.py" in python_assurance
+    assert "tools/check_zrpf_initial_paid_calibration_attempt_v1.py" in python_assurance
+    assert "tools/run_zrpf_remote_identity_rebuild_stage_v2.py" in python_assurance
+    assert "tools/run_zrpf_remote_worker_prover_build_stage_v2.py" in python_assurance
+    assert "tools/run_zrpf_remote_reproof_worker_v2.py" in python_assurance
+    assert "tools/zrpf_remote_reproof_worker_v2_publication.py" in python_assurance
+    assert "tools/zrpf_remote_reproof_stage_publication_marker_v1.py" in python_assurance
+    assert "tools/zrpf_remote_release_checks_stage_v2.py" in python_assurance
+    assert "tools/zrpf_remote_reproof_handoff_v2_catalog.py" in python_assurance
+    assert "tools/zrpf_remote_reproof_worker_v2_contract.py" in python_assurance
+    assert "tests/test_plan_zrpf_remote_reproof_handoff_v2.py" in python_assurance
+    assert "tests/test_check_zrpf_stage_execution_profile_v1.py" in python_assurance
+    assert "tests/test_zrpf_paid_run_prerequisites_v1.py" in python_assurance
+    assert "tests/test_check_zrpf_initial_paid_calibration_attempt_v1.py" in python_assurance
+    assert "tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py" in python_assurance
+    assert "tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py" in python_assurance
+    assert "tests/test_run_zrpf_remote_reproof_worker_v2.py" in python_assurance
+    assert "tests/test_zrpf_remote_reproof_stage_publication_marker_v1.py" in python_assurance
+    assert "tests/test_zrpf_remote_release_checks_stage_v2.py" in python_assurance
+    assert "tests/test_zrpf_remote_mutation_verifier_source_contract.py" in (python_assurance)
+    assert "tests/test_zrpf_remote_mutation_dependency_closure.py" in python_assurance
     assert "tools/check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tests/test_check_risc0_recursive_rebuild_evidence.py" in python_assurance
     assert "tools/check_risc0_recursive_live_replay.py" in python_assurance
@@ -74,9 +177,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tools/risc0_recursive_live_replay_support.py" in python_assurance
     assert "tests/test_check_risc0_recursive_live_replay.py" in python_assurance
     assert "tests/test_check_risc0_recursive_live_replay_evidence.py" in python_assurance
-    assert "python3 tools/check_risc0_recursive_live_replay_evidence.py --json" in (
-        python_assurance
-    )
+    assert (
+        "python3 tools/check_risc0_recursive_live_replay_evidence.py \\\n"
+        "  --json --historical-recorded-source"
+    ) in python_assurance
     assert (
         "--artifact docs/research/RISC0_RECURSIVE_V1_LIVE_REPLAY_EVIDENCE_20260712.json"
         in python_assurance
@@ -113,6 +217,128 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "src/integration/recursive_stark_admission_store_types.py",
         "src/integration/recursive_stark_replay_manifest.py",
         "src/integration/recursive_stark_verifier_adapter.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_capability.py",
+        "src/integration/_zrpf_spot_v7_firecracker_authority.py",
+        "src/integration/_zrpf_spot_v7_firecracker_execution_binding.py",
+        "src/integration/_zrpf_spot_v7_firecracker_output.py",
+        "src/integration/_zrpf_spot_v7_journal_projection.py",
+        "src/integration/_zrpf_spot_v7_settlement_envelope_codec.py",
+        "src/integration/_zrpf_spot_v7_settlement_envelope_contract.py",
+        "src/integration/_zrpf_spot_v7_settlement_envelope_replay.py",
+        "src/integration/_zrpf_spot_v7_settlement_envelope_state.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_engine.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_history.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_records.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_schema.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_evidence_v4.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_history_v4.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_records_v4.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_schema_v4.py",
+        "src/integration/_zrpf_spot_v7_operational_gate.py",
+        "src/integration/_zrpf_spot_v7_operational_capability_v2.py",
+        "src/integration/_zrpf_spot_v7_operational_capability_v3.py",
+        "src/integration/_zrpf_spot_v7_checkpoint_finality_checker_codec.py",
+        "src/integration/zrpf_spot_v7_checkpoint_finality_checker_adapter.py",
+        "src/integration/_zrpf_spot_v7_release_selection_envelope_v1.py",
+        "src/integration/zrpf_spot_v7_authenticated_release_selection_v1.py",
+        "src/integration/_zrpf_spot_v7_release_revocation_envelope_v1.py",
+        "src/integration/zrpf_spot_v7_authenticated_release_revocation_v1.py",
+        "src/integration/_zrpf_spot_v7_operational_policy_v3.py",
+        "src/integration/zrpf_spot_v7_operational_policy_provenance.py",
+        "src/integration/zrpf_spot_v7_operational_policy_provenance_v2.py",
+        "src/integration/_zrpf_spot_v7_full_blob_da_codec.py",
+        "src/integration/zrpf_spot_v7_full_blob_da_adapter.py",
+        "src/integration/_zrpf_spot_v7_governed_da_projection_v2.py",
+        "src/integration/zrpf_spot_v7_governed_da_prerequisite_v2.py",
+        "src/integration/zrpf_spot_v7_lagged_checkpoint_beacon.py",
+        "src/integration/zrpf_spot_v7_longitudinal_retrievability.py",
+        "src/integration/_zrpf_spot_v7_settlement_durable_replay.py",
+        "src/integration/_zrpf_spot_v7_settlement_replay_packet.py",
+        "src/integration/_zrpf_spot_v7_zeno_ledger_finality_contract.py",
+        "src/integration/_zrpf_spot_v7_zeno_ledger_replay_contract.py",
+        "src/integration/_zrpf_spot_v7_zeno_ledger_replay_observation.py",
+        "src/integration/zrpf_spot_v7_zeno_ledger_finality_adapter.py",
+        "src/integration/_zrpf_spot_v7_operational_mechanics.py",
+        "src/integration/_zrpf_spot_v7_operational_policy_store.py",
+        "src/integration/_zrpf_spot_v7_operational_store.py",
+        "src/integration/zrpf_spot_v7_atomic_settlement_store.py",
+        "src/integration/zrpf_spot_v7_atomic_operational_store_v4.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_engine_v5.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_history_v5.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_schema_v5.py",
+        "src/integration/zrpf_spot_v7_atomic_operational_store_v5.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_engine_v6.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_history_v6.py",
+        "src/integration/_zrpf_spot_v7_atomic_settlement_schema_v6.py",
+        "src/integration/zrpf_spot_v7_atomic_operational_store_v6.py",
+        "src/integration/zrpf_spot_v7_atomic_settlement_types.py",
+        "src/integration/_zrpf_spot_v7_release_bound_proof_v1.py",
+        "src/integration/_zrpf_spot_v7_release_bound_finality_v1.py",
+        "src/integration/_zrpf_spot_v7_release_bound_firecracker_v1.py",
+        "src/integration/_zrpf_spot_v7_release_bound_da_v1.py",
+        "src/integration/_zeno_ledger_pinned_verifier_process_v1.py",
+        "src/integration/zeno_ledger_authenticated_proof_verification_v1.py",
+        "src/integration/zeno_ledger_proof_authority_consumer_v1.py",
+        "src/integration/zeno_ledger_spot_state_domain_bridge_v1.py",
+        "src/integration/zeno_ledger_strict_spot_authority_v1.py",
+        "src/integration/zeno_ledger_signature.py",
+        "src/integration/zeno_ledger_signer_registry.py",
+        "src/integration/zeno_ledger_replay.py",
+        "src/integration/zeno_ledger_watcher.py",
+        "src/integration/zeno_sdk_browser_bundle_v0.py",
+        "tools/build_zeno_sdk_browser_bundle.py",
+        "tools/check_zeno_ledger_light_client_checkpoint.py",
+        "tools/check_zeno_ledger_risc0_real_proof_smoke_report.py",
+        "tools/zeno_ledger_verify.py",
+        "tools/zeno_ledger_risc0_proof_metadata.py",
+        "tools/check_zrpf_current_source_adapter_v2.py",
+        "tools/execute_zrpf_source_opened_spot_v6_identity_rebuild.py",
+        "tools/build_zrpf_spot_settlement_v7_local_evidence.py",
+        "tools/check_zrpf_spot_settlement_v7_local_evidence.py",
+        "tools/check_zrpf_v6_v7_post_pin_governance.py",
+        "tools/check_zrpf_spot_v7_release_closure.py",
+        "tools/materialize_zrpf_v6_settlement_child_into_v7.py",
+        "tools/materialize_zrpf_source_opened_spot_v6_identity.py",
+        "tools/plan_zrpf_spot_v7_release_closure.py",
+        "tools/plan_zrpf_source_opened_spot_v6_identity_rebuild.py",
+        "tools/run_zrpf_remote_identity_rebuild_stage_v2.py",
+        "tools/run_zrpf_remote_worker_prover_build_stage_v2.py",
+        "tools/run_zrpf_remote_reproof_worker_v2.py",
+        "tools/zrpf_remote_reproof_worker_v2_publication.py",
+        "tools/zrpf_remote_reproof_stage_publication_marker_v1.py",
+        "tools/zrpf_remote_release_checks_stage_v2.py",
+        "tools/zrpf_remote_reproof_worker_v2_contract.py",
+        "tools/zrpf_spot_v7_authenticated_release_selection_store_v2.py",
+        "tools/zrpf_spot_v7_authenticated_release_state_store_v3.py",
+        "tools/zrpf_spot_v7_current_release_execution_binding_v1.py",
+        "tools/zrpf_spot_v7_execution_authority_manifest_v1.py",
+        "tools/zrpf_spot_v7_release_state_checkpoint_v1.py",
+        "tools/zrpf_spot_v7_store_derived_release_checkpoint_v1.py",
+        "tools/zrpf_spot_v7_highest_observed_release_event_watermark_v1.py",
+        "tools/zrpf_paid_run_prerequisites_v1.py",
+        "tools/check_zrpf_initial_paid_calibration_attempt_v1.py",
+        "tools/recover_zrpf_v6_identity_build_lease.py",
+        "tools/run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py",
+        "tools/zrpf_v6_v7_child_policy_materialization.py",
+        "tools/zrpf_v6_v7_post_pin_governance.py",
+        "tools/zrpf_spot_v7_release_ancestry.py",
+        "tools/zrpf_spot_v7_release_cargo.py",
+        "tools/zrpf_spot_v7_release_closure.py",
+        "tools/zrpf_spot_v7_release_inventory.py",
+        "tools/zrpf_spot_v7_release_schema.py",
+        "tools/zrpf_v6_identity_artifacts.py",
+        "tools/zrpf_v6_identity_docker_runner.py",
+        "tools/zrpf_v6_identity_executor_types.py",
+        "tools/zrpf_v6_identity_materialization.py",
+        "tools/zrpf_v6_identity_materialization_git.py",
+        "tools/zrpf_v6_identity_materialization_output.py",
+        "tools/zrpf_v6_identity_materialization_rollback.py",
+        "tools/zrpf_v6_identity_run_root.py",
+        "tools/zrpf_v6_identity_runner_integrity.py",
+        "tools/zrpf_v6_identity_runner_protocol.py",
+        "tools/zrpf_v6_identity_runner_resources.py",
+        "tools/zrpf_v6_identity_source_snapshot.py",
+        "tools/zrpf_v6_identity_source_state.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
@@ -122,10 +348,86 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         "tests/integration/test_recursive_stark_durable_admission_store.py",
         "tests/integration/test_recursive_stark_replay_manifest.py",
         "tests/integration/test_recursive_stark_verifier_adapter.py",
+        "tests/integration/test_zrpf_spot_v7_atomic_settlement_store.py",
+        "tests/integration/test_zrpf_spot_v7_firecracker_execution_binding.py",
+        "tests/integration/test_zrpf_spot_v7_settlement_envelope_replay.py",
+        "tests/integration/test_zrpf_spot_v7_settlement_durable_replay.py",
+        "tests/integration/test_zrpf_spot_v7_atomic_operational_store_v4.py",
+        "tests/integration/test_zrpf_spot_v7_atomic_operational_store_v5.py",
+        "tests/integration/test_zrpf_spot_v7_atomic_operational_store_v6.py",
+        "tests/integration/test_zrpf_spot_v7_release_bound_proof_v1.py",
+        "tests/integration/test_zrpf_spot_v7_release_bound_finality_v1.py",
+        "tests/integration/test_zrpf_spot_v7_release_bound_firecracker_v1.py",
+        "tests/integration/test_zrpf_spot_v7_release_bound_da_v1.py",
+        "tests/integration/test_zrpf_spot_v7_operational_atomic_store.py",
+        "tests/integration/test_zrpf_spot_v7_full_blob_da_adapter.py",
+        "tests/integration/test_zrpf_spot_v7_governed_da_prerequisite_v2.py",
+        "tests/integration/test_zrpf_spot_v7_lagged_checkpoint_beacon.py",
+        "tests/integration/test_zrpf_spot_v7_longitudinal_retrievability.py",
+        "tests/integration/test_zrpf_spot_v7_operational_gate.py",
+        "tests/integration/test_zrpf_spot_v7_operational_capability_v3.py",
+        "tests/integration/test_zrpf_checkpoint_finality_checker_parity.py",
+        "tests/integration/test_zrpf_spot_v7_checkpoint_finality_checker_adapter.py",
+        "tests/integration/test_zrpf_spot_v7_authenticated_release_selection_v1.py",
+        "tests/integration/test_zrpf_spot_v7_authenticated_release_revocation_v1.py",
+        "tests/integration/test_zrpf_spot_v7_operational_policy_v3.py",
+        "tests/integration/test_zrpf_spot_v7_operational_policy_provenance.py",
+        "tests/integration/test_zrpf_spot_v7_zeno_ledger_replay_observation.py",
+        "tests/integration/test_zrpf_spot_v7_zeno_ledger_finality_adapter.py",
+        "tests/integration/test_zrpf_spot_v7_settlement_finality_v3.py",
+        "tests/integration/test_zeno_ledger_authenticated_proof_verification_v1.py",
+        "tests/integration/test_zeno_ledger_pinned_verifier_pre_exec_v1.py",
+        "tests/integration/test_zeno_ledger_proof_required_quarantine_v0.py",
+        "tests/integration/test_zeno_ledger_proof_required_authority_wiring_v1.py",
+        "tests/integration/test_zeno_ledger_spot_outer_nonce_bridge_v1.py",
+        "tests/integration/test_zeno_ledger_spot_state_domain_bridge_v1.py",
+        "tests/integration/test_zeno_ledger_strict_spot_authority_v1.py",
+        "tests/integration/test_zeno_ledger_strict_spot_range_authority_v1.py",
+        "tests/test_zrpf_spot_v7_release_closure.py",
+        "tests/test_run_zrpf_remote_identity_rebuild_stage_v2.py",
+        "tests/test_run_zrpf_remote_worker_prover_build_stage_v2.py",
+        "tests/test_run_zrpf_remote_reproof_worker_v2.py",
+        "tests/test_zrpf_remote_reproof_stage_publication_marker_v1.py",
+        "tests/test_zrpf_remote_release_checks_stage_v2.py",
+        "tests/test_check_zrpf_stage_execution_profile_v1.py",
+        "tests/test_zrpf_paid_run_prerequisites_v1.py",
+        "tests/test_check_zrpf_initial_paid_calibration_attempt_v1.py",
+        "tests/test_zrpf_remote_mutation_verifier_source_contract.py",
+        "tests/test_zrpf_remote_mutation_dependency_closure.py",
+        "tests/test_zrpf_spot_v7_authenticated_release_selection_store_v2.py",
+        "tests/test_zrpf_spot_v7_authenticated_release_state_store_v3.py",
+        "tests/test_zrpf_spot_v7_current_release_execution_binding_v1.py",
+        "tests/test_zrpf_spot_v7_execution_authority_manifest_v1.py",
+        "tests/test_zrpf_spot_v7_release_state_checkpoint_v1.py",
+        "tests/test_zrpf_spot_v7_store_derived_release_checkpoint_v1.py",
+        "tests/test_zrpf_spot_v7_highest_observed_release_event_watermark_v1.py",
     ):
         assert required_path in ruff_assurance
         assert required_path in mypy_assurance
         assert required_path in pytest_assurance
+    for required_path in (
+        "tests/integration/test_zeno_ledger_replay_bound_verify.py",
+        "tests/test_check_zeno_ledger_light_client_checkpoint.py",
+        "tests/test_zeno_sdk_browser_bundle.py",
+        "tests/integration/test_zeno_ledger_risc0_proof_metadata.py",
+        "tests/test_check_zeno_ledger_risc0_real_proof_smoke_report.py",
+        "tests/test_check_zrpf_current_source_adapter_v2.py",
+        "tests/test_execute_zrpf_source_opened_spot_v6_identity_rebuild.py",
+        "tests/test_materialize_zrpf_v6_settlement_child_into_v7.py",
+        "tests/test_materialize_zrpf_source_opened_spot_v6_identity.py",
+        "tests/test_plan_zrpf_source_opened_spot_v6_identity_rebuild.py",
+        "tests/test_run_zrpf_source_opened_spot_v6_darwin_settlement_benchmark.py",
+        "tests/test_check_zrpf_v6_v7_post_pin_governance.py",
+        "tests/test_zrpf_spot_settlement_v7_local_evidence.py",
+        "tests/test_zrpf_spot_settlement_v7_proof_runner_source_contract.py",
+        "tests/test_zrpf_v6_identity_runner_hardening.py",
+    ):
+        assert required_path in ruff_assurance
+        assert required_path in pytest_assurance
+    assert "tools/zeno_ledger_risc0_real_proof_smoke.py" in ruff_assurance
+    assert "tools/zeno_ledger_risc0_real_proof_smoke.py" not in mypy_assurance
+    assert "src/integration/zeno_ledger_v0.py" in ruff_assurance
+    assert "src/integration/zeno_ledger_v0.py" not in mypy_assurance
     for required_path in (
         "tools/zrpf_v3_source_closure.py",
         "tests/test_zrpf_v3_source_closure.py",
@@ -144,7 +446,10 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
         assert required_path in mypy_assurance
     assert "tests/test_check_risc0_recursive_active_reproof_v3.py" in ruff_assurance
     assert "tests/test_check_risc0_recursive_active_reproof_v3.py" in pytest_assurance
-    assert "python3 tools/check_risc0_recursive_active_reproof_v3.py" in python_assurance
+    assert (
+        "python3 tools/check_risc0_recursive_active_reproof_v3.py \\\n"
+        "  --historical-recorded-source"
+    ) in python_assurance
     assert "zrpf-v3-firecracker-elf-source-v2-20260712" in raw
     assert "25032924eb4fca7f156a9ec4eedd39afeade9623" in raw
     assert "tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (python_assurance)
@@ -163,6 +468,85 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "tests/test_check_zrpf_v3_firecracker_runtime_artifacts.py" in python_assurance
     assert "tests/test_check_zrpf_v3_firecracker_launch_preflight.py" in python_assurance
     assert "tests/test_zrpf_v3_firecracker_launch_boundary_atlas.py" in python_assurance
+    for required_path in (
+        "tools/zrpf_v3_firecracker_cgroup_contract.py",
+        "tools/zrpf_v3_firecracker_cgroup_io.py",
+        "tools/zrpf_v3_firecracker_cgroup_v2.py",
+        "tools/zrpf_v3_firecracker_jailer_launcher.py",
+        "tools/zrpf_v3_firecracker_netns.py",
+        "tools/zrpf_v3_firecracker_trusted_runtime.py",
+    ):
+        assert required_path in ruff_assurance
+        assert required_path in mypy_assurance
+    for required_path in (
+        "tools/zrpf_spot_v7_firecracker_jail_staging.py",
+        "tools/zrpf_spot_v7_firecracker_jailer_lifecycle.py",
+        "tools/zrpf_spot_v7_firecracker_artifact_binding.py",
+        "tools/_zrpf_spot_v7_firecracker_descriptor_handoff.py",
+        "tools/_zrpf_spot_v7_firecracker_descriptor_snapshot.py",
+        "tools/zrpf_spot_v7_firecracker_descriptor_staging.py",
+        "tools/zrpf_spot_v7_firecracker_runtime_binding.py",
+        "tools/zrpf_spot_v7_firecracker_runtime_manifest.py",
+        "tools/zrpf_spot_v7_governed_release_selection_store_v1.py",
+        "tools/zrpf_spot_v7_governed_release_selector_input_v1.py",
+        "tools/zrpf_spot_v7_release_candidate_manifest_v1.py",
+        "tools/zrpf_spot_v7_firecracker_runtime_protocol.py",
+        "tools/zrpf_firecracker_linux_netns_process.py",
+        "tools/zrpf_firecracker_linux_netns_protocol.py",
+        "tools/zrpf_spot_v7_firecracker_linux_netns_adapter.py",
+        "tools/zrpf_spot_v7_firecracker_linux_runner.py",
+        "tools/zrpf_spot_v7_firecracker_root_supervisor_candidate_policy_v1.py",
+    ):
+        assert required_path in ruff_assurance
+        assert required_path in mypy_assurance
+    for required_path in (
+        "src/integration/zrpf_sampled_retrievability_v1/__init__.py",
+        "src/integration/zrpf_sampled_retrievability_v1/codec.py",
+        "src/integration/zrpf_sampled_retrievability_v1/errors.py",
+        "src/integration/zrpf_sampled_retrievability_v1/hashing.py",
+        "src/integration/zrpf_sampled_retrievability_v1/model.py",
+        "src/integration/zrpf_sampled_retrievability_v1/projection.py",
+        "src/integration/zrpf_sampled_retrievability_v1/response_verifier.py",
+        "src/integration/zrpf_sampled_retrievability_v1/validation.py",
+        "src/integration/zrpf_sampled_retrievability_v1/verifier.py",
+        "src/integration/_zrpf_spot_v7_governed_da_projection.py",
+        "src/integration/zrpf_spot_v7_governed_da_prerequisite.py",
+    ):
+        assert required_path in ruff_assurance
+        assert required_path in mypy_assurance
+    required_retrievability_test = "tests/integration/test_zrpf_sampled_retrievability_v1.py"
+    assert required_retrievability_test in ruff_assurance
+    assert required_retrievability_test in mypy_assurance
+    assert required_retrievability_test in pytest_assurance
+    required_governed_da_test = "tests/integration/test_zrpf_spot_v7_governed_da_prerequisite.py"
+    assert required_governed_da_test in ruff_assurance
+    assert required_governed_da_test in mypy_assurance
+    assert required_governed_da_test in pytest_assurance
+    for required_path in (
+        "tests/test_zrpf_spot_v7_firecracker_artifact_binding.py",
+        "tests/test_zrpf_spot_v7_firecracker_descriptor_staging.py",
+        "tests/test_zrpf_spot_v7_firecracker_runtime_binding.py",
+        "tests/test_zrpf_spot_v7_firecracker_runtime_manifest.py",
+        "tests/test_zrpf_spot_v7_governed_release_selection_store_v1.py",
+        "tests/test_zrpf_spot_v7_release_candidate_manifest_v1.py",
+        "tests/test_zrpf_spot_v7_firecracker_runtime_protocol.py",
+        "tests/test_zrpf_spot_v7_firecracker_authority_input_parity.py",
+        "tests/test_zrpf_spot_v7_firecracker_rust_parity.py",
+        "tests/test_zrpf_spot_v7_firecracker_linux_netns_adapter.py",
+        "tests/test_zrpf_spot_v7_firecracker_linux_runner.py",
+        "tests/test_zrpf_spot_v7_firecracker_linux_candidate_bound_runner_v1.py",
+        "tests/test_zrpf_spot_v7_firecracker_root_supervisor_candidate_policy_v1.py",
+    ):
+        assert required_path in ruff_assurance
+        assert required_path in mypy_assurance
+        assert required_path in pytest_assurance
+    for required_path in (
+        "tests/test_zrpf_v3_firecracker_cgroup_v2.py",
+        "tests/test_zrpf_v3_firecracker_jailer_launcher.py",
+    ):
+        assert required_path in ruff_assurance
+        assert required_path in mypy_assurance
+        assert required_path in pytest_assurance
     assert "python3 -I tools/check_zrpf_v3_firecracker_replay_profile.py" in (python_assurance)
     assert "python3 -I tools/check_zrpf_v3_firecracker_protocol_binding.py" in (python_assurance)
     assert "python3 -I tools/check_zrpf_v3_firecracker_direct_replay_evidence.py" in (
@@ -178,18 +562,83 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "--manifest-path zk/recursive_stark_v2_risc0/Cargo.toml" in rust_assurance
     assert "--manifest-path zk/recursive_stark_v2_active_reproof_risc0/Cargo.toml" in rust_assurance
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" in rust_assurance
+    assert (
+        "--manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml" in rust_assurance
+    )
+    assert (
+        rust_assurance.count(
+            "--manifest-path zk/spot_settlement_v7_effect_binding_shared/Cargo.toml"
+        )
+        == 4
+    )
+    assert rust_assurance.count("--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml") == 4
+    assert "-p zenodex-zrpf-spot-v7-firecracker-runtime" in rust_assurance
+    for package in (
+        "zenodex-zrpf-risc0-spot-settlement-v7-child-policy",
+        "zenodex-zrpf-risc0-spot-settlement-v7-input-builder",
+        "zenodex-zrpf-risc0-spot-settlement-v7-shared",
+        "zenodex-zrpf-risc0-spot-settlement-v7-verifier",
+        "zenodex-zrpf-risc0-spot-v7-remote-mutation-verifier",
+        "zenodex-zrpf-risc0-spot-settlement-v7-harness",
+    ):
+        assert package in rust_assurance
+    assert "--exclude zenodex-zrpf-risc0-spot-settlement-v7-guest" in rust_assurance
+    assert "--bin zenodex-zrpf-risc0-spot-settlement-v7-guest" in rust_assurance
+    assert (
+        rust_assurance.count("--manifest-path zk/spot_state_root_v5_bridge_shared/Cargo.toml") == 4
+    )
+    assert (
+        rust_assurance.count("--manifest-path zk/spot_state_root_v7_semantic_shared/Cargo.toml")
+        == 4
+    )
+    assert rust_assurance.count("--manifest-path zk/zrpf_full_blob_da_checker/Cargo.toml") == 3
+    assert (
+        rust_assurance.count("--manifest-path zk/zrpf_checkpoint_finality_checker/Cargo.toml") == 3
+    )
+    assert (
+        rust_assurance.count("--manifest-path tools/zrpf_firecracker_netns_helper/Cargo.toml") == 4
+    )
+    assert "RUSTFLAGS='-C target-feature=+crt-static'" in rust_assurance
+    assert "_require_static_host_elf(stream.fileno())" in rust_assurance
     assert rust_assurance.count("--manifest-path zk/state_proof_risc0/Cargo.toml") == 3
-    assert rust_assurance.count("-p tau-state-proof-risc0-cli --all-targets") == 2
-    assert rust_assurance.count("--locked --offline -p tau-state-proof-risc0-cli") == 2
+    assert rust_assurance.count("-p tau-state-proof-risc0-cli") == 2
+    assert rust_assurance.count("-p zenodex-zrpf-risc0-execution-profile") == 2
     assert rust_assurance.count("-p zenodex-zrpf-risc0-harness") == 2
     assert rust_assurance.count("-p zenodex-zrpf-risc0-semantic-shared") == 4
     assert rust_assurance.count("-p zenodex-zrpf-risc0-value-node-shared") == 2
     assert rust_assurance.count("-p zenodex-zrpf-risc0-value-aggregate-shared") == 2
     assert rust_assurance.count("-p zenodex-zrpf-risc0-value-aggregate-l2-policy") == 2
+    assert rust_assurance.count("-p zenodex-zrpf-risc0-value-aggregate-root-policy") == 2
+    assert rust_assurance.count("-p zenodex-zrpf-risc0-methods") == 2
     assert "--locked --all-targets" in rust_assurance
     assert rust_assurance.count("--no-default-features --test semantic_v2") == 2
-    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 6
+    assert rust_assurance.count('"${pinned_bin}/cargo-clippy" clippy') == 15
     assert '"${pinned_bin}/cargo" clippy' not in rust_assurance
+    host_packages, guest_packages = _zrpf_workspace_packages()
+    host_package_args = _cargo_package_args(rust_assurance)
+    guest_package_args = _cargo_package_args(guest_assurance)
+    for package in host_packages:
+        assert host_package_args.count(package) >= 2, package
+        if package == "zenodex-zrpf-risc0-shared":
+            assert guest_package_args.count(package) == 1
+        else:
+            assert package not in guest_package_args
+    for package in guest_packages:
+        assert package not in host_package_args
+        assert guest_package_args.count(package) == 1, package
+    assert "RISC0_SKIP_BUILD=1" in guest_assurance
+    assert "CARGO_ENCODED_RUSTFLAGS" in guest_assurance
+    assert 'getrandom_backend="custom"' in guest_assurance
+    assert '"${pinned_bin}/cargo" check' in guest_assurance
+    assert "cargo test" not in guest_assurance
+    assert "cargo clippy" not in guest_assurance
+    assert "--locked --offline" in guest_assurance
+    assert "--target riscv32im-risc0-zkvm-elf" in guest_assurance
+    assert '--target-dir "${RUNNER_TEMP}/zrpf-guest-check"' in guest_assurance
+    assert "zenodex-zrpf-risc0-semantic-epoch" in guest_packages
+    assert "zenodex-zrpf-risc0-v2-leaf-adapter" in guest_packages
+    assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in (guest_assurance)
+    assert "-p zenodex-zrpf-risc0-spot-settlement-v7-guest" in guest_assurance
     assert "export RISC0_SKIP_BUILD=1" in active_replay
     assert "unset RISC0_SKIP_BUILD" not in active_replay
     assert "--manifest-path zk/state_proof_risc0/Cargo.toml" not in active_replay
@@ -204,7 +653,7 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "v1-root.seal-word-1-xor-lsb.proof.json" in active_replay
     assert 'metadata["proof"]["meta"]["public_policy_hash"]' in active_replay
     assert 'expectations["recursive_expectations"]["public_policy_hash"]' in active_replay
-    assert 'child_bytes[0] ^= 1' in active_replay
+    assert "child_bytes[0] ^= 1" in active_replay
     assert "v1-disclosure.verify.request.json" in active_replay
     assert 'unknown["recursive_input"]["unrecognized_but_canonical"]' in active_replay
     assert "v1-unknown.verify.request.json" in active_replay
@@ -212,11 +661,13 @@ def test_zrpf_assurance_workflow_is_required_lane_ready() -> None:
     assert "v2-root.proof.json" in active_replay
     assert "v2-root.seal-word-1-xor-lsb.proof.json" in active_replay
     assert "v2-pair.verify.json" in active_replay
-    assert "unset RISC0_SKIP_BUILD" in guest_assurance
-    assert "RISC0_SKIP_BUILD=1" not in guest_assurance
-    assert 'CARGO_TARGET_DIR="${RUNNER_TEMP}/zrpf-current-guest-build"' in guest_assurance
-    assert "--frozen --offline --release" in guest_assurance
-    assert "-p zenodex-zrpf-risc0-methods" in guest_assurance
+    assert "unset RISC0_SKIP_BUILD" in current_guest_build
+    assert "RISC0_SKIP_BUILD=1" not in current_guest_build
+    assert 'CARGO_TARGET_DIR="${RUNNER_TEMP}/zrpf-current-guest-build"' in current_guest_build
+    assert "--frozen --offline --release" in current_guest_build
+    assert "-p zenodex-zrpf-risc0-methods" in current_guest_build
+    assert "--manifest-path zk/spot_settlement_v7_risc0/Cargo.toml" in (current_guest_build)
+    assert "-p zenodex-zrpf-risc0-spot-settlement-v7-methods" in current_guest_build
     assert "ZENODEX_RUN_NATIVE_ZRPF_REPLAY" not in raw
     assert steps["Checkout full source history"]["uses"] == (
         "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10"

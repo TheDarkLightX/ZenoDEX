@@ -1,0 +1,35 @@
+{
+  "non_claims": [
+    "source_build_observation_is_candidate_only",
+    "no_complete_build_input_closure",
+    "no_release_authority",
+    "no_production_authority",
+    "does_not_replace_receipt_verification"
+  ],
+  "observation_binding": {
+    "plan_schema": "zenodex/zrpf_spot_v6_identity_rebuild_plan/v1",
+    "plan_sha256": null,
+    "source_commit": null,
+    "source_snapshot_root_sha256": null,
+    "stage_id": "source_spot"
+  },
+  "production_authority": false,
+  "release_authority": false,
+  "schema": "zenodex/zrpf_current_source_anchor/v2",
+  "source_closure": {
+    "complete_build_input_closure_verified": false,
+    "inventory_root_sha256": null,
+    "kind": "tracked_state_proof_workspace_superset_v1",
+    "tracked_bytes": null,
+    "tracked_file_count": null,
+    "workspace_roots": [
+      "zk/state_proof_risc0"
+    ]
+  },
+  "spot_program": {
+    "image_id": null,
+    "image_id_words": null,
+    "program_sha256": null
+  },
+  "status": "awaiting_deterministic_source_build_observation"
+}

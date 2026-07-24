@@ -5,21 +5,24 @@ use zenodex_zrpf_protocol_v3::{
     semantic_epoch_dependency_manifest_root_v2, semantic_epoch_manifest_root_v1,
     semantic_epoch_profile_id_v1, v1_adapter_count_unit_id_v1, v1_adapter_manifest_root_v1,
     v1_adapter_profile_id_v1, v1_adapter_semantic_source_root_v1, v1_adapter_task_set_root_v1,
-    ApplicationIdV3, CommitmentV3, DomainIdV3, ExpectedV1AdapterLeafIdentityV1, LeafNodeInputV3,
+    v2_adapter_manifest_root_v2, v2_adapter_profile_id_v2, ApplicationIdV3, CommitmentV3,
+    DomainIdV3, ExpectedV1AdapterLeafIdentityV1, ExpectedV2AdapterLeafIdentityV2, LeafNodeInputV3,
     NodeCommitmentsInputV3, NodeCommitmentsV3, NodeJournalV3, NodeScopeInputV3, NodeScopeV3,
     PartitionV3, ProfileIdV3, ProgramIdV3, ProposedSemanticEpochV1, ProposedSemanticEpochV2,
     ProposedSemanticLeafV1, SemanticEpochDependencyProgramsInputV1,
     SemanticEpochDependencyProgramsV1, SemanticEpochErrorV1, SemanticEpochErrorV2,
     SemanticEpochProposalInputV1, SemanticEpochProposalInputV2, TaskIdV3,
-    V1AdapterSemanticLeafOpeningV1, MAX_LEAF_COUNT_V3, MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V1,
-    MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V2,
+    V1AdapterSemanticLeafOpeningV1, V2AdapterSemanticLeafOpeningV2, MAX_LEAF_COUNT_V3,
+    MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V1, MAX_SEMANTIC_EPOCH_PROPOSAL_BYTES_V2,
 };
 
 const PROFILE_ID_DOMAIN: &[u8] = b"zenodex.zrpf.profile_id.v3";
 const COUNT_UNIT_ID_DOMAIN: &[u8] = b"zenodex.zrpf.count_unit_id.v3";
 const ADAPTER_MANIFEST_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_manifest.v1";
+const V2_ADAPTER_MANIFEST_DOMAIN: &[u8] = b"zenodex.zrpf.v2_adapter_manifest.v2";
 const SEMANTIC_MANIFEST_DOMAIN: &[u8] = b"zenodex.zrpf.semantic_epoch_manifest.v1";
 const ADAPTER_NODE_STATEMENT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_node_statement.v1";
+const V2_ADAPTER_NODE_STATEMENT_DOMAIN: &[u8] = b"zenodex.zrpf.v2_adapter_node_statement.v2";
 const PROVENANCE_ROOT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_provenance_root.v1";
 const TASK_SET_ROOT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_task_set_root.v1";
 const SEMANTIC_SOURCE_ROOT_DOMAIN: &[u8] = b"zenodex.zrpf.v1_adapter_semantic_source_set_root.v1";
@@ -47,6 +50,12 @@ enum LeafFault {
     MessageIds,
     OperationCount,
     Statement,
+}
+
+#[derive(Clone, Copy)]
+enum AdapterVersion {
+    RetainedV1,
+    CurrentSourceV2,
 }
 
 fn commitment(seed: u8) -> CommitmentV3 {
@@ -133,6 +142,14 @@ fn manual_adapter_profile() -> ProfileIdV3 {
     .unwrap()
 }
 
+fn manual_v2_adapter_profile() -> ProfileIdV3 {
+    ProfileIdV3::new(framed_hash(
+        PROFILE_ID_DOMAIN,
+        &[b"zrpf_v2_leaf_adapter_compatibility_v2"],
+    ))
+    .unwrap()
+}
+
 fn manual_semantic_profile() -> ProfileIdV3 {
     ProfileIdV3::new(framed_hash(
         PROFILE_ID_DOMAIN,
@@ -156,6 +173,18 @@ fn manual_manifest(program_id: ProgramIdV3) -> CommitmentV3 {
             program_id.as_bytes(),
             manual_adapter_profile().as_bytes(),
             b"unreleased_compatibility_manifest",
+        ],
+    ))
+    .unwrap()
+}
+
+fn manual_v2_manifest(program_id: ProgramIdV3) -> CommitmentV3 {
+    CommitmentV3::new(framed_hash(
+        V2_ADAPTER_MANIFEST_DOMAIN,
+        &[
+            program_id.as_bytes(),
+            manual_v2_adapter_profile().as_bytes(),
+            b"unpromoted_current_source_compatibility_manifest",
         ],
     ))
     .unwrap()
@@ -232,6 +261,40 @@ fn manual_statement(
     .unwrap()
 }
 
+#[allow(clippy::too_many_arguments)]
+fn manual_v2_statement(
+    adapter_program_id: ProgramIdV3,
+    adapter_profile_id: ProfileIdV3,
+    adapter_manifest_root: CommitmentV3,
+    source_binding_hash: CommitmentV3,
+    scope_hash: CommitmentV3,
+    task_id: TaskIdV3,
+    partition: PartitionV3,
+    count_unit_id: CommitmentV3,
+    commitments_hash: CommitmentV3,
+) -> CommitmentV3 {
+    let start = partition.start().to_be_bytes();
+    let end = partition.end_exclusive().to_be_bytes();
+    let operation_count = 1u64.to_be_bytes();
+    CommitmentV3::new(fixed_hash(
+        V2_ADAPTER_NODE_STATEMENT_DOMAIN,
+        &[
+            adapter_program_id.as_bytes(),
+            adapter_profile_id.as_bytes(),
+            adapter_manifest_root.as_bytes(),
+            source_binding_hash.as_bytes(),
+            scope_hash.as_bytes(),
+            task_id.as_bytes(),
+            &start,
+            &end,
+            &operation_count,
+            count_unit_id.as_bytes(),
+            commitments_hash.as_bytes(),
+        ],
+    ))
+    .unwrap()
+}
+
 fn base_commitments(
     seed: u8,
     source_claim: CommitmentV3,
@@ -286,11 +349,61 @@ fn leaf_journal(
     adapter_program: ProgramIdV3,
     fault: LeafFault,
 ) -> NodeJournalV3 {
+    adapter_leaf_journal(
+        start,
+        task_seed,
+        source_claim_seed,
+        semantic_source_seed,
+        epoch_scope,
+        adapter_program,
+        fault,
+        AdapterVersion::RetainedV1,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn v2_leaf_journal(
+    start: u64,
+    task_seed: u8,
+    source_claim_seed: u8,
+    semantic_source_seed: u8,
+    epoch_scope: NodeScopeV3,
+    adapter_program: ProgramIdV3,
+    fault: LeafFault,
+) -> NodeJournalV3 {
+    adapter_leaf_journal(
+        start,
+        task_seed,
+        source_claim_seed,
+        semantic_source_seed,
+        epoch_scope,
+        adapter_program,
+        fault,
+        AdapterVersion::CurrentSourceV2,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn adapter_leaf_journal(
+    start: u64,
+    task_seed: u8,
+    source_claim_seed: u8,
+    semantic_source_seed: u8,
+    epoch_scope: NodeScopeV3,
+    adapter_program: ProgramIdV3,
+    fault: LeafFault,
+    adapter_version: AdapterVersion,
+) -> NodeJournalV3 {
     let task_id = task(task_seed);
     let semantic_source = commitment(semantic_source_seed);
     let partition = PartitionV3::new(start, start + 1).unwrap();
-    let mut profile_id = manual_adapter_profile();
-    let mut manifest_root = manual_manifest(adapter_program);
+    let (mut profile_id, mut manifest_root) = match adapter_version {
+        AdapterVersion::RetainedV1 => (manual_adapter_profile(), manual_manifest(adapter_program)),
+        AdapterVersion::CurrentSourceV2 => (
+            manual_v2_adapter_profile(),
+            manual_v2_manifest(adapter_program),
+        ),
+    };
     let mut count_unit = manual_count_unit();
     let mut operation_count = 1;
     let mut commitment_input = base_commitments(
@@ -317,17 +430,30 @@ fn leaf_journal(
         LeafFault::OperationCount => operation_count = 2,
     }
     let commitments = NodeCommitmentsV3::new(commitment_input);
-    let mut statement = manual_statement(
-        adapter_program,
-        profile_id,
-        manifest_root,
-        semantic_source,
-        epoch_scope.canonical_hash().unwrap(),
-        task_id,
-        partition,
-        count_unit,
-        commitments.canonical_hash().unwrap(),
-    );
+    let mut statement = match adapter_version {
+        AdapterVersion::RetainedV1 => manual_statement(
+            adapter_program,
+            profile_id,
+            manifest_root,
+            semantic_source,
+            epoch_scope.canonical_hash().unwrap(),
+            task_id,
+            partition,
+            count_unit,
+            commitments.canonical_hash().unwrap(),
+        ),
+        AdapterVersion::CurrentSourceV2 => manual_v2_statement(
+            adapter_program,
+            profile_id,
+            manifest_root,
+            semantic_source,
+            epoch_scope.canonical_hash().unwrap(),
+            task_id,
+            partition,
+            count_unit,
+            commitments.canonical_hash().unwrap(),
+        ),
+    };
     if matches!(fault, LeafFault::Statement) {
         statement = commitment(178);
     }
@@ -388,6 +514,31 @@ fn proposed_leaf_with_program(
     .unwrap()
 }
 
+fn proposed_v2_leaf_with_program(
+    start: u64,
+    task_seed: u8,
+    source_claim_seed: u8,
+    semantic_source_seed: u8,
+    epoch_scope: NodeScopeV3,
+    adapter_program: ProgramIdV3,
+) -> ProposedSemanticLeafV1 {
+    let journal = v2_leaf_journal(
+        start,
+        task_seed,
+        source_claim_seed,
+        semantic_source_seed,
+        epoch_scope,
+        adapter_program,
+        LeafFault::None,
+    );
+    ProposedSemanticLeafV1::bind_v2_adapter_journal(
+        &journal,
+        V2AdapterSemanticLeafOpeningV2::new(commitment(semantic_source_seed)),
+        &ExpectedV2AdapterLeafIdentityV2::new(adapter_program).unwrap(),
+    )
+    .unwrap()
+}
+
 fn two_leaves() -> Vec<ProposedSemanticLeafV1> {
     let epoch_scope = scope(200);
     vec![
@@ -438,6 +589,14 @@ fn adapter_hash_mirror_matches_public_profile_helpers_and_legacy_empty_vectors()
         manual_manifest(program(231))
     );
     assert_eq!(
+        v2_adapter_profile_id_v2().unwrap(),
+        manual_v2_adapter_profile()
+    );
+    assert_eq!(
+        v2_adapter_manifest_root_v2(program(231)).unwrap(),
+        manual_v2_manifest(program(231))
+    );
+    assert_eq!(
         v1_adapter_task_set_root_v1(task(1)).unwrap(),
         singleton_root(
             TASK_SET_ROOT_DOMAIN,
@@ -468,6 +627,74 @@ fn adapter_hash_mirror_matches_public_profile_helpers_and_legacy_empty_vectors()
         hex(legacy_empty_root(MESSAGE_IDS_ROOT_DOMAIN).into_bytes()),
         "6e095bf396e0574ae6af14227162b06d520004600fb53e49d63a82840fc487eb"
     );
+}
+
+#[test]
+fn v2_adapter_binding_is_version_exact_and_rejects_relabeling() {
+    let adapter_program = program(231);
+    let v1_journal = leaf_journal(0, 1, 41, 51, scope(200), adapter_program, LeafFault::None);
+    let v2_journal = v2_leaf_journal(0, 1, 41, 51, scope(200), adapter_program, LeafFault::None);
+    let v1_expected = ExpectedV1AdapterLeafIdentityV1::new(adapter_program).unwrap();
+    let v2_expected = ExpectedV2AdapterLeafIdentityV2::new(adapter_program).unwrap();
+
+    let v2_leaf = ProposedSemanticLeafV1::bind_v2_adapter_journal(
+        &v2_journal,
+        V2AdapterSemanticLeafOpeningV2::new(commitment(51)),
+        &v2_expected,
+    )
+    .unwrap();
+    assert_eq!(v2_leaf.leaf_profile_id(), manual_v2_adapter_profile());
+    assert_eq!(
+        v2_leaf.leaf_program_manifest_root(),
+        manual_v2_manifest(adapter_program)
+    );
+    assert!(v2_leaf.canonical_hash().is_ok());
+
+    assert_eq!(
+        ProposedSemanticLeafV1::bind_v1_adapter_journal(
+            &v2_journal,
+            V1AdapterSemanticLeafOpeningV1::new(commitment(51)),
+            &v1_expected,
+        ),
+        Err(SemanticEpochErrorV1::V1AdapterProfileMismatch)
+    );
+    assert_eq!(
+        ProposedSemanticLeafV1::bind_v2_adapter_journal(
+            &v1_journal,
+            V2AdapterSemanticLeafOpeningV2::new(commitment(51)),
+            &v2_expected,
+        ),
+        Err(SemanticEpochErrorV1::V2AdapterProfileMismatch)
+    );
+    assert_eq!(
+        ProposedSemanticLeafV1::bind_v2_adapter_journal(
+            &v2_journal,
+            V2AdapterSemanticLeafOpeningV2::new(commitment(52)),
+            &v2_expected,
+        ),
+        Err(SemanticEpochErrorV1::V2AdapterProvenanceMismatch)
+    );
+
+    for (fault, expected_error) in [
+        (
+            LeafFault::Manifest,
+            SemanticEpochErrorV1::V2AdapterManifestMismatch,
+        ),
+        (
+            LeafFault::Statement,
+            SemanticEpochErrorV1::V2AdapterStatementMismatch,
+        ),
+    ] {
+        let mutated = v2_leaf_journal(0, 1, 41, 51, scope(200), adapter_program, fault);
+        assert_eq!(
+            ProposedSemanticLeafV1::bind_v2_adapter_journal(
+                &mutated,
+                V2AdapterSemanticLeafOpeningV2::new(commitment(51)),
+                &v2_expected,
+            ),
+            Err(expected_error)
+        );
+    }
 }
 
 #[test]
@@ -586,11 +813,20 @@ fn dense_zero_origin_scope_and_adapter_program_are_mandatory() {
 
     let mixed_programs = vec![
         proposed_leaf_with_program(0, 1, 41, 51, epoch_scope.clone(), program(231)),
-        proposed_leaf_with_program(1, 2, 42, 52, epoch_scope, program(232)),
+        proposed_leaf_with_program(1, 2, 42, 52, epoch_scope.clone(), program(232)),
     ];
     assert_eq!(
         ProposedSemanticEpochV1::derive(proposal_input(mixed_programs, 243)),
         Err(SemanticEpochErrorV1::LeafProgramMismatch)
+    );
+
+    let mixed_profiles = vec![
+        proposed_leaf_with_program(0, 1, 41, 51, epoch_scope.clone(), program(231)),
+        proposed_v2_leaf_with_program(1, 2, 42, 52, epoch_scope, program(231)),
+    ];
+    assert_eq!(
+        ProposedSemanticEpochV1::derive(proposal_input(mixed_profiles, 243)),
+        Err(SemanticEpochErrorV1::LeafProfileMismatch)
     );
 }
 

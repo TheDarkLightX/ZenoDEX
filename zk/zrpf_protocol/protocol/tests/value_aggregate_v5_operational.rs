@@ -2,13 +2,14 @@
 mod mirror;
 
 use zenodex_zrpf_protocol_v3::{
-    decode_exact_value_aggregate_proposal_v5, encode_value_aggregate_proposal_v5, ApplicationIdV3,
-    CommitmentV3, DomainIdV3, NodeScopeInputV3, NodeScopeV3, PartitionV3, ProfileIdV3, ProgramIdV3,
-    ProposedValueAggregateV5, SemanticAssetFlowInputV2, SemanticAssetFlowV2,
-    SemanticSubtreeInputV2, SemanticSubtreeV2, SemanticValueLeafRecordInputV2,
-    SemanticValueLeafRecordV2, TaskIdV3, ValueAggregateChildDescriptorInputV5,
-    ValueAggregateChildDescriptorV5, ValueAggregateOperationalCommitmentsInputV5,
-    ValueAggregateOperationalCommitmentsV5, ValueAggregateProposalInputV5,
+    aggregate_value_operational_commitments_v5, decode_exact_value_aggregate_proposal_v5,
+    encode_value_aggregate_proposal_v5, ApplicationIdV3, CommitmentV3, DomainIdV3,
+    NodeScopeInputV3, NodeScopeV3, PartitionV3, ProfileIdV3, ProgramIdV3, ProposedValueAggregateV5,
+    SemanticAssetFlowInputV2, SemanticAssetFlowV2, SemanticSubtreeInputV2, SemanticSubtreeV2,
+    SemanticValueLeafRecordInputV2, SemanticValueLeafRecordV2, TaskIdV3,
+    ValueAggregateChildDescriptorInputV5, ValueAggregateChildDescriptorV5,
+    ValueAggregateOperationalCommitmentsInputV5, ValueAggregateOperationalCommitmentsV5,
+    ValueAggregateProposalInputV5,
 };
 
 use mirror::{mirror_operational_hash, mirror_proposal, mirror_root, operational_values};
@@ -163,6 +164,15 @@ fn operational_bundle_hash_and_getters_bind_every_field() {
 fn parent_operational_fields_match_independent_ordered_root_mirror() {
     let proposal = proposal();
     let parent = proposal.operational_commitments();
+    let child_commitments = proposal
+        .children()
+        .iter()
+        .map(ValueAggregateChildDescriptorV5::operational_commitments)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        aggregate_value_operational_commitments_v5(&child_commitments).unwrap(),
+        parent
+    );
     let child_values = |select: fn(ValueAggregateOperationalCommitmentsV5) -> CommitmentV3| {
         proposal
             .children()

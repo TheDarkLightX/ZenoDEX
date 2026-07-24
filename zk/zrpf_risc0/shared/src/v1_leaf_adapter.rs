@@ -160,14 +160,18 @@ pub fn project_policy_bound_v1_journal(
     })
 }
 
-fn singleton_partition(assigned_leaf_ordinal: u64) -> Result<PartitionV3, AdapterErrorV1> {
+pub(crate) fn singleton_partition(
+    assigned_leaf_ordinal: u64,
+) -> Result<PartitionV3, AdapterErrorV1> {
     let end = assigned_leaf_ordinal
         .checked_add(1)
         .ok_or(AdapterErrorV1::AssignedLeafOrdinalOverflow)?;
     Ok(PartitionV3::new(assigned_leaf_ordinal, end)?)
 }
 
-fn decode_exact_source_summary(bytes: &[u8]) -> Result<RecursiveEffectSummaryV1, AdapterErrorV1> {
+pub(crate) fn decode_exact_source_summary(
+    bytes: &[u8],
+) -> Result<RecursiveEffectSummaryV1, AdapterErrorV1> {
     if bytes.is_empty() {
         return Err(AdapterErrorV1::EmptySourceJournal);
     }
@@ -191,7 +195,7 @@ fn decode_exact_source_summary(bytes: &[u8]) -> Result<RecursiveEffectSummaryV1,
     Ok(summary)
 }
 
-fn enforce_source_policy(
+pub(crate) fn enforce_source_policy(
     summary: &RecursiveEffectSummaryV1,
     policy: &SourcePolicyV1,
 ) -> Result<(), AdapterErrorV1> {
@@ -231,7 +235,9 @@ fn enforce_source_policy(
     Ok(())
 }
 
-fn derive_scope(summary: &RecursiveEffectSummaryV1) -> Result<NodeScopeV3, AdapterErrorV1> {
+pub(crate) fn derive_scope(
+    summary: &RecursiveEffectSummaryV1,
+) -> Result<NodeScopeV3, AdapterErrorV1> {
     Ok(NodeScopeV3::new(NodeScopeInputV3 {
         application_id: ApplicationIdV3::new(hash_framed(APPLICATION_ID_DOMAIN, &[b"zenodex"])?)?,
         chain_or_domain_id: DomainIdV3::new(hash_framed(
@@ -247,13 +253,13 @@ fn derive_scope(summary: &RecursiveEffectSummaryV1) -> Result<NodeScopeV3, Adapt
     })?)
 }
 
-struct CommitmentInputV1<'a> {
-    summary: &'a RecursiveEffectSummaryV1,
-    source_journal_bytes: &'a [u8],
-    source_binding: &'a SourceBindingV3,
-    source_binding_hash: CommitmentV3,
-    task_id: TaskIdV3,
-    partition: PartitionV3,
+pub(crate) struct CommitmentInputV1<'a> {
+    pub(crate) summary: &'a RecursiveEffectSummaryV1,
+    pub(crate) source_journal_bytes: &'a [u8],
+    pub(crate) source_binding: &'a SourceBindingV3,
+    pub(crate) source_binding_hash: CommitmentV3,
+    pub(crate) task_id: TaskIdV3,
+    pub(crate) partition: PartitionV3,
 }
 
 struct DerivedCompatibilityRootsV1 {
@@ -316,7 +322,9 @@ fn derive_compatibility_roots(
     })
 }
 
-fn derive_commitments(input: CommitmentInputV1<'_>) -> Result<NodeCommitmentsV3, AdapterErrorV1> {
+pub(crate) fn derive_commitments(
+    input: CommitmentInputV1<'_>,
+) -> Result<NodeCommitmentsV3, AdapterErrorV1> {
     let roots = derive_compatibility_roots(&input)?;
     let summary = input.summary;
 

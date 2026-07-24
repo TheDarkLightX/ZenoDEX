@@ -1,0 +1,116 @@
+{
+  "schema": "zenodex/zrpf_source_opened_spot_v6_retained_output_identity/v2",
+  "recorded_at": "2026-07-13",
+  "scope": "retained_v6_program_binary_byte_identity_comparison",
+  "comparison_profile": {
+    "output_labels": [
+      "build_a",
+      "build_b",
+      "path4"
+    ],
+    "source_head_observation_labels": [
+      "build_a",
+      "build_b",
+      "path4"
+    ],
+    "equal_head_commit_tree_pair": [
+      "build_a",
+      "build_b"
+    ],
+    "distinct_head_commit_tree_label": "path4",
+    "artifact_set_domain": "zenodex.zrpf.source_opened_spot_v6.artifact_set.v1",
+    "build_host_identifier_committed": false,
+    "build_execution_transcripts_committed": false,
+    "source_to_output_provenance_verified": false
+  },
+  "publisher_reported_observations": {
+    "output_roots_pairwise_distinct": true,
+    "three_retained_output_sets_byte_identical": true,
+    "a_b_head_commit_tree_identity_observed": true,
+    "retained_output_sets": [
+      {
+        "output_label": "build_a",
+        "artifact_set_sha256": "0075441f70fa7b5f16b5b0282cdb4a765d0b1107740bfbac3d29ef7ae6bc41a3"
+      },
+      {
+        "output_label": "build_b",
+        "artifact_set_sha256": "0075441f70fa7b5f16b5b0282cdb4a765d0b1107740bfbac3d29ef7ae6bc41a3"
+      },
+      {
+        "output_label": "path4",
+        "artifact_set_sha256": "0075441f70fa7b5f16b5b0282cdb4a765d0b1107740bfbac3d29ef7ae6bc41a3"
+      }
+    ],
+    "source_head_commit_tree_observations": [
+      {
+        "source_label": "build_a",
+        "repository_commit": "87c7a5b1146482d7a55428179ed6d3453b43a7e7",
+        "repository_tree": "25299d0dc26ec9cf7e7ae4ea664e4c9d8278b820"
+      },
+      {
+        "source_label": "build_b",
+        "repository_commit": "87c7a5b1146482d7a55428179ed6d3453b43a7e7",
+        "repository_tree": "25299d0dc26ec9cf7e7ae4ea664e4c9d8278b820"
+      },
+      {
+        "source_label": "path4",
+        "repository_commit": "2e1e77c2ad6603ae798d9a39e0f65f1ddc5c2d9f",
+        "repository_tree": "786edac523b9f802575e5ced642ea1f256c90cfb"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "stage": "spot_value_leaf_v6",
+      "artifact_file": "spot_value_leaf_v6.bin",
+      "size_bytes": 1191196,
+      "sha256": "28e6ed98c89f62a4439a1e63c6c5173c927209923f1f24733d0f67d155d0da74",
+      "image_id_hex": "67494a413c729cbb4b6095036425ba0b86edcc30625c19b525409f8e8ff022d1"
+    },
+    {
+      "stage": "spot_value_aggregate_l1_v6",
+      "artifact_file": "spot_value_aggregate_l1_v6.bin",
+      "size_bytes": 635236,
+      "sha256": "2368aa13b18398e49460067f6907e30339b856e8439a464b4ddb4e7a9970a1f9",
+      "image_id_hex": "a2b4c32ef76c0a81643f1758c476fc21f6a7c2afd11d2a6e08fae022418e2e15"
+    },
+    {
+      "stage": "spot_value_aggregate_l2_v6",
+      "artifact_file": "spot_value_aggregate_l2_v6.bin",
+      "size_bytes": 546376,
+      "sha256": "3439541629e1c0376cea111061cadd2594218c501cc8485249ef2a50ff824908",
+      "image_id_hex": "5c8f94b4ada70ad5ba0d6ac6bd6b0055a9e148c329372e7b24a81249ff07a76f"
+    },
+    {
+      "stage": "source_opened_spot_settlement_v6",
+      "artifact_file": "source_opened_spot_settlement_v6.bin",
+      "size_bytes": 2039876,
+      "sha256": "dc192506cf8ff97824aa98b90eb8b62bd43ece5ccb1af7d2ba085e5faf865309",
+      "image_id_hex": "73a1c5c275d85f39443f68803932df9caac670b420b9948b7e7b2dffe1f2e98d"
+    }
+  ],
+  "claims": {
+    "same_host_build_reproducibility_verified": false,
+    "source_to_output_provenance_verified": false,
+    "complete_build_input_closure_verified": false,
+    "cross_host_reproducibility_verified": false,
+    "image_ids_recomputed_in_this_comparison": false,
+    "path4_exact_source_equivalence_verified": false,
+    "proofs_regenerated": false,
+    "release_authority": false,
+    "settlement_authority": false,
+    "production_authority": false
+  },
+  "nonclaims": [
+    "retained output byte identity does not establish source-to-output provenance or a build execution",
+    "publisher-reported observations are historical records and are not live verification",
+    "build host identity and build execution transcripts are not committed",
+    "live source inspection observes only HEAD commit/tree; working-tree contents, cleanliness, index flags, and compiler-visible input closure are not inspected",
+    "live output and source rechecks are sequential observations, not atomic filesystem snapshots",
+    "build_a and build_b HEAD commit/tree equality is independent of retained output bytes",
+    "path4 records a distinct HEAD commit/tree and is only a third retained output byte-identity comparison",
+    "no complete build-input closure, same-host build reproducibility, or cross-host reproducibility claim",
+    "image IDs, proofs, and receipts were not recomputed or regenerated in this comparison",
+    "no release, settlement, ledger-admission, or production authority"
+  ]
+}

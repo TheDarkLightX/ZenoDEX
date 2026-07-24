@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Validate the bounded current-image V1/V2 active reproof reference."""
+"""Validate the bounded retained V1/V2 reproof reference.
+
+Default mode compares its recorded closure with the live checkout and therefore
+rejects source drift. Historical mode reconstructs and validates the exact
+evidence-era Git closure; neither mode grants current release authority.
+"""
 
 from __future__ import annotations
 
@@ -17,11 +22,14 @@ REFERENCE = ROOT / "config/proof_profiles/risc0_recursive_active_reproof_referen
 EVIDENCE = ROOT / "evidence/risc0-recursive-active-reproof-v3"
 SCHEMA = "zenodex/risc0_recursive_active_reproof_reference/v3"
 BASE_REVISION = "7b495df837e1a877d8c49da0f06ebce85661e39e"
+EVIDENCE_RECORD_REVISION = "793a98f73a52ac3722d4c453495fed16a1a14c41"
 INVENTORY_DOMAIN = b"zenodex.risc0.active_reproof.inventory.v3"
 V1_CHILD_JOURNAL_HASH_DOMAIN = b"zenodex.risc0.recursive.child_journal_hash.v1"
 V2_IMMEDIATE_CLAIMS_ROOT_DOMAIN = b"zenodex.risc0.recursive.immediate_child_claims_root.v2"
 V2_IMMEDIATE_JOURNALS_ROOT_DOMAIN = b"zenodex.risc0.recursive.immediate_child_journals_root.v2"
 MAX_JSON_BYTES = 16 * 1024 * 1024
+MAX_HISTORICAL_SOURCE_FILE_BYTES = 4 * 1024 * 1024
+MAX_HISTORICAL_SOURCE_BYTES = 64 * 1024 * 1024
 
 PROMOTION_SOURCE_PATHS = (
     ".github/workflows/zrpf-assurance.yml",
@@ -309,23 +317,170 @@ def _require_exact_typed(value: Any, expected: Any, message: str) -> None:
 
 
 def _git_output(repo_root: Path, *args: str) -> str:
-    completed = subprocess.run(
-        ["git", "-C", str(repo_root), *args],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CheckError("historical Git command timed out") from exc
     if completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip() or "git command failed"
         raise CheckError(detail)
     return completed.stdout.strip()
 
 
+def _git_bytes(repo_root: Path, *args: str, max_bytes: int) -> bytes:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            check=False,
+            capture_output=True,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CheckError("historical Git command timed out") from exc
+    if completed.returncode != 0:
+        detail = completed.stderr.decode(errors="replace").strip() or "git command failed"
+        raise CheckError(detail)
+    _require(len(completed.stdout) <= max_bytes, "historical Git object exceeds byte bound")
+    return completed.stdout
+
+
 def _check_git_base(repo_root: Path) -> None:
     _require(_git_output(repo_root, "rev-parse", "--show-toplevel") == str(repo_root), "repo root mismatch")
     _git_output(repo_root, "cat-file", "-e", f"{BASE_REVISION}^{{commit}}")
     _git_output(repo_root, "merge-base", "--is-ancestor", BASE_REVISION, "HEAD")
+
+
+def _git_tree_inventory(
+    repo_root: Path,
+    revision: str,
+    relative: str,
+) -> list[dict[str, Any]]:
+    listing = _git_bytes(
+        repo_root,
+        "ls-tree",
+        "-r",
+        "-z",
+        "--full-tree",
+        revision,
+        "--",
+        relative,
+        max_bytes=MAX_HISTORICAL_SOURCE_BYTES,
+    )
+    records: list[dict[str, Any]] = []
+    total_bytes = 0
+    for raw_entry in listing.split(b"\0"):
+        if not raw_entry:
+            continue
+        try:
+            metadata, raw_path = raw_entry.split(b"\t", 1)
+            mode, object_type, object_id = metadata.decode("ascii").split(" ")
+            path = raw_path.decode("utf-8")
+        except (UnicodeDecodeError, ValueError) as error:
+            raise CheckError("historical Git tree entry is malformed") from error
+        _require(mode in {"100644", "100755"}, "historical source is not a regular file")
+        _require(object_type == "blob", "historical source is not a Git blob")
+        _require(
+            not any(component == "target" for component in Path(path).parts),
+            "historical source contains an in-scope target directory",
+        )
+        data = _git_bytes(
+            repo_root,
+            "cat-file",
+            "blob",
+            object_id,
+            max_bytes=MAX_HISTORICAL_SOURCE_FILE_BYTES,
+        )
+        total_bytes += len(data)
+        _require(total_bytes <= MAX_HISTORICAL_SOURCE_BYTES, "historical source exceeds byte bound")
+        records.append(
+            {
+                "path": path,
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "size_bytes": len(data),
+            }
+        )
+    return sorted(records, key=lambda record: Path(record["path"]))
+
+
+def _check_historical_sources(reference: dict[str, Any], *, repo_root: Path) -> None:
+    expected = []
+    for workspace_id, (relative, count, root_hash) in SOURCE_ROOTS.items():
+        records = _git_tree_inventory(repo_root, EVIDENCE_RECORD_REVISION, relative)
+        _require(len(records) == count, f"historical {workspace_id} source count mismatch")
+        _require(
+            inventory_root(records) == root_hash,
+            f"historical {workspace_id} source root mismatch",
+        )
+        expected.append(
+            {
+                "file_count": count,
+                "inventory_root": root_hash,
+                "path": relative,
+                "workspace_id": workspace_id,
+            }
+        )
+    _require(reference["source_inventories"] == expected, "source inventory reference mismatch")
+
+    promotion_records = []
+    for relative in PROMOTION_SOURCE_PATHS:
+        records = _git_tree_inventory(repo_root, EVIDENCE_RECORD_REVISION, relative)
+        _require(len(records) == 1, "historical promotion source path mismatch")
+        promotion_records.append(records[0])
+    expected_promotion = {
+        "file_count": len(promotion_records),
+        "files": promotion_records,
+        "inventory_root": inventory_root(promotion_records),
+    }
+    _require(
+        reference["promotion_source_inventory"] == expected_promotion,
+        "historical promotion source inventory mismatch",
+    )
+
+
+def _check_historical_artifact_anchor(reference: dict[str, Any], *, repo_root: Path) -> None:
+    resolved = _git_output(
+        repo_root,
+        "rev-parse",
+        f"{EVIDENCE_RECORD_REVISION}^{{commit}}",
+    )
+    _require(resolved == EVIDENCE_RECORD_REVISION, "evidence record revision mismatch")
+    _git_output(repo_root, "merge-base", "--is-ancestor", EVIDENCE_RECORD_REVISION, "HEAD")
+
+    reference_path = REFERENCE.relative_to(ROOT).as_posix()
+    anchored_reference = _git_bytes(
+        repo_root,
+        "show",
+        f"{EVIDENCE_RECORD_REVISION}:{reference_path}",
+        max_bytes=MAX_JSON_BYTES,
+    )
+    anchored_value = json.loads(anchored_reference, object_pairs_hook=_pairs)
+    _require(
+        anchored_reference
+        == json.dumps(anchored_value, separators=(",", ":"), ensure_ascii=True).encode(),
+        "Git-anchored reference is noncanonical",
+    )
+    _require(
+        anchored_value == reference,
+        "retained reference differs from its Git anchor",
+    )
+    for record in reference["evidence"]["files"]:
+        data = _git_bytes(
+            repo_root,
+            "show",
+            f"{EVIDENCE_RECORD_REVISION}:{record['path']}",
+            max_bytes=MAX_JSON_BYTES,
+        )
+        _require(len(data) == record["size_bytes"], "anchored evidence size mismatch")
+        _require(
+            hashlib.sha256(data).hexdigest() == record["sha256"],
+            "anchored evidence hash mismatch",
+        )
 
 
 def _receipt_bytes(artifact: dict[str, Any]) -> bytes:
@@ -816,7 +971,7 @@ def _check_evidence(reference: dict[str, Any], *, repo_root: Path) -> None:
     )
 
 
-def validate(reference: dict[str, Any], *, repo_root: Path = ROOT) -> None:
+def _validate_reference_fields(reference: dict[str, Any]) -> None:
     _require(
         set(reference)
         == {
@@ -851,8 +1006,22 @@ def validate(reference: dict[str, Any], *, repo_root: Path = ROOT) -> None:
     _require(reference["programs"] == PROGRAMS, "program identity reference mismatch")
     _require(reference["host_binaries"] == HOST_BINARIES, "host binary reference mismatch")
     _require(reference["toolchain"] == TOOLCHAIN, "toolchain reference mismatch")
+
+
+def validate(reference: dict[str, Any], *, repo_root: Path = ROOT) -> None:
+    _validate_reference_fields(reference)
     _check_git_base(repo_root)
     _check_sources(reference, repo_root=repo_root)
+    _check_evidence(reference, repo_root=repo_root)
+
+
+def validate_historical(reference: dict[str, Any], *, repo_root: Path = ROOT) -> None:
+    """Validate retained artifacts against the exact evidence-era Git closure."""
+
+    _validate_reference_fields(reference)
+    _check_git_base(repo_root)
+    _check_historical_artifact_anchor(reference, repo_root=repo_root)
+    _check_historical_sources(reference, repo_root=repo_root)
     _check_evidence(reference, repo_root=repo_root)
 
 
@@ -871,9 +1040,18 @@ def check_reference(*, repository_root: Path = ROOT) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reference", type=Path, default=REFERENCE)
+    parser.add_argument(
+        "--historical-recorded-source",
+        action="store_true",
+        help="validate retained evidence against its evidence-era Git source closure",
+    )
     args = parser.parse_args()
     try:
-        validate(load_json(args.reference))
+        reference = load_json(args.reference)
+        if args.historical_recorded_source:
+            validate_historical(reference)
+        else:
+            validate(reference)
     except (CheckError, OSError, ValueError, KeyError, TypeError) as error:
         print(json.dumps({"error": str(error), "ok": False}, sort_keys=True))
         return 1
@@ -881,9 +1059,19 @@ def main() -> int:
         json.dumps(
             {
                 "evidence_inventory_root": EVIDENCE_ROOT,
+                "current_checkout_authority": False,
+                "evidence_record_revision": (
+                    EVIDENCE_RECORD_REVISION if args.historical_recorded_source else None
+                ),
+                "historical_source_closure_reconstructed": args.historical_recorded_source,
                 "ok": True,
                 "schema": SCHEMA,
                 "source_base_revision": BASE_REVISION,
+                "status": (
+                    "historical_recorded_source_retained_receipts_validated"
+                    if args.historical_recorded_source
+                    else "same_host_bounded_current_image_two_leaf_reproof"
+                ),
             },
             sort_keys=True,
         )

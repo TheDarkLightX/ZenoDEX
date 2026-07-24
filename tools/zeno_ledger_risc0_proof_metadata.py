@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Build ZenoLedger proof metadata from a Risc0 Tau state-proof envelope."""
+"""Build non-authoritative ZenoLedger metadata diagnostics for a Risc0 proof.
+
+ProofMetadataV0 contains ledger roots that the legacy Spot journal does not
+authenticate. This adapter may copy those roots into a diagnostic metadata
+proposal so archived tooling can reproduce its historical hash. It cannot mint
+proof authority from that proposal or from a caller-selected verifier command.
+"""
 
 from __future__ import annotations
 
@@ -26,7 +32,21 @@ from src.integration.zeno_ledger_v0 import (  # noqa: E402
     validate_proof_metadata_header_binding_v0,
 )
 
-REPORT_SCHEMA = "zenodex.zeno_ledger.risc0_proof_metadata_report.v0"
+REPORT_SCHEMA = "zenodex.zeno_ledger.risc0_proof_metadata_diagnostic.v0"
+REPORT_STATUS = "non_authoritative_header_derived_metadata"
+HEADER_DERIVED_FIELDS = (
+    "chain_id",
+    "height",
+    "pre_state_root",
+    "post_state_root",
+    "tx_root",
+    "evidence_root",
+    "body_root",
+)
+LEGACY_AUTHORITY_BUILDER_ERROR = (
+    "build_risc0_proof_metadata_v0 is disabled because ProofMetadataV0 ledger "
+    "roots are header-derived; use the explicitly diagnostic builder"
+)
 TAU_STATE_PROOF_SCHEMA = "tau_state_proof"
 TAU_STATE_PROOF_SCHEMA_VERSION = 1
 RISC0_ZENODEX_SPOT_PROOF_TYPE_V1 = "risc0.zenodex_spot_transition.v1"
@@ -146,7 +166,7 @@ def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, An
     }
 
 
-def build_risc0_proof_metadata_v0(
+def build_header_derived_risc0_proof_metadata_diagnostic_v0(
     *,
     proof_envelope: Mapping[str, Any],
     header: Mapping[str, Any],
@@ -155,12 +175,20 @@ def build_risc0_proof_metadata_v0(
     dependency_lock_hash: str,
     toolchain_lock_hash: str,
 ) -> dict[str, Any]:
-    """Convert a Risc0 Tau proof envelope into ZenoLedger proof metadata."""
+    """Build a header-derived metadata proposal with no proof authority.
+
+    ``pre_state_root``, ``post_state_root``, ``tx_root``, ``evidence_root``,
+    and ``body_root`` come from the caller's header. The legacy Spot journal
+    does not authenticate those ZenoLedger-domain roots. Consumers must retain
+    this function's diagnostic-only provenance and must not use its return
+    value as an authenticated verifier result.
+    """
 
     proof = _validate_risc0_tau_state_proof(proof_envelope)
     validate_header_v0(dict(header))
     meta = proof["meta"]
-    assert isinstance(meta, Mapping)
+    if not isinstance(meta, Mapping):
+        raise TypeError("normalized proof meta must be a mapping")
 
     public_input = {
         "proof_type": proof["proof_type"],
@@ -198,6 +226,28 @@ def build_risc0_proof_metadata_v0(
         dependency_lock_hash=dependency_lock_hash,
         toolchain_lock_hash=toolchain_lock_hash,
     )
+
+
+def build_risc0_proof_metadata_v0(
+    *,
+    proof_envelope: Mapping[str, Any],
+    header: Mapping[str, Any],
+    conflict_schedule_hash: str,
+    feature_suite_hash: str,
+    dependency_lock_hash: str,
+    toolchain_lock_hash: str,
+) -> dict[str, Any]:
+    """Reject the ambiguous legacy authority-bearing builder entry point."""
+
+    del (
+        proof_envelope,
+        header,
+        conflict_schedule_hash,
+        feature_suite_hash,
+        dependency_lock_hash,
+        toolchain_lock_hash,
+    )
+    raise ValueError(LEGACY_AUTHORITY_BUILDER_ERROR)
 
 
 def _run_risc0_verifier_cmd(*, command: Path, proof: Mapping[str, Any]) -> None:
@@ -243,11 +293,13 @@ def _report(
     post_app_hash_checked: bool,
     post_state_root_checked: bool,
     pre_state_root_checked: bool,
-    risc0_verified: bool,
+    caller_selected_verifier_accepted: bool,
 ) -> dict[str, Any]:
     return {
         "schema": REPORT_SCHEMA,
         "ok": True,
+        "status": REPORT_STATUS,
+        "authority_scope": "none",
         "metadata_path": None if metadata_path is None else str(metadata_path),
         "proof_journal_hash": proof_metadata_hash_v0(metadata),
         "proof_kind": metadata["proof_kind"],
@@ -259,7 +311,12 @@ def _report(
         "post_app_hash_checked": post_app_hash_checked,
         "post_state_root_checked": post_state_root_checked,
         "pre_state_root_checked": pre_state_root_checked,
-        "risc0_verified": risc0_verified,
+        "caller_selected_verifier_accepted": caller_selected_verifier_accepted,
+        "header_derived_fields": list(HEADER_DERIVED_FIELDS),
+        "metadata_roots_authenticated_by_risc0": False,
+        "proof_authority_satisfied": False,
+        "settlement_authority": False,
+        "production_authority": False,
     }
 
 
@@ -279,7 +336,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--require-bound-header",
         action="store_true",
-        help="Require header.proof_journal_hash to equal the generated metadata hash",
+        help=(
+            "Require structural equality between header.proof_journal_hash and the diagnostic "
+            "metadata hash; this does not establish proof authority"
+        ),
     )
     parser.add_argument(
         "--require-post-app-hash-header-app-hash",
@@ -304,7 +364,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--require-risc0-verifier",
         action="store_true",
-        help="Fail unless --risc0-verify-cmd is supplied and accepts the proof envelope",
+        help=(
+            "Fail unless the caller-selected --risc0-verify-cmd accepts the proof envelope; "
+            "this remains non-authoritative"
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -317,12 +380,12 @@ def main(argv: list[str] | None = None) -> int:
             body_checked = True
 
         normalized_proof = _validate_risc0_tau_state_proof(proof)
-        risc0_verified = False
+        caller_selected_verifier_accepted = False
         if args.require_risc0_verifier and args.risc0_verify_cmd is None:
             raise ValueError("--require-risc0-verifier requires --risc0-verify-cmd")
         if args.risc0_verify_cmd is not None:
             _run_risc0_verifier_cmd(command=args.risc0_verify_cmd, proof=normalized_proof)
-            risc0_verified = True
+            caller_selected_verifier_accepted = True
         if args.require_post_app_hash_header_app_hash:
             post_app_hash = normalized_proof["meta"]["post_app_hash"]
             header_app_hash = str(header["app_hash"]).lower()
@@ -340,7 +403,7 @@ def main(argv: list[str] | None = None) -> int:
             if pre_app_hash != "" and pre_app_hash != header_pre_state_root:
                 raise ValueError("risc0 pre_app_hash/header pre_state_root mismatch")
 
-        metadata = build_risc0_proof_metadata_v0(
+        metadata = build_header_derived_risc0_proof_metadata_diagnostic_v0(
             proof_envelope=normalized_proof,
             header=header,
             conflict_schedule_hash=args.conflict_schedule_hash,
@@ -367,7 +430,7 @@ def main(argv: list[str] | None = None) -> int:
                     post_app_hash_checked=args.require_post_app_hash_header_app_hash,
                     post_state_root_checked=args.require_post_app_hash_header_post_state_root,
                     pre_state_root_checked=args.require_pre_app_hash_header_pre_state_root,
-                    risc0_verified=risc0_verified,
+                    caller_selected_verifier_accepted=caller_selected_verifier_accepted,
                 ),
                 indent=2,
                 sort_keys=True,
@@ -375,7 +438,22 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     except Exception as exc:  # noqa: BLE001
-        print(json.dumps({"schema": REPORT_SCHEMA, "ok": False, "error": str(exc)}, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "schema": REPORT_SCHEMA,
+                    "ok": False,
+                    "status": "rejected",
+                    "authority_scope": "none",
+                    "metadata_roots_authenticated_by_risc0": False,
+                    "proof_authority_satisfied": False,
+                    "settlement_authority": False,
+                    "production_authority": False,
+                    "error": str(exc),
+                },
+                sort_keys=True,
+            )
+        )
         return 1
 
 

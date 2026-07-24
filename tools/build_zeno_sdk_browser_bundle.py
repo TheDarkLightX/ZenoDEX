@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a proof-carrying browser checkpoint bundle for Zeno SDK clients."""
+"""Build a structural-diagnostic browser checkpoint bundle for Zeno SDK clients."""
 
 from __future__ import annotations
 
@@ -22,7 +22,6 @@ from tools.check_zeno_ledger_light_client_checkpoint import (  # noqa: E402
     validate_light_client_checkpoint_v0,
 )
 from tools.zeno_ledger_verify import ZERO_ROOT  # noqa: E402
-
 
 BUILD_REPORT_SCHEMA_V0 = "zenodex.zeno_sdk.browser_checkpoint_bundle_build_report.v0"
 
@@ -141,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     report = {
         "schema": BUILD_REPORT_SCHEMA_V0,
         "ok": True,
-        "status": "accepted",
+        "status": "structural_diagnostic_packaged",
         "bundle_schema": BROWSER_CHECKPOINT_BUNDLE_SCHEMA_V0,
         "bundle_hash": bundle["bundle_hash"],
         "out": str(args.out),

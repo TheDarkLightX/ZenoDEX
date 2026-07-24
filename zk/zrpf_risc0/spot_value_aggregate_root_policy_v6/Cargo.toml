@@ -1,0 +1,20 @@
+[package]
+name = "zenodex-zrpf-risc0-spot-value-aggregate-root-policy-v6"
+version = "0.1.0"
+edition = "2021"
+description = "Host and settlement policy for the source-opened Spot V6 L2 root"
+publish = false
+build = false
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+zenodex-zrpf-protocol-v3 = { path = "../../zrpf_protocol/protocol", default-features = false }
+zenodex-zrpf-risc0-shared = { path = "../shared", default-features = false }
+zenodex-zrpf-risc0-spot-value-aggregate-l2-policy-v6 = { path = "../spot_value_aggregate_l2_policy_v6", default-features = false }
+zenodex-zrpf-risc0-value-aggregate-shared = { path = "../value_aggregate_shared", default-features = false }

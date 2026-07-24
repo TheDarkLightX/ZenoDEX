@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from enum import Enum
 from typing import Any, Mapping
 
 from src.integration.zeno_ledger_v0 import (
@@ -11,7 +12,6 @@ from src.integration.zeno_ledger_v0 import (
     validate_checkpoint_v0,
 )
 from src.state.canonical import canonical_hex_fixed_allow_0x
-
 
 PROFILE_SCHEMA_V0 = "zenodex/zeno_ledger/testnet_profile/v0"
 
@@ -38,6 +38,28 @@ TOKEN_SCOPES_V0 = frozenset(
         TOKEN_SCOPE_TAU_NET_EXCLUSIVE_V0,
     }
 )
+
+
+class ProofRequiredAuthorityRejectReasonV0(str, Enum):
+    """Stable reasons for quarantining proof-required V0 authority paths."""
+
+    AUTHENTICATED_CRYPTOGRAPHIC_AUTHORITY_UNAVAILABLE = (
+        "proof_required.authenticated_cryptographic_authority_unavailable_v0"
+    )
+
+
+class ProofRequiredAuthorityErrorV0(ValueError):
+    """A proof-required V0 consumer reached a boundary without proof authority."""
+
+    def __init__(
+        self,
+        *,
+        reason: ProofRequiredAuthorityRejectReasonV0,
+        boundary: str,
+    ) -> None:
+        self.reason = reason
+        self.boundary = boundary
+        super().__init__(f"{reason.value}:{boundary}")
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
@@ -255,11 +277,47 @@ def validate_zeno_ledger_profile_v0(profile: Mapping[str, Any]) -> None:
             raise ValueError("Tau-exclusive release forbids non-Tau deployment")
 
 
-def validate_checkpoint_admission_v0(
+def zeno_ledger_profile_requires_proof_authority_v0(
+    profile: Mapping[str, Any],
+) -> bool:
+    """Return the validated profile's proof-authority requirement."""
+
+    validate_zeno_ledger_profile_v0(profile)
+    bridge_policy = _require_mapping(profile["bridge_policy"], name="bridge_policy")
+    return bool(profile["proof_required"]) or bool(bridge_policy["requires_proof_journal"])
+
+
+def require_production_proof_authority_v0(
+    *,
+    profile: Mapping[str, Any],
+    boundary: str,
+) -> None:
+    """Quarantine V0 authority consumers until they accept authenticated facts.
+
+    The strict Spot range verifier has its own governed cryptographic capability
+    path.  This helper protects generic V0 consumers that receive only profile,
+    checkpoint, metadata, or caller-authored report data.
+    """
+
+    if not isinstance(boundary, str) or boundary == "":
+        raise ValueError("boundary must be a non-empty string")
+    if zeno_ledger_profile_requires_proof_authority_v0(profile):
+        raise ProofRequiredAuthorityErrorV0(
+            reason=(
+                ProofRequiredAuthorityRejectReasonV0
+                .AUTHENTICATED_CRYPTOGRAPHIC_AUTHORITY_UNAVAILABLE
+            ),
+            boundary=boundary,
+        )
+
+
+def validate_checkpoint_structural_compatibility_v0(
     *,
     checkpoint: Mapping[str, Any],
     profile: Mapping[str, Any],
 ) -> None:
+    """Validate V0 profile/checkpoint structure without granting authority."""
+
     validate_zeno_ledger_profile_v0(profile)
     checkpoint_obj = _require_mapping(checkpoint, name="checkpoint")
     validate_checkpoint_v0(dict(checkpoint_obj))
@@ -275,6 +333,23 @@ def validate_checkpoint_admission_v0(
     bridge_policy = _require_mapping(profile["bridge_policy"], name="bridge_policy")
     if bool(bridge_policy["requires_proof_journal"]) and checkpoint_obj["proof_journal_hash"] == ZERO_ROOT_V0:
         raise ValueError("checkpoint proof_journal_hash required by bridge policy")
+
+
+def validate_checkpoint_admission_v0(
+    *,
+    checkpoint: Mapping[str, Any],
+    profile: Mapping[str, Any],
+) -> None:
+    """Admit structurally valid checkpoints only when V0 needs no proof authority."""
+
+    validate_checkpoint_structural_compatibility_v0(
+        checkpoint=checkpoint,
+        profile=profile,
+    )
+    require_production_proof_authority_v0(
+        profile=profile,
+        boundary="checkpoint_admission_v0",
+    )
 
 
 def make_zeno_ledger_profile_v0(

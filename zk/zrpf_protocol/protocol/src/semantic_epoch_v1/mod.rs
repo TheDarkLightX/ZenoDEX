@@ -12,12 +12,13 @@ use core::fmt;
 pub use hash::{
     semantic_epoch_manifest_root_v1, semantic_epoch_profile_id_v1, v1_adapter_count_unit_id_v1,
     v1_adapter_manifest_root_v1, v1_adapter_profile_id_v1, v1_adapter_semantic_source_root_v1,
-    v1_adapter_task_set_root_v1, SemanticEpochDependencyProgramsInputV1,
-    SemanticEpochDependencyProgramsV1,
+    v1_adapter_task_set_root_v1, v2_adapter_manifest_root_v2, v2_adapter_profile_id_v2,
+    SemanticEpochDependencyProgramsInputV1, SemanticEpochDependencyProgramsV1,
 };
 pub use ids::{SemanticSourceIdV1, SourceClaimIdV1};
 pub use leaf::{
-    ExpectedV1AdapterLeafIdentityV1, ProposedSemanticLeafV1, V1AdapterSemanticLeafOpeningV1,
+    ExpectedV1AdapterLeafIdentityV1, ExpectedV2AdapterLeafIdentityV2, ProposedSemanticLeafV1,
+    V1AdapterSemanticLeafOpeningV1, V2AdapterSemanticLeafOpeningV2,
 };
 pub use proposal::{
     decode_exact_semantic_epoch_proposal_v1, encode_semantic_epoch_proposal_v1,
@@ -45,6 +46,7 @@ pub enum SemanticEpochErrorV1 {
     ScopeMismatch,
     CountUnitMismatch,
     LeafProgramMismatch,
+    LeafProfileMismatch,
     V1AdapterProfileMismatch,
     V1AdapterManifestMismatch,
     V1AdapterCountUnitMismatch,
@@ -54,6 +56,15 @@ pub enum SemanticEpochErrorV1 {
     V1AdapterPartitionPlanMismatch,
     V1AdapterAuxiliarySetMustBeEmpty(&'static str),
     V1AdapterStatementMismatch,
+    V2AdapterProfileMismatch,
+    V2AdapterManifestMismatch,
+    V2AdapterCountUnitMismatch,
+    V2AdapterProvenanceMismatch,
+    V2AdapterTaskSetMismatch,
+    V2AdapterSemanticSourceMismatch,
+    V2AdapterPartitionPlanMismatch,
+    V2AdapterAuxiliarySetMustBeEmpty(&'static str),
+    V2AdapterStatementMismatch,
     DuplicateSourceClaim,
     DuplicateSemanticSource,
     DuplicateTask,
@@ -111,6 +122,9 @@ impl fmt::Display for SemanticEpochErrorV1 {
             Self::LeafProgramMismatch => {
                 formatter.write_str("semantic leaves use different adapter programs")
             }
+            Self::LeafProfileMismatch => {
+                formatter.write_str("semantic leaves use different adapter profiles")
+            }
             Self::V1AdapterProfileMismatch => {
                 formatter.write_str("leaf does not use the exact V1 adapter profile")
             }
@@ -140,6 +154,36 @@ impl fmt::Display for SemanticEpochErrorV1 {
             }
             Self::V1AdapterStatementMismatch => {
                 formatter.write_str("leaf V1 adapter statement is invalid")
+            }
+            Self::V2AdapterProfileMismatch => {
+                formatter.write_str("leaf does not use the exact V2 adapter profile")
+            }
+            Self::V2AdapterManifestMismatch => {
+                formatter.write_str("leaf V2 adapter manifest root is invalid")
+            }
+            Self::V2AdapterCountUnitMismatch => {
+                formatter.write_str("leaf V2 adapter count unit is invalid")
+            }
+            Self::V2AdapterProvenanceMismatch => {
+                formatter.write_str("leaf V2 adapter provenance opening is invalid")
+            }
+            Self::V2AdapterTaskSetMismatch => {
+                formatter.write_str("leaf V2 adapter task-set opening is invalid")
+            }
+            Self::V2AdapterSemanticSourceMismatch => {
+                formatter.write_str("leaf V2 adapter semantic-source opening is invalid")
+            }
+            Self::V2AdapterPartitionPlanMismatch => {
+                formatter.write_str("leaf V2 adapter partition-plan opening is invalid")
+            }
+            Self::V2AdapterAuxiliarySetMustBeEmpty(field) => {
+                write!(
+                    formatter,
+                    "leaf V2 adapter {field} must be the canonical empty root"
+                )
+            }
+            Self::V2AdapterStatementMismatch => {
+                formatter.write_str("leaf V2 adapter statement is invalid")
             }
             Self::DuplicateSourceClaim => formatter.write_str("duplicate semantic source claim"),
             Self::DuplicateSemanticSource => {

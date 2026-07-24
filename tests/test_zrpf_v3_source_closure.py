@@ -15,7 +15,53 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 327
+    assert document["file_count"] == 429
+    roles_by_path = {row["path"]: row["role"] for row in document["files"]}
+    for execution_profile_path in (
+        "zk/state_proof_risc0/cli/src/execution_profile_cli.rs",
+        "zk/state_proof_risc0/execution_profile/Cargo.toml",
+        "zk/state_proof_risc0/execution_profile/src/lib.rs",
+    ):
+        assert roles_by_path[execution_profile_path] == "governed_workspace_source"
+    assert roles_by_path["zk/state_proof_risc0/cli/src/spot_authority.rs"] == (
+        "governed_workspace_source"
+    )
+    assert roles_by_path["zk/zrpf_protocol/protocol/src/full_blob_da_v1/policy.rs"] == (
+        "data_availability_protocol_v1"
+    )
+    assert (
+        roles_by_path["zk/zrpf_protocol/protocol/src/checkpoint_finality_v1/policy.rs"]
+        == "checkpoint_finality_protocol_v1"
+    )
+    assert (
+        roles_by_path["zk/zrpf_protocol/protocol/src/checkpoint_finality_v2/transition.rs"]
+        == "checkpoint_finality_protocol_v2"
+    )
+    assert (
+        roles_by_path["zk/zrpf_protocol/protocol/tests/checkpoint_finality_v2.rs"]
+        == "assurance_compiler_source"
+    )
+    assert (
+        roles_by_path["zk/zrpf_protocol/protocol/src/proof_shape_v1/registry.rs"]
+        == "proof_shape_protocol_v1"
+    )
+    assert (
+        roles_by_path["zk/zrpf_protocol/protocol/tests/proof_shape_v1.rs"]
+        == "assurance_compiler_source"
+    )
+    assert {
+        row["path"] for row in document["files"] if row["role"] == "current_source_adapter_v2"
+    } == {
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter.rs",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/cli.rs",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/source.rs",
+        "zk/zrpf_risc0/harness/src/bin/prove_v2_leaf_adapter/tests.rs",
+        "zk/zrpf_risc0/methods/v2_leaf_adapter/Cargo.toml",
+        "zk/zrpf_risc0/methods/v2_leaf_adapter/src/main.rs",
+        "zk/zrpf_risc0/shared/src/adapter_input_v2.rs",
+        "zk/zrpf_risc0/shared/src/source_policy_v2.rs",
+        "zk/zrpf_risc0/shared/src/v2_leaf_adapter.rs",
+    }
     semantic_v2_roles = {
         "semantic_mapping_v2",
         "semantic_protocol_v2",

@@ -120,9 +120,10 @@ pub fn main() {
     // remain opaque until every exact receipt assumption is verified below.
     let input = match decode_exact_value_aggregate_guest_input_v5(&input_bytes) {
         Ok(ValueAggregateGuestInputV5::LevelOne(value)) => value,
-        Ok(ValueAggregateGuestInputV5::LevelTwo(_)) => {
-            abort("ZRPF value aggregate L1 child wire kind rejected")
-        }
+        Ok(
+            ValueAggregateGuestInputV5::LevelOneSourceOpenedSpotV6(_)
+            | ValueAggregateGuestInputV5::LevelTwo(_),
+        ) => abort("ZRPF value aggregate L1 child wire kind rejected"),
         Err(_) => abort("ZRPF value aggregate L1 input rejected"),
     };
     let verified = ReceiptVerifiedLevelOneInputV5::authenticate(input);

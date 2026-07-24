@@ -13,18 +13,20 @@ recursive-v2 workspace implements an experimental fixed-height
 leaf-to-subtree-to-epoch-root composition. This policy does not claim
 arbitrary-depth recursion or production-ready recursive aggregation.
 
-Status update, 2026-07-12: the active V1 and recursive-v2 lockfiles now pin
-`anyhow 1.0.103`. Fresh current-source evidence now binds a Spot leaf, zUSD
-leaf, two-child V1 root, two-leaf recursive-v2 inner node, and recursive-v2
-epoch root. The active V1 aggregate image ID is
+Status correction, 2026-07-13: the V3 evidence remains valid for its exact
+evidence-era source closure at
+`793a98f73a52ac3722d4c453495fed16a1a14c41`. Later guest-linked Spot source
+changes invalidate its current-image status. Current `RS-CBC-014` is pending
+until fresh image identities, receipts, and mutation controls exist. The
+recorded V1 aggregate image ID is
 `c4bde351d48e8e775c2e831fc37fb98a9e45ed59455afe761572d2e11ceed6c4`;
-the active V2 aggregate image ID is
+the recorded V2 aggregate image ID is
 `0a678da608708af7bd6c35bf825ffe8815efd67f0a8041466929fb2fcda7ae68`.
-The active V3 reference and checker bind the exact source inventories, guest
+The historical V3 reference and checker bind the exact source inventories, guest
 programs, host verifiers, toolchain observations, five positive receipts, and
-nine negative controls. This closes `RS-CBC-014` only for the recorded
-same-host bounded computational-integrity profile. The active audit policy
-permits no unsound-warning disposition.
+nine negative controls for that recorded source. The current audit policy
+permits no unsound-warning disposition. The exact nonclaim is
+`no_current_v1_or_v2_image_receipt_evidence_after_recorded_guest_source_closure_drift`.
 
 Status update, 2026-07-10: fanout-oriented composition repairs changed
 guest-linked v1 and v2 source. At that revision, RISC0 3.0.5 v1 leaf/root receipts
@@ -125,9 +127,10 @@ remains a pending critical promotion obligation.
 The host CLI changes invalidated the prior V1 current-source verifier replay
 claim because the retained V1 verifier source closure includes the CLI. The
 subsequent `anyhow 1.0.103` migration changed both active V1 and V2 build
-closures and image identities. The active V3 reproof reference restores only a
-same-host current-image computational-integrity claim. Historical receipts
-remain bounded regression evidence. Public replay, cross-host reproducibility,
+closures and image identities. V3 restored a bounded claim for its recorded
+source closure. Later guest-linked Spot hardening made that reference
+historical. Its Git-object checker preserves bounded regression evidence while
+the live-source checker rejects. Public replay, cross-host reproducibility,
 release authority, settlement authority, privacy, and production readiness
 remain false.
 
@@ -212,6 +215,46 @@ only after receipt verification. V2 has source-level and host-test evidence;
 no fresh V2 guest ELF, image ID, receipt, seal-mutation replay, admission,
 release, settlement, or production authority is claimed.
 
+Status update, 2026-07-12: the additive source-opened ordinary Spot V6 profile
+implements one bounded source-to-settlement path under four pinned program
+identities:
+
+```text
+source-opened leaf V6  67494a413c729cbb4b6095036425ba0b86edcc30625c19b525409f8e8ff022d1
+aggregate L1 V6        a2b4c32ef76c0a81643f1758c476fc21f6a7c2afd11d2a6e08fae022418e2e15
+aggregate L2 V6        5c8f94b4ada70ad5ba0d6ac6bd6b0055a9e148c329372e7b24a81249ff07a76f
+settlement V6          73a1c5c275d85f39443f68803932df9caac670b420b9948b7e7b2dffe1f2e98d
+```
+
+The leaf host boundary verifies and independently recomposes the typed source
+transition and verifies the governed adapter receipt. Each aggregate guest
+verifies its exact child receipt before decoding and independently recomposes
+the V5 proposal. The settlement guest verifies the exact L2 receipt before
+interpretation, reconstructs the singleton source relation, derives one
+state-bound ordinary Spot certificate, full-blob replay content certificate, and
+exact effect plan, and commits them through the fixed `ZRPFSAV1` admission
+journal. The strict Rust verifier verifies the settlement receipt once and
+recomposes the expected journal from the exact guest input. The independent
+Python adapter checks the same frame and projects only the shared singleton
+ordinary Spot semantics.
+
+SQLite schema V4 atomically persists the exact receipt, guest input, admission
+journal, reconstructed replay, content certificate, settlement certificate,
+effect plan, governed proof identities, projection binding, replay rows, and
+nullifiers. This closes exact local proof-to-plan persistence for the bounded
+V6 profile. It does not apply a live ZenoLedger balance tree and fixes
+`settlement_authority=false`.
+
+Local Succinct receipts have been generated for the leaf, L1, and L2 programs.
+The settlement proof, external-verifier replay, checked retained inventory, and
+final evidence record remain the promotion gate for the complete local-chain
+claim. The current harness represents one action and uses deterministic
+synthetic sparse-Merkle siblings. Multi-leaf fanout, live authorization and
+state continuity, provider retrievability, external finality, governed release,
+cross-host reproducibility, privacy, throughput, settlement authority, and
+production authority remain unestablished. The bounded contract is documented
+in `docs/research/ZRPF_SOURCE_OPENED_SPOT_V6_CBC_SPEC_20260712.md`.
+
 The local durable replay-index profile implements a separate partial
 sub-obligation under `RS-CBC-012` and `RS-CBC-025`. A release-bound static
 verifier can pass authenticated root facts and exact verification provenance
@@ -232,6 +275,35 @@ application-state, and settlement commits must share one future ZenoLedger
 transaction before durable atomic value-moving admission can be claimed. Fresh
 V2 receipt evidence and governed live release configuration also remain
 required.
+
+Status update, 2026-07-15: checkpoint-finality V2 preserves its original
+nonzero `CommitmentV3` semantics for the governed genesis hash, certificate
+parent hash, prior cursor hash, and derived next cursor hash. All-zero values
+reject during typed request, certificate, cursor, or response decoding. A
+future protocol that needs a zero genesis sentinel must use a distinct
+version, hash domain, and compatibility contract rather than broadening V2.
+
+The standalone `zk/zrpf_checkpoint_finality_checker` executable performs a
+bounded, proof-neutral V2 consistency check over exact policy bytes, supplied
+checkpoint binding, optional prior cursor, and canonical certificate bytes. Its
+fixed response binds the policy root, certificate root, prior and next cursor,
+certificate SHA-256, and exact request SHA-256. The response commitment is
+unkeyed framing integrity. It does not authenticate governance, quorum
+signatures, external finality, rollback-resistant storage, release identity, or
+settlement authority. The additive
+`zrpf_spot_v7_checkpoint_finality_checker_adapter` constructs the exact request
+from the governed operational-policy capability and the BLS-authenticated V3
+finality transition, executes one manifest-pinned static checker, compares
+every response field with an independently constructed expectation, and mints
+a separate private cross-checked capability. The Spot V7 operational V3 join
+accepts the raw BLS-authenticated transition only alongside the exact checker,
+executes that checker itself, and retains the exact manifest, request, response,
+and their digests in its live commit packet. A preconstructed cross-checked
+object cannot enter that join. The additive V6 atomic store persists and
+restart-replays those exact invocation artifacts in the same transaction as the
+existing V5 operational packet. The checker identity remains manifest-pinned
+rather than selected by the authenticated release state, so release,
+settlement, and production authority remain false.
 
 The additive `zk/zrpf_risc0` workspace contains the pure Spot V1-to-V3 mapping,
 a receipt-authenticated adapter guest, a private-construction host verifier,
@@ -1095,8 +1167,19 @@ from the relevant rows.
 | cross-shard messages | duplicate, missing, carry, and cancellation tests |
 | recursive child verification | child substitution and child omission tests |
 | CLI parser | malformed input, overflow, truncation, and unknown-mode tests |
-| Python/Rust parity | shared fixture corpus or explicit non-claim |
+| Python/Rust parity | active distinguishing-witness fixture corpus or explicit non-claim |
 | public claim update | claims registry or coverage matrix checker |
+
+Representation coverage requires an active distinguishing witness for every
+acceptance-relevant choice. A field appearing in a fixture or surviving a
+round trip is insufficient when the fixture would also pass after a field
+swap, byte-order reversal, flag omission, alias substitution, or default-value
+collapse. Cross-language fixtures must therefore use position-distinct,
+non-palindromic values for ordered and multi-byte fields. Each accepted flag
+state needs a witness, while reserved or rejected flag states need a mutation
+that reaches the expected fail-closed boundary. A mutation of every governed
+field position must either change a committed digest or produce the stable
+typed rejection required by the format.
 
 Use BDD-style scenario tests only for cross-layer user-visible behavior. For
 proof correctness, prefer invariant-named unit/property/parity/mutation tests.

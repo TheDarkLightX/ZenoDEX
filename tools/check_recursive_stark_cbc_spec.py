@@ -260,6 +260,13 @@ PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS = (
 PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM = (
     "no_current_v1_or_v2_image_receipt_evidence_after_anyhow_1_0_103_migration"
 )
+SOURCE_DRIFT_REPROOF_PENDING_CLAIM_STATUS = (
+    "recorded_v3_historical_evidence_retained_temporary_v3_structural_tree_verified_"
+    "current_v1_v2_reproof_pending_after_guest_source_drift"
+)
+SOURCE_DRIFT_REPROOF_PENDING_NON_CLAIM = (
+    "no_current_v1_or_v2_image_receipt_evidence_after_recorded_guest_source_closure_drift"
+)
 
 
 @dataclass(frozen=True)
@@ -284,8 +291,8 @@ CLAIM_STATUS_POLICIES = {
         required_implemented_obligations=frozenset({"RS-CBC-014"}),
         required_pending_obligations=frozenset(),
     ),
-    PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS: ClaimStatusPolicy(
-        required_source_closures=frozenset(),
+    SOURCE_DRIFT_REPROOF_PENDING_CLAIM_STATUS: ClaimStatusPolicy(
+        required_source_closures=frozenset({"historical_active_v3"}),
         required_implemented_statements=frozenset(
             {
                 "zrpf_node_v3_structural",
@@ -297,6 +304,12 @@ CLAIM_STATUS_POLICIES = {
     ),
 }
 ACCEPTED_CLAIM_STATUSES = frozenset(CLAIM_STATUS_POLICIES)
+V1_CURRENT_LIVE_REPLAY_REQUIRED_CLAIM_STATUSES = frozenset(
+    {FULL_CURRENT_PROOF_CLAIM_STATUS}
+)
+V1_HISTORICAL_LIVE_REPLAY_REQUIRED_CLAIM_STATUSES = frozenset(
+    {SOURCE_DRIFT_REPROOF_PENDING_CLAIM_STATUS}
+)
 STALE_CURRENT_IMAGE_NON_CLAIM = "no_current_image_recursive_proof_after_composition_repair"
 STALE_V3_TREE_ABSENCE_NON_CLAIM = "no_v3_receipt_authenticated_tree"
 SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
@@ -328,11 +341,19 @@ def validate_matrix(matrix: Any, *, repo_root: Path = REPO_ROOT) -> dict[str, An
 
     claim_status = promotion["facts"]["claim_status"]
     live_record_integrity_verified = False
-    if inspected_root is None:
+    current_live_record_required = (
+        claim_status in V1_CURRENT_LIVE_REPLAY_REQUIRED_CLAIM_STATUSES
+    )
+    historical_live_record_required = (
+        claim_status in V1_HISTORICAL_LIVE_REPLAY_REQUIRED_CLAIM_STATUSES
+    )
+    live_record_required = current_live_record_required or historical_live_record_required
+    if inspected_root is None and live_record_required:
         errors.append("V1 live-replay record cannot be checked")
-    else:
+    elif inspected_root is not None and live_record_required:
         live_record = recursive_v1_live_record.check_retained_evidence(
-            repository_root=inspected_root
+            repository_root=inspected_root,
+            historical_recorded_source=historical_live_record_required,
         )
         live_record_integrity_verified = live_record.get("ok") is True
         if not live_record_integrity_verified:
@@ -463,6 +484,19 @@ def _validate_promoted_source_closures(
         if result.get("ok") is not True:
             errors.append(f"promoted active V3 reference rejected: {result.get('error')}")
 
+    if "historical_active_v3" in required_closures:
+        try:
+            historical_reference = active_reproof_v3.load_json(
+                repo_root
+                / "config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json"
+            )
+            active_reproof_v3.validate_historical(
+                historical_reference,
+                repo_root=repo_root,
+            )
+        except (active_reproof_v3.CheckError, OSError, ValueError, KeyError, TypeError) as exc:
+            errors.append(f"retained historical active V3 reference rejected: {exc}")
+
 
 def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
     errors: list[str] = []
@@ -512,11 +546,12 @@ def _validate_promotion_boundary(value: Any) -> dict[str, Any]:
             "V1-host-replay-pending status requires its exact current-host replay non-claim"
         )
     if (
-        claim_status == PATCHED_ANYHOW_REPROOF_PENDING_CLAIM_STATUS
-        and PATCHED_ANYHOW_REPROOF_PENDING_NON_CLAIM not in non_claims
+        claim_status == SOURCE_DRIFT_REPROOF_PENDING_CLAIM_STATUS
+        and SOURCE_DRIFT_REPROOF_PENDING_NON_CLAIM not in non_claims
     ):
         errors.append(
-            "patched-anyhow reproof-pending status requires its exact current-proof non-claim"
+            "guest-source-drift reproof-pending status requires its exact current-proof "
+            "non-claim"
         )
     if V1_RECORDED_LIVE_REPLAY_NON_CLAIM not in non_claims:
         errors.append(
