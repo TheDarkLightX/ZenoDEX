@@ -13,6 +13,7 @@ from pathlib import Path
 
 REPORT_SCHEMA = "zenodex/fcis-authority-snapshot-contract-check/v1"
 DEFAULT_AUTHORITY_PATHS = (
+    Path("src/core/dex.py"),
     Path("src/core/fee_accumulator_transition.py"),
     Path("src/core/nonce_batch_transition.py"),
     Path("src/state/snapshot_combinators.py"),
@@ -34,6 +35,7 @@ DEFAULT_AUTHORITY_PATHS = (
     Path("src/state/state_snapshot_values.py"),
     Path("src/state/state_snapshot_schema.py"),
     Path("src/state/state_admission_profile.py"),
+    Path("src/state/state_snapshots.py"),
     Path("src/state/state_transitions.py"),
     Path("src/state/spot_state_transitions.py"),
     Path("src/state/committed_spot_roots.py"),
@@ -289,6 +291,8 @@ class _AuthorityVisitor(ast.NodeVisitor):
                 self._add(node, "FORBIDDEN_COPY", qualified)
             if module in {"pickle", "copyreg"}:
                 self._add(node, "FORBIDDEN_RECONSTRUCTION", qualified)
+            if alias.name == "deep_freeze":
+                self._add(node, "GENERIC_DEEP_FREEZE", qualified)
             if module == "typing" and alias.name == "Any":
                 self._add(node, "OPEN_AUTHORITY_TYPE", qualified)
             if module == "dataclasses" and alias.name == "is_dataclass":
@@ -313,6 +317,8 @@ class _AuthorityVisitor(ast.NodeVisitor):
         resolved = self._resolve(node)
         if resolved == "typing.Any" or node.id == "Any":
             self._add(node, "OPEN_AUTHORITY_TYPE", resolved or node.id)
+        if node.id == "_snapshot_sealed":
+            self._add(node, "SNAPSHOT_SEAL_FLAG", node.id)
         if (
             self.relative_path != _SHADOW_AUTHORITY_PATH
             and node.id in _SHADOW_AUTHORITY_RESERVED_TOKENS
@@ -323,6 +329,8 @@ class _AuthorityVisitor(ast.NodeVisitor):
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if self._resolve(node) == "typing.Any":
             self._add(node, "OPEN_AUTHORITY_TYPE", "typing.Any")
+        if node.attr == "_snapshot_sealed":
+            self._add(node, "SNAPSHOT_SEAL_FLAG", node.attr)
         allowed_paths = _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST.get(node.attr)
         if allowed_paths is not None and not _matches_allowed_path(
             self.relative_path,
@@ -347,6 +355,8 @@ class _AuthorityVisitor(ast.NodeVisitor):
             # local bindings, and forward declarations without attempting to
             # execute caller-controlled Python during the static check.
             self._add(node, "SHADOW_AUTHORITY_IMPORT", node.value)
+        if type(node.value) is str and node.value == "_snapshot_sealed":
+            self._add(node, "SNAPSHOT_SEAL_FLAG", node.value)
         self.generic_visit(node)
 
     def visit_Subscript(self, node: ast.Subscript) -> None:
@@ -543,6 +553,8 @@ class _AuthorityVisitor(ast.NodeVisitor):
     def visit_Call(self, node: ast.Call) -> None:
         called = self._resolve(node.func)
         called_tail = called.rsplit(".", 1)[-1] if called is not None else None
+        if called_tail == "deep_freeze":
+            self._add(node, "GENERIC_DEEP_FREEZE", called or called_tail)
         if _is_profile_path(self.relative_path) and called_tail in _LEGACY_MUTABLE_CONSTRUCTORS:
             self._add(
                 node,

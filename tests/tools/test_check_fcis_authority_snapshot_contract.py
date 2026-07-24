@@ -27,8 +27,18 @@ def exact(value: object) -> int:
 """
 
 
-def test_default_authority_paths_cover_exact_perps_aggregate_transition() -> None:
-    assert Path("src/state/perps_aggregate_transitions.py") in DEFAULT_AUTHORITY_PATHS
+@pytest.mark.parametrize(
+    "path",
+    [
+        "src/core/dex.py",
+        "src/state/state_snapshots.py",
+        "src/state/perps_aggregate_transitions.py",
+    ],
+)
+def test_default_authority_paths_cover_mounted_and_exact_authority(
+    path: str,
+) -> None:
+    assert Path(path) in DEFAULT_AUTHORITY_PATHS
 
 
 def _run(tmp_path: Path, source: str, *, unrelated: str | None = None):
@@ -59,6 +69,36 @@ def _codes(report: dict[str, object]) -> set[str]:
 )
 def test_checker_rejects_copy_and_deepcopy(tmp_path: Path, source: str) -> None:
     assert "FORBIDDEN_COPY" in _codes(_run(tmp_path, source))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from src.state.immutable_collections import deep_freeze\nvalue = deep_freeze(object())\n",
+        "import src.state.immutable_collections as immutable_collections\n"
+        "value = immutable_collections.deep_freeze(object())\n",
+    ],
+)
+def test_checker_rejects_generic_deep_freeze(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    assert "GENERIC_DEEP_FREEZE" in _codes(_run(tmp_path, source))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "class Snapshot:\n    def __init__(self):\n        self._snapshot_sealed = True\n",
+        "def seal(value: object) -> None:\n"
+        "    object.__setattr__(value, '_snapshot_sealed', True)\n",
+    ],
+)
+def test_checker_rejects_snapshot_seal_flags(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    assert "SNAPSHOT_SEAL_FLAG" in _codes(_run(tmp_path, source))
 
 
 @pytest.mark.parametrize(
