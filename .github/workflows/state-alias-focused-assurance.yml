@@ -146,3 +146,30 @@ jobs:
             tests/integration/test_perp_engine_oracle_authorization.py \
             tests/integration/test_perp_engine_clearinghouse_2p.py \
             tests/integration/test_perps_api.py
+
+  m4-source-export:
+    if: github.event.pull_request.head.ref == 'agent/fcis-m4-materialize-20260724'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Archive exact source
+        run: tar --exclude=.git -czf "$RUNNER_TEMP/zenodex-source.tar.gz" .
+
+      - name: Upload exact source
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenodex-m4-source-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/zenodex-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
