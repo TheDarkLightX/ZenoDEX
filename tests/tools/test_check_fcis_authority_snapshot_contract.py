@@ -348,6 +348,41 @@ def test_exact_replay_profile_rejects_protected_exact_value_rebinding(
     assert "EXACT_REPLAY_DATAFLOW" in _codes(report)
 
 
+def test_exact_replay_profile_rejects_post_admission_object_mutation(
+    tmp_path: Path,
+) -> None:
+    source = _exact_replay_dataflow_source(
+        admission_body=(
+            "    exact_settlement = snapshot_settlement(settlement)\n"
+            "    exact_intents = admit_intent_batch(intents)\n"
+            "    return exact_settlement, exact_intents"
+        ),
+        replay_settlement="exact_settlement",
+        replay_intents="exact_intents",
+    )
+    anchor = "    exact_settlement, exact_intents = command"
+    assert source.count(anchor) == 1
+    source = source.replace(
+        anchor,
+        anchor + "; object.__setattr__(exact_settlement, 'included_intents', ())",
+        1,
+    )
+
+    relative = Path("src/core/settlement_strong_validator.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(source, encoding="utf-8")
+    report = check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="exact-replay",
+    )
+
+    assert "OWNED_VALUE_MUTATION_BYPASS" in _codes(report)
+
+
 @pytest.mark.parametrize(
     "source",
     [
@@ -545,6 +580,23 @@ def test_checker_rejects_reflective_admission(tmp_path: Path, source: str) -> No
 def test_checker_rejects_object_new_constructor_bypass(tmp_path: Path) -> None:
     report = _run(tmp_path, "value = object.__new__(dict)\n")
     assert "CONSTRUCTOR_BYPASS" in _codes(report)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        "object.__setattr__(value, 'field', 1)",
+        "object.__delattr__(value, 'field')",
+        "type.__setattr__(Value, 'field', 1)",
+        "type.__delattr__(Value, 'field')",
+    ],
+)
+def test_checker_rejects_owned_value_mutation_bypass(
+    tmp_path: Path,
+    call: str,
+) -> None:
+    source = f"class Value:\n    pass\nvalue = Value()\n{call}\n"
+    assert "OWNED_VALUE_MUTATION_BYPASS" in _codes(_run(tmp_path, source))
 
 
 @pytest.mark.parametrize(

@@ -877,6 +877,13 @@ class _AuthorityVisitor(ast.NodeVisitor):
             self._add(node, "REFLECTIVE_ADMISSION", called)
         if called == "object.__new__":
             self._add(node, "CONSTRUCTOR_BYPASS", called)
+        if called in {
+            "object.__delattr__",
+            "object.__setattr__",
+            "type.__delattr__",
+            "type.__setattr__",
+        }:
+            self._add(node, "OWNED_VALUE_MUTATION_BYPASS", called)
         if called in {"isinstance", "builtins.isinstance"} and len(node.args) >= 2:
             targets = node.args[1].elts if type(node.args[1]) is ast.Tuple else (node.args[1],)
             broad = sorted(
