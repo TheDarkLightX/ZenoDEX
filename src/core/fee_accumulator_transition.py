@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TypeAlias, final
 
+from ..state.fcis_execution_context_values import FCISFeeSplitPolicyV1
 from ..state.state_snapshot_values import CommittedFeeAccumulatorStateV1
 from .fees import BPS_DENOM, FeeSplitParams, FeeSplitResult, _split_fee_amounts_v1
 
@@ -95,14 +96,28 @@ def _validated_params(
     return values[0], values[1], values[2]
 
 
-def split_fee_with_committed_dust_carry_v1(
+def _validated_owned_policy_v1(
+    policy: object,
+) -> tuple[int, int, int] | FeeAccumulatorTransitionRejectV1:
+    if type(policy) is not FCISFeeSplitPolicyV1:
+        return _reject(FeeAccumulatorTransitionCodeV1.WRONG_EXACT_TYPE, "policy")
+    values = (
+        object.__getattribute__(policy, "buyback_bps"),
+        object.__getattribute__(policy, "treasury_bps"),
+        object.__getattribute__(policy, "rewards_bps"),
+    )
+    if any(type(value) is not int or not 0 <= value <= BPS_DENOM for value in values):
+        return _reject(FeeAccumulatorTransitionCodeV1.INVALID_PARAMETERS, "policy")
+    if sum(values) != BPS_DENOM:
+        return _reject(FeeAccumulatorTransitionCodeV1.INVALID_PARAMETERS, "policy.total")
+    return values[0], values[1], values[2]
+
+
+def _validated_fee_and_dust_v1(
     *,
     fee_amount: object,
-    params: object,
     state: object,
-) -> FeeAccumulatorTransitionResultV1:
-    """Split once using exact integers and retain the exact state candidate."""
-
+) -> tuple[int, int] | FeeAccumulatorTransitionRejectV1:
     if type(fee_amount) is not int:
         return _reject(FeeAccumulatorTransitionCodeV1.WRONG_EXACT_TYPE, "fee_amount")
     if fee_amount < 0:
@@ -110,10 +125,16 @@ def split_fee_with_committed_dust_carry_v1(
     dust = _validated_dust(state)
     if type(dust) is FeeAccumulatorTransitionRejectV1:
         return dust
-    split_params = _validated_params(params)
-    if type(split_params) is FeeAccumulatorTransitionRejectV1:
-        return split_params
-    buyback_bps, treasury_bps, rewards_bps = split_params
+    return fee_amount, dust
+
+
+def _split_fee_with_validated_bps_v1(
+    *,
+    fee_amount: int,
+    dust: int,
+    bps: tuple[int, int, int],
+) -> FeeAccumulatorTransitionResultV1:
+    buyback_bps, treasury_bps, rewards_bps = bps
 
     total = fee_amount + dust
     try:
@@ -137,10 +158,59 @@ def split_fee_with_committed_dust_carry_v1(
     )
 
 
+def split_fee_with_committed_dust_carry_v1(
+    *,
+    fee_amount: object,
+    params: object,
+    state: object,
+) -> FeeAccumulatorTransitionResultV1:
+    """Split once using exact integers and retain the exact state candidate."""
+
+    amount_and_dust = _validated_fee_and_dust_v1(
+        fee_amount=fee_amount,
+        state=state,
+    )
+    if type(amount_and_dust) is FeeAccumulatorTransitionRejectV1:
+        return amount_and_dust
+    split_params = _validated_params(params)
+    if type(split_params) is FeeAccumulatorTransitionRejectV1:
+        return split_params
+    return _split_fee_with_validated_bps_v1(
+        fee_amount=amount_and_dust[0],
+        dust=amount_and_dust[1],
+        bps=split_params,
+    )
+
+
+def split_fee_with_owned_policy_v1(
+    *,
+    fee_amount: object,
+    policy: object,
+    state: object,
+) -> FeeAccumulatorTransitionResultV1:
+    """Split once from the exact policy value admitted with the step context."""
+
+    amount_and_dust = _validated_fee_and_dust_v1(
+        fee_amount=fee_amount,
+        state=state,
+    )
+    if type(amount_and_dust) is FeeAccumulatorTransitionRejectV1:
+        return amount_and_dust
+    split_policy = _validated_owned_policy_v1(policy)
+    if type(split_policy) is FeeAccumulatorTransitionRejectV1:
+        return split_policy
+    return _split_fee_with_validated_bps_v1(
+        fee_amount=amount_and_dust[0],
+        dust=amount_and_dust[1],
+        bps=split_policy,
+    )
+
+
 __all__ = [
     "FeeAccumulatorTransitionCodeV1",
     "FeeAccumulatorTransitionOkV1",
     "FeeAccumulatorTransitionRejectV1",
     "FeeAccumulatorTransitionResultV1",
     "split_fee_with_committed_dust_carry_v1",
+    "split_fee_with_owned_policy_v1",
 ]

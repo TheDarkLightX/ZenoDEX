@@ -57,6 +57,9 @@ from ..state.state_snapshots import (
 )
 from ..state.state_transitions import (
     BalanceDeltaV1,
+    CanonicalBalancePatchV1,
+    CanonicalLPPositionPatchV1,
+    CanonicalPoolPatchV1,
     LPPositionDeltaV1,
     PoolReserveDeltaV1,
 )
@@ -150,6 +153,9 @@ class StrongSettlementStateCandidateV1:
     balances: CommittedBalanceTableV1
     pools: OwnedMapV1[str, CommittedPoolStateV1]
     lp_balances: CommittedLPTableV1
+    balance_patch: CanonicalBalancePatchV1 | None
+    pool_patch: CanonicalPoolPatchV1 | None
+    lp_patch: CanonicalLPPositionPatchV1 | None
 
     def __post_init__(self) -> None:
         _ExactSpotReplayStateV1(
@@ -157,6 +163,15 @@ class StrongSettlementStateCandidateV1:
             self.pools,
             self.lp_balances,
         )
+        if (
+            self.balance_patch is not None
+            and type(self.balance_patch) is not CanonicalBalancePatchV1
+        ):
+            raise TypeError("strong settlement balance patch must be exact or None")
+        if self.pool_patch is not None and type(self.pool_patch) is not CanonicalPoolPatchV1:
+            raise TypeError("strong settlement pool patch must be exact or None")
+        if self.lp_patch is not None and type(self.lp_patch) is not CanonicalLPPositionPatchV1:
+            raise TypeError("strong settlement LP patch must be exact or None")
 
 
 @final
@@ -298,8 +313,7 @@ def _build_exact_spot_batch_v1(
         )
     except (TypeError, ValueError) as exc:
         return _strong_reject_v1(
-            "exact spot command construction failed after replay: "
-            f"{type(exc).__name__}: {exc}"
+            f"exact spot command construction failed after replay: {type(exc).__name__}: {exc}"
         )
 
 
@@ -324,21 +338,18 @@ def _build_exact_spot_candidate_v1(
         rejected = _spot_reject_v1(exact_candidate)
         return _strong_reject_v1(f"exact spot candidate rejected: {rejected.text()}")
     if exact_candidate.balances != replay_state.balances:
-        return _strong_reject_v1(
-            "exact spot candidate balance mismatch vs sequential replay"
-        )
+        return _strong_reject_v1("exact spot candidate balance mismatch vs sequential replay")
     if exact_candidate.pools != replay_state.pools:
-        return _strong_reject_v1(
-            "exact spot candidate pool mismatch vs sequential replay"
-        )
+        return _strong_reject_v1("exact spot candidate pool mismatch vs sequential replay")
     if exact_candidate.lp_balances.balance_entries != replay_state.lp_balances.balance_entries:
-        return _strong_reject_v1(
-            "exact spot candidate LP-balance mismatch vs sequential replay"
-        )
+        return _strong_reject_v1("exact spot candidate LP-balance mismatch vs sequential replay")
     return StrongSettlementStateCandidateV1(
         balances=exact_candidate.balances,
         pools=exact_candidate.pools,
         lp_balances=exact_candidate.lp_balances,
+        balance_patch=exact_candidate.balance_patch,
+        pool_patch=exact_candidate.pool_patch,
+        lp_patch=exact_candidate.lp_patch,
     )
 
 

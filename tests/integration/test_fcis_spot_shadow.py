@@ -451,7 +451,9 @@ def test_full_step_shadow_readmits_corrupted_context_without_candidate_escape() 
 
     assert type(observed) is FCISStepShadowRejectV1
     assert observed.phase is FCISStepShadowPhaseV1.POLICY_ADMISSION
-    assert "allow_cow_netting must be an exact bool" in observed.reason
+    assert observed.reason == (
+        'shadow context admission rejected: wrong_exact_type:$["settlement"]["allow_cow_netting"]'
+    )
     assert not hasattr(observed, "canonical_snapshot_bytes")
 
 
@@ -472,7 +474,7 @@ def test_shadow_rejects_corrupt_policy_without_state_candidate() -> None:
     assert not hasattr(observed, "balances")
 
 
-def test_shadow_module_is_not_mounted_as_an_authority_dependency() -> None:
+def test_shadow_and_candidate_evaluator_are_not_mounted_as_authority() -> None:
     assert FCIS_SPOT_SHADOW_ONLY_V1 is True
     repository_root = Path(__file__).resolve().parents[2]
     report = check_contract(
@@ -484,3 +486,4 @@ def test_shadow_module_is_not_mounted_as_an_authority_dependency() -> None:
     violations = report["violations"]
     assert type(violations) is list
     assert not any(item["code"] == "SHADOW_AUTHORITY_IMPORT" for item in violations)
+    assert not any(item["code"] == "UNMOUNTED_EVALUATOR_IMPORT" for item in violations)

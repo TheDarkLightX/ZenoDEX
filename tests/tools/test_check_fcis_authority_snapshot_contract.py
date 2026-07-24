@@ -31,6 +31,8 @@ def exact(value: object) -> int:
     "path",
     [
         "src/core/dex.py",
+        "src/core/fcis_step_evaluation_values.py",
+        "src/core/fcis_step_evaluator.py",
         "src/state/state_snapshots.py",
         "src/state/perps_aggregate_transitions.py",
         "src/state/fcis_execution_context_admission.py",
@@ -420,6 +422,81 @@ def test_checker_rejects_shadow_authority_through_an_intermediary(
         and item["path"] == "src/integration/shadow_adapter.py"
         for item in violations
     )
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        "from src.core.fcis_step_evaluator import evaluate_fcis_step_candidate_v1\n",
+        "from .fcis_step_evaluator import evaluate_fcis_step_candidate_v1\n",
+        "import src.core.fcis_step_evaluator\n",
+        "import importlib\nevaluator = importlib.import_module('src.core.fcis_step_evaluator')\n",
+        "import importlib\n"
+        "module_name = 'src.core.' + 'fcis_step_evaluator'\n"
+        "evaluator = importlib.import_module(module_name)\n",
+        "evaluator = __import__('src.core.fcis_step_evaluator')\n",
+    ),
+)
+def test_checker_rejects_unmounted_evaluator_import_in_production(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    consumer = tmp_path / "src" / "core" / "consumer.py"
+    consumer.parent.mkdir(parents=True)
+    consumer.write_text(source, encoding="utf-8")
+
+    assert "UNMOUNTED_EVALUATOR_IMPORT" in _codes(_run(tmp_path, _COMPLIANT))
+
+
+def test_checker_resolves_parent_relative_unmounted_evaluator_import(
+    tmp_path: Path,
+) -> None:
+    consumer = tmp_path / "src" / "integration" / "consumer.py"
+    consumer.parent.mkdir(parents=True)
+    consumer.write_text(
+        "from ..core.fcis_step_evaluator import evaluate_fcis_step_candidate_v1\n",
+        encoding="utf-8",
+    )
+
+    assert "UNMOUNTED_EVALUATOR_IMPORT" in _codes(_run(tmp_path, _COMPLIANT))
+
+
+def test_checker_rejects_unmounted_evaluator_through_an_intermediary(
+    tmp_path: Path,
+) -> None:
+    integration = tmp_path / "src" / "integration"
+    integration.mkdir(parents=True)
+    (integration / "candidate_adapter.py").write_text(
+        "from src.core.fcis_step_evaluator import evaluate_fcis_step_candidate_v1\n",
+        encoding="utf-8",
+    )
+    (integration / "dex_engine.py").write_text(
+        "from src.integration.candidate_adapter import evaluate_fcis_step_candidate_v1\n",
+        encoding="utf-8",
+    )
+
+    report = _run(tmp_path, _COMPLIANT)
+    assert "UNMOUNTED_EVALUATOR_IMPORT" in _codes(report)
+    violations = report["violations"]
+    assert type(violations) is list
+    assert any(
+        item["code"] == "UNMOUNTED_EVALUATOR_IMPORT"
+        and item["path"] == "src/integration/candidate_adapter.py"
+        for item in violations
+    )
+
+
+def test_checker_allows_unmounted_evaluator_only_in_shadow_adapter(
+    tmp_path: Path,
+) -> None:
+    shadow = tmp_path / "src" / "integration" / "fcis_spot_shadow.py"
+    shadow.parent.mkdir(parents=True)
+    shadow.write_text(
+        "from ..core.fcis_step_evaluator import evaluate_fcis_step_candidate_v1\n",
+        encoding="utf-8",
+    )
+
+    assert "UNMOUNTED_EVALUATOR_IMPORT" not in _codes(_run(tmp_path, _COMPLIANT))
 
 
 @pytest.mark.parametrize(

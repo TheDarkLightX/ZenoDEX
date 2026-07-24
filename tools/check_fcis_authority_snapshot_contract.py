@@ -14,6 +14,8 @@ from pathlib import Path
 REPORT_SCHEMA = "zenodex/fcis-authority-snapshot-contract-check/v1"
 DEFAULT_AUTHORITY_PATHS = (
     Path("src/core/dex.py"),
+    Path("src/core/fcis_step_evaluation_values.py"),
+    Path("src/core/fcis_step_evaluator.py"),
     Path("src/core/fee_accumulator_transition.py"),
     Path("src/core/nonce_batch_transition.py"),
     Path("src/state/snapshot_combinators.py"),
@@ -108,6 +110,16 @@ _SHADOW_AUTHORITY_RESERVED_TOKENS = (
     "evaluate_fcis_spot_candidate_shadow_v1",
     "evaluate_fcis_step_shadow_v1",
 )
+_UNMOUNTED_EVALUATOR_MODULE = "src.core.fcis_step_evaluator"
+_UNMOUNTED_EVALUATOR_ALLOWED_PATHS = (
+    "src/core/fcis_step_evaluator.py",
+    "src/integration/fcis_spot_shadow.py",
+)
+_UNMOUNTED_EVALUATOR_RESERVED_TOKENS = (
+    "fcis_step_evaluator",
+    "evaluate_fcis_spot_candidate_v1",
+    "evaluate_fcis_step_candidate_v1",
+)
 _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
     "_admit_with_registry_v1": _PROFILE_PATHS,
     "_owned_enum_from_admitted": ("src/state/snapshot_combinators.py",),
@@ -170,6 +182,31 @@ def _shadow_import_detail(
             f"{absolute_module}.{imported_name}" if imported_name is not None else absolute_module
         )
     if absolute_module == "src.integration" and imported_name == "fcis_spot_shadow":
+        return f"{absolute_module}.{imported_name}"
+    return None
+
+
+def _unmounted_evaluator_import_detail(
+    relative_path: str,
+    module: str,
+    imported_name: str | None = None,
+    *,
+    level: int = 0,
+) -> str | None:
+    if level:
+        package_parts = relative_path.removesuffix(".py").split("/")[:-1]
+        retained_parts = len(package_parts) - level + 1
+        if retained_parts < 0:
+            return None
+        module_parts = module.split(".") if module else []
+        absolute_module = ".".join((*package_parts[:retained_parts], *module_parts))
+    else:
+        absolute_module = module
+    if absolute_module == _UNMOUNTED_EVALUATOR_MODULE:
+        return (
+            f"{absolute_module}.{imported_name}" if imported_name is not None else absolute_module
+        )
+    if absolute_module == "src.core" and imported_name == "fcis_step_evaluator":
         return f"{absolute_module}.{imported_name}"
     return None
 
@@ -287,6 +324,15 @@ class _AuthorityVisitor(ast.NodeVisitor):
             shadow_detail = _shadow_import_detail(self.relative_path, alias.name)
             if shadow_detail is not None and self.relative_path != _SHADOW_AUTHORITY_PATH:
                 self._add(node, "SHADOW_AUTHORITY_IMPORT", shadow_detail)
+            evaluator_detail = _unmounted_evaluator_import_detail(
+                self.relative_path,
+                alias.name,
+            )
+            if evaluator_detail is not None and not _matches_allowed_path(
+                self.relative_path,
+                _UNMOUNTED_EVALUATOR_ALLOWED_PATHS,
+            ):
+                self._add(node, "UNMOUNTED_EVALUATOR_IMPORT", evaluator_detail)
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
@@ -313,6 +359,17 @@ class _AuthorityVisitor(ast.NodeVisitor):
             )
             if shadow_detail is not None and self.relative_path != _SHADOW_AUTHORITY_PATH:
                 self._add(node, "SHADOW_AUTHORITY_IMPORT", shadow_detail)
+            evaluator_detail = _unmounted_evaluator_import_detail(
+                self.relative_path,
+                module,
+                alias.name,
+                level=node.level,
+            )
+            if evaluator_detail is not None and not _matches_allowed_path(
+                self.relative_path,
+                _UNMOUNTED_EVALUATOR_ALLOWED_PATHS,
+            ):
+                self._add(node, "UNMOUNTED_EVALUATOR_IMPORT", evaluator_detail)
             allowed_paths = _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST.get(alias.name)
             if allowed_paths is not None and not _matches_allowed_path(
                 self.relative_path,
@@ -332,6 +389,14 @@ class _AuthorityVisitor(ast.NodeVisitor):
             and node.id in _SHADOW_AUTHORITY_RESERVED_TOKENS
         ):
             self._add(node, "SHADOW_AUTHORITY_IMPORT", node.id)
+        if (
+            not _matches_allowed_path(
+                self.relative_path,
+                _UNMOUNTED_EVALUATOR_ALLOWED_PATHS,
+            )
+            and node.id in _UNMOUNTED_EVALUATOR_RESERVED_TOKENS
+        ):
+            self._add(node, "UNMOUNTED_EVALUATOR_IMPORT", node.id)
         self.generic_visit(node)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
@@ -351,6 +416,14 @@ class _AuthorityVisitor(ast.NodeVisitor):
             and node.attr in _SHADOW_AUTHORITY_RESERVED_TOKENS
         ):
             self._add(node, "SHADOW_AUTHORITY_IMPORT", node.attr)
+        if (
+            not _matches_allowed_path(
+                self.relative_path,
+                _UNMOUNTED_EVALUATOR_ALLOWED_PATHS,
+            )
+            and node.attr in _UNMOUNTED_EVALUATOR_RESERVED_TOKENS
+        ):
+            self._add(node, "UNMOUNTED_EVALUATOR_IMPORT", node.attr)
         self.generic_visit(node)
 
     def visit_Constant(self, node: ast.Constant) -> None:
@@ -363,6 +436,15 @@ class _AuthorityVisitor(ast.NodeVisitor):
             # local bindings, and forward declarations without attempting to
             # execute caller-controlled Python during the static check.
             self._add(node, "SHADOW_AUTHORITY_IMPORT", node.value)
+        if (
+            not _matches_allowed_path(
+                self.relative_path,
+                _UNMOUNTED_EVALUATOR_ALLOWED_PATHS,
+            )
+            and type(node.value) is str
+            and any(token in node.value for token in _UNMOUNTED_EVALUATOR_RESERVED_TOKENS)
+        ):
+            self._add(node, "UNMOUNTED_EVALUATOR_IMPORT", node.value)
         if type(node.value) is str and node.value == "_snapshot_sealed":
             self._add(node, "SNAPSHOT_SEAL_FLAG", node.value)
         self.generic_visit(node)
@@ -608,6 +690,25 @@ class _AuthorityVisitor(ast.NodeVisitor):
             and self.relative_path != _SHADOW_AUTHORITY_PATH
         ):
             self._add(node, "SHADOW_AUTHORITY_IMPORT", _SHADOW_AUTHORITY_MODULE)
+        if (
+            called
+            in {
+                "__import__",
+                "builtins.__import__",
+                "importlib.import_module",
+            }
+            and node.args
+            and self._bounded_static_string(node.args[0]) == _UNMOUNTED_EVALUATOR_MODULE
+            and not _matches_allowed_path(
+                self.relative_path,
+                _UNMOUNTED_EVALUATOR_ALLOWED_PATHS,
+            )
+        ):
+            self._add(
+                node,
+                "UNMOUNTED_EVALUATOR_IMPORT",
+                _UNMOUNTED_EVALUATOR_MODULE,
+            )
         if called is not None and called.split(".", 1)[0] in {"pickle", "copyreg"}:
             self._add(node, "FORBIDDEN_RECONSTRUCTION", called)
         if called in {"dataclasses.is_dataclass", "is_dataclass"}:
@@ -1028,6 +1129,7 @@ _SENSITIVE_SOURCE_CODES = {
     "MUTABLE_LOCAL_BUFFER",
     "STRUCTURAL_CORE_BOUNDARY",
     "SHADOW_AUTHORITY_IMPORT",
+    "UNMOUNTED_EVALUATOR_IMPORT",
     "SYNTAX_ERROR",
 }
 

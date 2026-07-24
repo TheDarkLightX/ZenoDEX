@@ -1,43 +1,48 @@
-"""Read-only exact spot-candidate observation for the pre-M5 migration.
+"""Thin compatibility adapter for the unmounted FCIS step evaluator.
 
-The normative migration forbids partially mounting exact spot fields while the
-rest of ``DexState`` and its consumers remain on legacy values.  This module
-therefore produces differential evidence only.  The mounted engine must not
-import it, and its result does not authorize state publication.
+Legacy shell values are projected into closed source carriers, admitted once,
+and forwarded to the production-owned pure evaluator. This module emits
+differential evidence only. The mounted engine must not import it.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, final
+from typing import TypeAlias, final
 
-from ..core.dex import DexState, _first_rejected_settlement_intent_error
-from ..core.fee_accumulator_transition import (
-    FeeAccumulatorTransitionOkV1,
-    FeeAccumulatorTransitionRejectV1,
-    split_fee_with_committed_dust_carry_v1,
+from ..core.dex import DexState
+from ..core.fcis_step_evaluation_values import (
+    FCISStepEvaluationOkV1,
+    FCISStepEvaluationPhaseV1,
+    FCISStepEvaluationRejectV1,
+)
+from ..core.fcis_step_evaluator import (
+    evaluate_fcis_spot_candidate_v1,
+    evaluate_fcis_step_candidate_v1,
 )
 from ..core.fees import FeeSplitParams
-from ..core.nonce_batch_transition import (
-    IntentNonceBatchOkV1,
-    IntentNonceBatchRejectV1,
-    validate_and_apply_intent_nonce_batch_committed_v1,
-)
 from ..core.settlement import Settlement
 from ..core.settlement_strong_validator import (
     StrongSettlementEvaluationResultV1,
     StrongSettlementRejectV1,
-    StrongSettlementStateCandidateV1,
-    evaluate_settlement_strong_committed_v1,
 )
-from ..state.canonical import domain_sep_bytes, sha256_hex
-from ..state.committed_dex_snapshot import canonical_snapshot_bytes_from_committed_state_v1
+from ..state.fcis_execution_context import (
+    admit_fcis_settlement_execution_context_v1,
+    admit_fcis_step_execution_context_v1,
+)
+from ..state.fcis_execution_context_values import (
+    FCISFeeSplitPolicySourceV1,
+    FCISSettlementExecutionContextSourceV1,
+    FCISSettlementExecutionContextV1,
+    FCISSettlementModeV1,
+    FCISStepExecutionContextSourceV1,
+    FCISStepExecutionContextV1,
+)
 from ..state.intents import Intent
-from ..state.lp_duration_transitions import LPDurationRiskPolicyV1
+from ..state.lp_duration_policy_values import LPDurationRiskPolicyV1
 from ..state.owned_collections import OwnedMapV1
-from ..state.snapshot_combinators import AdmitOk, AdmitReject, format_admit_path
-from ..state.state_root import state_root_preimage_with_committed_spot_state_v1
+from ..state.snapshot_combinators import AdmitCode, AdmitOk, AdmitReject, format_admit_path
 from ..state.state_snapshot_values import (
     CommittedBalanceTableV1,
     CommittedFeeAccumulatorStateV1,
@@ -59,7 +64,6 @@ from ..state.state_snapshots import (
     snapshot_pool_map,
     snapshot_vault,
 )
-from ..state.support_root import compute_support_state_root_for_batch_committed_v1
 from .dex_snapshot import DEX_SNAPSHOT_VERSION
 from .lp_position_age_gate import admit_lp_duration_risk_policy_context_v1
 
@@ -69,7 +73,7 @@ FCIS_SPOT_SHADOW_ONLY_V1 = True
 @final
 @dataclass(frozen=True, slots=True)
 class FCISSpotShadowContextV1:
-    """Explicit shell-supplied context forwarded to the exact evaluator."""
+    """Legacy shell carrier retained only for compatibility projection."""
 
     now: int
     min_lp_position_age_seconds: int
@@ -101,19 +105,17 @@ class FCISSpotShadowContextV1:
             or not 0 <= self.protocol_fee_share_bps <= 10_000
         ):
             raise TypeError("protocol_fee_share_bps must be an exact int in [0, 10000]")
-        if self.protocol_fee_recipient_pubkey is not None and (
-            type(self.protocol_fee_recipient_pubkey) is not str
-            or not self.protocol_fee_recipient_pubkey
-        ):
+        recipient = self.protocol_fee_recipient_pubkey
+        if recipient is not None and (type(recipient) is not str or not recipient):
             raise TypeError("protocol_fee_recipient_pubkey must be None or an exact string")
-        if self.protocol_fee_share_bps > 0 and self.protocol_fee_recipient_pubkey is None:
+        if self.protocol_fee_share_bps > 0 and recipient is None:
             raise ValueError("protocol fee recipient is required for a nonzero share")
 
 
 @final
 @dataclass(frozen=True, slots=True)
 class FCISStepShadowContextV1:
-    """Explicit values needed to replay one complete pre-M5 DEX step."""
+    """Legacy shell carrier for one complete pre-M5 differential step."""
 
     settlement: FCISSpotShadowContextV1
     require_all_nonces: bool
@@ -138,10 +140,12 @@ class FCISStepShadowContextV1:
 
 
 class FCISStepShadowPhaseV1(Enum):
-    """Stable phase identifiers for a no-output shadow rejection."""
+    """Stable compatibility phase identifiers for no-output rejection."""
 
+    COMMAND_ADMISSION = "command_admission"
     STATE_ADMISSION = "state_admission"
     POLICY_ADMISSION = "policy_admission"
+    PRE_STATE_BINDING = "pre_state_binding"
     NONCE = "nonce"
     SETTLEMENT = "settlement"
     FEE = "fee"
@@ -151,7 +155,7 @@ class FCISStepShadowPhaseV1(Enum):
 @final
 @dataclass(frozen=True, slots=True)
 class FCISStepShadowRejectV1:
-    """Pre-M5 diagnostic rejection that carries no successor representation."""
+    """Diagnostic rejection carrying no successor or accepted evidence."""
 
     phase: FCISStepShadowPhaseV1
     reason: str
@@ -166,11 +170,7 @@ class FCISStepShadowRejectV1:
 @final
 @dataclass(frozen=True, slots=True)
 class FCISStepShadowReceiptV1:
-    """Canonical evidence derived from one complete exact local candidate.
-
-    The receipt deliberately carries only canonical bytes and hashes. It is not
-    a committed-state aggregate and cannot be projected back into ``DexState``.
-    """
+    """Compatibility evidence with no state or commit authority."""
 
     snapshot_version: int
     canonical_snapshot_bytes: bytes
@@ -189,20 +189,18 @@ class FCISStepShadowReceiptV1:
             raise TypeError("shadow receipt snapshot bytes must be exact")
         if type(self.state_root_preimage) is not bytes:
             raise TypeError("shadow receipt root preimage must be exact")
-        for name in ("state_root", "support_root", "snapshot_commitment"):
-            value = object.__getattribute__(self, name)
+        for field_name in ("state_root", "support_root", "snapshot_commitment"):
+            value = object.__getattribute__(self, field_name)
             if type(value) is not str or len(value) != 66 or not value.startswith("0x"):
-                raise TypeError(f"shadow receipt {name} must be a 32-byte hex digest")
+                raise TypeError(f"shadow receipt {field_name} must be a 32-byte hex digest")
 
 
-FCISStepShadowResultV1 = FCISStepShadowReceiptV1 | FCISStepShadowRejectV1
+FCISStepShadowResultV1: TypeAlias = FCISStepShadowReceiptV1 | FCISStepShadowRejectV1
 
 
 @final
 @dataclass(frozen=True, slots=True)
-class _AdmittedStepStateV1:
-    """All eight exact pre-state fields, retained only inside shadow replay."""
-
+class _ExactLegacyStateProjectionV1:
     balances: CommittedBalanceTableV1
     pools: OwnedMapV1[str, CommittedPoolStateV1]
     lp_balances: CommittedLPTableV1
@@ -213,93 +211,136 @@ class _AdmittedStepStateV1:
     perps: CommittedPerpsStateV1 | None
 
 
-@final
-@dataclass(frozen=True, slots=True)
-class _StepCandidateV1:
-    """One complete local candidate used for every emitted evidence value."""
-
-    spot: StrongSettlementStateCandidateV1
-    nonces: CommittedNonceTableV1
-    fee_accumulator: CommittedFeeAccumulatorStateV1
-    vault: CommittedVaultStateV1 | None
-    oracle: CommittedOracleStateV1 | None
-    perps: CommittedPerpsStateV1 | None
-
-
-def _admission_reject_text(
-    prefix: str,
-    reject: AdmitReject | StateAdmissionError,
-) -> str:
+def _admission_reason(prefix: str, reject: AdmitReject) -> str:
     return f"{prefix}: {reject.code.value}:{format_admit_path(reject.path)}"
 
 
-def _clean_shadow_error(exc: Exception) -> str:
-    detail = " ".join(str(exc).split())
-    if len(detail) > 200:
-        detail = detail[:200]
-    return type(exc).__name__ if not detail else f"{type(exc).__name__}: {detail}"
+def _legacy_mode_source_v1(mode: object) -> object:
+    if type(mode) is not str:
+        return mode
+    if mode == "strong_replay":
+        return FCISSettlementModeV1.STRONG_REPLAY
+    if mode == "strong_proof_carrying":
+        return FCISSettlementModeV1.STRONG_PROOF_CARRYING
+    return mode
 
 
-def _readmit_spot_shadow_context_v1(source: object) -> FCISSpotShadowContextV1:
-    """Own one exact context copy so a caller-retained alias cannot drift."""
-
+def _project_settlement_context_v1(
+    source: object,
+) -> FCISSettlementExecutionContextSourceV1 | AdmitReject:
     if type(source) is not FCISSpotShadowContextV1:
-        raise TypeError("shadow context requires an exact FCISSpotShadowContextV1")
-    return FCISSpotShadowContextV1(
-        now=object.__getattribute__(source, "now"),
-        min_lp_position_age_seconds=object.__getattribute__(
-            source,
-            "min_lp_position_age_seconds",
-        ),
-        mode=object.__getattribute__(source, "mode"),
-        allow_cow_netting=object.__getattribute__(source, "allow_cow_netting"),
-        allow_snapshot_bound_quote_bindings=object.__getattribute__(
-            source,
-            "allow_snapshot_bound_quote_bindings",
-        ),
-        protocol_fee_share_bps=object.__getattribute__(source, "protocol_fee_share_bps"),
-        protocol_fee_recipient_pubkey=object.__getattribute__(
-            source,
-            "protocol_fee_recipient_pubkey",
-        ),
-    )
-
-
-def _readmit_step_shadow_context_v1(source: object) -> FCISStepShadowContextV1:
-    """Own all nested step policy values before exact transition evaluation."""
-
-    if type(source) is not FCISStepShadowContextV1:
-        raise TypeError("shadow context requires an exact FCISStepShadowContextV1")
-    raw_fee_split = object.__getattribute__(source, "fee_split_params")
-    if raw_fee_split is None:
-        fee_split = None
-    elif type(raw_fee_split) is FeeSplitParams:
-        fee_split = FeeSplitParams(
-            buyback_bps=object.__getattribute__(raw_fee_split, "buyback_bps"),
-            treasury_bps=object.__getattribute__(raw_fee_split, "treasury_bps"),
-            rewards_bps=object.__getattribute__(raw_fee_split, "rewards_bps"),
+        return AdmitReject(AdmitCode.WRONG_EXACT_TYPE, ())
+    try:
+        return FCISSettlementExecutionContextSourceV1(
+            now=object.__getattribute__(source, "now"),
+            min_lp_position_age_seconds=object.__getattribute__(
+                source,
+                "min_lp_position_age_seconds",
+            ),
+            mode=_legacy_mode_source_v1(object.__getattribute__(source, "mode")),
+            allow_cow_netting=object.__getattribute__(source, "allow_cow_netting"),
+            allow_snapshot_bound_quote_bindings=object.__getattribute__(
+                source,
+                "allow_snapshot_bound_quote_bindings",
+            ),
+            protocol_fee_share_bps=object.__getattribute__(
+                source,
+                "protocol_fee_share_bps",
+            ),
+            protocol_fee_recipient_pubkey=object.__getattribute__(
+                source,
+                "protocol_fee_recipient_pubkey",
+            ),
         )
-    else:
-        raise TypeError("fee_split_params must be None or an exact FeeSplitParams")
-    return FCISStepShadowContextV1(
-        settlement=_readmit_spot_shadow_context_v1(
-            object.__getattribute__(source, "settlement"),
-        ),
-        require_all_nonces=object.__getattribute__(source, "require_all_nonces"),
+    except AttributeError:
+        return AdmitReject(AdmitCode.MISSING_FIELD, ())
+
+
+def _project_fee_policy_v1(source: object) -> object:
+    if source is None or type(source) is not FeeSplitParams:
+        return source
+    try:
+        return FCISFeeSplitPolicySourceV1(
+            buyback_bps=object.__getattribute__(source, "buyback_bps"),
+            treasury_bps=object.__getattribute__(source, "treasury_bps"),
+            rewards_bps=object.__getattribute__(source, "rewards_bps"),
+        )
+    except AttributeError:
+        return source
+
+
+def _admit_legacy_lp_policy_v1(
+    source: object,
+    *,
+    prefix: str,
+) -> LPDurationRiskPolicyV1 | None | FCISStepShadowRejectV1:
+    result = admit_lp_duration_risk_policy_context_v1(source)
+    if type(result) is AdmitReject:
+        return FCISStepShadowRejectV1(
+            FCISStepShadowPhaseV1.POLICY_ADMISSION,
+            _admission_reason(prefix, result),
+        )
+    if type(result) is not AdmitOk:
+        return FCISStepShadowRejectV1(
+            FCISStepShadowPhaseV1.POLICY_ADMISSION,
+            f"{prefix} returned an impossible result",
+        )
+    return result.value
+
+
+def _admit_legacy_step_context_v1(
+    context: object,
+    lp_duration_policy: object,
+) -> FCISStepExecutionContextV1 | FCISStepShadowRejectV1:
+    if type(context) is not FCISStepShadowContextV1:
+        return FCISStepShadowRejectV1(
+            FCISStepShadowPhaseV1.POLICY_ADMISSION,
+            "shadow context requires an exact FCISStepShadowContextV1",
+        )
+    settlement_source = _project_settlement_context_v1(
+        object.__getattribute__(context, "settlement")
+    )
+    if type(settlement_source) is AdmitReject:
+        return FCISStepShadowRejectV1(
+            FCISStepShadowPhaseV1.POLICY_ADMISSION,
+            _admission_reason("shadow context admission rejected", settlement_source),
+        )
+    exact_lp_policy = _admit_legacy_lp_policy_v1(
+        lp_duration_policy,
+        prefix="shadow LP duration-policy admission rejected",
+    )
+    if type(exact_lp_policy) is FCISStepShadowRejectV1:
+        return exact_lp_policy
+    step_source = FCISStepExecutionContextSourceV1(
+        settlement=settlement_source,
+        require_all_nonces=object.__getattribute__(context, "require_all_nonces"),
         reject_settlements_with_rejected_intents=object.__getattribute__(
-            source,
+            context,
             "reject_settlements_with_rejected_intents",
         ),
-        fee_split_params=fee_split,
-        snapshot_version=object.__getattribute__(source, "snapshot_version"),
+        fee_split_policy=_project_fee_policy_v1(
+            object.__getattribute__(context, "fee_split_params")
+        ),
+        lp_duration_policy=exact_lp_policy,
+        snapshot_version=object.__getattribute__(context, "snapshot_version"),
     )
+    result = admit_fcis_step_execution_context_v1(step_source)
+    if type(result) is AdmitReject:
+        return FCISStepShadowRejectV1(
+            FCISStepShadowPhaseV1.POLICY_ADMISSION,
+            _admission_reason("shadow context admission rejected", result),
+        )
+    if type(result) is not AdmitOk or type(result.value) is not FCISStepExecutionContextV1:
+        return FCISStepShadowRejectV1(
+            FCISStepShadowPhaseV1.POLICY_ADMISSION,
+            "shadow context admission returned an impossible result",
+        )
+    return result.value
 
 
-def _admit_all_state_fields_v1(
+def _admit_legacy_state_v1(
     state: DexState,
-) -> _AdmittedStepStateV1 | FCISStepShadowRejectV1:
-    """Admit all eight fields in the normative M5 order without publication."""
-
+) -> _ExactLegacyStateProjectionV1 | FCISStepShadowRejectV1:
     field_name = "balances"
     try:
         balances = snapshot_balance_table(state.balances)
@@ -317,20 +358,13 @@ def _admit_all_state_fields_v1(
         fee_accumulator = snapshot_fee_accumulator(state.fee_accumulator)
         field_name = "perps"
         perps = snapshot_perps(state.perps)
-    except StateAdmissionError as exc:
+    except StateAdmissionError as error:
+        path = (field_name, *error.path)
         return FCISStepShadowRejectV1(
             FCISStepShadowPhaseV1.STATE_ADMISSION,
-            _admission_reject_text(
-                f"shadow {field_name} admission rejected",
-                exc,
-            ),
+            f"shadow state admission rejected: {error.code.value}:{format_admit_path(path)}",
         )
-    except (TypeError, ValueError) as exc:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.STATE_ADMISSION,
-            f"shadow {field_name} admission rejected: {_clean_shadow_error(exc)}",
-        )
-    return _AdmittedStepStateV1(
+    return _ExactLegacyStateProjectionV1(
         balances=balances,
         pools=pools,
         lp_balances=lp_balances,
@@ -342,290 +376,92 @@ def _admit_all_state_fields_v1(
     )
 
 
+def _shadow_phase_v1(phase: FCISStepEvaluationPhaseV1) -> FCISStepShadowPhaseV1:
+    if phase is FCISStepEvaluationPhaseV1.COMMAND_ADMISSION:
+        return FCISStepShadowPhaseV1.COMMAND_ADMISSION
+    if phase is FCISStepEvaluationPhaseV1.CONTEXT_ADMISSION:
+        return FCISStepShadowPhaseV1.POLICY_ADMISSION
+    if phase is FCISStepEvaluationPhaseV1.STATE_ADMISSION:
+        return FCISStepShadowPhaseV1.STATE_ADMISSION
+    if phase is FCISStepEvaluationPhaseV1.PRE_STATE_BINDING:
+        return FCISStepShadowPhaseV1.PRE_STATE_BINDING
+    if phase is FCISStepEvaluationPhaseV1.NONCE:
+        return FCISStepShadowPhaseV1.NONCE
+    if phase is FCISStepEvaluationPhaseV1.SETTLEMENT:
+        return FCISStepShadowPhaseV1.SETTLEMENT
+    if phase is FCISStepEvaluationPhaseV1.FEE:
+        return FCISStepShadowPhaseV1.FEE
+    return FCISStepShadowPhaseV1.ENCODING
+
+
+def _shadow_result_v1(
+    result: FCISStepEvaluationOkV1 | FCISStepEvaluationRejectV1,
+) -> FCISStepShadowResultV1:
+    if type(result) is FCISStepEvaluationRejectV1:
+        return FCISStepShadowRejectV1(
+            _shadow_phase_v1(result.phase),
+            result.public_reason,
+        )
+    evidence = result.evidence
+    return FCISStepShadowReceiptV1(
+        snapshot_version=evidence.snapshot_version,
+        canonical_snapshot_bytes=evidence.canonical_snapshot_bytes,
+        state_root_preimage=evidence.post_state_root_preimage,
+        state_root=evidence.post_state_root,
+        support_root=evidence.support_root,
+        snapshot_commitment=evidence.snapshot_commitment,
+    )
+
+
 def evaluate_fcis_spot_candidate_shadow_v1(
     *,
     state: DexState,
     settlement: Settlement,
-    intents: List[Intent],
+    intents: list[Intent],
     context: object,
     lp_duration_policy: object,
 ) -> StrongSettlementEvaluationResultV1:
-    """Observe the exact candidate without affecting mounted acceptance.
-
-    The legacy state graph is admitted one way into exact values.  No exact
-    result is projected back into a mutable authority representation.
-    """
+    """Project legacy shell inputs and delegate exact spot evaluation."""
 
     if type(state) is not DexState:
         return StrongSettlementRejectV1("shadow state requires an exact DexState")
+    context_source = _project_settlement_context_v1(context)
+    if type(context_source) is AdmitReject:
+        return StrongSettlementRejectV1(
+            _admission_reason("shadow context admission rejected", context_source)
+        )
+    context_result = admit_fcis_settlement_execution_context_v1(context_source)
+    if type(context_result) is AdmitReject:
+        return StrongSettlementRejectV1(
+            _admission_reason("shadow context admission rejected", context_result)
+        )
+    policy = _admit_legacy_lp_policy_v1(
+        lp_duration_policy,
+        prefix="shadow LP duration-policy admission rejected",
+    )
+    if type(policy) is FCISStepShadowRejectV1:
+        return StrongSettlementRejectV1(policy.reason)
     try:
-        exact_context = _readmit_spot_shadow_context_v1(context)
-    except (AttributeError, TypeError, ValueError) as exc:
+        balances = snapshot_balance_table(state.balances)
+        pools = snapshot_pool_map(state.pools)
+        lp_balances = snapshot_lp_table(state.lp_balances)
+    except StateAdmissionError as error:
         return StrongSettlementRejectV1(
-            f"shadow context admission rejected: {_clean_shadow_error(exc)}"
+            f"shadow state admission rejected: {error.code.value}:{format_admit_path(error.path)}"
         )
-    policy_result = admit_lp_duration_risk_policy_context_v1(lp_duration_policy)
-    if type(policy_result) is AdmitReject:
-        return StrongSettlementRejectV1(
-            _admission_reject_text(
-                "shadow LP duration-policy admission rejected",
-                policy_result,
-            )
-        )
-    if type(policy_result) is not AdmitOk:
-        return StrongSettlementRejectV1(
-            "shadow LP duration-policy admission returned an impossible result"
-        )
-    exact_policy = policy_result.value
-    if exact_policy is not None and type(exact_policy) is not LPDurationRiskPolicyV1:
-        return StrongSettlementRejectV1(
-            "shadow LP duration-policy admission returned a wrong exact type"
-        )
-    try:
-        exact_balances = snapshot_balance_table(state.balances)
-        exact_pools = snapshot_pool_map(state.pools)
-        exact_lp_balances = snapshot_lp_table(state.lp_balances)
-    except StateAdmissionError as exc:
-        return StrongSettlementRejectV1(
-            f"shadow state admission rejected: {exc.code.value}:{format_admit_path(exc.path)}"
-        )
-    return evaluate_settlement_strong_committed_v1(
+    if (
+        type(context_result) is not AdmitOk
+        or type(context_result.value) is not FCISSettlementExecutionContextV1
+    ):
+        return StrongSettlementRejectV1("shadow context admission returned an impossible result")
+    return evaluate_fcis_spot_candidate_v1(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
         settlement=settlement,
         intents=intents,
-        pre_balances=exact_balances,
-        pre_pools=exact_pools,
-        pre_lp_balances=exact_lp_balances,
-        now=exact_context.now,
-        min_lp_position_age_seconds=exact_context.min_lp_position_age_seconds,
-        lp_duration_policy=exact_policy,
-        mode=exact_context.mode,
-        allow_cow_netting=exact_context.allow_cow_netting,
-        allow_snapshot_bound_quote_bindings=(exact_context.allow_snapshot_bound_quote_bindings),
-        protocol_fee_share_bps=exact_context.protocol_fee_share_bps,
-        protocol_fee_recipient_pubkey=exact_context.protocol_fee_recipient_pubkey,
-    )
-
-
-def _admit_step_policy_v1(
-    lp_duration_policy: object,
-) -> LPDurationRiskPolicyV1 | None | FCISStepShadowRejectV1:
-    policy_result = admit_lp_duration_risk_policy_context_v1(lp_duration_policy)
-    if type(policy_result) is AdmitReject:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.POLICY_ADMISSION,
-            _admission_reject_text(
-                "shadow LP duration-policy admission rejected",
-                policy_result,
-            ),
-        )
-    if type(policy_result) is not AdmitOk:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.POLICY_ADMISSION,
-            "shadow LP duration-policy admission returned an impossible result",
-        )
-    exact_policy = policy_result.value
-    if exact_policy is not None and type(exact_policy) is not LPDurationRiskPolicyV1:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.POLICY_ADMISSION,
-            "shadow LP duration-policy admission returned a wrong exact type",
-        )
-    return exact_policy
-
-
-def _apply_step_nonce_v1(
-    *,
-    state: _AdmittedStepStateV1,
-    intents: List[Intent],
-    context: FCISStepShadowContextV1,
-) -> CommittedNonceTableV1 | FCISStepShadowRejectV1:
-    nonce_result = validate_and_apply_intent_nonce_batch_committed_v1(
-        nonces=state.nonces,
-        intents=intents,
-        require_all_nonces=context.require_all_nonces,
-    )
-    if type(nonce_result) is IntentNonceBatchRejectV1:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.NONCE,
-            nonce_result.public_reason,
-        )
-    if type(nonce_result) is not IntentNonceBatchOkV1:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.NONCE,
-            "shadow nonce transition returned an impossible result",
-        )
-    return nonce_result.state
-
-
-def _apply_step_settlement_v1(
-    *,
-    state: _AdmittedStepStateV1,
-    settlement: Settlement,
-    intents: List[Intent],
-    context: FCISStepShadowContextV1,
-    lp_duration_policy: LPDurationRiskPolicyV1 | None,
-) -> StrongSettlementStateCandidateV1 | FCISStepShadowRejectV1:
-    settlement_context = context.settlement
-    spot_result = evaluate_settlement_strong_committed_v1(
-        settlement=settlement,
-        intents=intents,
-        pre_balances=state.balances,
-        pre_pools=state.pools,
-        pre_lp_balances=state.lp_balances,
-        now=settlement_context.now,
-        min_lp_position_age_seconds=settlement_context.min_lp_position_age_seconds,
-        lp_duration_policy=lp_duration_policy,
-        mode=settlement_context.mode,
-        allow_cow_netting=settlement_context.allow_cow_netting,
-        allow_snapshot_bound_quote_bindings=(
-            settlement_context.allow_snapshot_bound_quote_bindings
-        ),
-        protocol_fee_share_bps=settlement_context.protocol_fee_share_bps,
-        protocol_fee_recipient_pubkey=settlement_context.protocol_fee_recipient_pubkey,
-    )
-    if type(spot_result) is StrongSettlementRejectV1:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.SETTLEMENT,
-            spot_result.reason,
-        )
-    if type(spot_result) is not StrongSettlementStateCandidateV1:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.SETTLEMENT,
-            "shadow settlement transition returned an impossible result",
-        )
-    if context.reject_settlements_with_rejected_intents:
-        rejected_intent_error = _first_rejected_settlement_intent_error(settlement)
-        if rejected_intent_error is not None:
-            return FCISStepShadowRejectV1(
-                FCISStepShadowPhaseV1.SETTLEMENT,
-                rejected_intent_error,
-            )
-    return spot_result
-
-
-def _apply_step_fee_v1(
-    *,
-    state: CommittedFeeAccumulatorStateV1,
-    settlement: Settlement,
-    params: FeeSplitParams | None,
-) -> CommittedFeeAccumulatorStateV1 | FCISStepShadowRejectV1:
-    if params is None:
-        return state
-    total_fees = 0
-    for fill in settlement.fills:
-        fee = fill.fee_paid
-        if fee is None:
-            continue
-        if type(fee) is not int or fee < 0:
-            return FCISStepShadowRejectV1(
-                FCISStepShadowPhaseV1.FEE,
-                "settlement fee must be an exact nonnegative int",
-            )
-        total_fees += fee
-    fee_result = split_fee_with_committed_dust_carry_v1(
-        fee_amount=total_fees,
-        params=params,
-        state=state,
-    )
-    if type(fee_result) is FeeAccumulatorTransitionRejectV1:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.FEE,
-            f"{fee_result.code.value}:{fee_result.field}",
-        )
-    if type(fee_result) is not FeeAccumulatorTransitionOkV1:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.FEE,
-            "shadow fee transition returned an impossible result",
-        )
-    return fee_result.state
-
-
-def _evaluate_step_candidate_v1(
-    *,
-    state: _AdmittedStepStateV1,
-    settlement: Settlement,
-    intents: List[Intent],
-    context: FCISStepShadowContextV1,
-    lp_duration_policy: LPDurationRiskPolicyV1 | None,
-) -> _StepCandidateV1 | FCISStepShadowRejectV1:
-    nonces = _apply_step_nonce_v1(
-        state=state,
-        intents=intents,
-        context=context,
-    )
-    if type(nonces) is FCISStepShadowRejectV1:
-        return nonces
-    spot = _apply_step_settlement_v1(
-        state=state,
-        settlement=settlement,
-        intents=intents,
-        context=context,
-        lp_duration_policy=lp_duration_policy,
-    )
-    if type(spot) is FCISStepShadowRejectV1:
-        return spot
-    fee_accumulator = _apply_step_fee_v1(
-        state=state.fee_accumulator,
-        settlement=settlement,
-        params=context.fee_split_params,
-    )
-    if type(fee_accumulator) is FCISStepShadowRejectV1:
-        return fee_accumulator
-    return _StepCandidateV1(
-        spot=spot,
-        nonces=nonces,
-        fee_accumulator=fee_accumulator,
-        vault=state.vault,
-        oracle=state.oracle,
-        perps=state.perps,
-    )
-
-
-def _encode_step_receipt_v1(
-    candidate: _StepCandidateV1,
-    *,
-    intents: List[Intent],
-    snapshot_version: int,
-) -> FCISStepShadowResultV1:
-    try:
-        snapshot_bytes = canonical_snapshot_bytes_from_committed_state_v1(
-            version=snapshot_version,
-            balances=candidate.spot.balances,
-            pools=candidate.spot.pools,
-            lp_balances=candidate.spot.lp_balances,
-            nonces=candidate.nonces,
-            fee_accumulator=candidate.fee_accumulator,
-            vault=candidate.vault,
-            oracle=candidate.oracle,
-            perps=candidate.perps,
-        )
-        root_preimage = state_root_preimage_with_committed_spot_state_v1(
-            balances=candidate.spot.balances,
-            pools=candidate.spot.pools,
-            lp_balances=candidate.spot.lp_balances,
-            nonces=candidate.nonces,
-            fee_accumulator=candidate.fee_accumulator,
-        )
-        support_root = compute_support_state_root_for_batch_committed_v1(
-            intents=intents,
-            balances=candidate.spot.balances,
-            pools=candidate.spot.pools,
-            lp_balances=candidate.spot.lp_balances,
-            nonces=candidate.nonces,
-        )
-    except (StateAdmissionError, TypeError, ValueError) as exc:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.ENCODING,
-            f"shadow candidate encoding rejected: {_clean_shadow_error(exc)}",
-        )
-    return FCISStepShadowReceiptV1(
-        snapshot_version=snapshot_version,
-        canonical_snapshot_bytes=snapshot_bytes,
-        state_root_preimage=root_preimage,
-        state_root=sha256_hex(root_preimage),
-        support_root=support_root,
-        snapshot_commitment=sha256_hex(
-            domain_sep_bytes("dex_snapshot", version=snapshot_version) + snapshot_bytes
-        ),
+        context=context_result.value,
+        lp_duration_policy=policy,
     )
 
 
@@ -633,52 +469,37 @@ def evaluate_fcis_step_shadow_v1(
     *,
     state: DexState,
     settlement: Settlement,
-    intents: List[Intent],
+    intents: list[Intent],
     context: object,
     lp_duration_policy: object,
 ) -> FCISStepShadowResultV1:
-    """Replay one complete exact step and emit only canonical evidence.
-
-    This function is the pre-M5 composition check. It admits all eight state
-    fields in fixed order, applies exact nonce, settlement, LP-duration, and
-    fee transitions, then derives the full snapshot and root from those same
-    local successor values. No exact candidate is projected into a legacy
-    mutable domain object and no state is published.
-    """
+    """Delegate one complete pre-M5 evaluation and hide its local candidate."""
 
     if type(state) is not DexState:
         return FCISStepShadowRejectV1(
             FCISStepShadowPhaseV1.STATE_ADMISSION,
             "shadow state requires an exact DexState",
         )
-    try:
-        exact_context = _readmit_step_shadow_context_v1(context)
-    except (AttributeError, TypeError, ValueError) as exc:
-        return FCISStepShadowRejectV1(
-            FCISStepShadowPhaseV1.POLICY_ADMISSION,
-            f"shadow context admission rejected: {_clean_shadow_error(exc)}",
-        )
-
-    state_result = _admit_all_state_fields_v1(state)
-    if type(state_result) is FCISStepShadowRejectV1:
-        return state_result
-    policy_result = _admit_step_policy_v1(lp_duration_policy)
-    if type(policy_result) is FCISStepShadowRejectV1:
-        return policy_result
-    candidate = _evaluate_step_candidate_v1(
-        state=state_result,
+    exact_context = _admit_legacy_step_context_v1(context, lp_duration_policy)
+    if type(exact_context) is FCISStepShadowRejectV1:
+        return exact_context
+    exact_state = _admit_legacy_state_v1(state)
+    if type(exact_state) is FCISStepShadowRejectV1:
+        return exact_state
+    result = evaluate_fcis_step_candidate_v1(
+        balances=exact_state.balances,
+        pools=exact_state.pools,
+        lp_balances=exact_state.lp_balances,
+        nonces=exact_state.nonces,
+        vault=exact_state.vault,
+        oracle=exact_state.oracle,
+        fee_accumulator=exact_state.fee_accumulator,
+        perps=exact_state.perps,
         settlement=settlement,
         intents=intents,
         context=exact_context,
-        lp_duration_policy=policy_result,
     )
-    if type(candidate) is FCISStepShadowRejectV1:
-        return candidate
-    return _encode_step_receipt_v1(
-        candidate,
-        intents=intents,
-        snapshot_version=exact_context.snapshot_version,
-    )
+    return _shadow_result_v1(result)
 
 
 __all__ = (
