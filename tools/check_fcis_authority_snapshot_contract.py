@@ -57,6 +57,10 @@ AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/settlement_schema.py"),
     Path("src/core/settlement_snapshots.py"),
 )
+EXACT_REPLAY_AUTHORITY_PATHS = (
+    Path("src/core/route_settlement.py"),
+    Path("src/core/settlement_strong_validator.py"),
+)
 FINAL_MOUNT_AUTHORITY_PATHS = tuple(
     dict.fromkeys(
         (
@@ -65,6 +69,7 @@ FINAL_MOUNT_AUTHORITY_PATHS = tuple(
             Path("src/state/legacy_state_snapshots.py"),
             *STATE_SUBSTRATE_AUTHORITY_PATHS,
             *AUTHORITY_GRAPH_AUTHORITY_PATHS,
+            *EXACT_REPLAY_AUTHORITY_PATHS,
         )
     )
 )
@@ -72,7 +77,55 @@ DEFAULT_AUTHORITY_PATHS = FINAL_MOUNT_AUTHORITY_PATHS
 _AUTHORITY_PATHS_BY_PROFILE = {
     "state-substrate": STATE_SUBSTRATE_AUTHORITY_PATHS,
     "authority-graph": AUTHORITY_GRAPH_AUTHORITY_PATHS,
+    "exact-replay": EXACT_REPLAY_AUTHORITY_PATHS,
     "final-mount": FINAL_MOUNT_AUTHORITY_PATHS,
+}
+_PROFILE_COMPATIBILITY_ALLOWLISTS = {
+    "exact-replay": frozenset(
+        {
+            ("src/core/route_settlement.py", 237, 11, "BROAD_ADMISSION", "str"),
+            ("src/core/route_settlement.py", 261, 11, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 264, 11, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 286, 11, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 294, 15, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 303, 15, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 408, 13, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 421, 17, "BROAD_ADMISSION", "Mapping"),
+            ("src/core/route_settlement.py", 513, 11, "BROAD_ADMISSION", "str"),
+            (
+                "src/core/settlement_strong_validator.py",
+                448,
+                27,
+                "COERCIVE_CONTAINER_COPY",
+                "tuple",
+            ),
+            ("src/core/settlement_strong_validator.py", 633, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 637, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 637, 48, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 641, 15, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 643, 15, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 790, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 799, 42, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1238, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1252, 19, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1252, 50, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1515, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1526, 19, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1526, 52, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1555, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1557, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1615, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1617, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1709, 20, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1714, 19, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2242, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2248, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2264, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2270, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2286, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2292, 16, "BROAD_ADMISSION", "int"),
+        }
+    ),
 }
 DEFAULT_REQUIREMENTS_PATH = Path("docs/specs/fcis_authority_snapshot_v1/requirements.json")
 DEFAULT_TEST_MATRIX_PATHS = (
@@ -1182,6 +1235,485 @@ def _scoped_path(repo_root: Path, relative_path: Path) -> Path | None:
     return candidate
 
 
+def _function_calls(function: ast.FunctionDef) -> tuple[ast.Call, ...]:
+    return tuple(node for node in ast.walk(function) if type(node) is ast.Call)
+
+
+def _normalized_annotation(annotation: ast.expr | None) -> str:
+    return "" if annotation is None else ast.unparse(annotation).replace(" ", "")
+
+
+def _assignment_target_names(target: ast.AST) -> tuple[str, ...]:
+    if type(target) is ast.Name:
+        return (target.id,)
+    if type(target) is ast.Starred:
+        return _assignment_target_names(target.value)
+    if type(target) in {ast.List, ast.Tuple}:
+        return tuple(name for element in target.elts for name in _assignment_target_names(element))
+    return ()
+
+
+class _FunctionBindingCollector(ast.NodeVisitor):
+    """Collect local binding sites without entering nested execution scopes."""
+
+    def __init__(self, protected_names: frozenset[str]) -> None:
+        self._protected_names = protected_names
+        self.sites: dict[str, list[ast.AST]] = {name: [] for name in sorted(protected_names)}
+
+    def _record_name(self, name: str | None, node: ast.AST) -> None:
+        if name in self._protected_names:
+            self.sites[name].append(node)
+
+    def _record_target(self, target: ast.AST, node: ast.AST) -> None:
+        for name in _assignment_target_names(target):
+            self._record_name(name, node)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        for target in node.targets:
+            self._record_target(target, node)
+        self.visit(node.value)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        self._record_target(node.target, node)
+        self.visit(node.annotation)
+        if node.value is not None:
+            self.visit(node.value)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        self._record_target(node.target, node)
+        self.visit(node.value)
+
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
+        self._record_target(node.target, node)
+        self.visit(node.value)
+
+    def visit_For(self, node: ast.For) -> None:
+        self._record_target(node.target, node)
+        self.visit(node.iter)
+        for statement in (*node.body, *node.orelse):
+            self.visit(statement)
+
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+        self.visit_For(node)
+
+    def visit_comprehension(self, node: ast.comprehension) -> None:
+        self._record_target(node.target, node)
+        self.visit(node.iter)
+        for condition in node.ifs:
+            self.visit(condition)
+
+    def visit_With(self, node: ast.With) -> None:
+        for item in node.items:
+            self.visit(item.context_expr)
+            if item.optional_vars is not None:
+                self._record_target(item.optional_vars, node)
+        for statement in node.body:
+            self.visit(statement)
+
+    def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+        self.visit_With(node)
+
+    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+        self._record_name(node.name, node)
+        if node.type is not None:
+            self.visit(node.type)
+        for statement in node.body:
+            self.visit(statement)
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            self._record_name(alias.asname or alias.name.split(".", maxsplit=1)[0], node)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        for alias in node.names:
+            self._record_name(alias.asname or alias.name, node)
+
+    def visit_Delete(self, node: ast.Delete) -> None:
+        for target in node.targets:
+            self._record_target(target, node)
+
+    def visit_Global(self, node: ast.Global) -> None:
+        for name in node.names:
+            self._record_name(name, node)
+
+    def visit_Nonlocal(self, node: ast.Nonlocal) -> None:
+        for name in node.names:
+            self._record_name(name, node)
+
+    def visit_MatchAs(self, node: ast.MatchAs) -> None:
+        self._record_name(node.name, node)
+        if node.pattern is not None:
+            self.visit(node.pattern)
+
+    def visit_MatchStar(self, node: ast.MatchStar) -> None:
+        self._record_name(node.name, node)
+
+    def visit_MatchMapping(self, node: ast.MatchMapping) -> None:
+        self._record_name(node.rest, node)
+        for key in node.keys:
+            self.visit(key)
+        for pattern in node.patterns:
+            self.visit(pattern)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._record_name(node.name, node)
+        self._visit_nested_definition_expressions(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._record_name(node.name, node)
+        self._visit_nested_definition_expressions(node)
+
+    def _visit_nested_definition_expressions(
+        self,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+    ) -> None:
+        for expression in (
+            *node.decorator_list,
+            *node.args.defaults,
+            *(default for default in node.args.kw_defaults if default is not None),
+        ):
+            self.visit(expression)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        for expression in (
+            *node.args.defaults,
+            *(default for default in node.args.kw_defaults if default is not None),
+        ):
+            self.visit(expression)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._record_name(node.name, node)
+        for expression in (
+            *node.decorator_list,
+            *node.bases,
+            *(keyword.value for keyword in node.keywords),
+        ):
+            self.visit(expression)
+
+
+def _function_binding_sites(
+    function: ast.FunctionDef,
+    protected_names: tuple[str, ...],
+) -> dict[str, tuple[ast.AST, ...]]:
+    collector = _FunctionBindingCollector(frozenset(protected_names))
+    for argument in (
+        *function.args.posonlyargs,
+        *function.args.args,
+        *function.args.kwonlyargs,
+    ):
+        collector._record_name(argument.arg, argument)
+    if function.args.vararg is not None:
+        collector._record_name(function.args.vararg.arg, function.args.vararg)
+    if function.args.kwarg is not None:
+        collector._record_name(function.args.kwarg.arg, function.args.kwarg)
+    for statement in function.body:
+        collector.visit(statement)
+    return {name: tuple(collector.sites[name]) for name in sorted(collector.sites)}
+
+
+def _has_single_bindings(
+    function: ast.FunctionDef,
+    protected_names: tuple[str, ...],
+) -> bool:
+    sites = _function_binding_sites(function, protected_names)
+    return all(len(sites[name]) == 1 for name in protected_names)
+
+
+def _has_named_call_assignment(
+    function: ast.FunctionDef,
+    *,
+    target_name: str,
+    call_name: str,
+    positional_names: tuple[str, ...],
+) -> bool:
+    for node in ast.walk(function):
+        if type(node) is not ast.Assign or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if type(target) is not ast.Name or target.id != target_name:
+            continue
+        if type(node.value) is not ast.Call or _last_name(node.value.func) != call_name:
+            continue
+        actual_names = tuple(
+            argument.id if type(argument) is ast.Name else "" for argument in node.value.args
+        )
+        if actual_names == positional_names and not node.value.keywords:
+            return True
+    return False
+
+
+def _has_named_tuple_assignment(
+    function: ast.FunctionDef,
+    *,
+    target_names: tuple[str, ...],
+    source_name: str,
+) -> bool:
+    for node in ast.walk(function):
+        if type(node) is not ast.Assign or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if type(target) is not ast.Tuple or type(node.value) is not ast.Name:
+            continue
+        actual_names = tuple(item.id if type(item) is ast.Name else "" for item in target.elts)
+        if actual_names == target_names and node.value.id == source_name:
+            return True
+    return False
+
+
+def _has_named_tuple_return(function: ast.FunctionDef, names: tuple[str, ...]) -> bool:
+    for node in ast.walk(function):
+        if type(node) is not ast.Return or type(node.value) is not ast.Tuple:
+            continue
+        actual_names = tuple(item.id if type(item) is ast.Name else "" for item in node.value.elts)
+        if actual_names == names:
+            return True
+    return False
+
+
+def _is_named_tuple_return(node: ast.Return, names: tuple[str, ...]) -> bool:
+    if type(node.value) is not ast.Tuple:
+        return False
+    actual_names = tuple(item.id if type(item) is ast.Name else "" for item in node.value.elts)
+    return actual_names == names
+
+
+def _is_named_reject_return(node: ast.Return, call_name: str) -> bool:
+    return type(node.value) is ast.Call and _last_name(node.value.func) == call_name
+
+
+def _call_has_named_keywords(call: ast.Call, expected: dict[str, str]) -> bool:
+    actual = {
+        keyword.arg: keyword.value.id
+        for keyword in call.keywords
+        if keyword.arg is not None and type(keyword.value) is ast.Name
+    }
+    return all(actual.get(keyword) == value_name for keyword, value_name in expected.items())
+
+
+def _check_exact_replay_shape(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    if relative_path != "src/core/settlement_strong_validator.py":
+        return []
+    functions = {
+        statement.name: statement for statement in module.body if type(statement) is ast.FunctionDef
+    }
+    required_names = (
+        "_admit_exact_commands_v1",
+        "evaluate_settlement_strong_committed_v1",
+        "_evaluate_settlement_strong_replay_committed_v1",
+        "_validate_settlement_strong_impl",
+    )
+    missing = tuple(name for name in required_names if name not in functions)
+    if missing:
+        return [
+            _Violation(
+                relative_path,
+                0,
+                0,
+                "EXACT_REPLAY_ENTRY_SHAPE",
+                f"missing:{','.join(missing)}",
+            )
+        ]
+
+    entry = functions["evaluate_settlement_strong_committed_v1"]
+    annotations = {argument.arg: argument.annotation for argument in entry.args.kwonlyargs}
+    expected_annotations = {
+        "settlement": "OwnedSettlementV1",
+        "intents": "tuple[OwnedIntentV1,...]",
+        "pre_balances": "CommittedBalanceTableV1",
+        "pre_pools": "OwnedMapV1[str,CommittedPoolStateV1]",
+        "pre_lp_balances": "CommittedLPTableV1",
+    }
+    violations: list[_Violation] = []
+    for field, expected in expected_annotations.items():
+        actual = _normalized_annotation(annotations.get(field))
+        if actual != expected:
+            violations.append(
+                _Violation(
+                    relative_path,
+                    entry.lineno,
+                    entry.col_offset,
+                    "EXACT_REPLAY_ENTRY_SHAPE",
+                    f"annotation:{field}:{actual or '<missing>'}",
+                )
+            )
+
+    entry_calls = {_last_name(call.func) for call in _function_calls(entry)}
+    for required_call in (
+        "_admit_exact_commands_v1",
+        "_evaluate_settlement_strong_replay_committed_v1",
+    ):
+        if required_call not in entry_calls:
+            violations.append(
+                _Violation(
+                    relative_path,
+                    entry.lineno,
+                    entry.col_offset,
+                    "EXACT_REPLAY_ENTRY_SHAPE",
+                    f"missing-call:{required_call}",
+                )
+            )
+
+    admission = functions["_admit_exact_commands_v1"]
+    admission_calls = {_last_name(call.func) for call in _function_calls(admission)}
+    for required_call in ("snapshot_settlement", "admit_intent_batch"):
+        if required_call not in admission_calls:
+            violations.append(
+                _Violation(
+                    relative_path,
+                    admission.lineno,
+                    admission.col_offset,
+                    "EXACT_REPLAY_ENTRY_SHAPE",
+                    f"missing-admission:{required_call}",
+                )
+            )
+
+    if not _has_named_call_assignment(
+        admission,
+        target_name="exact_settlement",
+        call_name="snapshot_settlement",
+        positional_names=("settlement",),
+    ) or not _has_named_call_assignment(
+        admission,
+        target_name="exact_intents",
+        call_name="admit_intent_batch",
+        positional_names=("intents",),
+    ):
+        violations.append(
+            _Violation(
+                relative_path,
+                admission.lineno,
+                admission.col_offset,
+                "EXACT_REPLAY_DATAFLOW",
+                "admission-results-not-bound",
+            )
+        )
+    if not _has_single_bindings(
+        admission,
+        ("exact_settlement", "exact_intents"),
+    ):
+        violations.append(
+            _Violation(
+                relative_path,
+                admission.lineno,
+                admission.col_offset,
+                "EXACT_REPLAY_DATAFLOW",
+                "admission-exact-values-rebound",
+            )
+        )
+    if not _has_named_tuple_return(admission, ("exact_settlement", "exact_intents")):
+        violations.append(
+            _Violation(
+                relative_path,
+                admission.lineno,
+                admission.col_offset,
+                "EXACT_REPLAY_DATAFLOW",
+                "admission-results-not-returned",
+            )
+        )
+    admission_returns = tuple(node for node in ast.walk(admission) if type(node) is ast.Return)
+    invalid_admission_returns = tuple(
+        node
+        for node in admission_returns
+        if not _is_named_tuple_return(node, ("exact_settlement", "exact_intents"))
+        and not _is_named_reject_return(node, "_strong_reject_v1")
+    )
+    for invalid_return in invalid_admission_returns:
+        violations.append(
+            _Violation(
+                relative_path,
+                invalid_return.lineno,
+                invalid_return.col_offset,
+                "EXACT_REPLAY_DATAFLOW",
+                "admission-has-raw-or-unknown-return",
+            )
+        )
+
+    if not _has_named_call_assignment(
+        entry,
+        target_name="command",
+        call_name="_admit_exact_commands_v1",
+        positional_names=("settlement", "intents"),
+    ) or not _has_named_tuple_assignment(
+        entry,
+        target_names=("exact_settlement", "exact_intents"),
+        source_name="command",
+    ):
+        violations.append(
+            _Violation(
+                relative_path,
+                entry.lineno,
+                entry.col_offset,
+                "EXACT_REPLAY_DATAFLOW",
+                "entry-does-not-destructure-admitted-command",
+            )
+        )
+    if not _has_single_bindings(
+        entry,
+        ("command", "exact_settlement", "exact_intents"),
+    ):
+        violations.append(
+            _Violation(
+                relative_path,
+                entry.lineno,
+                entry.col_offset,
+                "EXACT_REPLAY_DATAFLOW",
+                "entry-exact-values-rebound",
+            )
+        )
+
+    replay_calls = tuple(
+        call
+        for call in _function_calls(entry)
+        if _last_name(call.func) == "_evaluate_settlement_strong_replay_committed_v1"
+    )
+    if len(replay_calls) != 1 or not all(
+        _call_has_named_keywords(
+            call,
+            {"settlement": "exact_settlement", "intents": "exact_intents"},
+        )
+        for call in replay_calls
+    ):
+        violations.append(
+            _Violation(
+                relative_path,
+                entry.lineno,
+                entry.col_offset,
+                "EXACT_REPLAY_DATAFLOW",
+                "replay-does-not-consume-admitted-command",
+            )
+        )
+
+    forbidden_calls = {
+        "BalanceTable",
+        "Intent",
+        "LPTable",
+        "PoolState",
+        "Settlement",
+        "deep_freeze",
+        "deepcopy",
+        "project_owned_json",
+        "_project_owned_json_unchecked",
+    }
+    for function_name in required_names:
+        function = functions[function_name]
+        for call in _function_calls(function):
+            called = _last_name(call.func) or ""
+            if called in forbidden_calls or called.startswith("admit_legacy_"):
+                violations.append(
+                    _Violation(
+                        relative_path,
+                        call.lineno,
+                        call.col_offset,
+                        "EXACT_REPLAY_MUTABLE_PROJECTION",
+                        f"{function_name}:{called}",
+                    )
+                )
+    return violations
+
+
 def _check_authority_path(
     repo_root: Path,
     relative_path: Path,
@@ -1217,7 +1749,8 @@ def _check_authority_path(
         display,
         visitor.violations
         + _check_registry_constants(module, display)
-        + _check_mutable_local_buffers(module, display),
+        + _check_mutable_local_buffers(module, display)
+        + _check_exact_replay_shape(module, display),
     )
 
 
@@ -1360,14 +1893,26 @@ def check_contract(
         violations.extend(
             _check_requirement_coverage(repo_root, requirements_path, test_matrix_paths)
         )
-    unique_violations = sorted(set(violations))
+    unique_findings = sorted(set(violations))
+    compatibility_allowlist = _PROFILE_COMPATIBILITY_ALLOWLISTS.get(profile, frozenset())
+    compatibility_mutable: list[_Violation] = []
+    blocking_mutable: list[_Violation] = []
+    for finding in unique_findings:
+        key = (finding.path, finding.line, finding.column, finding.code, finding.detail)
+        if key in compatibility_allowlist:
+            compatibility_mutable.append(finding)
+        else:
+            blocking_mutable.append(finding)
+    compatibility_findings = tuple(compatibility_mutable)
+    blocking_violations = tuple(blocking_mutable)
     return {
         "checked_paths": sorted(checked_paths),
-        "ok": not unique_violations,
+        "compatibility_findings": [finding.as_json() for finding in compatibility_findings],
+        "ok": not blocking_violations,
         "profile": profile,
         "schema": REPORT_SCHEMA,
         "sensitive_source_glob": "src/**/*.py",
-        "violations": [violation.as_json() for violation in unique_violations],
+        "violations": [violation.as_json() for violation in blocking_violations],
     }
 
 

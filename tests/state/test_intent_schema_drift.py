@@ -10,6 +10,7 @@ from src.state.intent_snapshots import (
     OwnedIntentV1,
     admit_intent_batch,
     canonical_owned_intent_bytes_v1,
+    owned_intent_field_v1,
     snapshot_intent,
 )
 from src.state.intents import (
@@ -218,6 +219,13 @@ def test_exact_registered_intent_source_union_and_owned_revalidation() -> None:
     reowned = snapshot_intent(owned)
     assert reowned == owned
     assert reowned is not owned
+
+
+def test_owned_intent_reader_rejects_mutable_default_aliases() -> None:
+    owned = snapshot_intent(_intent(IntentKind.ADD_LIQUIDITY, ALL_KIND_FIELDS[1][1]))
+
+    with pytest.raises(TypeError, match="intent field default"):
+        owned_intent_field_v1(owned, "missing", [])  # type: ignore[arg-type]
 
 
 def test_exact_intent_with_undeclared_instance_attribute_rejects() -> None:

@@ -118,6 +118,39 @@ def admit_intent_batch(
     return cast(tuple[OwnedIntentV1, ...], admitted)
 
 
+def owned_intent_field_v1(
+    intent: OwnedIntentV1,
+    field_name: str,
+    default: None | int | str = None,
+) -> object:
+    """Read one field from a previously admitted exact intent value.
+
+    The M3 replay relation revalidates the complete intent batch once at its
+    entry. This reader performs no normalization, projection, or callback and
+    therefore cannot reconstruct a mutable legacy command graph.
+    """
+
+    if type(intent) is not OwnedIntentV1:
+        raise TypeError("intent must be an exact OwnedIntentV1")
+    if type(field_name) is not str:
+        raise TypeError("intent field name must be an exact string")
+    if default is not None and type(default) not in (int, str):
+        raise TypeError("intent field default must be None, an exact integer, or an exact string")
+    if type(intent.fields) is not OwnedMapV1:
+        raise TypeError("owned intent fields must be an exact OwnedMapV1")
+    return intent.fields.get(field_name, default)
+
+
+def owned_intent_kind_text_v1(intent: OwnedIntentV1) -> str:
+    """Return the registered protocol kind of one exact intent value."""
+
+    if type(intent) is not OwnedIntentV1:
+        raise TypeError("intent must be an exact OwnedIntentV1")
+    from .intent_schema import intent_kind_text_v1
+
+    return intent_kind_text_v1(intent.kind)
+
+
 def canonical_owned_intent_bytes_v1(value: OwnedIntentV1) -> bytes:
     """Encode the exact signing projection after full owned revalidation."""
 

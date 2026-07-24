@@ -13,6 +13,7 @@ from src.core.dex import step as dex_step
 from src.core.liquidity import create_pool
 from src.core.quote_receipts import pool_state_fingerprint
 from src.core.settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
+from src.core.settlement_snapshots import snapshot_settlement
 from src.core.settlement_strong_validator import (
     StrongSettlementRejectV1,
     StrongSettlementStateCandidateV1,
@@ -21,6 +22,7 @@ from src.core.settlement_strong_validator import (
     validate_settlement_strong_committed_v1,
 )
 from src.state import BalanceTable, LPTable
+from src.state.intent_snapshots import admit_intent_batch
 from src.state.intents import Intent, IntentKind
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from src.state.state_snapshots import (
@@ -220,6 +222,48 @@ def _setup_remove_liquidity_context() -> tuple[
     return pk, asset0, asset1, pool_id, pool, balances, lp_balances, intent, settlement
 
 
+def _assert_exact_legacy_validation_parity(
+    *,
+    settlement: Settlement,
+    intents: list[Intent],
+    balances: BalanceTable,
+    pools: dict[str, PoolState],
+    lp_balances: LPTable,
+    allow_cow_netting: bool = False,
+    allow_snapshot_bound_quote_bindings: bool = False,
+) -> tuple[bool, str | None]:
+    owned_settlement = snapshot_settlement(settlement)
+    owned_intents = admit_intent_batch(intents)
+    exact_balances = snapshot_balance_table(balances)
+    exact_pools = snapshot_pool_map(pools)
+    exact_lp_balances = snapshot_lp_table(lp_balances)
+    legacy = validate_settlement_strong(
+        settlement=settlement,
+        intents=intents,
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+        allow_cow_netting=allow_cow_netting,
+        allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+    )
+    exact = validate_settlement_strong_committed_v1(
+        settlement=owned_settlement,
+        intents=owned_intents,
+        pre_balances=exact_balances,
+        pre_pools=exact_pools,
+        pre_lp_balances=exact_lp_balances,
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+        mode="strong_replay",
+        allow_cow_netting=allow_cow_netting,
+        allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+    )
+    assert exact == legacy
+    return legacy
+
+
 def test_exact_committed_validator_matches_legacy_facade_across_spot_actions() -> None:
     _pk, _asset0, _asset1, create_balances, create_intent, create_settlement = (
         _setup_create_pool_context()
@@ -288,6 +332,8 @@ def test_exact_committed_validator_matches_legacy_facade_across_spot_actions() -
         exact_balances = snapshot_balance_table(balances)
         exact_pools = snapshot_pool_map(pools)
         exact_lp_balances = snapshot_lp_table(lp_balances)
+        owned_settlement = snapshot_settlement(settlement)
+        owned_intents = admit_intent_batch([intent])
         legacy = validate_settlement_strong(
             settlement=copy.deepcopy(settlement),
             intents=[intent],
@@ -296,8 +342,8 @@ def test_exact_committed_validator_matches_legacy_facade_across_spot_actions() -
             pre_lp_balances=lp_balances,
         )
         exact = validate_settlement_strong_committed_v1(
-            settlement=copy.deepcopy(settlement),
-            intents=[intent],
+            settlement=owned_settlement,
+            intents=owned_intents,
             pre_balances=exact_balances,
             pre_pools=exact_pools,
             pre_lp_balances=exact_lp_balances,
@@ -308,8 +354,8 @@ def test_exact_committed_validator_matches_legacy_facade_across_spot_actions() -
         assert exact == legacy == (True, None)
 
         evaluated = evaluate_settlement_strong_committed_v1(
-            settlement=copy.deepcopy(settlement),
-            intents=[intent],
+            settlement=owned_settlement,
+            intents=owned_intents,
             pre_balances=exact_balances,
             pre_pools=exact_pools,
             pre_lp_balances=exact_lp_balances,
@@ -350,13 +396,22 @@ def test_exact_committed_validator_matches_legacy_facade_across_spot_actions() -
 def test_exact_committed_evaluator_rejects_without_candidate_and_preserves_reason() -> None:
     *_prefix, pool, balances, intent, settlement = _setup_swap_context()
     tampered = replace(settlement, balance_deltas=[])
+    legacy = validate_settlement_strong(
+        settlement=tampered,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool.pool_id: pool},
+        pre_lp_balances=LPTable(),
+    )
     exact_balances = snapshot_balance_table(balances)
     exact_pools = snapshot_pool_map({pool.pool_id: pool})
     exact_lp_balances = snapshot_lp_table(LPTable())
+    owned_settlement = snapshot_settlement(tampered)
+    owned_intents = admit_intent_batch([intent])
 
     evaluated = evaluate_settlement_strong_committed_v1(
-        settlement=tampered,
-        intents=[intent],
+        settlement=owned_settlement,
+        intents=owned_intents,
         pre_balances=exact_balances,
         pre_pools=exact_pools,
         pre_lp_balances=exact_lp_balances,
@@ -367,12 +422,13 @@ def test_exact_committed_evaluator_rejects_without_candidate_and_preserves_reaso
 
     assert type(evaluated) is StrongSettlementRejectV1
     assert evaluated.reason == "balance_deltas mismatch vs replay"
+    assert legacy == (False, evaluated.reason)
     assert not hasattr(evaluated, "balances")
     assert not hasattr(evaluated, "pools")
     assert not hasattr(evaluated, "lp_balances")
     assert validate_settlement_strong_committed_v1(
-        settlement=tampered,
-        intents=[intent],
+        settlement=owned_settlement,
+        intents=owned_intents,
         pre_balances=exact_balances,
         pre_pools=exact_pools,
         pre_lp_balances=exact_lp_balances,
@@ -380,6 +436,37 @@ def test_exact_committed_evaluator_rejects_without_candidate_and_preserves_reaso
         min_lp_position_age_seconds=0,
         lp_duration_policy=None,
     ) == (False, evaluated.reason)
+
+
+def test_exact_committed_evaluator_rejects_exact_batch_construction_fault(
+    monkeypatch,
+) -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+
+    def _fail_batch_construction(**_kwargs: object) -> None:
+        raise ValueError("synthetic candidate failure")
+
+    monkeypatch.setattr(
+        strong_validator,
+        "SpotDeltaBatchV1",
+        _fail_batch_construction,
+    )
+    evaluated = evaluate_settlement_strong_committed_v1(
+        settlement=snapshot_settlement(settlement),
+        intents=admit_intent_batch([intent]),
+        pre_balances=snapshot_balance_table(balances),
+        pre_pools=snapshot_pool_map({pool.pool_id: pool}),
+        pre_lp_balances=snapshot_lp_table(LPTable()),
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+    )
+
+    assert evaluated == StrongSettlementRejectV1(
+        "exact spot command construction failed after replay: "
+        "ValueError: synthetic candidate failure"
+    )
+    assert not hasattr(evaluated, "balances")
 
 
 def test_exact_committed_evaluator_applies_lp_age_to_the_emitted_candidate() -> None:
@@ -398,10 +485,12 @@ def test_exact_committed_evaluator_applies_lp_age_to_the_emitted_candidate() -> 
     exact_balances = snapshot_balance_table(balances)
     exact_pools = snapshot_pool_map({pool_id: pool})
     exact_lp_balances = snapshot_lp_table(lp_balances)
+    owned_settlement = snapshot_settlement(settlement)
+    owned_intents = admit_intent_batch([intent])
 
     evaluated = evaluate_settlement_strong_committed_v1(
-        settlement=settlement,
-        intents=[intent],
+        settlement=owned_settlement,
+        intents=owned_intents,
         pre_balances=exact_balances,
         pre_pools=exact_pools,
         pre_lp_balances=exact_lp_balances,
@@ -422,10 +511,12 @@ def test_exact_committed_evaluator_applies_lp_age_to_the_emitted_candidate() -> 
 def test_exact_committed_validator_rejects_legacy_state_values() -> None:
     *_prefix, pool, balances, intent, settlement = _setup_swap_context()
     runtime_exact_validator = cast(Any, validate_settlement_strong_committed_v1)
+    owned_settlement = snapshot_settlement(settlement)
+    owned_intents = admit_intent_batch([intent])
 
     ok, error = runtime_exact_validator(
-        settlement=settlement,
-        intents=[intent],
+        settlement=owned_settlement,
+        intents=owned_intents,
         pre_balances=balances,
         pre_pools={pool.pool_id: pool},
         pre_lp_balances=LPTable(),
@@ -439,6 +530,175 @@ def test_exact_committed_validator_rejects_legacy_state_values() -> None:
         error
         == "strong validator crashed: TypeError: replay balances must be exact committed state"
     )
+
+
+def test_exact_committed_validator_rejects_legacy_command_graph() -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+    runtime_exact_evaluator = cast(Any, evaluate_settlement_strong_committed_v1)
+
+    evaluated = runtime_exact_evaluator(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=snapshot_balance_table(balances),
+        pre_pools=snapshot_pool_map({pool.pool_id: pool}),
+        pre_lp_balances=snapshot_lp_table(LPTable()),
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+    )
+
+    assert evaluated == StrongSettlementRejectV1(
+        "exact settlement command rejected: settlement requires OwnedSettlementV1"
+    )
+    assert not hasattr(evaluated, "balances")
+
+
+def test_exact_committed_evaluator_rejects_non_owned_intent_containers() -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+    runtime_exact_evaluator = cast(Any, evaluate_settlement_strong_committed_v1)
+    owned_settlement = snapshot_settlement(settlement)
+    owned_intents = admit_intent_batch([intent])
+    cases = (
+        (list(owned_intents), "intents require an exact owned tuple"),
+        ((intent,), "intent requires OwnedIntentV1"),
+    )
+
+    for malformed_intents, expected_reason in cases:
+        evaluated = runtime_exact_evaluator(
+            settlement=owned_settlement,
+            intents=malformed_intents,
+            pre_balances=snapshot_balance_table(balances),
+            pre_pools=snapshot_pool_map({pool.pool_id: pool}),
+            pre_lp_balances=snapshot_lp_table(LPTable()),
+            now=700,
+            min_lp_position_age_seconds=0,
+            lp_duration_policy=None,
+        )
+
+        assert evaluated == StrongSettlementRejectV1(
+            f"exact settlement command rejected: {expected_reason}"
+        )
+        assert not hasattr(evaluated, "balances")
+
+
+def test_exact_committed_evaluator_uses_only_the_owned_command_snapshot() -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+    owned_settlement = snapshot_settlement(settlement)
+    owned_intents = admit_intent_batch([intent])
+
+    intent.fields["amount_in"] = 2_000
+    settlement.balance_deltas.clear()
+    settlement.reserve_deltas.clear()
+
+    evaluated = evaluate_settlement_strong_committed_v1(
+        settlement=owned_settlement,
+        intents=owned_intents,
+        pre_balances=snapshot_balance_table(balances),
+        pre_pools=snapshot_pool_map({pool.pool_id: pool}),
+        pre_lp_balances=snapshot_lp_table(LPTable()),
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+    )
+
+    assert type(evaluated) is StrongSettlementStateCandidateV1
+
+
+def test_exact_committed_evaluator_never_invokes_legacy_command_behavior(
+    monkeypatch,
+) -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+    owned_settlement = snapshot_settlement(settlement)
+    owned_intents = admit_intent_batch([intent])
+
+    def _legacy_escape(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("exact replay invoked a legacy command path")
+
+    monkeypatch.setattr(Intent, "get_field", _legacy_escape)
+    monkeypatch.setattr(
+        strong_validator,
+        "evaluate_settlement_strong_legacy_committed_for_differential_v1",
+        _legacy_escape,
+    )
+
+    evaluated = evaluate_settlement_strong_committed_v1(
+        settlement=owned_settlement,
+        intents=owned_intents,
+        pre_balances=snapshot_balance_table(balances),
+        pre_pools=snapshot_pool_map({pool.pool_id: pool}),
+        pre_lp_balances=snapshot_lp_table(LPTable()),
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+    )
+
+    assert type(evaluated) is StrongSettlementStateCandidateV1
+
+
+def test_exact_committed_evaluator_revalidates_a_corrupted_owned_command() -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+    owned_settlement = snapshot_settlement(settlement)
+    owned_intents = admit_intent_batch([intent])
+    object.__setattr__(owned_settlement, "batch_ref", 7)
+
+    evaluated = evaluate_settlement_strong_committed_v1(
+        settlement=owned_settlement,
+        intents=owned_intents,
+        pre_balances=snapshot_balance_table(balances),
+        pre_pools=snapshot_pool_map({pool.pool_id: pool}),
+        pre_lp_balances=snapshot_lp_table(LPTable()),
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+    )
+
+    assert type(evaluated) is StrongSettlementRejectV1
+    assert evaluated.reason.startswith("exact settlement command rejected: wrong_exact_type:")
+    assert not hasattr(evaluated, "balances")
+
+
+def test_exact_committed_evaluator_revalidates_a_corrupted_owned_intent() -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+    owned_settlement = snapshot_settlement(settlement)
+    owned_intents = admit_intent_batch([intent])
+    object.__setattr__(owned_intents[0], "deadline", "corrupted")
+
+    evaluated = evaluate_settlement_strong_committed_v1(
+        settlement=owned_settlement,
+        intents=owned_intents,
+        pre_balances=snapshot_balance_table(balances),
+        pre_pools=snapshot_pool_map({pool.pool_id: pool}),
+        pre_lp_balances=snapshot_lp_table(LPTable()),
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+    )
+
+    assert type(evaluated) is StrongSettlementRejectV1
+    assert evaluated.reason.startswith("exact settlement command rejected: wrong_exact_type:")
+    assert not hasattr(evaluated, "balances")
+
+
+def test_exact_committed_evaluator_rejects_corrupted_owned_invariants() -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+    owned_settlement = snapshot_settlement(settlement)
+    included = owned_settlement.included_intents[0]
+    object.__setattr__(owned_settlement, "included_intents", (included, included))
+
+    evaluated = evaluate_settlement_strong_committed_v1(
+        settlement=owned_settlement,
+        intents=admit_intent_batch([intent]),
+        pre_balances=snapshot_balance_table(balances),
+        pre_pools=snapshot_pool_map({pool.pool_id: pool}),
+        pre_lp_balances=snapshot_lp_table(LPTable()),
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+    )
+
+    assert type(evaluated) is StrongSettlementRejectV1
+    assert evaluated.reason.startswith("exact settlement command rejected:")
+    assert not hasattr(evaluated, "balances")
 
 
 def test_legacy_boolean_facade_never_constructs_the_duration_candidate(monkeypatch) -> None:
@@ -1555,6 +1815,20 @@ def test_strong_validator_accepts_exact_reciprocal_cow_netted_pair() -> None:
     assert ok is True, err
     assert err is None
 
+    exact = validate_settlement_strong_committed_v1(
+        settlement=snapshot_settlement(settlement),
+        intents=admit_intent_batch([intent0, intent1]),
+        pre_balances=snapshot_balance_table(balances),
+        pre_pools=snapshot_pool_map({pool_id: pool_state}),
+        pre_lp_balances=snapshot_lp_table(LPTable()),
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert exact == (True, None)
+
 
 def test_strong_validator_accepts_multiple_disjoint_cow_netted_pairs() -> None:
     pk0 = "0x" + "11" * 48
@@ -1740,13 +2014,12 @@ def test_strong_validator_rejects_ambiguous_and_nonreciprocal_cow_pairs() -> Non
         (_intent(930, pk0, pool_id, asset0, asset1, 100, 50), 100, 50),
         (_intent(931, pk1, pool_id, asset0, asset1, 50, 100), 50, 100),
     ]
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_exact_legacy_validation_parity(
         settlement=_settlement(same_direction),
         intents=[row[0] for row in same_direction],
-        pre_balances=balances,
-        pre_pools={pool_id: pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
+        balances=balances,
+        pools={pool_id: pool_state},
+        lp_balances=LPTable(),
         allow_cow_netting=True,
     )
     assert ok is False
@@ -1756,13 +2029,12 @@ def test_strong_validator_rejects_ambiguous_and_nonreciprocal_cow_pairs() -> Non
         (_intent(932, pk0, pool_id, asset0, asset1, 100, 50), 100, 50),
         (_intent(933, pk1, other_pool_id, asset1, asset0, 50, 100), 50, 100),
     ]
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_exact_legacy_validation_parity(
         settlement=_settlement(cross_pool),
         intents=[row[0] for row in cross_pool],
-        pre_balances=balances,
-        pre_pools={pool_id: pool_state, other_pool_id: other_pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
+        balances=balances,
+        pools={pool_id: pool_state, other_pool_id: other_pool_state},
+        lp_balances=LPTable(),
         allow_cow_netting=True,
     )
     assert ok is False
@@ -1772,13 +2044,12 @@ def test_strong_validator_rejects_ambiguous_and_nonreciprocal_cow_pairs() -> Non
         (_intent(934, pk0, pool_id, asset0, asset1, 100, 40), 100, 49),
         (_intent(935, pk1, pool_id, asset1, asset0, 50, 100), 50, 100),
     ]
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_exact_legacy_validation_parity(
         settlement=_settlement(mismatched),
         intents=[row[0] for row in mismatched],
-        pre_balances=balances,
-        pre_pools={pool_id: pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
+        balances=balances,
+        pools={pool_id: pool_state},
+        lp_balances=LPTable(),
         allow_cow_netting=True,
     )
     assert ok is False
@@ -1789,13 +2060,12 @@ def test_strong_validator_rejects_ambiguous_and_nonreciprocal_cow_pairs() -> Non
         (_intent(937, pk1, pool_id, asset1, asset0, 50, 100), 50, 100),
         (_intent(938, pk2, pool_id, asset1, asset0, 50, 100), 50, 100),
     ]
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_exact_legacy_validation_parity(
         settlement=_settlement(ambiguous),
         intents=[row[0] for row in ambiguous],
-        pre_balances=balances,
-        pre_pools={pool_id: pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
+        balances=balances,
+        pools={pool_id: pool_state},
+        lp_balances=LPTable(),
         allow_cow_netting=True,
     )
     assert ok is False
@@ -3505,13 +3775,12 @@ def test_strong_validator_rejects_cow_netted_variants_and_legacy_failure() -> No
         lp_deltas=[],
         events=None,
     )
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_exact_legacy_validation_parity(
         settlement=exact_out_settlement,
         intents=[exact_out_intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
+        balances=balances,
+        pools={pool_id: pool_state},
+        lp_balances=LPTable(),
         allow_cow_netting=True,
     )
     assert ok is False
@@ -3559,13 +3828,23 @@ def test_strong_validator_rejects_cow_netted_variants_and_legacy_failure() -> No
         lp_deltas=[],
         events=None,
     )
-    ok, err = validate_settlement_strong(
+    disabled_ok, disabled_err = _assert_exact_legacy_validation_parity(
         settlement=cow_settlement,
         intents=[exact_in_intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
+        balances=balances,
+        pools={pool_id: pool_state},
+        lp_balances=LPTable(),
+        allow_cow_netting=False,
+    )
+    assert disabled_ok is False
+    assert disabled_err == f"COW_NETTED not allowed for intent_id={exact_in_intent.intent_id}"
+
+    ok, err = _assert_exact_legacy_validation_parity(
+        settlement=cow_settlement,
+        intents=[exact_in_intent],
+        balances=balances,
+        pools={pool_id: pool_state},
+        lp_balances=LPTable(),
         allow_cow_netting=True,
     )
     assert ok is False
@@ -3783,37 +4062,34 @@ def test_strong_validator_rejects_cow_netted_input_and_apply_errors() -> None:
         intent_id=_iid(915),
         fields={**invalid_amount_intent.fields, "amount_in": 100, "min_amount_out": 10},
     )
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_exact_legacy_validation_parity(
         settlement=_settlement_for(base_intent.intent_id, fee_paid=1),
         intents=[base_intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
+        balances=balances,
+        pools={pool_id: pool_state},
+        lp_balances=LPTable(),
         allow_cow_netting=True,
     )
     assert ok is False
     assert err == f"COW_NETTED fee_paid must be 0: intent_id={base_intent.intent_id}"
 
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_exact_legacy_validation_parity(
         settlement=_settlement_for(base_intent.intent_id, amount_in_filled=99),
         intents=[base_intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
+        balances=balances,
+        pools={pool_id: pool_state},
+        lp_balances=LPTable(),
         allow_cow_netting=True,
     )
     assert ok is False
     assert err == f"COW_NETTED amount_in_filled mismatch: intent_id={base_intent.intent_id}"
 
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_exact_legacy_validation_parity(
         settlement=_settlement_for(base_intent.intent_id, amount_out_filled=9),
         intents=[base_intent],
-        pre_balances=balances,
-        pre_pools={pool_id: pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
+        balances=balances,
+        pools={pool_id: pool_state},
+        lp_balances=LPTable(),
         allow_cow_netting=True,
     )
     assert ok is False
@@ -3869,13 +4145,12 @@ def test_strong_validator_rejects_cow_netted_input_and_apply_errors() -> None:
     low_balances = BalanceTable()
     low_balances.set(pk0, asset0, 1)
     low_balances.set(pk1, asset1, 50)
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_exact_legacy_validation_parity(
         settlement=low_balance_pair,
         intents=[base_intent, counterparty_intent],
-        pre_balances=low_balances,
-        pre_pools={pool_id: pool_state},
-        pre_lp_balances=LPTable(),
-        mode="strong_replay",
+        balances=low_balances,
+        pools={pool_id: pool_state},
+        lp_balances=LPTable(),
         allow_cow_netting=True,
     )
     assert ok is False

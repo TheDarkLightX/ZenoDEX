@@ -47,6 +47,8 @@ require_file "dex step core exported ref" "$ROOT_DIR/generated/dex_v8_python/dex
 require_file "vault exported ref" "$ROOT_DIR/generated/vault_python/vault_manager_ref.py"
 require_file "volatility tier exported ref" "$ROOT_DIR/generated/volatility_tier_controller_v1_python_ref/volatility_tier_controller_v1_ref.py"
 require_file "batch auction exported ref" "$ROOT_DIR/generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py"
+require_file "FCIS authority checker" "$ROOT_DIR/tools/check_fcis_authority_snapshot_contract.py"
+require_file "FCIS authority packet checker" "$ROOT_DIR/docs/specs/fcis_authority_snapshot_v1/check_packet.py"
 
 CRITICAL_TESTS=(
   tests/core/test_domain_bounds.py
@@ -115,6 +117,7 @@ echo "== critical: ruff =="
 "$PY" -m ruff check \
   tools/acceptance_tcb_mutation_harness.py \
   tools/check_acceptance_tcb_coverage.py \
+  tools/check_fcis_authority_snapshot_contract.py \
   src/core/domain_limits.py \
   src/core/cpmm.py \
   src/core/liquidity.py \
@@ -160,6 +163,7 @@ echo "== critical: ruff =="
   tests/core/test_dex_step.py \
   tests/core/test_dex_step_candidate_settlement.py \
   tests/core/test_dex_state_immutability.py \
+  tests/tools/test_check_fcis_authority_snapshot_contract.py \
   tests/integration/test_dex_engine_helpers.py \
   tests/integration/test_operations_fuzz.py \
   tests/integration/test_proof_verifier_fuzz.py \
@@ -186,6 +190,16 @@ bash -n \
 
 echo "== critical: mypy =="
 "$PY" -m mypy
+
+echo "== critical: FCIS authority snapshot contract =="
+"$PY" "$ROOT_DIR/tools/check_fcis_authority_snapshot_contract.py" \
+  --profile state-substrate --json
+"$PY" "$ROOT_DIR/tools/check_fcis_authority_snapshot_contract.py" \
+  --profile authority-graph --json
+"$PY" "$ROOT_DIR/tools/check_fcis_authority_snapshot_contract.py" \
+  --profile exact-replay --json
+"$PY" "$ROOT_DIR/docs/specs/fcis_authority_snapshot_v1/check_packet.py"
+"$PY" -m pytest -q tests/tools/test_check_fcis_authority_snapshot_contract.py
 
 echo "== critical: acceptance TCB gate =="
 bash "$ROOT_DIR/tools/run_acceptance_tcb_gate.sh"

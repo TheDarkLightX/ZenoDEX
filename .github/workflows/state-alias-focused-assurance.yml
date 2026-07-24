@@ -16,7 +16,9 @@ concurrency:
 
 jobs:
   critical-quality:
-    if: github.event.pull_request.head.ref == 'agent/functional-core-owned-state-snapshots-20260719'
+    if: >-
+      github.event.pull_request.head.ref == 'agent/functional-core-owned-state-snapshots-20260719' ||
+      github.event.pull_request.head.ref == 'agent/fcis-pr454-reviewed-port-20260723'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact PR head
@@ -43,7 +45,9 @@ jobs:
         run: bash tools/run_critical_quality_gate.sh
 
   mounted-state-consumers:
-    if: github.event.pull_request.head.ref == 'agent/functional-core-owned-state-snapshots-20260719'
+    if: >-
+      github.event.pull_request.head.ref == 'agent/functional-core-owned-state-snapshots-20260719' ||
+      github.event.pull_request.head.ref == 'agent/fcis-pr454-reviewed-port-20260723'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact PR head

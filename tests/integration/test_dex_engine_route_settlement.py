@@ -26,16 +26,27 @@ from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop, best_route_exact_out_2hop
-from src.core.settlement import FillAction
-from src.core.settlement_strong_validator import validate_settlement_strong
+from src.core.settlement import FillAction, Settlement
+from src.core.settlement_snapshots import snapshot_settlement
+from src.core.settlement_strong_validator import (
+    validate_settlement_strong,
+    validate_settlement_strong_committed_v1,
+)
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import (
     SignedIntentEnvelope,
     create_signed_intent_operation,
 )
 from src.state.balances import BalanceTable
+from src.state.intent_snapshots import admit_intent_batch
+from src.state.intents import Intent
 from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
+from src.state.state_snapshots import (
+    snapshot_balance_table,
+    snapshot_lp_table,
+    snapshot_pool_map,
+)
 
 SENDER = "0x" + "ab" * 48
 OTHER = "0x" + "cd" * 48
@@ -47,7 +58,15 @@ def _pool_label_ordinal(label: str) -> int:
     return sum((index + 1) * ord(char) for index, char in enumerate(label)) % 97
 
 
-def _pool(label: str, *, asset0: str = "A", asset1: str = "B", r0: int = 1_000, r1: int = 1_000, fee_bps: int = 0) -> PoolState:
+def _pool(
+    label: str,
+    *,
+    asset0: str = "A",
+    asset1: str = "B",
+    r0: int = 1_000,
+    r1: int = 1_000,
+    fee_bps: int = 0,
+) -> PoolState:
     label_ordinal = _pool_label_ordinal(label)
     effective_fee_bps = fee_bps + label_ordinal
     pool_id = compute_pool_id(asset0, asset1, effective_fee_bps)
@@ -112,14 +131,18 @@ def _exact_in_route_setup(n_pools: int, *, amount_in: int, fee_bps: int = 0):
         *(f"p{i}" for i in range(1, n_pools + 1)),
         fee_bps=fee_bps,
     )
-    quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=amount_in)
+    quote = best_route_exact_in_2hop(
+        pools_by_id=pools, asset_in="A", asset_out="B", amount_in=amount_in
+    )
     assert quote is not None
     assert all(len(leg.hops) == 1 for leg in quote.legs)
     receipt = make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools)
     return pools, quote, receipt
 
 
-def _route_intent(receipt, pools, *, sender: str = SENDER, slippage_bps: int = 0, nonce: int = 1, **kwargs):
+def _route_intent(
+    receipt, pools, *, sender: str = SENDER, slippage_bps: int = 0, nonce: int = 1, **kwargs
+):
     return create_route_intent_from_quote_receipt(
         receipt=receipt,
         pools_by_id=pools,
@@ -142,7 +165,9 @@ def _apply(state: DexState, envelopes: list[SignedIntentEnvelope], *, sender: st
     )
 
 
-def _assert_asset_conservation(pre_state: DexState, post_state: DexState, assets: tuple[str, ...]) -> None:
+def _assert_asset_conservation(
+    pre_state: DexState, post_state: DexState, assets: tuple[str, ...]
+) -> None:
     def total(state: DexState, asset: str) -> int:
         balance_sum = sum(
             amount
@@ -217,7 +242,9 @@ def test_route_exact_in_three_pool_split_settles_atomically() -> None:
 
 def test_route_exact_out_two_pool_split_settles_atomically() -> None:
     pools = _pool_map("p1", "p2")
-    quote = best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=400)
+    quote = best_route_exact_out_2hop(
+        pools_by_id=pools, asset_in="A", asset_out="B", amount_out=400
+    )
     assert quote is not None
     assert all(len(leg.hops) == 1 for leg in quote.legs)
     receipt = make_route_quote_receipt(kind="exact_out", quote=quote, pools_by_id=pools)
@@ -367,6 +394,7 @@ def test_route_rejects_duplicate_leg_indices() -> None:
     assert not res.ok
     assert "invalid route intent" in res.error
 
+
 def test_route_rejects_missing_leg_index() -> None:
     pools, _quote, receipt = _exact_in_route_setup(2, amount_in=600)
     intent = _with_leg_indices(receipt, pools, [0])
@@ -452,7 +480,9 @@ def test_route_rejects_unsatisfiable_min_out() -> None:
 
 def test_route_rejects_unsatisfiable_max_in() -> None:
     pools = _pool_map("p1", "p2")
-    quote = best_route_exact_out_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_out=400)
+    quote = best_route_exact_out_2hop(
+        pools_by_id=pools, asset_in="A", asset_out="B", amount_out=400
+    )
     assert quote is not None
     receipt = make_route_quote_receipt(kind="exact_out", quote=quote, pools_by_id=pools)
     intent = _route_intent(receipt, pools)
@@ -487,7 +517,14 @@ def test_route_deterministic_replay_identical_post_state() -> None:
             for pid, p in sorted(res.state.pools.items())
         )
         fills_snapshot = tuple(
-            (f.intent_id, f.action.value, f.reason, f.amount_in_filled, f.amount_out_filled, f.fee_paid)
+            (
+                f.intent_id,
+                f.action.value,
+                f.reason,
+                f.amount_in_filled,
+                f.amount_out_filled,
+                f.fee_paid,
+            )
             for f in res.settlement.fills
         )
         return balances_snapshot, pools_snapshot, fills_snapshot
@@ -519,7 +556,9 @@ def test_compute_settlement_signature_backward_compatible() -> None:
     balances = BalanceTable()
     balances.set(SENDER, "A", 10_000)
     # No route_bindings kwarg: legacy call shape still works.
-    settlement = compute_settlement(intents=[], pools=pools, balances=balances, lp_balances=LPTable())
+    settlement = compute_settlement(
+        intents=[], pools=pools, balances=balances, lp_balances=LPTable()
+    )
     assert settlement.fills == []
 
 
@@ -675,15 +714,26 @@ def test_route_rejects_multi_hop_receipt() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _validator_fixture():
+def _validator_fixture(*, route_kind: str = "exact_in"):
     """Engine-equivalent inputs for direct strong-validator calls."""
     from src.core.route_settlement import (
         resolve_route_binding_from_receipt,
         route_binding_to_fields,
     )
-    from src.state.intents import Intent
 
-    pools, quote, receipt = _exact_in_route_setup(2, amount_in=600)
+    if route_kind == "exact_in":
+        pools, quote, receipt = _exact_in_route_setup(2, amount_in=600)
+    else:
+        assert route_kind == "exact_out"
+        pools = _pool_map("p1", "p2")
+        quote = best_route_exact_out_2hop(
+            pools_by_id=pools,
+            asset_in="A",
+            asset_out="B",
+            amount_out=400,
+        )
+        assert quote is not None
+        receipt = make_route_quote_receipt(kind="exact_out", quote=quote, pools_by_id=pools)
     intent = _route_intent(receipt, pools)
     binding, err = resolve_route_binding_from_receipt(receipt)
     assert binding is not None, err
@@ -716,6 +766,42 @@ def _validator_fixture():
     return pools, balances, settlement, sanitized, quote
 
 
+def _assert_route_exact_legacy_parity(
+    *,
+    settlement: Settlement,
+    intents: list[Intent],
+    balances: BalanceTable,
+    pools: dict[str, PoolState],
+    allow_snapshot_bound_quote_bindings: bool,
+) -> tuple[bool, str | None]:
+    owned_settlement = snapshot_settlement(settlement)
+    owned_intents = admit_intent_batch(intents)
+    exact_balances = snapshot_balance_table(balances)
+    exact_pools = snapshot_pool_map(pools)
+    exact_lp = snapshot_lp_table(LPTable())
+    legacy = validate_settlement_strong(
+        settlement=settlement,
+        intents=intents,
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+    )
+    exact = validate_settlement_strong_committed_v1(
+        settlement=owned_settlement,
+        intents=owned_intents,
+        pre_balances=exact_balances,
+        pre_pools=exact_pools,
+        pre_lp_balances=exact_lp,
+        now=0,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+        allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+    )
+    assert exact == legacy
+    return legacy
+
+
 def test_validator_accepts_engine_equivalent_route_settlement() -> None:
     pools, balances, settlement, sanitized, _quote = _validator_fixture()
     ok, err = validate_settlement_strong(
@@ -728,16 +814,42 @@ def test_validator_accepts_engine_equivalent_route_settlement() -> None:
     )
     assert ok, err
 
+    exact = validate_settlement_strong_committed_v1(
+        settlement=snapshot_settlement(settlement),
+        intents=admit_intent_batch([sanitized]),
+        pre_balances=snapshot_balance_table(balances),
+        pre_pools=snapshot_pool_map(pools),
+        pre_lp_balances=snapshot_lp_table(LPTable()),
+        now=0,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert exact == (True, None)
+
+
+def test_validator_accepts_exact_out_owned_replay_with_legacy_parity() -> None:
+    pools, balances, settlement, sanitized, _quote = _validator_fixture(route_kind="exact_out")
+
+    ok, err = _assert_route_exact_legacy_parity(
+        settlement=settlement,
+        intents=[sanitized],
+        balances=balances,
+        pools=pools,
+        allow_snapshot_bound_quote_bindings=True,
+    )
+
+    assert ok is True, err
+
 
 def test_validator_rejects_forged_route_fill_totals() -> None:
     pools, balances, settlement, sanitized, _quote = _validator_fixture()
     settlement.fills[0].amount_out_filled += 1
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_route_exact_legacy_parity(
         settlement=settlement,
         intents=[sanitized],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
+        balances=balances,
+        pools=pools,
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
@@ -779,7 +891,9 @@ def test_validator_rejects_route_fields_on_swap_intent() -> None:
 
     balances = BalanceTable()
     balances.set(SENDER, "A", 10_000)
-    settlement = compute_settlement(intents=[swap], pools=pools, balances=balances, lp_balances=LPTable())
+    settlement = compute_settlement(
+        intents=[swap], pools=pools, balances=balances, lp_balances=LPTable()
+    )
 
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -801,12 +915,11 @@ def test_validator_rejects_tampered_route_leg_amounts() -> None:
     # Keep the claimed fill consistent with the tampered binding so the replay
     # equality (not fill bookkeeping) is what catches the lie.
     settlement.fills[0].amount_out_filled += 1
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_route_exact_legacy_parity(
         settlement=settlement,
         intents=[sanitized],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
+        balances=balances,
+        pools=pools,
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
@@ -894,12 +1007,11 @@ def test_validator_rejects_forged_non_canonical_route_winner() -> None:
         lp_deltas=hi_only.lp_deltas,
     )
 
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_route_exact_legacy_parity(
         settlement=forged,
         intents=[lo, hi],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
+        balances=balances,
+        pools=pools,
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
@@ -935,12 +1047,11 @@ def test_validator_rejects_non_ascending_route_order() -> None:
         lp_deltas=lo_only.lp_deltas,
     )
 
-    ok, err = validate_settlement_strong(
+    ok, err = _assert_route_exact_legacy_parity(
         settlement=forged,
         intents=[lo, hi],
-        pre_balances=balances,
-        pre_pools=pools,
-        pre_lp_balances=LPTable(),
+        balances=balances,
+        pools=pools,
         allow_snapshot_bound_quote_bindings=True,
     )
     assert not ok
@@ -1070,7 +1181,11 @@ def test_validator_rejects_create_pool_settled_after_route() -> None:
         ],
         fills=[
             route_only.fills[0],
-            Fill(intent_id=create_pool.intent_id, action=FillAction.REJECT, reason="INSUFFICIENT_BALANCE"),
+            Fill(
+                intent_id=create_pool.intent_id,
+                action=FillAction.REJECT,
+                reason="INSUFFICIENT_BALANCE",
+            ),
         ],
         balance_deltas=route_only.balance_deltas,
         reserve_deltas=route_only.reserve_deltas,
@@ -1129,9 +1244,16 @@ def test_validator_rejects_route_reject_with_stripped_binding() -> None:
         module="TauSwap",
         version="0.1",
         batch_ref="",
-        included_intents=[(stripped_lo.intent_id, FillAction.REJECT), (hi.intent_id, FillAction.FILL)],
+        included_intents=[
+            (stripped_lo.intent_id, FillAction.REJECT),
+            (hi.intent_id, FillAction.FILL),
+        ],
         fills=[
-            Fill(intent_id=stripped_lo.intent_id, action=FillAction.REJECT, reason="ROUTE_POOL_STATE_DRIFT"),
+            Fill(
+                intent_id=stripped_lo.intent_id,
+                action=FillAction.REJECT,
+                reason="ROUTE_POOL_STATE_DRIFT",
+            ),
             hi_only.fills[0],
         ],
         balance_deltas=hi_only.balance_deltas,
@@ -1188,9 +1310,16 @@ def test_validator_rejects_route_reject_with_tampered_binding() -> None:
         module="TauSwap",
         version="0.1",
         batch_ref="",
-        included_intents=[(tampered_lo.intent_id, FillAction.REJECT), (hi.intent_id, FillAction.FILL)],
+        included_intents=[
+            (tampered_lo.intent_id, FillAction.REJECT),
+            (hi.intent_id, FillAction.FILL),
+        ],
         fills=[
-            Fill(intent_id=tampered_lo.intent_id, action=FillAction.REJECT, reason="ROUTE_POOL_STATE_DRIFT"),
+            Fill(
+                intent_id=tampered_lo.intent_id,
+                action=FillAction.REJECT,
+                reason="ROUTE_POOL_STATE_DRIFT",
+            ),
             hi_only.fills[0],
         ],
         balance_deltas=hi_only.balance_deltas,
@@ -1252,9 +1381,16 @@ def test_validator_rejects_route_reject_with_faked_drift_fingerprint() -> None:
         module="TauSwap",
         version="0.1",
         batch_ref="",
-        included_intents=[(tampered_lo.intent_id, FillAction.REJECT), (hi.intent_id, FillAction.FILL)],
+        included_intents=[
+            (tampered_lo.intent_id, FillAction.REJECT),
+            (hi.intent_id, FillAction.FILL),
+        ],
         fills=[
-            Fill(intent_id=tampered_lo.intent_id, action=FillAction.REJECT, reason="ROUTE_POOL_STATE_DRIFT"),
+            Fill(
+                intent_id=tampered_lo.intent_id,
+                action=FillAction.REJECT,
+                reason="ROUTE_POOL_STATE_DRIFT",
+            ),
             hi_only.fills[0],
         ],
         balance_deltas=hi_only.balance_deltas,
@@ -1434,7 +1570,9 @@ def test_validator_accepts_rejected_route_action_without_binding_fields() -> Non
     )
     balances = BalanceTable()
     balances.set(SENDER, "A", 10_000)
-    settlement = compute_settlement(intents=[bare], pools=pools, balances=balances, lp_balances=LPTable())
+    settlement = compute_settlement(
+        intents=[bare], pools=pools, balances=balances, lp_balances=LPTable()
+    )
     assert settlement.fills[0].action == FillAction.REJECT
     assert settlement.fills[0].reason == "ROUTE_BINDING_MISSING"
 

@@ -9,7 +9,7 @@ module cannot authorize a shell commit.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import final
+from typing import cast, final
 
 from ..state.canonical import domain_sep_bytes, sha256_hex
 from ..state.committed_dex_snapshot import canonical_snapshot_bytes_from_committed_state_v1
@@ -78,7 +78,7 @@ from .settlement_strong_validator import (
     StrongSettlementEvaluationResultV1,
     StrongSettlementRejectV1,
     StrongSettlementStateCandidateV1,
-    evaluate_settlement_strong_committed_v1,
+    evaluate_settlement_strong_legacy_committed_for_differential_v1,
 )
 
 FCIS_STEP_EVALUATOR_UNMOUNTED_V1 = True
@@ -265,7 +265,7 @@ def _evaluate_spot_v1(
     context: FCISStepExecutionContextV1,
 ) -> StrongSettlementEvaluationResultV1:
     settlement_context = context.settlement
-    return evaluate_settlement_strong_committed_v1(
+    return evaluate_settlement_strong_legacy_committed_for_differential_v1(
         settlement=settlement,
         intents=intents,
         pre_balances=balances,
@@ -384,7 +384,7 @@ def _fee_candidate_v1(
     total = _total_settlement_fees_v1(settlement)
     if type(total) is FCISStepEvaluationRejectV1:
         return total
-    result: object = split_fee_with_owned_policy_v1(
+    result = split_fee_with_owned_policy_v1(
         fee_amount=total,
         policy=policy,
         state=state.fee_accumulator,
@@ -598,7 +598,9 @@ def evaluate_fcis_spot_candidate_v1(
 
     command = _admit_legacy_command_shape_v1(settlement, intents)
     if type(command) is FCISStepEvaluationRejectV1:
-        return StrongSettlementRejectV1(command.public_reason)
+        reject = cast(FCISStepEvaluationRejectV1, command)
+        return StrongSettlementRejectV1(reject.public_reason)
+    exact_command = cast(tuple[Settlement, list[Intent]], command)
     context_result = admit_fcis_settlement_execution_context_v1(context)
     if type(context_result) is AdmitReject:
         return StrongSettlementRejectV1(_context_reject_v1(context_result).public_reason)
@@ -625,7 +627,7 @@ def evaluate_fcis_spot_candidate_v1(
         return StrongSettlementRejectV1(
             "spot LP duration-policy admission returned an impossible result"
         )
-    exact_settlement, exact_intents = command
+    exact_settlement, exact_intents = exact_command
     step_context = FCISStepExecutionContextV1(
         settlement=context_result.value,
         require_all_nonces=False,

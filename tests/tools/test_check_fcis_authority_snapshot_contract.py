@@ -8,6 +8,7 @@ import pytest
 from tools.check_fcis_authority_snapshot_contract import (
     AUTHORITY_GRAPH_AUTHORITY_PATHS,
     DEFAULT_AUTHORITY_PATHS,
+    EXACT_REPLAY_AUTHORITY_PATHS,
     FINAL_MOUNT_AUTHORITY_PATHS,
     STATE_SUBSTRATE_AUTHORITY_PATHS,
     check_contract,
@@ -69,6 +70,282 @@ def test_e11_profiles_keep_review_units_and_final_mount_distinct() -> None:
     assert legacy in FINAL_MOUNT_AUTHORITY_PATHS
     assert set(STATE_SUBSTRATE_AUTHORITY_PATHS) < set(FINAL_MOUNT_AUTHORITY_PATHS)
     assert set(AUTHORITY_GRAPH_AUTHORITY_PATHS) < set(FINAL_MOUNT_AUTHORITY_PATHS)
+
+
+def test_exact_replay_profile_covers_the_m3_relation_and_route_consumer() -> None:
+    assert EXACT_REPLAY_AUTHORITY_PATHS == (
+        Path("src/core/route_settlement.py"),
+        Path("src/core/settlement_strong_validator.py"),
+    )
+    assert set(EXACT_REPLAY_AUTHORITY_PATHS) < set(FINAL_MOUNT_AUTHORITY_PATHS)
+
+
+def test_exact_replay_profile_rejects_entry_annotation_and_projection_drift(
+    tmp_path: Path,
+) -> None:
+    relative = Path("src/core/settlement_strong_validator.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(
+        """
+def _admit_exact_commands_v1(settlement, intents):
+    snapshot_settlement(settlement)
+    admit_intent_batch(intents)
+
+def evaluate_settlement_strong_committed_v1(*, settlement: object, intents: object,
+        pre_balances: object, pre_pools: object, pre_lp_balances: object):
+    command = _admit_exact_commands_v1(settlement, intents)
+    return _evaluate_settlement_strong_replay_committed_v1(command)
+
+def _evaluate_settlement_strong_replay_committed_v1(command):
+    return _validate_settlement_strong_impl(command)
+
+def _validate_settlement_strong_impl(command):
+    return BalanceTable()
+""",
+        encoding="utf-8",
+    )
+    report = check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="exact-replay",
+    )
+    codes = _codes(report)
+    assert "EXACT_REPLAY_ENTRY_SHAPE" in codes
+    assert "EXACT_REPLAY_MUTABLE_PROJECTION" in codes
+
+
+def _copy_repo_authority_source(tmp_path: Path, relative: Path) -> Path:
+    source = Path(__file__).resolve().parents[2] / relative
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_bytes(source.read_bytes())
+    return authority
+
+
+def test_exact_replay_profile_rejects_unlisted_compatibility_growth(tmp_path: Path) -> None:
+    relative = Path("src/core/route_settlement.py")
+    authority = _copy_repo_authority_source(tmp_path, relative)
+    authority.write_text(
+        authority.read_text(encoding="utf-8")
+        + "\ndef unlisted_compatibility(value):\n    return isinstance(value, Mapping)\n",
+        encoding="utf-8",
+    )
+    report = check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="exact-replay",
+    )
+    assert "BROAD_ADMISSION" in _codes(report)
+    compatibility = report["compatibility_findings"]
+    assert type(compatibility) is list
+    assert len(compatibility) == 9
+
+
+def test_exact_replay_profile_rejects_same_count_compatibility_relocation(
+    tmp_path: Path,
+) -> None:
+    relative = Path("src/core/route_settlement.py")
+    authority = _copy_repo_authority_source(tmp_path, relative)
+    source = authority.read_text(encoding="utf-8")
+    old = "if not isinstance(value, str) or not value:"
+    assert source.count(old) == 1
+    source = source.replace(old, "if type(value) is not str or not value:", 1)
+    source += "\ndef relocated_compatibility(value):\n    return isinstance(value, str)\n"
+    authority.write_text(source, encoding="utf-8")
+
+    report = check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="exact-replay",
+    )
+
+    assert "BROAD_ADMISSION" in _codes(report)
+    compatibility = report["compatibility_findings"]
+    assert type(compatibility) is list
+    assert len(compatibility) == 8
+
+
+def _exact_replay_dataflow_source(
+    *,
+    admission_body: str,
+    replay_settlement: str,
+    replay_intents: str,
+) -> str:
+    return f"""
+def _admit_exact_commands_v1(settlement, intents):
+{admission_body}
+
+def evaluate_settlement_strong_committed_v1(*,
+        settlement: OwnedSettlementV1,
+        intents: tuple[OwnedIntentV1, ...],
+        pre_balances: CommittedBalanceTableV1,
+        pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+        pre_lp_balances: CommittedLPTableV1):
+    command = _admit_exact_commands_v1(settlement, intents)
+    if type(command) is StrongSettlementRejectV1:
+        return command
+    exact_settlement, exact_intents = command
+    return _evaluate_settlement_strong_replay_committed_v1(
+        settlement={replay_settlement},
+        intents={replay_intents},
+        pre_balances=pre_balances,
+        pre_pools=pre_pools,
+        pre_lp_balances=pre_lp_balances,
+    )
+
+def _evaluate_settlement_strong_replay_committed_v1(**command):
+    return _validate_settlement_strong_impl(command)
+
+def _validate_settlement_strong_impl(command):
+    return command
+"""
+
+
+@pytest.mark.parametrize(
+    ("admission_body", "replay_settlement", "replay_intents"),
+    [
+        (
+            "    snapshot_settlement(settlement)\n"
+            "    admit_intent_batch(intents)\n"
+            "    return settlement, intents",
+            "exact_settlement",
+            "exact_intents",
+        ),
+        (
+            "    exact_settlement = snapshot_settlement(settlement)\n"
+            "    exact_intents = admit_intent_batch(intents)\n"
+            "    return exact_settlement, exact_intents",
+            "settlement",
+            "intents",
+        ),
+    ],
+)
+def test_exact_replay_profile_rejects_ignored_or_raw_admission_dataflow(
+    tmp_path: Path,
+    admission_body: str,
+    replay_settlement: str,
+    replay_intents: str,
+) -> None:
+    relative = Path("src/core/settlement_strong_validator.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(
+        _exact_replay_dataflow_source(
+            admission_body=admission_body,
+            replay_settlement=replay_settlement,
+            replay_intents=replay_intents,
+        ),
+        encoding="utf-8",
+    )
+
+    report = check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="exact-replay",
+    )
+
+    assert "EXACT_REPLAY_DATAFLOW" in _codes(report)
+
+
+@pytest.mark.parametrize("mutation", ["raw-admission-return", "raw-replay-call"])
+def test_exact_replay_profile_rejects_exact_and_raw_paths_coexisting(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    source = _exact_replay_dataflow_source(
+        admission_body=(
+            "    exact_settlement = snapshot_settlement(settlement)\n"
+            "    exact_intents = admit_intent_batch(intents)\n"
+            "    return exact_settlement, exact_intents"
+        ),
+        replay_settlement="exact_settlement",
+        replay_intents="exact_intents",
+    )
+    if mutation == "raw-admission-return":
+        source = source.replace(
+            "    return exact_settlement, exact_intents",
+            "    if use_raw:\n"
+            "        return settlement, intents\n"
+            "    return exact_settlement, exact_intents",
+            1,
+        )
+    else:
+        replay_anchor = (
+            "    return _evaluate_settlement_strong_replay_committed_v1(\n"
+            "        settlement=exact_settlement,"
+        )
+        assert source.count(replay_anchor) == 1
+        source = source.replace(
+            replay_anchor,
+            "    if use_raw:\n"
+            "        _evaluate_settlement_strong_replay_committed_v1(\n"
+            "            settlement=settlement, intents=intents\n"
+            "        )\n" + replay_anchor,
+            1,
+        )
+
+    relative = Path("src/core/settlement_strong_validator.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(source, encoding="utf-8")
+    report = check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="exact-replay",
+    )
+
+    assert "EXACT_REPLAY_DATAFLOW" in _codes(report)
+
+
+@pytest.mark.parametrize("mutation", ["admission-rebind", "entry-rebind"])
+def test_exact_replay_profile_rejects_protected_exact_value_rebinding(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    source = _exact_replay_dataflow_source(
+        admission_body=(
+            "    exact_settlement = snapshot_settlement(settlement)\n"
+            "    exact_intents = admit_intent_batch(intents)\n"
+            "    return exact_settlement, exact_intents"
+        ),
+        replay_settlement="exact_settlement",
+        replay_intents="exact_intents",
+    )
+    if mutation == "admission-rebind":
+        anchor = "    return exact_settlement, exact_intents"
+        replacement = (
+            "    exact_settlement = settlement\n    return exact_settlement, exact_intents"
+        )
+    else:
+        anchor = "    exact_settlement, exact_intents = command"
+        replacement = "    exact_settlement, exact_intents = command\n    exact_intents = intents"
+    assert source.count(anchor) == 1
+    source = source.replace(anchor, replacement, 1)
+
+    relative = Path("src/core/settlement_strong_validator.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(source, encoding="utf-8")
+    report = check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="exact-replay",
+    )
+
+    assert "EXACT_REPLAY_DATAFLOW" in _codes(report)
 
 
 @pytest.mark.parametrize(
