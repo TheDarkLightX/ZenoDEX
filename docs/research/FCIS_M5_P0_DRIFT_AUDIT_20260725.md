@@ -3,14 +3,9 @@
 **Contract:** `zenodex/fcis-m5-atomic-mount/v2`  
 **Audit date:** 2026-07-25  
 **Starting head:** `d3f7b5068effd793d8d16ea63aa8c36e19e32243`  
-**Required reviewed M4 ancestor:** `a6e20097d74641784402fb5a9939beaf11a9d`  
+**Required reviewed M4 ancestor:** `a6e20097d74641784402fb2af5a9939beaf11a9d`  
 **Working branch:** `agent/fcis-m5-atomic-mount-20260725`  
 **Outcome:** `M5_PREREQUISITE_CHECKPOINT_ONLY`
-
-> Note: the required ancestor above is intentionally recorded exactly as it
-> appears in the reviewed handoff and M4 completion receipt in this repository.
-> The actual full ancestor in Git history is
-> `a6e20097d74641784402fb2af5a9939beaf11a9d`.
 
 ## Executive decision
 
