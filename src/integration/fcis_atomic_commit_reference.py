@@ -99,6 +99,18 @@ def _revalidate_bundle_v1(bundle: object) -> FCISCommitBundleV1 | None:
     return bundle
 
 
+def _replay_compare_and_replace_is_consistent_v1(
+    store: FCISReferenceAtomicStoreV1,
+    bundle: FCISCommitBundleV1,
+) -> bool:
+    for update in bundle.replay_updates:
+        if store.state.nonces.get_last(update.pubkey) != update.expected_last:
+            return False
+        if bundle.next_state.nonces.get_last(update.pubkey) != update.new_last:
+            return False
+    return True
+
+
 def commit_bundle_reference_v1(
     *,
     store: FCISReferenceAtomicStoreV1,
@@ -120,6 +132,8 @@ def commit_bundle_reference_v1(
         return FCISReferenceCommitResultV1(FCISReferenceCommitStatusV1.DUPLICATE, store)
     if exact_bundle.expected_pre_root != store.observed_pre_root:
         return FCISReferenceCommitResultV1(FCISReferenceCommitStatusV1.STALE, store)
+    if not _replay_compare_and_replace_is_consistent_v1(store, exact_bundle):
+        return FCISReferenceCommitResultV1(FCISReferenceCommitStatusV1.INVALID, store)
     if crash_point is not None:
         return FCISReferenceCommitResultV1(
             FCISReferenceCommitStatusV1.INJECTED_FAILURE,
