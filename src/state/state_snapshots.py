@@ -129,13 +129,9 @@ def snapshot_balance_table(
         try:
             raw_balances = object.__getattribute__(source, "_balances")
         except AttributeError:
-            _raise_admission_reject(
-                AdmitReject(AdmitCode.MISSING_FIELD, ("_balances",))
-            )
+            _raise_admission_reject(AdmitReject(AdmitCode.MISSING_FIELD, ("_balances",)))
         if type(raw_balances) is not dict:
-            _raise_admission_reject(
-                AdmitReject(AdmitCode.WRONG_CONTAINER, ("_balances",))
-            )
+            _raise_admission_reject(AdmitReject(AdmitCode.WRONG_CONTAINER, ("_balances",)))
         admission_source: object = _BalanceSourceV1(raw_balances)
     elif type(source) is CommittedBalanceTableV1:
         admission_source = source
@@ -171,13 +167,9 @@ def snapshot_lp_table(
             try:
                 raw = object.__getattribute__(source, field_name)
             except AttributeError:
-                _raise_admission_reject(
-                    AdmitReject(AdmitCode.MISSING_FIELD, (field_name,))
-                )
+                _raise_admission_reject(AdmitReject(AdmitCode.MISSING_FIELD, (field_name,)))
             if type(raw) is not dict:
-                _raise_admission_reject(
-                    AdmitReject(AdmitCode.WRONG_CONTAINER, (field_name,))
-                )
+                _raise_admission_reject(AdmitReject(AdmitCode.WRONG_CONTAINER, (field_name,)))
             raw_fields.append(raw)
         admission_source: object = _LPSourceV1(*raw_fields)
     elif type(source) is CommittedLPTableV1:
@@ -208,9 +200,7 @@ def snapshot_nonce_table(
         except AttributeError:
             _raise_admission_reject(AdmitReject(AdmitCode.MISSING_FIELD, ("_last",)))
         if type(raw) is not dict:
-            _raise_admission_reject(
-                AdmitReject(AdmitCode.WRONG_CONTAINER, ("_last",))
-            )
+            _raise_admission_reject(AdmitReject(AdmitCode.WRONG_CONTAINER, ("_last",)))
         admission_source: object = _NonceSourceV1(raw)
     elif type(source) is CommittedNonceTableV1:
         admission_source = source
