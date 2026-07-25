@@ -29,6 +29,7 @@ from src.state.legacy_state_snapshots import (
     admit_legacy_nonce_for_differential_v1,
     admit_legacy_pool_map_for_differential_v1,
 )
+from src.state.nonces import NonceTable
 from src.state.state_snapshots import (
     snapshot_fee_accumulator,
     snapshot_oracle,
@@ -44,11 +45,19 @@ def _digest(label: bytes) -> str:
     return sha256_hex(label)
 
 
-def _state(balance: int) -> FCISCommittedDexStateV1:
+def _state(balance: int, nonce: int = 0) -> FCISCommittedDexStateV1:
     balances = BalanceTable()
     if balance:
         balances.set(_OWNER, _ASSET, balance)
-    legacy = DexState(balances=balances, pools={}, lp_balances=LPTable())
+    nonces = NonceTable()
+    if nonce:
+        nonces.set_last(_OWNER, nonce)
+    legacy = DexState(
+        balances=balances,
+        pools={},
+        lp_balances=LPTable(),
+        nonces=nonces,
+    )
     return FCISCommittedDexStateV1(
         snapshot_version=4,
         balances=admit_legacy_balance_for_differential_v1(legacy.balances),
@@ -97,7 +106,7 @@ def _bundle(
 
 def test_same_state_transition_with_different_effects_has_different_candidate() -> None:
     pre = _state(10)
-    post = _state(9)
+    post = _state(9, 1)
     first, first_bundle = _bundle(
         pre,
         post,
@@ -127,7 +136,7 @@ def test_same_state_transition_with_different_effects_has_different_candidate() 
 
 def test_same_transition_with_different_plan_has_different_candidate() -> None:
     pre = _state(10)
-    post = _state(9)
+    post = _state(9, 1)
     first, _first_bundle = _bundle(
         pre,
         post,
@@ -148,7 +157,7 @@ def test_same_transition_with_different_plan_has_different_candidate() -> None:
 
 def test_shell_revalidates_nested_payload_after_frozen_bypass() -> None:
     pre = _state(10)
-    post = _state(9)
+    post = _state(9, 1)
     _decision, bundle = _bundle(
         pre,
         post,
@@ -164,10 +173,29 @@ def test_shell_revalidates_nested_payload_after_frozen_bypass() -> None:
     assert result.store is initial
 
 
+def test_replay_compare_and_replace_mismatch_publishes_nothing() -> None:
+    pre = _state(10)
+    inconsistent_post = _state(9)
+    _decision, bundle = _bundle(
+        pre,
+        inconsistent_post,
+        command_label=b"command",
+        outbox_payload=b"payload",
+        expected_last=0,
+        new_last=1,
+    )
+    initial = FCISReferenceAtomicStoreV1(pre)
+
+    result = commit_bundle_reference_v1(store=initial, bundle=bundle)
+
+    assert result.status is FCISReferenceCommitStatusV1.INVALID
+    assert result.store is initial
+
+
 def test_replay_history_is_retained_as_per_bundle_batches() -> None:
     first_state = _state(10)
-    second_state = _state(9)
-    third_state = _state(8)
+    second_state = _state(9, 1)
+    third_state = _state(8, 2)
     first_decision, first_bundle = _bundle(
         first_state,
         second_state,
