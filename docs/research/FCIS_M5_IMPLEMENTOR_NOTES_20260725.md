@@ -2,7 +2,7 @@
 
 **Contract:** `zenodex/fcis-m5-atomic-mount/v2`  
 **Date:** 2026-07-25  
-**Validated source checkpoint:** `8f8e313bb951800a1d18ee221168a3935ab3f4ad`  
+**Validated source checkpoint:** `77a73c93dbd23729b743aa2fb46f0d62554c7578`  
 **Pull request:** #488  
 **Outcome:** `M5_PREREQUISITE_CHECKPOINT_ONLY`  
 **Mount status:** `M5_BLOCKED_NO_AUTHORITY_SWITCH`
@@ -15,12 +15,18 @@ mounted runtime authority:
 - exact immutable `AcceptV1 | RejectV1 | CommittedFailureV1` alternatives;
 - an exact eight-field committed DEX state aggregate;
 - canonical candidate, receipt, commit-plan, and commit-bundle roots;
+- candidate identity that commits the pre-root, context, command, successor,
+  patch, value plan, replay updates, receipt body, and raw outbox effects;
 - same-candidate binding across state, patch, plan, receipt, replay, and outbox;
 - ordinary rejection with no successor, plan, replay, or outbox fields;
-- receipt-derived deterministic outbox idempotency identities;
+- receipt-derived deterministic outbox idempotency identities whose receipt
+  root is itself bound to every candidate artifact;
+- defensive revalidation of nested root-bound payloads before publication,
+  including hostile `frozen=True` bypass attempts;
 - an immutable expected-pre-root compare-and-swap reference interpreter;
-- exact no-publication behavior for stale, malformed, duplicate, and injected
-  pre-linearization crash paths;
+- replay compare-and-replace validation against both pre-state and successor;
+- exact no-publication behavior for stale, malformed, duplicate, inconsistent
+  replay, and injected pre-linearization crash paths;
 - replay updates retained as per-bundle publication batches;
 - a dedicated locked-dependency CI gate.
 
@@ -30,6 +36,7 @@ mounted runtime authority:
 - `src/core/fcis_atomic_mount_codec.py`
 - `src/integration/fcis_atomic_commit_reference.py`
 - `tests/core/test_fcis_atomic_mount.py`
+- `tests/core/test_fcis_atomic_mount_binding.py`
 - `.github/workflows/fcis-m5-atomic.yml`
 - `docs/research/FCIS_M5_P0_DRIFT_AUDIT_20260725.md`
 
@@ -42,8 +49,15 @@ shell boundary.
 The core owns only exact immutable values and deterministic encoders. It does
 not call storage, dispatch messages, consult time, allocate random identities,
 or repair incomplete outputs. The reference shell revalidates the complete
-bundle, compares `expected_pre_root`, and constructs one complete immutable
-successor containing state, receipt, replay batches, and outbox rows.
+bundle, compares `expected_pre_root`, validates replay compare-and-replace
+preconditions, and constructs one complete immutable successor containing
+state, receipt, replay batches, and outbox rows.
+
+Candidate identity is deliberately broader than successor-state identity. Two
+computations that reach the same state but produce different patches, plans,
+receipts, replay updates, or outbox payloads receive different candidate roots.
+This prevents cross-plan substitution and prevents different effect payloads
+from sharing a receipt-derived idempotency key.
 
 The reference model intentionally proves only functional semantics. It does not
 claim production database linearizability, WAL durability, crash recovery,
@@ -51,12 +65,16 @@ external exactly-once delivery, or multi-process safety.
 
 ## Validation
 
-GitHub Actions run `30160353798`, job `89684561981`:
+GitHub Actions run `30160824360`, job `89685743943`, at source checkpoint
+`77a73c93dbd23729b743aa2fb46f0d62554c7578`:
 
 - locked development dependencies: pass;
 - Ruff: pass;
 - mypy: pass;
-- `tests/core/test_fcis_atomic_mount.py`: pass.
+- base atomic-authority laws: pass;
+- same-state artifact-substitution laws: pass;
+- hostile nested-mutation revalidation: pass;
+- replay compare-and-replace and repeated-account batch laws: pass.
 
 The source checkpoint was also mergeable as a stacked draft against
 `agent/fcis-pr454-reviewed-port-20260723`.
