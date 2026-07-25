@@ -6,7 +6,7 @@ on:
       - "src/core/fcis_atomic_mount_values.py"
       - "src/core/fcis_atomic_mount_codec.py"
       - "src/integration/fcis_atomic_commit_reference.py"
-      - "tests/core/test_fcis_atomic_mount.py"
+      - "tests/core/test_fcis_atomic_mount*.py"
       - "docs/research/FCIS_M5_*.md"
       - "docs/research/FCIS_M5_*.json"
       - ".github/workflows/fcis-m5-atomic.yml"
@@ -40,6 +40,7 @@ jobs:
             src/core/fcis_atomic_mount_codec.py \
             src/integration/fcis_atomic_commit_reference.py \
             tests/core/test_fcis_atomic_mount.py \
+            tests/core/test_fcis_atomic_mount_binding.py \
             > /tmp/fcis-m5-ruff.txt 2>&1
           status=$?
           set -e
@@ -50,13 +51,15 @@ jobs:
               src/core/fcis_atomic_mount_values.py \
               src/core/fcis_atomic_mount_codec.py \
               src/integration/fcis_atomic_commit_reference.py \
-              tests/core/test_fcis_atomic_mount.py || true
+              tests/core/test_fcis_atomic_mount.py \
+              tests/core/test_fcis_atomic_mount_binding.py || true
           fi
           git diff -- \
             src/core/fcis_atomic_mount_values.py \
             src/core/fcis_atomic_mount_codec.py \
             src/integration/fcis_atomic_commit_reference.py \
             tests/core/test_fcis_atomic_mount.py \
+            tests/core/test_fcis_atomic_mount_binding.py \
             > /tmp/fcis-m5-ruff.patch
 
       - name: Upload Ruff diagnostics
@@ -81,4 +84,7 @@ jobs:
             src/integration/fcis_atomic_commit_reference.py
 
       - name: Atomic authority laws
-        run: python -m pytest -q tests/core/test_fcis_atomic_mount.py
+        run: |
+          python -m pytest -q \
+            tests/core/test_fcis_atomic_mount.py \
+            tests/core/test_fcis_atomic_mount_binding.py
