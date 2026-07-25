@@ -5,6 +5,10 @@ from __future__ import annotations
 from ..state.canonical import domain_sep_bytes, encode_bytes, encode_uvarint, sha256_hex
 from ..state.committed_dex_snapshot import canonical_snapshot_bytes_from_committed_state_v1
 from .fcis_atomic_mount_values import (
+    FCIS_M5_ALGORITHM_ID_V1,
+    FCIS_M5_ALGORITHM_VERSION_V1,
+    FCIS_M5_CODEC_VERSION_V1,
+    FCIS_M5_SCHEMA_VERSION_V1,
     FCISAcceptV1,
     FCISAuthorityPayloadDomainV1,
     FCISCommitBundleV1,
@@ -20,10 +24,6 @@ from .fcis_atomic_mount_values import (
     FCISRejectV1,
     FCISReplayUpdateV1,
     FCISRootBoundPayloadV1,
-    FCIS_M5_ALGORITHM_ID_V1,
-    FCIS_M5_ALGORITHM_VERSION_V1,
-    FCIS_M5_CODEC_VERSION_V1,
-    FCIS_M5_SCHEMA_VERSION_V1,
     MAX_OUTBOX_RECORDS_V1,
     require_digest_v1,
     require_replay_updates_v1,
