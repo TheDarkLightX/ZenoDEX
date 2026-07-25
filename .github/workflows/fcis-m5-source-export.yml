@@ -1,0 +1,43 @@
+# Temporary read-only exact-head source export for FCIS M5 worktree materialization.
+name: fcis-m5-source-export
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fcis-m5-source-export-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  source-export:
+    if: github.event.pull_request.head.ref == 'agent/fcis-m5-materialize-20260725'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind checkout to event
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Archive exact source
+        run: tar --exclude=.git -czf "$RUNNER_TEMP/zenodex-source.tar.gz" .
+
+      - name: Upload exact source
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenodex-m5-source-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/zenodex-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
