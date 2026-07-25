@@ -10,20 +10,24 @@
   "base_branch": "agent/fcis-pr454-reviewed-port-20260723",
   "starting_head": "d3f7b5068effd793d8d16ea63aa8c36e19e32243",
   "required_reviewed_m4_ancestor": "a6e20097d74641784402fb2af5a9939beaf11a9d",
-  "validated_source_checkpoint": "8f8e313bb951800a1d18ee221168a3935ab3f4ad",
+  "validated_source_checkpoint": "77a73c93dbd23729b743aa2fb46f0d62554c7578",
   "receipt_commit_excluded_from_source_checkpoint": true,
   "authority_switched": false,
   "production_runtime_changed": false,
   "completed_capabilities": [
     "closed_accept_reject_committed_failure_algebra",
     "exact_eight_field_committed_state_aggregate",
+    "candidate_identity_commits_every_state_plan_receipt_replay_outbox_input",
     "canonical_candidate_receipt_plan_bundle_binding",
     "ordinary_reject_has_no_successor_or_effect_authority",
     "receipt_derived_transactional_outbox_identities",
+    "defensive_nested_payload_revalidation_after_frozen_bypass",
     "expected_pre_root_reference_compare_and_swap",
+    "replay_compare_and_replace_pre_and_successor_validation",
     "atomic_state_receipt_replay_outbox_reference_publication",
-    "stale_invalid_duplicate_crash_no_publication_semantics",
+    "stale_invalid_duplicate_replay_mismatch_crash_no_publication_semantics",
     "per_bundle_replay_publication_batches",
+    "same_state_cross_plan_and_cross_effect_substitution_rejection",
     "locked_dependency_m5_quality_gate"
   ],
   "changed_files": [
@@ -33,17 +37,21 @@
     "src/core/fcis_atomic_mount_codec.py",
     "src/core/fcis_atomic_mount_values.py",
     "src/integration/fcis_atomic_commit_reference.py",
-    "tests/core/test_fcis_atomic_mount.py"
+    "tests/core/test_fcis_atomic_mount.py",
+    "tests/core/test_fcis_atomic_mount_binding.py"
   ],
   "validation": {
     "workflow": "fcis-m5-atomic",
-    "run_id": 30160353798,
-    "job_id": 89684561981,
-    "head_sha": "8f8e313bb951800a1d18ee221168a3935ab3f4ad",
+    "run_id": 30160824360,
+    "job_id": 89685743943,
+    "head_sha": "77a73c93dbd23729b743aa2fb46f0d62554c7578",
     "locked_dependencies": "pass",
     "ruff": "pass",
     "mypy": "pass",
-    "atomic_authority_laws": "pass"
+    "base_atomic_authority_laws": "pass",
+    "artifact_substitution_laws": "pass",
+    "hostile_nested_mutation_revalidation": "pass",
+    "replay_compare_and_replace_laws": "pass"
   },
   "open_mount_blockers": [
     "support_root_v5_explicit_presence_absence_not_closed",
