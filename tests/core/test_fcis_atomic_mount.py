@@ -199,7 +199,7 @@ def test_reference_commit_has_one_publication_point_and_idempotent_retry() -> No
     assert published.status is FCISReferenceCommitStatusV1.PUBLISHED
     assert published.store.state == post
     assert published.store.receipts == (decision.receipt,)
-    assert published.store.replay_updates == decision.commit_plan.replay_updates
+    assert published.store.replay_batches == (decision.commit_plan.replay_updates,)
     assert published.store.outbox_records == decision.commit_plan.outbox_plan.records
     assert published.store.accepted_bundle_roots == (commit_bundle_root_v1(bundle),)
 
