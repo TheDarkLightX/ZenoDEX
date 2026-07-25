@@ -1,0 +1,50 @@
+name: fcis-m5-atomic
+
+on:
+  pull_request:
+    paths:
+      - "src/core/fcis_atomic_mount_values.py"
+      - "src/core/fcis_atomic_mount_codec.py"
+      - "src/integration/fcis_atomic_commit_reference.py"
+      - "tests/core/test_fcis_atomic_mount.py"
+      - "docs/research/FCIS_M5_*.md"
+      - "docs/research/FCIS_M5_*.json"
+      - ".github/workflows/fcis-m5-atomic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  atomic-authority-checkpoint:
+    name: M5 exact values, codec, and reference CAS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked development dependencies
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Ruff
+        run: |
+          python -m ruff check \
+            src/core/fcis_atomic_mount_values.py \
+            src/core/fcis_atomic_mount_codec.py \
+            src/integration/fcis_atomic_commit_reference.py \
+            tests/core/test_fcis_atomic_mount.py
+
+      - name: Mypy
+        run: |
+          python -m mypy \
+            src/core/fcis_atomic_mount_values.py \
+            src/core/fcis_atomic_mount_codec.py \
+            src/integration/fcis_atomic_commit_reference.py
+
+      - name: Atomic authority laws
+        run: python -m pytest -q tests/core/test_fcis_atomic_mount.py
