@@ -4,6 +4,7 @@
 **Audit date:** 2026-07-25  
 **Starting head:** `d3f7b5068effd793d8d16ea63aa8c36e19e32243`  
 **Required reviewed M4 ancestor:** `a6e20097d74641784402fb2af5a9939beaf11a9d`  
+**Validated source checkpoint:** `77a73c93dbd23729b743aa2fb46f0d62554c7578`  
 **Working branch:** `agent/fcis-m5-atomic-mount-20260725`  
 **Outcome:** `M5_PREREQUISITE_CHECKPOINT_ONLY`
 
@@ -25,7 +26,8 @@ The implementation in this branch therefore adds:
 4. canonical decision, receipt, plan, and bundle codecs;
 5. receipt-derived outbox idempotency keys;
 6. a pure immutable expected-root compare-and-swap reference interpreter;
-7. a dedicated locked-dependency CI gate and semantic-law tests.
+7. defensive nested-value revalidation and replay compare-and-replace checks;
+8. a dedicated locked-dependency CI gate and semantic-law tests.
 
 It does not alter the mounted evaluator, `DexState`, verifier boundary,
 support-root version, persistence implementation, or runtime dispatch.
@@ -109,20 +111,35 @@ Primary references informing the pattern:
 
 ## Same-candidate binding
 
-The candidate identity is derived from:
+Candidate identity commits every authority-bearing input, not merely the
+successor state:
 
 ```text
 candidate_root = H(
     domain,
+    algorithm_id,
+    algorithm_version,
+    schema_version,
+    codec_version,
     expected_pre_root,
     execution_context_hash,
     command_or_batch_root,
     next_state_root,
+    canonical_patch,
+    value_plan,
+    replay_updates,
+    raw_outbox_effect_material,
+    receipt_body,
 )
 ```
 
+The receipt body contains the exact outcome, code, public reason, and optional
+root-bound detail, but excludes `candidate_root` to avoid circularity. The
+finished receipt then includes `candidate_root`; consequently `receipt_root`
+binds the full candidate. Outbox records bind that receipt root.
+
 The commit plan, receipt, and outbox plan must all carry the same
-`candidate_root`. The bundle constructor additionally requires:
+`candidate_root`. The bundle constructor and validator additionally require:
 
 ```text
 bundle.canonical_patch == bundle.commit_plan.canonical_patch
@@ -132,7 +149,9 @@ bundle.outbox_plan.receipt_root == bundle.receipt_root
 ```
 
 This prevents independently valid artifacts from different candidates from
-being spliced into one publication request.
+being spliced into one publication request. It also ensures two computations
+with the same successor state but different plans, receipt content, replay
+updates, or raw outbox effects receive different candidate roots.
 
 ## Transactional outbox identity
 
@@ -142,9 +161,11 @@ Each outbox idempotency key is derived from:
 H(domain, receipt_root, effect_index, effect_identity)
 ```
 
-The key does not depend on process time, database sequence allocation, random
-UUID generation, object identity, or callback order. Rebuilding the same
-candidate produces the same outbox identities.
+Because the receipt root binds the complete candidate, changing an outbox
+payload changes the candidate, receipt root, and therefore idempotency key. The
+key does not depend on process time, database sequence allocation, random UUID
+generation, object identity, or callback order. Rebuilding the same candidate
+produces the same outbox identities.
 
 The guarantee is intentionally narrow:
 
@@ -159,16 +180,19 @@ The test-only interpreter is a pure function over an immutable store snapshot.
 It has one publication point:
 
 ```text
-validate bundle
+revalidate complete bundle and nested roots
 -> duplicate check
 -> expected-root comparison
+-> replay compare-and-replace validation against pre-state and successor
 -> optional injected crash before publication
 -> construct one complete successor store
 ```
 
-The successor store contains the new state, bundle root, receipt, replay
-updates, and outbox records together. Every stale, malformed, or injected-crash
-path returns the original store object unchanged.
+The successor store contains the new state, bundle root, receipt, replay batch,
+and outbox records together. Every stale, malformed, replay-inconsistent, or
+injected-crash path returns the original store object unchanged. Repeated nonce
+updates for the same account across separate committed bundles remain distinct
+publication batches rather than being flattened into one globally sorted set.
 
 This proves deterministic reference semantics only. It is not evidence about a
 specific production database transaction, WAL, fsync behavior, crash recovery,
@@ -216,6 +240,14 @@ Canonical payload envelopes accept bytes only under one of four closed domain
 tags. Those bytes are not yet a substitute for the missing exact M4-to-M5
 adapter; this branch records that adapter as a remaining prerequisite rather
 than pretending arbitrary bytes are mounted authority.
+
+## Validation
+
+GitHub Actions run `30160824360`, job `89685743943`, passed the locked
+dependency install, Ruff, mypy, the base atomicity suite, the same-state
+artifact-substitution suite, hostile nested-mutation revalidation, replay
+compare-and-replace checks, and repeated-account replay-batch laws at source
+checkpoint `77a73c93dbd23729b743aa2fb46f0d62554c7578`.
 
 ## Checkpoint verdict
 
