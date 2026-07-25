@@ -14,13 +14,17 @@ This supports:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
 from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from ..core.routing import RouteQuote
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
-from ..state.pools import PoolState
+from ..state.pools import PoolState, copy_pool_state
+from ..state.state_snapshot_values import (
+    POOL_STATUS_MEMBER_VALUES_V1,
+    CommittedPoolStateV1,
+)
 
 
 def _require_receipt_int(value: Any) -> int | None:
@@ -35,6 +39,28 @@ def pool_state_fingerprint(pool: PoolState) -> str:
 
     Note: includes reserves so the receipt is only valid for a specific snapshot.
     """
+    return _pool_state_fingerprint_value_v1(pool)
+
+
+def pool_state_fingerprint_committed_v1(pool: CommittedPoolStateV1) -> str:
+    """Fingerprint one exact committed pool without a legacy projection."""
+
+    if type(pool) is not CommittedPoolStateV1:
+        raise TypeError("pool must be an exact committed pool")
+    return _pool_state_fingerprint_value_v1(pool)
+
+
+def _pool_state_fingerprint_value_v1(
+    pool: PoolState | CommittedPoolStateV1,
+) -> str:
+    """Build one fingerprint from the closed legacy/exact pool union."""
+
+    status = (
+        POOL_STATUS_MEMBER_VALUES_V1[pool.status.member_ordinal]
+        if type(pool) is CommittedPoolStateV1
+        else pool.status.value
+    )
+
     obj = {
         "pool_id": pool.pool_id,
         "asset0": pool.asset0,
@@ -45,14 +71,16 @@ def pool_state_fingerprint(pool: PoolState) -> str:
         "curve_tag": str(pool.curve_tag),
         "curve_params": str(pool.curve_params),
         "lp_supply": int(pool.lp_supply),
-        "status": str(pool.status.value),
+        "status": str(status),
         "created_at": int(pool.created_at),
     }
     return sha256_hex(domain_sep_bytes("zenodex.pool_state/v1") + canonical_json_bytes(obj))
 
 
 def receipt_hash(receipt_body: Dict[str, Any]) -> str:
-    return sha256_hex(domain_sep_bytes("zenodex.route_quote_receipt/v1") + canonical_json_bytes(receipt_body))
+    return sha256_hex(
+        domain_sep_bytes("zenodex.route_quote_receipt/v1") + canonical_json_bytes(receipt_body)
+    )
 
 
 def _require_receipt_gate_flag(value: Any, *, name: str) -> bool:
@@ -68,7 +96,9 @@ QUOTE_RECEIPT_PRECHECK_BAD_SCHEMA = "BadSchema"
 QUOTE_RECEIPT_PRECHECK_MISSING_RECEIPT_HASH = "MissingReceiptHash"
 QUOTE_RECEIPT_PRECHECK_HASH_MISMATCH = "HashMismatch"
 QUOTE_RECEIPT_PRECHECK_BAD_KIND = "BadKind"
-QUOTE_RECEIPT_PRECHECK_UNEXPECTED_CANONICAL_ROUTE_CERTIFICATE = "UnexpectedCanonicalRouteCertificate"
+QUOTE_RECEIPT_PRECHECK_UNEXPECTED_CANONICAL_ROUTE_CERTIFICATE = (
+    "UnexpectedCanonicalRouteCertificate"
+)
 QUOTE_RECEIPT_PRECHECK_BAD_BODY_ASSETS = "BadBodyAssets"
 QUOTE_RECEIPT_PRECHECK_BAD_QUOTE_EPOCH = "BadQuoteEpoch"
 QUOTE_RECEIPT_PRECHECK_BAD_POOLS = "BadPools"
@@ -172,7 +202,9 @@ def evaluate_route_quote_receipt_precheck_gate(
     legs_list_ok: Any,
 ) -> RouteQuoteReceiptPrecheckOutcome:
     schema_ok_v = _require_receipt_gate_flag(schema_ok, name="schema_ok")
-    receipt_hash_present_v = _require_receipt_gate_flag(receipt_hash_present, name="receipt_hash_present")
+    receipt_hash_present_v = _require_receipt_gate_flag(
+        receipt_hash_present, name="receipt_hash_present"
+    )
     hash_matches_v = _require_receipt_gate_flag(hash_matches, name="hash_matches")
     kind_ok_v = _require_receipt_gate_flag(kind_ok, name="kind_ok")
     canonical_certificate_allowed_v = _require_receipt_gate_flag(
@@ -250,7 +282,9 @@ def evaluate_route_quote_receipt_certificate_gate(
 ) -> RouteQuoteReceiptCertificateOutcome:
     cert_present_v = _require_receipt_gate_flag(cert_present, name="cert_present")
     cert_dict_ok_v = _require_receipt_gate_flag(cert_dict_ok, name="cert_dict_ok")
-    winner_quote_dict_ok_v = _require_receipt_gate_flag(winner_quote_dict_ok, name="winner_quote_dict_ok")
+    winner_quote_dict_ok_v = _require_receipt_gate_flag(
+        winner_quote_dict_ok, name="winner_quote_dict_ok"
+    )
     asset_in_match_v = _require_receipt_gate_flag(asset_in_match, name="asset_in_match")
     asset_out_match_v = _require_receipt_gate_flag(asset_out_match, name="asset_out_match")
     amount_in_match_v = _require_receipt_gate_flag(amount_in_match, name="amount_in_match")
@@ -665,7 +699,9 @@ def make_route_quote_receipt(
     }
 
 
-def _pool_reserves_for_hop(pool: PoolState, *, asset_in: str, asset_out: str) -> Tuple[int, int] | None:
+def _pool_reserves_for_hop(
+    pool: PoolState, *, asset_in: str, asset_out: str
+) -> Tuple[int, int] | None:
     if asset_in == pool.asset0 and asset_out == pool.asset1:
         return int(pool.reserve0), int(pool.reserve1)
     if asset_in == pool.asset1 and asset_out == pool.asset0:
@@ -730,7 +766,11 @@ def _replay_and_apply_hop(
     )
     if not replay.replay_ok:
         return False, route_quote_receipt_hop_replay_error(replay), None
-    return True, "ok", replace(pool, reserve0=int(replay.next_reserve0), reserve1=int(replay.next_reserve1))
+    return (
+        True,
+        "ok",
+        copy_pool_state(pool, reserve0=replay.next_reserve0, reserve1=replay.next_reserve1),
+    )
 
 
 def verify_route_quote_receipt(
@@ -813,19 +853,30 @@ def verify_route_quote_receipt(
             verify_exact_in_route_canonical_certificate_payload,
         )
 
-        cert_ok, cert_err = verify_exact_in_route_canonical_certificate_payload(canonical_route_certificate)
+        cert_ok, cert_err = verify_exact_in_route_canonical_certificate_payload(
+            canonical_route_certificate
+        )
         if not cert_ok:
             return False, f"bad_canonical_route_certificate:{cert_err}"
-        winner_quote = canonical_route_certificate.get("winner_quote") if isinstance(canonical_route_certificate, dict) else None
+        winner_quote = (
+            canonical_route_certificate.get("winner_quote")
+            if isinstance(canonical_route_certificate, dict)
+            else None
+        )
         cert_gate = evaluate_route_quote_receipt_certificate_gate(
             cert_present=True,
             cert_dict_ok=isinstance(canonical_route_certificate, dict),
             winner_quote_dict_ok=isinstance(winner_quote, dict),
-            asset_in_match=isinstance(winner_quote, dict) and winner_quote.get("asset_in") == body.get("asset_in"),
-            asset_out_match=isinstance(winner_quote, dict) and winner_quote.get("asset_out") == body.get("asset_out"),
-            amount_in_match=isinstance(winner_quote, dict) and winner_quote.get("amount_in") == body.get("amount_in"),
-            amount_out_match=isinstance(winner_quote, dict) and winner_quote.get("amount_out") == body.get("amount_out"),
-            legs_match=isinstance(winner_quote, dict) and winner_quote.get("legs") == body.get("legs"),
+            asset_in_match=isinstance(winner_quote, dict)
+            and winner_quote.get("asset_in") == body.get("asset_in"),
+            asset_out_match=isinstance(winner_quote, dict)
+            and winner_quote.get("asset_out") == body.get("asset_out"),
+            amount_in_match=isinstance(winner_quote, dict)
+            and winner_quote.get("amount_in") == body.get("amount_in"),
+            amount_out_match=isinstance(winner_quote, dict)
+            and winner_quote.get("amount_out") == body.get("amount_out"),
+            legs_match=isinstance(winner_quote, dict)
+            and winner_quote.get("legs") == body.get("legs"),
         )
         if not cert_gate.certificate_ok:
             return False, route_quote_receipt_certificate_error(cert_gate)
@@ -852,7 +903,7 @@ def verify_route_quote_receipt(
     )
     if not pool_snapshot.snapshot_ok:
         return False, route_quote_receipt_pool_snapshot_error(pool_snapshot)
-    working_pools = {pid: replace(pools_by_id[pid]) for pid in pools}
+    working_pools = {pid: copy_pool_state(pools_by_id[pid]) for pid in pools}
 
     # Verify hop-by-hop quote semantics.
     total_in = 0
@@ -936,8 +987,10 @@ def verify_route_quote_receipt(
         last_hop_amount_out = _require_receipt_int(hops[-1].get("amount_out"))
         leg_summary = evaluate_route_quote_receipt_leg_summary_gate(
             final_asset_out_ok=prev_asset_out == body_asset_out,
-            first_hop_amount_in_ok=first_hop_amount_in is not None and first_hop_amount_in == leg_in,
-            last_hop_amount_out_ok=last_hop_amount_out is not None and last_hop_amount_out == leg_out,
+            first_hop_amount_in_ok=first_hop_amount_in is not None
+            and first_hop_amount_in == leg_in,
+            last_hop_amount_out_ok=last_hop_amount_out is not None
+            and last_hop_amount_out == leg_out,
         )
         if not leg_summary.leg_ok:
             return False, route_quote_receipt_leg_summary_error(leg_summary)
@@ -950,7 +1003,9 @@ def verify_route_quote_receipt(
     body_amounts_ok = body_amount_in is not None and body_amount_out is not None
     totals_gate = evaluate_route_quote_receipt_totals_gate(
         body_amounts_ok=body_amounts_ok,
-        totals_match=body_amounts_ok and total_in == body_amount_in and total_out == body_amount_out,
+        totals_match=body_amounts_ok
+        and total_in == body_amount_in
+        and total_out == body_amount_out,
     )
     if not totals_gate.totals_ok:
         return False, route_quote_receipt_totals_error(totals_gate)

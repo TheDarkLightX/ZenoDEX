@@ -15,7 +15,7 @@ from src.core.settlement import Settlement
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
-from src.state.pools import PoolState, PoolStatus
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
 
 def _iid(n: int) -> str:
@@ -118,9 +118,10 @@ def _make_two_create_pool_setup(
 
 def _make_snapshot_bound_quote_setup() -> tuple[DexState, list[Intent]]:
     sender = "0x" + "aa" * 48
+    pool_id = compute_pool_id("A", "B", 10)
     pools = {
-        "p_ab": PoolState(
-            pool_id="p_ab",
+        pool_id: PoolState(
+            pool_id=pool_id,
             asset0="A",
             asset1="B",
             reserve0=1_000,

@@ -1,0 +1,219 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "fcis_step_evaluator_result_atomicity_v1"
+  created_by: "codex"
+  seed: 0
+  notes: >-
+    Bounded design model for the unmounted FCIS evaluator. It proves only the
+    result-shape laws represented here; it does not prove Python refinement or
+    shell commit atomicity.
+observables:
+  state_vars:
+    - "stage"
+    - "local_candidate_id"
+    - "result_candidate_id"
+    - "evidence_candidate_id"
+    - "result_candidate_present"
+    - "result_evidence_present"
+    - "authority_published"
+  effects: []
+types: []
+state_vars:
+  - id: "stage"
+    role: "control"
+    type:
+      kind: "enum"
+      symbols: ["Start", "LocalCandidate", "ReturnedReject", "ReturnedOk"]
+  - id: "local_candidate_id"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "result_candidate_id"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "evidence_candidate_id"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "result_candidate_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "result_evidence_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "authority_published"
+    role: "data"
+    type: { kind: "bool" }
+invariants:
+  - id: "FCIS-ESSO-EVAL-001-reject-has-no-output"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "stage" }, { enum: "ReturnedReject" }]
+        - op: "and"
+          args:
+            - op: "not"
+              args: [{ var: "result_candidate_present" }]
+            - op: "not"
+              args: [{ var: "result_evidence_present" }]
+            - op: "="
+              args: [{ var: "result_candidate_id" }, { const: 0 }]
+            - op: "="
+              args: [{ var: "evidence_candidate_id" }, { const: 0 }]
+  - id: "FCIS-ESSO-EVAL-002-success-is-complete"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "stage" }, { enum: "ReturnedOk" }]
+        - op: "and"
+          args:
+            - { var: "result_candidate_present" }
+            - { var: "result_evidence_present" }
+            - op: ">"
+              args: [{ var: "local_candidate_id" }, { const: 0 }]
+            - op: "="
+              args: [{ var: "result_candidate_id" }, { var: "local_candidate_id" }]
+            - op: "="
+              args: [{ var: "evidence_candidate_id" }, { var: "local_candidate_id" }]
+  - id: "FCIS-ESSO-EVAL-003-no-partial-result"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "result_candidate_present" }
+        - { var: "result_evidence_present" }
+  - id: "FCIS-ESSO-EVAL-004-unmounted-never-publishes"
+    kind: "safety"
+    expr:
+      op: "not"
+      args: [{ var: "authority_published" }]
+  - id: "FCIS-ESSO-EVAL-005-pre-return-has-no-output"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "or"
+          args:
+            - op: "="
+              args: [{ var: "stage" }, { enum: "Start" }]
+            - op: "="
+              args: [{ var: "stage" }, { enum: "LocalCandidate" }]
+        - op: "and"
+          args:
+            - op: "not"
+              args: [{ var: "result_candidate_present" }]
+            - op: "not"
+              args: [{ var: "result_evidence_present" }]
+            - op: "="
+              args: [{ var: "result_candidate_id" }, { const: 0 }]
+            - op: "="
+              args: [{ var: "evidence_candidate_id" }, { const: 0 }]
+  - id: "FCIS-ESSO-EVAL-006-local-candidate-has-identity"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "stage" }, { enum: "LocalCandidate" }]
+        - op: ">"
+          args: [{ var: "local_candidate_id" }, { const: 0 }]
+init:
+  - var: "stage"
+    expr: { enum: "Start" }
+  - var: "local_candidate_id"
+    expr: { const: 0 }
+  - var: "result_candidate_id"
+    expr: { const: 0 }
+  - var: "evidence_candidate_id"
+    expr: { const: 0 }
+  - var: "result_candidate_present"
+    expr: { bool: false }
+  - var: "result_evidence_present"
+    expr: { bool: false }
+  - var: "authority_published"
+    expr: { bool: false }
+actions:
+  - id: "reject_before_candidate"
+    params: []
+    guard:
+      op: "="
+      args: [{ var: "stage" }, { enum: "Start" }]
+    updates:
+      - var: "stage"
+        expr: { enum: "ReturnedReject" }
+      - var: "result_candidate_present"
+        expr: { bool: false }
+      - var: "result_evidence_present"
+        expr: { bool: false }
+      - var: "result_candidate_id"
+        expr: { const: 0 }
+      - var: "evidence_candidate_id"
+        expr: { const: 0 }
+    effects: {}
+  - id: "build_candidate"
+    params:
+      - id: "candidate_id"
+        type: { kind: "int", min: 1, max: 2 }
+    guard:
+      op: "="
+      args: [{ var: "stage" }, { enum: "Start" }]
+    updates:
+      - var: "stage"
+        expr: { enum: "LocalCandidate" }
+      - var: "local_candidate_id"
+        expr: { param: "candidate_id" }
+    effects: {}
+  - id: "reject_after_candidate"
+    params: []
+    guard:
+      op: "="
+      args: [{ var: "stage" }, { enum: "LocalCandidate" }]
+    updates:
+      - var: "stage"
+        expr: { enum: "ReturnedReject" }
+      - var: "local_candidate_id"
+        expr: { const: 0 }
+      - var: "result_candidate_present"
+        expr: { bool: false }
+      - var: "result_evidence_present"
+        expr: { bool: false }
+      - var: "result_candidate_id"
+        expr: { const: 0 }
+      - var: "evidence_candidate_id"
+        expr: { const: 0 }
+    effects: {}
+  - id: "return_success"
+    params: []
+    guard:
+      op: "="
+      args: [{ var: "stage" }, { enum: "LocalCandidate" }]
+    updates:
+      - var: "stage"
+        expr: { enum: "ReturnedOk" }
+      - var: "result_candidate_present"
+        expr: { bool: true }
+      - var: "result_evidence_present"
+        expr: { bool: true }
+      - var: "result_candidate_id"
+        expr: { var: "local_candidate_id" }
+      - var: "evidence_candidate_id"
+        expr: { var: "local_candidate_id" }
+    effects: {}
+refinement:
+  state_abstraction:
+    - var: "authority_published"
+      expr: { var: "authority_published" }
+    - var: "evidence_candidate_id"
+      expr: { var: "evidence_candidate_id" }
+    - var: "local_candidate_id"
+      expr: { var: "local_candidate_id" }
+    - var: "result_candidate_id"
+      expr: { var: "result_candidate_id" }
+    - var: "result_candidate_present"
+      expr: { var: "result_candidate_present" }
+    - var: "result_evidence_present"
+      expr: { var: "result_evidence_present" }
+    - var: "stage"
+      expr: { var: "stage" }

@@ -1,4 +1,5 @@
-from __future__ import annotations
+# The executable script pins the repository root before importing local modules.
+# ruff: noqa: E402
 
 """
 Deterministic action-grammar explorer for stateful quote-receipt behavior in `dex_engine`.
@@ -9,6 +10,8 @@ the interesting branch only appears after a prior successful transition:
 - quote receipt hash and witness requirements fire after earlier success
 - split quote-receipt leg binding and coverage checks fire after an unrelated success
 """
+
+from __future__ import annotations
 
 import argparse
 import copy
@@ -23,7 +26,10 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.agents.intent_signer import create_swap_intent_from_quote_receipt, create_swap_intents_from_quote_receipt
+from src.agents.intent_signer import (
+    create_swap_intent_from_quote_receipt,
+    create_swap_intents_from_quote_receipt,
+)
 from src.core.dex import DexState
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
@@ -31,8 +37,7 @@ from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import SignedIntentEnvelope, create_signed_intent_operation
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
-from src.state.pools import PoolState, PoolStatus
-
+from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
 RunnerFn = Callable[[object], str]
 
@@ -91,9 +96,15 @@ ASSET_A = "A"
 ASSET_B = "B"
 ASSET_C = "C"
 ASSET_D = "D"
+DIRECT_AB_POOL_ID = compute_pool_id(ASSET_A, ASSET_B, 10)
+DIRECT_CD_POOL_ID = compute_pool_id(ASSET_C, ASSET_D, 10)
+SPLIT_FIRST_POOL_ID = compute_pool_id(ASSET_A, ASSET_B, 0)
+SPLIT_SECOND_POOL_ID = compute_pool_id(ASSET_A, ASSET_B, 1)
 
 
-def _pool(*, pool_id: str, asset0: str, asset1: str, reserve0: int, reserve1: int, fee_bps: int = 10) -> PoolState:
+def _pool(
+    *, pool_id: str, asset0: str, asset1: str, reserve0: int, reserve1: int, fee_bps: int = 10
+) -> PoolState:
     return PoolState(
         pool_id=pool_id,
         asset0=asset0,
@@ -108,14 +119,46 @@ def _pool(*, pool_id: str, asset0: str, asset1: str, reserve0: int, reserve1: in
 
 
 DIRECT_POOLS = {
-    "p_ab": _pool(pool_id="p_ab", asset0=ASSET_A, asset1=ASSET_B, reserve0=1_000, reserve1=2_000),
-    "p_cd": _pool(pool_id="p_cd", asset0=ASSET_C, asset1=ASSET_D, reserve0=1_500, reserve1=3_000),
+    DIRECT_AB_POOL_ID: _pool(
+        pool_id=DIRECT_AB_POOL_ID,
+        asset0=ASSET_A,
+        asset1=ASSET_B,
+        reserve0=1_000,
+        reserve1=2_000,
+    ),
+    DIRECT_CD_POOL_ID: _pool(
+        pool_id=DIRECT_CD_POOL_ID,
+        asset0=ASSET_C,
+        asset1=ASSET_D,
+        reserve0=1_500,
+        reserve1=3_000,
+    ),
 }
 
 SPLIT_POOLS = {
-    "p1": _pool(pool_id="p1", asset0=ASSET_A, asset1=ASSET_B, reserve0=1_000, reserve1=1_000, fee_bps=0),
-    "p2": _pool(pool_id="p2", asset0=ASSET_A, asset1=ASSET_B, reserve0=1_000, reserve1=1_000, fee_bps=0),
-    "p_cd": _pool(pool_id="p_cd", asset0=ASSET_C, asset1=ASSET_D, reserve0=1_500, reserve1=3_000),
+    SPLIT_FIRST_POOL_ID: _pool(
+        pool_id=SPLIT_FIRST_POOL_ID,
+        asset0=ASSET_A,
+        asset1=ASSET_B,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=0,
+    ),
+    SPLIT_SECOND_POOL_ID: _pool(
+        pool_id=SPLIT_SECOND_POOL_ID,
+        asset0=ASSET_A,
+        asset1=ASSET_B,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=1,
+    ),
+    DIRECT_CD_POOL_ID: _pool(
+        pool_id=DIRECT_CD_POOL_ID,
+        asset0=ASSET_C,
+        asset1=ASSET_D,
+        reserve0=1_500,
+        reserve1=3_000,
+    ),
 }
 
 
@@ -145,7 +188,10 @@ def _stable_jsonable(value: Any) -> Any:
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
     if isinstance(value, dict):
-        return {str(k): _stable_jsonable(v) for k, v in sorted(value.items(), key=lambda item: str(item[0]))}
+        return {
+            str(k): _stable_jsonable(v)
+            for k, v in sorted(value.items(), key=lambda item: str(item[0]))
+        }
     if isinstance(value, list):
         return [_stable_jsonable(v) for v in value]
     if isinstance(value, tuple):
@@ -154,10 +200,14 @@ def _stable_jsonable(value: Any) -> Any:
 
 
 def _payload_fingerprint(payload: object) -> str:
-    return json.dumps(_stable_jsonable(payload), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return json.dumps(
+        _stable_jsonable(payload), sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    )
 
 
-def _trace_outcome(*, runner: RunnerFn, payload: object, trace_files: Sequence[Path]) -> tuple[str, str, int]:
+def _trace_outcome(
+    *, runner: RunnerFn, payload: object, trace_files: Sequence[Path]
+) -> tuple[str, str, int]:
     trace_names = {str(path.resolve()) for path in trace_files}
     lines: list[str] = []
     last_loc: str | None = None
@@ -211,7 +261,9 @@ def _make_direct_ops(
         amount_in=amount_in,
     )
     assert route is not None
-    receipt = make_route_quote_receipt(kind="exact_in", quote=route, pools_by_id={pool_id: copy.deepcopy(pools[pool_id])})
+    receipt = make_route_quote_receipt(
+        kind="exact_in", quote=route, pools_by_id={pool_id: copy.deepcopy(pools[pool_id])}
+    )
     intent = create_swap_intent_from_quote_receipt(
         receipt=receipt,
         pools_by_id={pool_id: copy.deepcopy(pools[pool_id])},
@@ -234,8 +286,11 @@ def _make_split_ops(
     incomplete: bool = False,
     swapped_leg_indices: bool = False,
 ) -> dict[str, Any]:
+    split_pool_ids = {SPLIT_FIRST_POOL_ID, SPLIT_SECOND_POOL_ID}
     route = best_route_exact_in_2hop(
-        pools_by_id={key: copy.deepcopy(value) for key, value in SPLIT_POOLS.items() if key in {"p1", "p2"}},
+        pools_by_id={
+            key: copy.deepcopy(value) for key, value in SPLIT_POOLS.items() if key in split_pool_ids
+        },
         asset_in=ASSET_A,
         asset_out=ASSET_B,
         amount_in=600,
@@ -244,11 +299,15 @@ def _make_split_ops(
     receipt = make_route_quote_receipt(
         kind="exact_in",
         quote=route,
-        pools_by_id={key: copy.deepcopy(value) for key, value in SPLIT_POOLS.items() if key in {"p1", "p2"}},
+        pools_by_id={
+            key: copy.deepcopy(value) for key, value in SPLIT_POOLS.items() if key in split_pool_ids
+        },
     )
     intents = create_swap_intents_from_quote_receipt(
         receipt=receipt,
-        pools_by_id={key: copy.deepcopy(value) for key, value in SPLIT_POOLS.items() if key in {"p1", "p2"}},
+        pools_by_id={
+            key: copy.deepcopy(value) for key, value in SPLIT_POOLS.items() if key in split_pool_ids
+        },
         sender_pubkey=SENDER,
         deadline=9_999_999_999,
         slippage_bps=0,
@@ -313,13 +372,40 @@ def _sequence_outcome(payload: object) -> str:
 
 
 def _direct_cases() -> tuple[GrammarCase, ...]:
-    step_ab_1 = {"operations": _make_direct_ops(pools=DIRECT_POOLS, pool_id="p_ab", asset_in=ASSET_A, asset_out=ASSET_B, amount_in=123, nonce=1)}
-    step_cd_2 = {"operations": _make_direct_ops(pools=DIRECT_POOLS, pool_id="p_cd", asset_in=ASSET_C, asset_out=ASSET_D, amount_in=111, nonce=2)}
-    step_ab_stale_2 = {"operations": _make_direct_ops(pools=DIRECT_POOLS, pool_id="p_ab", asset_in=ASSET_A, asset_out=ASSET_B, amount_in=123, nonce=2)}
+    step_ab_1 = {
+        "operations": _make_direct_ops(
+            pools=DIRECT_POOLS,
+            pool_id=DIRECT_AB_POOL_ID,
+            asset_in=ASSET_A,
+            asset_out=ASSET_B,
+            amount_in=123,
+            nonce=1,
+        )
+    }
+    step_cd_2 = {
+        "operations": _make_direct_ops(
+            pools=DIRECT_POOLS,
+            pool_id=DIRECT_CD_POOL_ID,
+            asset_in=ASSET_C,
+            asset_out=ASSET_D,
+            amount_in=111,
+            nonce=2,
+        )
+    }
+    step_ab_stale_2 = {
+        "operations": _make_direct_ops(
+            pools=DIRECT_POOLS,
+            pool_id=DIRECT_AB_POOL_ID,
+            asset_in=ASSET_A,
+            asset_out=ASSET_B,
+            amount_in=123,
+            nonce=2,
+        )
+    }
     step_cd_hash_mismatch_2 = {
         "operations": _make_direct_ops(
             pools=DIRECT_POOLS,
-            pool_id="p_cd",
+            pool_id=DIRECT_CD_POOL_ID,
             asset_in=ASSET_C,
             asset_out=ASSET_D,
             amount_in=111,
@@ -330,7 +416,7 @@ def _direct_cases() -> tuple[GrammarCase, ...]:
     step_cd_missing_witness_2 = {
         "operations": _make_direct_ops(
             pools=DIRECT_POOLS,
-            pool_id="p_cd",
+            pool_id=DIRECT_CD_POOL_ID,
             asset_in=ASSET_C,
             asset_out=ASSET_D,
             amount_in=111,
@@ -339,43 +425,87 @@ def _direct_cases() -> tuple[GrammarCase, ...]:
         )
     }
     return (
-        GrammarCase("DirectSeq->SingleValidAb", {"initial": "direct", "steps": [copy.deepcopy(step_ab_1)]}),
-        GrammarCase("DirectSeq->ValidThenIndependentValidCd", {"initial": "direct", "steps": [copy.deepcopy(step_ab_1), copy.deepcopy(step_cd_2)]}),
-        GrammarCase("DirectSeq->ValidThenStaleSamePool", {"initial": "direct", "steps": [copy.deepcopy(step_ab_1), copy.deepcopy(step_ab_stale_2)]}),
+        GrammarCase(
+            "DirectSeq->SingleValidAb", {"initial": "direct", "steps": [copy.deepcopy(step_ab_1)]}
+        ),
+        GrammarCase(
+            "DirectSeq->ValidThenIndependentValidCd",
+            {"initial": "direct", "steps": [copy.deepcopy(step_ab_1), copy.deepcopy(step_cd_2)]},
+        ),
+        GrammarCase(
+            "DirectSeq->ValidThenStaleSamePool",
+            {
+                "initial": "direct",
+                "steps": [copy.deepcopy(step_ab_1), copy.deepcopy(step_ab_stale_2)],
+            },
+        ),
         GrammarCase(
             "DirectSeq->ValidThenStaleSamePoolWithDeadTail",
-            {"initial": "direct", "steps": [copy.deepcopy(step_ab_1), copy.deepcopy(step_ab_stale_2), copy.deepcopy(step_cd_2)]},
+            {
+                "initial": "direct",
+                "steps": [
+                    copy.deepcopy(step_ab_1),
+                    copy.deepcopy(step_ab_stale_2),
+                    copy.deepcopy(step_cd_2),
+                ],
+            },
         ),
         GrammarCase(
             "DirectSeq->ValidThenIndependentHashMismatch",
-            {"initial": "direct", "steps": [copy.deepcopy(step_ab_1), copy.deepcopy(step_cd_hash_mismatch_2)]},
+            {
+                "initial": "direct",
+                "steps": [copy.deepcopy(step_ab_1), copy.deepcopy(step_cd_hash_mismatch_2)],
+            },
         ),
         GrammarCase(
             "DirectSeq->ValidThenIndependentMissingWitness",
-            {"initial": "direct", "steps": [copy.deepcopy(step_ab_1), copy.deepcopy(step_cd_missing_witness_2)]},
+            {
+                "initial": "direct",
+                "steps": [copy.deepcopy(step_ab_1), copy.deepcopy(step_cd_missing_witness_2)],
+            },
         ),
     )
 
 
 def _split_cases() -> tuple[GrammarCase, ...]:
-    warmup_cd_1 = {"operations": _make_direct_ops(pools=SPLIT_POOLS, pool_id="p_cd", asset_in=ASSET_C, asset_out=ASSET_D, amount_in=111, nonce=1)}
+    warmup_cd_1 = {
+        "operations": _make_direct_ops(
+            pools=SPLIT_POOLS,
+            pool_id=DIRECT_CD_POOL_ID,
+            asset_in=ASSET_C,
+            asset_out=ASSET_D,
+            amount_in=111,
+            nonce=1,
+        )
+    }
     split_ok_2 = {"operations": _make_split_ops(nonce_start=2)}
     split_dup_2 = {"operations": _make_split_ops(nonce_start=2, duplicate_leg=True)}
     split_incomplete_2 = {"operations": _make_split_ops(nonce_start=2, incomplete=True)}
-    split_swapped_leg_indices_2 = {"operations": _make_split_ops(nonce_start=2, swapped_leg_indices=True)}
+    split_swapped_leg_indices_2 = {
+        "operations": _make_split_ops(nonce_start=2, swapped_leg_indices=True)
+    }
     return (
-        GrammarCase("SplitSeq->WarmupThenSplitValid", {"initial": "split", "steps": [copy.deepcopy(warmup_cd_1), copy.deepcopy(split_ok_2)]}),
+        GrammarCase(
+            "SplitSeq->WarmupThenSplitValid",
+            {"initial": "split", "steps": [copy.deepcopy(warmup_cd_1), copy.deepcopy(split_ok_2)]},
+        ),
         GrammarCase(
             "SplitSeq->WarmupThenSplitDuplicateLeg",
             {"initial": "split", "steps": [copy.deepcopy(warmup_cd_1), copy.deepcopy(split_dup_2)]},
         ),
         GrammarCase(
             "SplitSeq->WarmupThenSplitIncompleteCoverage",
-            {"initial": "split", "steps": [copy.deepcopy(warmup_cd_1), copy.deepcopy(split_incomplete_2)]},
+            {
+                "initial": "split",
+                "steps": [copy.deepcopy(warmup_cd_1), copy.deepcopy(split_incomplete_2)],
+            },
         ),
         GrammarCase(
             "SplitSeq->WarmupThenSplitSwappedLegIndices",
-            {"initial": "split", "steps": [copy.deepcopy(warmup_cd_1), copy.deepcopy(split_swapped_leg_indices_2)]},
+            {
+                "initial": "split",
+                "steps": [copy.deepcopy(warmup_cd_1), copy.deepcopy(split_swapped_leg_indices_2)],
+            },
         ),
     )
 
@@ -384,13 +514,25 @@ TARGETS: tuple[GrammarTarget, ...] = (
     GrammarTarget(
         name="direct_quote_receipt_sequence",
         runner=_sequence_outcome,
-        trace_files=(DEX_ENGINE_FILE, OPERATIONS_FILE, QUOTE_RECEIPTS_FILE, NONCES_FILE, BATCH_CLEARING_FILE),
+        trace_files=(
+            DEX_ENGINE_FILE,
+            OPERATIONS_FILE,
+            QUOTE_RECEIPTS_FILE,
+            NONCES_FILE,
+            BATCH_CLEARING_FILE,
+        ),
         cases=_direct_cases(),
     ),
     GrammarTarget(
         name="split_quote_receipt_sequence",
         runner=_sequence_outcome,
-        trace_files=(DEX_ENGINE_FILE, OPERATIONS_FILE, QUOTE_RECEIPTS_FILE, NONCES_FILE, BATCH_CLEARING_FILE),
+        trace_files=(
+            DEX_ENGINE_FILE,
+            OPERATIONS_FILE,
+            QUOTE_RECEIPTS_FILE,
+            NONCES_FILE,
+            BATCH_CLEARING_FILE,
+        ),
         cases=_split_cases(),
     ),
 )
@@ -511,7 +653,9 @@ def explore_target(name: str, *, max_cases: int = 64) -> GrammarTargetReport:
         if len(accepted) >= max_cases:
             break
 
-    cases = tuple(sorted(accepted, key=lambda item: (item.outcome_label, item.path_id, item.derivation)))
+    cases = tuple(
+        sorted(accepted, key=lambda item: (item.outcome_label, item.path_id, item.derivation))
+    )
     return GrammarTargetReport(
         target=target.name,
         total_cases=len(cases),
@@ -526,7 +670,9 @@ def explore_all_targets() -> tuple[GrammarTargetReport, ...]:
 
 
 def _print_text(report: GrammarTargetReport) -> None:
-    print(f"[{report.target}] cases={report.total_cases} outcomes={report.unique_outcome_count} paths={report.unique_path_count}")
+    print(
+        f"[{report.target}] cases={report.total_cases} outcomes={report.unique_outcome_count} paths={report.unique_path_count}"
+    )
     for case in report.cases:
         print(f"- {case.derivation}: {case.outcome_label} ({case.path_id}, len={case.path_length})")
 
@@ -535,7 +681,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", choices=sorted(TARGET_BY_NAME), help="Explore only one target")
     parser.add_argument("--format", choices=("json", "text"), default="json")
-    parser.add_argument("--minimize-derivation", help="minimize one named derivation while preserving its outcome/path pair")
+    parser.add_argument(
+        "--minimize-derivation",
+        help="minimize one named derivation while preserving its outcome/path pair",
+    )
     args = parser.parse_args(argv)
 
     if args.minimize_derivation:
@@ -544,7 +693,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         witness = minimize_case(args.target, args.minimize_derivation)
         if args.format == "text":
             print(f"[{witness.target}] {witness.derivation}")
-            print(f"outcome={witness.outcome_label} path={witness.path_id} len={witness.path_length}")
+            print(
+                f"outcome={witness.outcome_label} path={witness.path_id} len={witness.path_length}"
+            )
             print(f"size={witness.original_size}->{witness.minimized_size}")
             print(json.dumps(_stable_jsonable(witness.payload), indent=2, sort_keys=True))
             return 0

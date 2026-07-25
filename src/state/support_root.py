@@ -14,8 +14,9 @@ snapshot instead of the entire global state.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping, Sequence, Tuple
+from typing import TYPE_CHECKING, Mapping, Sequence, Tuple
 
+from .balance_commitment import LogicalBalanceEntryV1, _encode_logical_balance_entries_v1
 from .balances import AssetId, BalanceTable, PubKey
 from .canonical import (
     domain_sep_bytes,
@@ -29,7 +30,18 @@ from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
 from .pools import PoolState, PoolStatus, compute_pool_id
 
+if TYPE_CHECKING:
+    from .intent_snapshots import OwnedIntentV1
+    from .owned_collections import OwnedMapV1
+    from .state_snapshot_values import (
+        CommittedBalanceTableV1,
+        CommittedLPTableV1,
+        CommittedNonceTableV1,
+        CommittedPoolStateV1,
+    )
+
 SUPPORT_ROOT_VERSION = 4
+EXACT_SUPPORT_ROOT_VERSION_V1 = 5
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
@@ -65,6 +77,39 @@ def derive_batch_state_support(
 
     The support is used to compute a projected pre-state commitment (support root).
     """
+    return _derive_batch_state_support_for_pool_map_v1(intents, pools=pools)
+
+
+def derive_batch_state_support_committed_v1(
+    intents: Sequence[Intent],
+    *,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> BatchStateSupport:
+    """Derive support from an exact committed pool map.
+
+    Intent ownership remains a PR #478 obligation. This migration-scoped
+    reader closes the state side of the boundary and remains unmounted until
+    the aggregate ``DexState`` switch.
+    """
+
+    from .owned_collections import OwnedMapV1
+    from .state_snapshots import snapshot_pool_map
+
+    if type(pools) is not OwnedMapV1:
+        raise TypeError("pools must be an exact OwnedMapV1")
+    return _derive_batch_state_support_for_pool_map_v1(
+        intents,
+        pools=snapshot_pool_map(pools),
+    )
+
+
+def _derive_batch_state_support_for_pool_map_v1(
+    intents: Sequence[Intent],
+    *,
+    pools: Mapping[str, PoolState] | OwnedMapV1[str, CommittedPoolStateV1],
+) -> BatchStateSupport:
+    """Shared deterministic support relation for the closed pool union."""
+
     balance_keys: set[tuple[str, str]] = set()
     pool_ids: set[str] = set()
     lp_keys: set[tuple[str, str]] = set()
@@ -102,7 +147,9 @@ def derive_batch_state_support(
                 balance_keys.add((sender, asset1))
                 if isinstance(fee_bps, int) and not isinstance(fee_bps, bool):
                     try:
-                        pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
+                        pool_id = compute_pool_id(
+                            asset0, asset1, fee_bps, curve_tag="CPMM", curve_params=""
+                        )
                         pool_ids.add(pool_id)
                     except Exception:
                         # Invalid CREATE_POOL params; keep support minimal and let validation reject.
@@ -147,22 +194,107 @@ def derive_batch_state_support(
     )
 
 
-def compute_support_state_root(
-    *,
+def _encode_legacy_support_balances_section_v1(
     balances: BalanceTable,
+    support: BatchStateSupport,
+) -> bytes:
+    logical_entries = tuple(
+        ((pubkey, asset), amount)
+        for pubkey, asset in support.balance_keys
+        if (amount := balances.get(pubkey, asset)) != 0
+    )
+    return _encode_logical_balance_entries_v1(
+        logical_entries,
+        duplicate_error="duplicate decoded (pubkey, asset) in support balances",
+    )
+
+
+def _encode_committed_support_balances_section_v1(
+    balances: CommittedBalanceTableV1,
+    support: BatchStateSupport,
+) -> bytes:
+    from .state_snapshot_values import CommittedBalanceTableV1
+    from .state_snapshots import snapshot_balance_table
+
+    if type(balances) is not CommittedBalanceTableV1:
+        raise TypeError("balances must be an exact CommittedBalanceTableV1")
+    admitted = snapshot_balance_table(balances)
+    logical_entries: tuple[LogicalBalanceEntryV1, ...] = tuple(
+        ((pubkey, asset), amount)
+        for pubkey, asset in support.balance_keys
+        if (amount := admitted.get(pubkey, asset)) != 0
+    )
+    return _encode_logical_balance_entries_v1(
+        logical_entries,
+        duplicate_error="duplicate decoded (pubkey, asset) in support balances",
+    )
+
+
+def _hash_support_sections_v1(
+    *,
+    balances_section: bytes,
+    pools_section: bytes,
+    lp_section: bytes,
+    lp_duration_section: bytes,
+    nonce_section: bytes,
+) -> str:
+    """Hash five already canonical support-root-v4 sections."""
+
+    return _hash_support_sections_for_version_v1(
+        support_root_version=SUPPORT_ROOT_VERSION,
+        balances_section=balances_section,
+        pools_section=pools_section,
+        lp_section=lp_section,
+        lp_duration_section=lp_duration_section,
+        nonce_section=nonce_section,
+    )
+
+
+def _hash_support_sections_for_version_v1(
+    *,
+    support_root_version: int,
+    balances_section: bytes,
+    pools_section: bytes,
+    lp_section: bytes,
+    lp_duration_section: bytes,
+    nonce_section: bytes,
+) -> str:
+    """Hash canonical support sections under one explicit protocol version."""
+
+    if type(support_root_version) is not int or support_root_version <= 0:
+        raise TypeError("support_root_version must be an exact positive int")
+    sections = (
+        (b"BAL", balances_section),
+        (b"POL", pools_section),
+        (b"LPB", lp_section),
+        (b"LPA", lp_duration_section),
+        (b"NNC", nonce_section),
+    )
+    if any(type(section) is not bytes for _label, section in sections):
+        raise TypeError("support-root sections must be exact bytes")
+    payload = bytearray(domain_sep_bytes("state_support_root", version=support_root_version))
+    for label, section in sections:
+        payload += label
+        payload += encode_bytes(section)
+    return sha256_hex(bytes(payload))
+
+
+def _compute_support_state_root_from_balances_section_v1(
+    *,
+    balances_section: bytes,
     pools: Mapping[str, PoolState],
     lp_balances: LPTable,
     support: BatchStateSupport,
     nonces: NonceTable | None = None,
 ) -> str:
     """
-    Compute a deterministic commitment over the batch's support.
+    Join one canonical balance section with the remaining support sections.
 
     Entries with zero balance / missing pools are omitted, mirroring the full
     `compute_state_root()` sparsity behavior.
     """
-    if not isinstance(balances, BalanceTable):
-        raise TypeError("balances must be a BalanceTable")
+    if type(balances_section) is not bytes:
+        raise TypeError("balances_section must be exact bytes")
     if not isinstance(lp_balances, LPTable):
         raise TypeError("lp_balances must be an LPTable")
     if not isinstance(support, BatchStateSupport):
@@ -170,30 +302,6 @@ def compute_support_state_root(
     nonce_table = NonceTable() if nonces is None else nonces
     if not isinstance(nonce_table, NonceTable):
         raise TypeError("nonces must be a NonceTable")
-
-    bal_out = bytearray()
-    bal_entries: list[tuple[bytes, bytes, int]] = []
-    bal_seen: set[tuple[bytes, bytes]] = set()
-    for pubkey, asset in support.balance_keys:
-        amount = balances.get(pubkey, asset)
-        if amount == 0:
-            continue
-        pk_b = hex_to_bytes_fixed(pubkey, nbytes=48, name="pubkey")
-        asset_b = hex_to_bytes_fixed(asset, nbytes=32, name="asset")
-        key = (pk_b, asset_b)
-        if key in bal_seen:
-            raise ValueError("duplicate decoded (pubkey, asset) in support balances")
-        bal_seen.add(key)
-        if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
-            raise ValueError(f"invalid balance amount: {amount!r}")
-        bal_entries.append((pk_b, asset_b, amount))
-    bal_entries.sort(key=lambda t: (t[0], t[1]))
-    bal_out += encode_uvarint(len(bal_entries))
-    for pk_b, asset_b, amount in bal_entries:
-        bal_out += pk_b
-        bal_out += asset_b
-        bal_out += encode_uvarint(amount)
-    balances_section = bytes(bal_out)
 
     pool_out = bytearray()
     pool_entries: list[tuple[bytes, PoolState]] = []
@@ -312,7 +420,9 @@ def compute_support_state_root(
             if timestamp is not None:
                 lp_duration_out += encode_uvarint(timestamp)
         lp_duration_out += encode_uvarint(metadata.churn_tier)
-        lp_duration_out += encode_uvarint(1 if metadata.last_churn_update_timestamp is not None else 0)
+        lp_duration_out += encode_uvarint(
+            1 if metadata.last_churn_update_timestamp is not None else 0
+        )
         if metadata.last_churn_update_timestamp is not None:
             lp_duration_out += encode_uvarint(metadata.last_churn_update_timestamp)
     lp_duration_section = bytes(lp_duration_out)
@@ -336,20 +446,104 @@ def compute_support_state_root(
         nonce_out += encode_uvarint(last_nonce)
     nonce_section = bytes(nonce_out)
 
-    payload = (
-        domain_sep_bytes("state_support_root", version=SUPPORT_ROOT_VERSION)
-        + b"BAL"
-        + encode_bytes(balances_section)
-        + b"POL"
-        + encode_bytes(pools_section)
-        + b"LPB"
-        + encode_bytes(lp_section)
-        + b"LPA"
-        + encode_bytes(lp_duration_section)
-        + b"NNC"
-        + encode_bytes(nonce_section)
+    return _hash_support_sections_v1(
+        balances_section=balances_section,
+        pools_section=pools_section,
+        lp_section=lp_section,
+        lp_duration_section=lp_duration_section,
+        nonce_section=nonce_section,
     )
-    return sha256_hex(payload)
+
+
+def compute_support_state_root(
+    *,
+    balances: BalanceTable,
+    pools: Mapping[str, PoolState],
+    lp_balances: LPTable,
+    support: BatchStateSupport,
+    nonces: NonceTable | None = None,
+) -> str:
+    """Compute the existing support-root v4 from one legacy balance table."""
+
+    if not isinstance(balances, BalanceTable):
+        raise TypeError("balances must be a BalanceTable")
+    if not isinstance(lp_balances, LPTable):
+        raise TypeError("lp_balances must be an LPTable")
+    if not isinstance(support, BatchStateSupport):
+        raise TypeError("support must be a BatchStateSupport")
+    nonce_table = NonceTable() if nonces is None else nonces
+    if not isinstance(nonce_table, NonceTable):
+        raise TypeError("nonces must be a NonceTable")
+    return _compute_support_state_root_from_balances_section_v1(
+        balances_section=_encode_legacy_support_balances_section_v1(balances, support),
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonce_table,
+    )
+
+
+def compute_support_state_root_with_committed_balances_v1(
+    *,
+    balances: CommittedBalanceTableV1,
+    pools: Mapping[str, PoolState],
+    lp_balances: LPTable,
+    support: BatchStateSupport,
+    nonces: NonceTable | None = None,
+) -> str:
+    """Compute support-root v4 from an exact committed balance snapshot.
+
+    The function is migration-scoped and unmounted. It changes only the source
+    of the BAL section, then joins that section through the same support-root
+    implementation used by the legacy reader.
+    """
+
+    from .state_snapshot_values import CommittedBalanceTableV1
+
+    if type(balances) is not CommittedBalanceTableV1:
+        raise TypeError("balances must be an exact CommittedBalanceTableV1")
+    if not isinstance(lp_balances, LPTable):
+        raise TypeError("lp_balances must be an LPTable")
+    if not isinstance(support, BatchStateSupport):
+        raise TypeError("support must be a BatchStateSupport")
+    nonce_table = NonceTable() if nonces is None else nonces
+    if not isinstance(nonce_table, NonceTable):
+        raise TypeError("nonces must be a NonceTable")
+    return _compute_support_state_root_from_balances_section_v1(
+        balances_section=_encode_committed_support_balances_section_v1(balances, support),
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonce_table,
+    )
+
+
+def compute_support_state_root_with_committed_spot_state_v1(
+    *,
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    support: BatchStateSupport,
+    nonces: CommittedNonceTableV1,
+) -> str:
+    """Compute support-root v4 directly from exact committed spot state.
+
+    This is a migration-scoped shadow reader. It re-admits every committed
+    input through the closed state profile and preserves the existing support
+    omission, ordering, field, and framing semantics byte for byte.
+    """
+
+    from .committed_spot_roots import (
+        compute_support_state_root_with_committed_spot_state_v1 as _read_exact_support,
+    )
+
+    return _read_exact_support(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonces,
+    )
 
 
 def compute_support_state_root_for_batch(
@@ -362,6 +556,261 @@ def compute_support_state_root_for_batch(
 ) -> str:
     support = derive_batch_state_support(intents, pools=pools)
     return compute_support_state_root(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonces,
+    )
+
+
+def compute_support_state_root_for_batch_committed_v1(
+    *,
+    intents: Sequence[Intent],
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    nonces: CommittedNonceTableV1,
+) -> str:
+    """Compute support-root v4 from one exact committed spot snapshot.
+
+    This is the legacy differential oracle.  It accepts ``Sequence[Intent]``
+    and uses ``intent.get_field``.  The exact promoted path uses
+    ``compute_support_state_root_for_batch_owned_committed_v1``.
+    """
+
+    support = derive_batch_state_support_committed_v1(intents, pools=pools)
+    return compute_support_state_root_with_committed_spot_state_v1(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonces,
+    )
+
+
+def _route_support_pool_ids_owned_v1(intent: OwnedIntentV1) -> tuple[str, ...]:
+    """Read route pools from one already-admitted owned route graph."""
+
+    from .intent_snapshots import OwnedIntentV1, owned_intent_field_v1
+    from .owned_collections import OwnedMapV1
+
+    if type(intent) is not OwnedIntentV1:
+        raise TypeError("route support intent must be an exact OwnedIntentV1")
+    raw_legs = owned_intent_field_v1(intent, "route_legs", None)
+    raw_fingerprints = owned_intent_field_v1(
+        intent,
+        "route_pool_fingerprints",
+        None,
+    )
+    if type(raw_legs) is not tuple or not raw_legs:
+        raise ValueError("exact route support requires a nonempty leg tuple")
+    if type(raw_fingerprints) is not OwnedMapV1 or not raw_fingerprints:
+        raise TypeError("exact route support requires an owned fingerprint map")
+
+    leg_pool_ids: list[str] = []
+    for raw_leg in raw_legs:
+        if type(raw_leg) is not OwnedMapV1:
+            raise TypeError("exact route support requires owned leg maps")
+        pool_id = raw_leg.get("pool_id")
+        if type(pool_id) is not str or not pool_id:
+            raise ValueError("exact route support requires nonempty pool ids")
+        leg_pool_ids.append(pool_id)
+    fingerprint_pool_ids = tuple(key for key, _value in raw_fingerprints.entries)
+    if any(type(pool_id) is not str or not pool_id for pool_id in fingerprint_pool_ids):
+        raise ValueError("exact route support fingerprint keys must be nonempty strings")
+    if any(type(value) is not str or not value for _key, value in raw_fingerprints.entries):
+        raise ValueError("exact route support fingerprints must be nonempty strings")
+    canonical_leg_pool_ids = tuple(sorted(set(leg_pool_ids)))
+    if canonical_leg_pool_ids != tuple(sorted(fingerprint_pool_ids)):
+        raise ValueError("exact route support legs and fingerprints disagree")
+    return canonical_leg_pool_ids
+
+
+def _derive_batch_state_support_owned_v1(
+    intents: tuple[OwnedIntentV1, ...],
+    *,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> BatchStateSupport:
+    """Derive support from exact owned intents and an exact committed pool map.
+
+    This is the exact support derivation.  It uses ``owned_intent_field_v1``
+    and ``owned_intent_kind_text_v1`` and never calls ``Intent.get_field``,
+    accepts ``Sequence[Intent]``, or constructs a mutable ``PoolState``.
+    """
+
+    from .intent_snapshots import owned_intent_field_v1, owned_intent_kind_text_v1
+    from .owned_collections import OwnedMapV1
+
+    if type(pools) is not OwnedMapV1:
+        raise TypeError("pools must be an exact OwnedMapV1")
+
+    balance_keys: set[tuple[str, str]] = set()
+    pool_ids: set[str] = set()
+    lp_keys: set[tuple[str, str]] = set()
+    nonce_keys: set[str] = set()
+
+    created_pool_assets: dict[str, tuple[str, str]] = {}
+    for intent in intents:
+        kind_text = owned_intent_kind_text_v1(intent)
+        if kind_text != IntentKind.CREATE_POOL.value:
+            continue
+        asset0 = owned_intent_field_v1(intent, "asset0", None)
+        asset1 = owned_intent_field_v1(intent, "asset1", None)
+        fee_bps = owned_intent_field_v1(intent, "fee_bps", None)
+        if type(asset0) is not str or not asset0:
+            continue
+        if type(asset1) is not str or not asset1:
+            continue
+        if type(fee_bps) is not int or type(fee_bps) is bool:
+            continue
+        try:
+            pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
+        except (TypeError, ValueError):
+            continue
+        created_pool_assets[pool_id] = (asset0, asset1)
+
+    for intent in intents:
+        sender = intent.sender_pubkey
+        nonce_keys.add(sender)
+        kind_text = owned_intent_kind_text_v1(intent)
+
+        if kind_text == IntentKind.CREATE_POOL.value:
+            asset0 = owned_intent_field_v1(intent, "asset0", None)
+            asset1 = owned_intent_field_v1(intent, "asset1", None)
+            fee_bps = owned_intent_field_v1(intent, "fee_bps", None)
+            if type(asset0) is str and type(asset1) is str:
+                balance_keys.add((sender, asset0))
+                balance_keys.add((sender, asset1))
+                if type(fee_bps) is int and type(fee_bps) is not bool:
+                    try:
+                        pool_id = compute_pool_id(
+                            asset0, asset1, fee_bps, curve_tag="CPMM", curve_params=""
+                        )
+                        pool_ids.add(pool_id)
+                    except (TypeError, ValueError):
+                        pass
+            continue
+
+        pool_id = owned_intent_field_v1(intent, "pool_id", None)
+        if type(pool_id) is str and pool_id:
+            pool_ids.add(pool_id)
+
+        if kind_text in (IntentKind.SWAP_EXACT_IN.value, IntentKind.SWAP_EXACT_OUT.value):
+            asset_in = owned_intent_field_v1(intent, "asset_in", None)
+            if type(asset_in) is str and asset_in:
+                balance_keys.add((sender, asset_in))
+            continue
+
+        if kind_text in (IntentKind.ROUTE_EXACT_IN.value, IntentKind.ROUTE_EXACT_OUT.value):
+            asset_in = owned_intent_field_v1(intent, "asset_in", None)
+            asset_out = owned_intent_field_v1(intent, "asset_out", None)
+            recipient = owned_intent_field_v1(intent, "recipient", sender)
+            if type(asset_in) is not str or not asset_in:
+                raise ValueError("exact route support requires a nonempty input asset")
+            if type(asset_out) is not str or not asset_out:
+                raise ValueError("exact route support requires a nonempty output asset")
+            if type(recipient) is not str or not recipient:
+                raise ValueError("exact route support requires a nonempty recipient")
+            balance_keys.add((sender, asset_in))
+            balance_keys.add((recipient, asset_out))
+            pool_ids.update(_route_support_pool_ids_owned_v1(intent))
+            continue
+
+        if kind_text == IntentKind.ADD_LIQUIDITY.value:
+            if type(pool_id) is str and pool_id:
+                recipient = owned_intent_field_v1(intent, "recipient", sender)
+                if type(recipient) is str and recipient:
+                    lp_keys.add((recipient, pool_id))
+                if pool_id in pools:
+                    pool = pools[pool_id]
+                    balance_keys.add((sender, pool.asset0))
+                    balance_keys.add((sender, pool.asset1))
+                elif pool_id in created_pool_assets:
+                    asset0, asset1 = created_pool_assets[pool_id]
+                    balance_keys.add((sender, asset0))
+                    balance_keys.add((sender, asset1))
+            continue
+
+        if kind_text == IntentKind.REMOVE_LIQUIDITY.value:
+            if type(pool_id) is str and pool_id:
+                lp_keys.add((sender, pool_id))
+            continue
+
+    return BatchStateSupport(
+        balance_keys=tuple(sorted(balance_keys, key=lambda t: (t[0], t[1]))),
+        pool_ids=tuple(sorted(pool_ids)),
+        lp_keys=tuple(sorted(lp_keys, key=lambda t: (t[0], t[1]))),
+        nonce_keys=tuple(sorted(nonce_keys)),
+    )
+
+
+def derive_batch_state_support_owned_committed_v1(
+    intents: tuple[OwnedIntentV1, ...],
+    *,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> BatchStateSupport:
+    """Re-admit and derive the unmounted route-complete exact support profile."""
+
+    from .intent_snapshots import OwnedIntentV1, admit_intent_batch
+    from .owned_collections import OwnedMapV1
+    from .state_snapshots import snapshot_pool_map
+
+    if type(intents) is not tuple:
+        raise TypeError("intents must be an exact owned tuple")
+    if any(type(intent) is not OwnedIntentV1 for intent in intents):
+        raise TypeError("intents must contain only exact OwnedIntentV1")
+    if type(pools) is not OwnedMapV1:
+        raise TypeError("pools must be an exact OwnedMapV1")
+    exact_intents = admit_intent_batch(intents)
+    exact_pools = snapshot_pool_map(pools)
+    return _derive_batch_state_support_owned_v1(exact_intents, pools=exact_pools)
+
+
+def _compute_support_state_root_for_batch_owned_admitted_v1(
+    *,
+    intents: tuple[OwnedIntentV1, ...],
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    nonces: CommittedNonceTableV1,
+) -> str:
+    """Consume the evaluator's one already-admitted command and pre-state."""
+
+    from .committed_spot_roots import (
+        compute_support_state_root_v5_with_committed_spot_state_v1,
+    )
+
+    support = _derive_batch_state_support_owned_v1(intents, pools=pools)
+    return compute_support_state_root_v5_with_committed_spot_state_v1(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonces,
+    )
+
+
+def compute_support_state_root_for_batch_owned_committed_v1(
+    *,
+    intents: tuple[OwnedIntentV1, ...],
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    nonces: CommittedNonceTableV1,
+) -> str:
+    """Compute unmounted route-complete support-root v5 from exact owned input.
+
+    Mounted support-root v4 remains unchanged until verifier/runtime migration
+    evidence authorizes the version switch.
+    """
+
+    support = derive_batch_state_support_owned_committed_v1(intents, pools=pools)
+    from .committed_spot_roots import (
+        compute_support_state_root_v5_with_committed_spot_state_v1,
+    )
+
+    return compute_support_state_root_v5_with_committed_spot_state_v1(
         balances=balances,
         pools=pools,
         lp_balances=lp_balances,

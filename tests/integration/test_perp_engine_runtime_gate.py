@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from src.core.dex import DexState
+from src.core.perps import PerpMarketState, PerpsState
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 
@@ -31,15 +34,26 @@ def _seed_initial_oracle_snapshot_for_test(state: DexState, ops: list[dict[str, 
     if not isinstance(market_id, str) or state.perps is None or market_id not in state.perps.markets:
         return state
     market = state.perps.markets[market_id]
-    if not hasattr(market, "global_state"):
+    if type(market) is not PerpMarketState:
         return state
-    global_state = market.global_state
+    global_state = dict(market.global_state)
     if bool(global_state.get("oracle_seen", False)) and int(global_state.get("index_price_e8", 0)) > 0:
         return state
     global_state["oracle_seen"] = True
     global_state["oracle_last_update_epoch"] = max(0, int(global_state.get("now_epoch", 0)) - 1)
-    global_state["index_price_e8"] = int(ops[0].get("price_e8", 0))
-    return state
+    price_e8 = ops[0].get("price_e8", 0)
+    assert type(price_e8) is int
+    global_state["index_price_e8"] = price_e8
+    markets = dict(state.perps.markets)
+    markets[market_id] = replace(
+        market,
+        global_state=global_state,
+        accounts=dict(market.accounts),
+    )
+    return replace(
+        state,
+        perps=PerpsState(version=state.perps.version, markets=markets),
+    )
 
 
 def _apply(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], operator_pubkey: str) -> DexState:

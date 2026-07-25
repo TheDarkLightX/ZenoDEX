@@ -3,13 +3,15 @@ from __future__ import annotations
 import json
 
 from src.core.zusd import E8
+from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.perp_engine import PerpEngineConfig
 from src.integration.perps_wallet_api import _local_perps_oracle_bridge_fixture
-from src.integration import tau_testnet_dex_plugin as plugin
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
-from tools.zenodex_oracle_aggregate_adapter import aggregate_adapter_content_hash, verify_aggregate_adapter_bridge
-
+from tools.zenodex_oracle_aggregate_adapter import (
+    aggregate_adapter_content_hash,
+    verify_aggregate_adapter_bridge,
+)
 
 CHAIN_ID = "tau-test-perps-stream8-resilience"
 DEADLINE = 999_999_999
@@ -196,6 +198,7 @@ def test_cross_stream_zusd_then_bad_perps_is_atomic(monkeypatch) -> None:
 
 def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
     monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
@@ -222,6 +225,7 @@ def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatc
 
 def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_deposits(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
@@ -315,6 +319,7 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
 
 def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)

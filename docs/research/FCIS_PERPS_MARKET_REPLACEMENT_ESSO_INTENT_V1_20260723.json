@@ -1,0 +1,39 @@
+{
+  "bounds": {
+    "command_space_upper_bound": null,
+    "max_effects": 0,
+    "max_patch_ops": 1,
+    "max_search_candidates": 4096,
+    "state_space_upper_bound": null
+  },
+  "components": [],
+  "composition_goal": "leaf",
+  "coupling_invariants": [
+    "coupling.replacement_same_candidate",
+    "coupling.unchanged_markets_preserved"
+  ],
+  "criticality": "critical",
+  "domain_invariants": [
+    "domain.market_map_canonical",
+    "domain.market_variant_exact",
+    "domain.prestate_preserved",
+    "domain.version_compatibility"
+  ],
+  "features": [
+    "authoritative_state",
+    "large_sparse_state",
+    "lifecycle",
+    "many_snapshots"
+  ],
+  "languages": [
+    "python",
+    "rust"
+  ],
+  "schema": "esso-fcis-intent/v1",
+  "semantic_authority": {
+    "digest": "sha256:54dcbacf567a80a8b6bc10933cb3cf83bd32b3fd32b4dcdf7da9362077a623fe",
+    "kind": "human_reviewed_reference"
+  },
+  "system_id": "zenodex.fcis.perps_market_replacement",
+  "system_version": "v1"
+}

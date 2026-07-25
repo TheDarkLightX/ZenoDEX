@@ -16,6 +16,7 @@ PoolId = str  # 32-byte hex string
 
 class FillAction(Enum):
     """Action taken on an intent."""
+
     FILL = "FILL"
     REJECT = "REJECT"
 
@@ -24,7 +25,7 @@ class FillAction(Enum):
 class Fill:
     """
     Represents a filled intent.
-    
+
     Attributes:
         intent_id: Intent identifier
         action: FILL or REJECT
@@ -45,16 +46,17 @@ class Fill:
         reserve_in_before: Optional reserve of input asset before a pool swap
         reserve_out_before: Optional reserve of output asset before a pool swap
     """
+
     intent_id: str
     action: FillAction
     reason: Optional[str] = None
-    
+
     # Swap fields
     amount_in_filled: Optional[Amount] = None
     amount_out_filled: Optional[Amount] = None
     fee_paid: Optional[Amount] = None
     protocol_fee_paid: Optional[Amount] = None
-    
+
     # Liquidity fields
     amount0_used: Optional[Amount] = None
     amount1_used: Optional[Amount] = None
@@ -72,18 +74,19 @@ class Fill:
 class BalanceDelta:
     """
     Balance delta for a (pubkey, asset) pair.
-    
+
     Attributes:
         pubkey: Public key
         asset: Asset identifier
         delta_add: Amount to add
         delta_sub: Amount to subtract
     """
+
     pubkey: PubKey
     asset: AssetId
     delta_add: Amount
     delta_sub: Amount
-    
+
     def net_delta(self) -> Amount:
         """Compute net delta (add - sub)."""
         return self.delta_add - self.delta_sub
@@ -93,18 +96,19 @@ class BalanceDelta:
 class ReserveDelta:
     """
     Reserve delta for a (pool_id, asset) pair.
-    
+
     Attributes:
         pool_id: Pool identifier
         asset: Asset identifier
         delta_add: Amount to add
         delta_sub: Amount to subtract
     """
+
     pool_id: PoolId
     asset: AssetId
     delta_add: Amount
     delta_sub: Amount
-    
+
     def net_delta(self) -> Amount:
         """Compute net delta (add - sub)."""
         return self.delta_add - self.delta_sub
@@ -114,18 +118,19 @@ class ReserveDelta:
 class LPDelta:
     """
     LP balance delta for a (pubkey, pool_id) pair.
-    
+
     Attributes:
         pubkey: Public key
         pool_id: Pool identifier
         delta_add: Amount to add
         delta_sub: Amount to subtract
     """
+
     pubkey: PubKey
     pool_id: PoolId
     delta_add: Amount
     delta_sub: Amount
-    
+
     def net_delta(self) -> Amount:
         """Compute net delta (add - sub)."""
         return self.delta_add - self.delta_sub
@@ -135,7 +140,7 @@ class LPDelta:
 class Settlement:
     """
     Batch settlement proposal.
-    
+
     Attributes:
         module: Must be "TauSwap"
         version: Protocol version
@@ -147,6 +152,7 @@ class Settlement:
         lp_deltas: List of LP deltas
         events: Optional list of events for indexing
     """
+
     module: str
     version: str
     batch_ref: str
@@ -156,7 +162,7 @@ class Settlement:
     reserve_deltas: List[ReserveDelta]
     lp_deltas: List[LPDelta]
     events: Optional[List[Dict[str, Any]]] = None
-    
+
     def __post_init__(self):
         """Validate settlement structure."""
         if self.module != "TauSwap":
@@ -176,19 +182,32 @@ class Settlement:
         included_set = set(included_ids)
         extra_fills = set(fill_ids) - included_set
         if extra_fills:
-            raise ValueError(f"fills contains intent_ids not in included_intents: {sorted(extra_fills)}")
-        
+            raise ValueError(
+                f"fills contains intent_ids not in included_intents: {sorted(extra_fills)}"
+            )
+
         # Verify all filled intents have corresponding fill details
         # Only check FILL actions; REJECT actions don't need fill details
         filled_intent_ids = {
-            intent_id for intent_id, action in self.included_intents
-            if action == FillAction.FILL
+            intent_id for intent_id, action in self.included_intents if action == FillAction.FILL
         }
         fill_intent_ids = {fill.intent_id for fill in self.fills if fill.action == FillAction.FILL}
-        
+
         if filled_intent_ids != fill_intent_ids:
             missing = filled_intent_ids - fill_intent_ids
             extra = fill_intent_ids - filled_intent_ids
-            raise ValueError(
-                f"Fill mismatch: missing {missing}, extra {extra}"
-            )
+            raise ValueError(f"Fill mismatch: missing {missing}, extra {extra}")
+
+
+def first_rejected_settlement_intent_error(settlement: Settlement) -> str | None:
+    """Return the mounted first-rejected-intent error in canonical batch order."""
+
+    fills_by_id = {fill.intent_id: fill for fill in settlement.fills}
+    for intent_id, action in settlement.included_intents:
+        if action == FillAction.FILL:
+            continue
+        fill = fills_by_id.get(intent_id)
+        action_value = action.value if type(action) is FillAction else str(action)
+        reason = fill.reason if fill is not None and fill.reason else str(action_value)
+        return f"settlement rejected intent_id={intent_id}: {reason}"
+    return None

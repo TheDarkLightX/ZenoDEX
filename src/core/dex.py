@@ -14,6 +14,13 @@ from typing import Any, Dict, List, Optional
 
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
+from ..state.legacy_state_snapshots import (
+    freeze_balance_table,
+    freeze_lp_table,
+    freeze_nonce_table,
+    freeze_optional_module_state,
+    freeze_pool_mapping,
+)
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.pools import PoolState
@@ -26,7 +33,7 @@ from .batch_clearing import (
 from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee_with_dust_carry
 from .oracle import OracleState
 from .perps import PerpsState
-from .settlement import FillAction, Settlement
+from .settlement import Settlement, first_rejected_settlement_intent_error
 from .settlement_strong_validator import validate_settlement_strong
 from .vault import VaultState
 
@@ -76,7 +83,7 @@ class DexConfig:
         return not bool(self.allow_legacy_nonce_free_steps)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class DexState:
     balances: BalanceTable
     pools: Dict[str, PoolState]
@@ -88,6 +95,31 @@ class DexState:
     oracle: Optional[OracleState] = None
     fee_accumulator: FeeAccumulatorState = FeeAccumulatorState()
     perps: Optional[PerpsState] = None
+
+    def __post_init__(self) -> None:
+        """Own and seal every value reachable from committed state."""
+
+        object.__setattr__(self, "balances", freeze_balance_table(self.balances))
+        object.__setattr__(self, "pools", freeze_pool_mapping(self.pools))
+        object.__setattr__(self, "lp_balances", freeze_lp_table(self.lp_balances))
+        object.__setattr__(self, "nonces", freeze_nonce_table(self.nonces))
+
+        frozen_vault = freeze_optional_module_state(self.vault)
+        frozen_oracle = freeze_optional_module_state(self.oracle)
+        frozen_fee_accumulator = freeze_optional_module_state(self.fee_accumulator)
+        frozen_perps = freeze_optional_module_state(self.perps)
+        if frozen_vault is not None and type(frozen_vault) is not VaultState:
+            raise TypeError("vault must be an exact VaultState or None")
+        if frozen_oracle is not None and type(frozen_oracle) is not OracleState:
+            raise TypeError("oracle must be an exact OracleState or None")
+        if type(frozen_fee_accumulator) is not FeeAccumulatorState:
+            raise TypeError("fee_accumulator must be an exact FeeAccumulatorState")
+        if frozen_perps is not None and type(frozen_perps) is not PerpsState:
+            raise TypeError("perps must be an exact PerpsState or None")
+        object.__setattr__(self, "vault", frozen_vault)
+        object.__setattr__(self, "oracle", frozen_oracle)
+        object.__setattr__(self, "fee_accumulator", frozen_fee_accumulator)
+        object.__setattr__(self, "perps", frozen_perps)
 
 
 @dataclass(frozen=True)
@@ -138,7 +170,7 @@ def _validate_and_apply_settlement(
         return DexStepResult(ok=False, error=err or "settlement invalid")
 
     if config.reject_settlements_with_rejected_intents:
-        err = _first_rejected_settlement_intent_error(settlement)
+        err = first_rejected_settlement_intent_error(settlement)
         if err is not None:
             return DexStepResult(ok=False, error=err)
 
@@ -180,18 +212,6 @@ def _validate_and_apply_settlement(
             "fee_split": fee_split,
         },
     )
-
-
-def _first_rejected_settlement_intent_error(settlement: Settlement) -> str | None:
-    fills_by_id = {fill.intent_id: fill for fill in settlement.fills}
-    for intent_id, action in settlement.included_intents:
-        if action == FillAction.FILL:
-            continue
-        fill = fills_by_id.get(intent_id)
-        action_value = action.value if isinstance(action, FillAction) else str(action)
-        reason = fill.reason if fill is not None and fill.reason else str(action_value)
-        return f"settlement rejected intent_id={intent_id}: {reason}"
-    return None
 
 
 def step_with_candidate_settlement(

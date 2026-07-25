@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib.util
 import random
 import sys
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
@@ -36,8 +37,12 @@ def _import_generated_ref() -> Any:
 REF = _import_generated_ref()
 
 
+def _field_dict(value: Any) -> dict[str, Any]:
+    return {field.name: getattr(value, field.name) for field in fields(value)}
+
+
 def _to_ref_state(s: VaultState):
-    return REF.State(**vars(s))
+    return REF.State(**_field_dict(s))
 
 
 def _to_ref_cmd(cmd: VaultCommand):
@@ -81,7 +86,7 @@ class TestVaultParityWithGeneratedRef:
     def test_initial_state_matches(self) -> None:
         ours = init_vault_state()
         ref = REF.init_state()
-        assert vars(_to_ref_state(ours)) == vars(ref)
+        assert _field_dict(_to_ref_state(ours)) == _field_dict(ref)
 
     @pytest.mark.parametrize(
         "amount,within_ref_domain,reason",
@@ -104,7 +109,7 @@ class TestVaultParityWithGeneratedRef:
         if within_ref_domain:
             assert our_res.ok == ref_res.ok, reason
             if our_res.ok:
-                assert vars(our_res.state) == vars(ref_res.state)
+                assert _field_dict(our_res.state) == _field_dict(ref_res.state)
                 assert dict(our_res.effects or {}) == dict(ref_res.effects or {})
         else:
             # Out-of-domain for the bounded ref: assert the ref rejects, but do not require the
@@ -132,7 +137,7 @@ class TestVaultParityWithGeneratedRef:
             assert ref_res.state is not None
             assert ref_res.effects is not None
 
-            assert vars(our_res.state) == vars(ref_res.state)
+            assert _field_dict(our_res.state) == _field_dict(ref_res.state)
             assert dict(our_res.effects) == dict(ref_res.effects)
 
             ours = our_res.state
