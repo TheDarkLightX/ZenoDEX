@@ -37,6 +37,7 @@ def exact(value: object) -> int:
     [
         "src/core/dex.py",
         "src/core/fcis_step_evaluation_values.py",
+        "src/state/fcis_committed_state_values.py",
         "src/core/fcis_step_evaluator.py",
         "src/core/settlement_strong_validator.py",
         "src/state/legacy_state_snapshots.py",
@@ -125,7 +126,7 @@ def _evaluate_spot_v1(*,
         protocol_fee_recipient_pubkey=settlement_context.protocol_fee_recipient_pubkey,
     )
 
-def _nonce_candidate_v1(*, state: _ExactStepStateV1,
+def _nonce_candidate_v1(*, state: FCISCommittedStateV1,
         intents: tuple[OwnedIntentV1, ...], context: FCISStepExecutionContextV1):
     return _validate_and_apply_intent_nonce_batch_admitted_v1(
         nonces=state.nonces,
@@ -133,7 +134,7 @@ def _nonce_candidate_v1(*, state: _ExactStepStateV1,
         require_all_nonces=context.require_all_nonces,
     )
 
-def _spot_candidate_v1(*, state: _ExactStepStateV1,
+def _spot_candidate_v1(*, state: FCISCommittedStateV1,
         settlement: OwnedSettlementV1, intents: tuple[OwnedIntentV1, ...],
         context: FCISStepExecutionContextV1):
     return _evaluate_spot_v1(
@@ -145,11 +146,11 @@ def _spot_candidate_v1(*, state: _ExactStepStateV1,
         context=context,
     )
 
-def _fee_candidate_v1(*, state: _ExactStepStateV1,
+def _fee_candidate_v1(*, state: FCISCommittedStateV1,
         settlement: OwnedSettlementV1, context: FCISStepExecutionContextV1):
     return _total_settlement_fees_v1(settlement)
 
-def _candidate_evidence_v1(*, pre_state: _ExactStepStateV1,
+def _candidate_evidence_v1(*, pre_state: FCISCommittedStateV1,
         candidate: FCISStepCandidateV1, context: FCISStepExecutionContextV1,
         intents: tuple[OwnedIntentV1, ...], pre_binding: object):
     return _compute_support_state_root_for_batch_owned_admitted_v1(
@@ -187,7 +188,24 @@ def evaluate_fcis_step_candidate_v1(*, balances: object, pools: object,
     fee = _fee_candidate_v1(
         state=state, settlement=exact_settlement, context=exact_context,
     )
-    candidate = FCISStepCandidateV1()
+    successor = FCISCommittedStateV1(
+        balances=spot.balances,
+        pools=spot.pools,
+        lp_balances=spot.lp_balances,
+        nonces=nonce.state,
+        vault=state.vault,
+        oracle=state.oracle,
+        fee_accumulator=fee[0],
+        perps=state.perps,
+    )
+    candidate = FCISStepCandidateV1(
+        state=successor,
+        balance_patch=spot.balance_patch,
+        pool_patch=spot.pool_patch,
+        lp_patch=spot.lp_patch,
+        nonce_patch=nonce.patch,
+        fee_allocation=fee[1],
+    )
     evidence = _candidate_evidence_v1(
         pre_state=state,
         candidate=candidate,
@@ -195,7 +213,13 @@ def evaluate_fcis_step_candidate_v1(*, balances: object, pools: object,
         intents=exact_intents,
         pre_binding=pre_binding,
     )
-    return nonce, spot, fee, evidence
+    material = FCISEvaluatedMaterialV1(
+        pre_state=state,
+        settlement=exact_settlement,
+        intents=exact_intents,
+        context=exact_context,
+    )
+    return FCISStepEvaluationOkV1(material, candidate, evidence)
 """
 
 
@@ -211,6 +235,15 @@ def _run_exact_consumer_source(tmp_path: Path, source: str) -> dict[str, object]
         test_matrix_paths=(),
         profile="exact-consumers",
     )
+
+
+def test_exact_consumers_profile_accepts_one_retained_lineage(tmp_path: Path) -> None:
+    report = _run_exact_consumer_source(
+        tmp_path,
+        _exact_consumer_dataflow_source(),
+    )
+
+    assert report["ok"] is True
 
 
 @pytest.mark.parametrize(
@@ -271,6 +304,26 @@ def _run_exact_consumer_source(tmp_path: Path, source: str) -> dict[str, object]
             "        state=state, settlement=exact_settlement, context=exact_context,\n"
             "    )",
         ),
+        (
+            "    material = FCISEvaluatedMaterialV1(\n"
+            "        pre_state=state,\n"
+            "        settlement=exact_settlement,\n"
+            "        intents=exact_intents,\n"
+            "        context=exact_context,\n"
+            "    )",
+            "    material = FCISEvaluatedMaterialV1(\n"
+            "        pre_state=state,\n"
+            "        settlement=other_settlement,\n"
+            "        intents=exact_intents,\n"
+            "        context=exact_context,\n"
+            "    )",
+        ),
+        (
+            "    return FCISStepEvaluationOkV1(material, candidate, evidence)",
+            "    return FCISStepEvaluationOkV1(\n"
+            "        material, replacement_candidate, evidence\n"
+            "    )",
+        ),
     ],
 )
 def test_exact_consumers_profile_kills_m4_dataflow_mutations(
@@ -311,10 +364,10 @@ def test_exact_consumers_profile_kills_raw_companion_sink_parameter(
 ) -> None:
     source = _exact_consumer_dataflow_source()
     source = source.replace(
-        "def _fee_candidate_v1(*, state: _ExactStepStateV1,\n"
+        "def _fee_candidate_v1(*, state: FCISCommittedStateV1,\n"
         "        settlement: OwnedSettlementV1, context: FCISStepExecutionContextV1):\n"
         "    return _total_settlement_fees_v1(settlement)",
-        "def _fee_candidate_v1(*, state: _ExactStepStateV1,\n"
+        "def _fee_candidate_v1(*, state: FCISCommittedStateV1,\n"
         "        settlement: OwnedSettlementV1, raw_settlement: object,\n"
         "        context: FCISStepExecutionContextV1):\n"
         "    return _total_settlement_fees_v1(raw_settlement)",

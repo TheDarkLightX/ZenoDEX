@@ -13,6 +13,7 @@ from pathlib import Path
 
 REPORT_SCHEMA = "zenodex/fcis-authority-snapshot-contract-check/v1"
 STATE_SUBSTRATE_AUTHORITY_PATHS = (
+    Path("src/state/fcis_committed_state_values.py"),
     Path("src/core/fcis_step_evaluation_values.py"),
     Path("src/core/fcis_step_evaluator.py"),
     Path("src/core/fee_accumulator_transition.py"),
@@ -1990,8 +1991,10 @@ def _check_exact_command_sinks_v1(
         "nonce",
         "spot",
         "fee",
+        "successor",
         "candidate",
         "evidence",
+        "material",
     )
     if not _has_single_bindings(entry, protected_results):
         _add_exact_consumer_violation(
@@ -2056,6 +2059,9 @@ def _check_exact_command_sinks_v1(
                 detail=(f"sink-result-not-authoritative:{target_name}:{sink_name}"),
             )
 
+    violations.extend(_check_exact_lineage_assignments_v1(entry, relative_path))
+    violations.extend(_check_exact_lineage_result_v1(entry, relative_path))
+
     admission_calls = tuple(
         call
         for call in _function_calls(entry)
@@ -2083,6 +2089,93 @@ def _check_exact_command_sinks_v1(
     return violations
 
 
+def _check_exact_lineage_assignments_v1(
+    entry: ast.FunctionDef,
+    relative_path: str,
+) -> list[_Violation]:
+    exact_constructions = (
+        (
+            "successor",
+            "FCISCommittedStateV1",
+            {
+                "balances": "spot.balances",
+                "pools": "spot.pools",
+                "lp_balances": "spot.lp_balances",
+                "nonces": "nonce.state",
+                "vault": "state.vault",
+                "oracle": "state.oracle",
+                "fee_accumulator": "fee[0]",
+                "perps": "state.perps",
+            },
+        ),
+        (
+            "candidate",
+            "FCISStepCandidateV1",
+            {
+                "state": "successor",
+                "balance_patch": "spot.balance_patch",
+                "pool_patch": "spot.pool_patch",
+                "lp_patch": "spot.lp_patch",
+                "nonce_patch": "nonce.patch",
+                "fee_allocation": "fee[1]",
+            },
+        ),
+        (
+            "material",
+            "FCISEvaluatedMaterialV1",
+            {
+                "pre_state": "state",
+                "settlement": "exact_settlement",
+                "intents": "exact_intents",
+                "context": "exact_context",
+            },
+        ),
+    )
+    violations: list[_Violation] = []
+    for target_name, constructor_name, expected_arguments in exact_constructions:
+        if _single_exact_assigned_call_v1(
+            entry,
+            target_name=target_name,
+            call_name=constructor_name,
+            keywords=expected_arguments,
+        ):
+            continue
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=entry,
+            detail=f"lineage-construction:{target_name}:{constructor_name}",
+        )
+    return violations
+
+
+def _check_exact_lineage_result_v1(
+    entry: ast.FunctionDef,
+    relative_path: str,
+) -> list[_Violation]:
+    result_returns = tuple(
+        node
+        for node in ast.walk(entry)
+        if type(node) is ast.Return
+        and type(node.value) is ast.Call
+        and _last_name(node.value.func) == "FCISStepEvaluationOkV1"
+    )
+    if len(result_returns) == 1 and _call_matches_exact_expressions_v1(
+        result_returns[0].value,
+        positional=("material", "candidate", "evidence"),
+    ):
+        return []
+    return [
+        _Violation(
+            relative_path,
+            entry.lineno,
+            entry.col_offset,
+            "EXACT_CONSUMER_DATAFLOW",
+            "lineage-result-not-exact",
+        )
+    ]
+
+
 def _check_exact_consumer_annotations_v1(
     functions: dict[str, ast.FunctionDef],
     relative_path: str,
@@ -2093,14 +2186,21 @@ def _check_exact_consumer_annotations_v1(
             "settlement": "OwnedSettlementV1",
             "intents": "tuple[OwnedIntentV1,...]",
         },
-        "_nonce_candidate_v1": {"intents": "tuple[OwnedIntentV1,...]"},
+        "_nonce_candidate_v1": {
+            "state": "FCISCommittedStateV1",
+            "intents": "tuple[OwnedIntentV1,...]",
+        },
         "_spot_candidate_v1": {
+            "state": "FCISCommittedStateV1",
             "settlement": "OwnedSettlementV1",
             "intents": "tuple[OwnedIntentV1,...]",
         },
-        "_fee_candidate_v1": {"settlement": "OwnedSettlementV1"},
+        "_fee_candidate_v1": {
+            "state": "FCISCommittedStateV1",
+            "settlement": "OwnedSettlementV1",
+        },
         "_candidate_evidence_v1": {
-            "pre_state": "_ExactStepStateV1",
+            "pre_state": "FCISCommittedStateV1",
             "intents": "tuple[OwnedIntentV1,...]",
         },
     }

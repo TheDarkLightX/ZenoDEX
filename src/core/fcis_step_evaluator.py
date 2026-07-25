@@ -8,11 +8,9 @@ module cannot authorize a shell commit.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import cast, final
-
 from ..state.canonical import domain_sep_bytes, sha256_hex
 from ..state.committed_dex_snapshot import canonical_snapshot_bytes_from_committed_state_v1
+from ..state.fcis_committed_state_values import FCISCommittedStateV1
 from ..state.fcis_execution_context import (
     admit_fcis_settlement_execution_context_v1,
     admit_fcis_step_execution_context_v1,
@@ -62,6 +60,7 @@ from ..state.support_root import (
 from .fcis_step_evaluation_values import (
     FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1,
     FCIS_STEP_EVALUATOR_ALGORITHM_VERSION_V1,
+    FCISEvaluatedMaterialV1,
     FCISFeeAllocationV1,
     FCISStepCandidateV1,
     FCISStepEvaluationEvidenceV1,
@@ -94,19 +93,6 @@ from .settlement_strong_validator import (
 FCIS_STEP_EVALUATOR_UNMOUNTED_V1 = True
 FCIS_STEP_CONTEXT_HASH_DOMAIN_V1 = "fcis_step_execution_context"
 MAX_LEGACY_INTENTS_V1 = 256
-
-
-@final
-@dataclass(frozen=True, slots=True)
-class _ExactStepStateV1:
-    balances: CommittedBalanceTableV1
-    pools: OwnedMapV1[str, CommittedPoolStateV1]
-    lp_balances: CommittedLPTableV1
-    nonces: CommittedNonceTableV1
-    vault: CommittedVaultStateV1 | None
-    oracle: CommittedOracleStateV1 | None
-    fee_accumulator: CommittedFeeAccumulatorStateV1
-    perps: CommittedPerpsStateV1 | None
 
 
 def _reject(
@@ -307,7 +293,7 @@ def _admit_exact_state_v1(
     oracle: object,
     fee_accumulator: object,
     perps: object,
-) -> _ExactStepStateV1 | FCISStepEvaluationRejectV1:
+) -> FCISCommittedStateV1 | FCISStepEvaluationRejectV1:
     """Revalidate all eight exact fields in the normative M5 field order."""
 
     exact_types = (
@@ -345,7 +331,7 @@ def _admit_exact_state_v1(
         exact_perps = snapshot_perps(perps)
     except StateAdmissionError as error:
         return _state_reject_v1(field, error)
-    return _ExactStepStateV1(
+    return FCISCommittedStateV1(
         balances=exact_balances,
         pools=exact_pools,
         lp_balances=exact_lp,
@@ -419,7 +405,7 @@ def _evaluate_spot_legacy_for_differential_v1(
 
 def _nonce_candidate_v1(
     *,
-    state: _ExactStepStateV1,
+    state: FCISCommittedStateV1,
     intents: tuple[OwnedIntentV1, ...],
     context: FCISStepExecutionContextV1,
 ) -> IntentNonceBatchOkV1 | FCISStepEvaluationRejectV1:
@@ -447,12 +433,12 @@ def _nonce_candidate_v1(
 
 def _spot_candidate_v1(
     *,
-    state: _ExactStepStateV1,
+    state: FCISCommittedStateV1,
     settlement: OwnedSettlementV1,
     intents: tuple[OwnedIntentV1, ...],
     context: FCISStepExecutionContextV1,
 ) -> StrongSettlementStateCandidateV1 | FCISStepEvaluationRejectV1:
-    result: object = _evaluate_spot_v1(
+    result = _evaluate_spot_v1(
         balances=state.balances,
         pools=state.pools,
         lp_balances=state.lp_balances,
@@ -507,7 +493,7 @@ def _total_settlement_fees_v1(
 
 def _fee_candidate_v1(
     *,
-    state: _ExactStepStateV1,
+    state: FCISCommittedStateV1,
     settlement: OwnedSettlementV1,
     context: FCISStepExecutionContextV1,
 ) -> tuple[CommittedFeeAccumulatorStateV1, FCISFeeAllocationV1 | None] | FCISStepEvaluationRejectV1:
@@ -549,7 +535,7 @@ def _fee_candidate_v1(
 
 
 def _pre_state_binding_v1(
-    state: _ExactStepStateV1,
+    state: FCISCommittedStateV1,
     context: FCISStepExecutionContextV1,
 ) -> tuple[bytes, str, bytes, str] | FCISStepEvaluationRejectV1:
     try:
@@ -579,7 +565,7 @@ def _pre_state_binding_v1(
 
 def _candidate_evidence_v1(
     *,
-    pre_state: _ExactStepStateV1,
+    pre_state: FCISCommittedStateV1,
     candidate: FCISStepCandidateV1,
     context: FCISStepExecutionContextV1,
     intents: tuple[OwnedIntentV1, ...],
@@ -589,21 +575,21 @@ def _candidate_evidence_v1(
     try:
         snapshot_bytes = canonical_snapshot_bytes_from_committed_state_v1(
             version=context.snapshot_version,
-            balances=candidate.spot.balances,
-            pools=candidate.spot.pools,
-            lp_balances=candidate.spot.lp_balances,
-            nonces=candidate.nonces,
-            fee_accumulator=candidate.fee_accumulator,
-            vault=candidate.vault,
-            oracle=candidate.oracle,
-            perps=candidate.perps,
+            balances=candidate.state.balances,
+            pools=candidate.state.pools,
+            lp_balances=candidate.state.lp_balances,
+            nonces=candidate.state.nonces,
+            fee_accumulator=candidate.state.fee_accumulator,
+            vault=candidate.state.vault,
+            oracle=candidate.state.oracle,
+            perps=candidate.state.perps,
         )
         post_preimage = state_root_preimage_with_committed_spot_state_v1(
-            balances=candidate.spot.balances,
-            pools=candidate.spot.pools,
-            lp_balances=candidate.spot.lp_balances,
-            nonces=candidate.nonces,
-            fee_accumulator=candidate.fee_accumulator,
+            balances=candidate.state.balances,
+            pools=candidate.state.pools,
+            lp_balances=candidate.state.lp_balances,
+            nonces=candidate.state.nonces,
+            fee_accumulator=candidate.state.fee_accumulator,
         )
         support_root = _compute_support_state_root_for_batch_owned_admitted_v1(
             intents=intents,
@@ -698,15 +684,23 @@ def evaluate_fcis_step_candidate_v1(
     )
     if type(fee) is FCISStepEvaluationRejectV1:
         return fee
-    candidate = FCISStepCandidateV1(
-        spot=spot,
+    successor = FCISCommittedStateV1(
+        balances=spot.balances,
+        pools=spot.pools,
+        lp_balances=spot.lp_balances,
         nonces=nonce.state,
-        nonce_patch=nonce.patch,
-        fee_accumulator=fee[0],
-        fee_allocation=fee[1],
         vault=state.vault,
         oracle=state.oracle,
+        fee_accumulator=fee[0],
         perps=state.perps,
+    )
+    candidate = FCISStepCandidateV1(
+        state=successor,
+        balance_patch=spot.balance_patch,
+        pool_patch=spot.pool_patch,
+        lp_patch=spot.lp_patch,
+        nonce_patch=nonce.patch,
+        fee_allocation=fee[1],
     )
     evidence = _candidate_evidence_v1(
         pre_state=state,
@@ -717,7 +711,13 @@ def evaluate_fcis_step_candidate_v1(
     )
     if type(evidence) is FCISStepEvaluationRejectV1:
         return evidence
-    return FCISStepEvaluationOkV1(candidate, evidence)
+    material = FCISEvaluatedMaterialV1(
+        pre_state=state,
+        settlement=exact_settlement,
+        intents=exact_intents,
+        context=exact_context,
+    )
+    return FCISStepEvaluationOkV1(material, candidate, evidence)
 
 
 def evaluate_fcis_spot_candidate_v1(
@@ -740,9 +740,8 @@ def evaluate_fcis_spot_candidate_v1(
 
     command = _admit_legacy_command_shape_for_differential_v1(settlement, intents)
     if type(command) is FCISStepEvaluationRejectV1:
-        reject = cast(FCISStepEvaluationRejectV1, command)
-        return StrongSettlementRejectV1(reject.public_reason)
-    exact_command = cast(tuple[Settlement, list[Intent]], command)
+        return StrongSettlementRejectV1(command.public_reason)
+    exact_command = command
     context_result = admit_fcis_settlement_execution_context_v1(context)
     if type(context_result) is AdmitReject:
         return StrongSettlementRejectV1(_context_reject_v1(context_result).public_reason)

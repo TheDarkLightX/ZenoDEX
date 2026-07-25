@@ -154,12 +154,12 @@ def test_exact_step_evaluator_retains_one_candidate_and_all_leaf_patches() -> No
     assert FCIS_STEP_EVALUATOR_UNMOUNTED_V1 is True
     assert type(result) is FCISStepEvaluationOkV1
     candidate = result.candidate
-    assert candidate.spot.balance_patch is not None
-    assert candidate.spot.pool_patch is not None
-    assert candidate.spot.lp_patch is None
+    assert candidate.balance_patch is not None
+    assert candidate.pool_patch is not None
+    assert candidate.lp_patch is None
     assert candidate.nonce_patch is not None
     assert candidate.fee_allocation is not None
-    assert candidate.nonces.get_last(intent.sender_pubkey) == 1
+    assert candidate.state.nonces.get_last(intent.sender_pubkey) == 1
     assert admit_legacy_balance_for_differential_v1(state.balances) == pre_balances
     assert admit_legacy_pool_map_for_differential_v1(state.pools) == pre_pools
     assert admit_legacy_nonce_for_differential_v1(state.nonces) == pre_nonces
@@ -194,11 +194,11 @@ def test_evidence_binds_same_candidate_context_and_pre_post_roots() -> None:
     assert evidence.support_root == expected_support_root
     assert evidence.post_state_root_preimage == (
         state_root_preimage_with_committed_spot_state_v1(
-            balances=candidate.spot.balances,
-            pools=candidate.spot.pools,
-            lp_balances=candidate.spot.lp_balances,
-            nonces=candidate.nonces,
-            fee_accumulator=candidate.fee_accumulator,
+            balances=candidate.state.balances,
+            pools=candidate.state.pools,
+            lp_balances=candidate.state.lp_balances,
+            nonces=candidate.state.nonces,
+            fee_accumulator=candidate.state.fee_accumulator,
         )
     )
     retained_context_bytes = evidence.execution_context_bytes
@@ -518,7 +518,7 @@ def test_exact_step_path_does_not_call_legacy_differential_callbacks(
     result = _evaluate(state, settlement, [intent], _context_source())
 
     assert type(result) is FCISStepEvaluationOkV1
-    assert result.candidate.nonces.get_last(intent.sender_pubkey) == 1
+    assert result.candidate.state.nonces.get_last(intent.sender_pubkey) == 1
     assert result.evidence.support_root_version == 5
 
 
@@ -556,7 +556,7 @@ def test_exact_step_evaluator_matches_independent_legacy_oracle() -> None:
     assert type(legacy_result) is StrongSettlementStateCandidateV1
     assert not isinstance(legacy_result, StrongSettlementRejectV1)
 
-    exact_candidate = exact_result.candidate.spot
+    exact_candidate = exact_result.candidate.state
     assert exact_candidate.balances == legacy_result.balances
     assert exact_candidate.pools == legacy_result.pools
     assert exact_candidate.lp_balances == legacy_result.lp_balances

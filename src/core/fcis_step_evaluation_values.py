@@ -1,8 +1,8 @@
 """Owned values for the unmounted FCIS spot-step evaluator.
 
-These values are pre-M5 differential evidence.  They are intentionally not a
-``DexState``, aggregate ``Decision``, ``CommitPlan``, or ``CommitBundle`` and
-cannot authorize publication.
+The evaluation result retains the exact admitted command, context, pre-state,
+successor, and evidence as one immutable lineage. Later FCIS stages derive
+authority values from that lineage and cannot substitute a second command.
 """
 
 from __future__ import annotations
@@ -11,16 +11,17 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TypeAlias, final
 
-from ..state.state_snapshot_values import (
-    CommittedFeeAccumulatorStateV1,
-    CommittedNonceTableV1,
-    CommittedOracleStateV1,
-    CommittedPerpsStateV1,
-    CommittedVaultStateV1,
+from ..state.fcis_committed_state_values import FCISCommittedStateV1
+from ..state.fcis_execution_context_values import FCISStepExecutionContextV1
+from ..state.intent_snapshots import OwnedIntentV1
+from ..state.state_transitions import (
+    CanonicalBalancePatchV1,
+    CanonicalLPPositionPatchV1,
+    CanonicalNoncePatchV1,
+    CanonicalPoolPatchV1,
 )
-from ..state.state_transitions import CanonicalNoncePatchV1
 from ..state.support_root import EXACT_SUPPORT_ROOT_VERSION_V1
-from .settlement_strong_validator import StrongSettlementStateCandidateV1
+from .settlement_snapshots import OwnedSettlementV1
 
 FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1 = "zenodex/fcis/spot-step-evaluator/v1"
 FCIS_STEP_EVALUATOR_ALGORITHM_VERSION_V1 = 1
@@ -84,34 +85,54 @@ class FCISFeeAllocationV1:
 @final
 @dataclass(frozen=True, slots=True)
 class FCISStepCandidateV1:
-    """One unmounted candidate retaining every exact transition output."""
+    """One successor plus every canonical patch produced by its evaluation."""
 
-    spot: StrongSettlementStateCandidateV1
-    nonces: CommittedNonceTableV1
+    state: FCISCommittedStateV1
+    balance_patch: CanonicalBalancePatchV1 | None
+    pool_patch: CanonicalPoolPatchV1 | None
+    lp_patch: CanonicalLPPositionPatchV1 | None
     nonce_patch: CanonicalNoncePatchV1 | None
-    fee_accumulator: CommittedFeeAccumulatorStateV1
     fee_allocation: FCISFeeAllocationV1 | None
-    vault: CommittedVaultStateV1 | None
-    oracle: CommittedOracleStateV1 | None
-    perps: CommittedPerpsStateV1 | None
 
     def __post_init__(self) -> None:
-        if type(self.spot) is not StrongSettlementStateCandidateV1:
-            raise TypeError("step spot candidate must be exact")
-        if type(self.nonces) is not CommittedNonceTableV1:
-            raise TypeError("step nonce candidate must be exact")
+        if type(self.state) is not FCISCommittedStateV1:
+            raise TypeError("step successor state must be exact")
+        if (
+            self.balance_patch is not None
+            and type(self.balance_patch) is not CanonicalBalancePatchV1
+        ):
+            raise TypeError("step balance patch must be exact or None")
+        if self.pool_patch is not None and type(self.pool_patch) is not CanonicalPoolPatchV1:
+            raise TypeError("step pool patch must be exact or None")
+        if self.lp_patch is not None and type(self.lp_patch) is not CanonicalLPPositionPatchV1:
+            raise TypeError("step LP patch must be exact or None")
         if self.nonce_patch is not None and type(self.nonce_patch) is not CanonicalNoncePatchV1:
             raise TypeError("step nonce patch must be exact or None")
-        if type(self.fee_accumulator) is not CommittedFeeAccumulatorStateV1:
-            raise TypeError("step fee-accumulator candidate must be exact")
         if self.fee_allocation is not None and type(self.fee_allocation) is not FCISFeeAllocationV1:
             raise TypeError("step fee allocation must be exact or None")
-        if self.vault is not None and type(self.vault) is not CommittedVaultStateV1:
-            raise TypeError("step vault candidate must be exact or None")
-        if self.oracle is not None and type(self.oracle) is not CommittedOracleStateV1:
-            raise TypeError("step Oracle candidate must be exact or None")
-        if self.perps is not None and type(self.perps) is not CommittedPerpsStateV1:
-            raise TypeError("step perps candidate must be exact or None")
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class FCISEvaluatedMaterialV1:
+    """Exact admitted inputs retained for same-lineage downstream derivation."""
+
+    pre_state: FCISCommittedStateV1
+    settlement: OwnedSettlementV1
+    intents: tuple[OwnedIntentV1, ...]
+    context: FCISStepExecutionContextV1
+
+    def __post_init__(self) -> None:
+        if type(self.pre_state) is not FCISCommittedStateV1:
+            raise TypeError("evaluated pre-state must be exact")
+        if type(self.settlement) is not OwnedSettlementV1:
+            raise TypeError("evaluated settlement must be exact")
+        if type(self.intents) is not tuple or any(
+            type(intent) is not OwnedIntentV1 for intent in self.intents
+        ):
+            raise TypeError("evaluated intents must be an exact owned tuple")
+        if type(self.context) is not FCISStepExecutionContextV1:
+            raise TypeError("evaluated context must be exact")
 
 
 def _is_digest_v1(value: object) -> bool:
@@ -173,12 +194,15 @@ class FCISStepEvaluationEvidenceV1:
 @final
 @dataclass(frozen=True, slots=True)
 class FCISStepEvaluationOkV1:
-    """One candidate and the evidence derived from that candidate."""
+    """One exact input lineage, candidate, and evidence derived from both."""
 
+    material: FCISEvaluatedMaterialV1
     candidate: FCISStepCandidateV1
     evidence: FCISStepEvaluationEvidenceV1
 
     def __post_init__(self) -> None:
+        if type(self.material) is not FCISEvaluatedMaterialV1:
+            raise TypeError("evaluation material must be exact")
         if type(self.candidate) is not FCISStepCandidateV1:
             raise TypeError("evaluation candidate must be exact")
         if type(self.evidence) is not FCISStepEvaluationEvidenceV1:
@@ -191,6 +215,7 @@ FCISStepEvaluationResultV1: TypeAlias = FCISStepEvaluationOkV1 | FCISStepEvaluat
 __all__ = (
     "FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1",
     "FCIS_STEP_EVALUATOR_ALGORITHM_VERSION_V1",
+    "FCISEvaluatedMaterialV1",
     "FCISFeeAllocationV1",
     "FCISStepCandidateV1",
     "FCISStepEvaluationEvidenceV1",
