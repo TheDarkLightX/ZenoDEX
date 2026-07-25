@@ -1,0 +1,68 @@
+{
+  "schema": "zenodex/fcis-m5-completion-receipt/v1",
+  "contract": "zenodex/fcis-m5-atomic-mount/v2",
+  "recorded_at": "2026-07-25",
+  "outcome": "M5_PREREQUISITE_CHECKPOINT_ONLY",
+  "mount_status": "M5_BLOCKED_NO_AUTHORITY_SWITCH",
+  "repository": "TheDarkLightX/ZenoDEX",
+  "pull_request": 488,
+  "branch": "agent/fcis-m5-atomic-mount-20260725",
+  "base_branch": "agent/fcis-pr454-reviewed-port-20260723",
+  "starting_head": "d3f7b5068effd793d8d16ea63aa8c36e19e32243",
+  "required_reviewed_m4_ancestor": "a6e20097d74641784402fb2af5a9939beaf11a9d",
+  "validated_source_checkpoint": "8f8e313bb951800a1d18ee221168a3935ab3f4ad",
+  "receipt_commit_excluded_from_source_checkpoint": true,
+  "authority_switched": false,
+  "production_runtime_changed": false,
+  "completed_capabilities": [
+    "closed_accept_reject_committed_failure_algebra",
+    "exact_eight_field_committed_state_aggregate",
+    "canonical_candidate_receipt_plan_bundle_binding",
+    "ordinary_reject_has_no_successor_or_effect_authority",
+    "receipt_derived_transactional_outbox_identities",
+    "expected_pre_root_reference_compare_and_swap",
+    "atomic_state_receipt_replay_outbox_reference_publication",
+    "stale_invalid_duplicate_crash_no_publication_semantics",
+    "per_bundle_replay_publication_batches",
+    "locked_dependency_m5_quality_gate"
+  ],
+  "changed_files": [
+    ".github/workflows/fcis-m5-atomic.yml",
+    "docs/research/FCIS_M5_IMPLEMENTOR_NOTES_20260725.md",
+    "docs/research/FCIS_M5_P0_DRIFT_AUDIT_20260725.md",
+    "src/core/fcis_atomic_mount_codec.py",
+    "src/core/fcis_atomic_mount_values.py",
+    "src/integration/fcis_atomic_commit_reference.py",
+    "tests/core/test_fcis_atomic_mount.py"
+  ],
+  "validation": {
+    "workflow": "fcis-m5-atomic",
+    "run_id": 30160353798,
+    "job_id": 89684561981,
+    "head_sha": "8f8e313bb951800a1d18ee221168a3935ab3f4ad",
+    "locked_dependencies": "pass",
+    "ruff": "pass",
+    "mypy": "pass",
+    "atomic_authority_laws": "pass"
+  },
+  "open_mount_blockers": [
+    "support_root_v5_explicit_presence_absence_not_closed",
+    "support_root_v5_touched_recipient_and_lp_coverage_incomplete",
+    "fee_accumulator_and_declared_context_support_incomplete",
+    "exact_m4_evaluator_to_m5_decision_adapter_missing",
+    "verifier_and_proof_guest_migration_missing",
+    "golden_vector_packet_missing",
+    "python_rust_m5_refinement_missing",
+    "real_transactional_datastore_and_crash_evidence_missing",
+    "independent_adversarial_promotion_review_missing"
+  ],
+  "nonclaims": [
+    "production_datastore_linearizability",
+    "wal_or_fsync_durability",
+    "multi_process_commit_safety",
+    "external_exactly_once_delivery",
+    "support_root_v5_promotion",
+    "python_rust_equivalence",
+    "runtime_authority_mount"
+  ]
+}
