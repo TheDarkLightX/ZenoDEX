@@ -24,7 +24,7 @@ import signal
 import subprocess
 import time
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional, Sequence, Tuple
+from typing import Mapping, Optional, Sequence, Tuple
 
 from ..state.canonical import bounded_json_utf8_size, canonical_json_bytes
 
@@ -173,6 +173,7 @@ class SubprocessProofVerifier(ProofVerifier):
             stdin_view = memoryview(proof_bytes)
             stdin_off = 0
             stdin_open = True
+            stdin_broken_pipe = False
             stdout_open = True
             stderr_open = True
             if len(stdin_view) == 0:
@@ -214,9 +215,18 @@ class SubprocessProofVerifier(ProofVerifier):
                     try:
                         n_written: object = stream.write(stdin_view[stdin_off : stdin_off + 4096])
                     except BrokenPipeError:
-                        _kill_proc_group()
-                        _wait_after_kill()
-                        return False, "proof verifier stdin broken pipe"
+                        # The child may have already emitted a more specific
+                        # rejection or malformed response. Drain both output
+                        # pipes and apply the fixed precedence below. A
+                        # structurally valid response still fails closed
+                        # because the verifier did not consume the full input.
+                        stdin_broken_pipe = True
+                        stdin_open = False
+                        try:
+                            stream.close()
+                        except Exception:
+                            pass
+                        continue
                     except BlockingIOError:
                         continue
                     except Exception:
@@ -237,6 +247,8 @@ class SubprocessProofVerifier(ProofVerifier):
                         stdin_open = False
                         try:
                             proc.stdin.close()
+                        except BrokenPipeError:
+                            stdin_broken_pipe = True
                         except Exception:
                             _kill_proc_group()
                             _wait_after_kill()
@@ -314,15 +326,19 @@ class SubprocessProofVerifier(ProofVerifier):
                 return False, "invalid verifier output (not an object)"
 
             ok = result.get("ok")
+            if ok is not True and ok is not False:
+                return False, "invalid verifier output (missing ok)"
+
+            if stdin_broken_pipe:
+                return False, "proof verifier stdin broken pipe"
+
             if ok is True:
                 return True, None
-            if ok is False:
-                error_value = result.get("error")
-                if isinstance(error_value, str) and error_value:
-                    return False, error_value
-                return False, "proof rejected"
 
-            return False, "invalid verifier output (missing ok)"
+            error_value = result.get("error")
+            if isinstance(error_value, str) and error_value:
+                return False, error_value
+            return False, "proof rejected"
         finally:
             # Ensure the child is not left as a zombie, even if we returned early.
             try:
