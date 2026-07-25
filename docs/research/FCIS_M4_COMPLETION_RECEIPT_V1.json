@@ -1,13 +1,14 @@
 {
-  "schema": "zenodex/fcis/m4-completion-receipt/v2",
+  "schema": "zenodex/fcis/m4-completion-receipt/v3",
   "milestone": "M4",
   "title": "Exact Authoritative Consumer Migration",
   "branch": "agent/fcis-pr454-reviewed-port-20260723",
   "review_start_head": "1887f7ca059a5261d929586b22a5db48d39c4b5c",
-  "source_checkpoint_head": "a6e20097d74641784402fb2af5a9939beaf11a9d",
+  "source_checkpoint_head": "bd17a9361f560b23cc1b9d4ecc8e99d144b8deb0",
+  "independently_reviewed_semantic_head": "a6e20097d74641784402fb2af5a9939beaf11a9d",
   "pre_checker_repair_head": "9e732524d3c8fc6a05472793d22761915e0a92b8",
   "m3_ancestor": "0763a39de9daad13a3e189fa8ab3a9f6a1e3589c",
-  "status": "source_checkpoint_independently_reviewed_for_stack_progression",
+  "status": "exact_head_locally_revalidated_for_stack_progression_github_pending",
   "mount_status": "unmounted",
   "decision_record": {
     "malformed_canonical_command": "reject at COMMAND_ADMISSION with stable code and path",
@@ -47,6 +48,14 @@
     {
       "id": "M4-CRITICAL-GATE",
       "summary": "The exact-consumers structural profile is included in the critical quality gate."
+    },
+    {
+      "id": "M4-DETERMINISTIC-VERIFIER-ERRORS",
+      "summary": "The shell verifier drains an early-exiting child before applying fixed error precedence; a structurally valid response still rejects when the child did not consume the full authoritative input."
+    },
+    {
+      "id": "M4-EXACT-HEAD-FORMAT-GATE",
+      "summary": "The mounted state-snapshot source is formatter-clean at the exact checkpoint without changing its authority semantics."
     }
   ],
   "support_root_profiles": {
@@ -89,17 +98,23 @@
     "format": "PASS on changed Python files",
     "mypy": "PASS: no issues found in 25 source files",
     "diff_check": "PASS",
+    "exact_head_gate_repair": {
+      "proof_verifier_unit_suite": "27 passed",
+      "deterministic_early_exit_witness": "invalid output and unread valid output follow fixed fail-closed precedence",
+      "mounted_state_snapshot_format": "PASS"
+    },
     "critical_quality_gate": {
       "result": "PASS",
       "python": "/home/trevormoc/Downloads/Autonomous Tau DEX/.venv/bin/python",
-      "acceptance_tcb": "553 passed",
+      "acceptance_tcb": "554 passed",
       "critical_suite": "790 passed",
       "support_root_branch_coverage": "82.5 percent, required 80 percent"
     },
     "production_boundary": "ok=true",
     "permissionless_assurance": "critical READY; 1 of 7 evidence lanes available",
-    "security_redflags": "0 high; 4 medium inherited broad catches outside the new exact admission code",
-    "independent_drift_review": "GO for all three M4 blockers at the committed source content; 11 raw-provenance and private-capability variants rejected with EXACT_CONSUMER_DATAFLOW or PRIVATE_AUTHORITY_IMPORT"
+    "security_redflags": "0 high; 21 medium inherited fail-closed subprocess and broad-catch findings in proof_verifier; original M4 exact-path findings unchanged",
+    "independent_drift_review": "GO for all three M4 semantic blockers at a6e20097; 11 raw-provenance and private-capability variants rejected with EXACT_CONSUMER_DATAFLOW or PRIVATE_AUTHORITY_IMPORT",
+    "github_checks_at_source_checkpoint": "pending"
   },
   "forbidden_mechanisms_verified_absent_on_exact_path": [
     "generic deep_freeze(Any)",
