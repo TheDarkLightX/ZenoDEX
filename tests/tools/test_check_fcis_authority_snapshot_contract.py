@@ -332,6 +332,48 @@ def test_exact_consumers_profile_kills_raw_companion_sink_parameter(
     assert "EXACT_CONSUMER_DATAFLOW" in _codes(report)
 
 
+def test_exact_consumers_profile_kills_pre_admission_raw_alias_override(
+    tmp_path: Path,
+) -> None:
+    source = _exact_consumer_dataflow_source()
+    source = source.replace(
+        "    command = _admit_exact_command_v1(settlement, intents)",
+        "    raw_settlement = settlement\n"
+        "    command = _admit_exact_command_v1(settlement, intents)",
+        1,
+    )
+    source = source.replace(
+        "    candidate = FCISStepCandidateV1()",
+        "    fee = _total_settlement_fees_v1(raw_settlement)\n"
+        "    candidate = FCISStepCandidateV1()",
+        1,
+    )
+
+    report = _run_exact_consumer_source(tmp_path, source)
+
+    assert "EXACT_CONSUMER_DATAFLOW" in _codes(report)
+
+
+def test_exact_consumers_profile_requires_exact_sink_result_assignment(
+    tmp_path: Path,
+) -> None:
+    source = _exact_consumer_dataflow_source()
+    source = source.replace(
+        "    fee = _fee_candidate_v1(\n"
+        "        state=state, settlement=exact_settlement, context=exact_context,\n"
+        "    )",
+        "    _fee_candidate_v1(\n"
+        "        state=state, settlement=exact_settlement, context=exact_context,\n"
+        "    )\n"
+        "    fee = _total_settlement_fees_v1(exact_settlement)",
+        1,
+    )
+
+    report = _run_exact_consumer_source(tmp_path, source)
+
+    assert "EXACT_CONSUMER_DATAFLOW" in _codes(report)
+
+
 def _run_exact_consumer_leaf_source(
     tmp_path: Path,
     relative: Path,
@@ -1059,6 +1101,74 @@ def test_checker_rejects_private_capability_attribute_capture(
     ],
 )
 def test_checker_rejects_private_admitted_sink_imports_outside_evaluator(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    assert "PRIVATE_AUTHORITY_IMPORT" in _codes(_run(tmp_path, source))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        (
+            "import src.core.nonce_batch_transition as nonce_module\n"
+            "name = '_validate_and_apply_intent_nonce_batch_' + 'admitted_v1'\n"
+            "sink = getattr(nonce_module, name)\n"
+        ),
+        (
+            "import src.core.nonce_batch_transition as nonce_module\n"
+            "def capture_private_sink():\n"
+            "    name = '_validate_and_apply_intent_nonce_batch_' + 'admitted_v1'\n"
+            "    return getattr(nonce_module, name)\n"
+        ),
+    ],
+)
+def test_checker_rejects_computed_private_admitted_sink_getattr(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    assert "PRIVATE_AUTHORITY_IMPORT" in _codes(_run(tmp_path, source))
+
+
+@pytest.mark.parametrize(
+    "capture",
+    [
+        "nonce_module.__dict__[name]",
+        "vars(nonce_module)[name]",
+    ],
+)
+def test_checker_rejects_private_sink_module_mapping_capture(
+    tmp_path: Path,
+    capture: str,
+) -> None:
+    source = (
+        "import src.core.nonce_batch_transition as nonce_module\n"
+        "prefix = '_validate_and_apply_intent_nonce_batch_'\n"
+        "suffix = 'admitted_v1'\n"
+        "name = prefix + suffix\n"
+        f"sink = {capture}\n"
+    )
+
+    assert "PRIVATE_AUTHORITY_IMPORT" in _codes(_run(tmp_path, source))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        (
+            "import importlib\n"
+            "module_name = 'src.core.nonce_batch_' + 'transition'\n"
+            "nonce_module = importlib.import_module(module_name)\n"
+        ),
+        (
+            "import sys\n"
+            "module_name = 'src.core.nonce_batch_' + 'transition'\n"
+            "nonce_module = sys.modules[module_name]\n"
+        ),
+        "from src.core import nonce_batch_transition as nonce_module\n",
+    ],
+)
+def test_checker_rejects_private_authority_module_object_capture(
     tmp_path: Path,
     source: str,
 ) -> None:

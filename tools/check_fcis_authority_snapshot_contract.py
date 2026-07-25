@@ -255,6 +255,24 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
     "_ADMISSION_REGISTRY_TOKEN": ("src/state/snapshot_combinators.py",),
     "_VALIDATED_LIMITS_TOKEN": ("src/state/snapshot_combinators.py",),
 }
+
+# Unresolved reflection into a module that exports a private authority
+# capability is fail-closed.  Direct imports remain governed by the symbol
+# allowlist above; dynamic lookup cannot provide equivalent provenance.
+_PRIVATE_AUTHORITY_REFLECTION_MODULES = frozenset(
+    {
+        "src.core.nonce_batch_transition",
+        "src.core.settlement_strong_validator",
+        "src.state.owned_collections",
+        "src.state.pool_creation_transition",
+        "src.state.snapshot_combinators",
+        "src.state.state_transitions",
+        "src.state.support_root",
+    }
+)
+_PRIVATE_AUTHORITY_MODULE_OBJECT_ALLOWLIST = {
+    "src.state.snapshot_combinators": ("src/state/state_admission_profile.py",),
+}
 _PROFILE_ENGINE_NAMES = {
     "snapshot_combinators._admit_with_registry_v1",
     "src.state.snapshot_combinators._admit_with_registry_v1",
@@ -443,6 +461,19 @@ class _AuthorityVisitor(ast.NodeVisitor):
         for alias in node.names:
             local_name = alias.asname or alias.name.split(".", 1)[0]
             self.module_aliases[local_name] = alias.name
+            module_object_paths = _PRIVATE_AUTHORITY_MODULE_OBJECT_ALLOWLIST.get(
+                alias.name,
+                (),
+            )
+            if alias.name in _PRIVATE_AUTHORITY_REFLECTION_MODULES and not _matches_allowed_path(
+                self.relative_path,
+                module_object_paths,
+            ):
+                self._add(
+                    node,
+                    "PRIVATE_AUTHORITY_IMPORT",
+                    f"module-object:{alias.name}",
+                )
             if alias.name in {"pickle", "copyreg"}:
                 self._add(node, "FORBIDDEN_RECONSTRUCTION", alias.name)
             shadow_detail = _shadow_import_detail(self.relative_path, alias.name)
@@ -465,6 +496,19 @@ class _AuthorityVisitor(ast.NodeVisitor):
             local_name = alias.asname or alias.name
             qualified = f"{module}.{alias.name}" if module else alias.name
             self.name_aliases[local_name] = qualified
+            module_object_paths = _PRIVATE_AUTHORITY_MODULE_OBJECT_ALLOWLIST.get(
+                qualified,
+                (),
+            )
+            if qualified in _PRIVATE_AUTHORITY_REFLECTION_MODULES and not _matches_allowed_path(
+                self.relative_path,
+                module_object_paths,
+            ):
+                self._add(
+                    node,
+                    "PRIVATE_AUTHORITY_IMPORT",
+                    f"module-object:{qualified}",
+                )
             if module == "copy" and alias.name in {"copy", "deepcopy"}:
                 self._add(node, "FORBIDDEN_COPY", qualified)
             if module in {"pickle", "copyreg"}:
@@ -535,6 +579,13 @@ class _AuthorityVisitor(ast.NodeVisitor):
         ):
             # Attribute capture is equivalent to importing the private capability.
             self._add(node, "PRIVATE_AUTHORITY_IMPORT", self._resolve(node) or node.attr)
+        reflected_base = self._resolve(node.value)
+        if node.attr == "__dict__" and reflected_base in _PRIVATE_AUTHORITY_REFLECTION_MODULES:
+            self._add(
+                node,
+                "PRIVATE_AUTHORITY_IMPORT",
+                f"module-dict:{reflected_base}",
+            )
         if (
             self.relative_path != _SHADOW_AUTHORITY_PATH
             and node.attr in _SHADOW_AUTHORITY_RESERVED_TOKENS
@@ -587,6 +638,14 @@ class _AuthorityVisitor(ast.NodeVisitor):
             # Reflective dictionary lookup imports the same private capability as
             # direct attribute access; spelling must not weaken the boundary.
             self._add(node, "PRIVATE_AUTHORITY_IMPORT", symbol or "")
+        if self._resolve(node.value) == "sys.modules":
+            module_name = self._bounded_static_string(node.slice)
+            if module_name in _PRIVATE_AUTHORITY_REFLECTION_MODULES:
+                self._add(
+                    node,
+                    "PRIVATE_AUTHORITY_IMPORT",
+                    f"sys.modules:{module_name}",
+                )
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -872,21 +931,47 @@ class _AuthorityVisitor(ast.NodeVisitor):
             }
             and len(node.args) >= 2
         ):
-            symbol_node = node.args[1]
-            symbol = (
-                symbol_node.value
-                if type(symbol_node) is ast.Constant and type(symbol_node.value) is str
-                else None
-            )
+            symbol = self._bounded_static_string(node.args[1])
             allowed_paths = _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST.get(symbol or "")
             if allowed_paths is not None and not _matches_allowed_path(
                 self.relative_path,
                 allowed_paths,
             ):
-                # Literal reflection is authority import by another spelling.
+                # Statically resolvable reflection is authority import by
+                # another spelling.
                 self._add(node, "PRIVATE_AUTHORITY_IMPORT", symbol or "")
+            reflected_base = self._resolve(node.args[0])
+            if symbol is None and reflected_base in _PRIVATE_AUTHORITY_REFLECTION_MODULES:
+                self._add(
+                    node,
+                    "PRIVATE_AUTHORITY_IMPORT",
+                    f"dynamic:{reflected_base}",
+                )
+        if called_tail == "vars" and node.args:
+            reflected_base = self._resolve(node.args[0])
+            if reflected_base in _PRIVATE_AUTHORITY_REFLECTION_MODULES:
+                self._add(
+                    node,
+                    "PRIVATE_AUTHORITY_IMPORT",
+                    f"module-vars:{reflected_base}",
+                )
         if called in {"copy.copy", "copy.deepcopy"}:
             self._add(node, "FORBIDDEN_COPY", called)
+        if (
+            called
+            in {
+                "__import__",
+                "builtins.__import__",
+                "importlib.import_module",
+            }
+            and node.args
+            and self._bounded_static_string(node.args[0]) in _PRIVATE_AUTHORITY_REFLECTION_MODULES
+        ):
+            self._add(
+                node,
+                "PRIVATE_AUTHORITY_IMPORT",
+                f"dynamic-module:{self._bounded_static_string(node.args[0])}",
+            )
         if (
             called
             in {
@@ -1871,15 +1956,23 @@ def _check_exact_command_sinks_v1(
     relative_path: str,
 ) -> list[_Violation]:
     violations: list[_Violation] = []
-    if not _has_named_call_assignment(
-        entry,
-        target_name="command",
-        call_name="_admit_exact_command_v1",
-        positional_names=("settlement", "intents"),
-    ) or not _has_named_tuple_assignment(
-        entry,
-        target_names=("exact_settlement", "exact_intents"),
-        source_name="command",
+    if (
+        not _has_named_call_assignment(
+            entry,
+            target_name="command",
+            call_name="_admit_exact_command_v1",
+            positional_names=("settlement", "intents"),
+        )
+        or not _single_exact_call_v1(
+            entry,
+            call_name="_admit_exact_command_v1",
+            positional=("settlement", "intents"),
+        )
+        or not _has_named_tuple_assignment(
+            entry,
+            target_names=("exact_settlement", "exact_intents"),
+            source_name="command",
+        )
     ):
         _add_exact_consumer_violation(
             violations,
@@ -1887,42 +1980,72 @@ def _check_exact_command_sinks_v1(
             node=entry,
             detail="entry-does-not-destructure-admitted-command",
         )
-    if not _has_single_bindings(entry, ("command", "exact_settlement", "exact_intents")):
+    protected_results = (
+        "command",
+        "exact_context",
+        "state",
+        "pre_binding",
+        "exact_settlement",
+        "exact_intents",
+        "nonce",
+        "spot",
+        "fee",
+        "candidate",
+        "evidence",
+    )
+    if not _has_single_bindings(entry, protected_results):
         _add_exact_consumer_violation(
             violations,
             relative_path=relative_path,
             node=entry,
-            detail="entry-exact-values-rebound",
+            detail="entry-authoritative-value-rebound",
         )
 
     required_sink_arguments = {
-        "_nonce_candidate_v1": {
-            "state": "state",
-            "intents": "exact_intents",
-            "context": "exact_context",
-        },
-        "_spot_candidate_v1": {
-            "state": "state",
-            "settlement": "exact_settlement",
-            "intents": "exact_intents",
-            "context": "exact_context",
-        },
-        "_fee_candidate_v1": {
-            "state": "state",
-            "settlement": "exact_settlement",
-            "context": "exact_context",
-        },
-        "_candidate_evidence_v1": {
-            "pre_state": "state",
-            "candidate": "candidate",
-            "context": "exact_context",
-            "intents": "exact_intents",
-            "pre_binding": "pre_binding",
-        },
+        "_nonce_candidate_v1": (
+            "nonce",
+            {
+                "state": "state",
+                "intents": "exact_intents",
+                "context": "exact_context",
+            },
+        ),
+        "_spot_candidate_v1": (
+            "spot",
+            {
+                "state": "state",
+                "settlement": "exact_settlement",
+                "intents": "exact_intents",
+                "context": "exact_context",
+            },
+        ),
+        "_fee_candidate_v1": (
+            "fee",
+            {
+                "state": "state",
+                "settlement": "exact_settlement",
+                "context": "exact_context",
+            },
+        ),
+        "_candidate_evidence_v1": (
+            "evidence",
+            {
+                "pre_state": "state",
+                "candidate": "candidate",
+                "context": "exact_context",
+                "intents": "exact_intents",
+                "pre_binding": "pre_binding",
+            },
+        ),
     }
-    for sink_name, expected_arguments in required_sink_arguments.items():
+    for sink_name, (target_name, expected_arguments) in required_sink_arguments.items():
         if not _single_exact_call_v1(
             entry,
+            call_name=sink_name,
+            keywords=expected_arguments,
+        ) or not _single_exact_assigned_call_v1(
+            entry,
+            target_name=target_name,
             call_name=sink_name,
             keywords=expected_arguments,
         ):
@@ -1930,33 +2053,33 @@ def _check_exact_command_sinks_v1(
                 violations,
                 relative_path=relative_path,
                 node=entry,
-                detail=f"sink-does-not-consume-admitted-command:{sink_name}",
+                detail=(f"sink-result-not-authoritative:{target_name}:{sink_name}"),
             )
 
-    destructure_lines = tuple(
-        node.lineno
-        for node in ast.walk(entry)
-        if type(node) is ast.Assign
-        and len(node.targets) == 1
-        and type(node.targets[0]) is ast.Tuple
-        and type(node.value) is ast.Name
-        and node.value.id == "command"
+    admission_calls = tuple(
+        call
+        for call in _function_calls(entry)
+        if _last_name(call.func) == "_admit_exact_command_v1"
     )
-    if destructure_lines:
-        destructure_line = destructure_lines[0]
-        for node in ast.walk(entry):
-            if (
-                type(node) is ast.Name
-                and type(node.ctx) is ast.Load
-                and node.id in {"settlement", "intents"}
-                and node.lineno > destructure_line
-            ):
-                _add_exact_consumer_violation(
-                    violations,
-                    relative_path=relative_path,
-                    node=node,
-                    detail=f"entry-raw-command-used-after-admission:{node.id}",
-                )
+    allowed_raw_loads = {
+        id(argument)
+        for call in admission_calls
+        for argument in call.args
+        if type(argument) is ast.Name and argument.id in {"settlement", "intents"}
+    }
+    for node in ast.walk(entry):
+        if (
+            type(node) is ast.Name
+            and type(node.ctx) is ast.Load
+            and node.id in {"settlement", "intents"}
+            and id(node) not in allowed_raw_loads
+        ):
+            _add_exact_consumer_violation(
+                violations,
+                relative_path=relative_path,
+                node=node,
+                detail=f"entry-raw-command-load-outside-admission:{node.id}",
+            )
     return violations
 
 
@@ -2218,6 +2341,31 @@ def _single_exact_call_v1(
     calls = tuple(call for call in _function_calls(function) if _last_name(call.func) == call_name)
     return len(calls) == 1 and _call_matches_exact_expressions_v1(
         calls[0],
+        positional=positional,
+        keywords=keywords,
+    )
+
+
+def _single_exact_assigned_call_v1(
+    function: ast.FunctionDef,
+    *,
+    target_name: str,
+    call_name: str,
+    positional: tuple[str, ...] = (),
+    keywords: dict[str, str] | None = None,
+) -> bool:
+    assignments = tuple(
+        node
+        for node in ast.walk(function)
+        if type(node) is ast.Assign
+        and len(node.targets) == 1
+        and type(node.targets[0]) is ast.Name
+        and node.targets[0].id == target_name
+        and type(node.value) is ast.Call
+        and _last_name(node.value.func) == call_name
+    )
+    return len(assignments) == 1 and _call_matches_exact_expressions_v1(
+        assignments[0].value,
         positional=positional,
         keywords=keywords,
     )
