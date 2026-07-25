@@ -24,10 +24,20 @@ class BalanceTable:
     explicitly at serialization / hashing boundaries (see `src/integration/dex_snapshot.py`).
     """
     
+    __slots__ = ("_balances", "_snapshot_sealed")
+
     def __init__(self):
         """Initialize empty balance table."""
+        object.__setattr__(self, "_snapshot_sealed", False)
         # Use tuple keys (pubkey, asset). Deterministic ordering is enforced at call sites via sorting.
         self._balances: Dict[Tuple[PubKey, AssetId], Amount] = {}
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Prevent base-descriptor writes through a sealed committed subtype."""
+
+        if getattr(self, "_snapshot_sealed", False):
+            raise TypeError("committed balance snapshot is immutable")
+        object.__setattr__(self, name, value)
     
     def get(self, pubkey: PubKey, asset: AssetId) -> Amount:
         """Get balance for (pubkey, asset). Returns 0 if not found."""
@@ -125,3 +135,18 @@ class BalanceTable:
     
     def __repr__(self) -> str:
         return f"BalanceTable({len(self._balances)} entries)"
+
+
+class _SnapshotSealMixin:
+    """Supply a non-dataclass seal slot for committed state-table subclasses.
+
+    Keeping this implementation-only flag outside dataclass fields prevents it
+    from entering canonical projections, witnesses, or schema inventories.
+    """
+
+    __slots__ = ("_snapshot_sealed",)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if getattr(self, "_snapshot_sealed", False):
+            raise TypeError("committed state snapshot is immutable")
+        object.__setattr__(self, name, value)

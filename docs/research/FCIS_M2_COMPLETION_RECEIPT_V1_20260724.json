@@ -1,0 +1,90 @@
+{
+  "schema": "zenodex/fcis-m2-completion-receipt/v1",
+  "status": "M2_INFRASTRUCTURE_COMPLETE_UNMOUNTED",
+  "repository": "TheDarkLightX/ZenoDEX",
+  "branch": "agent/fcis-pr454-reviewed-port-20260723",
+  "implementation_head": "14571482c0c2cb4b5a4d410e4853e9e3f4f4ea00",
+  "implementation_tree": "2d836fded86d070400531cee1f9751ff499807ec",
+  "reviewed_scope": {
+    "balances": [
+      "canonical balance deltas",
+      "preconditioned canonical balance patches",
+      "return-new committed balance state"
+    ],
+    "nonces": [
+      "canonical nonce advances",
+      "batch nonce validation and application",
+      "return-new committed nonce state"
+    ],
+    "lp": [
+      "position deltas",
+      "duration metadata events",
+      "return-new committed LP state"
+    ],
+    "pools": [
+      "reserve deltas",
+      "LP-derived supply deltas",
+      "direct committed pool creation",
+      "return-new committed pool map"
+    ],
+    "optional_modules_used_by_the_spot_step": [
+      "exact fee-accumulator transition with dust carry"
+    ],
+    "perps": [
+      "isolated account, collateral, funding, settlement, liquidation, epoch, and parameter candidates",
+      "exact aggregate compare-and-replace for isolated, two-party, three-party, and N-party market variants"
+    ],
+    "aggregate": [
+      "all-or-none exact spot candidate",
+      "unmounted exact step candidate and canonical differential evidence"
+    ]
+  },
+  "read_only_optional_modules": [
+    "vault",
+    "oracle"
+  ],
+  "source_hashes": {
+    "src/core/fcis_step_evaluator.py": "sha256:7fecd49c1f9accb9ca92f4a2b7cf08dba2085039c4249ea0052ae8b43b4283df",
+    "src/core/fee_accumulator_transition.py": "sha256:68da628eb7553d2e86e92cb1a2c8f602652c2afe007c368fab3ca89da35bf513",
+    "src/core/nonce_batch_transition.py": "sha256:baa72cedec825d4aa26543e7065be8e066a46016e126d5f8686aabb4bdc9a32b",
+    "src/state/lp_duration_transitions.py": "sha256:6651b80b761541084679e5071aa4aabc07cd0e04578634953ccca189f1b4dc04",
+    "src/state/perps_account_transitions.py": "sha256:4ced68ee291a430b94d71d5b9fede13db8c1c99b05089f77d9bb32a4bba984bf",
+    "src/state/perps_aggregate_transitions.py": "sha256:edee3bfef1fe8fb7dd2c87f9d299138054a733a88c8d8cefab750fca3b610bc6",
+    "src/state/perps_collateral_transitions.py": "sha256:93f12a8a177fffee52e614ae80a5d2a80a68dab95b5510868457eaf5b091e250",
+    "src/state/perps_funding_transitions.py": "sha256:3276e229dd4521f4cde623bfe9ebf7ee70dec5d177b5d4b5c108a3c1ab647d78",
+    "src/state/perps_liquidation_transitions.py": "sha256:0ae8f72f0c7d97ef0a7b23649a1e8bf7de253dfc433f4088fe31204ca7a94961",
+    "src/state/perps_market_param_transitions.py": "sha256:659661f5cf34dd56076b8c26377c108813e3b9b60d6611eced291c63fd2e8cb9",
+    "src/state/perps_settlement_transitions.py": "sha256:11159027002e672f04a905b1cab279e277bc4c1969127f4277b55c711ae735e2",
+    "src/state/perps_state_transitions.py": "sha256:c00c66e0290a836a9113e1f82c1b25833324ea490e2fbf7ec8db0887113a9848",
+    "src/state/perps_transition_combinators.py": "sha256:ca8554761c7d51567e2e73e0632bf7a0a908cd0d45e9ef92a0b6608e13c5ea84",
+    "src/state/pool_creation_transition.py": "sha256:7677f3a3d79c1839913cdac98cd4ae466dfb91a4816efcc91b2a4fd82aeac3ca",
+    "src/state/snapshot_combinators.py": "sha256:20355b6eff9a8740207e342c680b9e1197439fcb6956fd57624fc2f8abacb891",
+    "src/state/spot_state_transitions.py": "sha256:316cf0b2612cc347b65fcdb836f755d23edcf181ee1e6ce49acb579cd9a9863b",
+    "src/state/state_admission_profile.py": "sha256:5052d127617bca8c7be09d1e829a7e27ad14226e20a3d12e3c01d4b2164855f8",
+    "src/state/state_snapshot_values.py": "sha256:0b205ff1d185ad2487f7cd105ee6b0a5aa9042cec8707428c505c9b7fa48d998",
+    "src/state/state_snapshots.py": "sha256:38c476efe36384eb19542a999ca3800f3075aeeea597cf2f372e81e1ab0a8c76",
+    "src/state/state_transitions.py": "sha256:b1da2d56186a56a66948155508cf252488c263d81603d249ffb8b7a37dc9e8f3"
+  },
+  "evidence": [
+    {
+      "command": "pytest -q tests/state/test_state_transitions.py tests/state/test_nonce_transitions.py tests/state/test_nonce_batch_transition.py tests/state/test_lp_position_transitions.py tests/state/test_lp_duration_transitions.py tests/state/test_pool_transitions.py tests/state/test_spot_state_transitions.py tests/state/test_perps_transition_combinators.py tests/state/test_perps_state_transitions.py tests/state/test_perps_account_transitions.py tests/state/test_perps_collateral_transitions.py tests/state/test_perps_epoch_transitions.py tests/state/test_perps_epoch_rejection_determinism.py tests/state/test_perps_liquidation_transitions.py tests/state/test_perps_market_param_transitions.py tests/state/test_perps_aggregate_transitions.py tests/core/test_fee_accumulator_transition.py tests/core/test_fcis_step_evaluator.py",
+      "outcome": "225 passed"
+    },
+    {
+      "command": "python3 tools/check_fcis_authority_snapshot_contract.py --profile state-substrate --json",
+      "outcome": "ok=true; violations=[]"
+    },
+    {
+      "command": "python3 docs/specs/fcis_authority_snapshot_v1/check_packet.py --json",
+      "outcome": "ok=true; 39 requirements; 103 declared and bound test IDs"
+    }
+  ],
+  "nonclaims": [
+    "M2 infrastructure is unmounted and does not authorize shell publication.",
+    "M3 exact strong-validator replay is not complete.",
+    "M4 authoritative-consumer migration is not complete.",
+    "The PR #478 owned intent, settlement, effect, and receipt graph is not complete.",
+    "No M5 DexState authority switch or M6 legacy removal is authorized.",
+    "No datastore linearizability, crash recovery, external outbox delivery, Rust parity, proof-guest parity, or production-release claim is made."
+  ]
+}

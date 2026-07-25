@@ -42,7 +42,7 @@ from ..kernels.python.settlement_swap_runtime_v1 import (
 from ..state.balances import Amount, AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
-from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
+from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus, copy_pool_state
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .cpmm import MIN_LP_LOCK, compute_fee_total
 from .domain_limits import DEX_LP_AMOUNT_MAX, is_strict_int
@@ -160,7 +160,9 @@ def compute_settlement(
     if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
         raise ValueError("protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0")
     # Work on local copies (functional core / imperative shell).
-    pool_states: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
+    pool_states: Dict[str, PoolState] = {
+        pool_id: copy_pool_state(pool) for pool_id, pool in pools.items()
+    }
     balances_local = _copy_balance_table(balances)
     lp_local = _copy_lp_table(lp_balances) if lp_balances is not None else LPTable()
 
@@ -2159,7 +2161,9 @@ def apply_settlement_pure(
     Returns fresh (balances, pools, lp_balances) copies with the settlement applied.
     """
     balances_copy = _copy_balance_table(balances)
-    pools_copy: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pools.items()}
+    pools_copy: Dict[str, PoolState] = {
+        pool_id: copy_pool_state(pool) for pool_id, pool in pools.items()
+    }
     lp_copy = _copy_lp_table(lp_balances) if lp_balances is not None else LPTable()
 
     apply_settlement(settlement, balances_copy, pools_copy, lp_copy)

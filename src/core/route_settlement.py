@@ -30,14 +30,34 @@ and returns the post-reserves the caller may commit.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Tuple, TypeAlias, cast
 
+from ..state.intent_snapshots import (
+    OwnedIntentV1,
+    owned_intent_field_v1,
+    owned_intent_kind_text_v1,
+)
 from ..state.intents import Intent, IntentKind
+from ..state.owned_collections import OwnedEnumV1, OwnedMapV1
 from ..state.pools import PoolState, PoolStatus
-from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from ..state.state_snapshot_values import (
+    FCIS_STATE_SCHEMA_REVISION_V1,
+    POOL_MAP_SCHEMA_ID_V1,
+    POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1,
+    CommittedPoolStateV1,
+)
+from .amm_dispatch import (
+    swap_exact_in_for_committed_pool_v1,
+    swap_exact_in_for_pool,
+    swap_exact_out_for_committed_pool_v1,
+    swap_exact_out_for_pool,
+)
 from .cpmm import compute_fee_total
 from .domain_limits import is_strict_int
-from .quote_receipts import pool_state_fingerprint
+from .quote_receipts import (
+    pool_state_fingerprint,
+    pool_state_fingerprint_committed_v1,
+)
 
 ROUTE_KIND_EXACT_IN = "exact_in"
 ROUTE_KIND_EXACT_OUT = "exact_out"
@@ -62,15 +82,124 @@ ROUTE_REJECT_SLIPPAGE = "SLIPPAGE"
 
 _ROUTE_INTENT_KINDS = (IntentKind.ROUTE_EXACT_IN, IntentKind.ROUTE_EXACT_OUT)
 
+_PoolValueV1: TypeAlias = PoolState | CommittedPoolStateV1
+_PoolMapV1: TypeAlias = Mapping[str, _PoolValueV1]
+_RouteIntentV1: TypeAlias = Intent | OwnedIntentV1
 
-def is_route_intent_kind(kind: IntentKind) -> bool:
+
+def _require_committed_pool_map_v1(
+    pools: object,
+) -> OwnedMapV1[str, CommittedPoolStateV1]:
+    if type(pools) is not OwnedMapV1:
+        raise TypeError("pools must be an exact committed pool map")
+    exact_pools = cast(OwnedMapV1[str, CommittedPoolStateV1], pools)
+    if (
+        exact_pools.schema_revision != FCIS_STATE_SCHEMA_REVISION_V1
+        or exact_pools.schema_id != POOL_MAP_SCHEMA_ID_V1
+    ):
+        raise TypeError("committed pool map schema metadata mismatch")
+    return exact_pools
+
+
+def _pool_is_active_v1(pool: _PoolValueV1) -> bool:
+    if type(pool) is CommittedPoolStateV1:
+        return pool.status.member_ordinal == POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1
+    return pool.status == PoolStatus.ACTIVE
+
+
+def _pool_fingerprint_v1(pool: _PoolValueV1) -> str:
+    if type(pool) is CommittedPoolStateV1:
+        return pool_state_fingerprint_committed_v1(pool)
+    return pool_state_fingerprint(pool)
+
+
+def _swap_exact_in_for_route_pool_v1(
+    pool: _PoolValueV1,
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_in: int,
+) -> tuple[int, tuple[int, int]]:
+    if type(pool) is CommittedPoolStateV1:
+        return swap_exact_in_for_committed_pool_v1(
+            pool,
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_in=amount_in,
+        )
+    return swap_exact_in_for_pool(
+        pool,
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_in=amount_in,
+    )
+
+
+def _swap_exact_out_for_route_pool_v1(
+    pool: _PoolValueV1,
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_out: int,
+) -> tuple[int, tuple[int, int]]:
+    if type(pool) is CommittedPoolStateV1:
+        return swap_exact_out_for_committed_pool_v1(
+            pool,
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_out=amount_out,
+        )
+    return swap_exact_out_for_pool(
+        pool,
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_out=amount_out,
+    )
+
+
+def _intent_field_v1(
+    intent: _RouteIntentV1,
+    field_name: str,
+    default: None | int | str = None,
+) -> object:
+    if type(intent) is OwnedIntentV1:
+        return owned_intent_field_v1(intent, field_name, default)
+    return intent.get_field(field_name, default)
+
+
+def _intent_kind_text_v1(intent: _RouteIntentV1) -> str:
+    if type(intent) is OwnedIntentV1:
+        return owned_intent_kind_text_v1(intent)
+    if type(intent.kind) is IntentKind:
+        return intent.kind.value
+    if type(intent.kind) is str:
+        return intent.kind
+    return str(intent.kind)
+
+
+def is_route_intent_kind(kind: IntentKind | OwnedEnumV1) -> bool:
+    if type(kind) is OwnedEnumV1:
+        from ..state.intent_schema import intent_kind_text_v1
+
+        kind_text = intent_kind_text_v1(kind)
+        return kind_text in (
+            IntentKind.ROUTE_EXACT_IN.value,
+            IntentKind.ROUTE_EXACT_OUT.value,
+        )
     return kind in _ROUTE_INTENT_KINDS
 
 
-def route_kind_for_intent(intent: Intent) -> Optional[str]:
-    if intent.kind == IntentKind.ROUTE_EXACT_IN:
+def route_kind_for_intent(intent: _RouteIntentV1) -> Optional[str]:
+    if type(intent) is not OwnedIntentV1:
+        if intent.kind == IntentKind.ROUTE_EXACT_IN:
+            return ROUTE_KIND_EXACT_IN
+        if intent.kind == IntentKind.ROUTE_EXACT_OUT:
+            return ROUTE_KIND_EXACT_OUT
+        return None
+    kind_text = _intent_kind_text_v1(intent)
+    if kind_text == IntentKind.ROUTE_EXACT_IN.value:
         return ROUTE_KIND_EXACT_IN
-    if intent.kind == IntentKind.ROUTE_EXACT_OUT:
+    if kind_text == IntentKind.ROUTE_EXACT_OUT.value:
         return ROUTE_KIND_EXACT_OUT
     return None
 
@@ -105,20 +234,21 @@ class RouteBinding:
     pool_fingerprints: Mapping[str, str]
 
 
-def _require_non_empty_str(value: Any) -> Optional[str]:
+def _require_non_empty_str(value: object) -> Optional[str]:
     if not isinstance(value, str) or not value:
         return None
     return value
 
 
-def _require_positive_int(value: Any) -> Optional[int]:
-    if not is_strict_int(value) or int(value) <= 0:
+def _require_positive_int(value: object) -> Optional[int]:
+    exact_value = cast(int, value)
+    if not is_strict_int(value) or exact_value <= 0:
         return None
-    return int(value)
+    return exact_value
 
 
 def resolve_route_binding_from_receipt(
-    receipt: Mapping[str, Any],
+    receipt: object,
 ) -> Tuple[Optional[RouteBinding], Optional[str]]:
     """
     Resolve a RouteBinding from a VERIFIED quote receipt.
@@ -230,7 +360,7 @@ def resolve_route_binding_from_receipt(
     )
 
 
-def route_binding_to_fields(binding: RouteBinding) -> Dict[str, Any]:
+def route_binding_to_fields(binding: RouteBinding) -> Dict[str, object]:
     """Serialize a binding into the engine-internal sanitized intent fields."""
     return {
         ROUTE_LEGS_FIELD: [
@@ -248,7 +378,7 @@ def route_binding_to_fields(binding: RouteBinding) -> Dict[str, Any]:
 
 
 def parse_route_binding_fields(
-    intent: Intent,
+    intent: _RouteIntentV1,
 ) -> Tuple[Optional[RouteBinding], Optional[str]]:
     """
     Parse a RouteBinding from (untrusted) sanitized intent fields.
@@ -261,37 +391,55 @@ def parse_route_binding_fields(
     if kind is None:
         return None, "not_a_route_intent"
 
-    asset_in = _require_non_empty_str(intent.get_field("asset_in"))
-    asset_out = _require_non_empty_str(intent.get_field("asset_out"))
+    asset_in = _require_non_empty_str(_intent_field_v1(intent, "asset_in"))
+    asset_out = _require_non_empty_str(_intent_field_v1(intent, "asset_out"))
     if asset_in is None or asset_out is None or asset_in == asset_out:
         return None, "route_intent_bad_assets"
 
-    raw_legs = intent.get_field(ROUTE_LEGS_FIELD)
-    if not isinstance(raw_legs, list) or not raw_legs:
+    raw_legs = _intent_field_v1(intent, ROUTE_LEGS_FIELD)
+    if type(intent) is OwnedIntentV1:
+        if type(raw_legs) is not tuple or not raw_legs:
+            return None, "route_binding_missing_legs"
+    elif not isinstance(raw_legs, list) or not raw_legs:
         return None, "route_binding_missing_legs"
-    raw_fps = intent.get_field(ROUTE_POOL_FINGERPRINTS_FIELD)
-    if not isinstance(raw_fps, Mapping) or not raw_fps:
+    raw_fps = _intent_field_v1(intent, ROUTE_POOL_FINGERPRINTS_FIELD)
+    if type(intent) is OwnedIntentV1:
+        if type(raw_fps) is not OwnedMapV1 or not raw_fps:
+            return None, "route_binding_missing_fingerprints"
+    elif not isinstance(raw_fps, Mapping) or not raw_fps:
         return None, "route_binding_missing_fingerprints"
+    raw_legs_sequence = cast(list[object] | tuple[object, ...], raw_legs)
+    raw_fingerprints = cast(Mapping[object, object], raw_fps)
 
     legs: List[RouteLegBinding] = []
     used_pool_ids: List[str] = []
     sum_in = 0
     sum_out = 0
-    for raw_leg in raw_legs:
-        if not isinstance(raw_leg, Mapping):
+    for raw_leg in raw_legs_sequence:
+        if type(intent) is OwnedIntentV1:
+            if type(raw_leg) is not OwnedMapV1:
+                return None, "route_binding_bad_leg"
+        elif not isinstance(raw_leg, Mapping):
             return None, "route_binding_bad_leg"
-        pool_id = _require_non_empty_str(raw_leg.get("pool_id"))
-        leg_asset_in = _require_non_empty_str(raw_leg.get("asset_in"))
-        leg_asset_out = _require_non_empty_str(raw_leg.get("asset_out"))
-        amount_in = _require_positive_int(raw_leg.get("amount_in"))
-        amount_out = _require_positive_int(raw_leg.get("amount_out"))
+        raw_leg_map = cast(Mapping[str, object], raw_leg)
+        pool_id = _require_non_empty_str(raw_leg_map.get("pool_id"))
+        leg_asset_in = _require_non_empty_str(raw_leg_map.get("asset_in"))
+        leg_asset_out = _require_non_empty_str(raw_leg_map.get("asset_out"))
+        amount_in = _require_positive_int(raw_leg_map.get("amount_in"))
+        amount_out = _require_positive_int(raw_leg_map.get("amount_out"))
         if pool_id is None or leg_asset_in is None or leg_asset_out is None:
             return None, "route_binding_bad_leg_fields"
         if amount_in is None or amount_out is None:
             return None, "route_binding_bad_leg_amounts"
         if leg_asset_in != asset_in or leg_asset_out != asset_out:
             return None, "route_binding_leg_endpoint_mismatch"
-        if set(raw_leg.keys()) != {"pool_id", "asset_in", "asset_out", "amount_in", "amount_out"}:
+        if set(raw_leg_map.keys()) != {
+            "pool_id",
+            "asset_in",
+            "asset_out",
+            "amount_in",
+            "amount_out",
+        }:
             return None, "route_binding_unknown_leg_fields"
         legs.append(
             RouteLegBinding(
@@ -308,9 +456,9 @@ def parse_route_binding_fields(
         sum_out += amount_out
 
     fingerprints: Dict[str, str] = {}
-    for pool_id, fp in raw_fps.items():
-        pool_id_s = _require_non_empty_str(pool_id)
-        fp_s = _require_non_empty_str(fp)
+    for raw_pool_id, raw_fp in raw_fingerprints.items():
+        pool_id_s = _require_non_empty_str(raw_pool_id)
+        fp_s = _require_non_empty_str(raw_fp)
         if pool_id_s is None or fp_s is None:
             return None, "route_binding_bad_fingerprint_entry"
         fingerprints[pool_id_s] = fp_s
@@ -332,7 +480,7 @@ def parse_route_binding_fields(
 
 
 def validate_route_intent_against_binding(
-    intent: Intent,
+    intent: _RouteIntentV1,
     binding: RouteBinding,
 ) -> Optional[str]:
     """
@@ -344,46 +492,54 @@ def validate_route_intent_against_binding(
     if kind is None or kind != binding.kind:
         return "route_kind_mismatch"
 
-    if intent.get_field("asset_in") != binding.asset_in:
+    if _intent_field_v1(intent, "asset_in") != binding.asset_in:
         return "route_asset_in_mismatch"
-    if intent.get_field("asset_out") != binding.asset_out:
+    if _intent_field_v1(intent, "asset_out") != binding.asset_out:
         return "route_asset_out_mismatch"
 
-    leg_indices = intent.get_field("leg_indices")
-    if not isinstance(leg_indices, list) or not leg_indices:
+    leg_indices = _intent_field_v1(intent, "leg_indices")
+    if type(intent) is OwnedIntentV1:
+        if type(leg_indices) is not tuple or not leg_indices:
+            return "route_leg_indices_missing"
+    elif not isinstance(leg_indices, list) or not leg_indices:
         return "route_leg_indices_missing"
-    for idx in leg_indices:
-        if not is_strict_int(idx) or int(idx) < 0:
+    exact_leg_indices = cast(list[object] | tuple[object, ...], leg_indices)
+    for idx in exact_leg_indices:
+        if not is_strict_int(idx) or cast(int, idx) < 0:
             return "route_leg_indices_invalid"
-    if list(leg_indices) != list(range(len(binding.legs))):
+    if list(exact_leg_indices) != list(range(len(binding.legs))):
         return "route_leg_coverage_mismatch"
 
-    recipient = intent.get_field("recipient", intent.sender_pubkey)
+    recipient = _intent_field_v1(intent, "recipient", intent.sender_pubkey)
     if not isinstance(recipient, str) or not recipient:
         return "route_recipient_invalid"
 
     if kind == ROUTE_KIND_EXACT_IN:
-        total_amount_in = intent.get_field("total_amount_in")
-        total_min_amount_out = intent.get_field("total_min_amount_out")
-        if not is_strict_int(total_amount_in) or int(total_amount_in) <= 0:
+        total_amount_in = _intent_field_v1(intent, "total_amount_in")
+        total_min_amount_out = _intent_field_v1(intent, "total_min_amount_out")
+        amount_in_value = cast(int, total_amount_in)
+        min_amount_out_value = cast(int, total_min_amount_out)
+        if not is_strict_int(total_amount_in) or amount_in_value <= 0:
             return "route_total_amount_in_invalid"
-        if not is_strict_int(total_min_amount_out) or int(total_min_amount_out) < 0:
+        if not is_strict_int(total_min_amount_out) or min_amount_out_value < 0:
             return "route_total_min_amount_out_invalid"
-        if int(total_amount_in) != int(binding.total_amount_in):
+        if amount_in_value != binding.total_amount_in:
             return "route_total_amount_in_mismatch"
-        if int(total_min_amount_out) > int(binding.total_amount_out):
+        if min_amount_out_value > binding.total_amount_out:
             return "route_min_out_unsatisfiable"
         return None
 
-    total_amount_out = intent.get_field("total_amount_out")
-    total_max_amount_in = intent.get_field("total_max_amount_in")
-    if not is_strict_int(total_amount_out) or int(total_amount_out) <= 0:
+    total_amount_out = _intent_field_v1(intent, "total_amount_out")
+    total_max_amount_in = _intent_field_v1(intent, "total_max_amount_in")
+    amount_out_value = cast(int, total_amount_out)
+    max_amount_in_value = cast(int, total_max_amount_in)
+    if not is_strict_int(total_amount_out) or amount_out_value <= 0:
         return "route_total_amount_out_invalid"
-    if not is_strict_int(total_max_amount_in) or int(total_max_amount_in) < 0:
+    if not is_strict_int(total_max_amount_in) or max_amount_in_value < 0:
         return "route_total_max_amount_in_invalid"
-    if int(total_amount_out) != int(binding.total_amount_out):
+    if amount_out_value != binding.total_amount_out:
         return "route_total_amount_out_mismatch"
-    if int(total_max_amount_in) < int(binding.total_amount_in):
+    if max_amount_in_value < binding.total_amount_in:
         return "route_max_in_unsatisfiable"
     return None
 
@@ -404,9 +560,29 @@ def route_binding_pins_snapshot(
     state) from a TAMPERED fingerprint (pins neither pre- nor current-state,
     forging a fake `ROUTE_POOL_STATE_DRIFT` to make a competing route win).
     """
-    for pool_id, fingerprint in binding.pool_fingerprints.items():
+    return _route_binding_pins_pool_map_v1(binding, pre_pools)
+
+
+def route_binding_pins_committed_snapshot_v1(
+    binding: RouteBinding,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> bool:
+    """Check a route binding against one exact committed pool snapshot."""
+
+    return _route_binding_pins_pool_map_v1(
+        binding,
+        _require_committed_pool_map_v1(pre_pools),
+    )
+
+
+def _route_binding_pins_pool_map_v1(
+    binding: RouteBinding,
+    pre_pools: _PoolMapV1,
+) -> bool:
+    for pool_id in sorted(binding.pool_fingerprints):
+        fingerprint = binding.pool_fingerprints[pool_id]
         pool = pre_pools.get(pool_id)
-        if pool is None or pool_state_fingerprint(pool) != fingerprint:
+        if pool is None or _pool_fingerprint_v1(pool) != fingerprint:
             return False
     return True
 
@@ -435,6 +611,93 @@ class RouteReplayResult:
     total_fee_paid: int = 0
 
 
+def _route_pool_preflight_v1(
+    binding: RouteBinding,
+    pools: _PoolMapV1,
+    ordered_pool_ids: tuple[str, ...],
+) -> RouteReplayResult | None:
+    for pool_id in ordered_pool_ids:
+        pool = pools.get(pool_id)
+        if pool is None:
+            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_FOUND)
+        if not _pool_is_active_v1(pool):
+            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_ACTIVE)
+        if _pool_fingerprint_v1(pool) != binding.pool_fingerprints[pool_id]:
+            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_STATE_DRIFT)
+    return None
+
+
+def _initial_route_scratch_v1(
+    pools: _PoolMapV1,
+    ordered_pool_ids: tuple[str, ...],
+) -> dict[str, tuple[int, int]]:
+    return {
+        pool_id: (int(pools[pool_id].reserve0), int(pools[pool_id].reserve1))
+        for pool_id in ordered_pool_ids
+    }
+
+
+def _route_leg_reserves_v1(
+    pool: _PoolValueV1,
+    leg: RouteLegBinding,
+    reserves: tuple[int, int],
+) -> tuple[int, int, bool] | None:
+    reserve0, reserve1 = reserves
+    if leg.asset_in == pool.asset0 and leg.asset_out == pool.asset1:
+        return reserve0, reserve1, True
+    if leg.asset_in == pool.asset1 and leg.asset_out == pool.asset0:
+        return reserve1, reserve0, False
+    return None
+
+
+def _replay_route_leg_v1(
+    kind: str,
+    pool: _PoolValueV1,
+    leg: RouteLegBinding,
+    reserves: tuple[int, int],
+) -> RouteLegReplay | RouteReplayResult:
+    oriented = _route_leg_reserves_v1(pool, leg, reserves)
+    if oriented is None:
+        return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_INVALID_PARAMS)
+    reserve_in, reserve_out, dir_is_0_to_1 = oriented
+
+    try:
+        if kind == ROUTE_KIND_EXACT_IN:
+            quoted, (new_in, new_out) = _swap_exact_in_for_route_pool_v1(
+                pool,
+                reserve_in=reserve_in,
+                reserve_out=reserve_out,
+                amount_in=leg.amount_in,
+            )
+            expected_quote = leg.amount_out
+        else:
+            quoted, (new_in, new_out) = _swap_exact_out_for_route_pool_v1(
+                pool,
+                reserve_in=reserve_in,
+                reserve_out=reserve_out,
+                amount_out=leg.amount_out,
+            )
+            expected_quote = leg.amount_in
+    except (ArithmeticError, TypeError, ValueError):
+        return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH)
+    if quoted != expected_quote:
+        return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH)
+
+    new_reserve0, new_reserve1 = (
+        (int(new_in), int(new_out)) if dir_is_0_to_1 else (int(new_out), int(new_in))
+    )
+    return RouteLegReplay(
+        pool_id=leg.pool_id,
+        asset_in=leg.asset_in,
+        asset_out=leg.asset_out,
+        amount_in=leg.amount_in,
+        amount_out=leg.amount_out,
+        fee_paid=compute_fee_total(leg.amount_in, pool.fee_bps),
+        new_reserve0=new_reserve0,
+        new_reserve1=new_reserve1,
+    )
+
+
 def replay_route_legs(
     *,
     binding: RouteBinding,
@@ -454,100 +717,60 @@ def replay_route_legs(
       3. every leg's quoted amounts replay EXACTLY under the verified kernels,
          threading evolving reserves across legs that share a pool
     """
+    return _replay_route_legs_for_pool_map_v1(binding=binding, pools=pools)
+
+
+def replay_route_legs_committed_v1(
+    *,
+    binding: RouteBinding,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> RouteReplayResult:
+    """Replay a route against one exact immutable committed pool map."""
+
+    return _replay_route_legs_for_pool_map_v1(
+        binding=binding,
+        pools=_require_committed_pool_map_v1(pools),
+    )
+
+
+def _replay_route_legs_for_pool_map_v1(
+    *,
+    binding: RouteBinding,
+    pools: _PoolMapV1,
+) -> RouteReplayResult:
     # Phase 1: pool presence + status + snapshot fingerprints (vs current state).
-    for pool_id in binding.pool_fingerprints:
-        pool = pools.get(pool_id)
-        if pool is None:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_FOUND)
-        if pool.status != PoolStatus.ACTIVE:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_ACTIVE)
-        if pool_state_fingerprint(pool) != binding.pool_fingerprints[pool_id]:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_STATE_DRIFT)
+    # Fingerprint maps are semantically unordered. Sorting gives one rejection
+    # precedence independent of dict construction or collection internals.
+    ordered_pool_ids = tuple(sorted(binding.pool_fingerprints))
+    preflight = _route_pool_preflight_v1(binding, pools, ordered_pool_ids)
+    if preflight is not None:
+        return preflight
 
     # Phase 2: exact kernel replay on scratch reserves (thread across legs).
-    scratch: Dict[str, Tuple[int, int]] = {}
-    for pool_id in binding.pool_fingerprints:
-        pool = pools[pool_id]
-        scratch[pool_id] = (int(pool.reserve0), int(pool.reserve1))
+    scratch = _initial_route_scratch_v1(pools, ordered_pool_ids)
 
     replays: List[RouteLegReplay] = []
-    sum_in = 0
-    sum_out = 0
-    sum_fee = 0
     for leg in binding.legs:
         pool = pools.get(leg.pool_id)
         if pool is None or leg.pool_id not in scratch:
             return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_FOUND)
-        reserve0, reserve1 = scratch[leg.pool_id]
-        if leg.asset_in == pool.asset0 and leg.asset_out == pool.asset1:
-            reserve_in, reserve_out = reserve0, reserve1
-            dir_is_0_to_1 = True
-        elif leg.asset_in == pool.asset1 and leg.asset_out == pool.asset0:
-            reserve_in, reserve_out = reserve1, reserve0
-            dir_is_0_to_1 = False
-        else:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_INVALID_PARAMS)
-
-        try:
-            if binding.kind == ROUTE_KIND_EXACT_IN:
-                quoted_out, (new_in, new_out) = swap_exact_in_for_pool(
-                    pool,
-                    reserve_in=int(reserve_in),
-                    reserve_out=int(reserve_out),
-                    amount_in=int(leg.amount_in),
-                )
-                if int(quoted_out) != int(leg.amount_out):
-                    return RouteReplayResult(
-                        ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH
-                    )
-            else:
-                quoted_in, (new_in, new_out) = swap_exact_out_for_pool(
-                    pool,
-                    reserve_in=int(reserve_in),
-                    reserve_out=int(reserve_out),
-                    amount_out=int(leg.amount_out),
-                )
-                if int(quoted_in) != int(leg.amount_in):
-                    return RouteReplayResult(
-                        ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH
-                    )
-        except Exception:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH)
-
-        if dir_is_0_to_1:
-            new_reserve0, new_reserve1 = int(new_in), int(new_out)
-        else:
-            new_reserve0, new_reserve1 = int(new_out), int(new_in)
-        scratch[leg.pool_id] = (new_reserve0, new_reserve1)
-
-        fee = int(compute_fee_total(int(leg.amount_in), int(pool.fee_bps)))
-        replays.append(
-            RouteLegReplay(
-                pool_id=leg.pool_id,
-                asset_in=leg.asset_in,
-                asset_out=leg.asset_out,
-                amount_in=int(leg.amount_in),
-                amount_out=int(leg.amount_out),
-                fee_paid=fee,
-                new_reserve0=new_reserve0,
-                new_reserve1=new_reserve1,
-            )
-        )
-        sum_in += int(leg.amount_in)
-        sum_out += int(leg.amount_out)
-        sum_fee += fee
+        replay = _replay_route_leg_v1(binding.kind, pool, leg, scratch[leg.pool_id])
+        if isinstance(replay, RouteReplayResult):
+            return replay
+        replays.append(replay)
+        scratch[leg.pool_id] = (replay.new_reserve0, replay.new_reserve1)
 
     return RouteReplayResult(
         ok=True,
         legs=tuple(replays),
-        total_amount_in=sum_in,
-        total_amount_out=sum_out,
-        total_fee_paid=sum_fee,
+        total_amount_in=sum(replay.amount_in for replay in replays),
+        total_amount_out=sum(replay.amount_out for replay in replays),
+        total_fee_paid=sum(replay.fee_paid for replay in replays),
     )
 
 
 def route_totals_violation(
-    intent: Intent,
+    intent: _RouteIntentV1,
     replay: RouteReplayResult,
 ) -> Optional[str]:
     """
@@ -558,17 +781,19 @@ def route_totals_violation(
     """
     kind = route_kind_for_intent(intent)
     if kind == ROUTE_KIND_EXACT_IN:
-        total_min_amount_out = intent.get_field("total_min_amount_out")
-        if not is_strict_int(total_min_amount_out) or int(total_min_amount_out) < 0:
+        total_min_amount_out = _intent_field_v1(intent, "total_min_amount_out")
+        min_amount_out_value = cast(int, total_min_amount_out)
+        if not is_strict_int(total_min_amount_out) or min_amount_out_value < 0:
             return ROUTE_REJECT_INVALID_PARAMS
-        if int(replay.total_amount_out) < int(total_min_amount_out):
+        if replay.total_amount_out < min_amount_out_value:
             return ROUTE_REJECT_SLIPPAGE
         return None
     if kind == ROUTE_KIND_EXACT_OUT:
-        total_max_amount_in = intent.get_field("total_max_amount_in")
-        if not is_strict_int(total_max_amount_in) or int(total_max_amount_in) < 0:
+        total_max_amount_in = _intent_field_v1(intent, "total_max_amount_in")
+        max_amount_in_value = cast(int, total_max_amount_in)
+        if not is_strict_int(total_max_amount_in) or max_amount_in_value < 0:
             return ROUTE_REJECT_INVALID_PARAMS
-        if int(replay.total_amount_in) > int(total_max_amount_in):
+        if replay.total_amount_in > max_amount_in_value:
             return ROUTE_REJECT_SLIPPAGE
         return None
     return ROUTE_REJECT_INVALID_PARAMS

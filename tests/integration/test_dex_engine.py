@@ -612,9 +612,10 @@ def test_engine_accepts_provided_swap_settlement_with_reserve_witness_roundtrip(
 
 def test_engine_accepts_matching_attached_quote_receipt_witness() -> None:
     sender = "0x" + "aa" * 48
+    pool_id = compute_pool_id("A", "B", 10)
     pools = {
-        "p_ab": PoolState(
-            pool_id="p_ab",
+        pool_id: PoolState(
+            pool_id=pool_id,
             asset0="A",
             asset1="B",
             reserve0=1_000,
@@ -655,9 +656,11 @@ def test_engine_accepts_matching_attached_quote_receipt_witness() -> None:
 
 def test_engine_accepts_complete_split_quote_receipt_batch() -> None:
     sender = "0x" + "ab" * 48
+    pool1_id = compute_pool_id("A", "B", 0)
+    pool2_id = compute_pool_id("A", "B", 1)
     pools = {
-        "p1": PoolState(
-            pool_id="p1",
+        pool1_id: PoolState(
+            pool_id=pool1_id,
             asset0="A",
             asset1="B",
             reserve0=1_000,
@@ -667,13 +670,13 @@ def test_engine_accepts_complete_split_quote_receipt_batch() -> None:
             status=PoolStatus.ACTIVE,
             created_at=0,
         ),
-        "p2": PoolState(
-            pool_id="p2",
+        pool2_id: PoolState(
+            pool_id=pool2_id,
             asset0="A",
             asset1="B",
             reserve0=1_000,
             reserve1=1_000,
-            fee_bps=0,
+            fee_bps=1,
             lp_supply=1,
             status=PoolStatus.ACTIVE,
             created_at=0,
@@ -1086,9 +1089,10 @@ def test_engine_prefers_duplicate_quote_receipt_error_before_incomplete_coverage
 
 def test_engine_scopes_quote_receipt_leg_indices_per_receipt_hash() -> None:
     sender = "0x" + "b0" * 48
+    pool_id = compute_pool_id("A", "B", 10)
     pools = {
-        "p_ab": PoolState(
-            pool_id="p_ab",
+        pool_id: PoolState(
+            pool_id=pool_id,
             asset0="A",
             asset1="B",
             reserve0=5_000,

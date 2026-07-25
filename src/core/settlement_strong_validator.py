@@ -14,37 +14,556 @@ recomputes canonical deltas/events and requires exact match.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple, TypeAlias, cast, final
 
 from ..kernels.python.settlement_swap_runtime_v1 import quote_cpmm_swap_exact_out
 from ..state.balances import AssetId, BalanceTable, PubKey
+from ..state.intent_snapshots import (
+    OwnedIntentV1,
+    admit_intent_batch,
+    owned_intent_field_v1,
+    owned_intent_kind_text_v1,
+)
 from ..state.intents import Intent, IntentKind
+from ..state.legacy_state_snapshots import (
+    admit_legacy_balance_for_differential_v1,
+    admit_legacy_lp_for_differential_v1,
+    admit_legacy_pool_map_for_differential_v1,
+)
 from ..state.lp import LPTable
-from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
-from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
-from .batch_clearing import validate_settlement as validate_settlement_legacy
-from .cpmm import MIN_LP_LOCK, compute_fee_total, swap_exact_in_with_protocol_fee
-from .domain_limits import is_strict_int
-from .liquidity import add_liquidity, create_pool, remove_liquidity
-from .quote_receipts import pool_state_fingerprint
+from ..state.lp_duration_transitions import (
+    LPDurationEventV1,
+    LPDurationRiskPolicyV1,
+)
+from ..state.owned_collections import OwnedEnumV1, OwnedMapV1
+from ..state.owned_json import snapshot_owned_json_object
+from ..state.pool_creation_transition import PoolCreationV1
+from ..state.pools import (
+    CURVE_TAG_CPMM,
+    PoolState,
+    compute_pool_id,
+    normalize_curve_config,
+)
+from ..state.spot_state_transitions import (
+    SpotDeltaBatchV1,
+    SpotTransitionOkV1,
+    SpotTransitionRejectV1,
+    _apply_spot_replay_deltas_v1,
+    _SpotReplayDeltaBatchV1,
+    _SpotReplayOkV1,
+    _SpotReplayTransitionRejectV1,
+    apply_spot_deltas_v1,
+)
+from ..state.state_snapshot_values import (
+    POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1,
+    POOL_STATUS_MEMBER_VALUES_V1,
+    CommittedBalanceTableV1,
+    CommittedLPTableV1,
+    CommittedPoolStateV1,
+)
+from ..state.state_snapshots import (
+    StateAdmissionError,
+    snapshot_balance_table,
+    snapshot_lp_table,
+    snapshot_pool_map,
+)
+from ..state.state_transitions import (
+    BalanceDeltaV1,
+    CanonicalBalancePatchV1,
+    CanonicalLPPositionPatchV1,
+    CanonicalPoolPatchV1,
+    LPPositionDeltaV1,
+    PoolReserveDeltaV1,
+)
+from .amm_dispatch import (
+    swap_exact_in_for_committed_pool_v1,
+    swap_exact_out_for_committed_pool_v1,
+)
+from .cpmm import (
+    MIN_LP_LOCK,
+    compute_fee_total,
+    compute_lp_mint,
+    swap_exact_in_with_protocol_fee,
+)
+from .domain_limits import DEX_LP_AMOUNT_MAX, is_strict_int, require_int_range
+from .liquidity import (
+    AddLiquidityKernelInputV1,
+    RemoveLiquidityKernelInputV1,
+    add_liquidity_for_committed_pool_v1,
+    remove_liquidity_for_committed_pool_v1,
+)
+from .quote_receipts import pool_state_fingerprint_committed_v1
 from .route_settlement import (
     ROUTE_REJECT_POOL_STATE_DRIFT,
     ROUTE_RESERVED_FIELDS,
     is_route_intent_kind,
     parse_route_binding_fields,
-    replay_route_legs,
-    route_binding_pins_snapshot,
+    replay_route_legs_committed_v1,
+    route_binding_pins_committed_snapshot_v1,
     route_totals_violation,
     validate_route_intent_against_binding,
 )
 from .settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
+from .settlement_snapshots import (
+    OwnedBalanceDeltaV1,
+    OwnedFillV1,
+    OwnedLPDeltaV1,
+    OwnedReserveDeltaV1,
+    OwnedSettlementV1,
+    snapshot_settlement,
+)
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
 _MODE_STRONG_REPLAY = "strong_replay"
 _MODE_STRONG_PROOF_CARRYING = "strong_proof_carrying"
 _VALIDATION_MODES = frozenset({_MODE_STRONG_REPLAY, _MODE_STRONG_PROOF_CARRYING})
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class _ExactSpotReplayStateV1:
+    balances: CommittedBalanceTableV1
+    pools: OwnedMapV1[str, CommittedPoolStateV1]
+    lp_balances: CommittedLPTableV1
+
+    def __post_init__(self) -> None:
+        if type(self.balances) is not CommittedBalanceTableV1:
+            raise TypeError("replay balances must be exact committed state")
+        if type(self.pools) is not OwnedMapV1:
+            raise TypeError("replay pools must be an exact committed map")
+        if type(self.lp_balances) is not CommittedLPTableV1:
+            raise TypeError("replay LP balances must be exact committed state")
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class _SpotTransitionContextV1:
+    """Explicit context retained until the duration-complete candidate is built."""
+
+    now: int
+    min_lp_position_age_seconds: int
+    lp_duration_policy: LPDurationRiskPolicyV1 | None
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class _ValidationOnlyOutputV1:
+    """Request replay validation without constructing an authority candidate."""
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class _DurationCandidateOutputV1:
+    """Request the one duration-complete candidate after replay validation."""
+
+    context: _SpotTransitionContextV1
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class StrongSettlementStateCandidateV1:
+    """Complete exact spot successor produced by one validated settlement replay.
+
+    This is the PR #477 state candidate. The supplied settlement and aggregate
+    effects remain legacy values until PR #478 owns that authority graph, so
+    this value alone does not authorize shell commitment.
+    """
+
+    balances: CommittedBalanceTableV1
+    pools: OwnedMapV1[str, CommittedPoolStateV1]
+    lp_balances: CommittedLPTableV1
+    balance_patch: CanonicalBalancePatchV1 | None
+    pool_patch: CanonicalPoolPatchV1 | None
+    lp_patch: CanonicalLPPositionPatchV1 | None
+
+    def __post_init__(self) -> None:
+        _ExactSpotReplayStateV1(
+            self.balances,
+            self.pools,
+            self.lp_balances,
+        )
+        if (
+            self.balance_patch is not None
+            and type(self.balance_patch) is not CanonicalBalancePatchV1
+        ):
+            raise TypeError("strong settlement balance patch must be exact or None")
+        if self.pool_patch is not None and type(self.pool_patch) is not CanonicalPoolPatchV1:
+            raise TypeError("strong settlement pool patch must be exact or None")
+        if self.lp_patch is not None and type(self.lp_patch) is not CanonicalLPPositionPatchV1:
+            raise TypeError("strong settlement LP patch must be exact or None")
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class StrongSettlementRejectV1:
+    """Typed no-candidate rejection preserving the mounted public reason."""
+
+    reason: str
+
+    def __post_init__(self) -> None:
+        if type(self.reason) is not str or not self.reason:
+            raise TypeError("strong settlement rejection requires an exact reason")
+
+
+StrongSettlementEvaluationResultV1: TypeAlias = (
+    StrongSettlementStateCandidateV1 | StrongSettlementRejectV1
+)
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class _StrongSettlementReplayAcceptedV1:
+    """Private validation-only success; carries no committable candidate."""
+
+
+_StrongSettlementInternalResultV1: TypeAlias = (
+    StrongSettlementEvaluationResultV1 | _StrongSettlementReplayAcceptedV1
+)
+
+_ReplayIntentV1: TypeAlias = Intent | OwnedIntentV1
+_ReplayFillV1: TypeAlias = Fill | OwnedFillV1
+_ReplayBalanceDeltaV1: TypeAlias = BalanceDelta | OwnedBalanceDeltaV1
+_ReplayReserveDeltaV1: TypeAlias = ReserveDelta | OwnedReserveDeltaV1
+_ReplayLPDeltaV1: TypeAlias = LPDelta | OwnedLPDeltaV1
+_ReplaySettlementV1: TypeAlias = Settlement | OwnedSettlementV1
+
+
+def _intent_field_v1(
+    intent: _ReplayIntentV1,
+    field_name: str,
+    default: None | int | str = None,
+) -> object:
+    """Read through the closed legacy-or-owned differential replay union."""
+
+    if type(intent) is OwnedIntentV1:
+        return owned_intent_field_v1(intent, field_name, default)
+    return intent.get_field(field_name, default)
+
+
+def _intent_kind_text_v1(intent: _ReplayIntentV1) -> str:
+    if type(intent) is OwnedIntentV1:
+        return owned_intent_kind_text_v1(intent)
+    if type(intent.kind) is IntentKind:
+        return intent.kind.value
+    if type(intent.kind) is str:
+        return intent.kind
+    return str(intent.kind)
+
+
+def _intent_kind_is_v1(intent: _ReplayIntentV1, kind: IntentKind) -> bool:
+    if type(intent) is OwnedIntentV1:
+        return _intent_kind_text_v1(intent) == kind.value
+    return intent.kind == kind
+
+
+def _render_intent_kind_v1(intent: _ReplayIntentV1) -> str:
+    if type(intent) is OwnedIntentV1:
+        return f"IntentKind.{_intent_kind_text_v1(intent)}"
+    return str(intent.kind)
+
+
+def _intent_kind_value_v1(intent: _ReplayIntentV1) -> str:
+    if type(intent) is OwnedIntentV1:
+        return _intent_kind_text_v1(intent)
+    return intent.kind.value
+
+
+def _fill_action_text_v1(action: FillAction | OwnedEnumV1) -> str:
+    if type(action) is OwnedEnumV1:
+        from .settlement_schema import fill_action_text_v1
+
+        return fill_action_text_v1(action)
+    if type(action) is not FillAction:
+        raise TypeError("fill action requires a closed replay type")
+    return action.value
+
+
+def _fill_action_is_v1(action: FillAction | OwnedEnumV1, expected: FillAction) -> bool:
+    if type(action) is OwnedEnumV1:
+        return _fill_action_text_v1(action) == expected.value
+    return action == expected
+
+
+def _fill_actions_equal_v1(
+    left: FillAction | OwnedEnumV1,
+    right: FillAction | OwnedEnumV1,
+) -> bool:
+    if type(left) is OwnedEnumV1 or type(right) is OwnedEnumV1:
+        return _fill_action_text_v1(left) == _fill_action_text_v1(right)
+    return left == right
+
+
+def _render_fill_action_v1(action: FillAction | OwnedEnumV1) -> str:
+    if type(action) is OwnedEnumV1:
+        return f"FillAction.{_fill_action_text_v1(action)}"
+    return str(action)
+
+
+def _admit_exact_commands_v1(
+    settlement: object,
+    intents: object,
+) -> tuple[OwnedSettlementV1, tuple[OwnedIntentV1, ...]] | StrongSettlementRejectV1:
+    """Revalidate the complete owned command graph before exact replay."""
+
+    if type(settlement) is not OwnedSettlementV1:
+        return _strong_reject_v1(
+            "exact settlement command rejected: settlement requires OwnedSettlementV1"
+        )
+    if type(intents) is not tuple:
+        return _strong_reject_v1(
+            "exact settlement command rejected: intents require an exact owned tuple"
+        )
+    if any(type(intent) is not OwnedIntentV1 for intent in intents):
+        return _strong_reject_v1("exact settlement command rejected: intent requires OwnedIntentV1")
+    try:
+        exact_settlement = snapshot_settlement(settlement)
+        exact_intents = admit_intent_batch(intents)
+    except StateAdmissionError as error:
+        return _strong_reject_v1(f"exact settlement command rejected: {error}")
+    return exact_settlement, exact_intents
+
+
+_LegacyOrExactBalanceV1: TypeAlias = BalanceTable | CommittedBalanceTableV1
+_LegacyOrExactPoolMapV1: TypeAlias = Dict[str, PoolState] | OwnedMapV1[str, CommittedPoolStateV1]
+_LegacyOrExactLPV1: TypeAlias = LPTable | CommittedLPTableV1
+
+
+def _admit_exact_replay_state_v1(
+    pre_balances: _LegacyOrExactBalanceV1,
+    pre_pools: _LegacyOrExactPoolMapV1,
+    pre_lp_balances: _LegacyOrExactLPV1 | None,
+) -> _ExactSpotReplayStateV1:
+    balances = (
+        snapshot_balance_table(pre_balances)
+        if type(pre_balances) is CommittedBalanceTableV1
+        else admit_legacy_balance_for_differential_v1(pre_balances)
+    )
+    pools = (
+        snapshot_pool_map(pre_pools)
+        if type(pre_pools) is OwnedMapV1
+        else admit_legacy_pool_map_for_differential_v1(pre_pools)
+    )
+    lp_source = pre_lp_balances if pre_lp_balances is not None else LPTable()
+    lp_balances = (
+        snapshot_lp_table(lp_source)
+        if type(lp_source) is CommittedLPTableV1
+        else admit_legacy_lp_for_differential_v1(lp_source)
+    )
+    return _ExactSpotReplayStateV1(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+    )
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class _SpotReplayRejectV1:
+    code: str
+    path: tuple[str | int, ...]
+
+    def text(self) -> str:
+        path = ".".join(str(part) for part in self.path)
+        return self.code if not path else f"{self.code}:{path}"
+
+
+_SpotReplayResultV1: TypeAlias = _ExactSpotReplayStateV1 | _SpotReplayRejectV1
+
+
+def _spot_reject_v1(
+    reject: SpotTransitionRejectV1 | _SpotReplayTransitionRejectV1,
+) -> _SpotReplayRejectV1:
+    return _SpotReplayRejectV1(reject.code.value, reject.path)
+
+
+def _apply_spot_replay_v1(
+    state: _ExactSpotReplayStateV1,
+    deltas: _SpotReplayDeltaBatchV1,
+) -> _SpotReplayResultV1:
+    result = _apply_spot_replay_deltas_v1(
+        state.balances,
+        state.pools,
+        state.lp_balances,
+        deltas,
+    )
+    if type(result) is not _SpotReplayOkV1:
+        return _spot_reject_v1(result)
+    return _ExactSpotReplayStateV1(
+        result.balances,
+        result.pools,
+        result.lp_balances,
+    )
+
+
+def _strong_reject_v1(reason: str | None) -> StrongSettlementRejectV1:
+    return StrongSettlementRejectV1(
+        reason if type(reason) is str and reason else "settlement invalid"
+    )
+
+
+def _strong_result_tuple_v1(
+    result: _StrongSettlementInternalResultV1,
+) -> Tuple[bool, Optional[str]]:
+    if type(result) is StrongSettlementRejectV1:
+        return False, result.reason
+    return True, None
+
+
+def _build_exact_spot_batch_v1(
+    balance_deltas: List[BalanceDelta],
+    reserve_deltas: List[ReserveDelta],
+    lp_deltas: List[LPDelta],
+    pool_creations: List[PoolCreationV1],
+) -> SpotDeltaBatchV1 | StrongSettlementRejectV1:
+    """Lower trusted replay output into the public duration-aware command."""
+
+    try:
+        return SpotDeltaBatchV1(
+            balance_deltas=tuple(
+                BalanceDeltaV1(
+                    (delta.pubkey, delta.asset),
+                    delta.delta_add - delta.delta_sub,
+                )
+                for delta in balance_deltas
+                if delta.delta_add != delta.delta_sub
+            ),
+            reserve_deltas=tuple(
+                PoolReserveDeltaV1(
+                    delta.pool_id,
+                    delta.asset,
+                    delta.delta_add - delta.delta_sub,
+                )
+                for delta in reserve_deltas
+                if delta.delta_add != delta.delta_sub
+            ),
+            lp_events=tuple(
+                LPDurationEventV1(
+                    (delta.pubkey, delta.pool_id),
+                    delta.delta_add,
+                    delta.delta_sub,
+                )
+                for delta in lp_deltas
+            ),
+            pool_creations=tuple(pool_creations),
+        )
+    except (TypeError, ValueError) as exc:
+        return _strong_reject_v1(
+            f"exact spot command construction failed after replay: {type(exc).__name__}: {exc}"
+        )
+
+
+def _build_exact_spot_candidate_v1(
+    pre_state: _ExactSpotReplayStateV1,
+    replay_state: _ExactSpotReplayStateV1,
+    exact_batch: SpotDeltaBatchV1,
+    context: _SpotTransitionContextV1,
+) -> StrongSettlementEvaluationResultV1:
+    """Build one authoritative candidate and require exact replay agreement."""
+
+    exact_candidate = apply_spot_deltas_v1(
+        pre_state.balances,
+        pre_state.pools,
+        pre_state.lp_balances,
+        exact_batch,
+        now=context.now,
+        min_age_seconds=context.min_lp_position_age_seconds,
+        policy=context.lp_duration_policy,
+    )
+    if type(exact_candidate) is not SpotTransitionOkV1:
+        rejected = _spot_reject_v1(exact_candidate)
+        return _strong_reject_v1(f"exact spot candidate rejected: {rejected.text()}")
+    if exact_candidate.balances != replay_state.balances:
+        return _strong_reject_v1("exact spot candidate balance mismatch vs sequential replay")
+    if exact_candidate.pools != replay_state.pools:
+        return _strong_reject_v1("exact spot candidate pool mismatch vs sequential replay")
+    if exact_candidate.lp_balances.balance_entries != replay_state.lp_balances.balance_entries:
+        return _strong_reject_v1("exact spot candidate LP-balance mismatch vs sequential replay")
+    return StrongSettlementStateCandidateV1(
+        balances=exact_candidate.balances,
+        pools=exact_candidate.pools,
+        lp_balances=exact_candidate.lp_balances,
+        balance_patch=exact_candidate.balance_patch,
+        pool_patch=exact_candidate.pool_patch,
+        lp_patch=exact_candidate.lp_patch,
+    )
+
+
+def _pool_status_text_v1(pool: CommittedPoolStateV1) -> str:
+    return f"PoolStatus.{POOL_STATUS_MEMBER_VALUES_V1[pool.status.member_ordinal]}"
+
+
+def _pool_reserves_match_quote_v1(
+    pool: CommittedPoolStateV1,
+    dir_is_0_to_1: bool,
+    new_in: int,
+    new_out: int,
+) -> bool:
+    expected = (new_in, new_out) if dir_is_0_to_1 else (new_out, new_in)
+    return (pool.reserve0, pool.reserve1) == expected
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class _PoolSwapApplyV1:
+    pool_id: str
+    sender: PubKey
+    recipient: PubKey
+    asset_in: AssetId
+    asset_out: AssetId
+    amount_in: int
+    amount_out: int
+    protocol_fee: int
+    protocol_fee_recipient: PubKey | None
+
+
+def _apply_pool_swap_spot_v1(
+    state: _ExactSpotReplayStateV1,
+    change: _PoolSwapApplyV1,
+) -> _SpotReplayResultV1:
+    protocol_fee_recipient = change.protocol_fee_recipient
+    balance_deltas = [
+        BalanceDeltaV1((change.sender, change.asset_in), -change.amount_in),
+        BalanceDeltaV1((change.recipient, change.asset_out), change.amount_out),
+    ]
+    if change.protocol_fee:
+        if protocol_fee_recipient is None:
+            return _SpotReplayRejectV1(
+                "protocol_fee present without recipient",
+                (),
+            )
+        balance_deltas.append(
+            BalanceDeltaV1(
+                (protocol_fee_recipient, change.asset_in),
+                change.protocol_fee,
+            )
+        )
+    pool_input = change.amount_in - change.protocol_fee
+    reserve_deltas = [
+        PoolReserveDeltaV1(
+            change.pool_id,
+            change.asset_out,
+            -change.amount_out,
+        )
+    ]
+    if pool_input:
+        reserve_deltas.append(
+            PoolReserveDeltaV1(
+                change.pool_id,
+                change.asset_in,
+                pool_input,
+            )
+        )
+    return _apply_spot_replay_v1(
+        state,
+        _SpotReplayDeltaBatchV1(
+            balance_deltas=tuple(balance_deltas),
+            reserve_deltas=tuple(reserve_deltas),
+            lp_deltas=(),
+            pool_creations=(),
+        ),
+    )
 
 
 def _format_error_details(**kwargs: object) -> str:
@@ -63,13 +582,13 @@ def _quote_binding_error(reason: str, **kwargs: object) -> str:
     return f"{reason}: {details}"
 
 
-def _quote_binding_context(intent: Intent) -> dict[str, object]:
+def _quote_binding_context(intent: _ReplayIntentV1) -> dict[str, object]:
     return {
         "intent_id": intent.intent_id,
-        "quote_hash": intent.get_field("quote_receipt_hash"),
-        "quote_pool_fingerprint": intent.get_field("quote_pool_fingerprint"),
-        "leg_index": intent.get_field("quote_receipt_leg_index"),
-        "pool_id": intent.get_field("pool_id"),
+        "quote_hash": _intent_field_v1(intent, "quote_receipt_hash"),
+        "quote_pool_fingerprint": _intent_field_v1(intent, "quote_pool_fingerprint"),
+        "leg_index": _intent_field_v1(intent, "quote_receipt_leg_index"),
+        "pool_id": _intent_field_v1(intent, "pool_id"),
     }
 
 
@@ -85,15 +604,15 @@ class _CowPairEntry:
 
 @dataclass(frozen=True)
 class _SettlementIndex:
-    intents_by_id: Dict[str, Intent]
-    fill_by_id: Dict[str, Fill]
+    intents_by_id: Dict[str, _ReplayIntentV1]
+    fill_by_id: Dict[str, _ReplayFillV1]
 
 
 def _validate_cow_pair_index(
     *,
-    settlement: Settlement,
-    intents_by_id: Dict[str, Intent],
-    fill_by_id: Dict[str, Fill],
+    settlement: _ReplaySettlementV1,
+    intents_by_id: Dict[str, _ReplayIntentV1],
+    fill_by_id: Dict[str, _ReplayFillV1],
     allow_cow_netting: bool,
 ) -> Tuple[bool, Optional[str]]:
     cow_ids = [fill.intent_id for fill in settlement.fills if fill.reason == "COW_NETTED"]
@@ -106,20 +625,20 @@ def _validate_cow_pair_index(
     for intent_id in cow_ids:
         it = intents_by_id[intent_id]
         f = fill_by_id[intent_id]
-        if f.action != FillAction.FILL:
+        if not _fill_action_is_v1(f.action, FillAction.FILL):
             return False, f"COW_NETTED requires filled action: intent_id={intent_id}"
-        if it.kind != IntentKind.SWAP_EXACT_IN:
+        if not _intent_kind_is_v1(it, IntentKind.SWAP_EXACT_IN):
             return False, f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}"
 
-        pool_id = it.get_field("pool_id")
+        pool_id = _intent_field_v1(it, "pool_id")
         if not isinstance(pool_id, str) or not pool_id:
             return False, f"missing pool_id for intent_id={intent_id}"
-        asset_in = it.get_field("asset_in")
-        asset_out = it.get_field("asset_out")
+        asset_in = _intent_field_v1(it, "asset_in")
+        asset_out = _intent_field_v1(it, "asset_out")
         if not isinstance(asset_in, str) or not isinstance(asset_out, str):
             return False, f"invalid asset_in/out for intent_id={intent_id}"
-        amount_in = it.get_field("amount_in")
-        min_out = it.get_field("min_amount_out", 0)
+        amount_in = _intent_field_v1(it, "amount_in")
+        min_out = _intent_field_v1(it, "min_amount_out", 0)
         if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
             return False, f"invalid amount_in for intent_id={intent_id}"
         if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
@@ -169,8 +688,8 @@ def _validate_cow_pair_index(
 
 def _build_settlement_index(
     *,
-    settlement: Settlement,
-    intents: List[Intent],
+    settlement: _ReplaySettlementV1,
+    intents: list[Intent] | tuple[OwnedIntentV1, ...],
     allow_cow_netting: bool,
 ) -> Tuple[bool, Optional[str], Optional[_SettlementIndex]]:
     """Validate intent/fill membership and build replay lookup tables.
@@ -182,7 +701,7 @@ def _build_settlement_index(
     if len(intent_ids) != len(set(intent_ids)):
         return False, "duplicate intent_id in input intents", None
 
-    intents_by_id: Dict[str, Intent] = {it.intent_id: it for it in intents}
+    intents_by_id: Dict[str, _ReplayIntentV1] = {it.intent_id: it for it in intents}
 
     included_ids = [intent_id for intent_id, _action in settlement.included_intents]
     if set(included_ids) != set(intent_ids):
@@ -197,17 +716,27 @@ def _build_settlement_index(
         return False, "settlement fills contains duplicate intent_id entries", None
     extra_fill_ids = sorted(set(fill_ids) - set(intent_ids))
     if extra_fill_ids:
-        return False, f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}", None
+        return (
+            False,
+            f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}",
+            None,
+        )
 
-    fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
+    fill_by_id: Dict[str, _ReplayFillV1] = {f.intent_id: f for f in settlement.fills}
     for intent_id, action in settlement.included_intents:
         f = fill_by_id.get(intent_id)
         if f is None:
-            if action == FillAction.FILL:
+            if _fill_action_is_v1(action, FillAction.FILL):
                 return False, f"missing Fill for filled intent_id: {intent_id}", None
             continue
-        if f.action != action:
-            return False, f"Fill.action mismatch for intent_id={intent_id}: {f.action} != {action}", None
+        if not _fill_actions_equal_v1(f.action, action):
+            return (
+                False,
+                "Fill.action mismatch for intent_id="
+                f"{intent_id}: {_render_fill_action_v1(f.action)} != "
+                f"{_render_fill_action_v1(action)}",
+                None,
+            )
 
     ok_cow, err_cow = _validate_cow_pair_index(
         settlement=settlement,
@@ -222,7 +751,7 @@ def _build_settlement_index(
 
 
 def _validate_quote_binding_metadata(
-    intent: Intent,
+    intent: _ReplayIntentV1,
     *,
     allow_snapshot_bound_quote_bindings: bool,
 ) -> Optional[str]:
@@ -231,24 +760,25 @@ def _validate_quote_binding_metadata(
     The strong validator only accepts sanitized pool-snapshot fingerprints here.
     Receipt hashes and leg indexes must be discharged by the engine witness path.
     """
-    quote_receipt_hash = intent.get_field("quote_receipt_hash")
-    quote_pool_fp = intent.get_field("quote_pool_fingerprint")
-    quote_leg_index = intent.get_field("quote_receipt_leg_index")
+    quote_receipt_hash = _intent_field_v1(intent, "quote_receipt_hash")
+    quote_pool_fp = _intent_field_v1(intent, "quote_pool_fingerprint")
+    quote_leg_index = _intent_field_v1(intent, "quote_receipt_leg_index")
     has_quote_binding = (
-        quote_receipt_hash is not None
-        or quote_pool_fp is not None
-        or quote_leg_index is not None
+        quote_receipt_hash is not None or quote_pool_fp is not None or quote_leg_index is not None
     )
-    if has_quote_binding and intent.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
+    if has_quote_binding and not (
+        _intent_kind_is_v1(intent, IntentKind.SWAP_EXACT_IN)
+        or _intent_kind_is_v1(intent, IntentKind.SWAP_EXACT_OUT)
+    ):
         return _quote_binding_error(
             "quote receipt binding only supported for swap intents",
             **_quote_binding_context(intent),
-            intent_kind=intent.kind.value,
+            intent_kind=_intent_kind_value_v1(intent),
         )
-    if quote_leg_index is not None and (
-        not is_strict_int(quote_leg_index) or int(quote_leg_index) < 0
-    ):
-        return _quote_binding_error("invalid quote_receipt_leg_index", **_quote_binding_context(intent))
+    if quote_leg_index is not None and (not is_strict_int(quote_leg_index) or quote_leg_index < 0):
+        return _quote_binding_error(
+            "invalid quote_receipt_leg_index", **_quote_binding_context(intent)
+        )
     if quote_leg_index is not None:
         return _quote_binding_error(
             "quote receipt transport metadata requires validated engine witness",
@@ -257,14 +787,18 @@ def _validate_quote_binding_metadata(
         )
     if quote_receipt_hash is not None:
         if not isinstance(quote_receipt_hash, str) or not quote_receipt_hash:
-            return _quote_binding_error("invalid quote_receipt_hash", **_quote_binding_context(intent))
+            return _quote_binding_error(
+                "invalid quote_receipt_hash", **_quote_binding_context(intent)
+            )
         return _quote_binding_error(
             "quote receipt transport metadata requires validated engine witness",
             **_quote_binding_context(intent),
             guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
         )
     if quote_pool_fp is not None and (not isinstance(quote_pool_fp, str) or not quote_pool_fp):
-        return _quote_binding_error("missing quote_pool_fingerprint", **_quote_binding_context(intent))
+        return _quote_binding_error(
+            "missing quote_pool_fingerprint", **_quote_binding_context(intent)
+        )
     if quote_pool_fp is not None and not allow_snapshot_bound_quote_bindings:
         return _quote_binding_error(
             "quote receipt snapshot binding requires validated engine witness",
@@ -294,53 +828,280 @@ def validate_settlement_strong(
     rather than crash on malformed inputs.
     """
     try:
-        return _validate_settlement_strong_impl(
-            settlement=settlement,
-            intents=intents,
-            pre_balances=pre_balances,
-            pre_pools=pre_pools,
-            pre_lp_balances=pre_lp_balances,
-            mode=mode,
-            allow_cow_netting=allow_cow_netting,
-            allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
-            protocol_fee_share_bps=protocol_fee_share_bps,
-            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        replay_state = _admit_exact_replay_state_v1(
+            pre_balances,
+            pre_pools,
+            pre_lp_balances,
+        )
+        return _strong_result_tuple_v1(
+            _validate_settlement_strong_impl(
+                settlement=settlement,
+                intents=intents,
+                pre_balances=replay_state.balances,
+                pre_pools=replay_state.pools,
+                pre_lp_balances=replay_state.lp_balances,
+                mode=mode,
+                allow_cow_netting=allow_cow_netting,
+                allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+                protocol_fee_share_bps=protocol_fee_share_bps,
+                protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+                output_plan=_ValidationOnlyOutputV1(),
+            )
         )
     except Exception as exc:
-        detail = str(exc).strip()
-        if "\n" in detail or "\r" in detail:
-            detail = " ".join(detail.split())
-        if len(detail) > 200:
-            detail = detail[:200]
-        if detail:
-            return False, f"strong validator crashed: {type(exc).__name__}: {detail}"
-        return False, f"strong validator crashed: {type(exc).__name__}"
+        return _strong_crash_result_v1(exc)
 
 
-def _validate_settlement_strong_impl(
+def validate_settlement_strong_committed_v1(
     *,
-    settlement: Settlement,
-    intents: List[Intent],
-    pre_balances: BalanceTable,
-    pre_pools: Dict[str, PoolState],
-    pre_lp_balances: Optional[LPTable] = None,
+    settlement: OwnedSettlementV1,
+    intents: tuple[OwnedIntentV1, ...],
+    pre_balances: CommittedBalanceTableV1,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+    pre_lp_balances: CommittedLPTableV1,
+    now: int,
+    min_lp_position_age_seconds: int,
+    lp_duration_policy: LPDurationRiskPolicyV1 | None,
     mode: str = _MODE_STRONG_REPLAY,
     allow_cow_netting: bool = False,
     allow_snapshot_bound_quote_bindings: bool = False,
     protocol_fee_share_bps: int = 0,
     protocol_fee_recipient_pubkey: Optional[PubKey] = None,
 ) -> Tuple[bool, Optional[str]]:
+    """Validate against exact committed values through the same replay relation."""
+
+    return _strong_result_tuple_v1(
+        evaluate_settlement_strong_committed_v1(
+            settlement=settlement,
+            intents=intents,
+            pre_balances=pre_balances,
+            pre_pools=pre_pools,
+            pre_lp_balances=pre_lp_balances,
+            now=now,
+            min_lp_position_age_seconds=min_lp_position_age_seconds,
+            lp_duration_policy=lp_duration_policy,
+            mode=mode,
+            allow_cow_netting=allow_cow_netting,
+            allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+        )
+    )
+
+
+def evaluate_settlement_strong_committed_v1(
+    *,
+    settlement: OwnedSettlementV1,
+    intents: tuple[OwnedIntentV1, ...],
+    pre_balances: CommittedBalanceTableV1,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+    pre_lp_balances: CommittedLPTableV1,
+    now: int,
+    min_lp_position_age_seconds: int,
+    lp_duration_policy: LPDurationRiskPolicyV1 | None,
+    mode: str = _MODE_STRONG_REPLAY,
+    allow_cow_netting: bool = False,
+    allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
+) -> StrongSettlementEvaluationResultV1:
+    """Evaluate one revalidated exact command and retain its exact successor."""
+
+    command = _admit_exact_commands_v1(settlement, intents)
+    if type(command) is StrongSettlementRejectV1:
+        return command
+    exact_settlement, exact_intents = command
+    return _evaluate_settlement_strong_admitted_v1(
+        settlement=exact_settlement,
+        intents=exact_intents,
+        pre_balances=pre_balances,
+        pre_pools=pre_pools,
+        pre_lp_balances=pre_lp_balances,
+        now=now,
+        min_lp_position_age_seconds=min_lp_position_age_seconds,
+        lp_duration_policy=lp_duration_policy,
+        mode=mode,
+        allow_cow_netting=allow_cow_netting,
+        allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
+
+
+def _evaluate_settlement_strong_admitted_v1(
+    *,
+    settlement: OwnedSettlementV1,
+    intents: tuple[OwnedIntentV1, ...],
+    pre_balances: CommittedBalanceTableV1,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+    pre_lp_balances: CommittedLPTableV1,
+    now: int,
+    min_lp_position_age_seconds: int,
+    lp_duration_policy: LPDurationRiskPolicyV1 | None,
+    mode: str,
+    allow_cow_netting: bool,
+    allow_snapshot_bound_quote_bindings: bool,
+    protocol_fee_share_bps: int,
+    protocol_fee_recipient_pubkey: Optional[PubKey],
+) -> StrongSettlementEvaluationResultV1:
+    """Consume one already-admitted command and pre-state graph.
+
+    The exact FCIS evaluator calls this private sink after its single closed
+    admission.  Independent callers use ``evaluate_settlement_strong_committed_v1``,
+    which revalidates before delegating here.
+    """
+
+    return _evaluate_settlement_strong_replay_committed_v1(
+        settlement=settlement,
+        intents=intents,
+        pre_balances=pre_balances,
+        pre_pools=pre_pools,
+        pre_lp_balances=pre_lp_balances,
+        now=now,
+        min_lp_position_age_seconds=min_lp_position_age_seconds,
+        lp_duration_policy=lp_duration_policy,
+        mode=mode,
+        allow_cow_netting=allow_cow_netting,
+        allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
+
+
+def evaluate_settlement_strong_legacy_committed_for_differential_v1(
+    *,
+    settlement: Settlement,
+    intents: list[Intent],
+    pre_balances: CommittedBalanceTableV1,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+    pre_lp_balances: CommittedLPTableV1,
+    now: int,
+    min_lp_position_age_seconds: int,
+    lp_duration_policy: LPDurationRiskPolicyV1 | None,
+    mode: str = _MODE_STRONG_REPLAY,
+    allow_cow_netting: bool = False,
+    allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
+) -> StrongSettlementEvaluationResultV1:
+    """Temporary unmounted oracle for the pre-M4 legacy command graph."""
+
+    return _evaluate_settlement_strong_replay_committed_v1(
+        settlement=settlement,
+        intents=intents,
+        pre_balances=pre_balances,
+        pre_pools=pre_pools,
+        pre_lp_balances=pre_lp_balances,
+        now=now,
+        min_lp_position_age_seconds=min_lp_position_age_seconds,
+        lp_duration_policy=lp_duration_policy,
+        mode=mode,
+        allow_cow_netting=allow_cow_netting,
+        allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
+
+
+def _evaluate_settlement_strong_replay_committed_v1(
+    *,
+    settlement: _ReplaySettlementV1,
+    intents: list[Intent] | tuple[OwnedIntentV1, ...],
+    pre_balances: CommittedBalanceTableV1,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+    pre_lp_balances: CommittedLPTableV1,
+    now: int,
+    min_lp_position_age_seconds: int,
+    lp_duration_policy: LPDurationRiskPolicyV1 | None,
+    mode: str,
+    allow_cow_netting: bool,
+    allow_snapshot_bound_quote_bindings: bool,
+    protocol_fee_share_bps: int,
+    protocol_fee_recipient_pubkey: Optional[PubKey],
+) -> StrongSettlementEvaluationResultV1:
+    """Closed differential replay relation shared by exact and legacy inputs."""
+
+    try:
+        replay_state = _ExactSpotReplayStateV1(
+            pre_balances,
+            pre_pools,
+            pre_lp_balances,
+        )
+        result = _validate_settlement_strong_impl(
+            settlement=settlement,
+            intents=intents,
+            pre_balances=replay_state.balances,
+            pre_pools=replay_state.pools,
+            pre_lp_balances=replay_state.lp_balances,
+            mode=mode,
+            allow_cow_netting=allow_cow_netting,
+            allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+            protocol_fee_share_bps=protocol_fee_share_bps,
+            protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+            output_plan=_DurationCandidateOutputV1(
+                _SpotTransitionContextV1(
+                    now,
+                    min_lp_position_age_seconds,
+                    lp_duration_policy,
+                )
+            ),
+        )
+        if type(result) is _StrongSettlementReplayAcceptedV1:
+            return _strong_reject_v1(
+                "strong validator returned validation-only success for exact evaluation"
+            )
+        return result
+    except Exception as exc:
+        return _strong_reject_v1(_strong_crash_text_v1(exc))
+
+
+def _strong_crash_result_v1(exc: Exception) -> Tuple[bool, str]:
+    return False, _strong_crash_text_v1(exc)
+
+
+def _strong_crash_text_v1(exc: Exception) -> str:
+    detail = str(exc).strip()
+    if "\n" in detail or "\r" in detail:
+        detail = " ".join(detail.split())
+    if len(detail) > 200:
+        detail = detail[:200]
+    if detail:
+        return f"strong validator crashed: {type(exc).__name__}: {detail}"
+    return f"strong validator crashed: {type(exc).__name__}"
+
+
+def _validate_settlement_strong_impl(
+    *,
+    settlement: _ReplaySettlementV1,
+    intents: list[Intent] | tuple[OwnedIntentV1, ...],
+    pre_balances: CommittedBalanceTableV1,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+    pre_lp_balances: CommittedLPTableV1,
+    output_plan: object,
+    mode: str = _MODE_STRONG_REPLAY,
+    allow_cow_netting: bool = False,
+    allow_snapshot_bound_quote_bindings: bool = False,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: Optional[PubKey] = None,
+) -> _StrongSettlementInternalResultV1:
     """
     Strong settlement validation.
 
     This is intended to be used in `dex.step` as a fail-closed acceptance gate.
     """
     if mode not in _VALIDATION_MODES:
-        return False, f"unsupported validation mode: {mode!r}"
+        return _strong_reject_v1(f"unsupported validation mode: {mode!r}")
+    if (
+        type(output_plan) is not _ValidationOnlyOutputV1
+        and type(output_plan) is not _DurationCandidateOutputV1
+    ):
+        return _strong_reject_v1("unsupported strong settlement output plan")
     if not is_strict_int(protocol_fee_share_bps) or not (0 <= protocol_fee_share_bps <= 10000):
-        return False, "protocol_fee_share_bps must be an int in [0, 10000]"
+        return _strong_reject_v1("protocol_fee_share_bps must be an int in [0, 10000]")
     if protocol_fee_share_bps > 0 and not protocol_fee_recipient_pubkey:
-        return False, "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
+        return _strong_reject_v1(
+            "protocol_fee_recipient_pubkey is required when protocol_fee_share_bps > 0"
+        )
 
     ok_index, err_index, settlement_index = _build_settlement_index(
         settlement=settlement,
@@ -348,7 +1109,7 @@ def _validate_settlement_strong_impl(
         intents=intents,
     )
     if not ok_index or settlement_index is None:
-        return False, err_index
+        return _strong_reject_v1(err_index)
     intents_by_id = settlement_index.intents_by_id
     fill_by_id = settlement_index.fill_by_id
 
@@ -371,13 +1132,13 @@ def _validate_settlement_strong_impl(
     ]
     if route_entry_ids:
         if route_entry_ids != sorted(route_entry_ids):
-            return False, "route intents must be settled in ascending intent_id order"
+            return _strong_reject_v1("route intents must be settled in ascending intent_id order")
 
         def _settlement_phase(intent_id: str) -> int:
-            kind = intents_by_id[intent_id].kind
-            if kind == IntentKind.CREATE_POOL:
+            intent = intents_by_id[intent_id]
+            if _intent_kind_is_v1(intent, IntentKind.CREATE_POOL):
                 return 0
-            if is_route_intent_kind(kind):
+            if is_route_intent_kind(intent.kind):
                 return 1
             return 2
 
@@ -385,25 +1146,31 @@ def _validate_settlement_strong_impl(
         for intent_id, _action in settlement.included_intents:
             phase = _settlement_phase(intent_id)
             if phase < prev_phase:
-                return False, (
+                return _strong_reject_v1(
                     "non-canonical settlement phase order at intent_id="
                     f"{intent_id}: routes require CREATE_POOL before route "
                     "before other pool intents"
                 )
             prev_phase = phase
 
-    # Replay state (pure local copies).
-    balances = _copy_balance_table(pre_balances)
-    pools: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pre_pools.items()}
-    lp = _copy_lp_table(pre_lp_balances) if pre_lp_balances is not None else LPTable()
+    # Replay state is one immutable exact aggregate. Each accepted intent
+    # replaces this local value with a complete candidate; rejection retains
+    # the prior aggregate and exposes no partial successor.
+    pre_replay_state = _ExactSpotReplayStateV1(
+        pre_balances,
+        pre_pools,
+        pre_lp_balances,
+    )
+    replay_state = pre_replay_state
 
     expected_events: List[dict] = []
     bal_deltas: List[BalanceDelta] = []
     res_deltas: List[ReserveDelta] = []
     lp_deltas: List[LPDelta] = []
+    exact_pool_creations: List[PoolCreationV1] = []
 
-    def fail(msg: str) -> Tuple[bool, Optional[str]]:
-        return False, msg
+    def fail(msg: str) -> StrongSettlementRejectV1:
+        return _strong_reject_v1(msg)
 
     for intent_id, action in settlement.included_intents:
         it = intents_by_id[intent_id]
@@ -413,21 +1180,25 @@ def _validate_settlement_strong_impl(
         )
         if quote_binding_error is not None:
             return fail(quote_binding_error)
-        quote_pool_fp = it.get_field("quote_pool_fingerprint")
+        quote_pool_fp = _intent_field_v1(it, "quote_pool_fingerprint")
         has_route_binding_fields = any(
-            it.get_field(field) is not None for field in ROUTE_RESERVED_FIELDS
+            _intent_field_v1(it, field) is not None for field in ROUTE_RESERVED_FIELDS
         )
         if has_route_binding_fields and not is_route_intent_kind(it.kind):
             return fail(
                 f"route binding fields only supported for route intents: "
-                f"intent_id={it.intent_id} intent_kind={it.kind.value}"
+                f"intent_id={it.intent_id} intent_kind={_intent_kind_value_v1(it)}"
             )
-        if is_route_intent_kind(it.kind) and has_route_binding_fields and not allow_snapshot_bound_quote_bindings:
+        if (
+            is_route_intent_kind(it.kind)
+            and has_route_binding_fields
+            and not allow_snapshot_bound_quote_bindings
+        ):
             return fail(
                 f"route binding requires validated engine witness: intent_id={it.intent_id}"
             )
 
-        if action == FillAction.REJECT:
+        if _fill_action_is_v1(action, FillAction.REJECT):
             if is_route_intent_kind(it.kind) and allow_snapshot_bound_quote_bindings:
                 # Must-fill discipline for the engine path. The engine injects
                 # an authentic binding (legs + pool fingerprints) for EVERY
@@ -442,9 +1213,7 @@ def _validate_settlement_strong_impl(
                 # or insufficient balance at this position) justifies the
                 # REJECT.
                 if not has_route_binding_fields:
-                    return fail(
-                        f"route reject missing engine binding: intent_id={intent_id}"
-                    )
+                    return fail(f"route reject missing engine binding: intent_id={intent_id}")
                 binding, parse_err = parse_route_binding_fields(it)
                 if binding is None:
                     return fail(
@@ -459,12 +1228,15 @@ def _validate_settlement_strong_impl(
                 # snapshot. A binding whose fingerprints match neither pre- nor
                 # current-state would forge a fake ROUTE_POOL_STATE_DRIFT and
                 # "justify" the reject; reject it before classifying drift.
-                if not route_binding_pins_snapshot(binding, pre_pools):
+                if not route_binding_pins_committed_snapshot_v1(binding, pre_pools):
                     return fail(
                         "route reject binding does not pin the pre-state snapshot "
                         f"for intent_id={intent_id}"
                     )
-                replay = replay_route_legs(binding=binding, pools=pools)
+                replay = replay_route_legs_committed_v1(
+                    binding=binding,
+                    pools=replay_state.pools,
+                )
                 if replay.ok:
                     # Legs replayed exactly and totals are satisfiable (the
                     # binding matches the signed route), so the only canonical
@@ -472,11 +1244,12 @@ def _validate_settlement_strong_impl(
                     # afford the route total. Anything else means a FILL was
                     # due and the REJECT is a lie.
                     if route_totals_violation(it, replay) is not None:
-                        return fail(
-                            f"route reject totals inconsistent for intent_id={intent_id}"
-                        )
+                        return fail(f"route reject totals inconsistent for intent_id={intent_id}")
                     reject_sender: PubKey = it.sender_pubkey
-                    if balances.get(reject_sender, binding.asset_in) >= int(replay.total_amount_in):
+                    if replay_state.balances.get(
+                        reject_sender,
+                        binding.asset_in,
+                    ) >= int(replay.total_amount_in):
                         return fail(
                             "route reject not justified — canonical clearing "
                             f"would fill intent_id={intent_id}"
@@ -500,70 +1273,123 @@ def _validate_settlement_strong_impl(
         f = fill_by_id[intent_id]
 
         sender: PubKey = it.sender_pubkey
-        recipient: PubKey = it.get_field("recipient", sender)
+        recipient = _intent_field_v1(it, "recipient", sender)
         if not isinstance(recipient, str) or not recipient:
             return fail(f"invalid recipient for intent_id={intent_id}")
 
-        if it.kind == IntentKind.CREATE_POOL:
-            asset0 = it.get_field("asset0")
-            asset1 = it.get_field("asset1")
-            fee_bps = it.get_field("fee_bps")
-            amount0 = it.get_field("amount0")
-            amount1 = it.get_field("amount1")
-            created_at = it.get_field("created_at", 0)
-            curve_tag = it.get_field("curve_tag", None)
-            curve_params = it.get_field("curve_params", None)
+        if _intent_kind_is_v1(it, IntentKind.CREATE_POOL):
+            asset0 = _intent_field_v1(it, "asset0")
+            asset1 = _intent_field_v1(it, "asset1")
+            fee_bps = _intent_field_v1(it, "fee_bps")
+            amount0 = _intent_field_v1(it, "amount0")
+            amount1 = _intent_field_v1(it, "amount1")
+            created_at = _intent_field_v1(it, "created_at", 0)
+            curve_tag = _intent_field_v1(it, "curve_tag", None)
+            curve_params = _intent_field_v1(it, "curve_params", None)
             if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
                 return fail(f"missing CREATE_POOL fields for intent_id={intent_id}")
             if not isinstance(asset0, str) or not isinstance(asset1, str):
                 return fail(f"invalid CREATE_POOL asset ids for intent_id={intent_id}")
-            if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
+            fee_bps_value = cast(int, fee_bps)
+            amount0_value = cast(int, amount0)
+            amount1_value = cast(int, amount1)
+            if not is_strict_int(fee_bps) or not (0 <= fee_bps_value <= 10000):
                 return fail(f"invalid CREATE_POOL fee_bps for intent_id={intent_id}")
-            if not is_strict_int(amount0) or amount0 <= 0:
+            if not is_strict_int(amount0) or amount0_value <= 0:
                 return fail(f"invalid CREATE_POOL amount0 for intent_id={intent_id}")
-            if not is_strict_int(amount1) or amount1 <= 0:
+            if not is_strict_int(amount1) or amount1_value <= 0:
                 return fail(f"invalid CREATE_POOL amount1 for intent_id={intent_id}")
             if created_at is not None and (not is_strict_int(created_at) or created_at < 0):
                 return fail(f"invalid CREATE_POOL created_at for intent_id={intent_id}")
             created_at_value = 0 if created_at is None else created_at
 
             try:
-                pool_id, created_pool, lp_minted = create_pool(
-                    asset0=asset0,
-                    asset1=asset1,
-                    amount0=amount0,
-                    amount1=amount1,
-                    fee_bps=fee_bps,
-                    creator_pubkey=sender,
-                    created_at=created_at_value,
+                if asset0 >= asset1:
+                    raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}")
+                require_int_range(
+                    "amount0",
+                    amount0_value,
+                    minimum=1,
+                    maximum=DEX_LP_AMOUNT_MAX,
+                )
+                require_int_range(
+                    "amount1",
+                    amount1_value,
+                    minimum=1,
+                    maximum=DEX_LP_AMOUNT_MAX,
+                )
+                require_int_range("fee_bps", fee_bps_value, minimum=0, maximum=10_000)
+                require_int_range("created_at", created_at_value, minimum=0)
+                curve_tag_norm, curve_params_norm = normalize_curve_config(
                     curve_tag=curve_tag,
                     curve_params=curve_params,
                 )
-            except Exception as exc:
+                pool_id = compute_pool_id(
+                    asset0,
+                    asset1,
+                    fee_bps_value,
+                    curve_tag=curve_tag_norm,
+                    curve_params=curve_params_norm,
+                )
+                lp_minted = compute_lp_mint(
+                    amount0_value,
+                    amount1_value,
+                    amount0_value,
+                    amount1_value,
+                    0,
+                )
+                pool_creation = PoolCreationV1(
+                    pool_id=pool_id,
+                    asset0=asset0,
+                    asset1=asset1,
+                    fee_bps=fee_bps_value,
+                    created_at=created_at_value,
+                    curve_tag=curve_tag_norm,
+                    curve_params=curve_params_norm,
+                )
+            except (ArithmeticError, TypeError, ValueError) as exc:
                 return fail(f"CREATE_POOL computation error for intent_id={intent_id}: {exc}")
 
-            if pool_id in pools:
+            if pool_id in replay_state.pools:
                 return fail(f"CREATE_POOL duplicates existing pool_id={pool_id}")
 
             # Fill must match the create_pool kernel.
-            if int(f.amount0_used or 0) != int(amount0):
+            if int(f.amount0_used or 0) != amount0_value:
                 return fail(f"CREATE_POOL fill.amount0_used mismatch for intent_id={intent_id}")
-            if int(f.amount1_used or 0) != int(amount1):
+            if int(f.amount1_used or 0) != amount1_value:
                 return fail(f"CREATE_POOL fill.amount1_used mismatch for intent_id={intent_id}")
             if int(f.lp_minted or 0) != int(lp_minted):
                 return fail(f"CREATE_POOL fill.lp_minted mismatch for intent_id={intent_id}")
 
-            # Apply semantics.
             try:
-                balances.subtract(sender, asset0, int(amount0))
-                balances.subtract(sender, asset1, int(amount1))
-                # LP mint to creator, plus lock.
-                lp.add(sender, pool_id, int(lp_minted))
-                lp.add(LP_LOCK_PUBKEY, pool_id, int(MIN_LP_LOCK))
-            except Exception as exc:
+                applied = _apply_spot_replay_v1(
+                    replay_state,
+                    _SpotReplayDeltaBatchV1(
+                        balance_deltas=(
+                            BalanceDeltaV1((sender, asset0), -amount0_value),
+                            BalanceDeltaV1((sender, asset1), -amount1_value),
+                        ),
+                        reserve_deltas=(
+                            PoolReserveDeltaV1(pool_id, asset0, amount0_value),
+                            PoolReserveDeltaV1(pool_id, asset1, amount1_value),
+                        ),
+                        lp_deltas=(
+                            LPPositionDeltaV1((sender, pool_id), lp_minted),
+                            LPPositionDeltaV1(
+                                (LP_LOCK_PUBKEY, pool_id),
+                                MIN_LP_LOCK,
+                            ),
+                        ),
+                        pool_creations=(pool_creation,),
+                    ),
+                )
+                if isinstance(applied, _SpotReplayRejectV1):
+                    raise ValueError(applied.text())
+                replay_state = applied
+            except (TypeError, ValueError) as exc:
                 return fail(f"CREATE_POOL balance/LP apply error for intent_id={intent_id}: {exc}")
-
-            pools[pool_id] = created_pool
+            created_pool = replay_state.pools[pool_id]
+            exact_pool_creations.append(pool_creation)
 
             # Expected events and deltas (canonicalized later).
             expected_events.append(
@@ -572,22 +1398,36 @@ def _validate_settlement_strong_impl(
                     "pool_id": pool_id,
                     "asset0": asset0,
                     "asset1": asset1,
-                    "fee_bps": int(fee_bps),
+                    "fee_bps": fee_bps_value,
                     "curve_tag": created_pool.curve_tag,
                     "curve_params": created_pool.curve_params,
-                    "status": PoolStatus.ACTIVE.value,
+                    "status": POOL_STATUS_MEMBER_VALUES_V1[POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1],
                     "created_at": int(created_pool.created_at),
                 }
             )
 
-            bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset0, delta_add=0, delta_sub=int(amount0)))
-            bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset1, delta_add=0, delta_sub=int(amount1)))
+            bal_deltas.append(
+                BalanceDelta(pubkey=sender, asset=asset0, delta_add=0, delta_sub=amount0_value)
+            )
+            bal_deltas.append(
+                BalanceDelta(pubkey=sender, asset=asset1, delta_add=0, delta_sub=amount1_value)
+            )
 
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=int(amount0), delta_sub=0))
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset1, delta_add=int(amount1), delta_sub=0))
+            res_deltas.append(
+                ReserveDelta(pool_id=pool_id, asset=asset0, delta_add=amount0_value, delta_sub=0)
+            )
+            res_deltas.append(
+                ReserveDelta(pool_id=pool_id, asset=asset1, delta_add=amount1_value, delta_sub=0)
+            )
 
-            lp_deltas.append(LPDelta(pubkey=sender, pool_id=pool_id, delta_add=int(lp_minted), delta_sub=0))
-            lp_deltas.append(LPDelta(pubkey=LP_LOCK_PUBKEY, pool_id=pool_id, delta_add=int(MIN_LP_LOCK), delta_sub=0))
+            lp_deltas.append(
+                LPDelta(pubkey=sender, pool_id=pool_id, delta_add=int(lp_minted), delta_sub=0)
+            )
+            lp_deltas.append(
+                LPDelta(
+                    pubkey=LP_LOCK_PUBKEY, pool_id=pool_id, delta_add=int(MIN_LP_LOCK), delta_sub=0
+                )
+            )
             continue
 
         if is_route_intent_kind(it.kind):
@@ -607,13 +1447,16 @@ def _validate_settlement_strong_impl(
             # Without it a forged settlement could pin the CURRENT (drifted)
             # state and fill a route that the canonical pre-state snapshot would
             # not — snapshot-bound execution must fill only against pre-state.
-            if not route_binding_pins_snapshot(binding, pre_pools):
+            if not route_binding_pins_committed_snapshot_v1(binding, pre_pools):
                 return fail(
                     "route fill binding does not pin the pre-state snapshot "
                     f"for intent_id={intent_id}"
                 )
 
-            replay = replay_route_legs(binding=binding, pools=pools)
+            replay = replay_route_legs_committed_v1(
+                binding=binding,
+                pools=replay_state.pools,
+            )
             if not replay.ok:
                 return fail(
                     f"route replay failed for intent_id={intent_id}: {replay.reject_reason}"
@@ -630,48 +1473,103 @@ def _validate_settlement_strong_impl(
                 return fail(f"route fee_paid mismatch for intent_id={intent_id}")
 
             try:
-                for leg in replay.legs:
-                    balances.subtract(sender, leg.asset_in, int(leg.amount_in))
-                    balances.add(recipient, leg.asset_out, int(leg.amount_out))
-            except Exception as exc:
+                applied = _apply_spot_replay_v1(
+                    replay_state,
+                    _SpotReplayDeltaBatchV1(
+                        balance_deltas=tuple(
+                            delta
+                            for leg in replay.legs
+                            for delta in (
+                                BalanceDeltaV1(
+                                    (sender, leg.asset_in),
+                                    -leg.amount_in,
+                                ),
+                                BalanceDeltaV1(
+                                    (recipient, leg.asset_out),
+                                    leg.amount_out,
+                                ),
+                            )
+                        ),
+                        reserve_deltas=tuple(
+                            delta
+                            for leg in replay.legs
+                            for delta in (
+                                PoolReserveDeltaV1(
+                                    leg.pool_id,
+                                    leg.asset_in,
+                                    leg.amount_in,
+                                ),
+                                PoolReserveDeltaV1(
+                                    leg.pool_id,
+                                    leg.asset_out,
+                                    -leg.amount_out,
+                                ),
+                            )
+                        ),
+                        lp_deltas=(),
+                        pool_creations=(),
+                    ),
+                )
+                if isinstance(applied, _SpotReplayRejectV1):
+                    raise ValueError(applied.text())
+                replay_state = applied
+            except (TypeError, ValueError) as exc:
                 return fail(f"route apply error for intent_id={intent_id}: {exc}")
 
             for leg in replay.legs:
-                leg_pool = pools[leg.pool_id]
-                leg_pool.reserve0 = int(leg.new_reserve0)
-                leg_pool.reserve1 = int(leg.new_reserve1)
                 bal_deltas.append(
-                    BalanceDelta(pubkey=sender, asset=leg.asset_in, delta_add=0, delta_sub=int(leg.amount_in))
+                    BalanceDelta(
+                        pubkey=sender, asset=leg.asset_in, delta_add=0, delta_sub=int(leg.amount_in)
+                    )
                 )
                 bal_deltas.append(
-                    BalanceDelta(pubkey=recipient, asset=leg.asset_out, delta_add=int(leg.amount_out), delta_sub=0)
+                    BalanceDelta(
+                        pubkey=recipient,
+                        asset=leg.asset_out,
+                        delta_add=int(leg.amount_out),
+                        delta_sub=0,
+                    )
                 )
                 res_deltas.append(
-                    ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_in, delta_add=int(leg.amount_in), delta_sub=0)
+                    ReserveDelta(
+                        pool_id=leg.pool_id,
+                        asset=leg.asset_in,
+                        delta_add=int(leg.amount_in),
+                        delta_sub=0,
+                    )
                 )
                 res_deltas.append(
-                    ReserveDelta(pool_id=leg.pool_id, asset=leg.asset_out, delta_add=0, delta_sub=int(leg.amount_out))
+                    ReserveDelta(
+                        pool_id=leg.pool_id,
+                        asset=leg.asset_out,
+                        delta_add=0,
+                        delta_sub=int(leg.amount_out),
+                    )
                 )
             continue
 
-        pool_id = it.get_field("pool_id")
+        pool_id = _intent_field_v1(it, "pool_id")
         if not isinstance(pool_id, str) or not pool_id:
             return fail(f"missing pool_id for intent_id={intent_id}")
-        if pool_id not in pools:
+        if pool_id not in replay_state.pools:
             return fail(f"pool not found for intent_id={intent_id}: {pool_id}")
-        pool = pools[pool_id]
+        pool = replay_state.pools[pool_id]
 
-        if it.kind in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-            asset_in = it.get_field("asset_in")
-            asset_out = it.get_field("asset_out")
+        if _intent_kind_is_v1(it, IntentKind.SWAP_EXACT_IN) or _intent_kind_is_v1(
+            it, IntentKind.SWAP_EXACT_OUT
+        ):
+            asset_in = _intent_field_v1(it, "asset_in")
+            asset_out = _intent_field_v1(it, "asset_out")
             if not isinstance(asset_in, str) or not isinstance(asset_out, str):
                 return fail(f"invalid asset_in/out for intent_id={intent_id}")
-            if pool.status != PoolStatus.ACTIVE:
-                return fail(f"pool not active for intent_id={intent_id}: {pool.status}")
+            if pool.status.member_ordinal != POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1:
+                return fail(
+                    f"pool not active for intent_id={intent_id}: {_pool_status_text_v1(pool)}"
+                )
             if {asset_in, asset_out} != {pool.asset0, pool.asset1} or asset_in == asset_out:
                 return fail(f"swap asset mismatch for intent_id={intent_id}")
             if quote_pool_fp is not None:
-                actual_pool_fp = pool_state_fingerprint(pool)
+                actual_pool_fp = pool_state_fingerprint_committed_v1(pool)
                 if actual_pool_fp != quote_pool_fp:
                     return fail(
                         _quote_binding_error(
@@ -685,10 +1583,12 @@ def _validate_settlement_strong_impl(
             if f.reason == "COW_NETTED":
                 if not allow_cow_netting:
                     return fail(f"COW_NETTED not allowed for intent_id={intent_id}")
-                if it.kind != IntentKind.SWAP_EXACT_IN:
-                    return fail(f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}")
-                amount_in = it.get_field("amount_in")
-                min_out = it.get_field("min_amount_out", 0)
+                if not _intent_kind_is_v1(it, IntentKind.SWAP_EXACT_IN):
+                    return fail(
+                        f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}"
+                    )
+                amount_in = _intent_field_v1(it, "amount_in")
+                min_out = _intent_field_v1(it, "min_amount_out", 0)
                 if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
                     return fail(f"invalid amount_in for intent_id={intent_id}")
                 if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
@@ -701,13 +1601,32 @@ def _validate_settlement_strong_impl(
                 if out_amt < int(min_out):
                     return fail(f"COW_NETTED slippage: intent_id={intent_id}")
                 try:
-                    balances.subtract(sender, asset_in, int(amount_in))
-                    balances.add(recipient, asset_out, out_amt)
-                except Exception as exc:
+                    applied = _apply_spot_replay_v1(
+                        replay_state,
+                        _SpotReplayDeltaBatchV1(
+                            balance_deltas=(
+                                BalanceDeltaV1((sender, asset_in), -amount_in),
+                                BalanceDeltaV1((recipient, asset_out), out_amt),
+                            ),
+                            reserve_deltas=(),
+                            lp_deltas=(),
+                            pool_creations=(),
+                        ),
+                    )
+                    if isinstance(applied, _SpotReplayRejectV1):
+                        raise ValueError(applied.text())
+                    replay_state = applied
+                except (TypeError, ValueError) as exc:
                     return fail(f"COW_NETTED apply error for intent_id={intent_id}: {exc}")
 
-                bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
-                bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=out_amt, delta_sub=0))
+                bal_deltas.append(
+                    BalanceDelta(
+                        pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)
+                    )
+                )
+                bal_deltas.append(
+                    BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=out_amt, delta_sub=0)
+                )
                 continue
 
             if asset_in == pool.asset0 and asset_out == pool.asset1:
@@ -722,12 +1641,14 @@ def _validate_settlement_strong_impl(
             if mode == _MODE_STRONG_PROOF_CARRYING:
                 if f.reserve_in_before is None or f.reserve_out_before is None:
                     return fail(f"missing swap witness reserves for intent_id={intent_id}")
-                if int(f.reserve_in_before) != int(reserve_in) or int(f.reserve_out_before) != int(reserve_out):
+                if int(f.reserve_in_before) != int(reserve_in) or int(f.reserve_out_before) != int(
+                    reserve_out
+                ):
                     return fail(f"swap witness reserve mismatch for intent_id={intent_id}")
 
-            if it.kind == IntentKind.SWAP_EXACT_IN:
-                amount_in = it.get_field("amount_in")
-                min_out = it.get_field("min_amount_out", 0)
+            if _intent_kind_is_v1(it, IntentKind.SWAP_EXACT_IN):
+                amount_in = _intent_field_v1(it, "amount_in")
+                min_out = _intent_field_v1(it, "min_amount_out", 0)
                 if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
                     return fail(f"invalid amount_in for intent_id={intent_id}")
                 if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
@@ -752,14 +1673,14 @@ def _validate_settlement_strong_impl(
                         new_out = int(quote.new_reserve_out)
                         protocol_fee = int(quote.protocol_fee)
                     else:
-                        amount_out, (new_in, new_out) = swap_exact_in_for_pool(
+                        amount_out, (new_in, new_out) = swap_exact_in_for_committed_pool_v1(
                             pool,
                             reserve_in=int(reserve_in),
                             reserve_out=int(reserve_out),
                             amount_in=int(amount_in),
                         )
                         protocol_fee = 0
-                except Exception as exc:
+                except (ArithmeticError, TypeError, ValueError) as exc:
                     return fail(f"swap_exact_in kernel error for intent_id={intent_id}: {exc}")
 
                 if int(f.amount_out_filled or 0) != int(amount_out):
@@ -774,55 +1695,58 @@ def _validate_settlement_strong_impl(
                     return fail(f"swap protocol_fee_paid mismatch for intent_id={intent_id}")
 
                 try:
-                    balances.subtract(sender, asset_in, int(amount_in))
-                    balances.add(recipient, asset_out, int(amount_out))
-                    if protocol_fee:
-                        # Invariant: protocol_fee>0 only when protocol_fee_share_bps>0, which
-                        # requires a recipient (validated at function entry). Explicit
-                        # fail-closed guard rather than `assert` so the check survives
-                        # `python -O` and any future regression of that invariant.
-                        if protocol_fee_recipient_pubkey is None:
-                            return fail(f"protocol_fee present without recipient for intent_id={intent_id}")
-                        balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
-                except Exception as exc:
+                    applied = _apply_pool_swap_spot_v1(
+                        replay_state,
+                        _PoolSwapApplyV1(
+                            pool_id=pool_id,
+                            sender=sender,
+                            recipient=recipient,
+                            asset_in=asset_in,
+                            asset_out=asset_out,
+                            amount_in=amount_in,
+                            amount_out=amount_out,
+                            protocol_fee=protocol_fee,
+                            protocol_fee_recipient=protocol_fee_recipient_pubkey,
+                        ),
+                    )
+                    if isinstance(applied, _SpotReplayRejectV1):
+                        raise ValueError(applied.text())
+                    replay_state = applied
+                    if not _pool_reserves_match_quote_v1(
+                        replay_state.pools[pool_id],
+                        dir_is_0_to_1,
+                        new_in,
+                        new_out,
+                    ):
+                        raise ValueError("spot transition disagrees with swap kernel reserves")
+                except (TypeError, ValueError) as exc:
                     return fail(f"swap apply error for intent_id={intent_id}: {exc}")
 
-                # Apply reserve updates.
-                if dir_is_0_to_1:
-                    pool.reserve0 = int(new_in)
-                    pool.reserve1 = int(new_out)
-                else:
-                    pool.reserve1 = int(new_in)
-                    pool.reserve0 = int(new_out)
-
-                bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
-                bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out), delta_sub=0))
-                if protocol_fee:
-                    if protocol_fee_recipient_pubkey is None:
-                        return fail(f"protocol_fee present without recipient for intent_id={intent_id}")
-                    bal_deltas.append(
-                        BalanceDelta(
-                            pubkey=protocol_fee_recipient_pubkey,
-                            asset=asset_in,
-                            delta_add=int(protocol_fee),
-                            delta_sub=0,
-                        )
-                    )
-                res_deltas.append(
-                    ReserveDelta(
-                        pool_id=pool_id,
-                        asset=asset_in,
-                        delta_add=int(amount_in) - int(protocol_fee),
-                        delta_sub=0,
-                    )
+                delta_error = _append_pool_swap_deltas(
+                    pool_id=pool_id,
+                    sender=sender,
+                    recipient=recipient,
+                    asset_in=asset_in,
+                    asset_out=asset_out,
+                    amount_in=amount_in,
+                    amount_out=amount_out,
+                    protocol_fee=protocol_fee,
+                    protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+                    bal_deltas=bal_deltas,
+                    res_deltas=res_deltas,
                 )
-                res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out)))
+                if delta_error is not None:
+                    return fail(f"{delta_error} for intent_id={intent_id}")
                 continue
 
             # SWAP_EXACT_OUT
-            amount_out_req = it.get_field("amount_out")
-            max_in = it.get_field("max_amount_in")
-            if not isinstance(amount_out_req, int) or isinstance(amount_out_req, bool) or amount_out_req <= 0:
+            amount_out_req = _intent_field_v1(it, "amount_out")
+            max_in = _intent_field_v1(it, "max_amount_in")
+            if (
+                not isinstance(amount_out_req, int)
+                or isinstance(amount_out_req, bool)
+                or amount_out_req <= 0
+            ):
                 return fail(f"invalid amount_out for intent_id={intent_id}")
             if not isinstance(max_in, int) or isinstance(max_in, bool) or max_in < 0:
                 return fail(f"invalid max_amount_in for intent_id={intent_id}")
@@ -846,14 +1770,14 @@ def _validate_settlement_strong_impl(
                     new_out = int(quote.reserve_out_after)
                     protocol_fee = int(quote.protocol_fee_paid)
                 else:
-                    amount_in_req, (new_in, new_out) = swap_exact_out_for_pool(
+                    amount_in_req, (new_in, new_out) = swap_exact_out_for_committed_pool_v1(
                         pool,
                         reserve_in=int(reserve_in),
                         reserve_out=int(reserve_out),
                         amount_out=int(amount_out_req),
                     )
                     protocol_fee = 0
-            except Exception as exc:
+            except (ArithmeticError, TypeError, ValueError) as exc:
                 return fail(f"swap_exact_out kernel error for intent_id={intent_id}: {exc}")
 
             if int(f.amount_in_filled or 0) != int(amount_in_req):
@@ -867,56 +1791,86 @@ def _validate_settlement_strong_impl(
             if int(f.protocol_fee_paid or 0) != int(protocol_fee):
                 return fail(f"swap protocol_fee_paid mismatch for intent_id={intent_id}")
 
-            exact_out_apply_error = _apply_exact_out_swap_replay(
-                intent_id=intent_id,
+            try:
+                applied = _apply_pool_swap_spot_v1(
+                    replay_state,
+                    _PoolSwapApplyV1(
+                        pool_id=pool_id,
+                        sender=sender,
+                        recipient=recipient,
+                        asset_in=asset_in,
+                        asset_out=asset_out,
+                        amount_in=amount_in_req,
+                        amount_out=amount_out_req,
+                        protocol_fee=protocol_fee,
+                        protocol_fee_recipient=protocol_fee_recipient_pubkey,
+                    ),
+                )
+                if isinstance(applied, _SpotReplayRejectV1):
+                    raise ValueError(applied.text())
+                replay_state = applied
+                if not _pool_reserves_match_quote_v1(
+                    replay_state.pools[pool_id],
+                    dir_is_0_to_1,
+                    new_in,
+                    new_out,
+                ):
+                    raise ValueError("spot transition disagrees with swap kernel reserves")
+            except (TypeError, ValueError) as exc:
+                return fail(f"swap apply error for intent_id={intent_id}: {exc}")
+
+            delta_error = _append_pool_swap_deltas(
+                pool_id=pool_id,
                 sender=sender,
                 recipient=recipient,
-                pool_id=pool_id,
-                pool=pool,
-                dir_is_0_to_1=dir_is_0_to_1,
                 asset_in=asset_in,
                 asset_out=asset_out,
-                balances=balances,
                 amount_in=amount_in_req,
                 amount_out=amount_out_req,
-                new_in=new_in,
-                new_out=new_out,
                 protocol_fee=protocol_fee,
                 protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
                 bal_deltas=bal_deltas,
                 res_deltas=res_deltas,
             )
-            if exact_out_apply_error is not None:
-                return fail(exact_out_apply_error)
+            if delta_error is not None:
+                return fail(f"{delta_error} for intent_id={intent_id}")
             continue
 
-        if it.kind == IntentKind.ADD_LIQUIDITY:
-            if pool.status != PoolStatus.ACTIVE:
-                return fail(f"pool not active for intent_id={intent_id}: {pool.status}")
-            amount0_desired = it.get_field("amount0_desired")
-            amount1_desired = it.get_field("amount1_desired")
-            amount0_min = it.get_field("amount0_min", 0)
-            amount1_min = it.get_field("amount1_min", 0)
+        if _intent_kind_is_v1(it, IntentKind.ADD_LIQUIDITY):
+            if pool.status.member_ordinal != POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1:
+                return fail(
+                    f"pool not active for intent_id={intent_id}: {_pool_status_text_v1(pool)}"
+                )
+            amount0_desired = _intent_field_v1(it, "amount0_desired")
+            amount1_desired = _intent_field_v1(it, "amount1_desired")
+            amount0_min = _intent_field_v1(it, "amount0_min", 0)
+            amount1_min = _intent_field_v1(it, "amount1_min", 0)
             if any(v is None for v in (amount0_desired, amount1_desired)):
                 return fail(f"missing ADD_LIQUIDITY fields for intent_id={intent_id}")
-            if not is_strict_int(amount0_desired) or amount0_desired <= 0:
+            amount0_desired_value = cast(int, amount0_desired)
+            amount1_desired_value = cast(int, amount1_desired)
+            amount0_min_value = cast(int, amount0_min)
+            amount1_min_value = cast(int, amount1_min)
+            if not is_strict_int(amount0_desired) or amount0_desired_value <= 0:
                 return fail(f"invalid amount0_desired for intent_id={intent_id}")
-            if not is_strict_int(amount1_desired) or amount1_desired <= 0:
+            if not is_strict_int(amount1_desired) or amount1_desired_value <= 0:
                 return fail(f"invalid amount1_desired for intent_id={intent_id}")
-            if not is_strict_int(amount0_min) or amount0_min < 0:
+            if not is_strict_int(amount0_min) or amount0_min_value < 0:
                 return fail(f"invalid amount0_min for intent_id={intent_id}")
-            if not is_strict_int(amount1_min) or amount1_min < 0:
+            if not is_strict_int(amount1_min) or amount1_min_value < 0:
                 return fail(f"invalid amount1_min for intent_id={intent_id}")
 
             try:
-                amount0_used, amount1_used, lp_minted = add_liquidity(
-                    pool_state=pool,
-                    amount0_desired=amount0_desired,
-                    amount1_desired=amount1_desired,
-                    amount0_min=amount0_min,
-                    amount1_min=amount1_min,
+                amount0_used, amount1_used, lp_minted = add_liquidity_for_committed_pool_v1(
+                    pool,
+                    AddLiquidityKernelInputV1(
+                        amount0_desired=amount0_desired_value,
+                        amount1_desired=amount1_desired_value,
+                        amount0_min=amount0_min_value,
+                        amount1_min=amount1_min_value,
+                    ),
                 )
-            except Exception as exc:
+            except (ArithmeticError, TypeError, ValueError) as exc:
                 return fail(f"ADD_LIQUIDITY computation error for intent_id={intent_id}: {exc}")
 
             if int(f.amount0_used or 0) != int(amount0_used):
@@ -927,49 +1881,97 @@ def _validate_settlement_strong_impl(
                 return fail(f"ADD_LIQUIDITY fill.lp_minted mismatch for intent_id={intent_id}")
 
             try:
-                balances.subtract(sender, pool.asset0, int(amount0_used))
-                balances.subtract(sender, pool.asset1, int(amount1_used))
-                lp.add(recipient, pool_id, int(lp_minted))
-            except Exception as exc:
+                applied = _apply_spot_replay_v1(
+                    replay_state,
+                    _SpotReplayDeltaBatchV1(
+                        balance_deltas=(
+                            BalanceDeltaV1((sender, pool.asset0), -amount0_used),
+                            BalanceDeltaV1((sender, pool.asset1), -amount1_used),
+                        ),
+                        reserve_deltas=(
+                            PoolReserveDeltaV1(pool_id, pool.asset0, amount0_used),
+                            PoolReserveDeltaV1(pool_id, pool.asset1, amount1_used),
+                        ),
+                        lp_deltas=(LPPositionDeltaV1((recipient, pool_id), lp_minted),),
+                        pool_creations=(),
+                    ),
+                )
+                if isinstance(applied, _SpotReplayRejectV1):
+                    raise ValueError(applied.text())
+                candidate_pool = applied.pools[pool_id]
+                expected_pool_values = (
+                    pool.reserve0 + amount0_used,
+                    pool.reserve1 + amount1_used,
+                    pool.lp_supply + lp_minted,
+                )
+                if (
+                    candidate_pool.reserve0,
+                    candidate_pool.reserve1,
+                    candidate_pool.lp_supply,
+                ) != expected_pool_values:
+                    raise ValueError("spot transition disagrees with liquidity kernel")
+                replay_state = applied
+            except (TypeError, ValueError) as exc:
                 return fail(f"ADD_LIQUIDITY apply error for intent_id={intent_id}: {exc}")
 
-            pool.reserve0 += int(amount0_used)
-            pool.reserve1 += int(amount1_used)
-            pool.lp_supply += int(lp_minted)
-
-            bal_deltas.append(BalanceDelta(pubkey=sender, asset=pool.asset0, delta_add=0, delta_sub=int(amount0_used)))
-            bal_deltas.append(BalanceDelta(pubkey=sender, asset=pool.asset1, delta_add=0, delta_sub=int(amount1_used)))
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool.asset0, delta_add=int(amount0_used), delta_sub=0))
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool.asset1, delta_add=int(amount1_used), delta_sub=0))
-            lp_deltas.append(LPDelta(pubkey=recipient, pool_id=pool_id, delta_add=int(lp_minted), delta_sub=0))
+            bal_deltas.append(
+                BalanceDelta(
+                    pubkey=sender, asset=pool.asset0, delta_add=0, delta_sub=int(amount0_used)
+                )
+            )
+            bal_deltas.append(
+                BalanceDelta(
+                    pubkey=sender, asset=pool.asset1, delta_add=0, delta_sub=int(amount1_used)
+                )
+            )
+            res_deltas.append(
+                ReserveDelta(
+                    pool_id=pool_id, asset=pool.asset0, delta_add=int(amount0_used), delta_sub=0
+                )
+            )
+            res_deltas.append(
+                ReserveDelta(
+                    pool_id=pool_id, asset=pool.asset1, delta_add=int(amount1_used), delta_sub=0
+                )
+            )
+            lp_deltas.append(
+                LPDelta(pubkey=recipient, pool_id=pool_id, delta_add=int(lp_minted), delta_sub=0)
+            )
             continue
 
-        if it.kind == IntentKind.REMOVE_LIQUIDITY:
-            if pool.status != PoolStatus.ACTIVE:
-                return fail(f"pool not active for intent_id={intent_id}: {pool.status}")
-            lp_amount = it.get_field("lp_amount")
-            amount0_min = it.get_field("amount0_min", 0)
-            amount1_min = it.get_field("amount1_min", 0)
+        if _intent_kind_is_v1(it, IntentKind.REMOVE_LIQUIDITY):
+            if pool.status.member_ordinal != POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1:
+                return fail(
+                    f"pool not active for intent_id={intent_id}: {_pool_status_text_v1(pool)}"
+                )
+            lp_amount = _intent_field_v1(it, "lp_amount")
+            amount0_min = _intent_field_v1(it, "amount0_min", 0)
+            amount1_min = _intent_field_v1(it, "amount1_min", 0)
             if lp_amount is None:
                 return fail(f"missing REMOVE_LIQUIDITY lp_amount for intent_id={intent_id}")
-            if not is_strict_int(lp_amount) or lp_amount <= 0:
+            lp_amount_value = cast(int, lp_amount)
+            amount0_min_value = cast(int, amount0_min)
+            amount1_min_value = cast(int, amount1_min)
+            if not is_strict_int(lp_amount) or lp_amount_value <= 0:
                 return fail(f"invalid lp_amount for intent_id={intent_id}")
-            if not is_strict_int(amount0_min) or amount0_min < 0:
+            if not is_strict_int(amount0_min) or amount0_min_value < 0:
                 return fail(f"invalid amount0_min for intent_id={intent_id}")
-            if not is_strict_int(amount1_min) or amount1_min < 0:
+            if not is_strict_int(amount1_min) or amount1_min_value < 0:
                 return fail(f"invalid amount1_min for intent_id={intent_id}")
 
             try:
-                amount0_out, amount1_out = remove_liquidity(
-                    pool_state=pool,
-                    lp_amount=lp_amount,
-                    amount0_min=amount0_min,
-                    amount1_min=amount1_min,
+                amount0_out, amount1_out = remove_liquidity_for_committed_pool_v1(
+                    pool,
+                    RemoveLiquidityKernelInputV1(
+                        lp_amount=lp_amount_value,
+                        amount0_min=amount0_min_value,
+                        amount1_min=amount1_min_value,
+                    ),
                 )
-            except Exception as exc:
+            except (ArithmeticError, TypeError, ValueError) as exc:
                 return fail(f"REMOVE_LIQUIDITY computation error for intent_id={intent_id}: {exc}")
 
-            if int(f.lp_burned or 0) != int(lp_amount):
+            if int(f.lp_burned or 0) != lp_amount_value:
                 return fail(f"REMOVE_LIQUIDITY fill.lp_burned mismatch for intent_id={intent_id}")
             if int(f.amount0_out or 0) != int(amount0_out):
                 return fail(f"REMOVE_LIQUIDITY fill.amount0_out mismatch for intent_id={intent_id}")
@@ -977,24 +1979,82 @@ def _validate_settlement_strong_impl(
                 return fail(f"REMOVE_LIQUIDITY fill.amount1_out mismatch for intent_id={intent_id}")
 
             try:
-                lp.subtract(sender, pool_id, int(lp_amount))
-                balances.add(recipient, pool.asset0, int(amount0_out))
-                balances.add(recipient, pool.asset1, int(amount1_out))
-            except Exception as exc:
+                balance_deltas_v1 = tuple(
+                    delta
+                    for asset, amount in (
+                        (pool.asset0, amount0_out),
+                        (pool.asset1, amount1_out),
+                    )
+                    if amount != 0
+                    for delta in (BalanceDeltaV1((recipient, asset), amount),)
+                )
+                reserve_deltas_v1 = tuple(
+                    delta
+                    for asset, amount in (
+                        (pool.asset0, amount0_out),
+                        (pool.asset1, amount1_out),
+                    )
+                    if amount != 0
+                    for delta in (PoolReserveDeltaV1(pool_id, asset, -amount),)
+                )
+                applied = _apply_spot_replay_v1(
+                    replay_state,
+                    _SpotReplayDeltaBatchV1(
+                        balance_deltas=balance_deltas_v1,
+                        reserve_deltas=reserve_deltas_v1,
+                        lp_deltas=(LPPositionDeltaV1((sender, pool_id), -lp_amount_value),),
+                        pool_creations=(),
+                    ),
+                )
+                if isinstance(applied, _SpotReplayRejectV1):
+                    raise ValueError(applied.text())
+                candidate_pool = applied.pools[pool_id]
+                expected_pool_values = (
+                    pool.reserve0 - amount0_out,
+                    pool.reserve1 - amount1_out,
+                    pool.lp_supply - lp_amount_value,
+                )
+                if (
+                    candidate_pool.reserve0,
+                    candidate_pool.reserve1,
+                    candidate_pool.lp_supply,
+                ) != expected_pool_values:
+                    raise ValueError("spot transition disagrees with liquidity kernel")
+                replay_state = applied
+            except (TypeError, ValueError) as exc:
                 return fail(f"REMOVE_LIQUIDITY apply error for intent_id={intent_id}: {exc}")
 
-            pool.reserve0 -= int(amount0_out)
-            pool.reserve1 -= int(amount1_out)
-            pool.lp_supply -= int(lp_amount)
-
-            lp_deltas.append(LPDelta(pubkey=sender, pool_id=pool_id, delta_add=0, delta_sub=int(lp_amount)))
-            bal_deltas.append(BalanceDelta(pubkey=recipient, asset=pool.asset0, delta_add=int(amount0_out), delta_sub=0))
-            bal_deltas.append(BalanceDelta(pubkey=recipient, asset=pool.asset1, delta_add=int(amount1_out), delta_sub=0))
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool.asset0, delta_add=0, delta_sub=int(amount0_out)))
-            res_deltas.append(ReserveDelta(pool_id=pool_id, asset=pool.asset1, delta_add=0, delta_sub=int(amount1_out)))
+            lp_deltas.append(
+                LPDelta(
+                    pubkey=sender,
+                    pool_id=pool_id,
+                    delta_add=0,
+                    delta_sub=lp_amount_value,
+                )
+            )
+            bal_deltas.append(
+                BalanceDelta(
+                    pubkey=recipient, asset=pool.asset0, delta_add=int(amount0_out), delta_sub=0
+                )
+            )
+            bal_deltas.append(
+                BalanceDelta(
+                    pubkey=recipient, asset=pool.asset1, delta_add=int(amount1_out), delta_sub=0
+                )
+            )
+            res_deltas.append(
+                ReserveDelta(
+                    pool_id=pool_id, asset=pool.asset0, delta_add=0, delta_sub=int(amount0_out)
+                )
+            )
+            res_deltas.append(
+                ReserveDelta(
+                    pool_id=pool_id, asset=pool.asset1, delta_add=0, delta_sub=int(amount1_out)
+                )
+            )
             continue
 
-        return fail(f"unsupported intent kind for strong validation: {it.kind}")
+        return fail(f"unsupported intent kind for strong validation: {_render_intent_kind_v1(it)}")
 
     # Canonicalize and compare the settlement payloads.
     expected_balance = _aggregate_balance_deltas(bal_deltas)
@@ -1003,65 +2063,62 @@ def _validate_settlement_strong_impl(
 
     ok, err = _check_canonical_deltas(settlement)
     if not ok:
-        return False, err
+        return _strong_reject_v1(err)
 
-    if settlement.balance_deltas != expected_balance:
-        return False, "balance_deltas mismatch vs replay"
-    if settlement.reserve_deltas != expected_reserve:
-        return False, "reserve_deltas mismatch vs replay"
-    if settlement.lp_deltas != expected_lp:
-        return False, "lp_deltas mismatch vs replay"
+    if tuple(_balance_delta_fields_v1(delta) for delta in settlement.balance_deltas) != tuple(
+        _balance_delta_fields_v1(delta) for delta in expected_balance
+    ):
+        return fail("balance_deltas mismatch vs replay")
+    if tuple(_reserve_delta_fields_v1(delta) for delta in settlement.reserve_deltas) != tuple(
+        _reserve_delta_fields_v1(delta) for delta in expected_reserve
+    ):
+        return fail("reserve_deltas mismatch vs replay")
+    if tuple(_lp_delta_fields_v1(delta) for delta in settlement.lp_deltas) != tuple(
+        _lp_delta_fields_v1(delta) for delta in expected_lp
+    ):
+        return fail("lp_deltas mismatch vs replay")
 
-    exp_events_norm = expected_events
-    got_events_norm = settlement.events or []
-    if got_events_norm != exp_events_norm:
-        return False, "events mismatch vs replay"
+    if type(settlement) is OwnedSettlementV1:
+        expected_events_value: object = (
+            tuple(snapshot_owned_json_object(event) for event in expected_events)
+            if expected_events
+            else None
+        )
+        supplied_events_value: object = settlement.events
+    else:
+        expected_events_value = expected_events
+        supplied_events_value = settlement.events or []
+    if supplied_events_value != expected_events_value:
+        return fail("events mismatch vs replay")
 
-    # Defense-in-depth: ensure basic conservation/non-negativity in addition to replay checks.
-    # This is essential when a fill type does not touch pool reserves (e.g. COW_NETTED),
-    # where conservation must be enforced globally across balance deltas.
-    ok_legacy, err_legacy = validate_settlement_legacy(
-        settlement=settlement,
-        pre_balances=pre_balances,
-        pre_pools=pre_pools,
-        pre_lp_balances=pre_lp_balances,
+    # Each accepted replay step already proves balance, reserve, LP-position,
+    # and derived LP-supply non-negativity over exact committed state. Global
+    # asset conservation remains a batch property, especially for CoW fills
+    # that exchange balances without touching reserves.
+    conservation_error = _asset_conservation_error(
+        expected_balance,
+        expected_reserve,
     )
-    if not ok_legacy:
-        return False, f"legacy validation failed: {err_legacy}"
+    if conservation_error is not None:
+        return fail(f"legacy validation failed: {conservation_error}")
 
-    return True, None
+    if type(output_plan) is _ValidationOnlyOutputV1:
+        return _StrongSettlementReplayAcceptedV1()
 
-
-def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
-    copied = BalanceTable()
-    for (pubkey, asset), amount in balances.get_all_balances().items():
-        copied.set(pubkey, asset, amount)
-    return copied
-
-
-def _copy_lp_table(lp_balances: LPTable) -> LPTable:
-    copied = LPTable()
-    for (pubkey, pool_id), amount in lp_balances.get_all_balances().items():
-        copied.set(pubkey, pool_id, amount)
-    for (pubkey, pool_id), timestamp in lp_balances.get_all_last_mint_timestamps().items():
-        if copied.get(pubkey, pool_id) > 0:
-            copied.set_last_mint_timestamp(pubkey, pool_id, timestamp)
-    return copied
-
-
-def _set_pool_reserves_after_swap(
-    *,
-    pool: PoolState,
-    dir_is_0_to_1: bool,
-    new_in: int,
-    new_out: int,
-) -> None:
-    if dir_is_0_to_1:
-        pool.reserve0 = int(new_in)
-        pool.reserve1 = int(new_out)
-        return
-    pool.reserve1 = int(new_in)
-    pool.reserve0 = int(new_out)
+    exact_batch = _build_exact_spot_batch_v1(
+        expected_balance,
+        expected_reserve,
+        expected_lp,
+        exact_pool_creations,
+    )
+    if type(exact_batch) is StrongSettlementRejectV1:
+        return exact_batch
+    return _build_exact_spot_candidate_v1(
+        pre_replay_state,
+        replay_state,
+        exact_batch,
+        output_plan.context,
+    )
 
 
 def _append_pool_swap_deltas(
@@ -1078,8 +2135,12 @@ def _append_pool_swap_deltas(
     bal_deltas: List[BalanceDelta],
     res_deltas: List[ReserveDelta],
 ) -> Optional[str]:
-    bal_deltas.append(BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in)))
-    bal_deltas.append(BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out), delta_sub=0))
+    bal_deltas.append(
+        BalanceDelta(pubkey=sender, asset=asset_in, delta_add=0, delta_sub=int(amount_in))
+    )
+    bal_deltas.append(
+        BalanceDelta(pubkey=recipient, asset=asset_out, delta_add=int(amount_out), delta_sub=0)
+    )
     if protocol_fee:
         if protocol_fee_recipient_pubkey is None:
             return "protocol_fee present without recipient"
@@ -1099,57 +2160,28 @@ def _append_pool_swap_deltas(
             delta_sub=0,
         )
     )
-    res_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out)))
-    return None
-
-
-def _apply_exact_out_swap_replay(
-    *,
-    intent_id: str,
-    sender: PubKey,
-    recipient: PubKey,
-    pool_id: str,
-    pool: PoolState,
-    dir_is_0_to_1: bool,
-    asset_in: AssetId,
-    asset_out: AssetId,
-    balances: BalanceTable,
-    amount_in: int,
-    amount_out: int,
-    new_in: int,
-    new_out: int,
-    protocol_fee: int,
-    protocol_fee_recipient_pubkey: Optional[PubKey],
-    bal_deltas: List[BalanceDelta],
-    res_deltas: List[ReserveDelta],
-) -> Optional[str]:
-    try:
-        balances.subtract(sender, asset_in, int(amount_in))
-        balances.add(recipient, asset_out, int(amount_out))
-        if protocol_fee:
-            if protocol_fee_recipient_pubkey is None:
-                return f"protocol_fee present without recipient for intent_id={intent_id}"
-            balances.add(protocol_fee_recipient_pubkey, asset_in, int(protocol_fee))
-    except Exception as exc:
-        return f"swap apply error for intent_id={intent_id}: {exc}"
-
-    _set_pool_reserves_after_swap(pool=pool, dir_is_0_to_1=dir_is_0_to_1, new_in=new_in, new_out=new_out)
-    delta_error = _append_pool_swap_deltas(
-        pool_id=pool_id,
-        sender=sender,
-        recipient=recipient,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_in=amount_in,
-        amount_out=amount_out,
-        protocol_fee=protocol_fee,
-        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
-        bal_deltas=bal_deltas,
-        res_deltas=res_deltas,
+    res_deltas.append(
+        ReserveDelta(pool_id=pool_id, asset=asset_out, delta_add=0, delta_sub=int(amount_out))
     )
-    if delta_error is not None:
-        return f"{delta_error} for intent_id={intent_id}"
     return None
+
+
+def _balance_delta_fields_v1(
+    delta: _ReplayBalanceDeltaV1,
+) -> tuple[str, str, int, int]:
+    return delta.pubkey, delta.asset, delta.delta_add, delta.delta_sub
+
+
+def _reserve_delta_fields_v1(
+    delta: _ReplayReserveDeltaV1,
+) -> tuple[str, str, int, int]:
+    return delta.pool_id, delta.asset, delta.delta_add, delta.delta_sub
+
+
+def _lp_delta_fields_v1(
+    delta: _ReplayLPDeltaV1,
+) -> tuple[str, str, int, int]:
+    return delta.pubkey, delta.pool_id, delta.delta_add, delta.delta_sub
 
 
 def _aggregate_balance_deltas(deltas: List[BalanceDelta]) -> List[BalanceDelta]:
@@ -1163,7 +2195,11 @@ def _aggregate_balance_deltas(deltas: List[BalanceDelta]) -> List[BalanceDelta]:
         delta_add, delta_sub = acc[key]
         if delta_add == 0 and delta_sub == 0:
             continue
-        out.append(BalanceDelta(pubkey=key[0], asset=key[1], delta_add=int(delta_add), delta_sub=int(delta_sub)))
+        out.append(
+            BalanceDelta(
+                pubkey=key[0], asset=key[1], delta_add=int(delta_add), delta_sub=int(delta_sub)
+            )
+        )
     return out
 
 
@@ -1178,7 +2214,11 @@ def _aggregate_reserve_deltas(deltas: List[ReserveDelta]) -> List[ReserveDelta]:
         delta_add, delta_sub = acc[key]
         if delta_add == 0 and delta_sub == 0:
             continue
-        out.append(ReserveDelta(pool_id=key[0], asset=key[1], delta_add=int(delta_add), delta_sub=int(delta_sub)))
+        out.append(
+            ReserveDelta(
+                pool_id=key[0], asset=key[1], delta_add=int(delta_add), delta_sub=int(delta_sub)
+            )
+        )
     return out
 
 
@@ -1193,11 +2233,37 @@ def _aggregate_lp_deltas(deltas: List[LPDelta]) -> List[LPDelta]:
         delta_add, delta_sub = acc[key]
         if delta_add == 0 and delta_sub == 0:
             continue
-        out.append(LPDelta(pubkey=key[0], pool_id=key[1], delta_add=int(delta_add), delta_sub=int(delta_sub)))
+        out.append(
+            LPDelta(
+                pubkey=key[0], pool_id=key[1], delta_add=int(delta_add), delta_sub=int(delta_sub)
+            )
+        )
     return out
 
 
-def _check_canonical_deltas(settlement: Settlement) -> Tuple[bool, Optional[str]]:
+def _asset_conservation_error(
+    balance_deltas: List[BalanceDelta],
+    reserve_deltas: List[ReserveDelta],
+) -> Optional[str]:
+    net_by_asset: Dict[AssetId, int] = {}
+    for balance_delta in balance_deltas:
+        net_by_asset[balance_delta.asset] = (
+            net_by_asset.get(balance_delta.asset, 0) + balance_delta.net_delta()
+        )
+    for reserve_delta in reserve_deltas:
+        net_by_asset[reserve_delta.asset] = (
+            net_by_asset.get(reserve_delta.asset, 0) + reserve_delta.net_delta()
+        )
+    for asset in sorted(net_by_asset):
+        net = net_by_asset[asset]
+        if net != 0:
+            return f"Asset conservation violation: {asset}, net_delta = {net}"
+    return None
+
+
+def _check_canonical_deltas(
+    settlement: _ReplaySettlementV1,
+) -> Tuple[bool, Optional[str]]:
     # Ensure deltas are canonical (one entry per key, sorted, and with non-negative fields).
     def _check_unique_sorted(keys: List[Tuple], what: str) -> Tuple[bool, Optional[str]]:
         if keys != sorted(keys):

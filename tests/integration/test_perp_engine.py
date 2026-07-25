@@ -139,7 +139,6 @@ def _perps_oracle_authorization_bundle(config: object, state: DexState, market_i
     market = state.perps.markets[market_id]
     runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
     observed_epoch = int(market.global_state.get("oracle_last_update_epoch", 0))
-    now_epoch = int(market.global_state.get("now_epoch", 0))
     authorized_value_e8 = int(market.global_state.get("index_price_e8", 0) if value_e8 is None else value_e8)
     authorization = OracleAuthorization(
         consumer_module="zenodex.perps",
@@ -582,9 +581,25 @@ def test_set_position_rejects_malformed_oracle_snapshot_zero_index() -> None:
     # Simulate an in-memory corrupted oracle snapshot (invalid reachable state).
     # Snapshot parsing should fail-closed on this, but runtime code should still
     # reject actions when fed malformed state.
-    market.global_state["oracle_seen"] = True
-    market.global_state["oracle_last_update_epoch"] = int(market.global_state.get("now_epoch", 0))
-    market.global_state["index_price_e8"] = 0
+    corrupted_global_state = dict(market.global_state)
+    corrupted_global_state["oracle_seen"] = True
+    corrupted_global_state["oracle_last_update_epoch"] = int(
+        corrupted_global_state.get("now_epoch", 0)
+    )
+    corrupted_global_state["index_price_e8"] = 0
+    # Deliberately bypass the market constructor to model corrupt persisted
+    # bytes. The committed input remains untouched.
+    corrupted_market = object.__new__(type(market))
+    object.__setattr__(corrupted_market, "quote_asset", market.quote_asset)
+    object.__setattr__(corrupted_market, "global_state", corrupted_global_state)
+    object.__setattr__(corrupted_market, "accounts", dict(market.accounts))
+    object.__setattr__(corrupted_market, "kind", market.kind)
+    corrupted_markets = dict(state.perps.markets)
+    corrupted_markets[market_id] = corrupted_market
+    state = replace(
+        state,
+        perps=replace(state.perps, markets=corrupted_markets),
+    )
 
     res = _apply_result(
         state=state,
@@ -1583,6 +1598,95 @@ def test_apply_funding_auto_no_user_absorbs_residual() -> None:
         post_coll = int(m.accounts[pk].collateral_quote)
         fp = _funding_payment(int(pre.accounts[pk].position_base), index, rate)
         assert post_coll == pre_coll - fp  # exactly the raw funding; no residual transfer
+
+
+def test_apply_funding_auto_rejects_candidate_that_strands_published_epoch() -> None:
+    """Funding rejection must preserve an executable published settlement path."""
+
+    from src.core.perp_epoch import perp_epoch_isolated_default_fee_pool_max_quote
+    from src.core.perps import (
+        PERPS_STATE_VERSION,
+        PerpAccountState,
+        PerpMarketState,
+        PerpsState,
+    )
+    from src.integration.perp_engine import _kernel_initial_global_state
+
+    market_id = "perp:funding-preserves-composed-settlement"
+    quote_asset = "0x" + "84" * 32
+    operator = "00" * 48
+    max_fee_quote = int(perp_epoch_isolated_default_fee_pool_max_quote())
+
+    global_state = _kernel_initial_global_state()
+    global_state.update(
+        {
+            "now_epoch": 3,
+            "epoch_phase": 0,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 2,
+            "index_price_e8": 100_000_000,
+            "fee_pool_quote": max_fee_quote - 120_000,
+            "fee_income": max_fee_quote - 120_000,
+            "insurance_balance": max_fee_quote - 120_000,
+            "min_notional_for_bounty": 0,
+        }
+    )
+    accounts = {
+        f"{index + 1:096x}": PerpAccountState(
+            position_base=1_000_000,
+            entry_price_e8=100_000_000,
+            collateral_quote=70_000,
+            funding_paid_cumulative=0,
+            funding_last_applied_epoch=2,
+            liquidated_this_step=False,
+        )
+        for index in range(13)
+    }
+    accounts["ff" * 48] = PerpAccountState(
+        position_base=-1_000_000,
+        entry_price_e8=100_000_000,
+        collateral_quote=60_000,
+        funding_paid_cumulative=0,
+        funding_last_applied_epoch=2,
+        liquidated_this_step=False,
+    )
+    state = DexState(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        perps=PerpsState(
+            version=PERPS_STATE_VERSION,
+            markets={
+                market_id: PerpMarketState(
+                    quote_asset=quote_asset,
+                    global_state=global_state,
+                    accounts=accounts,
+                )
+            },
+        ),
+    )
+
+    published = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=105_000_000)],
+    )
+    assert published.ok is True, published.error
+    assert published.state is not None
+
+    funded = _apply_result(
+        state=published.state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "apply_funding_auto")],
+    )
+
+    assert funded.ok is False
+    assert funded.state is None
+    assert funded.effects is None
+    assert funded.error is not None
+    assert funded.error.startswith("apply_funding_auto would destroy mounted settlement path: ")
 
 
 def test_apply_funding_auto_allows_empty_open_interest() -> None:
