@@ -1,5 +1,12 @@
 # Implement FCIS M5 Atomic Mount and M6 Mounted-Path Cleanup
 
+> **SUPERSEDED — DO NOT EXECUTE.** This candidate prompt predates the reviewed
+> M4 support-root version split and incorrectly combines M5 with M6. Use
+> `FCIS_M5_ATOMIC_MOUNT_REVIEWED_HANDOFF_20260724.md`, which pins exact source
+> head `a6e20097d74641784402fb2af5a9939beaf11a9d` and contains the current
+> pre-state support-root, closed-admission, atomic-bundle, and Python/Rust
+> refinement gates.
+
 **Status:** candidate conditional execution prompt derived from the normative FCIS packet
 **Prompt kind:** build
 **Intended use:** a high-capability implementation agent after two independent dependency reviews

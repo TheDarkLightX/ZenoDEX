@@ -1,134 +1,135 @@
 {
-  "schema": "zenodex/fcis/m4-completion-receipt/v1",
+  "schema": "zenodex/fcis/m4-completion-receipt/v2",
   "milestone": "M4",
   "title": "Exact Authoritative Consumer Migration",
-  "starting_head": "5d5366582633e96bcfa0b40a9226d4293c83283a",
   "branch": "agent/fcis-pr454-reviewed-port-20260723",
+  "review_start_head": "1887f7ca059a5261d929586b22a5db48d39c4b5c",
+  "source_checkpoint_head": "a6e20097d74641784402fb2af5a9939beaf11a9d",
+  "pre_checker_repair_head": "9e732524d3c8fc6a05472793d22761915e0a92b8",
   "m3_ancestor": "0763a39de9daad13a3e189fa8ab3a9f6a1e3589c",
-  "status": "complete",
-  "slices": {
-    "M4.1": {
-      "title": "Exact command admission in FCIS evaluator",
-      "files_changed": ["src/core/fcis_step_evaluator.py"],
-      "summary": "Replaced _admit_legacy_command_shape_v1 with _admit_exact_command_v1 admitting OwnedSettlementV1 + tuple[OwnedIntentV1, ...]. Legacy path retained as _admit_legacy_command_shape_for_differential_v1 for shadow differential.",
-      "negative_tests": [
-        "test_exact_command_admission_rejects_legacy_settlement",
-        "test_exact_command_admission_rejects_legacy_intent_list",
-        "test_exact_command_admission_rejects_intent_subclass_in_tuple"
-      ]
-    },
-    "M4.2": {
-      "title": "Exact settlement replay consumer",
-      "files_changed": ["src/core/fcis_step_evaluator.py"],
-      "summary": "Replaced _evaluate_spot_v1 to call evaluate_settlement_strong_committed_v1 with exact OwnedSettlementV1 + tuple[OwnedIntentV1, ...]. Legacy path retained as _evaluate_spot_legacy_for_differential_v1.",
-      "differential_test": "test_exact_step_evaluator_differential_matches_legacy_shadow"
-    },
-    "M4.3": {
-      "title": "Exact rejected-intent and route consumers",
-      "files_changed": ["src/core/fcis_step_evaluator.py"],
-      "summary": "Replaced first_rejected_settlement_intent_error with _first_rejected_owned_settlement_intent_error_v1 using fill_action_text_v1 on OwnedEnumV1. Route consumers already use owned intent field readers via route_settlement.py."
-    },
-    "M4.4": {
-      "title": "Exact nonce consumer",
-      "files_changed": ["src/core/nonce_batch_transition.py"],
-      "summary": "Changed validate_and_apply_intent_nonce_batch_committed_v1 signature from object/list[Intent] to tuple[OwnedIntentV1, ...]/bool. Uses owned_intent_field_v1 for nonce reads. Legacy path retained as validate_and_apply_intent_nonce_batch_legacy_for_differential_v1.",
-      "negative_tests": [
-        "test_exact_nonce_batch_rejects_open_container_and_policy_types",
-        "test_exact_nonce_batch_legacy_oracle_matches_exact_for_valid_corpus"
-      ]
-    },
-    "M4.5": {
-      "title": "Exact fee derivation",
-      "files_changed": ["src/core/fcis_step_evaluator.py"],
-      "summary": "Updated _total_settlement_fees_v1 and _fee_candidate_v1 to accept OwnedSettlementV1. Fee iteration reads fill.fee_paid from OwnedFillV1."
-    },
-    "M4.6": {
-      "title": "Exact support-root consumer",
-      "files_changed": ["src/state/support_root.py"],
-      "summary": "Added _derive_batch_state_support_owned_v1 and compute_support_state_root_for_batch_owned_committed_v1 using owned_intent_field_v1 and owned_intent_kind_text_v1. Legacy path retained as compute_support_state_root_for_batch_committed_v1.",
-      "parity_test": "test_owned_support_root_matches_legacy_for_valid_swap_corpus",
-      "negative_test": "test_owned_support_root_rejects_non_tuple_intents"
-    },
-    "M4.7": {
-      "title": "Candidate evidence and provenance",
-      "files_changed": ["src/core/fcis_step_evaluator.py"],
-      "summary": "Updated _candidate_evidence_v1 to accept tuple[OwnedIntentV1, ...] and call compute_support_state_root_for_batch_owned_committed_v1. Evidence provenance uses exact owned intents."
-    },
-    "M4.8": {
-      "title": "Structural gate: exact-consumers checker profile",
-      "files_changed": ["tools/check_fcis_authority_snapshot_contract.py"],
-      "summary": "Added EXACT_CONSUMERS_AUTHORITY_PATHS and exact-consumers profile to the structural checker. Added compatibility allowlist for legacy isinstance checks in support_root.py."
-    }
+  "status": "source_checkpoint_independently_reviewed_for_stack_progression",
+  "mount_status": "unmounted",
+  "decision_record": {
+    "malformed_canonical_command": "reject at COMMAND_ADMISSION with stable code and path",
+    "mounted_support_root_v4": "byte-for-byte unchanged",
+    "support_root_time_binding": "projected exact pre-state, never evaluated post-state",
+    "route_complete_support_root_v5": "new unmounted profile",
+    "v5_promotion": "forbidden until semantic coverage, migration, verifier, runtime, and cross-language evidence close",
+    "authority_boundary": "the closed typed admission combinator is the sole authority admission mechanism",
+    "admitted_graph_rule": "the evaluator admits the command graph once and passes the same exact object identities to private already-admitted sinks",
+    "private_sink_rule": "private already-admitted sinks are capability-restricted by structural import checks and cannot be imported by arbitrary modules"
   },
-  "integration_adapter": {
-    "file": "src/integration/fcis_spot_shadow.py",
-    "summary": "Updated evaluate_fcis_step_shadow_v1 to convert legacy Settlement/list[Intent] to OwnedSettlementV1/tuple[OwnedIntentV1, ...] via snapshot_settlement and admit_intent_batch before calling evaluate_fcis_step_candidate_v1."
+  "source_changes": [
+    {
+      "id": "M4-EXACT-EVALUATOR",
+      "summary": "The candidate evaluator admits the exact settlement and intent tuple once, reports stable StateAdmissionError details at COMMAND_ADMISSION, and passes the same returned exact object graph to nonce, settlement, fee, and support consumers."
+    },
+    {
+      "id": "M4-EXACT-NONCE",
+      "summary": "The public nonce wrapper remains independently safe and re-admits input. The evaluator uses a private already-admitted sink that consumes the exact tuple without a second admission. The legacy nonce implementation remains differential-only."
+    },
+    {
+      "id": "M4-EXACT-SETTLEMENT",
+      "summary": "The public settlement wrapper remains independently safe. The evaluator passes the same admitted settlement and intent identities to a private settlement sink and to fee computation, eliminating reconstruction and parallel command graphs."
+    },
+    {
+      "id": "M4-SUPPORT-VERSIONING",
+      "summary": "Mounted support-root v4 retains its prior domain and bytes. Exact support-root v5 is separate, unmounted, and includes every route leg pool plus sender input and actual recipient output balance cells."
+    },
+    {
+      "id": "M4-PROVENANCE",
+      "summary": "Candidate evidence and the shadow receipt bind support_root_version=5 for the unmounted exact profile. The v5 support root is derived from the same admitted pre-state used by evaluation."
+    },
+    {
+      "id": "M4-STRUCTURAL-GATE",
+      "summary": "The exact-consumers profile covers evaluator, nonce, route, replay, support-root, and shadow surfaces. It rejects raw aliases, raw companions, wrong call shapes, ignored or rebound sink results, re-admission in private sinks, post-state support roots, direct or reflective private-sink capture, private module-object capture, and unauthorized imports."
+    },
+    {
+      "id": "M4-CRITICAL-GATE",
+      "summary": "The exact-consumers structural profile is included in the critical quality gate."
+    }
+  ],
+  "support_root_profiles": {
+    "mounted_v4": {
+      "version": 4,
+      "semantics_changed": false,
+      "fixture_root": "0x66c43d933bdf3105ea34adb2adf9fc43745b18fd70693998eda71e44d213dbcf"
+    },
+    "exact_unmounted_v5": {
+      "version": 5,
+      "semantics_changed": true,
+      "fixture_root": "0xd73a8a0148d5d861c46477fe5cc90f35f98f5d262b5210e8ff840ea3e2357280",
+      "current_scope": "route-complete correction plus exact owned admission",
+      "promotion_status": "blocked"
+    },
+    "parity_claim": "No v4/v5 parity is claimed. Their divergence is intentional and version-bound."
   },
   "evidence": {
-    "mypy": "PASS - no issues found in 25 source files",
-    "ruff": "PASS - all checks passed on changed files",
+    "focused_semantic_suite": {
+      "result": "196 passed",
+      "scope": [
+        "tests/core/test_fcis_step_evaluator.py",
+        "tests/state/test_nonce_batch_transition.py",
+        "tests/core/test_settlement_strong_validator.py",
+        "tests/core/test_route_settlement.py",
+        "tests/core/test_support_root.py",
+        "tests/integration/test_dex_engine_route_settlement.py",
+        "tests/integration/test_fcis_spot_shadow.py"
+      ]
+    },
+    "structural_checker_suite": "180 passed",
     "structural_profiles": {
       "state-substrate": "ok=true violations=0",
       "authority-graph": "ok=true violations=0",
       "exact-replay": "ok=true violations=0 compatibility_findings=35",
-      "exact-consumers": "ok=true violations=0 compatibility_findings=15"
+      "exact-consumers": "ok=true violations=0 compatibility_findings=50"
     },
-    "test_results": {
-      "fcis_step_evaluator": "12 passed",
-      "nonce_batch_transition": "8 passed",
-      "support_root": "28 passed",
-      "spot_shadow": "17 passed",
-      "settlement_strong_validator": "all passed",
-      "route_settlement": "all passed",
-      "dex_engine_route_settlement": "all passed",
-      "total_relevant": "224 passed, 13 skipped, 0 failed (excluding pre-existing failures in unrelated modules)"
+    "packet_checker": "ok=true requirements=39 declared_tests=103 bound_tests=103 audit_findings=34",
+    "ruff": "PASS on changed Python files",
+    "format": "PASS on changed Python files",
+    "mypy": "PASS: no issues found in 25 source files",
+    "diff_check": "PASS",
+    "critical_quality_gate": {
+      "result": "PASS",
+      "python": "/home/trevormoc/Downloads/Autonomous Tau DEX/.venv/bin/python",
+      "acceptance_tcb": "553 passed",
+      "critical_suite": "790 passed",
+      "support_root_branch_coverage": "82.5 percent, required 80 percent"
     },
-    "differential_parity": {
-      "exact_vs_shadow_state_root": "MATCH",
-      "exact_vs_shadow_support_root": "MATCH",
-      "owned_vs_legacy_support_root": "MATCH",
-      "owned_vs_legacy_nonce_batch": "MATCH"
-    },
-    "pre_existing_failures": {
-      "test_intent_access": "3 failures - pre-existing pool_id validation (not M4-related)",
-      "test_perp_np_clearinghouse_adl_invariants": "6 failures - pre-existing market params validation (not M4-related)",
-      "test_zrpf_v3_source_closure": "1 failure - requires clean worktree (expected with uncommitted changes)"
-    }
+    "production_boundary": "ok=true",
+    "permissionless_assurance": "critical READY; 1 of 7 evidence lanes available",
+    "security_redflags": "0 high; 4 medium inherited broad catches outside the new exact admission code",
+    "independent_drift_review": "GO for all three M4 blockers at the committed source content; 11 raw-provenance and private-capability variants rejected with EXACT_CONSUMER_DATAFLOW or PRIVATE_AUTHORITY_IMPORT"
   },
-  "production_boundary": {
-    "mounted": false,
-    "unmounted_flag": "FCIS_STEP_EVALUATOR_UNMOUNTED_V1 = True",
-    "shadow_adapter": "evaluate_fcis_step_shadow_v1 converts legacy to owned at adapter boundary",
-    "legacy_differential_oracles": [
-      "_admit_legacy_command_shape_for_differential_v1",
-      "_evaluate_spot_legacy_for_differential_v1",
-      "validate_and_apply_intent_nonce_batch_legacy_for_differential_v1",
-      "compute_support_state_root_for_batch_committed_v1",
-      "evaluate_settlement_strong_legacy_committed_for_differential_v1"
-    ]
-  },
-  "m5_blockers": [
-    "M5 (Atomic Mount) must not be started until M4 passes independent review",
-    "M5 will mount DexState fields and remove legacy differential oracles",
-    "M6 will remove obsolete authority representation"
+  "forbidden_mechanisms_verified_absent_on_exact_path": [
+    "generic deep_freeze(Any)",
+    "copy.copy or copy.deepcopy",
+    "caller-controlled copy or serialization hooks",
+    "mutable-class inheritance for committed values",
+    "seal or post-construction mutation flags",
+    "MappingProxyType over caller-owned storage",
+    "reflective authority admission",
+    "hand-written parallel validation after closed combinator admission",
+    "ignored exact re-admission result",
+    "legacy projection on an exact consumer path",
+    "raw alias or companion value consumed beside an admitted value",
+    "ignored or rebound authoritative sink result",
+    "re-admission or reconstruction inside a private already-admitted sink",
+    "direct, computed-getattr, module-dict, vars, dynamic-import, sys.modules, or module-object capture of a private already-admitted sink",
+    "support-root evidence derived from evaluated post-state"
+  ],
+  "open_m5_prerequisites": [
+    "Audit and define a complete v5 support footprint for every mounted spot intent, including actual recipients, all written balance cells, all pool cells, LP ownership and duration metadata, protocol-fee recipients when active, nonces, configuration, and execution context.",
+    "Either complete the v5 support-root migration with new version, profile, schema, verifier, adapter, proof-guest, golden-vector, replay, and cross-language evidence, or leave the M4 candidate unmounted.",
+    "Produce and verify one immutable three-way decision and atomic commit-bundle contract before changing mounted authority."
   ],
   "nonclaims": [
-    "M4 does NOT claim atomic mount of DexState fields (that's M5)",
-    "M4 does NOT claim removal of obsolete authority representation (that's M6)",
-    "M4 does NOT claim production readiness (per README.md nonclaims)",
-    "The final-mount structural profile has pre-existing violations from M3 baseline; it will be resolved at M5/M6"
+    "M4 does not mount the exact evaluator as production authority.",
+    "M4 does not claim support-root v5 is complete for every spot intent.",
+    "M4 does not claim v4 and v5 support roots are equivalent.",
+    "M4 does not prove datastore linearizability, crash recovery, external exactly-once delivery, or idempotent destination behavior.",
+    "M4 does not establish Python, Rust, Tau, Lean, proof-guest, or accelerated-runtime equivalence.",
+    "The unavailable ESSO, Mathlib, and Tau lanes prevent a full formal or release claim."
   ],
-  "forbidden_mechanisms_verified_absent": [
-    "copy.deepcopy / copy.copy",
-    "pickle or caller-controlled copy protocols",
-    "Any -> Any freeze/thaw helper",
-    "Reflective dataclass or enum admission",
-    "Broad isinstance admission for declared authority types",
-    "Generic Mapping/Sequence/Iterable/set/frozenset admission",
-    "Mutable-base inheritance for committed values",
-    "Constructor bypass with object.__new__",
-    "Public to_scratch_* conversion from committed authority state",
-    "Structural read protocol or mutable builder at authority-core entry",
-    "Legacy mutable domain construction inside the admission resolver"
-  ]
+  "next_prompt": "docs/research/prompts/FCIS_M5_ATOMIC_MOUNT_REVIEWED_HANDOFF_20260724.md"
 }
