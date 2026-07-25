@@ -33,7 +33,7 @@ class FCISReferenceAtomicStoreV1:
     state: FCISCommittedDexStateV1
     accepted_bundle_roots: tuple[str, ...] = ()
     receipts: tuple[FCISReceiptV1, ...] = ()
-    replay_updates: tuple[FCISReplayUpdateV1, ...] = ()
+    replay_batches: tuple[tuple[FCISReplayUpdateV1, ...], ...] = ()
     outbox_records: tuple[FCISOutboxRecordV1, ...] = ()
 
     def __post_init__(self) -> None:
@@ -49,7 +49,10 @@ class FCISReferenceAtomicStoreV1:
             type(receipt) is not FCISReceiptV1 for receipt in self.receipts
         ):
             raise TypeError("reference receipts must be exact")
-        require_replay_updates_v1(self.replay_updates)
+        if type(self.replay_batches) is not tuple:
+            raise TypeError("reference replay batches must be an exact tuple")
+        for batch in self.replay_batches:
+            require_replay_updates_v1(batch)
         if type(self.outbox_records) is not tuple or any(
             type(record) is not FCISOutboxRecordV1 for record in self.outbox_records
         ):
@@ -127,7 +130,7 @@ def commit_bundle_reference_v1(
         state=exact_bundle.next_state,
         accepted_bundle_roots=(*store.accepted_bundle_roots, bundle_root),
         receipts=(*store.receipts, exact_bundle.receipt),
-        replay_updates=(*store.replay_updates, *exact_bundle.replay_updates),
+        replay_batches=(*store.replay_batches, exact_bundle.replay_updates),
         outbox_records=(*store.outbox_records, *exact_bundle.outbox_plan.records),
     )
     return FCISReferenceCommitResultV1(FCISReferenceCommitStatusV1.PUBLISHED, published)
