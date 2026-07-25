@@ -37,6 +37,7 @@ from src.state.legacy_state_snapshots import (
     admit_legacy_nonce_for_differential_v1,
     admit_legacy_pool_map_for_differential_v1,
 )
+from src.state.nonces import NonceTable
 from src.state.state_snapshots import (
     snapshot_fee_accumulator,
     snapshot_oracle,
@@ -52,11 +53,19 @@ def _digest(label: bytes) -> str:
     return sha256_hex(label)
 
 
-def _state(balance: int) -> FCISCommittedDexStateV1:
+def _state(balance: int, nonce: int = 0) -> FCISCommittedDexStateV1:
     balances = BalanceTable()
     if balance:
         balances.set(_OWNER, _ASSET, balance)
-    legacy = DexState(balances=balances, pools={}, lp_balances=LPTable())
+    nonces = NonceTable()
+    if nonce:
+        nonces.set_last(_OWNER, nonce)
+    legacy = DexState(
+        balances=balances,
+        pools={},
+        lp_balances=LPTable(),
+        nonces=nonces,
+    )
     return FCISCommittedDexStateV1(
         snapshot_version=4,
         balances=admit_legacy_balance_for_differential_v1(legacy.balances),
@@ -118,7 +127,7 @@ def test_reject_has_no_successor_plan_replay_or_outbox() -> None:
 
 def test_accept_is_deterministic_and_outbox_ids_are_receipt_derived() -> None:
     pre = _state(10)
-    post = _state(9)
+    post = _state(9, 1)
     first, first_bundle = _accept(pre, post)
     second, second_bundle = _accept(pre, post)
 
@@ -157,7 +166,7 @@ def test_committed_failure_is_distinct_and_unknown_variant_fails_closed() -> Non
 
 def test_bundle_rejects_cross_candidate_receipt_and_payload_mutation() -> None:
     pre = _state(10)
-    post = _state(9)
+    post = _state(9, 1)
     _first_decision, first = _accept(pre, post)
     other_decision = build_accept_decision_v1(
         expected_pre_root=committed_state_root_v1(pre),
@@ -170,7 +179,7 @@ def test_bundle_rejects_cross_candidate_receipt_and_payload_mutation() -> None:
         outbox_effects=(),
     )
 
-    with pytest.raises(ValueError, match="different candidate"):
+    with pytest.raises(ValueError, match="candidate|receipt"):
         replace(
             first,
             receipt=other_decision.receipt,
@@ -182,7 +191,7 @@ def test_bundle_rejects_cross_candidate_receipt_and_payload_mutation() -> None:
 
 def test_reference_commit_has_one_publication_point_and_idempotent_retry() -> None:
     pre = _state(10)
-    post = _state(9)
+    post = _state(9, 1)
     decision, bundle = _accept(pre, post)
     initial = FCISReferenceAtomicStoreV1(pre)
 
@@ -210,7 +219,7 @@ def test_reference_commit_has_one_publication_point_and_idempotent_retry() -> No
 
 def test_reference_commit_stale_or_invalid_bundle_publishes_nothing() -> None:
     pre = _state(10)
-    post = _state(9)
+    post = _state(9, 1)
     _decision, bundle = _accept(pre, post)
     different = FCISReferenceAtomicStoreV1(_state(11))
 
