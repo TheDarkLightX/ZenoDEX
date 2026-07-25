@@ -101,38 +101,100 @@ def _admit_exact_command_v1(settlement, intents):
     exact_intents = admit_intent_batch(intents)
     return exact_settlement, exact_intents
 
-def _evaluate_spot_v1(*, settlement: OwnedSettlementV1,
-        intents: tuple[OwnedIntentV1, ...]):
-    return evaluate_settlement_strong_committed_v1(
+def _evaluate_spot_v1(*,
+        balances: CommittedBalanceTableV1,
+        pools: OwnedMapV1[str, CommittedPoolStateV1],
+        lp_balances: CommittedLPTableV1,
+        settlement: OwnedSettlementV1,
+        intents: tuple[OwnedIntentV1, ...],
+        context: FCISStepExecutionContextV1):
+    settlement_context = context.settlement
+    return _evaluate_settlement_strong_admitted_v1(
         settlement=settlement,
         intents=intents,
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=lp_balances,
+        now=settlement_context.now,
+        min_lp_position_age_seconds=settlement_context.min_lp_position_age_seconds,
+        lp_duration_policy=context.lp_duration_policy,
+        mode=settlement_mode_label_v1(settlement_context.mode),
+        allow_cow_netting=settlement_context.allow_cow_netting,
+        allow_snapshot_bound_quote_bindings=settlement_context.allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=settlement_context.protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=settlement_context.protocol_fee_recipient_pubkey,
     )
 
-def _nonce_candidate_v1(*, intents: tuple[OwnedIntentV1, ...]):
-    return validate_and_apply_intent_nonce_batch_committed_v1(intents=intents)
+def _nonce_candidate_v1(*, state: _ExactStepStateV1,
+        intents: tuple[OwnedIntentV1, ...], context: FCISStepExecutionContextV1):
+    return _validate_and_apply_intent_nonce_batch_admitted_v1(
+        nonces=state.nonces,
+        intents=intents,
+        require_all_nonces=context.require_all_nonces,
+    )
 
-def _spot_candidate_v1(*, settlement: OwnedSettlementV1,
-        intents: tuple[OwnedIntentV1, ...]):
-    return _evaluate_spot_v1(settlement=settlement, intents=intents)
+def _spot_candidate_v1(*, state: _ExactStepStateV1,
+        settlement: OwnedSettlementV1, intents: tuple[OwnedIntentV1, ...],
+        context: FCISStepExecutionContextV1):
+    return _evaluate_spot_v1(
+        balances=state.balances,
+        pools=state.pools,
+        lp_balances=state.lp_balances,
+        settlement=settlement,
+        intents=intents,
+        context=context,
+    )
 
-def _fee_candidate_v1(*, settlement: OwnedSettlementV1):
+def _fee_candidate_v1(*, state: _ExactStepStateV1,
+        settlement: OwnedSettlementV1, context: FCISStepExecutionContextV1):
     return _total_settlement_fees_v1(settlement)
 
-def _candidate_evidence_v1(*, intents: tuple[OwnedIntentV1, ...]):
-    return compute_support_state_root_for_batch_owned_committed_v1(intents=intents)
+def _candidate_evidence_v1(*, pre_state: _ExactStepStateV1,
+        candidate: FCISStepCandidateV1, context: FCISStepExecutionContextV1,
+        intents: tuple[OwnedIntentV1, ...], pre_binding: object):
+    return _compute_support_state_root_for_batch_owned_admitted_v1(
+        intents=intents,
+        balances=pre_state.balances,
+        pools=pre_state.pools,
+        lp_balances=pre_state.lp_balances,
+        nonces=pre_state.nonces,
+    )
 
-def evaluate_fcis_step_candidate_v1(*, settlement: object, intents: object):
+def evaluate_fcis_step_candidate_v1(*, balances: object, pools: object,
+        lp_balances: object, nonces: object, vault: object, oracle: object,
+        fee_accumulator: object, perps: object, settlement: object,
+        intents: object, context: object):
     command = _admit_exact_command_v1(settlement, intents)
     if type(command) is FCISStepEvaluationRejectV1:
         return command
+    exact_context = _admit_context_v1(context)
+    state = _admit_exact_state_v1(
+        balances=balances, pools=pools, lp_balances=lp_balances,
+        nonces=nonces, vault=vault, oracle=oracle,
+        fee_accumulator=fee_accumulator, perps=perps,
+    )
+    pre_binding = _pre_state_binding_v1(state, exact_context)
     exact_settlement, exact_intents = command
-    nonce = _nonce_candidate_v1(intents=exact_intents)
+    nonce = _nonce_candidate_v1(
+        state=state, intents=exact_intents, context=exact_context,
+    )
     spot = _spot_candidate_v1(
+        state=state,
         settlement=exact_settlement,
         intents=exact_intents,
+        context=exact_context,
     )
-    fee = _fee_candidate_v1(settlement=exact_settlement)
-    evidence = _candidate_evidence_v1(intents=exact_intents)
+    fee = _fee_candidate_v1(
+        state=state, settlement=exact_settlement, context=exact_context,
+    )
+    candidate = FCISStepCandidateV1()
+    evidence = _candidate_evidence_v1(
+        pre_state=state,
+        candidate=candidate,
+        context=exact_context,
+        intents=exact_intents,
+        pre_binding=pre_binding,
+    )
     return nonce, spot, fee, evidence
 """
 
@@ -167,30 +229,47 @@ def _run_exact_consumer_source(tmp_path: Path, source: str) -> dict[str, object]
             "    exact_settlement, exact_intents = command; exact_intents = intents",
         ),
         (
-            "    nonce = _nonce_candidate_v1(intents=exact_intents)",
-            "    _nonce_candidate_v1(intents=intents)\n"
-            "    nonce = _nonce_candidate_v1(intents=exact_intents)",
+            "    nonce = _nonce_candidate_v1(\n"
+            "        state=state, intents=exact_intents, context=exact_context,\n"
+            "    )",
+            "    _nonce_candidate_v1(\n"
+            "        state=state, intents=intents, context=exact_context,\n"
+            "    )\n"
+            "    nonce = _nonce_candidate_v1(\n"
+            "        state=state, intents=exact_intents, context=exact_context,\n"
+            "    )",
         ),
         (
-            "    fee = _fee_candidate_v1(settlement=exact_settlement)",
-            "    fee = _fee_candidate_v1(settlement=settlement)",
+            "    fee = _fee_candidate_v1(\n"
+            "        state=state, settlement=exact_settlement, context=exact_context,\n"
+            "    )",
+            "    fee = _fee_candidate_v1(\n"
+            "        state=state, settlement=settlement, context=exact_context,\n"
+            "    )",
         ),
         (
-            "    evidence = _candidate_evidence_v1(intents=exact_intents)",
-            "    evidence = _candidate_evidence_v1(intents=intents)",
+            "        intents=exact_intents,\n        pre_binding=pre_binding,",
+            "        intents=intents,\n        pre_binding=pre_binding,",
         ),
         (
-            "    fee = _fee_candidate_v1(settlement=exact_settlement)",
+            "    fee = _fee_candidate_v1(\n"
+            "        state=state, settlement=exact_settlement, context=exact_context,\n"
+            "    )",
             "    evaluate_settlement_strong_legacy_committed_for_differential_v1(\n"
             "        settlement=exact_settlement, intents=exact_intents\n"
-            "    )\n"
-            "    fee = _fee_candidate_v1(settlement=exact_settlement)",
+            "    )\n    fee = _fee_candidate_v1(\n"
+            "        state=state, settlement=exact_settlement, context=exact_context,\n"
+            "    )",
         ),
         (
-            "    fee = _fee_candidate_v1(settlement=exact_settlement)",
+            "    fee = _fee_candidate_v1(\n"
+            "        state=state, settlement=exact_settlement, context=exact_context,\n"
+            "    )",
             "    reader = exact_intents[0].get_field\n"
             "    reader('nonce')\n"
-            "    fee = _fee_candidate_v1(settlement=exact_settlement)",
+            "    fee = _fee_candidate_v1(\n"
+            "        state=state, settlement=exact_settlement, context=exact_context,\n"
+            "    )",
         ),
     ],
 )
@@ -227,6 +306,32 @@ def test_exact_consumers_profile_kills_post_admission_object_mutation(
     assert "OWNED_VALUE_MUTATION_BYPASS" in _codes(report)
 
 
+def test_exact_consumers_profile_kills_raw_companion_sink_parameter(
+    tmp_path: Path,
+) -> None:
+    source = _exact_consumer_dataflow_source()
+    source = source.replace(
+        "def _fee_candidate_v1(*, state: _ExactStepStateV1,\n"
+        "        settlement: OwnedSettlementV1, context: FCISStepExecutionContextV1):\n"
+        "    return _total_settlement_fees_v1(settlement)",
+        "def _fee_candidate_v1(*, state: _ExactStepStateV1,\n"
+        "        settlement: OwnedSettlementV1, raw_settlement: object,\n"
+        "        context: FCISStepExecutionContextV1):\n"
+        "    return _total_settlement_fees_v1(raw_settlement)",
+        1,
+    )
+    source = source.replace(
+        "        state=state, settlement=exact_settlement, context=exact_context,",
+        "        state=state, settlement=exact_settlement,\n"
+        "        raw_settlement=settlement, context=exact_context,",
+        1,
+    )
+
+    report = _run_exact_consumer_source(tmp_path, source)
+
+    assert "EXACT_CONSUMER_DATAFLOW" in _codes(report)
+
+
 def _run_exact_consumer_leaf_source(
     tmp_path: Path,
     relative: Path,
@@ -254,20 +359,21 @@ def _run_exact_consumer_leaf_source(
         ),
         (
             Path("src/core/nonce_batch_transition.py"),
-            "    for intent in exact_intents:\n"
-            '        nonce_raw = owned_intent_field_v1(intent, "nonce", None)',
-            "    for intent in intents:\n"
-            '        nonce_raw = owned_intent_field_v1(intent, "nonce", None)',
+            "    if not intents:\n        return IntentNonceBatchOkV1(nonces, None)",
+            "    admit_intent_batch(intents)\n"
+            "    if not intents:\n        return IntentNonceBatchOkV1(nonces, None)",
         ),
         (
             Path("src/state/support_root.py"),
-            "    return _derive_batch_state_support_owned_v1(exact_intents, pools=pools)",
-            "    return _derive_batch_state_support_owned_v1(intents, pools=pools)",
+            "    return _derive_batch_state_support_owned_v1(exact_intents, pools=exact_pools)",
+            "    return _derive_batch_state_support_owned_v1(intents, pools=exact_pools)",
         ),
         (
             Path("src/state/support_root.py"),
-            "    return compute_support_state_root_v5_with_committed_spot_state_v1(",
-            "    return compute_support_state_root_with_committed_spot_state_v1(",
+            "    support = _derive_batch_state_support_owned_v1(intents, pools=pools)",
+            "    support = derive_batch_state_support_owned_committed_v1(\n"
+            "        intents, pools=pools\n"
+            "    )",
         ),
     ],
 )
@@ -305,6 +411,9 @@ def _admit_exact_commands_v1(settlement, intents):
 def evaluate_settlement_strong_committed_v1(*, settlement: object, intents: object,
         pre_balances: object, pre_pools: object, pre_lp_balances: object):
     command = _admit_exact_commands_v1(settlement, intents)
+    return _evaluate_settlement_strong_admitted_v1(command)
+
+def _evaluate_settlement_strong_admitted_v1(command):
     return _evaluate_settlement_strong_replay_committed_v1(command)
 
 def _evaluate_settlement_strong_replay_committed_v1(command):
@@ -397,17 +506,63 @@ def evaluate_settlement_strong_committed_v1(*,
         intents: tuple[OwnedIntentV1, ...],
         pre_balances: CommittedBalanceTableV1,
         pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
-        pre_lp_balances: CommittedLPTableV1):
+        pre_lp_balances: CommittedLPTableV1,
+        now: int,
+        min_lp_position_age_seconds: int,
+        lp_duration_policy: object,
+        mode: str,
+        allow_cow_netting: bool,
+        allow_snapshot_bound_quote_bindings: bool,
+        protocol_fee_share_bps: int,
+        protocol_fee_recipient_pubkey: object):
     command = _admit_exact_commands_v1(settlement, intents)
     if type(command) is StrongSettlementRejectV1:
         return command
     exact_settlement, exact_intents = command
-    return _evaluate_settlement_strong_replay_committed_v1(
+    return _evaluate_settlement_strong_admitted_v1(
         settlement={replay_settlement},
         intents={replay_intents},
         pre_balances=pre_balances,
         pre_pools=pre_pools,
         pre_lp_balances=pre_lp_balances,
+        now=now,
+        min_lp_position_age_seconds=min_lp_position_age_seconds,
+        lp_duration_policy=lp_duration_policy,
+        mode=mode,
+        allow_cow_netting=allow_cow_netting,
+        allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
+
+def _evaluate_settlement_strong_admitted_v1(*,
+        settlement: OwnedSettlementV1,
+        intents: tuple[OwnedIntentV1, ...],
+        pre_balances: CommittedBalanceTableV1,
+        pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+        pre_lp_balances: CommittedLPTableV1,
+        now: int,
+        min_lp_position_age_seconds: int,
+        lp_duration_policy: object,
+        mode: str,
+        allow_cow_netting: bool,
+        allow_snapshot_bound_quote_bindings: bool,
+        protocol_fee_share_bps: int,
+        protocol_fee_recipient_pubkey: object):
+    return _evaluate_settlement_strong_replay_committed_v1(
+        settlement=settlement,
+        intents=intents,
+        pre_balances=pre_balances,
+        pre_pools=pre_pools,
+        pre_lp_balances=pre_lp_balances,
+        now=now,
+        min_lp_position_age_seconds=min_lp_position_age_seconds,
+        lp_duration_policy=lp_duration_policy,
+        mode=mode,
+        allow_cow_netting=allow_cow_netting,
+        allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
     )
 
 def _evaluate_settlement_strong_replay_committed_v1(**command):
@@ -490,14 +645,14 @@ def test_exact_replay_profile_rejects_exact_and_raw_paths_coexisting(
         )
     else:
         replay_anchor = (
-            "    return _evaluate_settlement_strong_replay_committed_v1(\n"
+            "    return _evaluate_settlement_strong_admitted_v1(\n"
             "        settlement=exact_settlement,"
         )
         assert source.count(replay_anchor) == 1
         source = source.replace(
             replay_anchor,
             "    if use_raw:\n"
-            "        _evaluate_settlement_strong_replay_committed_v1(\n"
+            "        _evaluate_settlement_strong_admitted_v1(\n"
             "            settlement=settlement, intents=intents\n"
             "        )\n" + replay_anchor,
             1,
@@ -886,6 +1041,24 @@ def test_checker_rejects_owned_factories_outside_interpreter(
     ],
 )
 def test_checker_rejects_private_capability_attribute_capture(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    assert "PRIVATE_AUTHORITY_IMPORT" in _codes(_run(tmp_path, source))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from src.core.nonce_batch_transition import "
+        "_validate_and_apply_intent_nonce_batch_admitted_v1\n",
+        "from src.core.settlement_strong_validator import "
+        "_evaluate_settlement_strong_admitted_v1\n",
+        "from src.state.support_root import "
+        "_compute_support_state_root_for_batch_owned_admitted_v1\n",
+    ],
+)
+def test_checker_rejects_private_admitted_sink_imports_outside_evaluator(
     tmp_path: Path,
     source: str,
 ) -> None:

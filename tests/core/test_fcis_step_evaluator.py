@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any
 
 import pytest
 
+import src.core.fcis_step_evaluator as fcis_step_evaluator
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
 from src.core.fcis_step_evaluation_values import (
@@ -41,6 +43,7 @@ from src.state.state_snapshots import (
     snapshot_perps,
     snapshot_vault,
 )
+from src.state.support_root import compute_support_state_root_for_batch_owned_committed_v1
 
 
 def _iid(value: int) -> str:
@@ -180,7 +183,15 @@ def test_evidence_binds_same_candidate_context_and_pre_post_roots() -> None:
     assert first == second
     candidate = first.candidate
     evidence = first.evidence
+    expected_support_root = compute_support_state_root_for_batch_owned_committed_v1(
+        intents=admit_intent_batch([intent]),
+        balances=admit_legacy_balance_for_differential_v1(state.balances),
+        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
+        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
+        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
+    )
     assert evidence.pre_state_root_preimage == pre_root_preimage
+    assert evidence.support_root == expected_support_root
     assert evidence.post_state_root_preimage == (
         state_root_preimage_with_committed_spot_state_v1(
             balances=candidate.spot.balances,
@@ -193,6 +204,67 @@ def test_evidence_binds_same_candidate_context_and_pre_post_roots() -> None:
     retained_context_bytes = evidence.execution_context_bytes
     object.__setattr__(context.settlement, "now", 999_999)
     assert evidence.execution_context_bytes == retained_context_bytes
+
+
+def test_exact_step_consumers_share_one_admitted_command_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, intent, settlement = _swap_case()
+    observed: dict[str, int] = {}
+
+    original_nonce = fcis_step_evaluator._validate_and_apply_intent_nonce_batch_admitted_v1
+    original_settlement = fcis_step_evaluator._evaluate_settlement_strong_admitted_v1
+    original_fees = fcis_step_evaluator._total_settlement_fees_v1
+    original_support = fcis_step_evaluator._compute_support_state_root_for_batch_owned_admitted_v1
+
+    def nonce_spy(**kwargs: Any):
+        observed["nonce_intents"] = id(kwargs["intents"])
+        return original_nonce(**kwargs)
+
+    def settlement_spy(**kwargs: Any):
+        observed["settlement"] = id(kwargs["settlement"])
+        observed["settlement_intents"] = id(kwargs["intents"])
+        return original_settlement(**kwargs)
+
+    def fee_spy(settlement_value: Any):
+        observed["fee_settlement"] = id(settlement_value)
+        return original_fees(settlement_value)
+
+    def support_spy(**kwargs: Any):
+        observed["support_intents"] = id(kwargs["intents"])
+        return original_support(**kwargs)
+
+    monkeypatch.setattr(
+        fcis_step_evaluator,
+        "_validate_and_apply_intent_nonce_batch_admitted_v1",
+        nonce_spy,
+    )
+    monkeypatch.setattr(
+        fcis_step_evaluator,
+        "_evaluate_settlement_strong_admitted_v1",
+        settlement_spy,
+    )
+    monkeypatch.setattr(fcis_step_evaluator, "_total_settlement_fees_v1", fee_spy)
+    monkeypatch.setattr(
+        fcis_step_evaluator,
+        "_compute_support_state_root_for_batch_owned_admitted_v1",
+        support_spy,
+    )
+
+    result = _evaluate(state, settlement, [intent], _context_source())
+
+    assert type(result) is FCISStepEvaluationOkV1
+    assert observed["settlement"] == observed["fee_settlement"]
+    assert (
+        len(
+            {
+                observed["nonce_intents"],
+                observed["settlement_intents"],
+                observed["support_intents"],
+            }
+        )
+        == 1
+    )
 
 
 def test_context_rejection_has_stable_code_path_and_no_candidate() -> None:

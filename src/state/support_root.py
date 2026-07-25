@@ -641,11 +641,9 @@ def _derive_batch_state_support_owned_v1(
 
     from .intent_snapshots import owned_intent_field_v1, owned_intent_kind_text_v1
     from .owned_collections import OwnedMapV1
-    from .state_snapshots import snapshot_pool_map
 
     if type(pools) is not OwnedMapV1:
         raise TypeError("pools must be an exact OwnedMapV1")
-    exact_pools = snapshot_pool_map(pools)
 
     balance_keys: set[tuple[str, str]] = set()
     pool_ids: set[str] = set()
@@ -724,8 +722,8 @@ def _derive_batch_state_support_owned_v1(
                 recipient = owned_intent_field_v1(intent, "recipient", sender)
                 if type(recipient) is str and recipient:
                     lp_keys.add((recipient, pool_id))
-                if pool_id in exact_pools:
-                    pool = exact_pools[pool_id]
+                if pool_id in pools:
+                    pool = pools[pool_id]
                     balance_keys.add((sender, pool.asset0))
                     balance_keys.add((sender, pool.asset1))
                 elif pool_id in created_pool_assets:
@@ -755,13 +753,42 @@ def derive_batch_state_support_owned_committed_v1(
     """Re-admit and derive the unmounted route-complete exact support profile."""
 
     from .intent_snapshots import OwnedIntentV1, admit_intent_batch
+    from .owned_collections import OwnedMapV1
+    from .state_snapshots import snapshot_pool_map
 
     if type(intents) is not tuple:
         raise TypeError("intents must be an exact owned tuple")
     if any(type(intent) is not OwnedIntentV1 for intent in intents):
         raise TypeError("intents must contain only exact OwnedIntentV1")
+    if type(pools) is not OwnedMapV1:
+        raise TypeError("pools must be an exact OwnedMapV1")
     exact_intents = admit_intent_batch(intents)
-    return _derive_batch_state_support_owned_v1(exact_intents, pools=pools)
+    exact_pools = snapshot_pool_map(pools)
+    return _derive_batch_state_support_owned_v1(exact_intents, pools=exact_pools)
+
+
+def _compute_support_state_root_for_batch_owned_admitted_v1(
+    *,
+    intents: tuple[OwnedIntentV1, ...],
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    nonces: CommittedNonceTableV1,
+) -> str:
+    """Consume the evaluator's one already-admitted command and pre-state."""
+
+    from .committed_spot_roots import (
+        compute_support_state_root_v5_with_committed_spot_state_v1,
+    )
+
+    support = _derive_batch_state_support_owned_v1(intents, pools=pools)
+    return compute_support_state_root_v5_with_committed_spot_state_v1(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonces,
+    )
 
 
 def compute_support_state_root_for_batch_owned_committed_v1(
@@ -778,11 +805,11 @@ def compute_support_state_root_for_batch_owned_committed_v1(
     evidence authorizes the version switch.
     """
 
+    support = derive_batch_state_support_owned_committed_v1(intents, pools=pools)
     from .committed_spot_roots import (
         compute_support_state_root_v5_with_committed_spot_state_v1,
     )
 
-    support = derive_batch_state_support_owned_committed_v1(intents, pools=pools)
     return compute_support_state_root_v5_with_committed_spot_state_v1(
         balances=balances,
         pools=pools,

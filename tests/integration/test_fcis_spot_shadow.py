@@ -59,8 +59,8 @@ from tools.check_fcis_authority_snapshot_contract import (
 _EXPECTED_SWAP_POST_SUPPORT_ROOT_V4 = (
     "0x66c43d933bdf3105ea34adb2adf9fc43745b18fd70693998eda71e44d213dbcf"
 )
-_EXPECTED_SWAP_POST_SUPPORT_ROOT_V5 = (
-    "0xddd7ba5d22debc2c172f02315c8012bc642853421f49aa16b76242fbef91cace"
+_EXPECTED_SWAP_PRE_SUPPORT_ROOT_V5 = (
+    "0xd73a8a0148d5d861c46477fe5cc90f35f98f5d262b5210e8ff840ea3e2357280"
 )
 
 
@@ -345,15 +345,15 @@ def test_full_step_shadow_matches_legacy_state_snapshot_and_root() -> None:
     )
     exact_support_root_v5 = compute_support_state_root_for_batch_owned_committed_v1(
         intents=admit_intent_batch([intent]),
-        balances=admit_legacy_balance_for_differential_v1(legacy_next.balances),
-        pools=admit_legacy_pool_map_for_differential_v1(legacy_next.pools),
-        lp_balances=admit_legacy_lp_for_differential_v1(legacy_next.lp_balances),
-        nonces=admit_legacy_nonce_for_differential_v1(legacy_next.nonces),
+        balances=admit_legacy_balance_for_differential_v1(state.balances),
+        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
+        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
+        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
     )
     assert legacy_support_root_v4 == _EXPECTED_SWAP_POST_SUPPORT_ROOT_V4
     assert observed.support_root_version == EXACT_SUPPORT_ROOT_VERSION_V1
     assert observed.support_root == exact_support_root_v5
-    assert observed.support_root == _EXPECTED_SWAP_POST_SUPPORT_ROOT_V5
+    assert observed.support_root == _EXPECTED_SWAP_PRE_SUPPORT_ROOT_V5
     assert observed.support_root != legacy_support_root_v4
     assert snapshot_from_state(state).canonical_bytes() == pre_snapshot
     assert not hasattr(observed, "balances")

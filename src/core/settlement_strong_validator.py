@@ -911,9 +911,49 @@ def evaluate_settlement_strong_committed_v1(
     if type(command) is StrongSettlementRejectV1:
         return command
     exact_settlement, exact_intents = command
-    return _evaluate_settlement_strong_replay_committed_v1(
+    return _evaluate_settlement_strong_admitted_v1(
         settlement=exact_settlement,
         intents=exact_intents,
+        pre_balances=pre_balances,
+        pre_pools=pre_pools,
+        pre_lp_balances=pre_lp_balances,
+        now=now,
+        min_lp_position_age_seconds=min_lp_position_age_seconds,
+        lp_duration_policy=lp_duration_policy,
+        mode=mode,
+        allow_cow_netting=allow_cow_netting,
+        allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
+
+
+def _evaluate_settlement_strong_admitted_v1(
+    *,
+    settlement: OwnedSettlementV1,
+    intents: tuple[OwnedIntentV1, ...],
+    pre_balances: CommittedBalanceTableV1,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+    pre_lp_balances: CommittedLPTableV1,
+    now: int,
+    min_lp_position_age_seconds: int,
+    lp_duration_policy: LPDurationRiskPolicyV1 | None,
+    mode: str,
+    allow_cow_netting: bool,
+    allow_snapshot_bound_quote_bindings: bool,
+    protocol_fee_share_bps: int,
+    protocol_fee_recipient_pubkey: Optional[PubKey],
+) -> StrongSettlementEvaluationResultV1:
+    """Consume one already-admitted command and pre-state graph.
+
+    The exact FCIS evaluator calls this private sink after its single closed
+    admission.  Independent callers use ``evaluate_settlement_strong_committed_v1``,
+    which revalidates before delegating here.
+    """
+
+    return _evaluate_settlement_strong_replay_committed_v1(
+        settlement=settlement,
+        intents=intents,
         pre_balances=pre_balances,
         pre_pools=pre_pools,
         pre_lp_balances=pre_lp_balances,

@@ -137,14 +137,35 @@ def validate_and_apply_intent_nonce_batch_committed_v1(
             IntentNonceBatchCodeV1.INVALID_PRESTATE,
             _patch_reject_reason(prestate_reject),
         )
-    if not exact_intents:
+    return _validate_and_apply_intent_nonce_batch_admitted_v1(
+        nonces=nonces,
+        intents=exact_intents,
+        require_all_nonces=require_all_nonces,
+    )
+
+
+def _validate_and_apply_intent_nonce_batch_admitted_v1(
+    *,
+    nonces: CommittedNonceTableV1,
+    intents: tuple[OwnedIntentV1, ...],
+    require_all_nonces: bool,
+) -> IntentNonceBatchResultV1:
+    """Consume the evaluator's one already-admitted nonce command graph.
+
+    This private sink performs no command or pre-state admission.  Its sole
+    caller on the exact FCIS path has already admitted both values through the
+    closed profiles.  The public wrapper above remains the independently safe
+    entry point for other callers.
+    """
+
+    if not intents:
         return IntentNonceBatchOkV1(nonces, None)
 
     per_sender: dict[str, list[int]] = {}
     saw_nonce = False
     saw_missing = False
 
-    for intent in exact_intents:
+    for intent in intents:
         nonce_raw = owned_intent_field_v1(intent, "nonce", None)
         if nonce_raw is None:
             saw_missing = True

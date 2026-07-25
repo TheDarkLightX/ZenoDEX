@@ -118,24 +118,24 @@ _PROFILE_COMPATIBILITY_ALLOWLISTS = {
             ("src/core/settlement_strong_validator.py", 644, 15, "BROAD_ADMISSION", "int"),
             ("src/core/settlement_strong_validator.py", 789, 15, "BROAD_ADMISSION", "str"),
             ("src/core/settlement_strong_validator.py", 798, 42, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1237, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1251, 19, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1251, 50, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1512, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1523, 19, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1523, 52, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1552, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1554, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1612, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1614, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1706, 20, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1711, 19, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2239, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2245, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2261, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2267, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2283, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2289, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1277, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1291, 19, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1291, 50, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1552, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1563, 19, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1563, 52, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1592, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1594, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1652, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1654, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1746, 20, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1751, 19, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2279, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2285, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2301, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2307, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2323, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2329, 16, "BROAD_ADMISSION", "int"),
         }
     ),
     "exact-consumers": frozenset(
@@ -233,6 +233,18 @@ _UNMOUNTED_EVALUATOR_RESERVED_TOKENS = (
     "evaluate_fcis_step_candidate_v1",
 )
 _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
+    "_compute_support_state_root_for_batch_owned_admitted_v1": (
+        "src/core/fcis_step_evaluator.py",
+        "src/state/support_root.py",
+    ),
+    "_evaluate_settlement_strong_admitted_v1": (
+        "src/core/fcis_step_evaluator.py",
+        "src/core/settlement_strong_validator.py",
+    ),
+    "_validate_and_apply_intent_nonce_batch_admitted_v1": (
+        "src/core/fcis_step_evaluator.py",
+        "src/core/nonce_batch_transition.py",
+    ),
     "_admit_with_registry_v1": _PROFILE_PATHS,
     "_owned_enum_from_admitted": ("src/state/snapshot_combinators.py",),
     "_owned_enum_from_canonical_transition_v1": ("src/state/pool_creation_transition.py",),
@@ -1544,6 +1556,7 @@ def _check_exact_replay_shape(
     required_names = (
         "_admit_exact_commands_v1",
         "evaluate_settlement_strong_committed_v1",
+        "_evaluate_settlement_strong_admitted_v1",
         "_evaluate_settlement_strong_replay_committed_v1",
         "_validate_settlement_strong_impl",
     )
@@ -1585,7 +1598,7 @@ def _check_exact_replay_shape(
     entry_calls = {_last_name(call.func) for call in _function_calls(entry)}
     for required_call in (
         "_admit_exact_commands_v1",
-        "_evaluate_settlement_strong_replay_committed_v1",
+        "_evaluate_settlement_strong_admitted_v1",
     ):
         if required_call not in entry_calls:
             violations.append(
@@ -1706,17 +1719,25 @@ def _check_exact_replay_shape(
             )
         )
 
-    replay_calls = tuple(
-        call
-        for call in _function_calls(entry)
-        if _last_name(call.func) == "_evaluate_settlement_strong_replay_committed_v1"
-    )
-    if len(replay_calls) != 1 or not all(
-        _call_has_named_keywords(
-            call,
-            {"settlement": "exact_settlement", "intents": "exact_intents"},
-        )
-        for call in replay_calls
+    common_arguments = {
+        "settlement": "exact_settlement",
+        "intents": "exact_intents",
+        "pre_balances": "pre_balances",
+        "pre_pools": "pre_pools",
+        "pre_lp_balances": "pre_lp_balances",
+        "now": "now",
+        "min_lp_position_age_seconds": "min_lp_position_age_seconds",
+        "lp_duration_policy": "lp_duration_policy",
+        "mode": "mode",
+        "allow_cow_netting": "allow_cow_netting",
+        "allow_snapshot_bound_quote_bindings": "allow_snapshot_bound_quote_bindings",
+        "protocol_fee_share_bps": "protocol_fee_share_bps",
+        "protocol_fee_recipient_pubkey": "protocol_fee_recipient_pubkey",
+    }
+    if not _single_exact_call_v1(
+        entry,
+        call_name="_evaluate_settlement_strong_admitted_v1",
+        keywords=common_arguments,
     ):
         violations.append(
             _Violation(
@@ -1724,7 +1745,26 @@ def _check_exact_replay_shape(
                 entry.lineno,
                 entry.col_offset,
                 "EXACT_REPLAY_DATAFLOW",
-                "replay-does-not-consume-admitted-command",
+                "private-sink-does-not-consume-admitted-command",
+            )
+        )
+
+    admitted_sink = functions["_evaluate_settlement_strong_admitted_v1"]
+    replay_arguments = dict(common_arguments)
+    replay_arguments["settlement"] = "settlement"
+    replay_arguments["intents"] = "intents"
+    if not _single_exact_call_v1(
+        admitted_sink,
+        call_name="_evaluate_settlement_strong_replay_committed_v1",
+        keywords=replay_arguments,
+    ):
+        violations.append(
+            _Violation(
+                relative_path,
+                admitted_sink.lineno,
+                admitted_sink.col_offset,
+                "EXACT_REPLAY_DATAFLOW",
+                "replay-does-not-consume-private-admitted-command",
             )
         )
 
@@ -1856,24 +1896,67 @@ def _check_exact_command_sinks_v1(
         )
 
     required_sink_arguments = {
-        "_nonce_candidate_v1": {"intents": "exact_intents"},
+        "_nonce_candidate_v1": {
+            "state": "state",
+            "intents": "exact_intents",
+            "context": "exact_context",
+        },
         "_spot_candidate_v1": {
+            "state": "state",
             "settlement": "exact_settlement",
             "intents": "exact_intents",
+            "context": "exact_context",
         },
-        "_fee_candidate_v1": {"settlement": "exact_settlement"},
-        "_candidate_evidence_v1": {"intents": "exact_intents"},
+        "_fee_candidate_v1": {
+            "state": "state",
+            "settlement": "exact_settlement",
+            "context": "exact_context",
+        },
+        "_candidate_evidence_v1": {
+            "pre_state": "state",
+            "candidate": "candidate",
+            "context": "exact_context",
+            "intents": "exact_intents",
+            "pre_binding": "pre_binding",
+        },
     }
-    entry_calls = _function_calls(entry)
     for sink_name, expected_arguments in required_sink_arguments.items():
-        sink_calls = tuple(call for call in entry_calls if _last_name(call.func) == sink_name)
-        if len(sink_calls) != 1 or not _call_has_named_keywords(sink_calls[0], expected_arguments):
+        if not _single_exact_call_v1(
+            entry,
+            call_name=sink_name,
+            keywords=expected_arguments,
+        ):
             _add_exact_consumer_violation(
                 violations,
                 relative_path=relative_path,
                 node=entry,
                 detail=f"sink-does-not-consume-admitted-command:{sink_name}",
             )
+
+    destructure_lines = tuple(
+        node.lineno
+        for node in ast.walk(entry)
+        if type(node) is ast.Assign
+        and len(node.targets) == 1
+        and type(node.targets[0]) is ast.Tuple
+        and type(node.value) is ast.Name
+        and node.value.id == "command"
+    )
+    if destructure_lines:
+        destructure_line = destructure_lines[0]
+        for node in ast.walk(entry):
+            if (
+                type(node) is ast.Name
+                and type(node.ctx) is ast.Load
+                and node.id in {"settlement", "intents"}
+                and node.lineno > destructure_line
+            ):
+                _add_exact_consumer_violation(
+                    violations,
+                    relative_path=relative_path,
+                    node=node,
+                    detail=f"entry-raw-command-used-after-admission:{node.id}",
+                )
     return violations
 
 
@@ -1893,7 +1976,30 @@ def _check_exact_consumer_annotations_v1(
             "intents": "tuple[OwnedIntentV1,...]",
         },
         "_fee_candidate_v1": {"settlement": "OwnedSettlementV1"},
-        "_candidate_evidence_v1": {"intents": "tuple[OwnedIntentV1,...]"},
+        "_candidate_evidence_v1": {
+            "pre_state": "_ExactStepStateV1",
+            "intents": "tuple[OwnedIntentV1,...]",
+        },
+    }
+    exact_parameters = {
+        "_evaluate_spot_v1": (
+            "balances",
+            "pools",
+            "lp_balances",
+            "settlement",
+            "intents",
+            "context",
+        ),
+        "_nonce_candidate_v1": ("state", "intents", "context"),
+        "_spot_candidate_v1": ("state", "settlement", "intents", "context"),
+        "_fee_candidate_v1": ("state", "settlement", "context"),
+        "_candidate_evidence_v1": (
+            "pre_state",
+            "candidate",
+            "context",
+            "intents",
+            "pre_binding",
+        ),
     }
     for function_name, expected in exact_annotations.items():
         function = functions[function_name]
@@ -1910,6 +2016,100 @@ def _check_exact_consumer_annotations_v1(
                     node=function,
                     detail=(f"annotation:{function_name}:{field}:{actual or '<missing>'}"),
                 )
+        actual_parameters = _function_parameter_names_v1(function)
+        if actual_parameters != exact_parameters[function_name]:
+            _add_exact_consumer_violation(
+                violations,
+                relative_path=relative_path,
+                node=function,
+                detail=(
+                    f"parameters:{function_name}:"
+                    f"{','.join(actual_parameters) or '<none>'}:expected:"
+                    f"{','.join(exact_parameters[function_name])}"
+                ),
+            )
+    return violations
+
+
+def _check_exact_consumer_sink_forwarding_v1(
+    functions: dict[str, ast.FunctionDef],
+    relative_path: str,
+) -> list[_Violation]:
+    """Require every evaluator helper to forward only its declared exact graph."""
+
+    expected_calls = {
+        "_evaluate_spot_v1": (
+            "_evaluate_settlement_strong_admitted_v1",
+            (),
+            {
+                "settlement": "settlement",
+                "intents": "intents",
+                "pre_balances": "balances",
+                "pre_pools": "pools",
+                "pre_lp_balances": "lp_balances",
+                "now": "settlement_context.now",
+                "min_lp_position_age_seconds": "settlement_context.min_lp_position_age_seconds",
+                "lp_duration_policy": "context.lp_duration_policy",
+                "mode": "settlement_mode_label_v1(settlement_context.mode)",
+                "allow_cow_netting": "settlement_context.allow_cow_netting",
+                "allow_snapshot_bound_quote_bindings": "settlement_context.allow_snapshot_bound_quote_bindings",
+                "protocol_fee_share_bps": "settlement_context.protocol_fee_share_bps",
+                "protocol_fee_recipient_pubkey": "settlement_context.protocol_fee_recipient_pubkey",
+            },
+        ),
+        "_nonce_candidate_v1": (
+            "_validate_and_apply_intent_nonce_batch_admitted_v1",
+            (),
+            {
+                "nonces": "state.nonces",
+                "intents": "intents",
+                "require_all_nonces": "context.require_all_nonces",
+            },
+        ),
+        "_spot_candidate_v1": (
+            "_evaluate_spot_v1",
+            (),
+            {
+                "balances": "state.balances",
+                "pools": "state.pools",
+                "lp_balances": "state.lp_balances",
+                "settlement": "settlement",
+                "intents": "intents",
+                "context": "context",
+            },
+        ),
+        "_fee_candidate_v1": (
+            "_total_settlement_fees_v1",
+            ("settlement",),
+            {},
+        ),
+        "_candidate_evidence_v1": (
+            "_compute_support_state_root_for_batch_owned_admitted_v1",
+            (),
+            {
+                "intents": "intents",
+                "balances": "pre_state.balances",
+                "pools": "pre_state.pools",
+                "lp_balances": "pre_state.lp_balances",
+                "nonces": "pre_state.nonces",
+            },
+        ),
+    }
+    violations: list[_Violation] = []
+    for function_name, (call_name, positional, keywords) in expected_calls.items():
+        function = functions[function_name]
+        if not _single_exact_call_v1(
+            function,
+            call_name=call_name,
+            positional=positional,
+            keywords=keywords,
+        ):
+            _add_exact_consumer_violation(
+                violations,
+                relative_path=relative_path,
+                node=function,
+                detail=f"sink-forwarding:{function_name}:{call_name}",
+            )
     return violations
 
 
@@ -1973,6 +2173,56 @@ def _call_uses_names_v1(
     )
 
 
+def _function_parameter_names_v1(function: ast.FunctionDef) -> tuple[str, ...]:
+    names = tuple(
+        argument.arg
+        for argument in (
+            *function.args.posonlyargs,
+            *function.args.args,
+            *function.args.kwonlyargs,
+        )
+    )
+    if function.args.vararg is not None:
+        names += (f"*{function.args.vararg.arg}",)
+    if function.args.kwarg is not None:
+        names += (f"**{function.args.kwarg.arg}",)
+    return names
+
+
+def _call_matches_exact_expressions_v1(
+    call: ast.Call,
+    *,
+    positional: tuple[str, ...] = (),
+    keywords: dict[str, str] | None = None,
+) -> bool:
+    expected_keywords = {} if keywords is None else keywords
+    if any(keyword.arg is None for keyword in call.keywords):
+        return False
+    actual_positional = tuple(ast.unparse(argument).replace(" ", "") for argument in call.args)
+    actual_keywords = {
+        keyword.arg: ast.unparse(keyword.value).replace(" ", "")
+        for keyword in call.keywords
+        if keyword.arg is not None
+    }
+    normalized_keywords = {key: value.replace(" ", "") for key, value in expected_keywords.items()}
+    return actual_positional == positional and actual_keywords == normalized_keywords
+
+
+def _single_exact_call_v1(
+    function: ast.FunctionDef,
+    *,
+    call_name: str,
+    positional: tuple[str, ...] = (),
+    keywords: dict[str, str] | None = None,
+) -> bool:
+    calls = tuple(call for call in _function_calls(function) if _last_name(call.func) == call_name)
+    return len(calls) == 1 and _call_matches_exact_expressions_v1(
+        calls[0],
+        positional=positional,
+        keywords=keywords,
+    )
+
+
 def _check_exact_nonce_consumer_shape_v1(
     module: ast.Module,
     relative_path: str,
@@ -1980,17 +2230,23 @@ def _check_exact_nonce_consumer_shape_v1(
     if relative_path != "src/core/nonce_batch_transition.py":
         return []
     functions = _top_level_functions_v1(module)
-    function = functions.get("validate_and_apply_intent_nonce_batch_committed_v1")
-    if function is None:
+    required = (
+        "validate_and_apply_intent_nonce_batch_committed_v1",
+        "_validate_and_apply_intent_nonce_batch_admitted_v1",
+    )
+    missing = tuple(name for name in required if name not in functions)
+    if missing:
         return [
             _Violation(
                 relative_path,
                 0,
                 0,
                 "EXACT_CONSUMER_DATAFLOW",
-                "missing:validate_and_apply_intent_nonce_batch_committed_v1",
+                f"missing:{','.join(missing)}",
             )
         ]
+    function = functions["validate_and_apply_intent_nonce_batch_committed_v1"]
+    admitted_sink = functions["_validate_and_apply_intent_nonce_batch_admitted_v1"]
     violations: list[_Violation] = []
     annotations = {
         argument.arg: _normalized_annotation(argument.annotation)
@@ -2014,6 +2270,51 @@ def _check_exact_nonce_consumer_shape_v1(
             relative_path=relative_path,
             node=function,
             detail="nonce-admission-result-not-single-bound",
+        )
+    expected_parameters = ("nonces", "intents", "require_all_nonces")
+    for candidate in (function, admitted_sink):
+        if _function_parameter_names_v1(candidate) != expected_parameters:
+            _add_exact_consumer_violation(
+                violations,
+                relative_path=relative_path,
+                node=candidate,
+                detail=f"nonce-parameters:{candidate.name}",
+            )
+    if not _single_exact_call_v1(
+        function,
+        call_name="_validate_and_apply_intent_nonce_batch_admitted_v1",
+        keywords={
+            "nonces": "nonces",
+            "intents": "exact_intents",
+            "require_all_nonces": "require_all_nonces",
+        },
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=function,
+            detail="nonce-public-wrapper-does-not-forward-admitted-command",
+        )
+    if any(
+        _last_name(call.func) == "admit_intent_batch" for call in _function_calls(admitted_sink)
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=admitted_sink,
+            detail="nonce-private-sink-readmits-command",
+        )
+    admitted_loops = tuple(
+        node
+        for node in ast.walk(admitted_sink)
+        if type(node) is ast.For and type(node.iter) is ast.Name and node.iter.id == "intents"
+    )
+    if len(admitted_loops) != 1:
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=admitted_sink,
+            detail="nonce-private-sink-does-not-consume-exact-intents-once",
         )
     admission_lines = tuple(
         node.lineno
@@ -2041,7 +2342,7 @@ def _check_exact_nonce_consumer_shape_v1(
                 )
     return violations + _check_exact_consumer_projection_v1(
         functions,
-        ("validate_and_apply_intent_nonce_batch_committed_v1",),
+        required,
         relative_path,
     )
 
@@ -2056,6 +2357,7 @@ def _check_exact_support_consumer_shape_v1(
     required = (
         "_derive_batch_state_support_owned_v1",
         "derive_batch_state_support_owned_committed_v1",
+        "_compute_support_state_root_for_batch_owned_admitted_v1",
         "compute_support_state_root_for_batch_owned_committed_v1",
     )
     missing = tuple(name for name in required if name not in functions)
@@ -2083,17 +2385,23 @@ def _check_exact_support_consumer_shape_v1(
             node=admission,
             detail="support-admission-result-not-single-bound",
         )
-    admission_returns = tuple(
-        node
-        for node in ast.walk(admission)
-        if type(node) is ast.Return
-        and type(node.value) is ast.Call
-        and _last_name(node.value.func) == "_derive_batch_state_support_owned_v1"
-    )
-    if len(admission_returns) != 1 or not _call_uses_names_v1(
-        admission_returns[0].value,
+    if not _has_named_call_assignment(
+        admission,
+        target_name="exact_pools",
+        call_name="snapshot_pool_map",
+        positional_names=("pools",),
+    ) or not _has_single_bindings(admission, ("exact_intents", "exact_pools")):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=admission,
+            detail="support-state-admission-result-not-single-bound",
+        )
+    if not _single_exact_call_v1(
+        admission,
+        call_name="_derive_batch_state_support_owned_v1",
         positional=("exact_intents",),
-        keywords={"pools": "pools"},
+        keywords={"pools": "exact_pools"},
     ):
         _add_exact_consumer_violation(
             violations,
@@ -2101,6 +2409,55 @@ def _check_exact_support_consumer_shape_v1(
             node=admission,
             detail="support-private-derive-does-not-consume-admitted-intents",
         )
+
+    expected_parameters = {
+        "_derive_batch_state_support_owned_v1": ("intents", "pools"),
+        "derive_batch_state_support_owned_committed_v1": ("intents", "pools"),
+        "_compute_support_state_root_for_batch_owned_admitted_v1": (
+            "intents",
+            "balances",
+            "pools",
+            "lp_balances",
+            "nonces",
+        ),
+        "compute_support_state_root_for_batch_owned_committed_v1": (
+            "intents",
+            "balances",
+            "pools",
+            "lp_balances",
+            "nonces",
+        ),
+    }
+    for function_name, parameters in expected_parameters.items():
+        if _function_parameter_names_v1(functions[function_name]) != parameters:
+            _add_exact_consumer_violation(
+                violations,
+                relative_path=relative_path,
+                node=functions[function_name],
+                detail=f"support-parameters:{function_name}",
+            )
+
+    admitted_root = functions["_compute_support_state_root_for_batch_owned_admitted_v1"]
+    if not _single_exact_call_v1(
+        admitted_root,
+        call_name="_derive_batch_state_support_owned_v1",
+        positional=("intents",),
+        keywords={"pools": "pools"},
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=admitted_root,
+            detail="support-private-root-readmits-or-bypasses-command",
+        )
+    for call in _function_calls(admitted_root):
+        if _last_name(call.func) in {"admit_intent_batch", "snapshot_pool_map"}:
+            _add_exact_consumer_violation(
+                violations,
+                relative_path=relative_path,
+                node=call,
+                detail="support-private-root-readmits-command-or-state",
+            )
 
     root = functions["compute_support_state_root_for_batch_owned_committed_v1"]
     root_calls = _function_calls(root)
@@ -2174,6 +2531,7 @@ def _check_exact_consumer_shape(
         _check_exact_command_admission_v1(functions["_admit_exact_command_v1"], relative_path)
         + _check_exact_command_sinks_v1(functions["evaluate_fcis_step_candidate_v1"], relative_path)
         + _check_exact_consumer_annotations_v1(functions, relative_path)
+        + _check_exact_consumer_sink_forwarding_v1(functions, relative_path)
         + _check_exact_consumer_projection_v1(functions, required_names, relative_path)
     )
 

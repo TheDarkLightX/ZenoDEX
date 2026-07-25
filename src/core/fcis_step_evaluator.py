@@ -57,7 +57,7 @@ from ..state.state_snapshots import (
 )
 from ..state.support_root import (
     EXACT_SUPPORT_ROOT_VERSION_V1,
-    compute_support_state_root_for_batch_owned_committed_v1,
+    _compute_support_state_root_for_batch_owned_admitted_v1,
 )
 from .fcis_step_evaluation_values import (
     FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1,
@@ -78,7 +78,7 @@ from .fee_accumulator_transition import (
 from .nonce_batch_transition import (
     IntentNonceBatchOkV1,
     IntentNonceBatchRejectV1,
-    validate_and_apply_intent_nonce_batch_committed_v1,
+    _validate_and_apply_intent_nonce_batch_admitted_v1,
 )
 from .settlement import Settlement
 from .settlement_schema import fill_action_text_v1
@@ -87,7 +87,7 @@ from .settlement_strong_validator import (
     StrongSettlementEvaluationResultV1,
     StrongSettlementRejectV1,
     StrongSettlementStateCandidateV1,
-    evaluate_settlement_strong_committed_v1,
+    _evaluate_settlement_strong_admitted_v1,
     evaluate_settlement_strong_legacy_committed_for_differential_v1,
 )
 
@@ -367,7 +367,7 @@ def _evaluate_spot_v1(
     context: FCISStepExecutionContextV1,
 ) -> StrongSettlementEvaluationResultV1:
     settlement_context = context.settlement
-    return evaluate_settlement_strong_committed_v1(
+    return _evaluate_settlement_strong_admitted_v1(
         settlement=settlement,
         intents=intents,
         pre_balances=balances,
@@ -423,7 +423,7 @@ def _nonce_candidate_v1(
     intents: tuple[OwnedIntentV1, ...],
     context: FCISStepExecutionContextV1,
 ) -> IntentNonceBatchOkV1 | FCISStepEvaluationRejectV1:
-    result = validate_and_apply_intent_nonce_batch_committed_v1(
+    result = _validate_and_apply_intent_nonce_batch_admitted_v1(
         nonces=state.nonces,
         intents=intents,
         require_all_nonces=context.require_all_nonces,
@@ -579,6 +579,7 @@ def _pre_state_binding_v1(
 
 def _candidate_evidence_v1(
     *,
+    pre_state: _ExactStepStateV1,
     candidate: FCISStepCandidateV1,
     context: FCISStepExecutionContextV1,
     intents: tuple[OwnedIntentV1, ...],
@@ -604,12 +605,12 @@ def _candidate_evidence_v1(
             nonces=candidate.nonces,
             fee_accumulator=candidate.fee_accumulator,
         )
-        support_root = compute_support_state_root_for_batch_owned_committed_v1(
+        support_root = _compute_support_state_root_for_batch_owned_admitted_v1(
             intents=intents,
-            balances=candidate.spot.balances,
-            pools=candidate.spot.pools,
-            lp_balances=candidate.spot.lp_balances,
-            nonces=candidate.nonces,
+            balances=pre_state.balances,
+            pools=pre_state.pools,
+            lp_balances=pre_state.lp_balances,
+            nonces=pre_state.nonces,
         )
     except (StateAdmissionError, TypeError, ValueError):
         return _reject(
@@ -708,6 +709,7 @@ def evaluate_fcis_step_candidate_v1(
         perps=state.perps,
     )
     evidence = _candidate_evidence_v1(
+        pre_state=state,
         candidate=candidate,
         context=exact_context,
         intents=exact_intents,
@@ -733,7 +735,7 @@ def evaluate_fcis_spot_candidate_v1(
     This is a temporary unmounted legacy differential oracle.  It admits the
     pre-M4 legacy command graph and delegates to the legacy differential
     evaluator.  The exact evaluator path uses ``_admit_exact_command_v1`` and
-    ``evaluate_settlement_strong_committed_v1``.
+    then forwards that one admitted graph to private exact consumers.
     """
 
     command = _admit_legacy_command_shape_for_differential_v1(settlement, intents)
