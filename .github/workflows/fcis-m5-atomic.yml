@@ -29,15 +29,35 @@ jobs:
           python-version: "3.12"
 
       - name: Install locked development dependencies
-        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+        run: python -m pip install --quiet --require-hashes -r requirements-dev.lock.txt
 
-      - name: Ruff
+      - name: Capture Ruff result
         run: |
+          set +e
           python -m ruff check \
+            --output-format=concise \
             src/core/fcis_atomic_mount_values.py \
             src/core/fcis_atomic_mount_codec.py \
             src/integration/fcis_atomic_commit_reference.py \
-            tests/core/test_fcis_atomic_mount.py
+            tests/core/test_fcis_atomic_mount.py \
+            > /tmp/fcis-m5-ruff.txt 2>&1
+          status=$?
+          set -e
+          cat /tmp/fcis-m5-ruff.txt
+          printf '%s\n' "$status" > /tmp/fcis-m5-ruff.status
+
+      - name: Upload Ruff diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: fcis-m5-ruff-diagnostics
+          path: |
+            /tmp/fcis-m5-ruff.txt
+            /tmp/fcis-m5-ruff.status
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Require Ruff success
+        run: test "$(cat /tmp/fcis-m5-ruff.status)" -eq 0
 
       - name: Mypy
         run: |
