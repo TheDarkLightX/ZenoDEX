@@ -319,8 +319,17 @@ def snapshot_settlement(source: SettlementSourceV1) -> OwnedSettlementV1:
     return admitted
 
 
+def _canonical_owned_settlement_bytes_admitted_v1(
+    value: OwnedSettlementV1,
+) -> bytes:
+    """Encode one evaluator-owned settlement without a second admission pass."""
+
+    if type(value) is not OwnedSettlementV1:
+        raise TypeError("admitted settlement encoder requires exact OwnedSettlementV1")
+    return canonical_json_bytes(_project_owned_settlement(value))
+
+
 def canonical_owned_settlement_bytes_v1(value: OwnedSettlementV1) -> bytes:
     """Encode the mounted operation-3 projection after full revalidation."""
 
-    owned = snapshot_settlement(value)
-    return canonical_json_bytes(_project_owned_settlement(owned))
+    return _canonical_owned_settlement_bytes_admitted_v1(snapshot_settlement(value))

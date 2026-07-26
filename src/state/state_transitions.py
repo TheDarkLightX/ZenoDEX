@@ -415,23 +415,18 @@ def validate_balance_deltas_v1(
     return None
 
 
-def apply_balance_deltas_v1(
+def _apply_balance_deltas_observed_v1(
     pre: CommittedBalanceTableV1,
     deltas: tuple[BalanceDeltaV1, ...],
-) -> BalancePatchApplyResultV1:
-    """Reduce additive atoms canonically and apply one compare-and-replace patch.
-
-    Delta order has no semantic effect. Python integers make the additive
-    reduction exact; no regrouping-dependent overflow or rounding exists.
-    Cancellation to an empty patch returns the validated immutable pre-state.
-    """
+) -> tuple[BalancePatchApplyResultV1, tuple[BalanceKeyV1, ...]]:
+    """Reduce balance atoms and emit keys at their semantic lookup sites."""
 
     pre_entries = _validated_balance_entries_v1(pre)
     if type(pre_entries) is BalancePatchRejectV1:
-        return pre_entries
+        return pre_entries, ()
     delta_reject = validate_balance_deltas_v1(deltas)
     if delta_reject is not None:
-        return delta_reject
+        return delta_reject, ()
 
     aggregate: dict[BalanceKeyV1, int] = {}
     for delta in deltas:
@@ -439,13 +434,18 @@ def apply_balance_deltas_v1(
 
     current_by_key = dict(pre_entries)
     writes: list[BalanceWriteV1] = []
+    observed_keys: list[BalanceKeyV1] = []
     for key, net_delta in sorted(aggregate.items(), key=lambda item: item[0]):
         if net_delta == 0:
             continue
+        observed_keys.append(key)
         current = current_by_key.get(key, 0)
         replacement = current + net_delta
         if replacement < 0:
-            return _reject(BalancePatchCodeV1.OUT_OF_RANGE, ("deltas", "net_delta"))
+            return (
+                _reject(BalancePatchCodeV1.OUT_OF_RANGE, ("deltas", "net_delta")),
+                tuple(observed_keys),
+            )
         writes.append(
             BalanceWriteV1(
                 key=key,
@@ -455,11 +455,30 @@ def apply_balance_deltas_v1(
         )
 
     if not writes:
-        return BalancePatchApplyOkV1(pre, None)
+        return BalancePatchApplyOkV1(pre, None), tuple(observed_keys)
     patch_result = build_canonical_balance_patch_v1(tuple(writes))
     if type(patch_result) is BalancePatchRejectV1:
-        return patch_result
-    return apply_canonical_balance_patch_v1(pre, patch_result.patch)
+        return patch_result, tuple(observed_keys)
+    return apply_canonical_balance_patch_v1(pre, patch_result.patch), tuple(observed_keys)
+
+
+def apply_balance_deltas_observed_v1(
+    pre: CommittedBalanceTableV1,
+    deltas: tuple[BalanceDeltaV1, ...],
+) -> tuple[BalancePatchApplyResultV1, tuple[BalanceKeyV1, ...]]:
+    """Apply balance deltas and return exact semantic read keys."""
+
+    return _apply_balance_deltas_observed_v1(pre, deltas)
+
+
+def apply_balance_deltas_v1(
+    pre: CommittedBalanceTableV1,
+    deltas: tuple[BalanceDeltaV1, ...],
+) -> BalancePatchApplyResultV1:
+    """Apply balance deltas and discard non-authoritative read evidence."""
+
+    result, _observed_keys = _apply_balance_deltas_observed_v1(pre, deltas)
+    return result
 
 
 def validate_committed_balance_state_v1(
@@ -1518,11 +1537,11 @@ def validate_lp_position_deltas_v1(
     return None
 
 
-def apply_lp_position_deltas_v1(
+def apply_lp_position_deltas_observed_v1(
     pre: CommittedLPTableV1,
     deltas: tuple[LPPositionDeltaV1, ...],
-) -> LPPositionPatchApplyResultV1:
-    """Reduce LP balance atoms canonically and return one immutable candidate.
+) -> tuple[LPPositionPatchApplyResultV1, tuple[LPKeyV1, ...]]:
+    """Reduce LP atoms and emit keys at their semantic lookup sites.
 
     The exact pre-state is revalidated before work begins. Delta ordering has no
     semantic effect. No mutable ``LPTable`` is constructed, and rejection
@@ -1531,25 +1550,30 @@ def apply_lp_position_deltas_v1(
 
     positions = _lp_positions_from_committed_v1(pre)
     if type(positions) is LPPositionPatchRejectV1:
-        return positions
+        return positions, ()
     delta_reject = validate_lp_position_deltas_v1(deltas)
     if delta_reject is not None:
-        return delta_reject
+        return delta_reject, ()
 
     aggregate: dict[LPKeyV1, int] = {}
     for delta in deltas:
         aggregate[delta.key] = aggregate.get(delta.key, 0) + delta.net_delta
 
     writes: list[LPPositionWriteV1] = []
+    observed_keys: list[LPKeyV1] = []
     for key, net_delta in sorted(aggregate.items(), key=lambda item: item[0]):
         if net_delta == 0:
             continue
+        observed_keys.append(key)
         current = positions.get(key, _EMPTY_LP_POSITION_V1)
         replacement_balance = current.balance + net_delta
         if not 0 <= replacement_balance <= DEX_LP_AMOUNT_MAX:
-            return _lp_reject(
-                LPPositionPatchCodeV1.OUT_OF_RANGE,
-                ("deltas", "net_delta"),
+            return (
+                _lp_reject(
+                    LPPositionPatchCodeV1.OUT_OF_RANGE,
+                    ("deltas", "net_delta"),
+                ),
+                tuple(observed_keys),
             )
         replacement = replace(
             current,
@@ -1559,11 +1583,24 @@ def apply_lp_position_deltas_v1(
         writes.append(LPPositionWriteV1(key, current, replacement))
 
     if not writes:
-        return LPPositionPatchApplyOkV1(pre, None)
+        return LPPositionPatchApplyOkV1(pre, None), tuple(observed_keys)
     patch_result = build_canonical_lp_position_patch_v1(tuple(writes))
     if type(patch_result) is LPPositionPatchRejectV1:
-        return patch_result
-    return apply_canonical_lp_position_patch_v1(pre, patch_result.patch)
+        return patch_result, tuple(observed_keys)
+    return (
+        apply_canonical_lp_position_patch_v1(pre, patch_result.patch),
+        tuple(observed_keys),
+    )
+
+
+def apply_lp_position_deltas_v1(
+    pre: CommittedLPTableV1,
+    deltas: tuple[LPPositionDeltaV1, ...],
+) -> LPPositionPatchApplyResultV1:
+    """Apply LP-position deltas and discard non-authoritative read evidence."""
+
+    result, _observed_keys = apply_lp_position_deltas_observed_v1(pre, deltas)
+    return result
 
 
 PoolPatchPathPartV1: TypeAlias = str | int
@@ -2192,10 +2229,13 @@ def _pool_delta_replacement_v1(
         )
 
 
-def _pool_delta_writes_v1(
+def _pool_delta_writes_observed_v1(
     pre: OwnedMapV1[str, CommittedPoolStateV1],
     nets: _PoolDeltaNetsV1,
-) -> tuple[PoolWriteV1, ...] | PoolPatchRejectV1:
+) -> tuple[
+    tuple[PoolWriteV1, ...] | PoolPatchRejectV1,
+    tuple[str, ...],
+]:
     reserve_by_pool: dict[str, list[tuple[str, int]]] = {}
     for (pool_id, asset), net_delta in nets.reserve_entries:
         reserve_by_pool.setdefault(pool_id, []).append((asset, net_delta))
@@ -2203,12 +2243,17 @@ def _pool_delta_writes_v1(
     touched_pool_ids = sorted(set(reserve_by_pool) | set(supply_by_pool))
 
     writes: list[PoolWriteV1] = []
+    observed_pool_ids: list[str] = []
     for pool_id in touched_pool_ids:
+        observed_pool_ids.append(pool_id)
         current = pre.get(pool_id)
         if current is None:
-            return _pool_reject(
-                PoolPatchCodeV1.UNKNOWN_POOL,
-                ("pools", pool_id),
+            return (
+                _pool_reject(
+                    PoolPatchCodeV1.UNKNOWN_POOL,
+                    ("pools", pool_id),
+                ),
+                tuple(observed_pool_ids),
             )
         replacement = _pool_delta_replacement_v1(
             current,
@@ -2216,11 +2261,44 @@ def _pool_delta_writes_v1(
             supply_by_pool.get(pool_id, 0),
         )
         if type(replacement) is PoolPatchRejectV1:
-            return replacement
+            return replacement, tuple(observed_pool_ids)
         if replacement == current:
             continue
         writes.append(PoolWriteV1(pool_id, current, replacement))
-    return tuple(writes)
+    return tuple(writes), tuple(observed_pool_ids)
+
+
+def _pool_delta_writes_v1(
+    pre: OwnedMapV1[str, CommittedPoolStateV1],
+    nets: _PoolDeltaNetsV1,
+) -> tuple[PoolWriteV1, ...] | PoolPatchRejectV1:
+    writes, _observed_pool_ids = _pool_delta_writes_observed_v1(pre, nets)
+    return writes
+
+
+def apply_pool_deltas_observed_v1(
+    pre: OwnedMapV1[str, CommittedPoolStateV1],
+    reserve_deltas: tuple[PoolReserveDeltaV1, ...],
+    supply_deltas: tuple[PoolSupplyDeltaV1, ...],
+) -> tuple[PoolPatchApplyResultV1, tuple[str, ...]]:
+    """Apply pool deltas and emit IDs at their semantic lookup sites."""
+
+    admitted_pre = _validated_pool_map_v1(pre)
+    if type(admitted_pre) is PoolPatchRejectV1:
+        return admitted_pre, ()
+    nets = _aggregate_pool_deltas_v1(reserve_deltas, supply_deltas)
+    if type(nets) is PoolPatchRejectV1:
+        return nets, ()
+    writes, observed_pool_ids = _pool_delta_writes_observed_v1(admitted_pre, nets)
+    if type(writes) is PoolPatchRejectV1:
+        return writes, observed_pool_ids
+
+    if not writes:
+        return PoolPatchApplyOkV1(admitted_pre, None), observed_pool_ids
+    patch_result = build_canonical_pool_patch_v1(writes)
+    if type(patch_result) is PoolPatchRejectV1:
+        return patch_result, observed_pool_ids
+    return apply_canonical_pool_patch_v1(admitted_pre, patch_result.patch), observed_pool_ids
 
 
 def apply_pool_deltas_v1(
@@ -2228,24 +2306,14 @@ def apply_pool_deltas_v1(
     reserve_deltas: tuple[PoolReserveDeltaV1, ...],
     supply_deltas: tuple[PoolSupplyDeltaV1, ...],
 ) -> PoolPatchApplyResultV1:
-    """Reduce reserve and LP-supply atoms into complete immutable pool writes."""
+    """Apply pool deltas and discard non-authoritative read evidence."""
 
-    admitted_pre = _validated_pool_map_v1(pre)
-    if type(admitted_pre) is PoolPatchRejectV1:
-        return admitted_pre
-    nets = _aggregate_pool_deltas_v1(reserve_deltas, supply_deltas)
-    if type(nets) is PoolPatchRejectV1:
-        return nets
-    writes = _pool_delta_writes_v1(admitted_pre, nets)
-    if type(writes) is PoolPatchRejectV1:
-        return writes
-
-    if not writes:
-        return PoolPatchApplyOkV1(admitted_pre, None)
-    patch_result = build_canonical_pool_patch_v1(writes)
-    if type(patch_result) is PoolPatchRejectV1:
-        return patch_result
-    return apply_canonical_pool_patch_v1(admitted_pre, patch_result.patch)
+    result, _observed_pool_ids = apply_pool_deltas_observed_v1(
+        pre,
+        reserve_deltas,
+        supply_deltas,
+    )
+    return result
 
 
 __all__ = [
@@ -2286,12 +2354,15 @@ __all__ = [
     "PoolReserveDeltaV1",
     "PoolSupplyDeltaV1",
     "PoolWriteV1",
+    "apply_balance_deltas_observed_v1",
     "apply_balance_deltas_v1",
     "apply_canonical_balance_patch_v1",
     "apply_canonical_lp_position_patch_v1",
     "apply_canonical_nonce_patch_v1",
     "apply_canonical_pool_patch_v1",
+    "apply_lp_position_deltas_observed_v1",
     "apply_lp_position_deltas_v1",
+    "apply_pool_deltas_observed_v1",
     "apply_pool_deltas_v1",
     "build_canonical_balance_patch_v1",
     "build_canonical_lp_position_patch_v1",

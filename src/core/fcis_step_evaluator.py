@@ -8,6 +8,8 @@ module cannot authorize a shell commit.
 
 from __future__ import annotations
 
+from typing import cast
+
 from ..state.canonical import domain_sep_bytes, sha256_hex
 from ..state.committed_dex_snapshot import canonical_snapshot_bytes_from_committed_state_v1
 from ..state.fcis_committed_state_admission import admit_fcis_committed_state_v1
@@ -44,9 +46,10 @@ from ..state.state_snapshots import (
     snapshot_lp_table,
     snapshot_pool_map,
 )
-from ..state.support_root import (
-    EXACT_SUPPORT_ROOT_VERSION_V1,
-    _compute_support_state_root_for_batch_owned_admitted_v1,
+from .fcis_state_read_trace_v5 import (
+    FCISContextReadTraceV5,
+    FCISStateReadTraceV5,
+    merge_fcis_state_read_traces_v5,
 )
 from .fcis_step_evaluation_values import (
     FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1,
@@ -60,6 +63,15 @@ from .fcis_step_evaluation_values import (
     FCISStepEvaluationResultV1,
     _evaluation_ok_from_evaluator_v1,
 )
+from .fcis_support_profile_constants_v5 import (
+    FCIS_SUPPORT_PROFILE_ID_V5,
+    FCIS_SUPPORT_PROFILE_VERSION_V5,
+)
+from .fcis_support_profile_v5 import _compute_fcis_support_root_v5_admitted
+from .fcis_traced_reads_v5 import (
+    read_fee_accumulator_v5,
+    read_step_execution_context_v5,
+)
 from .fee_accumulator_transition import (
     FeeAccumulatorTransitionOkV1,
     FeeAccumulatorTransitionRejectV1,
@@ -68,7 +80,7 @@ from .fee_accumulator_transition import (
 from .nonce_batch_transition import (
     IntentNonceBatchOkV1,
     IntentNonceBatchRejectV1,
-    _validate_and_apply_intent_nonce_batch_admitted_v1,
+    _validate_and_apply_intent_nonce_batch_admitted_observed_v5,
 )
 from .settlement import Settlement
 from .settlement_schema import fill_action_text_v1
@@ -77,7 +89,7 @@ from .settlement_strong_validator import (
     StrongSettlementEvaluationResultV1,
     StrongSettlementRejectV1,
     StrongSettlementStateCandidateV1,
-    _evaluate_settlement_strong_admitted_v1,
+    _evaluate_settlement_strong_admitted_observed_v5,
     evaluate_settlement_strong_legacy_committed_for_differential_v1,
 )
 
@@ -290,8 +302,28 @@ def _evaluate_spot_v1(
     intents: tuple[OwnedIntentV1, ...],
     context: FCISStepExecutionContextV1,
 ) -> StrongSettlementEvaluationResultV1:
+    result, _state_read_trace = _evaluate_spot_observed_v5(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        settlement=settlement,
+        intents=intents,
+        context=context,
+    )
+    return result
+
+
+def _evaluate_spot_observed_v5(
+    *,
+    balances: CommittedBalanceTableV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    lp_balances: CommittedLPTableV1,
+    settlement: OwnedSettlementV1,
+    intents: tuple[OwnedIntentV1, ...],
+    context: FCISStepExecutionContextV1,
+) -> tuple[StrongSettlementEvaluationResultV1, FCISStateReadTraceV5]:
     settlement_context = context.settlement
-    return _evaluate_settlement_strong_admitted_v1(
+    observed = _evaluate_settlement_strong_admitted_observed_v5(
         settlement=settlement,
         intents=intents,
         pre_balances=balances,
@@ -307,6 +339,15 @@ def _evaluate_spot_v1(
         ),
         protocol_fee_share_bps=settlement_context.protocol_fee_share_bps,
         protocol_fee_recipient_pubkey=settlement_context.protocol_fee_recipient_pubkey,
+    )
+    result: object = observed.result
+    if type(result) is StrongSettlementStateCandidateV1:
+        return result, observed.state_read_trace
+    if type(result) is StrongSettlementRejectV1:
+        return result, observed.state_read_trace
+    return (
+        StrongSettlementRejectV1("strong validator returned an impossible private observed result"),
+        observed.state_read_trace,
     )
 
 
@@ -347,26 +388,47 @@ def _nonce_candidate_v1(
     intents: tuple[OwnedIntentV1, ...],
     context: FCISStepExecutionContextV1,
 ) -> IntentNonceBatchOkV1 | FCISStepEvaluationRejectV1:
-    result = _validate_and_apply_intent_nonce_batch_admitted_v1(
+    result, _state_read_trace = _nonce_candidate_observed_v5(
+        state=state,
+        intents=intents,
+        context=context,
+    )
+    return result
+
+
+def _nonce_candidate_observed_v5(
+    *,
+    state: FCISCommittedStateV1,
+    intents: tuple[OwnedIntentV1, ...],
+    context: FCISStepExecutionContextV1,
+) -> tuple[IntentNonceBatchOkV1 | FCISStepEvaluationRejectV1, FCISStateReadTraceV5]:
+    observed = _validate_and_apply_intent_nonce_batch_admitted_observed_v5(
         nonces=state.nonces,
         intents=intents,
         require_all_nonces=context.require_all_nonces,
     )
+    result: object = observed.result
     if type(result) is IntentNonceBatchRejectV1:
-        return _reject(
-            FCISStepEvaluationPhaseV1.NONCE,
-            result.code.value,
-            (),
-            result.public_reason,
+        return (
+            _reject(
+                FCISStepEvaluationPhaseV1.NONCE,
+                result.code.value,
+                (),
+                result.public_reason,
+            ),
+            observed.state_read_trace,
         )
     if type(result) is not IntentNonceBatchOkV1:
-        return _reject(
-            FCISStepEvaluationPhaseV1.NONCE,
-            "impossible_result",
-            (),
-            "step nonce transition returned an impossible result",
+        return (
+            _reject(
+                FCISStepEvaluationPhaseV1.NONCE,
+                "impossible_result",
+                (),
+                "step nonce transition returned an impossible result",
+            ),
+            observed.state_read_trace,
         )
-    return result
+    return result, observed.state_read_trace
 
 
 def _spot_candidate_v1(
@@ -376,7 +438,26 @@ def _spot_candidate_v1(
     intents: tuple[OwnedIntentV1, ...],
     context: FCISStepExecutionContextV1,
 ) -> StrongSettlementStateCandidateV1 | FCISStepEvaluationRejectV1:
-    result = _evaluate_spot_v1(
+    result, _state_read_trace = _spot_candidate_observed_v5(
+        state=state,
+        settlement=settlement,
+        intents=intents,
+        context=context,
+    )
+    return result
+
+
+def _spot_candidate_observed_v5(
+    *,
+    state: FCISCommittedStateV1,
+    settlement: OwnedSettlementV1,
+    intents: tuple[OwnedIntentV1, ...],
+    context: FCISStepExecutionContextV1,
+) -> tuple[
+    StrongSettlementStateCandidateV1 | FCISStepEvaluationRejectV1,
+    FCISStateReadTraceV5,
+]:
+    evaluated_result, state_read_trace = _evaluate_spot_observed_v5(
         balances=state.balances,
         pools=state.pools,
         lp_balances=state.lp_balances,
@@ -384,30 +465,41 @@ def _spot_candidate_v1(
         intents=intents,
         context=context,
     )
+    result: object = evaluated_result
     if type(result) is StrongSettlementRejectV1:
-        return _reject(
-            FCISStepEvaluationPhaseV1.SETTLEMENT,
-            "strong_settlement_rejected",
-            (),
-            result.reason,
+        reject = cast(StrongSettlementRejectV1, result)
+        return (
+            _reject(
+                FCISStepEvaluationPhaseV1.SETTLEMENT,
+                "strong_settlement_rejected",
+                (),
+                reject.reason,
+            ),
+            state_read_trace,
         )
     if type(result) is not StrongSettlementStateCandidateV1:
-        return _reject(
-            FCISStepEvaluationPhaseV1.SETTLEMENT,
-            "impossible_result",
-            (),
-            "step settlement transition returned an impossible result",
+        return (
+            _reject(
+                FCISStepEvaluationPhaseV1.SETTLEMENT,
+                "impossible_result",
+                (),
+                "step settlement transition returned an impossible result",
+            ),
+            state_read_trace,
         )
     if context.reject_settlements_with_rejected_intents:
         rejected_intent_error = _first_rejected_owned_settlement_intent_error_v1(settlement)
         if rejected_intent_error is not None:
-            return _reject(
-                FCISStepEvaluationPhaseV1.SETTLEMENT,
-                "rejected_intent",
-                (),
-                rejected_intent_error,
+            return (
+                _reject(
+                    FCISStepEvaluationPhaseV1.SETTLEMENT,
+                    "rejected_intent",
+                    (),
+                    rejected_intent_error,
+                ),
+                state_read_trace,
             )
-    return result
+    return result, state_read_trace
 
 
 def _total_settlement_fees_v1(
@@ -435,40 +527,74 @@ def _fee_candidate_v1(
     settlement: OwnedSettlementV1,
     context: FCISStepExecutionContextV1,
 ) -> tuple[CommittedFeeAccumulatorStateV1, FCISFeeAllocationV1 | None] | FCISStepEvaluationRejectV1:
+    result, _state_read_trace = _fee_candidate_observed_v5(
+        state=state,
+        settlement=settlement,
+        context=context,
+        state_read_trace=FCISStateReadTraceV5(),
+    )
+    return result
+
+
+def _fee_candidate_observed_v5(
+    *,
+    state: FCISCommittedStateV1,
+    settlement: OwnedSettlementV1,
+    context: FCISStepExecutionContextV1,
+    state_read_trace: FCISStateReadTraceV5,
+) -> tuple[
+    tuple[CommittedFeeAccumulatorStateV1, FCISFeeAllocationV1 | None] | FCISStepEvaluationRejectV1,
+    FCISStateReadTraceV5,
+]:
     policy = context.fee_split_policy
     if policy is None:
-        return state.fee_accumulator, None
+        return (state.fee_accumulator, None), state_read_trace
+    fee_accumulator, next_trace = read_fee_accumulator_v5(
+        state.fee_accumulator,
+        state_read_trace,
+    )
     total = _total_settlement_fees_v1(settlement)
     if type(total) is FCISStepEvaluationRejectV1:
-        return total
-    result = split_fee_with_owned_policy_v1(
+        return total, next_trace
+    result: object = split_fee_with_owned_policy_v1(
         fee_amount=total,
         policy=policy,
-        state=state.fee_accumulator,
+        state=fee_accumulator,
     )
     if type(result) is FeeAccumulatorTransitionRejectV1:
-        return _reject(
-            FCISStepEvaluationPhaseV1.FEE,
-            result.code.value,
-            (result.field,),
-            f"{result.code.value}:{result.field}",
+        reject = cast(FeeAccumulatorTransitionRejectV1, result)
+        return (
+            _reject(
+                FCISStepEvaluationPhaseV1.FEE,
+                reject.code.value,
+                (reject.field,),
+                f"{reject.code.value}:{reject.field}",
+            ),
+            next_trace,
         )
     if type(result) is not FeeAccumulatorTransitionOkV1:
-        return _reject(
-            FCISStepEvaluationPhaseV1.FEE,
-            "impossible_result",
-            (),
-            "step fee transition returned an impossible result",
+        return (
+            _reject(
+                FCISStepEvaluationPhaseV1.FEE,
+                "impossible_result",
+                (),
+                "step fee transition returned an impossible result",
+            ),
+            next_trace,
         )
-    allocation = result.allocation
+    ok = cast(FeeAccumulatorTransitionOkV1, result)
+    allocation = ok.allocation
     return (
-        result.state,
-        FCISFeeAllocationV1(
-            buyback_amount=allocation.buyback_amount,
-            treasury_amount=allocation.treasury_amount,
-            rewards_amount=allocation.rewards_amount,
-            dust_carried=allocation.dust_carried,
+        (
+            ok.state,
+            FCISFeeAllocationV1(
+                buyback_amount=allocation.buyback_amount,
+                treasury_amount=allocation.treasury_amount,
+                rewards_amount=allocation.rewards_amount,
+                dust_carried=allocation.dust_carried,
+            ),
         ),
+        next_trace,
     )
 
 
@@ -520,9 +646,12 @@ def _candidate_evidence_v1(
     *,
     pre_state: FCISCommittedStateV1,
     candidate: FCISStepCandidateV1,
+    settlement: OwnedSettlementV1,
     context: FCISStepExecutionContextV1,
     intents: tuple[OwnedIntentV1, ...],
     pre_binding: tuple[bytes, str, bytes, str],
+    state_read_trace: FCISStateReadTraceV5,
+    context_read_trace: FCISContextReadTraceV5,
 ) -> FCISStepEvaluationEvidenceV1 | FCISStepEvaluationRejectV1:
     context_bytes, context_hash, preimage, pre_root = pre_binding
     try:
@@ -530,13 +659,20 @@ def _candidate_evidence_v1(
             candidate.state,
             context.snapshot_version,
         )
-        support_root = _compute_support_state_root_for_batch_owned_admitted_v1(
+        support_evidence = _compute_fcis_support_root_v5_admitted(
+            settlement=settlement,
             intents=intents,
+            context=context,
             balances=pre_state.balances,
             pools=pre_state.pools,
             lp_balances=pre_state.lp_balances,
             nonces=pre_state.nonces,
+            fee_accumulator=pre_state.fee_accumulator,
+            state_read_trace=state_read_trace,
+            context_read_trace=context_read_trace,
         )
+        if support_evidence.execution_context_hash != context_hash:
+            raise ValueError("support-root context binding mismatch")
     except (StateAdmissionError, TypeError, ValueError):
         return _reject(
             FCISStepEvaluationPhaseV1.EVIDENCE,
@@ -556,9 +692,46 @@ def _candidate_evidence_v1(
         snapshot_version=context.snapshot_version,
         canonical_snapshot_bytes=snapshot_bytes,
         snapshot_commitment=post_root,
-        support_root_version=EXACT_SUPPORT_ROOT_VERSION_V1,
-        support_root=support_root,
+        support_root_version=FCIS_SUPPORT_PROFILE_VERSION_V5,
+        support_profile_id=FCIS_SUPPORT_PROFILE_ID_V5,
+        support_set_commitment=support_evidence.support_set_commitment,
+        support_root=support_evidence.root,
     )
+
+
+def _reject_after_trace_containment_v5(
+    *,
+    reject: FCISStepEvaluationRejectV1,
+    pre_state: FCISCommittedStateV1,
+    settlement: OwnedSettlementV1,
+    intents: tuple[OwnedIntentV1, ...],
+    context: FCISStepExecutionContextV1,
+    state_read_trace: FCISStateReadTraceV5,
+    context_read_trace: FCISContextReadTraceV5,
+) -> FCISStepEvaluationRejectV1:
+    """Check a rejection prefix, then discard all success-only evidence."""
+
+    try:
+        _compute_fcis_support_root_v5_admitted(
+            settlement=settlement,
+            intents=intents,
+            context=context,
+            balances=pre_state.balances,
+            pools=pre_state.pools,
+            lp_balances=pre_state.lp_balances,
+            nonces=pre_state.nonces,
+            fee_accumulator=pre_state.fee_accumulator,
+            state_read_trace=state_read_trace,
+            context_read_trace=context_read_trace,
+        )
+    except (StateAdmissionError, TypeError, ValueError):
+        return _reject(
+            FCISStepEvaluationPhaseV1.EVIDENCE,
+            "support_trace_rejected",
+            (),
+            "step rejection read trace escaped declared support",
+        )
+    return reject
 
 
 def evaluate_fcis_step_candidate_v1(
@@ -579,32 +752,62 @@ def evaluate_fcis_step_candidate_v1(
     state = _admit_exact_state_v1(state_source)
     if type(state) is FCISStepEvaluationRejectV1:
         return state
+    _context_projection, context_read_trace = read_step_execution_context_v5(exact_context)
     pre_binding = _pre_state_binding_v1(state, exact_context)
     if type(pre_binding) is FCISStepEvaluationRejectV1:
         return pre_binding
     exact_settlement, exact_intents = command
-    nonce = _nonce_candidate_v1(
+    nonce, nonce_read_trace = _nonce_candidate_observed_v5(
         state=state,
         intents=exact_intents,
         context=exact_context,
     )
     if type(nonce) is FCISStepEvaluationRejectV1:
-        return nonce
-    spot = _spot_candidate_v1(
+        return _reject_after_trace_containment_v5(
+            reject=nonce,
+            pre_state=state,
+            settlement=exact_settlement,
+            intents=exact_intents,
+            context=exact_context,
+            state_read_trace=nonce_read_trace,
+            context_read_trace=context_read_trace,
+        )
+    spot, spot_read_trace = _spot_candidate_observed_v5(
         state=state,
         settlement=exact_settlement,
         intents=exact_intents,
         context=exact_context,
     )
+    combined_read_trace = merge_fcis_state_read_traces_v5(
+        nonce_read_trace,
+        spot_read_trace,
+    )
     if type(spot) is FCISStepEvaluationRejectV1:
-        return spot
-    fee = _fee_candidate_v1(
+        return _reject_after_trace_containment_v5(
+            reject=spot,
+            pre_state=state,
+            settlement=exact_settlement,
+            intents=exact_intents,
+            context=exact_context,
+            state_read_trace=combined_read_trace,
+            context_read_trace=context_read_trace,
+        )
+    fee, complete_read_trace = _fee_candidate_observed_v5(
         state=state,
         settlement=exact_settlement,
         context=exact_context,
+        state_read_trace=combined_read_trace,
     )
     if type(fee) is FCISStepEvaluationRejectV1:
-        return fee
+        return _reject_after_trace_containment_v5(
+            reject=fee,
+            pre_state=state,
+            settlement=exact_settlement,
+            intents=exact_intents,
+            context=exact_context,
+            state_read_trace=complete_read_trace,
+            context_read_trace=context_read_trace,
+        )
     successor = FCISCommittedStateV1(
         balances=spot.balances,
         pools=spot.pools,
@@ -626,9 +829,12 @@ def evaluate_fcis_step_candidate_v1(
     evidence = _candidate_evidence_v1(
         pre_state=state,
         candidate=candidate,
+        settlement=exact_settlement,
         context=exact_context,
         intents=exact_intents,
         pre_binding=pre_binding,
+        state_read_trace=complete_read_trace,
+        context_read_trace=context_read_trace,
     )
     if type(evidence) is FCISStepEvaluationRejectV1:
         return evidence

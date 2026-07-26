@@ -563,28 +563,54 @@ def route_binding_pins_snapshot(
     return _route_binding_pins_pool_map_v1(binding, pre_pools)
 
 
+def route_binding_pins_committed_snapshot_observed_v1(
+    binding: RouteBinding,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> tuple[bool, tuple[str, ...]]:
+    """Check route pins and emit pool IDs at their lookup sites."""
+
+    return _route_binding_pins_pool_map_observed_v1(
+        binding,
+        _require_committed_pool_map_v1(pre_pools),
+    )
+
+
 def route_binding_pins_committed_snapshot_v1(
     binding: RouteBinding,
     pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
 ) -> bool:
     """Check a route binding against one exact committed pool snapshot."""
 
-    return _route_binding_pins_pool_map_v1(
+    result, _observed_pool_ids = route_binding_pins_committed_snapshot_observed_v1(
         binding,
-        _require_committed_pool_map_v1(pre_pools),
+        pre_pools,
     )
+    return result
+
+
+def _route_binding_pins_pool_map_observed_v1(
+    binding: RouteBinding,
+    pre_pools: _PoolMapV1,
+) -> tuple[bool, tuple[str, ...]]:
+    observed_pool_ids: list[str] = []
+    for pool_id in sorted(binding.pool_fingerprints):
+        fingerprint = binding.pool_fingerprints[pool_id]
+        observed_pool_ids.append(pool_id)
+        pool = pre_pools.get(pool_id)
+        if pool is None or _pool_fingerprint_v1(pool) != fingerprint:
+            return False, tuple(observed_pool_ids)
+    return True, tuple(observed_pool_ids)
 
 
 def _route_binding_pins_pool_map_v1(
     binding: RouteBinding,
     pre_pools: _PoolMapV1,
 ) -> bool:
-    for pool_id in sorted(binding.pool_fingerprints):
-        fingerprint = binding.pool_fingerprints[pool_id]
-        pool = pre_pools.get(pool_id)
-        if pool is None or _pool_fingerprint_v1(pool) != fingerprint:
-            return False
-    return True
+    result, _observed_pool_ids = _route_binding_pins_pool_map_observed_v1(
+        binding,
+        pre_pools,
+    )
+    return result
 
 
 @dataclass(frozen=True)
@@ -611,29 +637,57 @@ class RouteReplayResult:
     total_fee_paid: int = 0
 
 
+def _route_pool_preflight_observed_v1(
+    binding: RouteBinding,
+    pools: _PoolMapV1,
+    ordered_pool_ids: tuple[str, ...],
+) -> tuple[RouteReplayResult | None, tuple[str, ...], dict[str, _PoolValueV1]]:
+    observed_pool_ids: list[str] = []
+    observed_pools: dict[str, _PoolValueV1] = {}
+    for pool_id in ordered_pool_ids:
+        observed_pool_ids.append(pool_id)
+        pool = pools.get(pool_id)
+        if pool is None:
+            return (
+                RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_FOUND),
+                tuple(observed_pool_ids),
+                observed_pools,
+            )
+        if not _pool_is_active_v1(pool):
+            return (
+                RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_ACTIVE),
+                tuple(observed_pool_ids),
+                observed_pools,
+            )
+        if _pool_fingerprint_v1(pool) != binding.pool_fingerprints[pool_id]:
+            return (
+                RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_STATE_DRIFT),
+                tuple(observed_pool_ids),
+                observed_pools,
+            )
+        observed_pools[pool_id] = pool
+    return None, tuple(observed_pool_ids), observed_pools
+
+
 def _route_pool_preflight_v1(
     binding: RouteBinding,
     pools: _PoolMapV1,
     ordered_pool_ids: tuple[str, ...],
 ) -> RouteReplayResult | None:
-    for pool_id in ordered_pool_ids:
-        pool = pools.get(pool_id)
-        if pool is None:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_FOUND)
-        if not _pool_is_active_v1(pool):
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_ACTIVE)
-        if _pool_fingerprint_v1(pool) != binding.pool_fingerprints[pool_id]:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_STATE_DRIFT)
-    return None
+    result, _observed_pool_ids, _observed_pools = _route_pool_preflight_observed_v1(
+        binding,
+        pools,
+        ordered_pool_ids,
+    )
+    return result
 
 
 def _initial_route_scratch_v1(
-    pools: _PoolMapV1,
-    ordered_pool_ids: tuple[str, ...],
+    observed_pools: dict[str, _PoolValueV1],
 ) -> dict[str, tuple[int, int]]:
     return {
-        pool_id: (int(pools[pool_id].reserve0), int(pools[pool_id].reserve1))
-        for pool_id in ordered_pool_ids
+        pool_id: (int(pool.reserve0), int(pool.reserve1))
+        for pool_id, pool in observed_pools.items()
     }
 
 
@@ -720,6 +774,19 @@ def replay_route_legs(
     return _replay_route_legs_for_pool_map_v1(binding=binding, pools=pools)
 
 
+def replay_route_legs_committed_observed_v1(
+    *,
+    binding: RouteBinding,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> tuple[RouteReplayResult, tuple[str, ...]]:
+    """Replay a route and emit pool IDs at their semantic lookup sites."""
+
+    return _replay_route_legs_for_pool_map_observed_v1(
+        binding=binding,
+        pools=_require_committed_pool_map_v1(pools),
+    )
+
+
 def replay_route_legs_committed_v1(
     *,
     binding: RouteBinding,
@@ -727,9 +794,52 @@ def replay_route_legs_committed_v1(
 ) -> RouteReplayResult:
     """Replay a route against one exact immutable committed pool map."""
 
-    return _replay_route_legs_for_pool_map_v1(
+    result, _observed_pool_ids = replay_route_legs_committed_observed_v1(
         binding=binding,
-        pools=_require_committed_pool_map_v1(pools),
+        pools=pools,
+    )
+    return result
+
+
+def _replay_route_legs_for_pool_map_observed_v1(
+    *,
+    binding: RouteBinding,
+    pools: _PoolMapV1,
+) -> tuple[RouteReplayResult, tuple[str, ...]]:
+    ordered_pool_ids = tuple(sorted(binding.pool_fingerprints))
+    preflight, preflight_reads, observed_pools = _route_pool_preflight_observed_v1(
+        binding,
+        pools,
+        ordered_pool_ids,
+    )
+    if preflight is not None:
+        return preflight, preflight_reads
+
+    scratch = _initial_route_scratch_v1(observed_pools)
+    observed_pool_ids = list(preflight_reads)
+    replays: List[RouteLegReplay] = []
+    for leg in binding.legs:
+        pool = observed_pools.get(leg.pool_id)
+        if pool is None or leg.pool_id not in scratch:
+            return (
+                RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_FOUND),
+                tuple(sorted(set(observed_pool_ids))),
+            )
+        replay = _replay_route_leg_v1(binding.kind, pool, leg, scratch[leg.pool_id])
+        if isinstance(replay, RouteReplayResult):
+            return replay, tuple(sorted(set(observed_pool_ids)))
+        replays.append(replay)
+        scratch[leg.pool_id] = (replay.new_reserve0, replay.new_reserve1)
+
+    return (
+        RouteReplayResult(
+            ok=True,
+            legs=tuple(replays),
+            total_amount_in=sum(replay.amount_in for replay in replays),
+            total_amount_out=sum(replay.amount_out for replay in replays),
+            total_fee_paid=sum(replay.fee_paid for replay in replays),
+        ),
+        tuple(sorted(set(observed_pool_ids))),
     )
 
 
@@ -738,35 +848,11 @@ def _replay_route_legs_for_pool_map_v1(
     binding: RouteBinding,
     pools: _PoolMapV1,
 ) -> RouteReplayResult:
-    # Phase 1: pool presence + status + snapshot fingerprints (vs current state).
-    # Fingerprint maps are semantically unordered. Sorting gives one rejection
-    # precedence independent of dict construction or collection internals.
-    ordered_pool_ids = tuple(sorted(binding.pool_fingerprints))
-    preflight = _route_pool_preflight_v1(binding, pools, ordered_pool_ids)
-    if preflight is not None:
-        return preflight
-
-    # Phase 2: exact kernel replay on scratch reserves (thread across legs).
-    scratch = _initial_route_scratch_v1(pools, ordered_pool_ids)
-
-    replays: List[RouteLegReplay] = []
-    for leg in binding.legs:
-        pool = pools.get(leg.pool_id)
-        if pool is None or leg.pool_id not in scratch:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_FOUND)
-        replay = _replay_route_leg_v1(binding.kind, pool, leg, scratch[leg.pool_id])
-        if isinstance(replay, RouteReplayResult):
-            return replay
-        replays.append(replay)
-        scratch[leg.pool_id] = (replay.new_reserve0, replay.new_reserve1)
-
-    return RouteReplayResult(
-        ok=True,
-        legs=tuple(replays),
-        total_amount_in=sum(replay.amount_in for replay in replays),
-        total_amount_out=sum(replay.amount_out for replay in replays),
-        total_fee_paid=sum(replay.fee_paid for replay in replays),
+    result, _observed_pool_ids = _replay_route_legs_for_pool_map_observed_v1(
+        binding=binding,
+        pools=pools,
     )
+    return result
 
 
 def route_totals_violation(

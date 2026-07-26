@@ -5,10 +5,21 @@ from pathlib import Path
 
 from src.core.batch_clearing import apply_settlement_pure, compute_settlement
 from src.core.dex import DexState
+from src.core.fcis_state_read_trace_v5 import FCISStateReadTraceV5
+from src.core.fcis_support_profile_constants_v5 import (
+    FCIS_SUPPORT_PROFILE_ID_V5,
+    FCIS_SUPPORT_PROFILE_VERSION_V5,
+)
+from src.core.fcis_support_profile_v5 import (
+    FCISSupportRootEvidenceV5,
+    compute_fcis_support_root_v5,
+)
+from src.core.fcis_traced_reads_v5 import read_step_execution_context_v5
 from src.core.fees import FeeAccumulatorState, FeeSplitParams, split_fee_with_dust_carry
 from src.core.liquidity import create_pool
 from src.core.perps import PERPS_STATE_VERSION_V4, PerpsState
 from src.core.settlement import Settlement
+from src.core.settlement_snapshots import snapshot_settlement
 from src.core.settlement_strong_validator import (
     StrongSettlementRejectV1,
     StrongSettlementStateCandidateV1,
@@ -22,6 +33,7 @@ from src.integration.fcis_spot_shadow import (
     FCISStepShadowPhaseV1,
     FCISStepShadowReceiptV1,
     FCISStepShadowRejectV1,
+    _admit_legacy_step_context_v1,
     evaluate_fcis_spot_candidate_shadow_v1,
     evaluate_fcis_step_shadow_v1,
 )
@@ -31,6 +43,7 @@ from src.integration.lp_position_age_gate import (
 )
 from src.state import BalanceTable, LPTable
 from src.state.canonical import domain_sep_bytes, sha256_hex
+from src.state.fcis_execution_context_values import FCISStepExecutionContextV1
 from src.state.intent_snapshots import admit_intent_batch
 from src.state.intents import Intent, IntentKind
 from src.state.legacy_state_snapshots import (
@@ -42,11 +55,11 @@ from src.state.legacy_state_snapshots import (
 from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from src.state.state_snapshots import (
     snapshot_balance_table,
+    snapshot_fee_accumulator,
     snapshot_lp_table,
     snapshot_pool_map,
 )
 from src.state.support_root import (
-    EXACT_SUPPORT_ROOT_VERSION_V1,
     compute_support_state_root_for_batch,
     compute_support_state_root_for_batch_owned_committed_v1,
 )
@@ -58,8 +71,11 @@ from tools.check_fcis_authority_snapshot_contract import (
 _EXPECTED_SWAP_POST_SUPPORT_ROOT_V4 = (
     "0x66c43d933bdf3105ea34adb2adf9fc43745b18fd70693998eda71e44d213dbcf"
 )
-_EXPECTED_SWAP_PRE_SUPPORT_ROOT_V5 = (
+_EXPECTED_SWAP_INCOMPLETE_PROTOTYPE_ROOT = (
     "0xd73a8a0148d5d861c46477fe5cc90f35f98f5d262b5210e8ff840ea3e2357280"
+)
+_EXPECTED_SWAP_COMPLETE_SUPPORT_ROOT_V5 = (
+    "0x20f5e01ab108f3fc17ad4789defe5afbead2ea64c76182902884d87f450465f7"
 )
 
 
@@ -339,17 +355,55 @@ def test_full_step_shadow_matches_legacy_state_snapshot_and_root() -> None:
         lp_balances=legacy_next.lp_balances,
         nonces=legacy_next.nonces,
     )
-    exact_support_root_v5 = compute_support_state_root_for_batch_owned_committed_v1(
-        intents=admit_intent_batch([intent]),
+    owned_intents = admit_intent_batch([intent])
+    exact_context = _admit_legacy_step_context_v1(context, policy)
+    assert type(exact_context) is FCISStepExecutionContextV1
+    pool_id = intent.get_field("pool_id")
+    asset_in = intent.get_field("asset_in")
+    asset_out = intent.get_field("asset_out")
+    assert type(pool_id) is str
+    assert type(asset_in) is str
+    assert type(asset_out) is str
+    observed_trace = FCISStateReadTraceV5(
+        balance_keys=tuple(
+            sorted(
+                (
+                    (intent.sender_pubkey, asset_in),
+                    (intent.sender_pubkey, asset_out),
+                )
+            )
+        ),
+        pool_ids=(pool_id,),
+        nonce_keys=(intent.sender_pubkey,),
+        reads_fee_accumulator=True,
+    )
+    completed_v5 = compute_fcis_support_root_v5(
+        settlement=snapshot_settlement(settlement),
+        intents=owned_intents,
+        context=exact_context,
+        balances=admit_legacy_balance_for_differential_v1(state.balances),
+        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
+        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
+        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
+        fee_accumulator=snapshot_fee_accumulator(state.fee_accumulator),
+        state_read_trace=observed_trace,
+        context_read_trace=read_step_execution_context_v5(exact_context)[1],
+    )
+    assert type(completed_v5) is FCISSupportRootEvidenceV5
+    incomplete_prototype_root = compute_support_state_root_for_batch_owned_committed_v1(
+        intents=owned_intents,
         balances=admit_legacy_balance_for_differential_v1(state.balances),
         pools=admit_legacy_pool_map_for_differential_v1(state.pools),
         lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
         nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
     )
     assert legacy_support_root_v4 == _EXPECTED_SWAP_POST_SUPPORT_ROOT_V4
-    assert observed.support_root_version == EXACT_SUPPORT_ROOT_VERSION_V1
-    assert observed.support_root == exact_support_root_v5
-    assert observed.support_root == _EXPECTED_SWAP_PRE_SUPPORT_ROOT_V5
+    assert incomplete_prototype_root == _EXPECTED_SWAP_INCOMPLETE_PROTOTYPE_ROOT
+    assert observed.support_root_version == FCIS_SUPPORT_PROFILE_VERSION_V5
+    assert observed.support_profile_id == FCIS_SUPPORT_PROFILE_ID_V5
+    assert observed.support_root == completed_v5.root
+    assert observed.support_root == _EXPECTED_SWAP_COMPLETE_SUPPORT_ROOT_V5
+    assert observed.support_root != incomplete_prototype_root
     assert observed.support_root != legacy_support_root_v4
     assert snapshot_from_state(state).canonical_bytes() == pre_snapshot
     assert not hasattr(observed, "balances")

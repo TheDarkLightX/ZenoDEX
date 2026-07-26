@@ -22,7 +22,7 @@ from .lp_duration_transitions import (
     LPDurationTransitionCodeV1,
     LPDurationTransitionOkV1,
     LPDurationTransitionRejectV1,
-    apply_guarded_lp_position_events_v1,
+    apply_guarded_lp_position_events_observed_v1,
     validate_lp_duration_events_v1,
 )
 from .owned_collections import OwnedMapV1
@@ -55,9 +55,10 @@ from .state_transitions import (
     PoolReserveDeltaV1,
     PoolSupplyDeltaV1,
     PoolWriteV1,
-    apply_balance_deltas_v1,
+    apply_balance_deltas_observed_v1,
     apply_canonical_pool_patch_v1,
-    apply_lp_position_deltas_v1,
+    apply_lp_position_deltas_observed_v1,
+    apply_pool_deltas_observed_v1,
     apply_pool_deltas_v1,
     build_canonical_pool_patch_v1,
     validate_balance_deltas_v1,
@@ -66,13 +67,39 @@ from .state_transitions import (
 )
 
 SpotTransitionRejectV1: TypeAlias = (
-    BalancePatchRejectV1
-    | LPDurationTransitionRejectV1
-    | PoolPatchRejectV1
+    BalancePatchRejectV1 | LPDurationTransitionRejectV1 | PoolPatchRejectV1
 )
 _SpotReplayTransitionRejectV1: TypeAlias = (
     BalancePatchRejectV1 | LPPositionPatchRejectV1 | PoolPatchRejectV1
 )
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class SpotStateReadSetV1:
+    """Canonical semantic pre-state cells observed by one accepted spot step."""
+
+    balance_keys: tuple[tuple[str, str], ...] = ()
+    pool_ids: tuple[str, ...] = ()
+    lp_keys: tuple[tuple[str, str], ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.balance_keys != tuple(sorted(set(self.balance_keys))):
+            raise ValueError("spot balance read keys must be canonical")
+        if self.pool_ids != tuple(sorted(set(self.pool_ids))):
+            raise ValueError("spot pool read IDs must be canonical")
+        if self.lp_keys != tuple(sorted(set(self.lp_keys))):
+            raise ValueError("spot LP read keys must be canonical")
+        if any(
+            type(key) is not tuple
+            or len(key) != 2
+            or type(key[0]) is not str
+            or type(key[1]) is not str
+            for key in self.balance_keys + self.lp_keys
+        ):
+            raise TypeError("spot pair read keys must be exact string pairs")
+        if any(type(pool_id) is not str for pool_id in self.pool_ids):
+            raise TypeError("spot pool read IDs must be exact strings")
 
 
 @final
@@ -369,30 +396,49 @@ def _validate_spot_replay_delta_batch_v1(
     return None
 
 
-def _insert_pool_creations_v1(
+def _insert_pool_creations_observed_v1(
     pre: OwnedMapV1[str, CommittedPoolStateV1],
     creations: tuple[PoolCreationV1, ...],
-) -> PoolPatchApplyOkV1 | PoolPatchRejectV1:
+) -> tuple[PoolPatchApplyOkV1 | PoolPatchRejectV1, tuple[str, ...]]:
     if not creations:
-        return apply_pool_deltas_v1(pre, (), ())
+        return apply_pool_deltas_v1(pre, (), ()), ()
 
     writes: list[PoolWriteV1] = []
+    observed_pool_ids: list[str] = []
     for index, creation in enumerate(creations):
         built = build_committed_pool_creation_v1(creation)
         if type(built) is PoolPatchRejectV1:
-            return PoolPatchRejectV1(built.code, ("pool_creations", index) + built.path)
+            return (
+                PoolPatchRejectV1(built.code, ("pool_creations", index) + built.path),
+                tuple(observed_pool_ids),
+            )
         pool = built.pool
+        observed_pool_ids.append(pool.pool_id)
         if pre.get(pool.pool_id) is not None:
-            return _pool_reject(
-                PoolPatchCodeV1.EXPECTED_OLD_MISMATCH,
-                ("pool_creations", index, "pool_id"),
+            return (
+                _pool_reject(
+                    PoolPatchCodeV1.EXPECTED_OLD_MISMATCH,
+                    ("pool_creations", index, "pool_id"),
+                ),
+                tuple(observed_pool_ids),
             )
         writes.append(PoolWriteV1(pool.pool_id, None, pool))
 
     patch_result = build_canonical_pool_patch_v1(tuple(writes))
     if type(patch_result) is PoolPatchRejectV1:
-        return patch_result
-    return apply_canonical_pool_patch_v1(pre, patch_result.patch)
+        return patch_result, tuple(observed_pool_ids)
+    return (
+        apply_canonical_pool_patch_v1(pre, patch_result.patch),
+        tuple(observed_pool_ids),
+    )
+
+
+def _insert_pool_creations_v1(
+    pre: OwnedMapV1[str, CommittedPoolStateV1],
+    creations: tuple[PoolCreationV1, ...],
+) -> PoolPatchApplyOkV1 | PoolPatchRejectV1:
+    result, _observed_pool_ids = _insert_pool_creations_observed_v1(pre, creations)
+    return result
 
 
 def _supply_deltas_from_lp_patch_v1(
@@ -413,36 +459,187 @@ def _supply_deltas_from_lp_patch_v1(
     )
 
 
+def _unknown_lp_event_pool_reject_observed_v1(
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    events: tuple[LPDurationEventV1, ...],
+) -> tuple[PoolPatchRejectV1 | None, tuple[str, ...]]:
+    observed_pool_ids: list[str] = []
+    for event in events:
+        pool_id = event.key[1]
+        observed_pool_ids.append(pool_id)
+        if pools.get(pool_id) is None:
+            return (
+                _pool_reject(
+                    PoolPatchCodeV1.UNKNOWN_POOL,
+                    ("pools", pool_id),
+                ),
+                tuple(sorted(set(observed_pool_ids))),
+            )
+    return None, tuple(sorted(set(observed_pool_ids)))
+
+
 def _unknown_lp_event_pool_reject_v1(
     pools: OwnedMapV1[str, CommittedPoolStateV1],
     events: tuple[LPDurationEventV1, ...],
 ) -> PoolPatchRejectV1 | None:
-    for event in events:
-        if pools.get(event.key[1]) is None:
-            return _pool_reject(
-                PoolPatchCodeV1.UNKNOWN_POOL,
-                ("pools", event.key[1]),
+    reject, _observed_pool_ids = _unknown_lp_event_pool_reject_observed_v1(pools, events)
+    return reject
+
+
+def _unknown_lp_delta_pool_reject_observed_v1(
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    deltas: tuple[LPPositionDeltaV1, ...],
+) -> tuple[PoolPatchRejectV1 | None, tuple[str, ...]]:
+    observed_pool_ids: list[str] = []
+    for delta in deltas:
+        pool_id = delta.key[1]
+        observed_pool_ids.append(pool_id)
+        if pools.get(pool_id) is None:
+            return (
+                _pool_reject(
+                    PoolPatchCodeV1.UNKNOWN_POOL,
+                    ("pools", pool_id),
+                ),
+                tuple(sorted(set(observed_pool_ids))),
             )
-    return None
+    return None, tuple(sorted(set(observed_pool_ids)))
 
 
-def _final_pool_patch_v1(
-    pre: OwnedMapV1[str, CommittedPoolStateV1],
-    post: OwnedMapV1[str, CommittedPoolStateV1],
+def _compose_pool_write_v1(
+    pool_id: str,
+    first: PoolWriteV1 | None,
+    second: PoolWriteV1 | None,
+) -> PoolWriteV1 | None | PoolPatchRejectV1:
+    if first is None:
+        if second is None:
+            raise RuntimeError("pool patch composition lost a touched key")
+        return second
+    if second is None:
+        return first
+    if first.replacement != second.expected:
+        return _pool_reject(
+            PoolPatchCodeV1.EXPECTED_OLD_MISMATCH,
+            ("writes", pool_id, "expected"),
+        )
+    if first.expected == second.replacement:
+        return None
+    return PoolWriteV1(pool_id, first.expected, second.replacement)
+
+
+def _compose_pool_patches_v1(
+    first: CanonicalPoolPatchV1 | None,
+    second: CanonicalPoolPatchV1 | None,
 ) -> CanonicalPoolPatchV1 | None | PoolPatchRejectV1:
-    pre_by_id = dict(pre.entries)
-    post_by_id = dict(post.entries)
-    writes = tuple(
-        PoolWriteV1(pool_id, pre_by_id.get(pool_id), post_by_id.get(pool_id))
-        for pool_id in sorted(set(pre_by_id) | set(post_by_id))
-        if pre_by_id.get(pool_id) != post_by_id.get(pool_id)
-    )
+    """Compose two already-applied patches without scanning untouched pools."""
+
+    first_writes = () if first is None else first.writes
+    second_writes = () if second is None else second.writes
+    first_by_id = {write.pool_id: write for write in first_writes}
+    second_by_id = {write.pool_id: write for write in second_writes}
+    writes: list[PoolWriteV1] = []
+    for pool_id in sorted(set(first_by_id) | set(second_by_id)):
+        composed = _compose_pool_write_v1(
+            pool_id,
+            first_by_id.get(pool_id),
+            second_by_id.get(pool_id),
+        )
+        if type(composed) is PoolPatchRejectV1:
+            return composed
+        if composed is not None:
+            writes.append(composed)
     if not writes:
         return None
-    built = build_canonical_pool_patch_v1(writes)
+    built = build_canonical_pool_patch_v1(tuple(writes))
     if type(built) is PoolPatchRejectV1:
         return built
     return built.patch
+
+
+def _apply_spot_replay_deltas_observed_v1(
+    pre_balances: CommittedBalanceTableV1,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+    pre_lp_balances: CommittedLPTableV1,
+    deltas: _SpotReplayDeltaBatchV1,
+) -> tuple[_SpotReplayResultV1, SpotStateReadSetV1]:
+    """Apply one private replay step and retain every completed leaf read."""
+
+    batch_reject = _validate_spot_replay_delta_batch_v1(deltas)
+    if batch_reject is not None:
+        return batch_reject, SpotStateReadSetV1()
+
+    creation_result, creation_reads = _insert_pool_creations_observed_v1(
+        pre_pools,
+        deltas.pool_creations,
+    )
+    if type(creation_result) is PoolPatchRejectV1:
+        return creation_result, _spot_state_reads_v1(pool_ids=creation_reads)
+
+    balance_result, balance_reads = apply_balance_deltas_observed_v1(
+        pre_balances,
+        deltas.balance_deltas,
+    )
+    if type(balance_result) is BalancePatchRejectV1:
+        return balance_result, _spot_state_reads_v1(
+            balance_keys=balance_reads,
+            pool_ids=creation_reads,
+        )
+    lp_result, lp_reads = apply_lp_position_deltas_observed_v1(
+        pre_lp_balances,
+        deltas.lp_deltas,
+    )
+    if type(lp_result) is LPPositionPatchRejectV1:
+        return lp_result, _spot_state_reads_v1(
+            balance_keys=balance_reads,
+            pool_ids=creation_reads,
+            lp_keys=lp_reads,
+        )
+
+    unknown_pool_reject, existence_reads = _unknown_lp_delta_pool_reject_observed_v1(
+        creation_result.state,
+        deltas.lp_deltas,
+    )
+    if unknown_pool_reject is not None:
+        return unknown_pool_reject, _spot_state_reads_v1(
+            balance_keys=balance_reads,
+            pool_ids=creation_reads + existence_reads,
+            lp_keys=lp_reads,
+        )
+
+    pool_result, pool_delta_reads = apply_pool_deltas_observed_v1(
+        creation_result.state,
+        deltas.reserve_deltas,
+        _supply_deltas_from_lp_patch_v1(lp_result.patch),
+    )
+    if type(pool_result) is PoolPatchRejectV1:
+        return pool_result, _spot_state_reads_v1(
+            balance_keys=balance_reads,
+            pool_ids=creation_reads + existence_reads + pool_delta_reads,
+            lp_keys=lp_reads,
+        )
+    final_pool_patch = _compose_pool_patches_v1(
+        creation_result.patch,
+        pool_result.patch,
+    )
+    if type(final_pool_patch) is PoolPatchRejectV1:
+        return final_pool_patch, _spot_state_reads_v1(
+            balance_keys=balance_reads,
+            pool_ids=creation_reads + existence_reads + pool_delta_reads,
+            lp_keys=lp_reads,
+        )
+
+    reads = _spot_state_reads_v1(
+        balance_keys=balance_reads,
+        pool_ids=creation_reads + existence_reads + pool_delta_reads,
+        lp_keys=lp_reads,
+    )
+    return (
+        _SpotReplayOkV1(
+            balances=balance_result.state,
+            pools=pool_result.state,
+            lp_balances=lp_result.state,
+        ),
+        reads,
+    )
 
 
 def _apply_spot_replay_deltas_v1(
@@ -451,45 +648,124 @@ def _apply_spot_replay_deltas_v1(
     pre_lp_balances: CommittedLPTableV1,
     deltas: _SpotReplayDeltaBatchV1,
 ) -> _SpotReplayResultV1:
-    """Apply one private balance-only step for sequential kernel replay."""
+    """Apply private replay deltas and discard non-authoritative read evidence."""
 
-    batch_reject = _validate_spot_replay_delta_batch_v1(deltas)
+    result, _state_reads = _apply_spot_replay_deltas_observed_v1(
+        pre_balances,
+        pre_pools,
+        pre_lp_balances,
+        deltas,
+    )
+    return result
+
+
+def _spot_state_reads_v1(
+    *,
+    balance_keys: tuple[tuple[str, str], ...] = (),
+    pool_ids: tuple[str, ...] = (),
+    lp_keys: tuple[tuple[str, str], ...] = (),
+) -> SpotStateReadSetV1:
+    return SpotStateReadSetV1(
+        balance_keys=tuple(sorted(set(balance_keys))),
+        pool_ids=tuple(sorted(set(pool_ids))),
+        lp_keys=tuple(sorted(set(lp_keys))),
+    )
+
+
+def apply_spot_deltas_observed_v1(
+    pre_balances: CommittedBalanceTableV1,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+    pre_lp_balances: CommittedLPTableV1,
+    deltas: SpotDeltaBatchV1,
+    *,
+    now: int,
+    min_age_seconds: int,
+    policy: LPDurationRiskPolicyV1 | None,
+) -> tuple[SpotTransitionResultV1, SpotStateReadSetV1]:
+    """Build one all-or-none candidate and retain reads on every result path."""
+
+    batch_reject = _validate_spot_delta_batch_v1(deltas)
     if batch_reject is not None:
-        return batch_reject
+        return batch_reject, SpotStateReadSetV1()
 
-    creation_result = _insert_pool_creations_v1(pre_pools, deltas.pool_creations)
+    lp_result, lp_reads = apply_guarded_lp_position_events_observed_v1(
+        pre_lp_balances,
+        deltas.lp_events,
+        now=now,
+        min_age_seconds=min_age_seconds,
+        policy=policy,
+    )
+    if type(lp_result) is not LPDurationTransitionOkV1:
+        return lp_result, _spot_state_reads_v1(lp_keys=lp_reads)
+
+    creation_result, creation_reads = _insert_pool_creations_observed_v1(
+        pre_pools,
+        deltas.pool_creations,
+    )
     if type(creation_result) is PoolPatchRejectV1:
-        return creation_result
+        return creation_result, _spot_state_reads_v1(
+            pool_ids=creation_reads,
+            lp_keys=lp_reads,
+        )
 
-    balance_result = apply_balance_deltas_v1(pre_balances, deltas.balance_deltas)
+    unknown_pool_reject, existence_reads = _unknown_lp_event_pool_reject_observed_v1(
+        creation_result.state,
+        deltas.lp_events,
+    )
+    if unknown_pool_reject is not None:
+        return unknown_pool_reject, _spot_state_reads_v1(
+            pool_ids=creation_reads + existence_reads,
+            lp_keys=lp_reads,
+        )
+
+    balance_result, balance_reads = apply_balance_deltas_observed_v1(
+        pre_balances,
+        deltas.balance_deltas,
+    )
     if type(balance_result) is BalancePatchRejectV1:
-        return balance_result
-    lp_result = apply_lp_position_deltas_v1(pre_lp_balances, deltas.lp_deltas)
-    if type(lp_result) is LPPositionPatchRejectV1:
-        return lp_result
+        return balance_result, _spot_state_reads_v1(
+            balance_keys=balance_reads,
+            pool_ids=creation_reads + existence_reads,
+            lp_keys=lp_reads,
+        )
 
-    for delta in deltas.lp_deltas:
-        if creation_result.state.get(delta.key[1]) is None:
-            return _pool_reject(
-                PoolPatchCodeV1.UNKNOWN_POOL,
-                ("pools", delta.key[1]),
-            )
-
-    pool_result = apply_pool_deltas_v1(
+    pool_result, pool_delta_reads = apply_pool_deltas_observed_v1(
         creation_result.state,
         deltas.reserve_deltas,
         _supply_deltas_from_lp_patch_v1(lp_result.patch),
     )
     if type(pool_result) is PoolPatchRejectV1:
-        return pool_result
-    final_pool_patch = _final_pool_patch_v1(pre_pools, pool_result.state)
+        return pool_result, _spot_state_reads_v1(
+            balance_keys=balance_reads,
+            pool_ids=creation_reads + existence_reads + pool_delta_reads,
+            lp_keys=lp_reads,
+        )
+    final_pool_patch = _compose_pool_patches_v1(
+        creation_result.patch,
+        pool_result.patch,
+    )
     if type(final_pool_patch) is PoolPatchRejectV1:
-        return final_pool_patch
+        return final_pool_patch, _spot_state_reads_v1(
+            balance_keys=balance_reads,
+            pool_ids=creation_reads + existence_reads + pool_delta_reads,
+            lp_keys=lp_reads,
+        )
 
-    return _SpotReplayOkV1(
-        balances=balance_result.state,
-        pools=pool_result.state,
-        lp_balances=lp_result.state,
+    reads = _spot_state_reads_v1(
+        balance_keys=balance_reads,
+        pool_ids=creation_reads + existence_reads + pool_delta_reads,
+        lp_keys=lp_reads,
+    )
+    return (
+        SpotTransitionOkV1(
+            balances=balance_result.state,
+            pools=pool_result.state,
+            lp_balances=lp_result.state,
+            balance_patch=balance_result.patch,
+            pool_patch=final_pool_patch,
+            lp_patch=lp_result.patch,
+        ),
+        reads,
     )
 
 
@@ -503,72 +779,26 @@ def apply_spot_deltas_v1(
     min_age_seconds: int,
     policy: LPDurationRiskPolicyV1 | None,
 ) -> SpotTransitionResultV1:
-    """Build one duration-complete, all-or-none immutable spot candidate.
+    """Build one all-or-none candidate and discard observational evidence."""
 
-    ``now``, the fixed age floor, and the optional progressive policy are
-    explicit authority inputs. The guarded LP transition is invoked once
-    against the original LP pre-state. Its exact state and patch are carried
-    into the returned aggregate without recomputation.
-
-    Rejection precedence is batch representation/resource bounds, guarded LP
-    context and lifecycle admission, pool creation, LP pool existence, balance
-    application, then pool application. Every rejection exposes no candidate.
-    """
-
-    batch_reject = _validate_spot_delta_batch_v1(deltas)
-    if batch_reject is not None:
-        return batch_reject
-
-    lp_result = apply_guarded_lp_position_events_v1(
+    result, _state_reads = apply_spot_deltas_observed_v1(
+        pre_balances,
+        pre_pools,
         pre_lp_balances,
-        deltas.lp_events,
+        deltas,
         now=now,
         min_age_seconds=min_age_seconds,
         policy=policy,
     )
-    if type(lp_result) is not LPDurationTransitionOkV1:
-        return lp_result
-
-    creation_result = _insert_pool_creations_v1(pre_pools, deltas.pool_creations)
-    if type(creation_result) is PoolPatchRejectV1:
-        return creation_result
-
-    unknown_pool_reject = _unknown_lp_event_pool_reject_v1(
-        creation_result.state,
-        deltas.lp_events,
-    )
-    if unknown_pool_reject is not None:
-        return unknown_pool_reject
-
-    balance_result = apply_balance_deltas_v1(pre_balances, deltas.balance_deltas)
-    if type(balance_result) is BalancePatchRejectV1:
-        return balance_result
-
-    pool_result = apply_pool_deltas_v1(
-        creation_result.state,
-        deltas.reserve_deltas,
-        _supply_deltas_from_lp_patch_v1(lp_result.patch),
-    )
-    if type(pool_result) is PoolPatchRejectV1:
-        return pool_result
-    final_pool_patch = _final_pool_patch_v1(pre_pools, pool_result.state)
-    if type(final_pool_patch) is PoolPatchRejectV1:
-        return final_pool_patch
-
-    return SpotTransitionOkV1(
-        balances=balance_result.state,
-        pools=pool_result.state,
-        lp_balances=lp_result.state,
-        balance_patch=balance_result.patch,
-        pool_patch=final_pool_patch,
-        lp_patch=lp_result.patch,
-    )
+    return result
 
 
 __all__ = [
     "SpotDeltaBatchV1",
+    "SpotStateReadSetV1",
     "SpotTransitionOkV1",
     "SpotTransitionRejectV1",
     "SpotTransitionResultV1",
+    "apply_spot_deltas_observed_v1",
     "apply_spot_deltas_v1",
 ]

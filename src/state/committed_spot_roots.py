@@ -29,7 +29,7 @@ from .state_snapshots import (
     snapshot_pool_map,
 )
 from .support_root import (
-    EXACT_SUPPORT_ROOT_VERSION_V1,
+    INCOMPLETE_SUPPORT_ROOT_PROTOTYPE_VERSION_V1,
     SUPPORT_ROOT_VERSION,
     BatchStateSupport,
     _encode_committed_support_balances_section_v1,
@@ -352,10 +352,10 @@ def compute_support_state_root_v5_with_committed_spot_state_v1(
     support: BatchStateSupport,
     nonces: CommittedNonceTableV1,
 ) -> str:
-    """Build the unmounted route-complete support-root v5 profile."""
+    """Build the frozen incomplete pre-M5 differential prototype."""
 
     return _compute_support_state_root_for_version_v1(
-        support_root_version=EXACT_SUPPORT_ROOT_VERSION_V1,
+        support_root_version=INCOMPLETE_SUPPORT_ROOT_PROTOTYPE_VERSION_V1,
         balances=balances,
         pools=pools,
         lp_balances=lp_balances,

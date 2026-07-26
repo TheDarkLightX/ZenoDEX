@@ -151,8 +151,15 @@ def owned_intent_kind_text_v1(intent: OwnedIntentV1) -> str:
     return intent_kind_text_v1(intent.kind)
 
 
+def _canonical_owned_intent_bytes_admitted_v1(value: OwnedIntentV1) -> bytes:
+    """Encode one evaluator-owned intent without a second admission pass."""
+
+    if type(value) is not OwnedIntentV1:
+        raise TypeError("admitted intent encoder requires an exact OwnedIntentV1")
+    return canonical_json_bytes(_project_owned_intent(value))
+
+
 def canonical_owned_intent_bytes_v1(value: OwnedIntentV1) -> bytes:
     """Encode the exact signing projection after full owned revalidation."""
 
-    owned = snapshot_intent(value)
-    return canonical_json_bytes(_project_owned_intent(owned))
+    return _canonical_owned_intent_bytes_admitted_v1(snapshot_intent(value))

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from src.core.fcis_state_read_trace_v5 import FCISStateReadTraceV5
+from src.core.fcis_traced_reads_v5 import replay_route_legs_traced_v5
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.route_settlement import (
     ROUTE_REJECT_POOL_NOT_ACTIVE,
@@ -9,8 +11,10 @@ from src.core.route_settlement import (
     ROUTE_REJECT_POOL_STATE_DRIFT,
     RouteBinding,
     replay_route_legs,
+    replay_route_legs_committed_observed_v1,
     replay_route_legs_committed_v1,
     resolve_route_binding_from_receipt,
+    route_binding_pins_committed_snapshot_observed_v1,
     route_binding_pins_committed_snapshot_v1,
     route_binding_pins_snapshot,
 )
@@ -75,6 +79,20 @@ def test_exact_route_replay_and_snapshot_pin_match_legacy() -> None:
         binding=binding,
         pools=committed,
     ) == replay_route_legs(binding=binding, pools=pools)
+    observed_replay, replay_reads = replay_route_legs_committed_observed_v1(
+        binding=binding,
+        pools=committed,
+    )
+    observed_pin, pin_reads = route_binding_pins_committed_snapshot_observed_v1(
+        binding,
+        committed,
+    )
+    expected_reads = tuple(sorted(binding.pool_fingerprints))
+
+    assert observed_replay == replay_route_legs(binding=binding, pools=pools)
+    assert replay_reads == expected_reads
+    assert observed_pin is True
+    assert pin_reads == expected_reads
     assert route_binding_pins_committed_snapshot_v1(binding, committed)
     assert route_binding_pins_snapshot(binding, pools)
 
@@ -119,6 +137,24 @@ def test_exact_route_replay_rejection_precedence_matches_legacy() -> None:
         )
         assert legacy == exact
         assert exact.reject_reason == expected_reason
+
+
+def test_v5_route_rejection_preserves_every_preflight_pool_read() -> None:
+    pools = _pools()
+    binding = _binding_for(pools)
+    first_pool_id = tuple(sorted(binding.pool_fingerprints))[0]
+    committed = snapshot_pool_map(
+        {pool_id: pool for pool_id, pool in pools.items() if pool_id != first_pool_id}
+    )
+
+    result, trace = replay_route_legs_traced_v5(
+        binding=binding,
+        pools=committed,
+        trace=FCISStateReadTraceV5(),
+    )
+
+    assert result.reject_reason == ROUTE_REJECT_POOL_NOT_FOUND
+    assert trace.pool_ids == (first_pool_id,)
 
 
 def test_fingerprint_map_insertion_order_cannot_choose_the_rejection() -> None:

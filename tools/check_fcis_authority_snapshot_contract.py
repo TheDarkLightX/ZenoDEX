@@ -75,6 +75,10 @@ EXACT_REPLAY_AUTHORITY_PATHS = (
 )
 EXACT_CONSUMERS_AUTHORITY_PATHS = (
     Path("src/core/fcis_step_evaluator.py"),
+    Path("src/core/fcis_state_read_trace_v5.py"),
+    Path("src/core/fcis_support_profile_constants_v5.py"),
+    Path("src/core/fcis_support_profile_v5.py"),
+    Path("src/core/fcis_traced_reads_v5.py"),
     Path("src/core/nonce_batch_transition.py"),
     *EXACT_REPLAY_AUTHORITY_PATHS,
     Path("src/state/support_root.py"),
@@ -118,36 +122,36 @@ _PROFILE_COMPATIBILITY_ALLOWLISTS = {
             ("src/core/route_settlement.py", 514, 11, "BROAD_ADMISSION", "str"),
             (
                 "src/core/settlement_strong_validator.py",
-                449,
+                499,
                 27,
                 "COERCIVE_CONTAINER_COPY",
                 "tuple",
             ),
-            ("src/core/settlement_strong_validator.py", 634, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 638, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 638, 48, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 642, 15, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 644, 15, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 789, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 798, 42, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1277, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1291, 19, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1291, 50, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1552, 15, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1563, 19, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1563, 52, "BROAD_ADMISSION", "str"),
-            ("src/core/settlement_strong_validator.py", 1592, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1594, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1652, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1654, 23, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1746, 20, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 1751, 19, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2279, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2285, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2301, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2307, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2323, 16, "BROAD_ADMISSION", "int"),
-            ("src/core/settlement_strong_validator.py", 2329, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 706, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 710, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 710, 48, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 714, 15, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 716, 15, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 861, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 870, 42, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1428, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1442, 19, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1442, 50, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1722, 15, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1737, 19, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1737, 52, "BROAD_ADMISSION", "str"),
+            ("src/core/settlement_strong_validator.py", 1766, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1768, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1827, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1829, 23, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1927, 20, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 1932, 19, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2481, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2487, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2503, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2509, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2525, 16, "BROAD_ADMISSION", "int"),
+            ("src/core/settlement_strong_validator.py", 2531, 16, "BROAD_ADMISSION", "int"),
         }
     ),
     "exact-consumers": frozenset(
@@ -253,9 +257,21 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
         "src/core/fcis_step_evaluator.py",
         "src/core/settlement_strong_validator.py",
     ),
+    "_evaluate_settlement_strong_admitted_observed_v5": (
+        "src/core/fcis_step_evaluator.py",
+        "src/core/settlement_strong_validator.py",
+    ),
     "_validate_and_apply_intent_nonce_batch_admitted_v1": (
         "src/core/fcis_step_evaluator.py",
         "src/core/nonce_batch_transition.py",
+    ),
+    "_validate_and_apply_intent_nonce_batch_admitted_observed_v5": (
+        "src/core/fcis_step_evaluator.py",
+        "src/core/nonce_batch_transition.py",
+    ),
+    "_compute_fcis_support_root_v5_admitted": (
+        "src/core/fcis_step_evaluator.py",
+        "src/core/fcis_support_profile_v5.py",
     ),
     "_admit_with_registry_v1": _PROFILE_PATHS,
     "_encode_admitted": (
@@ -280,6 +296,7 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
 _PRIVATE_AUTHORITY_REFLECTION_MODULES = frozenset(
     {
         "src.core.fcis_authority_admission",
+        "src.core.fcis_support_profile_v5",
         "src.core.nonce_batch_transition",
         "src.core.settlement_strong_validator",
         "src.state.owned_collections",
@@ -2035,9 +2052,15 @@ def _check_exact_replay_shape(
     replay_arguments = dict(common_arguments)
     replay_arguments["settlement"] = "settlement"
     replay_arguments["intents"] = "intents"
+    observed_name = "_evaluate_settlement_strong_admitted_observed_v5"
+    private_sink_name = (
+        observed_name
+        if observed_name in functions
+        else "_evaluate_settlement_strong_replay_committed_v1"
+    )
     if not _single_exact_call_v1(
         admitted_sink,
-        call_name="_evaluate_settlement_strong_replay_committed_v1",
+        call_name=private_sink_name,
         keywords=replay_arguments,
     ):
         violations.append(
@@ -2046,9 +2069,39 @@ def _check_exact_replay_shape(
                 admitted_sink.lineno,
                 admitted_sink.col_offset,
                 "EXACT_REPLAY_DATAFLOW",
-                "replay-does-not-consume-private-admitted-command",
+                "private-replay-sink-does-not-consume-admitted-command",
             )
         )
+    if observed_name in functions:
+        observed_sink = functions[observed_name]
+        implementation_calls = tuple(
+            call
+            for call in _function_calls(observed_sink)
+            if _last_name(call.func) == "_validate_settlement_strong_impl"
+        )
+        if len(implementation_calls) != 1:
+            violations.append(
+                _Violation(
+                    relative_path,
+                    observed_sink.lineno,
+                    observed_sink.col_offset,
+                    "EXACT_REPLAY_DATAFLOW",
+                    "observed-sink-does-not-call-exact-replay-once",
+                )
+            )
+        if any(
+            (_last_name(call.func) or "").startswith("admit_")
+            for call in _function_calls(observed_sink)
+        ):
+            violations.append(
+                _Violation(
+                    relative_path,
+                    observed_sink.lineno,
+                    observed_sink.col_offset,
+                    "EXACT_REPLAY_DATAFLOW",
+                    "observed-sink-readmits-command-or-state",
+                )
+            )
 
     forbidden_calls = {
         "BalanceTable",
@@ -2228,7 +2281,7 @@ def _check_exact_command_sinks_v1(
             detail="entry-authoritative-value-rebound",
         )
 
-    required_sink_arguments = {
+    required_sink_arguments: dict[str, tuple[str | tuple[str, ...], dict[str, str]]] = {
         "_nonce_candidate_v1": (
             "nonce",
             {
@@ -2265,22 +2318,74 @@ def _check_exact_command_sinks_v1(
             },
         ),
     }
-    for sink_name, (target_name, expected_arguments) in required_sink_arguments.items():
-        if not _single_exact_call_v1(
+    entry_calls = {_last_name(call.func) for call in _function_calls(entry)}
+    if "_nonce_candidate_observed_v5" in entry_calls:
+        required_sink_arguments = {
+            "_nonce_candidate_observed_v5": (
+                ("nonce", "nonce_read_trace"),
+                {"state": "state", "intents": "exact_intents", "context": "exact_context"},
+            ),
+            "_spot_candidate_observed_v5": (
+                ("spot", "spot_read_trace"),
+                {
+                    "state": "state",
+                    "settlement": "exact_settlement",
+                    "intents": "exact_intents",
+                    "context": "exact_context",
+                },
+            ),
+            "_fee_candidate_observed_v5": (
+                ("fee", "complete_read_trace"),
+                {
+                    "state": "state",
+                    "settlement": "exact_settlement",
+                    "context": "exact_context",
+                    "state_read_trace": "combined_read_trace",
+                },
+            ),
+            "_candidate_evidence_v1": (
+                "evidence",
+                {
+                    "pre_state": "state",
+                    "candidate": "candidate",
+                    "settlement": "exact_settlement",
+                    "context": "exact_context",
+                    "intents": "exact_intents",
+                    "pre_binding": "pre_binding",
+                    "state_read_trace": "complete_read_trace",
+                    "context_read_trace": "context_read_trace",
+                },
+            ),
+        }
+    for sink_name, (target_spec, expected_arguments) in required_sink_arguments.items():
+        target_names: tuple[str, ...] = (
+            (target_spec,) if isinstance(target_spec, str) else target_spec
+        )
+        call_is_exact = _single_exact_call_v1(
             entry,
             call_name=sink_name,
             keywords=expected_arguments,
-        ) or not _single_exact_assigned_call_v1(
-            entry,
-            target_name=target_name,
-            call_name=sink_name,
-            keywords=expected_arguments,
-        ):
+        )
+        if len(target_names) == 1:
+            assignment_is_exact = _single_exact_assigned_call_v1(
+                entry,
+                target_name=target_names[0],
+                call_name=sink_name,
+                keywords=expected_arguments,
+            )
+        else:
+            assignment_is_exact = _single_exact_tuple_assigned_call_v1(
+                entry,
+                target_names=target_names,
+                call_name=sink_name,
+                keywords=expected_arguments,
+            )
+        if not call_is_exact or not assignment_is_exact:
             _add_exact_consumer_violation(
                 violations,
                 relative_path=relative_path,
                 node=entry,
-                detail=(f"sink-result-not-authoritative:{target_name}:{sink_name}"),
+                detail=(f"sink-result-not-authoritative:{','.join(target_names)}:{sink_name}"),
             )
 
     violations.extend(_check_exact_lineage_assignments_v1(entry, relative_path))
@@ -2460,9 +2565,12 @@ def _check_exact_consumer_annotations_v1(
         "_candidate_evidence_v1": (
             "pre_state",
             "candidate",
+            "settlement",
             "context",
             "intents",
             "pre_binding",
+            "state_read_trace",
+            "context_read_trace",
         ),
     }
     for function_name, expected in exact_annotations.items():
@@ -2559,6 +2667,62 @@ def _check_exact_consumer_sink_forwarding_v1(
             },
         ),
     }
+    if "_nonce_candidate_observed_v5" in functions:
+        expected_calls = {
+            "_evaluate_spot_v1": (
+                "_evaluate_spot_observed_v5",
+                (),
+                {
+                    "balances": "balances",
+                    "pools": "pools",
+                    "lp_balances": "lp_balances",
+                    "settlement": "settlement",
+                    "intents": "intents",
+                    "context": "context",
+                },
+            ),
+            "_nonce_candidate_v1": (
+                "_nonce_candidate_observed_v5",
+                (),
+                {"state": "state", "intents": "intents", "context": "context"},
+            ),
+            "_spot_candidate_v1": (
+                "_spot_candidate_observed_v5",
+                (),
+                {
+                    "state": "state",
+                    "settlement": "settlement",
+                    "intents": "intents",
+                    "context": "context",
+                },
+            ),
+            "_fee_candidate_v1": (
+                "_fee_candidate_observed_v5",
+                (),
+                {
+                    "state": "state",
+                    "settlement": "settlement",
+                    "context": "context",
+                    "state_read_trace": "FCISStateReadTraceV5()",
+                },
+            ),
+            "_candidate_evidence_v1": (
+                "_compute_fcis_support_root_v5_admitted",
+                (),
+                {
+                    "settlement": "settlement",
+                    "intents": "intents",
+                    "context": "context",
+                    "balances": "pre_state.balances",
+                    "pools": "pre_state.pools",
+                    "lp_balances": "pre_state.lp_balances",
+                    "nonces": "pre_state.nonces",
+                    "fee_accumulator": "pre_state.fee_accumulator",
+                    "state_read_trace": "state_read_trace",
+                    "context_read_trace": "context_read_trace",
+                },
+            ),
+        }
     violations: list[_Violation] = []
     for function_name, (call_name, positional, keywords) in expected_calls.items():
         function = functions[function_name]
@@ -2712,6 +2876,32 @@ def _single_exact_assigned_call_v1(
     )
 
 
+def _single_exact_tuple_assigned_call_v1(
+    function: ast.FunctionDef,
+    *,
+    target_names: tuple[str, ...],
+    call_name: str,
+    keywords: dict[str, str],
+) -> bool:
+    assignments = tuple(
+        node
+        for node in ast.walk(function)
+        if type(node) is ast.Assign
+        and len(node.targets) == 1
+        and type(node.targets[0]) is ast.Tuple
+        and tuple(
+            element.id if type(element) is ast.Name else "" for element in node.targets[0].elts
+        )
+        == target_names
+        and type(node.value) is ast.Call
+        and _last_name(node.value.func) == call_name
+    )
+    return len(assignments) == 1 and _call_matches_exact_expressions_v1(
+        assignments[0].value,
+        keywords=keywords,
+    )
+
+
 def _check_exact_nonce_consumer_shape_v1(
     module: ast.Module,
     relative_path: str,
@@ -2722,6 +2912,7 @@ def _check_exact_nonce_consumer_shape_v1(
     required = (
         "validate_and_apply_intent_nonce_batch_committed_v1",
         "_validate_and_apply_intent_nonce_batch_admitted_v1",
+        "_validate_and_apply_intent_nonce_batch_admitted_observed_v5",
     )
     missing = tuple(name for name in required if name not in functions)
     if missing:
@@ -2736,6 +2927,7 @@ def _check_exact_nonce_consumer_shape_v1(
         ]
     function = functions["validate_and_apply_intent_nonce_batch_committed_v1"]
     admitted_sink = functions["_validate_and_apply_intent_nonce_batch_admitted_v1"]
+    observed_sink = functions["_validate_and_apply_intent_nonce_batch_admitted_observed_v5"]
     violations: list[_Violation] = []
     annotations = {
         argument.arg: _normalized_annotation(argument.annotation)
@@ -2761,7 +2953,7 @@ def _check_exact_nonce_consumer_shape_v1(
             detail="nonce-admission-result-not-single-bound",
         )
     expected_parameters = ("nonces", "intents", "require_all_nonces")
-    for candidate in (function, admitted_sink):
+    for candidate in (function, admitted_sink, observed_sink):
         if _function_parameter_names_v1(candidate) != expected_parameters:
             _add_exact_consumer_violation(
                 violations,
@@ -2784,25 +2976,42 @@ def _check_exact_nonce_consumer_shape_v1(
             node=function,
             detail="nonce-public-wrapper-does-not-forward-admitted-command",
         )
-    if any(
-        _last_name(call.func) == "admit_intent_batch" for call in _function_calls(admitted_sink)
+    if not _single_exact_call_v1(
+        admitted_sink,
+        call_name="_validate_and_apply_intent_nonce_batch_admitted_observed_v5",
+        keywords={
+            "nonces": "nonces",
+            "intents": "intents",
+            "require_all_nonces": "require_all_nonces",
+        },
     ):
         _add_exact_consumer_violation(
             violations,
             relative_path=relative_path,
             node=admitted_sink,
+            detail="nonce-admitted-wrapper-bypasses-observed-sink",
+        )
+    if any(
+        _last_name(call.func) == "admit_intent_batch"
+        for sink in (admitted_sink, observed_sink)
+        for call in _function_calls(sink)
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=observed_sink,
             detail="nonce-private-sink-readmits-command",
         )
     admitted_loops = tuple(
         node
-        for node in ast.walk(admitted_sink)
+        for node in ast.walk(observed_sink)
         if type(node) is ast.For and type(node.iter) is ast.Name and node.iter.id == "intents"
     )
     if len(admitted_loops) != 1:
         _add_exact_consumer_violation(
             violations,
             relative_path=relative_path,
-            node=admitted_sink,
+            node=observed_sink,
             detail="nonce-private-sink-does-not-consume-exact-intents-once",
         )
     admission_lines = tuple(
@@ -3099,10 +3308,15 @@ def _check_exact_consumer_shape(
         "_pre_state_binding_v1",
         "_admit_exact_command_v1",
         "_evaluate_spot_v1",
+        "_evaluate_spot_observed_v5",
         "_nonce_candidate_v1",
+        "_nonce_candidate_observed_v5",
         "_spot_candidate_v1",
+        "_spot_candidate_observed_v5",
         "_fee_candidate_v1",
+        "_fee_candidate_observed_v5",
         "_candidate_evidence_v1",
+        "_reject_after_trace_containment_v5",
         "evaluate_fcis_step_candidate_v1",
     )
     missing = tuple(name for name in required_names if name not in functions)
@@ -3124,6 +3338,243 @@ def _check_exact_consumer_shape(
         + _check_exact_consumer_sink_forwarding_v1(functions, relative_path)
         + _check_exact_consumer_projection_v1(functions, required_names, relative_path)
     )
+
+
+def _m5_support_violation_v5(
+    relative_path: str,
+    node: ast.AST,
+    detail: str,
+) -> _Violation:
+    return _Violation(
+        relative_path,
+        getattr(node, "lineno", 0),
+        getattr(node, "col_offset", 0),
+        "FCIS_SUPPORT_TRACE_V5",
+        detail,
+    )
+
+
+def _top_level_class_fields_v5(
+    module: ast.Module,
+    class_name: str,
+) -> tuple[str, ...] | None:
+    for statement in module.body:
+        if type(statement) is not ast.ClassDef or statement.name != class_name:
+            continue
+        return tuple(
+            field.target.id
+            for field in statement.body
+            if type(field) is ast.AnnAssign and type(field.target) is ast.Name
+        )
+    return None
+
+
+def _reachable_calls_v5(
+    functions: dict[str, ast.FunctionDef],
+    entry_name: str,
+) -> tuple[set[str], set[str]]:
+    pending = [entry_name]
+    visited: set[str] = set()
+    calls: set[str] = set()
+    while pending:
+        function_name = pending.pop()
+        if function_name in visited or function_name not in functions:
+            continue
+        visited.add(function_name)
+        for call in _function_calls(functions[function_name]):
+            called = _last_name(call.func)
+            if called is None:
+                continue
+            calls.add(called)
+            if called in functions and called not in visited:
+                pending.append(called)
+    return visited, calls
+
+
+def _has_broad_exception_handler_v5(function: ast.FunctionDef) -> bool:
+    for handler in (node for node in ast.walk(function) if type(node) is ast.ExceptHandler):
+        if handler.type is None:
+            return True
+        if any(
+            type(node) is ast.Name and node.id == "Exception" for node in ast.walk(handler.type)
+        ):
+            return True
+    return False
+
+
+def _is_direct_state_lookup_v5(node: ast.AST) -> bool:
+    roots = (
+        "pre_balances",
+        "pre_pools",
+        "pre_lp_balances",
+        "replay_state.balances",
+        "replay_state.pools",
+        "replay_state.lp_balances",
+    )
+    if type(node) is ast.Subscript:
+        expression = ast.unparse(node.value).replace(" ", "")
+        return expression.startswith(roots)
+    if type(node) is ast.Call and type(node.func) is ast.Attribute:
+        if node.func.attr not in {"get", "get_last", "__getitem__"}:
+            return False
+        expression = ast.unparse(node.func.value).replace(" ", "")
+        return expression.startswith(roots)
+    return False
+
+
+def _check_m5_support_trace_contract_v5(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    public_fields: dict[str, dict[str, tuple[str, ...]]] = {
+        "src/core/fcis_step_evaluation_values.py": {
+            "FCISStepEvaluationRejectV1": ("phase", "code", "path", "public_reason"),
+        },
+        "src/core/nonce_batch_transition.py": {
+            "IntentNonceBatchRejectV1": ("code", "public_reason"),
+            "IntentNonceBatchOkV1": ("state", "patch"),
+        },
+        "src/core/settlement_strong_validator.py": {
+            "StrongSettlementRejectV1": ("reason",),
+        },
+    }
+    for class_name, expected in public_fields.get(relative_path, {}).items():
+        actual = _top_level_class_fields_v5(module, class_name)
+        if actual != expected:
+            violations.append(
+                _m5_support_violation_v5(
+                    relative_path,
+                    module,
+                    f"public-result-shape:{class_name}:{actual or '<missing>'}",
+                )
+            )
+
+    functions = _top_level_functions_v1(module)
+    if relative_path == "src/core/fcis_step_evaluator.py":
+        visited, reachable_calls = _reachable_calls_v5(
+            functions,
+            "evaluate_fcis_step_candidate_v1",
+        )
+        required_calls = {
+            "read_step_execution_context_v5",
+            "_validate_and_apply_intent_nonce_batch_admitted_observed_v5",
+            "_evaluate_settlement_strong_admitted_observed_v5",
+            "_compute_fcis_support_root_v5_admitted",
+        }
+        for missing_call in sorted(required_calls - reachable_calls):
+            violations.append(
+                _m5_support_violation_v5(
+                    relative_path,
+                    functions["evaluate_fcis_step_candidate_v1"],
+                    f"unreachable-observed-sink:{missing_call}",
+                )
+            )
+        expected_support_keywords = {
+            "settlement": "settlement",
+            "intents": "intents",
+            "context": "context",
+            "balances": "pre_state.balances",
+            "pools": "pre_state.pools",
+            "lp_balances": "pre_state.lp_balances",
+            "nonces": "pre_state.nonces",
+            "fee_accumulator": "pre_state.fee_accumulator",
+            "state_read_trace": "state_read_trace",
+            "context_read_trace": "context_read_trace",
+        }
+        for function_name in ("_candidate_evidence_v1", "_reject_after_trace_containment_v5"):
+            function = functions.get(function_name)
+            if function is None or not _single_exact_call_v1(
+                function,
+                call_name="_compute_fcis_support_root_v5_admitted",
+                keywords=expected_support_keywords,
+            ):
+                violations.append(
+                    _m5_support_violation_v5(
+                        relative_path,
+                        module if function is None else function,
+                        f"support-root-not-bound-to-pre-state:{function_name}",
+                    )
+                )
+        for function_name in visited:
+            function = functions[function_name]
+            if _has_broad_exception_handler_v5(function):
+                violations.append(
+                    _m5_support_violation_v5(
+                        relative_path,
+                        function,
+                        f"broad-exception-on-exact-path:{function_name}",
+                    )
+                )
+
+    if relative_path == "src/core/settlement_strong_validator.py":
+        implementation = functions.get("_validate_settlement_strong_impl")
+        if implementation is not None:
+            for node in ast.walk(implementation):
+                if _is_direct_state_lookup_v5(node):
+                    violations.append(
+                        _m5_support_violation_v5(
+                            relative_path,
+                            node,
+                            "untraced-direct-state-lookup",
+                        )
+                    )
+            if _has_broad_exception_handler_v5(implementation):
+                violations.append(
+                    _m5_support_violation_v5(
+                        relative_path,
+                        implementation,
+                        "broad-exception-in-exact-replay",
+                    )
+                )
+
+    imported_modules = {node.module or "" for node in module.body if type(node) is ast.ImportFrom}
+    if relative_path == "src/core/fcis_traced_reads_v5.py":
+        if any(name.endswith("fcis_support_profile_v5") for name in imported_modules):
+            violations.append(
+                _m5_support_violation_v5(
+                    relative_path,
+                    module,
+                    "observed-reads-import-declared-support",
+                )
+            )
+        if any(
+            _last_name(call.func) == "_derive_fcis_support_set_v5_admitted"
+            for function in functions.values()
+            for call in _function_calls(function)
+        ):
+            violations.append(
+                _m5_support_violation_v5(
+                    relative_path,
+                    module,
+                    "observed-reads-derived-from-declared-support",
+                )
+            )
+    if relative_path == "src/core/fcis_support_profile_v5.py":
+        if any(name.endswith("fcis_traced_reads_v5") for name in imported_modules):
+            violations.append(
+                _m5_support_violation_v5(
+                    relative_path,
+                    module,
+                    "declared-support-imports-observed-reader",
+                )
+            )
+        support_root = functions.get("_compute_fcis_support_root_v5_admitted")
+        required = {"_sequential_read_trace_v5", "support_contains_trace_v5"}
+        actual_calls = (
+            set()
+            if support_root is None
+            else {_last_name(call.func) or "" for call in _function_calls(support_root)}
+        )
+        for missing_call in sorted(required - actual_calls):
+            violations.append(
+                _m5_support_violation_v5(
+                    relative_path,
+                    module if support_root is None else support_root,
+                    f"support-containment-missing:{missing_call}",
+                )
+            )
+    return violations
 
 
 def _check_authority_path(
@@ -3165,7 +3616,8 @@ def _check_authority_path(
         + _check_exact_replay_shape(module, display)
         + _check_exact_consumer_shape(module, display)
         + _check_exact_nonce_consumer_shape_v1(module, display)
-        + _check_exact_support_consumer_shape_v1(module, display),
+        + _check_exact_support_consumer_shape_v1(module, display)
+        + _check_m5_support_trace_contract_v5(module, display),
     )
 
 

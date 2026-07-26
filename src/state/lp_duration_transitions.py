@@ -142,7 +142,7 @@ def _policy_reject_v1(policy: object) -> LPDurationTransitionRejectV1 | None:
         return None
     if type(policy) is not LPDurationRiskPolicyV1:
         return _reject(LPDurationTransitionCodeV1.WRONG_EXACT_TYPE, ("policy",))
-    exact = policy
+    exact = cast(LPDurationRiskPolicyV1, policy)
     fields = (
         exact.base_age_seconds,
         exact.max_age_seconds,
@@ -500,32 +500,43 @@ def _lp_age_preflight_v1(
     inputs: _LPDurationInputsV1,
     *,
     min_age_seconds: int,
-) -> LPDurationTransitionRejectV1 | None:
+) -> tuple[LPDurationTransitionRejectV1 | None, tuple[tuple[str, str], ...]]:
     if min_age_seconds == 0 and inputs.context.policy is None:
-        return None
+        return None, ()
     same_batch_reject = _same_batch_reject_v1(inputs)
     if same_batch_reject is not None:
-        return same_batch_reject
+        return same_batch_reject, ()
 
+    observed_keys: tuple[tuple[str, str], ...] = ()
     for index, event in enumerate(inputs.events):
         if event.delta_sub == 0:
             continue
+        observed_keys += (event.key,)
         current = _position_value_v1(inputs.pre, event.key)
         last_mint = current.last_mint_timestamp
         path: LPDurationPathV1 = ("events", index, "last_mint_timestamp")
         if last_mint is None:
-            return _reject(LPDurationTransitionCodeV1.AGE_METADATA_MISSING, path)
+            return (
+                _reject(LPDurationTransitionCodeV1.AGE_METADATA_MISSING, path),
+                tuple(observed_keys),
+            )
         if last_mint > inputs.context.now:
-            return _reject(
-                LPDurationTransitionCodeV1.MINT_TIMESTAMP_IN_FUTURE,
-                path,
+            return (
+                _reject(
+                    LPDurationTransitionCodeV1.MINT_TIMESTAMP_IN_FUTURE,
+                    path,
+                ),
+                tuple(observed_keys),
             )
 
         elapsed_seconds = inputs.context.now - last_mint
         policy = inputs.context.policy
         if policy is None:
             if elapsed_seconds < min_age_seconds:
-                return _reject(LPDurationTransitionCodeV1.POSITION_LOCKED, path)
+                return (
+                    _reject(LPDurationTransitionCodeV1.POSITION_LOCKED, path),
+                    tuple(observed_keys),
+                )
             continue
         try:
             tier = _decayed_tier_v1(
@@ -535,28 +546,34 @@ def _lp_age_preflight_v1(
                 now=inputs.context.now,
             )
         except ValueError:
-            return _reject(
-                LPDurationTransitionCodeV1.CHURN_TIMESTAMP_IN_FUTURE,
-                ("events", index, "last_churn_update_timestamp"),
+            return (
+                _reject(
+                    LPDurationTransitionCodeV1.CHURN_TIMESTAMP_IN_FUTURE,
+                    ("events", index, "last_churn_update_timestamp"),
+                ),
+                tuple(observed_keys),
             )
         if elapsed_seconds < min_age_seconds or not _progressive_age_is_met_v1(
             policy,
             tier=tier,
             elapsed_seconds=elapsed_seconds,
         ):
-            return _reject(LPDurationTransitionCodeV1.POSITION_LOCKED, path)
-    return None
+            return (
+                _reject(LPDurationTransitionCodeV1.POSITION_LOCKED, path),
+                tuple(observed_keys),
+            )
+    return None, tuple(observed_keys)
 
 
 def _duration_writes_v1(
     inputs: _LPDurationInputsV1,
-) -> tuple[LPPositionWriteV1, ...] | LPDurationTransitionRejectV1:
-    writes_or_rejects = tuple(
-        (
-            index,
-            event,
-            _position_value_v1(inputs.pre, event.key),
-        )
+) -> tuple[
+    tuple[LPPositionWriteV1, ...] | LPDurationTransitionRejectV1,
+    tuple[tuple[str, str], ...],
+]:
+    observed_keys = tuple(event.key for event in inputs.events)
+    reads = tuple(
+        (index, event, _position_value_v1(inputs.pre, event.key))
         for index, event in enumerate(inputs.events)
     )
     replacement_results = tuple(
@@ -571,7 +588,7 @@ def _duration_writes_v1(
                 context=inputs.context,
             ),
         )
-        for index, event, current in writes_or_rejects
+        for index, event, current in reads
     )
     first_reject = next(
         (
@@ -582,15 +599,18 @@ def _duration_writes_v1(
         None,
     )
     if first_reject is not None:
-        return first_reject
-    return tuple(
-        LPPositionWriteV1(
-            event.key,
-            current,
-            cast(LPPositionValueV1, replacement),
-        )
-        for _index, event, current, replacement in replacement_results
-        if replacement != current
+        return first_reject, tuple(observed_keys)
+    return (
+        tuple(
+            LPPositionWriteV1(
+                event.key,
+                current,
+                cast(LPPositionValueV1, replacement),
+            )
+            for _index, event, current, replacement in replacement_results
+            if replacement != current
+        ),
+        tuple(observed_keys),
     )
 
 
@@ -636,10 +656,56 @@ def apply_lp_position_events_v1(
         same_batch_reject = _same_batch_reject_v1(inputs)
         if same_batch_reject is not None:
             return same_batch_reject
-    writes = _duration_writes_v1(inputs)
+    writes, _observed_keys = _duration_writes_v1(inputs)
     if type(writes) is LPDurationTransitionRejectV1:
         return writes
     return _apply_duration_writes_v1(inputs.pre, writes)
+
+
+def apply_guarded_lp_position_events_observed_v1(
+    pre_state: CommittedLPTableV1,
+    events: tuple[LPDurationEventV1, ...],
+    *,
+    now: int,
+    min_age_seconds: int,
+    policy: LPDurationRiskPolicyV1 | None,
+) -> tuple[LPDurationTransitionResultV1, tuple[tuple[str, str], ...]]:
+    """Apply guarded LP events and emit keys at semantic lookup sites."""
+
+    minimum_age_reject = _minimum_age_reject_v1(min_age_seconds)
+    if minimum_age_reject is not None:
+        return minimum_age_reject, ()
+    inputs = _validated_inputs_v1(
+        pre_state,
+        events,
+        now=now,
+        policy=policy,
+    )
+    if type(inputs) is LPDurationTransitionRejectV1:
+        return inputs, ()
+    context_work_bytes = (
+        _integer_work_bytes_v1(inputs.context.now)
+        + _integer_work_bytes_v1(min_age_seconds)
+        + _policy_work_bytes_v1(inputs.context.policy)
+    )
+    if context_work_bytes > MAX_CANONICAL_BYTES_V1:
+        return _reject(LPDurationTransitionCodeV1.BYTE_LIMIT, ("context",)), ()
+    age_reject, age_reads = _lp_age_preflight_v1(
+        inputs,
+        min_age_seconds=min_age_seconds,
+    )
+    if age_reject is not None:
+        return age_reject, age_reads
+    writes, write_reads = _duration_writes_v1(inputs)
+    ordered_reads = tuple(sorted(age_reads + write_reads))
+    observed_keys = tuple(
+        key
+        for index, key in enumerate(ordered_reads)
+        if index == 0 or key != ordered_reads[index - 1]
+    )
+    if type(writes) is LPDurationTransitionRejectV1:
+        return writes, observed_keys
+    return _apply_duration_writes_v1(inputs.pre, writes), observed_keys
 
 
 def apply_guarded_lp_position_events_v1(
@@ -650,43 +716,16 @@ def apply_guarded_lp_position_events_v1(
     min_age_seconds: int,
     policy: LPDurationRiskPolicyV1 | None,
 ) -> LPDurationTransitionResultV1:
-    """Preflight LP age and build one exact lifecycle candidate.
+    """Apply guarded LP events and discard non-authoritative read evidence."""
 
-    Rejection order is minimum-age representation, lifecycle input admission,
-    aggregate context budget, same-batch conflict, canonical remove-key age,
-    then candidate construction. The age gate reads the same owned pre-state
-    and canonical events used to construct the returned candidate. Rejection
-    exposes neither candidate state nor patch.
-    """
-
-    minimum_age_reject = _minimum_age_reject_v1(min_age_seconds)
-    if minimum_age_reject is not None:
-        return minimum_age_reject
-    inputs = _validated_inputs_v1(
+    result, _observed_keys = apply_guarded_lp_position_events_observed_v1(
         pre_state,
         events,
         now=now,
+        min_age_seconds=min_age_seconds,
         policy=policy,
     )
-    if type(inputs) is LPDurationTransitionRejectV1:
-        return inputs
-    context_work_bytes = (
-        _integer_work_bytes_v1(inputs.context.now)
-        + _integer_work_bytes_v1(min_age_seconds)
-        + _policy_work_bytes_v1(inputs.context.policy)
-    )
-    if context_work_bytes > MAX_CANONICAL_BYTES_V1:
-        return _reject(LPDurationTransitionCodeV1.BYTE_LIMIT, ("context",))
-    age_reject = _lp_age_preflight_v1(
-        inputs,
-        min_age_seconds=min_age_seconds,
-    )
-    if age_reject is not None:
-        return age_reject
-    writes = _duration_writes_v1(inputs)
-    if type(writes) is LPDurationTransitionRejectV1:
-        return writes
-    return _apply_duration_writes_v1(inputs.pre, writes)
+    return result
 
 
 __all__ = (
@@ -696,6 +735,7 @@ __all__ = (
     "LPDurationTransitionOkV1",
     "LPDurationTransitionRejectV1",
     "LPDurationTransitionResultV1",
+    "apply_guarded_lp_position_events_observed_v1",
     "apply_guarded_lp_position_events_v1",
     "apply_lp_position_events_v1",
     "validate_lp_duration_events_v1",

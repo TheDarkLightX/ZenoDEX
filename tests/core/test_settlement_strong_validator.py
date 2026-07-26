@@ -36,6 +36,16 @@ def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
 
 
+def test_asset_conservation_error_names_first_nonzero_asset() -> None:
+    asset = "0x" + "01" * 32
+    error = strong_validator._asset_conservation_error(
+        [BalanceDelta(pubkey="0x" + "11" * 48, asset=asset, delta_add=1, delta_sub=0)],
+        [],
+    )
+
+    assert error == f"Asset conservation violation: {asset}, net_delta = 1"
+
+
 def _setup_liquidity_context() -> tuple[str, str, str, str, PoolState, BalanceTable, LPTable]:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32

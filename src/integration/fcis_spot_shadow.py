@@ -21,6 +21,10 @@ from ..core.fcis_step_evaluator import (
     evaluate_fcis_spot_candidate_v1,
     evaluate_fcis_step_candidate_v1,
 )
+from ..core.fcis_support_profile_constants_v5 import (
+    FCIS_SUPPORT_PROFILE_ID_V5,
+    FCIS_SUPPORT_PROFILE_VERSION_V5,
+)
 from ..core.fees import FeeSplitParams
 from ..core.settlement import Settlement
 from ..core.settlement_snapshots import snapshot_settlement
@@ -58,7 +62,6 @@ from ..state.state_snapshots import (
     snapshot_perps,
     snapshot_vault,
 )
-from ..state.support_root import EXACT_SUPPORT_ROOT_VERSION_V1
 from .dex_snapshot import DEX_SNAPSHOT_VERSION
 from .lp_position_age_gate import admit_lp_duration_risk_policy_context_v1
 
@@ -172,6 +175,7 @@ class FCISStepShadowReceiptV1:
     state_root_preimage: bytes
     state_root: str
     support_root_version: int
+    support_profile_id: str
     support_root: str
     snapshot_commitment: str
 
@@ -185,8 +189,10 @@ class FCISStepShadowReceiptV1:
             raise TypeError("shadow receipt snapshot bytes must be exact")
         if type(self.state_root_preimage) is not bytes:
             raise TypeError("shadow receipt root preimage must be exact")
-        if self.support_root_version != EXACT_SUPPORT_ROOT_VERSION_V1:
+        if self.support_root_version != FCIS_SUPPORT_PROFILE_VERSION_V5:
             raise ValueError("unexpected shadow exact support-root version")
+        if self.support_profile_id != FCIS_SUPPORT_PROFILE_ID_V5:
+            raise ValueError("unexpected shadow exact support profile")
         for field_name in ("state_root", "support_root", "snapshot_commitment"):
             value = object.__getattribute__(self, field_name)
             if type(value) is not str or len(value) != 66 or not value.startswith("0x"):
@@ -394,6 +400,7 @@ def _shadow_result_v1(
         state_root_preimage=evidence.post_state_root_preimage,
         state_root=evidence.post_state_root,
         support_root_version=evidence.support_root_version,
+        support_profile_id=evidence.support_profile_id,
         support_root=evidence.support_root,
         snapshot_commitment=evidence.snapshot_commitment,
     )

@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     )
 
 SUPPORT_ROOT_VERSION = 4
-EXACT_SUPPORT_ROOT_VERSION_V1 = 5
+INCOMPLETE_SUPPORT_ROOT_PROTOTYPE_VERSION_V1 = EXACT_SUPPORT_ROOT_VERSION_V1 = 5
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
@@ -799,10 +799,11 @@ def compute_support_state_root_for_batch_owned_committed_v1(
     lp_balances: CommittedLPTableV1,
     nonces: CommittedNonceTableV1,
 ) -> str:
-    """Compute unmounted route-complete support-root v5 from exact owned input.
+    """Compute the frozen incomplete pre-M5 prototype from exact input.
 
-    Mounted support-root v4 remains unchanged until verifier/runtime migration
-    evidence authorizes the version switch.
+    This differential fixture omits command, context, explicit absence, and
+    complete read containment. It does not implement the completed FCIS v5
+    profile and cannot authorize a mount.
     """
 
     support = derive_batch_state_support_owned_committed_v1(intents, pools=pools)

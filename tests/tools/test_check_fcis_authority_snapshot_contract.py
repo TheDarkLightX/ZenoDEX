@@ -102,6 +102,10 @@ def test_exact_replay_profile_covers_the_m3_relation_and_route_consumer() -> Non
 def test_exact_consumers_profile_covers_the_complete_m4_relation() -> None:
     assert EXACT_CONSUMERS_AUTHORITY_PATHS == (
         Path("src/core/fcis_step_evaluator.py"),
+        Path("src/core/fcis_state_read_trace_v5.py"),
+        Path("src/core/fcis_support_profile_constants_v5.py"),
+        Path("src/core/fcis_support_profile_v5.py"),
+        Path("src/core/fcis_traced_reads_v5.py"),
         Path("src/core/nonce_batch_transition.py"),
         Path("src/core/route_settlement.py"),
         Path("src/core/settlement_strong_validator.py"),
@@ -140,15 +144,16 @@ def test_exact_consumers_profile_accepts_one_retained_lineage(tmp_path: Path) ->
     assert report["ok"] is True
 
 
-_NONCE_ENTRY_CALL = """    nonce = _nonce_candidate_v1(
+_NONCE_ENTRY_CALL = """    nonce, nonce_read_trace = _nonce_candidate_observed_v5(
         state=state,
         intents=exact_intents,
         context=exact_context,
     )"""
-_FEE_ENTRY_CALL = """    fee = _fee_candidate_v1(
+_FEE_ENTRY_CALL = """    fee, complete_read_trace = _fee_candidate_observed_v5(
         state=state,
         settlement=exact_settlement,
         context=exact_context,
+        state_read_trace=combined_read_trace,
     )"""
 
 
@@ -165,7 +170,7 @@ _FEE_ENTRY_CALL = """    fee = _fee_candidate_v1(
         ),
         (
             _NONCE_ENTRY_CALL,
-            """    _nonce_candidate_v1(
+            """    _nonce_candidate_observed_v5(
         state=state,
         intents=intents,
         context=exact_context,
@@ -333,7 +338,7 @@ def test_exact_consumers_profile_requires_exact_sink_result_assignment(
 ) -> None:
     source = _exact_consumer_dataflow_source()
     replacement = (
-        _FEE_ENTRY_CALL.replace("    fee = ", "    ")
+        _FEE_ENTRY_CALL.replace("    fee, complete_read_trace = ", "    ")
         + "\n    fee = _total_settlement_fees_v1(exact_settlement)"
     )
     assert source.count(_FEE_ENTRY_CALL) == 1
@@ -372,9 +377,9 @@ def _run_exact_consumer_leaf_source(
         ),
         (
             Path("src/core/nonce_batch_transition.py"),
-            "    if not intents:\n        return IntentNonceBatchOkV1(nonces, None)",
+            "    if not intents:\n        return observed(IntentNonceBatchOkV1(nonces, None))",
             "    admit_intent_batch(intents)\n"
-            "    if not intents:\n        return IntentNonceBatchOkV1(nonces, None)",
+            "    if not intents:\n        return observed(IntentNonceBatchOkV1(nonces, None))",
         ),
         (
             Path("src/state/support_root.py"),
@@ -407,6 +412,103 @@ def test_exact_consumers_profile_kills_leaf_consumer_bypasses(
     )
 
     assert "EXACT_CONSUMER_DATAFLOW" in _codes(report)
+
+
+def _repo_source(relative: Path) -> str:
+    return (Path(__file__).resolve().parents[2] / relative).read_text(encoding="utf-8")
+
+
+def test_m5_gate_rejects_public_rejection_trace_field(tmp_path: Path) -> None:
+    relative = Path("src/core/fcis_step_evaluation_values.py")
+    source = _repo_source(relative)
+    anchor = "    public_reason: str\n\n    def __post_init__"
+    assert source.count(anchor) == 1
+    mutated = source.replace(
+        anchor,
+        "    public_reason: str\n    state_read_trace: object\n\n    def __post_init__",
+        1,
+    )
+
+    report = _run_exact_consumer_leaf_source(tmp_path, relative, mutated)
+
+    assert "FCIS_SUPPORT_TRACE_V5" in _codes(report)
+
+
+def test_m5_gate_rejects_bypassed_observed_nonce_sink(tmp_path: Path) -> None:
+    source = _exact_consumer_dataflow_source()
+    assert source.count(_NONCE_ENTRY_CALL) == 1
+    mutated = source.replace(
+        _NONCE_ENTRY_CALL,
+        _NONCE_ENTRY_CALL.replace(
+            "_nonce_candidate_observed_v5",
+            "_nonce_candidate_v1",
+        ),
+        1,
+    )
+
+    report = _run_exact_consumer_source(tmp_path, mutated)
+
+    assert "EXACT_CONSUMER_DATAFLOW" in _codes(report)
+
+
+def test_m5_gate_rejects_bypassed_observed_settlement_sink(tmp_path: Path) -> None:
+    source = _exact_consumer_dataflow_source()
+    anchor = "    observed = _evaluate_settlement_strong_admitted_observed_v5("
+    assert source.count(anchor) == 1
+    mutated = source.replace(
+        anchor,
+        "    observed = _evaluate_settlement_strong_admitted_v1(",
+        1,
+    )
+
+    report = _run_exact_consumer_source(tmp_path, mutated)
+
+    assert "FCIS_SUPPORT_TRACE_V5" in _codes(report)
+
+
+def test_m5_gate_rejects_post_state_support_binding(tmp_path: Path) -> None:
+    source = _exact_consumer_dataflow_source()
+    anchor = "            balances=pre_state.balances,"
+    assert source.count(anchor) == 2
+    mutated = source.replace(
+        anchor,
+        "            balances=candidate.state.balances,",
+        1,
+    )
+
+    report = _run_exact_consumer_source(tmp_path, mutated)
+
+    assert "FCIS_SUPPORT_TRACE_V5" in _codes(report)
+
+
+def test_m5_gate_rejects_untraced_replay_lookup(tmp_path: Path) -> None:
+    relative = Path("src/core/settlement_strong_validator.py")
+    source = _repo_source(relative)
+    anchor = "    replay_state = pre_replay_state"
+    assert source.count(anchor) == 1
+    mutated = source.replace(
+        anchor,
+        anchor + '\n    _ = replay_state.pools["untraced"]',
+        1,
+    )
+
+    report = _run_exact_consumer_leaf_source(tmp_path, relative, mutated)
+
+    assert "FCIS_SUPPORT_TRACE_V5" in _codes(report)
+
+
+def test_m5_gate_rejects_observed_reader_importing_declared_support(
+    tmp_path: Path,
+) -> None:
+    relative = Path("src/core/fcis_traced_reads_v5.py")
+    source = _repo_source(relative)
+    mutated = source + (
+        "\nfrom .fcis_support_profile_v5 import _derive_fcis_support_set_v5_admitted\n"
+    )
+
+    report = _run_exact_consumer_leaf_source(tmp_path, relative, mutated)
+
+    assert "FCIS_SUPPORT_TRACE_V5" in _codes(report)
 
 
 def test_exact_replay_profile_rejects_entry_annotation_and_projection_drift(

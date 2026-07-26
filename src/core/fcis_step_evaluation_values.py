@@ -21,7 +21,10 @@ from ..state.state_transitions import (
     CanonicalNoncePatchV1,
     CanonicalPoolPatchV1,
 )
-from ..state.support_root import EXACT_SUPPORT_ROOT_VERSION_V1
+from .fcis_support_profile_constants_v5 import (
+    FCIS_SUPPORT_PROFILE_ID_V5,
+    FCIS_SUPPORT_PROFILE_VERSION_V5,
+)
 from .settlement_snapshots import OwnedSettlementV1
 
 FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1 = "zenodex/fcis/spot-step-evaluator/v1"
@@ -162,6 +165,8 @@ class FCISStepEvaluationEvidenceV1:
     canonical_snapshot_bytes: bytes
     snapshot_commitment: str
     support_root_version: int
+    support_profile_id: str
+    support_set_commitment: str
     support_root: str
 
     def __post_init__(self) -> None:
@@ -182,14 +187,17 @@ class FCISStepEvaluationEvidenceV1:
             "pre_state_root",
             "post_state_root",
             "snapshot_commitment",
+            "support_set_commitment",
             "support_root",
         ):
             if not _is_digest_v1(object.__getattribute__(self, field_name)):
                 raise TypeError(f"{field_name} must be a lowercase 32-byte hex digest")
         if type(self.snapshot_version) is not int or self.snapshot_version <= 0:
             raise TypeError("snapshot version must be an exact positive int")
-        if self.support_root_version != EXACT_SUPPORT_ROOT_VERSION_V1:
+        if self.support_root_version != FCIS_SUPPORT_PROFILE_VERSION_V5:
             raise ValueError("unexpected FCIS exact support-root version")
+        if self.support_profile_id != FCIS_SUPPORT_PROFILE_ID_V5:
+            raise ValueError("unexpected FCIS support profile")
 
 
 _EVALUATION_OK_CONSTRUCTION_TOKEN_V1 = object()

@@ -8,6 +8,7 @@ import pytest
 import src.core.fcis_step_evaluator as fcis_step_evaluator
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
+from src.core.fcis_state_read_trace_v5 import FCISStateReadTraceV5
 from src.core.fcis_step_evaluation_values import (
     FCISStepEvaluationOkV1,
     FCISStepEvaluationPhaseV1,
@@ -17,6 +18,7 @@ from src.core.fcis_step_evaluator import (
     FCIS_STEP_EVALUATOR_UNMOUNTED_V1,
     evaluate_fcis_step_candidate_v1,
 )
+from src.core.fcis_support_profile_constants_v5 import FCIS_SUPPORT_PROFILE_ID_V5
 from src.core.liquidity import create_pool
 from src.core.oracle import OracleState
 from src.core.perps import PERPS_STATE_VERSION_V4, PerpsState
@@ -52,7 +54,6 @@ from src.state.state_snapshots import (
     snapshot_perps,
     snapshot_vault,
 )
-from src.state.support_root import compute_support_state_root_for_batch_owned_committed_v1
 
 
 def _iid(value: int) -> str:
@@ -210,15 +211,11 @@ def test_evidence_binds_same_candidate_context_and_pre_post_roots() -> None:
     assert first == second
     candidate = first.candidate
     evidence = first.evidence
-    expected_support_root = compute_support_state_root_for_batch_owned_committed_v1(
-        intents=admit_intent_batch([intent]),
-        balances=admit_legacy_balance_for_differential_v1(state.balances),
-        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
-        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
-        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
-    )
     assert evidence.pre_state_root_preimage == pre_root_preimage
-    assert evidence.support_root == expected_support_root
+    assert evidence.support_profile_id == FCIS_SUPPORT_PROFILE_ID_V5
+    assert evidence.support_root != evidence.support_set_commitment
+    assert len(evidence.support_root) == 66
+    assert len(evidence.support_set_commitment) == 66
     assert evidence.post_state_root_preimage == _state_root_preimage(candidate.state, 4)
     retained_context_bytes = evidence.execution_context_bytes
     assert evidence.pre_state_root == sha256_hex(pre_root_preimage)
@@ -287,10 +284,10 @@ def test_exact_step_consumers_share_one_admitted_command_graph(
     state, intent, settlement = _swap_case()
     observed: dict[str, int] = {}
 
-    original_nonce = fcis_step_evaluator._validate_and_apply_intent_nonce_batch_admitted_v1
-    original_settlement = fcis_step_evaluator._evaluate_settlement_strong_admitted_v1
+    original_nonce = fcis_step_evaluator._validate_and_apply_intent_nonce_batch_admitted_observed_v5
+    original_settlement = fcis_step_evaluator._evaluate_settlement_strong_admitted_observed_v5
     original_fees = fcis_step_evaluator._total_settlement_fees_v1
-    original_support = fcis_step_evaluator._compute_support_state_root_for_batch_owned_admitted_v1
+    original_support = fcis_step_evaluator._compute_fcis_support_root_v5_admitted
 
     def nonce_spy(**kwargs: Any):
         observed["nonce_intents"] = id(kwargs["intents"])
@@ -306,23 +303,24 @@ def test_exact_step_consumers_share_one_admitted_command_graph(
         return original_fees(settlement_value)
 
     def support_spy(**kwargs: Any):
+        observed["support_settlement"] = id(kwargs["settlement"])
         observed["support_intents"] = id(kwargs["intents"])
         return original_support(**kwargs)
 
     monkeypatch.setattr(
         fcis_step_evaluator,
-        "_validate_and_apply_intent_nonce_batch_admitted_v1",
+        "_validate_and_apply_intent_nonce_batch_admitted_observed_v5",
         nonce_spy,
     )
     monkeypatch.setattr(
         fcis_step_evaluator,
-        "_evaluate_settlement_strong_admitted_v1",
+        "_evaluate_settlement_strong_admitted_observed_v5",
         settlement_spy,
     )
     monkeypatch.setattr(fcis_step_evaluator, "_total_settlement_fees_v1", fee_spy)
     monkeypatch.setattr(
         fcis_step_evaluator,
-        "_compute_support_state_root_for_batch_owned_admitted_v1",
+        "_compute_fcis_support_root_v5_admitted",
         support_spy,
     )
 
@@ -330,6 +328,7 @@ def test_exact_step_consumers_share_one_admitted_command_graph(
 
     assert type(result) is FCISStepEvaluationOkV1
     assert observed["settlement"] == observed["fee_settlement"]
+    assert observed["settlement"] == observed["support_settlement"]
     assert (
         len(
             {
@@ -416,8 +415,8 @@ def test_unexpected_settlement_result_fails_closed_without_candidate(
 ) -> None:
     state, intent, settlement = _swap_case()
     monkeypatch.setattr(
-        "src.core.fcis_step_evaluator._evaluate_spot_v1",
-        lambda **_kwargs: object(),
+        "src.core.fcis_step_evaluator._evaluate_spot_observed_v5",
+        lambda **_kwargs: (object(), FCISStateReadTraceV5()),
     )
 
     result = _evaluate(state, settlement, [intent], _context_source())
