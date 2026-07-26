@@ -7,6 +7,18 @@ from typing import cast
 
 from src.state import snapshot_combinators
 
+from ..core.fcis_authority_dispatch import (
+    FCIS_AUTHORITY_OWNED_TYPES_V1,
+    FCIS_AUTHORITY_SCHEMA_EXPECTED_TYPES_V1,
+    construct_fcis_authority_record_v1,
+    project_fcis_authority_v1,
+)
+from ..core.fcis_authority_schema import (
+    FCIS_AUTHORITY_ENUM_REGISTRATIONS_V1,
+    FCIS_AUTHORITY_RECORD_REGISTRATIONS_V1,
+    FCIS_AUTHORITY_SCHEMA_IDS_V1,
+    FCIS_AUTHORITY_SCHEMA_REGISTRATIONS_V1,
+)
 from ..core.settlement_schema import (
     SETTLEMENT_ADMISSION_SCHEMA_ID_V1,
     SETTLEMENT_ENUM_REGISTRATIONS_V1,
@@ -102,6 +114,17 @@ FCIS_REQUIRED_REGISTRY_IDS = (
     "zenodex/fcis/authority/intent/v1",
     "zenodex/fcis/authority/intent-batch/v1",
     "zenodex/fcis/authority/settlement/v1",
+    "zenodex/fcis/transition-budget/v1",
+    "zenodex/fcis/dex-patch/v1",
+    "zenodex/fcis/effects/v1",
+    "zenodex/fcis/replay-update/v1",
+    "zenodex/fcis/commit-plan/v1",
+    "zenodex/fcis/receipt/accept/v1",
+    "zenodex/fcis/receipt/reject/v1",
+    "zenodex/fcis/receipt/committed-failure/v1",
+    "zenodex/fcis/decision/v1",
+    "zenodex/fcis/outbox-plan/v1",
+    "zenodex/fcis/commit-bundle/v1",
 )
 FCIS_REGISTERED_REGISTRY_IDS = (
     "zenodex/fcis/state/balance-table/v1",
@@ -119,6 +142,17 @@ FCIS_REGISTERED_REGISTRY_IDS = (
     "zenodex/fcis/authority/intent/v1",
     "zenodex/fcis/authority/intent-batch/v1",
     "zenodex/fcis/authority/settlement/v1",
+    "zenodex/fcis/transition-budget/v1",
+    "zenodex/fcis/dex-patch/v1",
+    "zenodex/fcis/effects/v1",
+    "zenodex/fcis/replay-update/v1",
+    "zenodex/fcis/commit-plan/v1",
+    "zenodex/fcis/receipt/accept/v1",
+    "zenodex/fcis/receipt/reject/v1",
+    "zenodex/fcis/receipt/committed-failure/v1",
+    "zenodex/fcis/decision/v1",
+    "zenodex/fcis/outbox-plan/v1",
+    "zenodex/fcis/commit-bundle/v1",
 )
 
 _KNOWN_ADMISSION_SCHEMA_IDS_V1 = (
@@ -128,6 +162,7 @@ _KNOWN_ADMISSION_SCHEMA_IDS_V1 = (
     INTENT_ADMISSION_SCHEMA_ID_V1,
     INTENT_BATCH_ADMISSION_SCHEMA_ID_V1,
     SETTLEMENT_ADMISSION_SCHEMA_ID_V1,
+    *FCIS_AUTHORITY_SCHEMA_IDS_V1,
 )
 
 _STATE_ADMISSION_REGISTRY_V1 = build_admission_registry_v1(
@@ -138,18 +173,21 @@ _STATE_ADMISSION_REGISTRY_V1 = build_admission_registry_v1(
         *ENUM_REGISTRATIONS_V1,
         *INTENT_ENUM_REGISTRATIONS_V1,
         *SETTLEMENT_ENUM_REGISTRATIONS_V1,
+        *FCIS_AUTHORITY_ENUM_REGISTRATIONS_V1,
     ),
     record_registrations=(
         *RECORD_REGISTRATIONS_V1,
         *INTENT_RECORD_REGISTRATIONS_V1,
         *SETTLEMENT_RECORD_REGISTRATIONS_V1,
         *FCIS_COMMITTED_STATE_RECORD_REGISTRATIONS_V1,
+        *FCIS_AUTHORITY_RECORD_REGISTRATIONS_V1,
     ),
     schema_registrations=(
         *SCHEMA_REGISTRATIONS_V1,
         *JSON_SCHEMA_REGISTRATIONS_V1,
         *INTENT_SCHEMA_REGISTRATIONS_V1,
         *SETTLEMENT_SCHEMA_REGISTRATIONS_V1,
+        *FCIS_AUTHORITY_SCHEMA_REGISTRATIONS_V1,
     ),
 )
 if _STATE_ADMISSION_REGISTRY_V1.schema_ids != FCIS_REGISTERED_REGISTRY_IDS:
@@ -336,6 +374,10 @@ def _construct_state_record(
         StateRecordTagV1.SETTLEMENT,
     ):
         return _construct_settlement_record(record_tag, values)
+    if type(record_tag) is StateRecordTagV1 and any(
+        registration.tag is record_tag for registration in FCIS_AUTHORITY_RECORD_REGISTRATIONS_V1
+    ):
+        return construct_fcis_authority_record_v1(record_tag, values)
     raise ValueError("unsupported state record tag or field registry drift")
 
 
@@ -488,6 +530,8 @@ def _project_owned(value: object) -> object:
             "fee_accumulator": _project_owned(state.fee_accumulator),
             "perps": _project_owned(state.perps),
         }
+    if type(value) in FCIS_AUTHORITY_OWNED_TYPES_V1:
+        return project_fcis_authority_v1(value, _project_owned)
     raise TypeError("canonical state projection received an unsupported exact type")
 
 
@@ -518,6 +562,8 @@ def _canonical_state_encoder(schema_id: str, value: object) -> bytes:
         INTENT_BATCH_ADMISSION_SCHEMA_ID_V1: (tuple,),
         SETTLEMENT_ADMISSION_SCHEMA_ID_V1: (OwnedSettlementV1,),
     }
+    for authority_schema_id, authority_types in FCIS_AUTHORITY_SCHEMA_EXPECTED_TYPES_V1:
+        expected_types[authority_schema_id] = authority_types
     if type(value) not in expected_types[schema_id]:
         raise TypeError("state admission schema and result type disagree")
     if schema_id == POOL_MAP_ADMISSION_SCHEMA_ID_V1:
@@ -567,3 +613,24 @@ def admit(
         _construct_state_record,
         _canonical_state_encoder,
     )
+
+
+def _encode_admitted(
+    schema_revision: str,
+    schema_id: str,
+    validated_limits: ValidatedAdmissionLimitsV1,
+    source: object,
+) -> bytes:
+    """Re-admit through this profile, then encode the exact owned result."""
+
+    result = admit(schema_revision, schema_id, validated_limits, source)
+    if type(result) is AdmitReject:
+        raise ValueError(
+            f"cannot encode rejected authority value:{result.code.value}:{result.path}"
+        )
+    if type(result) is not AdmitOk:
+        raise RuntimeError("closed admission returned an impossible result")
+    return _canonical_state_encoder(schema_id, result.value)
+
+
+__all__ = ("admit",)

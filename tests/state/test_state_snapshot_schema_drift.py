@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from dataclasses import fields
 
+from src.core.fcis_decision_values import (
+    FCISCommittedFailureCodeV1,
+    FCISRejectCodeV1,
+)
+from src.core.fcis_outbox_values import OutboxEffectKindV1
+from src.core.fcis_step_evaluation_values import FCISStepEvaluationPhaseV1
 from src.core.perps import (
     PERP_CLEARINGHOUSE_2P_STATE_KEYS,
     PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS,
@@ -57,6 +63,10 @@ def test_authority_enum_tag_and_member_ordinals_are_schema_revision_pinned() -> 
         StateEnumTagV1.POOL_STATUS,
         StateEnumTagV1.INTENT_KIND,
         StateEnumTagV1.FILL_ACTION,
+        StateEnumTagV1.OUTBOX_EFFECT_KIND,
+        StateEnumTagV1.FCIS_REJECTION_PHASE,
+        StateEnumTagV1.FCIS_REJECTION_CODE,
+        StateEnumTagV1.FCIS_COMMITTED_FAILURE_CODE,
     )
     assert tuple((member.name, member.value) for member in IntentKind) == (
         ("CREATE_POOL", "CREATE_POOL"),
@@ -71,6 +81,23 @@ def test_authority_enum_tag_and_member_ordinals_are_schema_revision_pinned() -> 
         ("FILL", "FILL"),
         ("REJECT", "REJECT"),
     )
+    assert tuple((member.name, member.value) for member in OutboxEffectKindV1) == (
+        ("CANONICAL_EVENT", "canonical_event"),
+        ("PROOF_REQUEST", "proof_request"),
+        ("INDEX_REFRESH", "index_refresh"),
+    )
+    assert tuple(member.value for member in FCISStepEvaluationPhaseV1) == (
+        "command_admission",
+        "context_admission",
+        "state_admission",
+        "pre_state_binding",
+        "nonce",
+        "settlement",
+        "fee",
+        "evidence",
+    )
+    assert tuple(member.value for member in FCISRejectCodeV1)[-1] == "budget_exceeded"
+    assert tuple(member.value for member in FCISCommittedFailureCodeV1) == ("reserved_unmounted",)
 
 
 def test_schema_registry_ids_are_unique_and_complete() -> None:

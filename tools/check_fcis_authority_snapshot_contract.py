@@ -52,6 +52,16 @@ STATE_SUBSTRATE_AUTHORITY_PATHS = (
     Path("src/state/committed_dex_snapshot.py"),
 )
 AUTHORITY_GRAPH_AUTHORITY_PATHS = (
+    Path("src/core/fcis_authority_admission.py"),
+    Path("src/core/fcis_authority_dispatch.py"),
+    Path("src/core/fcis_authority_schema.py"),
+    Path("src/core/fcis_commit_bundle_values.py"),
+    Path("src/core/fcis_decision_values.py"),
+    Path("src/core/fcis_outbox_values.py"),
+    Path("src/core/fcis_transition_budget.py"),
+    Path("src/core/fcis_transition_values.py"),
+    Path("src/state/state_admission_profile.py"),
+    Path("src/state/state_snapshot_schema.py"),
     Path("src/state/owned_json.py"),
     Path("src/state/intent_field_registry.py"),
     Path("src/state/intent_schema.py"),
@@ -248,6 +258,12 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
         "src/core/nonce_batch_transition.py",
     ),
     "_admit_with_registry_v1": _PROFILE_PATHS,
+    "_encode_admitted": (
+        "src/core/fcis_authority_admission.py",
+        "src/state/state_admission_profile.py",
+    ),
+    "_canonical_authority_claim_bytes_from_encoder_v1": ("src/core/fcis_authority_admission.py",),
+    "_CANONICAL_AUTHORITY_CLAIM_BYTES_TOKEN_V1": ("src/core/fcis_authority_admission.py",),
     "_owned_enum_from_admitted": ("src/state/snapshot_combinators.py",),
     "_owned_enum_from_canonical_transition_v1": ("src/state/pool_creation_transition.py",),
     "_owned_map_from_admitted": ("src/state/snapshot_combinators.py",),
@@ -263,6 +279,7 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
 # allowlist above; dynamic lookup cannot provide equivalent provenance.
 _PRIVATE_AUTHORITY_REFLECTION_MODULES = frozenset(
     {
+        "src.core.fcis_authority_admission",
         "src.core.nonce_batch_transition",
         "src.core.settlement_strong_validator",
         "src.state.owned_collections",
@@ -650,7 +667,178 @@ class _AuthorityVisitor(ast.NodeVisitor):
                 )
         self.generic_visit(node)
 
+    def _claim_typed_parameter_names(
+        self,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+    ) -> frozenset[str]:
+        names: set[str] = set()
+        for argument in (
+            *node.args.posonlyargs,
+            *node.args.args,
+            *node.args.kwonlyargs,
+        ):
+            if argument.annotation is None:
+                continue
+            annotation_names = {
+                resolved.rsplit(".", maxsplit=1)[-1]
+                for part in ast.walk(argument.annotation)
+                if (resolved := self._resolve(part)) is not None
+            }
+            if any(name.endswith("ClaimV1") for name in annotation_names):
+                names.add(argument.arg)
+        return frozenset(names)
+
+    @staticmethod
+    def _expression_uses_names(
+        expression: ast.AST,
+        names: frozenset[str] | set[str],
+    ) -> bool:
+        return any(type(part) is ast.Name and part.id in names for part in ast.walk(expression))
+
+    @staticmethod
+    def _assigned_names(node: ast.AST) -> tuple[str, ...]:
+        if type(node) is ast.Assign:
+            return tuple(
+                name for target in node.targets for name in _assignment_target_names(target)
+            )
+        if type(node) is ast.AnnAssign:
+            return _assignment_target_names(node.target)
+        if type(node) is ast.NamedExpr:
+            return _assignment_target_names(node.target)
+        return ()
+
+    @staticmethod
+    def _assigned_value(node: ast.AST) -> ast.AST | None:
+        if type(node) in {ast.Assign, ast.AnnAssign, ast.NamedExpr}:
+            return node.value
+        return None
+
+    @staticmethod
+    def _sink_tokens() -> tuple[str, ...]:
+        return ("commit", "publish", "persist", "deliver", "apply", "write")
+
+    @classmethod
+    def _is_direct_tainted_value(
+        cls,
+        expression: ast.AST,
+        tainted_names: set[str],
+    ) -> bool:
+        if type(expression) is ast.Name:
+            return expression.id in tainted_names
+        if type(expression) in {ast.Attribute, ast.Starred, ast.Subscript}:
+            return cls._is_direct_tainted_value(expression.value, tainted_names)
+        if type(expression) in {ast.List, ast.Set, ast.Tuple}:
+            return any(
+                cls._is_direct_tainted_value(element, tainted_names) for element in expression.elts
+            )
+        if type(expression) is ast.Dict:
+            return any(
+                cls._is_direct_tainted_value(value, tainted_names) for value in expression.values
+            )
+        if type(expression) is ast.Lambda:
+            return cls._expression_uses_names(expression, tainted_names)
+        return False
+
+    def _record_tainted_assignment_escape(
+        self,
+        expression: ast.AST,
+        tainted_names: set[str],
+        escaping_names: set[str],
+    ) -> bool:
+        assigned_value = self._assigned_value(expression)
+        if assigned_value is None or not self._expression_uses_names(
+            assigned_value,
+            tainted_names,
+        ):
+            return False
+        assigned_names = self._assigned_names(expression)
+        targets = expression.targets if type(expression) is ast.Assign else (expression.target,)
+        if any(type(target) in {ast.Attribute, ast.Subscript} for target in targets):
+            self._add(expression, "CLAIM_AUTHORITY_ESCAPE", "nonlocal storage")
+        if escaping_names.intersection(assigned_names):
+            self._add(expression, "CLAIM_AUTHORITY_ESCAPE", "global/nonlocal storage")
+        previous_size = len(tainted_names)
+        tainted_names.update(assigned_names)
+        return len(tainted_names) != previous_size
+
+    def _propagate_claim_taint(
+        self,
+        expressions: tuple[ast.AST, ...],
+        tainted_names: set[str],
+        escaping_names: set[str],
+    ) -> None:
+        changed = True
+        while changed:
+            changed = False
+            for expression in expressions:
+                changed = (
+                    self._record_tainted_assignment_escape(
+                        expression,
+                        tainted_names,
+                        escaping_names,
+                    )
+                    or changed
+                )
+
+    def _record_tainted_call_escape(
+        self,
+        expression: ast.AST,
+        tainted_names: set[str],
+    ) -> None:
+        if type(expression) is not ast.Call:
+            return
+        call_values = (
+            *expression.args,
+            *(keyword.value for keyword in expression.keywords),
+        )
+        tainted_argument = any(
+            self._expression_uses_names(value, tainted_names) for value in call_values
+        )
+        tainted_callable = type(expression.func) is ast.Name and expression.func.id in tainted_names
+        if tainted_argument or tainted_callable:
+            self._add(
+                expression,
+                "CLAIM_AUTHORITY_ESCAPE",
+                self._resolve(expression.func) or "<dynamic call>",
+            )
+
+    def _record_direct_claim_escape(
+        self,
+        expression: ast.AST,
+        tainted_names: set[str],
+    ) -> None:
+        if (
+            type(expression) in {ast.Return, ast.Yield, ast.YieldFrom}
+            and expression.value is not None
+            and self._is_direct_tainted_value(expression.value, tainted_names)
+        ):
+            self._add(expression, "CLAIM_AUTHORITY_ESCAPE", "returned/yielded claim")
+
+    def _check_claim_authority_escape(
+        self,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+    ) -> None:
+        claim_parameters = self._claim_typed_parameter_names(node)
+        if not claim_parameters:
+            return
+        if any(token in node.name.lower() for token in self._sink_tokens()):
+            self._add(node, "CLAIM_AUTHORITY_ESCAPE", node.name)
+            return
+        expressions = tuple(ast.walk(node))
+        escaping_names = {
+            name
+            for expression in expressions
+            if type(expression) in {ast.Global, ast.Nonlocal}
+            for name in expression.names
+        }
+        tainted_names = set(claim_parameters)
+        self._propagate_claim_taint(expressions, tainted_names, escaping_names)
+        for expression in expressions:
+            self._record_tainted_call_escape(expression, tainted_names)
+            self._record_direct_claim_escape(expression, tainted_names)
+
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._check_claim_authority_escape(node)
         if node.name in _RECONSTRUCTION_METHODS:
             self._add(node, "FORBIDDEN_RECONSTRUCTION", node.name)
         if node.name.startswith("to_scratch_") and self.relative_path.startswith(
@@ -809,6 +997,7 @@ class _AuthorityVisitor(ast.NodeVisitor):
             self.function_names.pop()
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._check_claim_authority_escape(node)
         if node.name in _RECONSTRUCTION_METHODS:
             self._add(node, "FORBIDDEN_RECONSTRUCTION", node.name)
         if _is_profile_path(self.relative_path) and not self.function_names:
@@ -1136,6 +1325,12 @@ class _AuthorityVisitor(ast.NodeVisitor):
                 (
                     "src/state/snapshot_combinators.py",
                     "build_admission_limits_v1",
+                ),
+            ),
+            "CanonicalAuthorityClaimBytesV1": (
+                (
+                    "src/core/fcis_authority_admission.py",
+                    "_canonical_authority_claim_bytes_from_encoder_v1",
                 ),
             ),
         }
@@ -2975,6 +3170,7 @@ def _check_authority_path(
 
 
 _SENSITIVE_SOURCE_CODES = {
+    "CLAIM_AUTHORITY_ESCAPE",
     "CONSTRUCTION_CALLSITE",
     "DECLARATIVE_REGISTRY_EXECUTION",
     "OWNED_CONSTRUCTION_ESCAPE",

@@ -52,6 +52,23 @@ def test_default_authority_paths_cover_mounted_and_exact_authority(
     assert Path(path) in DEFAULT_AUTHORITY_PATHS
 
 
+def test_m5_authority_graph_paths_are_mandatory() -> None:
+    required = {
+        Path("src/core/fcis_authority_admission.py"),
+        Path("src/core/fcis_authority_dispatch.py"),
+        Path("src/core/fcis_authority_schema.py"),
+        Path("src/core/fcis_commit_bundle_values.py"),
+        Path("src/core/fcis_decision_values.py"),
+        Path("src/core/fcis_outbox_values.py"),
+        Path("src/core/fcis_transition_budget.py"),
+        Path("src/core/fcis_transition_values.py"),
+        Path("src/state/state_admission_profile.py"),
+        Path("src/state/state_snapshot_schema.py"),
+    }
+    assert required <= set(AUTHORITY_GRAPH_AUTHORITY_PATHS)
+    assert required <= set(FINAL_MOUNT_AUTHORITY_PATHS)
+
+
 def test_e11_profiles_keep_review_units_and_final_mount_distinct() -> None:
     dex = Path("src/core/dex.py")
     mixed_settlement_consumer = Path("src/core/settlement_strong_validator.py")
@@ -946,6 +963,80 @@ def test_checker_rejects_broad_isinstance_admission(tmp_path: Path, target: str)
 )
 def test_checker_rejects_reflective_admission(tmp_path: Path, source: str) -> None:
     assert "REFLECTIVE_ADMISSION" in _codes(_run(tmp_path, source))
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def commit(bundle: CommitBundleClaimV1) -> None:\n"
+        "    publish(bundle)\n",
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify(bundle: CommitBundleClaimV1) -> None:\n"
+        "    publish(payload=bundle)\n",
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify(bundle: CommitBundleClaimV1) -> None:\n"
+        "    candidate = bundle\n"
+        "    publish(candidate)\n",
+        "from shell import publish as emit\n"
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify(bundle: CommitBundleClaimV1) -> None:\n"
+        "    emit(bundle)\n",
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "async def verify(bundle: CommitBundleClaimV1) -> None:\n"
+        "    await publish(bundle)\n",
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify(bundle: CommitBundleClaimV1) -> None:\n"
+        "    emit = publish\n"
+        "    emit(bundle)\n",
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1 as Bundle\n"
+        "def verify(bundle: Bundle) -> None:\n"
+        "    publish(bundle)\n",
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify(bundle: CommitBundleClaimV1) -> None:\n"
+        "    def emit(value):\n"
+        "        publish(value)\n"
+        "    emit(bundle)\n",
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify(bundle: CommitBundleClaimV1) -> None:\n"
+        "    emit = lambda value: publish(value)\n"
+        "    emit(bundle)\n",
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify(bundle: CommitBundleClaimV1) -> None:\n"
+        '    getattr(shell, "publish")(bundle)\n',
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify(bundle: CommitBundleClaimV1):\n"
+        "    return bundle\n",
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify(bundle: CommitBundleClaimV1):\n"
+        "    return bundle.decision\n",
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify(bundle: CommitBundleClaimV1):\n"
+        "    return bundle.outbox.records[0]\n",
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify(bundle: CommitBundleClaimV1) -> None:\n"
+        "    shell.pending = bundle\n",
+    ),
+)
+def test_checker_rejects_decoded_claim_flow_to_commit_or_publish(
+    tmp_path: Path,
+    source: str,
+) -> None:
+    assert "CLAIM_AUTHORITY_ESCAPE" in _codes(_run(tmp_path, source))
+
+
+def test_checker_allows_claim_only_verification(tmp_path: Path) -> None:
+    source = (
+        "from src.core.fcis_commit_bundle_values import CommitBundleClaimV1\n"
+        "def verify_claim(bundle: CommitBundleClaimV1) -> bool:\n"
+        '    return bundle.expected_pre_root.startswith("0x")\n'
+    )
+    assert "CLAIM_AUTHORITY_ESCAPE" not in _codes(_run(tmp_path, source))
+
+
+def test_checker_rejects_direct_canonical_claim_byte_construction(tmp_path: Path) -> None:
+    source = _COMPLIANT + '\nCanonicalAuthorityClaimBytesV1("x", b"x", object())\n'
+    assert "CONSTRUCTION_CALLSITE" in _codes(_run(tmp_path, source))
 
 
 def test_checker_rejects_object_new_constructor_bypass(tmp_path: Path) -> None:
