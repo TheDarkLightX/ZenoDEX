@@ -55,7 +55,9 @@ AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/fcis_authority_admission.py"),
     Path("src/core/fcis_authority_dispatch.py"),
     Path("src/core/fcis_authority_schema.py"),
+    Path("src/core/fcis_commit_bundle_derivation.py"),
     Path("src/core/fcis_commit_bundle_values.py"),
+    Path("src/core/fcis_commit_reference.py"),
     Path("src/core/fcis_decision_values.py"),
     Path("src/core/fcis_decision_derivation.py"),
     Path("src/core/fcis_outbox_values.py"),
@@ -76,6 +78,8 @@ EXACT_REPLAY_AUTHORITY_PATHS = (
 )
 EXACT_CONSUMERS_AUTHORITY_PATHS = (
     Path("src/core/fcis_step_evaluator.py"),
+    Path("src/core/fcis_commit_bundle_derivation.py"),
+    Path("src/core/fcis_commit_reference.py"),
     Path("src/core/fcis_decision_derivation.py"),
     Path("src/core/fcis_state_read_trace_v5.py"),
     Path("src/core/fcis_support_profile_constants_v5.py"),
@@ -291,6 +295,16 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
     ),
     "_canonical_authority_claim_bytes_from_encoder_v1": ("src/core/fcis_authority_admission.py",),
     "_CANONICAL_AUTHORITY_CLAIM_BYTES_TOKEN_V1": ("src/core/fcis_authority_admission.py",),
+    "_COMMIT_BUNDLE_CONSTRUCTION_TOKEN_V1": ("src/core/fcis_commit_bundle_derivation.py",),
+    "_DECISION_CONSTRUCTION_TOKEN_V1": (
+        "src/core/fcis_decision_derivation.py",
+        "src/core/fcis_commit_bundle_derivation.py",
+    ),
+    "_claim_root_v1": (
+        "src/core/fcis_decision_derivation.py",
+        "src/core/fcis_commit_bundle_derivation.py",
+    ),
+    "_initial_reference_commit_store_v1": ("src/core/fcis_commit_reference.py",),
     "_owned_enum_from_admitted": ("src/state/snapshot_combinators.py",),
     "_owned_enum_from_canonical_transition_v1": ("src/state/pool_creation_transition.py",),
     "_owned_map_from_admitted": ("src/state/snapshot_combinators.py",),
@@ -307,6 +321,8 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
 _PRIVATE_AUTHORITY_REFLECTION_MODULES = frozenset(
     {
         "src.core.fcis_authority_admission",
+        "src.core.fcis_commit_bundle_derivation",
+        "src.core.fcis_commit_reference",
         "src.core.fcis_support_profile_v5",
         "src.core.nonce_batch_transition",
         "src.core.settlement_strong_validator",
@@ -1359,6 +1375,12 @@ class _AuthorityVisitor(ast.NodeVisitor):
                 (
                     "src/core/fcis_authority_admission.py",
                     "_canonical_authority_claim_bytes_from_encoder_v1",
+                ),
+            ),
+            "CommitBundleV1": (
+                (
+                    "src/core/fcis_commit_bundle_derivation.py",
+                    "_build_bundle_v1",
                 ),
             ),
         }
@@ -3508,6 +3530,19 @@ def _check_m5_support_trace_contract_v5(
                 "receipt",
                 "_construction_token",
             ),
+        },
+        "src/core/fcis_commit_bundle_derivation.py": {
+            "CommitBundleV1": (
+                "decision",
+                "outbox_plan",
+                "_canonical_bundle_bytes",
+                "_bundle_root",
+                "_construction_token",
+            ),
+        },
+        "src/core/fcis_commit_reference.py": {
+            "ReferencePublicationV1": ("bundle",),
+            "ReferenceCommitStoreV1": ("current_state", "publications"),
         },
         "src/core/fcis_step_evaluation_values.py": {
             "FCISStepEvaluationRejectV1": ("phase", "code", "path", "public_reason"),

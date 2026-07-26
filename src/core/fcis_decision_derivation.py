@@ -54,6 +54,7 @@ from .fcis_decision_values import (
     FCIS_AUTHORITY_SCHEMA_VERSION_V1,
     FCIS_REJECTION_RECEIPT_SCHEMA_ID_V1,
     AcceptanceReceiptClaimV1,
+    CommittedFailureReceiptClaimV1,
     FCISRejectCodeV1,
     ReceiptBindingClaimV1,
     RejectionPathIndexPartSourceV1,
@@ -156,7 +157,7 @@ class CommittedFailureV1:
 
     next_state: FCISCommittedStateV1
     commit_plan: CommitPlanV1
-    receipt: object
+    receipt: CommittedFailureReceiptClaimV1
     _construction_token: InitVar[object]
 
     def __post_init__(self, _construction_token: object) -> None:
@@ -454,8 +455,15 @@ def _effect_count_v1(evaluation: FCISStepEvaluationOkV1) -> int:
         + len(settlement.balance_deltas)
         + len(settlement.reserve_deltas)
         + len(settlement.lp_deltas)
-        + (0 if settlement.events is None else len(settlement.events))
+        + _observed_outbox_records_v1(evaluation)
     )
+
+
+def _observed_outbox_records_v1(evaluation: FCISStepEvaluationOkV1) -> int:
+    """Count retained settlement events that will become outbox records."""
+
+    events = evaluation.material.settlement.events
+    return 0 if events is None else len(events)
 
 
 def _budget_violation_v1(
@@ -497,6 +505,11 @@ def _budget_violation_v1(
             budget.max_patch_writes,
         ),
         ("max_effects", _effect_count_v1(evaluation), budget.max_effects),
+        (
+            "max_outbox_records",
+            _observed_outbox_records_v1(evaluation),
+            budget.max_outbox_records,
+        ),
         ("max_candidates", 1, budget.max_candidates),
         ("max_witness_bytes", evidence.witness_bytes, budget.max_witness_bytes),
     )

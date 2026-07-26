@@ -58,7 +58,9 @@ def test_m5_authority_graph_paths_are_mandatory() -> None:
         Path("src/core/fcis_authority_admission.py"),
         Path("src/core/fcis_authority_dispatch.py"),
         Path("src/core/fcis_authority_schema.py"),
+        Path("src/core/fcis_commit_bundle_derivation.py"),
         Path("src/core/fcis_commit_bundle_values.py"),
+        Path("src/core/fcis_commit_reference.py"),
         Path("src/core/fcis_decision_derivation.py"),
         Path("src/core/fcis_decision_values.py"),
         Path("src/core/fcis_outbox_values.py"),
@@ -104,6 +106,8 @@ def test_exact_replay_profile_covers_the_m3_relation_and_route_consumer() -> Non
 def test_exact_consumers_profile_covers_the_complete_m4_relation() -> None:
     assert EXACT_CONSUMERS_AUTHORITY_PATHS == (
         Path("src/core/fcis_step_evaluator.py"),
+        Path("src/core/fcis_commit_bundle_derivation.py"),
+        Path("src/core/fcis_commit_reference.py"),
         Path("src/core/fcis_decision_derivation.py"),
         Path("src/core/fcis_state_read_trace_v5.py"),
         Path("src/core/fcis_support_profile_constants_v5.py"),
@@ -2186,3 +2190,130 @@ def test_checker_is_path_scoped_and_deterministic(tmp_path: Path) -> None:
 def test_checker_reports_syntax_errors_without_escaping(tmp_path: Path) -> None:
     report = _run(tmp_path, "def broken(:\n")
     assert "SYNTAX_ERROR" in _codes(report)
+
+
+def _commit_bundle_derivation_source() -> str:
+    module = Path(__file__).resolve().parents[2] / "src/core/fcis_commit_bundle_derivation.py"
+    return module.read_text(encoding="utf-8")
+
+
+def _run_commit_bundle_derivation_source(
+    tmp_path: Path,
+    source: str,
+) -> dict[str, object]:
+    relative = Path("src/core/fcis_commit_bundle_derivation.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(source, encoding="utf-8")
+    return check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="authority-graph",
+    )
+
+
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    [
+        (
+            "    decision: AcceptV1 | CommittedFailureV1\n"
+            "    outbox_plan: OutboxPlanV1\n"
+            "    _canonical_bundle_bytes: bytes\n"
+            "    _bundle_root: str\n"
+            "    _construction_token: InitVar[object]",
+            "    decision: AcceptV1 | CommittedFailureV1\n"
+            "    outbox_plan: OutboxPlanV1\n"
+            "    _canonical_bundle_bytes: bytes\n"
+            "    _bundle_root: str\n"
+            "    _construction_token: InitVar[object]\n"
+            "    extra_field: object",
+        ),
+    ],
+)
+def test_authority_graph_profile_kills_commit_bundle_shape_mutations(
+    tmp_path: Path,
+    anchor: str,
+    replacement: str,
+) -> None:
+    source = _commit_bundle_derivation_source()
+    assert source.count(anchor) == 1
+    report = _run_commit_bundle_derivation_source(
+        tmp_path,
+        source.replace(anchor, replacement, 1),
+    )
+    assert "FCIS_SUPPORT_TRACE_V5" in _codes(report)
+
+
+def test_authority_graph_profile_kills_commit_bundle_construction_outside_builder(
+    tmp_path: Path,
+) -> None:
+    source = _commit_bundle_derivation_source()
+    anchor = "def build_commit_bundle_v1(decision: DecisionV1) -> CommitBundleBuildResultV1:"
+    assert source.count(anchor) == 1
+    mutated = source.replace(
+        anchor,
+        "def _wrong_construction_site():\n"
+        "    return CommitBundleV1(object(), object(), b'', '0x', _COMMIT_BUNDLE_CONSTRUCTION_TOKEN_V1)\n\n"
+        + anchor,
+        1,
+    )
+    report = _run_commit_bundle_derivation_source(tmp_path, mutated)
+    assert "CONSTRUCTION_CALLSITE" in _codes(report)
+
+
+def _commit_reference_source() -> str:
+    module = Path(__file__).resolve().parents[2] / "src/core/fcis_commit_reference.py"
+    return module.read_text(encoding="utf-8")
+
+
+def _run_commit_reference_source(
+    tmp_path: Path,
+    source: str,
+) -> dict[str, object]:
+    relative = Path("src/core/fcis_commit_reference.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(source, encoding="utf-8")
+    return check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="authority-graph",
+    )
+
+
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    [
+        (
+            "    current_state: FCISCommittedStateV1\n"
+            "    publications: tuple[ReferencePublicationV1, ...]",
+            "    current_state: FCISCommittedStateV1\n"
+            "    publications: tuple[ReferencePublicationV1, ...]\n"
+            "    extra_field: object",
+        ),
+        (
+            "class ReferencePublicationV1:\n"
+            '    """One complete publication retaining the full bundle lineage."""\n\n'
+            "    bundle: CommitBundleV1",
+            "class ReferencePublicationV1:\n"
+            '    """One complete publication retaining the full bundle lineage."""\n\n'
+            "    bundle: CommitBundleV1\n    extra: object",
+        ),
+    ],
+)
+def test_authority_graph_profile_kills_reference_store_shape_mutations(
+    tmp_path: Path,
+    anchor: str,
+    replacement: str,
+) -> None:
+    source = _commit_reference_source()
+    assert source.count(anchor) == 1
+    report = _run_commit_reference_source(
+        tmp_path,
+        source.replace(anchor, replacement, 1),
+    )
+    assert "FCIS_SUPPORT_TRACE_V5" in _codes(report)
