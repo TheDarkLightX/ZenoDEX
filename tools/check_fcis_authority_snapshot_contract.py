@@ -57,6 +57,7 @@ AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/fcis_authority_schema.py"),
     Path("src/core/fcis_commit_bundle_values.py"),
     Path("src/core/fcis_decision_values.py"),
+    Path("src/core/fcis_decision_derivation.py"),
     Path("src/core/fcis_outbox_values.py"),
     Path("src/core/fcis_transition_budget.py"),
     Path("src/core/fcis_transition_values.py"),
@@ -75,6 +76,7 @@ EXACT_REPLAY_AUTHORITY_PATHS = (
 )
 EXACT_CONSUMERS_AUTHORITY_PATHS = (
     Path("src/core/fcis_step_evaluator.py"),
+    Path("src/core/fcis_decision_derivation.py"),
     Path("src/core/fcis_state_read_trace_v5.py"),
     Path("src/core/fcis_support_profile_constants_v5.py"),
     Path("src/core/fcis_support_profile_v5.py"),
@@ -241,6 +243,7 @@ _SHADOW_AUTHORITY_RESERVED_TOKENS = (
 _UNMOUNTED_EVALUATOR_MODULE = "src.core.fcis_step_evaluator"
 _UNMOUNTED_EVALUATOR_ALLOWED_PATHS = (
     "src/core/fcis_step_evaluator.py",
+    "src/core/fcis_decision_derivation.py",
     "src/integration/fcis_spot_shadow.py",
 )
 _UNMOUNTED_EVALUATOR_RESERVED_TOKENS = (
@@ -272,6 +275,14 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
     "_compute_fcis_support_root_v5_admitted": (
         "src/core/fcis_step_evaluator.py",
         "src/core/fcis_support_profile_v5.py",
+    ),
+    "_FCISStepEvaluationBoundRejectV1": (
+        "src/core/fcis_step_evaluator.py",
+        "src/core/fcis_decision_derivation.py",
+    ),
+    "_evaluate_fcis_step_candidate_bound_v1": (
+        "src/core/fcis_step_evaluator.py",
+        "src/core/fcis_decision_derivation.py",
     ),
     "_admit_with_registry_v1": _PROFILE_PATHS,
     "_encode_admitted": (
@@ -3194,14 +3205,24 @@ def _check_exact_support_consumer_shape_v1(
     )
 
 
-def _check_full_state_root_binding_v1(
-    functions: dict[str, ast.FunctionDef],
+def _check_shared_committed_root_binding_v1(
+    module: ast.Module,
     relative_path: str,
 ) -> list[_Violation]:
-    violations: list[_Violation] = []
-    root = functions["_canonical_state_root_binding_v1"]
-    pre = functions["_pre_state_binding_v1"]
-    evidence = functions["_candidate_evidence_v1"]
+    if relative_path != "src/state/committed_dex_snapshot.py":
+        return []
+    functions = _top_level_functions_v1(module)
+    root = functions.get("canonical_committed_state_root_binding_v1")
+    if root is None:
+        return [
+            _Violation(
+                relative_path,
+                0,
+                0,
+                "EXACT_CONSUMER_DATAFLOW",
+                "missing:canonical_committed_state_root_binding_v1",
+            )
+        ]
     expected_snapshot_fields = {
         "version": "snapshot_version",
         "balances": "state.balances",
@@ -3221,11 +3242,53 @@ def _check_full_state_root_binding_v1(
         call_name="canonical_snapshot_bytes_from_committed_state_v1",
         keywords=expected_snapshot_fields,
     ):
+        return [
+            _Violation(
+                relative_path,
+                root.lineno,
+                root.col_offset,
+                "EXACT_CONSUMER_DATAFLOW",
+                "shared-state-root-does-not-bind-eight-fields",
+            )
+        ]
+    if not _single_exact_call_v1(
+        root,
+        call_name="sha256_hex",
+        positional=("root_preimage",),
+    ):
+        return [
+            _Violation(
+                relative_path,
+                root.lineno,
+                root.col_offset,
+                "EXACT_CONSUMER_DATAFLOW",
+                "shared-state-root-does-not-hash-one-preimage",
+            )
+        ]
+    return []
+
+
+def _check_full_state_root_binding_v1(
+    functions: dict[str, ast.FunctionDef],
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    root = functions["_canonical_state_root_binding_v1"]
+    pre = functions["_pre_state_binding_v1"]
+    evidence = functions["_candidate_evidence_v1"]
+    if _function_parameter_names_v1(root) != (
+        "state",
+        "snapshot_version",
+    ) or not _single_exact_call_v1(
+        root,
+        call_name="canonical_committed_state_root_binding_v1",
+        positional=("state", "snapshot_version"),
+    ):
         _add_exact_consumer_violation(
             violations,
             relative_path=relative_path,
             node=root,
-            detail="full-state-root-does-not-bind-eight-fields",
+            detail="full-state-root-bypasses-shared-binding",
         )
     if not _single_exact_call_v1(
         pre,
@@ -3317,6 +3380,7 @@ def _check_exact_consumer_shape(
         "_fee_candidate_observed_v5",
         "_candidate_evidence_v1",
         "_reject_after_trace_containment_v5",
+        "_evaluate_fcis_step_candidate_bound_v1",
         "evaluate_fcis_step_candidate_v1",
     )
     missing = tuple(name for name in required_names if name not in functions)
@@ -3333,7 +3397,9 @@ def _check_exact_consumer_shape(
     return (
         _check_exact_command_admission_v1(functions["_admit_exact_command_v1"], relative_path)
         + _check_full_state_root_binding_v1(functions, relative_path)
-        + _check_exact_command_sinks_v1(functions["evaluate_fcis_step_candidate_v1"], relative_path)
+        + _check_exact_command_sinks_v1(
+            functions["_evaluate_fcis_step_candidate_bound_v1"], relative_path
+        )
         + _check_exact_consumer_annotations_v1(functions, relative_path)
         + _check_exact_consumer_sink_forwarding_v1(functions, relative_path)
         + _check_exact_consumer_projection_v1(functions, required_names, relative_path)
@@ -3428,6 +3494,21 @@ def _check_m5_support_trace_contract_v5(
 ) -> list[_Violation]:
     violations: list[_Violation] = []
     public_fields: dict[str, dict[str, tuple[str, ...]]] = {
+        "src/core/fcis_decision_derivation.py": {
+            "AcceptV1": (
+                "next_state",
+                "commit_plan",
+                "receipt",
+                "_construction_token",
+            ),
+            "RejectV1": ("receipt", "_construction_token"),
+            "CommittedFailureV1": (
+                "next_state",
+                "commit_plan",
+                "receipt",
+                "_construction_token",
+            ),
+        },
         "src/core/fcis_step_evaluation_values.py": {
             "FCISStepEvaluationRejectV1": ("phase", "code", "path", "public_reason"),
         },
@@ -3451,6 +3532,172 @@ def _check_m5_support_trace_contract_v5(
             )
 
     functions = _top_level_functions_v1(module)
+    if relative_path == "src/core/fcis_decision_derivation.py":
+        required_functions = {
+            "_admit_budget_v1",
+            "_authoritative_reject_v1",
+            "_derive_accept_v1",
+            "_derive_patch_v1",
+            "_derive_plan_v1",
+            "_derive_replay_v1",
+            "_revalidate_evaluation_v1",
+            "evaluate_fcis_decision_v1",
+        }
+        for missing_function in sorted(required_functions - functions.keys()):
+            violations.append(
+                _m5_support_violation_v5(
+                    relative_path,
+                    module,
+                    f"decision-missing:{missing_function}",
+                )
+            )
+        decision_aliases = tuple(
+            statement
+            for statement in module.body
+            if type(statement) is ast.AnnAssign
+            and type(statement.target) is ast.Name
+            and statement.target.id == "DecisionV1"
+        )
+        if (
+            len(decision_aliases) != 1
+            or decision_aliases[0].value is None
+            or ast.unparse(decision_aliases[0].value).replace(" ", "")
+            != "AcceptV1|RejectV1|CommittedFailureV1"
+        ):
+            violations.append(
+                _m5_support_violation_v5(
+                    relative_path,
+                    module,
+                    "decision-union-not-exhaustive",
+                )
+            )
+        token_assignments = tuple(
+            statement
+            for statement in module.body
+            if type(statement) is ast.Assign
+            and len(statement.targets) == 1
+            and type(statement.targets[0]) is ast.Name
+            and statement.targets[0].id == "_DECISION_CONSTRUCTION_TOKEN_V1"
+            and type(statement.value) is ast.Call
+            and _last_name(statement.value.func) == "object"
+            and not statement.value.args
+            and not statement.value.keywords
+        )
+        if len(token_assignments) != 1:
+            violations.append(
+                _m5_support_violation_v5(
+                    relative_path,
+                    module,
+                    "decision-construction-token-not-private-exact",
+                )
+            )
+        constructor_sites: dict[str, list[str]] = {
+            "AcceptV1": [],
+            "RejectV1": [],
+            "CommittedFailureV1": [],
+        }
+        for function_name, function in functions.items():
+            for call in _function_calls(function):
+                called = _last_name(call.func)
+                if called in constructor_sites:
+                    constructor_sites[called].append(function_name)
+        expected_sites = {
+            "AcceptV1": ["_derive_accept_v1"],
+            "RejectV1": ["_authoritative_reject_v1"],
+            "CommittedFailureV1": [],
+        }
+        for constructor, expected_construction_sites in expected_sites.items():
+            if constructor_sites[constructor] != expected_construction_sites:
+                violations.append(
+                    _m5_support_violation_v5(
+                        relative_path,
+                        module,
+                        f"decision-construction-sites:{constructor}",
+                    )
+                )
+        if required_functions <= functions.keys():
+            entry = functions["evaluate_fcis_decision_v1"]
+            _visited, reachable_calls = _reachable_calls_v5(
+                functions,
+                "evaluate_fcis_decision_v1",
+            )
+            required_calls = {
+                "_admit_budget_v1",
+                "_evaluate_fcis_step_candidate_bound_v1",
+                "_derive_accept_v1",
+            }
+            for missing_call in sorted(required_calls - reachable_calls):
+                violations.append(
+                    _m5_support_violation_v5(
+                        relative_path,
+                        entry,
+                        f"decision-unreachable:{missing_call}",
+                    )
+                )
+            derive_accept = functions["_derive_accept_v1"]
+            if not _single_exact_call_v1(
+                derive_accept,
+                call_name="_revalidate_evaluation_v1",
+                positional=("evaluation",),
+            ):
+                violations.append(
+                    _m5_support_violation_v5(
+                        relative_path,
+                        derive_accept,
+                        "accept-bypasses-lineage-revalidation",
+                    )
+                )
+            if not _single_exact_call_v1(
+                derive_accept,
+                call_name="AcceptV1",
+                positional=(
+                    "evaluation.candidate.state",
+                    "plan",
+                    "receipt",
+                    "_DECISION_CONSTRUCTION_TOKEN_V1",
+                ),
+            ):
+                violations.append(
+                    _m5_support_violation_v5(
+                        relative_path,
+                        derive_accept,
+                        "accept-not-derived-from-one-candidate",
+                    )
+                )
+            derive_plan = functions["_derive_plan_v1"]
+            if not _single_exact_call_v1(
+                derive_plan,
+                call_name="CommitPlanV1",
+                positional=(
+                    "_derive_patch_v1(evaluation)",
+                    "effects",
+                    "_derive_replay_v1(evaluation)",
+                ),
+            ):
+                violations.append(
+                    _m5_support_violation_v5(
+                        relative_path,
+                        derive_plan,
+                        "plan-not-derived-from-one-evaluation",
+                    )
+                )
+            revalidate = functions["_revalidate_evaluation_v1"]
+            calls = tuple(_last_name(call.func) for call in _function_calls(revalidate))
+            expected_counts = {
+                "canonical_committed_state_root_binding_v1": 2,
+                "encode_fcis_execution_context_v1": 1,
+                "_command_preimage_v5": 1,
+            }
+            for call_name, expected_count in expected_counts.items():
+                if calls.count(call_name) != expected_count:
+                    violations.append(
+                        _m5_support_violation_v5(
+                            relative_path,
+                            revalidate,
+                            f"decision-lineage-revalidation:{call_name}",
+                        )
+                    )
+
     if relative_path == "src/core/fcis_step_evaluator.py":
         visited, reachable_calls = _reachable_calls_v5(
             functions,
@@ -3483,16 +3730,16 @@ def _check_m5_support_trace_contract_v5(
             "context_read_trace": "context_read_trace",
         }
         for function_name in ("_candidate_evidence_v1", "_reject_after_trace_containment_v5"):
-            function = functions.get(function_name)
-            if function is None or not _single_exact_call_v1(
-                function,
+            support_function = functions.get(function_name)
+            if support_function is None or not _single_exact_call_v1(
+                support_function,
                 call_name="_compute_fcis_support_root_v5_admitted",
                 keywords=expected_support_keywords,
             ):
                 violations.append(
                     _m5_support_violation_v5(
                         relative_path,
-                        module if function is None else function,
+                        module if support_function is None else support_function,
                         f"support-root-not-bound-to-pre-state:{function_name}",
                     )
                 )
@@ -3614,6 +3861,7 @@ def _check_authority_path(
         + _check_registry_constants(module, display)
         + _check_mutable_local_buffers(module, display)
         + _check_exact_replay_shape(module, display)
+        + _check_shared_committed_root_binding_v1(module, display)
         + _check_exact_consumer_shape(module, display)
         + _check_exact_nonce_consumer_shape_v1(module, display)
         + _check_exact_support_consumer_shape_v1(module, display)

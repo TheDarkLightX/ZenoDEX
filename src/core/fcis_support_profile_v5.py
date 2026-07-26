@@ -758,16 +758,23 @@ def _encode_fee_presence_v5(
     return encode_uvarint(1) + encode_uvarint(fee_accumulator.dust)
 
 
-def _command_root_v5(
+def _command_preimage_v5(
     settlement: OwnedSettlementV1,
     intents: tuple[OwnedIntentV1, ...],
-) -> str:
+) -> bytes:
     out = bytearray(domain_sep_bytes(FCIS_SUPPORT_COMMAND_DOMAIN_V5, version=5))
     out += b"SET" + encode_bytes(_canonical_owned_settlement_bytes_admitted_v1(settlement))
     out += b"INT" + encode_uvarint(len(intents))
     for intent in intents:
         out += encode_bytes(_canonical_owned_intent_bytes_admitted_v1(intent))
-    return sha256_hex(bytes(out))
+    return bytes(out)
+
+
+def _command_root_v5(
+    settlement: OwnedSettlementV1,
+    intents: tuple[OwnedIntentV1, ...],
+) -> str:
+    return sha256_hex(_command_preimage_v5(settlement, intents))
 
 
 def _root_preimage_v5(

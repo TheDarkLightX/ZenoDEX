@@ -8,10 +8,13 @@ module cannot authorize a shell commit.
 
 from __future__ import annotations
 
-from typing import cast
+from dataclasses import dataclass
+from typing import cast, final
 
 from ..state.canonical import domain_sep_bytes, sha256_hex
-from ..state.committed_dex_snapshot import canonical_snapshot_bytes_from_committed_state_v1
+from ..state.committed_dex_snapshot import (
+    canonical_committed_state_root_binding_v1,
+)
 from ..state.fcis_committed_state_admission import admit_fcis_committed_state_v1
 from ..state.fcis_committed_state_values import FCISCommittedStateV1
 from ..state.fcis_execution_context import (
@@ -58,6 +61,7 @@ from .fcis_step_evaluation_values import (
     FCISFeeAllocationV1,
     FCISStepCandidateV1,
     FCISStepEvaluationEvidenceV1,
+    FCISStepEvaluationOkV1,
     FCISStepEvaluationPhaseV1,
     FCISStepEvaluationRejectV1,
     FCISStepEvaluationResultV1,
@@ -67,7 +71,10 @@ from .fcis_support_profile_constants_v5 import (
     FCIS_SUPPORT_PROFILE_ID_V5,
     FCIS_SUPPORT_PROFILE_VERSION_V5,
 )
-from .fcis_support_profile_v5 import _compute_fcis_support_root_v5_admitted
+from .fcis_support_profile_v5 import (
+    _command_preimage_v5,
+    _compute_fcis_support_root_v5_admitted,
+)
 from .fcis_traced_reads_v5 import (
     read_fee_accumulator_v5,
     read_step_execution_context_v5,
@@ -105,6 +112,50 @@ def _reject(
     public_reason: str,
 ) -> FCISStepEvaluationRejectV1:
     return FCISStepEvaluationRejectV1(phase, code, path, public_reason)
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class _FCISStepEvaluationBoundRejectV1:
+    """Private rejection plus only the canonical prefix reached before it."""
+
+    reject: FCISStepEvaluationRejectV1
+    command_root: str | None
+    execution_context_hash: str | None
+    pre_state_root: str | None
+
+    def __post_init__(self) -> None:
+        if type(self.reject) is not FCISStepEvaluationRejectV1:
+            raise TypeError("bound rejection requires an exact public rejection")
+        for field_name in (
+            "command_root",
+            "execution_context_hash",
+            "pre_state_root",
+        ):
+            value = object.__getattribute__(self, field_name)
+            if value is None:
+                continue
+            if type(value) is not str or len(value) != 66:
+                raise TypeError(f"{field_name} must be None or a canonical digest")
+            if not value.startswith("0x") or not all(
+                character in "0123456789abcdef" for character in value[2:]
+            ):
+                raise TypeError(f"{field_name} must be None or a canonical digest")
+
+
+def _bound_reject_v1(
+    reject: FCISStepEvaluationRejectV1,
+    *,
+    command_root: str | None = None,
+    execution_context_hash: str | None = None,
+    pre_state_root: str | None = None,
+) -> _FCISStepEvaluationBoundRejectV1:
+    return _FCISStepEvaluationBoundRejectV1(
+        reject,
+        command_root,
+        execution_context_hash,
+        pre_state_root,
+    )
 
 
 def _admit_exact_command_v1(
@@ -409,12 +460,13 @@ def _nonce_candidate_observed_v5(
     )
     result: object = observed.result
     if type(result) is IntentNonceBatchRejectV1:
+        reject_result = cast(IntentNonceBatchRejectV1, result)
         return (
             _reject(
                 FCISStepEvaluationPhaseV1.NONCE,
-                result.code.value,
+                reject_result.code.value,
                 (),
-                result.public_reason,
+                reject_result.public_reason,
             ),
             observed.state_read_trace,
         )
@@ -602,21 +654,9 @@ def _canonical_state_root_binding_v1(
     state: FCISCommittedStateV1,
     snapshot_version: int,
 ) -> tuple[bytes, bytes, str]:
-    """Bind all eight committed fields in the canonical snapshot language."""
+    """Delegate all eight fields to the shared canonical state binding."""
 
-    snapshot_bytes = canonical_snapshot_bytes_from_committed_state_v1(
-        version=snapshot_version,
-        balances=state.balances,
-        pools=state.pools,
-        lp_balances=state.lp_balances,
-        nonces=state.nonces,
-        fee_accumulator=state.fee_accumulator,
-        vault=state.vault,
-        oracle=state.oracle,
-        perps=state.perps,
-    )
-    root_preimage = domain_sep_bytes("dex_snapshot", version=snapshot_version) + snapshot_bytes
-    return snapshot_bytes, root_preimage, sha256_hex(root_preimage)
+    return canonical_committed_state_root_binding_v1(state, snapshot_version)
 
 
 def _pre_state_binding_v1(
@@ -673,6 +713,20 @@ def _candidate_evidence_v1(
         )
         if support_evidence.execution_context_hash != context_hash:
             raise ValueError("support-root context binding mismatch")
+        command_preimage = _command_preimage_v5(settlement, intents)
+        trace = support_evidence.trace
+        state_read_count = (
+            len(trace.balance_keys)
+            + len(trace.pool_ids)
+            + len(trace.lp_keys)
+            + len(trace.nonce_keys)
+            + (1 if trace.reads_fee_accumulator else 0)
+        )
+        context_read_count = len(trace.context_paths)
+        canonical_input_bytes = len(command_preimage) + len(context_bytes) + len(preimage)
+        witness_bytes = len(support_evidence.support_set_preimage) + len(
+            support_evidence.root_preimage
+        )
     except (StateAdmissionError, TypeError, ValueError):
         return _reject(
             FCISStepEvaluationPhaseV1.EVIDENCE,
@@ -685,6 +739,7 @@ def _candidate_evidence_v1(
         algorithm_version=FCIS_STEP_EVALUATOR_ALGORITHM_VERSION_V1,
         execution_context_bytes=context_bytes,
         execution_context_hash=context_hash,
+        command_root=support_evidence.command_root,
         pre_state_root_preimage=preimage,
         pre_state_root=pre_root,
         post_state_root_preimage=post_preimage,
@@ -696,6 +751,10 @@ def _candidate_evidence_v1(
         support_profile_id=FCIS_SUPPORT_PROFILE_ID_V5,
         support_set_commitment=support_evidence.support_set_commitment,
         support_root=support_evidence.root,
+        canonical_input_bytes=canonical_input_bytes,
+        state_read_count=state_read_count,
+        context_read_count=context_read_count,
+        witness_bytes=witness_bytes,
     )
 
 
@@ -734,36 +793,53 @@ def _reject_after_trace_containment_v5(
     return reject
 
 
-def evaluate_fcis_step_candidate_v1(
+def _evaluate_fcis_step_candidate_bound_v1(
     *,
     state_source: object,
     settlement: object,
     intents: object,
     context: object,
-) -> FCISStepEvaluationResultV1:
-    """Evaluate one exact local candidate without mounting authority."""
+) -> FCISStepEvaluationOkV1 | _FCISStepEvaluationBoundRejectV1:
+    """Evaluate once while retaining only canonical rejection-prefix roots."""
 
     command = _admit_exact_command_v1(settlement, intents)
     if type(command) is FCISStepEvaluationRejectV1:
-        return command
+        return _bound_reject_v1(command)
+    exact_settlement, exact_intents = command
+    try:
+        command_root = sha256_hex(_command_preimage_v5(exact_settlement, exact_intents))
+    except (TypeError, ValueError):
+        return _bound_reject_v1(
+            _reject(
+                FCISStepEvaluationPhaseV1.PRE_STATE_BINDING,
+                "canonical_binding_rejected",
+                (),
+                "step command canonical binding rejected",
+            )
+        )
     exact_context = _admit_context_v1(context)
     if type(exact_context) is FCISStepEvaluationRejectV1:
-        return exact_context
+        return _bound_reject_v1(exact_context, command_root=command_root)
     state = _admit_exact_state_v1(state_source)
     if type(state) is FCISStepEvaluationRejectV1:
-        return state
+        return _bound_reject_v1(state, command_root=command_root)
     _context_projection, context_read_trace = read_step_execution_context_v5(exact_context)
     pre_binding = _pre_state_binding_v1(state, exact_context)
     if type(pre_binding) is FCISStepEvaluationRejectV1:
-        return pre_binding
-    exact_settlement, exact_intents = command
+        return _bound_reject_v1(pre_binding, command_root=command_root)
+    (
+        _context_bytes,
+        execution_context_hash,
+        _pre_state_root_preimage,
+        pre_state_root,
+    ) = pre_binding
     nonce, nonce_read_trace = _nonce_candidate_observed_v5(
         state=state,
         intents=exact_intents,
         context=exact_context,
     )
     if type(nonce) is FCISStepEvaluationRejectV1:
-        return _reject_after_trace_containment_v5(
+        checked_reject = _reject_after_trace_containment_v5(
             reject=nonce,
             pre_state=state,
             settlement=exact_settlement,
@@ -771,6 +847,12 @@ def evaluate_fcis_step_candidate_v1(
             context=exact_context,
             state_read_trace=nonce_read_trace,
             context_read_trace=context_read_trace,
+        )
+        return _bound_reject_v1(
+            checked_reject,
+            command_root=command_root,
+            execution_context_hash=execution_context_hash,
+            pre_state_root=pre_state_root,
         )
     spot, spot_read_trace = _spot_candidate_observed_v5(
         state=state,
@@ -783,7 +865,7 @@ def evaluate_fcis_step_candidate_v1(
         spot_read_trace,
     )
     if type(spot) is FCISStepEvaluationRejectV1:
-        return _reject_after_trace_containment_v5(
+        checked_reject = _reject_after_trace_containment_v5(
             reject=spot,
             pre_state=state,
             settlement=exact_settlement,
@@ -792,6 +874,12 @@ def evaluate_fcis_step_candidate_v1(
             state_read_trace=combined_read_trace,
             context_read_trace=context_read_trace,
         )
+        return _bound_reject_v1(
+            checked_reject,
+            command_root=command_root,
+            execution_context_hash=execution_context_hash,
+            pre_state_root=pre_state_root,
+        )
     fee, complete_read_trace = _fee_candidate_observed_v5(
         state=state,
         settlement=exact_settlement,
@@ -799,7 +887,7 @@ def evaluate_fcis_step_candidate_v1(
         state_read_trace=combined_read_trace,
     )
     if type(fee) is FCISStepEvaluationRejectV1:
-        return _reject_after_trace_containment_v5(
+        checked_reject = _reject_after_trace_containment_v5(
             reject=fee,
             pre_state=state,
             settlement=exact_settlement,
@@ -807,6 +895,12 @@ def evaluate_fcis_step_candidate_v1(
             context=exact_context,
             state_read_trace=complete_read_trace,
             context_read_trace=context_read_trace,
+        )
+        return _bound_reject_v1(
+            checked_reject,
+            command_root=command_root,
+            execution_context_hash=execution_context_hash,
+            pre_state_root=pre_state_root,
         )
     successor = FCISCommittedStateV1(
         balances=spot.balances,
@@ -837,7 +931,12 @@ def evaluate_fcis_step_candidate_v1(
         context_read_trace=context_read_trace,
     )
     if type(evidence) is FCISStepEvaluationRejectV1:
-        return evidence
+        return _bound_reject_v1(
+            evidence,
+            command_root=command_root,
+            execution_context_hash=execution_context_hash,
+            pre_state_root=pre_state_root,
+        )
     material = FCISEvaluatedMaterialV1(
         pre_state=state,
         settlement=exact_settlement,
@@ -845,6 +944,26 @@ def evaluate_fcis_step_candidate_v1(
         context=exact_context,
     )
     return _evaluation_ok_from_evaluator_v1(material, candidate, evidence)
+
+
+def evaluate_fcis_step_candidate_v1(
+    *,
+    state_source: object,
+    settlement: object,
+    intents: object,
+    context: object,
+) -> FCISStepEvaluationResultV1:
+    """Evaluate one exact local candidate without exposing private prefixes."""
+
+    result = _evaluate_fcis_step_candidate_bound_v1(
+        state_source=state_source,
+        settlement=settlement,
+        intents=intents,
+        context=context,
+    )
+    if type(result) is _FCISStepEvaluationBoundRejectV1:
+        return result.reject
+    return result
 
 
 def evaluate_fcis_spot_candidate_v1(

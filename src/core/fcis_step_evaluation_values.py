@@ -157,6 +157,7 @@ class FCISStepEvaluationEvidenceV1:
     algorithm_version: int
     execution_context_bytes: bytes
     execution_context_hash: str
+    command_root: str
     pre_state_root_preimage: bytes
     pre_state_root: str
     post_state_root_preimage: bytes
@@ -168,6 +169,10 @@ class FCISStepEvaluationEvidenceV1:
     support_profile_id: str
     support_set_commitment: str
     support_root: str
+    canonical_input_bytes: int
+    state_read_count: int
+    context_read_count: int
+    witness_bytes: int
 
     def __post_init__(self) -> None:
         if self.algorithm_id != FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1:
@@ -184,6 +189,7 @@ class FCISStepEvaluationEvidenceV1:
                 raise TypeError(f"{field_name} must be exact bytes")
         for field_name in (
             "execution_context_hash",
+            "command_root",
             "pre_state_root",
             "post_state_root",
             "snapshot_commitment",
@@ -198,6 +204,18 @@ class FCISStepEvaluationEvidenceV1:
             raise ValueError("unexpected FCIS exact support-root version")
         if self.support_profile_id != FCIS_SUPPORT_PROFILE_ID_V5:
             raise ValueError("unexpected FCIS support profile")
+        if type(self.canonical_input_bytes) is not int or self.canonical_input_bytes <= 0:
+            raise TypeError("canonical_input_bytes must be an exact positive int")
+        for field_name in (
+            "state_read_count",
+            "context_read_count",
+            "witness_bytes",
+        ):
+            value = object.__getattribute__(self, field_name)
+            if type(value) is not int or value < 0:
+                raise TypeError(f"{field_name} must be an exact nonnegative int")
+        if self.witness_bytes == 0:
+            raise ValueError("witness_bytes must account for support evidence")
 
 
 _EVALUATION_OK_CONSTRUCTION_TOKEN_V1 = object()

@@ -8,8 +8,9 @@ JSON bytes; no mutable projection escapes to an authority caller.
 from __future__ import annotations
 
 from ..core.perps import PERPS_STATE_VERSION_V5
-from .canonical import bounded_json_utf8_size, canonical_json_bytes
+from .canonical import bounded_json_utf8_size, canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .dex_snapshot_profile import DEX_SNAPSHOT_SUPPORTED_VERSIONS_V1
+from .fcis_committed_state_values import FCISCommittedStateV1
 from .owned_collections import OwnedMapV1
 from .snapshot_combinators import (
     MAX_ADMISSION_DEPTH_V1,
@@ -347,3 +348,38 @@ def canonical_snapshot_bytes_from_committed_state_v1(
         max_items=MAX_ADMISSION_NODES_V1,
     )
     return canonical_json_bytes(data)
+
+
+def canonical_committed_state_root_binding_v1(
+    state: FCISCommittedStateV1,
+    snapshot_version: int,
+) -> tuple[bytes, bytes, str]:
+    """Revalidate all eight fields and bind their canonical snapshot root.
+
+    The evaluator and commit port share this function so the publication
+    boundary cannot drift from the transition's state-root language.
+    """
+
+    if type(state) is not FCISCommittedStateV1:
+        raise TypeError("state-root binding requires an exact committed state")
+    if type(snapshot_version) is not int or snapshot_version <= 0:
+        raise TypeError("snapshot_version must be an exact positive int")
+    snapshot_bytes = canonical_snapshot_bytes_from_committed_state_v1(
+        version=snapshot_version,
+        balances=state.balances,
+        pools=state.pools,
+        lp_balances=state.lp_balances,
+        nonces=state.nonces,
+        fee_accumulator=state.fee_accumulator,
+        vault=state.vault,
+        oracle=state.oracle,
+        perps=state.perps,
+    )
+    root_preimage = domain_sep_bytes("dex_snapshot", version=snapshot_version) + snapshot_bytes
+    return snapshot_bytes, root_preimage, sha256_hex(root_preimage)
+
+
+__all__ = (
+    "canonical_committed_state_root_binding_v1",
+    "canonical_snapshot_bytes_from_committed_state_v1",
+)

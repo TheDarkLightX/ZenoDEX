@@ -39,6 +39,7 @@ def exact(value: object) -> int:
         "src/core/fcis_step_evaluation_values.py",
         "src/state/fcis_committed_state_values.py",
         "src/core/fcis_step_evaluator.py",
+        "src/core/fcis_decision_derivation.py",
         "src/core/settlement_strong_validator.py",
         "src/state/legacy_state_snapshots.py",
         "src/state/state_snapshots.py",
@@ -58,6 +59,7 @@ def test_m5_authority_graph_paths_are_mandatory() -> None:
         Path("src/core/fcis_authority_dispatch.py"),
         Path("src/core/fcis_authority_schema.py"),
         Path("src/core/fcis_commit_bundle_values.py"),
+        Path("src/core/fcis_decision_derivation.py"),
         Path("src/core/fcis_decision_values.py"),
         Path("src/core/fcis_outbox_values.py"),
         Path("src/core/fcis_transition_budget.py"),
@@ -102,6 +104,7 @@ def test_exact_replay_profile_covers_the_m3_relation_and_route_consumer() -> Non
 def test_exact_consumers_profile_covers_the_complete_m4_relation() -> None:
     assert EXACT_CONSUMERS_AUTHORITY_PATHS == (
         Path("src/core/fcis_step_evaluator.py"),
+        Path("src/core/fcis_decision_derivation.py"),
         Path("src/core/fcis_state_read_trace_v5.py"),
         Path("src/core/fcis_support_profile_constants_v5.py"),
         Path("src/core/fcis_support_profile_v5.py"),
@@ -240,20 +243,18 @@ def test_exact_consumers_profile_kills_m4_dataflow_mutations(
     ("anchor", "replacement"),
     [
         (
-            "    state_source: object,\n    settlement: object,",
-            "    balances: object,\n    settlement: object,",
+            "def _evaluate_fcis_step_candidate_bound_v1(\n"
+            "    *,\n"
+            "    state_source: object,\n"
+            "    settlement: object,",
+            "def _evaluate_fcis_step_candidate_bound_v1(\n"
+            "    *,\n"
+            "    balances: object,\n"
+            "    settlement: object,",
         ),
         (
             "    state = _admit_exact_state_v1(state_source)",
             "    state = state_source",
-        ),
-        (
-            "        oracle=state.oracle,\n        perps=state.perps,\n    )\n    root_preimage =",
-            "        oracle=state.oracle,\n    )\n    root_preimage =",
-        ),
-        (
-            "canonical_snapshot_bytes_from_committed_state_v1(",
-            "state_root_preimage_with_committed_spot_state_v1(",
         ),
         (
             "        snapshot_commitment=post_root,",
@@ -274,6 +275,132 @@ def test_exact_consumers_profile_kills_aggregate_and_root_mutations(
     )
 
     assert "EXACT_CONSUMER_DATAFLOW" in _codes(report)
+
+
+def _shared_committed_root_source() -> str:
+    module = Path(__file__).resolve().parents[2] / "src/state/committed_dex_snapshot.py"
+    return module.read_text(encoding="utf-8")
+
+
+def _run_shared_committed_root_source(
+    tmp_path: Path,
+    source: str,
+) -> dict[str, object]:
+    relative = Path("src/state/committed_dex_snapshot.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(source, encoding="utf-8")
+    return check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="state-substrate",
+    )
+
+
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    [
+        (
+            "        oracle=state.oracle,\n        perps=state.perps,\n    )\n    root_preimage =",
+            "        oracle=state.oracle,\n    )\n    root_preimage =",
+        ),
+        (
+            "    snapshot_bytes = canonical_snapshot_bytes_from_committed_state_v1(",
+            "    snapshot_bytes = state_root_preimage_with_committed_spot_state_v1(",
+        ),
+        (
+            "return snapshot_bytes, root_preimage, sha256_hex(root_preimage)",
+            "return snapshot_bytes, root_preimage, sha256_hex(snapshot_bytes)",
+        ),
+    ],
+)
+def test_state_substrate_profile_kills_shared_root_mutations(
+    tmp_path: Path,
+    anchor: str,
+    replacement: str,
+) -> None:
+    source = _shared_committed_root_source()
+    assert source.count(anchor) == 1
+    report = _run_shared_committed_root_source(
+        tmp_path,
+        source.replace(anchor, replacement, 1),
+    )
+
+    assert "EXACT_CONSUMER_DATAFLOW" in _codes(report)
+
+
+def _decision_derivation_source() -> str:
+    module = Path(__file__).resolve().parents[2] / "src/core/fcis_decision_derivation.py"
+    return module.read_text(encoding="utf-8")
+
+
+def _run_decision_derivation_source(
+    tmp_path: Path,
+    source: str,
+) -> dict[str, object]:
+    relative = Path("src/core/fcis_decision_derivation.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(source, encoding="utf-8")
+    return check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="authority-graph",
+    )
+
+
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    [
+        (
+            "DecisionV1: TypeAlias = AcceptV1 | RejectV1 | CommittedFailureV1",
+            "DecisionV1: TypeAlias = AcceptV1 | RejectV1 | CommittedFailureV1 | object",
+        ),
+        (
+            "    receipt: RejectionReceiptClaimV1\n    _construction_token: InitVar[object]",
+            "    receipt: RejectionReceiptClaimV1\n"
+            "    next_state: FCISCommittedStateV1\n"
+            "    _construction_token: InitVar[object]",
+        ),
+        (
+            "            evaluation.candidate.state,\n            plan,",
+            "            evaluation.material.pre_state,\n            plan,",
+        ),
+        (
+            "        _revalidate_evaluation_v1(evaluation)",
+            "        pass",
+        ),
+        (
+            "        _derive_replay_v1(evaluation),",
+            "        ReplayUpdateV1((), ()),",
+        ),
+        (
+            "    evaluation = _evaluate_fcis_step_candidate_bound_v1(",
+            "    CommittedFailureV1()\n    evaluation = _evaluate_fcis_step_candidate_bound_v1(",
+        ),
+        (
+            "    evaluation = _evaluate_fcis_step_candidate_bound_v1(",
+            "    evaluation = evaluate_fcis_step_candidate_v1(",
+        ),
+    ],
+)
+def test_authority_graph_profile_kills_decision_derivation_mutations(
+    tmp_path: Path,
+    anchor: str,
+    replacement: str,
+) -> None:
+    source = _decision_derivation_source()
+    assert source.count(anchor) == 1
+    report = _run_decision_derivation_source(
+        tmp_path,
+        source.replace(anchor, replacement, 1),
+    )
+
+    assert "FCIS_SUPPORT_TRACE_V5" in _codes(report)
 
 
 def test_exact_consumers_profile_kills_post_admission_object_mutation(

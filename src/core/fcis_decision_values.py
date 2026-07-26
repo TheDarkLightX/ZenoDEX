@@ -55,6 +55,7 @@ class FCISRejectCodeV1(Enum):
     INVALID_PARAMETERS = "invalid_parameters"
     CONSERVATION = "conservation"
     CANONICAL_EVIDENCE_REJECTED = "canonical_evidence_rejected"
+    SUPPORT_TRACE_REJECTED = "support_trace_rejected"
     BUDGET_EXCEEDED = "budget_exceeded"
 
 
