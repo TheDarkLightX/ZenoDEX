@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import final
+from typing import cast, final
 
 from ..state.committed_dex_snapshot import canonical_committed_state_root_binding_v1
 from ..state.fcis_committed_state_values import FCISCommittedStateV1
@@ -36,6 +36,17 @@ from .fcis_commit_bundle_derivation import (
     recompute_bundle_root_v1,
     recompute_outbox_plan_v1,
 )
+from .fcis_decision_derivation import AcceptV1, CommittedFailureV1
+from .fcis_decision_values import (
+    AcceptanceReceiptClaimV1,
+    CommittedFailureReceiptClaimV1,
+)
+from .fcis_outbox_values import OutboxPlanV1
+from .fcis_transition_values import CommitPlanV1
+
+
+def _has_exact_type_v1(value: object, expected: type[object]) -> bool:
+    return type(value) is expected
 
 
 class ReferenceCommitStatusV1(Enum):
@@ -64,6 +75,10 @@ class ReferencePublicationV1:
 
     bundle: CommitBundleV1
 
+    def __post_init__(self) -> None:
+        if not _has_exact_type_v1(self.bundle, CommitBundleV1):
+            raise TypeError("reference publication requires an exact CommitBundleV1")
+
 
 @final
 @dataclass(frozen=True, slots=True)
@@ -72,6 +87,15 @@ class ReferenceCommitStoreV1:
 
     current_state: FCISCommittedStateV1
     publications: tuple[ReferencePublicationV1, ...]
+
+    def __post_init__(self) -> None:
+        if not _has_exact_type_v1(self.current_state, FCISCommittedStateV1):
+            raise TypeError("reference store requires an exact committed state")
+        if type(self.publications) is not tuple or any(
+            not _has_exact_type_v1(publication, ReferencePublicationV1)
+            for publication in self.publications
+        ):
+            raise TypeError("reference store requires an exact publication tuple")
 
 
 @final
@@ -82,35 +106,55 @@ class ReferenceCommitResultV1:
     status: ReferenceCommitStatusV1
     store: ReferenceCommitStoreV1
 
+    def __post_init__(self) -> None:
+        if not _has_exact_type_v1(self.status, ReferenceCommitStatusV1):
+            raise TypeError("reference result requires an exact ReferenceCommitStatusV1")
+        if not _has_exact_type_v1(self.store, ReferenceCommitStoreV1):
+            raise TypeError("reference result requires an exact ReferenceCommitStoreV1")
+
 
 def _initial_reference_commit_store_v1(
-    state: FCISCommittedStateV1,
+    state: object,
 ) -> ReferenceCommitStoreV1:
     """Construct one initial empty reference store over an exact state."""
 
-    if type(state) is not FCISCommittedStateV1:
+    if not _has_exact_type_v1(state, FCISCommittedStateV1):
         raise TypeError("reference store requires an exact committed state")
-    return ReferenceCommitStoreV1(state, ())
+    exact_state = cast(FCISCommittedStateV1, state)
+    return ReferenceCommitStoreV1(exact_state, ())
 
 
-def _revalidate_bundle_v1(bundle: CommitBundleV1) -> bool:
+def _revalidate_bundle_v1(bundle: object) -> bool:
     """Revalidate the entire nested controlled bundle structure."""
 
-    if type(bundle) is not CommitBundleV1:
+    if not _has_exact_type_v1(bundle, CommitBundleV1):
         return False
-    decision = bundle.decision
-    if type(decision).__name__ not in ("AcceptV1", "CommittedFailureV1"):
-        return False
+    exact_bundle = cast(CommitBundleV1, bundle)
     try:
-        recomputed_outbox = recompute_outbox_plan_v1(bundle)
-        if recomputed_outbox != bundle.outbox_plan:
+        decision = exact_bundle.decision
+        if type(decision) not in (AcceptV1, CommittedFailureV1):
             return False
-        recomputed_bytes, recomputed_root = recompute_bundle_root_v1(bundle)
-        if recomputed_bytes != bundle._canonical_bundle_bytes:
+        if not _has_exact_type_v1(decision.next_state, FCISCommittedStateV1):
             return False
-        if recomputed_root != bundle._bundle_root:
+        if not _has_exact_type_v1(decision.commit_plan, CommitPlanV1):
             return False
-    except (TypeError, ValueError):
+        if type(decision) is AcceptV1:
+            receipt_type: type[object] = AcceptanceReceiptClaimV1
+        else:
+            receipt_type = CommittedFailureReceiptClaimV1
+        if not _has_exact_type_v1(decision.receipt, receipt_type):
+            return False
+        if not _has_exact_type_v1(exact_bundle.outbox_plan, OutboxPlanV1):
+            return False
+        recomputed_outbox = recompute_outbox_plan_v1(exact_bundle)
+        if recomputed_outbox != exact_bundle.outbox_plan:
+            return False
+        recomputed_bytes, recomputed_root = recompute_bundle_root_v1(exact_bundle)
+        if recomputed_bytes != exact_bundle._canonical_bundle_bytes:
+            return False
+        if recomputed_root != exact_bundle._bundle_root:
+            return False
+    except (AttributeError, OverflowError, TypeError, ValueError):
         return False
     return True
 
@@ -220,6 +264,37 @@ def _state_fields_equal_v1(
     )
 
 
+def _revalidate_store_v1(store: object) -> bool:
+    """Revalidate exact store shape, publication bundles, and visible head state."""
+
+    if not _has_exact_type_v1(store, ReferenceCommitStoreV1):
+        return False
+    exact_store = cast(ReferenceCommitStoreV1, store)
+    try:
+        if not _has_exact_type_v1(exact_store.current_state, FCISCommittedStateV1):
+            return False
+        if type(exact_store.publications) is not tuple or any(
+            not _has_exact_type_v1(publication, ReferencePublicationV1)
+            for publication in exact_store.publications
+        ):
+            return False
+        observed_roots: tuple[str, ...] = ()
+        for publication in exact_store.publications:
+            if not _revalidate_bundle_v1(publication.bundle):
+                return False
+            _, root = recompute_bundle_root_v1(publication.bundle)
+            if root in observed_roots:
+                return False
+            observed_roots += (root,)
+        if exact_store.publications:
+            visible_successor = exact_store.publications[-1].bundle.decision.next_state
+            if not _state_fields_equal_v1(exact_store.current_state, visible_successor):
+                return False
+    except (AttributeError, OverflowError, TypeError, ValueError):
+        return False
+    return True
+
+
 def _observed_pre_root_v1(
     state: FCISCommittedStateV1,
     snapshot_version: int,
@@ -240,9 +315,9 @@ def _bundle_root_in_publications_v1(
 
 
 def reference_commit_v1(
-    store: ReferenceCommitStoreV1,
-    bundle: CommitBundleV1,
-    crash_point: ReferenceCrashPointV1 = ReferenceCrashPointV1.NONE,
+    store: object,
+    bundle: object,
+    crash_point: object = ReferenceCrashPointV1.NONE,
 ) -> ReferenceCommitResultV1:
     """Execute one pure reference commit attempt over an immutable store.
 
@@ -263,70 +338,77 @@ def reference_commit_v1(
     No exception escapes for an exact store plus an exact but corrupted bundle.
     """
 
-    if type(store) is not ReferenceCommitStoreV1:
+    if not _has_exact_type_v1(store, ReferenceCommitStoreV1):
+        raise TypeError("reference commit requires an exact ReferenceCommitStoreV1")
+    exact_store = cast(ReferenceCommitStoreV1, store)
+    if not _has_exact_type_v1(crash_point, ReferenceCrashPointV1):
+        raise TypeError("reference commit requires an exact ReferenceCrashPointV1")
+    exact_crash_point = cast(ReferenceCrashPointV1, crash_point)
+    if not _revalidate_store_v1(exact_store):
         return ReferenceCommitResultV1(
             ReferenceCommitStatusV1.INVALID,
-            store,
+            exact_store,
         )
     if not _revalidate_bundle_v1(bundle):
         return ReferenceCommitResultV1(
             ReferenceCommitStatusV1.INVALID,
-            store,
+            exact_store,
         )
-    decision = bundle.decision
+    exact_bundle = cast(CommitBundleV1, bundle)
+    decision = exact_bundle.decision
     successor = decision.next_state
     snapshot_version = decision.receipt.binding.snapshot_version
     try:
-        observed_pre_root = _observed_pre_root_v1(store.current_state, snapshot_version)
+        observed_pre_root = _observed_pre_root_v1(exact_store.current_state, snapshot_version)
         _, _, successor_root = canonical_committed_state_root_binding_v1(
             successor,
             snapshot_version,
         )
-    except (TypeError, ValueError):
+    except (AttributeError, OverflowError, TypeError, ValueError):
         return ReferenceCommitResultV1(
             ReferenceCommitStatusV1.INVALID,
-            store,
+            exact_store,
         )
     expected_pre_root = decision.receipt.binding.pre_state_root
     expected_successor_root = decision.receipt.binding.next_state_root
-    if _bundle_root_in_publications_v1(store, bundle._bundle_root):
+    if _bundle_root_in_publications_v1(exact_store, exact_bundle._bundle_root):
         return ReferenceCommitResultV1(
             ReferenceCommitStatusV1.ALREADY_COMMITTED,
-            store,
+            exact_store,
         )
     if observed_pre_root != expected_pre_root:
         return ReferenceCommitResultV1(
             ReferenceCommitStatusV1.STALE,
-            store,
+            exact_store,
         )
     try:
-        applied = _apply_patch_atoms_v1(store.current_state, bundle)
-    except (TypeError, ValueError):
+        applied = _apply_patch_atoms_v1(exact_store.current_state, exact_bundle)
+    except (AttributeError, OverflowError, TypeError, ValueError):
         return ReferenceCommitResultV1(
             ReferenceCommitStatusV1.INVALID,
-            store,
+            exact_store,
         )
     if applied is None or not _state_fields_equal_v1(applied, successor):
         return ReferenceCommitResultV1(
             ReferenceCommitStatusV1.INVALID,
-            store,
+            exact_store,
         )
     if successor_root != expected_successor_root:
         return ReferenceCommitResultV1(
             ReferenceCommitStatusV1.INVALID,
-            store,
+            exact_store,
         )
-    if crash_point is ReferenceCrashPointV1.BEFORE_LINEARIZATION:
+    if exact_crash_point is ReferenceCrashPointV1.BEFORE_LINEARIZATION:
         return ReferenceCommitResultV1(
             ReferenceCommitStatusV1.CRASHED_BEFORE_LINEARIZATION,
-            store,
+            exact_store,
         )
-    publication = ReferencePublicationV1(bundle)
+    publication = ReferencePublicationV1(exact_bundle)
     new_store = ReferenceCommitStoreV1(
         successor,
-        store.publications + (publication,),
+        exact_store.publications + (publication,),
     )
-    if crash_point is ReferenceCrashPointV1.AFTER_LINEARIZATION:
+    if exact_crash_point is ReferenceCrashPointV1.AFTER_LINEARIZATION:
         return ReferenceCommitResultV1(
             ReferenceCommitStatusV1.CRASHED_AFTER_LINEARIZATION,
             new_store,

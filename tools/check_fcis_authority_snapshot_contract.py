@@ -296,6 +296,10 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
     "_canonical_authority_claim_bytes_from_encoder_v1": ("src/core/fcis_authority_admission.py",),
     "_CANONICAL_AUTHORITY_CLAIM_BYTES_TOKEN_V1": ("src/core/fcis_authority_admission.py",),
     "_COMMIT_BUNDLE_CONSTRUCTION_TOKEN_V1": ("src/core/fcis_commit_bundle_derivation.py",),
+    "_bundle_derivation_reject_v1": (
+        "src/core/fcis_decision_derivation.py",
+        "src/core/fcis_commit_bundle_derivation.py",
+    ),
     "_DECISION_CONSTRUCTION_TOKEN_V1": (
         "src/core/fcis_decision_derivation.py",
         "src/core/fcis_commit_bundle_derivation.py",
@@ -3543,6 +3547,7 @@ def _check_m5_support_trace_contract_v5(
         "src/core/fcis_commit_reference.py": {
             "ReferencePublicationV1": ("bundle",),
             "ReferenceCommitStoreV1": ("current_state", "publications"),
+            "ReferenceCommitResultV1": ("status", "store"),
         },
         "src/core/fcis_step_evaluation_values.py": {
             "FCISStepEvaluationRejectV1": ("phase", "code", "path", "public_reason"),
@@ -3859,6 +3864,511 @@ def _check_m5_support_trace_contract_v5(
     return violations
 
 
+def _m5_p3_violation_v1(
+    relative_path: str,
+    node: ast.AST,
+    detail: str,
+) -> _Violation:
+    return _Violation(
+        relative_path,
+        getattr(node, "lineno", 0),
+        getattr(node, "col_offset", 0),
+        "FCIS_M5_P3",
+        detail,
+    )
+
+
+def _top_level_classes_v1(module: ast.Module) -> dict[str, ast.ClassDef]:
+    return {
+        statement.name: statement for statement in module.body if type(statement) is ast.ClassDef
+    }
+
+
+def _is_frozen_slotted_final_dataclass_v1(class_def: ast.ClassDef) -> bool:
+    has_final = any(_last_name(decorator) == "final" for decorator in class_def.decorator_list)
+    dataclass_call = next(
+        (
+            decorator
+            for decorator in class_def.decorator_list
+            if type(decorator) is ast.Call and _last_name(decorator.func) == "dataclass"
+        ),
+        None,
+    )
+    if not has_final or type(dataclass_call) is not ast.Call:
+        return False
+    keywords = {
+        keyword.arg: keyword.value for keyword in dataclass_call.keywords if keyword.arg is not None
+    }
+    return all(
+        type(keywords.get(name)) is ast.Constant and keywords[name].value is True
+        for name in ("frozen", "slots")
+    )
+
+
+def _check_m5_p3_decision_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    functions = _top_level_functions_v1(module)
+    observed = functions.get("_observed_outbox_records_v1")
+    budget = functions.get("_budget_violation_v1")
+    if observed is None or budget is None:
+        missing = "observed-outbox" if observed is None else "budget-violation"
+        return [_m5_p3_violation_v1(relative_path, module, f"missing:{missing}")]
+    observed_source = ast.unparse(observed).replace(" ", "")
+    budget_calls = {_last_name(call.func) or "" for call in _function_calls(budget)}
+    budget_attributes = {
+        ast.unparse(node).replace(" ", "")
+        for node in ast.walk(budget)
+        if type(node) is ast.Attribute
+    }
+    budget_literals = {node.value for node in ast.walk(budget) if type(node) is ast.Constant}
+    if "evaluation.material.settlement.events" not in observed_source:
+        violations.append(
+            _m5_p3_violation_v1(relative_path, observed, "outbox-count-not-from-retained-events")
+        )
+    if (
+        "_observed_outbox_records_v1" not in budget_calls
+        or "budget.max_outbox_records" not in budget_attributes
+        or "max_outbox_records" not in budget_literals
+    ):
+        violations.append(
+            _m5_p3_violation_v1(relative_path, budget, "missing-max-outbox-records-check")
+        )
+    committed_failure_sites = [
+        function_name
+        for function_name, function in functions.items()
+        for call in _function_calls(function)
+        if _last_name(call.func) == "CommittedFailureV1"
+    ]
+    if committed_failure_sites:
+        violations.append(
+            _m5_p3_violation_v1(
+                relative_path,
+                functions[committed_failure_sites[0]],
+                "production-committed-failure-construction",
+            )
+        )
+    return violations
+
+
+def _check_m5_p3_bundle_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    functions = _top_level_functions_v1(module)
+    required_functions = {
+        "_build_bundle_v1",
+        "_derive_bundle_claim_v1",
+        "_derive_bundle_root_v1",
+        "_derive_outbox_plan_v1",
+        "_effect_identity_preimage_v1",
+        "_idempotency_preimage_v1",
+        "build_commit_bundle_v1",
+        "recompute_bundle_root_v1",
+        "recompute_outbox_plan_v1",
+    }
+    for missing in sorted(required_functions - functions.keys()):
+        violations.append(_m5_p3_violation_v1(relative_path, module, f"missing:{missing}"))
+    builder = functions.get("build_commit_bundle_v1")
+    if builder is not None and _function_parameter_names_v1(builder) != ("decision",):
+        violations.append(
+            _m5_p3_violation_v1(relative_path, builder, "caller-supplied-bundle-component")
+        )
+    if builder is not None:
+        controlled_tries = [node for node in ast.walk(builder) if type(node) is ast.Try]
+        stable_rejection = False
+        for try_node in controlled_tries:
+            if len(try_node.handlers) != 1:
+                continue
+            handler = try_node.handlers[0]
+            caught: set[str] = set()
+            if type(handler.type) is ast.Tuple:
+                caught = {
+                    name
+                    for element in handler.type.elts
+                    if (name := _last_name(element)) is not None
+                }
+            elif handler.type is not None:
+                name = _last_name(handler.type)
+                if name is not None:
+                    caught = {name}
+            try_calls = {
+                _last_name(call.func) or ""
+                for statement in try_node.body
+                for call in _function_calls(statement)
+            }
+            handler_calls = {
+                _last_name(call.func) or ""
+                for statement in handler.body
+                for call in _function_calls(statement)
+            }
+            if (
+                caught == {"OverflowError", "TypeError", "ValueError"}
+                and "_build_bundle_v1" in try_calls
+                and "_bundle_derivation_reject_v1" in handler_calls
+            ):
+                stable_rejection = True
+                break
+        if not stable_rejection:
+            violations.append(
+                _m5_p3_violation_v1(
+                    relative_path,
+                    builder,
+                    "bundle-derivation-not-stable-typed-rejection",
+                )
+            )
+    constructor_sites = [
+        function_name
+        for function_name, function in functions.items()
+        for call in _function_calls(function)
+        if _last_name(call.func) == "CommitBundleV1"
+    ]
+    if constructor_sites != ["_build_bundle_v1"]:
+        violations.append(_m5_p3_violation_v1(relative_path, module, "bundle-construction-sites"))
+    direct_outbox_sites = [
+        function
+        for function in functions.values()
+        for call in _function_calls(function)
+        if _last_name(call.func) == "OutboxPlanV1"
+    ]
+    if direct_outbox_sites:
+        violations.append(
+            _m5_p3_violation_v1(
+                relative_path,
+                direct_outbox_sites[0],
+                "direct-outbox-plan-construction",
+            )
+        )
+    build_internal = functions.get("_build_bundle_v1")
+    if build_internal is not None:
+        calls = {_last_name(call.func) or "" for call in _function_calls(build_internal)}
+        required = {
+            "CommitBundleV1",
+            "_derive_bundle_claim_v1",
+            "_derive_bundle_root_v1",
+            "_derive_outbox_plan_v1",
+        }
+        for missing in sorted(required - calls):
+            violations.append(
+                _m5_p3_violation_v1(
+                    relative_path,
+                    build_internal,
+                    f"bundle-lineage-missing:{missing}",
+                )
+            )
+    outbox = functions.get("_derive_outbox_plan_v1")
+    if outbox is not None:
+        calls = tuple(_last_name(call.func) for call in _function_calls(outbox))
+        if calls.count("admit_fcis_authority_claim_v1") != 1:
+            violations.append(
+                _m5_p3_violation_v1(relative_path, outbox, "outbox-bypasses-closed-admission")
+            )
+    preimage_requirements = {
+        "_effect_identity_preimage_v1": (
+            ("receipt_root", "index", "kind_utf8", "payload_bytes"),
+            {"receipt_root", "index", "kind_utf8", "payload_bytes"},
+        ),
+        "_idempotency_preimage_v1": (
+            ("receipt_root", "index", "effect_identity"),
+            {"receipt_root", "index", "effect_identity"},
+        ),
+    }
+    for function_name, (parameters, required_names) in preimage_requirements.items():
+        function = functions.get(function_name)
+        if function is None:
+            continue
+        body_names = {node.id for node in ast.walk(function) if type(node) is ast.Name}
+        if _function_parameter_names_v1(function) != parameters or not required_names <= body_names:
+            violations.append(
+                _m5_p3_violation_v1(
+                    relative_path,
+                    function,
+                    f"identity-framing-incomplete:{function_name}",
+                )
+            )
+    root = functions.get("_derive_bundle_root_v1")
+    if root is not None:
+        calls = {_last_name(call.func) or "" for call in _function_calls(root)}
+        if not {"encode_fcis_authority_claim_v1", "domain_sep_bytes", "sha256_hex"} <= calls:
+            violations.append(
+                _m5_p3_violation_v1(relative_path, root, "bundle-root-not-canonical-closed-codec")
+            )
+    for function in functions.values():
+        if _has_broad_exception_handler_v5(function):
+            violations.append(
+                _m5_p3_violation_v1(relative_path, function, "broad-exception-in-bundle-module")
+            )
+    return violations
+
+
+def _check_m5_p3_reference_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    functions = _top_level_functions_v1(module)
+    classes = _top_level_classes_v1(module)
+    exact_value_classes = (
+        "ReferencePublicationV1",
+        "ReferenceCommitStoreV1",
+        "ReferenceCommitResultV1",
+    )
+    for class_name in exact_value_classes:
+        class_def = classes.get(class_name)
+        if class_def is None or not _is_frozen_slotted_final_dataclass_v1(class_def):
+            violations.append(
+                _m5_p3_violation_v1(
+                    relative_path,
+                    module if class_def is None else class_def,
+                    f"mutable-reference-value:{class_name}",
+                )
+            )
+    required_functions = {
+        "_apply_patch_atoms_v1",
+        "_revalidate_bundle_v1",
+        "_revalidate_store_v1",
+        "_state_fields_equal_v1",
+        "reference_commit_v1",
+    }
+    for missing in sorted(required_functions - functions.keys()):
+        violations.append(_m5_p3_violation_v1(relative_path, module, f"missing:{missing}"))
+    entry = functions.get("reference_commit_v1")
+    if entry is not None:
+        if _function_parameter_names_v1(entry) != ("store", "bundle", "crash_point"):
+            violations.append(
+                _m5_p3_violation_v1(relative_path, entry, "commit-port-parameter-shape")
+            )
+        annotations = {
+            argument.arg: _normalized_annotation(argument.annotation)
+            for argument in (*entry.args.posonlyargs, *entry.args.args, *entry.args.kwonlyargs)
+        }
+        if annotations.get("bundle") != "object":
+            violations.append(
+                _m5_p3_violation_v1(relative_path, entry, "decoded-claim-accepted-as-authority")
+            )
+        calls = {_last_name(call.func) or "" for call in _function_calls(entry)}
+        required_calls = {
+            "ReferenceCommitStoreV1",
+            "ReferencePublicationV1",
+            "_apply_patch_atoms_v1",
+            "_bundle_root_in_publications_v1",
+            "_observed_pre_root_v1",
+            "_revalidate_bundle_v1",
+            "_revalidate_store_v1",
+            "_state_fields_equal_v1",
+            "canonical_committed_state_root_binding_v1",
+        }
+        for missing in sorted(required_calls - calls):
+            violations.append(
+                _m5_p3_violation_v1(relative_path, entry, f"commit-revalidation-missing:{missing}")
+            )
+        normalized = "".join(ast.unparse(entry).split())
+        required_control_flow = {
+            (
+                "ifnot_revalidate_store_v1(exact_store):"
+                "returnReferenceCommitResultV1(ReferenceCommitStatusV1.INVALID,exact_store)"
+            ): "store-revalidation-result-ignored",
+            (
+                "ifnot_revalidate_bundle_v1(bundle):"
+                "returnReferenceCommitResultV1(ReferenceCommitStatusV1.INVALID,exact_store)"
+            ): "bundle-revalidation-result-ignored",
+            (
+                "if_bundle_root_in_publications_v1(exact_store,exact_bundle._bundle_root):"
+                "returnReferenceCommitResultV1("
+                "ReferenceCommitStatusV1.ALREADY_COMMITTED,exact_store)"
+            ): "duplicate-detection-not-fail-closed",
+            (
+                "ifobserved_pre_root!=expected_pre_root:"
+                "returnReferenceCommitResultV1(ReferenceCommitStatusV1.STALE,exact_store)"
+            ): "stale-must-return-input-store",
+            "applied=_apply_patch_atoms_v1(exact_store.current_state,exact_bundle)": (
+                "patch-application-result-not-bound"
+            ),
+            (
+                "ifappliedisNoneornot_state_fields_equal_v1(applied,successor):"
+                "returnReferenceCommitResultV1(ReferenceCommitStatusV1.INVALID,exact_store)"
+            ): "patch-result-not-compared-to-successor",
+            (
+                "ifsuccessor_root!=expected_successor_root:"
+                "returnReferenceCommitResultV1(ReferenceCommitStatusV1.INVALID,exact_store)"
+            ): "successor-root-not-checked",
+            (
+                "ifexact_crash_pointisReferenceCrashPointV1.BEFORE_LINEARIZATION:"
+                "returnReferenceCommitResultV1("
+                "ReferenceCommitStatusV1.CRASHED_BEFORE_LINEARIZATION,exact_store)"
+            ): "crash-before-must-return-input-store",
+            (
+                "ifexact_crash_pointisReferenceCrashPointV1.AFTER_LINEARIZATION:"
+                "returnReferenceCommitResultV1("
+                "ReferenceCommitStatusV1.CRASHED_AFTER_LINEARIZATION,new_store)"
+            ): "crash-after-must-return-complete-store",
+            (
+                "returnReferenceCommitResultV1(ReferenceCommitStatusV1.PUBLISHED,new_store)"
+            ): "published-must-return-complete-store",
+        }
+        for fragment, detail in required_control_flow.items():
+            if fragment not in normalized:
+                violations.append(_m5_p3_violation_v1(relative_path, entry, detail))
+        complete_store = (
+            "new_store=ReferenceCommitStoreV1(successor,exact_store.publications+(publication,))"
+        )
+        if complete_store not in normalized:
+            violations.append(
+                _m5_p3_violation_v1(relative_path, entry, "linearization-not-one-complete-store")
+            )
+        ordered_fragments = (
+            "ifnot_revalidate_store_v1(exact_store)",
+            "ifnot_revalidate_bundle_v1(bundle)",
+            "observed_pre_root=_observed_pre_root_v1",
+            "if_bundle_root_in_publications_v1",
+            "ifobserved_pre_root!=expected_pre_root",
+            "applied=_apply_patch_atoms_v1",
+            "ifappliedisNoneornot_state_fields_equal_v1",
+            "ifsuccessor_root!=expected_successor_root",
+            "ifexact_crash_pointisReferenceCrashPointV1.BEFORE_LINEARIZATION",
+            "publication=ReferencePublicationV1(exact_bundle)",
+            "new_store=ReferenceCommitStoreV1",
+            "ifexact_crash_pointisReferenceCrashPointV1.AFTER_LINEARIZATION",
+        )
+        positions = [normalized.find(fragment) for fragment in ordered_fragments]
+        if any(position < 0 for position in positions) or positions != sorted(positions):
+            violations.append(
+                _m5_p3_violation_v1(relative_path, entry, "commit-linearization-order")
+            )
+    revalidate = functions.get("_revalidate_bundle_v1")
+    if revalidate is not None:
+        calls = tuple(_function_calls(revalidate))
+        exact_inputs = {
+            ast.unparse(call.args[0]).replace(" ", "")
+            for call in calls
+            if _last_name(call.func) == "_has_exact_type_v1" and call.args
+        }
+        required_exact_inputs = {
+            "decision.next_state",
+            "decision.commit_plan",
+            "decision.receipt",
+            "exact_bundle.outbox_plan",
+        }
+        called_names = {_last_name(call.func) or "" for call in calls}
+        source = ast.unparse(revalidate)
+        if not required_exact_inputs <= exact_inputs:
+            violations.append(
+                _m5_p3_violation_v1(relative_path, revalidate, "nested-lineage-type-check-missing")
+            )
+        if not {"recompute_bundle_root_v1", "recompute_outbox_plan_v1"} <= called_names:
+            violations.append(
+                _m5_p3_violation_v1(
+                    relative_path, revalidate, "cached-root-or-outbox-check-missing"
+                )
+            )
+        if "_canonical_bundle_bytes" not in source or "_bundle_root" not in source:
+            violations.append(
+                _m5_p3_violation_v1(relative_path, revalidate, "cached-bundle-claim-check-missing")
+            )
+        normalized = "".join(source.split())
+        required_guards = {
+            "ifnot_has_exact_type_v1(bundle,CommitBundleV1):returnFalse",
+            "iftype(decision)notin(AcceptV1,CommittedFailureV1):returnFalse",
+            "ifnot_has_exact_type_v1(decision.next_state,FCISCommittedStateV1):returnFalse",
+            "ifnot_has_exact_type_v1(decision.commit_plan,CommitPlanV1):returnFalse",
+            "ifnot_has_exact_type_v1(decision.receipt,receipt_type):returnFalse",
+            "ifnot_has_exact_type_v1(exact_bundle.outbox_plan,OutboxPlanV1):returnFalse",
+            "ifrecomputed_outbox!=exact_bundle.outbox_plan:returnFalse",
+            "ifrecomputed_bytes!=exact_bundle._canonical_bundle_bytes:returnFalse",
+            "ifrecomputed_root!=exact_bundle._bundle_root:returnFalse",
+        }
+        if any(fragment not in normalized for fragment in required_guards):
+            violations.append(
+                _m5_p3_violation_v1(relative_path, revalidate, "bundle-revalidation-guard-missing")
+            )
+    revalidate_store = functions.get("_revalidate_store_v1")
+    if revalidate_store is not None:
+        normalized = "".join(ast.unparse(revalidate_store).split())
+        required_store_guards = {
+            "ifnot_has_exact_type_v1(store,ReferenceCommitStoreV1):returnFalse",
+            "ifnot_revalidate_bundle_v1(publication.bundle):returnFalse",
+            "ifrootinobserved_roots:returnFalse",
+            (
+                "ifnot_state_fields_equal_v1(exact_store.current_state,visible_successor):"
+                "returnFalse"
+            ),
+        }
+        if any(fragment not in normalized for fragment in required_store_guards):
+            violations.append(
+                _m5_p3_violation_v1(
+                    relative_path, revalidate_store, "store-revalidation-guard-missing"
+                )
+            )
+    apply_patch = functions.get("_apply_patch_atoms_v1")
+    if apply_patch is not None:
+        calls = {_last_name(call.func) or "" for call in _function_calls(apply_patch)}
+        required_apply = {
+            "FCISCommittedStateV1",
+            "apply_canonical_balance_patch_v1",
+            "apply_canonical_lp_position_patch_v1",
+            "apply_canonical_nonce_patch_v1",
+            "apply_canonical_pool_patch_v1",
+        }
+        for missing in sorted(required_apply - calls):
+            violations.append(
+                _m5_p3_violation_v1(relative_path, apply_patch, f"patch-replay-missing:{missing}")
+            )
+    constructor_sites = {
+        name: [
+            function_name
+            for function_name, function in functions.items()
+            for call in _function_calls(function)
+            if _last_name(call.func) == name
+        ]
+        for name in ("ReferencePublicationV1", "ReferenceCommitStoreV1")
+    }
+    if constructor_sites["ReferencePublicationV1"] != ["reference_commit_v1"]:
+        violations.append(
+            _m5_p3_violation_v1(relative_path, module, "publication-construction-sites")
+        )
+    if constructor_sites["ReferenceCommitStoreV1"] != [
+        "_initial_reference_commit_store_v1",
+        "reference_commit_v1",
+    ]:
+        violations.append(_m5_p3_violation_v1(relative_path, module, "store-construction-sites"))
+    mutation_methods = {"append", "clear", "extend", "insert", "pop", "remove", "update"}
+    for function in functions.values():
+        if _has_broad_exception_handler_v5(function):
+            violations.append(
+                _m5_p3_violation_v1(relative_path, function, "broad-exception-in-commit-module")
+            )
+        for call in _function_calls(function):
+            if type(call.func) is ast.Attribute and call.func.attr in mutation_methods:
+                root = ast.unparse(call.func.value).replace(" ", "")
+                if root.startswith(("store", "exact_store")):
+                    violations.append(
+                        _m5_p3_violation_v1(relative_path, call, "input-store-mutation")
+                    )
+    if any(
+        type(node) is ast.Name and node.id == "CommitBundleClaimV1" for node in ast.walk(module)
+    ):
+        violations.append(
+            _m5_p3_violation_v1(relative_path, module, "decoded-bundle-claim-on-commit-edge")
+        )
+    return violations
+
+
+def _check_m5_p3_contract_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    if relative_path == "src/core/fcis_decision_derivation.py":
+        return _check_m5_p3_decision_v1(module, relative_path)
+    if relative_path == "src/core/fcis_commit_bundle_derivation.py":
+        return _check_m5_p3_bundle_v1(module, relative_path)
+    if relative_path == "src/core/fcis_commit_reference.py":
+        return _check_m5_p3_reference_v1(module, relative_path)
+    return []
+
+
 def _check_authority_path(
     repo_root: Path,
     relative_path: Path,
@@ -3900,7 +4410,8 @@ def _check_authority_path(
         + _check_exact_consumer_shape(module, display)
         + _check_exact_nonce_consumer_shape_v1(module, display)
         + _check_exact_support_consumer_shape_v1(module, display)
-        + _check_m5_support_trace_contract_v5(module, display),
+        + _check_m5_support_trace_contract_v5(module, display)
+        + _check_m5_p3_contract_v1(module, display),
     )
 
 

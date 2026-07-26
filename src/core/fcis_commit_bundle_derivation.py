@@ -39,6 +39,7 @@ from .fcis_decision_derivation import (
     CommittedFailureV1,
     DecisionV1,
     RejectV1,
+    _bundle_derivation_reject_v1,
     _claim_root_v1,
 )
 from .fcis_decision_values import (
@@ -62,7 +63,7 @@ _COMMIT_BUNDLE_CONSTRUCTION_TOKEN_V1 = object()
 
 _EFFECT_IDENTITY_DOMAIN_SEP_V1 = "zenodex/fcis/outbox-effect-identity"
 _IDEMPOTENCY_DOMAIN_SEP_V1 = "zenodex/fcis/outbox-idempotency"
-_CANONICAL_EVENT_KIND_V1 = OutboxEffectKindV1.CANONICAL_EVENT.value
+_CANONICAL_EVENT_KIND_V1 = OutboxEffectKindV1.CANONICAL_EVENT
 
 
 @final
@@ -93,6 +94,7 @@ class CommitBundleV1:
             raise TypeError("bundle canonical bytes must be exact bytes")
         if type(self._bundle_root) is not str or not self._bundle_root.startswith("0x"):
             raise TypeError("bundle root must be a canonical digest")
+        hex_to_bytes_fixed(self._bundle_root, nbytes=32, name="bundle_root")
 
     @property
     def next_state(self) -> FCISCommittedStateV1:
@@ -219,7 +221,7 @@ def _derive_outbox_record_sources_v1(
 ) -> tuple[OutboxRecordSourceV1, ...]:
     """Derive outbox record sources from exact retained settlement events."""
 
-    kind_utf8 = _CANONICAL_EVENT_KIND_V1.encode("utf-8")
+    kind_utf8 = _CANONICAL_EVENT_KIND_V1.value.encode("utf-8")
     sources: list[OutboxRecordSourceV1] = []
     for index, event in enumerate(events):
         payload_bytes = _canonical_event_payload_bytes(event)
@@ -334,7 +336,10 @@ def _committed_failure_receipt_root_v1(decision: CommittedFailureV1) -> str:
 def _derive_bundle_root_v1(claim: object) -> tuple[bytes, str]:
     """Encode and hash one admitted bundle claim to derive canonical bytes and root."""
 
-    encoded = encode_fcis_authority_claim_v1(FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1, claim)
+    if type(claim) is not CommitBundleClaimV1:
+        raise TypeError("bundle root derivation requires an exact admitted claim")
+    exact_claim = cast(CommitBundleClaimV1, claim)
+    encoded = encode_fcis_authority_claim_v1(FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1, exact_claim)
     if type(encoded) is not CanonicalAuthorityClaimBytesV1:
         raise ValueError("controlled bundle canonical encoding failed")
     canonical_bytes = cast(CanonicalAuthorityClaimBytesV1, encoded).payload
@@ -371,7 +376,10 @@ def build_commit_bundle_v1(decision: DecisionV1) -> CommitBundleBuildResultV1:
     if type(decision) is RejectV1:
         return decision
     if type(decision) in (AcceptV1, CommittedFailureV1):
-        return _build_bundle_v1(decision)
+        try:
+            return _build_bundle_v1(decision)
+        except (OverflowError, TypeError, ValueError):
+            return _bundle_derivation_reject_v1(decision)
     raise TypeError("build_commit_bundle_v1 requires an exact DecisionV1")
 
 
