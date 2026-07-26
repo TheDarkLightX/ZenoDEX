@@ -19,6 +19,10 @@ from ..core.settlement_snapshots import (
     _project_owned_settlement,
 )
 from ..state.canonical import bounded_json_utf8_size, canonical_json_bytes
+from .fcis_committed_state_values import (
+    FCIS_COMMITTED_STATE_SCHEMA_ID_V1,
+    FCISCommittedStateV1,
+)
 from .intent_schema import (
     INTENT_ADMISSION_SCHEMA_ID_V1,
     INTENT_BATCH_ADMISSION_SCHEMA_ID_V1,
@@ -48,6 +52,7 @@ from .snapshot_combinators import (
 from .state_snapshot_schema import (
     BALANCE_TABLE_ADMISSION_SCHEMA_ID_V1,
     ENUM_REGISTRATIONS_V1,
+    FCIS_COMMITTED_STATE_RECORD_REGISTRATIONS_V1,
     FEE_ACCUMULATOR_ADMISSION_SCHEMA_ID_V1,
     KNOWN_STATE_ADMISSION_SCHEMA_IDS_V1,
     LP_TABLE_ADMISSION_SCHEMA_ID_V1,
@@ -91,6 +96,7 @@ FCIS_REQUIRED_REGISTRY_IDS = (
     "zenodex/fcis/state/oracle/v1",
     "zenodex/fcis/state/fee-accumulator/v1",
     "zenodex/fcis/state/perps/v1",
+    "zenodex/fcis/state/committed-dex-state/v1",
     "zenodex/fcis/authority/json-value/v1",
     "zenodex/fcis/authority/json-object/v1",
     "zenodex/fcis/authority/intent/v1",
@@ -107,6 +113,7 @@ FCIS_REGISTERED_REGISTRY_IDS = (
     "zenodex/fcis/state/oracle/v1",
     "zenodex/fcis/state/fee-accumulator/v1",
     "zenodex/fcis/state/perps/v1",
+    "zenodex/fcis/state/committed-dex-state/v1",
     "zenodex/fcis/authority/json-value/v1",
     "zenodex/fcis/authority/json-object/v1",
     "zenodex/fcis/authority/intent/v1",
@@ -136,6 +143,7 @@ _STATE_ADMISSION_REGISTRY_V1 = build_admission_registry_v1(
         *RECORD_REGISTRATIONS_V1,
         *INTENT_RECORD_REGISTRATIONS_V1,
         *SETTLEMENT_RECORD_REGISTRATIONS_V1,
+        *FCIS_COMMITTED_STATE_RECORD_REGISTRATIONS_V1,
     ),
     schema_registrations=(
         *SCHEMA_REGISTRATIONS_V1,
@@ -295,6 +303,29 @@ def _construct_state_record(
             cast(int, _record_field(values, 0, "version")),
             cast(OwnedMapV1[str, object], _record_field(values, 1, "markets")),
         )
+    if record_tag is StateRecordTagV1.FCIS_COMMITTED_STATE and len(values) == 8:
+        return FCISCommittedStateV1(
+            cast(CommittedBalanceTableV1, _record_field(values, 0, "balances")),
+            cast(
+                OwnedMapV1[str, CommittedPoolStateV1],
+                _record_field(values, 1, "pools"),
+            ),
+            cast(CommittedLPTableV1, _record_field(values, 2, "lp_balances")),
+            cast(CommittedNonceTableV1, _record_field(values, 3, "nonces")),
+            cast(
+                CommittedVaultStateV1 | None,
+                _record_field(values, 4, "vault"),
+            ),
+            cast(
+                CommittedOracleStateV1 | None,
+                _record_field(values, 5, "oracle"),
+            ),
+            cast(
+                CommittedFeeAccumulatorStateV1,
+                _record_field(values, 6, "fee_accumulator"),
+            ),
+            cast(CommittedPerpsStateV1 | None, _record_field(values, 7, "perps")),
+        )
     if record_tag is StateRecordTagV1.INTENT:
         return _construct_intent_record(values)
     if record_tag in (
@@ -445,6 +476,18 @@ def _project_owned(value: object) -> object:
     if type(value) is CommittedPerpsStateV1:
         perps = cast(CommittedPerpsStateV1, value)
         return {"version": perps.version, "markets": _project_owned(perps.markets)}
+    if type(value) is FCISCommittedStateV1:
+        state = cast(FCISCommittedStateV1, value)
+        return {
+            "balances": _project_owned(state.balances),
+            "pools": _project_owned(state.pools),
+            "lp_balances": _project_owned(state.lp_balances),
+            "nonces": _project_owned(state.nonces),
+            "vault": _project_owned(state.vault),
+            "oracle": _project_owned(state.oracle),
+            "fee_accumulator": _project_owned(state.fee_accumulator),
+            "perps": _project_owned(state.perps),
+        }
     raise TypeError("canonical state projection received an unsupported exact type")
 
 
@@ -461,6 +504,7 @@ def _canonical_state_encoder(schema_id: str, value: object) -> bytes:
         ORACLE_ADMISSION_SCHEMA_ID_V1: (type(None), CommittedOracleStateV1),
         FEE_ACCUMULATOR_ADMISSION_SCHEMA_ID_V1: (CommittedFeeAccumulatorStateV1,),
         PERPS_ADMISSION_SCHEMA_ID_V1: (type(None), CommittedPerpsStateV1),
+        FCIS_COMMITTED_STATE_SCHEMA_ID_V1: (FCISCommittedStateV1,),
         OWNED_JSON_VALUE_ADMISSION_SCHEMA_ID_V1: (
             type(None),
             bool,

@@ -28,6 +28,7 @@ from ..core.settlement_strong_validator import (
     StrongSettlementEvaluationResultV1,
     StrongSettlementRejectV1,
 )
+from ..state.fcis_committed_state_values import FCISCommittedStateSourceV1
 from ..state.fcis_execution_context import (
     admit_fcis_settlement_execution_context_v1,
     admit_fcis_step_execution_context_v1,
@@ -49,18 +50,7 @@ from ..state.legacy_state_snapshots import (
     admit_legacy_pool_map_for_differential_v1,
 )
 from ..state.lp_duration_policy_values import LPDurationRiskPolicyV1
-from ..state.owned_collections import OwnedMapV1
 from ..state.snapshot_combinators import AdmitCode, AdmitOk, AdmitReject, format_admit_path
-from ..state.state_snapshot_values import (
-    CommittedBalanceTableV1,
-    CommittedFeeAccumulatorStateV1,
-    CommittedLPTableV1,
-    CommittedNonceTableV1,
-    CommittedOracleStateV1,
-    CommittedPerpsStateV1,
-    CommittedPoolStateV1,
-    CommittedVaultStateV1,
-)
 from ..state.state_snapshots import (
     StateAdmissionError,
     snapshot_fee_accumulator,
@@ -206,19 +196,6 @@ class FCISStepShadowReceiptV1:
 FCISStepShadowResultV1: TypeAlias = FCISStepShadowReceiptV1 | FCISStepShadowRejectV1
 
 
-@final
-@dataclass(frozen=True, slots=True)
-class _ExactLegacyStateProjectionV1:
-    balances: CommittedBalanceTableV1
-    pools: OwnedMapV1[str, CommittedPoolStateV1]
-    lp_balances: CommittedLPTableV1
-    nonces: CommittedNonceTableV1
-    vault: CommittedVaultStateV1 | None
-    oracle: CommittedOracleStateV1 | None
-    fee_accumulator: CommittedFeeAccumulatorStateV1
-    perps: CommittedPerpsStateV1 | None
-
-
 def _admission_reason(prefix: str, reject: AdmitReject) -> str:
     return f"{prefix}: {reject.code.value}:{format_admit_path(reject.path)}"
 
@@ -348,7 +325,7 @@ def _admit_legacy_step_context_v1(
 
 def _admit_legacy_state_v1(
     state: DexState,
-) -> _ExactLegacyStateProjectionV1 | FCISStepShadowRejectV1:
+) -> FCISCommittedStateSourceV1 | FCISStepShadowRejectV1:
     field_name = "balances"
     try:
         balances = admit_legacy_balance_for_differential_v1(state.balances)
@@ -372,7 +349,7 @@ def _admit_legacy_state_v1(
             FCISStepShadowPhaseV1.STATE_ADMISSION,
             f"shadow state admission rejected: {error.code.value}:{format_admit_path(path)}",
         )
-    return _ExactLegacyStateProjectionV1(
+    return FCISCommittedStateSourceV1(
         balances=balances,
         pools=pools,
         lp_balances=lp_balances,
@@ -523,14 +500,7 @@ def evaluate_fcis_step_shadow_v1(
             (f"shadow command admission rejected: admission_rejected:{command_field}"),
         )
     result = evaluate_fcis_step_candidate_v1(
-        balances=exact_state.balances,
-        pools=exact_state.pools,
-        lp_balances=exact_state.lp_balances,
-        nonces=exact_state.nonces,
-        vault=exact_state.vault,
-        oracle=exact_state.oracle,
-        fee_accumulator=exact_state.fee_accumulator,
-        perps=exact_state.perps,
+        state_source=exact_state,
         settlement=owned_settlement,
         intents=owned_intents,
         context=exact_context,

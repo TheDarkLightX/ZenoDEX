@@ -38,6 +38,11 @@ from ..core.perps import (
     PerpsState,
 )
 from ..core.vault import VaultState
+from .fcis_committed_state_values import (
+    FCIS_COMMITTED_STATE_SCHEMA_ID_V1,
+    FCISCommittedStateSourceV1,
+    FCISCommittedStateV1,
+)
 from .pools import PoolState, PoolStatus
 from .snapshot_combinators import (
     DeclaredFieldV1,
@@ -140,6 +145,7 @@ class StateRecordTagV1(Enum):
     RESERVE_DELTA = "reserve_delta"
     LP_DELTA = "lp_delta"
     SETTLEMENT = "settlement"
+    FCIS_COMMITTED_STATE = "fcis_committed_state"
 
 
 def state_enum_tag_ordinal_v1(tag: StateEnumTagV1) -> int:
@@ -654,6 +660,20 @@ PERPS_RECORD_SCHEMA_V1 = RecordOf(
 )
 PERPS_SCHEMA_V1 = OptionalValue(PERPS_RECORD_SCHEMA_V1)
 
+FCIS_COMMITTED_STATE_SCHEMA_V1 = RecordOf(
+    StateRecordTagV1.FCIS_COMMITTED_STATE,
+    (
+        _field("balances", BALANCE_TABLE_SCHEMA_V1),
+        _field("pools", POOL_MAP_SCHEMA_V1),
+        _field("lp_balances", LP_TABLE_SCHEMA_V1),
+        _field("nonces", NONCE_TABLE_SCHEMA_V1),
+        _field("vault", VAULT_SCHEMA_V1),
+        _field("oracle", ORACLE_SCHEMA_V1),
+        _field("fee_accumulator", FEE_ACCUMULATOR_SCHEMA_V1),
+        _field("perps", PERPS_SCHEMA_V1),
+    ),
+)
+
 
 ENUM_REGISTRATIONS_V1 = (EnumRegistrationV1(StateEnumTagV1.POOL_STATUS, PoolStatus),)
 
@@ -719,6 +739,14 @@ RECORD_REGISTRATIONS_V1 = (
     RecordRegistrationV1(StateRecordTagV1.PERPS, PerpsState, CommittedPerpsStateV1),
 )
 
+FCIS_COMMITTED_STATE_RECORD_REGISTRATIONS_V1 = (
+    RecordRegistrationV1(
+        StateRecordTagV1.FCIS_COMMITTED_STATE,
+        FCISCommittedStateSourceV1,
+        FCISCommittedStateV1,
+    ),
+)
+
 SCHEMA_REGISTRATIONS_V1 = (
     SchemaRegistrationV1(BALANCE_TABLE_ADMISSION_SCHEMA_ID_V1, BALANCE_TABLE_SCHEMA_V1),
     SchemaRegistrationV1(LP_TABLE_ADMISSION_SCHEMA_ID_V1, LP_TABLE_SCHEMA_V1),
@@ -732,6 +760,10 @@ SCHEMA_REGISTRATIONS_V1 = (
         FEE_ACCUMULATOR_SCHEMA_V1,
     ),
     SchemaRegistrationV1(PERPS_ADMISSION_SCHEMA_ID_V1, PERPS_SCHEMA_V1),
+    SchemaRegistrationV1(
+        FCIS_COMMITTED_STATE_SCHEMA_ID_V1,
+        FCIS_COMMITTED_STATE_SCHEMA_V1,
+    ),
 )
 
 KNOWN_STATE_ADMISSION_SCHEMA_IDS_V1 = tuple(

@@ -13,6 +13,7 @@ from pathlib import Path
 
 REPORT_SCHEMA = "zenodex/fcis-authority-snapshot-contract-check/v1"
 STATE_SUBSTRATE_AUTHORITY_PATHS = (
+    Path("src/state/fcis_committed_state_admission.py"),
     Path("src/state/fcis_committed_state_values.py"),
     Path("src/core/fcis_step_evaluation_values.py"),
     Path("src/core/fcis_step_evaluator.py"),
@@ -1957,6 +1958,34 @@ def _check_exact_command_sinks_v1(
     relative_path: str,
 ) -> list[_Violation]:
     violations: list[_Violation] = []
+    if _function_parameter_names_v1(entry) != (
+        "state_source",
+        "settlement",
+        "intents",
+        "context",
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=entry,
+            detail="entry-does-not-accept-one-state-aggregate",
+        )
+    if not _single_exact_assigned_call_v1(
+        entry,
+        target_name="state",
+        call_name="_admit_exact_state_v1",
+        positional=("state_source",),
+    ) or not _single_exact_call_v1(
+        entry,
+        call_name="_admit_exact_state_v1",
+        positional=("state_source",),
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=entry,
+            detail="entry-state-aggregate-admission-bypassed",
+        )
     if (
         not _has_named_call_assignment(
             entry,
@@ -2065,26 +2094,26 @@ def _check_exact_command_sinks_v1(
     admission_calls = tuple(
         call
         for call in _function_calls(entry)
-        if _last_name(call.func) == "_admit_exact_command_v1"
+        if _last_name(call.func) in {"_admit_exact_command_v1", "_admit_exact_state_v1"}
     )
     allowed_raw_loads = {
         id(argument)
         for call in admission_calls
         for argument in call.args
-        if type(argument) is ast.Name and argument.id in {"settlement", "intents"}
+        if type(argument) is ast.Name and argument.id in {"state_source", "settlement", "intents"}
     }
     for node in ast.walk(entry):
         if (
             type(node) is ast.Name
             and type(node.ctx) is ast.Load
-            and node.id in {"settlement", "intents"}
+            and node.id in {"state_source", "settlement", "intents"}
             and id(node) not in allowed_raw_loads
         ):
             _add_exact_consumer_violation(
                 violations,
                 relative_path=relative_path,
                 node=node,
-                detail=f"entry-raw-command-load-outside-admission:{node.id}",
+                detail=f"entry-raw-authority-load-outside-admission:{node.id}",
             )
     return violations
 
@@ -2153,16 +2182,23 @@ def _check_exact_lineage_result_v1(
     entry: ast.FunctionDef,
     relative_path: str,
 ) -> list[_Violation]:
+    direct_construction = any(
+        _last_name(call.func) == "FCISStepEvaluationOkV1" for call in _function_calls(entry)
+    )
     result_returns = tuple(
         node
         for node in ast.walk(entry)
         if type(node) is ast.Return
         and type(node.value) is ast.Call
-        and _last_name(node.value.func) == "FCISStepEvaluationOkV1"
+        and _last_name(node.value.func) == "_evaluation_ok_from_evaluator_v1"
     )
-    if len(result_returns) == 1 and _call_matches_exact_expressions_v1(
-        result_returns[0].value,
-        positional=("material", "candidate", "evidence"),
+    if (
+        not direct_construction
+        and len(result_returns) == 1
+        and _call_matches_exact_expressions_v1(
+            result_returns[0].value,
+            positional=("material", "candidate", "evidence"),
+        )
     ):
         return []
     return [
@@ -2182,6 +2218,14 @@ def _check_exact_consumer_annotations_v1(
 ) -> list[_Violation]:
     violations: list[_Violation] = []
     exact_annotations = {
+        "_canonical_state_root_binding_v1": {
+            "state": "FCISCommittedStateV1",
+            "snapshot_version": "int",
+        },
+        "_pre_state_binding_v1": {
+            "state": "FCISCommittedStateV1",
+            "context": "FCISStepExecutionContextV1",
+        },
         "_evaluate_spot_v1": {
             "settlement": "OwnedSettlementV1",
             "intents": "tuple[OwnedIntentV1,...]",
@@ -2205,6 +2249,8 @@ def _check_exact_consumer_annotations_v1(
         },
     }
     exact_parameters = {
+        "_canonical_state_root_binding_v1": ("state", "snapshot_version"),
+        "_pre_state_binding_v1": ("state", "context"),
         "_evaluate_spot_v1": (
             "balances",
             "pools",
@@ -2744,6 +2790,103 @@ def _check_exact_support_consumer_shape_v1(
     )
 
 
+def _check_full_state_root_binding_v1(
+    functions: dict[str, ast.FunctionDef],
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    root = functions["_canonical_state_root_binding_v1"]
+    pre = functions["_pre_state_binding_v1"]
+    evidence = functions["_candidate_evidence_v1"]
+    expected_snapshot_fields = {
+        "version": "snapshot_version",
+        "balances": "state.balances",
+        "pools": "state.pools",
+        "lp_balances": "state.lp_balances",
+        "nonces": "state.nonces",
+        "fee_accumulator": "state.fee_accumulator",
+        "vault": "state.vault",
+        "oracle": "state.oracle",
+        "perps": "state.perps",
+    }
+    if _function_parameter_names_v1(root) != (
+        "state",
+        "snapshot_version",
+    ) or not _single_exact_call_v1(
+        root,
+        call_name="canonical_snapshot_bytes_from_committed_state_v1",
+        keywords=expected_snapshot_fields,
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=root,
+            detail="full-state-root-does-not-bind-eight-fields",
+        )
+    if not _single_exact_call_v1(
+        pre,
+        call_name="_canonical_state_root_binding_v1",
+        positional=("state", "context.snapshot_version"),
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=pre,
+            detail="pre-state-root-bypasses-full-state-binding",
+        )
+    if not _single_exact_call_v1(
+        evidence,
+        call_name="_canonical_state_root_binding_v1",
+        positional=("candidate.state", "context.snapshot_version"),
+    ):
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=evidence,
+            detail="post-state-root-bypasses-full-state-binding",
+        )
+    for function in (root, pre, evidence):
+        if any(
+            _last_name(call.func) == "state_root_preimage_with_committed_spot_state_v1"
+            for call in _function_calls(function)
+        ):
+            _add_exact_consumer_violation(
+                violations,
+                relative_path=relative_path,
+                node=function,
+                detail="legacy-five-field-root-used",
+            )
+    evidence_calls = tuple(
+        call
+        for call in _function_calls(evidence)
+        if _last_name(call.func) == "FCISStepEvaluationEvidenceV1"
+    )
+    if len(evidence_calls) != 1:
+        _add_exact_consumer_violation(
+            violations,
+            relative_path=relative_path,
+            node=evidence,
+            detail="candidate-evidence-construction-count",
+        )
+    else:
+        bindings = {
+            keyword.arg: ast.unparse(keyword.value).replace(" ", "")
+            for keyword in evidence_calls[0].keywords
+            if keyword.arg is not None
+        }
+        if (
+            bindings.get("post_state_root") != "post_root"
+            or bindings.get("snapshot_commitment") != "post_root"
+        ):
+            _add_exact_consumer_violation(
+                violations,
+                relative_path=relative_path,
+                node=evidence_calls[0],
+                detail="post-root-and-snapshot-commitment-diverge",
+            )
+    return violations
+
+
 def _check_exact_consumer_shape(
     module: ast.Module,
     relative_path: str,
@@ -2756,6 +2899,9 @@ def _check_exact_consumer_shape(
         statement.name: statement for statement in module.body if type(statement) is ast.FunctionDef
     }
     required_names = (
+        "_admit_exact_state_v1",
+        "_canonical_state_root_binding_v1",
+        "_pre_state_binding_v1",
         "_admit_exact_command_v1",
         "_evaluate_spot_v1",
         "_nonce_candidate_v1",
@@ -2777,6 +2923,7 @@ def _check_exact_consumer_shape(
         ]
     return (
         _check_exact_command_admission_v1(functions["_admit_exact_command_v1"], relative_path)
+        + _check_full_state_root_binding_v1(functions, relative_path)
         + _check_exact_command_sinks_v1(functions["evaluate_fcis_step_candidate_v1"], relative_path)
         + _check_exact_consumer_annotations_v1(functions, relative_path)
         + _check_exact_consumer_sink_forwarding_v1(functions, relative_path)

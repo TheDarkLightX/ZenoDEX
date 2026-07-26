@@ -1,13 +1,14 @@
 """Owned values for the unmounted FCIS spot-step evaluator.
 
 The evaluation result retains the exact admitted command, context, pre-state,
-successor, and evidence as one immutable lineage. Later FCIS stages derive
-authority values from that lineage and cannot substitute a second command.
+successor, and evidence as one immutable lineage. Its controlled constructor is
+a misuse barrier. M5 must still re-evaluate this unmounted result before using
+it as authority.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 from enum import Enum
 from typing import TypeAlias, final
 
@@ -191,6 +192,9 @@ class FCISStepEvaluationEvidenceV1:
             raise ValueError("unexpected FCIS exact support-root version")
 
 
+_EVALUATION_OK_CONSTRUCTION_TOKEN_V1 = object()
+
+
 @final
 @dataclass(frozen=True, slots=True)
 class FCISStepEvaluationOkV1:
@@ -199,8 +203,11 @@ class FCISStepEvaluationOkV1:
     material: FCISEvaluatedMaterialV1
     candidate: FCISStepCandidateV1
     evidence: FCISStepEvaluationEvidenceV1
+    _construction_token: InitVar[object]
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, _construction_token: object) -> None:
+        if _construction_token is not _EVALUATION_OK_CONSTRUCTION_TOKEN_V1:
+            raise TypeError("evaluation success requires the controlled constructor")
         if type(self.material) is not FCISEvaluatedMaterialV1:
             raise TypeError("evaluation material must be exact")
         if type(self.candidate) is not FCISStepCandidateV1:
@@ -209,8 +216,22 @@ class FCISStepEvaluationOkV1:
             raise TypeError("evaluation evidence must be exact")
 
 
-FCISStepEvaluationResultV1: TypeAlias = FCISStepEvaluationOkV1 | FCISStepEvaluationRejectV1
+def _evaluation_ok_from_evaluator_v1(
+    material: FCISEvaluatedMaterialV1,
+    candidate: FCISStepCandidateV1,
+    evidence: FCISStepEvaluationEvidenceV1,
+) -> FCISStepEvaluationOkV1:
+    """Package one success inside the evaluator module boundary."""
 
+    return FCISStepEvaluationOkV1(
+        material,
+        candidate,
+        evidence,
+        _EVALUATION_OK_CONSTRUCTION_TOKEN_V1,
+    )
+
+
+FCISStepEvaluationResultV1: TypeAlias = FCISStepEvaluationOkV1 | FCISStepEvaluationRejectV1
 
 __all__ = (
     "FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1",

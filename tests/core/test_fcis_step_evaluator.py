@@ -18,10 +18,20 @@ from src.core.fcis_step_evaluator import (
     evaluate_fcis_step_candidate_v1,
 )
 from src.core.liquidity import create_pool
+from src.core.oracle import OracleState
 from src.core.perps import PERPS_STATE_VERSION_V4, PerpsState
 from src.core.settlement import Settlement
 from src.core.settlement_snapshots import snapshot_settlement
+from src.core.vault import VaultState
 from src.state import BalanceTable, LPTable
+from src.state.canonical import domain_sep_bytes, sha256_hex
+from src.state.committed_dex_snapshot import (
+    canonical_snapshot_bytes_from_committed_state_v1,
+)
+from src.state.fcis_committed_state_values import (
+    FCISCommittedStateSourceV1,
+    FCISCommittedStateV1,
+)
 from src.state.fcis_execution_context_values import (
     FCISFeeSplitPolicySourceV1,
     FCISSettlementExecutionContextSourceV1,
@@ -36,7 +46,6 @@ from src.state.legacy_state_snapshots import (
     admit_legacy_nonce_for_differential_v1,
     admit_legacy_pool_map_for_differential_v1,
 )
-from src.state.state_root import state_root_preimage_with_committed_spot_state_v1
 from src.state.state_snapshots import (
     snapshot_fee_accumulator,
     snapshot_oracle,
@@ -118,6 +127,37 @@ def _swap_case() -> tuple[DexState, Intent, Settlement]:
     return state, intent, settlement
 
 
+def _state_source(state: DexState) -> FCISCommittedStateSourceV1:
+    return FCISCommittedStateSourceV1(
+        balances=admit_legacy_balance_for_differential_v1(state.balances),
+        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
+        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
+        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
+        vault=snapshot_vault(state.vault),
+        oracle=snapshot_oracle(state.oracle),
+        fee_accumulator=snapshot_fee_accumulator(state.fee_accumulator),
+        perps=snapshot_perps(state.perps),
+    )
+
+
+def _state_root_preimage(
+    state: FCISCommittedStateV1,
+    snapshot_version: int,
+) -> bytes:
+    snapshot_bytes = canonical_snapshot_bytes_from_committed_state_v1(
+        version=snapshot_version,
+        balances=state.balances,
+        pools=state.pools,
+        lp_balances=state.lp_balances,
+        nonces=state.nonces,
+        fee_accumulator=state.fee_accumulator,
+        vault=state.vault,
+        oracle=state.oracle,
+        perps=state.perps,
+    )
+    return domain_sep_bytes("dex_snapshot", version=snapshot_version) + snapshot_bytes
+
+
 def _evaluate(
     state: DexState,
     settlement: object,
@@ -129,14 +169,7 @@ def _evaluate(
     )
     owned_intents = admit_intent_batch(intents) if type(intents) is list else intents
     return evaluate_fcis_step_candidate_v1(
-        balances=admit_legacy_balance_for_differential_v1(state.balances),
-        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
-        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
-        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
-        vault=snapshot_vault(state.vault),
-        oracle=snapshot_oracle(state.oracle),
-        fee_accumulator=snapshot_fee_accumulator(state.fee_accumulator),
-        perps=snapshot_perps(state.perps),
+        state_source=_state_source(state),
         settlement=owned_settlement,
         intents=owned_intents,
         context=context,
@@ -168,18 +201,12 @@ def test_exact_step_evaluator_retains_one_candidate_and_all_leaf_patches() -> No
 def test_evidence_binds_same_candidate_context_and_pre_post_roots() -> None:
     state, intent, settlement = _swap_case()
     context = _context_source()
-    pre_root_preimage = state_root_preimage_with_committed_spot_state_v1(
-        balances=admit_legacy_balance_for_differential_v1(state.balances),
-        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
-        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
-        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
-        fee_accumulator=snapshot_fee_accumulator(state.fee_accumulator),
-    )
 
     first = _evaluate(state, settlement, [intent], context)
     second = _evaluate(state, settlement, [intent], context)
 
     assert type(first) is FCISStepEvaluationOkV1
+    pre_root_preimage = _state_root_preimage(first.material.pre_state, context.snapshot_version)
     assert first == second
     candidate = first.candidate
     evidence = first.evidence
@@ -192,18 +219,66 @@ def test_evidence_binds_same_candidate_context_and_pre_post_roots() -> None:
     )
     assert evidence.pre_state_root_preimage == pre_root_preimage
     assert evidence.support_root == expected_support_root
-    assert evidence.post_state_root_preimage == (
-        state_root_preimage_with_committed_spot_state_v1(
-            balances=candidate.state.balances,
-            pools=candidate.state.pools,
-            lp_balances=candidate.state.lp_balances,
-            nonces=candidate.state.nonces,
-            fee_accumulator=candidate.state.fee_accumulator,
-        )
-    )
+    assert evidence.post_state_root_preimage == _state_root_preimage(candidate.state, 4)
     retained_context_bytes = evidence.execution_context_bytes
+    assert evidence.pre_state_root == sha256_hex(pre_root_preimage)
+    assert evidence.post_state_root == sha256_hex(evidence.post_state_root_preimage)
+    assert evidence.snapshot_commitment == evidence.post_state_root
     object.__setattr__(context.settlement, "now", 999_999)
     assert evidence.execution_context_bytes == retained_context_bytes
+
+
+def test_full_state_root_binds_vault_oracle_and_perps() -> None:
+    state, intent, settlement = _swap_case()
+    result = _evaluate(state, settlement, [intent], _context_source())
+    assert type(result) is FCISStepEvaluationOkV1
+    pre_state = result.material.pre_state
+    version = result.evidence.snapshot_version
+    base_preimage = _state_root_preimage(pre_state, version)
+    vault = snapshot_vault(VaultState(1, 0, 0, 0, 0))
+    oracle = snapshot_oracle(OracleState(123, 300))
+    perps = snapshot_perps(PerpsState(version=PERPS_STATE_VERSION_V4, markets={}))
+    assert vault is not None
+    assert oracle is not None
+    assert perps is not None
+    changed_preimages = {
+        _state_root_preimage(replace(pre_state, vault=vault), version),
+        _state_root_preimage(replace(pre_state, oracle=oracle), version),
+        _state_root_preimage(replace(pre_state, perps=perps), version),
+    }
+    assert base_preimage not in changed_preimages
+    assert len(changed_preimages) == 3
+
+
+def test_evaluator_rejects_wrong_aggregate_map_before_later_fields() -> None:
+    state, intent, settlement = _swap_case()
+    source = replace(_state_source(state), pools=[])
+    result = evaluate_fcis_step_candidate_v1(
+        state_source=source,
+        settlement=snapshot_settlement(settlement),
+        intents=admit_intent_batch([intent]),
+        context=_context_source(),
+    )
+    assert type(result) is FCISStepEvaluationRejectV1
+    assert result.phase is FCISStepEvaluationPhaseV1.STATE_ADMISSION
+    assert result.code == "wrong_container"
+    assert result.path == ("pools",)
+
+
+def test_success_result_rejects_cross_evaluation_splice() -> None:
+    state, intent, settlement = _swap_case()
+    first = _evaluate(state, settlement, [intent], _context_source())
+    second_context = replace(_context_source(), fee_split_policy=None)
+    second = _evaluate(state, settlement, [intent], second_context)
+    assert type(first) is FCISStepEvaluationOkV1
+    assert type(second) is FCISStepEvaluationOkV1
+    with pytest.raises(TypeError, match="controlled constructor"):
+        FCISStepEvaluationOkV1(
+            first.material,
+            second.candidate,
+            second.evidence,
+            object(),
+        )
 
 
 def test_exact_step_consumers_share_one_admitted_command_graph(
@@ -292,14 +367,7 @@ def test_invalid_eighth_state_field_rejects_without_partial_candidate() -> None:
     object.__setattr__(exact_perps, "version", True)
 
     result = evaluate_fcis_step_candidate_v1(
-        balances=admit_legacy_balance_for_differential_v1(state.balances),
-        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
-        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
-        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
-        vault=snapshot_vault(state.vault),
-        oracle=snapshot_oracle(state.oracle),
-        fee_accumulator=snapshot_fee_accumulator(state.fee_accumulator),
-        perps=exact_perps,
+        state_source=replace(_state_source(state), perps=exact_perps),
         settlement=snapshot_settlement(settlement),
         intents=admit_intent_batch([intent]),
         context=_context_source(),
@@ -383,14 +451,7 @@ def test_exact_command_admission_rejects_legacy_settlement() -> None:
     state, intent, settlement = _swap_case()
 
     result = evaluate_fcis_step_candidate_v1(
-        balances=admit_legacy_balance_for_differential_v1(state.balances),
-        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
-        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
-        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
-        vault=snapshot_vault(state.vault),
-        oracle=snapshot_oracle(state.oracle),
-        fee_accumulator=snapshot_fee_accumulator(state.fee_accumulator),
-        perps=snapshot_perps(state.perps),
+        state_source=_state_source(state),
         settlement=settlement,
         intents=admit_intent_batch([intent]),
         context=_context_source(),
@@ -408,14 +469,7 @@ def test_exact_command_admission_rejects_legacy_intent_list() -> None:
     owned_settlement = snapshot_settlement(settlement)
 
     result = evaluate_fcis_step_candidate_v1(
-        balances=admit_legacy_balance_for_differential_v1(state.balances),
-        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
-        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
-        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
-        vault=snapshot_vault(state.vault),
-        oracle=snapshot_oracle(state.oracle),
-        fee_accumulator=snapshot_fee_accumulator(state.fee_accumulator),
-        perps=snapshot_perps(state.perps),
+        state_source=_state_source(state),
         settlement=owned_settlement,
         intents=[_intent],
         context=_context_source(),
@@ -435,14 +489,7 @@ def test_exact_command_admission_rejects_intent_subclass_in_tuple() -> None:
         pass
 
     result = evaluate_fcis_step_candidate_v1(
-        balances=admit_legacy_balance_for_differential_v1(state.balances),
-        pools=admit_legacy_pool_map_for_differential_v1(state.pools),
-        lp_balances=admit_legacy_lp_for_differential_v1(state.lp_balances),
-        nonces=admit_legacy_nonce_for_differential_v1(state.nonces),
-        vault=snapshot_vault(state.vault),
-        oracle=snapshot_oracle(state.oracle),
-        fee_accumulator=snapshot_fee_accumulator(state.fee_accumulator),
-        perps=snapshot_perps(state.perps),
+        state_source=_state_source(state),
         settlement=owned_settlement,
         intents=(IntentLookalike(),),
         context=_context_source(),

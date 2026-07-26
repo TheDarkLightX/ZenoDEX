@@ -30,7 +30,7 @@ from src.integration.lp_position_age_gate import (
     apply_lp_mint_timestamps_after_settlement,
 )
 from src.state import BalanceTable, LPTable
-from src.state.canonical import sha256_hex
+from src.state.canonical import domain_sep_bytes, sha256_hex
 from src.state.intent_snapshots import admit_intent_batch
 from src.state.intents import Intent, IntentKind
 from src.state.legacy_state_snapshots import (
@@ -40,7 +40,6 @@ from src.state.legacy_state_snapshots import (
     admit_legacy_pool_map_for_differential_v1,
 )
 from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
-from src.state.state_root import state_root_preimage
 from src.state.state_snapshots import (
     snapshot_balance_table,
     snapshot_lp_table,
@@ -324,12 +323,9 @@ def test_full_step_shadow_matches_legacy_state_snapshot_and_root() -> None:
         legacy_next,
         version=context.snapshot_version,
     )
-    legacy_preimage = state_root_preimage(
-        balances=legacy_next.balances,
-        pools=legacy_next.pools,
-        lp_balances=legacy_next.lp_balances,
-        nonces=legacy_next.nonces,
-        fee_accumulator=legacy_next.fee_accumulator,
+    legacy_preimage = (
+        domain_sep_bytes("dex_snapshot", version=context.snapshot_version)
+        + legacy_snapshot.canonical_bytes()
     )
 
     assert observed.canonical_snapshot_bytes == legacy_snapshot.canonical_bytes()

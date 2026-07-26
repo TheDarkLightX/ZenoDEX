@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from ..state.canonical import domain_sep_bytes, sha256_hex
 from ..state.committed_dex_snapshot import canonical_snapshot_bytes_from_committed_state_v1
+from ..state.fcis_committed_state_admission import admit_fcis_committed_state_v1
 from ..state.fcis_committed_state_values import FCISCommittedStateV1
 from ..state.fcis_execution_context import (
     admit_fcis_settlement_execution_context_v1,
@@ -31,27 +32,17 @@ from ..state.lp_duration_policy_context import admit_optional_lp_duration_policy
 from ..state.lp_duration_policy_values import LPDurationRiskPolicyV1
 from ..state.owned_collections import OwnedMapV1
 from ..state.snapshot_combinators import AdmitOk, AdmitReject, format_admit_path
-from ..state.state_root import state_root_preimage_with_committed_spot_state_v1
 from ..state.state_snapshot_values import (
     CommittedBalanceTableV1,
     CommittedFeeAccumulatorStateV1,
     CommittedLPTableV1,
-    CommittedNonceTableV1,
-    CommittedOracleStateV1,
-    CommittedPerpsStateV1,
     CommittedPoolStateV1,
-    CommittedVaultStateV1,
 )
 from ..state.state_snapshots import (
     StateAdmissionError,
     snapshot_balance_table,
-    snapshot_fee_accumulator,
     snapshot_lp_table,
-    snapshot_nonce_table,
-    snapshot_oracle,
-    snapshot_perps,
     snapshot_pool_map,
-    snapshot_vault,
 )
 from ..state.support_root import (
     EXACT_SUPPORT_ROOT_VERSION_V1,
@@ -64,10 +55,10 @@ from .fcis_step_evaluation_values import (
     FCISFeeAllocationV1,
     FCISStepCandidateV1,
     FCISStepEvaluationEvidenceV1,
-    FCISStepEvaluationOkV1,
     FCISStepEvaluationPhaseV1,
     FCISStepEvaluationRejectV1,
     FCISStepEvaluationResultV1,
+    _evaluation_ok_from_evaluator_v1,
 )
 from .fee_accumulator_transition import (
     FeeAccumulatorTransitionOkV1,
@@ -261,86 +252,33 @@ def _admit_context_v1(
 
 
 def _state_reject_v1(
-    field: str,
-    error: StateAdmissionError,
+    reject: AdmitReject,
 ) -> FCISStepEvaluationRejectV1:
-    path = (field, *error.path)
-    detail = f"{error.code.value}:{format_admit_path(path)}"
+    detail = f"{reject.code.value}:{format_admit_path(reject.path)}"
     return _reject(
         FCISStepEvaluationPhaseV1.STATE_ADMISSION,
-        error.code.value,
-        path,
+        reject.code.value,
+        reject.path,
         f"step state admission rejected: {detail}",
     )
 
 
-def _wrong_state_type_v1(field: str) -> FCISStepEvaluationRejectV1:
-    return _reject(
-        FCISStepEvaluationPhaseV1.STATE_ADMISSION,
-        "wrong_exact_type",
-        (field,),
-        f"step {field} requires exact committed state",
-    )
-
-
 def _admit_exact_state_v1(
-    *,
-    balances: object,
-    pools: object,
-    lp_balances: object,
-    nonces: object,
-    vault: object,
-    oracle: object,
-    fee_accumulator: object,
-    perps: object,
+    source: object,
 ) -> FCISCommittedStateV1 | FCISStepEvaluationRejectV1:
-    """Revalidate all eight exact fields in the normative M5 field order."""
+    """Admit the complete state through one closed aggregate schema."""
 
-    exact_types = (
-        ("balances", balances, CommittedBalanceTableV1),
-        ("pools", pools, OwnedMapV1),
-        ("lp_balances", lp_balances, CommittedLPTableV1),
-        ("nonces", nonces, CommittedNonceTableV1),
-        ("vault", vault, CommittedVaultStateV1),
-        ("oracle", oracle, CommittedOracleStateV1),
-        ("fee_accumulator", fee_accumulator, CommittedFeeAccumulatorStateV1),
-        ("perps", perps, CommittedPerpsStateV1),
-    )
-    for field, value, exact_type in exact_types:
-        if field in ("vault", "oracle", "perps") and value is None:
-            continue
-        if type(value) is not exact_type:
-            return _wrong_state_type_v1(field)
-
-    field = "balances"
-    try:
-        exact_balances = snapshot_balance_table(balances)
-        field = "pools"
-        exact_pools = snapshot_pool_map(pools)
-        field = "lp_balances"
-        exact_lp = snapshot_lp_table(lp_balances)
-        field = "nonces"
-        exact_nonces = snapshot_nonce_table(nonces)
-        field = "vault"
-        exact_vault = snapshot_vault(vault)
-        field = "oracle"
-        exact_oracle = snapshot_oracle(oracle)
-        field = "fee_accumulator"
-        exact_fees = snapshot_fee_accumulator(fee_accumulator)
-        field = "perps"
-        exact_perps = snapshot_perps(perps)
-    except StateAdmissionError as error:
-        return _state_reject_v1(field, error)
-    return FCISCommittedStateV1(
-        balances=exact_balances,
-        pools=exact_pools,
-        lp_balances=exact_lp,
-        nonces=exact_nonces,
-        vault=exact_vault,
-        oracle=exact_oracle,
-        fee_accumulator=exact_fees,
-        perps=exact_perps,
-    )
+    result = admit_fcis_committed_state_v1(source)
+    if type(result) is AdmitReject:
+        return _state_reject_v1(result)
+    if type(result) is not AdmitOk or type(result.value) is not FCISCommittedStateV1:
+        return _reject(
+            FCISStepEvaluationPhaseV1.STATE_ADMISSION,
+            "impossible_result",
+            (),
+            "step state admission returned an impossible result",
+        )
+    return result.value
 
 
 def _evaluate_spot_v1(
@@ -534,6 +472,27 @@ def _fee_candidate_v1(
     )
 
 
+def _canonical_state_root_binding_v1(
+    state: FCISCommittedStateV1,
+    snapshot_version: int,
+) -> tuple[bytes, bytes, str]:
+    """Bind all eight committed fields in the canonical snapshot language."""
+
+    snapshot_bytes = canonical_snapshot_bytes_from_committed_state_v1(
+        version=snapshot_version,
+        balances=state.balances,
+        pools=state.pools,
+        lp_balances=state.lp_balances,
+        nonces=state.nonces,
+        fee_accumulator=state.fee_accumulator,
+        vault=state.vault,
+        oracle=state.oracle,
+        perps=state.perps,
+    )
+    root_preimage = domain_sep_bytes("dex_snapshot", version=snapshot_version) + snapshot_bytes
+    return snapshot_bytes, root_preimage, sha256_hex(root_preimage)
+
+
 def _pre_state_binding_v1(
     state: FCISCommittedStateV1,
     context: FCISStepExecutionContextV1,
@@ -543,13 +502,7 @@ def _pre_state_binding_v1(
             FCIS_STEP_CONTEXT_SCHEMA_ID_V1,
             context,
         )
-        root_preimage = state_root_preimage_with_committed_spot_state_v1(
-            balances=state.balances,
-            pools=state.pools,
-            lp_balances=state.lp_balances,
-            nonces=state.nonces,
-            fee_accumulator=state.fee_accumulator,
-        )
+        _, root_preimage, root = _canonical_state_root_binding_v1(state, context.snapshot_version)
     except (StateAdmissionError, TypeError, ValueError):
         return _reject(
             FCISStepEvaluationPhaseV1.PRE_STATE_BINDING,
@@ -560,7 +513,7 @@ def _pre_state_binding_v1(
     context_hash = sha256_hex(
         domain_sep_bytes(FCIS_STEP_CONTEXT_HASH_DOMAIN_V1, version=1) + context_bytes
     )
-    return context_bytes, context_hash, root_preimage, sha256_hex(root_preimage)
+    return context_bytes, context_hash, root_preimage, root
 
 
 def _candidate_evidence_v1(
@@ -573,23 +526,9 @@ def _candidate_evidence_v1(
 ) -> FCISStepEvaluationEvidenceV1 | FCISStepEvaluationRejectV1:
     context_bytes, context_hash, preimage, pre_root = pre_binding
     try:
-        snapshot_bytes = canonical_snapshot_bytes_from_committed_state_v1(
-            version=context.snapshot_version,
-            balances=candidate.state.balances,
-            pools=candidate.state.pools,
-            lp_balances=candidate.state.lp_balances,
-            nonces=candidate.state.nonces,
-            fee_accumulator=candidate.state.fee_accumulator,
-            vault=candidate.state.vault,
-            oracle=candidate.state.oracle,
-            perps=candidate.state.perps,
-        )
-        post_preimage = state_root_preimage_with_committed_spot_state_v1(
-            balances=candidate.state.balances,
-            pools=candidate.state.pools,
-            lp_balances=candidate.state.lp_balances,
-            nonces=candidate.state.nonces,
-            fee_accumulator=candidate.state.fee_accumulator,
+        snapshot_bytes, post_preimage, post_root = _canonical_state_root_binding_v1(
+            candidate.state,
+            context.snapshot_version,
         )
         support_root = _compute_support_state_root_for_batch_owned_admitted_v1(
             intents=intents,
@@ -613,12 +552,10 @@ def _candidate_evidence_v1(
         pre_state_root_preimage=preimage,
         pre_state_root=pre_root,
         post_state_root_preimage=post_preimage,
-        post_state_root=sha256_hex(post_preimage),
+        post_state_root=post_root,
         snapshot_version=context.snapshot_version,
         canonical_snapshot_bytes=snapshot_bytes,
-        snapshot_commitment=sha256_hex(
-            domain_sep_bytes("dex_snapshot", version=context.snapshot_version) + snapshot_bytes
-        ),
+        snapshot_commitment=post_root,
         support_root_version=EXACT_SUPPORT_ROOT_VERSION_V1,
         support_root=support_root,
     )
@@ -626,14 +563,7 @@ def _candidate_evidence_v1(
 
 def evaluate_fcis_step_candidate_v1(
     *,
-    balances: object,
-    pools: object,
-    lp_balances: object,
-    nonces: object,
-    vault: object,
-    oracle: object,
-    fee_accumulator: object,
-    perps: object,
+    state_source: object,
     settlement: object,
     intents: object,
     context: object,
@@ -646,16 +576,7 @@ def evaluate_fcis_step_candidate_v1(
     exact_context = _admit_context_v1(context)
     if type(exact_context) is FCISStepEvaluationRejectV1:
         return exact_context
-    state = _admit_exact_state_v1(
-        balances=balances,
-        pools=pools,
-        lp_balances=lp_balances,
-        nonces=nonces,
-        vault=vault,
-        oracle=oracle,
-        fee_accumulator=fee_accumulator,
-        perps=perps,
-    )
+    state = _admit_exact_state_v1(state_source)
     if type(state) is FCISStepEvaluationRejectV1:
         return state
     pre_binding = _pre_state_binding_v1(state, exact_context)
@@ -717,7 +638,7 @@ def evaluate_fcis_step_candidate_v1(
         intents=exact_intents,
         context=exact_context,
     )
-    return FCISStepEvaluationOkV1(material, candidate, evidence)
+    return _evaluation_ok_from_evaluator_v1(material, candidate, evidence)
 
 
 def evaluate_fcis_spot_candidate_v1(
