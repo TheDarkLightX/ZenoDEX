@@ -60,19 +60,6 @@ def _require_exact_fields(value: dict[str, Any], expected: tuple[str, ...], labe
     if tuple(value) != expected:
         raise MountInputError(f"{label} fields must be exactly {expected!r}")
 
-
-def _parse_decimal(value: Any, label: str) -> int:
-    if not isinstance(value, str) or not value or (len(value) > 1 and value.startswith("0")):
-        raise MountInputError(f"{label} must be a canonical decimal string")
-    try:
-        parsed = int(value)
-    except ValueError as exc:
-        raise MountInputError(f"{label} must be a canonical decimal string") from exc
-    if parsed < 0 or str(parsed) != value:
-        raise MountInputError(f"{label} must be a canonical decimal string")
-    return parsed
-
-
 def _parse_state(value: Any) -> ZUSDState:
     if not isinstance(value, dict):
         raise MountInputError("state must be an object")
@@ -85,7 +72,9 @@ def _parse_state(value: Any) -> ZUSDState:
                 raise MountInputError("state.oracle_seen must be a bool")
             kwargs[name] = field
         else:
-            kwargs[name] = _parse_decimal(field, f"state.{name}")
+            if not isinstance(field, int) or isinstance(field, bool) or field < 0:
+                raise MountInputError(f"state.{name} must be a non-negative integer")
+            kwargs[name] = field
     return ZUSDState(**kwargs)
 
 

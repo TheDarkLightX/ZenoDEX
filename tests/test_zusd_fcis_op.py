@@ -14,7 +14,7 @@ SCRIPT = ROOT / "tools" / "runtime" / "zusd_fcis_op.py"
 def request(kind: str, **args: object) -> bytes:
     state = init_state()
     state_doc = {
-        name: (getattr(state, name) if name == "oracle_seen" else str(getattr(state, name)))
+        name: getattr(state, name)
         for name in ZUSD_STATE_FIELD_ORDER
     }
     value = {
