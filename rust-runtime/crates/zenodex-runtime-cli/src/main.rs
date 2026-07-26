@@ -3364,6 +3364,7 @@ fn main() -> ExitCode {
                 | "balance-op"
                 | "replay-zusd-trace"
                 | "zusd-op"
+                | "zusd-fcis-op"
                 | "verify-burn-trace"
                 | "settle-swap-trace"
                 | "cpmm-op"
@@ -3383,7 +3384,7 @@ fn main() -> ExitCode {
         eprintln!(
             "usage: {prog} <replay-fee-trace|replay-guard-trace|replay-guard-admit|\
              fee-route|replay-balance-trace|balance-op|\
-             replay-zusd-trace|zusd-op|verify-burn-trace|settle-swap-trace|cpmm-op|canonical-hash|\
+             replay-zusd-trace|zusd-op|zusd-fcis-op|verify-burn-trace|settle-swap-trace|cpmm-op|canonical-hash|\
              verify-state-root|perp-math|advance-epoch|funding-auto|\
              publish-clearing-price|settle-epoch|partial-liquidate|account-op|\
              set-market-params|perp-isolated-op> <input.json|->"
@@ -3468,6 +3469,25 @@ fn main() -> ExitCode {
     if subcommand == "balance-op" {
         return match run_balance_op(&trace) {
             Ok(out) => match serde_json::to_string_pretty(&out) {
+                Ok(s) => {
+                    println!("{s}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: cannot serialize output: {e}");
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    if subcommand == "zusd-fcis-op" {
+        return match run_zusd_op(&trace) {
+            Ok(out) => match serde_json::to_string(&out) {
                 Ok(s) => {
                     println!("{s}");
                     ExitCode::SUCCESS
