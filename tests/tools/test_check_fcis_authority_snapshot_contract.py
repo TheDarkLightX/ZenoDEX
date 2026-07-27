@@ -120,11 +120,17 @@ def test_exact_consumers_profile_covers_the_complete_m4_relation() -> None:
         Path("src/core/nonce_batch_transition.py"),
         Path("src/core/route_settlement.py"),
         Path("src/core/settlement_strong_validator.py"),
-        Path("src/state/support_root.py"),
+        Path("src/state/fcis_route_support_v5.py"),
         Path("src/integration/fcis_spot_shadow.py"),
     )
+    assert Path("src/state/support_root.py") not in EXACT_CONSUMERS_AUTHORITY_PATHS
     assert set(EXACT_REPLAY_AUTHORITY_PATHS) < set(EXACT_CONSUMERS_AUTHORITY_PATHS)
     assert set(EXACT_CONSUMERS_AUTHORITY_PATHS) < set(FINAL_MOUNT_AUTHORITY_PATHS)
+
+
+def test_exact_state_substrate_uses_shared_support_primitives() -> None:
+    assert Path("src/state/support_root_primitives.py") in STATE_SUBSTRATE_AUTHORITY_PATHS
+    assert Path("src/state/support_root.py") not in STATE_SUBSTRATE_AUTHORITY_PATHS
 
 
 def _exact_consumer_dataflow_source() -> str:
@@ -153,6 +159,28 @@ def test_exact_consumers_profile_accepts_one_retained_lineage(tmp_path: Path) ->
     )
 
     assert report["ok"] is True
+
+
+@pytest.mark.parametrize(
+    "legacy_import",
+    (
+        "from src.state.support_root import compute_support_state_root\n",
+        "import src.state.support_root as legacy_support\n",
+    ),
+)
+def test_exact_consumers_profile_rejects_legacy_support_root_import(
+    tmp_path: Path,
+    legacy_import: str,
+) -> None:
+    report = _run_exact_consumer_source(
+        tmp_path,
+        legacy_import + _exact_consumer_dataflow_source(),
+    )
+
+    assert any(
+        finding["detail"] == "exact-consumer-imports-legacy-support-root"
+        for finding in report["violations"]
+    )
 
 
 _NONCE_ENTRY_CALL = """    nonce, nonce_read_trace = _nonce_candidate_observed_v5(

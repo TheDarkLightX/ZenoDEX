@@ -28,12 +28,16 @@ from .state_snapshots import (
     snapshot_nonce_table,
     snapshot_pool_map,
 )
-from .support_root import (
+from .support_root_primitives import (
     INCOMPLETE_SUPPORT_ROOT_PROTOTYPE_VERSION_V1,
     SUPPORT_ROOT_VERSION,
     BatchStateSupport,
-    _encode_committed_support_balances_section_v1,
-    _hash_support_sections_for_version_v1,
+)
+from .support_root_primitives import (
+    encode_committed_support_balances_section_v1 as _encode_committed_support_balances_section_v1,
+)
+from .support_root_primitives import (
+    hash_support_sections_for_version_v1 as _hash_support_sections_for_version_v1,
 )
 
 

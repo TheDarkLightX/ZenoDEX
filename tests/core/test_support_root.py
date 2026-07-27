@@ -6,6 +6,7 @@ import pytest
 
 import src.state.support_root as support_root_module
 from src.state.balances import BalanceTable
+from src.state.fcis_route_support_v5 import route_support_pool_ids_owned_v5
 from src.state.intent_snapshots import OwnedIntentV1, admit_intent_batch
 from src.state.intents import Intent, IntentKind
 from src.state.legacy_state_snapshots import (
@@ -39,6 +40,10 @@ def _iid(n: int) -> str:
 def test_support_root_version_commits_lp_age_schema() -> None:
     assert SUPPORT_ROOT_VERSION == 4
     assert EXACT_SUPPORT_ROOT_VERSION_V1 == 5
+
+
+def test_legacy_and_fcis_support_share_one_exact_route_reader() -> None:
+    assert support_root_module._route_support_pool_ids_owned_v1 is route_support_pool_ids_owned_v5
 
 
 def test_support_root_commits_to_balances_for_add_liquidity_into_new_pool() -> None:

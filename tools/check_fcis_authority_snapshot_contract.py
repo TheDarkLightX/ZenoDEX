@@ -48,6 +48,7 @@ STATE_SUBSTRATE_AUTHORITY_PATHS = (
     Path("src/state/state_snapshots.py"),
     Path("src/state/state_transitions.py"),
     Path("src/state/spot_state_transitions.py"),
+    Path("src/state/support_root_primitives.py"),
     Path("src/state/committed_spot_roots.py"),
     Path("src/state/committed_dex_snapshot.py"),
 )
@@ -92,7 +93,7 @@ EXACT_CONSUMERS_AUTHORITY_PATHS = (
     Path("src/core/fcis_traced_reads_v5.py"),
     Path("src/core/nonce_batch_transition.py"),
     *EXACT_REPLAY_AUTHORITY_PATHS,
-    Path("src/state/support_root.py"),
+    Path("src/state/fcis_route_support_v5.py"),
     Path("src/integration/fcis_spot_shadow.py"),
 )
 _POST_ADMISSION_MUTATION_FORBIDDEN_PATHS = frozenset(
@@ -270,10 +271,7 @@ _UNMOUNTED_EVALUATOR_RESERVED_TOKENS = (
     "evaluate_fcis_step_candidate_v1",
 )
 _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
-    "_compute_support_state_root_for_batch_owned_admitted_v1": (
-        "src/core/fcis_step_evaluator.py",
-        "src/state/support_root.py",
-    ),
+    "_compute_support_state_root_for_batch_owned_admitted_v1": ("src/state/support_root.py",),
     "_evaluate_settlement_strong_admitted_v1": (
         "src/core/fcis_step_evaluator.py",
         "src/core/settlement_strong_validator.py",
@@ -3539,6 +3537,25 @@ def _check_m5_support_trace_contract_v5(
     relative_path: str,
 ) -> list[_Violation]:
     violations: list[_Violation] = []
+    if relative_path in {path.as_posix() for path in FINAL_MOUNT_AUTHORITY_PATHS}:
+        for node in module.body:
+            imported_names: tuple[str, ...]
+            if type(node) is ast.ImportFrom:
+                imported_names = (node.module or "",)
+            elif type(node) is ast.Import:
+                imported_names = tuple(alias.name for alias in node.names)
+            else:
+                continue
+            if any(
+                name == "support_root" or name.endswith(".support_root") for name in imported_names
+            ):
+                violations.append(
+                    _m5_support_violation_v5(
+                        relative_path,
+                        node,
+                        "exact-consumer-imports-legacy-support-root",
+                    )
+                )
     public_fields: dict[str, dict[str, tuple[str, ...]]] = {
         "src/core/fcis_decision_derivation.py": {
             "AcceptV1": (

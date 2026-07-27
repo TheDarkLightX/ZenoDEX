@@ -24,6 +24,7 @@ from ..state.fcis_execution_context_values import (
     FCIS_STEP_CONTEXT_SCHEMA_ID_V1,
     FCISStepExecutionContextV1,
 )
+from ..state.fcis_route_support_v5 import route_support_pool_ids_owned_v5
 from ..state.intent_field_registry import intent_allowed_field_names_v1
 from ..state.intent_snapshots import (
     OwnedIntentV1,
@@ -50,9 +51,9 @@ from ..state.state_snapshots import (
     snapshot_nonce_table,
     snapshot_pool_map,
 )
-from ..state.support_root import LP_LOCK_PUBKEY, _route_support_pool_ids_owned_v1
 from .fcis_state_read_trace_v5 import FCISContextReadTraceV5, FCISStateReadTraceV5
 from .fcis_support_profile_constants_v5 import (
+    FCIS_LP_LOCK_PUBKEY_V5,
     FCIS_SUPPORT_PROFILE_COMPLETE_V5,
     FCIS_SUPPORT_PROFILE_ID_V5,
     FCIS_SUPPORT_PROFILE_VERSION_V5,
@@ -433,7 +434,7 @@ def _create_pool_fragment_v5(intent: OwnedIntentV1) -> _SupportFragmentV5:
     return _SupportFragmentV5(
         balance_keys=((intent.sender_pubkey, asset0), (intent.sender_pubkey, asset1)),
         pool_ids=(pool_id,),
-        lp_keys=((LP_LOCK_PUBKEY, pool_id), (intent.sender_pubkey, pool_id)),
+        lp_keys=((FCIS_LP_LOCK_PUBKEY_V5, pool_id), (intent.sender_pubkey, pool_id)),
         nonce_keys=(intent.sender_pubkey,),
     )
 
@@ -519,7 +520,7 @@ def _route_fragment_v5(
     }
     return _SupportFragmentV5(
         balance_keys=tuple(sorted(balances)),
-        pool_ids=_route_support_pool_ids_owned_v1(intent),
+        pool_ids=route_support_pool_ids_owned_v5(intent),
         nonce_keys=(sender,),
     )
 

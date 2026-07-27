@@ -13,22 +13,38 @@ snapshot instead of the entire global state.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Mapping, Sequence, Tuple
+from typing import TYPE_CHECKING, Mapping, Sequence
 
-from .balance_commitment import LogicalBalanceEntryV1, _encode_logical_balance_entries_v1
-from .balances import AssetId, BalanceTable, PubKey
+from .balance_commitment import _encode_logical_balance_entries_v1
+from .balances import BalanceTable, PubKey
 from .canonical import (
-    domain_sep_bytes,
     encode_bytes,
     encode_uvarint,
     hex_to_bytes_fixed,
-    sha256_hex,
+)
+from .fcis_route_support_v5 import (
+    route_support_pool_ids_owned_v5 as _route_support_pool_ids_owned_v1,
 )
 from .intents import Intent, IntentKind
 from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
 from .pools import PoolState, PoolStatus, compute_pool_id
+from .support_root_primitives import (
+    EXACT_SUPPORT_ROOT_VERSION_V1 as EXACT_SUPPORT_ROOT_VERSION_V1,
+)
+from .support_root_primitives import (
+    INCOMPLETE_SUPPORT_ROOT_PROTOTYPE_VERSION_V1 as INCOMPLETE_SUPPORT_ROOT_PROTOTYPE_VERSION_V1,
+)
+from .support_root_primitives import (
+    SUPPORT_ROOT_VERSION,
+    BatchStateSupport,
+)
+from .support_root_primitives import (
+    encode_committed_support_balances_section_v1 as _encode_committed_support_balances_section_v1,
+)
+from .support_root_primitives import (
+    hash_support_sections_for_version_v1 as _hash_support_sections_for_version_v1,
+)
 
 if TYPE_CHECKING:
     from .intent_snapshots import OwnedIntentV1
@@ -40,9 +56,6 @@ if TYPE_CHECKING:
         CommittedPoolStateV1,
     )
 
-SUPPORT_ROOT_VERSION = 4
-INCOMPLETE_SUPPORT_ROOT_PROTOTYPE_VERSION_V1 = EXACT_SUPPORT_ROOT_VERSION_V1 = 5
-
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
 _POOL_STATUS_CODE: dict[PoolStatus, int] = {
@@ -50,21 +63,6 @@ _POOL_STATUS_CODE: dict[PoolStatus, int] = {
     PoolStatus.FROZEN: 2,
     PoolStatus.DISABLED: 3,
 }
-
-
-@dataclass(frozen=True)
-class BatchStateSupport:
-    """
-    Deterministic, sorted support sets.
-
-    These sets are intentionally *conservative* and can evolve over time; they
-    are versioned by `SUPPORT_ROOT_VERSION`.
-    """
-
-    balance_keys: Tuple[Tuple[PubKey, AssetId], ...]
-    pool_ids: Tuple[str, ...]
-    lp_keys: Tuple[Tuple[PubKey, str], ...]
-    nonce_keys: Tuple[PubKey, ...]
 
 
 def derive_batch_state_support(
@@ -209,27 +207,6 @@ def _encode_legacy_support_balances_section_v1(
     )
 
 
-def _encode_committed_support_balances_section_v1(
-    balances: CommittedBalanceTableV1,
-    support: BatchStateSupport,
-) -> bytes:
-    from .state_snapshot_values import CommittedBalanceTableV1
-    from .state_snapshots import snapshot_balance_table
-
-    if type(balances) is not CommittedBalanceTableV1:
-        raise TypeError("balances must be an exact CommittedBalanceTableV1")
-    admitted = snapshot_balance_table(balances)
-    logical_entries: tuple[LogicalBalanceEntryV1, ...] = tuple(
-        ((pubkey, asset), amount)
-        for pubkey, asset in support.balance_keys
-        if (amount := admitted.get(pubkey, asset)) != 0
-    )
-    return _encode_logical_balance_entries_v1(
-        logical_entries,
-        duplicate_error="duplicate decoded (pubkey, asset) in support balances",
-    )
-
-
 def _hash_support_sections_v1(
     *,
     balances_section: bytes,
@@ -248,35 +225,6 @@ def _hash_support_sections_v1(
         lp_duration_section=lp_duration_section,
         nonce_section=nonce_section,
     )
-
-
-def _hash_support_sections_for_version_v1(
-    *,
-    support_root_version: int,
-    balances_section: bytes,
-    pools_section: bytes,
-    lp_section: bytes,
-    lp_duration_section: bytes,
-    nonce_section: bytes,
-) -> str:
-    """Hash canonical support sections under one explicit protocol version."""
-
-    if type(support_root_version) is not int or support_root_version <= 0:
-        raise TypeError("support_root_version must be an exact positive int")
-    sections = (
-        (b"BAL", balances_section),
-        (b"POL", pools_section),
-        (b"LPB", lp_section),
-        (b"LPA", lp_duration_section),
-        (b"NNC", nonce_section),
-    )
-    if any(type(section) is not bytes for _label, section in sections):
-        raise TypeError("support-root sections must be exact bytes")
-    payload = bytearray(domain_sep_bytes("state_support_root", version=support_root_version))
-    for label, section in sections:
-        payload += label
-        payload += encode_bytes(section)
-    return sha256_hex(bytes(payload))
 
 
 def _compute_support_state_root_from_balances_section_v1(
@@ -587,44 +535,6 @@ def compute_support_state_root_for_batch_committed_v1(
         support=support,
         nonces=nonces,
     )
-
-
-def _route_support_pool_ids_owned_v1(intent: OwnedIntentV1) -> tuple[str, ...]:
-    """Read route pools from one already-admitted owned route graph."""
-
-    from .intent_snapshots import OwnedIntentV1, owned_intent_field_v1
-    from .owned_collections import OwnedMapV1
-
-    if type(intent) is not OwnedIntentV1:
-        raise TypeError("route support intent must be an exact OwnedIntentV1")
-    raw_legs = owned_intent_field_v1(intent, "route_legs", None)
-    raw_fingerprints = owned_intent_field_v1(
-        intent,
-        "route_pool_fingerprints",
-        None,
-    )
-    if type(raw_legs) is not tuple or not raw_legs:
-        raise ValueError("exact route support requires a nonempty leg tuple")
-    if type(raw_fingerprints) is not OwnedMapV1 or not raw_fingerprints:
-        raise TypeError("exact route support requires an owned fingerprint map")
-
-    leg_pool_ids: list[str] = []
-    for raw_leg in raw_legs:
-        if type(raw_leg) is not OwnedMapV1:
-            raise TypeError("exact route support requires owned leg maps")
-        pool_id = raw_leg.get("pool_id")
-        if type(pool_id) is not str or not pool_id:
-            raise ValueError("exact route support requires nonempty pool ids")
-        leg_pool_ids.append(pool_id)
-    fingerprint_pool_ids = tuple(key for key, _value in raw_fingerprints.entries)
-    if any(type(pool_id) is not str or not pool_id for pool_id in fingerprint_pool_ids):
-        raise ValueError("exact route support fingerprint keys must be nonempty strings")
-    if any(type(value) is not str or not value for _key, value in raw_fingerprints.entries):
-        raise ValueError("exact route support fingerprints must be nonempty strings")
-    canonical_leg_pool_ids = tuple(sorted(set(leg_pool_ids)))
-    if canonical_leg_pool_ids != tuple(sorted(fingerprint_pool_ids)):
-        raise ValueError("exact route support legs and fingerprints disagree")
-    return canonical_leg_pool_ids
 
 
 def _derive_batch_state_support_owned_v1(
