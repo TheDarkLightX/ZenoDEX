@@ -1,0 +1,36 @@
+{
+  "schema": "zenodex/fcis-m5-p4b0-legacy-refinement-requirements/v1",
+  "required_ancestor": "fd1ef9f1",
+  "authorized_outcome": "M5_P4B0_REFINEMENT_EVIDENCE_ONLY",
+  "normative_files": [
+    "CONTRACT.md",
+    "IMPLEMENTOR_PROMPT.md",
+    "README.md",
+    "REVIEW_CHECKLIST.md",
+    "TEST_MATRIX.md",
+    "check_packet.py",
+    "requirements.json"
+  ],
+  "requirements": [
+    {"id":"P4B0-001","name":"source_bound_inputs","test_ids":["P4B0-INPUT-001"]},
+    {"id":"P4B0-002","name":"canonical_byte_parser","test_ids":["P4B0-PARSE-001","P4B0-PARSE-002"]},
+    {"id":"P4B0-003","name":"closed_combinator_admission","test_ids":["P4B0-ADMIT-001","P4B0-ADMIT-002"]},
+    {"id":"P4B0-004","name":"immutable_exact_values","test_ids":["P4B0-IMMUT-001"]},
+    {"id":"P4B0-005","name":"code_owned_policy_registry","test_ids":["P4B0-POLICY-001","P4B0-POLICY-002"]},
+    {"id":"P4B0-006","name":"same_input_precondition","test_ids":["P4B0-INPUT-002"]},
+    {"id":"P4B0-007","name":"result_kind_refinement","test_ids":["P4B0-RESULT-001"]},
+    {"id":"P4B0-008","name":"rejection_refinement","test_ids":["P4B0-REJECT-001","P4B0-REJECT-002"]},
+    {"id":"P4B0-009","name":"accepted_state_refinement","test_ids":["P4B0-STATE-001","P4B0-STATE-002"]},
+    {"id":"P4B0-010","name":"economic_output_refinement","test_ids":["P4B0-ECON-001"]},
+    {"id":"P4B0-011","name":"exact_patch_consistency","test_ids":["P4B0-PATCH-001","P4B0-PATCH-002"]},
+    {"id":"P4B0-012","name":"receipt_bundle_binding","test_ids":["P4B0-BUNDLE-001","P4B0-BUNDLE-002"]},
+    {"id":"P4B0-013","name":"replay_outbox_consistency","test_ids":["P4B0-OUTBOX-001","P4B0-REPLAY-001"]},
+    {"id":"P4B0-014","name":"fixed_version_deltas","test_ids":["P4B0-VERSION-001","P4B0-VERSION-002"]},
+    {"id":"P4B0-015","name":"unknown_fails_closed","test_ids":["P4B0-UNKNOWN-001","P4B0-UNKNOWN-002"]},
+    {"id":"P4B0-016","name":"resource_bounds","test_ids":["P4B0-BUDGET-001","P4B0-BUDGET-002"]},
+    {"id":"P4B0-017","name":"deterministic_artifact","test_ids":["P4B0-DETERMINISM-001"]},
+    {"id":"P4B0-018","name":"mutation_evidence","test_ids":["P4B0-MUTANTS-001"]},
+    {"id":"P4B0-019","name":"no_authority_switch","test_ids":["P4B0-NOMOUNT-001","P4B0-NOMOUNT-002"]},
+    {"id":"P4B0-020","name":"fail_closed_promotion_gate","test_ids":["P4B0-GATE-001","P4B0-GATE-002"]}
+  ]
+}
