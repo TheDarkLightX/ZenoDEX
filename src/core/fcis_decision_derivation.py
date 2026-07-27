@@ -54,6 +54,7 @@ from .fcis_decision_values import (
     FCIS_AUTHORITY_SCHEMA_VERSION_V1,
     FCIS_REJECTION_RECEIPT_SCHEMA_ID_V1,
     AcceptanceReceiptClaimV1,
+    CommittedFailureReceiptClaimV1,
     FCISRejectCodeV1,
     ReceiptBindingClaimV1,
     RejectionPathIndexPartSourceV1,
@@ -156,13 +157,18 @@ class CommittedFailureV1:
 
     next_state: FCISCommittedStateV1
     commit_plan: CommitPlanV1
-    receipt: object
+    receipt: CommittedFailureReceiptClaimV1
     _construction_token: InitVar[object]
 
     def __post_init__(self, _construction_token: object) -> None:
         if _construction_token is not _DECISION_CONSTRUCTION_TOKEN_V1:
             raise TypeError("CommittedFailureV1 requires controlled derivation")
-        raise TypeError("the current spot profile has no committed-failure rule")
+        if type(self.next_state) is not FCISCommittedStateV1:
+            raise TypeError("committed-failure next_state must be exact")
+        if type(self.commit_plan) is not CommitPlanV1:
+            raise TypeError("committed-failure commit_plan must be exact")
+        if type(self.receipt) is not CommittedFailureReceiptClaimV1:
+            raise TypeError("committed-failure receipt must be exact")
 
 
 DecisionV1: TypeAlias = AcceptV1 | RejectV1 | CommittedFailureV1
@@ -245,6 +251,29 @@ def _authoritative_reject_v1(
     receipt = cast(RejectionReceiptClaimV1, admitted.value)
     _claim_root_v1(FCIS_REJECTION_RECEIPT_SCHEMA_ID_V1, receipt)
     return RejectV1(receipt, _DECISION_CONSTRUCTION_TOKEN_V1)
+
+
+def _bundle_derivation_reject_v1(
+    decision: AcceptV1 | CommittedFailureV1,
+) -> RejectV1:
+    """Return one canonical no-bundle rejection for internal derivation mismatch."""
+
+    if type(decision) not in (AcceptV1, CommittedFailureV1):
+        raise TypeError("bundle rejection requires an exact committable decision")
+    binding = decision.receipt.binding
+    public = FCISStepEvaluationRejectV1(
+        phase=FCISStepEvaluationPhaseV1.EVIDENCE,
+        code=FCISRejectCodeV1.CANONICAL_BINDING_REJECTED.value,
+        path=("commit_bundle",),
+        public_reason="commit bundle derivation rejected",
+    )
+    return _authoritative_reject_v1(
+        public,
+        budget_hash=binding.budget_hash,
+        command_root=binding.command_or_batch_root,
+        execution_context_hash=binding.execution_context_hash,
+        pre_state_root=binding.pre_state_root,
+    )
 
 
 def _budget_admission_reject_v1(reject: AdmitReject) -> RejectV1:
@@ -454,8 +483,15 @@ def _effect_count_v1(evaluation: FCISStepEvaluationOkV1) -> int:
         + len(settlement.balance_deltas)
         + len(settlement.reserve_deltas)
         + len(settlement.lp_deltas)
-        + (0 if settlement.events is None else len(settlement.events))
+        + _observed_outbox_records_v1(evaluation)
     )
+
+
+def _observed_outbox_records_v1(evaluation: FCISStepEvaluationOkV1) -> int:
+    """Count retained settlement events that will become outbox records."""
+
+    events = evaluation.material.settlement.events
+    return 0 if events is None else len(events)
 
 
 def _budget_violation_v1(
@@ -497,6 +533,11 @@ def _budget_violation_v1(
             budget.max_patch_writes,
         ),
         ("max_effects", _effect_count_v1(evaluation), budget.max_effects),
+        (
+            "max_outbox_records",
+            _observed_outbox_records_v1(evaluation),
+            budget.max_outbox_records,
+        ),
         ("max_candidates", 1, budget.max_candidates),
         ("max_witness_bytes", evidence.witness_bytes, budget.max_witness_bytes),
     )

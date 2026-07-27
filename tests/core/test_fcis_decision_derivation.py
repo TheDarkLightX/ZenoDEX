@@ -6,8 +6,11 @@ import pytest
 
 import src.core.fcis_decision_derivation as decision_derivation
 import src.core.fcis_step_evaluator as step_evaluator
+from src.core.batch_clearing import compute_settlement
+from src.core.dex import DexState
 from src.core.fcis_authority_admission import (
     CanonicalAuthorityClaimBytesV1,
+    admit_fcis_authority_claim_v1,
     encode_fcis_authority_claim_v1,
 )
 from src.core.fcis_decision_derivation import (
@@ -18,12 +21,21 @@ from src.core.fcis_decision_derivation import (
     acceptance_receipt_root_v1,
     evaluate_fcis_decision_v1,
 )
-from src.core.fcis_decision_values import FCIS_REJECTION_RECEIPT_SCHEMA_ID_V1
+from src.core.fcis_decision_values import (
+    FCIS_COMMITTED_FAILURE_RECEIPT_SCHEMA_ID_V1,
+    FCIS_REJECTION_RECEIPT_SCHEMA_ID_V1,
+    CommittedFailureReceiptClaimV1,
+    CommittedFailureReceiptSourceV1,
+    FCISCommittedFailureCodeV1,
+)
 from src.core.fcis_step_evaluation_values import FCISStepEvaluationOkV1
 from src.core.fcis_step_evaluator import evaluate_fcis_step_candidate_v1
 from src.core.settlement_snapshots import snapshot_settlement
+from src.state import BalanceTable, LPTable
 from src.state.fcis_committed_state_values import FCISCommittedStateV1
 from src.state.intent_snapshots import admit_intent_batch
+from src.state.intents import Intent, IntentKind
+from src.state.snapshot_combinators import AdmitOk
 from src.state.state_transitions import (
     BalancePatchApplyOkV1,
     CanonicalBalancePatchV1,
@@ -40,6 +52,16 @@ from tests.core.test_fcis_step_evaluator import (
     _state_source,
     _swap_case,
 )
+from tests.core.test_fcis_support_profile_v5 import (
+    SENDER,
+    _iid,
+)
+from tests.core.test_fcis_support_profile_v5 import (
+    _context_source as _support_context_source,
+)
+from tests.core.test_fcis_support_profile_v5 import (
+    _state_source as _support_state_source,
+)
 
 
 def _exact_inputs() -> dict[str, object]:
@@ -49,6 +71,51 @@ def _exact_inputs() -> dict[str, object]:
         "settlement": snapshot_settlement(settlement),
         "intents": admit_intent_batch([intent]),
         "context": _context_source(),
+        "budget": FCIS_SPOT_TRANSITION_BUDGET_V1,
+    }
+
+
+def _two_event_inputs() -> dict[str, object]:
+    """Build one replay-valid batch with exactly two canonical events."""
+
+    assets = tuple("0x" + f"{index:02x}" * 32 for index in range(1, 5))
+    balances = BalanceTable()
+    for asset in assets:
+        balances.set(SENDER, asset, 10_000_000)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable())
+    intents = tuple(
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.CREATE_POOL,
+            intent_id=_iid(200 + index),
+            sender_pubkey=SENDER,
+            deadline=10_000,
+            fields={
+                "asset0": assets[index * 2],
+                "asset1": assets[index * 2 + 1],
+                "fee_bps": 30 + index,
+                "amount0": 2_000_000,
+                "amount1": 2_000_000,
+                "nonce": index + 1,
+            },
+        )
+        for index in range(2)
+    )
+    settlement = compute_settlement(
+        list(intents),
+        state.pools,
+        state.balances,
+        state.lp_balances,
+        swap_ordering="greedy_ab_refined",
+    )
+    assert settlement.events is not None
+    assert len(settlement.events) == 2
+    return {
+        "state_source": _support_state_source(state),
+        "settlement": snapshot_settlement(settlement),
+        "intents": admit_intent_batch(intents),
+        "context": _support_context_source(),
         "budget": FCIS_SPOT_TRANSITION_BUDGET_V1,
     }
 
@@ -142,6 +209,7 @@ def test_accept_is_deterministic_and_reproduces_one_exact_successor() -> None:
 
 
 def test_authoritative_decision_constructors_are_controlled() -> None:
+    """M5-P3-BUNDLE-010: reserved failure is typed but has no production rule."""
     accept = _accept()
     with pytest.raises(TypeError, match="controlled derivation"):
         AcceptV1(accept.next_state, accept.commit_plan, accept.receipt, object())
@@ -153,12 +221,22 @@ def test_authoritative_decision_constructors_are_controlled() -> None:
     assert type(rejection) is RejectV1
     with pytest.raises(TypeError, match="controlled derivation"):
         RejectV1(rejection.receipt, object())
-    with pytest.raises(TypeError, match="no committed-failure rule"):
+    source = CommittedFailureReceiptSourceV1(
+        binding=accept.receipt.binding,
+        failure_code=FCISCommittedFailureCodeV1.RESERVED_UNMOUNTED,
+    )
+    admitted = admit_fcis_authority_claim_v1(
+        FCIS_COMMITTED_FAILURE_RECEIPT_SCHEMA_ID_V1,
+        source,
+    )
+    assert type(admitted) is AdmitOk
+    assert type(admitted.value) is CommittedFailureReceiptClaimV1
+    with pytest.raises(TypeError, match="controlled derivation"):
         CommittedFailureV1(
             accept.next_state,
             accept.commit_plan,
-            accept.receipt,
-            decision_derivation._DECISION_CONSTRUCTION_TOKEN_V1,
+            admitted.value,
+            object(),
         )
 
 
@@ -303,3 +381,38 @@ def test_accept_retains_only_exact_owned_values_after_source_mutation() -> None:
 
     assert type(result.next_state) is FCISCommittedStateV1
     assert acceptance_receipt_root_v1(result) == before
+
+
+def test_outbox_budget_accepts_exactly_at_the_observed_count() -> None:
+    """M5-P3-BUDGET-001: the exact outbox bound is accepted."""
+
+    inputs = _two_event_inputs()
+    result = evaluate_fcis_decision_v1(
+        **{
+            **inputs,
+            "budget": replace(
+                FCIS_SPOT_TRANSITION_BUDGET_V1,
+                max_outbox_records=2,
+            ),
+        }
+    )
+
+    assert type(result) is AcceptV1
+
+
+def test_outbox_budget_rejects_one_record_over_before_bundle_derivation() -> None:
+    """M5-P3-BUDGET-002: one over the outbox bound is a typed rejection."""
+
+    inputs = _two_event_inputs()
+    result = evaluate_fcis_decision_v1(
+        **{
+            **inputs,
+            "budget": replace(
+                FCIS_SPOT_TRANSITION_BUDGET_V1,
+                max_outbox_records=1,
+            ),
+        }
+    )
+
+    assert type(result) is RejectV1
+    assert result.receipt.public_reason == "transition budget exceeded: max_outbox_records"

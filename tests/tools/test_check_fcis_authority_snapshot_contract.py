@@ -58,7 +58,9 @@ def test_m5_authority_graph_paths_are_mandatory() -> None:
         Path("src/core/fcis_authority_admission.py"),
         Path("src/core/fcis_authority_dispatch.py"),
         Path("src/core/fcis_authority_schema.py"),
+        Path("src/core/fcis_commit_bundle_derivation.py"),
         Path("src/core/fcis_commit_bundle_values.py"),
+        Path("src/core/fcis_commit_reference.py"),
         Path("src/core/fcis_decision_derivation.py"),
         Path("src/core/fcis_decision_values.py"),
         Path("src/core/fcis_outbox_values.py"),
@@ -104,6 +106,8 @@ def test_exact_replay_profile_covers_the_m3_relation_and_route_consumer() -> Non
 def test_exact_consumers_profile_covers_the_complete_m4_relation() -> None:
     assert EXACT_CONSUMERS_AUTHORITY_PATHS == (
         Path("src/core/fcis_step_evaluator.py"),
+        Path("src/core/fcis_commit_bundle_derivation.py"),
+        Path("src/core/fcis_commit_reference.py"),
         Path("src/core/fcis_decision_derivation.py"),
         Path("src/core/fcis_state_read_trace_v5.py"),
         Path("src/core/fcis_support_profile_constants_v5.py"),
@@ -2186,3 +2190,320 @@ def test_checker_is_path_scoped_and_deterministic(tmp_path: Path) -> None:
 def test_checker_reports_syntax_errors_without_escaping(tmp_path: Path) -> None:
     report = _run(tmp_path, "def broken(:\n")
     assert "SYNTAX_ERROR" in _codes(report)
+
+
+def _commit_bundle_derivation_source() -> str:
+    module = Path(__file__).resolve().parents[2] / "src/core/fcis_commit_bundle_derivation.py"
+    return module.read_text(encoding="utf-8")
+
+
+def _run_commit_bundle_derivation_source(
+    tmp_path: Path,
+    source: str,
+) -> dict[str, object]:
+    relative = Path("src/core/fcis_commit_bundle_derivation.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(source, encoding="utf-8")
+    return check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="authority-graph",
+    )
+
+
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    [
+        (
+            "    decision: AcceptV1 | CommittedFailureV1\n"
+            "    outbox_plan: OutboxPlanV1\n"
+            "    _canonical_bundle_bytes: bytes\n"
+            "    _bundle_root: str\n"
+            "    _construction_token: InitVar[object]",
+            "    decision: AcceptV1 | CommittedFailureV1\n"
+            "    outbox_plan: OutboxPlanV1\n"
+            "    _canonical_bundle_bytes: bytes\n"
+            "    _bundle_root: str\n"
+            "    _construction_token: InitVar[object]\n"
+            "    extra_field: object",
+        ),
+    ],
+)
+def test_authority_graph_profile_kills_commit_bundle_shape_mutations(
+    tmp_path: Path,
+    anchor: str,
+    replacement: str,
+) -> None:
+    source = _commit_bundle_derivation_source()
+    assert source.count(anchor) == 1
+    report = _run_commit_bundle_derivation_source(
+        tmp_path,
+        source.replace(anchor, replacement, 1),
+    )
+    assert "FCIS_SUPPORT_TRACE_V5" in _codes(report)
+
+
+def test_authority_graph_profile_kills_commit_bundle_construction_outside_builder(
+    tmp_path: Path,
+) -> None:
+    source = _commit_bundle_derivation_source()
+    anchor = "def build_commit_bundle_v1(decision: DecisionV1) -> CommitBundleBuildResultV1:"
+    assert source.count(anchor) == 1
+    mutated = source.replace(
+        anchor,
+        "def _wrong_construction_site():\n"
+        "    return CommitBundleV1(object(), object(), b'', '0x', _COMMIT_BUNDLE_CONSTRUCTION_TOKEN_V1)\n\n"
+        + anchor,
+        1,
+    )
+    report = _run_commit_bundle_derivation_source(tmp_path, mutated)
+    assert "CONSTRUCTION_CALLSITE" in _codes(report)
+
+
+def _commit_reference_source() -> str:
+    module = Path(__file__).resolve().parents[2] / "src/core/fcis_commit_reference.py"
+    return module.read_text(encoding="utf-8")
+
+
+def _run_commit_reference_source(
+    tmp_path: Path,
+    source: str,
+) -> dict[str, object]:
+    relative = Path("src/core/fcis_commit_reference.py")
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_text(source, encoding="utf-8")
+    return check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="authority-graph",
+    )
+
+
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    [
+        (
+            "    current_state: FCISCommittedStateV1\n"
+            "    publications: tuple[ReferencePublicationV1, ...]",
+            "    current_state: FCISCommittedStateV1\n"
+            "    publications: tuple[ReferencePublicationV1, ...]\n"
+            "    extra_field: object",
+        ),
+        (
+            "class ReferencePublicationV1:\n"
+            '    """One complete publication retaining the full bundle lineage."""\n\n'
+            "    bundle: CommitBundleV1",
+            "class ReferencePublicationV1:\n"
+            '    """One complete publication retaining the full bundle lineage."""\n\n'
+            "    bundle: CommitBundleV1\n    extra: object",
+        ),
+    ],
+)
+def test_authority_graph_profile_kills_reference_store_shape_mutations(
+    tmp_path: Path,
+    anchor: str,
+    replacement: str,
+) -> None:
+    source = _commit_reference_source()
+    assert source.count(anchor) == 1
+    report = _run_commit_reference_source(
+        tmp_path,
+        source.replace(anchor, replacement, 1),
+    )
+    assert "FCIS_SUPPORT_TRACE_V5" in _codes(report)
+
+
+def _replace_inside_function(
+    source: str,
+    function_name: str,
+    anchor: str,
+    replacement: str,
+) -> str:
+    start = source.index(f"def {function_name}(")
+    end = source.find("\ndef ", start + 4)
+    if end < 0:
+        end = len(source)
+    body = source[start:end]
+    assert body.count(anchor) == 1
+    return source[:start] + body.replace(anchor, replacement, 1) + source[end:]
+
+
+@pytest.mark.parametrize(
+    ("function_name", "anchor", "replacement"),
+    [
+        ("_effect_identity_preimage_v1", "_raw32(receipt_root)", "bytes(32)"),
+        ("_effect_identity_preimage_v1", "_u32_be(index)", "bytes(4)"),
+        (
+            "_effect_identity_preimage_v1",
+            "_u32_be(len(kind_utf8))\n        + kind_utf8",
+            '_u32_be(0)\n        + b""',
+        ),
+        (
+            "_effect_identity_preimage_v1",
+            "_u64_be(len(payload_bytes))\n        + payload_bytes",
+            '_u64_be(0)\n        + b""',
+        ),
+        ("_idempotency_preimage_v1", "_raw32(receipt_root)", "bytes(32)"),
+        ("_idempotency_preimage_v1", "_u32_be(index)", "bytes(4)"),
+        ("_idempotency_preimage_v1", "_raw32(effect_identity)", "bytes(32)"),
+    ],
+)
+def test_m5_p3_d07_kills_each_identity_framing_omission(
+    tmp_path: Path,
+    function_name: str,
+    anchor: str,
+    replacement: str,
+) -> None:
+    source = _commit_bundle_derivation_source()
+    mutated = _replace_inside_function(source, function_name, anchor, replacement)
+
+    report = _run_commit_bundle_derivation_source(tmp_path, mutated)
+
+    assert "FCIS_M5_P3" in _codes(report)
+
+
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    [
+        (
+            "def build_commit_bundle_v1(decision: DecisionV1) -> CommitBundleBuildResultV1:",
+            "def build_commit_bundle_v1(\n"
+            "    decision: DecisionV1, outbox_plan: object\n"
+            ") -> CommitBundleBuildResultV1:",
+        ),
+        (
+            "    plan_source = OutboxPlanSourceV1(records=sources)",
+            "    _ = OutboxPlanV1(())\n    plan_source = OutboxPlanSourceV1(records=sources)",
+        ),
+        (
+            "            return _bundle_derivation_reject_v1(decision)",
+            "            return decision",
+        ),
+        (
+            "        except (OverflowError, TypeError, ValueError):",
+            "        except Exception:",
+        ),
+    ],
+)
+def test_m5_p3_d07_kills_bundle_authority_mutations(
+    tmp_path: Path,
+    anchor: str,
+    replacement: str,
+) -> None:
+    source = _commit_bundle_derivation_source()
+    assert source.count(anchor) == 1
+
+    report = _run_commit_bundle_derivation_source(
+        tmp_path,
+        source.replace(anchor, replacement, 1),
+    )
+
+    assert "FCIS_M5_P3" in _codes(report)
+
+
+def test_m5_p3_d07_kills_missing_outbox_budget_check(tmp_path: Path) -> None:
+    source = _decision_derivation_source()
+    anchor = (
+        "        (\n"
+        '            "max_outbox_records",\n'
+        "            _observed_outbox_records_v1(evaluation),\n"
+        "            budget.max_outbox_records,\n"
+        "        ),\n"
+    )
+    assert source.count(anchor) == 1
+
+    report = _run_decision_derivation_source(tmp_path, source.replace(anchor, "", 1))
+
+    assert "FCIS_M5_P3" in _codes(report)
+
+
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    [
+        ("    bundle: object,", "    bundle: CommitBundleClaimV1,"),
+        (
+            "    if not _revalidate_store_v1(exact_store):",
+            "    _revalidate_store_v1(exact_store)\n    if False:",
+        ),
+        (
+            "    if not _revalidate_bundle_v1(bundle):",
+            "    _revalidate_bundle_v1(bundle)\n    if False:",
+        ),
+        (
+            "        if not _has_exact_type_v1(decision.receipt, receipt_type):\n"
+            "            return False",
+            "        _has_exact_type_v1(decision.receipt, receipt_type)",
+        ),
+        (
+            "        recomputed_outbox = recompute_outbox_plan_v1(exact_bundle)",
+            "        recomputed_outbox = exact_bundle.outbox_plan",
+        ),
+        (
+            "        recomputed_bytes, recomputed_root = recompute_bundle_root_v1(exact_bundle)",
+            "        recomputed_bytes = exact_bundle._canonical_bundle_bytes\n"
+            "        recomputed_root = exact_bundle._bundle_root",
+        ),
+        (
+            "    if _bundle_root_in_publications_v1(exact_store, exact_bundle._bundle_root):",
+            "    if False and _bundle_root_in_publications_v1(\n"
+            "        exact_store, exact_bundle._bundle_root\n"
+            "    ):",
+        ),
+        (
+            "    if observed_pre_root != expected_pre_root:",
+            "    if False and observed_pre_root != expected_pre_root:",
+        ),
+        (
+            "        applied = _apply_patch_atoms_v1(exact_store.current_state, exact_bundle)",
+            "        applied = successor",
+        ),
+        (
+            "    if successor_root != expected_successor_root:",
+            "    if False and successor_root != expected_successor_root:",
+        ),
+        (
+            "            ReferenceCommitStatusV1.CRASHED_BEFORE_LINEARIZATION,\n"
+            "            exact_store,",
+            "            ReferenceCommitStatusV1.CRASHED_BEFORE_LINEARIZATION,\n"
+            "            object(),",
+        ),
+        (
+            "            ReferenceCommitStatusV1.CRASHED_AFTER_LINEARIZATION,\n"
+            "            new_store,",
+            "            ReferenceCommitStatusV1.CRASHED_AFTER_LINEARIZATION,\n"
+            "            exact_store,",
+        ),
+        (
+            "    publication = ReferencePublicationV1(exact_bundle)",
+            "    exact_store.publications.append(ReferencePublicationV1(exact_bundle))\n"
+            "    publication = ReferencePublicationV1(exact_bundle)",
+        ),
+        (
+            "    if not _revalidate_store_v1(exact_store):",
+            "    _ = ReferencePublicationV1(cast(CommitBundleV1, bundle))\n"
+            "    if not _revalidate_store_v1(exact_store):",
+        ),
+        (
+            "    except (AttributeError, OverflowError, TypeError, ValueError):",
+            "    except Exception:",
+        ),
+    ],
+)
+def test_m5_p3_d07_kills_reference_commit_mutations(
+    tmp_path: Path,
+    anchor: str,
+    replacement: str,
+) -> None:
+    source = _commit_reference_source()
+    assert anchor in source
+    mutated = source.replace(anchor, replacement, 1)
+
+    report = _run_commit_reference_source(tmp_path, mutated)
+
+    assert {"FCIS_M5_P3", "CLAIM_AUTHORITY_ESCAPE"} & _codes(report)
