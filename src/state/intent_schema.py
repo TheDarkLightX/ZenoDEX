@@ -10,6 +10,10 @@ from ..core.domain_limits import (
     DEX_POOL_RESERVE_MAX,
     DEX_SWAP_AMOUNT_MAX,
 )
+from .fcis_route_binding_schema import (
+    ROUTE_LEGS_SCHEMA_V1,
+    ROUTE_POOL_FINGERPRINTS_SCHEMA_V1,
+)
 from .intent_field_registry import (
     intent_allowed_field_names_v1,
     intent_required_field_names_v1,
@@ -24,7 +28,7 @@ from .intents import (
     ValidatedIntent,
 )
 from .owned_collections import OwnedEnumV1, OwnedMapV1
-from .owned_json import JSON_OBJECT_SCHEMA_V1, JSON_VALUE_SCHEMA_V1, OwnedJsonValueV1
+from .owned_json import JSON_OBJECT_SCHEMA_V1, OwnedJsonValueV1
 from .pools import normalize_curve_config, normalize_pool_asset_pair
 from .snapshot_combinators import (
     DeclaredFieldV1,
@@ -112,8 +116,8 @@ _FIELD_SCHEMAS_V1: tuple[tuple[str, SchemaV1], ...] = (
     ("total_min_amount_out", ExactInt(0, DEX_SWAP_AMOUNT_MAX)),
     ("total_amount_out", ExactInt(1, DEX_SWAP_AMOUNT_MAX)),
     ("total_max_amount_in", ExactInt(0, DEX_SWAP_AMOUNT_MAX)),
-    ("route_legs", JSON_VALUE_SCHEMA_V1),
-    ("route_pool_fingerprints", JSON_VALUE_SCHEMA_V1),
+    ("route_legs", ROUTE_LEGS_SCHEMA_V1),
+    ("route_pool_fingerprints", ROUTE_POOL_FINGERPRINTS_SCHEMA_V1),
 )
 
 _KIND_FIELD_SCHEMA_OVERRIDES_V1: tuple[tuple[IntentKind, str, SchemaV1], ...] = (
