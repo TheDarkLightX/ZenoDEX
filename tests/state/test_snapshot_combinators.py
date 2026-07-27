@@ -6,7 +6,7 @@ from dataclasses import fields as dataclass_fields
 from enum import Enum, IntEnum
 from itertools import permutations
 from types import MappingProxyType
-from typing import cast, final
+from typing import cast, final, get_args
 
 import pytest
 
@@ -26,6 +26,7 @@ from src.state.snapshot_combinators import (
     ExactInt,
     ExactKeyedMap,
     ExactPair,
+    ExactProduct,
     ExactString,
     KeySortValue,
     LimitProfileCode,
@@ -599,6 +600,189 @@ def test_exact_pair_owns_children_in_order() -> None:
     schema = ExactPair(ExactInt(0, 9), ExactString(StringRuleV1.NON_EMPTY, 4))
     assert _admit(schema, (2, "ok")) == AdmitOk((2, "ok"))
     assert _admit(schema, [2, "ok"]) == AdmitReject(AdmitCode.WRONG_CONTAINER, ())
+
+
+def test_exact_product_admits_canonical_heterogeneous_list_in_order() -> None:
+    schema = ExactProduct(
+        (SequenceSourceKind.EXACT_LIST,),
+        (
+            ExactString(
+                StringRuleV1.EXACT_LITERAL,
+                64,
+                exact_literal="zenodex/fcis-authority-state/v1",
+            ),
+            ExactInt(0, 0),
+            ExactInt(0, 0),
+        ),
+    )
+
+    assert _admit(
+        schema,
+        ["zenodex/fcis-authority-state/v1", 0, 0],
+    ) == AdmitOk(("zenodex/fcis-authority-state/v1", 0, 0))
+    assert _admit(
+        schema,
+        ("zenodex/fcis-authority-state/v1", 0, 0),
+    ) == AdmitReject(AdmitCode.WRONG_CONTAINER, ())
+
+    tuple_schema = ExactProduct(
+        (SequenceSourceKind.EXACT_TUPLE,),
+        (ExactString(StringRuleV1.NON_EMPTY, 4), ExactInt(0, 9)),
+    )
+    assert _admit(tuple_schema, ("v1", 1)) == AdmitOk(("v1", 1))
+    assert _admit(tuple_schema, ["v1", 1]) == AdmitReject(
+        AdmitCode.WRONG_CONTAINER,
+        (),
+    )
+
+
+def test_exact_product_rejects_wrong_arity_and_subclass_without_hooks() -> None:
+    schema = ExactProduct(
+        (SequenceSourceKind.EXACT_LIST,),
+        (ExactInt(0, 9), ExactBool()),
+    )
+
+    assert _admit(schema, [1]) == AdmitReject(AdmitCode.WRONG_CONTAINER, ())
+    assert _admit(schema, [1, True, 2]) == AdmitReject(AdmitCode.WRONG_CONTAINER, ())
+
+    class _HostileList(list[object]):
+        called = False
+
+        def __len__(self) -> int:
+            self.called = True
+            raise AssertionError("must not inspect a list subclass")
+
+        def __iter__(self):
+            self.called = True
+            raise AssertionError("must not iterate a list subclass")
+
+    hostile = _HostileList([1, True])
+    assert _admit(schema, hostile) == AdmitReject(AdmitCode.WRONG_CONTAINER, ())
+    assert hostile.called is False
+
+
+def test_exact_product_reports_the_first_indexed_rejection() -> None:
+    schema = ExactProduct(
+        (SequenceSourceKind.EXACT_LIST,),
+        (ExactInt(0, 9), ExactBool(), ExactString(StringRuleV1.NON_EMPTY, 4)),
+    )
+
+    assert _admit(schema, [1, 0, ""]) == AdmitReject(
+        AdmitCode.WRONG_EXACT_TYPE,
+        (1,),
+    )
+
+
+def test_exact_product_enforces_collection_and_node_budgets() -> None:
+    schema = ExactProduct(
+        (SequenceSourceKind.EXACT_LIST,),
+        (ExactInt(0, 9), ExactInt(0, 9), ExactInt(0, 9)),
+    )
+
+    assert _admit(
+        schema,
+        [1, 2, 3],
+        limits=_limits(max_collection_items=2),
+    ) == AdmitReject(AdmitCode.ITEM_LIMIT, ())
+    assert _admit(
+        schema,
+        [1, 2, 3],
+        limits=_limits(max_nodes=3, max_collection_items=3),
+    ) == AdmitReject(AdmitCode.ITEM_LIMIT, (2,))
+
+
+def test_exact_product_owns_nested_values_and_rejects_cycles() -> None:
+    schema = ExactProduct(
+        (SequenceSourceKind.EXACT_LIST,),
+        (
+            SequenceOf(
+                (SequenceSourceKind.EXACT_LIST,),
+                ExactInt(0, 9),
+                1,
+                2,
+            ),
+        ),
+    )
+    nested = [1, 2]
+    accepted = _admit(schema, [nested])
+    assert accepted == AdmitOk(((1, 2),))
+    nested[0] = 9
+    assert accepted == AdmitOk(((1, 2),))
+
+    cyclic: list[object] = []
+    cyclic.append(cyclic)
+    assert _admit(schema, cyclic) == AdmitReject(AdmitCode.CYCLE, (0,))
+
+
+def test_exact_product_schema_is_closed_and_acyclic() -> None:
+    with pytest.raises(ValueError, match="nonempty"):
+        _registry(ExactProduct((SequenceSourceKind.EXACT_LIST,), ()))
+    with pytest.raises(ValueError, match="duplicate"):
+        _registry(
+            ExactProduct(
+                (SequenceSourceKind.EXACT_LIST, SequenceSourceKind.EXACT_LIST),
+                (ExactInt(0, 9),),
+            )
+        )
+
+    corrupted = ExactProduct(
+        (SequenceSourceKind.EXACT_LIST,),
+        (ExactInt(0, 9),),
+    )
+    object.__setattr__(corrupted, "elements", [ExactInt(0, 9)])
+    with pytest.raises(TypeError, match="exact tuple"):
+        _registry(corrupted)
+
+    cyclic_schema = ExactProduct(
+        (SequenceSourceKind.EXACT_LIST,),
+        (ExactInt(0, 9),),
+    )
+    object.__setattr__(cyclic_schema, "elements", (cyclic_schema,))
+    with pytest.raises(ValueError, match="cyclic"):
+        _registry(cyclic_schema)
+
+
+def test_exact_product_is_not_a_map_key_schema_in_v1() -> None:
+    product = ExactProduct(
+        (SequenceSourceKind.EXACT_TUPLE,),
+        (ExactInt(0, 9), ExactString(StringRuleV1.NON_EMPTY, 4)),
+    )
+    with pytest.raises(TypeError, match="no canonical total order"):
+        _registry(MapOf(product, ExactInt(0, 9), 2, "test/map/v1"))
+
+
+def test_exact_product_is_bound_to_closed_validation_and_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.state.snapshot_combinators as combinators
+
+    assert ExactProduct in get_args(SchemaV1)
+    schema = ExactProduct(
+        (SequenceSourceKind.EXACT_LIST,),
+        (ExactInt(0, 9),),
+    )
+
+    class _ValidationReached(RuntimeError):
+        pass
+
+    def validation_reached(*_args: object) -> None:
+        raise _ValidationReached
+
+    original_validator = combinators._validate_product_schema
+    monkeypatch.setattr(combinators, "_validate_product_schema", validation_reached)
+    with pytest.raises(_ValidationReached):
+        _registry(schema)
+    monkeypatch.setattr(combinators, "_validate_product_schema", original_validator)
+
+    class _AdmissionReached(RuntimeError):
+        pass
+
+    def admission_reached(*_args: object) -> None:
+        raise _AdmissionReached
+
+    monkeypatch.setattr(combinators, "_admit_product", admission_reached)
+    with pytest.raises(_AdmissionReached):
+        _admit(schema, [1])
 
 
 def test_map_rejects_broad_or_subclass_sources_without_hooks() -> None:

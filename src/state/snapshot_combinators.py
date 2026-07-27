@@ -253,6 +253,14 @@ class SequenceOf:
 
 
 @dataclass(frozen=True, slots=True)
+class ExactProduct:
+    """A fixed-arity heterogeneous sequence admitted into an owned tuple."""
+
+    accepted_source_kinds: tuple[SequenceSourceKind, ...]
+    elements: tuple[SchemaV1, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ExactPair:
     left: SchemaV1
     right: SchemaV1
@@ -315,6 +323,7 @@ SchemaV1 = (
     | BoundedJsonValue
     | OptionalValue
     | SequenceOf
+    | ExactProduct
     | ExactPair
     | MapOf
     | ExactKeyedMap
@@ -598,20 +607,48 @@ def _validate_exact_bytes_schema(schema: ExactBytes) -> None:
         raise ValueError("invalid exact bytes length")
 
 
+def _validate_sequence_source_kinds(
+    accepted_source_kinds: tuple[SequenceSourceKind, ...],
+) -> None:
+    if type(accepted_source_kinds) is not tuple or not accepted_source_kinds:
+        raise ValueError("sequence source kinds must be a nonempty exact tuple")
+    if any(type(kind) is not SequenceSourceKind for kind in accepted_source_kinds):
+        raise TypeError("unknown sequence source kind")
+    if len(accepted_source_kinds) != len(tuple(dict.fromkeys(accepted_source_kinds))):
+        raise ValueError("duplicate sequence source kind")
+
+
 def _validate_sequence_schema(
     schema: SequenceOf,
     enum_tag_type: type[Enum],
     record_tag_type: type[Enum],
     active_schema_ids: set[int],
 ) -> None:
-    if type(schema.accepted_source_kinds) is not tuple or not schema.accepted_source_kinds:
-        raise ValueError("sequence source kinds must be a nonempty exact tuple")
-    if any(type(kind) is not SequenceSourceKind for kind in schema.accepted_source_kinds):
-        raise TypeError("unknown sequence source kind")
-    if len(schema.accepted_source_kinds) != len(tuple(dict.fromkeys(schema.accepted_source_kinds))):
-        raise ValueError("duplicate sequence source kind")
+    _validate_sequence_source_kinds(schema.accepted_source_kinds)
     _validate_item_bounds(schema.minimum_items, schema.maximum_items)
     _validate_schema(schema.inner, enum_tag_type, record_tag_type, active_schema_ids)
+
+
+def _validate_product_schema(
+    schema: ExactProduct,
+    enum_tag_type: type[Enum],
+    record_tag_type: type[Enum],
+    active_schema_ids: set[int],
+) -> None:
+    _validate_sequence_source_kinds(schema.accepted_source_kinds)
+    if type(schema.elements) is not tuple:
+        raise TypeError("product elements must be an exact tuple")
+    if not schema.elements:
+        raise ValueError("product elements must be nonempty")
+    if len(schema.elements) > MAX_COLLECTION_ITEMS_V1:
+        raise ValueError("product arity exceeds the collection policy")
+    for element_schema in schema.elements:
+        _validate_schema(
+            element_schema,
+            enum_tag_type,
+            record_tag_type,
+            active_schema_ids,
+        )
 
 
 def _validate_pair_schema(
@@ -813,6 +850,8 @@ def _validate_schema_variant(
         _validate_schema(schema.inner, enum_tag_type, record_tag_type, active_schema_ids)
     elif _has_exact_type(schema, SequenceOf):
         _validate_sequence_schema(schema, enum_tag_type, record_tag_type, active_schema_ids)
+    elif _has_exact_type(schema, ExactProduct):
+        _validate_product_schema(schema, enum_tag_type, record_tag_type, active_schema_ids)
     elif _has_exact_type(schema, ExactPair):
         _validate_pair_schema(schema, enum_tag_type, record_tag_type, active_schema_ids)
     elif _has_exact_type(schema, MapOf):
@@ -1275,6 +1314,47 @@ def _admit_sequence(
     for index in range(item_count):
         result = _admit_value(
             schema.inner,
+            owned_source[index],
+            next_state,
+            path + (index,),
+            depth + 1,
+            registry,
+            schema_revision,
+        )
+        if _has_exact_type(result, AdmitReject):
+            return result
+        admitted = result
+        owned_items.append(admitted.value)
+        next_state = admitted.state
+    return _AdmitProgress(tuple(owned_items), _leave_active(next_state, source))
+
+
+def _admit_product(
+    schema: ExactProduct,
+    source: object,
+    state: _AdmissionState,
+    path: FieldPath,
+    depth: int,
+    registry: AdmissionRegistryV1,
+    schema_revision: str,
+) -> _AdmitProgress[object] | AdmitReject:
+    if not _source_kind_matches(source, schema.accepted_source_kinds):
+        return _reject(AdmitCode.WRONG_CONTAINER, path)
+    owned_source = cast(list[object] | tuple[object, ...], source)
+    if len(owned_source) != len(schema.elements):
+        return _reject(AdmitCode.WRONG_CONTAINER, path)
+    if len(owned_source) > state.limits.max_collection_items:
+        return _reject(AdmitCode.ITEM_LIMIT, path)
+    next_state = _consume_node(state, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    next_state = _enter_active(next_state, source, path)
+    if _has_exact_type(next_state, AdmitReject):
+        return next_state
+    owned_items: list[object] = []
+    for index, element_schema in enumerate(schema.elements):
+        result = _admit_value(
+            element_schema,
             owned_source[index],
             next_state,
             path + (index,),
@@ -2717,6 +2797,16 @@ def _admit_value(
         return special_result
     if _has_exact_type(schema, SequenceOf):
         return _admit_sequence(
+            schema,
+            source,
+            state,
+            path,
+            depth,
+            registry,
+            schema_revision,
+        )
+    if _has_exact_type(schema, ExactProduct):
+        return _admit_product(
             schema,
             source,
             state,
