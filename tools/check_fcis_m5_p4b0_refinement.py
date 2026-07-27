@@ -18,7 +18,11 @@ if str(_REPO_ROOT) not in sys.path:
 from src.core.fcis_legacy_refinement_admission import decode_canonical_json_bytes_v1
 from src.core.fcis_legacy_refinement_values import CanonicalParseRejectV1
 from src.state.canonical import canonical_json_bytes, sha256_hex
-from tools.build_fcis_m5_p4b0_refinement import ARTIFACT_PATH_V1, artifact_bytes_v1
+from tools.build_fcis_m5_p4b0_refinement import (
+    ARTIFACT_PATH_V1,
+    NoMountSourceDriftV1,
+    artifact_bytes_v1,
+)
 
 CHECK_SCHEMA_V1 = "zenodex/fcis-m5-p4b0-refinement-check/v1"
 
@@ -54,6 +58,8 @@ def check_artifact_v1(
         return 1, _report(False, "artifact_hash_mismatch")
     try:
         expected = artifact_bytes_v1(repo_root)
+    except NoMountSourceDriftV1 as error:
+        return 1, _report(False, f"no_mount_source_drift:{error.path.as_posix()}")
     except (KeyError, OSError, TypeError, ValueError) as error:
         return 1, _report(False, f"semantic_rebuild_failed:{type(error).__name__}")
     if raw != expected:

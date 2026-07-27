@@ -16,6 +16,7 @@ from src.core.fcis_legacy_refinement_admission import (
     PACKET_COMMIT_V1,
     PACKET_TREE_HASH_V1,
     REQUIRED_ANCESTOR_V1,
+    _admit_pair_source,
     admit_observation_pair_bytes_v1,
     decode_canonical_evidence_artifact_bytes_v1,
     decode_canonical_json_bytes_v1,
@@ -44,7 +45,11 @@ from src.core.fcis_legacy_refinement_schema import (
     MAX_REFINEMENT_NODES_V1,
     MAX_REFINEMENT_OBSERVATIONS_V1,
     MAX_REFINEMENT_WITNESS_BYTES_V1,
+    OBSERVATION_PAIR_SCHEMA_ID_V1,
     REFINEMENT_RESOURCE_BOUNDS_V1,
+    RefinementResourceCodeV1,
+    RefinementResourceKindV1,
+    check_refinement_resource_limit_v1,
 )
 from src.core.fcis_legacy_refinement_values import (
     CanonicalParseCodeV1,
@@ -54,6 +59,8 @@ from src.core.fcis_legacy_refinement_values import (
 )
 from src.state.canonical import canonical_json_bytes, sha256_hex
 from src.state.intents import IntentKind
+from src.state.owned_json import JsonSourceValueV1
+from src.state.snapshot_combinators import AdmitCode, AdmitReject
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DIFFERENTIAL_PATH = REPO_ROOT / "docs/research/FCIS_M5_P4A_DIFFERENTIAL_REPLAY_V1.json"
@@ -234,14 +241,13 @@ def test_p4b0_immut_001_alias_subclass_and_hostile_mutation_fail_closed() -> Non
 def test_p4b0_policy_001_registry_is_closed_unique_and_hash_bound() -> None:
     """P4B0-POLICY-001"""
 
-    all_entries = (
-        *VERSION_DELTA_ENTRIES_V1,
-        *REJECTION_MAPPINGS_V1,
-        *EXACT_ONLY_FIELD_ENTRIES_V1,
-        *SEMANTIC_PROJECTION_ENTRIES_V1,
-        *COMMAND_KIND_ENTRIES_V1,
+    stable_ids = (
+        *(entry.stable_id for entry in VERSION_DELTA_ENTRIES_V1),
+        *(entry.stable_id for entry in REJECTION_MAPPINGS_V1),
+        *(entry.stable_id for entry in EXACT_ONLY_FIELD_ENTRIES_V1),
+        *(entry.stable_id for entry in SEMANTIC_PROJECTION_ENTRIES_V1),
+        *(entry.stable_id for entry in COMMAND_KIND_ENTRIES_V1),
     )
-    stable_ids = tuple(entry.stable_id for entry in all_entries)
     assert len(stable_ids) == len(set(stable_ids))
     assert POLICY_VERSION_V1.endswith("/v1")
     assert POLICY_HASH_V1.startswith("0x") and len(POLICY_HASH_V1) == 66
@@ -329,20 +335,41 @@ def test_p4b0_version_001_every_frozen_delta_is_source_registered() -> None:
             )
 
 
-def test_p4b0_version_002_unknown_version_fails_closed() -> None:
+@pytest.mark.parametrize(
+    ("field_name", "unknown_value"),
+    (
+        ("algorithm_id", "unknown_algorithm"),
+        ("algorithm_version", 999),
+        ("codec_version", 999),
+        ("schema_version", 999),
+        ("snapshot_version", 999),
+        ("support_root_version", 999),
+    ),
+)
+def test_p4b0_version_002_unknown_version_fails_closed(
+    field_name: str,
+    unknown_value: object,
+) -> None:
     """P4B0-VERSION-002"""
 
     source = _fixture_source()
     exact_observation = _mapping(_mapping(source["exact"])["observation"])
-    exact_observation["algorithm_version"] = 999
+    exact_observation[field_name] = unknown_value
     result = admit_observation_pair_bytes_v1(canonical_json_bytes(source))
     assert type(result) is InvalidEvidenceV1
     assert result.code == "unknown_version_delta"
+    assert result.path == (field_name,)
 
 
 @pytest.mark.parametrize(
     "mutation",
-    ("command_kind", "result_kind", "unknown_field", "unknown_status"),
+    (
+        "command_kind",
+        "result_kind",
+        "unknown_field",
+        "unknown_status",
+        "observation_variant",
+    ),
 )
 def test_p4b0_unknown_001_unknown_shapes_fail_closed(mutation: str) -> None:
     """P4B0-UNKNOWN-001"""
@@ -355,9 +382,11 @@ def test_p4b0_unknown_001_unknown_shapes_fail_closed(mutation: str) -> None:
         _mapping(_mapping(source["exact"])["observation"])["result_kind"] = "unknown"
     elif mutation == "unknown_field":
         _mapping(_mapping(source["exact"])["observation"])["new_field"] = 1
-    else:
+    elif mutation == "unknown_status":
         legacy = _mapping(_mapping(source["legacy"])["observation"])
         legacy["receipt_bytes"] = {"status": "*"}
+    else:
+        _mapping(source["exact"])["observation"] = []
     result = admit_observation_pair_bytes_v1(canonical_json_bytes(source))
     assert type(result) is InvalidEvidenceV1
 
@@ -416,6 +445,69 @@ def test_p4b0_budget_001_limits_and_neighbors_are_explicit() -> None:
     assert type(aggregate_over_limit) is CanonicalParseRejectV1
     assert aggregate_over_limit.code is CanonicalParseCodeV1.BYTE_LIMIT
 
+    limit_cases = (
+        (RefinementResourceKindV1.BYTES, MAX_REFINEMENT_BYTES_V1),
+        (RefinementResourceKindV1.DEPTH, MAX_REFINEMENT_DEPTH_V1),
+        (RefinementResourceKindV1.NODES, MAX_REFINEMENT_NODES_V1),
+        (RefinementResourceKindV1.FIXTURES, MAX_REFINEMENT_FIXTURES_V1),
+        (RefinementResourceKindV1.OBSERVATIONS, MAX_REFINEMENT_OBSERVATIONS_V1),
+        (
+            RefinementResourceKindV1.COLLECTION_ITEMS,
+            MAX_REFINEMENT_COLLECTION_ITEMS_V1,
+        ),
+        (
+            RefinementResourceKindV1.FIELD_UTF8_BYTES,
+            MAX_REFINEMENT_FIELD_UTF8_BYTES_V1,
+        ),
+        (
+            RefinementResourceKindV1.MISMATCH_PAYLOAD_BYTES,
+            MAX_REFINEMENT_MISMATCH_PAYLOAD_BYTES_V1,
+        ),
+        (RefinementResourceKindV1.WITNESS_BYTES, MAX_REFINEMENT_WITNESS_BYTES_V1),
+    )
+    for kind, maximum in limit_cases:
+        assert check_refinement_resource_limit_v1(kind, maximum) is None
+        rejected = check_refinement_resource_limit_v1(kind, maximum + 1)
+        assert rejected is not None
+        assert rejected.code is RefinementResourceCodeV1.LIMIT_EXCEEDED
+        assert rejected.kind is kind
+        assert rejected.observed == maximum + 1
+        assert rejected.maximum == maximum
+
+    with pytest.raises(TypeError, match="exact integer"):
+        check_refinement_resource_limit_v1(RefinementResourceKindV1.BYTES, True)
+
+    bounded_source = _fixture_source()
+    bounded_exact = _mapping(_mapping(bounded_source["exact"])["observation"])
+    identity = {
+        "effect_identity": "0x" + "01" * 32,
+        "effect_index": 0,
+        "idempotency_key": "0x" + "02" * 32,
+    }
+    bounded_exact["outbox_identities"] = [identity] * MAX_REFINEMENT_COLLECTION_ITEMS_V1
+    assert (
+        type(admit_observation_pair_bytes_v1(canonical_json_bytes(bounded_source)))
+        is ObservationPairV1
+    )
+
+    field_source = _fixture_source()
+    field_exact = _mapping(_mapping(field_source["exact"])["observation"])
+    field_exact["next_state_snapshot_bytes"] = "00" * (MAX_REFINEMENT_FIELD_UTF8_BYTES_V1 // 2)
+    assert (
+        type(admit_observation_pair_bytes_v1(canonical_json_bytes(field_source)))
+        is ObservationPairV1
+    )
+    field_exact["next_state_snapshot_bytes"] = (
+        cast(
+            str,
+            field_exact["next_state_snapshot_bytes"],
+        )
+        + "0"
+    )
+    field_reject = admit_observation_pair_bytes_v1(canonical_json_bytes(field_source))
+    assert type(field_reject) is InvalidEvidenceV1
+    assert field_reject.code == "admit_byte_limit"
+
 
 def test_p4b0_budget_002_deep_wide_oversized_and_cycle_shapes_reject() -> None:
     """P4B0-BUDGET-002"""
@@ -434,7 +526,13 @@ def test_p4b0_budget_002_deep_wide_oversized_and_cycle_shapes_reject() -> None:
     assert type(wide_result) is InvalidEvidenceV1
     assert wide_result.code in {"admit_item_limit", "admit_byte_limit"}
 
-    cyclic: dict[str, object] = {}
-    cyclic["self"] = cyclic
-    with pytest.raises((TypeError, ValueError, RecursionError)):
-        canonical_json_bytes(cyclic)
+    cyclic_source = _fixture_source()
+    cyclic_source["legacy"] = cyclic_source
+    cycle_result = _admit_pair_source(
+        OBSERVATION_PAIR_SCHEMA_ID_V1,
+        cast(JsonSourceValueV1, cyclic_source),
+    )
+    assert type(cycle_result) is AdmitReject
+    assert cycle_result.code is AdmitCode.CYCLE
+    assert cycle_result.path
+    assert not hasattr(cycle_result, "value")

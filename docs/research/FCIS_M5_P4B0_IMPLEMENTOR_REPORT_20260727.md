@@ -19,6 +19,8 @@ required ancestor: 09bd121f3c0194f0bead2eb8b1230657b74e2ae6
 P4B0-A: cb8748c8f  close refinement admission and policy
 P4B0-B: adc3eb4481c9c219b75f14943474269d7db23719
 P4B0-C: the commit containing this report and generated artifact
+P4B0 corrective review: the subsequent commit that closes the independent
+  checker, no-mount binding, and evidence-integrity findings
 ```
 
 ## Changed
@@ -50,8 +52,12 @@ P4B0-C defines:
 - deterministic artifact generation from the frozen P4A differential input;
 - a fail-closed checker that independently rebuilds every decision;
 - normal and `--require-all-refine` promotion modes;
-- 24 named mutation families and 33 independently rehashed artifact mutants;
-- no-mount and source-manifest tests.
+- 60 named authority/evidence mutations and 34 independently rehashed
+  artifact mutants;
+- structural mutants for `ExactProduct`, pre-admission inspection, and
+  wildcard policy entries;
+- seven-file no-mount source binding enforced by the artifact checker;
+- typed resource-bound, cycle, and no-partial-witness evidence.
 
 ## Invariant and authority impact
 
@@ -73,7 +79,7 @@ The aggregate P4A evidence file has a separate fixed 2,000,000-byte limit. It
 uses the same parser implementation as authority observations. Callers cannot
 select a parser, constructor, schema registry, policy, or limit.
 
-The generated artifact binds these seven source files:
+The generated artifact binds 12 implementation and executable-evidence files:
 
 ```text
 src/core/fcis_legacy_refinement.py
@@ -81,15 +87,32 @@ src/core/fcis_legacy_refinement_admission.py
 src/core/fcis_legacy_refinement_policy.py
 src/core/fcis_legacy_refinement_schema.py
 src/core/fcis_legacy_refinement_values.py
+tests/core/test_fcis_legacy_refinement.py
+tests/core/test_fcis_legacy_refinement_values.py
+tests/tools/test_check_fcis_authority_snapshot_contract.py
+tests/tools/test_check_fcis_m5_p4b0_refinement.py
 tools/build_fcis_m5_p4b0_refinement.py
+tools/check_fcis_authority_snapshot_contract.py
 tools/check_fcis_m5_p4b0_refinement.py
+```
+
+It separately pins the seven mounted comparison files at their reviewed bytes:
+
+```text
+src/core/dex.py
+src/core/route_settlement.py
+src/core/settlement_strong_validator.py
+src/integration/dex_engine.py
+src/integration/fcis_spot_shadow.py
+src/state/legacy_state_snapshots.py
+src/state/support_root.py
 ```
 
 Artifact identifiers:
 
 ```text
 artifact_sha256:
-  0x46011b77c0114f2dd1246056333e9224fc27aa01e03b53182b67155279103b87
+  0xb3d07baf48092aa89372f0ae2ab7c7f115a08df361574dc39891973121fb9f19
 policy_hash:
   0x8abf8cda4d86a5fb7807ae5f4aac887ec66843fdababba9de80c173d554f32cc
 ```
@@ -123,17 +146,26 @@ The artifact preserves these mismatches. Normal validation accepts the honest
 
 ## Evidence
 
-Focused executable evidence:
+Focused executable evidence after the independent corrective review:
 
 ```text
-386 passed in 85.49s
+416 passed in 86.33s
 ```
 
 This includes admission/parser boundaries, all 24 fixture decisions, rejection
-mapping, eight-field state mutations, economics, patch atomicity, receipt and
-bundle recomputation, replay and outbox attacks, 33 rehashed semantic artifact
-mutants, promotion gates, no-mount checks, and the structural checker mutation
-suite.
+mapping, eight-field state mutations, explicit balance/reserve/LP/fee/dust
+economics, every required patch shape, receipt and bundle recomputation,
+cross-candidate state/plan/receipt/replay/outbox substitution, nonce/nullifier
+replay, two-record outbox ordering, all version and unknown-shape cases, 34
+rehashed semantic artifact mutants, promotion gates, no-mount source mutations,
+and the structural checker mutation suite.
+
+The independent review originally returned `NO-GO` because the structural
+checker accepted three forbidden mutants, the artifact checker ignored later
+mounted-source mutation, and several mutation-ledger claims lacked direct
+executable witnesses. The corrective checkpoint kills those mutants and binds
+the named evidence files into the artifact. The checkpoint remains `BLOCKED`
+for the three preserved LP mismatches; corrective evidence does not promote it.
 
 Additional evidence:
 

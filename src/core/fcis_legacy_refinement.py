@@ -57,8 +57,9 @@ from .fcis_legacy_refinement_policy import (
     lookup_version_delta_v1,
 )
 from .fcis_legacy_refinement_schema import (
-    MAX_REFINEMENT_MISMATCH_PAYLOAD_BYTES_V1,
     RefinementComponentKindV1,
+    RefinementResourceKindV1,
+    check_refinement_resource_limit_v1,
 )
 from .fcis_legacy_refinement_values import (
     AppliedVersionDeltaV1,
@@ -191,7 +192,13 @@ def _canonical(value: JsonProjectionV1, path: FieldPathV1) -> bytes:
 
 def _compact_value(value: JsonProjectionV1) -> bytes:
     encoded = canonical_json_bytes(value)
-    if len(encoded) <= MAX_REFINEMENT_MISMATCH_PAYLOAD_BYTES_V1:
+    if (
+        check_refinement_resource_limit_v1(
+            RefinementResourceKindV1.MISMATCH_PAYLOAD_BYTES,
+            len(encoded),
+        )
+        is None
+    ):
         return encoded
     return canonical_json_bytes({"bytes": len(encoded), "sha256": sha256_hex(encoded)})
 
@@ -256,7 +263,7 @@ def _witness(
     deltas: tuple[AppliedVersionDeltaV1, ...],
 ) -> RefinementWitnessV1:
     binding = pair.exact.binding
-    return RefinementWitnessV1(
+    witness = RefinementWitnessV1(
         fixture_id=binding.fixture_id,
         command_hash=binding.command_hash,
         pre_state_root=binding.pre_state_root,
@@ -270,6 +277,38 @@ def _witness(
         packet_tree_hash=binding.packet_tree_hash,
         version_deltas=deltas,
     )
+    witness_projection: JsonProjectionV1 = [
+        witness.fixture_id,
+        witness.command_hash,
+        witness.pre_state_root,
+        witness.context_hash,
+        witness.policy_version,
+        witness.policy_hash,
+        witness.reviewed_source_sha,
+        witness.baseline_artifact_hash,
+        witness.differential_artifact_hash,
+        witness.packet_commit,
+        witness.packet_tree_hash,
+        [
+            [
+                delta.stable_id,
+                delta.field_name,
+                delta.legacy_value,
+                delta.exact_value,
+                delta.result_kind.value,
+            ]
+            for delta in witness.version_deltas
+        ],
+    ]
+    if (
+        check_refinement_resource_limit_v1(
+            RefinementResourceKindV1.WITNESS_BYTES,
+            len(canonical_json_bytes(witness_projection)),
+        )
+        is not None
+    ):
+        _fault("witness_byte_limit", ("witness",))
+    return witness
 
 
 def _production_context_hash(context_raw: bytes) -> str:

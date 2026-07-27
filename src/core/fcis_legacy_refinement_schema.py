@@ -76,6 +76,94 @@ MAX_REFINEMENT_OUTBOX_IDENTITIES_V1 = 512
 MAX_REFINEMENT_SCALAR_V1 = (1 << 256) - 1
 
 
+class RefinementResourceKindV1(Enum):
+    BYTES = "bytes"
+    DEPTH = "depth"
+    NODES = "nodes"
+    FIXTURES = "fixtures"
+    OBSERVATIONS = "observations"
+    COLLECTION_ITEMS = "collection_items"
+    FIELD_UTF8_BYTES = "field_utf8_bytes"
+    MISMATCH_PAYLOAD_BYTES = "mismatch_payload_bytes"
+    WITNESS_BYTES = "witness_bytes"
+
+
+class RefinementResourceCodeV1(Enum):
+    INVALID_COUNT = "invalid_count"
+    LIMIT_EXCEEDED = "limit_exceeded"
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class RefinementResourceRejectV1:
+    code: RefinementResourceCodeV1
+    kind: RefinementResourceKindV1
+    observed: int
+    maximum: int
+
+    def __post_init__(self) -> None:
+        if type(self.code) is not RefinementResourceCodeV1:
+            raise TypeError("refinement resource code must be exact")
+        if type(self.kind) is not RefinementResourceKindV1:
+            raise TypeError("refinement resource kind must be exact")
+        if type(self.observed) is not int:
+            raise TypeError("refinement resource observation must be an exact integer")
+        if type(self.maximum) is not int or self.maximum < 0:
+            raise TypeError("refinement resource maximum must be a nonnegative exact integer")
+        if self.code is RefinementResourceCodeV1.INVALID_COUNT and self.observed >= 0:
+            raise ValueError("invalid-count rejection requires a negative observation")
+        if self.code is RefinementResourceCodeV1.LIMIT_EXCEEDED and self.observed <= self.maximum:
+            raise ValueError("limit-exceeded rejection requires an over-limit observation")
+
+
+_REFINEMENT_RESOURCE_LIMITS_V1 = (
+    (RefinementResourceKindV1.BYTES, MAX_REFINEMENT_BYTES_V1),
+    (RefinementResourceKindV1.DEPTH, MAX_REFINEMENT_DEPTH_V1),
+    (RefinementResourceKindV1.NODES, MAX_REFINEMENT_NODES_V1),
+    (RefinementResourceKindV1.FIXTURES, MAX_REFINEMENT_FIXTURES_V1),
+    (RefinementResourceKindV1.OBSERVATIONS, MAX_REFINEMENT_OBSERVATIONS_V1),
+    (RefinementResourceKindV1.COLLECTION_ITEMS, MAX_REFINEMENT_COLLECTION_ITEMS_V1),
+    (RefinementResourceKindV1.FIELD_UTF8_BYTES, MAX_REFINEMENT_FIELD_UTF8_BYTES_V1),
+    (
+        RefinementResourceKindV1.MISMATCH_PAYLOAD_BYTES,
+        MAX_REFINEMENT_MISMATCH_PAYLOAD_BYTES_V1,
+    ),
+    (RefinementResourceKindV1.WITNESS_BYTES, MAX_REFINEMENT_WITNESS_BYTES_V1),
+)
+
+
+def check_refinement_resource_limit_v1(
+    kind: RefinementResourceKindV1,
+    observed: int,
+) -> RefinementResourceRejectV1 | None:
+    """Apply one closed source-owned resource limit."""
+
+    if type(kind) is not RefinementResourceKindV1:
+        raise TypeError("refinement resource kind must be exact")
+    if type(observed) is not int:
+        raise TypeError("refinement resource observation must be an exact integer")
+    maximum = next(
+        maximum
+        for declared_kind, maximum in _REFINEMENT_RESOURCE_LIMITS_V1
+        if declared_kind is kind
+    )
+    if observed < 0:
+        return RefinementResourceRejectV1(
+            RefinementResourceCodeV1.INVALID_COUNT,
+            kind,
+            observed,
+            maximum,
+        )
+    if observed > maximum:
+        return RefinementResourceRejectV1(
+            RefinementResourceCodeV1.LIMIT_EXCEEDED,
+            kind,
+            observed,
+            maximum,
+        )
+    return None
+
+
 class RefinementEnumTagV1(Enum):
     """Empty closed tag family because decoded evidence contains no Python enum."""
 
@@ -1043,8 +1131,12 @@ __all__ = (
     "SETTLEMENT_SCHEMA_ID_V1",
     "INTERNAL_STATE_SCHEMA_ID_V1",
     "RefinementComponentKindV1",
+    "RefinementResourceCodeV1",
+    "RefinementResourceKindV1",
+    "RefinementResourceRejectV1",
     "RefinementEnumTagV1",
     "RefinementRecordTagV1",
+    "check_refinement_resource_limit_v1",
     "RefinementResourceBoundsV1",
     "command_schema_id_v1",
 )

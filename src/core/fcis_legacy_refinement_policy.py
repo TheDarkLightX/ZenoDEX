@@ -406,6 +406,48 @@ def _validate_registry_v1() -> None:
         raise RuntimeError("P4B0 command registry does not cover IntentKind exactly")
     if any(entry.lost_distinction_authoritative for entry in REJECTION_MAPPINGS_V1):
         raise RuntimeError("P4B0 policy cannot erase an authoritative rejection distinction")
+    policy_strings = (
+        *(
+            value
+            for entry in VERSION_DELTA_ENTRIES_V1
+            for value in (
+                entry.stable_id,
+                entry.field_name,
+                entry.legacy_value,
+                entry.exact_value,
+            )
+        ),
+        *(
+            value
+            for entry in REJECTION_MAPPINGS_V1
+            for value in (
+                entry.stable_id,
+                entry.legacy_code,
+                entry.legacy_precedence,
+                entry.exact_code,
+                entry.exact_phase,
+                entry.exact_precedence,
+                entry.path_rule,
+            )
+        ),
+        *(
+            value
+            for entry in EXACT_ONLY_FIELD_ENTRIES_V1
+            for value in (entry.stable_id, entry.field_name)
+        ),
+        *(
+            value
+            for entry in SEMANTIC_PROJECTION_ENTRIES_V1
+            for value in (entry.stable_id, entry.projection_name)
+        ),
+        *(
+            value
+            for entry in COMMAND_KIND_ENTRIES_V1
+            for value in (entry.stable_id, entry.command_kind)
+        ),
+    )
+    if any("*" in value for value in policy_strings):
+        raise RuntimeError("P4B0 policy cannot contain wildcard entries")
 
 
 _validate_registry_v1()

@@ -4549,11 +4549,7 @@ def _check_p4b0_schema_v1(
         and type(route_call.args[3]) is ast.Constant
         and route_call.args[3].value == "zenodex/fcis-m5-p4b0/route-fingerprints/v1"
     )
-    if (
-        len(map_calls) != 1
-        or route_value is not route_call
-        or not exact_route_shape
-    ):
+    if len(map_calls) != 1 or route_value is not route_call or not exact_route_shape:
         violations.append(_p4b0_violation_v1(relative_path, module, "route-fingerprint-map-drift"))
     exact_maps = sum(
         1
@@ -4562,7 +4558,118 @@ def _check_p4b0_schema_v1(
     )
     if exact_maps < 8:
         violations.append(_p4b0_violation_v1(relative_path, module, "closed-schema-count"))
+    functions = _top_level_functions_v1(module)
+    product_helper = functions.get("_product")
+    product_return = (
+        product_helper.body[0]
+        if product_helper is not None and len(product_helper.body) == 1
+        else None
+    )
+    product_call = (
+        product_return.value
+        if type(product_return) is ast.Return and type(product_return.value) is ast.Call
+        else None
+    )
+    source_kind = (
+        product_call.args[0]
+        if type(product_call) is ast.Call and len(product_call.args) == 2
+        else None
+    )
+    exact_product_helper = (
+        product_helper is not None
+        and not product_helper.args.posonlyargs
+        and not product_helper.args.args
+        and product_helper.args.vararg is not None
+        and product_helper.args.vararg.arg == "schemas"
+        and not product_helper.args.kwonlyargs
+        and product_helper.args.kwarg is None
+        and _last_name(product_helper.returns) == "ExactProduct"
+        and type(product_call) is ast.Call
+        and _last_name(product_call.func) == "ExactProduct"
+        and not product_call.keywords
+        and type(source_kind) is ast.Tuple
+        and len(source_kind.elts) == 1
+        and _node_name(source_kind.elts[0]) == "SequenceSourceKind.EXACT_LIST"
+        and type(product_call.args[1]) is ast.Name
+        and product_call.args[1].id == "schemas"
+    )
+    product_helper_calls = [
+        node
+        for node in ast.walk(module)
+        if type(node) is ast.Call and _last_name(node.func) == "_product"
+    ]
+    direct_exact_product_calls = [
+        node
+        for node in ast.walk(module)
+        if type(node) is ast.Call and _last_name(node.func) == "ExactProduct"
+    ]
+    if (
+        not exact_product_helper
+        or len(product_helper_calls) != 13
+        or len(direct_exact_product_calls) != 1
+    ):
+        violations.append(
+            _p4b0_violation_v1(relative_path, product_helper or module, "exact-product-drift")
+        )
     return violations
+
+
+def _is_parse_reject_guard_v1(statement: ast.stmt) -> bool:
+    if type(statement) is not ast.If or statement.orelse or len(statement.body) != 1:
+        return False
+    test = statement.test
+    if (
+        type(test) is not ast.Compare
+        or len(test.ops) != 1
+        or type(test.ops[0]) is not ast.Is
+        or len(test.comparators) != 1
+        or type(test.left) is not ast.Call
+        or _last_name(test.left.func) != "type"
+        or len(test.left.args) != 1
+        or type(test.left.args[0]) is not ast.Name
+        or test.left.args[0].id != "decoded"
+        or type(test.comparators[0]) is not ast.Name
+        or test.comparators[0].id != "CanonicalParseRejectV1"
+    ):
+        return False
+    result = statement.body[0]
+    return (
+        type(result) is ast.Return
+        and type(result.value) is ast.Call
+        and _last_name(result.value.func) == "InvalidEvidenceV1"
+    )
+
+
+def _has_exact_decode_admit_prefix_v1(function: ast.FunctionDef) -> bool:
+    decoded_index: int | None = None
+    admitted_index: int | None = None
+    for index, statement in enumerate(function.body):
+        if (
+            type(statement) is ast.Assign
+            and len(statement.targets) == 1
+            and type(statement.targets[0]) is ast.Name
+            and statement.targets[0].id == "decoded"
+            and type(statement.value) is ast.Call
+            and _last_name(statement.value.func) == "decode_canonical_json_bytes_v1"
+        ):
+            decoded_index = index
+        if (
+            type(statement) is ast.Assign
+            and len(statement.targets) == 1
+            and type(statement.targets[0]) is ast.Name
+            and statement.targets[0].id == "admitted"
+            and type(statement.value) is ast.Call
+            and _last_name(statement.value.func) == "_admit_pair_source"
+            and statement.value.args
+            and type(statement.value.args[-1]) is ast.Name
+            and statement.value.args[-1].id == "decoded"
+        ):
+            admitted_index = index
+    return (
+        decoded_index is not None
+        and admitted_index == decoded_index + 2
+        and _is_parse_reject_guard_v1(function.body[decoded_index + 1])
+    )
 
 
 def _check_p4b0_admission_v1(
@@ -4597,6 +4704,16 @@ def _check_p4b0_admission_v1(
     ]
     if len(registry_calls) != 1:
         violations.append(_p4b0_violation_v1(relative_path, module, "registry-construction-count"))
+    for function_name in ("_admit_component_bytes_v1", "admit_observation_pair_bytes_v1"):
+        function = functions.get(function_name)
+        if function is None or not _has_exact_decode_admit_prefix_v1(function):
+            violations.append(
+                _p4b0_violation_v1(
+                    relative_path,
+                    module if function is None else function,
+                    f"decode-admit-prefix-drift:{function_name}",
+                )
+            )
     facade = functions.get("admit_observation_pair_bytes_v1")
     if facade is not None:
         calls = tuple(_last_name(call.func) for call in _function_calls(facade))
@@ -4698,6 +4815,18 @@ def _check_p4b0_policy_v1(
         if any(type(node) in (ast.Dict, ast.List, ast.Set) for node in ast.walk(assignment)):
             violations.append(
                 _p4b0_violation_v1(relative_path, assignment, f"mutable-registry:{registry_name}")
+            )
+        wildcard = next(
+            (
+                node
+                for node in ast.walk(assignment)
+                if type(node) is ast.Constant and type(node.value) is str and "*" in node.value
+            ),
+            None,
+        )
+        if wildcard is not None:
+            violations.append(
+                _p4b0_violation_v1(relative_path, wildcard, f"wildcard-registry:{registry_name}")
             )
     module_calls = [
         _last_name(node.value.func)

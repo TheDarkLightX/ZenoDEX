@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
 import pytest
 
-from src.core.fcis_legacy_refinement import evaluate_refinement_v1
+from src.core.fcis_legacy_refinement import (
+    _check_outbox,
+    _effect_identity,
+    _EvidenceFault,
+    _idempotency_key,
+    evaluate_refinement_v1,
+)
 from src.core.fcis_legacy_refinement_admission import (
     PACKET_COMMIT_V1,
     PACKET_TREE_HASH_V1,
@@ -18,9 +25,12 @@ from src.core.fcis_legacy_refinement_admission import (
 )
 from src.core.fcis_legacy_refinement_policy import SEMANTIC_STATE_FIELD_ORDER_V1
 from src.core.fcis_legacy_refinement_values import (
+    CanonicalIdentitiesFieldV1,
+    EvidenceFieldStatusV1,
     InvalidEvidenceV1,
     MismatchV1,
     ObservationPairV1,
+    OutboxIdentityValueV1,
     RefinesV1,
 )
 from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
@@ -316,7 +326,11 @@ def test_p4b0_state_002_each_root_recomputed_state_mutation_fails(field_name: st
     (
         "settlement_fill",
         "settlement_event",
+        "balance_change",
+        "reserve_change",
+        "lp_change",
         "effects_fee",
+        "fee_dust",
         "replay_nonce",
         "total_swap_fees",
         "nonce_table_hash",
@@ -326,11 +340,14 @@ def test_p4b0_state_002_each_root_recomputed_state_mutation_fails(field_name: st
 def test_p4b0_econ_001_each_economic_mutation_fails_closed(mutation: str) -> None:
     """P4B0-ECON-001."""
 
-    fixture_id = (
-        "create_pool_smallest_accepted"
-        if mutation == "settlement_event"
-        else "swap_exact_in_boundary_valid"
-    )
+    if mutation == "settlement_event":
+        fixture_id = "create_pool_smallest_accepted"
+    elif mutation == "lp_change":
+        fixture_id = "add_liquidity_boundary_valid"
+    elif mutation in {"fee_dust", "fee_allocation"}:
+        fixture_id = "swap_exact_in_fee_dust_rounding"
+    else:
+        fixture_id = "swap_exact_in_boundary_valid"
     source = _fixture_source(fixture_id)
     if mutation == "settlement_fill":
         _rewrite_component(
@@ -347,12 +364,37 @@ def test_p4b0_econ_001_each_economic_mutation_fails_closed(mutation: str) -> Non
             "settlement_bytes",
             lambda value: _mapping(_sequence(value["events"])[0]).__setitem__("status", "FROZEN"),
         )
+    elif mutation in {"balance_change", "reserve_change", "lp_change"}:
+        field_name = {
+            "balance_change": "balance_deltas",
+            "reserve_change": "reserve_deltas",
+            "lp_change": "lp_deltas",
+        }[mutation]
+
+        def mutate_delta(value: dict[str, object]) -> None:
+            settlement = _mapping(value["settlement"])
+            first = _mapping(_sequence(settlement[field_name])[0])
+            numeric_field = next(
+                name for name in ("delta_add", "delta_sub") if cast(int, first[name]) > 0
+            )
+            first[numeric_field] = cast(int, first[numeric_field]) + 1
+
+        _rewrite_component(source, "effects_bytes", mutate_delta)
     elif mutation == "effects_fee":
         _rewrite_component(
             source,
             "effects_bytes",
             lambda value: value.__setitem__(
                 "total_swap_fees", cast(int, value["total_swap_fees"]) + 1
+            ),
+        )
+    elif mutation == "fee_dust":
+        _rewrite_component(
+            source,
+            "effects_bytes",
+            lambda value: _mapping(value["fee_allocation"]).__setitem__(
+                "dust_carried",
+                cast(int, _mapping(value["fee_allocation"])["dust_carried"]) + 1,
             ),
         )
     elif mutation == "replay_nonce":
@@ -375,7 +417,10 @@ def test_p4b0_econ_001_each_economic_mutation_fails_closed(mutation: str) -> Non
     assert type(_evaluate_source(source)) in {MismatchV1, InvalidEvidenceV1}
 
 
-@pytest.mark.parametrize("mutation", ("stale_expected", "missing", "duplicate", "reordered"))
+@pytest.mark.parametrize(
+    "mutation",
+    ("stale_expected", "missing", "extra", "duplicate", "reordered", "partial"),
+)
 def test_p4b0_patch_002_invalid_patch_variants_fail_atomically(mutation: str) -> None:
     """P4B0-PATCH-002."""
 
@@ -388,13 +433,27 @@ def test_p4b0_patch_002_invalid_patch_variants_fail_atomically(mutation: str) ->
             first["expected_old"] = cast(int, first["expected_old"]) + 1
         elif mutation == "missing":
             writes.pop()
+        elif mutation == "extra":
+            extra = dict(_mapping(writes[-1]))
+            key = list(cast(list[object], extra["key"]))
+            key[1] = "0x" + "ff" * 32
+            extra["key"] = key
+            extra["expected_old"] = 0
+            extra["replacement"] = 1
+            writes.append(extra)
         elif mutation == "duplicate":
             writes.append(writes[0])
+        elif mutation == "partial":
+            first = _mapping(writes[0])
+            first["replacement"] = first["expected_old"]
         else:
             writes.reverse()
 
     _rewrite_component(source, "patch_bytes", mutate)
-    assert type(_evaluate_source(source)) is InvalidEvidenceV1
+    result = _evaluate_source(source)
+    assert type(result) is InvalidEvidenceV1
+    assert not hasattr(result, "next_state")
+    assert not hasattr(result, "commit_plan")
 
 
 @pytest.mark.parametrize(
@@ -418,9 +477,11 @@ def test_p4b0_bundle_001_cached_roots_do_not_replace_recomputation(
 @pytest.mark.parametrize(
     "fields",
     (
+        ("next_state_snapshot_bytes", "next_state_snapshot_root"),
         ("receipt_bytes", "receipt_root"),
         ("bundle_bytes", "bundle_root"),
         ("commit_plan_bytes",),
+        ("replay_bytes",),
         ("outbox_bytes", "outbox_identities"),
     ),
 )
@@ -462,3 +523,101 @@ def test_p4b0_outbox_001_outbox_record_mutations_fail(mutation: str) -> None:
 
     _rewrite_component(source, "outbox_bytes", mutate)
     assert type(_evaluate_source(source)) is InvalidEvidenceV1
+
+
+def test_p4b0_outbox_001_two_record_reordering_fails() -> None:
+    """Exercise ordering with two internally consistent records."""
+
+    pair = _admit_source(_fixture_source("create_pool_smallest_accepted"))
+    observation = pair.exact.observation
+    assert observation.settlement_bytes is not None
+    assert observation.outbox_bytes.value is not None
+    assert observation.receipt_root.value is not None
+    settlement = _mapping(json.loads(observation.settlement_bytes))
+    outbox = _mapping(json.loads(observation.outbox_bytes.value))
+    first_event = _mapping(_sequence(settlement["events"])[0])
+    second_event = dict(first_event)
+    second_event["created_at"] = cast(int, second_event["created_at"]) + 1
+    events = [first_event, second_event]
+    settlement["events"] = events
+    template = _mapping(_sequence(outbox["records"])[0])
+    records: list[object] = []
+    identities: list[OutboxIdentityValueV1] = []
+    payload_names = (
+        "asset0",
+        "asset1",
+        "created_at",
+        "curve_params",
+        "curve_tag",
+        "fee_bps",
+        "pool_id",
+        "status",
+        "type",
+    )
+    for index, event in enumerate(events):
+        payload = [[name, event[name]] for name in payload_names]
+        identity = _effect_identity(
+            observation.receipt_root.value,
+            index,
+            canonical_json_bytes(event),
+        )
+        idempotency = _idempotency_key(observation.receipt_root.value, index, identity)
+        record = dict(template)
+        record["effect_identity"] = identity
+        record["effect_index"] = index
+        record["idempotency_key"] = idempotency
+        record["payload"] = payload
+        records.append(record)
+        identities.append(OutboxIdentityValueV1(identity, index, idempotency))
+    exact_observation = replace(
+        observation,
+        outbox_identities=CanonicalIdentitiesFieldV1(
+            EvidenceFieldStatusV1.PRESENT,
+            tuple(identities),
+        ),
+    )
+    outbox["records"] = records
+    _check_outbox(
+        settlement,
+        outbox,
+        observation.receipt_root.value,
+        exact_observation,
+    )
+
+    records.reverse()
+    with pytest.raises(_EvidenceFault, match="outbox_effect_index_mismatch"):
+        _check_outbox(
+            settlement,
+            outbox,
+            observation.receipt_root.value,
+            exact_observation,
+        )
+
+
+def test_p4b0_replay_001_nullifier_mutation_fails_closed() -> None:
+    """P4B0-REPLAY-001."""
+
+    source = _fixture_source("swap_exact_in_boundary_valid")
+
+    def mutate(replay: dict[str, object]) -> None:
+        nullifier = _mapping(_sequence(replay["nullifiers"])[0])
+        nullifier["intent_id"] = "0x" + "ff" * 32
+
+    _rewrite_component(source, "replay_bytes", mutate)
+    result = _evaluate_source(source)
+    assert type(result) is InvalidEvidenceV1
+    assert result.code == "replay_nullifiers_mismatch"
+
+
+def test_p4b0_unknown_001_unknown_rejection_code_fails_closed() -> None:
+    """P4B0-UNKNOWN-001."""
+
+    source = _fixture_source("add_liquidity_pool_not_found_rejected")
+    exact = _mapping(_mapping(source["exact"])["observation"])
+    rejection = _mapping(exact["rejection"])
+    rejection["code"] = "unknown_rejection_code"
+
+    result = _evaluate_source(source)
+
+    assert type(result) is InvalidEvidenceV1
+    assert result.code == "rejection_mapping_mismatch"

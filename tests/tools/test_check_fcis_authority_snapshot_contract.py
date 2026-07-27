@@ -2579,14 +2579,29 @@ def test_p4b0_checker_kills_generic_json_schema_escape(tmp_path: Path) -> None:
 def test_p4b0_checker_kills_route_fingerprint_map_drift(tmp_path: Path) -> None:
     relative = Path("src/core/fcis_legacy_refinement_schema.py")
     source = _p4b0_source(relative)
-    anchor = "    64,\n    \"zenodex/fcis-m5-p4b0/route-fingerprints/v1\",\n"
+    anchor = '    64,\n    "zenodex/fcis-m5-p4b0/route-fingerprints/v1",\n'
     assert source.count(anchor) == 1
     mutated = source.replace(
         anchor,
-        "    65,\n    \"zenodex/fcis-m5-p4b0/route-fingerprints/v1\",\n",
+        '    65,\n    "zenodex/fcis-m5-p4b0/route-fingerprints/v1",\n',
         1,
     )
     report = _run_p4b0_source(tmp_path, relative, mutated)
+    assert "FCIS_P4B0" in _codes(report)
+
+
+def test_p4b0_admit_002_checker_kills_exact_product_helper_drift(tmp_path: Path) -> None:
+    """P4B0-ADMIT-002"""
+
+    relative = Path("src/core/fcis_legacy_refinement_schema.py")
+    source = _p4b0_source(relative)
+    anchor = "    return ExactProduct((SequenceSourceKind.EXACT_LIST,), schemas)\n"
+    replacement = (
+        "    return SequenceOf((SequenceSourceKind.EXACT_LIST,), schemas[0], "
+        "len(schemas), len(schemas))\n"
+    )
+    assert source.count(anchor) == 1
+    report = _run_p4b0_source(tmp_path, relative, source.replace(anchor, replacement, 1))
     assert "FCIS_P4B0" in _codes(report)
 
 
@@ -2595,6 +2610,9 @@ def test_p4b0_checker_kills_route_fingerprint_map_drift(tmp_path: Path) -> None:
     (
         '    _ = bytes.fromhex("00")\n',
         '    _ = decoded.get("legacy")\n',
+        '    if type(decoded) is dict and "legacy" not in decoded:\n'
+        '        return InvalidEvidenceV1("manual_shape_check", ())\n',
+        "    if type(decoded) is dict:\n        for _key in decoded:\n            break\n",
     ),
 )
 def test_p4b0_admit_002_checker_kills_parallel_pre_admission_validation(
@@ -2628,6 +2646,22 @@ def test_p4b0_checker_kills_omitted_policy_registry(
 ) -> None:
     relative = Path("src/core/fcis_legacy_refinement_policy.py")
     source = _p4b0_source(relative)
+    assert source.count(anchor) == 1
+    report = _run_p4b0_source(tmp_path, relative, source.replace(anchor, replacement, 1))
+    assert "FCIS_P4B0" in _codes(report)
+
+
+def test_p4b0_policy_002_checker_kills_wildcard_registry_entry(tmp_path: Path) -> None:
+    """P4B0-POLICY-002 and mandatory independent attack 9."""
+
+    relative = Path("src/core/fcis_legacy_refinement_policy.py")
+    source = _p4b0_source(relative)
+    anchor = "SEMANTIC_PROJECTION_ENTRIES_V1 = (\n"
+    replacement = (
+        anchor
+        + '    SemanticProjectionEntryV1("projection.wildcard", "*", '
+        + "PATCH_CHECK_VERSION_V1),\n"
+    )
     assert source.count(anchor) == 1
     report = _run_p4b0_source(tmp_path, relative, source.replace(anchor, replacement, 1))
     assert "FCIS_P4B0" in _codes(report)

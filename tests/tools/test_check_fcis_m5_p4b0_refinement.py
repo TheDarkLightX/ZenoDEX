@@ -14,8 +14,10 @@ from src.state.canonical import canonical_json_bytes, sha256_hex
 from tools.build_fcis_m5_p4b0_refinement import (
     ARTIFACT_PATH_V1,
     MUTATION_LEDGER_V1,
+    NO_MOUNT_SOURCE_HASHES_V1,
     artifact_bytes_v1,
     build_artifact_v1,
+    verify_no_mount_sources_v1,
 )
 from tools.check_fcis_m5_p4b0_refinement import check_artifact_v1
 
@@ -137,6 +139,10 @@ def _mutate_semantic_artifact(artifact: dict[str, object], mutant: str) -> None:
     elif mutant == "source_hash":
         first_path = sorted(source_hashes)[0]
         source_hashes[first_path] = _ONE_DIGEST
+    elif mutant == "no_mount_source_hash":
+        mounted_hashes = _mapping(artifact["no_mount_source_hashes"])
+        first_path = sorted(mounted_hashes)[0]
+        mounted_hashes[first_path] = _ONE_DIGEST
     elif mutant == "mutation_ledger":
         ledger.pop()
     else:
@@ -176,6 +182,7 @@ SEMANTIC_MUTANTS = (
     "duplicate_row",
     "reorder_rows",
     "source_hash",
+    "no_mount_source_hash",
     "mutation_ledger",
 )
 
@@ -217,7 +224,7 @@ def test_p4b0_mutants_001_rehashed_semantic_mutants_fail_rebuild(
 def test_p4b0_mutants_001_ledger_is_named_unique_and_large_enough() -> None:
     """P4B0-MUTANTS-001."""
 
-    assert len(MUTATION_LEDGER_V1) >= 20
+    assert len(MUTATION_LEDGER_V1) == 60
     assert len({mutant_id for mutant_id, _, _ in MUTATION_LEDGER_V1}) == len(MUTATION_LEDGER_V1)
     assert all(test_id.startswith("P4B0-") for _, _, test_id in MUTATION_LEDGER_V1)
 
@@ -286,3 +293,39 @@ def test_p4b0_nomount_002_mounted_dispatch_does_not_import_refinement() -> None:
     mounted = (REPO_ROOT / "src/core/dex.py").read_text(encoding="utf-8")
     assert "fcis_legacy_refinement" not in mounted
     assert "evaluate_refinement_v1" not in mounted
+
+
+def test_p4b0_nomount_003_artifact_binds_all_frozen_mounted_sources() -> None:
+    artifact = _clone_artifact()
+    assert artifact["no_mount_source_hashes"] == verify_no_mount_sources_v1(REPO_ROOT)
+    assert set(_mapping(artifact["no_mount_source_hashes"])) == {
+        path.as_posix() for path, _expected_hash in NO_MOUNT_SOURCE_HASHES_V1
+    }
+
+
+@pytest.mark.parametrize(
+    "mutated_path",
+    tuple(path for path, _expected_hash in NO_MOUNT_SOURCE_HASHES_V1),
+)
+def test_p4b0_nomount_004_checker_rejects_post_evidence_source_mutation(
+    tmp_path: Path,
+    mutated_path: Path,
+) -> None:
+    """P4B0-NOMOUNT-001 and mandatory independent attack 12."""
+
+    for relative_path, _expected_hash in NO_MOUNT_SOURCE_HASHES_V1:
+        destination = tmp_path / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.symlink_to(REPO_ROOT / relative_path)
+    target = tmp_path / mutated_path
+    target.unlink()
+    target.write_bytes((REPO_ROOT / mutated_path).read_bytes() + b"\n# mounted mutant\n")
+
+    status, report = check_artifact_v1(
+        tmp_path,
+        ARTIFACT_PATH,
+        require_all_refine=False,
+    )
+
+    assert status == 1
+    assert report["code"] == f"no_mount_source_drift:{mutated_path.as_posix()}"

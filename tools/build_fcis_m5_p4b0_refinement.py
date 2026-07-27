@@ -25,6 +25,10 @@ from src.core.fcis_legacy_refinement_admission import (
     decode_canonical_evidence_artifact_bytes_v1,
 )
 from src.core.fcis_legacy_refinement_policy import POLICY_HASH_V1, POLICY_VERSION_V1
+from src.core.fcis_legacy_refinement_schema import (
+    RefinementResourceKindV1,
+    check_refinement_resource_limit_v1,
+)
 from src.core.fcis_legacy_refinement_values import (
     InvalidEvidenceV1,
     MismatchV1,
@@ -43,8 +47,40 @@ SOURCE_PATHS_V1 = (
     Path("src/core/fcis_legacy_refinement_policy.py"),
     Path("src/core/fcis_legacy_refinement_schema.py"),
     Path("src/core/fcis_legacy_refinement_values.py"),
+    Path("tests/core/test_fcis_legacy_refinement.py"),
+    Path("tests/core/test_fcis_legacy_refinement_values.py"),
+    Path("tests/tools/test_check_fcis_authority_snapshot_contract.py"),
+    Path("tests/tools/test_check_fcis_m5_p4b0_refinement.py"),
     Path("tools/build_fcis_m5_p4b0_refinement.py"),
+    Path("tools/check_fcis_authority_snapshot_contract.py"),
     Path("tools/check_fcis_m5_p4b0_refinement.py"),
+)
+NO_MOUNT_SOURCE_HASHES_V1 = (
+    (Path("src/core/dex.py"), "0xa5310e00707325e164892c091e7b20ccc55b7e980b66203e0f4af09d00e00dec"),
+    (
+        Path("src/core/route_settlement.py"),
+        "0xb4abe7fbca3f885e4975cd7e43590ad4454a5d21d984e95ad2d57d932234fd7f",
+    ),
+    (
+        Path("src/core/settlement_strong_validator.py"),
+        "0x9354bd921403d85d2f257a5cce0742224f2eecd01311bd1049e716bfc9cfc4d6",
+    ),
+    (
+        Path("src/integration/dex_engine.py"),
+        "0x95acb3ef8ad9421bbcf22aad9df11150d9cd5f2ff2eda232a06d04782ace6671",
+    ),
+    (
+        Path("src/integration/fcis_spot_shadow.py"),
+        "0xfee55b8caf9c2db42190372d1b14fc71a56b288c8f2a4858c805037df106f393",
+    ),
+    (
+        Path("src/state/legacy_state_snapshots.py"),
+        "0x2281bf45694f15816f2e96120e8d557b7b72912dac25aecac70a4e1cfb73bc6a",
+    ),
+    (
+        Path("src/state/support_root.py"),
+        "0xb139cb889f48c443bc8f60e7bdc13867f9288e8191d9e64b0a2db776ad775a68",
+    ),
 )
 MUTATION_LEDGER_V1 = (
     ("M01", "result_kind", "P4B0-RESULT-001"),
@@ -71,7 +107,51 @@ MUTATION_LEDGER_V1 = (
     ("M22", "policy_wildcard", "P4B0-POLICY-002"),
     ("M23", "input_substitution", "P4B0-INPUT-002"),
     ("M24", "artifact_result_fabrication", "P4B0-MUTANTS-001"),
+    ("M25", "economic_balance_delta", "P4B0-ECON-001"),
+    ("M26", "economic_reserve_delta", "P4B0-ECON-001"),
+    ("M27", "economic_lp_delta", "P4B0-ECON-001"),
+    ("M28", "economic_dust", "P4B0-ECON-001"),
+    ("M29", "economic_fee_allocation", "P4B0-ECON-001"),
+    ("M30", "patch_extra_op", "P4B0-PATCH-002"),
+    ("M31", "patch_reordered", "P4B0-PATCH-002"),
+    ("M32", "patch_partial_application", "P4B0-PATCH-002"),
+    ("M33", "bundle_cross_state", "P4B0-BUNDLE-002"),
+    ("M34", "bundle_cross_plan", "P4B0-BUNDLE-002"),
+    ("M35", "bundle_cross_receipt", "P4B0-BUNDLE-002"),
+    ("M36", "bundle_cross_replay", "P4B0-BUNDLE-002"),
+    ("M37", "bundle_cross_outbox", "P4B0-BUNDLE-002"),
+    ("M38", "bundle_cached_root", "P4B0-BUNDLE-001"),
+    ("M39", "outbox_delete", "P4B0-OUTBOX-001"),
+    ("M40", "outbox_duplicate", "P4B0-OUTBOX-001"),
+    ("M41", "outbox_idempotency", "P4B0-OUTBOX-001"),
+    ("M42", "version_schema", "P4B0-VERSION-002"),
+    ("M43", "version_codec", "P4B0-VERSION-002"),
+    ("M44", "version_snapshot", "P4B0-VERSION-002"),
+    ("M45", "version_support", "P4B0-VERSION-002"),
+    ("M46", "version_policy", "P4B0-VERSION-002"),
+    ("M47", "unknown_command", "P4B0-UNKNOWN-001"),
+    ("M48", "unknown_reject_code", "P4B0-UNKNOWN-001"),
+    ("M49", "unknown_field", "P4B0-UNKNOWN-001"),
+    ("M50", "unknown_status", "P4B0-UNKNOWN-001"),
+    ("M51", "unknown_observation_variant", "P4B0-UNKNOWN-001"),
+    ("M52", "exact_product_substitution", "P4B0-ADMIT-002"),
+    ("M53", "manual_pre_admission_validation", "P4B0-ADMIT-002"),
+    ("M54", "open_json_schema", "P4B0-ADMIT-002"),
+    ("M55", "mounted_dex_source", "P4B0-NOMOUNT-001"),
+    ("M56", "input_command_substitution", "P4B0-INPUT-002"),
+    ("M57", "input_state_substitution", "P4B0-INPUT-002"),
+    ("M58", "input_context_substitution", "P4B0-INPUT-002"),
+    ("M59", "rejection_committable_output", "P4B0-REJECT-002"),
+    ("M60", "outbox_two_record_reorder", "P4B0-OUTBOX-001"),
 )
+
+
+class NoMountSourceDriftV1(ValueError):
+    """One frozen mounted source no longer matches the reviewed ancestor."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(path.as_posix())
+        self.path = path
 
 
 def _mapping(value: object, name: str) -> dict[str, object]:
@@ -194,9 +274,37 @@ def _source_hashes(repo_root: Path) -> dict[str, object]:
     return {str(path): sha256_hex((repo_root / path).read_bytes()) for path in SOURCE_PATHS_V1}
 
 
+def verify_no_mount_sources_v1(repo_root: Path) -> dict[str, object]:
+    """Fail closed if any mounted comparison source differs from its reviewed bytes."""
+
+    verified: dict[str, object] = {}
+    for path, expected_hash in NO_MOUNT_SOURCE_HASHES_V1:
+        try:
+            actual_hash = sha256_hex((repo_root / path).read_bytes())
+        except OSError as error:
+            raise NoMountSourceDriftV1(path) from error
+        if actual_hash != expected_hash:
+            raise NoMountSourceDriftV1(path)
+        verified[path.as_posix()] = actual_hash
+    return verified
+
+
 def _artifact_payload(repo_root: Path) -> dict[str, object]:
+    no_mount_source_hashes = verify_no_mount_sources_v1(repo_root)
     p4a = _load_p4a(repo_root)
     fixtures = _sequence(p4a["fixtures"], "P4A fixtures")
+    fixture_limit = check_refinement_resource_limit_v1(
+        RefinementResourceKindV1.FIXTURES,
+        len(fixtures),
+    )
+    observation_limit = check_refinement_resource_limit_v1(
+        RefinementResourceKindV1.OBSERVATIONS,
+        len(fixtures) * 2,
+    )
+    if fixture_limit is not None:
+        raise ValueError("P4B0 fixture limit exceeded")
+    if observation_limit is not None:
+        raise ValueError("P4B0 observation limit exceeded")
     rows: list[dict[str, object]] = []
     counts = {"invalid_evidence": 0, "mismatch": 0, "refines": 0}
     for raw_fixture in fixtures:
@@ -226,6 +334,7 @@ def _artifact_payload(repo_root: Path) -> dict[str, object]:
             {"mutant_id": mutant_id, "name": name, "test_id": test_id}
             for mutant_id, name, test_id in MUTATION_LEDGER_V1
         ],
+        "no_mount_source_hashes": no_mount_source_hashes,
         "outcome": "M5_P4B0_REFINEMENT_EVIDENCE_ONLY",
         "packet_commit": PACKET_COMMIT_V1,
         "packet_tree_hash": PACKET_TREE_HASH_V1,
