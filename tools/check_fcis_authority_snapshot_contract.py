@@ -52,6 +52,10 @@ STATE_SUBSTRATE_AUTHORITY_PATHS = (
     Path("src/state/committed_dex_snapshot.py"),
 )
 AUTHORITY_GRAPH_AUTHORITY_PATHS = (
+    Path("src/core/fcis_legacy_refinement_admission.py"),
+    Path("src/core/fcis_legacy_refinement_policy.py"),
+    Path("src/core/fcis_legacy_refinement_schema.py"),
+    Path("src/core/fcis_legacy_refinement_values.py"),
     Path("src/core/fcis_authority_admission.py"),
     Path("src/core/fcis_authority_dispatch.py"),
     Path("src/core/fcis_authority_schema.py"),
@@ -237,6 +241,15 @@ _PROFILE_PATHS = (
     "src/state/lp_duration_policy_admission.py",
     "src/state/fcis_execution_context_admission.py",
 )
+_P4B0_ADMISSION_PATH = "src/core/fcis_legacy_refinement_admission.py"
+_P4B0_AUTHORITY_PATHS = frozenset(
+    {
+        _P4B0_ADMISSION_PATH,
+        "src/core/fcis_legacy_refinement_policy.py",
+        "src/core/fcis_legacy_refinement_schema.py",
+        "src/core/fcis_legacy_refinement_values.py",
+    }
+)
 _SHADOW_AUTHORITY_MODULE = "src.integration.fcis_spot_shadow"
 _SHADOW_AUTHORITY_PATH = "src/integration/fcis_spot_shadow.py"
 _SHADOW_AUTHORITY_RESERVED_TOKENS = (
@@ -288,7 +301,7 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
         "src/core/fcis_step_evaluator.py",
         "src/core/fcis_decision_derivation.py",
     ),
-    "_admit_with_registry_v1": _PROFILE_PATHS,
+    "_admit_with_registry_v1": (*_PROFILE_PATHS, _P4B0_ADMISSION_PATH),
     "_encode_admitted": (
         "src/core/fcis_authority_admission.py",
         "src/state/state_admission_profile.py",
@@ -342,6 +355,7 @@ _PRIVATE_AUTHORITY_MODULE_OBJECT_ALLOWLIST = {
 }
 _PROFILE_ENGINE_NAMES = {
     "snapshot_combinators._admit_with_registry_v1",
+    "state.snapshot_combinators._admit_with_registry_v1",
     "src.state.snapshot_combinators._admit_with_registry_v1",
 }
 _LEGACY_MUTABLE_CONSTRUCTORS = {
@@ -1293,7 +1307,10 @@ class _AuthorityVisitor(ast.NodeVisitor):
         ):
             self._add(node, "OWNED_CONSTRUCTION_ESCAPE", called or called_tail)
         if called_tail == "_admit_with_registry_v1":
-            if not _is_profile_path(self.relative_path):
+            if self.relative_path == _P4B0_ADMISSION_PATH:
+                if called not in _PROFILE_ENGINE_NAMES:
+                    self._add(node, "FCIS_P4B0", "noncanonical-engine-binding")
+            elif not _is_profile_path(self.relative_path):
                 self._add(node, "PROFILE_BINDING_ESCAPE", called or called_tail)
             elif called not in _PROFILE_ENGINE_NAMES:
                 self._add(node, "PROFILE_FACADE_SHAPE", "noncanonical engine binding")
@@ -1338,8 +1355,10 @@ class _AuthorityVisitor(ast.NodeVisitor):
                             constructor_name,
                             encoder_name,
                         )
-        if called_tail == "build_admission_registry_v1" and not _is_profile_path(
-            self.relative_path
+        if (
+            called_tail == "build_admission_registry_v1"
+            and not _is_profile_path(self.relative_path)
+            and self.relative_path != _P4B0_ADMISSION_PATH
         ):
             self._add(node, "REGISTRY_BINDING_ESCAPE", called or called_tail)
         construction_allowlist = {
@@ -4369,6 +4388,319 @@ def _check_m5_p3_contract_v1(
     return []
 
 
+def _p4b0_violation_v1(
+    relative_path: str,
+    node: ast.AST,
+    detail: str,
+) -> _Violation:
+    return _Violation(
+        relative_path,
+        getattr(node, "lineno", 0),
+        getattr(node, "col_offset", 0),
+        "FCIS_P4B0",
+        detail,
+    )
+
+
+def _top_level_assignment_v1(module: ast.Module, name: str) -> ast.AST | None:
+    for statement in module.body:
+        if (
+            type(statement) is ast.Assign
+            and len(statement.targets) == 1
+            and type(statement.targets[0]) is ast.Name
+            and statement.targets[0].id == name
+        ):
+            return statement
+        if (
+            type(statement) is ast.AnnAssign
+            and type(statement.target) is ast.Name
+            and statement.target.id == name
+        ):
+            return statement
+    return None
+
+
+def _check_p4b0_values_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    classes = _top_level_classes_v1(module)
+    required_classes = {
+        "AppliedVersionDeltaV1",
+        "BoundObservationV1",
+        "CanonicalBytesFieldV1",
+        "CanonicalDigestFieldV1",
+        "CanonicalIdentitiesFieldV1",
+        "CanonicalParseRejectV1",
+        "InputBindingV1",
+        "InvalidEvidenceV1",
+        "MismatchV1",
+        "ObservationPairV1",
+        "ObservationValueV1",
+        "OutboxIdentityValueV1",
+        "RefinementWitnessV1",
+        "RefinesV1",
+        "RejectionValueV1",
+    }
+    for class_name in sorted(required_classes):
+        class_def = classes.get(class_name)
+        if class_def is None:
+            violations.append(_p4b0_violation_v1(relative_path, module, f"missing:{class_name}"))
+            continue
+        if not _is_frozen_slotted_final_dataclass_v1(class_def):
+            violations.append(
+                _p4b0_violation_v1(
+                    relative_path,
+                    class_def,
+                    f"value-not-final-frozen-slotted:{class_name}",
+                )
+            )
+        for field in (
+            statement for statement in class_def.body if type(statement) is ast.AnnAssign
+        ):
+            forbidden_names = {
+                name
+                for node in ast.walk(field.annotation)
+                if (name := _last_name(node))
+                in {
+                    "Any",
+                    "Mapping",
+                    "MutableMapping",
+                    "MutableSequence",
+                    "MutableSet",
+                    "Sequence",
+                    "dict",
+                    "list",
+                    "object",
+                    "set",
+                }
+            }
+            if forbidden_names:
+                violations.append(
+                    _p4b0_violation_v1(
+                        relative_path,
+                        field,
+                        f"open-authority-field:{class_name}:{','.join(sorted(forbidden_names))}",
+                    )
+                )
+    decision_alias = _top_level_assignment_v1(module, "RefinementDecisionV1")
+    if decision_alias is None or not {
+        "RefinesV1",
+        "MismatchV1",
+        "InvalidEvidenceV1",
+    } <= {node.id for node in ast.walk(decision_alias) if type(node) is ast.Name}:
+        violations.append(_p4b0_violation_v1(relative_path, module, "decision-algebra-drift"))
+    return violations
+
+
+def _check_p4b0_schema_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    required_bindings = {
+        "EXACT_OBSERVATION_SCHEMA_V1",
+        "FEE_ALLOCATION_SCHEMA_V1",
+        "INPUT_BINDING_SCHEMA_V1",
+        "LEGACY_OBSERVATION_SCHEMA_V1",
+        "OBSERVATION_PAIR_SCHEMA_V1",
+        "OUTBOX_IDENTITY_SCHEMA_V1",
+        "REFINEMENT_ADMISSION_LIMITS_RAW_V1",
+        "REFINEMENT_SCHEMA_REGISTRATIONS_V1",
+    }
+    for binding in sorted(required_bindings):
+        if _top_level_assignment_v1(module, binding) is None:
+            violations.append(_p4b0_violation_v1(relative_path, module, f"missing:{binding}"))
+    forbidden = {
+        name
+        for node in ast.walk(module)
+        if (name := _last_name(node)) in {"BoundedJsonValue", "MapOf", "RecordOf"}
+    }
+    if forbidden:
+        violations.append(
+            _p4b0_violation_v1(
+                relative_path,
+                module,
+                f"open-or-constructor-schema:{','.join(sorted(forbidden))}",
+            )
+        )
+    exact_maps = sum(
+        1
+        for node in ast.walk(module)
+        if type(node) is ast.Call and _last_name(node.func) == "ExactKeyedMap"
+    )
+    if exact_maps < 8:
+        violations.append(_p4b0_violation_v1(relative_path, module, "closed-schema-count"))
+    return violations
+
+
+def _check_p4b0_admission_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    functions = _top_level_functions_v1(module)
+    required_functions = {
+        "_admit_pair_source",
+        "_build_pair",
+        "_decode_hex",
+        "admit_observation_pair_bytes_v1",
+        "decode_canonical_json_bytes_v1",
+        "encode_observation_pair_v1",
+        "revalidate_observation_pair_v1",
+    }
+    for missing in sorted(required_functions - functions.keys()):
+        violations.append(_p4b0_violation_v1(relative_path, module, f"missing:{missing}"))
+    engine_sites = [
+        function_name
+        for function_name, function in functions.items()
+        for call in _function_calls(function)
+        if _last_name(call.func) == "_admit_with_registry_v1"
+    ]
+    if engine_sites != ["_admit_pair_source"]:
+        violations.append(_p4b0_violation_v1(relative_path, module, "closed-engine-sites"))
+    registry_calls = [
+        node
+        for node in ast.walk(module)
+        if type(node) is ast.Call and _last_name(node.func) == "build_admission_registry_v1"
+    ]
+    if len(registry_calls) != 1:
+        violations.append(_p4b0_violation_v1(relative_path, module, "registry-construction-count"))
+    facade = functions.get("admit_observation_pair_bytes_v1")
+    if facade is not None:
+        calls = tuple(_last_name(call.func) for call in _function_calls(facade))
+        for required_call in (
+            "decode_canonical_json_bytes_v1",
+            "_admit_pair_source",
+            "_build_pair",
+        ):
+            if calls.count(required_call) != 1:
+                violations.append(
+                    _p4b0_violation_v1(
+                        relative_path,
+                        facade,
+                        f"facade-call-count:{required_call}",
+                    )
+                )
+        source = ast.unparse(facade)
+        positions = tuple(
+            source.find(name)
+            for name in (
+                "decode_canonical_json_bytes_v1",
+                "_admit_pair_source",
+                "_build_pair",
+            )
+        )
+        if -1 in positions or positions != tuple(sorted(positions)):
+            violations.append(_p4b0_violation_v1(relative_path, facade, "facade-order"))
+        if any(
+            type(node) is ast.Call
+            and (
+                _last_name(node.func) == "fromhex"
+                or type(node.func) is ast.Attribute
+                and node.func.attr == "get"
+            )
+            for node in ast.walk(facade)
+        ):
+            violations.append(
+                _p4b0_violation_v1(relative_path, facade, "parallel-pre-admission-validation")
+            )
+    for function_name, function in functions.items():
+        for call in _function_calls(function):
+            if type(call.func) is ast.Attribute and call.func.attr == "get":
+                violations.append(
+                    _p4b0_violation_v1(
+                        relative_path,
+                        call,
+                        f"defaulting-field-access:{function_name}",
+                    )
+                )
+            if _last_name(call.func) == "fromhex" and function_name != "_decode_hex":
+                violations.append(
+                    _p4b0_violation_v1(
+                        relative_path,
+                        call,
+                        f"hex-outside-post-admission-decoder:{function_name}",
+                    )
+                )
+        if _has_broad_exception_handler_v5(function):
+            violations.append(
+                _p4b0_violation_v1(relative_path, function, f"broad-exception:{function_name}")
+            )
+    return violations
+
+
+def _check_p4b0_policy_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    classes = _top_level_classes_v1(module)
+    for class_name in (
+        "CommandKindEntryV1",
+        "ExactOnlyFieldEntryV1",
+        "RejectionMappingV1",
+        "SemanticProjectionEntryV1",
+        "VersionDeltaEntryV1",
+    ):
+        class_def = classes.get(class_name)
+        if class_def is None or not _is_frozen_slotted_final_dataclass_v1(class_def):
+            violations.append(
+                _p4b0_violation_v1(
+                    relative_path,
+                    module if class_def is None else class_def,
+                    f"policy-entry-shape:{class_name}",
+                )
+            )
+    registry_names = (
+        "COMMAND_KIND_ENTRIES_V1",
+        "EXACT_ONLY_FIELD_ENTRIES_V1",
+        "REJECTION_MAPPINGS_V1",
+        "SEMANTIC_PROJECTION_ENTRIES_V1",
+        "VERSION_DELTA_ENTRIES_V1",
+    )
+    for registry_name in registry_names:
+        assignment = _top_level_assignment_v1(module, registry_name)
+        if assignment is None:
+            violations.append(_p4b0_violation_v1(relative_path, module, f"missing:{registry_name}"))
+            continue
+        if any(type(node) in (ast.Dict, ast.List, ast.Set) for node in ast.walk(assignment)):
+            violations.append(
+                _p4b0_violation_v1(relative_path, assignment, f"mutable-registry:{registry_name}")
+            )
+    module_calls = [
+        _last_name(node.value.func)
+        for node in module.body
+        if type(node) is ast.Expr and type(node.value) is ast.Call
+    ]
+    if module_calls.count("_validate_registry_v1") != 1:
+        violations.append(_p4b0_violation_v1(relative_path, module, "registry-validation-count"))
+    policy_hash = _top_level_assignment_v1(module, "POLICY_HASH_V1")
+    if policy_hash is None or "sha256_hex" not in {
+        _last_name(node.func) for node in ast.walk(policy_hash) if type(node) is ast.Call
+    }:
+        violations.append(_p4b0_violation_v1(relative_path, module, "policy-hash-not-derived"))
+    return violations
+
+
+def _check_p4b0_contract_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    if relative_path not in _P4B0_AUTHORITY_PATHS:
+        return []
+    if relative_path.endswith("_values.py"):
+        return _check_p4b0_values_v1(module, relative_path)
+    if relative_path.endswith("_schema.py"):
+        return _check_p4b0_schema_v1(module, relative_path)
+    if relative_path == _P4B0_ADMISSION_PATH:
+        return _check_p4b0_admission_v1(module, relative_path)
+    if relative_path.endswith("_policy.py"):
+        return _check_p4b0_policy_v1(module, relative_path)
+    return [_p4b0_violation_v1(relative_path, module, "unknown-p4b0-surface")]
+
+
 def _check_authority_path(
     repo_root: Path,
     relative_path: Path,
@@ -4411,13 +4743,15 @@ def _check_authority_path(
         + _check_exact_nonce_consumer_shape_v1(module, display)
         + _check_exact_support_consumer_shape_v1(module, display)
         + _check_m5_support_trace_contract_v5(module, display)
-        + _check_m5_p3_contract_v1(module, display),
+        + _check_m5_p3_contract_v1(module, display)
+        + _check_p4b0_contract_v1(module, display),
     )
 
 
 _SENSITIVE_SOURCE_CODES = {
     "CLAIM_AUTHORITY_ESCAPE",
     "CONSTRUCTION_CALLSITE",
+    "FCIS_P4B0",
     "DECLARATIVE_REGISTRY_EXECUTION",
     "OWNED_CONSTRUCTION_ESCAPE",
     "PATH_READ_ERROR",

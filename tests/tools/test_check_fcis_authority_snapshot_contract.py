@@ -55,6 +55,10 @@ def test_default_authority_paths_cover_mounted_and_exact_authority(
 
 def test_m5_authority_graph_paths_are_mandatory() -> None:
     required = {
+        Path("src/core/fcis_legacy_refinement_admission.py"),
+        Path("src/core/fcis_legacy_refinement_policy.py"),
+        Path("src/core/fcis_legacy_refinement_schema.py"),
+        Path("src/core/fcis_legacy_refinement_values.py"),
         Path("src/core/fcis_authority_admission.py"),
         Path("src/core/fcis_authority_dispatch.py"),
         Path("src/core/fcis_authority_schema.py"),
@@ -2507,3 +2511,107 @@ def test_m5_p3_d07_kills_reference_commit_mutations(
     report = _run_commit_reference_source(tmp_path, mutated)
 
     assert {"FCIS_M5_P3", "CLAIM_AUTHORITY_ESCAPE"} & _codes(report)
+
+
+_P4B0_PATHS = (
+    Path("src/core/fcis_legacy_refinement_admission.py"),
+    Path("src/core/fcis_legacy_refinement_policy.py"),
+    Path("src/core/fcis_legacy_refinement_schema.py"),
+    Path("src/core/fcis_legacy_refinement_values.py"),
+)
+
+
+def _p4b0_source(relative: Path) -> str:
+    return (Path(__file__).resolve().parents[2] / relative).read_text(encoding="utf-8")
+
+
+def _run_p4b0_source(tmp_path: Path, relative: Path, source: str) -> dict[str, object]:
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True, exist_ok=True)
+    authority.write_text(source, encoding="utf-8")
+    return check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="authority-graph",
+    )
+
+
+def test_p4b0_authority_graph_covers_all_checkpoint_a_modules() -> None:
+    assert set(_P4B0_PATHS) <= set(AUTHORITY_GRAPH_AUTHORITY_PATHS)
+    assert set(_P4B0_PATHS) <= set(FINAL_MOUNT_AUTHORITY_PATHS)
+
+
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    (
+        (
+            "    fee_allocation: FCISFeeAllocationV1 | None",
+            "    fee_allocation: object | None",
+        ),
+        (
+            "@final\n@dataclass(frozen=True, slots=True)\nclass ObservationPairV1:",
+            "@dataclass(frozen=True, slots=True)\nclass ObservationPairV1:",
+        ),
+    ),
+)
+def test_p4b0_checker_kills_open_or_substitutable_value_shapes(
+    tmp_path: Path,
+    anchor: str,
+    replacement: str,
+) -> None:
+    relative = Path("src/core/fcis_legacy_refinement_values.py")
+    source = _p4b0_source(relative)
+    assert source.count(anchor) == 1
+    report = _run_p4b0_source(tmp_path, relative, source.replace(anchor, replacement, 1))
+    assert "FCIS_P4B0" in _codes(report)
+
+
+def test_p4b0_checker_kills_generic_json_schema_escape(tmp_path: Path) -> None:
+    relative = Path("src/core/fcis_legacy_refinement_schema.py")
+    source = _p4b0_source(relative)
+    source += "\n_MUTANT_OPEN_SCHEMA = BoundedJsonValue(1, 1, 1, 1, 1, 1)\n"
+    report = _run_p4b0_source(tmp_path, relative, source)
+    assert "FCIS_P4B0" in _codes(report)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        '    _ = bytes.fromhex("00")\n',
+        '    _ = decoded.get("legacy")\n',
+    ),
+)
+def test_p4b0_admit_002_checker_kills_parallel_pre_admission_validation(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    """P4B0-ADMIT-002"""
+
+    relative = Path("src/core/fcis_legacy_refinement_admission.py")
+    source = _p4b0_source(relative)
+    anchor = "    decoded = decode_canonical_json_bytes_v1(raw)\n"
+    assert source.count(anchor) == 1
+    mutated = source.replace(anchor, anchor + mutation, 1)
+    report = _run_p4b0_source(tmp_path, relative, mutated)
+    assert "FCIS_P4B0" in _codes(report)
+
+
+@pytest.mark.parametrize(
+    ("anchor", "replacement"),
+    (
+        ("COMMAND_KIND_ENTRIES_V1 = (", "COMMAND_KIND_ENTRIES_MUTANT_V1 = ("),
+        ("REJECTION_MAPPINGS_V1 = (", "REJECTION_MAPPINGS_MUTANT_V1 = ("),
+    ),
+)
+def test_p4b0_checker_kills_omitted_policy_registry(
+    tmp_path: Path,
+    anchor: str,
+    replacement: str,
+) -> None:
+    relative = Path("src/core/fcis_legacy_refinement_policy.py")
+    source = _p4b0_source(relative)
+    assert source.count(anchor) == 1
+    report = _run_p4b0_source(tmp_path, relative, source.replace(anchor, replacement, 1))
+    assert "FCIS_P4B0" in _codes(report)
