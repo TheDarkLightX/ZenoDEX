@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
-"""Cross-language and verifier readiness matrix for FCIS M5-P4A.
+"""Build the fail-closed FCIS M5-P4A cross-consumer parity matrix.
 
-Produces a machine-readable JSON matrix mapping every FCIS authority surface
-to its cross-language (Python/Rust) status, verifier readiness, and proof
-infrastructure status.
-
-M5-P4A-XLANG-001: every trusted core authority surface is enumerated.
-M5-P4A-XLANG-002: Rust authority status is derived from source.
-M5-P4A-XLANG-003: verifier and proof infrastructure status is enumerated.
+Source presence never counts as byte-level parity.  A row may use
+``PASS_EXACT_BYTES`` only when it binds a replay artifact containing the same
+fixture set and all normative observables.  P4A has no such promoted
+cross-language artifact, so the matrix records the missing evidence directly.
 """
+
+# ruff: noqa: E402 -- the executable tool must add the repository root before src imports
 
 from __future__ import annotations
 
 import hashlib
+import json
 import sys
+from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import cast
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 from src.runtime.authority import (
     PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES,
@@ -23,190 +28,284 @@ from src.runtime.authority import (
 )
 from src.state.canonical import canonical_json_bytes
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
 _REPORT_PATH = _REPO_ROOT / "docs" / "research" / "FCIS_M5_P4A_CROSS_LANGUAGE_MATRIX_V1.json"
+_BASELINE_PATH = _REPO_ROOT / "docs" / "research" / "FCIS_M5_P4A_LEGACY_BASELINE_V1.json"
+_DIFFERENTIAL_PATH = _REPO_ROOT / "docs" / "research" / "FCIS_M5_P4A_DIFFERENTIAL_REPLAY_V1.json"
+_MOUNT_GRAPH_PATH = _REPO_ROOT / "docs" / "research" / "FCIS_M5_P4A_MOUNT_CALL_GRAPH_V1.json"
 _SCHEMA = "zenodex/fcis-m5-p4a-cross-language-matrix/v1"
+_REVIEWED_START_SHA = "c344bac741c1d4a15511b77f8e2b60f93260a449"
+_CLOSED_STATUSES = frozenset(
+    {
+        "PASS_EXACT_BYTES",
+        "UNPROMOTED_SHADOW_ONLY",
+        "MISSING_BLOCKER",
+        "NOT_APPLICABLE_WITH_REASON",
+    }
+)
+_CONSUMERS = (
+    "python_fcis",
+    "rust_runtime",
+    "tau_adapter",
+    "proof_guest",
+    "settlement_verifier",
+)
 
 
-def _check_rust_surface(surface: str) -> dict[str, Any]:
-    """Check if a Rust implementation exists for the given surface."""
-    rust_paths = [
-        _REPO_ROOT / "rust" / "src" / f"{surface}.rs",
-        _REPO_ROOT / "rust" / f"{surface}.rs",
-        _REPO_ROOT / "src" / "runtime" / f"rust_{surface}.py",
+class DuplicateJsonKey(ValueError):
+    """Raised when a generated artifact repeats a JSON object key."""
+
+
+def _strict_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise DuplicateJsonKey(key)
+        result[key] = value
+    return result
+
+
+def _load_object(path: Path) -> dict[str, object]:
+    value = json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=_strict_object,
+    )
+    if type(value) is not dict:
+        raise ValueError(f"{path.name} must contain one JSON object")
+    return cast(dict[str, object], value)
+
+
+def _sha256(raw: bytes) -> str:
+    return "0x" + hashlib.sha256(raw).hexdigest()
+
+
+def _artifact_payload(value: dict[str, object]) -> bytes:
+    payload = dict(value)
+    payload.pop("artifact_sha256", None)
+    return canonical_json_bytes(payload)
+
+
+def _assert_artifact_hash(path: Path, value: dict[str, object]) -> None:
+    claimed = value.get("artifact_sha256")
+    if type(claimed) is not str:
+        raise ValueError(f"{path.name} lacks artifact_sha256")
+    actual = _sha256(_artifact_payload(value))
+    if claimed != actual:
+        raise ValueError(f"{path.name} artifact_sha256 mismatch")
+
+
+def _with_artifact_hash(value: dict[str, object]) -> dict[str, object]:
+    result = dict(value)
+    result["artifact_sha256"] = _sha256(_artifact_payload(result))
+    return result
+
+
+def _evidence_reference(path: Path) -> dict[str, object]:
+    return {
+        "path": path.relative_to(_REPO_ROOT).as_posix(),
+        "file_sha256": _sha256(path.read_bytes()),
+    }
+
+
+def _baseline_commands(baseline: dict[str, object]) -> list[dict[str, object]]:
+    raw = baseline.get("command_inventory")
+    if type(raw) is not list or any(type(row) is not dict for row in raw):
+        raise ValueError("baseline command_inventory is malformed")
+    rows = cast(list[dict[str, object]], raw)
+    result: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for row in rows:
+        command = row.get("command_kind")
+        if type(command) is not str or command in seen:
+            raise ValueError("baseline command inventory is not unique")
+        seen.add(command)
+        evidence = row.get("source_evidence")
+        if type(evidence) is not list or any(type(item) is not str for item in evidence):
+            raise ValueError("baseline command source evidence is malformed")
+        result.append(
+            {
+                "surface_id": f"command:{command}",
+                "surface_kind": "MOUNTED_COMMAND",
+                "source_evidence": list(cast(list[str], evidence)),
+                "required_for_public_testnet": True,
+            }
+        )
+    return sorted(result, key=lambda row: cast(str, row["surface_id"]))
+
+
+def _mount_surfaces(mount_graph: dict[str, object]) -> list[dict[str, object]]:
+    raw = mount_graph.get("source_rows")
+    if type(raw) is not list or any(type(row) is not dict for row in raw):
+        raise ValueError("mount graph source_rows is malformed")
+    violation_paths_raw = mount_graph.get("violation_counts_by_path")
+    if type(violation_paths_raw) is not dict:
+        raise ValueError("mount graph violation_counts_by_path is malformed")
+    violation_paths = set(cast(dict[str, object], violation_paths_raw))
+    result: list[dict[str, object]] = []
+    for row in cast(list[dict[str, object]], raw):
+        path = row.get("path")
+        role = row.get("source_role")
+        source_hash = row.get("source_sha256")
+        if type(path) is not str or type(role) is not str or type(source_hash) is not str:
+            raise ValueError("mount graph source identity is malformed")
+        result.append(
+            {
+                "surface_id": f"authority_path:{path}",
+                "surface_kind": "FINAL_MOUNT_PROFILE_PATH",
+                "source_evidence": [f"{path}@{source_hash}"],
+                "required_for_public_testnet": True,
+                "has_structural_blocker": path in violation_paths,
+                "role": role,
+            }
+        )
+    return sorted(result, key=lambda row: cast(str, row["surface_id"]))
+
+
+def _trusted_core_surfaces() -> list[dict[str, object]]:
+    required = PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES
+    return [
+        {
+            "surface_id": f"trusted_core:{surface}",
+            "surface_kind": "RUNTIME_AUTHORITY_POLICY_SURFACE",
+            "source_evidence": ["src/runtime/authority.py"],
+            "required_for_public_testnet": surface in required,
+        }
+        for surface in sorted(TRUSTED_CORE_AUTHORITY_SURFACES)
     ]
-    rust_exists = any(p.exists() for p in rust_paths)
-    return {
-        "surface": surface,
-        "rust_implementation_exists": rust_exists,
-        "rust_paths_checked": [str(p.relative_to(_REPO_ROOT)) for p in rust_paths],
-    }
 
 
-def _check_proof_infrastructure() -> dict[str, Any]:
-    """Check proof/verifier infrastructure status."""
-    proof_paths = {
-        "proof_verifier": _REPO_ROOT / "src" / "integration" / "proof_verifier.py",
-        "proof_mining_context": _REPO_ROOT / "src" / "integration" / "proof_mining_context.py",
-        "settlement_strong_certificate": _REPO_ROOT / "src" / "integration" / "settlement_strong_certificate.py",
-        "settlement_end_to_end_certificate": _REPO_ROOT / "src" / "integration" / "settlement_end_to_end_certificate_packet.py",
-        "risc0_journal": _REPO_ROOT / "src" / "integration" / "risc0_journal.py",
-        "lean_proofs": _REPO_ROOT / "proofs",
-        "rust_workspace": _REPO_ROOT / "rust" / "Cargo.toml",
-    }
-    return {
-        name: path.exists()
-        for name, path in proof_paths.items()
-    }
+def _row_status(surface: dict[str, object], consumer: str) -> tuple[str, str]:
+    if consumer == "python_fcis" and not surface.get("has_structural_blocker", False):
+        return (
+            "UNPROMOTED_SHADOW_ONLY",
+            "Python FCIS code exists only as an unpromoted shadow; exact legacy parity is open.",
+        )
+    if consumer == "python_fcis":
+        return (
+            "MISSING_BLOCKER",
+            "The final-mount structural checker reports an unresolved authority violation.",
+        )
+    return (
+        "MISSING_BLOCKER",
+        f"No source-pinned all-observable exact-byte replay promotes {consumer} for this surface.",
+    )
 
 
-def _check_verifier_readiness() -> dict[str, Any]:
-    """Check verifier readiness for FCIS mount."""
-    authority_checker = _REPO_ROOT / "tools" / "check_fcis_authority_snapshot_contract.py"
-    fcis_step_evaluator = _REPO_ROOT / "src" / "core" / "fcis_step_evaluator.py"
-    fcis_spot_shadow = _REPO_ROOT / "src" / "integration" / "fcis_spot_shadow.py"
-    settlement_strong_validator = _REPO_ROOT / "src" / "core" / "settlement_strong_validator.py"
-    support_root = _REPO_ROOT / "src" / "state" / "support_root.py"
-    return {
-        "authority_snapshot_checker": authority_checker.exists(),
-        "fcis_step_evaluator": fcis_step_evaluator.exists(),
-        "fcis_spot_shadow": fcis_spot_shadow.exists(),
-        "settlement_strong_validator": settlement_strong_validator.exists(),
-        "support_root_v5": support_root.exists(),
-    }
-
-
-def _build_surface_matrix() -> list[dict[str, Any]]:
-    """Build the cross-language surface matrix."""
-    surfaces = sorted(TRUSTED_CORE_AUTHORITY_SURFACES)
-    matrix: list[dict[str, Any]] = []
+def _matrix_rows(
+    surfaces: list[dict[str, object]],
+    evidence: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
     for surface in surfaces:
-        rust_status = _check_rust_surface(surface)
-        required_for_testnet = surface in PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES
-        matrix.append({
-            "surface": surface,
-            "trusted_core": True,
-            "required_for_public_testnet": required_for_testnet,
-            "rust_implementation_exists": rust_status["rust_implementation_exists"],
-            "python_authority_default": True,
-            "mount_readiness": "READY" if rust_status["rust_implementation_exists"] else "PENDING_RUST",
-        })
-    return matrix
+        for consumer in _CONSUMERS:
+            status, reason = _row_status(surface, consumer)
+            if status not in _CLOSED_STATUSES:
+                raise AssertionError("matrix builder emitted unknown status")
+            rows.append(
+                {
+                    "surface_id": surface["surface_id"],
+                    "surface_kind": surface["surface_kind"],
+                    "consumer": consumer,
+                    "status": status,
+                    "reason": reason,
+                    "required_equivalence": (
+                        "canonical acceptance/rejection and byte-identical state, "
+                        "effects, receipt, replay, outbox, fees, roots, and versions"
+                    ),
+                    "source_evidence": surface["source_evidence"],
+                    "parity_evidence": evidence,
+                    "required_for_public_testnet": surface["required_for_public_testnet"],
+                }
+            )
+    return sorted(
+        rows,
+        key=lambda row: (
+            cast(str, row["surface_id"]),
+            cast(str, row["consumer"]),
+        ),
+    )
 
 
-def _build_fcis_specific_matrix() -> list[dict[str, Any]]:
-    """Build FCIS-specific cross-language readiness entries."""
-    fcis_surfaces = [
-        {
-            "surface": "fcis_step_evaluator",
-            "component": "src/core/fcis_step_evaluator.py",
-            "python_implemented": True,
-            "rust_implemented": False,
-            "verifier_gate": "authority_snapshot_checker",
-            "mount_readiness": "PENDING_AUTHORITY_CONTRACT",
-        },
-        {
-            "surface": "fcis_spot_shadow",
-            "component": "src/integration/fcis_spot_shadow.py",
-            "python_implemented": True,
-            "rust_implemented": False,
-            "verifier_gate": "differential_replay",
-            "mount_readiness": "PENDING_PARITY_CLOSURE",
-        },
-        {
-            "surface": "fcis_settlement_strong_validator",
-            "component": "src/core/settlement_strong_validator.py",
-            "python_implemented": True,
-            "rust_implemented": False,
-            "verifier_gate": "authority_snapshot_checker",
-            "mount_readiness": "PENDING_AUTHORITY_CONTRACT",
-        },
-        {
-            "surface": "fcis_support_root_v5",
-            "component": "src/core/fcis_support_profile_v5.py",
-            "python_implemented": True,
-            "rust_implemented": False,
-            "verifier_gate": "golden_vector",
-            "mount_readiness": "PENDING_RUST",
-        },
-        {
-            "surface": "fcis_legacy_state_snapshots",
-            "component": "src/state/legacy_state_snapshots.py",
-            "python_implemented": True,
-            "rust_implemented": False,
-            "verifier_gate": "authority_snapshot_checker",
-            "mount_readiness": "PENDING_DELETION",
-        },
-        {
-            "surface": "fcis_route_settlement",
-            "component": "src/core/route_settlement.py",
-            "python_implemented": True,
-            "rust_implemented": False,
-            "verifier_gate": "authority_snapshot_checker",
-            "mount_readiness": "PENDING_AUTHORITY_CONTRACT",
-        },
+def build_cross_language_matrix_v1() -> dict[str, object]:
+    baseline = _load_object(_BASELINE_PATH)
+    differential = _load_object(_DIFFERENTIAL_PATH)
+    mount_graph = _load_object(_MOUNT_GRAPH_PATH)
+    _assert_artifact_hash(_BASELINE_PATH, baseline)
+    _assert_artifact_hash(_DIFFERENTIAL_PATH, differential)
+    _assert_artifact_hash(_MOUNT_GRAPH_PATH, mount_graph)
+    if baseline.get("reviewed_source_sha") != _REVIEWED_START_SHA:
+        raise ValueError("baseline is not bound to reviewed P4A start SHA")
+    if mount_graph.get("reviewed_start_sha") != _REVIEWED_START_SHA:
+        raise ValueError("mount graph is not bound to reviewed P4A start SHA")
+    surfaces = [
+        *_baseline_commands(baseline),
+        *_trusted_core_surfaces(),
+        *_mount_surfaces(mount_graph),
     ]
-    return fcis_surfaces
-
-
-def _build_matrix() -> dict[str, Any]:
-    surface_matrix = _build_surface_matrix()
-    fcis_matrix = _build_fcis_specific_matrix()
-    proof_infra = _check_proof_infrastructure()
-    verifier_readiness = _check_verifier_readiness()
-    matrix: dict[str, Any] = {
+    surface_ids = [cast(str, row["surface_id"]) for row in surfaces]
+    if len(surface_ids) != len(set(surface_ids)):
+        raise ValueError("cross-language surface inventory contains duplicates")
+    evidence = [
+        _evidence_reference(_BASELINE_PATH),
+        _evidence_reference(_DIFFERENTIAL_PATH),
+        _evidence_reference(_MOUNT_GRAPH_PATH),
+    ]
+    rows = _matrix_rows(surfaces, evidence)
+    counts = Counter(cast(str, row["status"]) for row in rows)
+    promoted = all(
+        row["status"] in {"PASS_EXACT_BYTES", "NOT_APPLICABLE_WITH_REASON"} for row in rows
+    )
+    artifact: dict[str, object] = {
         "schema": _SCHEMA,
-        "trusted_core_surfaces": sorted(TRUSTED_CORE_AUTHORITY_SURFACES),
-        "public_testnet_required_surfaces": sorted(PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES),
-        "surface_matrix": surface_matrix,
-        "fcis_specific_matrix": fcis_matrix,
-        "proof_infrastructure": proof_infra,
-        "verifier_readiness": verifier_readiness,
-        "overall_readiness": "NOT_READY",
+        "reviewed_start_sha": _REVIEWED_START_SHA,
+        "generator_path": Path(__file__).resolve().relative_to(_REPO_ROOT).as_posix(),
+        "generator_sha256": _sha256(Path(__file__).read_bytes()),
+        "closed_statuses": sorted(_CLOSED_STATUSES),
+        "consumers": list(_CONSUMERS),
+        "surface_count": len(surfaces),
+        "row_count": len(rows),
+        "rows": rows,
+        "status_counts": dict(sorted(counts.items())),
+        "pass_exact_bytes_count": counts.get("PASS_EXACT_BYTES", 0),
+        "ready_for_mount": promoted,
+        "overall_status": "PASS_EXACT_BYTES" if promoted else "MISSING_BLOCKER",
+        "nonclaims": [
+            "A source file or verifier entrypoint is not cross-language parity evidence.",
+            "No P4A row is promoted by implementation-presence inference.",
+            "The current differential artifact reports open versioned divergences.",
+        ],
     }
-    ready_count = sum(1 for s in surface_matrix if s["mount_readiness"] == "READY")
-    total = len(surface_matrix)
-    fcis_ready = sum(1 for s in fcis_matrix if s["mount_readiness"] == "READY")
-    fcis_total = len(fcis_matrix)
-    matrix["surface_readiness_summary"] = {
-        "trusted_core_ready": ready_count,
-        "trusted_core_total": total,
-        "fcis_ready": fcis_ready,
-        "fcis_total": fcis_total,
-    }
-    matrix_bytes = canonical_json_bytes(matrix)
-    matrix["matrix_sha256"] = "0x" + hashlib.sha256(matrix_bytes).hexdigest()
-    return matrix
+    return _with_artifact_hash(artifact)
 
 
-def _write_matrix(matrix: dict[str, Any]) -> None:
+def _write(artifact: dict[str, object]) -> None:
     _REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _REPORT_PATH.write_bytes(canonical_json_bytes(matrix))
+    _REPORT_PATH.write_bytes(canonical_json_bytes(artifact))
 
 
 def main() -> int:
-    check_mode = "--check" in sys.argv
-    matrix = _build_matrix()
-    if check_mode:
-        if not _REPORT_PATH.exists():
-            print("ERROR: cross-language matrix does not exist", file=sys.stderr)
+    artifact = build_cross_language_matrix_v1()
+    expected = canonical_json_bytes(artifact)
+    if "--check" in sys.argv:
+        if not _REPORT_PATH.is_file():
+            print(f"ERROR: missing {_REPORT_PATH.relative_to(_REPO_ROOT)}", file=sys.stderr)
             return 1
-        existing = _REPORT_PATH.read_bytes()
-        new_bytes = canonical_json_bytes(matrix)
-        if existing != new_bytes:
-            print("ERROR: cross-language matrix changed", file=sys.stderr)
+        if _REPORT_PATH.read_bytes() != expected:
+            print("ERROR: cross-language matrix is stale", file=sys.stderr)
             return 1
-        print(f"OK: cross-language matrix matches (sha256={matrix['matrix_sha256']})")
+        print(
+            "OK: cross-language matrix is current "
+            f"(exact_passes={artifact['pass_exact_bytes_count']}, "
+            f"ready={artifact['ready_for_mount']})"
+        )
         return 0
-    _write_matrix(matrix)
-    summary = matrix["surface_readiness_summary"]
+    _write(artifact)
     print(
-        f"OK: wrote {_REPORT_PATH} "
-        f"(trusted_core={summary['trusted_core_ready']}/{summary['trusted_core_total']}, "
-        f"fcis={summary['fcis_ready']}/{summary['fcis_total']})"
+        f"OK: wrote {_REPORT_PATH.relative_to(_REPO_ROOT)} "
+        f"(exact_passes={artifact['pass_exact_bytes_count']}, "
+        f"ready={artifact['ready_for_mount']})"
     )
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
