@@ -462,8 +462,8 @@ python3 tools/check_fcis_authority_snapshot_contract.py --profile exact-replay -
 python3 tools/check_fcis_authority_snapshot_contract.py --profile exact-consumers --json
 python3 tools/check_fcis_authority_snapshot_contract.py --profile final-mount --json
 python3 docs/specs/fcis_authority_snapshot_v1/check_packet.py
-PYTHON=/home/trevormoc/Downloads/Autonomous\ Tau\ DEX/.venv/bin/python \
-  bash tools/run_critical_quality_gate.sh
+test -x "${ZENO_REPO_PYTHON:?set ZENO_REPO_PYTHON to the repository virtual-environment interpreter}"
+PYTHON="$ZENO_REPO_PYTHON" bash tools/run_critical_quality_gate.sh
 python3 tools/check_production_boundary.py --json
 python3 tools/permissionless_assurance.py status
 git diff --check
