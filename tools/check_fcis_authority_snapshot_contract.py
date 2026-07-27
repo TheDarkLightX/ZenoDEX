@@ -52,6 +52,7 @@ STATE_SUBSTRATE_AUTHORITY_PATHS = (
     Path("src/state/committed_dex_snapshot.py"),
 )
 AUTHORITY_GRAPH_AUTHORITY_PATHS = (
+    Path("src/core/fcis_legacy_refinement.py"),
     Path("src/core/fcis_legacy_refinement_admission.py"),
     Path("src/core/fcis_legacy_refinement_policy.py"),
     Path("src/core/fcis_legacy_refinement_schema.py"),
@@ -4515,7 +4516,7 @@ def _check_p4b0_schema_v1(
     forbidden = {
         name
         for node in ast.walk(module)
-        if (name := _last_name(node)) in {"BoundedJsonValue", "MapOf", "RecordOf"}
+        if (name := _last_name(node)) in {"BoundedJsonValue", "RecordOf"}
     }
     if forbidden:
         violations.append(
@@ -4525,6 +4526,35 @@ def _check_p4b0_schema_v1(
                 f"open-or-constructor-schema:{','.join(sorted(forbidden))}",
             )
         )
+    map_calls = [
+        node
+        for node in ast.walk(module)
+        if type(node) is ast.Call and _last_name(node.func) == "MapOf"
+    ]
+    route_binding = _top_level_assignment_v1(module, "ROUTE_FINGERPRINTS_SCHEMA_V1")
+    route_value = (
+        route_binding.value if type(route_binding) in (ast.Assign, ast.AnnAssign) else None
+    )
+    route_call = map_calls[0] if len(map_calls) == 1 else None
+    exact_route_shape = (
+        route_call is not None
+        and len(route_call.args) == 4
+        and not route_call.keywords
+        and type(route_call.args[0]) is ast.Name
+        and route_call.args[0].id == "DIGEST_V1"
+        and type(route_call.args[1]) is ast.Name
+        and route_call.args[1].id == "DIGEST_V1"
+        and type(route_call.args[2]) is ast.Constant
+        and route_call.args[2].value == 64
+        and type(route_call.args[3]) is ast.Constant
+        and route_call.args[3].value == "zenodex/fcis-m5-p4b0/route-fingerprints/v1"
+    )
+    if (
+        len(map_calls) != 1
+        or route_value is not route_call
+        or not exact_route_shape
+    ):
+        violations.append(_p4b0_violation_v1(relative_path, module, "route-fingerprint-map-drift"))
     exact_maps = sum(
         1
         for node in ast.walk(module)

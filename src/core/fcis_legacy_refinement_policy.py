@@ -18,6 +18,17 @@ ECONOMIC_OUTPUT_PROJECTION_VERSION_V1 = 1
 PATCH_CHECK_VERSION_V1 = 1
 RECEIPT_BUNDLE_CHECK_VERSION_V1 = 1
 REPLAY_OUTBOX_CHECK_VERSION_V1 = 1
+BUDGET_HASH_V1 = "0xa2e946a9065ea6a1d96279b5899219b04aeae939df457d3196074256745f95b6"
+SEMANTIC_STATE_FIELD_ORDER_V1 = (
+    "balances",
+    "pools",
+    "lp_balances",
+    "nonces",
+    "vault",
+    "oracle",
+    "fee_accumulator",
+    "perps",
+)
 
 
 class ExactOnlyFieldKindV1(Enum):
@@ -311,6 +322,7 @@ def is_known_command_kind_v1(command_kind: str) -> bool:
 def _policy_payload_v1() -> bytes:
     return canonical_json_bytes(
         {
+            "budget_hash": BUDGET_HASH_V1,
             "command_kinds": [
                 {"command_kind": entry.command_kind, "stable_id": entry.stable_id}
                 for entry in COMMAND_KIND_ENTRIES_V1
@@ -324,6 +336,7 @@ def _policy_payload_v1() -> bytes:
                 for entry in EXACT_ONLY_FIELD_ENTRIES_V1
             ],
             "policy_version": POLICY_VERSION_V1,
+            "semantic_state_field_order": list(SEMANTIC_STATE_FIELD_ORDER_V1),
             "projections": [
                 {
                     "projection_name": entry.projection_name,
@@ -399,6 +412,7 @@ _validate_registry_v1()
 
 
 __all__ = (
+    "BUDGET_HASH_V1",
     "COMMAND_KIND_ENTRIES_V1",
     "ECONOMIC_OUTPUT_PROJECTION_VERSION_V1",
     "EXACT_ALGORITHM_ID_V1",
@@ -411,6 +425,7 @@ __all__ = (
     "REJECTION_MAPPINGS_V1",
     "REPLAY_OUTBOX_CHECK_VERSION_V1",
     "SEMANTIC_PROJECTION_ENTRIES_V1",
+    "SEMANTIC_STATE_FIELD_ORDER_V1",
     "SEMANTIC_STATE_PROJECTION_VERSION_V1",
     "VERSION_DELTA_ENTRIES_V1",
     "CommandKindEntryV1",

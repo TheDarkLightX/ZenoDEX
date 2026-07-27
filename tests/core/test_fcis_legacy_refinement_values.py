@@ -17,6 +17,7 @@ from src.core.fcis_legacy_refinement_admission import (
     PACKET_TREE_HASH_V1,
     REQUIRED_ANCESTOR_V1,
     admit_observation_pair_bytes_v1,
+    decode_canonical_evidence_artifact_bytes_v1,
     decode_canonical_json_bytes_v1,
     encode_observation_pair_v1,
     revalidate_observation_pair_v1,
@@ -33,6 +34,7 @@ from src.core.fcis_legacy_refinement_policy import (
     lookup_version_delta_v1,
 )
 from src.core.fcis_legacy_refinement_schema import (
+    MAX_REFINEMENT_ARTIFACT_BYTES_V1,
     MAX_REFINEMENT_BYTES_V1,
     MAX_REFINEMENT_COLLECTION_ITEMS_V1,
     MAX_REFINEMENT_DEPTH_V1,
@@ -287,6 +289,7 @@ def test_p4b0_input_002_one_sided_input_substitution_rejects(field_name: str) ->
     assert result.code in {
         "command_hash_mismatch",
         "context_hash_mismatch",
+        "pre_state_root_mismatch",
         "same_input_mismatch",
     }
 
@@ -404,6 +407,14 @@ def test_p4b0_budget_001_limits_and_neighbors_are_explicit() -> None:
     over_limit = decode_canonical_json_bytes_v1(b"0" * (MAX_REFINEMENT_BYTES_V1 + 1))
     assert type(over_limit) is CanonicalParseRejectV1
     assert over_limit.code is CanonicalParseCodeV1.BYTE_LIMIT
+
+    aggregate = decode_canonical_evidence_artifact_bytes_v1(DIFFERENTIAL_PATH.read_bytes())
+    assert type(aggregate) is dict
+    aggregate_over_limit = decode_canonical_evidence_artifact_bytes_v1(
+        b"0" * (MAX_REFINEMENT_ARTIFACT_BYTES_V1 + 1)
+    )
+    assert type(aggregate_over_limit) is CanonicalParseRejectV1
+    assert aggregate_over_limit.code is CanonicalParseCodeV1.BYTE_LIMIT
 
 
 def test_p4b0_budget_002_deep_wide_oversized_and_cycle_shapes_reject() -> None:

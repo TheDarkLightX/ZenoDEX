@@ -23,14 +23,17 @@ from .fcis_legacy_refinement_policy import (
     lookup_version_delta_v1,
 )
 from .fcis_legacy_refinement_schema import (
+    MAX_REFINEMENT_ARTIFACT_BYTES_V1,
     MAX_REFINEMENT_BYTES_V1,
     MAX_REFINEMENT_DEPTH_V1,
     OBSERVATION_PAIR_SCHEMA_ID_V1,
     REFINEMENT_ADMISSION_LIMITS_RAW_V1,
     REFINEMENT_SCHEMA_REGISTRATIONS_V1,
     REFINEMENT_SCHEMA_REVISION_V1,
+    RefinementComponentKindV1,
     RefinementEnumTagV1,
     RefinementRecordTagV1,
+    command_schema_id_v1,
 )
 from .fcis_legacy_refinement_values import (
     BoundObservationV1,
@@ -114,16 +117,15 @@ def _json_depth_exceeds_limit(raw: bytes) -> bool:
     return False
 
 
-def decode_canonical_json_bytes_v1(
+def _decode_canonical_json_bytes_v1(
     raw: bytes,
+    max_bytes: int,
 ) -> JsonSourceValueV1 | CanonicalParseRejectV1:
-    """Decode one bounded canonical JSON value with complete consumption."""
-
     if type(raw) is not bytes:
         return CanonicalParseRejectV1(CanonicalParseCodeV1.WRONG_EXACT_TYPE)
     if not raw:
         return CanonicalParseRejectV1(CanonicalParseCodeV1.EMPTY_INPUT)
-    if len(raw) > MAX_REFINEMENT_BYTES_V1:
+    if len(raw) > max_bytes:
         return CanonicalParseRejectV1(CanonicalParseCodeV1.BYTE_LIMIT)
     if raw.startswith(b"\xef\xbb\xbf"):
         return CanonicalParseRejectV1(CanonicalParseCodeV1.BOM)
@@ -154,6 +156,22 @@ def decode_canonical_json_bytes_v1(
     if reencoded != raw:
         return CanonicalParseRejectV1(CanonicalParseCodeV1.NONCANONICAL_JSON)
     return decoded
+
+
+def decode_canonical_json_bytes_v1(
+    raw: bytes,
+) -> JsonSourceValueV1 | CanonicalParseRejectV1:
+    """Decode one bounded authority value with complete consumption."""
+
+    return _decode_canonical_json_bytes_v1(raw, MAX_REFINEMENT_BYTES_V1)
+
+
+def decode_canonical_evidence_artifact_bytes_v1(
+    raw: bytes,
+) -> JsonSourceValueV1 | CanonicalParseRejectV1:
+    """Decode one bounded aggregate evidence artifact using the same parser."""
+
+    return _decode_canonical_json_bytes_v1(raw, MAX_REFINEMENT_ARTIFACT_BYTES_V1)
 
 
 def _no_record_construction(
@@ -194,16 +212,71 @@ _REGISTRY_V1 = build_admission_registry_v1(
 )
 
 
-def _admit_pair_source(source: JsonSourceValueV1) -> AdmitOk[object] | AdmitReject:
+def _admit_pair_source(
+    schema_id: str,
+    source: JsonSourceValueV1,
+) -> AdmitOk[object] | AdmitReject:
     return _admit_with_registry_v1(
         _REGISTRY_V1,
         REFINEMENT_SCHEMA_REVISION_V1,
-        OBSERVATION_PAIR_SCHEMA_ID_V1,
+        schema_id,
         REFINEMENT_ADMISSION_LIMITS_V1,
         source,
         _no_record_construction,
         _encode_admitted,
     )
+
+
+def _admit_component_bytes_v1(
+    schema_id: str,
+    raw: bytes,
+) -> AdmitOk[object] | InvalidEvidenceV1:
+    decoded = decode_canonical_json_bytes_v1(raw)
+    if type(decoded) is CanonicalParseRejectV1:
+        return InvalidEvidenceV1(f"parse_{decoded.code.value}", decoded.path)
+    admitted = _admit_pair_source(schema_id, decoded)
+    if type(admitted) is AdmitReject:
+        return InvalidEvidenceV1(f"admit_{admitted.code.value}", admitted.path)
+    if type(admitted) is not AdmitOk:
+        return InvalidEvidenceV1("admit_impossible_result", ())
+    try:
+        encoded = _encode_admitted(schema_id, admitted.value)
+    except (TypeError, ValueError):
+        return InvalidEvidenceV1("component_encoding_failed", ())
+    if encoded != raw:
+        return InvalidEvidenceV1("component_round_trip_mismatch", ())
+    return admitted
+
+
+def admit_refinement_component_bytes_v1(
+    kind: RefinementComponentKindV1,
+    raw: bytes,
+) -> AdmitOk[object] | InvalidEvidenceV1:
+    """Admit one canonical embedded component through a source-owned schema."""
+
+    if type(kind) is not RefinementComponentKindV1:
+        return InvalidEvidenceV1("component_kind_exact_type_mismatch", ())
+    return _admit_component_bytes_v1(kind.value, raw)
+
+
+def admit_refinement_command_bytes_v1(
+    command_kind: str,
+    raw: bytes,
+) -> AdmitOk[object] | InvalidEvidenceV1:
+    """Admit one command using the closed kind-to-schema registry."""
+
+    if type(command_kind) is not str:
+        return InvalidEvidenceV1("command_kind_exact_type_mismatch", ())
+    schema_id = command_schema_id_v1(command_kind)
+    if schema_id is None:
+        return InvalidEvidenceV1("unknown_command_kind", ("kind",))
+    return _admit_component_bytes_v1(schema_id, raw)
+
+
+def project_admitted_refinement_value_v1(value: object) -> JsonProjectionV1:
+    """Project an already-admitted immutable value for canonical comparison."""
+
+    return _project_admitted(value)
 
 
 def _owned_map(
@@ -454,6 +527,11 @@ def _build_input_binding(value: object, path: tuple[str | int, ...]) -> InputBin
     )
     if expected_context_hash != binding.context_hash:
         raise _DomainConstructionError("context_hash_mismatch", path + ("context_hash",))
+    expected_pre_state_root = sha256_hex(
+        domain_sep_bytes("dex_snapshot", version=4) + binding.pre_state_bytes
+    )
+    if expected_pre_state_root != binding.pre_state_root:
+        raise _DomainConstructionError("pre_state_root_mismatch", path + ("pre_state_root",))
     return binding
 
 
@@ -689,7 +767,7 @@ def admit_observation_pair_bytes_v1(raw: bytes) -> ObservationPairV1 | InvalidEv
     decoded = decode_canonical_json_bytes_v1(raw)
     if type(decoded) is CanonicalParseRejectV1:
         return InvalidEvidenceV1(f"parse_{decoded.code.value}", decoded.path)
-    admitted = _admit_pair_source(decoded)
+    admitted = _admit_pair_source(OBSERVATION_PAIR_SCHEMA_ID_V1, decoded)
     if type(admitted) is AdmitReject:
         return InvalidEvidenceV1(f"admit_{admitted.code.value}", admitted.path)
     if type(admitted) is not AdmitOk:
@@ -871,7 +949,7 @@ def revalidate_observation_pair_v1(
 
     if type(source) is not ObservationPairV1:
         return InvalidEvidenceV1("pair_exact_type_mismatch", ())
-    pair = source
+    pair = cast(ObservationPairV1, source)
     try:
         projected = canonical_json_bytes(_pair_source(pair))
     except (TypeError, ValueError, AttributeError):
@@ -903,7 +981,11 @@ __all__ = (
     "REFINEMENT_ADMISSION_LIMITS_V1",
     "REQUIRED_ANCESTOR_V1",
     "admit_observation_pair_bytes_v1",
+    "admit_refinement_command_bytes_v1",
+    "admit_refinement_component_bytes_v1",
+    "decode_canonical_evidence_artifact_bytes_v1",
     "decode_canonical_json_bytes_v1",
     "encode_observation_pair_v1",
+    "project_admitted_refinement_value_v1",
     "revalidate_observation_pair_v1",
 )

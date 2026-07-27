@@ -2576,6 +2576,20 @@ def test_p4b0_checker_kills_generic_json_schema_escape(tmp_path: Path) -> None:
     assert "FCIS_P4B0" in _codes(report)
 
 
+def test_p4b0_checker_kills_route_fingerprint_map_drift(tmp_path: Path) -> None:
+    relative = Path("src/core/fcis_legacy_refinement_schema.py")
+    source = _p4b0_source(relative)
+    anchor = "    64,\n    \"zenodex/fcis-m5-p4b0/route-fingerprints/v1\",\n"
+    assert source.count(anchor) == 1
+    mutated = source.replace(
+        anchor,
+        "    65,\n    \"zenodex/fcis-m5-p4b0/route-fingerprints/v1\",\n",
+        1,
+    )
+    report = _run_p4b0_source(tmp_path, relative, mutated)
+    assert "FCIS_P4B0" in _codes(report)
+
+
 @pytest.mark.parametrize(
     "mutation",
     (
@@ -2592,8 +2606,10 @@ def test_p4b0_admit_002_checker_kills_parallel_pre_admission_validation(
     relative = Path("src/core/fcis_legacy_refinement_admission.py")
     source = _p4b0_source(relative)
     anchor = "    decoded = decode_canonical_json_bytes_v1(raw)\n"
-    assert source.count(anchor) == 1
-    mutated = source.replace(anchor, anchor + mutation, 1)
+    assert source.count(anchor) == 2
+    prefix, separator, suffix = source.rpartition(anchor)
+    assert separator == anchor
+    mutated = prefix + separator + mutation + suffix
     report = _run_p4b0_source(tmp_path, relative, mutated)
     assert "FCIS_P4B0" in _codes(report)
 
