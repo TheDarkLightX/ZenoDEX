@@ -2632,6 +2632,53 @@ def test_p4b0_admit_002_checker_kills_parallel_pre_admission_validation(
     assert "FCIS_P4B0" in _codes(report)
 
 
+def test_p4b0_admit_002_checker_kills_raw_inspection_before_decode(tmp_path: Path) -> None:
+    """P4B0-ADMIT-002: raw bytes reach canonical decode without prior inspection."""
+
+    relative = Path("src/core/fcis_legacy_refinement_admission.py")
+    source = _p4b0_source(relative)
+    anchor = (
+        "def admit_observation_pair_bytes_v1(raw: bytes) -> "
+        "ObservationPairV1 | InvalidEvidenceV1:\n"
+        '    """Admit one source-bound pair from exact canonical bytes."""\n\n'
+        "    decoded = decode_canonical_json_bytes_v1(raw)\n"
+    )
+    replacement = anchor.replace(
+        "    decoded = decode_canonical_json_bytes_v1(raw)\n",
+        "    if len(raw) == 0:\n"
+        '        return InvalidEvidenceV1("manual_raw_check", ())\n'
+        "    decoded = decode_canonical_json_bytes_v1(raw)\n",
+    )
+    assert source.count(anchor) == 1
+    report = _run_p4b0_source(tmp_path, relative, source.replace(anchor, replacement, 1))
+    assert "FCIS_P4B0" in _codes(report)
+
+
+def test_p4b0_admit_002_checker_kills_inspection_inside_closed_facade(
+    tmp_path: Path,
+) -> None:
+    """P4B0-ADMIT-002: the facade delegates without inspecting decoded values."""
+
+    relative = Path("src/core/fcis_legacy_refinement_admission.py")
+    source = _p4b0_source(relative)
+    anchor = (
+        "def _admit_pair_source(\n"
+        "    schema_id: str,\n"
+        "    source: JsonSourceValueV1,\n"
+        ") -> AdmitOk[object] | AdmitReject:\n"
+        "    return _admit_with_registry_v1(\n"
+    )
+    replacement = anchor.replace(
+        "    return _admit_with_registry_v1(\n",
+        "    if type(source) is dict and not source:\n"
+        '        raise TypeError("manual decoded inspection")\n'
+        "    return _admit_with_registry_v1(\n",
+    )
+    assert source.count(anchor) == 1
+    report = _run_p4b0_source(tmp_path, relative, source.replace(anchor, replacement, 1))
+    assert "FCIS_P4B0" in _codes(report)
+
+
 @pytest.mark.parametrize(
     ("anchor", "replacement"),
     (

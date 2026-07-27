@@ -143,6 +143,8 @@ MUTATION_LEDGER_V1 = (
     ("M58", "input_context_substitution", "P4B0-INPUT-002"),
     ("M59", "rejection_committable_output", "P4B0-REJECT-002"),
     ("M60", "outbox_two_record_reorder", "P4B0-OUTBOX-001"),
+    ("M61", "raw_inspection_before_decode", "P4B0-ADMIT-002"),
+    ("M62", "decoded_inspection_inside_facade", "P4B0-ADMIT-002"),
 )
 
 

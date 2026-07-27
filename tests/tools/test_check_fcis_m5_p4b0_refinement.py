@@ -224,7 +224,7 @@ def test_p4b0_mutants_001_rehashed_semantic_mutants_fail_rebuild(
 def test_p4b0_mutants_001_ledger_is_named_unique_and_large_enough() -> None:
     """P4B0-MUTANTS-001."""
 
-    assert len(MUTATION_LEDGER_V1) == 60
+    assert len(MUTATION_LEDGER_V1) == 62
     assert len({mutant_id for mutant_id, _, _ in MUTATION_LEDGER_V1}) == len(MUTATION_LEDGER_V1)
     assert all(test_id.startswith("P4B0-") for _, _, test_id in MUTATION_LEDGER_V1)
 

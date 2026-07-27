@@ -52,7 +52,7 @@ P4B0-C defines:
 - deterministic artifact generation from the frozen P4A differential input;
 - a fail-closed checker that independently rebuilds every decision;
 - normal and `--require-all-refine` promotion modes;
-- 60 named authority/evidence mutations and 34 independently rehashed
+- 62 named authority/evidence mutations and 34 independently rehashed
   artifact mutants;
 - structural mutants for `ExactProduct`, pre-admission inspection, and
   wildcard policy entries;
@@ -112,7 +112,7 @@ Artifact identifiers:
 
 ```text
 artifact_sha256:
-  0xb3d07baf48092aa89372f0ae2ab7c7f115a08df361574dc39891973121fb9f19
+  0x196c69e424a7e7bf82660ef2ea9415d96dd488b8c63f5894fb4af8a3b009491f
 policy_hash:
   0x8abf8cda4d86a5fb7807ae5f4aac887ec66843fdababba9de80c173d554f32cc
 ```
@@ -149,7 +149,7 @@ The artifact preserves these mismatches. Normal validation accepts the honest
 Focused executable evidence after the independent corrective review:
 
 ```text
-416 passed in 86.33s
+418 passed in 83.83s
 ```
 
 This includes admission/parser boundaries, all 24 fixture decisions, rejection
@@ -161,16 +161,21 @@ rehashed semantic artifact mutants, promotion gates, no-mount source mutations,
 and the structural checker mutation suite.
 
 The independent review originally returned `NO-GO` because the structural
-checker accepted three forbidden mutants, the artifact checker ignored later
-mounted-source mutation, and several mutation-ledger claims lacked direct
-executable witnesses. The corrective checkpoint kills those mutants and binds
-the named evidence files into the artifact. The checkpoint remains `BLOCKED`
-for the three preserved LP mismatches; corrective evidence does not promote it.
+checker accepted three forbidden mutant classes, the artifact checker ignored
+later mounted-source mutation, and several mutation-ledger claims lacked direct
+executable witnesses. Its first corrective re-review then found two remaining
+placements for manual inspection: before canonical decode and inside the closed
+combinator facade. The final checker requires decode to be the first executable
+ingress operation and requires the facade to be one exact delegation statement;
+M61 and M62 preserve both counterexamples. The checkpoint remains `BLOCKED` for
+the three preserved LP mismatches; corrective evidence does not promote it.
 
 Additional evidence:
 
 - Ruff: passed on the P4B0 source, tools, and tests.
-- mypy: passed on the P4B0 source, tools, and tests.
+- mypy: passed on the P4B0 core, artifact builder/checker, and changed value
+  tests. The repository's monolithic structural checker retains 26 pre-existing
+  strict-mypy findings, so a whole-file mypy pass is not claimed for that file.
 - `state-substrate`: `ok=true`, zero violations.
 - `authority-graph`: `ok=true`, zero violations.
 - `exact-replay`: `ok=true`, compatibility findings only.

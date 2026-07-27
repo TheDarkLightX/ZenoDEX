@@ -4640,10 +4640,23 @@ def _is_parse_reject_guard_v1(statement: ast.stmt) -> bool:
     )
 
 
+def _executable_function_body_v1(function: ast.FunctionDef) -> list[ast.stmt]:
+    body = function.body
+    if (
+        body
+        and type(body[0]) is ast.Expr
+        and type(body[0].value) is ast.Constant
+        and type(body[0].value.value) is str
+    ):
+        return body[1:]
+    return body
+
+
 def _has_exact_decode_admit_prefix_v1(function: ast.FunctionDef) -> bool:
+    body = _executable_function_body_v1(function)
     decoded_index: int | None = None
     admitted_index: int | None = None
-    for index, statement in enumerate(function.body):
+    for index, statement in enumerate(body):
         if (
             type(statement) is ast.Assign
             and len(statement.targets) == 1
@@ -4651,6 +4664,10 @@ def _has_exact_decode_admit_prefix_v1(function: ast.FunctionDef) -> bool:
             and statement.targets[0].id == "decoded"
             and type(statement.value) is ast.Call
             and _last_name(statement.value.func) == "decode_canonical_json_bytes_v1"
+            and len(statement.value.args) == 1
+            and type(statement.value.args[0]) is ast.Name
+            and statement.value.args[0].id == "raw"
+            and not statement.value.keywords
         ):
             decoded_index = index
         if (
@@ -4660,15 +4677,39 @@ def _has_exact_decode_admit_prefix_v1(function: ast.FunctionDef) -> bool:
             and statement.targets[0].id == "admitted"
             and type(statement.value) is ast.Call
             and _last_name(statement.value.func) == "_admit_pair_source"
-            and statement.value.args
+            and len(statement.value.args) == 2
+            and not statement.value.keywords
             and type(statement.value.args[-1]) is ast.Name
             and statement.value.args[-1].id == "decoded"
         ):
             admitted_index = index
-    return (
-        decoded_index is not None
-        and admitted_index == decoded_index + 2
-        and _is_parse_reject_guard_v1(function.body[decoded_index + 1])
+    return decoded_index == 0 and admitted_index == 2 and _is_parse_reject_guard_v1(body[1])
+
+
+def _is_exact_pair_source_facade_v1(function: ast.FunctionDef) -> bool:
+    body = _executable_function_body_v1(function)
+    if len(body) != 1 or type(body[0]) is not ast.Return:
+        return False
+    call = body[0].value
+    if (
+        type(call) is not ast.Call
+        or _last_name(call.func) != "_admit_with_registry_v1"
+        or call.keywords
+        or len(call.args) != 7
+    ):
+        return False
+    expected_names = (
+        "_REGISTRY_V1",
+        "REFINEMENT_SCHEMA_REVISION_V1",
+        "schema_id",
+        "REFINEMENT_ADMISSION_LIMITS_V1",
+        "source",
+        "_no_record_construction",
+        "_encode_admitted",
+    )
+    return all(
+        type(argument) is ast.Name and argument.id == expected
+        for argument, expected in zip(call.args, expected_names, strict=True)
     )
 
 
@@ -4697,6 +4738,15 @@ def _check_p4b0_admission_v1(
     ]
     if engine_sites != ["_admit_pair_source"]:
         violations.append(_p4b0_violation_v1(relative_path, module, "closed-engine-sites"))
+    pair_source = functions.get("_admit_pair_source")
+    if pair_source is None or not _is_exact_pair_source_facade_v1(pair_source):
+        violations.append(
+            _p4b0_violation_v1(
+                relative_path,
+                module if pair_source is None else pair_source,
+                "closed-engine-facade-drift",
+            )
+        )
     registry_calls = [
         node
         for node in ast.walk(module)
