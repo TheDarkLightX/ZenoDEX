@@ -101,6 +101,17 @@ def test_e11_profiles_keep_review_units_and_final_mount_distinct() -> None:
 
 def test_exact_replay_profile_covers_the_m3_relation_and_route_consumer() -> None:
     assert EXACT_REPLAY_AUTHORITY_PATHS == (
+        Path("src/core/fcis_amm_dispatch.py"),
+        Path("src/core/fcis_create_pool_event.py"),
+        Path("src/core/fcis_liquidity_kernels.py"),
+        Path("src/core/fcis_pool_fingerprint.py"),
+        Path("src/core/fcis_settlement_strong_values.py"),
+        Path("src/core/fcis_settlement_index.py"),
+        Path("src/core/fcis_settlement_strong_validator.py"),
+        Path("src/kernels/python/cpmm_exact_out_policy_v1.py"),
+        Path("src/state/fcis_curve_config.py"),
+        Path("src/state/fcis_pool_identity.py"),
+        Path("src/state/fcis_spot_replay.py"),
         Path("src/core/fcis_route_binding.py"),
         Path("src/core/route_settlement.py"),
         Path("src/core/settlement_strong_validator.py"),
@@ -119,6 +130,17 @@ def test_exact_consumers_profile_covers_the_complete_m4_relation() -> None:
         Path("src/core/fcis_support_profile_v5.py"),
         Path("src/core/fcis_traced_reads_v5.py"),
         Path("src/core/nonce_batch_transition.py"),
+        Path("src/core/fcis_amm_dispatch.py"),
+        Path("src/core/fcis_create_pool_event.py"),
+        Path("src/core/fcis_liquidity_kernels.py"),
+        Path("src/core/fcis_pool_fingerprint.py"),
+        Path("src/core/fcis_settlement_strong_values.py"),
+        Path("src/core/fcis_settlement_index.py"),
+        Path("src/core/fcis_settlement_strong_validator.py"),
+        Path("src/kernels/python/cpmm_exact_out_policy_v1.py"),
+        Path("src/state/fcis_curve_config.py"),
+        Path("src/state/fcis_pool_identity.py"),
+        Path("src/state/fcis_spot_replay.py"),
         Path("src/core/fcis_route_binding.py"),
         Path("src/core/route_settlement.py"),
         Path("src/core/settlement_strong_validator.py"),
@@ -2893,3 +2915,260 @@ def test_p4b3_checker_kills_contract_mutations(
         source.replace(anchor, replacement, 1),
     )
     assert any(detail.startswith(expected_detail) for detail in _p4b3_details(report))
+
+
+_P4B4_PATHS = (
+    Path("src/core/fcis_amm_dispatch.py"),
+    Path("src/core/fcis_create_pool_event.py"),
+    Path("src/core/fcis_liquidity_kernels.py"),
+    Path("src/core/fcis_pool_fingerprint.py"),
+    Path("src/core/fcis_settlement_strong_values.py"),
+    Path("src/core/fcis_settlement_index.py"),
+    Path("src/core/fcis_settlement_strong_validator.py"),
+    Path("src/kernels/python/cpmm_exact_out_policy_v1.py"),
+    Path("src/state/fcis_curve_config.py"),
+    Path("src/state/fcis_pool_identity.py"),
+    Path("src/state/fcis_spot_replay.py"),
+)
+
+
+def _p4b4_source(relative: Path) -> str:
+    return (Path(__file__).resolve().parents[2] / relative).read_text(encoding="utf-8")
+
+
+def _run_p4b4_source(tmp_path: Path, relative: Path, source: str) -> dict[str, object]:
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True, exist_ok=True)
+    authority.write_text(source, encoding="utf-8")
+    return check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="exact-replay",
+    )
+
+
+def _p4b4_details(report: dict[str, object]) -> tuple[str, ...]:
+    return tuple(
+        str(finding["detail"])
+        for finding in report["violations"]  # type: ignore[union-attr]
+        if finding["code"] == "FCIS_P4B4"  # type: ignore[index]
+    )
+
+
+def test_p4b4_modules_are_registered_in_all_three_intended_profiles() -> None:
+    for relative in _P4B4_PATHS:
+        assert relative in AUTHORITY_GRAPH_AUTHORITY_PATHS
+        assert relative in EXACT_REPLAY_AUTHORITY_PATHS
+        assert relative in EXACT_CONSUMERS_AUTHORITY_PATHS
+
+
+@pytest.mark.parametrize("relative", _P4B4_PATHS)
+def test_p4b4_checker_accepts_each_current_contract_surface(
+    tmp_path: Path,
+    relative: Path,
+) -> None:
+    report = _run_p4b4_source(tmp_path, relative, _p4b4_source(relative))
+    assert not _p4b4_details(report)
+
+
+@pytest.mark.parametrize(
+    ("relative", "mutation", "expected_detail"),
+    (
+        (
+            Path("src/core/fcis_settlement_strong_values.py"),
+            (
+                "@final\n@dataclass(frozen=True, slots=True)\n"
+                "class MutantAuthorityValueV1:\n"
+                "    hidden: object\n"
+            ),
+            "open-authority-field:MutantAuthorityValueV1:hidden:object",
+        ),
+        (
+            Path("src/core/fcis_settlement_index.py"),
+            "from .route_settlement import parse_route_steps\n",
+            "legacy-module-import:route_settlement",
+        ),
+        (
+            Path("src/core/fcis_settlement_strong_validator.py"),
+            "\ndef _coercive_mutant(value):\n    return int(value or 0)\n",
+            "authority-coercion:int",
+        ),
+        (
+            Path("src/core/fcis_settlement_strong_validator.py"),
+            "\ndef _defaulting_mutant(raw):\n    return raw.get('value', 0)\n",
+            "authority-defaulting:get",
+        ),
+        (
+            Path("src/core/fcis_settlement_strong_validator.py"),
+            (
+                "\ndef _named_default_mutant(raw):\n"
+                "    fallback = 0\n"
+                '    return raw.get("value", fallback)\n'
+            ),
+            "authority-defaulting:get",
+        ),
+        (
+            Path("src/core/fcis_settlement_strong_validator.py"),
+            "\ndef _raw_mutant(value):\n    return dict(value)\n",
+            "raw-reconstruction:dict",
+        ),
+        (
+            Path("src/core/fcis_settlement_strong_validator.py"),
+            "\nimport json\ndef _json_mutant(value):\n    return json.loads(value)\n",
+            "json-reconstruction:loads",
+        ),
+        (
+            Path("src/core/fcis_settlement_strong_validator.py"),
+            "\nfrom copy import deepcopy\ndef _copy_mutant(value):\n    return deepcopy(value)\n",
+            "generic-copy-freeze:deepcopy",
+        ),
+        (
+            Path("src/core/fcis_settlement_strong_validator.py"),
+            (
+                "\ndef _broad_catch_mutant(value):\n"
+                "    try:\n        return value\n"
+                "    except Exception:\n        return None\n"
+            ),
+            "broad-except:Exception",
+        ),
+        (
+            Path("src/core/fcis_settlement_strong_validator.py"),
+            (
+                "\ndef _route_read_mutant(observed_pool_ids):\n"
+                "    return tuple(sorted(set(observed_pool_ids)))\n"
+            ),
+            "route-read-renormalized",
+        ),
+        (
+            Path("src/core/fcis_settlement_strong_validator.py"),
+            "\ndef caller_selected(hash_value: str):\n    return hash_value\n",
+            "caller-authority-parameter:caller_selected:hash_value",
+        ),
+        (
+            Path("src/core/fcis_settlement_strong_validator.py"),
+            "\n_ReplayEscapeV1: TypeAlias = object | None\n",
+            "replay-union-alias:_ReplayEscapeV1",
+        ),
+    ),
+)
+def test_p4b4_checker_kills_forbidden_mechanism_mutations(
+    tmp_path: Path,
+    relative: Path,
+    mutation: str,
+    expected_detail: str,
+) -> None:
+    report = _run_p4b4_source(tmp_path, relative, _p4b4_source(relative) + mutation)
+    assert any(detail.startswith(expected_detail) for detail in _p4b4_details(report))
+
+
+def test_p4b4_checker_kills_skipped_public_recursive_revalidation(tmp_path: Path) -> None:
+    relative = Path("src/core/fcis_settlement_strong_validator.py")
+    source = _p4b4_source(relative)
+    anchor = "exact_settlement = snapshot_settlement(raw_settlement)"
+    assert source.count(anchor) == 1
+    report = _run_p4b4_source(
+        tmp_path,
+        relative,
+        source.replace(anchor, "exact_settlement = raw_settlement", 1),
+    )
+    assert "public-recursive-revalidation-missing" in _p4b4_details(report)
+
+
+def test_p4b4_checker_kills_controlled_value_construction_outside_derivation(
+    tmp_path: Path,
+) -> None:
+    relative = Path("src/core/rogue_exact_consumer.py")
+    source = (
+        "from src.core.fcis_settlement_strong_values import "
+        "ExactStrongSettlementRejectV1\n"
+        "value = ExactStrongSettlementRejectV1('forged', object())\n"
+    )
+    report = _run_p4b4_source(tmp_path, relative, source)
+    assert "CONSTRUCTION_CALLSITE" in _codes(report)
+
+
+def test_p4b4_checker_kills_unauthorized_private_sink_import(tmp_path: Path) -> None:
+    relative = Path("src/core/rogue_exact_consumer.py")
+    source = (
+        "from src.core.fcis_settlement_strong_validator import "
+        "_evaluate_settlement_strong_exact_admitted_v1\n"
+    )
+    report = _run_p4b4_source(tmp_path, relative, source)
+    assert "PRIVATE_AUTHORITY_IMPORT" in _codes(report)
+
+
+def test_p4b4_checker_kills_protected_file_drift_without_artifact_hash(
+    tmp_path: Path,
+) -> None:
+    relative = Path("src/core/dex.py")
+    source = (Path(__file__).resolve().parents[2] / relative).read_text(encoding="utf-8")
+    report = _run_p4b4_source(tmp_path, relative, source + "\n# drift\n")
+    assert any(detail.startswith("protected-input-drift:") for detail in _p4b4_details(report))
+
+
+def _copy_p4b4_variant_surface(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[2]
+    for relative in (
+        Path("src/core/fcis_settlement_strong_validator.py"),
+        Path("src/core/fcis_settlement_index.py"),
+        Path("src/state/intents.py"),
+        Path("src/core/settlement.py"),
+    ):
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text((root / relative).read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def test_p4b4_checker_kills_unsupported_intent_variant(tmp_path: Path) -> None:
+    _copy_p4b4_variant_surface(tmp_path)
+    relative = Path("src/state/intents.py")
+    source = (tmp_path / relative).read_text(encoding="utf-8")
+    anchor = '    ROUTE_EXACT_OUT = "ROUTE_EXACT_OUT"'
+    assert source.count(anchor) == 1
+    (tmp_path / relative).write_text(
+        source.replace(anchor, anchor + '\n    FLASH_LOAN = "FLASH_LOAN"', 1),
+        encoding="utf-8",
+    )
+    report = check_contract(
+        repo_root=tmp_path,
+        authority_paths=(Path("src/core/fcis_settlement_strong_validator.py"),),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="exact-replay",
+    )
+    assert any(detail.startswith("unsupported-intent-variant:") for detail in _p4b4_details(report))
+
+
+def test_p4b4_checker_kills_unmounted_validator_import(tmp_path: Path) -> None:
+    relative = Path("src/core/fcis_settlement_strong_validator.py")
+    validator = tmp_path / relative
+    validator.parent.mkdir(parents=True, exist_ok=True)
+    validator.write_text(_p4b4_source(relative), encoding="utf-8")
+    consumer = tmp_path / "src/core/mounted_consumer.py"
+    consumer.write_text(
+        "from .fcis_settlement_strong_validator import evaluate_settlement_strong_exact_v1\n",
+        encoding="utf-8",
+    )
+    report = check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="exact-replay",
+    )
+    assert "unmounted-validator-imported" in _p4b4_details(report)
+
+
+def test_p4b4_final_mount_count_remains_exactly_64() -> None:
+    root = Path(__file__).resolve().parents[2]
+    report = check_contract(
+        repo_root=root,
+        authority_paths=FINAL_MOUNT_AUTHORITY_PATHS,
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="final-mount",
+    )
+    assert len(report["violations"]) == 64
+    assert not _p4b4_details(report)

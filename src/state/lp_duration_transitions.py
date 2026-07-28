@@ -22,7 +22,6 @@ from .state_snapshot_values import (
     MAX_LP_ENTRIES_V1,
     CommittedLPTableV1,
 )
-from .state_snapshots import StateAdmissionError, snapshot_lp_table
 from .state_transitions import (
     CanonicalLPPositionPatchV1,
     LPPositionPatchApplyOkV1,
@@ -452,11 +451,13 @@ def _validated_inputs_v1(
     now: int,
     policy: LPDurationRiskPolicyV1 | None,
 ) -> _LPDurationInputsV1 | LPDurationTransitionRejectV1:
-    if type(pre_state) is not CommittedLPTableV1:
+    raw_pre: object = pre_state
+    if type(raw_pre) is not CommittedLPTableV1:
         return _reject(LPDurationTransitionCodeV1.WRONG_EXACT_TYPE, ("state",))
+    exact_pre = raw_pre
     try:
-        pre = snapshot_lp_table(pre_state)
-    except StateAdmissionError:
+        exact_pre.__post_init__()
+    except (TypeError, ValueError):
         return _reject(LPDurationTransitionCodeV1.INVALID_PRESTATE, ("state",))
     event_reject = _events_reject_v1(events)
     if event_reject is not None:
@@ -471,7 +472,7 @@ def _validated_inputs_v1(
     if policy_reject is not None:
         return policy_reject
     return _LPDurationInputsV1(
-        pre,
+        exact_pre,
         events,
         _LPDurationContextV1(now, policy),
     )

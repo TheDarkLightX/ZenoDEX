@@ -11,6 +11,7 @@ from src.state.intent_snapshots import (
     admit_intent_batch,
     canonical_owned_intent_bytes_v1,
     owned_intent_field_v1,
+    owned_intent_optional_field_v1,
     snapshot_intent,
 )
 from src.state.intents import (
@@ -226,6 +227,13 @@ def test_owned_intent_reader_rejects_mutable_default_aliases() -> None:
 
     with pytest.raises(TypeError, match="intent field default"):
         owned_intent_field_v1(owned, "missing", [])  # type: ignore[arg-type]
+
+
+def test_owned_intent_optional_reader_preserves_absence_without_defaulting() -> None:
+    owned = snapshot_intent(_intent(IntentKind.CREATE_POOL, ALL_KIND_FIELDS[0][1]))
+
+    assert owned_intent_optional_field_v1(owned, "created_at") is None
+    assert owned_intent_optional_field_v1(owned, "asset0") == "A"
 
 
 def test_exact_intent_with_undeclared_instance_attribute_rejects() -> None:

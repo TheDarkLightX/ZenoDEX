@@ -12,6 +12,7 @@ from src.core.fcis_state_read_trace_v5 import FCISStateReadTraceV5
 from src.core.fcis_traced_reads_v5 import apply_spot_deltas_traced_v5
 from src.core.settlement import BalanceDelta, LPDelta, ReserveDelta, Settlement
 from src.state.balances import BalanceTable
+from src.state.fcis_spot_replay import apply_fcis_spot_deltas_v1
 from src.state.lp import LPTable
 from src.state.lp_duration_transitions import (
     LPDurationEventV1,
@@ -427,8 +428,8 @@ def test_spot_transition_carries_the_single_guarded_lp_candidate_without_recompu
     )
     event = LPDurationEventV1(("alice", pool_id), 0, 1)
     guarded_results: list[LPDurationTransitionOkV1] = []
-    spot_module = sys.modules[apply_spot_deltas_v1.__module__]
-    real_guard = spot_module.apply_guarded_lp_position_events_observed_v1
+    exact_spot_module = sys.modules[apply_fcis_spot_deltas_v1.__module__]
+    real_guard = exact_spot_module.apply_guarded_lp_position_events_observed_v1
 
     def counted_guard(*args: object, **kwargs: object) -> object:
         guarded, observed_keys = real_guard(*args, **kwargs)
@@ -437,7 +438,7 @@ def test_spot_transition_carries_the_single_guarded_lp_candidate_without_recompu
         return guarded, observed_keys
 
     monkeypatch.setattr(
-        spot_module,
+        exact_spot_module,
         "apply_guarded_lp_position_events_observed_v1",
         counted_guard,
     )
