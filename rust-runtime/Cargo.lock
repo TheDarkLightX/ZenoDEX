@@ -739,6 +739,7 @@ dependencies = [
  "hex",
  "num-bigint",
  "proptest",
+ "serde_json",
  "sha2",
  "thiserror",
 ]

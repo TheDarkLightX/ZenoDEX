@@ -10,6 +10,7 @@ from tools.check_fcis_authority_snapshot_contract import (
     DEFAULT_AUTHORITY_PATHS,
     EXACT_CONSUMERS_AUTHORITY_PATHS,
     EXACT_REPLAY_AUTHORITY_PATHS,
+    FEE_APPORTIONMENT_AUTHORITY_PATHS,
     FINAL_MOUNT_AUTHORITY_PATHS,
     STATE_SUBSTRATE_AUTHORITY_PATHS,
     check_contract,
@@ -73,6 +74,7 @@ def test_m5_authority_graph_paths_are_mandatory() -> None:
         Path("src/core/fcis_fee_custody_schema.py"),
         Path("src/core/fcis_fee_custody_transition.py"),
         Path("src/core/fcis_fee_custody_values.py"),
+        *FEE_APPORTIONMENT_AUTHORITY_PATHS,
         Path("src/core/fcis_outbox_values.py"),
         Path("src/core/fcis_transition_budget.py"),
         Path("src/core/fcis_transition_values.py"),
@@ -1440,6 +1442,9 @@ def test_checker_rejects_private_capability_attribute_capture(
         "_compute_support_state_root_for_batch_owned_admitted_v1\n",
         "from src.core.fcis_fee_custody_values import _FEE_CUSTODY_RESULT_TOKEN_V2\n",
         "from src.core.fcis_fee_custody_values import _fee_custody_ok_v2\n",
+        "from src.core.fcis_fee_apportionment_values import _FEE_APPORTIONMENT_RESULT_TOKEN_V2\n",
+        "from src.core.fcis_fee_apportionment_values import _asset_fee_allocation_v2\n",
+        "from src.core.fcis_fee_apportionment_values import _fee_apportionment_ok_v2\n",
     ],
 )
 def test_checker_rejects_private_admitted_sink_imports_outside_evaluator(
@@ -1764,6 +1769,7 @@ def test_checker_allows_unmounted_evaluator_only_in_shadow_adapter(
         "src/state/lp_duration_policy_admission.py",
         "src/state/fcis_execution_context_admission.py",
         "src/core/fcis_fee_custody_admission.py",
+        "src/core/fcis_fee_apportionment_admission.py",
     ],
 )
 def test_checker_allows_internal_engine_only_in_explicit_profile_facades(
@@ -1962,6 +1968,7 @@ def test_checker_rejects_caller_selected_profile_binding(tmp_path: Path) -> None
         "src/state/lp_duration_policy_admission.py",
         "src/state/fcis_execution_context_admission.py",
         "src/core/fcis_fee_custody_admission.py",
+        "src/core/fcis_fee_apportionment_admission.py",
     ],
 )
 def test_checker_rejects_second_public_entrypoint_in_each_profile(
@@ -3225,3 +3232,97 @@ def test_p4b4_final_mount_count_remains_exactly_64() -> None:
     )
     assert len(report["violations"]) == 64
     assert not _p4b4_details(report)
+
+
+_P4B5A_PATHS = FEE_APPORTIONMENT_AUTHORITY_PATHS
+
+
+def _p4b5a_source(relative: Path) -> str:
+    return (Path(__file__).resolve().parents[2] / relative).read_text(encoding="utf-8")
+
+
+def _run_p4b5a_source(
+    tmp_path: Path,
+    relative: Path,
+    source: str,
+) -> dict[str, object]:
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True, exist_ok=True)
+    authority.write_text(source, encoding="utf-8")
+    return check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="authority-graph",
+    )
+
+
+def _p4b5a_details(report: dict[str, object]) -> tuple[str, ...]:
+    return tuple(
+        str(finding["detail"])
+        for finding in report["violations"]  # type: ignore[union-attr]
+        if finding["code"] == "FCIS_P4B5A"  # type: ignore[index]
+    )
+
+
+def test_p4b5a_modules_are_registered_as_unmounted_authority() -> None:
+    assert set(_P4B5A_PATHS) <= set(AUTHORITY_GRAPH_AUTHORITY_PATHS)
+    assert set(_P4B5A_PATHS) <= set(FINAL_MOUNT_AUTHORITY_PATHS)
+    assert not set(_P4B5A_PATHS) & set(EXACT_REPLAY_AUTHORITY_PATHS)
+
+
+@pytest.mark.parametrize("relative", _P4B5A_PATHS)
+def test_p4b5a_checker_accepts_each_current_contract_surface(
+    tmp_path: Path,
+    relative: Path,
+) -> None:
+    report = _run_p4b5a_source(tmp_path, relative, _p4b5a_source(relative))
+    assert not _p4b5a_details(report)
+
+
+@pytest.mark.parametrize(
+    ("relative", "mutation", "expected_detail"),
+    (
+        (
+            Path("src/core/fcis_fee_apportionment_allocator.py"),
+            "\nfrom .fcis_fee_custody_values import ProtocolFeeCreditV2\n",
+            "obsolete-or-mounted-import:fcis_fee_custody_values",
+        ),
+        (
+            Path("src/core/fcis_fee_apportionment_allocator.py"),
+            "\ndef direct_product_mutant(amount, weight):\n    return amount * weight\n",
+            "direct-amount-weight-product",
+        ),
+        (
+            Path("src/core/fcis_fee_apportionment_values.py"),
+            "\nfrom ..state.balances import BalanceTable\n",
+            "obsolete-or-mounted-import:state.balances",
+        ),
+    ),
+)
+def test_p4b5a_checker_kills_forbidden_boundary_mutations(
+    tmp_path: Path,
+    relative: Path,
+    mutation: str,
+    expected_detail: str,
+) -> None:
+    report = _run_p4b5a_source(
+        tmp_path,
+        relative,
+        _p4b5a_source(relative) + mutation,
+    )
+    assert expected_detail in _p4b5a_details(report)
+
+
+def test_p4b5a_checker_kills_registry_id_removal(tmp_path: Path) -> None:
+    relative = Path("src/core/fcis_fee_apportionment_admission.py")
+    source = _p4b5a_source(relative)
+    anchor = '    "zenodex/fcis/fee-distribution/policy/v2",\n'
+    assert source.count(anchor) == 2
+    report = _run_p4b5a_source(
+        tmp_path,
+        relative,
+        source.replace(anchor, "", 1),
+    )
+    assert "PROFILE_REGISTRY_DRIFT" in _codes(report)

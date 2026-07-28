@@ -1,0 +1,955 @@
+{
+  "architecture_head": "371912c5cb25533a1b4e3523c478563991db25b0",
+  "cases": [
+    {
+      "expected": {
+        "accept": true,
+        "allocations": [
+          {
+            "amount": 0,
+            "buyback_amount": 0,
+            "buyback_bonus": 0,
+            "buyback_destination": "buyback",
+            "buyback_fraction": 0,
+            "deficit_buyback_post": 0,
+            "deficit_buyback_pre": 0,
+            "deficit_rewards_post": 0,
+            "deficit_rewards_pre": 0,
+            "deficit_treasury_post": 0,
+            "deficit_treasury_pre": 0,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 0,
+            "rewards_bonus": 0,
+            "rewards_destination": "rewards",
+            "rewards_fraction": 0,
+            "treasury_amount": 0,
+            "treasury_bonus": 0,
+            "treasury_destination": "treasury",
+            "treasury_fraction": 0
+          }
+        ],
+        "canonical": {
+          "allocations_sha256": "0x17711ddca51bffb3a875e158792dba1ddba693c3bae894c95228b7d2952965e3",
+          "allocations_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/asset-allocation-batch/v2\",\"value\":[{\"amount\":0,\"buyback_amount\":0,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":0,\"deficit_buyback_post\":0,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":0,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":0,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":0,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":0,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":0}]}",
+          "result_sha256": "0x47f7bbf45cc28af08796b430a6c6d4d3c70efabe85fa384a7fbb1bf7c88ea26a",
+          "result_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/transition-result/v2\",\"value\":{\"allocations\":[{\"amount\":0,\"buyback_amount\":0,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":0,\"deficit_buyback_post\":0,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":0,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":0,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":0,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":0,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":0}],\"state\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[]}}}",
+          "state_sha256": "0x7bb0cf39f9826a443ff30c49bc10cf2e6f431bc4420464c2ec19811b55a2f334",
+          "state_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/committed-state/v2\",\"value\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[]}}"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      },
+      "id": "zero",
+      "input": {
+        "contributions": [
+          {
+            "amount": 0,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 3333,
+          "buyback_destination": "buyback",
+          "rewards_bps": 3334,
+          "rewards_destination": "rewards",
+          "treasury_bps": 3333,
+          "treasury_destination": "treasury"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "allocations": [
+          {
+            "amount": 1,
+            "buyback_amount": 0,
+            "buyback_bonus": 0,
+            "buyback_destination": "buyback",
+            "buyback_fraction": 3333,
+            "deficit_buyback_post": 3333,
+            "deficit_buyback_pre": 0,
+            "deficit_rewards_post": -6666,
+            "deficit_rewards_pre": 0,
+            "deficit_treasury_post": 3333,
+            "deficit_treasury_pre": 0,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 1,
+            "rewards_bonus": 1,
+            "rewards_destination": "rewards",
+            "rewards_fraction": 3334,
+            "treasury_amount": 0,
+            "treasury_bonus": 0,
+            "treasury_destination": "treasury",
+            "treasury_fraction": 3333
+          }
+        ],
+        "canonical": {
+          "allocations_sha256": "0x9e114d1e7f7a549a4ab5b8c5072958ae718ab71857fcaf9583e3f8f7f3cc7944",
+          "allocations_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/asset-allocation-batch/v2\",\"value\":[{\"amount\":1,\"buyback_amount\":0,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":3333,\"deficit_buyback_post\":3333,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":-6666,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":3333,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":1,\"rewards_bonus\":1,\"rewards_destination\":\"rewards\",\"rewards_fraction\":3334,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":3333}]}",
+          "result_sha256": "0x3d1ef89ea07fd8df4c6a82a3839427c774ab7f45bb4614e80da4bdb1b4a86bdc",
+          "result_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/transition-result/v2\",\"value\":{\"allocations\":[{\"amount\":1,\"buyback_amount\":0,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":3333,\"deficit_buyback_post\":3333,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":-6666,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":3333,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":1,\"rewards_bonus\":1,\"rewards_destination\":\"rewards\",\"rewards_fraction\":3334,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":3333}],\"state\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":3333,\"deficit_treasury\":3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}}",
+          "state_sha256": "0x9539112ead7f83995da69012a12bee8f0e0e898bd52a68ddfe3d58e492960d6d",
+          "state_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/committed-state/v2\",\"value\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":3333,\"deficit_treasury\":3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": [
+            {
+              "deficit_buyback": 3333,
+              "deficit_treasury": 3333,
+              "key": {
+                "asset": "asset-a",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            }
+          ]
+        }
+      },
+      "id": "one_atom",
+      "input": {
+        "contributions": [
+          {
+            "amount": 1,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 3333,
+          "buyback_destination": "buyback",
+          "rewards_bps": 3334,
+          "rewards_destination": "rewards",
+          "treasury_bps": 3333,
+          "treasury_destination": "treasury"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "allocations": [
+          {
+            "amount": 1,
+            "buyback_amount": 1,
+            "buyback_bonus": 1,
+            "buyback_destination": "buyback",
+            "buyback_fraction": 5000,
+            "deficit_buyback_post": -5000,
+            "deficit_buyback_pre": 0,
+            "deficit_rewards_post": 0,
+            "deficit_rewards_pre": 0,
+            "deficit_treasury_post": 5000,
+            "deficit_treasury_pre": 0,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 0,
+            "rewards_bonus": 0,
+            "rewards_destination": "rewards",
+            "rewards_fraction": 0,
+            "treasury_amount": 0,
+            "treasury_bonus": 0,
+            "treasury_destination": "treasury",
+            "treasury_fraction": 5000
+          }
+        ],
+        "canonical": {
+          "allocations_sha256": "0x9ab0936aad0459eb7652dcf4178339c6775eabdb5cdf752631fe91ede2580c35",
+          "allocations_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/asset-allocation-batch/v2\",\"value\":[{\"amount\":1,\"buyback_amount\":1,\"buyback_bonus\":1,\"buyback_destination\":\"buyback\",\"buyback_fraction\":5000,\"deficit_buyback_post\":-5000,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":0,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":5000,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":0,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":0,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":5000}]}",
+          "result_sha256": "0x6a9141e88d69da4094b704546631b6f7715829daac0a9bac0b8cda848ac6d347",
+          "result_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/transition-result/v2\",\"value\":{\"allocations\":[{\"amount\":1,\"buyback_amount\":1,\"buyback_bonus\":1,\"buyback_destination\":\"buyback\",\"buyback_fraction\":5000,\"deficit_buyback_post\":-5000,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":0,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":5000,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":0,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":0,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":5000}],\"state\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":-5000,\"deficit_treasury\":5000,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}}",
+          "state_sha256": "0x5ee0243efad0f2f865a81c87afeb87d23c5541b987736322c47f6eb061718e73",
+          "state_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/committed-state/v2\",\"value\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":-5000,\"deficit_treasury\":5000,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": [
+            {
+              "deficit_buyback": -5000,
+              "deficit_treasury": 5000,
+              "key": {
+                "asset": "asset-a",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            }
+          ]
+        }
+      },
+      "id": "fixed_tie",
+      "input": {
+        "contributions": [
+          {
+            "amount": 1,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 5000,
+          "buyback_destination": "buyback",
+          "rewards_bps": 0,
+          "rewards_destination": "rewards",
+          "treasury_bps": 5000,
+          "treasury_destination": "treasury"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "allocations": [
+          {
+            "amount": 2,
+            "buyback_amount": 1,
+            "buyback_bonus": 0,
+            "buyback_destination": "buyback",
+            "buyback_fraction": 0,
+            "deficit_buyback_post": 0,
+            "deficit_buyback_pre": 0,
+            "deficit_rewards_post": 5000,
+            "deficit_rewards_pre": 0,
+            "deficit_treasury_post": -5000,
+            "deficit_treasury_pre": 0,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 0,
+            "rewards_bonus": 0,
+            "rewards_destination": "rewards",
+            "rewards_fraction": 5000,
+            "treasury_amount": 1,
+            "treasury_bonus": 1,
+            "treasury_destination": "treasury",
+            "treasury_fraction": 5000
+          }
+        ],
+        "canonical": {
+          "allocations_sha256": "0xc542a49518b56d26e6cc88e53f36d11a38010299ff39888f98de396fb39ec689",
+          "allocations_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/asset-allocation-batch/v2\",\"value\":[{\"amount\":2,\"buyback_amount\":1,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":0,\"deficit_buyback_post\":0,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":5000,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":-5000,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":0,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":5000,\"treasury_amount\":1,\"treasury_bonus\":1,\"treasury_destination\":\"treasury\",\"treasury_fraction\":5000}]}",
+          "result_sha256": "0x942eea3695c40d9744cd98a8616748f4f63f65bb56a4bacb9d1b00b7fe4bebc3",
+          "result_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/transition-result/v2\",\"value\":{\"allocations\":[{\"amount\":2,\"buyback_amount\":1,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":0,\"deficit_buyback_post\":0,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":5000,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":-5000,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":0,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":5000,\"treasury_amount\":1,\"treasury_bonus\":1,\"treasury_destination\":\"treasury\",\"treasury_fraction\":5000}],\"state\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":0,\"deficit_treasury\":-5000,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}}",
+          "state_sha256": "0xbfb4d3839034ef2f15772ca60c81eb36c55de31a06e5c1a6b31ca5ba9409cb1c",
+          "state_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/committed-state/v2\",\"value\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":0,\"deficit_treasury\":-5000,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": [
+            {
+              "deficit_buyback": 0,
+              "deficit_treasury": -5000,
+              "key": {
+                "asset": "asset-a",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            }
+          ]
+        }
+      },
+      "id": "positive_support",
+      "input": {
+        "contributions": [
+          {
+            "amount": 2,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 5000,
+          "buyback_destination": "buyback",
+          "rewards_bps": 2500,
+          "rewards_destination": "rewards",
+          "treasury_bps": 2500,
+          "treasury_destination": "treasury"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "allocations": [
+          {
+            "amount": 1,
+            "buyback_amount": 0,
+            "buyback_bonus": 0,
+            "buyback_destination": "buyback",
+            "buyback_fraction": 0,
+            "deficit_buyback_post": -6666,
+            "deficit_buyback_pre": -6666,
+            "deficit_rewards_post": 0,
+            "deficit_rewards_pre": 3333,
+            "deficit_treasury_post": 6666,
+            "deficit_treasury_pre": 3333,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 1,
+            "rewards_bonus": 1,
+            "rewards_destination": "rewards",
+            "rewards_fraction": 6667,
+            "treasury_amount": 0,
+            "treasury_bonus": 0,
+            "treasury_destination": "treasury",
+            "treasury_fraction": 3333
+          }
+        ],
+        "canonical": {
+          "allocations_sha256": "0x5734759ba8446ac6b3a841d4cbc671919e310452171f486127ffc342ca524189",
+          "allocations_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/asset-allocation-batch/v2\",\"value\":[{\"amount\":1,\"buyback_amount\":0,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":0,\"deficit_buyback_post\":-6666,\"deficit_buyback_pre\":-6666,\"deficit_rewards_post\":0,\"deficit_rewards_pre\":3333,\"deficit_treasury_post\":6666,\"deficit_treasury_pre\":3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":1,\"rewards_bonus\":1,\"rewards_destination\":\"rewards\",\"rewards_fraction\":6667,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":3333}]}",
+          "result_sha256": "0x0d2fb1292e062bf7ddb361293d0f88fe005b09df309e3e9a2af475ee53bf19f6",
+          "result_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/transition-result/v2\",\"value\":{\"allocations\":[{\"amount\":1,\"buyback_amount\":0,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":0,\"deficit_buyback_post\":-6666,\"deficit_buyback_pre\":-6666,\"deficit_rewards_post\":0,\"deficit_rewards_pre\":3333,\"deficit_treasury_post\":6666,\"deficit_treasury_pre\":3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":1,\"rewards_bonus\":1,\"rewards_destination\":\"rewards\",\"rewards_fraction\":6667,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":3333}],\"state\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":-6666,\"deficit_treasury\":6666,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}}",
+          "state_sha256": "0xe8990ea7dae083f4711bc13ee0d7526173e9ff89478b83ce7cb0496060d0c227",
+          "state_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/committed-state/v2\",\"value\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":-6666,\"deficit_treasury\":6666,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": [
+            {
+              "deficit_buyback": -6666,
+              "deficit_treasury": 6666,
+              "key": {
+                "asset": "asset-a",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            }
+          ]
+        }
+      },
+      "id": "score_includes_fraction",
+      "input": {
+        "contributions": [
+          {
+            "amount": 1,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 0,
+          "buyback_destination": "buyback",
+          "rewards_bps": 6667,
+          "rewards_destination": "rewards",
+          "treasury_bps": 3333,
+          "treasury_destination": "treasury"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": [
+            {
+              "deficit_buyback": -6666,
+              "deficit_treasury": 3333,
+              "key": {
+                "asset": "asset-a",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "allocations": [
+          {
+            "amount": 2,
+            "buyback_amount": 1,
+            "buyback_bonus": 1,
+            "buyback_destination": "buyback",
+            "buyback_fraction": 6666,
+            "deficit_buyback_post": -3334,
+            "deficit_buyback_pre": 0,
+            "deficit_rewards_post": -3332,
+            "deficit_rewards_pre": 0,
+            "deficit_treasury_post": 6666,
+            "deficit_treasury_pre": 0,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 1,
+            "rewards_bonus": 1,
+            "rewards_destination": "rewards",
+            "rewards_fraction": 6668,
+            "treasury_amount": 0,
+            "treasury_bonus": 0,
+            "treasury_destination": "treasury",
+            "treasury_fraction": 6666
+          }
+        ],
+        "canonical": {
+          "allocations_sha256": "0x78b88f124756d608b578d049b5b3852568b9d3d7fd39817b3bd464213ffeff83",
+          "allocations_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/asset-allocation-batch/v2\",\"value\":[{\"amount\":2,\"buyback_amount\":1,\"buyback_bonus\":1,\"buyback_destination\":\"buyback\",\"buyback_fraction\":6666,\"deficit_buyback_post\":-3334,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":-3332,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":6666,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":1,\"rewards_bonus\":1,\"rewards_destination\":\"rewards\",\"rewards_fraction\":6668,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":6666}]}",
+          "result_sha256": "0x80eb23fc34eec070b074e6865dcdfacf6271574ec69d8fe704a05475d62bbb2d",
+          "result_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/transition-result/v2\",\"value\":{\"allocations\":[{\"amount\":2,\"buyback_amount\":1,\"buyback_bonus\":1,\"buyback_destination\":\"buyback\",\"buyback_fraction\":6666,\"deficit_buyback_post\":-3334,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":-3332,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":6666,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":1,\"rewards_bonus\":1,\"rewards_destination\":\"rewards\",\"rewards_fraction\":6668,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":6666}],\"state\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":-3334,\"deficit_treasury\":6666,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}}",
+          "state_sha256": "0xe0a39f85072b3a73a5d49da861ec8270a4b742545fa72ff238244006393b1efb",
+          "state_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/committed-state/v2\",\"value\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":-3334,\"deficit_treasury\":6666,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": [
+            {
+              "deficit_buyback": -3334,
+              "deficit_treasury": 6666,
+              "key": {
+                "asset": "asset-a",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            }
+          ]
+        }
+      },
+      "id": "two_bonuses",
+      "input": {
+        "contributions": [
+          {
+            "amount": 2,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 3333,
+          "buyback_destination": "buyback",
+          "rewards_bps": 3334,
+          "rewards_destination": "rewards",
+          "treasury_bps": 3333,
+          "treasury_destination": "treasury"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "allocations": [
+          {
+            "amount": 9999,
+            "buyback_amount": 3333,
+            "buyback_bonus": 1,
+            "buyback_destination": "buyback",
+            "buyback_fraction": 6667,
+            "deficit_buyback_post": -3333,
+            "deficit_buyback_pre": 0,
+            "deficit_rewards_post": 6666,
+            "deficit_rewards_pre": 0,
+            "deficit_treasury_post": -3333,
+            "deficit_treasury_pre": 0,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 3333,
+            "rewards_bonus": 0,
+            "rewards_destination": "rewards",
+            "rewards_fraction": 6666,
+            "treasury_amount": 3333,
+            "treasury_bonus": 1,
+            "treasury_destination": "treasury",
+            "treasury_fraction": 6667
+          }
+        ],
+        "canonical": {
+          "allocations_sha256": "0x35d2b15dbbc9b3d8de1cc451da2ec48345c086eb55c1e0eff6b7e1a571d28d73",
+          "allocations_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/asset-allocation-batch/v2\",\"value\":[{\"amount\":9999,\"buyback_amount\":3333,\"buyback_bonus\":1,\"buyback_destination\":\"buyback\",\"buyback_fraction\":6667,\"deficit_buyback_post\":-3333,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":6666,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":-3333,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":3333,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":6666,\"treasury_amount\":3333,\"treasury_bonus\":1,\"treasury_destination\":\"treasury\",\"treasury_fraction\":6667}]}",
+          "result_sha256": "0xc3164fecf77d22c88198206d1b493e46b6cc1f1316c9e724d8e3ffa0f55ca986",
+          "result_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/transition-result/v2\",\"value\":{\"allocations\":[{\"amount\":9999,\"buyback_amount\":3333,\"buyback_bonus\":1,\"buyback_destination\":\"buyback\",\"buyback_fraction\":6667,\"deficit_buyback_post\":-3333,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":6666,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":-3333,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":3333,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":6666,\"treasury_amount\":3333,\"treasury_bonus\":1,\"treasury_destination\":\"treasury\",\"treasury_fraction\":6667}],\"state\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":-3333,\"deficit_treasury\":-3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}}",
+          "state_sha256": "0x06e1ad3e95a7e9706675f42c1a6e0310eac91209411e930d134c29a342aa205e",
+          "state_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/committed-state/v2\",\"value\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":-3333,\"deficit_treasury\":-3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": [
+            {
+              "deficit_buyback": -3333,
+              "deficit_treasury": -3333,
+              "key": {
+                "asset": "asset-a",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            }
+          ]
+        }
+      },
+      "id": "denominator_minus_one",
+      "input": {
+        "contributions": [
+          {
+            "amount": 9999,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 3333,
+          "buyback_destination": "buyback",
+          "rewards_bps": 3334,
+          "rewards_destination": "rewards",
+          "treasury_bps": 3333,
+          "treasury_destination": "treasury"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "allocations": [
+          {
+            "amount": 10000,
+            "buyback_amount": 3333,
+            "buyback_bonus": 0,
+            "buyback_destination": "buyback",
+            "buyback_fraction": 0,
+            "deficit_buyback_post": 3333,
+            "deficit_buyback_pre": 3333,
+            "deficit_rewards_post": -6666,
+            "deficit_rewards_pre": -6666,
+            "deficit_treasury_post": 3333,
+            "deficit_treasury_pre": 3333,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 3334,
+            "rewards_bonus": 0,
+            "rewards_destination": "rewards",
+            "rewards_fraction": 0,
+            "treasury_amount": 3333,
+            "treasury_bonus": 0,
+            "treasury_destination": "treasury",
+            "treasury_fraction": 0
+          }
+        ],
+        "canonical": {
+          "allocations_sha256": "0x839ba9b1280365322be6a8c1ad40cf5502d95db76b659447c697b6b022292ad3",
+          "allocations_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/asset-allocation-batch/v2\",\"value\":[{\"amount\":10000,\"buyback_amount\":3333,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":0,\"deficit_buyback_post\":3333,\"deficit_buyback_pre\":3333,\"deficit_rewards_post\":-6666,\"deficit_rewards_pre\":-6666,\"deficit_treasury_post\":3333,\"deficit_treasury_pre\":3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":3334,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":0,\"treasury_amount\":3333,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":0}]}",
+          "result_sha256": "0xfbf634780a619059e6e44f463bed7b38e406d1734e03a4abad83a57f0869a244",
+          "result_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/transition-result/v2\",\"value\":{\"allocations\":[{\"amount\":10000,\"buyback_amount\":3333,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":0,\"deficit_buyback_post\":3333,\"deficit_buyback_pre\":3333,\"deficit_rewards_post\":-6666,\"deficit_rewards_pre\":-6666,\"deficit_treasury_post\":3333,\"deficit_treasury_pre\":3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":3334,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":0,\"treasury_amount\":3333,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":0}],\"state\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":3333,\"deficit_treasury\":3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}}",
+          "state_sha256": "0x9539112ead7f83995da69012a12bee8f0e0e898bd52a68ddfe3d58e492960d6d",
+          "state_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/committed-state/v2\",\"value\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":3333,\"deficit_treasury\":3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": [
+            {
+              "deficit_buyback": 3333,
+              "deficit_treasury": 3333,
+              "key": {
+                "asset": "asset-a",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            }
+          ]
+        }
+      },
+      "id": "denominator",
+      "input": {
+        "contributions": [
+          {
+            "amount": 10000,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 3333,
+          "buyback_destination": "buyback",
+          "rewards_bps": 3334,
+          "rewards_destination": "rewards",
+          "treasury_bps": 3333,
+          "treasury_destination": "treasury"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": [
+            {
+              "deficit_buyback": 3333,
+              "deficit_treasury": 3333,
+              "key": {
+                "asset": "asset-a",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "allocations": [
+          {
+            "amount": 10001,
+            "buyback_amount": 3333,
+            "buyback_bonus": 0,
+            "buyback_destination": "buyback",
+            "buyback_fraction": 3333,
+            "deficit_buyback_post": 3333,
+            "deficit_buyback_pre": 0,
+            "deficit_rewards_post": -6666,
+            "deficit_rewards_pre": 0,
+            "deficit_treasury_post": 3333,
+            "deficit_treasury_pre": 0,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 3335,
+            "rewards_bonus": 1,
+            "rewards_destination": "rewards",
+            "rewards_fraction": 3334,
+            "treasury_amount": 3333,
+            "treasury_bonus": 0,
+            "treasury_destination": "treasury",
+            "treasury_fraction": 3333
+          }
+        ],
+        "canonical": {
+          "allocations_sha256": "0xc25145413ab6736e77f882d445ac27e6844efc6b1c0e062a4579156f3866e5e1",
+          "allocations_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/asset-allocation-batch/v2\",\"value\":[{\"amount\":10001,\"buyback_amount\":3333,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":3333,\"deficit_buyback_post\":3333,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":-6666,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":3333,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":3335,\"rewards_bonus\":1,\"rewards_destination\":\"rewards\",\"rewards_fraction\":3334,\"treasury_amount\":3333,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":3333}]}",
+          "result_sha256": "0x2e15b721430ae103eb30485f9cf357daf838fff4ebc158dc312c212f31de7223",
+          "result_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/transition-result/v2\",\"value\":{\"allocations\":[{\"amount\":10001,\"buyback_amount\":3333,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":3333,\"deficit_buyback_post\":3333,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":-6666,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":3333,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":3335,\"rewards_bonus\":1,\"rewards_destination\":\"rewards\",\"rewards_fraction\":3334,\"treasury_amount\":3333,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":3333}],\"state\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":3333,\"deficit_treasury\":3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}}",
+          "state_sha256": "0x9539112ead7f83995da69012a12bee8f0e0e898bd52a68ddfe3d58e492960d6d",
+          "state_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/committed-state/v2\",\"value\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":3333,\"deficit_treasury\":3333,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": [
+            {
+              "deficit_buyback": 3333,
+              "deficit_treasury": 3333,
+              "key": {
+                "asset": "asset-a",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            }
+          ]
+        }
+      },
+      "id": "denominator_plus_one",
+      "input": {
+        "contributions": [
+          {
+            "amount": 10001,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 3333,
+          "buyback_destination": "buyback",
+          "rewards_bps": 3334,
+          "rewards_destination": "rewards",
+          "treasury_bps": 3333,
+          "treasury_destination": "treasury"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "allocations": [
+          {
+            "amount": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+            "buyback_amount": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+            "buyback_bonus": 0,
+            "buyback_destination": "buyback",
+            "buyback_fraction": 0,
+            "deficit_buyback_post": 0,
+            "deficit_buyback_pre": 0,
+            "deficit_rewards_post": 0,
+            "deficit_rewards_pre": 0,
+            "deficit_treasury_post": 0,
+            "deficit_treasury_pre": 0,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 0,
+            "rewards_bonus": 0,
+            "rewards_destination": "rewards",
+            "rewards_fraction": 0,
+            "treasury_amount": 0,
+            "treasury_bonus": 0,
+            "treasury_destination": "treasury",
+            "treasury_fraction": 0
+          }
+        ],
+        "canonical": {
+          "allocations_sha256": "0xa1ffceacc6fe9e94cc16683ad4dc3fb7523ad04f712beeeaaf810e30e6e6fcd6",
+          "allocations_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/asset-allocation-batch/v2\",\"value\":[{\"amount\":115792089237316195423570985008687907853269984665640564039457584007913129639935,\"buyback_amount\":115792089237316195423570985008687907853269984665640564039457584007913129639935,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":0,\"deficit_buyback_post\":0,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":0,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":0,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":0,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":0,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":0}]}",
+          "result_sha256": "0x3ecda554ae410f4a2008add6ab91778ef3acb108460602bb64d2ae309aec3b2c",
+          "result_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/transition-result/v2\",\"value\":{\"allocations\":[{\"amount\":115792089237316195423570985008687907853269984665640564039457584007913129639935,\"buyback_amount\":115792089237316195423570985008687907853269984665640564039457584007913129639935,\"buyback_bonus\":0,\"buyback_destination\":\"buyback\",\"buyback_fraction\":0,\"deficit_buyback_post\":0,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":0,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":0,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":0,\"rewards_bonus\":0,\"rewards_destination\":\"rewards\",\"rewards_fraction\":0,\"treasury_amount\":0,\"treasury_bonus\":0,\"treasury_destination\":\"treasury\",\"treasury_fraction\":0}],\"state\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[]}}}",
+          "state_sha256": "0x7bb0cf39f9826a443ff30c49bc10cf2e6f431bc4420464c2ec19811b55a2f334",
+          "state_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/committed-state/v2\",\"value\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[]}}"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      },
+      "id": "u256_maximum",
+      "input": {
+        "contributions": [
+          {
+            "amount": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 10000,
+          "buyback_destination": "buyback",
+          "rewards_bps": 0,
+          "rewards_destination": "rewards",
+          "treasury_bps": 0,
+          "treasury_destination": "treasury"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "allocations": [
+          {
+            "amount": 3,
+            "buyback_amount": 1,
+            "buyback_bonus": 1,
+            "buyback_destination": "same",
+            "buyback_fraction": 9999,
+            "deficit_buyback_post": -1,
+            "deficit_buyback_pre": 0,
+            "deficit_rewards_post": 2,
+            "deficit_rewards_pre": 0,
+            "deficit_treasury_post": -1,
+            "deficit_treasury_pre": 0,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 1,
+            "rewards_bonus": 0,
+            "rewards_destination": "same",
+            "rewards_fraction": 2,
+            "treasury_amount": 1,
+            "treasury_bonus": 1,
+            "treasury_destination": "same",
+            "treasury_fraction": 9999
+          },
+          {
+            "amount": 3,
+            "buyback_amount": 1,
+            "buyback_bonus": 1,
+            "buyback_destination": "same",
+            "buyback_fraction": 9999,
+            "deficit_buyback_post": -1,
+            "deficit_buyback_pre": 0,
+            "deficit_rewards_post": 2,
+            "deficit_rewards_pre": 0,
+            "deficit_treasury_post": -1,
+            "deficit_treasury_pre": 0,
+            "key": {
+              "asset": "asset-c",
+              "fee_distribution_domain_id": "domain-a"
+            },
+            "rewards_amount": 1,
+            "rewards_bonus": 0,
+            "rewards_destination": "same",
+            "rewards_fraction": 2,
+            "treasury_amount": 1,
+            "treasury_bonus": 1,
+            "treasury_destination": "same",
+            "treasury_fraction": 9999
+          }
+        ],
+        "canonical": {
+          "allocations_sha256": "0xc093ff23c6f09806c635f96993b790ca9be3ba0700d99038f4e3f3a58d1cf6a2",
+          "allocations_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/asset-allocation-batch/v2\",\"value\":[{\"amount\":3,\"buyback_amount\":1,\"buyback_bonus\":1,\"buyback_destination\":\"same\",\"buyback_fraction\":9999,\"deficit_buyback_post\":-1,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":2,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":-1,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":1,\"rewards_bonus\":0,\"rewards_destination\":\"same\",\"rewards_fraction\":2,\"treasury_amount\":1,\"treasury_bonus\":1,\"treasury_destination\":\"same\",\"treasury_fraction\":9999},{\"amount\":3,\"buyback_amount\":1,\"buyback_bonus\":1,\"buyback_destination\":\"same\",\"buyback_fraction\":9999,\"deficit_buyback_post\":-1,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":2,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":-1,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-c\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":1,\"rewards_bonus\":0,\"rewards_destination\":\"same\",\"rewards_fraction\":2,\"treasury_amount\":1,\"treasury_bonus\":1,\"treasury_destination\":\"same\",\"treasury_fraction\":9999}]}",
+          "result_sha256": "0xdabf9a8d87625c88b1a56bb166d5f5b4d333d4d7e1cc96c333bfa3843de712b0",
+          "result_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/transition-result/v2\",\"value\":{\"allocations\":[{\"amount\":3,\"buyback_amount\":1,\"buyback_bonus\":1,\"buyback_destination\":\"same\",\"buyback_fraction\":9999,\"deficit_buyback_post\":-1,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":2,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":-1,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":1,\"rewards_bonus\":0,\"rewards_destination\":\"same\",\"rewards_fraction\":2,\"treasury_amount\":1,\"treasury_bonus\":1,\"treasury_destination\":\"same\",\"treasury_fraction\":9999},{\"amount\":3,\"buyback_amount\":1,\"buyback_bonus\":1,\"buyback_destination\":\"same\",\"buyback_fraction\":9999,\"deficit_buyback_post\":-1,\"deficit_buyback_pre\":0,\"deficit_rewards_post\":2,\"deficit_rewards_pre\":0,\"deficit_treasury_post\":-1,\"deficit_treasury_pre\":0,\"key\":{\"asset\":\"asset-c\",\"fee_distribution_domain_id\":\"domain-a\"},\"rewards_amount\":1,\"rewards_bonus\":0,\"rewards_destination\":\"same\",\"rewards_fraction\":2,\"treasury_amount\":1,\"treasury_bonus\":1,\"treasury_destination\":\"same\",\"treasury_fraction\":9999}],\"state\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":-1,\"deficit_treasury\":-1,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}},{\"deficit_buyback\":-1,\"deficit_treasury\":-1,\"key\":{\"asset\":\"asset-c\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}}",
+          "state_sha256": "0x5c8959cea4fc82999d1327acfd1e5c5385f3ff12c88ae8b752abc05ef8089580",
+          "state_utf8": "{\"schema\":\"zenodex/fcis/fee-apportionment/committed-state/v2\",\"value\":{\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"entries\":[{\"deficit_buyback\":-1,\"deficit_treasury\":-1,\"key\":{\"asset\":\"asset-a\",\"fee_distribution_domain_id\":\"domain-a\"}},{\"deficit_buyback\":-1,\"deficit_treasury\":-1,\"key\":{\"asset\":\"asset-c\",\"fee_distribution_domain_id\":\"domain-a\"}}]}}"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": [
+            {
+              "deficit_buyback": -1,
+              "deficit_treasury": -1,
+              "key": {
+                "asset": "asset-a",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            },
+            {
+              "deficit_buyback": -1,
+              "deficit_treasury": -1,
+              "key": {
+                "asset": "asset-c",
+                "fee_distribution_domain_id": "domain-a"
+              }
+            }
+          ]
+        }
+      },
+      "id": "grouped_and_protocol_ordered",
+      "input": {
+        "contributions": [
+          {
+            "amount": 3,
+            "key": {
+              "asset": "asset-c",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          },
+          {
+            "amount": 1,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          },
+          {
+            "amount": 2,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 3333,
+          "buyback_destination": "same",
+          "rewards_bps": 3334,
+          "rewards_destination": "same",
+          "treasury_bps": 3333,
+          "treasury_destination": "same"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      }
+    },
+    {
+      "expected": {
+        "accept": false,
+        "code": "aggregate_overflow",
+        "path": [
+          "contributions",
+          "aggregate",
+          "domain-a",
+          "asset-a"
+        ]
+      },
+      "id": "aggregate_overflow",
+      "input": {
+        "contributions": [
+          {
+            "amount": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          },
+          {
+            "amount": 1,
+            "key": {
+              "asset": "asset-a",
+              "fee_distribution_domain_id": "domain-a"
+            }
+          }
+        ],
+        "policy": {
+          "buyback_bps": 3333,
+          "buyback_destination": "buyback",
+          "rewards_bps": 3334,
+          "rewards_destination": "rewards",
+          "treasury_bps": 3333,
+          "treasury_destination": "treasury"
+        },
+        "state": {
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "entries": []
+        }
+      }
+    }
+  ],
+  "generator_sha256": "9ca65041f68c9e56299768ce814bf8e11be559fdab7dd1d6a8bc1e2684b4f48c",
+  "implementation_contract_sha256": "877ca9c8902d688a72d95bad427d67936d2ed1e53887d13968e611ca160311c8",
+  "kernel": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+  "oracle_scope": "Python whole-result bytes for cross-language refinement; the independent eight-bonus oracle is a separate test.",
+  "python_source_sha256": {
+    "src/core/fcis_fee_apportionment_admission.py": "3cdd8e501cdf4264a1f02d23ede91884b1dc14c537de94b4caafb84cb5880830",
+    "src/core/fcis_fee_apportionment_allocator.py": "dfa5d07a1d66f42440529f6e5d801bf8c16994787a50b4f2c7e995d3fe8d5efa",
+    "src/core/fcis_fee_apportionment_codec.py": "a8f0be8e8c622fed49a31bcb5f3916d39565ef7ffcad82067c54a89b9393e95e",
+    "src/core/fcis_fee_apportionment_schema.py": "100b3591064bc3e8bc68952582d919eafe16e54300ca658110b91f79221f26c1",
+    "src/core/fcis_fee_apportionment_values.py": "2cea2da46a61a8dd399a4a7c911503f61e57861ae0096b3e5e3af028d6f3535d"
+  },
+  "schema_revision": "zenodex/fcis/fee-apportionment/v2",
+  "version": 2
+}

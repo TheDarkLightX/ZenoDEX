@@ -62,6 +62,13 @@ FEE_CUSTODY_AUTHORITY_PATHS = (
     Path("src/core/fcis_fee_custody_transition.py"),
     Path("src/core/fcis_fee_custody_values.py"),
 )
+FEE_APPORTIONMENT_AUTHORITY_PATHS = (
+    Path("src/core/fcis_fee_apportionment_admission.py"),
+    Path("src/core/fcis_fee_apportionment_allocator.py"),
+    Path("src/core/fcis_fee_apportionment_codec.py"),
+    Path("src/core/fcis_fee_apportionment_schema.py"),
+    Path("src/core/fcis_fee_apportionment_values.py"),
+)
 AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/fcis_amm_dispatch.py"),
     Path("src/core/fcis_create_pool_event.py"),
@@ -80,6 +87,7 @@ AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/fcis_legacy_refinement_schema.py"),
     Path("src/core/fcis_legacy_refinement_values.py"),
     *FEE_CUSTODY_AUTHORITY_PATHS,
+    *FEE_APPORTIONMENT_AUTHORITY_PATHS,
     Path("src/core/fcis_authority_admission.py"),
     Path("src/core/fcis_authority_dispatch.py"),
     Path("src/core/fcis_authority_schema.py"),
@@ -278,6 +286,7 @@ _PROFILE_PATHS = (
     "src/state/lp_duration_policy_admission.py",
     "src/state/fcis_execution_context_admission.py",
     "src/core/fcis_fee_custody_admission.py",
+    "src/core/fcis_fee_apportionment_admission.py",
 )
 _P4B0_ADMISSION_PATH = "src/core/fcis_legacy_refinement_admission.py"
 _P4B0_AUTHORITY_PATHS = frozenset(
@@ -342,6 +351,15 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
         "src/core/fcis_fee_custody_values.py",
         "src/core/fcis_fee_custody_transition.py",
     ),
+    "_FEE_APPORTIONMENT_RESULT_TOKEN_V2": ("src/core/fcis_fee_apportionment_values.py",),
+    "_asset_fee_allocation_v2": (
+        "src/core/fcis_fee_apportionment_allocator.py",
+        "src/core/fcis_fee_apportionment_values.py",
+    ),
+    "_fee_apportionment_ok_v2": (
+        "src/core/fcis_fee_apportionment_allocator.py",
+        "src/core/fcis_fee_apportionment_values.py",
+    ),
     "_encode_admitted": (
         "src/core/fcis_authority_admission.py",
         "src/state/state_admission_profile.py",
@@ -403,6 +421,8 @@ _PRIVATE_AUTHORITY_REFLECTION_MODULES = frozenset(
         "src.core.fcis_authority_admission",
         "src.core.fcis_fee_custody_admission",
         "src.core.fcis_fee_custody_values",
+        "src.core.fcis_fee_apportionment_admission",
+        "src.core.fcis_fee_apportionment_values",
         "src.core.fcis_commit_bundle_derivation",
         "src.core.fcis_commit_reference",
         "src.core.fcis_support_profile_v5",
@@ -6460,6 +6480,93 @@ def _check_p4b0_contract_v1(
     return [_p4b0_violation_v1(relative_path, module, "unknown-p4b0-surface")]
 
 
+_P4B5A_FEE_APPORTIONMENT_PATHS = frozenset(
+    path.as_posix() for path in FEE_APPORTIONMENT_AUTHORITY_PATHS
+)
+_P4B5A_FORBIDDEN_IMPORT_TAILS = frozenset(
+    {
+        "balances",
+        "fcis_commit_bundle_derivation",
+        "fcis_commit_reference",
+        "fcis_fee_custody",
+        "fcis_fee_custody_admission",
+        "fcis_fee_custody_codec",
+        "fcis_fee_custody_schema",
+        "fcis_fee_custody_transition",
+        "fcis_fee_custody_values",
+        "fcis_outbox_values",
+        "fcis_step_evaluator",
+        "fee_accumulator_transition",
+        "legacy_state_snapshots",
+        "route_settlement",
+        "settlement",
+        "settlement_strong_validator",
+        "state_transitions",
+    }
+)
+
+
+def _p4b5a_violation_v2(
+    relative_path: str,
+    node: ast.AST,
+    detail: str,
+) -> _Violation:
+    return _Violation(
+        relative_path,
+        getattr(node, "lineno", 0),
+        getattr(node, "col_offset", 0),
+        "FCIS_P4B5A",
+        detail,
+    )
+
+
+def _check_p4b5a_fee_apportionment_v2(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    if relative_path not in _P4B5A_FEE_APPORTIONMENT_PATHS:
+        return []
+    violations: list[_Violation] = []
+    for node in ast.walk(module):
+        if type(node) in {ast.Import, ast.ImportFrom}:
+            for imported_module in _p4b4_imported_modules_v1(node):
+                tail = imported_module.rsplit(".", 1)[-1]
+                if tail in _P4B5A_FORBIDDEN_IMPORT_TAILS:
+                    violations.append(
+                        _p4b5a_violation_v2(
+                            relative_path,
+                            node,
+                            f"obsolete-or-mounted-import:{imported_module}",
+                        )
+                    )
+        if type(node) is ast.BinOp and type(node.op) is ast.Mult:
+            left_names = {
+                name for part in ast.walk(node.left) if (name := _last_name(part)) is not None
+            }
+            right_names = {
+                name for part in ast.walk(node.right) if (name := _last_name(part)) is not None
+            }
+            amount_tokens = {"amount", "amount_value", "n"}
+            weight_tokens = {
+                "weight",
+                "weights",
+                "buyback_bps",
+                "treasury_bps",
+                "rewards_bps",
+            }
+            if (left_names & amount_tokens and right_names & weight_tokens) or (
+                right_names & amount_tokens and left_names & weight_tokens
+            ):
+                violations.append(
+                    _p4b5a_violation_v2(
+                        relative_path,
+                        node,
+                        "direct-amount-weight-product",
+                    )
+                )
+    return violations
+
+
 def _check_authority_path(
     repo_root: Path,
     relative_path: Path,
@@ -6505,7 +6612,8 @@ def _check_authority_path(
         + _check_m5_p3_contract_v1(module, display)
         + _check_p4b0_contract_v1(module, display)
         + _check_p4b3_contract_v1(module, display)
-        + _check_p4b4_contract_v1(module, display),
+        + _check_p4b4_contract_v1(module, display)
+        + _check_p4b5a_fee_apportionment_v2(module, display),
     )
 
 
@@ -6515,6 +6623,7 @@ _SENSITIVE_SOURCE_CODES = {
     "FCIS_P4B0",
     "FCIS_P4B3",
     "FCIS_P4B4",
+    "FCIS_P4B5A",
     "DECLARATIVE_REGISTRY_EXECUTION",
     "OWNED_CONSTRUCTION_ESCAPE",
     "PATH_READ_ERROR",
