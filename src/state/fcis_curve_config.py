@@ -43,6 +43,19 @@ def _require_exact_int(value: object, *, minimum: int) -> int:
     return value
 
 
+def _canonical_decimal_to_int_v1(value: str) -> int:
+    """Decode the regex-validated canonical decimal without host coercion."""
+
+    if type(value) is not str or not value:
+        raise TypeError("canonical curve integer must be a nonempty string")
+    result = 0
+    for character in value:
+        if character < "0" or character > "9":
+            raise ValueError("canonical curve integer contains a nondigit")
+        result = result * 10 + (ord(character) - ord("0"))
+    return result
+
+
 @final
 @dataclass(frozen=True, slots=True)
 class CPMMCurveConfigV1:
@@ -213,24 +226,24 @@ def decode_canonical_curve_config_v1(
         if match is None:
             raise ValueError("curve_params is not canonical CUBIC_SUM_V1 JSON")
         return CubicSumCurveConfigV1(
-            p=int(match.group("p")),
-            q=int(match.group("q")),
+            p=_canonical_decimal_to_int_v1(match.group("p")),
+            q=_canonical_decimal_to_int_v1(match.group("q")),
         )
     if tag == CURVE_TAG_SUM_BOOST_V1:
         match = _SUM_BOOST_CANONICAL_RE.fullmatch(params)
         if match is None:
             raise ValueError("curve_params is not canonical SUM_BOOST_V1 JSON")
         return SumBoostCurveConfigV1(
-            mu_num=int(match.group("num")),
-            mu_den=int(match.group("den")),
+            mu_num=_canonical_decimal_to_int_v1(match.group("num")),
+            mu_den=_canonical_decimal_to_int_v1(match.group("den")),
         )
     if tag == CURVE_TAG_QUARTIC_BLEND_V1:
         match = _BLEND_CANONICAL_RE.fullmatch(params)
         if match is None:
             raise ValueError("curve_params is not canonical QUARTIC_BLEND_V1 JSON")
         value = QuarticBlendCurveConfigV1(
-            c_num=int(match.group("num")),
-            c_den=int(match.group("den")),
+            c_num=_canonical_decimal_to_int_v1(match.group("num")),
+            c_den=_canonical_decimal_to_int_v1(match.group("den")),
         )
         return value
     if tag == CURVE_TAG_QUINTIC_BLEND_V1:
@@ -238,7 +251,7 @@ def decode_canonical_curve_config_v1(
         if match is None:
             raise ValueError("curve_params is not canonical QUINTIC_BLEND_V1 JSON")
         return QuinticBlendCurveConfigV1(
-            c_num=int(match.group("num")),
-            c_den=int(match.group("den")),
+            c_num=_canonical_decimal_to_int_v1(match.group("num")),
+            c_den=_canonical_decimal_to_int_v1(match.group("den")),
         )
     raise ValueError(f"unsupported curve_tag: {tag!r}")

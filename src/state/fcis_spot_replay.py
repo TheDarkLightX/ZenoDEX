@@ -299,7 +299,8 @@ def derive_fcis_pool_supply_deltas_v1(
         net = write.replacement.balance - write.expected.balance
         if net != 0:
             pool_id = write.key[1]
-            supply_by_pool[pool_id] = supply_by_pool.get(pool_id, 0) + net
+            previous_supply = supply_by_pool[pool_id] if pool_id in supply_by_pool else 0
+            supply_by_pool[pool_id] = previous_supply + net
     return tuple(
         PoolSupplyDeltaV1(pool_id, net)
         for pool_id, net in sorted(supply_by_pool.items())

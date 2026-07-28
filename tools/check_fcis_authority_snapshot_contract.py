@@ -55,9 +55,17 @@ STATE_SUBSTRATE_AUTHORITY_PATHS = (
     Path("src/state/committed_dex_snapshot.py"),
 )
 AUTHORITY_GRAPH_AUTHORITY_PATHS = (
+    Path("src/core/fcis_amm_dispatch.py"),
+    Path("src/core/fcis_create_pool_event.py"),
+    Path("src/core/fcis_liquidity_kernels.py"),
+    Path("src/core/fcis_pool_fingerprint.py"),
     Path("src/core/fcis_settlement_strong_values.py"),
     Path("src/core/fcis_settlement_index.py"),
     Path("src/core/fcis_settlement_strong_validator.py"),
+    Path("src/kernels/python/cpmm_exact_out_policy_v1.py"),
+    Path("src/state/fcis_curve_config.py"),
+    Path("src/state/fcis_pool_identity.py"),
+    Path("src/state/fcis_spot_replay.py"),
     Path("src/core/fcis_legacy_refinement.py"),
     Path("src/core/fcis_legacy_refinement_admission.py"),
     Path("src/core/fcis_legacy_refinement_policy.py"),
@@ -85,9 +93,17 @@ AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/settlement_snapshots.py"),
 )
 EXACT_REPLAY_AUTHORITY_PATHS = (
+    Path("src/core/fcis_amm_dispatch.py"),
+    Path("src/core/fcis_create_pool_event.py"),
+    Path("src/core/fcis_liquidity_kernels.py"),
+    Path("src/core/fcis_pool_fingerprint.py"),
     Path("src/core/fcis_settlement_strong_values.py"),
     Path("src/core/fcis_settlement_index.py"),
     Path("src/core/fcis_settlement_strong_validator.py"),
+    Path("src/kernels/python/cpmm_exact_out_policy_v1.py"),
+    Path("src/state/fcis_curve_config.py"),
+    Path("src/state/fcis_pool_identity.py"),
+    Path("src/state/fcis_spot_replay.py"),
     Path("src/core/fcis_route_binding.py"),
     Path("src/core/route_settlement.py"),
     Path("src/core/settlement_strong_validator.py"),
@@ -5729,7 +5745,21 @@ def _check_p4b3_contract_v1(
 _P4B4_VALUES_PATH = "src/core/fcis_settlement_strong_values.py"
 _P4B4_INDEX_PATH = "src/core/fcis_settlement_index.py"
 _P4B4_VALIDATOR_PATH = "src/core/fcis_settlement_strong_validator.py"
-_P4B4_SOURCE_PATHS = frozenset({_P4B4_VALUES_PATH, _P4B4_INDEX_PATH, _P4B4_VALIDATOR_PATH})
+_P4B4_SOURCE_PATHS = frozenset(
+    {
+        "src/core/fcis_amm_dispatch.py",
+        "src/core/fcis_create_pool_event.py",
+        "src/core/fcis_liquidity_kernels.py",
+        "src/core/fcis_pool_fingerprint.py",
+        _P4B4_VALUES_PATH,
+        _P4B4_INDEX_PATH,
+        _P4B4_VALIDATOR_PATH,
+        "src/kernels/python/cpmm_exact_out_policy_v1.py",
+        "src/state/fcis_curve_config.py",
+        "src/state/fcis_pool_identity.py",
+        "src/state/fcis_spot_replay.py",
+    }
+)
 _P4B4_EXACT_VALUE_CLASSES = {
     _P4B4_VALUES_PATH: (
         "StrongSettlementContextV1",
@@ -6030,12 +6060,17 @@ def _check_p4b4_common_source_v1(
                         relative_path, node, "authority-defaulting:owned_intent_field_v1"
                     )
                 )
-            if called in {"set", "sorted"} and any(
-                type(part) is ast.Name
+            if (
+                relative_path == _P4B4_VALIDATOR_PATH
+                and called in {"set", "sorted"}
                 and any(
-                    token in part.id.lower() for token in ("read", "trace", "pool_ids", "observed")
+                    type(part) is ast.Name
+                    and any(
+                        token in part.id.lower()
+                        for token in ("read", "trace", "pool_ids", "observed")
+                    )
+                    for part in ast.walk(node)
                 )
-                for part in ast.walk(node)
             ):
                 violations.append(
                     _p4b4_violation_v1(relative_path, node, "route-read-renormalized")

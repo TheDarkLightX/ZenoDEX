@@ -101,9 +101,17 @@ def test_e11_profiles_keep_review_units_and_final_mount_distinct() -> None:
 
 def test_exact_replay_profile_covers_the_m3_relation_and_route_consumer() -> None:
     assert EXACT_REPLAY_AUTHORITY_PATHS == (
+        Path("src/core/fcis_amm_dispatch.py"),
+        Path("src/core/fcis_create_pool_event.py"),
+        Path("src/core/fcis_liquidity_kernels.py"),
+        Path("src/core/fcis_pool_fingerprint.py"),
         Path("src/core/fcis_settlement_strong_values.py"),
         Path("src/core/fcis_settlement_index.py"),
         Path("src/core/fcis_settlement_strong_validator.py"),
+        Path("src/kernels/python/cpmm_exact_out_policy_v1.py"),
+        Path("src/state/fcis_curve_config.py"),
+        Path("src/state/fcis_pool_identity.py"),
+        Path("src/state/fcis_spot_replay.py"),
         Path("src/core/fcis_route_binding.py"),
         Path("src/core/route_settlement.py"),
         Path("src/core/settlement_strong_validator.py"),
@@ -122,9 +130,17 @@ def test_exact_consumers_profile_covers_the_complete_m4_relation() -> None:
         Path("src/core/fcis_support_profile_v5.py"),
         Path("src/core/fcis_traced_reads_v5.py"),
         Path("src/core/nonce_batch_transition.py"),
+        Path("src/core/fcis_amm_dispatch.py"),
+        Path("src/core/fcis_create_pool_event.py"),
+        Path("src/core/fcis_liquidity_kernels.py"),
+        Path("src/core/fcis_pool_fingerprint.py"),
         Path("src/core/fcis_settlement_strong_values.py"),
         Path("src/core/fcis_settlement_index.py"),
         Path("src/core/fcis_settlement_strong_validator.py"),
+        Path("src/kernels/python/cpmm_exact_out_policy_v1.py"),
+        Path("src/state/fcis_curve_config.py"),
+        Path("src/state/fcis_pool_identity.py"),
+        Path("src/state/fcis_spot_replay.py"),
         Path("src/core/fcis_route_binding.py"),
         Path("src/core/route_settlement.py"),
         Path("src/core/settlement_strong_validator.py"),
@@ -2902,9 +2918,17 @@ def test_p4b3_checker_kills_contract_mutations(
 
 
 _P4B4_PATHS = (
+    Path("src/core/fcis_amm_dispatch.py"),
+    Path("src/core/fcis_create_pool_event.py"),
+    Path("src/core/fcis_liquidity_kernels.py"),
+    Path("src/core/fcis_pool_fingerprint.py"),
     Path("src/core/fcis_settlement_strong_values.py"),
     Path("src/core/fcis_settlement_index.py"),
     Path("src/core/fcis_settlement_strong_validator.py"),
+    Path("src/kernels/python/cpmm_exact_out_policy_v1.py"),
+    Path("src/state/fcis_curve_config.py"),
+    Path("src/state/fcis_pool_identity.py"),
+    Path("src/state/fcis_spot_replay.py"),
 )
 
 

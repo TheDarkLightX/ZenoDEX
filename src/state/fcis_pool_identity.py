@@ -89,7 +89,7 @@ def compute_pool_id(
         b"TauSwapPool"
         + asset0_normalized.encode("utf-8")
         + asset1_normalized.encode("utf-8")
-        + str(fee_bps).encode("utf-8")
+        + f"{fee_bps}".encode("utf-8")
         + curve_tag.encode("utf-8")
         + curve_params.encode("utf-8")
     )

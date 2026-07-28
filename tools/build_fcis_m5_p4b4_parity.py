@@ -100,6 +100,7 @@ SOURCE_PATHS_V1 = (
     Path("tools/build_fcis_m5_p4b4_parity.py"),
     Path("tools/check_fcis_m5_p4b4_parity.py"),
 )
+RUNTIME_SOURCE_PATHS_V1 = SOURCE_PATHS_V1[:11]
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,7 +125,7 @@ def _canonical_source(value: object) -> object:
         mapping = cast(dict[str, object], value)
         return {key: _canonical_source(mapping[key]) for key in sorted(mapping)}
     if type(value) is OwnedEnumV1:
-        exact = value
+        exact = cast(OwnedEnumV1, value)
         return {
             "enum_tag_ordinal": exact.enum_tag_ordinal,
             "member_ordinal": exact.member_ordinal,
@@ -418,7 +419,7 @@ def _implementation_source_sha_v1(repo_root: Path) -> str:
             "-1",
             "--format=%H",
             "--",
-            "src/core/fcis_settlement_strong_validator.py",
+            *(path.as_posix() for path in RUNTIME_SOURCE_PATHS_V1),
         ],
         cwd=repo_root,
         check=True,
