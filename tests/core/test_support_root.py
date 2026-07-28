@@ -1240,22 +1240,27 @@ def test_route_support_reader_rejects_corrupted_owned_graphs() -> None:
 
     intent = _owned_route_for_support_defensive_test()
     _replace_owned_field_lookup_for_test(intent, "route_legs", [])
-    with pytest.raises(ValueError, match="nonempty leg tuple"):
+    with pytest.raises(ValueError, match=r"route_binding_structural_invalid at \('route_legs',\)"):
         support_root_module._route_support_pool_ids_owned_v1(intent)
 
     intent = _owned_route_for_support_defensive_test()
     _replace_owned_field_lookup_for_test(intent, "route_legs", ())
-    with pytest.raises(ValueError, match="nonempty leg tuple"):
+    with pytest.raises(ValueError, match=r"route_binding_structural_invalid at \('route_legs',\)"):
         support_root_module._route_support_pool_ids_owned_v1(intent)
 
     intent = _owned_route_for_support_defensive_test()
     _replace_owned_field_lookup_for_test(intent, "route_pool_fingerprints", {})
-    with pytest.raises(TypeError, match="owned fingerprint map"):
+    with pytest.raises(
+        ValueError,
+        match=r"route_binding_structural_invalid at \('route_pool_fingerprints',\)",
+    ):
         support_root_module._route_support_pool_ids_owned_v1(intent)
 
     intent = _owned_route_for_support_defensive_test()
     _replace_owned_field_lookup_for_test(intent, "route_legs", (object(),))
-    with pytest.raises(TypeError, match="owned leg maps"):
+    with pytest.raises(
+        ValueError, match=r"route_binding_structural_invalid at \('route_legs', 0\)"
+    ):
         support_root_module._route_support_pool_ids_owned_v1(intent)
 
     intent = _owned_route_for_support_defensive_test()
@@ -1263,27 +1268,38 @@ def test_route_support_reader_rejects_corrupted_owned_graphs() -> None:
     leg_index: dict[str, object] = dict(leg.entries)
     leg_index["pool_id"] = ""
     object.__setattr__(leg, "_index", leg_index)
-    with pytest.raises(ValueError, match="nonempty pool ids"):
+    with pytest.raises(
+        ValueError, match=r"route_binding_structural_invalid at \('route_legs', 0\)"
+    ):
         support_root_module._route_support_pool_ids_owned_v1(intent)
 
     intent = _owned_route_for_support_defensive_test()
     fingerprints = intent.fields["route_pool_fingerprints"]
     pool_id, fingerprint = fingerprints.entries[0]
     object.__setattr__(fingerprints, "_entries", (("", fingerprint),))
-    with pytest.raises(ValueError, match="fingerprint keys"):
+    with pytest.raises(
+        ValueError,
+        match=r"route_binding_structural_invalid at \('route_pool_fingerprints',\)",
+    ):
         support_root_module._route_support_pool_ids_owned_v1(intent)
 
     intent = _owned_route_for_support_defensive_test()
     fingerprints = intent.fields["route_pool_fingerprints"]
     pool_id, _fingerprint = fingerprints.entries[0]
     object.__setattr__(fingerprints, "_entries", ((pool_id, ""),))
-    with pytest.raises(ValueError, match="fingerprints must be nonempty"):
+    with pytest.raises(
+        ValueError,
+        match=r"route_binding_structural_invalid at \('route_pool_fingerprints',\)",
+    ):
         support_root_module._route_support_pool_ids_owned_v1(intent)
 
     intent = _owned_route_for_support_defensive_test()
     fingerprints = intent.fields["route_pool_fingerprints"]
     object.__setattr__(fingerprints, "_entries", (("different-pool", "fingerprint"),))
-    with pytest.raises(ValueError, match="legs and fingerprints disagree"):
+    with pytest.raises(
+        ValueError,
+        match=r"route_binding_structural_invalid at \('route_pool_fingerprints',\)",
+    ):
         support_root_module._route_support_pool_ids_owned_v1(intent)
 
 

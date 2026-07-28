@@ -15,6 +15,7 @@ REPORT_SCHEMA = "zenodex/fcis-authority-snapshot-contract-check/v1"
 STATE_SUBSTRATE_AUTHORITY_PATHS = (
     Path("src/state/fcis_committed_state_admission.py"),
     Path("src/state/fcis_committed_state_values.py"),
+    Path("src/core/fcis_route_binding_values.py"),
     Path("src/core/fcis_step_evaluation_values.py"),
     Path("src/core/fcis_step_evaluator.py"),
     Path("src/core/fee_accumulator_transition.py"),
@@ -72,6 +73,7 @@ AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/state/state_admission_profile.py"),
     Path("src/state/state_snapshot_schema.py"),
     Path("src/state/owned_json.py"),
+    Path("src/state/fcis_route_binding_schema.py"),
     Path("src/state/intent_field_registry.py"),
     Path("src/state/intent_schema.py"),
     Path("src/state/intent_snapshots.py"),
@@ -79,6 +81,7 @@ AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/settlement_snapshots.py"),
 )
 EXACT_REPLAY_AUTHORITY_PATHS = (
+    Path("src/core/fcis_route_binding.py"),
     Path("src/core/route_settlement.py"),
     Path("src/core/settlement_strong_validator.py"),
 )
@@ -325,6 +328,10 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
     "_owned_enum_from_canonical_transition_v1": ("src/state/pool_creation_transition.py",),
     "_owned_map_from_admitted": ("src/state/snapshot_combinators.py",),
     "_owned_map_from_canonical_transition_v1": ("src/state/state_transitions.py",),
+    "_ROUTE_BINDING_CONSTRUCTION_TOKEN_V1": (
+        "src/core/fcis_route_binding.py",
+        "src/core/fcis_route_binding_values.py",
+    ),
     "_OWNED_ENUM_CONSTRUCTION_TOKEN": ("src/state/owned_collections.py",),
     "_OWNED_MAP_CONSTRUCTION_TOKEN": ("src/state/owned_collections.py",),
     "_ADMISSION_REGISTRY_TOKEN": ("src/state/snapshot_combinators.py",),
@@ -1403,6 +1410,48 @@ class _AuthorityVisitor(ast.NodeVisitor):
                 (
                     "src/core/fcis_commit_bundle_derivation.py",
                     "_build_bundle_v1",
+                ),
+            ),
+            "RouteLegBindingV1": (
+                (
+                    "src/core/fcis_route_binding.py",
+                    "_construct_exact_binding_v1",
+                ),
+            ),
+            "RouteBindingV1": (
+                (
+                    "src/core/fcis_route_binding.py",
+                    "_construct_exact_binding_v1",
+                ),
+            ),
+            "RouteBindingOkV1": (
+                (
+                    "src/core/fcis_route_binding.py",
+                    "_construct_exact_binding_v1",
+                ),
+            ),
+            "RouteBindingRejectV1": (
+                (
+                    "src/core/fcis_route_binding.py",
+                    "_binding_reject_v1",
+                ),
+            ),
+            "RouteReplayLegV1": (
+                (
+                    "src/core/fcis_route_binding.py",
+                    "_apply_exact_leg_v1",
+                ),
+            ),
+            "RouteReplayOkV1": (
+                (
+                    "src/core/fcis_route_binding.py",
+                    "_replay_ok_v1",
+                ),
+            ),
+            "RouteReplayRejectV1": (
+                (
+                    "src/core/fcis_route_binding.py",
+                    "_replay_reject_v1",
                 ),
             ),
         }
@@ -4910,6 +4959,692 @@ def _check_p4b0_policy_v1(
     return violations
 
 
+_P4B3_VALUES_PATH = "src/core/fcis_route_binding_values.py"
+_P4B3_BINDING_PATH = "src/core/fcis_route_binding.py"
+_P4B3_SCHEMA_PATH = "src/state/fcis_route_binding_schema.py"
+_P4B3_INTENT_SCHEMA_PATH = "src/state/intent_schema.py"
+_P4B3_ROUTE_SUPPORT_PATH = "src/state/fcis_route_support_v5.py"
+_P4B3_SUPPORT_PROFILE_PATH = "src/core/fcis_support_profile_v5.py"
+_P4B3_TRACED_READS_PATH = "src/core/fcis_traced_reads_v5.py"
+_P4B3_NO_LEGACY_IMPORT_PATHS = frozenset(
+    {
+        _P4B3_VALUES_PATH,
+        _P4B3_BINDING_PATH,
+        _P4B3_SCHEMA_PATH,
+        _P4B3_ROUTE_SUPPORT_PATH,
+        _P4B3_SUPPORT_PROFILE_PATH,
+    }
+)
+_P4B3_EXACT_VALUE_CLASSES = (
+    "RouteLegBindingV1",
+    "RouteBindingV1",
+    "RouteBindingOkV1",
+    "RouteBindingRejectV1",
+    "RouteReplayLegV1",
+    "RouteReplayOkV1",
+    "RouteReplayRejectV1",
+)
+_P4B3_BINDING_REJECT_MEMBERS = frozenset(
+    {
+        "STRUCTURAL_INVALID",
+        "KIND_MISMATCH",
+        "ENDPOINT_ASSETS_INVALID",
+        "LEG_COVERAGE_MISMATCH",
+        "LEG_ENDPOINT_MISMATCH",
+        "FINGERPRINT_POOL_MISMATCH",
+        "AMOUNT_SUM_INVALID",
+        "EXACT_IN_TOTALS_MISMATCH",
+        "EXACT_OUT_TOTALS_MISMATCH",
+    }
+)
+_P4B3_REPLAY_REJECT_VALUES = {
+    "BINDING_INVALID": "ROUTE_BINDING_MISSING",
+    "POOL_NOT_FOUND": "POOL_NOT_FOUND",
+    "POOL_NOT_ACTIVE": "POOL_NOT_ACTIVE",
+    "POOL_STATE_DRIFT": "ROUTE_POOL_STATE_DRIFT",
+    "INVALID_PARAMS": "INVALID_PARAMS",
+    "LEG_QUOTE_MISMATCH": "ROUTE_LEG_QUOTE_MISMATCH",
+}
+_P4B3_KIND_VALUES = {"EXACT_IN": "exact_in", "EXACT_OUT": "exact_out"}
+_P4B3_OPEN_FIELD_NAMES = {
+    "Any",
+    "Mapping",
+    "MutableMapping",
+    "MutableSequence",
+    "MutableSet",
+    "Optional",
+    "Sequence",
+    "dict",
+    "list",
+    "object",
+    "set",
+}
+_P4B3_ALLOWED_EXCEPT_NAMES = {
+    "ArithmeticError",
+    "AttributeError",
+    "KeyError",
+    "TypeError",
+    "ValueError",
+}
+
+
+def _p4b3_violation_v1(
+    relative_path: str,
+    node: ast.AST,
+    detail: str,
+) -> _Violation:
+    return _Violation(
+        relative_path,
+        getattr(node, "lineno", 0),
+        getattr(node, "col_offset", 0),
+        "FCIS_P4B3",
+        detail,
+    )
+
+
+def _p4b3_call_binds_names_v1(
+    function: ast.FunctionDef | ast.AsyncFunctionDef,
+    callee_name: str,
+    expected_names: tuple[str, ...],
+) -> bool:
+    for call in _function_calls(function):
+        if _last_name(call.func) != callee_name:
+            continue
+        positional = tuple(
+            argument.id if type(argument) is ast.Name else "" for argument in call.args
+        )
+        if positional == expected_names and not call.keywords:
+            return True
+        if call.args:
+            continue
+        keywords = {
+            keyword.arg: keyword.value.id
+            for keyword in call.keywords
+            if keyword.arg is not None and type(keyword.value) is ast.Name
+        }
+        if keywords == {name: name for name in expected_names}:
+            return True
+    return False
+
+
+def _p4b3_enum_members_v1(class_def: ast.ClassDef) -> dict[str, str] | None:
+    members: dict[str, str] = {}
+    for statement in class_def.body:
+        if type(statement) is not ast.Assign or len(statement.targets) != 1:
+            continue
+        if type(statement.targets[0]) is not ast.Name:
+            continue
+        if type(statement.value) is not ast.Constant or type(statement.value.value) is not str:
+            return None
+        members[statement.targets[0].id] = statement.value.value
+    return members or None
+
+
+def _check_p4b3_no_legacy_route_import_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    for node in ast.walk(module):
+        imported: tuple[str, ...] = ()
+        if type(node) is ast.ImportFrom:
+            imported = (node.module or "",)
+        elif type(node) is ast.Import:
+            imported = tuple(alias.name for alias in node.names)
+        if any(
+            name == "route_settlement" or name.endswith(".route_settlement") for name in imported
+        ):
+            violations.append(_p4b3_violation_v1(relative_path, node, "legacy-route-module-import"))
+    return violations
+
+
+def _check_p4b3_values_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    classes = _top_level_classes_v1(module)
+    for class_name in _P4B3_EXACT_VALUE_CLASSES:
+        class_def = classes.get(class_name)
+        if class_def is None:
+            violations.append(_p4b3_violation_v1(relative_path, module, f"missing:{class_name}"))
+            continue
+        if not _is_frozen_slotted_final_dataclass_v1(class_def):
+            violations.append(
+                _p4b3_violation_v1(relative_path, class_def, f"value-not-exact:{class_name}")
+            )
+        field_names: list[str] = []
+        for field in (
+            statement for statement in class_def.body if type(statement) is ast.AnnAssign
+        ):
+            field_name = field.target.id if type(field.target) is ast.Name else ""
+            field_names.append(field_name)
+            if field_name == "_construction_token":
+                continue
+            if field_name == "ok":
+                violations.append(
+                    _p4b3_violation_v1(relative_path, field, f"bool-flag-result:{class_name}")
+                )
+            forbidden_names = {
+                name
+                for node in ast.walk(field.annotation)
+                if (name := _last_name(node)) in _P4B3_OPEN_FIELD_NAMES
+            }
+            if forbidden_names:
+                violations.append(
+                    _p4b3_violation_v1(
+                        relative_path,
+                        field,
+                        f"open-authority-field:{class_name}:{','.join(sorted(forbidden_names))}",
+                    )
+                )
+        if "_construction_token" not in field_names:
+            violations.append(
+                _p4b3_violation_v1(relative_path, class_def, f"public-constructor:{class_name}")
+            )
+    enum_expectations = (
+        ("RouteKindV1", _P4B3_KIND_VALUES),
+        ("RouteReplayRejectCodeV1", _P4B3_REPLAY_REJECT_VALUES),
+    )
+    for enum_name, expected in enum_expectations:
+        enum_def = classes.get(enum_name)
+        members = _p4b3_enum_members_v1(enum_def) if enum_def is not None else None
+        if members != expected:
+            violations.append(
+                _p4b3_violation_v1(
+                    relative_path,
+                    enum_def or module,
+                    f"closed-enum-drift:{enum_name}:{sorted(members or {})}",
+                )
+            )
+    binding_enum_def = classes.get("RouteBindingRejectCodeV1")
+    binding_members = _p4b3_enum_members_v1(binding_enum_def) if binding_enum_def else None
+    if binding_members is None or set(binding_members) != _P4B3_BINDING_REJECT_MEMBERS:
+        violations.append(
+            _p4b3_violation_v1(
+                relative_path,
+                binding_enum_def or module,
+                f"closed-enum-drift:RouteBindingRejectCodeV1:{sorted(binding_members or {})}",
+            )
+        )
+    for alias, members in (
+        ("RouteBindingResultV1", {"RouteBindingOkV1", "RouteBindingRejectV1"}),
+        ("RouteReplayResultV1", {"RouteReplayOkV1", "RouteReplayRejectV1"}),
+    ):
+        assignment = _top_level_assignment_v1(module, alias)
+        if assignment is None or not members <= {
+            node.id for node in ast.walk(assignment) if type(node) is ast.Name
+        }:
+            violations.append(
+                _p4b3_violation_v1(relative_path, module, f"result-algebra-drift:{alias}")
+            )
+    return violations
+
+
+def _check_p4b3_binding_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    functions = _top_level_functions_v1(module)
+    required_functions = {
+        "derive_exact_route_binding_v1",
+        "replay_exact_route_observed_v1",
+        "replay_exact_route_v1",
+        "route_binding_pins_exact_snapshot_observed_v1",
+        "route_binding_pins_exact_snapshot_v1",
+        "_binding_matches_intent_v1",
+        "_revalidated_binding_is_exact_v1",
+    }
+    for missing in sorted(required_functions - functions.keys()):
+        violations.append(_p4b3_violation_v1(relative_path, module, f"missing:{missing}"))
+    for node in ast.walk(module):
+        if type(node) is ast.Call and _last_name(node.func) == "isinstance":
+            violations.append(_p4b3_violation_v1(relative_path, node, "isinstance-on-exact-path"))
+        if type(node) is ast.ImportFrom:
+            for alias in node.names:
+                if alias.name == "Mapping":
+                    violations.append(
+                        _p4b3_violation_v1(relative_path, node, "mapping-on-exact-path")
+                    )
+        if type(node) is ast.ExceptHandler:
+            if node.type is None:
+                violations.append(_p4b3_violation_v1(relative_path, node, "broad-except"))
+                continue
+            targets = node.type.elts if type(node.type) is ast.Tuple else (node.type,)
+            for target in targets:
+                name = _last_name(target)
+                if name not in _P4B3_ALLOWED_EXCEPT_NAMES:
+                    violations.append(
+                        _p4b3_violation_v1(relative_path, target, f"except-type:{name}")
+                    )
+    signature_expectations = {
+        "derive_exact_route_binding_v1": (
+            {"intent": "OwnedIntentV1"},
+            "RouteBindingResultV1",
+        ),
+        "replay_exact_route_observed_v1": (
+            {
+                "intent": "OwnedIntentV1",
+                "binding": "RouteBindingV1",
+                "pools": "OwnedMapV1[str,CommittedPoolStateV1]",
+            },
+            "tuple[RouteReplayResultV1,tuple[str,...]]",
+        ),
+        "route_binding_pins_exact_snapshot_observed_v1": (
+            {
+                "intent": "OwnedIntentV1",
+                "binding": "RouteBindingV1",
+                "pools": "OwnedMapV1[str,CommittedPoolStateV1]",
+            },
+            "tuple[bool,tuple[str,...]]",
+        ),
+        "replay_exact_route_v1": (
+            {
+                "intent": "OwnedIntentV1",
+                "binding": "RouteBindingV1",
+                "pools": "OwnedMapV1[str,CommittedPoolStateV1]",
+            },
+            "RouteReplayResultV1",
+        ),
+        "route_binding_pins_exact_snapshot_v1": (
+            {
+                "intent": "OwnedIntentV1",
+                "binding": "RouteBindingV1",
+                "pools": "OwnedMapV1[str,CommittedPoolStateV1]",
+            },
+            "bool",
+        ),
+    }
+    for function_name, (parameters, returns) in signature_expectations.items():
+        function = functions.get(function_name)
+        if function is None:
+            continue
+        annotations = {
+            argument.arg: _normalized_annotation(argument.annotation)
+            for argument in (*function.args.args, *function.args.kwonlyargs)
+        }
+        for parameter, expected in parameters.items():
+            if annotations.get(parameter) != expected:
+                violations.append(
+                    _p4b3_violation_v1(
+                        relative_path,
+                        function,
+                        f"exact-api-signature:{function_name}:{parameter}:{annotations.get(parameter) or '<missing>'}",
+                    )
+                )
+        if _normalized_annotation(function.returns) != returns:
+            violations.append(
+                _p4b3_violation_v1(
+                    relative_path,
+                    function,
+                    f"exact-api-return:{function_name}:{_normalized_annotation(function.returns)}",
+                )
+            )
+    replay_function = functions.get("replay_exact_route_observed_v1")
+    if replay_function is not None:
+        loops = [node for node in ast.walk(replay_function) if type(node) is ast.For]
+        direct_leg_loop = any(
+            type(loop.iter) is ast.Attribute and loop.iter.attr == "legs" for loop in loops
+        )
+        wrapped_leg_loop = any(
+            type(loop.iter) is ast.Call
+            and any(
+                type(part) is ast.Attribute and part.attr == "legs" for part in ast.walk(loop.iter)
+            )
+            for loop in loops
+        )
+        if not direct_leg_loop or wrapped_leg_loop:
+            violations.append(
+                _p4b3_violation_v1(relative_path, replay_function, "leg-iteration-order-drift")
+            )
+    exact_dataflows = (
+        (
+            "_binding_matches_intent_v1",
+            "_revalidated_binding_is_exact_v1",
+            ("binding",),
+        ),
+        (
+            "_binding_matches_intent_v1",
+            "derive_exact_route_binding_v1",
+            ("intent",),
+        ),
+        (
+            "replay_exact_route_observed_v1",
+            "_binding_matches_intent_v1",
+            ("intent", "binding"),
+        ),
+        (
+            "route_binding_pins_exact_snapshot_observed_v1",
+            "_binding_matches_intent_v1",
+            ("intent", "binding"),
+        ),
+        (
+            "replay_exact_route_v1",
+            "replay_exact_route_observed_v1",
+            ("intent", "binding", "pools"),
+        ),
+        (
+            "route_binding_pins_exact_snapshot_v1",
+            "route_binding_pins_exact_snapshot_observed_v1",
+            ("intent", "binding", "pools"),
+        ),
+    )
+    for function_name, callee_name, expected_names in exact_dataflows:
+        function = functions.get(function_name)
+        if function is None:
+            continue
+        if not _p4b3_call_binds_names_v1(function, callee_name, expected_names):
+            violations.append(
+                _p4b3_violation_v1(
+                    relative_path,
+                    function,
+                    f"exact-dataflow-drift:{function_name}:{callee_name}:{expected_names}",
+                )
+            )
+    if replay_function is not None and any(
+        type(node) is ast.Name and node.id == "observed_pool_ids"
+        for node in ast.walk(replay_function)
+    ):
+        violations.append(
+            _p4b3_violation_v1(
+                relative_path,
+                replay_function,
+                "replay-observed-read-normal-form-drift",
+            )
+        )
+    return violations
+
+
+def _check_p4b3_schema_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    required_bindings = {
+        "ROUTE_TEXT_256_V1",
+        "ROUTE_HASH_32_V1",
+        "ROUTE_LEGS_MAX_V1",
+        "ROUTE_POOL_FINGERPRINTS_MAX_V1",
+        "ROUTE_LEG_SCHEMA_ID_V1",
+        "ROUTE_POOL_FINGERPRINTS_SCHEMA_ID_V1",
+        "ROUTE_LEG_SCHEMA_V1",
+        "ROUTE_LEGS_SCHEMA_V1",
+        "ROUTE_POOL_FINGERPRINTS_SCHEMA_V1",
+    }
+    for binding in sorted(required_bindings):
+        if _top_level_assignment_v1(module, binding) is None:
+            violations.append(_p4b3_violation_v1(relative_path, module, f"missing:{binding}"))
+    forbidden = {
+        name
+        for node in ast.walk(module)
+        if (name := _last_name(node)) in {"BoundedJsonValue", "JSON_VALUE_SCHEMA_V1"}
+    }
+    if forbidden:
+        violations.append(
+            _p4b3_violation_v1(
+                relative_path,
+                module,
+                f"generic-json-schema-escape:{','.join(sorted(forbidden))}",
+            )
+        )
+    for node in ast.walk(module):
+        if type(node) is ast.ImportFrom:
+            tail = (node.module or "").rsplit(".", 1)[-1]
+            if tail not in {"__future__", "domain_limits", "snapshot_combinators"}:
+                violations.append(
+                    _p4b3_violation_v1(relative_path, node, f"schema-leaf-import:{node.module}")
+                )
+        elif type(node) is ast.Import:
+            for alias in node.names:
+                if alias.name.rsplit(".", 1)[-1] not in {
+                    "domain_limits",
+                    "snapshot_combinators",
+                }:
+                    violations.append(
+                        _p4b3_violation_v1(relative_path, node, f"schema-leaf-import:{alias.name}")
+                    )
+    legs_assignment = _top_level_assignment_v1(module, "ROUTE_LEGS_SCHEMA_V1")
+    legs_call = legs_assignment.value if type(legs_assignment) is ast.Assign else None
+    if not (
+        type(legs_call) is ast.Call
+        and _last_name(legs_call.func) == "SequenceOf"
+        and len(legs_call.args) == 4
+        and type(legs_call.args[2]) is ast.Constant
+        and legs_call.args[2].value == 1
+        and type(legs_call.args[3]) is ast.Name
+        and legs_call.args[3].id == "ROUTE_LEGS_MAX_V1"
+    ):
+        violations.append(
+            _p4b3_violation_v1(
+                relative_path, legs_assignment or module, "route-legs-sequence-bound-drift"
+            )
+        )
+    fingerprints_assignment = _top_level_assignment_v1(module, "ROUTE_POOL_FINGERPRINTS_SCHEMA_V1")
+    fingerprints_call = (
+        fingerprints_assignment.value if type(fingerprints_assignment) is ast.Assign else None
+    )
+    if not (
+        type(fingerprints_call) is ast.Call
+        and _last_name(fingerprints_call.func) == "MapOf"
+        and len(fingerprints_call.args) == 4
+        and type(fingerprints_call.args[2]) is ast.Name
+        and fingerprints_call.args[2].id == "ROUTE_POOL_FINGERPRINTS_MAX_V1"
+    ):
+        violations.append(
+            _p4b3_violation_v1(
+                relative_path,
+                fingerprints_assignment or module,
+                "route-fingerprints-map-bound-drift",
+            )
+        )
+    schema_ids = {
+        "ROUTE_LEG_SCHEMA_ID_V1": "zenodex/fcis/authority/route-leg/v1",
+        "ROUTE_POOL_FINGERPRINTS_SCHEMA_ID_V1": (
+            "zenodex/fcis/authority/route-pool-fingerprints/v1"
+        ),
+    }
+    for schema_id_name, expected_value in schema_ids.items():
+        assignment = _top_level_assignment_v1(module, schema_id_name)
+        value = assignment.value if type(assignment) is ast.Assign else None
+        if not (type(value) is ast.Constant and value.value == expected_value):
+            violations.append(
+                _p4b3_violation_v1(
+                    relative_path,
+                    assignment or module,
+                    f"route-schema-id-drift:{schema_id_name}",
+                )
+            )
+    for bound_name in ("ROUTE_LEGS_MAX_V1", "ROUTE_POOL_FINGERPRINTS_MAX_V1"):
+        bound_assignment = _top_level_assignment_v1(module, bound_name)
+        bound_value = bound_assignment.value if type(bound_assignment) is ast.Assign else None
+        if not (type(bound_value) is ast.Constant and bound_value.value == 256):
+            violations.append(
+                _p4b3_violation_v1(
+                    relative_path, bound_assignment or module, f"route-bound-drift:{bound_name}"
+                )
+            )
+    leg_assignment = _top_level_assignment_v1(module, "ROUTE_LEG_SCHEMA_V1")
+    leg_call = leg_assignment.value if type(leg_assignment) is ast.Assign else None
+    required_names: tuple[str, ...] = ()
+    if (
+        type(leg_call) is ast.Call
+        and _last_name(leg_call.func) == "ExactKeyedMap"
+        and len(leg_call.args) == 3
+        and type(leg_call.args[2]) is ast.Tuple
+    ):
+        required_names = tuple(
+            element.value
+            for element in leg_call.args[2].elts
+            if type(element) is ast.Constant and type(element.value) is str
+        )
+    else:
+        violations.append(
+            _p4b3_violation_v1(relative_path, leg_assignment or module, "route-leg-map-drift")
+        )
+    if required_names != ("amount_in", "amount_out", "asset_in", "asset_out", "pool_id"):
+        violations.append(
+            _p4b3_violation_v1(
+                relative_path,
+                leg_assignment or module,
+                f"route-leg-required-fields:{required_names}",
+            )
+        )
+    return violations
+
+
+def _check_p4b3_intent_schema_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    for node in ast.walk(module):
+        if type(node) is ast.Name and node.id == "JSON_VALUE_SCHEMA_V1":
+            violations.append(_p4b3_violation_v1(relative_path, node, "generic-json-route-schema"))
+    field_schemas = _top_level_assignment_v1(module, "_FIELD_SCHEMAS_V1")
+    pairs: dict[str, str] = {}
+    if field_schemas is not None and type(field_schemas.value) is ast.Tuple:
+        for element in field_schemas.value.elts:
+            if (
+                type(element) is ast.Tuple
+                and len(element.elts) == 2
+                and type(element.elts[0]) is ast.Constant
+                and type(element.elts[0].value) is str
+            ):
+                schema_name = _last_name(element.elts[1])
+                if schema_name is not None:
+                    pairs[element.elts[0].value] = schema_name
+    if pairs.get("route_legs") != "ROUTE_LEGS_SCHEMA_V1":
+        violations.append(
+            _p4b3_violation_v1(
+                relative_path,
+                field_schemas or module,
+                f"route-legs-schema-drift:{pairs.get('route_legs') or '<missing>'}",
+            )
+        )
+    if pairs.get("route_pool_fingerprints") != "ROUTE_POOL_FINGERPRINTS_SCHEMA_V1":
+        violations.append(
+            _p4b3_violation_v1(
+                relative_path,
+                field_schemas or module,
+                f"route-fingerprints-schema-drift:{pairs.get('route_pool_fingerprints') or '<missing>'}",
+            )
+        )
+    return violations
+
+
+def _check_p4b3_consumers_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    functions = _top_level_functions_v1(module)
+    if relative_path == _P4B3_ROUTE_SUPPORT_PATH:
+        function = functions.get("route_support_pool_ids_owned_v5")
+        if function is None or not _p4b3_call_binds_names_v1(
+            function, "derive_exact_route_binding_v1", ("intent",)
+        ):
+            violations.append(
+                _p4b3_violation_v1(
+                    relative_path, function or module, "route-support-not-binding-derived"
+                )
+            )
+        if function is not None and any(
+            type(node) is ast.Name and node.id == "owned_intent_field_v1"
+            for node in ast.walk(function)
+        ):
+            violations.append(
+                _p4b3_violation_v1(
+                    relative_path,
+                    function,
+                    "parallel-route-support-validation",
+                )
+            )
+    if relative_path == _P4B3_SUPPORT_PROFILE_PATH:
+        for node in ast.walk(module):
+            if type(node) is ast.ImportFrom and (node.module or "").endswith(
+                "fcis_route_support_v5"
+            ):
+                violations.append(
+                    _p4b3_violation_v1(relative_path, node, "support-profile-imports-route-reader")
+                )
+        fragment = functions.get("_route_fragment_v5")
+        if fragment is None or not any(
+            _last_name(call.func) == "derive_exact_route_binding_v1"
+            for call in _function_calls(fragment)
+        ):
+            violations.append(
+                _p4b3_violation_v1(
+                    relative_path, fragment or module, "route-fragment-not-binding-derived"
+                )
+            )
+    if relative_path == _P4B3_TRACED_READS_PATH:
+        for function_name, observed_name in (
+            (
+                "route_binding_pins_exact_snapshot_traced_v5",
+                "route_binding_pins_exact_snapshot_observed_v1",
+            ),
+            ("replay_exact_route_traced_v5", "replay_exact_route_observed_v1"),
+        ):
+            function = functions.get(function_name)
+            if function is None:
+                violations.append(
+                    _p4b3_violation_v1(relative_path, module, f"missing:{function_name}")
+                )
+                continue
+            calls = {_last_name(call.func) for call in _function_calls(function)}
+            if (
+                observed_name not in calls
+                or "extend_fcis_state_read_trace_v5" not in calls
+                or not _p4b3_call_binds_names_v1(
+                    function,
+                    observed_name,
+                    ("intent", "binding", "pools"),
+                )
+            ):
+                violations.append(
+                    _p4b3_violation_v1(
+                        relative_path, function, f"traced-read-not-exact:{function_name}"
+                    )
+                )
+            if any(
+                type(node) is ast.Call and _last_name(node.func) in {"set", "sorted"}
+                for node in ast.walk(function)
+            ):
+                violations.append(
+                    _p4b3_violation_v1(
+                        relative_path,
+                        function,
+                        f"traced-read-renormalized:{function_name}",
+                    )
+                )
+    return violations
+
+
+def _check_p4b3_contract_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    if relative_path in _P4B3_NO_LEGACY_IMPORT_PATHS:
+        violations.extend(_check_p4b3_no_legacy_route_import_v1(module, relative_path))
+    if relative_path == _P4B3_VALUES_PATH:
+        violations.extend(_check_p4b3_values_v1(module, relative_path))
+    if relative_path == _P4B3_BINDING_PATH:
+        violations.extend(_check_p4b3_binding_v1(module, relative_path))
+    if relative_path == _P4B3_SCHEMA_PATH:
+        violations.extend(_check_p4b3_schema_v1(module, relative_path))
+    if relative_path == _P4B3_INTENT_SCHEMA_PATH:
+        violations.extend(_check_p4b3_intent_schema_v1(module, relative_path))
+    if relative_path in {
+        _P4B3_ROUTE_SUPPORT_PATH,
+        _P4B3_SUPPORT_PROFILE_PATH,
+        _P4B3_TRACED_READS_PATH,
+    }:
+        violations.extend(_check_p4b3_consumers_v1(module, relative_path))
+    return violations
+
+
 def _check_p4b0_contract_v1(
     module: ast.Module,
     relative_path: str,
@@ -4970,7 +5705,8 @@ def _check_authority_path(
         + _check_exact_support_consumer_shape_v1(module, display)
         + _check_m5_support_trace_contract_v5(module, display)
         + _check_m5_p3_contract_v1(module, display)
-        + _check_p4b0_contract_v1(module, display),
+        + _check_p4b0_contract_v1(module, display)
+        + _check_p4b3_contract_v1(module, display),
     )
 
 
@@ -4978,6 +5714,7 @@ _SENSITIVE_SOURCE_CODES = {
     "CLAIM_AUTHORITY_ESCAPE",
     "CONSTRUCTION_CALLSITE",
     "FCIS_P4B0",
+    "FCIS_P4B3",
     "DECLARATIVE_REGISTRY_EXECUTION",
     "OWNED_CONSTRUCTION_ESCAPE",
     "PATH_READ_ERROR",

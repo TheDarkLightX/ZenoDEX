@@ -101,6 +101,7 @@ def test_e11_profiles_keep_review_units_and_final_mount_distinct() -> None:
 
 def test_exact_replay_profile_covers_the_m3_relation_and_route_consumer() -> None:
     assert EXACT_REPLAY_AUTHORITY_PATHS == (
+        Path("src/core/fcis_route_binding.py"),
         Path("src/core/route_settlement.py"),
         Path("src/core/settlement_strong_validator.py"),
     )
@@ -118,6 +119,7 @@ def test_exact_consumers_profile_covers_the_complete_m4_relation() -> None:
         Path("src/core/fcis_support_profile_v5.py"),
         Path("src/core/fcis_traced_reads_v5.py"),
         Path("src/core/nonce_batch_transition.py"),
+        Path("src/core/fcis_route_binding.py"),
         Path("src/core/route_settlement.py"),
         Path("src/core/settlement_strong_validator.py"),
         Path("src/state/fcis_route_support_v5.py"),
@@ -2740,3 +2742,154 @@ def test_p4b0_policy_002_checker_kills_wildcard_registry_entry(tmp_path: Path) -
     assert source.count(anchor) == 1
     report = _run_p4b0_source(tmp_path, relative, source.replace(anchor, replacement, 1))
     assert "FCIS_P4B0" in _codes(report)
+
+
+_P4B3_PROFILE_BY_PATH = {
+    Path("src/core/fcis_route_binding_values.py"): "state-substrate",
+    Path("src/core/fcis_route_binding.py"): "exact-replay",
+    Path("src/state/fcis_route_binding_schema.py"): "authority-graph",
+    Path("src/state/intent_schema.py"): "authority-graph",
+    Path("src/state/fcis_route_support_v5.py"): "exact-consumers",
+    Path("src/core/fcis_support_profile_v5.py"): "exact-consumers",
+    Path("src/core/fcis_traced_reads_v5.py"): "exact-consumers",
+}
+
+
+def _p4b3_source(relative: Path) -> str:
+    return (Path(__file__).resolve().parents[2] / relative).read_text(encoding="utf-8")
+
+
+def _run_p4b3_source(tmp_path: Path, relative: Path, source: str) -> dict[str, object]:
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True, exist_ok=True)
+    authority.write_text(source, encoding="utf-8")
+    return check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile=_P4B3_PROFILE_BY_PATH[relative],
+    )
+
+
+def _p4b3_details(report: dict[str, object]) -> tuple[str, ...]:
+    return tuple(
+        str(finding["detail"])
+        for finding in report["violations"]  # type: ignore[union-attr]
+        if finding["code"] == "FCIS_P4B3"  # type: ignore[index]
+    )
+
+
+def test_p4b3_modules_are_registered_in_their_exact_profiles() -> None:
+    assert Path("src/core/fcis_route_binding_values.py") in STATE_SUBSTRATE_AUTHORITY_PATHS
+    assert Path("src/state/fcis_route_binding_schema.py") in AUTHORITY_GRAPH_AUTHORITY_PATHS
+    assert Path("src/state/intent_schema.py") in AUTHORITY_GRAPH_AUTHORITY_PATHS
+    assert Path("src/core/fcis_route_binding.py") in EXACT_REPLAY_AUTHORITY_PATHS
+    assert {
+        Path("src/state/fcis_route_support_v5.py"),
+        Path("src/core/fcis_support_profile_v5.py"),
+        Path("src/core/fcis_traced_reads_v5.py"),
+    } <= set(EXACT_CONSUMERS_AUTHORITY_PATHS)
+
+
+@pytest.mark.parametrize("relative", tuple(_P4B3_PROFILE_BY_PATH))
+def test_p4b3_checker_accepts_each_current_contract_surface(
+    tmp_path: Path,
+    relative: Path,
+) -> None:
+    report = _run_p4b3_source(tmp_path, relative, _p4b3_source(relative))
+    assert not _p4b3_details(report)
+
+
+@pytest.mark.parametrize(
+    ("relative", "anchor", "replacement", "expected_detail"),
+    (
+        (
+            Path("src/core/fcis_route_binding_values.py"),
+            "@final\n@dataclass(frozen=True, slots=True)\nclass RouteBindingV1:",
+            "@dataclass(frozen=True, slots=True)\nclass RouteBindingV1:",
+            "value-not-exact:RouteBindingV1",
+        ),
+        (
+            Path("src/core/fcis_route_binding.py"),
+            "    intent: OwnedIntentV1,\n    binding: RouteBindingV1,\n"
+            "    pools: OwnedMapV1[str, CommittedPoolStateV1],\n"
+            ") -> tuple[RouteReplayResultV1, tuple[str, ...]]:",
+            "    intent: object,\n    binding: RouteBindingV1,\n"
+            "    pools: OwnedMapV1[str, CommittedPoolStateV1],\n"
+            ") -> tuple[RouteReplayResultV1, tuple[str, ...]]:",
+            "exact-api-signature:replay_exact_route_observed_v1:intent:object",
+        ),
+        (
+            Path("src/core/fcis_route_binding.py"),
+            "_binding_matches_intent_v1(intent, binding)",
+            "_binding_matches_intent_v1(binding, intent)",
+            "exact-dataflow-drift:route_binding_pins_exact_snapshot_observed_v1",
+        ),
+        (
+            Path("src/core/fcis_route_binding.py"),
+            '    local scratch lookups are not additional state reads.\n    """\n\n',
+            '    local scratch lookups are not additional state reads.\n    """\n\n'
+            "    observed_pool_ids: list[str] = []\n",
+            "replay-observed-read-normal-form-drift",
+        ),
+        (
+            Path("src/state/fcis_route_binding_schema.py"),
+            'ROUTE_LEG_SCHEMA_ID_V1 = "zenodex/fcis/authority/route-leg/v1"',
+            'ROUTE_LEG_SCHEMA_ID_V1 = "zenodex/fcis-m5-p4b3/route-leg/v1"',
+            "route-schema-id-drift:ROUTE_LEG_SCHEMA_ID_V1",
+        ),
+        (
+            Path("src/state/fcis_route_binding_schema.py"),
+            "ROUTE_LEGS_MAX_V1 = 256",
+            "ROUTE_LEGS_MAX_V1 = 257",
+            "route-bound-drift:ROUTE_LEGS_MAX_V1",
+        ),
+        (
+            Path("src/state/fcis_route_support_v5.py"),
+            "    binding_result = derive_exact_route_binding_v1(intent)",
+            "    binding_result = object()",
+            "route-support-not-binding-derived",
+        ),
+        (
+            Path("src/core/fcis_support_profile_v5.py"),
+            "from ..state.intent_field_registry import intent_allowed_field_names_v1",
+            "from ..state.fcis_route_support_v5 import route_support_pool_ids_owned_v5\n"
+            "from ..state.intent_field_registry import intent_allowed_field_names_v1",
+            "support-profile-imports-route-reader",
+        ),
+        (
+            Path("src/core/fcis_traced_reads_v5.py"),
+            "replay_exact_route_observed_v1(intent, binding, pools)",
+            "replay_exact_route_observed_v1(binding, intent, pools)",
+            "traced-read-not-exact:replay_exact_route_traced_v5",
+        ),
+        (
+            Path("src/core/fcis_traced_reads_v5.py"),
+            "    result, pool_ids = route_binding_pins_exact_snapshot_observed_v1("
+            "intent, binding, pools)\n"
+            "    next_trace = extend_fcis_state_read_trace_v5(trace, pool_ids=pool_ids)",
+            "    result, pool_ids = route_binding_pins_exact_snapshot_observed_v1("
+            "intent, binding, pools)\n"
+            "    next_trace = extend_fcis_state_read_trace_v5(\n"
+            "        trace, pool_ids=tuple(sorted(set(pool_ids)))\n"
+            "    )",
+            "traced-read-renormalized:route_binding_pins_exact_snapshot_traced_v5",
+        ),
+    ),
+)
+def test_p4b3_checker_kills_contract_mutations(
+    tmp_path: Path,
+    relative: Path,
+    anchor: str,
+    replacement: str,
+    expected_detail: str,
+) -> None:
+    source = _p4b3_source(relative)
+    assert source.count(anchor) >= 1
+    report = _run_p4b3_source(
+        tmp_path,
+        relative,
+        source.replace(anchor, replacement, 1),
+    )
+    assert any(detail.startswith(expected_detail) for detail in _p4b3_details(report))

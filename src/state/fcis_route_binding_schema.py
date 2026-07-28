@@ -24,8 +24,8 @@ from .snapshot_combinators import (
 ROUTE_LEGS_MAX_V1 = 256
 ROUTE_POOL_FINGERPRINTS_MAX_V1 = 256
 
-ROUTE_LEG_SCHEMA_ID_V1 = "zenodex/fcis-m5-p4b3/route-leg/v1"
-ROUTE_POOL_FINGERPRINTS_SCHEMA_ID_V1 = "zenodex/fcis-m5-p4b3/route-pool-fingerprints/v1"
+ROUTE_LEG_SCHEMA_ID_V1 = "zenodex/fcis/authority/route-leg/v1"
+ROUTE_POOL_FINGERPRINTS_SCHEMA_ID_V1 = "zenodex/fcis/authority/route-pool-fingerprints/v1"
 
 ROUTE_TEXT_256_V1 = ExactString(StringRuleV1.NON_EMPTY, 1_024, max_characters=256)
 ROUTE_HASH_32_V1 = ExactString(

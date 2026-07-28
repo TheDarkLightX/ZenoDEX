@@ -2,9 +2,8 @@
 
 The legacy route implementation is used only as a differential oracle over the
 supported single-hop split-route corpus.  This checkpoint authorizes no
-divergence: accept/reject, first rejection code, observed pool-read order (as
-the canonical projection of the exact observed sites), per-leg values,
-threaded post-reserves, and totals must agree exactly.
+divergence: accept/reject, first rejection code, canonical observed state-read
+order, per-leg values, threaded post-reserves, and totals must agree exactly.
 """
 
 from __future__ import annotations
@@ -17,8 +16,9 @@ from src.core.fcis_route_binding import (
 )
 from src.core.fcis_route_binding_values import (
     RouteBindingOkV1,
-    RouteKindV1,
+    RouteBindingV1,
     RouteReplayOkV1,
+    RouteReplayRejectCodeV1,
     RouteReplayRejectV1,
 )
 from src.core.quote_receipts import pool_state_fingerprint
@@ -124,7 +124,7 @@ def _legacy_binding(intent: OwnedIntentV1) -> RouteBinding:
     return binding
 
 
-def _exact_binding(intent: OwnedIntentV1):  # noqa: ANN202
+def _exact_binding(intent: OwnedIntentV1) -> RouteBindingV1:
     result = derive_exact_route_binding_v1(intent)
     assert type(result) is RouteBindingOkV1
     return result.binding
@@ -144,13 +144,15 @@ def _leg_tuple(leg: object) -> tuple[object, ...]:
 
 
 def _assert_replay_parity(
-    exact_binding: object,
+    intent: OwnedIntentV1,
+    exact_binding: RouteBindingV1,
     legacy_binding: RouteBinding,
     pools: dict[str, PoolState],
 ) -> None:
     committed = snapshot_pool_map(pools)
     exact_result, exact_observed = replay_exact_route_observed_v1(
-        exact_binding,  # type: ignore[arg-type]
+        intent,
+        exact_binding,
         committed,
     )
     legacy_result, legacy_observed = replay_route_legs_committed_observed_v1(
@@ -171,29 +173,19 @@ def _assert_replay_parity(
     else:
         assert type(exact_result) is RouteReplayRejectV1
         assert exact_result.code.value == legacy_result.reject_reason
-    assert tuple(sorted(set(exact_observed))) == legacy_observed
-    fingerprint_order = tuple(sorted(legacy_binding.pool_fingerprints))
-    if not legacy_result.ok and legacy_result.reject_reason in {
-        "POOL_NOT_FOUND",
-        "POOL_NOT_ACTIVE",
-        "ROUTE_POOL_STATE_DRIFT",
-    }:
-        assert exact_observed == legacy_observed
-        assert exact_observed == tuple(
-            pool_id for pool_id in fingerprint_order if pool_id in set(exact_observed)
-        )
-    else:
-        assert exact_observed[: len(fingerprint_order)] == fingerprint_order
+    assert exact_observed == legacy_observed
 
 
 def _assert_pins_parity(
-    exact_binding: object,
+    intent: OwnedIntentV1,
+    exact_binding: RouteBindingV1,
     legacy_binding: RouteBinding,
     pools: dict[str, PoolState],
 ) -> None:
     committed = snapshot_pool_map(pools)
     exact_pins, exact_reads = route_binding_pins_exact_snapshot_observed_v1(
-        exact_binding,  # type: ignore[arg-type]
+        intent,
+        exact_binding,
         committed,
     )
     legacy_pins, legacy_reads = route_binding_pins_committed_snapshot_observed_v1(
@@ -215,8 +207,8 @@ def _assert_case_parity(
     exact = _exact_binding(intent)
     legacy = _legacy_binding(intent)
     pool_map = {pool.pool_id: pool for pool in pools} if replay_pools is None else replay_pools
-    _assert_replay_parity(exact, legacy, pool_map)
-    _assert_pins_parity(exact, legacy, pool_map)
+    _assert_replay_parity(intent, exact, legacy, pool_map)
+    _assert_pins_parity(intent, exact, legacy, pool_map)
 
 
 def test_supported_single_hop_split_routes_match_legacy() -> None:
@@ -333,6 +325,7 @@ def test_invalid_orientation_matches_legacy() -> None:
     fields["route_pool_fingerprints"] = {wrong_pool.pool_id: pool_state_fingerprint(wrong_pool)}
     intent = _admitted(IntentKind.ROUTE_EXACT_IN, fields)
     _assert_replay_parity(
+        intent,
         _exact_binding(intent),
         _legacy_binding(intent),
         {wrong_pool.pool_id: wrong_pool},
@@ -351,29 +344,36 @@ def test_quote_mismatch_matches_legacy() -> None:
             fields["total_max_amount_in"] = fields["total_max_amount_in"] + 1  # type: ignore[operator]
         intent = _admitted(kind, fields)
         _assert_replay_parity(
+            intent,
             _exact_binding(intent),
             _legacy_binding(intent),
             {pool.pool_id: pool},
         )
 
 
-def test_kind_flipped_bindings_replay_identically_to_legacy() -> None:
+def test_binding_substitution_across_commands_rejects_without_reads() -> None:
     pool = _pool(30)
-    fields = _route_fields(IntentKind.ROUTE_EXACT_IN, (pool,), (4_000,))
-    intent = _admitted(IntentKind.ROUTE_EXACT_IN, fields)
-    exact = _exact_binding(intent)
-    legacy = _legacy_binding(intent)
-    object.__setattr__(exact, "kind", RouteKindV1.EXACT_OUT)
-    flipped_legacy = RouteBinding(
-        kind="exact_out",
-        asset_in=legacy.asset_in,
-        asset_out=legacy.asset_out,
-        total_amount_in=legacy.total_amount_in,
-        total_amount_out=legacy.total_amount_out,
-        legs=legacy.legs,
-        pool_fingerprints=legacy.pool_fingerprints,
+    first_intent = _admitted(
+        IntentKind.ROUTE_EXACT_IN,
+        _route_fields(IntentKind.ROUTE_EXACT_IN, (pool,), (4_000,)),
     )
-    _assert_replay_parity(exact, flipped_legacy, {pool.pool_id: pool})
+    second_intent = _admitted(
+        IntentKind.ROUTE_EXACT_IN,
+        _route_fields(IntentKind.ROUTE_EXACT_IN, (pool,), (5_000,)),
+    )
+    second_binding = _exact_binding(second_intent)
+    committed = snapshot_pool_map({pool.pool_id: pool})
+
+    result, observed = replay_exact_route_observed_v1(first_intent, second_binding, committed)
+    assert type(result) is RouteReplayRejectV1
+    assert result.code is RouteReplayRejectCodeV1.BINDING_INVALID
+    assert observed == ()
+
+    pins, pin_reads = route_binding_pins_exact_snapshot_observed_v1(
+        first_intent, second_binding, committed
+    )
+    assert pins is False
+    assert pin_reads == ()
 
 
 def test_derivation_rejections_match_legacy_parse_and_validate() -> None:
@@ -420,7 +420,7 @@ def test_derivation_rejections_match_legacy_parse_and_validate() -> None:
         assert type(exact_result) is not RouteBindingOkV1, fields
 
 
-def test_observed_reads_record_repeated_pool_reads_at_actual_sites() -> None:
+def test_observed_reads_are_canonical_when_local_scratch_reuses_a_pool() -> None:
     pool = _pool(30)
     fields = _route_fields(IntentKind.ROUTE_EXACT_IN, (pool, pool), (4_000, 6_000))
     intent = _admitted(IntentKind.ROUTE_EXACT_IN, fields)
@@ -428,11 +428,10 @@ def test_observed_reads_record_repeated_pool_reads_at_actual_sites() -> None:
     legacy = _legacy_binding(intent)
     committed = snapshot_pool_map({pool.pool_id: pool})
 
-    _exact_result, exact_observed = replay_exact_route_observed_v1(exact, committed)
+    _exact_result, exact_observed = replay_exact_route_observed_v1(intent, exact, committed)
     _legacy_result, legacy_observed = replay_route_legs_committed_observed_v1(
         binding=legacy,
         pools=committed,
     )
 
-    assert exact_observed == (pool.pool_id, pool.pool_id, pool.pool_id)
-    assert tuple(sorted(set(exact_observed))) == legacy_observed == (pool.pool_id,)
+    assert exact_observed == legacy_observed == (pool.pool_id,)

@@ -12,6 +12,7 @@ no partial replay value.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import cast, final
 
 from typing_extensions import TypeIs
@@ -124,20 +125,38 @@ def _is_route_amount_v1(value: object, minimum: int) -> bool:
 
 def _owned_map_index_is_consistent_v1(owned: OwnedMapV1[object, object]) -> bool:
     try:
-        return all(owned.get(key) is value for key, value in owned.entries)
+        entries = object.__getattribute__(owned, "_entries")
+        index = object.__getattribute__(owned, "_index")
+        if type(entries) is not tuple or type(index) is not type(MappingProxyType({})):
+            return False
+        if len(index) != len(entries):
+            return False
+        missing = object()
+        for entry in entries:
+            if type(entry) is not tuple or len(entry) != 2:
+                return False
+            key, value = entry
+            if index.get(key, missing) is not value:
+                return False
+        return True
     except (AttributeError, TypeError):
         return False
 
 
 def _fingerprints_are_exact_v1(fingerprints: OwnedMapV1[str, str]) -> bool:
-    entries = fingerprints.entries
-    if not 1 <= len(entries) <= ROUTE_POOL_FINGERPRINTS_MAX_V1:
+    try:
+        entries = object.__getattribute__(fingerprints, "_entries")
+    except AttributeError:
         return False
-    if entries != tuple(sorted(entries)):
+    if type(entries) is not tuple or not 1 <= len(entries) <= ROUTE_POOL_FINGERPRINTS_MAX_V1:
         return False
-    if len({key for key, _value in entries}) != len(entries):
+    if any(type(entry) is not tuple or len(entry) != 2 for entry in entries):
         return False
     if any(not _is_route_text_v1(key) or not _is_route_hash_v1(value) for key, value in entries):
+        return False
+    if entries != tuple(sorted(entries, key=lambda entry: entry[0])):
+        return False
+    if len({key for key, _value in entries}) != len(entries):
         return False
     return _owned_map_index_is_consistent_v1(fingerprints)
 
@@ -191,6 +210,8 @@ def _structural_leg_v1(
     if type(raw_leg) is not OwnedMapV1:
         return reject
     leg = cast(OwnedMapV1[str, object], raw_leg)
+    if not _owned_map_index_is_consistent_v1(leg):
+        return reject
     if (
         leg.schema_revision != FCIS_STATE_SCHEMA_REVISION_V1
         or leg.schema_id != ROUTE_LEG_SCHEMA_ID_V1
@@ -198,8 +219,6 @@ def _structural_leg_v1(
         return reject
     entries = leg.entries
     if tuple(name for name, _value in entries) != _LEG_ENTRY_NAMES_V1:
-        return reject
-    if not _owned_map_index_is_consistent_v1(leg):
         return reject
     amount_in = entries[0][1]
     amount_out = entries[1][1]
@@ -445,13 +464,16 @@ def derive_exact_route_binding_v1(intent: OwnedIntentV1) -> RouteBindingResultV1
 
     if type(intent) is not OwnedIntentV1:
         raise TypeError("route binding derivation requires an exact OwnedIntentV1")
-    kind = _route_kind_of_v1(intent)
-    if kind is None:
-        return _binding_reject_v1(RouteBindingRejectCodeV1.KIND_MISMATCH, ())
-    fields = _read_route_fields_v1(intent, kind)
-    if _is_binding_reject_v1(fields):
-        return fields
-    return _derive_cross_field_binding_v1(kind, fields)
+    try:
+        kind = _route_kind_of_v1(intent)
+        if kind is None:
+            return _binding_reject_v1(RouteBindingRejectCodeV1.KIND_MISMATCH, ())
+        fields = _read_route_fields_v1(intent, kind)
+        if _is_binding_reject_v1(fields):
+            return fields
+        return _derive_cross_field_binding_v1(kind, fields)
+    except (AttributeError, TypeError, ValueError):
+        return _binding_reject_v1(RouteBindingRejectCodeV1.STRUCTURAL_INVALID, ())
 
 
 def _revalidated_leg_is_exact_v1(leg: RouteLegBindingV1, binding: RouteBindingV1) -> bool:
@@ -473,7 +495,7 @@ def _is_bounded_route_total_v1(value: object) -> bool:
 def _revalidated_binding_is_exact_v1(binding: RouteBindingV1) -> bool:
     try:
         return _revalidated_binding_is_exact_inner_v1(binding)
-    except AttributeError:
+    except (AttributeError, TypeError, ValueError):
         return False
 
 
@@ -512,6 +534,16 @@ def _revalidated_binding_is_exact_inner_v1(binding: RouteBindingV1) -> bool:
     return sums is not None and sums == (binding.total_amount_in, binding.total_amount_out)
 
 
+def _binding_matches_intent_v1(intent: OwnedIntentV1, binding: RouteBindingV1) -> bool:
+    if not _revalidated_binding_is_exact_v1(binding):
+        return False
+    try:
+        derived = derive_exact_route_binding_v1(intent)
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return type(derived) is RouteBindingOkV1 and derived.binding == binding
+
+
 def _require_exact_committed_pool_map_v1(pools: object) -> OwnedMapV1[str, CommittedPoolStateV1]:
     if type(pools) is not OwnedMapV1:
         raise TypeError("pools must be an exact committed pool map")
@@ -525,19 +557,24 @@ def _require_exact_committed_pool_map_v1(pools: object) -> OwnedMapV1[str, Commi
 
 
 def route_binding_pins_exact_snapshot_observed_v1(
+    intent: OwnedIntentV1,
     binding: RouteBindingV1,
     pools: OwnedMapV1[str, CommittedPoolStateV1],
 ) -> tuple[bool, tuple[str, ...]]:
-    """Check one exact binding against one exact committed pool snapshot.
+    """Check one command-bound route binding against one committed snapshot.
 
-    Pool reads happen only after recursive binding revalidation and are
-    recorded at their canonical fingerprint-preflight lookup sites.
+    Exact command and binding types are required at the boundary.  The binding
+    is recursively revalidated and rederived from the command before any pool
+    lookup.  Observed reads therefore contain only canonical committed-state
+    reads, never local scratch accesses during replay.
     """
 
-    exact_pools = _require_exact_committed_pool_map_v1(pools)
+    if type(intent) is not OwnedIntentV1:
+        raise TypeError("exact route pin check requires an exact OwnedIntentV1")
     if type(binding) is not RouteBindingV1:
         raise TypeError("exact route pin check requires an exact RouteBindingV1")
-    if not _revalidated_binding_is_exact_v1(binding):
+    exact_pools = _require_exact_committed_pool_map_v1(pools)
+    if not _binding_matches_intent_v1(intent, binding):
         return False, ()
     observed_pool_ids: list[str] = []
     for pool_id, fingerprint in binding.pool_fingerprints.entries:
@@ -549,12 +586,15 @@ def route_binding_pins_exact_snapshot_observed_v1(
 
 
 def route_binding_pins_exact_snapshot_v1(
+    intent: OwnedIntentV1,
     binding: RouteBindingV1,
     pools: OwnedMapV1[str, CommittedPoolStateV1],
 ) -> bool:
     """Project the observed pin check to its boolean result."""
 
-    result, _observed_pool_ids = route_binding_pins_exact_snapshot_observed_v1(binding, pools)
+    result, _observed_pool_ids = route_binding_pins_exact_snapshot_observed_v1(
+        intent, binding, pools
+    )
     return result
 
 
@@ -625,9 +665,7 @@ def _apply_exact_leg_v1(
         return RouteReplayRejectCodeV1.LEG_QUOTE_MISMATCH
     if quoted != expected_quote:
         return RouteReplayRejectCodeV1.LEG_QUOTE_MISMATCH
-    new_reserve0, new_reserve1 = (
-        (int(new_in), int(new_out)) if dir_is_0_to_1 else (int(new_out), int(new_in))
-    )
+    new_reserve0, new_reserve1 = (new_in, new_out) if dir_is_0_to_1 else (new_out, new_in)
     return RouteReplayLegV1(
         leg.pool_id,
         leg.asset_in,
@@ -652,54 +690,52 @@ def _replay_ok_v1(replays: tuple[RouteReplayLegV1, ...]) -> RouteReplayOkV1:
 
 
 def replay_exact_route_observed_v1(
+    intent: OwnedIntentV1,
     binding: RouteBindingV1,
     pools: OwnedMapV1[str, CommittedPoolStateV1],
 ) -> tuple[RouteReplayResultV1, tuple[str, ...]]:
-    """Replay one exact binding against exact committed pools.
+    """Replay one command-bound route binding against committed pools.
 
-    The frozen order is: recursive binding revalidation, canonical fingerprint
-    preflight (missing, inactive, drift), then legs in their original semantic
-    sequence threading per-pool reserves (orientation, quote).  The observed
-    tuple records every pool lookup at its actual site, including repeated
-    pool reads across legs.
+    The frozen order is: exact boundary types, recursive binding validation and
+    command rederivation, canonical fingerprint preflight, then legs in their
+    original semantic sequence with per-pool reserves threaded through private
+    scratch state.  The observed tuple records committed preflight reads only;
+    local scratch lookups are not additional state reads.
     """
 
-    exact_pools = _require_exact_committed_pool_map_v1(pools)
+    if type(intent) is not OwnedIntentV1:
+        raise TypeError("exact route replay requires an exact OwnedIntentV1")
     if type(binding) is not RouteBindingV1:
         raise TypeError("exact route replay requires an exact RouteBindingV1")
-    if not _revalidated_binding_is_exact_v1(binding):
+    exact_pools = _require_exact_committed_pool_map_v1(pools)
+    if not _binding_matches_intent_v1(intent, binding):
         return _replay_reject_v1(RouteReplayRejectCodeV1.BINDING_INVALID), ()
     preflight, preflight_reads, pool_values = _preflight_exact_pools_v1(binding, exact_pools)
     if preflight is not None:
         return preflight, preflight_reads
-    scratch = {
-        pool_id: (int(pool.reserve0), int(pool.reserve1)) for pool_id, pool in pool_values.items()
-    }
-    observed_pool_ids = list(preflight_reads)
+    scratch = {pool_id: (pool.reserve0, pool.reserve1) for pool_id, pool in pool_values.items()}
     replays: list[RouteReplayLegV1] = []
     for leg in binding.legs:
-        observed_pool_ids.append(leg.pool_id)
         pool = pool_values.get(leg.pool_id)
         reserves = scratch.get(leg.pool_id)
         if pool is None or reserves is None:
-            return _replay_reject_v1(RouteReplayRejectCodeV1.POOL_NOT_FOUND), tuple(
-                observed_pool_ids
-            )
+            return _replay_reject_v1(RouteReplayRejectCodeV1.POOL_NOT_FOUND), preflight_reads
         applied = _apply_exact_leg_v1(binding.kind, pool, leg, reserves)
         if _is_replay_reject_code_v1(applied):
-            return _replay_reject_v1(applied), tuple(observed_pool_ids)
+            return _replay_reject_v1(applied), preflight_reads
         replays.append(applied)
         scratch[leg.pool_id] = (applied.new_reserve0, applied.new_reserve1)
-    return _replay_ok_v1(tuple(replays)), tuple(observed_pool_ids)
+    return _replay_ok_v1(tuple(replays)), preflight_reads
 
 
 def replay_exact_route_v1(
+    intent: OwnedIntentV1,
     binding: RouteBindingV1,
     pools: OwnedMapV1[str, CommittedPoolStateV1],
 ) -> RouteReplayResultV1:
     """Project the observed exact replay to its result."""
 
-    result, _observed_pool_ids = replay_exact_route_observed_v1(binding, pools)
+    result, _observed_pool_ids = replay_exact_route_observed_v1(intent, binding, pools)
     return result
 
 

@@ -20,6 +20,7 @@ from ..state.fcis_execution_context_values import (
     FCISFeeSplitPolicyV1,
     FCISStepExecutionContextV1,
 )
+from ..state.intent_snapshots import OwnedIntentV1
 from ..state.lp_duration_transitions import LPDurationRiskPolicyV1
 from ..state.owned_collections import OwnedEnumV1, OwnedMapV1
 from ..state.spot_state_transitions import (
@@ -37,6 +38,11 @@ from ..state.state_snapshot_values import (
     CommittedNonceTableV1,
     CommittedPoolStateV1,
 )
+from .fcis_route_binding import (
+    replay_exact_route_observed_v1,
+    route_binding_pins_exact_snapshot_observed_v1,
+)
+from .fcis_route_binding_values import RouteBindingV1, RouteReplayResultV1
 from .fcis_state_read_trace_v5 import (
     FCISContextReadTraceV5,
     FCISStateReadTraceV5,
@@ -253,6 +259,42 @@ def replay_route_legs_traced_v5(
     return result, next_trace
 
 
+def route_binding_pins_exact_snapshot_traced_v5(
+    *,
+    intent: OwnedIntentV1,
+    binding: RouteBindingV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    trace: FCISStateReadTraceV5,
+) -> tuple[bool, FCISStateReadTraceV5]:
+    """Check a command-bound route binding and extend its canonical read trace."""
+
+    if type(intent) is not OwnedIntentV1:
+        raise TypeError("exact route pin check requires an exact OwnedIntentV1")
+    if type(binding) is not RouteBindingV1:
+        raise TypeError("exact route pin check requires an exact RouteBindingV1")
+    result, pool_ids = route_binding_pins_exact_snapshot_observed_v1(intent, binding, pools)
+    next_trace = extend_fcis_state_read_trace_v5(trace, pool_ids=pool_ids)
+    return result, next_trace
+
+
+def replay_exact_route_traced_v5(
+    *,
+    intent: OwnedIntentV1,
+    binding: RouteBindingV1,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+    trace: FCISStateReadTraceV5,
+) -> tuple[RouteReplayResultV1, FCISStateReadTraceV5]:
+    """Replay a command-bound route and extend its canonical state-read trace."""
+
+    if type(intent) is not OwnedIntentV1:
+        raise TypeError("exact route replay requires an exact OwnedIntentV1")
+    if type(binding) is not RouteBindingV1:
+        raise TypeError("exact route replay requires an exact RouteBindingV1")
+    result, pool_ids = replay_exact_route_observed_v1(intent, binding, pools)
+    next_trace = extend_fcis_state_read_trace_v5(trace, pool_ids=pool_ids)
+    return result, next_trace
+
+
 def apply_spot_deltas_traced_v5(
     *,
     pre_balances: CommittedBalanceTableV1,
@@ -318,6 +360,8 @@ __all__ = (
     "read_nonce_v5",
     "read_pool_v5",
     "read_step_execution_context_v5",
+    "replay_exact_route_traced_v5",
     "replay_route_legs_traced_v5",
+    "route_binding_pins_exact_snapshot_traced_v5",
     "route_binding_pins_snapshot_traced_v5",
 )

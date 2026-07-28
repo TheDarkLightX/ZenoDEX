@@ -24,7 +24,6 @@ from ..state.fcis_execution_context_values import (
     FCIS_STEP_CONTEXT_SCHEMA_ID_V1,
     FCISStepExecutionContextV1,
 )
-from ..state.fcis_route_support_v5 import route_support_pool_ids_owned_v5
 from ..state.intent_field_registry import intent_allowed_field_names_v1
 from ..state.intent_snapshots import (
     OwnedIntentV1,
@@ -51,6 +50,8 @@ from ..state.state_snapshots import (
     snapshot_nonce_table,
     snapshot_pool_map,
 )
+from .fcis_route_binding import derive_exact_route_binding_v1
+from .fcis_route_binding_values import RouteBindingRejectV1
 from .fcis_state_read_trace_v5 import FCISContextReadTraceV5, FCISStateReadTraceV5
 from .fcis_support_profile_constants_v5 import (
     FCIS_LP_LOCK_PUBKEY_V5,
@@ -511,16 +512,21 @@ def _route_fragment_v5(
 ) -> _SupportFragmentV5:
     sender = intent.sender_pubkey
     recipient = _recipient_v5(intent)
-    asset_in = _required_text_field_v5(intent, "asset_in")
-    asset_out = _required_text_field_v5(intent, "asset_out")
+    binding_result = derive_exact_route_binding_v1(intent)
+    if type(binding_result) is RouteBindingRejectV1:
+        raise ValueError(
+            "exact route support rejects the route binding: "
+            f"{binding_result.code.value} at {binding_result.path!r}"
+        )
+    binding = binding_result.binding
     balances = {
-        (sender, asset_in),
-        (recipient, asset_out),
-        *_protocol_fee_balance_key_v5(context, asset_in),
+        (sender, binding.asset_in),
+        (recipient, binding.asset_out),
+        *_protocol_fee_balance_key_v5(context, binding.asset_in),
     }
     return _SupportFragmentV5(
         balance_keys=tuple(sorted(balances)),
-        pool_ids=route_support_pool_ids_owned_v5(intent),
+        pool_ids=tuple(key for key, _value in binding.pool_fingerprints.entries),
         nonce_keys=(sender,),
     )
 
