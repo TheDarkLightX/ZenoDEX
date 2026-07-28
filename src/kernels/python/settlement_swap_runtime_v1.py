@@ -16,6 +16,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .cpmm_exact_out_policy_v1 import (
+    CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+)
 from .cpmm_swap_v8 import swap_exact_in as _kernel_swap_exact_in_v8
 from .cpmm_swap_v8 import swap_exact_out as _kernel_swap_exact_out_v8
 
@@ -25,7 +28,6 @@ BPS_DENOM = 10_000
 # through ``src.core.__init__``.
 DEX_POOL_RESERVE_MAX = 3_000_000_000
 DEX_SWAP_AMOUNT_MAX = 3_000_000_000
-CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT = 200
 CPMM_SETTLEMENT_SURFACE = "cpmm_settlement"
 _U128_MAX = (1 << 128) - 1
 
@@ -91,8 +93,10 @@ def _quote_error_code(msg: str) -> str:
         return "reserve_domain_exceeded"
     if msg.startswith("reserve_in ") or msg.startswith("reserve_out "):
         return "reserve_out_of_domain"
-    if msg.startswith("amount_in ") or msg.startswith("amount_out must be >= 1") or (
-        msg.startswith("amount_out") and "kernel domain max" in msg
+    if (
+        msg.startswith("amount_in ")
+        or msg.startswith("amount_out must be >= 1")
+        or (msg.startswith("amount_out") and "kernel domain max" in msg)
     ):
         return "invalid_amount"
     if "net_in must be positive" in msg or "amount_out is zero" in msg:
@@ -176,7 +180,9 @@ def _docs_agree(left: dict[str, Any], right: dict[str, Any]) -> bool:
     return left.get("quote") == right.get("quote")
 
 
-def _rust_exact_in_doc(*, reserve_in: int, reserve_out: int, amount_in: int, fee_bps: int) -> dict[str, Any]:
+def _rust_exact_in_doc(
+    *, reserve_in: int, reserve_out: int, amount_in: int, fee_bps: int
+) -> dict[str, Any]:
     from src.runtime.rust_invoker import cpmm_op
 
     out = cpmm_op(
@@ -272,8 +278,12 @@ def _quote_cpmm_swap_exact_in_python(
     protocol_fee_share_bps: int = 0,
 ) -> SettlementSwapExactInQuote:
     """Return a kernel-backed exact-in settlement quote plus post-state."""
-    reserve_in = _require_int_range("reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
-    reserve_out = _require_int_range("reserve_out", reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
+    reserve_in = _require_int_range(
+        "reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX
+    )
+    reserve_out = _require_int_range(
+        "reserve_out", reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX
+    )
     amount_in = _require_int_range("amount_in", amount_in, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX)
     fee_bps = _require_int_range("fee_bps", fee_bps, minimum=0, maximum=BPS_DENOM)
     protocol_fee_share_bps = _require_int_range(
@@ -409,9 +419,15 @@ def _quote_cpmm_swap_exact_out_python(
     protocol_fee_share_bps: int = 0,
 ) -> SettlementSwapExactOutQuote:
     """Return a kernel-backed exact-out settlement quote plus post-state."""
-    reserve_in = _require_int_range("reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
-    reserve_out = _require_int_range("reserve_out", reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
-    amount_out = _require_int_range("amount_out", amount_out, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX)
+    reserve_in = _require_int_range(
+        "reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX
+    )
+    reserve_out = _require_int_range(
+        "reserve_out", reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX
+    )
+    amount_out = _require_int_range(
+        "amount_out", amount_out, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX
+    )
     fee_bps = _require_int_range("fee_bps", fee_bps, minimum=0, maximum=BPS_DENOM)
     max_overdelivery_gap_bps = _require_int_range(
         "max_overdelivery_gap_bps",

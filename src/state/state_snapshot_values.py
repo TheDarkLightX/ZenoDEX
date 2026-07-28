@@ -28,12 +28,19 @@ from ..core.perps import (
     PERPS_STATE_VERSION_V4,
     PERPS_STATE_VERSION_V5,
 )
-from .owned_collections import OwnedEnumV1, OwnedMapV1
-from .pools import (
+from .fcis_curve_config import (
+    canonical_curve_config_fields_v1,
+    decode_canonical_curve_config_v1,
+)
+from .fcis_pool_identity import (
     compute_pool_id,
-    normalize_curve_config,
     normalize_pool_asset_pair,
     validate_pool_id_format,
+)
+from .owned_collections import (
+    OwnedEnumV1,
+    OwnedMapV1,
+    owned_map_structure_is_exact_v1,
 )
 
 FCIS_STATE_SCHEMA_REVISION_V1 = "zenodex/fcis-authority-state/v1"
@@ -135,23 +142,40 @@ def _require_canonical_pubkey(value: object) -> str:
     return pubkey
 
 
+def _require_canonical_lp_int_map_v1(
+    value: OwnedMapV1[LPKeyV1, int],
+    *,
+    minimum: int = 0,
+    maximum: int | None = None,
+) -> None:
+    previous_key: LPKeyV1 | None = None
+    for raw_key, raw_item in value.entries:
+        if type(raw_key) is not tuple or len(raw_key) != 2:
+            raise TypeError("committed LP map key must be an exact pair")
+        owner, pool_id = raw_key
+        exact_key = (_require_exact_string(owner), _require_exact_string(pool_id))
+        if previous_key is not None and exact_key <= previous_key:
+            raise ValueError("committed LP map keys are not in strict canonical order")
+        _require_exact_int(raw_item, minimum=minimum, maximum=maximum)
+        previous_key = exact_key
+
+
 def _require_owned_map(
     value: object,
     schema_id: str,
 ) -> OwnedMapV1[K, V]:
-    if type(value) is not OwnedMapV1:
-        raise TypeError("committed map must be an exact OwnedMapV1")
-    revision = object.__getattribute__(value, "_schema_revision")
-    observed_schema_id = object.__getattribute__(value, "_schema_id")
-    if revision != FCIS_STATE_SCHEMA_REVISION_V1 or observed_schema_id != schema_id:
+    if not owned_map_structure_is_exact_v1(value):
+        raise TypeError("committed map must be an exact structurally intact OwnedMapV1")
+    owned = cast(OwnedMapV1[K, V], value)
+    if owned.schema_revision != FCIS_STATE_SCHEMA_REVISION_V1 or owned.schema_id != schema_id:
         raise TypeError("committed map schema metadata mismatch")
-    return cast(OwnedMapV1[K, V], value)
+    return owned
 
 
 def _require_owned_pool_status(value: object) -> OwnedEnumV1:
     if type(value) is not OwnedEnumV1:
         raise TypeError("committed pool status must be an exact owned enum")
-    owned = cast(OwnedEnumV1, value)
+    owned = value
     if (
         owned.schema_revision != FCIS_STATE_SCHEMA_REVISION_V1
         or owned.enum_tag_ordinal != POOL_STATUS_ENUM_TAG_ORDINAL_V1
@@ -261,15 +285,20 @@ class CommittedLPTableV1:
         )
         if sum(len(value.entries) for value in maps) > MAX_LP_ENTRIES_V1:
             raise ValueError("committed LP table exceeds its item limit")
+        _require_canonical_lp_int_map_v1(
+            self._balances,
+            minimum=1,
+            maximum=DEX_LP_AMOUNT_MAX,
+        )
+        _require_canonical_lp_int_map_v1(self._last_mint_timestamps)
+        _require_canonical_lp_int_map_v1(self._last_remove_timestamps)
+        _require_canonical_lp_int_map_v1(self._churn_tiers, minimum=1)
+        _require_canonical_lp_int_map_v1(self._last_churn_update_timestamps)
         if any(
-            amount <= 0 or amount > DEX_LP_AMOUNT_MAX for _key, amount in self._balances.entries
+            self._balances.get(key, 0) == 0
+            for key, _timestamp in self._last_mint_timestamps.entries
         ):
-            raise ValueError("committed LP balances are not canonical")
-        balance_keys = {key for key, _amount in self._balances.entries}
-        if any(key not in balance_keys for key, _timestamp in self._last_mint_timestamps.entries):
             raise ValueError("LP mint metadata requires a positive LP balance")
-        if any(tier <= 0 for _key, tier in self._churn_tiers.entries):
-            raise ValueError("committed LP churn-tier map is not sparse")
 
     def get(self, pubkey: str, pool_id: str) -> int:
         return self._balances.get((pubkey, pool_id), 0)
@@ -364,9 +393,11 @@ class CommittedPoolStateV1:
         )
         if (normalized_asset0, normalized_asset1) != (self.asset0, self.asset1):
             raise ValueError("committed pool asset pair is not canonical")
-        normalized_tag, normalized_params = normalize_curve_config(
-            curve_tag=self.curve_tag,
-            curve_params=self.curve_params,
+        normalized_tag, normalized_params = canonical_curve_config_fields_v1(
+            decode_canonical_curve_config_v1(
+                self.curve_tag,
+                self.curve_params,
+            )
         )
         if (normalized_tag, normalized_params) != (self.curve_tag, self.curve_params):
             raise ValueError("committed pool curve configuration is not canonical")

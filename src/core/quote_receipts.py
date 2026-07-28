@@ -22,8 +22,11 @@ from ..core.routing import RouteQuote
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 from ..state.pools import PoolState, copy_pool_state
 from ..state.state_snapshot_values import (
-    POOL_STATUS_MEMBER_VALUES_V1,
     CommittedPoolStateV1,
+)
+from .fcis_pool_fingerprint import (
+    pool_state_fingerprint_committed_v1,
+    pool_state_fingerprint_fields_v1,
 )
 
 
@@ -42,39 +45,26 @@ def pool_state_fingerprint(pool: PoolState) -> str:
     return _pool_state_fingerprint_value_v1(pool)
 
 
-def pool_state_fingerprint_committed_v1(pool: CommittedPoolStateV1) -> str:
-    """Fingerprint one exact committed pool without a legacy projection."""
-
-    if type(pool) is not CommittedPoolStateV1:
-        raise TypeError("pool must be an exact committed pool")
-    return _pool_state_fingerprint_value_v1(pool)
-
-
 def _pool_state_fingerprint_value_v1(
     pool: PoolState | CommittedPoolStateV1,
 ) -> str:
     """Build one fingerprint from the closed legacy/exact pool union."""
 
-    status = (
-        POOL_STATUS_MEMBER_VALUES_V1[pool.status.member_ordinal]
-        if type(pool) is CommittedPoolStateV1
-        else pool.status.value
+    if type(pool) is CommittedPoolStateV1:
+        return pool_state_fingerprint_committed_v1(pool)
+    return pool_state_fingerprint_fields_v1(
+        pool_id=pool.pool_id,
+        asset0=pool.asset0,
+        asset1=pool.asset1,
+        reserve0=int(pool.reserve0),
+        reserve1=int(pool.reserve1),
+        fee_bps=int(pool.fee_bps),
+        curve_tag=str(pool.curve_tag),
+        curve_params=str(pool.curve_params),
+        lp_supply=int(pool.lp_supply),
+        status=str(pool.status.value),
+        created_at=int(pool.created_at),
     )
-
-    obj = {
-        "pool_id": pool.pool_id,
-        "asset0": pool.asset0,
-        "asset1": pool.asset1,
-        "reserve0": int(pool.reserve0),
-        "reserve1": int(pool.reserve1),
-        "fee_bps": int(pool.fee_bps),
-        "curve_tag": str(pool.curve_tag),
-        "curve_params": str(pool.curve_params),
-        "lp_supply": int(pool.lp_supply),
-        "status": str(status),
-        "created_at": int(pool.created_at),
-    }
-    return sha256_hex(domain_sep_bytes("zenodex.pool_state/v1") + canonical_json_bytes(obj))
 
 
 def receipt_hash(receipt_body: Dict[str, Any]) -> str:

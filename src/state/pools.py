@@ -4,13 +4,17 @@ Pool state management for DEX pools.
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Tuple
 
 from .balances import Amount, AssetId, _SnapshotSealMixin
 from .canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
+from .fcis_pool_identity import (
+    compute_pool_id,
+    normalize_pool_asset_pair,
+    validate_pool_id_format,
+)
 
 CURVE_TAG_CPMM = "CPMM"
 CURVE_TAG_CUBIC_SUM_V1 = "CUBIC_SUM_V1"
@@ -19,46 +23,9 @@ CURVE_TAG_QUARTIC_BLEND_V1 = "QUARTIC_BLEND_V1"
 CURVE_TAG_QUINTIC_BLEND_V1 = "QUINTIC_BLEND_V1"
 
 
-def _canonical_asset_id_if_hex(asset: AssetId, *, name: str) -> AssetId:
-    """Canonicalize real 32-byte asset IDs while preserving symbolic test IDs."""
-    if not isinstance(asset, str):
-        raise TypeError(f"{name} must be a string")
-    if asset.strip().lower().startswith("0x"):
-        return canonical_hex_fixed_allow_0x(asset, nbytes=32, name=name)
-    return asset
-
-
-def _asset_order_bytes(asset: AssetId) -> bytes | None:
-    if not isinstance(asset, str) or not asset.startswith("0x") or len(asset) != 66:
-        return None
-    try:
-        return bytes.fromhex(asset[2:])
-    except ValueError:
-        return None
-
-
-def normalize_pool_asset_pair(asset0: AssetId, asset1: AssetId) -> tuple[AssetId, AssetId]:
-    """
-    Normalize and validate a pool asset pair.
-
-    Real 32-byte hex asset IDs are lowercased and ordered by decoded bytes, which
-    matches the state-root/Rust commitment boundary. Non-hex symbolic IDs are
-    kept for older algorithm tests and ordered by the legacy string rule.
-    """
-    asset0_norm = _canonical_asset_id_if_hex(asset0, name="asset0")
-    asset1_norm = _canonical_asset_id_if_hex(asset1, name="asset1")
-    asset0_b = _asset_order_bytes(asset0_norm)
-    asset1_b = _asset_order_bytes(asset1_norm)
-    if asset0_b is not None and asset1_b is not None:
-        if asset0_b >= asset1_b:
-            raise ValueError(f"Assets must be in canonical order: {asset0_norm} < {asset1_norm}")
-        return asset0_norm, asset1_norm
-    if asset0_norm >= asset1_norm:
-        raise ValueError(f"Assets must be in canonical order: {asset0_norm} < {asset1_norm}")
-    return asset0_norm, asset1_norm
-
-
-def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optional[object]) -> Tuple[str, str]:
+def normalize_curve_config(
+    *, curve_tag: Optional[object], curve_params: Optional[object]
+) -> Tuple[str, str]:
     """
     Normalize and validate curve configuration.
 
@@ -80,7 +47,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_CPMM, ""
 
     if tag == CURVE_TAG_CUBIC_SUM_V1:
-        params_obj: object = curve_params
+        params_obj = curve_params
         if params_obj is None:
             params_obj = {"p": 1, "q": 1}
         if isinstance(params_obj, str):
@@ -102,7 +69,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_CUBIC_SUM_V1, canonical_json_bytes(params_norm).decode("utf-8")
 
     if tag == CURVE_TAG_SUM_BOOST_V1:
-        params_obj: object = curve_params
+        params_obj = curve_params
         if params_obj is None:
             params_obj = {"mu_num": 200, "mu_den": 10_000}
         if isinstance(params_obj, str):
@@ -124,7 +91,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_SUM_BOOST_V1, canonical_json_bytes(params_norm).decode("utf-8")
 
     if tag == CURVE_TAG_QUARTIC_BLEND_V1:
-        params_obj: object = curve_params
+        params_obj = curve_params
         if params_obj is None:
             # Default: c=8 is a conservative setting that reduces the frequency of large negative regressions vs CPMM
             # (at the cost of smaller average improvement).
@@ -160,7 +127,7 @@ def normalize_curve_config(*, curve_tag: Optional[object], curve_params: Optiona
         return CURVE_TAG_QUARTIC_BLEND_V1, canonical_json_bytes(params_norm).decode("utf-8")
 
     if tag == CURVE_TAG_QUINTIC_BLEND_V1:
-        params_obj: object = curve_params
+        params_obj = curve_params
         if params_obj is None:
             # Default: c=2 => K(x,y)=x*y*(x+y)^3 (a stable, easy-to-reason-about special case).
             params_obj = {"c_num": 2, "c_den": 1}
@@ -291,84 +258,17 @@ def parse_quintic_blend_params(curve_params: str) -> Tuple[int, int]:
 
 class PoolStatus(Enum):
     """Pool status enumeration."""
+
     ACTIVE = "ACTIVE"
     FROZEN = "FROZEN"
     DISABLED = "DISABLED"
-
-
-def compute_pool_id(
-    asset0: AssetId,
-    asset1: AssetId,
-    fee_bps: int,
-    *,
-    curve_tag: str = "CPMM",
-    curve_params: str = "",
-) -> str:
-    """
-    Deterministically compute a pool_id for the given pool parameters.
-
-    Matches the formula described in `src/core/liquidity.py`.
-    """
-    asset0, asset1 = normalize_pool_asset_pair(asset0, asset1)
-    if not (0 <= fee_bps <= 10000):
-        raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
-    if not isinstance(curve_tag, str) or not curve_tag:
-        raise ValueError("curve_tag must be a non-empty string")
-    if not isinstance(curve_params, str):
-        raise ValueError("curve_params must be a string")
-
-    pool_id_data = (
-        b"TauSwapPool"
-        + asset0.encode("utf-8")
-        + asset1.encode("utf-8")
-        + str(int(fee_bps)).encode("utf-8")
-        + curve_tag.encode("utf-8")
-        + curve_params.encode("utf-8")
-    )
-    return "0x" + hashlib.sha256(pool_id_data).hexdigest()
-
-
-def validate_pool_id_format(pool_id: object, *, allow_symbolic: bool) -> None:
-    """Require a canonical 32-byte pool ID or an explicit local symbolic ID.
-
-    Hex-looking values never fall through to symbolic compatibility. Production
-    identifiers use exactly ``0x`` followed by 64 lowercase hex characters.
-    """
-    if not isinstance(allow_symbolic, bool):
-        raise TypeError("allow_symbolic must be a bool")
-    if not isinstance(pool_id, str):
-        raise TypeError("pool_id must be a string")
-    if not pool_id or pool_id != pool_id.strip():
-        raise ValueError("pool_id must be non-empty and must not contain surrounding whitespace")
-
-    try:
-        canonical_pool_id = canonical_hex_fixed_allow_0x(
-            pool_id,
-            nbytes=32,
-            name="pool_id",
-        )
-    except ValueError as exc:
-        if pool_id.lower().startswith("0x"):
-            raise ValueError(
-                "pool_id must be a canonical lowercase 0x-prefixed 32-byte hex string"
-            ) from exc
-        if allow_symbolic:
-            return
-        raise ValueError(
-            "pool_id must be a canonical lowercase 0x-prefixed 32-byte hex string"
-        ) from exc
-
-    if pool_id != canonical_pool_id:
-        raise ValueError(
-            "pool_id must be a canonical lowercase 0x-prefixed 32-byte hex string"
-        )
 
 
 @dataclass(slots=True)
 class PoolState(_SnapshotSealMixin):
     """
     State of a DEX liquidity pool.
-    
+
     Attributes:
         pool_id: Canonical parameter-bound 32-byte hex identifier. Symbolic
             values exist only for non-authoritative legacy compatibility.
@@ -383,6 +283,7 @@ class PoolState(_SnapshotSealMixin):
         status: Pool status
         created_at: Block height or timestamp when pool was created
     """
+
     pool_id: str
     asset0: AssetId
     asset1: AssetId
@@ -394,26 +295,26 @@ class PoolState(_SnapshotSealMixin):
     created_at: int
     curve_tag: str = CURVE_TAG_CPMM
     curve_params: str = ""
-    
+
     def __post_init__(self):
         """Validate pool state invariants."""
         self.asset0, self.asset1 = normalize_pool_asset_pair(self.asset0, self.asset1)
-        
+
         # Validate fee_bps
         if not (0 <= self.fee_bps <= 10000):
             raise ValueError(f"fee_bps must be in [0, 10000]: {self.fee_bps}")
 
         # Normalize curve config (fail-closed on unknown curves).
-        tag, params = normalize_curve_config(curve_tag=self.curve_tag, curve_params=self.curve_params)
+        tag, params = normalize_curve_config(
+            curve_tag=self.curve_tag, curve_params=self.curve_params
+        )
         self.curve_tag = tag
         self.curve_params = params
 
         # Validate non-negative reserves
         if self.reserve0 < 0 or self.reserve1 < 0:
-            raise ValueError(
-                f"Reserves must be non-negative: ({self.reserve0}, {self.reserve1})"
-            )
-        
+            raise ValueError(f"Reserves must be non-negative: ({self.reserve0}, {self.reserve1})")
+
         # Validate non-negative LP supply
         if self.lp_supply < 0:
             raise ValueError(f"LP supply must be non-negative: {self.lp_supply}")
@@ -422,17 +323,17 @@ class PoolState(_SnapshotSealMixin):
         # identity at construction. Symbolic legacy objects remain constructible
         # for local compatibility; snapshot/root boundaries reject them.
         validate_pool_identity(self, allow_symbolic=True)
-    
+
     def get_reserve(self, asset: AssetId) -> Amount:
         """
         Get reserve for a specific asset.
-        
+
         Args:
             asset: Asset identifier
-            
+
         Returns:
             Reserve amount
-            
+
         Raises:
             ValueError: If asset is not in this pool
         """
@@ -442,29 +343,29 @@ class PoolState(_SnapshotSealMixin):
             return self.reserve1
         else:
             raise ValueError(f"Asset {asset} not in pool {self.pool_id}")
-    
+
     def get_constant_product(self) -> int:
         """
         Compute k = reserve0 * reserve1 (CPMM constant).
-        
+
         Returns:
             Constant product k
         """
         return self.reserve0 * self.reserve1
-    
+
     def verify_invariant(self, min_k: int = 0) -> bool:
         """
         Verify CPMM invariant: reserve0 * reserve1 >= min_k.
-        
+
         Args:
             min_k: Minimum allowed constant product
-            
+
         Returns:
             True if invariant holds
         """
         k = self.get_constant_product()
         return k >= min_k
-    
+
     def __repr__(self) -> str:
         return (
             f"PoolState(pool_id={self.pool_id[:16]}..., "

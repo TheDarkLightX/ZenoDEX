@@ -1,0 +1,711 @@
+{
+  "schema": "zenodex/fcis-m5-downstream-blockers/v1",
+  "ledger_version": 1,
+  "audited_source": {
+    "repository": "TheDarkLightX/ZenoDEX",
+    "commit_sha": "99da842b6606e6f10ce8ab6b2c94c2d36f2e169f",
+    "audit_result_count": 2,
+    "audit_inputs": "INDEPENDENT_SESSION_SUPPLIED_CODE_AUDITS",
+    "normalization": "CONVERGED_FINDINGS_WITH_PROOF_GATE_CORRECTION"
+  },
+  "scope": {
+    "milestone": "M5",
+    "current_checkpoint": "M5-P4B4",
+    "current_checkpoint_scope": "EXACT_STRONG_SETTLEMENT_VALIDATOR",
+    "mount_status": "UNMOUNTED",
+    "claim_status": "BLOCKED",
+    "finding_count": 9,
+    "all_value_m6_allowed": false
+  },
+  "closed_vocabularies": {
+    "finding_status_codes": [
+      "CONFIRMED_DEFECT",
+      "CONFIRMED_ENFORCEMENT_GAP",
+      "CONFIRMED_GATE_FAILURE",
+      "CONFIRMED_SECURITY_PREMISE_GAP"
+    ],
+    "exploitability_codes": [
+      "CONDITIONAL_ON_MOUNT_OR_POLICY",
+      "DIRECT_COUNTEREXAMPLE",
+      "ENFORCEMENT_GAP_WITHOUT_LIVE_EXPLOIT_CLAIM",
+      "GATE_FAILURE_WITHOUT_UNSOUND_ACCEPTANCE_CLAIM"
+    ],
+    "evidence_codes": [
+      "GATE_FAILURE_CONFIRMED",
+      "SOURCE_AND_MINIMAL_WITNESS_CONFIRMED",
+      "SOURCE_ENFORCEMENT_GAP_CONFIRMED"
+    ],
+    "checkpoint_status_codes": [
+      "REQUIRED_NOT_STARTED"
+    ],
+    "mount_status_codes": [
+      "UNMOUNTED"
+    ],
+    "claim_status_codes": [
+      "BLOCKED"
+    ]
+  },
+  "checkpoints": [
+    {
+      "id": "M5-P4B5A",
+      "sequence": 10,
+      "name": "fee_dimensions_and_custody",
+      "status": "REQUIRED_NOT_STARTED",
+      "finding_ids": [
+        "FEE-CUSTODY-002",
+        "FEE-UNIT-001"
+      ],
+      "exit_criteria": [
+        "Every authoritative fee amount carries an exact asset and custody owner.",
+        "Only protocol-owned fee credits fund executable treasury, reward, buyback, and dust allocations.",
+        "Per-asset conservation and mixed-asset partition invariance pass on Python and every promoted implementation.",
+        "Canonical codecs, roots, patches, receipts, and migration rules are versioned for the new fee values."
+      ],
+      "nonclaims": [
+        "P4B4 exact settlement validation does not close fee denomination or custody.",
+        "Scalar fee arithmetic tests do not establish executable custody conservation."
+      ]
+    },
+    {
+      "id": "M5-P4B5B",
+      "sequence": 20,
+      "name": "production_nonce_policy",
+      "status": "REQUIRED_NOT_STARTED",
+      "finding_ids": [
+        "NONCE-PROFILE-001"
+      ],
+      "exit_criteria": [
+        "The production context uses a closed nonce-policy type and cannot admit the legacy nonce-free variant.",
+        "The mount derives and receipt-binds the nonce policy from authenticated deployment configuration.",
+        "Identical nonce-free replay fails closed on every production entry point."
+      ],
+      "nonclaims": [
+        "A frozen Boolean does not establish policy authority.",
+        "Nonce-free compatibility may remain only in a structurally isolated test or differential profile."
+      ]
+    },
+    {
+      "id": "M5-P4B5C",
+      "sequence": 30,
+      "name": "evidence_recomputation",
+      "status": "REQUIRED_NOT_STARTED",
+      "finding_ids": [
+        "EVIDENCE-REVALIDATE-001"
+      ],
+      "exit_criteria": [
+        "Decision derivation recomputes support material and every budget count from retained exact inputs and traces.",
+        "No cached producer field independently authorizes a receipt or budget decision.",
+        "One mutation-killing negative exists for every evidence field."
+      ],
+      "nonclaims": [
+        "Controlled constructors alone do not protect Python values from hostile same-process mutation.",
+        "Shape validation of a digest does not prove its semantic preimage."
+      ]
+    },
+    {
+      "id": "M5-P4B5D",
+      "sequence": 40,
+      "name": "commit_history_and_nullifiers",
+      "status": "REQUIRED_NOT_STARTED",
+      "finding_ids": [
+        "COMMIT-HISTORY-001",
+        "REPLAY-NULLIFIER-001"
+      ],
+      "exit_criteria": [
+        "Reference publication history validates every adjacent pre-root and successor-root edge from an authenticated checkpoint.",
+        "Sequence, previous-publication root, snapshot version, and deployment identity are publication-bound.",
+        "Nullifiers are atomically persisted and uniqueness-enforced, or a checked redundancy theorem removes them from commit authority.",
+        "Splice, reorder, deletion, truncation, ABA, cross-version, concurrent duplicate, and recovery tests pass."
+      ],
+      "nonclaims": [
+        "The immutable reference store is not a production datastore or crash-recovery proof.",
+        "Nonce advancement does not by itself prove every declared nullifier redundant."
+      ]
+    },
+    {
+      "id": "M5-P4B5E",
+      "sequence": 50,
+      "name": "authenticated_context_and_proof_gate",
+      "status": "REQUIRED_NOT_STARTED",
+      "finding_ids": [
+        "CONTEXT-PROVENANCE-001",
+        "PROOF-RECOMPUTE-001"
+      ],
+      "exit_criteria": [
+        "Only an authenticated shell can construct the context witness from a verified ledger header and deployment policy.",
+        "The context and receipt bind chain or deployment identity, policy epoch, consensus time authority, and configuration root.",
+        "The five-file settlement proof recomputation lane accepts every expected-valid packet and rejects minimized stale or mismatched packets.",
+        "The first failing expected-valid packet is minimized and retained as a regression."
+      ],
+      "nonclaims": [
+        "Canonical context encoding proves which values were used, not who authorized them.",
+        "The demonstrated proof-gate failure is expected-valid crash or rejection; unsound acceptance has not been demonstrated."
+      ]
+    },
+    {
+      "id": "ZUSD-P0",
+      "sequence": 60,
+      "name": "total_debt_supply_cap",
+      "status": "REQUIRED_NOT_STARTED",
+      "finding_ids": [
+        "ZUSD-CAP-001"
+      ],
+      "exit_criteria": [
+        "Python minting guards total debt before plus debt delta against the system supply cap.",
+        "The permanent invariant includes total debt less than or equal to the system supply cap.",
+        "Tau derives max-supply validity from total debt, Stability Pool debt, debt delta, and the cap instead of accepting an unbound Boolean.",
+        "Python, Rust, Tau, ESSO, proof guests, and independent economic oracles pass cap-minus-one, cap, and cap-plus-one vectors with Stability-Pool-heavy debt."
+      ],
+      "nonclaims": [
+        "Supply conservation alone does not establish compliance with a configured supply cap.",
+        "ZUSD-P0 is separate from the spot P4B4 checkpoint and is mandatory before an all-value M6 claim."
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "FEE-UNIT-001",
+      "title": "cross_asset_fee_unit_collapse",
+      "status": "CONFIRMED_DEFECT",
+      "exploitability": "DIRECT_COUNTEREXAMPLE",
+      "evidence": "SOURCE_AND_MINIMAL_WITNESS_CONFIRMED",
+      "priority": "P0_BEFORE_FEE_EFFECT_MOUNT",
+      "blocker_checkpoint": "M5-P4B5A",
+      "invariant": "Amounts denominated in distinct assets cannot be added or carried as one authoritative scalar without an explicit authenticated conversion.",
+      "minimal_witness": [
+        "One settlement contains a fill fee of 100 units of asset A and a fill fee of 1 unit of asset C.",
+        "_total_settlement_fees_v1 and _derive_plan_v1 produce the scalar total 101.",
+        "FCISFeeAllocationV1 and CommittedFeeAccumulatorStateV1 retain no asset dimension, so allocation and dust have no unique denomination."
+      ],
+      "affected_surfaces": [
+        {
+          "path": "src/core/fcis_step_evaluator.py",
+          "symbols": [
+            "_fee_candidate_observed_v5",
+            "_total_settlement_fees_v1"
+          ]
+        },
+        {
+          "path": "src/core/fcis_decision_derivation.py",
+          "symbols": [
+            "_derive_plan_v1"
+          ]
+        },
+        {
+          "path": "src/core/fcis_step_evaluation_values.py",
+          "symbols": [
+            "FCISFeeAllocationV1"
+          ]
+        },
+        {
+          "path": "src/state/state_snapshot_values.py",
+          "symbols": [
+            "CommittedFeeAccumulatorStateV1"
+          ]
+        }
+      ],
+      "required_repair": [
+        "Introduce canonical per-asset fee totals, allocations, and dust entries.",
+        "Derive each fee asset from the exact admitted intent and fill lineage.",
+        "Version every affected schema, codec, state root, patch, effect, receipt, and migration."
+      ],
+      "required_regression_families": [
+        {
+          "id": "FEE-UNIT-MIXED-ASSET",
+          "obligation": "Mixed input assets never share allocation or dust state."
+        },
+        {
+          "id": "FEE-UNIT-PARTITION",
+          "obligation": "Allocating disjoint-asset batches together equals canonical per-asset merge of separate allocations."
+        },
+        {
+          "id": "FEE-UNIT-PARITY",
+          "obligation": "Python and every promoted implementation produce identical per-asset bytes and roots."
+        }
+      ],
+      "scope_nonclaim": "The witness establishes dimensional ambiguity in the unmounted FCIS fee plan; it does not allege a currently mounted external payout."
+    },
+    {
+      "id": "FEE-CUSTODY-002",
+      "title": "total_fee_split_exceeds_protocol_custody",
+      "status": "CONFIRMED_DEFECT",
+      "exploitability": "CONDITIONAL_ON_MOUNT_OR_POLICY",
+      "evidence": "SOURCE_AND_MINIMAL_WITNESS_CONFIRMED",
+      "priority": "P0_IF_ALLOCATION_EXECUTABLE",
+      "blocker_checkpoint": "M5-P4B5A",
+      "invariant": "Executable fee allocation per asset must equal value actually credited to protocol custody, with every source and destination owner explicit.",
+      "minimal_witness": [
+        "A fill pays a total fee of 100 units and protocol_fee_paid is 10 units.",
+        "Settlement replay removes or credits only the 10-unit protocol share while FCIS fee allocation is derived from the 100-unit total.",
+        "Executing the allocation would spend 90 units retained for LPs or unrelated protocol custody."
+      ],
+      "affected_surfaces": [
+        {
+          "path": "src/core/settlement_snapshots.py",
+          "symbols": [
+            "OwnedFillV1.protocol_fee_paid",
+            "OwnedFillV1.fee_paid"
+          ]
+        },
+        {
+          "path": "src/core/fcis_step_evaluator.py",
+          "symbols": [
+            "_fee_candidate_observed_v5",
+            "_total_settlement_fees_v1"
+          ]
+        },
+        {
+          "path": "src/core/fcis_decision_derivation.py",
+          "symbols": [
+            "_derive_plan_v1"
+          ]
+        },
+        {
+          "path": "src/core/settlement_strong_validator.py",
+          "symbols": [
+            "_validate_settlement_strong_impl"
+          ]
+        }
+      ],
+      "required_repair": [
+        "Derive distributable fees from protocol_fee_paid grouped by asset.",
+        "Represent source custody, destination custody, asset, amount, rounding, and retained dust in the commit plan.",
+        "If allocation is analytics-only, remove it from executable commit authority and give it a non-authoritative type."
+      ],
+      "required_regression_families": [
+        {
+          "id": "FEE-CUSTODY-SHARE-EDGES",
+          "obligation": "Protocol shares at 0, 1, 9999, and 10000 bps conserve protocol custody per asset."
+        },
+        {
+          "id": "FEE-CUSTODY-LP-REMAINDER",
+          "obligation": "The LP-retained fee remainder cannot fund treasury, rewards, buyback, or dust."
+        },
+        {
+          "id": "FEE-CUSTODY-ALIAS",
+          "obligation": "Trader, recipient, pool, LP, and protocol-recipient aliases do not create or double-spend custody."
+        }
+      ],
+      "scope_nonclaim": "Exploitability is conditional on a shell treating the unmounted fee allocation as executable authority."
+    },
+    {
+      "id": "ZUSD-CAP-001",
+      "title": "multi_vault_total_supply_cap_bypass",
+      "status": "CONFIRMED_DEFECT",
+      "exploitability": "DIRECT_COUNTEREXAMPLE",
+      "evidence": "SOURCE_AND_MINIMAL_WITNESS_CONFIRMED",
+      "priority": "P0",
+      "blocker_checkpoint": "ZUSD-P0",
+      "invariant": "total_debt_before plus debt_delta must not exceed max_debt_supply, and free_debt plus Stability Pool debt must equal total debt.",
+      "minimal_witness": [
+        "Configure max_debt_supply and max_debt_per_vault to 20000000 units.",
+        "Start with vault debts 15000000 and 4000000, free debt 1000000, and Stability Pool debt 18000000.",
+        "Mint a 2000000 debt delta into the second vault; the current free-debt guard passes while total debt becomes 21000000.",
+        "Supply conservation still passes, so the missing total-debt cap invariant does not reject the successor."
+      ],
+      "affected_surfaces": [
+        {
+          "path": "src/core/zusd.py",
+          "symbols": [
+            "_total_debt",
+            "_zusd_mh_mint_zusd",
+            "check_multi_invariants"
+          ]
+        },
+        {
+          "path": "src/tau_specs/recommended/zusd_mint_guard_v1.tau",
+          "symbols": [
+            "i9",
+            "mint_allowed"
+          ]
+        },
+        {
+          "path": "src/tau_specs/recommended/zusd_supply_conservation_v2.tau",
+          "symbols": [
+            "after_ok",
+            "supply_conserved"
+          ]
+        }
+      ],
+      "required_repair": [
+        "Guard _total_debt(state) plus debt_delta against max_debt_supply_e8.",
+        "Add total_debt less than or equal to max_debt_supply_e8 to permanent invariants.",
+        "Make Tau derive the cap relation from typed inputs rather than trust an externally supplied max_supply_ok Boolean.",
+        "Regenerate and parity-check every runtime, formal, and proof implementation."
+      ],
+      "required_regression_families": [
+        {
+          "id": "ZUSD-CAP-SP-HEAVY-BVA",
+          "obligation": "Cap-minus-one, cap, and cap-plus-one vectors pass or reject correctly with most debt in the Stability Pool."
+        },
+        {
+          "id": "ZUSD-CAP-CROSS-LANGUAGE",
+          "obligation": "Python, Rust, Tau, ESSO, proof guests, and independent oracle agree on total debt and cap outcomes."
+        },
+        {
+          "id": "ZUSD-CAP-STATEFUL",
+          "obligation": "Deposit-to-SP followed by mint cannot bypass the system cap."
+        }
+      ],
+      "scope_nonclaim": "This is a separate zUSD P0 blocker and is not closed by the unmounted spot FCIS work."
+    },
+    {
+      "id": "NONCE-PROFILE-001",
+      "title": "nonce_free_production_profile_representable",
+      "status": "CONFIRMED_SECURITY_PREMISE_GAP",
+      "exploitability": "CONDITIONAL_ON_MOUNT_OR_POLICY",
+      "evidence": "SOURCE_AND_MINIMAL_WITNESS_CONFIRMED",
+      "priority": "P0_AT_MOUNT",
+      "blocker_checkpoint": "M5-P4B5B",
+      "invariant": "Every production signed intent batch must advance complete replay state under an authenticated, receipt-bound nonce policy.",
+      "minimal_witness": [
+        "Construct FCISStepExecutionContextV1 with require_all_nonces false.",
+        "Submit a nonempty batch whose intents all omit nonces.",
+        "_validate_and_apply_intent_nonce_batch_admitted_observed_v5 accepts and returns the unchanged nonce state; an identical replay has no nonce memory."
+      ],
+      "affected_surfaces": [
+        {
+          "path": "src/state/fcis_execution_context_values.py",
+          "symbols": [
+            "FCISStepExecutionContextV1.require_all_nonces"
+          ]
+        },
+        {
+          "path": "src/core/nonce_batch_transition.py",
+          "symbols": [
+            "_validate_and_apply_intent_nonce_batch_admitted_observed_v5"
+          ]
+        },
+        {
+          "path": "src/core/dex.py",
+          "symbols": [
+            "DexConfig.allow_legacy_nonce_free_steps",
+            "DexConfig.requires_complete_nonce_coverage"
+          ]
+        }
+      ],
+      "required_repair": [
+        "Replace the generic Boolean with a closed production or test-only nonce-policy type.",
+        "Make the legacy nonce-free constructor unreachable from production admission and mount modules.",
+        "Bind the derived policy profile into receipts and deployment configuration."
+      ],
+      "required_regression_families": [
+        {
+          "id": "NONCE-PROFILE-REPLAY",
+          "obligation": "An identical nonce-free intent replay is rejected on every production entry point."
+        },
+        {
+          "id": "NONCE-PROFILE-STRUCTURAL",
+          "obligation": "Production modules cannot import or construct the legacy nonce-free policy."
+        },
+        {
+          "id": "NONCE-PROFILE-TRUTH-TABLE",
+          "obligation": "The legacy two-Boolean truth table is preserved only in isolated differential evidence."
+        }
+      ],
+      "scope_nonclaim": "The current FCIS path is unmounted; exploitability depends on a future mount admitting the unsafe profile."
+    },
+    {
+      "id": "COMMIT-HISTORY-001",
+      "title": "reference_publication_history_not_chained",
+      "status": "CONFIRMED_DEFECT",
+      "exploitability": "DIRECT_COUNTEREXAMPLE",
+      "evidence": "SOURCE_AND_MINIMAL_WITNESS_CONFIRMED",
+      "priority": "P1_REFERENCE_P0_IF_ADAPTER_DERIVED",
+      "blocker_checkpoint": "M5-P4B5D",
+      "invariant": "Every publication after an authenticated checkpoint must consume the exact previous successor under one sequence, version, and deployment chain.",
+      "minimal_witness": [
+        "Construct valid bundle A from S0 to S1 and unrelated valid bundle B from T0 to T1 where S1 differs from T0.",
+        "Construct ReferenceCommitStoreV1 with current_state T1 and publications A then B.",
+        "_revalidate_store_v1 validates each bundle and only compares current_state with B's successor, so the spliced history is accepted."
+      ],
+      "affected_surfaces": [
+        {
+          "path": "src/core/fcis_commit_reference.py",
+          "symbols": [
+            "ReferenceCommitStoreV1",
+            "_bundle_root_in_publications_v1",
+            "_revalidate_store_v1",
+            "reference_commit_v1"
+          ]
+        }
+      ],
+      "required_repair": [
+        "Bind sequence number, expected pre-root, next root, previous-publication root, snapshot version, and chain or deployment identity.",
+        "Validate every adjacent edge from an authenticated genesis or checkpoint, or use a checked append-only accumulator.",
+        "Make retry classification depend on the authenticated chain, not global membership of an unchained bundle root."
+      ],
+      "required_regression_families": [
+        {
+          "id": "COMMIT-HISTORY-SPLICE",
+          "obligation": "Unrelated valid bundle histories cannot be spliced."
+        },
+        {
+          "id": "COMMIT-HISTORY-MUTATIONS",
+          "obligation": "Reorder, middle deletion, truncation, fork insertion, ABA, and cross-version mutations fail closed."
+        },
+        {
+          "id": "COMMIT-HISTORY-RECOVERY",
+          "obligation": "Restart and retry preserve one authenticated head and publication sequence."
+        }
+      ],
+      "scope_nonclaim": "The defect is in an unmounted reference oracle and does not establish corruption of a production datastore."
+    },
+    {
+      "id": "REPLAY-NULLIFIER-001",
+      "title": "declared_nullifiers_not_applied",
+      "status": "CONFIRMED_ENFORCEMENT_GAP",
+      "exploitability": "ENFORCEMENT_GAP_WITHOUT_LIVE_EXPLOIT_CLAIM",
+      "evidence": "SOURCE_ENFORCEMENT_GAP_CONFIRMED",
+      "priority": "P1_CONDITIONAL_P0",
+      "blocker_checkpoint": "M5-P4B5D",
+      "invariant": "Every replay atom included in commit authority is atomically uniqueness-enforced, or is removed after a checked proof of redundancy.",
+      "minimal_witness": [
+        "_derive_replay_v1 creates one NullifierRecordV1 for every sender and intent identifier.",
+        "ReplayUpdateV1 includes nullifiers in the commit plan.",
+        "_apply_patch_atoms_v1 applies nonce advances but has no nullifier state, duplicate check, or compare-and-replace operation."
+      ],
+      "affected_surfaces": [
+        {
+          "path": "src/core/fcis_transition_values.py",
+          "symbols": [
+            "NullifierRecordV1",
+            "ReplayUpdateV1"
+          ]
+        },
+        {
+          "path": "src/core/fcis_decision_derivation.py",
+          "symbols": [
+            "_derive_replay_v1"
+          ]
+        },
+        {
+          "path": "src/core/fcis_commit_reference.py",
+          "symbols": [
+            "_apply_patch_atoms_v1",
+            "reference_commit_v1"
+          ]
+        }
+      ],
+      "required_repair": [
+        "Persist nullifiers atomically, commit them into authoritative state, and enforce uniqueness during compare-and-swap; or",
+        "Prove from nonce and intent-ID semantics that duplicate nullifiers are unreachable in every supported profile, then remove nullifiers from executable authority."
+      ],
+      "required_regression_families": [
+        {
+          "id": "NULLIFIER-CONCURRENT-DUPLICATE",
+          "obligation": "Two concurrent bundles with one nullifier cannot both publish."
+        },
+        {
+          "id": "NULLIFIER-RECOVERY",
+          "obligation": "Restart, truncation, restore, and retry cannot lose or duplicate nullifier enforcement."
+        },
+        {
+          "id": "NULLIFIER-NONCE-INTERACTION",
+          "obligation": "Higher-nonce reuse, compatibility profiles, and proof-mediated paths match the selected nullifier design."
+        }
+      ],
+      "scope_nonclaim": "A concrete live exploit has not been established because nonce checks may make some duplicates unreachable; redundancy is not yet proved."
+    },
+    {
+      "id": "EVIDENCE-REVALIDATE-001",
+      "title": "receipt_evidence_not_fully_recomputed",
+      "status": "CONFIRMED_ENFORCEMENT_GAP",
+      "exploitability": "CONDITIONAL_ON_MOUNT_OR_POLICY",
+      "evidence": "SOURCE_AND_MINIMAL_WITNESS_CONFIRMED",
+      "priority": "P1",
+      "blocker_checkpoint": "M5-P4B5C",
+      "invariant": "Receipt-bound support and budget evidence must be freshly derived from retained exact inputs and traces at the authority boundary.",
+      "minimal_witness": [
+        "Mutate support_root, support_set_commitment, state_read_count, context_read_count, canonical_input_bytes, or witness_bytes on an FCISStepEvaluationEvidenceV1 after construction.",
+        "_revalidate_evaluation_v1 recomputes context, command, state, snapshot, and root fields but omits those support and count fields.",
+        "_budget_violation_v1 then trusts the retained counts, allowing corrupted evidence to influence admission."
+      ],
+      "affected_surfaces": [
+        {
+          "path": "src/core/fcis_step_evaluation_values.py",
+          "symbols": [
+            "FCISStepEvaluationEvidenceV1"
+          ]
+        },
+        {
+          "path": "src/core/fcis_step_evaluator.py",
+          "symbols": [
+            "_candidate_evidence_v1"
+          ]
+        },
+        {
+          "path": "src/core/fcis_decision_derivation.py",
+          "symbols": [
+            "_budget_violation_v1",
+            "_revalidate_evaluation_v1"
+          ]
+        },
+        {
+          "path": "src/core/fcis_support_profile_v5.py",
+          "symbols": [
+            "compute_fcis_support_root_v5",
+            "derive_fcis_support_set_v5"
+          ]
+        }
+      ],
+      "required_repair": [
+        "Retain exact traces and support material and recompute every evidence field during decision derivation.",
+        "Derive receipt and budget decisions directly from the fresh result.",
+        "Keep no cached producer field as an independent authorization source."
+      ],
+      "required_regression_families": [
+        {
+          "id": "EVIDENCE-FIELD-MUTATIONS",
+          "obligation": "Each evidence field has an independent rehashed mutation that reaches semantic re-evaluation and fails closed."
+        },
+        {
+          "id": "EVIDENCE-BOUNDARY-BVA",
+          "obligation": "Budget-minus-one, budget, and budget-plus-one traces use freshly computed counts."
+        },
+        {
+          "id": "EVIDENCE-SUPPORT-SUBSTITUTION",
+          "obligation": "Same-shape support roots, sets, versions, and traces cannot be substituted across candidates."
+        }
+      ],
+      "scope_nonclaim": "The witness assumes hostile or compromised same-process mutation and does not allege a remote constructor bypass."
+    },
+    {
+      "id": "CONTEXT-PROVENANCE-001",
+      "title": "canonical_context_without_authenticated_origin",
+      "status": "CONFIRMED_SECURITY_PREMISE_GAP",
+      "exploitability": "CONDITIONAL_ON_MOUNT_OR_POLICY",
+      "evidence": "SOURCE_ENFORCEMENT_GAP_CONFIRMED",
+      "priority": "P0_AT_PRODUCTION_MOUNT",
+      "blocker_checkpoint": "M5-P4B5E",
+      "invariant": "Time, fee policy, deployment policy, settlement mode, and replay policy must come from one authenticated ledger and deployment context that callers cannot construct.",
+      "minimal_witness": [
+        "FCISSettlementExecutionContextV1 and FCISStepExecutionContextV1 admit exact canonical values for now, fee recipient, fee share, mode, quote policy, nonce policy, and snapshot version.",
+        "The values contain no verified header witness, chain or deployment identity, policy epoch, or configuration root.",
+        "Canonical encoding proves which caller-supplied values were used but does not establish their authority."
+      ],
+      "affected_surfaces": [
+        {
+          "path": "src/state/fcis_execution_context_values.py",
+          "symbols": [
+            "FCISSettlementExecutionContextV1",
+            "FCISStepExecutionContextV1"
+          ]
+        },
+        {
+          "path": "src/state/fcis_execution_context.py",
+          "symbols": [
+            "admit_fcis_settlement_execution_context_v1",
+            "admit_fcis_step_execution_context_v1"
+          ]
+        },
+        {
+          "path": "src/state/fcis_execution_context_admission.py",
+          "symbols": [
+            "_construct_settlement_v1",
+            "_construct_step_v1"
+          ]
+        },
+        {
+          "path": "src/core/fcis_step_evaluator.py",
+          "symbols": [
+            "evaluate_fcis_step_candidate_v1"
+          ]
+        }
+      ],
+      "required_repair": [
+        "Introduce a controlled authenticated execution-context witness.",
+        "Derive it only from a verified ledger header, authenticated consensus time, deployment configuration root, policy epoch, chain or deployment identity, and authority proof.",
+        "Bind the authenticated context root and policy epoch into every receipt and commit bundle."
+      ],
+      "required_regression_families": [
+        {
+          "id": "CONTEXT-REQUEST-SUBSTITUTION",
+          "obligation": "API or proof input cannot choose time, fee recipient, fee share, nonce policy, or settlement mode."
+        },
+        {
+          "id": "CONTEXT-CROSS-DEPLOYMENT",
+          "obligation": "The same command and context bytes cannot replay across chain or deployment identities."
+        },
+        {
+          "id": "CONTEXT-TIME-AUTHORITY",
+          "obligation": "Rollback, forward jump, stale oracle, and LP-age boundaries use authenticated consensus time."
+        }
+      ],
+      "scope_nonclaim": "No production mount is present; the finding records a missing premise that must be closed before mounting."
+    },
+    {
+      "id": "PROOF-RECOMPUTE-001",
+      "title": "expected_valid_settlement_proof_recompute_failure",
+      "status": "CONFIRMED_GATE_FAILURE",
+      "exploitability": "GATE_FAILURE_WITHOUT_UNSOUND_ACCEPTANCE_CLAIM",
+      "evidence": "GATE_FAILURE_CONFIRMED",
+      "priority": "P0_RELEASE_BLOCKER",
+      "blocker_checkpoint": "M5-P4B5E",
+      "invariant": "Every expected-valid settlement certificate must recompute and validate deterministically, while every stale or mismatched witness must reject.",
+      "minimal_witness": [
+        "The recorded five-file settlement proof recomputation lane exits nonzero on its expected-valid corpus.",
+        "The demonstrated failure class is a crash or rejection of expected-valid material during recomputation.",
+        "No minimized witness currently demonstrates acceptance of a mismatched or stale proof."
+      ],
+      "affected_surfaces": [
+        {
+          "path": "tests/integration/test_recompute_batch_proof_verifier.py",
+          "symbols": [
+            "test_recompute_batch_proof_verifier_accepts_valid_certificate"
+          ]
+        },
+        {
+          "path": "tools/proof_verifiers/recompute_batch_v1.py",
+          "symbols": [
+            "main"
+          ]
+        },
+        {
+          "path": "tests/integration/test_settlement_certificate_runtime_gate.py",
+          "symbols": [
+            "test_validate_operations_accepts_when_replay_bound_certificate_required"
+          ]
+        },
+        {
+          "path": "tests/integration/test_validation_uses_strong_settlement_gate.py",
+          "symbols": [
+            "test_validate_operations_accepts_cow_netted_settlement_when_swap_ordering_matches"
+          ]
+        },
+        {
+          "path": "tools/stateful_scenario_bridge.py",
+          "symbols": [
+            "settlement_proof_recompute_gate"
+          ]
+        }
+      ],
+      "required_repair": [
+        "Run the exact five-file lane with -x -vv and retain the first failing packet, stdout, stderr, and toolchain binding.",
+        "Minimize the expected-valid packet and identify normalization, event, batch-reference, strong-replay, certificate, wrapper, or test-infrastructure divergence.",
+        "Retain positive expected-valid and negative stale or mismatched vectors after repair."
+      ],
+      "required_regression_families": [
+        {
+          "id": "PROOF-RECOMPUTE-EXPECTED-VALID",
+          "obligation": "Every canonical expected-valid packet is accepted without process escape."
+        },
+        {
+          "id": "PROOF-RECOMPUTE-MISMATCH",
+          "obligation": "Command, pre-root, post-root, effects, event, batch reference, witness, and strong-replay substitutions reject."
+        },
+        {
+          "id": "PROOF-RECOMPUTE-WRAPPER",
+          "obligation": "No weak or stale validator can substitute for the strong recomputation path."
+        }
+      ],
+      "scope_nonclaim": "This ledger does not claim unsound proof acceptance; current evidence demonstrates expected-valid crash or rejection."
+    }
+  ],
+  "global_nonclaims": [
+    "This ledger is documentation and does not repair, mount, release, or certify any authority path.",
+    "M5-P4B4 remains an unmounted exact-strong-validator checkpoint.",
+    "No production datastore linearizability, crash recovery, external delivery, Rust parity, proof-guest parity, or all-value conservation claim is made.",
+    "All listed checkpoints and ZUSD-P0 must close with source-pinned evidence before an all-value M6 claim can begin."
+  ]
+}

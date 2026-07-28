@@ -12,11 +12,11 @@ no partial replay value.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import cast, final
 
 from typing_extensions import TypeIs
 
+from ..kernels.python.cpmm_swap_v8 import compute_fee_total
 from ..state.fcis_route_binding_schema import (
     ROUTE_LEG_SCHEMA_ID_V1,
     ROUTE_LEGS_MAX_V1,
@@ -29,19 +29,19 @@ from ..state.intent_snapshots import (
     owned_intent_kind_text_v1,
 )
 from ..state.intents import IntentKind
-from ..state.owned_collections import OwnedMapV1
+from ..state.owned_collections import OwnedMapV1, owned_map_structure_is_exact_v1
 from ..state.state_snapshot_values import (
     FCIS_STATE_SCHEMA_REVISION_V1,
     POOL_MAP_SCHEMA_ID_V1,
     POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1,
     CommittedPoolStateV1,
 )
-from .amm_dispatch import (
+from .domain_limits import DEX_SWAP_AMOUNT_MAX
+from .fcis_amm_dispatch import (
     swap_exact_in_for_committed_pool_v1,
     swap_exact_out_for_committed_pool_v1,
 )
-from .cpmm import compute_fee_total
-from .domain_limits import DEX_SWAP_AMOUNT_MAX
+from .fcis_pool_fingerprint import pool_state_fingerprint_committed_v1
 from .fcis_route_binding_values import (
     _ROUTE_BINDING_CONSTRUCTION_TOKEN_V1,
     RouteBindingOkV1,
@@ -57,7 +57,6 @@ from .fcis_route_binding_values import (
     RouteReplayRejectV1,
     RouteReplayResultV1,
 )
-from .quote_receipts import pool_state_fingerprint_committed_v1
 
 _ROUTE_SUM_MAX_V1 = ROUTE_LEGS_MAX_V1 * DEX_SWAP_AMOUNT_MAX
 _LEG_ENTRY_NAMES_V1 = ("amount_in", "amount_out", "asset_in", "asset_out", "pool_id")
@@ -123,32 +122,11 @@ def _is_route_amount_v1(value: object, minimum: int) -> bool:
     return type(value) is int and minimum <= value <= DEX_SWAP_AMOUNT_MAX
 
 
-def _owned_map_index_is_consistent_v1(owned: OwnedMapV1[object, object]) -> bool:
-    try:
-        entries = object.__getattribute__(owned, "_entries")
-        index = object.__getattribute__(owned, "_index")
-        if type(entries) is not tuple or type(index) is not type(MappingProxyType({})):
-            return False
-        if len(index) != len(entries):
-            return False
-        missing = object()
-        for entry in entries:
-            if type(entry) is not tuple or len(entry) != 2:
-                return False
-            key, value = entry
-            if index.get(key, missing) is not value:
-                return False
-        return True
-    except (AttributeError, TypeError):
-        return False
-
-
 def _fingerprints_are_exact_v1(fingerprints: OwnedMapV1[str, str]) -> bool:
-    try:
-        entries = object.__getattribute__(fingerprints, "_entries")
-    except AttributeError:
+    if not owned_map_structure_is_exact_v1(fingerprints):
         return False
-    if type(entries) is not tuple or not 1 <= len(entries) <= ROUTE_POOL_FINGERPRINTS_MAX_V1:
+    entries = fingerprints.entries
+    if not 1 <= len(entries) <= ROUTE_POOL_FINGERPRINTS_MAX_V1:
         return False
     if any(type(entry) is not tuple or len(entry) != 2 for entry in entries):
         return False
@@ -158,7 +136,7 @@ def _fingerprints_are_exact_v1(fingerprints: OwnedMapV1[str, str]) -> bool:
         return False
     if len({key for key, _value in entries}) != len(entries):
         return False
-    return _owned_map_index_is_consistent_v1(fingerprints)
+    return True
 
 
 def _route_kind_of_v1(intent: OwnedIntentV1) -> RouteKindV1 | None:
@@ -210,7 +188,7 @@ def _structural_leg_v1(
     if type(raw_leg) is not OwnedMapV1:
         return reject
     leg = cast(OwnedMapV1[str, object], raw_leg)
-    if not _owned_map_index_is_consistent_v1(leg):
+    if not owned_map_structure_is_exact_v1(leg):
         return reject
     if (
         leg.schema_revision != FCIS_STATE_SCHEMA_REVISION_V1
@@ -545,7 +523,7 @@ def _binding_matches_intent_v1(intent: OwnedIntentV1, binding: RouteBindingV1) -
 
 
 def _require_exact_committed_pool_map_v1(pools: object) -> OwnedMapV1[str, CommittedPoolStateV1]:
-    if type(pools) is not OwnedMapV1:
+    if not owned_map_structure_is_exact_v1(pools):
         raise TypeError("pools must be an exact committed pool map")
     exact_pools = cast(OwnedMapV1[str, CommittedPoolStateV1], pools)
     if (
@@ -672,7 +650,7 @@ def _apply_exact_leg_v1(
         leg.asset_out,
         leg.amount_in,
         leg.amount_out,
-        compute_fee_total(leg.amount_in, pool.fee_bps),
+        compute_fee_total(gross_in=leg.amount_in, fee_bps=pool.fee_bps),
         new_reserve0,
         new_reserve1,
         _ROUTE_BINDING_CONSTRUCTION_TOKEN_V1,

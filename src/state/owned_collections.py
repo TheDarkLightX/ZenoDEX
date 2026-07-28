@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from types import MappingProxyType
-from typing import Generic, TypeVar, final
+from typing import Generic, TypeVar, cast, final
 
 K = TypeVar("K")
 V = TypeVar("V")
 
 _OWNED_MAP_CONSTRUCTION_TOKEN = object()
 _OWNED_ENUM_CONSTRUCTION_TOKEN = object()
+_MAPPING_PROXY_TYPE: type[object] = type(MappingProxyType({}))
 
 
 @final
@@ -174,6 +175,43 @@ class OwnedMapV1(Mapping[K, V], Generic[K, V]):
 
     def __setattr__(self, _name: str, _value: object) -> None:
         raise TypeError("OwnedMapV1 is immutable")
+
+
+def owned_map_structure_is_exact_v1(value: object) -> bool:
+    """Return whether one owned map still has its closed admitted structure.
+
+    The lookup index is non-authoritative acceleration state. Every index item
+    must be the identical key/value pair retained by the canonical entries so
+    hostile in-process mutation cannot change lookup behavior without changing
+    the canonical projection. This check retains no reconstructed collection.
+    """
+
+    if type(value) is not OwnedMapV1:
+        return False
+    try:
+        schema_revision = object.__getattribute__(value, "_schema_revision")
+        schema_id = object.__getattribute__(value, "_schema_id")
+        entries = object.__getattribute__(value, "_entries")
+        index = object.__getattribute__(value, "_index")
+    except AttributeError:
+        return False
+    if type(schema_revision) is not str or type(schema_id) is not str:
+        return False
+    if type(entries) is not tuple or type(index) is not _MAPPING_PROXY_TYPE:
+        return False
+    exact_index = cast(Mapping[object, object], index)
+    if len(entries) != len(exact_index):
+        return False
+    for entry, indexed_entry in zip(entries, exact_index.items(), strict=True):
+        if type(entry) is not tuple or len(entry) != 2:
+            return False
+        key, item = entry
+        if type(indexed_entry) is not tuple or len(indexed_entry) != 2:
+            return False
+        indexed_key, indexed_item = indexed_entry
+        if indexed_key is not key or indexed_item is not item:
+            return False
+    return True
 
 
 def _owned_map_from_admitted(

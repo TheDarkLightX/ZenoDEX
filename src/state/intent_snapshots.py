@@ -141,6 +141,27 @@ def owned_intent_field_v1(
     return intent.fields.get(field_name, default)
 
 
+def owned_intent_optional_field_v1(
+    intent: OwnedIntentV1,
+    field_name: str,
+) -> object | None:
+    """Read one declared optional field without a caller-selected default.
+
+    Absence remains distinct from every admitted value.  Exact consumers may
+    then apply the source-owned semantic rule for that absent field explicitly.
+    """
+
+    if type(intent) is not OwnedIntentV1:
+        raise TypeError("intent must be an exact OwnedIntentV1")
+    if type(field_name) is not str:
+        raise TypeError("intent field name must be an exact string")
+    if type(intent.fields) is not OwnedMapV1:
+        raise TypeError("owned intent fields must be an exact OwnedMapV1")
+    if field_name not in intent.fields:
+        return None
+    return intent.fields[field_name]
+
+
 def owned_intent_kind_text_v1(intent: OwnedIntentV1) -> str:
     """Return the registered protocol kind of one exact intent value."""
 

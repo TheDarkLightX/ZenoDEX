@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 import re
 import sys
@@ -54,6 +55,9 @@ STATE_SUBSTRATE_AUTHORITY_PATHS = (
     Path("src/state/committed_dex_snapshot.py"),
 )
 AUTHORITY_GRAPH_AUTHORITY_PATHS = (
+    Path("src/core/fcis_settlement_strong_values.py"),
+    Path("src/core/fcis_settlement_index.py"),
+    Path("src/core/fcis_settlement_strong_validator.py"),
     Path("src/core/fcis_legacy_refinement.py"),
     Path("src/core/fcis_legacy_refinement_admission.py"),
     Path("src/core/fcis_legacy_refinement_policy.py"),
@@ -81,6 +85,9 @@ AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/settlement_snapshots.py"),
 )
 EXACT_REPLAY_AUTHORITY_PATHS = (
+    Path("src/core/fcis_settlement_strong_values.py"),
+    Path("src/core/fcis_settlement_index.py"),
+    Path("src/core/fcis_settlement_strong_validator.py"),
     Path("src/core/fcis_route_binding.py"),
     Path("src/core/route_settlement.py"),
     Path("src/core/settlement_strong_validator.py"),
@@ -332,6 +339,25 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
         "src/core/fcis_route_binding.py",
         "src/core/fcis_route_binding_values.py",
     ),
+    "_STRONG_SETTLEMENT_CONSTRUCTION_TOKEN_V1": ("src/core/fcis_settlement_strong_values.py",),
+    "_candidate_from_exact_strong_validator_v1": (
+        "src/core/fcis_settlement_strong_values.py",
+        "src/core/fcis_settlement_strong_validator.py",
+    ),
+    "_reject_from_exact_strong_validator_v1": (
+        "src/core/fcis_settlement_strong_values.py",
+        "src/core/fcis_settlement_strong_validator.py",
+    ),
+    "_observed_from_exact_strong_validator_v1": (
+        "src/core/fcis_settlement_strong_values.py",
+        "src/core/fcis_settlement_strong_validator.py",
+    ),
+    "_INDEX_CONSTRUCTION_AUTHORITY_V1": ("src/core/fcis_settlement_index.py",),
+    "_IndexConstructionAuthorityV1": ("src/core/fcis_settlement_index.py",),
+    "_evaluate_settlement_strong_exact_admitted_v1": (
+        "src/core/fcis_settlement_strong_validator.py",
+        "src/core/fcis_step_evaluator.py",
+    ),
     "_OWNED_ENUM_CONSTRUCTION_TOKEN": ("src/state/owned_collections.py",),
     "_OWNED_MAP_CONSTRUCTION_TOKEN": ("src/state/owned_collections.py",),
     "_ADMISSION_REGISTRY_TOKEN": ("src/state/snapshot_combinators.py",),
@@ -347,6 +373,7 @@ _PRIVATE_AUTHORITY_REFLECTION_MODULES = frozenset(
         "src.core.fcis_commit_bundle_derivation",
         "src.core.fcis_commit_reference",
         "src.core.fcis_support_profile_v5",
+        "src.core.fcis_settlement_strong_validator",
         "src.core.nonce_batch_transition",
         "src.core.settlement_strong_validator",
         "src.state.owned_collections",
@@ -1452,6 +1479,60 @@ class _AuthorityVisitor(ast.NodeVisitor):
                 (
                     "src/core/fcis_route_binding.py",
                     "_replay_reject_v1",
+                ),
+            ),
+            "StrongSettlementContextV1": (
+                (
+                    "src/core/fcis_settlement_strong_values.py",
+                    "_strong_settlement_context_from_admitted_v1",
+                ),
+            ),
+            "ExactSpotPreStateV1": (
+                (
+                    "src/core/fcis_settlement_strong_values.py",
+                    "__post_init__",
+                ),
+            ),
+            "ExactStrongSettlementCandidateV1": (
+                (
+                    "src/core/fcis_settlement_strong_values.py",
+                    "_candidate_from_exact_strong_validator_v1",
+                ),
+            ),
+            "ExactStrongSettlementRejectV1": (
+                (
+                    "src/core/fcis_settlement_strong_values.py",
+                    "_reject_from_exact_strong_validator_v1",
+                ),
+            ),
+            "ExactStrongSettlementObservedV1": (
+                (
+                    "src/core/fcis_settlement_strong_values.py",
+                    "_observed_from_exact_strong_validator_v1",
+                ),
+            ),
+            "ExactSettlementIndexEntryV1": (
+                (
+                    "src/core/fcis_settlement_index.py",
+                    "_build_entries_v1",
+                ),
+            ),
+            "ExactCowPairV1": (
+                (
+                    "src/core/fcis_settlement_index.py",
+                    "_derive_cow_pairs_v1",
+                ),
+            ),
+            "ExactSettlementIndexV1": (
+                (
+                    "src/core/fcis_settlement_index.py",
+                    "derive_exact_settlement_index_admitted_v1",
+                ),
+            ),
+            "ExactSettlementIndexRejectV1": (
+                (
+                    "src/core/fcis_settlement_index.py",
+                    "_reject_v1",
                 ),
             ),
         }
@@ -5645,6 +5726,671 @@ def _check_p4b3_contract_v1(
     return violations
 
 
+_P4B4_VALUES_PATH = "src/core/fcis_settlement_strong_values.py"
+_P4B4_INDEX_PATH = "src/core/fcis_settlement_index.py"
+_P4B4_VALIDATOR_PATH = "src/core/fcis_settlement_strong_validator.py"
+_P4B4_SOURCE_PATHS = frozenset({_P4B4_VALUES_PATH, _P4B4_INDEX_PATH, _P4B4_VALIDATOR_PATH})
+_P4B4_EXACT_VALUE_CLASSES = {
+    _P4B4_VALUES_PATH: (
+        "StrongSettlementContextV1",
+        "ExactSpotPreStateV1",
+        "ExactStrongSettlementCandidateV1",
+        "ExactStrongSettlementRejectV1",
+        "ExactStrongSettlementObservedV1",
+    ),
+    _P4B4_INDEX_PATH: (
+        "ExactSettlementIndexEntryV1",
+        "ExactCowPairV1",
+        "ExactSettlementIndexV1",
+        "ExactSettlementIndexRejectV1",
+    ),
+}
+_P4B4_OPEN_FIELD_NAMES = {
+    "Any",
+    "Mapping",
+    "MutableMapping",
+    "MutableSequence",
+    "MutableSet",
+    "Sequence",
+    "dict",
+    "list",
+    "object",
+    "set",
+}
+_P4B4_LEGACY_TYPE_NAMES = {
+    "BalanceDelta",
+    "BalanceTable",
+    "Fill",
+    "Intent",
+    "LPDelta",
+    "LPTable",
+    "PoolState",
+    "ReserveDelta",
+    "Settlement",
+}
+_P4B4_FORBIDDEN_IMPORT_TAILS = {
+    "balances",
+    "legacy_state_snapshots",
+    "lp",
+    "pools",
+    "route_settlement",
+    "settlement",
+    "settlement_strong_validator",
+}
+_P4B4_FORBIDDEN_OPERATIONAL_IMPORT_ROOTS = {
+    "asyncio",
+    "datetime",
+    "http",
+    "locale",
+    "os",
+    "pathlib",
+    "random",
+    "requests",
+    "secrets",
+    "socket",
+    "subprocess",
+    "sys",
+    "time",
+    "urllib",
+    "zoneinfo",
+}
+_P4B4_AUTHORITY_PARAMETER_TOKENS = (
+    "binding",
+    "callback",
+    "encoder",
+    "hash",
+    "registry",
+    "resolver",
+    "root",
+)
+_P4B4_EXPECTED_INTENT_KIND_VALUES = frozenset(
+    {
+        "CREATE_POOL",
+        "ADD_LIQUIDITY",
+        "REMOVE_LIQUIDITY",
+        "SWAP_EXACT_IN",
+        "SWAP_EXACT_OUT",
+        "ROUTE_EXACT_IN",
+        "ROUTE_EXACT_OUT",
+    }
+)
+_P4B4_EXPECTED_FILL_ACTION_VALUES = frozenset({"FILL", "REJECT"})
+_P4B4_PROTECTED_GIT_BLOBS = {
+    "src/core/dex.py": "2bdf2264a40836d2f508288050d785686015b832",
+    "src/integration/dex_engine.py": "28b327441607b7d3c21285407f9e2198c65ded8e",
+    "src/core/settlement_strong_validator.py": "6df6bddd2c93caadf50d4029adab428028769b2a",
+    "src/core/route_settlement.py": "b36ebd18bcd22dc05313d2928a4bd767a125eeda",
+    "src/core/fcis_step_evaluator.py": "7fc75872c9c9d08115a457c7bfabcf8d7360d5b0",
+    "src/state/legacy_state_snapshots.py": "ea2edd0e556b1e20d1e3d13ebb3c4b392fb00b3d",
+    "docs/research/FCIS_M5_P4A_LEGACY_BASELINE_V1.json": (
+        "495b74eda5d1ff96a4902cc79b939dfa144901f4"
+    ),
+    "docs/research/FCIS_M5_P4A_DIFFERENTIAL_REPLAY_V1.json": (
+        "1fd4eb728820e752c0ae3eb21a7b7687f79581b4"
+    ),
+    "docs/research/FCIS_M5_P4A_MOUNT_CALL_GRAPH_V1.json": (
+        "2fef0c3b9d24411dcb3707d4adfbafcfa39b1573"
+    ),
+    "docs/research/FCIS_M5_P4A_CROSS_LANGUAGE_MATRIX_V1.json": (
+        "82c5cb8f65bde148c434860ffd3af94a46916858"
+    ),
+    "docs/research/FCIS_M5_P4A_READINESS_RECEIPT_V1.json": (
+        "a8ab42d5f06b4338cad958239a7dc8b29b3b5bd7"
+    ),
+    "docs/research/FCIS_M5_P4B0_REFINEMENT_V1.json": ("dbbd0574f299b58beeed8914c94626b585cf75ad"),
+}
+
+
+def _p4b4_violation_v1(relative_path: str, node: ast.AST, detail: str) -> _Violation:
+    return _Violation(
+        relative_path,
+        getattr(node, "lineno", 0),
+        getattr(node, "col_offset", 0),
+        "FCIS_P4B4",
+        detail,
+    )
+
+
+def _p4b4_imported_modules_v1(node: ast.Import | ast.ImportFrom) -> tuple[str, ...]:
+    if type(node) is ast.Import:
+        return tuple(alias.name for alias in node.names)
+    module = node.module or ""
+    return (module,) if module else tuple(alias.name for alias in node.names)
+
+
+def _p4b4_field_is_construction_only_v1(field: ast.AnnAssign) -> bool:
+    field_name = field.target.id if type(field.target) is ast.Name else ""
+    return field_name.startswith("_construction_") and any(
+        type(node) is ast.Name and node.id == "InitVar" for node in ast.walk(field.annotation)
+    )
+
+
+def _check_p4b4_exact_values_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    classes = _top_level_classes_v1(module)
+    for class_name in _P4B4_EXACT_VALUE_CLASSES.get(relative_path, ()):
+        class_def = classes.get(class_name)
+        if class_def is None:
+            violations.append(_p4b4_violation_v1(relative_path, module, f"missing:{class_name}"))
+            continue
+        if not _is_frozen_slotted_final_dataclass_v1(class_def):
+            violations.append(
+                _p4b4_violation_v1(relative_path, class_def, f"value-not-exact:{class_name}")
+            )
+    for class_def in classes.values():
+        for field in (
+            statement for statement in class_def.body if type(statement) is ast.AnnAssign
+        ):
+            if _p4b4_field_is_construction_only_v1(field):
+                continue
+            field_name = field.target.id if type(field.target) is ast.Name else "<unknown>"
+            forbidden_names = {
+                name
+                for node in ast.walk(field.annotation)
+                if (name := _last_name(node)) in _P4B4_OPEN_FIELD_NAMES
+            }
+            if forbidden_names:
+                violations.append(
+                    _p4b4_violation_v1(
+                        relative_path,
+                        field,
+                        f"open-authority-field:{class_def.name}:{field_name}:"
+                        f"{','.join(sorted(forbidden_names))}",
+                    )
+                )
+    if relative_path == _P4B4_VALUES_PATH:
+        expected_fields = {
+            "ExactStrongSettlementCandidateV1": {
+                "balances",
+                "pools",
+                "lp_balances",
+                "balance_patch",
+                "pool_patch",
+                "lp_patch",
+                "_construction_token",
+            },
+            "ExactStrongSettlementRejectV1": {"reason", "_construction_token"},
+            "ExactStrongSettlementObservedV1": {
+                "result",
+                "state_read_trace",
+                "_construction_token",
+            },
+        }
+        for class_name, expected in expected_fields.items():
+            class_def = classes.get(class_name)
+            if class_def is None:
+                continue
+            actual = {
+                statement.target.id
+                for statement in class_def.body
+                if type(statement) is ast.AnnAssign and type(statement.target) is ast.Name
+            }
+            if actual != expected:
+                violations.append(
+                    _p4b4_violation_v1(
+                        relative_path,
+                        class_def,
+                        f"value-field-drift:{class_name}:{sorted(actual)}",
+                    )
+                )
+        result_alias = _top_level_assignment_v1(module, "ExactStrongSettlementResultV1")
+        result_names = (
+            {node.id for node in ast.walk(result_alias) if type(node) is ast.Name}
+            if result_alias is not None
+            else set()
+        )
+        if (
+            not {
+                "ExactStrongSettlementCandidateV1",
+                "ExactStrongSettlementRejectV1",
+            }
+            <= result_names
+        ):
+            violations.append(_p4b4_violation_v1(relative_path, module, "result-algebra-drift"))
+    return violations
+
+
+def _check_p4b4_common_source_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    for node in ast.walk(module):
+        if type(node) in {ast.Import, ast.ImportFrom}:
+            for imported_module in _p4b4_imported_modules_v1(node):
+                tail = imported_module.rsplit(".", 1)[-1]
+                root = imported_module.split(".", 1)[0]
+                if tail in _P4B4_FORBIDDEN_IMPORT_TAILS:
+                    violations.append(
+                        _p4b4_violation_v1(
+                            relative_path, node, f"legacy-module-import:{imported_module}"
+                        )
+                    )
+                if root in _P4B4_FORBIDDEN_OPERATIONAL_IMPORT_ROOTS or (
+                    "integration" in imported_module.split(".")
+                    or "shell" in imported_module.split(".")
+                ):
+                    violations.append(
+                        _p4b4_violation_v1(
+                            relative_path, node, f"operational-import:{imported_module}"
+                        )
+                    )
+            if type(node) is ast.ImportFrom:
+                for alias in node.names:
+                    if alias.name in _P4B4_LEGACY_TYPE_NAMES:
+                        violations.append(
+                            _p4b4_violation_v1(
+                                relative_path, node, f"legacy-type-import:{alias.name}"
+                            )
+                        )
+        if type(node) is ast.AnnAssign and type(node.target) is ast.Name:
+            if node.target.id.startswith("_Replay") and any(
+                type(part) is ast.Name and part.id == "TypeAlias"
+                for part in ast.walk(node.annotation)
+            ):
+                violations.append(
+                    _p4b4_violation_v1(relative_path, node, f"replay-union-alias:{node.target.id}")
+                )
+        if type(node) is ast.Call:
+            called = _last_name(node.func) or ""
+            if called == "isinstance":
+                violations.append(_p4b4_violation_v1(relative_path, node, "isinstance-admission"))
+            if called in {"int", "str"}:
+                violations.append(
+                    _p4b4_violation_v1(relative_path, node, f"authority-coercion:{called}")
+                )
+            if called in {"dict", "list"}:
+                violations.append(
+                    _p4b4_violation_v1(relative_path, node, f"raw-reconstruction:{called}")
+                )
+            if called in {"copy", "deepcopy", "deep_freeze"}:
+                violations.append(
+                    _p4b4_violation_v1(relative_path, node, f"generic-copy-freeze:{called}")
+                )
+            if (
+                type(node.func) is ast.Attribute
+                and node.func.attr == "get"
+                and (
+                    (
+                        len(node.args) >= 2
+                        and _last_name(node.func.value) not in {"balances", "totals"}
+                    )
+                    or any(keyword.arg == "default" for keyword in node.keywords)
+                )
+            ):
+                violations.append(
+                    _p4b4_violation_v1(relative_path, node, "authority-defaulting:get")
+                )
+            if called == "owned_intent_field_v1" and len(node.args) >= 3:
+                violations.append(
+                    _p4b4_violation_v1(
+                        relative_path, node, "authority-defaulting:owned_intent_field_v1"
+                    )
+                )
+            if called in {"set", "sorted"} and any(
+                type(part) is ast.Name
+                and any(
+                    token in part.id.lower() for token in ("read", "trace", "pool_ids", "observed")
+                )
+                for part in ast.walk(node)
+            ):
+                violations.append(
+                    _p4b4_violation_v1(relative_path, node, "route-read-renormalized")
+                )
+        if type(node) is ast.ExceptHandler:
+            caught = _last_name(node.type) if node.type is not None else "<bare>"
+            if caught in {"<bare>", "BaseException", "Exception"}:
+                violations.append(_p4b4_violation_v1(relative_path, node, f"broad-except:{caught}"))
+        if type(node) is ast.Attribute and type(node.value) is ast.Name and node.value.id == "json":
+            violations.append(
+                _p4b4_violation_v1(relative_path, node, f"json-reconstruction:{node.attr}")
+            )
+    for function in _top_level_functions_v1(module).values():
+        if function.name.startswith("_"):
+            continue
+        for argument in (*function.args.args, *function.args.kwonlyargs):
+            if any(token in argument.arg.lower() for token in _P4B4_AUTHORITY_PARAMETER_TOKENS):
+                violations.append(
+                    _p4b4_violation_v1(
+                        relative_path,
+                        argument,
+                        f"caller-authority-parameter:{function.name}:{argument.arg}",
+                    )
+                )
+    return violations
+
+
+def _p4b4_assigned_call_name_v1(
+    function: ast.FunctionDef,
+    call_name: str,
+) -> str | None:
+    matches: list[str] = []
+    for statement in ast.walk(function):
+        if type(statement) is not ast.Assign or len(statement.targets) != 1:
+            continue
+        if type(statement.targets[0]) is not ast.Name or type(statement.value) is not ast.Call:
+            continue
+        if _last_name(statement.value.func) == call_name:
+            matches.append(statement.targets[0].id)
+    return matches[0] if len(matches) == 1 else None
+
+
+def _check_p4b4_validator_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    violations: list[_Violation] = []
+    functions = _top_level_functions_v1(module)
+    public = functions.get("evaluate_settlement_strong_exact_v1")
+    admitted = functions.get("_evaluate_settlement_strong_exact_admitted_v1")
+    required_handlers = {
+        "_apply_create_pool_v1",
+        "_apply_route_fill_v1",
+        "_apply_single_swap_v1",
+        "_apply_add_liquidity_v1",
+        "_apply_remove_liquidity_v1",
+    }
+    required_functions = required_handlers | {
+        "evaluate_settlement_strong_exact_v1",
+        "_evaluate_settlement_strong_exact_admitted_v1",
+    }
+    for name in sorted(required_functions):
+        if name not in functions:
+            violations.append(_p4b4_violation_v1(relative_path, module, f"missing:{name}"))
+    if public is not None:
+        expected_parameters = {
+            "settlement": "OwnedSettlementV1",
+            "intents": "tuple[OwnedIntentV1,...]",
+            "pre_state": "ExactSpotPreStateV1",
+            "context": "StrongSettlementContextV1",
+        }
+        annotations = {
+            argument.arg: _normalized_annotation(argument.annotation)
+            for argument in (*public.args.args, *public.args.kwonlyargs)
+        }
+        for name, expected in expected_parameters.items():
+            if annotations.get(name) != expected:
+                violations.append(
+                    _p4b4_violation_v1(
+                        relative_path,
+                        public,
+                        f"exact-api-signature:{name}:{annotations.get(name) or '<missing>'}",
+                    )
+                )
+        if _normalized_annotation(public.returns) != "ExactStrongSettlementObservedV1":
+            violations.append(_p4b4_violation_v1(relative_path, public, "exact-api-return"))
+        exact_settlement_name = _p4b4_assigned_call_name_v1(public, "snapshot_settlement")
+        exact_intents_name = _p4b4_assigned_call_name_v1(public, "admit_intent_batch")
+        calls = _function_calls(public)
+        private_calls = tuple(
+            call
+            for call in calls
+            if _last_name(call.func) == "_evaluate_settlement_strong_exact_admitted_v1"
+        )
+        revalidation_lines = sorted(
+            call.lineno
+            for call in calls
+            if _last_name(call.func)
+            in {"snapshot_settlement", "admit_intent_batch", "__post_init__"}
+        )
+        revalidated_names = {
+            call.func.value.id
+            for call in calls
+            if type(call.func) is ast.Attribute
+            and call.func.attr == "__post_init__"
+            and type(call.func.value) is ast.Name
+        }
+        if exact_settlement_name is None or exact_intents_name is None:
+            violations.append(
+                _p4b4_violation_v1(relative_path, public, "public-recursive-revalidation-missing")
+            )
+        if len([call for call in calls if _last_name(call.func) == "__post_init__"]) < 2:
+            violations.append(
+                _p4b4_violation_v1(relative_path, public, "public-graph-revalidation-missing")
+            )
+        if len(private_calls) != 1:
+            violations.append(
+                _p4b4_violation_v1(relative_path, public, "public-private-sink-count")
+            )
+        elif revalidation_lines and private_calls[0].lineno <= max(revalidation_lines):
+            violations.append(
+                _p4b4_violation_v1(
+                    relative_path, private_calls[0], "public-sink-before-revalidation"
+                )
+            )
+        elif exact_settlement_name is not None and exact_intents_name is not None:
+            private_call = private_calls[0]
+            positional = tuple(
+                argument.id if type(argument) is ast.Name else "" for argument in private_call.args
+            )
+            keywords = {
+                keyword.arg: keyword.value.id
+                for keyword in private_call.keywords
+                if keyword.arg is not None and type(keyword.value) is ast.Name
+            }
+            private_names = positional or tuple(
+                keywords.get(name, "") for name in ("settlement", "intents", "pre_state", "context")
+            )
+            exact_flow = (
+                len(private_names) == 4
+                and private_names[:2] == (exact_settlement_name, exact_intents_name)
+                and private_names[2] in revalidated_names
+                and private_names[3] in revalidated_names
+            )
+            if not exact_flow:
+                violations.append(
+                    _p4b4_violation_v1(relative_path, private_call, "public-sink-dataflow-drift")
+                )
+    if admitted is not None:
+        call_names = {_last_name(call.func) for call in _function_calls(admitted)}
+        if "derive_exact_settlement_index_admitted_v1" not in call_names:
+            violations.append(
+                _p4b4_violation_v1(relative_path, admitted, "private-index-derivation-missing")
+            )
+        if {"snapshot_settlement", "admit_intent_batch"} & call_names:
+            violations.append(_p4b4_violation_v1(relative_path, admitted, "private-sink-readmits"))
+    all_call_names = {_last_name(call.func) for call in ast.walk(module) if type(call) is ast.Call}
+    for route_call in (
+        "derive_exact_route_binding_v1",
+        "replay_exact_route_observed_v1",
+        "route_binding_pins_exact_snapshot_observed_v1",
+    ):
+        if route_call not in all_call_names:
+            violations.append(
+                _p4b4_violation_v1(relative_path, module, f"exact-route-call-missing:{route_call}")
+            )
+    return violations
+
+
+def _check_p4b4_contract_v1(
+    module: ast.Module,
+    relative_path: str,
+) -> list[_Violation]:
+    if relative_path not in _P4B4_SOURCE_PATHS:
+        return []
+    violations = _check_p4b4_common_source_v1(module, relative_path)
+    violations.extend(_check_p4b4_exact_values_v1(module, relative_path))
+    if relative_path == _P4B4_VALIDATOR_PATH:
+        violations.extend(_check_p4b4_validator_v1(module, relative_path))
+    return violations
+
+
+def _p4b4_git_blob_id_v1(data: bytes) -> str:
+    framed = b"blob " + str(len(data)).encode("ascii") + b"\0" + data
+    return hashlib.sha1(framed, usedforsecurity=False).hexdigest()
+
+
+def _check_p4b4_protected_inputs_v1(repo_root: Path) -> list[_Violation]:
+    violations: list[_Violation] = []
+    enforce_presence = (repo_root / ".git").exists()
+    for relative_path, expected_blob in _P4B4_PROTECTED_GIT_BLOBS.items():
+        resolved = _scoped_path(repo_root, Path(relative_path))
+        if resolved is None or not resolved.is_file():
+            if enforce_presence:
+                violations.append(
+                    _Violation(relative_path, 0, 0, "FCIS_P4B4", "protected-input-missing")
+                )
+            continue
+        try:
+            actual_blob = _p4b4_git_blob_id_v1(resolved.read_bytes())
+        except OSError as exc:
+            violations.append(
+                _Violation(
+                    relative_path,
+                    0,
+                    0,
+                    "FCIS_P4B4",
+                    f"protected-input-read:{type(exc).__name__}",
+                )
+            )
+            continue
+        if actual_blob != expected_blob:
+            violations.append(
+                _Violation(
+                    relative_path,
+                    0,
+                    0,
+                    "FCIS_P4B4",
+                    f"protected-input-drift:{actual_blob}",
+                )
+            )
+    return violations
+
+
+def _p4b4_enum_values_from_path_v1(
+    repo_root: Path,
+    relative_path: str,
+    class_name: str,
+) -> frozenset[str] | None:
+    resolved = _scoped_path(repo_root, Path(relative_path))
+    if resolved is None or not resolved.is_file():
+        return None
+    try:
+        module = ast.parse(resolved.read_text(encoding="utf-8"), filename=relative_path)
+    except (OSError, UnicodeError, SyntaxError):
+        return None
+    class_def = _top_level_classes_v1(module).get(class_name)
+    members = _p4b3_enum_members_v1(class_def) if class_def is not None else None
+    return frozenset(members.values()) if members is not None else None
+
+
+def _check_p4b4_variant_coverage_v1(repo_root: Path) -> list[_Violation]:
+    validator_path = _scoped_path(repo_root, Path(_P4B4_VALIDATOR_PATH))
+    index_path = _scoped_path(repo_root, Path(_P4B4_INDEX_PATH))
+    if (
+        validator_path is None
+        or index_path is None
+        or not validator_path.is_file()
+        or not index_path.is_file()
+    ):
+        return []
+    try:
+        validator_module = ast.parse(
+            validator_path.read_text(encoding="utf-8"), filename=_P4B4_VALIDATOR_PATH
+        )
+        index_module = ast.parse(index_path.read_text(encoding="utf-8"), filename=_P4B4_INDEX_PATH)
+    except (OSError, UnicodeError, SyntaxError):
+        return []
+    intent_values = _p4b4_enum_values_from_path_v1(repo_root, "src/state/intents.py", "IntentKind")
+    fill_values = _p4b4_enum_values_from_path_v1(repo_root, "src/core/settlement.py", "FillAction")
+    violations: list[_Violation] = []
+    if intent_values is not None and intent_values != _P4B4_EXPECTED_INTENT_KIND_VALUES:
+        violations.append(
+            _p4b4_violation_v1(
+                _P4B4_VALIDATOR_PATH,
+                validator_module,
+                f"unsupported-intent-variant:{sorted(intent_values)}",
+            )
+        )
+    if fill_values is not None and fill_values != _P4B4_EXPECTED_FILL_ACTION_VALUES:
+        violations.append(
+            _p4b4_violation_v1(
+                _P4B4_INDEX_PATH,
+                index_module,
+                f"unsupported-fill-variant:{sorted(fill_values)}",
+            )
+        )
+    kind_assignments = {
+        statement.targets[0].id: statement.value.value
+        for statement in validator_module.body
+        if type(statement) is ast.Assign
+        and len(statement.targets) == 1
+        and type(statement.targets[0]) is ast.Name
+        and statement.targets[0].id.startswith("_KIND_")
+        and type(statement.value) is ast.Constant
+        and type(statement.value.value) is str
+    }
+    if frozenset(kind_assignments.values()) != _P4B4_EXPECTED_INTENT_KIND_VALUES:
+        violations.append(
+            _p4b4_violation_v1(
+                _P4B4_VALIDATOR_PATH, validator_module, "intent-dispatch-coverage-drift"
+            )
+        )
+    for name in sorted(kind_assignments):
+        if not any(
+            type(node) is ast.Name and type(node.ctx) is ast.Load and node.id == name
+            for node in ast.walk(validator_module)
+        ):
+            violations.append(
+                _p4b4_violation_v1(
+                    _P4B4_VALIDATOR_PATH, validator_module, f"intent-kind-unhandled:{name}"
+                )
+            )
+    combined_literals = {
+        node.value
+        for module in (validator_module, index_module)
+        for node in ast.walk(module)
+        if type(node) is ast.Constant and type(node.value) is str
+    }
+    for required in (*sorted(_P4B4_EXPECTED_FILL_ACTION_VALUES), "COW_NETTED"):
+        if required not in combined_literals:
+            violations.append(
+                _p4b4_violation_v1(
+                    _P4B4_INDEX_PATH, index_module, f"fill-variant-unhandled:{required}"
+                )
+            )
+    return violations
+
+
+def _check_p4b4_mount_isolation_v1(repo_root: Path) -> list[_Violation]:
+    validator_path = _scoped_path(repo_root, Path(_P4B4_VALIDATOR_PATH))
+    source_root = _scoped_path(repo_root, Path("src"))
+    if validator_path is None or not validator_path.is_file() or source_root is None:
+        return []
+    violations: list[_Violation] = []
+    for source_path in sorted(source_root.rglob("*.py")):
+        relative_path = source_path.relative_to(repo_root.resolve()).as_posix()
+        if relative_path == _P4B4_VALIDATOR_PATH:
+            continue
+        try:
+            module = ast.parse(source_path.read_text(encoding="utf-8"), filename=relative_path)
+        except (OSError, UnicodeError, SyntaxError):
+            continue
+        for node in ast.walk(module):
+            if type(node) is ast.ImportFrom:
+                module_name = node.module or ""
+                imports_validator = module_name.endswith("fcis_settlement_strong_validator") or (
+                    module_name.endswith("core")
+                    and any(
+                        alias.name == "fcis_settlement_strong_validator" for alias in node.names
+                    )
+                )
+                if imports_validator:
+                    violations.append(
+                        _p4b4_violation_v1(relative_path, node, "unmounted-validator-imported")
+                    )
+            elif type(node) is ast.Import and any(
+                alias.name.endswith("fcis_settlement_strong_validator") for alias in node.names
+            ):
+                violations.append(
+                    _p4b4_violation_v1(relative_path, node, "unmounted-validator-imported")
+                )
+    return violations
+
+
 def _check_p4b0_contract_v1(
     module: ast.Module,
     relative_path: str,
@@ -5706,7 +6452,8 @@ def _check_authority_path(
         + _check_m5_support_trace_contract_v5(module, display)
         + _check_m5_p3_contract_v1(module, display)
         + _check_p4b0_contract_v1(module, display)
-        + _check_p4b3_contract_v1(module, display),
+        + _check_p4b3_contract_v1(module, display)
+        + _check_p4b4_contract_v1(module, display),
     )
 
 
@@ -5715,6 +6462,7 @@ _SENSITIVE_SOURCE_CODES = {
     "CONSTRUCTION_CALLSITE",
     "FCIS_P4B0",
     "FCIS_P4B3",
+    "FCIS_P4B4",
     "DECLARATIVE_REGISTRY_EXECUTION",
     "OWNED_CONSTRUCTION_ESCAPE",
     "PATH_READ_ERROR",
@@ -5848,6 +6596,9 @@ def check_contract(
         checked_paths.append(display)
         violations.extend(path_violations)
     violations.extend(_check_sensitive_source_tree(repo_root))
+    violations.extend(_check_p4b4_protected_inputs_v1(repo_root))
+    violations.extend(_check_p4b4_variant_coverage_v1(repo_root))
+    violations.extend(_check_p4b4_mount_isolation_v1(repo_root))
     if requirements_path is not None:
         violations.extend(
             _check_requirement_coverage(repo_root, requirements_path, test_matrix_paths)
