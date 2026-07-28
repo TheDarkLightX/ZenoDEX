@@ -1,0 +1,91 @@
+{
+  "baseline_head": "c4879d8a570ad0418ccb8778ab9ea401ad0c5aca",
+  "entries": [
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_PREFLIGHT_20260728.md",
+      "sha256": "f3744932f9dee9fc4ef7f1d69b24b17f7ca737a6ef136c097dca545a7ef34bb1",
+      "size_bytes": 4790
+    },
+    {
+      "path": "docs/research/prompts/fcis_m5_p4b5a_fee_dimensions_and_custody_v1/README.md",
+      "sha256": "88a194c21db1294d495d3a76558d516fb73e3fda2a26d042e85cc0d2f9b20371",
+      "size_bytes": 959
+    },
+    {
+      "path": "docs/research/prompts/fcis_m5_p4b5a_fee_dimensions_and_custody_v1/IMPLEMENTATION_PROMPT.md",
+      "sha256": "c78c48928f117361f72b6bd6d4348a991fae1873f859b7694677d4e96e51e3a4",
+      "size_bytes": 8525
+    },
+    {
+      "path": "docs/research/prompts/fcis_m5_p4b5a_fee_dimensions_and_custody_v1/REVIEW_CHECKLIST.md",
+      "sha256": "b2ef0c2216816a76e1359ed71b60d9796aceffd2f3fa1a44ef96e28a186947e3",
+      "size_bytes": 2808
+    },
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_APPORTIONMENT_ARCHITECTURE_REVIEW_20260728.md",
+      "sha256": "66fb4762565f1a9ddc515f1d847f800959aa313b3a3b704878195dcdb86ab871",
+      "size_bytes": 20118
+    },
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_APPORTIONMENT_ARCHITECTURE_INDEPENDENT_REVIEW_20260728.md",
+      "sha256": "fe00d2cc9bfc873b2881bbc51addbb53cfa65665608e48cb49983b246240e210",
+      "size_bytes": 11937
+    },
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_APPORTIONMENT_ARCHITECTURE_CORRECTED_20260728.md",
+      "sha256": "193691ddd2412d154d3f06e6d2f0fecca58dc870eafa5c8a5ed3fce6d8de3b2a",
+      "size_bytes": 17306
+    },
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_APPORTIONMENT_ARCHITECTURE_CORRECTED_INDEPENDENT_REVIEW_20260728.md",
+      "sha256": "e6ccf3e42ba20a4252c4031ddac2f716467a23b8efeb2ea9648f304c55749b85",
+      "size_bytes": 12764
+    },
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_APPORTIONMENT_COUNTEREXAMPLES_20260728.py",
+      "sha256": "9fcb8ff5384f61ddffc0d14418cbdc75a9f2029445cef32a658c753af5f153fc",
+      "size_bytes": 4834
+    },
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_DYNAMIC_APPORTIONMENT_COUNTEREXAMPLES_20260728.py",
+      "sha256": "4e2db1ca5a885cdc3a51ed1ba0da92e1604ea72b450ee3ed43765872222e8c14",
+      "size_bytes": 6036
+    },
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_ADAPTIVE_POLICY_COUNTEREXAMPLE_D4.esso.yaml",
+      "sha256": "40e28937747fd757395714e2fbacd0bc10fbbe0a1aeedd01937a546ddc40c1c5",
+      "size_bytes": 7391
+    },
+    {
+      "path": "docs/research/prompts/fcis_m5_p4b5a_dynamic_apportionment_architecture_v1/README.md",
+      "sha256": "0551bb836e25a0d5bb84c36718b06e890b4863a0b818c2fa694baa389682c1d3",
+      "size_bytes": 3305
+    },
+    {
+      "path": "docs/research/prompts/fcis_m5_p4b5a_dynamic_apportionment_architecture_v1/PROBLEM_CONTRACT.md",
+      "sha256": "200ce18eecb5fe46f64587e419517cbf13e85954b14e393148185f34f1b82316",
+      "size_bytes": 14011
+    },
+    {
+      "path": "docs/research/prompts/fcis_m5_p4b5a_dynamic_apportionment_architecture_v1/AGENT_PROMPT.md",
+      "sha256": "4df4055a9c4f7c0c7c8527bfcf9cba1a3736774f6eea0b56d56a563f7c5e8958",
+      "size_bytes": 6416
+    },
+    {
+      "path": "docs/research/prompts/fcis_m5_p4b5a_dynamic_apportionment_architecture_v1/REVIEW_RUBRIC.md",
+      "sha256": "2337ede026edd1be9c5ec98baa16883a18e7e49948e9708abcc1c90e5907f310",
+      "size_bytes": 3198
+    },
+    {
+      "path": "docs/research/prompts/fcis_m5_p4b5a_dynamic_apportionment_architecture_v1/RESPONSE_TEMPLATE.md",
+      "sha256": "6f8c87c64096aa83ecab9cca15fc49ee83d11338c47df337fc288ac6cc6546d4",
+      "size_bytes": 1776
+    },
+    {
+      "path": "docs/research/prompts/fcis_m5_p4b5a_dynamic_apportionment_architecture_v1/check_packet.py",
+      "sha256": "67bd859dca2bb38c8683eab14998df1e2917ea6deaa40af2fbf143629f03ff16",
+      "size_bytes": 2724
+    }
+  ],
+  "schema": "zenodex/fcis/p4b5a-context-manifest/v1"
+}

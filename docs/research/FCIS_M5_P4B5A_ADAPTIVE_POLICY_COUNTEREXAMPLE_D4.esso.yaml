@@ -1,0 +1,236 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "fcis_m5_p4b5a_adaptive_policy_counterexample_d4"
+  created_by: "codex"
+  seed: 0
+  notes: >-
+    Bounded counterexample to a uniform sub-two-atom discrepancy claim for a
+    policy-independent scalar cursor when an authenticated administrator may
+    choose weights adaptively. D=4 and n=1 per epoch. At q=0,1,2,3 choose
+    weights (3,0,1), (1,1,2), (2,0,2), (4,0,0), respectively.
+observables:
+  state_vars: ["cursor", "steps", "role2_actual", "role2_ideal_numerator"]
+  effects: []
+types: []
+state_vars:
+  - id: "cursor"
+    role: "control"
+    type: { kind: "int", min: 0, max: 3 }
+  - id: "steps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "role2_actual"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "role2_ideal_numerator"
+    role: "data"
+    type: { kind: "int", min: 0, max: 32 }
+invariants:
+  - id: "ReachableWitnessTrace"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "and"
+          args:
+            - op: "="
+              args: [{ var: "steps" }, { const: 0 }]
+            - op: "="
+              args: [{ var: "cursor" }, { const: 0 }]
+            - op: "="
+              args: [{ var: "role2_actual" }, { const: 0 }]
+            - op: "="
+              args: [{ var: "role2_ideal_numerator" }, { const: 0 }]
+        - op: "and"
+          args:
+            - op: "="
+              args: [{ var: "steps" }, { const: 1 }]
+            - op: "="
+              args: [{ var: "cursor" }, { const: 1 }]
+            - op: "="
+              args: [{ var: "role2_actual" }, { const: 1 }]
+            - op: "="
+              args: [{ var: "role2_ideal_numerator" }, { const: 1 }]
+        - op: "and"
+          args:
+            - op: "="
+              args: [{ var: "steps" }, { const: 2 }]
+            - op: "="
+              args: [{ var: "cursor" }, { const: 2 }]
+            - op: "="
+              args: [{ var: "role2_actual" }, { const: 2 }]
+            - op: "="
+              args: [{ var: "role2_ideal_numerator" }, { const: 3 }]
+        - op: "and"
+          args:
+            - op: "="
+              args: [{ var: "steps" }, { const: 3 }]
+            - op: "="
+              args: [{ var: "cursor" }, { const: 3 }]
+            - op: "="
+              args: [{ var: "role2_actual" }, { const: 3 }]
+            - op: "="
+              args: [{ var: "role2_ideal_numerator" }, { const: 5 }]
+        - op: "and"
+          args:
+            - op: "="
+              args: [{ var: "steps" }, { const: 4 }]
+            - op: "="
+              args: [{ var: "cursor" }, { const: 0 }]
+            - op: "="
+              args: [{ var: "role2_actual" }, { const: 3 }]
+            - op: "="
+              args: [{ var: "role2_ideal_numerator" }, { const: 5 }]
+        - op: "and"
+          args:
+            - op: "="
+              args: [{ var: "steps" }, { const: 5 }]
+            - op: "="
+              args: [{ var: "cursor" }, { const: 1 }]
+            - op: "="
+              args: [{ var: "role2_actual" }, { const: 4 }]
+            - op: "="
+              args: [{ var: "role2_ideal_numerator" }, { const: 6 }]
+        - op: "and"
+          args:
+            - op: "="
+              args: [{ var: "steps" }, { const: 6 }]
+            - op: "="
+              args: [{ var: "cursor" }, { const: 2 }]
+            - op: "="
+              args: [{ var: "role2_actual" }, { const: 5 }]
+            - op: "="
+              args: [{ var: "role2_ideal_numerator" }, { const: 8 }]
+        - op: "and"
+          args:
+            - op: "="
+              args: [{ var: "steps" }, { const: 7 }]
+            - op: "="
+              args: [{ var: "cursor" }, { const: 3 }]
+            - op: "="
+              args: [{ var: "role2_actual" }, { const: 6 }]
+            - op: "="
+              args: [{ var: "role2_ideal_numerator" }, { const: 10 }]
+        - op: "and"
+          args:
+            - op: "="
+              args: [{ var: "steps" }, { const: 8 }]
+            - op: "="
+              args: [{ var: "cursor" }, { const: 0 }]
+            - op: "="
+              args: [{ var: "role2_actual" }, { const: 6 }]
+            - op: "="
+              args: [{ var: "role2_ideal_numerator" }, { const: 10 }]
+  - id: "AdaptivePolicyRole2DiscrepancyBelowTwoAtoms"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - op: "-"
+          args:
+            - op: "*"
+              args: [{ var: "role2_actual" }, { const: 4 }]
+            - { var: "role2_ideal_numerator" }
+        - { const: 7 }
+init:
+  - var: "cursor"
+    expr: { const: 0 }
+  - var: "steps"
+    expr: { const: 0 }
+  - var: "role2_actual"
+    expr: { const: 0 }
+  - var: "role2_ideal_numerator"
+    expr: { const: 0 }
+actions:
+  - id: "adaptive_policy_at_q0"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "cursor" }, { const: 0 }]
+        - op: "<"
+          args: [{ var: "steps" }, { const: 8 }]
+    updates:
+      - var: "cursor"
+        expr: { const: 1 }
+      - var: "steps"
+        expr: { op: "+", args: [{ var: "steps" }, { const: 1 }] }
+      - var: "role2_actual"
+        expr: { op: "+", args: [{ var: "role2_actual" }, { const: 1 }] }
+      - var: "role2_ideal_numerator"
+        expr:
+          op: "+"
+          args: [{ var: "role2_ideal_numerator" }, { const: 1 }]
+    effects: {}
+  - id: "adaptive_policy_at_q1"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "cursor" }, { const: 1 }]
+        - op: "<"
+          args: [{ var: "steps" }, { const: 8 }]
+    updates:
+      - var: "cursor"
+        expr: { const: 2 }
+      - var: "steps"
+        expr: { op: "+", args: [{ var: "steps" }, { const: 1 }] }
+      - var: "role2_actual"
+        expr: { op: "+", args: [{ var: "role2_actual" }, { const: 1 }] }
+      - var: "role2_ideal_numerator"
+        expr:
+          op: "+"
+          args: [{ var: "role2_ideal_numerator" }, { const: 2 }]
+    effects: {}
+  - id: "adaptive_policy_at_q2"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "cursor" }, { const: 2 }]
+        - op: "<"
+          args: [{ var: "steps" }, { const: 8 }]
+    updates:
+      - var: "cursor"
+        expr: { const: 3 }
+      - var: "steps"
+        expr: { op: "+", args: [{ var: "steps" }, { const: 1 }] }
+      - var: "role2_actual"
+        expr: { op: "+", args: [{ var: "role2_actual" }, { const: 1 }] }
+      - var: "role2_ideal_numerator"
+        expr:
+          op: "+"
+          args: [{ var: "role2_ideal_numerator" }, { const: 2 }]
+    effects: {}
+  - id: "adaptive_policy_at_q3"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "cursor" }, { const: 3 }]
+        - op: "<"
+          args: [{ var: "steps" }, { const: 8 }]
+    updates:
+      - var: "cursor"
+        expr: { const: 0 }
+      - var: "steps"
+        expr: { op: "+", args: [{ var: "steps" }, { const: 1 }] }
+      - var: "role2_actual"
+        expr: { var: "role2_actual" }
+      - var: "role2_ideal_numerator"
+        expr: { var: "role2_ideal_numerator" }
+    effects: {}
+refinement:
+  state_abstraction:
+    - var: "cursor"
+      expr: { var: "cursor" }
+    - var: "steps"
+      expr: { var: "steps" }
+    - var: "role2_actual"
+      expr: { var: "role2_actual" }
+    - var: "role2_ideal_numerator"
+      expr: { var: "role2_ideal_numerator" }
