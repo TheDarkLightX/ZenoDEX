@@ -1,0 +1,242 @@
+{
+  "base_head": "d434d29673692ef78f2db5f7a7cfae7a737fb2d6",
+  "cases": [
+    {
+      "expected": {
+        "accept": true,
+        "body_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/configuration-body/v2\",\"value\":{\"accepted_language_version\":\"PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2\",\"activation_sequence\":115792089237316195423570985008687907853269984665640564039457584007913129639935,\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"chain_deployment_id\":\"zenodex:testnet:α\",\"configuration_version\":7,\"fee_distribution_domain_id\":\"protocol-fees\",\"policy\":{\"buyback_bps\":3333,\"buyback_destination\":\"buyback:α\",\"rewards_bps\":3334,\"rewards_destination\":\"rewards\",\"treasury_bps\":3333,\"treasury_destination\":\"treasury\"},\"policy_root\":\"0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5\"}}",
+        "claim_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/configuration-claim/v2\",\"value\":{\"body\":{\"accepted_language_version\":\"PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2\",\"activation_sequence\":115792089237316195423570985008687907853269984665640564039457584007913129639935,\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"chain_deployment_id\":\"zenodex:testnet:α\",\"configuration_version\":7,\"fee_distribution_domain_id\":\"protocol-fees\",\"policy\":{\"buyback_bps\":3333,\"buyback_destination\":\"buyback:α\",\"rewards_bps\":3334,\"rewards_destination\":\"rewards\",\"treasury_bps\":3333,\"treasury_destination\":\"treasury\"},\"policy_root\":\"0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5\"},\"configuration_root\":\"0x064cfc1786701ec8e4715989175e3f0751a263bbd83aa868502f11e72a8d8b10\"}}",
+        "configuration_root": "0x064cfc1786701ec8e4715989175e3f0751a263bbd83aa868502f11e72a8d8b10",
+        "policy_root": "0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5",
+        "policy_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/policy/v2\",\"value\":{\"buyback_bps\":3333,\"buyback_destination\":\"buyback:α\",\"rewards_bps\":3334,\"rewards_destination\":\"rewards\",\"treasury_bps\":3333,\"treasury_destination\":\"treasury\"}}",
+        "validated_claim_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/validated-configuration-claim/v2\",\"value\":{\"body\":{\"accepted_language_version\":\"PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2\",\"activation_sequence\":115792089237316195423570985008687907853269984665640564039457584007913129639935,\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"chain_deployment_id\":\"zenodex:testnet:α\",\"configuration_version\":7,\"fee_distribution_domain_id\":\"protocol-fees\",\"policy\":{\"buyback_bps\":3333,\"buyback_destination\":\"buyback:α\",\"rewards_bps\":3334,\"rewards_destination\":\"rewards\",\"treasury_bps\":3333,\"treasury_destination\":\"treasury\"},\"policy_root\":\"0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5\"},\"configuration_root\":\"0x064cfc1786701ec8e4715989175e3f0751a263bbd83aa868502f11e72a8d8b10\"}}"
+      },
+      "id": "valid_u256_maximum",
+      "input": {
+        "body": {
+          "accepted_language_version": "PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2",
+          "activation_sequence": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "chain_deployment_id": "zenodex:testnet:α",
+          "configuration_version": 7,
+          "fee_distribution_domain_id": "protocol-fees",
+          "policy": {
+            "buyback_bps": 3333,
+            "buyback_destination": "buyback:α",
+            "rewards_bps": 3334,
+            "rewards_destination": "rewards",
+            "treasury_bps": 3333,
+            "treasury_destination": "treasury"
+          },
+          "policy_root": "0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5"
+        },
+        "configuration_root": "0x064cfc1786701ec8e4715989175e3f0751a263bbd83aa868502f11e72a8d8b10"
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "body_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/configuration-body/v2\",\"value\":{\"accepted_language_version\":\"PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2\",\"activation_sequence\":0,\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"chain_deployment_id\":\"zenodex:testnet:α\",\"configuration_version\":7,\"fee_distribution_domain_id\":\"protocol-fees\",\"policy\":{\"buyback_bps\":3333,\"buyback_destination\":\"buyback:α\",\"rewards_bps\":3334,\"rewards_destination\":\"rewards\",\"treasury_bps\":3333,\"treasury_destination\":\"treasury\"},\"policy_root\":\"0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5\"}}",
+        "claim_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/configuration-claim/v2\",\"value\":{\"body\":{\"accepted_language_version\":\"PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2\",\"activation_sequence\":0,\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"chain_deployment_id\":\"zenodex:testnet:α\",\"configuration_version\":7,\"fee_distribution_domain_id\":\"protocol-fees\",\"policy\":{\"buyback_bps\":3333,\"buyback_destination\":\"buyback:α\",\"rewards_bps\":3334,\"rewards_destination\":\"rewards\",\"treasury_bps\":3333,\"treasury_destination\":\"treasury\"},\"policy_root\":\"0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5\"},\"configuration_root\":\"0xd2ef7b4ba7e5ad846a1050b2221a37c3669585d3fe50de9071bc8f1f6b3f1d18\"}}",
+        "configuration_root": "0xd2ef7b4ba7e5ad846a1050b2221a37c3669585d3fe50de9071bc8f1f6b3f1d18",
+        "policy_root": "0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5",
+        "policy_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/policy/v2\",\"value\":{\"buyback_bps\":3333,\"buyback_destination\":\"buyback:α\",\"rewards_bps\":3334,\"rewards_destination\":\"rewards\",\"treasury_bps\":3333,\"treasury_destination\":\"treasury\"}}",
+        "validated_claim_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/validated-configuration-claim/v2\",\"value\":{\"body\":{\"accepted_language_version\":\"PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2\",\"activation_sequence\":0,\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"chain_deployment_id\":\"zenodex:testnet:α\",\"configuration_version\":7,\"fee_distribution_domain_id\":\"protocol-fees\",\"policy\":{\"buyback_bps\":3333,\"buyback_destination\":\"buyback:α\",\"rewards_bps\":3334,\"rewards_destination\":\"rewards\",\"treasury_bps\":3333,\"treasury_destination\":\"treasury\"},\"policy_root\":\"0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5\"},\"configuration_root\":\"0xd2ef7b4ba7e5ad846a1050b2221a37c3669585d3fe50de9071bc8f1f6b3f1d18\"}}"
+      },
+      "id": "zero_activation",
+      "input": {
+        "body": {
+          "accepted_language_version": "PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2",
+          "activation_sequence": 0,
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "chain_deployment_id": "zenodex:testnet:α",
+          "configuration_version": 7,
+          "fee_distribution_domain_id": "protocol-fees",
+          "policy": {
+            "buyback_bps": 3333,
+            "buyback_destination": "buyback:α",
+            "rewards_bps": 3334,
+            "rewards_destination": "rewards",
+            "treasury_bps": 3333,
+            "treasury_destination": "treasury"
+          },
+          "policy_root": "0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5"
+        },
+        "configuration_root": "0xd2ef7b4ba7e5ad846a1050b2221a37c3669585d3fe50de9071bc8f1f6b3f1d18"
+      }
+    },
+    {
+      "expected": {
+        "accept": true,
+        "body_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/configuration-body/v2\",\"value\":{\"accepted_language_version\":\"PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2\",\"activation_sequence\":115792089237316195423570985008687907853269984665640564039457584007913129639935,\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"chain_deployment_id\":\"attacker:deployment\",\"configuration_version\":7,\"fee_distribution_domain_id\":\"attacker-domain\",\"policy\":{\"buyback_bps\":10000,\"buyback_destination\":\"mallory\",\"rewards_bps\":0,\"rewards_destination\":\"unused-rewards\",\"treasury_bps\":0,\"treasury_destination\":\"unused-treasury\"},\"policy_root\":\"0x98c8907b3f511ed28c4bfb38877a78499a61d3ea9c0ad50e4d0f699c63a536af\"}}",
+        "claim_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/configuration-claim/v2\",\"value\":{\"body\":{\"accepted_language_version\":\"PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2\",\"activation_sequence\":115792089237316195423570985008687907853269984665640564039457584007913129639935,\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"chain_deployment_id\":\"attacker:deployment\",\"configuration_version\":7,\"fee_distribution_domain_id\":\"attacker-domain\",\"policy\":{\"buyback_bps\":10000,\"buyback_destination\":\"mallory\",\"rewards_bps\":0,\"rewards_destination\":\"unused-rewards\",\"treasury_bps\":0,\"treasury_destination\":\"unused-treasury\"},\"policy_root\":\"0x98c8907b3f511ed28c4bfb38877a78499a61d3ea9c0ad50e4d0f699c63a536af\"},\"configuration_root\":\"0xae5eaebdd58a4cd417d0bf7c63c6a260b6b9afe7f7334cfd0b9b8340acde06e9\"}}",
+        "configuration_root": "0xae5eaebdd58a4cd417d0bf7c63c6a260b6b9afe7f7334cfd0b9b8340acde06e9",
+        "policy_root": "0x98c8907b3f511ed28c4bfb38877a78499a61d3ea9c0ad50e4d0f699c63a536af",
+        "policy_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/policy/v2\",\"value\":{\"buyback_bps\":10000,\"buyback_destination\":\"mallory\",\"rewards_bps\":0,\"rewards_destination\":\"unused-rewards\",\"treasury_bps\":0,\"treasury_destination\":\"unused-treasury\"}}",
+        "validated_claim_utf8": "{\"schema\":\"zenodex/fcis/fee-distribution/validated-configuration-claim/v2\",\"value\":{\"body\":{\"accepted_language_version\":\"PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2\",\"activation_sequence\":115792089237316195423570985008687907853269984665640564039457584007913129639935,\"algorithm_version\":\"SUPPORT_RESPECTING_GREEDY_DEFICIT_V1\",\"chain_deployment_id\":\"attacker:deployment\",\"configuration_version\":7,\"fee_distribution_domain_id\":\"attacker-domain\",\"policy\":{\"buyback_bps\":10000,\"buyback_destination\":\"mallory\",\"rewards_bps\":0,\"rewards_destination\":\"unused-rewards\",\"treasury_bps\":0,\"treasury_destination\":\"unused-treasury\"},\"policy_root\":\"0x98c8907b3f511ed28c4bfb38877a78499a61d3ea9c0ad50e4d0f699c63a536af\"},\"configuration_root\":\"0xae5eaebdd58a4cd417d0bf7c63c6a260b6b9afe7f7334cfd0b9b8340acde06e9\"}}"
+      },
+      "id": "self_consistent_attacker_configuration",
+      "input": {
+        "body": {
+          "accepted_language_version": "PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2",
+          "activation_sequence": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "chain_deployment_id": "attacker:deployment",
+          "configuration_version": 7,
+          "fee_distribution_domain_id": "attacker-domain",
+          "policy": {
+            "buyback_bps": 10000,
+            "buyback_destination": "mallory",
+            "rewards_bps": 0,
+            "rewards_destination": "unused-rewards",
+            "treasury_bps": 0,
+            "treasury_destination": "unused-treasury"
+          },
+          "policy_root": "0x98c8907b3f511ed28c4bfb38877a78499a61d3ea9c0ad50e4d0f699c63a536af"
+        },
+        "configuration_root": "0xae5eaebdd58a4cd417d0bf7c63c6a260b6b9afe7f7334cfd0b9b8340acde06e9"
+      }
+    },
+    {
+      "expected": {
+        "accept": false,
+        "code": "algorithm_version_mismatch",
+        "path": [
+          "configuration",
+          "body",
+          "algorithm_version"
+        ]
+      },
+      "id": "algorithm_substitution",
+      "input": {
+        "body": {
+          "accepted_language_version": "PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2",
+          "activation_sequence": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+          "algorithm_version": "OTHER_ALGORITHM",
+          "chain_deployment_id": "zenodex:testnet:α",
+          "configuration_version": 7,
+          "fee_distribution_domain_id": "protocol-fees",
+          "policy": {
+            "buyback_bps": 3333,
+            "buyback_destination": "buyback:α",
+            "rewards_bps": 3334,
+            "rewards_destination": "rewards",
+            "treasury_bps": 3333,
+            "treasury_destination": "treasury"
+          },
+          "policy_root": "0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5"
+        },
+        "configuration_root": "0x3aff39c94cfb8bda4ffdb12779b7b1e8cceb508ec412d1554271e39ae2dbfcf1"
+      }
+    },
+    {
+      "expected": {
+        "accept": false,
+        "code": "accepted_language_version_mismatch",
+        "path": [
+          "configuration",
+          "body",
+          "accepted_language_version"
+        ]
+      },
+      "id": "accepted_language_substitution",
+      "input": {
+        "body": {
+          "accepted_language_version": "OTHER_LANGUAGE",
+          "activation_sequence": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "chain_deployment_id": "zenodex:testnet:α",
+          "configuration_version": 7,
+          "fee_distribution_domain_id": "protocol-fees",
+          "policy": {
+            "buyback_bps": 3333,
+            "buyback_destination": "buyback:α",
+            "rewards_bps": 3334,
+            "rewards_destination": "rewards",
+            "treasury_bps": 3333,
+            "treasury_destination": "treasury"
+          },
+          "policy_root": "0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5"
+        },
+        "configuration_root": "0xd386fcd4b8ea67f4f1d5df76e9830cf4123e7e178e5d39d17d9818502ad28211"
+      }
+    },
+    {
+      "expected": {
+        "accept": false,
+        "code": "policy_root_mismatch",
+        "path": [
+          "configuration",
+          "body",
+          "policy_root"
+        ]
+      },
+      "id": "policy_root_substitution",
+      "input": {
+        "body": {
+          "accepted_language_version": "PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2",
+          "activation_sequence": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "chain_deployment_id": "zenodex:testnet:α",
+          "configuration_version": 7,
+          "fee_distribution_domain_id": "protocol-fees",
+          "policy": {
+            "buyback_bps": 3333,
+            "buyback_destination": "buyback:α",
+            "rewards_bps": 3334,
+            "rewards_destination": "rewards",
+            "treasury_bps": 3333,
+            "treasury_destination": "treasury"
+          },
+          "policy_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "configuration_root": "0xfdd06427a297cc2da09c05755a5e0797a338fe063056bad603122511e6ec03fb"
+      }
+    },
+    {
+      "expected": {
+        "accept": false,
+        "code": "configuration_root_mismatch",
+        "path": [
+          "configuration",
+          "configuration_root"
+        ]
+      },
+      "id": "configuration_root_substitution",
+      "input": {
+        "body": {
+          "accepted_language_version": "PROVISIONAL_FEES_NO_SAME_BATCH_FUNDING_V2",
+          "activation_sequence": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+          "algorithm_version": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
+          "chain_deployment_id": "zenodex:testnet:α",
+          "configuration_version": 7,
+          "fee_distribution_domain_id": "protocol-fees",
+          "policy": {
+            "buyback_bps": 3333,
+            "buyback_destination": "buyback:α",
+            "rewards_bps": 3334,
+            "rewards_destination": "rewards",
+            "treasury_bps": 3333,
+            "treasury_destination": "treasury"
+          },
+          "policy_root": "0x183dfec0689e1063b6116b40ac0cd2c570adc1c895c91223209f00f836790dc5"
+        },
+        "configuration_root": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  ],
+  "generator_sha256": "076eaadfc1a61bb54824b0eec293add05210f26928c3af18f8d919f0fc39edee",
+  "implementation_contract_sha256": "bf9fa88ab0a09df020ce3210bd6ded7604f131eab44f9f6e9addfb2aa42816f7",
+  "python_source_sha256": {
+    "src/core/fcis_fee_distribution_configuration_admission.py": "4dfab981288cbb7a93156b4d21a8ea05ad650211c9d73ea45f7a13ea7ab83d9c",
+    "src/core/fcis_fee_distribution_configuration_codec.py": "81528f64128979ce90571a842e884ac83c50b5c22ad1a2d81f41b91504423d14",
+    "src/core/fcis_fee_distribution_configuration_schema.py": "9c7e72c50800b7edf604fa53272a04c10a42a2f4efbe3e51892a4178fd64b5bc",
+    "src/core/fcis_fee_distribution_configuration_values.py": "4847c1710d6b8a3a59759299e321257a5459588d6ce40616df216a5132fd859c",
+    "src/core/fcis_fee_distribution_configuration_verification.py": "3faa435385adf939ebc4e4233eff0b0cea7cd4344f2c20b5ed63b2ceed1e7914"
+  },
+  "rust_source_sha256": {
+    "rust-runtime/crates/zenodex-runtime-core/src/fcis_fee_distribution_configuration.rs": "2f7b6aee801c48aff4084bd5fe0c84b40152aa219f00a006665752f2e8bcdff2"
+  },
+  "schema_revision": "zenodex/fcis/fee-distribution/configuration/v2",
+  "version": 2
+}

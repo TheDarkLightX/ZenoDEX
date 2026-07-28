@@ -69,6 +69,13 @@ FEE_APPORTIONMENT_AUTHORITY_PATHS = (
     Path("src/core/fcis_fee_apportionment_schema.py"),
     Path("src/core/fcis_fee_apportionment_values.py"),
 )
+FEE_DISTRIBUTION_CONFIGURATION_AUTHORITY_PATHS = (
+    Path("src/core/fcis_fee_distribution_configuration_admission.py"),
+    Path("src/core/fcis_fee_distribution_configuration_codec.py"),
+    Path("src/core/fcis_fee_distribution_configuration_schema.py"),
+    Path("src/core/fcis_fee_distribution_configuration_values.py"),
+    Path("src/core/fcis_fee_distribution_configuration_verification.py"),
+)
 AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/fcis_amm_dispatch.py"),
     Path("src/core/fcis_create_pool_event.py"),
@@ -88,6 +95,7 @@ AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/fcis_legacy_refinement_values.py"),
     *FEE_CUSTODY_AUTHORITY_PATHS,
     *FEE_APPORTIONMENT_AUTHORITY_PATHS,
+    *FEE_DISTRIBUTION_CONFIGURATION_AUTHORITY_PATHS,
     Path("src/core/fcis_authority_admission.py"),
     Path("src/core/fcis_authority_dispatch.py"),
     Path("src/core/fcis_authority_schema.py"),
@@ -287,6 +295,7 @@ _PROFILE_PATHS = (
     "src/state/fcis_execution_context_admission.py",
     "src/core/fcis_fee_custody_admission.py",
     "src/core/fcis_fee_apportionment_admission.py",
+    "src/core/fcis_fee_distribution_configuration_admission.py",
 )
 _P4B0_ADMISSION_PATH = "src/core/fcis_legacy_refinement_admission.py"
 _P4B0_AUTHORITY_PATHS = frozenset(
@@ -360,6 +369,13 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
         "src/core/fcis_fee_apportionment_allocator.py",
         "src/core/fcis_fee_apportionment_values.py",
     ),
+    "_VALIDATED_FEE_CONFIGURATION_CLAIM_TOKEN_V2": (
+        "src/core/fcis_fee_distribution_configuration_values.py",
+    ),
+    "_validated_fee_distribution_configuration_claim_v2": (
+        "src/core/fcis_fee_distribution_configuration_values.py",
+        "src/core/fcis_fee_distribution_configuration_verification.py",
+    ),
     "_encode_admitted": (
         "src/core/fcis_authority_admission.py",
         "src/state/state_admission_profile.py",
@@ -423,6 +439,8 @@ _PRIVATE_AUTHORITY_REFLECTION_MODULES = frozenset(
         "src.core.fcis_fee_custody_values",
         "src.core.fcis_fee_apportionment_admission",
         "src.core.fcis_fee_apportionment_values",
+        "src.core.fcis_fee_distribution_configuration_admission",
+        "src.core.fcis_fee_distribution_configuration_values",
         "src.core.fcis_commit_bundle_derivation",
         "src.core.fcis_commit_reference",
         "src.core.fcis_support_profile_v5",
@@ -6481,7 +6499,14 @@ def _check_p4b0_contract_v1(
 
 
 _P4B5A_FEE_APPORTIONMENT_PATHS = frozenset(
-    path.as_posix() for path in FEE_APPORTIONMENT_AUTHORITY_PATHS
+    path.as_posix()
+    for path in (
+        *FEE_APPORTIONMENT_AUTHORITY_PATHS,
+        *FEE_DISTRIBUTION_CONFIGURATION_AUTHORITY_PATHS,
+    )
+)
+_P4B5A_FEE_CONFIGURATION_PATHS = frozenset(
+    path.as_posix() for path in FEE_DISTRIBUTION_CONFIGURATION_AUTHORITY_PATHS
 )
 _P4B5A_FORBIDDEN_IMPORT_TAILS = frozenset(
     {
@@ -6528,6 +6553,24 @@ def _check_p4b5a_fee_apportionment_v2(
         return []
     violations: list[_Violation] = []
     for node in ast.walk(module):
+        if relative_path in _P4B5A_FEE_CONFIGURATION_PATHS:
+            symbol = (
+                node.name
+                if type(node) in {ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef}
+                else _last_name(node)
+            )
+            if symbol in {
+                "AuthenticatedFeeDistributionConfigurationV2",
+                "_AUTHENTICATED_FEE_CONFIGURATION_TOKEN_V2",
+                "_authenticated_fee_distribution_configuration_v2",
+            }:
+                violations.append(
+                    _p4b5a_violation_v2(
+                        relative_path,
+                        node,
+                        f"premature-configuration-authority:{symbol}",
+                    )
+                )
         if type(node) in {ast.Import, ast.ImportFrom}:
             for imported_module in _p4b4_imported_modules_v1(node):
                 tail = imported_module.rsplit(".", 1)[-1]

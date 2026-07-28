@@ -11,6 +11,7 @@ from tools.check_fcis_authority_snapshot_contract import (
     EXACT_CONSUMERS_AUTHORITY_PATHS,
     EXACT_REPLAY_AUTHORITY_PATHS,
     FEE_APPORTIONMENT_AUTHORITY_PATHS,
+    FEE_DISTRIBUTION_CONFIGURATION_AUTHORITY_PATHS,
     FINAL_MOUNT_AUTHORITY_PATHS,
     STATE_SUBSTRATE_AUTHORITY_PATHS,
     check_contract,
@@ -75,6 +76,7 @@ def test_m5_authority_graph_paths_are_mandatory() -> None:
         Path("src/core/fcis_fee_custody_transition.py"),
         Path("src/core/fcis_fee_custody_values.py"),
         *FEE_APPORTIONMENT_AUTHORITY_PATHS,
+        *FEE_DISTRIBUTION_CONFIGURATION_AUTHORITY_PATHS,
         Path("src/core/fcis_outbox_values.py"),
         Path("src/core/fcis_transition_budget.py"),
         Path("src/core/fcis_transition_values.py"),
@@ -1445,6 +1447,8 @@ def test_checker_rejects_private_capability_attribute_capture(
         "from src.core.fcis_fee_apportionment_values import _FEE_APPORTIONMENT_RESULT_TOKEN_V2\n",
         "from src.core.fcis_fee_apportionment_values import _asset_fee_allocation_v2\n",
         "from src.core.fcis_fee_apportionment_values import _fee_apportionment_ok_v2\n",
+        "from src.core.fcis_fee_distribution_configuration_values import _VALIDATED_FEE_CONFIGURATION_CLAIM_TOKEN_V2\n",
+        "from src.core.fcis_fee_distribution_configuration_values import _validated_fee_distribution_configuration_claim_v2\n",
     ],
 )
 def test_checker_rejects_private_admitted_sink_imports_outside_evaluator(
@@ -1770,6 +1774,7 @@ def test_checker_allows_unmounted_evaluator_only_in_shadow_adapter(
         "src/state/fcis_execution_context_admission.py",
         "src/core/fcis_fee_custody_admission.py",
         "src/core/fcis_fee_apportionment_admission.py",
+        "src/core/fcis_fee_distribution_configuration_admission.py",
     ],
 )
 def test_checker_allows_internal_engine_only_in_explicit_profile_facades(
@@ -1969,6 +1974,7 @@ def test_checker_rejects_caller_selected_profile_binding(tmp_path: Path) -> None
         "src/state/fcis_execution_context_admission.py",
         "src/core/fcis_fee_custody_admission.py",
         "src/core/fcis_fee_apportionment_admission.py",
+        "src/core/fcis_fee_distribution_configuration_admission.py",
     ],
 )
 def test_checker_rejects_second_public_entrypoint_in_each_profile(
@@ -3234,7 +3240,10 @@ def test_p4b4_final_mount_count_remains_exactly_64() -> None:
     assert not _p4b4_details(report)
 
 
-_P4B5A_PATHS = FEE_APPORTIONMENT_AUTHORITY_PATHS
+_P4B5A_PATHS = (
+    *FEE_APPORTIONMENT_AUTHORITY_PATHS,
+    *FEE_DISTRIBUTION_CONFIGURATION_AUTHORITY_PATHS,
+)
 
 
 def _p4b5a_source(relative: Path) -> str:
@@ -3299,6 +3308,11 @@ def test_p4b5a_checker_accepts_each_current_contract_surface(
             "\nfrom ..state.balances import BalanceTable\n",
             "obsolete-or-mounted-import:state.balances",
         ),
+        (
+            Path("src/core/fcis_fee_distribution_configuration_verification.py"),
+            "\nfrom .fcis_step_evaluator import evaluate_fcis_step_candidate_v1\n",
+            "obsolete-or-mounted-import:fcis_step_evaluator",
+        ),
     ),
 )
 def test_p4b5a_checker_kills_forbidden_boundary_mutations(
@@ -3326,3 +3340,34 @@ def test_p4b5a_checker_kills_registry_id_removal(tmp_path: Path) -> None:
         source.replace(anchor, "", 1),
     )
     assert "PROFILE_REGISTRY_DRIFT" in _codes(report)
+
+
+def test_p4b5a_checker_kills_configuration_registry_id_removal(
+    tmp_path: Path,
+) -> None:
+    relative = Path("src/core/fcis_fee_distribution_configuration_admission.py")
+    source = _p4b5a_source(relative)
+    anchor = '    "zenodex/fcis/fee-distribution/configuration-body/v2",\n'
+    assert source.count(anchor) == 2
+    report = _run_p4b5a_source(
+        tmp_path,
+        relative,
+        source.replace(anchor, "", 1),
+    )
+    assert "PROFILE_REGISTRY_DRIFT" in _codes(report)
+
+
+def test_p4b5a_checker_kills_premature_configuration_authority(
+    tmp_path: Path,
+) -> None:
+    relative = Path("src/core/fcis_fee_distribution_configuration_values.py")
+    source = _p4b5a_source(relative)
+    report = _run_p4b5a_source(
+        tmp_path,
+        relative,
+        source + "\nclass AuthenticatedFeeDistributionConfigurationV2:\n" + "    pass\n",
+    )
+    assert (
+        "premature-configuration-authority:AuthenticatedFeeDistributionConfigurationV2"
+        in _p4b5a_details(report)
+    )

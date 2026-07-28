@@ -28,6 +28,7 @@ pub mod canonical;
 pub mod cpmm_swap;
 pub mod error;
 pub mod fcis_fee_apportionment;
+pub mod fcis_fee_distribution_configuration;
 pub mod fee_router;
 pub mod perp_account_ops;
 pub mod perp_advance_epoch;
