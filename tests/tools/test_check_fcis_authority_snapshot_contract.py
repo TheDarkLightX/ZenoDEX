@@ -67,6 +67,12 @@ def test_m5_authority_graph_paths_are_mandatory() -> None:
         Path("src/core/fcis_commit_reference.py"),
         Path("src/core/fcis_decision_derivation.py"),
         Path("src/core/fcis_decision_values.py"),
+        Path("src/core/fcis_fee_custody.py"),
+        Path("src/core/fcis_fee_custody_admission.py"),
+        Path("src/core/fcis_fee_custody_codec.py"),
+        Path("src/core/fcis_fee_custody_schema.py"),
+        Path("src/core/fcis_fee_custody_transition.py"),
+        Path("src/core/fcis_fee_custody_values.py"),
         Path("src/core/fcis_outbox_values.py"),
         Path("src/core/fcis_transition_budget.py"),
         Path("src/core/fcis_transition_values.py"),
@@ -1432,6 +1438,8 @@ def test_checker_rejects_private_capability_attribute_capture(
         "_evaluate_settlement_strong_admitted_v1\n",
         "from src.state.support_root import "
         "_compute_support_state_root_for_batch_owned_admitted_v1\n",
+        "from src.core.fcis_fee_custody_values import _FEE_CUSTODY_RESULT_TOKEN_V2\n",
+        "from src.core.fcis_fee_custody_values import _fee_custody_ok_v2\n",
     ],
 )
 def test_checker_rejects_private_admitted_sink_imports_outside_evaluator(
@@ -1755,6 +1763,7 @@ def test_checker_allows_unmounted_evaluator_only_in_shadow_adapter(
         "src/state/state_admission_profile.py",
         "src/state/lp_duration_policy_admission.py",
         "src/state/fcis_execution_context_admission.py",
+        "src/core/fcis_fee_custody_admission.py",
     ],
 )
 def test_checker_allows_internal_engine_only_in_explicit_profile_facades(
@@ -1888,6 +1897,49 @@ def test_checker_rejects_manifest_check_bound_to_a_different_registry(
     assert "PROFILE_REGISTRY_BINDING" in _codes(_run(tmp_path, _COMPLIANT))
 
 
+def _run_fee_custody_profile_source(
+    tmp_path: Path,
+    source: str,
+) -> dict[str, object]:
+    relative = Path("src/core/fcis_fee_custody_admission.py")
+    profile = tmp_path / relative
+    profile.parent.mkdir(parents=True)
+    profile.write_text(source, encoding="utf-8")
+    return check_contract(
+        repo_root=tmp_path,
+        authority_paths=(relative,),
+        requirements_path=None,
+        test_matrix_paths=(),
+        profile="authority-graph",
+    )
+
+
+def test_checker_rejects_fee_custody_registry_id_removal(tmp_path: Path) -> None:
+    relative = Path("src/core/fcis_fee_custody_admission.py")
+    source = (Path(__file__).resolve().parents[2] / relative).read_text(encoding="utf-8")
+    marker = "FCIS_REGISTERED_REGISTRY_IDS = ("
+    head, tail = source.split(marker, 1)
+    removed = '    "zenodex/fcis/fee-custody/asset-distribution-batch/v2",\n'
+    assert tail.count(removed) == 1
+    report = _run_fee_custody_profile_source(
+        tmp_path,
+        head + marker + tail.replace(removed, "", 1),
+    )
+    assert "PROFILE_REGISTRY_DRIFT" in _codes(report)
+
+
+def test_checker_rejects_fee_custody_public_encoder_bypass(tmp_path: Path) -> None:
+    relative = Path("src/core/fcis_fee_custody_admission.py")
+    source = (Path(__file__).resolve().parents[2] / relative).read_text(encoding="utf-8")
+    anchor = "        _canonical_fee_custody_encoder_v2,\n"
+    assert source.count(anchor) == 1
+    report = _run_fee_custody_profile_source(
+        tmp_path,
+        source.replace(anchor, "        encode_fcis_fee_custody_v2,\n", 1),
+    )
+    assert "PROFILE_FACADE_SHAPE" in _codes(report)
+
+
 def test_checker_rejects_caller_selected_profile_binding(tmp_path: Path) -> None:
     profile = tmp_path / "src" / "state" / "state_admission_profile.py"
     profile.parent.mkdir(parents=True)
@@ -1909,6 +1961,7 @@ def test_checker_rejects_caller_selected_profile_binding(tmp_path: Path) -> None
         "src/state/state_admission_profile.py",
         "src/state/lp_duration_policy_admission.py",
         "src/state/fcis_execution_context_admission.py",
+        "src/core/fcis_fee_custody_admission.py",
     ],
 )
 def test_checker_rejects_second_public_entrypoint_in_each_profile(

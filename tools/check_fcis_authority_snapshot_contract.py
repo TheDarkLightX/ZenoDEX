@@ -54,6 +54,14 @@ STATE_SUBSTRATE_AUTHORITY_PATHS = (
     Path("src/state/committed_spot_roots.py"),
     Path("src/state/committed_dex_snapshot.py"),
 )
+FEE_CUSTODY_AUTHORITY_PATHS = (
+    Path("src/core/fcis_fee_custody.py"),
+    Path("src/core/fcis_fee_custody_admission.py"),
+    Path("src/core/fcis_fee_custody_codec.py"),
+    Path("src/core/fcis_fee_custody_schema.py"),
+    Path("src/core/fcis_fee_custody_transition.py"),
+    Path("src/core/fcis_fee_custody_values.py"),
+)
 AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/fcis_amm_dispatch.py"),
     Path("src/core/fcis_create_pool_event.py"),
@@ -71,6 +79,7 @@ AUTHORITY_GRAPH_AUTHORITY_PATHS = (
     Path("src/core/fcis_legacy_refinement_policy.py"),
     Path("src/core/fcis_legacy_refinement_schema.py"),
     Path("src/core/fcis_legacy_refinement_values.py"),
+    *FEE_CUSTODY_AUTHORITY_PATHS,
     Path("src/core/fcis_authority_admission.py"),
     Path("src/core/fcis_authority_dispatch.py"),
     Path("src/core/fcis_authority_schema.py"),
@@ -268,6 +277,7 @@ _PROFILE_PATHS = (
     "src/state/state_admission_profile.py",
     "src/state/lp_duration_policy_admission.py",
     "src/state/fcis_execution_context_admission.py",
+    "src/core/fcis_fee_custody_admission.py",
 )
 _P4B0_ADMISSION_PATH = "src/core/fcis_legacy_refinement_admission.py"
 _P4B0_AUTHORITY_PATHS = frozenset(
@@ -327,6 +337,11 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
         "src/core/fcis_decision_derivation.py",
     ),
     "_admit_with_registry_v1": (*_PROFILE_PATHS, _P4B0_ADMISSION_PATH),
+    "_FEE_CUSTODY_RESULT_TOKEN_V2": ("src/core/fcis_fee_custody_values.py",),
+    "_fee_custody_ok_v2": (
+        "src/core/fcis_fee_custody_values.py",
+        "src/core/fcis_fee_custody_transition.py",
+    ),
     "_encode_admitted": (
         "src/core/fcis_authority_admission.py",
         "src/state/state_admission_profile.py",
@@ -386,6 +401,8 @@ _PRIVATE_AUTHORITY_SYMBOL_ALLOWLIST = {
 _PRIVATE_AUTHORITY_REFLECTION_MODULES = frozenset(
     {
         "src.core.fcis_authority_admission",
+        "src.core.fcis_fee_custody_admission",
+        "src.core.fcis_fee_custody_values",
         "src.core.fcis_commit_bundle_derivation",
         "src.core.fcis_commit_reference",
         "src.core.fcis_support_profile_v5",
@@ -400,7 +417,7 @@ _PRIVATE_AUTHORITY_REFLECTION_MODULES = frozenset(
     }
 )
 _PRIVATE_AUTHORITY_MODULE_OBJECT_ALLOWLIST = {
-    "src.state.snapshot_combinators": ("src/state/state_admission_profile.py",),
+    "src.state.snapshot_combinators": _PROFILE_PATHS,
 }
 _PROFILE_ENGINE_NAMES = {
     "snapshot_combinators._admit_with_registry_v1",
