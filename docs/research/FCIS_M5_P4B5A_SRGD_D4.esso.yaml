@@ -1,0 +1,293 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "fcis_m5_p4b5a_srgd_d4"
+  created_by: "codex"
+  seed: 0
+  notes: >-
+    Bounded inductive model of the SRGD-v1 residual allocator at D=4.
+    The action relation ranges over every deficit state satisfying the strict
+    bound and zero-sum invariant, every residual numerator triple in [0,3],
+    and every bonus assignment satisfying the fixed-order top-k relation.
+    Residual choices may change adversarially on every step. This model checks
+    safety of enabled transitions only. It does not establish that the guard
+    admits every valid residual input. The separate parameterized Lean theorem
+    and bounded selector checker establish existence and uniqueness;
+    executable-selector refinement and U256 quotient/remainder refinement
+    remain implementation obligations. Outcome fingerprints do not bind model
+    semantics; receipts must also bind the source SHA, normalized IR hash,
+    ESSO code hash, command, and solver versions.
+observables:
+  state_vars: ["deficit_buyback", "deficit_treasury", "deficit_rewards"]
+  effects: []
+types: []
+state_vars:
+  - id: "deficit_buyback"
+    role: "data"
+    type: { kind: "int", min: -4, max: 4 }
+  - id: "deficit_treasury"
+    role: "data"
+    type: { kind: "int", min: -4, max: 4 }
+  - id: "deficit_rewards"
+    role: "data"
+    type: { kind: "int", min: -4, max: 4 }
+invariants:
+  - id: "DeficitSumZero"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - { var: "deficit_buyback" }
+            - { var: "deficit_treasury" }
+            - { var: "deficit_rewards" }
+        - { const: 0 }
+  - id: "BuybackStrictDiscrepancy"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "<"
+          args: [{ const: -4 }, { var: "deficit_buyback" }]
+        - op: "<"
+          args: [{ var: "deficit_buyback" }, { const: 4 }]
+  - id: "TreasuryStrictDiscrepancy"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "<"
+          args: [{ const: -4 }, { var: "deficit_treasury" }]
+        - op: "<"
+          args: [{ var: "deficit_treasury" }, { const: 4 }]
+  - id: "RewardsStrictDiscrepancy"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "<"
+          args: [{ const: -4 }, { var: "deficit_rewards" }]
+        - op: "<"
+          args: [{ var: "deficit_rewards" }, { const: 4 }]
+init:
+  - var: "deficit_buyback"
+    expr: { const: 0 }
+  - var: "deficit_treasury"
+    expr: { const: 0 }
+  - var: "deficit_rewards"
+    expr: { const: 0 }
+actions:
+  - id: "allocate_residual"
+    params:
+      - id: "fraction_buyback"
+        type: { kind: "int", min: 0, max: 3 }
+      - id: "fraction_treasury"
+        type: { kind: "int", min: 0, max: 3 }
+      - id: "fraction_rewards"
+        type: { kind: "int", min: 0, max: 3 }
+      - id: "bonus_buyback"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "bonus_treasury"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "bonus_rewards"
+        type: { kind: "int", min: 0, max: 1 }
+    guard:
+      op: "and"
+      args:
+        # The number of residual atoms equals sum(f_i) / D.
+        - op: "="
+          args:
+            - op: "*"
+              args:
+                - { const: 4 }
+                - op: "+"
+                  args:
+                    - { param: "bonus_buyback" }
+                    - { param: "bonus_treasury" }
+                    - { param: "bonus_rewards" }
+            - op: "+"
+              args:
+                - { param: "fraction_buyback" }
+                - { param: "fraction_treasury" }
+                - { param: "fraction_rewards" }
+        # A residual atom may be assigned only to positive current support.
+        - op: "=>"
+          args:
+            - op: "="
+              args: [{ param: "bonus_buyback" }, { const: 1 }]
+            - op: ">"
+              args: [{ param: "fraction_buyback" }, { const: 0 }]
+        - op: "=>"
+          args:
+            - op: "="
+              args: [{ param: "bonus_treasury" }, { const: 1 }]
+            - op: ">"
+              args: [{ param: "fraction_treasury" }, { const: 0 }]
+        - op: "=>"
+          args:
+            - op: "="
+              args: [{ param: "bonus_rewards" }, { const: 1 }]
+            - op: ">"
+              args: [{ param: "fraction_rewards" }, { const: 0 }]
+        # Every selected role outranks every unselected eligible role.
+        # Equal scores use fixed semantic order: buyback, treasury, rewards.
+        - op: "=>"
+          args:
+            - op: "and"
+              args:
+                - op: "="
+                  args: [{ param: "bonus_buyback" }, { const: 1 }]
+                - op: "="
+                  args: [{ param: "bonus_treasury" }, { const: 0 }]
+                - op: ">"
+                  args: [{ param: "fraction_treasury" }, { const: 0 }]
+            - op: ">="
+              args:
+                - op: "+"
+                  args:
+                    - { var: "deficit_buyback" }
+                    - { param: "fraction_buyback" }
+                - op: "+"
+                  args:
+                    - { var: "deficit_treasury" }
+                    - { param: "fraction_treasury" }
+        - op: "=>"
+          args:
+            - op: "and"
+              args:
+                - op: "="
+                  args: [{ param: "bonus_buyback" }, { const: 1 }]
+                - op: "="
+                  args: [{ param: "bonus_rewards" }, { const: 0 }]
+                - op: ">"
+                  args: [{ param: "fraction_rewards" }, { const: 0 }]
+            - op: ">="
+              args:
+                - op: "+"
+                  args:
+                    - { var: "deficit_buyback" }
+                    - { param: "fraction_buyback" }
+                - op: "+"
+                  args:
+                    - { var: "deficit_rewards" }
+                    - { param: "fraction_rewards" }
+        - op: "=>"
+          args:
+            - op: "and"
+              args:
+                - op: "="
+                  args: [{ param: "bonus_treasury" }, { const: 1 }]
+                - op: "="
+                  args: [{ param: "bonus_buyback" }, { const: 0 }]
+                - op: ">"
+                  args: [{ param: "fraction_buyback" }, { const: 0 }]
+            - op: ">"
+              args:
+                - op: "+"
+                  args:
+                    - { var: "deficit_treasury" }
+                    - { param: "fraction_treasury" }
+                - op: "+"
+                  args:
+                    - { var: "deficit_buyback" }
+                    - { param: "fraction_buyback" }
+        - op: "=>"
+          args:
+            - op: "and"
+              args:
+                - op: "="
+                  args: [{ param: "bonus_treasury" }, { const: 1 }]
+                - op: "="
+                  args: [{ param: "bonus_rewards" }, { const: 0 }]
+                - op: ">"
+                  args: [{ param: "fraction_rewards" }, { const: 0 }]
+            - op: ">="
+              args:
+                - op: "+"
+                  args:
+                    - { var: "deficit_treasury" }
+                    - { param: "fraction_treasury" }
+                - op: "+"
+                  args:
+                    - { var: "deficit_rewards" }
+                    - { param: "fraction_rewards" }
+        - op: "=>"
+          args:
+            - op: "and"
+              args:
+                - op: "="
+                  args: [{ param: "bonus_rewards" }, { const: 1 }]
+                - op: "="
+                  args: [{ param: "bonus_buyback" }, { const: 0 }]
+                - op: ">"
+                  args: [{ param: "fraction_buyback" }, { const: 0 }]
+            - op: ">"
+              args:
+                - op: "+"
+                  args:
+                    - { var: "deficit_rewards" }
+                    - { param: "fraction_rewards" }
+                - op: "+"
+                  args:
+                    - { var: "deficit_buyback" }
+                    - { param: "fraction_buyback" }
+        - op: "=>"
+          args:
+            - op: "and"
+              args:
+                - op: "="
+                  args: [{ param: "bonus_rewards" }, { const: 1 }]
+                - op: "="
+                  args: [{ param: "bonus_treasury" }, { const: 0 }]
+                - op: ">"
+                  args: [{ param: "fraction_treasury" }, { const: 0 }]
+            - op: ">"
+              args:
+                - op: "+"
+                  args:
+                    - { var: "deficit_rewards" }
+                    - { param: "fraction_rewards" }
+                - op: "+"
+                  args:
+                    - { var: "deficit_treasury" }
+                    - { param: "fraction_treasury" }
+    updates:
+      - var: "deficit_buyback"
+        expr:
+          op: "-"
+          args:
+            - op: "+"
+              args:
+                - { var: "deficit_buyback" }
+                - { param: "fraction_buyback" }
+            - op: "*"
+              args: [{ const: 4 }, { param: "bonus_buyback" }]
+      - var: "deficit_treasury"
+        expr:
+          op: "-"
+          args:
+            - op: "+"
+              args:
+                - { var: "deficit_treasury" }
+                - { param: "fraction_treasury" }
+            - op: "*"
+              args: [{ const: 4 }, { param: "bonus_treasury" }]
+      - var: "deficit_rewards"
+        expr:
+          op: "-"
+          args:
+            - op: "+"
+              args:
+                - { var: "deficit_rewards" }
+                - { param: "fraction_rewards" }
+            - op: "*"
+              args: [{ const: 4 }, { param: "bonus_rewards" }]
+    effects: {}
+refinement:
+  state_abstraction:
+    - var: "deficit_buyback"
+      expr: { var: "deficit_buyback" }
+    - var: "deficit_treasury"
+      expr: { var: "deficit_treasury" }
+    - var: "deficit_rewards"
+      expr: { var: "deficit_rewards" }

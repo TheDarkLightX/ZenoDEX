@@ -1,0 +1,98 @@
+{
+  "architecture_outcome": "FRESH_UNMOUNTED_PYTHON_RUST_IMPLEMENTATION_AUTHORIZED",
+  "authority_mount": "PROHIBITED",
+  "context_source_head": "6771bff2d55ba08421b586e2db75441deb87f582",
+  "esso": {
+    "command": [
+      "python3",
+      "-m",
+      "ESSO",
+      "verify-multi",
+      "$ZDX_REVIEW_ROOT/docs/research/FCIS_M5_P4B5A_SRGD_D4.esso.yaml",
+      "--solvers",
+      "z3,cvc5",
+      "--timeout-ms",
+      "60000",
+      "--determinism-trials",
+      "2",
+      "--output",
+      "$TEMP_OUTPUT",
+      "--write-report"
+    ],
+    "cvc5_version": "1.1.2",
+    "determinism_fingerprints": [
+      "49a0de73628807e351c75143995ffa1becfd2cf6f3318517c7442504d100428c",
+      "49a0de73628807e351c75143995ffa1becfd2cf6f3318517c7442504d100428c"
+    ],
+    "esso_code_hash": "7f80c6216be85c827e8d1cc2fa08ee3107a74588",
+    "failed_queries": 0,
+    "generated_model_sha256": "7f6343c67272ef9f553b44d5ef4acc3baea776dbda5aab2460561e3adf2198c1",
+    "generated_result_sha256": "9b4a61d6ae9914cfb11439b547eb2dae39760225008e9fd6895c9425760108c3",
+    "generated_verification_report_sha256": "31f696b401e9889a45677cfe97c1964af359e4eba4f227d4d3414eb65812b256",
+    "inconclusive_queries": 0,
+    "normalized_ir_hash": "sha256:db7187de5d3d595a25a0de092b3a93101cb469e47db153897c495f74af61d7ff",
+    "passed_queries": 2,
+    "queries": {
+      "inductive_allocate_residual": {
+        "cvc5": "unsat",
+        "z3": "unsat"
+      },
+      "init_implies_inv": {
+        "cvc5": "unsat",
+        "z3": "unsat"
+      }
+    },
+    "scope": "D=4 initialization and enabled-transition inductiveness; selector availability and uniqueness are separate obligations",
+    "source_path": "docs/research/FCIS_M5_P4B5A_SRGD_D4.esso.yaml",
+    "source_sha256": "1e2b02801601298c0bcd8510d7fda6960cb38f92828acab0416497ca69b4c831",
+    "verdict": "VERIFIED",
+    "z3_version": "4.15.4"
+  },
+  "independent_review": {
+    "path": "docs/research/FCIS_M5_P4B5A_SRGD_V1_INDEPENDENT_REVIEW_20260728.md",
+    "sha256": "4401fa62b1ac4bb3017ad83901abac2c9aa76e07685ad16b7f4ac57c9f8e5f1d",
+    "verdict": "ARCHITECTURE_ACCEPTED_FRESH_UNMOUNTED_IMPLEMENTATION_AUTHORIZED"
+  },
+  "lean": {
+    "command": [
+      "lean",
+      "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean"
+    ],
+    "elapsed_seconds": 3.90,
+    "forbidden_declarations_found": [],
+    "lean_version": "4.27.0",
+    "max_rss_kib": 759588,
+    "scope": "parameterized selector existence and uniqueness plus one-step strict signed-deficit invariant for three roles",
+    "source_path": "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean",
+    "source_sha256": "a7104b2abca37e9ababbe121db34c91bf4fa973a3042f9ed30f165b37bfc92b0",
+    "verdict": "COMPILED"
+  },
+  "nonclaims": [
+    "No Python or Rust SRGD-v1 runtime implementation was reviewed.",
+    "No Python/Rust exact-byte refinement claim is made.",
+    "No state, receipt, support-root, commit-bundle, proof, datastore, or shell authority was mounted.",
+    "ESSO outcome fingerprints do not bind model semantics without the source and IR hashes.",
+    "Fixed-grid global optimality and fixed-grid four-role impossibility remain unknown."
+  ],
+  "research_bundle_sha256": "28fef9d562d66cc6d6329c037604c393b93b555badeca1dea47fc96772e5bdf2",
+  "reviewed_amendment": {
+    "path": "docs/research/prompts/fcis_m5_p4b5a_dynamic_apportionment_architecture_v1/SRGD_V1_AMENDMENT.md",
+    "sha256": "c8fc946d916923fed8282112a5b4722fae774c67147e37a76b6099701f3f17e8"
+  },
+  "runtime_changed": false,
+  "schema": "zenodex/fcis/p4b5a-srgd-formal-evidence-receipt/v1",
+  "selector_checker": {
+    "command": [
+      "python3",
+      "docs/research/FCIS_M5_P4B5A_SRGD_SELECTOR_TOTALITY_20260728.py"
+    ],
+    "nonzero_fraction_pair_count": 555,
+    "path": "docs/research/FCIS_M5_P4B5A_SRGD_SELECTOR_TOTALITY_20260728.py",
+    "relaxed_tie_nondeterministic_pair_count": 57,
+    "sha256": "bd54f35fcaef85ae56ab2e8145ea16cca98ef133ed3e1e55b49eed6451294baa",
+    "state_fraction_pair_count": 592,
+    "strengthened_guard_enabled_nonzero_pair_count": 0,
+    "unique_selector_pair_count": 592,
+    "verdict": "PASS"
+  }
+}

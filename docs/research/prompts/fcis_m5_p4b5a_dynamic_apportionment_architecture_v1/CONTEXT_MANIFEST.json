@@ -85,6 +85,41 @@
       "path": "docs/research/prompts/fcis_m5_p4b5a_dynamic_apportionment_architecture_v1/check_packet.py",
       "sha256": "67bd859dca2bb38c8683eab14998df1e2917ea6deaa40af2fbf143629f03ff16",
       "size_bytes": 2724
+    },
+    {
+      "path": "docs/research/prompts/fcis_m5_p4b5a_dynamic_apportionment_architecture_v1/SRGD_V1_AMENDMENT.md",
+      "sha256": "c8fc946d916923fed8282112a5b4722fae774c67147e37a76b6099701f3f17e8",
+      "size_bytes": 21716
+    },
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_SRGD_V1_INDEPENDENT_REVIEW_20260728.md",
+      "sha256": "4401fa62b1ac4bb3017ad83901abac2c9aa76e07685ad16b7f4ac57c9f8e5f1d",
+      "size_bytes": 10709
+    },
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_SRGD_FORMAL_EVIDENCE_RECEIPT_20260728.json",
+      "sha256": "8086a4669340475e44e268db539db411c9f006695750d0c53634333ce8450771",
+      "size_bytes": 4095
+    },
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_SRGD_D4.esso.yaml",
+      "sha256": "1e2b02801601298c0bcd8510d7fda6960cb38f92828acab0416497ca69b4c831",
+      "size_bytes": 9906
+    },
+    {
+      "path": "docs/research/FCIS_M5_P4B5A_SRGD_SELECTOR_TOTALITY_20260728.py",
+      "sha256": "bd54f35fcaef85ae56ab2e8145ea16cca98ef133ed3e1e55b49eed6451294baa",
+      "size_bytes": 4729
+    },
+    {
+      "path": "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean",
+      "sha256": "a7104b2abca37e9ababbe121db34c91bf4fa973a3042f9ed30f165b37bfc92b0",
+      "size_bytes": 9708
+    },
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "3c807b5371b51ae63145873f21b28462a6b0d4c4065bd325db035ea82c5d1dcb",
+      "size_bytes": 11075
     }
   ],
   "schema": "zenodex/fcis/p4b5a-context-manifest/v1"
