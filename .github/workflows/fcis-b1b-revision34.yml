@@ -10,12 +10,19 @@ on:
       - "docs/research/prompts/fcis_m5_p4b5a_b1b_revision34_review_v1/**"
       - "docs/research/prompts/fcis_m5_p4b5a_b1b1_implementation_review_v1/**"
       - "src/core/fcis_b1b_authority_*.py"
+      - "src/state/canonical.py"
       - "rust-runtime/crates/zenodex-runtime-core/src/fcis_b1b_authority.rs"
+      - "rust-runtime/crates/zenodex-runtime-core/src/canonical.rs"
+      - "rust-runtime/crates/zenodex-runtime-core/Cargo.toml"
+      - "rust-runtime/Cargo.toml"
+      - "rust-runtime/Cargo.lock"
+      - "rust-runtime/rust-toolchain.toml"
       - "rust-runtime/crates/zenodex-runtime-core/src/lib.rs"
       - "tests/core/test_fcis_b1b_authority_*.py"
       - "tests/core/test_fcis_b1b1_carriers.py"
       - "tests/fixtures/fcis_b1b_authority_v2_golden.json"
       - "tests/tools/test_check_fcis_b1b_revision34_contract.py"
+      - "tests/tools/test_build_fcis_b1b1_implementation_review_packet.py"
       - "tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py"
       - "tools/build_fcis_b1b_authority_v2_golden.py"
       - "tools/build_fcis_b1b1_implementation_review_packet.py"
@@ -23,6 +30,8 @@ on:
       - "tools/check_fcis_m5_p4b5a_atdd_contract.py"
       - "tools/fcis_m5_p4b5a_atdd_policy.py"
       - "tools/fcis_m5_p4b5a_atdd_validation.py"
+      - "pyproject.toml"
+      - "requirements-core.lock.txt"
   workflow_dispatch:
 
 permissions:
@@ -61,9 +70,11 @@ jobs:
           python -m pytest -q \
             tests/core/test_fcis_b1b_authority_values.py \
             tests/core/test_fcis_b1b_authority_admission.py \
+            tests/core/test_fcis_b1b_authority_resource_bounds.py \
             tests/core/test_fcis_b1b_authority_golden.py \
             tests/core/test_fcis_b1b1_carriers.py \
             tests/tools/test_check_fcis_b1b_revision34_contract.py \
+            tests/tools/test_build_fcis_b1b1_implementation_review_packet.py \
             tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py
           python -m pytest -q \
             tests/core/test_fcis_fee_distribution_configuration.py \
@@ -81,11 +92,14 @@ jobs:
             src/core/fcis_b1b_authority_codec.py \
             tests/core/test_fcis_b1b_authority_values.py \
             tests/core/test_fcis_b1b_authority_admission.py \
+            tests/core/test_fcis_b1b_authority_resource_bounds.py \
             tests/core/test_fcis_b1b_authority_golden.py \
             tests/core/test_fcis_b1b1_carriers.py \
             tests/tools/test_check_fcis_b1b_revision34_contract.py \
+            tests/tools/test_build_fcis_b1b1_implementation_review_packet.py \
             tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py \
             tools/build_fcis_b1b_authority_v2_golden.py \
+            tools/build_fcis_b1b1_implementation_review_packet.py \
             tools/check_fcis_b1b_revision34_contract.py \
             tools/check_fcis_m5_p4b5a_atdd_contract.py \
             tools/fcis_m5_p4b5a_atdd_policy.py \
@@ -97,7 +111,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check Rust formatting
-        run: cargo fmt --manifest-path rust-runtime/Cargo.toml --all -- --check
+        run: cargo fmt --manifest-path rust-runtime/Cargo.toml -p zenodex-runtime-core -- --check
       - name: Run all B1B carrier parity and boundary tests
         run: |
           cargo test --locked \

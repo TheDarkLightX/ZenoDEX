@@ -26,6 +26,7 @@ from src.core.fcis_b1b_authority_values import (
     V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2,
     B1BAuthorityAdmissionCodeV2,
     B1BAuthorityAdmissionRejectV2,
+    DeploymentBootstrapAnchorClaimV2,
     FCISAuthorityHeaderSourceV2,
     FCISAuthorityHeaderV2,
     V1ToV2MigrationManifestSourceV2,
@@ -195,3 +196,39 @@ def test_carrier_only_source_requires_the_exact_source_type() -> None:
     )
     assert type(result) is B1BAuthorityAdmissionRejectV2
     assert result.code is B1BAuthorityAdmissionCodeV2.WRONG_EXACT_TYPE
+
+
+def test_canonical_carrier_encoding_is_injective_over_boundary_samples() -> None:
+    headers = (
+        FCISAuthorityHeaderV2("deployment:a", 0, ZERO),
+        FCISAuthorityHeaderV2("deployment:a", 1, ZERO),
+        FCISAuthorityHeaderV2("deployment:b", 1, ONE),
+    )
+    anchors = (
+        DeploymentBootstrapAnchorClaimV2("deployment:a", ZERO),
+        DeploymentBootstrapAnchorClaimV2("deployment:a", ONE),
+        DeploymentBootstrapAnchorClaimV2("deployment:b", ONE),
+    )
+    manifests = (
+        V1ToV2MigrationManifestV2(
+            "deployment:a", ZERO, "domain:a", ONE, 0, 1, 0, 4, 5
+        ),
+        V1ToV2MigrationManifestV2(
+            "deployment:a", ZERO, "domain:a", ONE, 1, 2, 1, 4, 5
+        ),
+        V1ToV2MigrationManifestV2(
+            "deployment:b", ONE, "domain:b", ZERO, MAX_U256_V2, 1, 0, 4, 5
+        ),
+    )
+    groups = (
+        (FCIS_AUTHORITY_HEADER_SCHEMA_ID_V2, headers),
+        (DEPLOYMENT_BOOTSTRAP_ANCHOR_CLAIM_SCHEMA_ID_V2, anchors),
+        (V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2, manifests),
+    )
+    for schema_id, values in groups:
+        for left in values:
+            for right in values:
+                left_bytes = encode_fcis_b1b_authority_v2(schema_id, left)
+                right_bytes = encode_fcis_b1b_authority_v2(schema_id, right)
+                if left_bytes == right_bytes:
+                    assert left == right

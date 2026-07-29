@@ -18,8 +18,129 @@ pub const V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2: &str =
 pub const BOOTSTRAP_ANCHOR_CLAIM_ROOT_DOMAIN_V2: &str = "fcis_deployment_bootstrap_anchor_claim";
 pub const MIGRATION_MANIFEST_ROOT_DOMAIN_V2: &str = "fcis_v1_to_v2_migration_manifest";
 
+pub const MAX_B1B_CANONICAL_BYTES_V2: usize = 65_536;
+pub const MAX_B1B_JSON_DEPTH_V2: usize = 32;
+pub const MAX_B1B_JSON_NODES_V2: usize = 256;
+pub const MAX_B1B_JSON_COLLECTION_ITEMS_V2: usize = 64;
 const MAX_TEXT_CHARACTERS_V2: usize = 4_096;
 const MAX_TEXT_UTF8_BYTES_V2: usize = 16_384;
+
+struct JsonResourceScannerV2 {
+    depth: usize,
+    nodes: usize,
+    collection_commas: Vec<usize>,
+    in_string: bool,
+    escaped: bool,
+    in_primitive: bool,
+}
+
+impl JsonResourceScannerV2 {
+    fn new() -> Self {
+        Self {
+            depth: 0,
+            nodes: 0,
+            collection_commas: Vec::new(),
+            in_string: false,
+            escaped: false,
+            in_primitive: false,
+        }
+    }
+
+    fn scan(&mut self, text: &str) -> Result<(), B1BAuthorityCarrierRejectV2> {
+        for character in text.chars() {
+            if self.in_string {
+                self.scan_string_character(character);
+                continue;
+            }
+            if self.in_primitive
+                && !matches!(character, ' ' | '\t' | '\r' | '\n' | ',' | ']' | '}' | ':')
+            {
+                continue;
+            }
+            self.in_primitive = false;
+            self.scan_token(character)?;
+        }
+        Ok(())
+    }
+
+    fn scan_string_character(&mut self, character: char) {
+        if self.escaped {
+            self.escaped = false;
+        } else if character == '\\' {
+            self.escaped = true;
+        } else if character == '"' {
+            self.in_string = false;
+        }
+    }
+
+    fn scan_token(&mut self, character: char) -> Result<(), B1BAuthorityCarrierRejectV2> {
+        match character {
+            '"' => {
+                self.in_string = true;
+                self.add_node()
+            }
+            '[' | '{' => {
+                if self.depth >= MAX_B1B_JSON_DEPTH_V2 {
+                    return Err(B1BAuthorityCarrierRejectV2::resource(
+                        B1BAuthorityCarrierCodeV2::JsonDepthLimit,
+                    ));
+                }
+                self.add_node()?;
+                self.depth += 1;
+                self.collection_commas.push(0);
+                Ok(())
+            }
+            ']' | '}' => {
+                if self.depth > 0 {
+                    self.depth -= 1;
+                    self.collection_commas.pop();
+                }
+                Ok(())
+            }
+            ',' => {
+                if let Some(commas) = self.collection_commas.last_mut() {
+                    let next_commas = *commas + 1;
+                    if next_commas >= MAX_B1B_JSON_COLLECTION_ITEMS_V2 {
+                        return Err(B1BAuthorityCarrierRejectV2::resource(
+                            B1BAuthorityCarrierCodeV2::JsonCollectionLimit,
+                        ));
+                    }
+                    *commas = next_commas;
+                }
+                Ok(())
+            }
+            '-' | '0'..='9' | 't' | 'f' | 'n' => {
+                self.in_primitive = true;
+                self.add_node()
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn add_node(&mut self) -> Result<(), B1BAuthorityCarrierRejectV2> {
+        self.nodes += 1;
+        if self.nodes > MAX_B1B_JSON_NODES_V2 {
+            return Err(B1BAuthorityCarrierRejectV2::resource(
+                B1BAuthorityCarrierCodeV2::JsonNodeLimit,
+            ));
+        }
+        Ok(())
+    }
+}
+
+pub fn validate_fcis_b1b_json_resource_bounds_v2(
+    payload: &[u8],
+) -> Result<(), B1BAuthorityCarrierRejectV2> {
+    if payload.len() > MAX_B1B_CANONICAL_BYTES_V2 {
+        return Err(B1BAuthorityCarrierRejectV2::resource(
+            B1BAuthorityCarrierCodeV2::ByteLimit,
+        ));
+    }
+    let text = std::str::from_utf8(payload).map_err(|_| {
+        B1BAuthorityCarrierRejectV2::resource(B1BAuthorityCarrierCodeV2::InvalidUtf8)
+    })?;
+    JsonResourceScannerV2::new().scan(text)
+}
 
 fn u256_max() -> BigUint {
     (BigUint::from(1_u8) << 256_usize) - BigUint::from(1_u8)
@@ -44,12 +165,22 @@ fn digest_is_canonical(value: &str) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum B1BAuthorityCarrierCodeV2 {
     InvalidValue,
+    ByteLimit,
+    InvalidUtf8,
+    JsonDepthLimit,
+    JsonNodeLimit,
+    JsonCollectionLimit,
 }
 
 impl B1BAuthorityCarrierCodeV2 {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::InvalidValue => "invalid_value",
+            Self::ByteLimit => "byte_limit",
+            Self::InvalidUtf8 => "invalid_utf8",
+            Self::JsonDepthLimit => "json_depth_limit",
+            Self::JsonNodeLimit => "json_node_limit",
+            Self::JsonCollectionLimit => "json_collection_limit",
         }
     }
 }
@@ -61,6 +192,13 @@ pub struct B1BAuthorityCarrierRejectV2 {
 }
 
 impl B1BAuthorityCarrierRejectV2 {
+    fn resource(code: B1BAuthorityCarrierCodeV2) -> Self {
+        Self {
+            code,
+            path: Vec::new(),
+        }
+    }
+
     fn invalid(path: &[&str]) -> Self {
         Self {
             code: B1BAuthorityCarrierCodeV2::InvalidValue,
@@ -624,5 +762,201 @@ mod tests {
             assert!(rejected, "negative case accepted: {}", case["id"]);
         }
         assert_eq!(rust_cases, 6);
+    }
+}
+
+#[cfg(test)]
+mod resource_tests {
+    use super::*;
+
+    fn nested_array(depth: usize) -> Vec<u8> {
+        format!("{}0{}", "[".repeat(depth), "]".repeat(depth)).into_bytes()
+    }
+
+    fn nested_object(depth: usize) -> Vec<u8> {
+        format!("{}0{}", "{\"k\":".repeat(depth), "}".repeat(depth)).into_bytes()
+    }
+
+    fn nested_mixed(depth: usize) -> Vec<u8> {
+        let mut prefixes = Vec::new();
+        let mut suffixes = Vec::new();
+        for index in 0..depth {
+            if index % 2 == 0 {
+                prefixes.push("[");
+                suffixes.push("]");
+            } else {
+                prefixes.push("{\"k\":");
+                suffixes.push("}");
+            }
+        }
+        suffixes.reverse();
+        format!("{}0{}", prefixes.join(""), suffixes.join("")).into_bytes()
+    }
+
+    fn resource_code(payload: &[u8]) -> Option<B1BAuthorityCarrierCodeV2> {
+        validate_fcis_b1b_json_resource_bounds_v2(payload)
+            .err()
+            .map(|reject| {
+                assert!(reject.path().is_empty());
+                reject.code()
+            })
+    }
+
+    #[test]
+    fn fcis_b1b_json_resource_depth_boundaries_match_python() {
+        for builder in [
+            nested_array as fn(usize) -> Vec<u8>,
+            nested_object,
+            nested_mixed,
+        ] {
+            assert_eq!(resource_code(&builder(MAX_B1B_JSON_DEPTH_V2)), None);
+            assert_eq!(
+                resource_code(&builder(MAX_B1B_JSON_DEPTH_V2 + 1)),
+                Some(B1BAuthorityCarrierCodeV2::JsonDepthLimit)
+            );
+        }
+        assert_eq!(
+            resource_code(&nested_array(1_000)),
+            Some(B1BAuthorityCarrierCodeV2::JsonDepthLimit)
+        );
+    }
+
+    #[test]
+    fn fcis_b1b_json_resource_collection_boundaries_match_python() {
+        let exact_array = format!(
+            "[{}]",
+            vec!["0"; MAX_B1B_JSON_COLLECTION_ITEMS_V2].join(",")
+        );
+        let oversized_array = format!(
+            "[{}]",
+            vec!["0"; MAX_B1B_JSON_COLLECTION_ITEMS_V2 + 1].join(",")
+        );
+        assert_eq!(resource_code(exact_array.as_bytes()), None);
+        assert_eq!(
+            resource_code(oversized_array.as_bytes()),
+            Some(B1BAuthorityCarrierCodeV2::JsonCollectionLimit)
+        );
+
+        let exact_object = format!(
+            "{{{}}}",
+            (0..MAX_B1B_JSON_COLLECTION_ITEMS_V2)
+                .map(|index| format!("\"k{index}\":0"))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        let oversized_object = format!(
+            "{{{}}}",
+            (0..=MAX_B1B_JSON_COLLECTION_ITEMS_V2)
+                .map(|index| format!("\"k{index}\":0"))
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        assert_eq!(resource_code(exact_object.as_bytes()), None);
+        assert_eq!(
+            resource_code(oversized_object.as_bytes()),
+            Some(B1BAuthorityCarrierCodeV2::JsonCollectionLimit)
+        );
+    }
+
+    #[test]
+    fn fcis_b1b_json_resource_node_boundaries_match_python() {
+        fn payload(sizes: &[usize]) -> Vec<u8> {
+            let children = sizes
+                .iter()
+                .map(|size| format!("[{}]", vec!["0"; *size].join(",")))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("[{children}]").into_bytes()
+        }
+
+        assert_eq!(MAX_B1B_JSON_NODES_V2, 256);
+        assert_eq!(resource_code(&payload(&[63, 63, 63, 62])), None);
+        assert_eq!(
+            resource_code(&payload(&[63, 63, 63, 63])),
+            Some(B1BAuthorityCarrierCodeV2::JsonNodeLimit)
+        );
+    }
+
+    #[test]
+    fn fcis_b1b_json_resource_byte_and_utf8_rejections_are_closed() {
+        assert_eq!(
+            resource_code(&vec![b'0'; MAX_B1B_CANONICAL_BYTES_V2 + 1]),
+            Some(B1BAuthorityCarrierCodeV2::ByteLimit)
+        );
+        assert_eq!(
+            resource_code(&[0xff]),
+            Some(B1BAuthorityCarrierCodeV2::InvalidUtf8)
+        );
+        assert_eq!(
+            B1BAuthorityCarrierCodeV2::JsonDepthLimit.as_str(),
+            "json_depth_limit"
+        );
+    }
+
+    #[test]
+    fn fcis_b1b_json_resource_shared_vectors_match_python() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../tests/fixtures/fcis_b1b_authority_v2_golden.json"
+        );
+        let raw = std::fs::read_to_string(path).expect("shared B1B fixture exists");
+        let document: serde_json::Value =
+            serde_json::from_str(&raw).expect("shared B1B fixture parses");
+        let limits = &document["json_resource_limits"];
+        assert_eq!(
+            limits["maximum_depth"].as_u64(),
+            Some(MAX_B1B_JSON_DEPTH_V2 as u64)
+        );
+        assert_eq!(
+            limits["maximum_nodes"].as_u64(),
+            Some(MAX_B1B_JSON_NODES_V2 as u64)
+        );
+        assert_eq!(
+            limits["maximum_collection_items"].as_u64(),
+            Some(MAX_B1B_JSON_COLLECTION_ITEMS_V2 as u64)
+        );
+        for case in limits["cases"].as_array().expect("resource cases") {
+            let kind = case["kind"].as_str().expect("resource kind");
+            let payload = match kind {
+                "nested_array" => nested_array(case["parameter"].as_u64().expect("depth") as usize),
+                "nested_object" => {
+                    nested_object(case["parameter"].as_u64().expect("depth") as usize)
+                }
+                "nested_mixed" => nested_mixed(case["parameter"].as_u64().expect("depth") as usize),
+                "flat_array" => {
+                    let size = case["parameter"].as_u64().expect("array size") as usize;
+                    format!("[{}]", vec!["0"; size].join(",")).into_bytes()
+                }
+                "node_fanout" => {
+                    let children = case["parameter"]
+                        .as_array()
+                        .expect("fanout sizes")
+                        .iter()
+                        .map(|size| {
+                            format!(
+                                "[{}]",
+                                vec!["0"; size.as_u64().expect("fanout size") as usize].join(",")
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    format!("[{children}]").into_bytes()
+                }
+                "byte_repeat" => {
+                    vec![b'0'; case["parameter"].as_u64().expect("byte count") as usize]
+                }
+                "invalid_utf8" => {
+                    vec![case["parameter"].as_u64().expect("invalid byte") as u8]
+                }
+                other => panic!("unknown resource-vector kind: {other}"),
+            };
+            let actual = resource_code(&payload).map(B1BAuthorityCarrierCodeV2::as_str);
+            assert_eq!(
+                actual,
+                case["expected_code"].as_str(),
+                "resource case {}",
+                case["id"]
+            );
+        }
     }
 }

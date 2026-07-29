@@ -182,3 +182,123 @@ def test_missing_required_checker_path_fails_closed(tmp_path: Path) -> None:
     root, _, _ = _copy_required(tmp_path)
     (root / CHECKER_PATH).unlink()
     assert "MISSING_PATH" in _codes(root)
+
+
+def test_extra_python_carrier_field_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    _replace(
+        root,
+        Path("src/core/fcis_b1b_authority_values.py"),
+        "    sequence: int\n    fee_distribution_configuration_root: str",
+        "    sequence: int\n    hidden_policy_selector: str = \"\"\n"
+        "    fee_distribution_configuration_root: str = \"0x\" + (\"0\" * 64)",
+    )
+    assert "B1B1_PYTHON_FIELD_SET" in _codes(root)
+
+
+def test_custom_python_carrier_equality_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    _replace(
+        root,
+        Path("src/core/fcis_b1b_authority_values.py"),
+        "    def __post_init__(self) -> None:\n"
+        "        _require_text_v2(\"chain deployment identifier\", self.chain_deployment_id)",
+        "    def __eq__(self, other: object) -> bool:\n"
+        "        return type(other) is FCISAuthorityHeaderV2\n\n"
+        "    def __post_init__(self) -> None:\n"
+        "        _require_text_v2(\"chain deployment identifier\", self.chain_deployment_id)",
+    )
+    assert "B1B1_PYTHON_IDENTITY" in _codes(root)
+
+
+def test_extra_rust_carrier_field_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    _replace(
+        root,
+        RUST_PATH,
+        "    sequence: BigUint,\n    fee_distribution_configuration_root: String,",
+        "    sequence: BigUint,\n    hidden_policy_selector: String,\n"
+        "    fee_distribution_configuration_root: String,",
+    )
+    assert "B1B1_RUST_FIELD_SET" in _codes(root)
+
+
+def test_rust_lib_publication_helper_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    path = root / RUST_LIB_PATH
+    path.write_text(
+        path.read_text(encoding="utf-8")
+        + "\npub fn publish_b1b_header(\n"
+        + "    header: fcis_b1b_authority::FCISAuthorityHeaderV2,\n"
+        + ") -> fcis_b1b_authority::FCISAuthorityHeaderV2 {\n"
+        + "    header\n"
+        + "}\n",
+        encoding="utf-8",
+    )
+    assert "B1B1_RUST_MODULE_EXPORT" in _codes(root)
+
+
+def test_novel_runtime_authority_symbol_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    path = root / "src/core/novel_runtime_mutant.py"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "class PinnedDeploymentBootstrapVerifierV2:\n    pass\n",
+        encoding="utf-8",
+    )
+    assert "B1B1_PREMATURE_AUTHORITY" in _codes(root)
+
+
+def test_aliased_carrier_import_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    path = root / "src/core/fcis_b1b_authority_schema.py"
+    path.write_text(
+        path.read_text(encoding="utf-8")
+        + "\nfrom .fcis_b1b_authority_values import FCISAuthorityHeaderV2 as Header\n",
+        encoding="utf-8",
+    )
+    assert "B1B1_CARRIER_IMPORT" in _codes(root)
+
+
+def test_fully_qualified_carrier_annotation_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    path = root / "src/core/fcis_b1b_authority_schema.py"
+    path.write_text(
+        path.read_text(encoding="utf-8")
+        + "\nimport src.core.fcis_b1b_authority_values\n"
+        + "def consume(value: src.core.fcis_b1b_authority_values.FCISAuthorityHeaderV2)"
+        + " -> object:\n"
+        + "    return value\n",
+        encoding="utf-8",
+    )
+    codes = _codes(root)
+    assert "B1B1_CARRIER_IMPORT" in codes
+    assert "B1B1_CARRIER_CONSUMER" in codes
+
+
+def test_neutral_name_carrier_consumer_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    path = root / "src/core/fcis_b1b_authority_values.py"
+    path.write_text(
+        path.read_text(encoding="utf-8")
+        + "\ndef inspect_carrier(value: FCISAuthorityHeaderV2)"
+        + " -> FCISAuthorityHeaderV2:\n"
+        + "    return value\n",
+        encoding="utf-8",
+    )
+    assert "B1B1_CARRIER_CONSUMER" in _codes(root)
+
+
+def test_private_rust_alias_consumer_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    _replace(
+        root,
+        RUST_PATH,
+        "#[cfg(test)]",
+        "type HeaderAliasV2 = FCISAuthorityHeaderV2;\n"
+        "fn inspect_alias(value: HeaderAliasV2) -> HeaderAliasV2 {\n"
+        "    value\n"
+        "}\n\n"
+        "#[cfg(test)]",
+    )
+    assert "B1B1_RUST_CARRIER_CONSUMER" in _codes(root)

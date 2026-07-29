@@ -66,6 +66,96 @@
       }
     }
   ],
+  "json_resource_limits": {
+    "cases": [
+      {
+        "expected_code": null,
+        "id": "array_depth_at_limit",
+        "kind": "nested_array",
+        "parameter": 32
+      },
+      {
+        "expected_code": "json_depth_limit",
+        "id": "array_depth_over_limit",
+        "kind": "nested_array",
+        "parameter": 33
+      },
+      {
+        "expected_code": null,
+        "id": "object_depth_at_limit",
+        "kind": "nested_object",
+        "parameter": 32
+      },
+      {
+        "expected_code": "json_depth_limit",
+        "id": "object_depth_over_limit",
+        "kind": "nested_object",
+        "parameter": 33
+      },
+      {
+        "expected_code": null,
+        "id": "mixed_depth_at_limit",
+        "kind": "nested_mixed",
+        "parameter": 32
+      },
+      {
+        "expected_code": "json_depth_limit",
+        "id": "mixed_depth_over_limit",
+        "kind": "nested_mixed",
+        "parameter": 33
+      },
+      {
+        "expected_code": null,
+        "id": "array_collection_at_limit",
+        "kind": "flat_array",
+        "parameter": 64
+      },
+      {
+        "expected_code": "json_collection_limit",
+        "id": "array_collection_over_limit",
+        "kind": "flat_array",
+        "parameter": 65
+      },
+      {
+        "expected_code": null,
+        "id": "node_count_at_limit",
+        "kind": "node_fanout",
+        "parameter": [
+          63,
+          63,
+          63,
+          62
+        ]
+      },
+      {
+        "expected_code": "json_node_limit",
+        "id": "node_count_over_limit",
+        "kind": "node_fanout",
+        "parameter": [
+          63,
+          63,
+          63,
+          63
+        ]
+      },
+      {
+        "expected_code": "byte_limit",
+        "id": "byte_count_over_limit",
+        "kind": "byte_repeat",
+        "parameter": 65537
+      },
+      {
+        "expected_code": "invalid_utf8",
+        "id": "invalid_utf8",
+        "kind": "invalid_utf8",
+        "parameter": 255
+      }
+    ],
+    "maximum_bytes": 65536,
+    "maximum_collection_items": 64,
+    "maximum_depth": 32,
+    "maximum_nodes": 256
+  },
   "negative_cases": [
     {
       "expected_code": "invalid_value",

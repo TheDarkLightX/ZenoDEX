@@ -22,6 +22,9 @@ V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2 = "zenodex/fcis/migration/v1-to-v2-mani
 MAX_B1B_TEXT_CHARACTERS_V2 = 4_096
 MAX_B1B_TEXT_UTF8_BYTES_V2 = 16_384
 MAX_B1B_CANONICAL_BYTES_V2 = 65_536
+MAX_B1B_JSON_DEPTH_V2 = 32
+MAX_B1B_JSON_NODES_V2 = 256
+MAX_B1B_JSON_COLLECTION_ITEMS_V2 = 64
 MAX_U256_V2 = (1 << 256) - 1
 
 
@@ -36,6 +39,9 @@ class B1BAuthorityAdmissionCodeV2(Enum):
     BYTE_LIMIT = "byte_limit"
     INVALID_UTF8 = "invalid_utf8"
     INVALID_JSON = "invalid_json"
+    JSON_DEPTH_LIMIT = "json_depth_limit"
+    JSON_NODE_LIMIT = "json_node_limit"
+    JSON_COLLECTION_LIMIT = "json_collection_limit"
     DUPLICATE_FIELD = "duplicate_field"
     UNKNOWN_FIELD = "unknown_field"
     MISSING_FIELD = "missing_field"
@@ -226,6 +232,9 @@ __all__ = (
     "FCISAuthorityHeaderV2",
     "FCISB1BAuthorityRecordTagV2",
     "MAX_B1B_CANONICAL_BYTES_V2",
+    "MAX_B1B_JSON_COLLECTION_ITEMS_V2",
+    "MAX_B1B_JSON_DEPTH_V2",
+    "MAX_B1B_JSON_NODES_V2",
     "MAX_B1B_TEXT_CHARACTERS_V2",
     "MAX_B1B_TEXT_UTF8_BYTES_V2",
     "MAX_U256_V2",

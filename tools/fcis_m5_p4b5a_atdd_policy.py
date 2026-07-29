@@ -246,6 +246,10 @@ PATH_OWNERS = (
         "acceptance_ids": ["ATDD-B1B1-012"],
         "pattern": "tools/build_fcis_b1b1_implementation_review_packet.py",
     },
+    {
+        "acceptance_ids": ["ATDD-B1B1-012"],
+        "pattern": "tests/tools/test_build_fcis_b1b1_implementation_review_packet.py",
+    },
 )
 
 
