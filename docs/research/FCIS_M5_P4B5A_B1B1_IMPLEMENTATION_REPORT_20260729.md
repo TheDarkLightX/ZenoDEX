@@ -4,9 +4,13 @@
 status: IMPLEMENTED_UNMOUNTED_EXACT_HEAD_REPAIR_PENDING_REVIEW
 checkpoint: B1B-1
 repaired implementation code head before this report:
-  12091ded9b0e1762388ccccc08383e16520f6448
+  1bba350babe1d7b0eaac11501b6f93b2fc8fa440
 prior reviewed exact-head target:
-  13f06a4675e4a01cf8d57b6cf2feb1ca3ddad8ef
+  35192b8522c8d287b7fa52332622a642fc8a4b1b
+prior reviewed packet commit:
+  6c22f52c5e65f14b4501a62a049d231fd48aa2d3
+prior repair code head:
+  12091ded9b0e1762388ccccc08383e16520f6448
 original refuted implementation target:
   221f7d1c6d6aab4baa01327da2801793ec31abc2
 approved Revision 3.4 target:
@@ -21,20 +25,23 @@ approved Revision 3.4 document SHA-256:
 
 ## Result
 
-The repair retains every earlier exact-head correction and closes the final
-inherited-state counterexample reported by independent review:
+The repair retains every earlier exact-head correction and closes both
+construction-surface counterexamples reported by independent review:
 
-1. exact Python carriers and source types have no bases, metaclasses, or
-   unapproved class-transforming decorators;
-2. post-definition carrier identity mutation is rejected, including direct
-   assignment, setattr, delattr, and type-level mutation calls;
-3. an isolated runtime probe requires dataclasses.fields(type) to equal the
-   canonical schema registry for all six carrier and source types;
-4. delivery verification derives the packet parent, base/target/packet trees,
-   status-aware packet diff, and base-to-target ancestry from the actual Git
-   objects and compares each fact with the external receipt;
-5. bounded decoding, global authority-isolation scanning, deletion-aware
-   inventory, standalone Rust evidence, and CI path closure remain intact.
+1. all four Python carrier modules reject direct and transitive carrier aliases,
+   method capture, dynamic namespace replacement, and post-definition identity
+   mutation;
+2. an isolated full-closure import probe verifies class identity, exact bases,
+   generated equality and hashing, validation hooks, module bindings, invalid
+   sentinels, and canonical dataclass fields;
+3. admission and canonical projection use standalone pure field validators, so
+   hostile replacement of a class hook cannot bypass point-of-use validation;
+4. Rust carriers have an exact derive, field, inherent-implementation, trait,
+   macro, and public-function surface, while every encoder and root function
+   freshly revalidates the value and returns a typed result;
+5. dedicated CI checks out the exact pull-request head, verifies that identity,
+   checks the exact packet topology, exports and rechecks the delivery, and
+   uploads the verified evidence.
 
 The checkpoint remains carrier-only and unmounted. B1B-2 is not authorized by
 this repair.
@@ -110,6 +117,11 @@ frozen, slotted, final Python value identity
 no carrier inheritance, metaclass, or decorator drift
 runtime dataclass field equality with the canonical schema registry
 no post-definition carrier identity replacement
+no sibling-module or transitive-alias identity mutation
+no dynamic namespace replacement or carrier method capture
+exact Rust derive and implementation surfaces
+no generated, trait, macro, or unchecked Rust constructor
+fallible point-of-use Rust encoder validation
 private Rust fields
 no custom equality or hashing
 no independent stored properties or class authority state
@@ -128,6 +140,10 @@ direct and inherited Python carrier fields
 Python base classes, hidden properties, metaclasses, and extra decorators
 custom or post-definition Python equality, hashing, and validation replacement
 module-level assignment, setattr, delattr, and type-level mutation
+sibling-module validation bypass and transitive alias mutation
+globals/vars replacement and carrier method capture
+extra Rust derives, trait constructors, macros, and unchecked constructors
+deleted Rust encoder revalidation
 direct extra Rust carrier fields
 Rust publication helper in lib.rs
 forbidden pinned-verifier type in a novel path
@@ -182,45 +198,52 @@ independent exact-head review returns the required B1B-1 approval verdict.
 ## Evidence
 
 Commands run at repaired code head
-`12091ded9b0e1762388ccccc08383e16520f6448`:
+`1bba350babe1d7b0eaac11501b6f93b2fc8fa440`:
 
 ```text
 python3 -m pytest -q <focused B1B-1 carrier, checker, and packet tests>
-  111 passed
-
-python3 -m pytest -q tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py
-  21 passed
+  149 passed
 
 python3 -m pytest -q <three B1A configuration suites>
   14 passed
 
 python3 -m pytest -q tests/tools/test_check_fcis_authority_snapshot_contract.py
-  352 passed
+  -k p4b5a
+  18 passed, 334 deselected
 
 cargo test -p zenodex-runtime-core --lib fcis_b1b_authority
-  8 passed
+  9 passed
 
 python3 -m tools.build_fcis_b1b_authority_v2_golden --check
   passed
 
 python3 -m tools.check_fcis_b1b_revision34_contract --json
-  ok=true, findings=[], required_path_count=16, runtime_files_scanned=936
+  ok=true, findings=[], required_path_count=17, runtime_files_scanned=936
 
-ruff check <five changed Python implementation and evidence files>
+python3 -m tools.check_fcis_m5_p4b5a_atdd_contract \
+  --assigned-id ATDD-B1B1-009 \
+  --diff-base 1665e788a4c4daf43982262c307d0c04b914d89b
+  ok=true, acceptance_case_count=20, b1b1_case_count=12,
+  b1b2_case_count=8, changed_path_count=30
+
+ruff check <complete focused B1B-1 Python surface>
   passed
 
-mypy tools/check_fcis_b1b_revision34_contract.py \
-  tools/build_fcis_b1b1_implementation_review_packet.py
+mypy <three carrier modules and the Revision 3.4 structural checker>
   passed
 
-cargo fmt --all -- --check
+cargo fmt -p zenodex-runtime-core -- --check
+  passed
+
+cargo check -p zenodex-runtime-core --lib
   passed
 
 cargo clippy -p zenodex-runtime-core --lib -- -D warnings
   passed
 
-repository security red-flag scan over the two changed tools
-  0 findings
+repository security red-flag scan over all eight changed paths
+  0 high findings; 57 medium lexical findings in Rust test assertions and
+  fixture parsing, manually scoped outside the production prefix
 
 git diff --check
   passed
