@@ -10,7 +10,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
-      - agent/fcis-m5-p4b5a-b1b1-implement-20260729
+      - agent/fcis-m5-p4b5a-b1b1-repair-v3-20260729
     paths:
       - .github/fcis_m5_to_m6_payload/**
       - .github/workflows/materialize_fcis_m5_to_m6.yml
