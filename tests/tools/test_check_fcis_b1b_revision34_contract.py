@@ -463,6 +463,157 @@ def test_rust_trait_constructor_is_detected(tmp_path: Path, mutation: str) -> No
 
 
 @pytest.mark.parametrize(
+    "mutation",
+    (
+        (
+            "impl FCISAuthorityHeaderV2 {\n"
+            "    pub fn from_raw_parts(\n"
+            "        chain_deployment_id: String,\n"
+            "        sequence: BigUint,\n"
+            "        fee_distribution_configuration_root: String,\n"
+            "    ) -> Self {\n"
+            "        Self {\n"
+            "            chain_deployment_id,\n"
+            "            sequence,\n"
+            "            fee_distribution_configuration_root,\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        ),
+        (
+            "impl Default for FCISAuthorityHeaderV2 {\n"
+            "    fn default() -> Self {\n"
+            "        Self {\n"
+            "            chain_deployment_id: String::new(),\n"
+            "            sequence: BigUint::ZERO,\n"
+            "            fee_distribution_configuration_root: String::new(),\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        ),
+        (
+            "impl From<(String, BigUint, String)> for FCISAuthorityHeaderV2 {\n"
+            "    fn from(value: (String, BigUint, String)) -> Self {\n"
+            "        Self {\n"
+            "            chain_deployment_id: value.0,\n"
+            "            sequence: value.1,\n"
+            "            fee_distribution_configuration_root: value.2,\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        ),
+        (
+            "pub fn inspect_raw_header_after_tests(\n"
+            "    value: FCISAuthorityHeaderV2,\n"
+            ") -> FCISAuthorityHeaderV2 {\n"
+            "    value\n"
+            "}\n"
+        ),
+        "carrier_builder!(FCISAuthorityHeaderV2);\n",
+        "carrier_builder!();\n",
+        (
+            "pub const INVALID_HEADER_AFTER_TESTS: FCISAuthorityHeaderV2 = "
+            "FCISAuthorityHeaderV2 {\n"
+            "    chain_deployment_id: String::new(),\n"
+            "    sequence: BigUint::ZERO,\n"
+            "    fee_distribution_configuration_root: String::new(),\n"
+            "};\n"
+        ),
+        "pub type HeaderAliasAfterTests = FCISAuthorityHeaderV2;\n",
+    ),
+    ids=(
+        "unchecked-inherent-constructor",
+        "manual-default",
+        "manual-from",
+        "public-carrier-helper",
+        "constructor-macro-with-carrier",
+        "constructor-macro-without-carrier",
+        "carrier-const",
+        "carrier-type-alias",
+    ),
+)
+def test_rust_production_item_after_test_modules_is_detected(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    path = root / RUST_PATH
+    path.write_text(
+        path.read_text(encoding="utf-8") + "\n" + mutation,
+        encoding="utf-8",
+    )
+    codes = _codes(root)
+    assert {
+        "B1B1_RUST_IMPL_SURFACE",
+        "B1B1_RUST_CARRIER_CONSUMER",
+        "B1B1_RUST_PUBLIC_SURFACE",
+    } & codes
+
+
+def test_rust_second_inherent_impl_between_test_modules_is_detected(
+    tmp_path: Path,
+) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    path = root / RUST_PATH
+    text = path.read_text(encoding="utf-8")
+    final_test_module = text.rfind("#[cfg(test)]")
+    assert final_test_module > 0
+    mutation = (
+        "impl FCISAuthorityHeaderV2 {\n"
+        "    pub fn from_raw_parts_between_tests(\n"
+        "        chain_deployment_id: String,\n"
+        "        sequence: BigUint,\n"
+        "        fee_distribution_configuration_root: String,\n"
+        "    ) -> Self {\n"
+        "        Self { chain_deployment_id, sequence, "
+        "fee_distribution_configuration_root }\n"
+        "    }\n"
+        "}\n\n"
+    )
+    path.write_text(
+        text[:final_test_module] + mutation + text[final_test_module:],
+        encoding="utf-8",
+    )
+    assert "B1B1_RUST_IMPL_SURFACE" in _codes(root)
+
+
+def test_multiline_rust_cfg_attr_default_derive_is_detected(
+    tmp_path: Path,
+) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    _replace(
+        root,
+        RUST_PATH,
+        "#[derive(Debug, Clone, PartialEq, Eq)]\n"
+        "pub struct FCISAuthorityHeaderV2 {",
+        "#[cfg_attr(\n"
+        "    all(),\n"
+        "    derive(Default)\n"
+        ")]\n"
+        "#[derive(Debug, Clone, PartialEq, Eq)]\n"
+        "pub struct FCISAuthorityHeaderV2 {",
+    )
+    assert "B1B1_RUST_DERIVE_SURFACE" in _codes(root)
+
+
+def test_multiline_rust_attribute_macro_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    _replace(
+        root,
+        RUST_PATH,
+        "#[derive(Debug, Clone, PartialEq, Eq)]\n"
+        "pub struct FCISAuthorityHeaderV2 {",
+        "#[cfg_attr(\n"
+        "    all(),\n"
+        "    carrier_builder\n"
+        ")]\n"
+        "#[derive(Debug, Clone, PartialEq, Eq)]\n"
+        "pub struct FCISAuthorityHeaderV2 {",
+    )
+    assert "B1B1_RUST_DERIVE_SURFACE" in _codes(root)
+
+
+@pytest.mark.parametrize(
     ("old", "new"),
     (
         (

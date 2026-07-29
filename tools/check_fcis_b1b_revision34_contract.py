@@ -895,45 +895,193 @@ def _check_python_carriers(root: Path, findings: list[Finding]) -> None:
 
 
 def _rust_struct_block(text: str, name: str) -> str | None:
-    match = re.search(
-        rf"pub struct {re.escape(name)}\s*\{{(?P<body>.*?)\n\}}",
-        text,
-        re.DOTALL,
-    )
-    return match.group("body") if match else None
-
-
-def _rust_struct_attributes(text: str, name: str) -> tuple[str, ...] | None:
-    match = re.search(
-        rf"(?P<attributes>(?:^[ \t]*#\[[^\n]+\][ \t]*\n)*)"
-        rf"^[ \t]*pub struct {re.escape(name)}\s*\{{",
-        text,
-        re.MULTILINE,
-    )
+    masked = _rust_mask_non_code(text)
+    match = re.search(rf"\bpub\s+struct\s+{re.escape(name)}\s*\{{", masked)
     if match is None:
         return None
-    return tuple(
-        line.strip() for line in match.group("attributes").splitlines() if line.strip()
-    )
+    opening_brace = masked.find("{", match.start(), match.end())
+    return _rust_braced_block(text, opening_brace)
 
 
-def _rust_braced_block(text: str, opening_brace: int) -> str | None:
+def _rust_raw_string_end(text: str, start: int) -> int | None:
+    cursor = start
+    if text.startswith(("br", "cr"), cursor):
+        cursor += 2
+    elif cursor < len(text) and text[cursor] == "r":
+        cursor += 1
+    else:
+        return None
+    hash_start = cursor
+    while cursor < len(text) and text[cursor] == "#":
+        cursor += 1
+    if cursor >= len(text) or text[cursor] != '"':
+        return None
+    delimiter = '"' + "#" * (cursor - hash_start)
+    closing = text.find(delimiter, cursor + 1)
+    return len(text) if closing < 0 else closing + len(delimiter)
+
+
+def _rust_quoted_end(text: str, start: int, quote: str) -> int | None:
+    cursor = start + 1
+    escaped = False
+    while cursor < len(text):
+        character = text[cursor]
+        if character == "\n" and quote == "'":
+            return None
+        if escaped:
+            escaped = False
+        elif character == "\\":
+            escaped = True
+        elif character == quote:
+            return cursor + 1
+        cursor += 1
+    return len(text) if quote == '"' else None
+
+
+def _rust_blank_non_newlines(buffer: list[str], start: int, end: int) -> None:
+    for index in range(start, end):
+        if buffer[index] != "\n":
+            buffer[index] = " "
+
+
+def _rust_mask_non_code(text: str) -> str:
+    """Return a same-length Rust view with comments and literals blanked."""
+
+    buffer = list(text)
+    cursor = 0
+    while cursor < len(text):
+        if text.startswith("//", cursor):
+            end = text.find("\n", cursor + 2)
+            end = len(text) if end < 0 else end
+            _rust_blank_non_newlines(buffer, cursor, end)
+            cursor = end
+            continue
+        if text.startswith("/*", cursor):
+            depth = 1
+            end = cursor + 2
+            while end < len(text) and depth > 0:
+                if text.startswith("/*", end):
+                    depth += 1
+                    end += 2
+                elif text.startswith("*/", end):
+                    depth -= 1
+                    end += 2
+                else:
+                    end += 1
+            _rust_blank_non_newlines(buffer, cursor, end)
+            cursor = end
+            continue
+        raw_end = _rust_raw_string_end(text, cursor)
+        if raw_end is not None:
+            _rust_blank_non_newlines(buffer, cursor, raw_end)
+            cursor = raw_end
+            continue
+        if text[cursor] == '"':
+            quoted_end = _rust_quoted_end(text, cursor, '"')
+            if quoted_end is not None:
+                _rust_blank_non_newlines(buffer, cursor, quoted_end)
+                cursor = quoted_end
+                continue
+        if text[cursor] == "'":
+            quoted_end = _rust_quoted_end(text, cursor, "'")
+            if quoted_end is not None:
+                _rust_blank_non_newlines(buffer, cursor, quoted_end)
+                cursor = quoted_end
+                continue
+        cursor += 1
+    return "".join(buffer)
+
+
+def _rust_matching_brace(masked: str, opening_brace: int) -> int | None:
     depth = 0
-    for index in range(opening_brace, len(text)):
-        character = text[index]
+    for index in range(opening_brace, len(masked)):
+        character = masked[index]
         if character == "{":
             depth += 1
         elif character == "}":
             depth -= 1
             if depth == 0:
-                return text[opening_brace + 1 : index]
+                return index
     return None
+
+
+def _rust_matching_delimiter(
+    masked: str,
+    opening: int,
+    opening_character: str,
+    closing_character: str,
+) -> int | None:
+    depth = 0
+    for index in range(opening, len(masked)):
+        character = masked[index]
+        if character == opening_character:
+            depth += 1
+        elif character == closing_character:
+            depth -= 1
+            if depth == 0:
+                return index
+    return None
+
+
+def _rust_top_level_at(masked: str, offset: int) -> bool:
+    depth = 0
+    for character in masked[:offset]:
+        if character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+    return depth == 0
+
+
+def _normalize_rust_attribute(attribute: str) -> str:
+    return re.sub(r"\s+", "", attribute)
+
+
+def _rust_struct_attributes(text: str, name: str) -> tuple[str, ...] | None:
+    masked = _rust_mask_non_code(text)
+    match = re.search(rf"\bpub\s+struct\s+{re.escape(name)}\s*\{{", masked)
+    if match is None:
+        return None
+    attributes: list[str] = []
+    cursor = match.start()
+    while True:
+        while cursor > 0 and masked[cursor - 1].isspace():
+            cursor -= 1
+        if cursor == 0 or masked[cursor - 1] != "]":
+            break
+        bracket_depth = 1
+        opening = cursor - 2
+        while opening >= 0 and bracket_depth > 0:
+            if masked[opening] == "]":
+                bracket_depth += 1
+            elif masked[opening] == "[":
+                bracket_depth -= 1
+            opening -= 1
+        opening += 1
+        attribute_start = opening - 1
+        if bracket_depth != 0 or attribute_start < 0 or masked[attribute_start] != "#":
+            break
+        attributes.append(
+            _normalize_rust_attribute(text[attribute_start:cursor].strip())
+        )
+        cursor = attribute_start
+    attributes.reverse()
+    return tuple(attributes)
+
+
+def _rust_braced_block(text: str, opening_brace: int) -> str | None:
+    masked = _rust_mask_non_code(text)
+    closing_brace = _rust_matching_brace(masked, opening_brace)
+    if closing_brace is None:
+        return None
+    return text[opening_brace + 1 : closing_brace]
 
 
 def _rust_inherent_impl_blocks(text: str, name: str) -> tuple[str, ...]:
     blocks: list[str] = []
-    for match in re.finditer(rf"\bimpl\s+{re.escape(name)}\s*\{{", text):
-        opening_brace = text.find("{", match.start())
+    masked = _rust_mask_non_code(text)
+    for match in re.finditer(rf"\bimpl\s+{re.escape(name)}\s*\{{", masked):
+        opening_brace = masked.find("{", match.start(), match.end())
         block = _rust_braced_block(text, opening_brace)
         if block is not None:
             blocks.append(block)
@@ -967,26 +1115,44 @@ def _rust_fields(block: str) -> tuple[tuple[str, bool], ...] | None:
     return tuple(fields)
 
 
-def _rust_production_prefix(text: str) -> str:
-    marker = "#[cfg(test)]"
-    return text.split(marker, 1)[0]
+def _rust_production_text(text: str) -> str:
+    """Blank only top-level modules carrying an exact test-only cfg attribute."""
+
+    masked = _rust_mask_non_code(text)
+    pattern = re.compile(
+        r"#\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*"
+        r"mod\s+[A-Za-z_][A-Za-z0-9_]*\s*\{"
+    )
+    spans: list[tuple[int, int]] = []
+    for match in pattern.finditer(masked):
+        if not _rust_top_level_at(masked, match.start()):
+            continue
+        opening_brace = masked.find("{", match.start(), match.end())
+        closing_brace = _rust_matching_brace(masked, opening_brace)
+        if closing_brace is not None:
+            spans.append((match.start(), closing_brace + 1))
+    buffer = list(text)
+    for start, end in spans:
+        _rust_blank_non_newlines(buffer, start, end)
+    return "".join(buffer)
 
 
 def _check_rust_function_surface(
     text: str,
     findings: list[Finding],
 ) -> None:
-    production = _rust_production_prefix(text)
+    production = _rust_production_text(text)
+    masked = _rust_mask_non_code(production)
     matches = list(
         re.finditer(
             r"(?P<public>\bpub\s+)?fn\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>{}]*>)?\s*\(",
-            production,
+            masked,
         )
     )
     for index, match in enumerate(matches):
         name = match.group("name")
         end = matches[index + 1].start() if index + 1 < len(matches) else len(production)
-        segment = production[match.start() : end]
+        segment = masked[match.start() : end]
         references = sorted(name for name in RUST_CARRIER_NAMES if name in segment)
         if name not in RUST_ALLOWED_FUNCTIONS:
             findings.append(
@@ -1013,12 +1179,13 @@ def _check_rust_struct_shape(
     findings: list[Finding],
 ) -> None:
     attributes = _rust_struct_attributes(text, name)
-    if attributes != (EXPECTED_RUST_DERIVE,):
+    expected_attributes = (_normalize_rust_attribute(EXPECTED_RUST_DERIVE),)
+    if attributes != expected_attributes:
         findings.append(
             Finding(
                 "B1B1_RUST_DERIVE_SURFACE",
                 str(RUST_PATH),
-                f"{name}: expected {(EXPECTED_RUST_DERIVE,)!r}, got {attributes!r}",
+                f"{name}: expected {expected_attributes!r}, got {attributes!r}",
             )
         )
     block = _rust_struct_block(text, name)
@@ -1056,11 +1223,12 @@ def _check_rust_impl_surface(
     name: str,
     findings: list[Finding],
 ) -> None:
+    masked = _rust_mask_non_code(production)
     trait_impls = tuple(
         match.group("trait").strip()
         for match in re.finditer(
             rf"\bimpl\s+(?P<trait>[^{{;]+?)\s+for\s+{re.escape(name)}\b",
-            production,
+            masked,
         )
     )
     if trait_impls:
@@ -1108,17 +1276,64 @@ def _check_rust_macro_surface(
     name: str,
     findings: list[Finding],
 ) -> None:
-    if re.search(
-        rf"\b[A-Za-z_][A-Za-z0-9_]*!\s*[({{\[][^;\n]*\b{re.escape(name)}\b",
-        production,
+    masked = _rust_mask_non_code(production)
+    delimiters = {"(": ")", "{": "}", "[": "]"}
+    for match in re.finditer(
+        r"\b(?P<macro>[A-Za-z_][A-Za-z0-9_]*)!\s*(?P<opening>[({\[])",
+        masked,
     ):
+        opening_character = match.group("opening")
+        opening = masked.find(opening_character, match.start(), match.end())
+        closing = _rust_matching_delimiter(
+            masked,
+            opening,
+            opening_character,
+            delimiters[opening_character],
+        )
+        segment_end = len(masked) if closing is None else closing + 1
+        segment = masked[match.start():segment_end]
+        if name in segment or _rust_top_level_at(masked, match.start()):
+            findings.append(
+                Finding(
+                    "B1B1_RUST_IMPL_SURFACE",
+                    str(RUST_PATH),
+                    f"{name}: macro-generated surface",
+                )
+            )
+            return
+    if "macro_rules!" in masked:
         findings.append(
             Finding(
                 "B1B1_RUST_IMPL_SURFACE",
                 str(RUST_PATH),
-                f"{name}: macro-generated surface",
+                f"{name}: macro definition surface",
             )
         )
+
+
+def _check_rust_carrier_data_surface(
+    production: str,
+    findings: list[Finding],
+) -> None:
+    masked = _rust_mask_non_code(production)
+    for match in re.finditer(
+        r"(?:\bpub(?:\([^)]*\))?\s+)?\b(?:const|static|type)\s+"
+        r"[A-Za-z_][A-Za-z0-9_]*[^;]*;",
+        masked,
+        re.DOTALL,
+    ):
+        if not _rust_top_level_at(masked, match.start()):
+            continue
+        segment = match.group(0)
+        carrier = next((name for name in RUST_CARRIER_NAMES if name in segment), None)
+        if carrier is not None:
+            findings.append(
+                Finding(
+                    "B1B1_RUST_IMPL_SURFACE",
+                    str(RUST_PATH),
+                    f"{carrier}: unchecked const, static, or type surface",
+                )
+            )
 
 
 def _check_rust_root_domains(text: str, findings: list[Finding]) -> None:
@@ -1150,11 +1365,12 @@ def _check_rust_module_export(root: Path, findings: list[Finding]) -> None:
 
 def _check_rust_carriers(root: Path, findings: list[Finding]) -> None:
     text = _read(root, RUST_PATH)
-    production = _rust_production_prefix(text)
+    production = _rust_production_text(text)
     for name, expected_fields in EXPECTED_RUST_STRUCT_FIELDS.items():
         _check_rust_struct_shape(text, name, expected_fields, findings)
         _check_rust_impl_surface(production, name, findings)
         _check_rust_macro_surface(production, name, findings)
+    _check_rust_carrier_data_surface(production, findings)
     _check_rust_root_domains(text, findings)
     _check_rust_function_surface(text, findings)
     _check_rust_module_export(root, findings)
