@@ -1,0 +1,24 @@
+{
+  "base_packet_commit": "1665e788a4c4daf43982262c307d0c04b914d89b",
+  "base_packet_tree": "629a73c32912b0ebee799cdebeaf3314323e2896",
+  "change_status_counts": {
+    "A": 29,
+    "M": 1
+  },
+  "changed_path_count": 30,
+  "delivery_receipt_rule": "packet commit SHA, tree, parent, bundle hash, and packet hashes are recorded after commit in external DELIVERY_RECEIPT.json",
+  "inventory_rule": "every deletion-aware committed change from approved base through target, every target-present changed blob, bounded immutable context, and standalone-runnable Rust core workspace closure",
+  "manifest_entry_count": 78,
+  "packet_output_paths": [
+    "docs/research/prompts/fcis_m5_p4b5a_b1b1_implementation_review_v1/README.md",
+    "docs/research/prompts/fcis_m5_p4b5a_b1b1_implementation_review_v1/REVIEW_PROMPT.md",
+    "docs/research/prompts/fcis_m5_p4b5a_b1b1_implementation_review_v1/SOURCE_MANIFEST.sha256",
+    "docs/research/prompts/fcis_m5_p4b5a_b1b1_implementation_review_v1/PACKET_METADATA.json",
+    "docs/research/prompts/fcis_m5_p4b5a_b1b1_implementation_review_v1/CHANGE_INVENTORY.json"
+  ],
+  "packet_relation": "documentation-only commit exactly one child of target",
+  "rust_closure_entry_count": 31,
+  "schema": "zenodex/fcis/b1b1-implementation-review-packet/v2",
+  "target_commit": "f56fbb8cdf0c4adde7aad0a3a776ab8663990b7d",
+  "target_tree": "496ca8fe5be2a3257c08cbfd76f2d0149d66bbd7"
+}
