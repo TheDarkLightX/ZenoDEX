@@ -1,0 +1,573 @@
+//! Exact untrusted carrier values for the unmounted FCIS B1B-1 checkpoint.
+//!
+//! This module contains canonical data, codecs, and audit roots only.  It has no
+//! pinned verifier, migration authority, committed V2 state, transition,
+//! receipt, bundle, proof, publication, shell, or mounted-runtime authority.
+
+use num_bigint::{BigInt, BigUint};
+
+use crate::canonical::{canonical_json_bytes, domain_sep_bytes, sha256_hex, JsonValue};
+
+pub const FCIS_B1B_AUTHORITY_SCHEMA_REVISION_V2: &str =
+    "zenodex/fcis/b1b-authority-carriers/v2";
+pub const FCIS_AUTHORITY_HEADER_SCHEMA_ID_V2: &str =
+    "zenodex/fcis/state/authority-header/v2";
+pub const DEPLOYMENT_BOOTSTRAP_ANCHOR_CLAIM_SCHEMA_ID_V2: &str =
+    "zenodex/fcis/deployment/bootstrap-anchor-claim/v2";
+pub const V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2: &str =
+    "zenodex/fcis/migration/v1-to-v2-manifest/v2";
+
+pub const BOOTSTRAP_ANCHOR_CLAIM_ROOT_DOMAIN_V2: &str =
+    "fcis_deployment_bootstrap_anchor_claim";
+pub const MIGRATION_MANIFEST_ROOT_DOMAIN_V2: &str = "fcis_v1_to_v2_migration_manifest";
+
+const MAX_TEXT_CHARACTERS_V2: usize = 4_096;
+const MAX_TEXT_UTF8_BYTES_V2: usize = 16_384;
+
+fn u256_max() -> BigUint {
+    (BigUint::from(1_u8) << 256_usize) - BigUint::from(1_u8)
+}
+
+fn text_is_canonical(value: &str) -> bool {
+    !value.is_empty()
+        && value.chars().count() <= MAX_TEXT_CHARACTERS_V2
+        && value.len() <= MAX_TEXT_UTF8_BYTES_V2
+}
+
+fn digest_is_canonical(value: &str) -> bool {
+    value.len() == 66
+        && value.starts_with("0x")
+        && value
+            .as_bytes()
+            .iter()
+            .skip(2)
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum B1BAuthorityCarrierCodeV2 {
+    InvalidValue,
+}
+
+impl B1BAuthorityCarrierCodeV2 {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidValue => "invalid_value",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct B1BAuthorityCarrierRejectV2 {
+    code: B1BAuthorityCarrierCodeV2,
+    path: Vec<String>,
+}
+
+impl B1BAuthorityCarrierRejectV2 {
+    fn invalid(path: &[&str]) -> Self {
+        Self {
+            code: B1BAuthorityCarrierCodeV2::InvalidValue,
+            path: path.iter().map(|part| (*part).to_owned()).collect(),
+        }
+    }
+
+    pub fn code(&self) -> B1BAuthorityCarrierCodeV2 {
+        self.code
+    }
+
+    pub fn path(&self) -> &[String] {
+        &self.path
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FCISAuthorityHeaderV2 {
+    chain_deployment_id: String,
+    sequence: BigUint,
+    fee_distribution_configuration_root: String,
+}
+
+impl FCISAuthorityHeaderV2 {
+    pub fn try_new(
+        chain_deployment_id: String,
+        sequence: BigUint,
+        fee_distribution_configuration_root: String,
+    ) -> Result<Self, B1BAuthorityCarrierRejectV2> {
+        if !text_is_canonical(&chain_deployment_id) {
+            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+                "authority_header",
+                "chain_deployment_id",
+            ]));
+        }
+        if sequence > u256_max() {
+            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+                "authority_header",
+                "sequence",
+            ]));
+        }
+        if !digest_is_canonical(&fee_distribution_configuration_root) {
+            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+                "authority_header",
+                "fee_distribution_configuration_root",
+            ]));
+        }
+        Ok(Self {
+            chain_deployment_id,
+            sequence,
+            fee_distribution_configuration_root,
+        })
+    }
+
+    pub fn chain_deployment_id(&self) -> &str {
+        &self.chain_deployment_id
+    }
+
+    pub fn sequence(&self) -> &BigUint {
+        &self.sequence
+    }
+
+    pub fn fee_distribution_configuration_root(&self) -> &str {
+        &self.fee_distribution_configuration_root
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeploymentBootstrapAnchorClaimV2 {
+    chain_deployment_id: String,
+    expected_migration_manifest_root: String,
+}
+
+impl DeploymentBootstrapAnchorClaimV2 {
+    pub fn try_new(
+        chain_deployment_id: String,
+        expected_migration_manifest_root: String,
+    ) -> Result<Self, B1BAuthorityCarrierRejectV2> {
+        if !text_is_canonical(&chain_deployment_id) {
+            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+                "bootstrap_anchor_claim",
+                "chain_deployment_id",
+            ]));
+        }
+        if !digest_is_canonical(&expected_migration_manifest_root) {
+            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+                "bootstrap_anchor_claim",
+                "expected_migration_manifest_root",
+            ]));
+        }
+        Ok(Self {
+            chain_deployment_id,
+            expected_migration_manifest_root,
+        })
+    }
+
+    pub fn chain_deployment_id(&self) -> &str {
+        &self.chain_deployment_id
+    }
+
+    pub fn expected_migration_manifest_root(&self) -> &str {
+        &self.expected_migration_manifest_root
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct V1ToV2MigrationManifestV2 {
+    chain_deployment_id: String,
+    expected_v1_pre_root: String,
+    fee_distribution_domain_id: String,
+    expected_initial_configuration_root: String,
+    initial_sequence: BigUint,
+    initial_configuration_version: BigUint,
+    initial_activation_sequence: BigUint,
+    source_snapshot_version: BigUint,
+    target_snapshot_version: BigUint,
+}
+
+impl V1ToV2MigrationManifestV2 {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_new(
+        chain_deployment_id: String,
+        expected_v1_pre_root: String,
+        fee_distribution_domain_id: String,
+        expected_initial_configuration_root: String,
+        initial_sequence: BigUint,
+        initial_configuration_version: BigUint,
+        initial_activation_sequence: BigUint,
+        source_snapshot_version: BigUint,
+        target_snapshot_version: BigUint,
+    ) -> Result<Self, B1BAuthorityCarrierRejectV2> {
+        if !text_is_canonical(&chain_deployment_id) {
+            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+                "migration_manifest",
+                "chain_deployment_id",
+            ]));
+        }
+        if !digest_is_canonical(&expected_v1_pre_root) {
+            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+                "migration_manifest",
+                "expected_v1_pre_root",
+            ]));
+        }
+        if !text_is_canonical(&fee_distribution_domain_id) {
+            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+                "migration_manifest",
+                "fee_distribution_domain_id",
+            ]));
+        }
+        if !digest_is_canonical(&expected_initial_configuration_root) {
+            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+                "migration_manifest",
+                "expected_initial_configuration_root",
+            ]));
+        }
+        for (name, value, positive) in [
+            ("initial_sequence", &initial_sequence, false),
+            (
+                "initial_configuration_version",
+                &initial_configuration_version,
+                true,
+            ),
+            (
+                "initial_activation_sequence",
+                &initial_activation_sequence,
+                false,
+            ),
+            ("source_snapshot_version", &source_snapshot_version, false),
+            ("target_snapshot_version", &target_snapshot_version, false),
+        ] {
+            if value > &u256_max() || (positive && value == &BigUint::ZERO) {
+                return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+                    "migration_manifest",
+                    name,
+                ]));
+            }
+        }
+        Ok(Self {
+            chain_deployment_id,
+            expected_v1_pre_root,
+            fee_distribution_domain_id,
+            expected_initial_configuration_root,
+            initial_sequence,
+            initial_configuration_version,
+            initial_activation_sequence,
+            source_snapshot_version,
+            target_snapshot_version,
+        })
+    }
+
+    pub fn chain_deployment_id(&self) -> &str {
+        &self.chain_deployment_id
+    }
+
+    pub fn expected_v1_pre_root(&self) -> &str {
+        &self.expected_v1_pre_root
+    }
+
+    pub fn fee_distribution_domain_id(&self) -> &str {
+        &self.fee_distribution_domain_id
+    }
+
+    pub fn expected_initial_configuration_root(&self) -> &str {
+        &self.expected_initial_configuration_root
+    }
+
+    pub fn initial_sequence(&self) -> &BigUint {
+        &self.initial_sequence
+    }
+
+    pub fn initial_configuration_version(&self) -> &BigUint {
+        &self.initial_configuration_version
+    }
+
+    pub fn initial_activation_sequence(&self) -> &BigUint {
+        &self.initial_activation_sequence
+    }
+
+    pub fn source_snapshot_version(&self) -> &BigUint {
+        &self.source_snapshot_version
+    }
+
+    pub fn target_snapshot_version(&self) -> &BigUint {
+        &self.target_snapshot_version
+    }
+}
+
+fn int_json(value: BigUint) -> JsonValue {
+    JsonValue::Int(BigInt::from(value))
+}
+
+fn envelope(schema: &str, value: JsonValue) -> Vec<u8> {
+    canonical_json_bytes(&JsonValue::Object(vec![
+        ("schema".to_owned(), JsonValue::Str(schema.to_owned())),
+        ("value".to_owned(), value),
+    ]))
+}
+
+fn authority_header_json(value: &FCISAuthorityHeaderV2) -> JsonValue {
+    JsonValue::Object(vec![
+        (
+            "chain_deployment_id".to_owned(),
+            JsonValue::Str(value.chain_deployment_id.clone()),
+        ),
+        ("sequence".to_owned(), int_json(value.sequence.clone())),
+        (
+            "fee_distribution_configuration_root".to_owned(),
+            JsonValue::Str(value.fee_distribution_configuration_root.clone()),
+        ),
+    ])
+}
+
+fn bootstrap_anchor_claim_json(value: &DeploymentBootstrapAnchorClaimV2) -> JsonValue {
+    JsonValue::Object(vec![
+        (
+            "chain_deployment_id".to_owned(),
+            JsonValue::Str(value.chain_deployment_id.clone()),
+        ),
+        (
+            "expected_migration_manifest_root".to_owned(),
+            JsonValue::Str(value.expected_migration_manifest_root.clone()),
+        ),
+    ])
+}
+
+fn migration_manifest_json(value: &V1ToV2MigrationManifestV2) -> JsonValue {
+    JsonValue::Object(vec![
+        (
+            "chain_deployment_id".to_owned(),
+            JsonValue::Str(value.chain_deployment_id.clone()),
+        ),
+        (
+            "expected_v1_pre_root".to_owned(),
+            JsonValue::Str(value.expected_v1_pre_root.clone()),
+        ),
+        (
+            "fee_distribution_domain_id".to_owned(),
+            JsonValue::Str(value.fee_distribution_domain_id.clone()),
+        ),
+        (
+            "expected_initial_configuration_root".to_owned(),
+            JsonValue::Str(value.expected_initial_configuration_root.clone()),
+        ),
+        (
+            "initial_sequence".to_owned(),
+            int_json(value.initial_sequence.clone()),
+        ),
+        (
+            "initial_configuration_version".to_owned(),
+            int_json(value.initial_configuration_version.clone()),
+        ),
+        (
+            "initial_activation_sequence".to_owned(),
+            int_json(value.initial_activation_sequence.clone()),
+        ),
+        (
+            "source_snapshot_version".to_owned(),
+            int_json(value.source_snapshot_version.clone()),
+        ),
+        (
+            "target_snapshot_version".to_owned(),
+            int_json(value.target_snapshot_version.clone()),
+        ),
+    ])
+}
+
+pub fn encode_fcis_authority_header_v2(value: &FCISAuthorityHeaderV2) -> Vec<u8> {
+    envelope(
+        FCIS_AUTHORITY_HEADER_SCHEMA_ID_V2,
+        authority_header_json(value),
+    )
+}
+
+pub fn encode_deployment_bootstrap_anchor_claim_v2(
+    value: &DeploymentBootstrapAnchorClaimV2,
+) -> Vec<u8> {
+    envelope(
+        DEPLOYMENT_BOOTSTRAP_ANCHOR_CLAIM_SCHEMA_ID_V2,
+        bootstrap_anchor_claim_json(value),
+    )
+}
+
+pub fn encode_v1_to_v2_migration_manifest_v2(
+    value: &V1ToV2MigrationManifestV2,
+) -> Vec<u8> {
+    envelope(
+        V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2,
+        migration_manifest_json(value),
+    )
+}
+
+pub fn canonical_bootstrap_anchor_claim_root_v2(
+    value: &DeploymentBootstrapAnchorClaimV2,
+) -> String {
+    let mut preimage = domain_sep_bytes(BOOTSTRAP_ANCHOR_CLAIM_ROOT_DOMAIN_V2, 2);
+    preimage.extend(encode_deployment_bootstrap_anchor_claim_v2(value));
+    sha256_hex(&preimage)
+}
+
+pub fn canonical_v1_to_v2_migration_manifest_root_v2(
+    value: &V1ToV2MigrationManifestV2,
+) -> String {
+    let mut preimage = domain_sep_bytes(MIGRATION_MANIFEST_ROOT_DOMAIN_V2, 2);
+    preimage.extend(encode_v1_to_v2_migration_manifest_v2(value));
+    sha256_hex(&preimage)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture() -> serde_json::Value {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../tests/fixtures/fcis_b1b_authority_v2_golden.json"
+        );
+        let raw = std::fs::read_to_string(path).expect("shared B1B fixture exists");
+        serde_json::from_str(&raw).expect("shared B1B fixture parses")
+    }
+
+    fn biguint(value: &serde_json::Value) -> BigUint {
+        value
+            .to_string()
+            .parse::<BigUint>()
+            .expect("fixture integer is a BigUint")
+    }
+
+    fn case<'a>(document: &'a serde_json::Value, id: &str) -> &'a serde_json::Value {
+        document["cases"]
+            .as_array()
+            .expect("fixture cases")
+            .iter()
+            .find(|case| case["id"].as_str() == Some(id))
+            .expect("fixture case exists")
+    }
+
+    #[test]
+    fn shared_vectors_match_python_bytes_and_roots() {
+        let document = fixture();
+
+        let header_case = case(&document, "authority_header_initial");
+        let header = FCISAuthorityHeaderV2::try_new(
+            header_case["value"]["chain_deployment_id"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+            biguint(&header_case["value"]["sequence"]),
+            header_case["value"]["fee_distribution_configuration_root"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(encode_fcis_authority_header_v2(&header)).unwrap(),
+            header_case["canonical_utf8"].as_str().unwrap()
+        );
+
+        let anchor_case = case(&document, "bootstrap_anchor_claim");
+        let anchor = DeploymentBootstrapAnchorClaimV2::try_new(
+            anchor_case["value"]["chain_deployment_id"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+            anchor_case["value"]["expected_migration_manifest_root"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(encode_deployment_bootstrap_anchor_claim_v2(&anchor)).unwrap(),
+            anchor_case["canonical_utf8"].as_str().unwrap()
+        );
+        assert_eq!(
+            canonical_bootstrap_anchor_claim_root_v2(&anchor),
+            anchor_case["root"].as_str().unwrap()
+        );
+
+        let manifest_case = case(&document, "v1_to_v2_migration_manifest");
+        let value = &manifest_case["value"];
+        let manifest = V1ToV2MigrationManifestV2::try_new(
+            value["chain_deployment_id"].as_str().unwrap().to_owned(),
+            value["expected_v1_pre_root"].as_str().unwrap().to_owned(),
+            value["fee_distribution_domain_id"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+            value["expected_initial_configuration_root"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+            biguint(&value["initial_sequence"]),
+            biguint(&value["initial_configuration_version"]),
+            biguint(&value["initial_activation_sequence"]),
+            biguint(&value["source_snapshot_version"]),
+            biguint(&value["target_snapshot_version"]),
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(encode_v1_to_v2_migration_manifest_v2(&manifest)).unwrap(),
+            manifest_case["canonical_utf8"].as_str().unwrap()
+        );
+        assert_eq!(
+            canonical_v1_to_v2_migration_manifest_root_v2(&manifest),
+            manifest_case["root"].as_str().unwrap()
+        );
+    }
+
+    #[test]
+    fn full_u256_range_and_carrier_only_fixed_constants_are_supported() {
+        let document = fixture();
+        let maximum = case(&document, "authority_header_u256_maximum");
+        let header = FCISAuthorityHeaderV2::try_new(
+            maximum["value"]["chain_deployment_id"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+            biguint(&maximum["value"]["sequence"]),
+            maximum["value"]["fee_distribution_configuration_root"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+        )
+        .unwrap();
+        assert_eq!(header.sequence(), &u256_max());
+
+        let carrier_only = case(&document, "structurally_exact_wrong_fixed_constants");
+        let value = &carrier_only["value"];
+        let manifest = V1ToV2MigrationManifestV2::try_new(
+            value["chain_deployment_id"].as_str().unwrap().to_owned(),
+            value["expected_v1_pre_root"].as_str().unwrap().to_owned(),
+            value["fee_distribution_domain_id"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+            value["expected_initial_configuration_root"]
+                .as_str()
+                .unwrap()
+                .to_owned(),
+            biguint(&value["initial_sequence"]),
+            biguint(&value["initial_configuration_version"]),
+            biguint(&value["initial_activation_sequence"]),
+            biguint(&value["source_snapshot_version"]),
+            biguint(&value["target_snapshot_version"]),
+        )
+        .unwrap();
+        assert_eq!(manifest.source_snapshot_version(), &BigUint::from(3_u8));
+        assert_eq!(manifest.target_snapshot_version(), &BigUint::from(6_u8));
+    }
+
+    #[test]
+    fn malformed_digests_and_out_of_range_u256_reject() {
+        assert!(FCISAuthorityHeaderV2::try_new(
+            "deployment".to_owned(),
+            BigUint::ZERO,
+            format!("0x{}", "A".repeat(64)),
+        )
+        .is_err());
+        assert!(FCISAuthorityHeaderV2::try_new(
+            "deployment".to_owned(),
+            u256_max() + BigUint::from(1_u8),
+            format!("0x{}", "0".repeat(64)),
+        )
+        .is_err());
+    }
+}
