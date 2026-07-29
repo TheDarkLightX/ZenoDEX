@@ -4,7 +4,7 @@
 status: IMPLEMENTED_UNMOUNTED_EXACT_HEAD_REPAIR_PENDING_REVIEW
 checkpoint: B1B-1
 repaired implementation code head before this report:
-  f0eeddccd66d596bb0127f73b181120897071e70
+  d7f2435c4f1a1cb8f722edb26938bef180f57708
 refuted implementation target:
   221f7d1c6d6aab4baa01327da2801793ec31abc2
 approved Revision 3.4 target:
@@ -169,11 +169,11 @@ independent exact-head review returns the required B1B-1 approval verdict.
 ## Evidence
 
 Commands run at repaired code head
-`f0eeddccd66d596bb0127f73b181120897071e70`:
+`d7f2435c4f1a1cb8f722edb26938bef180f57708`:
 
 ```text
 python3 -m pytest -q <focused B1B-1, checker, packet, and ATDD tests>
-  115 passed
+  116 passed
 
 python3 -m pytest -q <three B1A configuration suites>
   14 passed
