@@ -304,6 +304,21 @@ def test_changed_path_must_be_owned_by_active_assigned_id() -> None:
 
 
 
+def test_planned_carrier_acceptance_path_is_owned() -> None:
+    path = "tests/core/test_fcis_b1b1_carriers.py"
+    for assigned_id in (
+        "ATDD-B1B1-003",
+        "ATDD-B1B1-005",
+        "ATDD-B1B1-007",
+    ):
+        errors, _, _ = validate_matrix(
+            _load_matrix(),
+            assigned_id=assigned_id,
+            changed_paths=(path,),
+        )
+        assert errors == []
+
+
 def test_changed_paths_are_derived_from_git_without_caller_enumeration(
     tmp_path: Path,
 ) -> None:

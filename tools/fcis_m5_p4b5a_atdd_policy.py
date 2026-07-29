@@ -180,6 +180,14 @@ PATH_OWNERS = (
         "pattern": "tests/core/test_fcis_b1b_authority_*.py",
     },
     {
+        "acceptance_ids": [
+            "ATDD-B1B1-003",
+            "ATDD-B1B1-005",
+            "ATDD-B1B1-007",
+        ],
+        "pattern": "tests/core/test_fcis_b1b1_carriers.py",
+    },
+    {
         "acceptance_ids": ["ATDD-B1B1-006"],
         "pattern": "tests/fixtures/fcis_b1b_authority_v2_golden.json",
     },
