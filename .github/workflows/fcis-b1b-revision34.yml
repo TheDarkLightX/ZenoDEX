@@ -1,0 +1,89 @@
+name: FCIS B1B Revision 3.4
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/fcis-b1b-revision34.yml"
+      - "docs/research/FCIS_M5_P4B5A_B1B*"
+      - "src/core/fcis_b1b_authority_*.py"
+      - "src/core/fcis_fee_distribution_configuration_content_validation.py"
+      - "rust-runtime/crates/zenodex-runtime-core/src/fcis_b1b_authority.rs"
+      - "rust-runtime/crates/zenodex-runtime-core/src/lib.rs"
+      - "tests/core/test_fcis_b1b_authority_*.py"
+      - "tests/core/test_fcis_fee_distribution_configuration_content_validation.py"
+      - "tests/fixtures/fcis_b1b_authority_v2_golden.json"
+      - "tests/tools/test_fcis_b1b_revision34_adversarial_model.py"
+      - "tests/tools/test_check_fcis_b1b_revision34_contract.py"
+      - "tools/build_fcis_b1b_authority_v2_golden.py"
+      - "tools/fcis_b1b_revision34_adversarial_model.py"
+      - "tools/check_fcis_b1b_revision34_contract.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-adversarial-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install repository runtime and focused test tools
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements-core.txt
+          python -m pip install --disable-pip-version-check pytest ruff
+      - name: Check source-current vectors and structural contract
+        run: |
+          python tools/build_fcis_b1b_authority_v2_golden.py --check
+          python tools/fcis_b1b_revision34_adversarial_model.py
+          python tools/check_fcis_b1b_revision34_contract.py
+      - name: Run focused semantic and mutation tests
+        run: |
+          python -m pytest -q \
+            tests/core/test_fcis_b1b_authority_values.py \
+            tests/core/test_fcis_b1b_authority_admission.py \
+            tests/core/test_fcis_b1b_authority_golden.py \
+            tests/core/test_fcis_fee_distribution_configuration_content_validation.py \
+            tests/core/test_fcis_fee_distribution_configuration.py \
+            tests/core/test_fcis_fee_distribution_configuration_admission.py \
+            tests/core/test_fcis_fee_distribution_configuration_golden.py \
+            tests/tools/test_fcis_b1b_revision34_adversarial_model.py \
+            tests/tools/test_check_fcis_b1b_revision34_contract.py
+          python -m pytest -q \
+            tests/tools/test_check_fcis_authority_snapshot_contract.py \
+            -k p4b5a
+      - name: Lint focused Python surface
+        run: |
+          ruff check \
+            src/core/fcis_b1b_authority_values.py \
+            src/core/fcis_b1b_authority_schema.py \
+            src/core/fcis_b1b_authority_admission.py \
+            src/core/fcis_b1b_authority_codec.py \
+            src/core/fcis_fee_distribution_configuration_content_validation.py \
+            tests/core/test_fcis_b1b_authority_values.py \
+            tests/core/test_fcis_b1b_authority_admission.py \
+            tests/core/test_fcis_b1b_authority_golden.py \
+            tests/core/test_fcis_fee_distribution_configuration_content_validation.py \
+            tests/tools/test_fcis_b1b_revision34_adversarial_model.py \
+            tests/tools/test_check_fcis_b1b_revision34_contract.py \
+            tools/build_fcis_b1b_authority_v2_golden.py \
+            tools/fcis_b1b_revision34_adversarial_model.py \
+            tools/check_fcis_b1b_revision34_contract.py
+
+  rust-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: rust-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+      - name: Run B1B Rust shared-vector tests
+        run: cargo test --locked -p zenodex-runtime-core fcis_b1b_authority -- --nocapture
