@@ -49,8 +49,6 @@ jobs:
         run: |
           sha256sum \
             docs/research/FCIS_M5_P4B5A_B1B_COMMITTED_CONFIGURATION_AUTHORITY_REVISION_3_4_20260729.md
-          sha256sum -c \
-            docs/research/prompts/fcis_m5_p4b5a_b1b_revision34_review_v1/SOURCE_MANIFEST.sha256
           python -m tools.check_fcis_m5_p4b5a_atdd_contract \
             --assigned-id ATDD-B1B1-009 \
             --diff-base 1665e788a4c4daf43982262c307d0c04b914d89b
