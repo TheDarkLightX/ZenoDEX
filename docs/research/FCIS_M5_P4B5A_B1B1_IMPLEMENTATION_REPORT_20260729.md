@@ -4,13 +4,13 @@
 status: IMPLEMENTED_UNMOUNTED_EXACT_HEAD_REPAIR_PENDING_REVIEW
 checkpoint: B1B-1
 repaired implementation code head before this report:
-  1bba350babe1d7b0eaac11501b6f93b2fc8fa440
+  83a45dbfe5821e38bfaf6389aa3aeaad366580de
 prior reviewed exact-head target:
-  35192b8522c8d287b7fa52332622a642fc8a4b1b
+  a48ac55385cc22d62b5ca00339d60da443d73be6
 prior reviewed packet commit:
-  6c22f52c5e65f14b4501a62a049d231fd48aa2d3
+  98a7c8e171534769d1b5542c388c5b06a5abd3d8
 prior repair code head:
-  12091ded9b0e1762388ccccc08383e16520f6448
+  1bba350babe1d7b0eaac11501b6f93b2fc8fa440
 original refuted implementation target:
   221f7d1c6d6aab4baa01327da2801793ec31abc2
 approved Revision 3.4 target:
@@ -25,8 +25,8 @@ approved Revision 3.4 document SHA-256:
 
 ## Result
 
-The repair retains every earlier exact-head correction and closes both
-construction-surface counterexamples reported by independent review:
+The repair retains every earlier exact-head correction and closes the two Rust
+source-layout counterexamples reported by independent review:
 
 1. all four Python carrier modules reject direct and transitive carrier aliases,
    method capture, dynamic namespace replacement, and post-definition identity
@@ -36,10 +36,13 @@ construction-surface counterexamples reported by independent review:
    sentinels, and canonical dataclass fields;
 3. admission and canonical projection use standalone pure field validators, so
    hostile replacement of a class hook cannot bypass point-of-use validation;
-4. Rust carriers have an exact derive, field, inherent-implementation, trait,
-   macro, and public-function surface, while every encoder and root function
-   freshly revalidates the value and returns a typed result;
-5. dedicated CI checks out the exact pull-request head, verifies that identity,
+4. item-aware Rust scanning blanks only complete top-level `cfg(test)` modules,
+   inspects production items before, between, and after them, collects balanced
+   multiline outer attributes, and closes inherent-implementation, trait,
+   macro, const, static, type-alias, and public-function construction surfaces;
+5. every Rust encoder and root function freshly revalidates the value and
+   returns a typed result;
+6. dedicated CI checks out the exact pull-request head, verifies that identity,
    checks the exact packet topology, exports and rechecks the delivery, and
    uploads the verified evidence.
 
@@ -120,7 +123,10 @@ no post-definition carrier identity replacement
 no sibling-module or transitive-alias identity mutation
 no dynamic namespace replacement or carrier method capture
 exact Rust derive and implementation surfaces
+balanced multiline Rust outer-attribute closure
+production-item inspection before, between, and after test modules
 no generated, trait, macro, or unchecked Rust constructor
+no carrier-bearing top-level const, static, or type-alias surface
 fallible point-of-use Rust encoder validation
 private Rust fields
 no custom equality or hashing
@@ -143,6 +149,9 @@ module-level assignment, setattr, delattr, and type-level mutation
 sibling-module validation bypass and transitive alias mutation
 globals/vars replacement and carrier method capture
 extra Rust derives, trait constructors, macros, and unchecked constructors
+post-test and between-test Rust constructors, trait implementations, helpers,
+macros, constants, and type aliases
+multiline cfg_attr derives and attribute macros
 deleted Rust encoder revalidation
 direct extra Rust carrier fields
 Rust publication helper in lib.rs
@@ -198,11 +207,11 @@ independent exact-head review returns the required B1B-1 approval verdict.
 ## Evidence
 
 Commands run at repaired code head
-`1bba350babe1d7b0eaac11501b6f93b2fc8fa440`:
+`83a45dbfe5821e38bfaf6389aa3aeaad366580de`:
 
 ```text
 python3 -m pytest -q <focused B1B-1 carrier, checker, and packet tests>
-  149 passed
+  160 passed
 
 python3 -m pytest -q <three B1A configuration suites>
   14 passed
@@ -229,7 +238,7 @@ python3 -m tools.check_fcis_m5_p4b5a_atdd_contract \
 ruff check <complete focused B1B-1 Python surface>
   passed
 
-mypy <three carrier modules and the Revision 3.4 structural checker>
+mypy <four carrier modules and the Revision 3.4 structural checker>
   passed
 
 cargo fmt -p zenodex-runtime-core -- --check
@@ -238,12 +247,8 @@ cargo fmt -p zenodex-runtime-core -- --check
 cargo check -p zenodex-runtime-core --lib
   passed
 
-cargo clippy -p zenodex-runtime-core --lib -- -D warnings
+cargo clippy -p zenodex-runtime-core --all-targets -- -D warnings
   passed
-
-repository security red-flag scan over all eight changed paths
-  0 high findings; 57 medium lexical findings in Rust test assertions and
-  fixture parsing, manually scoped outside the production prefix
 
 git diff --check
   passed
@@ -259,6 +264,8 @@ complete repository mypy
 repository-wide critical quality gate
 hosted GitHub Actions at the repaired exact head
 Lean, ESSO, Tau, SMT, or proof-system verification of B1B-1
+repo-local style-map and security red-flag preflight, unavailable in the
+bounded exact-head worktree
 ```
 
 The next packet commit and exported bundle are generated after this report is
