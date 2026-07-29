@@ -28,7 +28,7 @@ Branch and worktree:
 
 ```text
 agent/codex-fcis-m5-p4b3-complete-20260727
-/home/trevormoc/Downloads/Autonomous Tau DEX/.worktrees/fcis-m5-p4b3-complete
+<workspace>/.worktrees/fcis-m5-p4b3-complete
 ```
 
 ## Review grade
