@@ -8,17 +8,14 @@ use num_bigint::{BigInt, BigUint};
 
 use crate::canonical::{canonical_json_bytes, domain_sep_bytes, sha256_hex, JsonValue};
 
-pub const FCIS_B1B_AUTHORITY_SCHEMA_REVISION_V2: &str =
-    "zenodex/fcis/b1b-authority-carriers/v2";
-pub const FCIS_AUTHORITY_HEADER_SCHEMA_ID_V2: &str =
-    "zenodex/fcis/state/authority-header/v2";
+pub const FCIS_B1B_AUTHORITY_SCHEMA_REVISION_V2: &str = "zenodex/fcis/b1b-authority-carriers/v2";
+pub const FCIS_AUTHORITY_HEADER_SCHEMA_ID_V2: &str = "zenodex/fcis/state/authority-header/v2";
 pub const DEPLOYMENT_BOOTSTRAP_ANCHOR_CLAIM_SCHEMA_ID_V2: &str =
     "zenodex/fcis/deployment/bootstrap-anchor-claim/v2";
 pub const V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2: &str =
     "zenodex/fcis/migration/v1-to-v2-manifest/v2";
 
-pub const BOOTSTRAP_ANCHOR_CLAIM_ROOT_DOMAIN_V2: &str =
-    "fcis_deployment_bootstrap_anchor_claim";
+pub const BOOTSTRAP_ANCHOR_CLAIM_ROOT_DOMAIN_V2: &str = "fcis_deployment_bootstrap_anchor_claim";
 pub const MIGRATION_MANIFEST_ROOT_DOMAIN_V2: &str = "fcis_v1_to_v2_migration_manifest";
 
 const MAX_TEXT_CHARACTERS_V2: usize = 4_096;
@@ -386,9 +383,7 @@ pub fn encode_deployment_bootstrap_anchor_claim_v2(
     )
 }
 
-pub fn encode_v1_to_v2_migration_manifest_v2(
-    value: &V1ToV2MigrationManifestV2,
-) -> Vec<u8> {
+pub fn encode_v1_to_v2_migration_manifest_v2(value: &V1ToV2MigrationManifestV2) -> Vec<u8> {
     envelope(
         V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2,
         migration_manifest_json(value),
@@ -403,9 +398,7 @@ pub fn canonical_bootstrap_anchor_claim_root_v2(
     sha256_hex(&preimage)
 }
 
-pub fn canonical_v1_to_v2_migration_manifest_root_v2(
-    value: &V1ToV2MigrationManifestV2,
-) -> String {
+pub fn canonical_v1_to_v2_migration_manifest_root_v2(value: &V1ToV2MigrationManifestV2) -> String {
     let mut preimage = domain_sep_bytes(MIGRATION_MANIFEST_ROOT_DOMAIN_V2, 2);
     preimage.extend(encode_v1_to_v2_migration_manifest_v2(value));
     sha256_hex(&preimage)
