@@ -1,19 +1,23 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 FIXTURE = REPO / "tests" / "fixtures" / "fcis_b1b_authority_v2_golden.json"
-BUILDER = REPO / "tools" / "build_fcis_b1b_authority_v2_golden.py"
+BUILDER_MODULE = "tools.build_fcis_b1b_authority_v2_golden"
 
 
 def test_shared_b1b_fixture_is_source_current() -> None:
+    clean_environment = dict(os.environ)
+    clean_environment.pop("PYTHONPATH", None)
     completed = subprocess.run(
-        [sys.executable, str(BUILDER), "--check"],
+        [sys.executable, "-m", BUILDER_MODULE, "--check"],
         cwd=REPO,
+        env=clean_environment,
         capture_output=True,
         text=True,
         check=False,
