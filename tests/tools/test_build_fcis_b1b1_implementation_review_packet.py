@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import tools.build_fcis_b1b1_implementation_review_packet as packet_builder
 from tools.build_fcis_b1b1_implementation_review_packet import (
     CHANGE_INVENTORY_PATH,
     MANIFEST_PATH,
@@ -183,3 +184,40 @@ def test_packet_relation_rejects_an_extra_path(
     monkeypatch.chdir(repo)
     with pytest.raises(ValueError, match="unexpected entries"):
         _verify_packet_relation(target)
+
+
+def test_delivery_export_round_trips_exact_packet_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _repository(tmp_path)
+    (repo / "source.txt").write_text("base\n", encoding="utf-8")
+    base = _commit_all(repo, "base")
+    (repo / "source.txt").write_text("target\n", encoding="utf-8")
+    target = _commit_all(repo, "target")
+
+    for path in OUTPUT_PATHS:
+        destination = repo / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if path == packet_builder.METADATA_PATH:
+            destination.write_text(
+                json.dumps({"target_commit": target}) + "\n",
+                encoding="utf-8",
+            )
+        else:
+            destination.write_text(f"{path.name}\n", encoding="utf-8")
+    packet = _commit_all(repo, "packet")
+
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(packet_builder, "BASE_PACKET_COMMIT", base)
+    delivery = tmp_path / "delivery"
+    packet_builder._export_delivery(delivery)
+    packet_builder._check_delivery(delivery)
+
+    advertised = _git(
+        repo,
+        "bundle",
+        "list-heads",
+        str(delivery / packet_builder.DELIVERY_BUNDLE_NAME),
+    )
+    assert advertised == f"{packet} HEAD"

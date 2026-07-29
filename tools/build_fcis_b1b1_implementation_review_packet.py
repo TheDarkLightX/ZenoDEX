@@ -517,7 +517,8 @@ def _export_delivery(destination: Path) -> None:
             "bundle",
             "create",
             str(bundle_path),
-            f"{BASE_PACKET_COMMIT}..{packet_commit}",
+            "HEAD",
+            f"^{BASE_PACKET_COMMIT}",
         ],
         check=True,
     )
