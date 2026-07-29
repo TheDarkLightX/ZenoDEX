@@ -4,8 +4,10 @@
 status: IMPLEMENTED_UNMOUNTED_EXACT_HEAD_REPAIR_PENDING_REVIEW
 checkpoint: B1B-1
 repaired implementation code head before this report:
-  d7f2435c4f1a1cb8f722edb26938bef180f57708
-refuted implementation target:
+  12091ded9b0e1762388ccccc08383e16520f6448
+prior reviewed exact-head target:
+  13f06a4675e4a01cf8d57b6cf2feb1ca3ddad8ef
+original refuted implementation target:
   221f7d1c6d6aab4baa01327da2801793ec31abc2
 approved Revision 3.4 target:
   a8b9d191b91a3258e3d7857784bbd6067a0463e1
@@ -19,18 +21,20 @@ approved Revision 3.4 document SHA-256:
 
 ## Result
 
-The exact-head repair closes the three implementation defects and the packet
-reproducibility defect reported by the independent review:
+The repair retains every earlier exact-head correction and closes the final
+inherited-state counterexample reported by independent review:
 
-1. arbitrary untrusted JSON now passes a deterministic resource-bound scan
-   before host JSON materialization;
-2. the structural checker enforces exact carrier projection closure and scans
-   the complete bounded Python and Rust runtime surface for premature authority;
-3. the review-packet builder records every Git change status, including
-   deletions, and can export a verifiable incremental Git bundle plus an
-   external delivery receipt;
-4. the workflow path filters now include shared canonical code, Cargo metadata,
-   lockfiles, and the packet-builder evidence.
+1. exact Python carriers and source types have no bases, metaclasses, or
+   unapproved class-transforming decorators;
+2. post-definition carrier identity mutation is rejected, including direct
+   assignment, setattr, delattr, and type-level mutation calls;
+3. an isolated runtime probe requires dataclasses.fields(type) to equal the
+   canonical schema registry for all six carrier and source types;
+4. delivery verification derives the packet parent, base/target/packet trees,
+   status-aware packet diff, and base-to-target ancestry from the actual Git
+   objects and compares each fact with the external receipt;
+5. bounded decoding, global authority-isolation scanning, deletion-aware
+   inventory, standalone Rust evidence, and CI path closure remain intact.
 
 The checkpoint remains carrier-only and unmounted. B1B-2 is not authorized by
 this repair.
@@ -103,6 +107,9 @@ exact ordered Python carrier field sets
 exact ordered Rust carrier field sets
 exact schema registries
 frozen, slotted, final Python value identity
+no carrier inheritance, metaclass, or decorator drift
+runtime dataclass field equality with the canonical schema registry
+no post-definition carrier identity replacement
 private Rust fields
 no custom equality or hashing
 no independent stored properties or class authority state
@@ -117,8 +124,11 @@ The checker currently scans 936 Python and Rust runtime files and reports zero
 findings. Its disk-bounded mutation suite kills:
 
 ```text
-extra Python and Rust carrier fields
-custom Python equality
+direct and inherited Python carrier fields
+Python base classes, hidden properties, metaclasses, and extra decorators
+custom or post-definition Python equality, hashing, and validation replacement
+module-level assignment, setattr, delattr, and type-level mutation
+direct extra Rust carrier fields
 Rust publication helper in lib.rs
 forbidden pinned-verifier type in a novel path
 aliased and fully-qualified Python carrier consumers
@@ -146,8 +156,11 @@ Cargo workspace closure and canonical dependencies
 
 The delivery export contains the packet files, an incremental Git bundle from
 the approved base through the packet commit, and an external receipt. The
-receipt avoids a self-referential commit-hash construction and is checked
-against both the bundle and committed packet blobs.
+receipt avoids a self-referential commit-hash construction. Delivery checking
+verifies the bundle hash and advertised HEAD, derives the packet's actual sole
+parent and exact five-path diff, derives the base, target, and packet trees,
+requires approved-base ancestry, and compares the packet bytes with both the
+receipt and committed blobs.
 
 ## ATDD evidence
 
@@ -169,19 +182,22 @@ independent exact-head review returns the required B1B-1 approval verdict.
 ## Evidence
 
 Commands run at repaired code head
-`d7f2435c4f1a1cb8f722edb26938bef180f57708`:
+`12091ded9b0e1762388ccccc08383e16520f6448`:
 
 ```text
-python3 -m pytest -q <focused B1B-1, checker, packet, and ATDD tests>
-  116 passed
+python3 -m pytest -q <focused B1B-1 carrier, checker, and packet tests>
+  111 passed
+
+python3 -m pytest -q tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py
+  21 passed
 
 python3 -m pytest -q <three B1A configuration suites>
   14 passed
 
-python3 -m pytest -q tests/tools/test_check_fcis_authority_snapshot_contract.py -k p4b5a
-  18 passed, 334 deselected
+python3 -m pytest -q tests/tools/test_check_fcis_authority_snapshot_contract.py
+  352 passed
 
-cargo test --locked -p zenodex-runtime-core --lib fcis_b1b_authority
+cargo test -p zenodex-runtime-core --lib fcis_b1b_authority
   8 passed
 
 python3 -m tools.build_fcis_b1b_authority_v2_golden --check
@@ -190,24 +206,23 @@ python3 -m tools.build_fcis_b1b_authority_v2_golden --check
 python3 -m tools.check_fcis_b1b_revision34_contract --json
   ok=true, findings=[], required_path_count=16, runtime_files_scanned=936
 
-python3 -B tools/check_fcis_m5_p4b5a_atdd_contract.py \
-  --assigned-id ATDD-B1B1-009 \
-  --diff-base 1665e788a4c4daf43982262c307d0c04b914d89b
-  ok=true, errors=[]
-
-python3 -m ruff check <changed Python implementation and evidence>
+ruff check <five changed Python implementation and evidence files>
   passed
 
-python3 -m mypy <six changed typed surfaces>
+mypy tools/check_fcis_b1b_revision34_contract.py \
+  tools/build_fcis_b1b1_implementation_review_packet.py
   passed
 
-cargo fmt -p zenodex-runtime-core --check
+cargo fmt --all -- --check
   passed
 
-cargo clippy --locked -p zenodex-runtime-core --lib -- -D warnings
+cargo clippy -p zenodex-runtime-core --lib -- -D warnings
   passed
 
-git diff --cached --check
+repository security red-flag scan over the two changed tools
+  0 findings
+
+git diff --check
   passed
 ```
 
