@@ -1,10 +1,12 @@
-# FCIS M5-P4B5A B1B-1 implementation report
+# FCIS M5-P4B5A B1B-1 exact-head repair report
 
 ```text
-status: IMPLEMENTED_UNMOUNTED_REVIEW_PENDING
+status: IMPLEMENTED_UNMOUNTED_EXACT_HEAD_REPAIR_PENDING_REVIEW
 checkpoint: B1B-1
-implementation code head before this report:
-  c396fc4e92ceff8c099d7d2c7fca1532a5ec370b
+repaired implementation code head before this report:
+  f0eeddccd66d596bb0127f73b181120897071e70
+refuted implementation target:
+  221f7d1c6d6aab4baa01327da2801793ec31abc2
 approved Revision 3.4 target:
   a8b9d191b91a3258e3d7857784bbd6067a0463e1
 approved Revision 3.4 packet:
@@ -17,34 +19,45 @@ approved Revision 3.4 document SHA-256:
 
 ## Result
 
-B1B-1 implements the three approved untrusted carrier families:
+The exact-head repair closes the three implementation defects and the packet
+reproducibility defect reported by the independent review:
+
+1. arbitrary untrusted JSON now passes a deterministic resource-bound scan
+   before host JSON materialization;
+2. the structural checker enforces exact carrier projection closure and scans
+   the complete bounded Python and Rust runtime surface for premature authority;
+3. the review-packet builder records every Git change status, including
+   deletions, and can export a verifiable incremental Git bundle plus an
+   external delivery receipt;
+4. the workflow path filters now include shared canonical code, Cargo metadata,
+   lockfiles, and the packet-builder evidence.
+
+The checkpoint remains carrier-only and unmounted. B1B-2 is not authorized by
+this repair.
+
+## Invariant and authority impact
+
+The implemented relation remains:
 
 ```text
-FCISAuthorityHeaderV2
-DeploymentBootstrapAnchorClaimV2
-V1ToV2MigrationManifestV2
-```
-
-The checkpoint also implements closed field registries, strict Python
-admission, canonical Python and Rust encoders, domain-separated audit roots,
-shared positive and negative vectors, and a fail-closed unmounted-scope
-checker.
-
-No runtime authority was mounted.
-
-## Invariant and authority boundary
-
-The implemented relation is:
-
-```text
-untrusted source or bytes
-  -> closed structural admission
-  -> exact immutable carrier
+arbitrary untrusted bytes
+  -> deterministic byte and JSON resource bounds
+  -> closed structural admission or typed rejection
+  -> exact immutable untrusted carrier
   -> canonical bytes
   -> optional audit root
 ```
 
-The result remains untrusted data. It cannot construct:
+For each admitted carrier value `x`, the checked closure requirement is:
+
+```text
+stored_fields(x) = schema_fields(x)
+
+canonical_bytes(x) = canonical_bytes(y)
+  -> x = y
+```
+
+The carrier result cannot construct or authorize:
 
 ```text
 pinned deployment verifier
@@ -60,153 +73,182 @@ publication
 runtime mount
 ```
 
-The migration manifest deliberately admits structurally exact values outside
-the later semantic constants. For example, source snapshot version `3` remains
-a carrier value and never becomes migration authority in B1B-1.
+## Bounded decoder repair
 
-## Implemented surface
-
-Python:
+Python and Rust now share these exact limits:
 
 ```text
-src/core/fcis_b1b_authority_values.py
-src/core/fcis_b1b_authority_schema.py
-src/core/fcis_b1b_authority_admission.py
-src/core/fcis_b1b_authority_codec.py
+maximum canonical input bytes:       65,536
+maximum JSON nesting depth:          32
+maximum total JSON nodes:            256
+maximum collection members/elements: 64
 ```
 
-Rust:
+The Python decoder performs a lexical resource scan before `json.loads` and
+returns closed rejection codes for byte, UTF-8, depth, node, and collection
+limits. `RecursionError` is also caught as defense in depth. Duplicate-key and
+JSON-shape handling remains downstream, with resource-limit precedence frozen
+by tests.
+
+The shared golden fixture contains exact-at-limit and limit-plus-one vectors
+for arrays, objects, mixed nesting, collection size, total nodes, byte size,
+and invalid UTF-8. Python and Rust consume the same descriptors.
+
+## Exact carrier closure and authority isolation
+
+The Revision 3.4 structural checker now enforces:
 
 ```text
-rust-runtime/crates/zenodex-runtime-core/src/fcis_b1b_authority.rs
-rust-runtime/crates/zenodex-runtime-core/src/lib.rs
+exact ordered Python carrier field sets
+exact ordered Rust carrier field sets
+exact schema registries
+frozen, slotted, final Python value identity
+private Rust fields
+no custom equality or hashing
+no independent stored properties or class authority state
+closed constructor and codec function inventories
+global forbidden-authority symbol scanning
+global carrier-consumer scanning across bounded runtime roots
+exact Rust lib.rs export surface
+fail-closed handling of unreadable, oversized, or novel runtime paths
 ```
 
-Evidence:
+The checker currently scans 936 Python and Rust runtime files and reports zero
+findings. Its disk-bounded mutation suite kills:
 
 ```text
-tests/core/test_fcis_b1b_authority_values.py
-tests/core/test_fcis_b1b_authority_admission.py
-tests/core/test_fcis_b1b_authority_golden.py
-tests/core/test_fcis_b1b1_carriers.py
-tests/fixtures/fcis_b1b_authority_v2_golden.json
-tools/build_fcis_b1b_authority_v2_golden.py
-tools/check_fcis_b1b_revision34_contract.py
-tests/tools/test_check_fcis_b1b_revision34_contract.py
-.github/workflows/fcis-b1b-revision34.yml
+extra Python and Rust carrier fields
+custom Python equality
+Rust publication helper in lib.rs
+forbidden pinned-verifier type in a novel path
+aliased and fully-qualified Python carrier consumers
+neutral-name Python authority consumer
+private Rust alias consumer
+premature authority builders and runtime mounts
 ```
 
-The functional core contains no filesystem, network, wall-clock, environment,
-or randomness read. The fixture builder and review tooling remain outside the
-functional core.
+## Deletion-aware exact-head packet
+
+The packet builder now parses NUL-delimited Git name-status output with rename
+and copy detection. It accepts the complete bounded status set and records
+deleted files as tombstones containing the base blob identity and SHA-256.
+
+The packet metadata binds:
+
+```text
+approved base commit and tree
+implementation target commit and tree
+documentation-only packet commit and parent
+complete status-aware change inventory
+target-present source hashes
+Cargo workspace closure and canonical dependencies
+```
+
+The delivery export contains the packet files, an incremental Git bundle from
+the approved base through the packet commit, and an external receipt. The
+receipt avoids a self-referential commit-hash construction and is checked
+against both the bundle and committed packet blobs.
 
 ## ATDD evidence
 
-The ready B1B-1 acceptance cases were replayed from the repository root with
-`PYTHONPATH` removed where applicable.
-
-| Acceptance | Result | Evidence |
-| --- | --- | --- |
-| ATDD-B1B1-001 | closed | Revision 3.4 SHA-256 remains exact; the structural checker pins the immutable blob |
-| ATDD-B1B1-002 | closed | direct script and module commands pass with `PYTHONPATH` absent; 21 ATDD checker tests pass |
-| ATDD-B1B1-003 | closed | 2 schema scenarios pass; unknown, missing, duplicate, and trailing fields reject |
-| ATDD-B1B1-004 | closed | 6 Python U256 cases and 1 Rust boundary test pass |
-| ATDD-B1B1-005 | closed | 9 identifier, Unicode, and digest boundary scenarios pass |
-| ATDD-B1B1-006 | closed | source-current fixture passes; 3 Python golden tests and 2 Rust golden tests pass |
-| ATDD-B1B1-007 | closed | 2 carrier-only authority-boundary scenarios pass |
-| ATDD-B1B1-008 | closed | structural checker is green and premature-authority mutants reject |
-| ATDD-B1B1-009 | closed | integration ownership gate accepts all 26 implementation paths from the approved packet |
-| ATDD-B1B1-010 | closed | 938 Python/Rust runtime files scanned with zero carrier consumers outside the allowlist |
-| ATDD-B1B1-011 | closed | 14 bounded mutants pass without a repository copy |
-| ATDD-B1B1-012 | ready | exact-head packet builder and documentation are part of the review target; the child packet commit closes this case |
-
-Focused aggregate evidence:
+The Git-aware acceptance gate reports:
 
 ```text
-91 Python carrier, B1A-regression, ATDD, and mutation tests passed
-18 P4B5A authority-snapshot tests passed, 334 deselected
-3 Rust B1B carrier tests passed
-Rust formatting passed
-Rust clippy with -D warnings passed
-focused Ruff checks passed
-GitHub workflow permission check passed with zero findings
+acceptance_case_count: 20
+b1b1_case_count: 12
+b1b2_case_count: 8
+changed_path_count: 30
+errors: []
+ok: true
+phase_order: [B1B-1, B1B-2]
 ```
 
-## Preserved counterexamples
+The B1B-1 promotion rule remains fail closed. B1B-2 cannot begin until an
+independent exact-head review returns the required B1B-1 approval verdict.
 
-The ATDD loop preserved these minimized failures before repair:
+## Evidence
 
-1. The golden source-current test failed under an environment with
-   `PYTHONPATH` removed because it invoked the builder as a file. Module-form
-   execution repaired the hidden import dependency.
-2. The ATDD ownership checker rejected the ignored, untracked structural test.
-   Force-adding that exact evidence file repaired the ownership boundary.
-3. A full-repository `shutil.copytree` mutation harness was rejected by the
-   execution contract. The implemented harness copies exactly the checker's 15
-   declared required paths and enforces a two-megabyte bound.
-4. Premature pinned-verifier types, bare-header advance helpers, public Rust
-   carrier fields, out-of-scope authority paths, runtime carrier imports,
-   schema/root drift, and missing required evidence each kill a named
-   structural test.
-
-## Canonical and cross-language contract
-
-Python and Rust share:
+Commands run at repaired code head
+`f0eeddccd66d596bb0127f73b181120897071e70`:
 
 ```text
-three exact schema identifiers
-closed field projections
-U256 range 0 through 2^256 - 1
-positive configuration-version rule
-bounded nonempty Unicode scalar identifiers
-lowercase 0x-prefixed 32-byte digests
-canonical JSON envelopes
-domain-separated SHA-256 roots
-shared accepted and rejected fixture cases
-```
+python3 -m pytest -q <focused B1B-1, checker, packet, and ATDD tests>
+  115 passed
 
-Boolean and negative integer cases are Python-only because Rust `BigUint`
-cannot represent them. The shared fixture records that exclusion explicitly.
+python3 -m pytest -q <three B1A configuration suites>
+  14 passed
+
+python3 -m pytest -q tests/tools/test_check_fcis_authority_snapshot_contract.py -k p4b5a
+  18 passed, 334 deselected
+
+cargo test --locked -p zenodex-runtime-core --lib fcis_b1b_authority
+  8 passed
+
+python3 -m tools.build_fcis_b1b_authority_v2_golden --check
+  passed
+
+python3 -m tools.check_fcis_b1b_revision34_contract --json
+  ok=true, findings=[], required_path_count=16, runtime_files_scanned=936
+
+python3 -B tools/check_fcis_m5_p4b5a_atdd_contract.py \
+  --assigned-id ATDD-B1B1-009 \
+  --diff-base 1665e788a4c4daf43982262c307d0c04b914d89b
+  ok=true, errors=[]
+
+python3 -m ruff check <changed Python implementation and evidence>
+  passed
+
+python3 -m mypy <six changed typed surfaces>
+  passed
+
+cargo fmt -p zenodex-runtime-core --check
+  passed
+
+cargo clippy --locked -p zenodex-runtime-core --lib -- -D warnings
+  passed
+
+git diff --cached --check
+  passed
+```
 
 ## Commands not run
 
 This report does not claim:
 
 ```text
-the complete repository pytest suite
-the complete repository mypy suite
-the repository-wide critical quality gate
-hosted GitHub Actions at the exact implementation target
+complete repository pytest
+complete repository mypy
+repository-wide critical quality gate
+hosted GitHub Actions at the repaired exact head
 Lean, ESSO, Tau, SMT, or proof-system verification of B1B-1
 ```
 
-Those broader gates are not needed to establish the narrow carrier-only
-checkpoint. The exact-head reviewer may run additional bounded checks.
+The next packet commit and exported bundle are generated after this report is
+committed, so their identities belong to the packet metadata and delivery
+receipt rather than this implementation report.
 
 ## Residual risk and non-claims
 
-B1B-1 proves no deployment identity, migration legitimacy, current state,
-configuration authority, publication atomicity, datastore linearizability,
-governance authorization, content availability, crash recovery, or value
-movement.
+B1B-1 establishes only bounded exact untrusted carriers, canonical Python/Rust
+bytes and roots, and a checked absence of authority consumers in the reviewed
+surface. It establishes no deployment identity, migration legitimacy, current
+state, configuration authority, publication atomicity, datastore
+linearizability, governance authorization, content availability, crash
+recovery, proof integration, or value movement.
 
-Python immutability remains a defensive API property rather than a language
-security boundary. Every later authority-bearing phase must retain the
-independent source at point of use and revalidate the exact carrier content.
-
-No conclusion about B1B-2 follows from this implementation. B1B-2 remains
-blocked until its source-bound pinned-migration design is separately approved
-and a revised ATDD contract grants explicit implementation authority.
+The resource scanner deliberately bounds denial-of-service exposure; it is not
+a general-purpose JSON parser proof. The structural checker is a deterministic
+repository gate over declared runtime roots. Arbitrary code execution that can
+replace the checker or its inventory remains outside the claim.
 
 ## Next safest step
 
-Commit this report and the deterministic packet builder as the implementation
-review target. Generate one documentation-only child packet containing the
-exact target identity, complete changed-file inventory, source hashes, and
-independent falsification prompt. Then obtain:
+Commit this report as the corrected implementation-review target. Generate one
+documentation-only child packet, export its Git bundle and delivery receipt,
+and obtain:
 
 ```text
 APPROVE_B1B1_EXACT_HEAD_UNMOUNTED
 ```
 
-before beginning B1B-2 implementation.
+before beginning B1B-2 design or implementation.
