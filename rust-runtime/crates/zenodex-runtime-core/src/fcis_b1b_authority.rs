@@ -228,24 +228,11 @@ impl FCISAuthorityHeaderV2 {
         sequence: BigUint,
         fee_distribution_configuration_root: String,
     ) -> Result<Self, B1BAuthorityCarrierRejectV2> {
-        if !text_is_canonical(&chain_deployment_id) {
-            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
-                "authority_header",
-                "chain_deployment_id",
-            ]));
-        }
-        if sequence > u256_max() {
-            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
-                "authority_header",
-                "sequence",
-            ]));
-        }
-        if !digest_is_canonical(&fee_distribution_configuration_root) {
-            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
-                "authority_header",
-                "fee_distribution_configuration_root",
-            ]));
-        }
+        validate_authority_header_fields_v2(
+            &chain_deployment_id,
+            &sequence,
+            &fee_distribution_configuration_root,
+        )?;
         Ok(Self {
             chain_deployment_id,
             sequence,
@@ -277,18 +264,10 @@ impl DeploymentBootstrapAnchorClaimV2 {
         chain_deployment_id: String,
         expected_migration_manifest_root: String,
     ) -> Result<Self, B1BAuthorityCarrierRejectV2> {
-        if !text_is_canonical(&chain_deployment_id) {
-            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
-                "bootstrap_anchor_claim",
-                "chain_deployment_id",
-            ]));
-        }
-        if !digest_is_canonical(&expected_migration_manifest_root) {
-            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
-                "bootstrap_anchor_claim",
-                "expected_migration_manifest_root",
-            ]));
-        }
+        validate_bootstrap_anchor_claim_fields_v2(
+            &chain_deployment_id,
+            &expected_migration_manifest_root,
+        )?;
         Ok(Self {
             chain_deployment_id,
             expected_migration_manifest_root,
@@ -330,52 +309,17 @@ impl V1ToV2MigrationManifestV2 {
         source_snapshot_version: BigUint,
         target_snapshot_version: BigUint,
     ) -> Result<Self, B1BAuthorityCarrierRejectV2> {
-        if !text_is_canonical(&chain_deployment_id) {
-            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
-                "migration_manifest",
-                "chain_deployment_id",
-            ]));
-        }
-        if !digest_is_canonical(&expected_v1_pre_root) {
-            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
-                "migration_manifest",
-                "expected_v1_pre_root",
-            ]));
-        }
-        if !text_is_canonical(&fee_distribution_domain_id) {
-            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
-                "migration_manifest",
-                "fee_distribution_domain_id",
-            ]));
-        }
-        if !digest_is_canonical(&expected_initial_configuration_root) {
-            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
-                "migration_manifest",
-                "expected_initial_configuration_root",
-            ]));
-        }
-        for (name, value, positive) in [
-            ("initial_sequence", &initial_sequence, false),
-            (
-                "initial_configuration_version",
-                &initial_configuration_version,
-                true,
-            ),
-            (
-                "initial_activation_sequence",
-                &initial_activation_sequence,
-                false,
-            ),
-            ("source_snapshot_version", &source_snapshot_version, false),
-            ("target_snapshot_version", &target_snapshot_version, false),
-        ] {
-            if value > &u256_max() || (positive && value == &BigUint::ZERO) {
-                return Err(B1BAuthorityCarrierRejectV2::invalid(&[
-                    "migration_manifest",
-                    name,
-                ]));
-            }
-        }
+        validate_migration_manifest_fields_v2(
+            &chain_deployment_id,
+            &expected_v1_pre_root,
+            &fee_distribution_domain_id,
+            &expected_initial_configuration_root,
+            &initial_sequence,
+            &initial_configuration_version,
+            &initial_activation_sequence,
+            &source_snapshot_version,
+            &target_snapshot_version,
+        )?;
         Ok(Self {
             chain_deployment_id,
             expected_v1_pre_root,
@@ -424,6 +368,112 @@ impl V1ToV2MigrationManifestV2 {
     pub fn target_snapshot_version(&self) -> &BigUint {
         &self.target_snapshot_version
     }
+}
+
+fn validate_authority_header_fields_v2(
+    chain_deployment_id: &str,
+    sequence: &BigUint,
+    fee_distribution_configuration_root: &str,
+) -> Result<(), B1BAuthorityCarrierRejectV2> {
+    if !text_is_canonical(chain_deployment_id) {
+        return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+            "authority_header",
+            "chain_deployment_id",
+        ]));
+    }
+    if sequence > &u256_max() {
+        return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+            "authority_header",
+            "sequence",
+        ]));
+    }
+    if !digest_is_canonical(fee_distribution_configuration_root) {
+        return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+            "authority_header",
+            "fee_distribution_configuration_root",
+        ]));
+    }
+    Ok(())
+}
+
+fn validate_bootstrap_anchor_claim_fields_v2(
+    chain_deployment_id: &str,
+    expected_migration_manifest_root: &str,
+) -> Result<(), B1BAuthorityCarrierRejectV2> {
+    if !text_is_canonical(chain_deployment_id) {
+        return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+            "bootstrap_anchor_claim",
+            "chain_deployment_id",
+        ]));
+    }
+    if !digest_is_canonical(expected_migration_manifest_root) {
+        return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+            "bootstrap_anchor_claim",
+            "expected_migration_manifest_root",
+        ]));
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_migration_manifest_fields_v2(
+    chain_deployment_id: &str,
+    expected_v1_pre_root: &str,
+    fee_distribution_domain_id: &str,
+    expected_initial_configuration_root: &str,
+    initial_sequence: &BigUint,
+    initial_configuration_version: &BigUint,
+    initial_activation_sequence: &BigUint,
+    source_snapshot_version: &BigUint,
+    target_snapshot_version: &BigUint,
+) -> Result<(), B1BAuthorityCarrierRejectV2> {
+    if !text_is_canonical(chain_deployment_id) {
+        return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+            "migration_manifest",
+            "chain_deployment_id",
+        ]));
+    }
+    if !digest_is_canonical(expected_v1_pre_root) {
+        return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+            "migration_manifest",
+            "expected_v1_pre_root",
+        ]));
+    }
+    if !text_is_canonical(fee_distribution_domain_id) {
+        return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+            "migration_manifest",
+            "fee_distribution_domain_id",
+        ]));
+    }
+    if !digest_is_canonical(expected_initial_configuration_root) {
+        return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+            "migration_manifest",
+            "expected_initial_configuration_root",
+        ]));
+    }
+    for (name, value, positive) in [
+        ("initial_sequence", initial_sequence, false),
+        (
+            "initial_configuration_version",
+            initial_configuration_version,
+            true,
+        ),
+        (
+            "initial_activation_sequence",
+            initial_activation_sequence,
+            false,
+        ),
+        ("source_snapshot_version", source_snapshot_version, false),
+        ("target_snapshot_version", target_snapshot_version, false),
+    ] {
+        if value > &u256_max() || (positive && value == &BigUint::ZERO) {
+            return Err(B1BAuthorityCarrierRejectV2::invalid(&[
+                "migration_manifest",
+                name,
+            ]));
+        }
+    }
+    Ok(())
 }
 
 fn int_json(value: BigUint) -> JsonValue {
@@ -505,41 +555,67 @@ fn migration_manifest_json(value: &V1ToV2MigrationManifestV2) -> JsonValue {
     ])
 }
 
-pub fn encode_fcis_authority_header_v2(value: &FCISAuthorityHeaderV2) -> Vec<u8> {
-    envelope(
+pub fn encode_fcis_authority_header_v2(
+    value: &FCISAuthorityHeaderV2,
+) -> Result<Vec<u8>, B1BAuthorityCarrierRejectV2> {
+    validate_authority_header_fields_v2(
+        &value.chain_deployment_id,
+        &value.sequence,
+        &value.fee_distribution_configuration_root,
+    )?;
+    Ok(envelope(
         FCIS_AUTHORITY_HEADER_SCHEMA_ID_V2,
         authority_header_json(value),
-    )
+    ))
 }
 
 pub fn encode_deployment_bootstrap_anchor_claim_v2(
     value: &DeploymentBootstrapAnchorClaimV2,
-) -> Vec<u8> {
-    envelope(
+) -> Result<Vec<u8>, B1BAuthorityCarrierRejectV2> {
+    validate_bootstrap_anchor_claim_fields_v2(
+        &value.chain_deployment_id,
+        &value.expected_migration_manifest_root,
+    )?;
+    Ok(envelope(
         DEPLOYMENT_BOOTSTRAP_ANCHOR_CLAIM_SCHEMA_ID_V2,
         bootstrap_anchor_claim_json(value),
-    )
+    ))
 }
 
-pub fn encode_v1_to_v2_migration_manifest_v2(value: &V1ToV2MigrationManifestV2) -> Vec<u8> {
-    envelope(
+pub fn encode_v1_to_v2_migration_manifest_v2(
+    value: &V1ToV2MigrationManifestV2,
+) -> Result<Vec<u8>, B1BAuthorityCarrierRejectV2> {
+    validate_migration_manifest_fields_v2(
+        &value.chain_deployment_id,
+        &value.expected_v1_pre_root,
+        &value.fee_distribution_domain_id,
+        &value.expected_initial_configuration_root,
+        &value.initial_sequence,
+        &value.initial_configuration_version,
+        &value.initial_activation_sequence,
+        &value.source_snapshot_version,
+        &value.target_snapshot_version,
+    )?;
+    Ok(envelope(
         V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2,
         migration_manifest_json(value),
-    )
+    ))
 }
 
 pub fn canonical_bootstrap_anchor_claim_root_v2(
     value: &DeploymentBootstrapAnchorClaimV2,
-) -> String {
+) -> Result<String, B1BAuthorityCarrierRejectV2> {
     let mut preimage = domain_sep_bytes(BOOTSTRAP_ANCHOR_CLAIM_ROOT_DOMAIN_V2, 2);
-    preimage.extend(encode_deployment_bootstrap_anchor_claim_v2(value));
-    sha256_hex(&preimage)
+    preimage.extend(encode_deployment_bootstrap_anchor_claim_v2(value)?);
+    Ok(sha256_hex(&preimage))
 }
 
-pub fn canonical_v1_to_v2_migration_manifest_root_v2(value: &V1ToV2MigrationManifestV2) -> String {
+pub fn canonical_v1_to_v2_migration_manifest_root_v2(
+    value: &V1ToV2MigrationManifestV2,
+) -> Result<String, B1BAuthorityCarrierRejectV2> {
     let mut preimage = domain_sep_bytes(MIGRATION_MANIFEST_ROOT_DOMAIN_V2, 2);
-    preimage.extend(encode_v1_to_v2_migration_manifest_v2(value));
-    sha256_hex(&preimage)
+    preimage.extend(encode_v1_to_v2_migration_manifest_v2(value)?);
+    Ok(sha256_hex(&preimage))
 }
 
 #[cfg(test)]
@@ -589,7 +665,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            String::from_utf8(encode_fcis_authority_header_v2(&header)).unwrap(),
+            String::from_utf8(encode_fcis_authority_header_v2(&header).unwrap()).unwrap(),
             header_case["canonical_utf8"].as_str().unwrap()
         );
 
@@ -606,11 +682,12 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            String::from_utf8(encode_deployment_bootstrap_anchor_claim_v2(&anchor)).unwrap(),
+            String::from_utf8(encode_deployment_bootstrap_anchor_claim_v2(&anchor).unwrap(),)
+                .unwrap(),
             anchor_case["canonical_utf8"].as_str().unwrap()
         );
         assert_eq!(
-            canonical_bootstrap_anchor_claim_root_v2(&anchor),
+            canonical_bootstrap_anchor_claim_root_v2(&anchor).unwrap(),
             anchor_case["root"].as_str().unwrap()
         );
 
@@ -635,11 +712,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            String::from_utf8(encode_v1_to_v2_migration_manifest_v2(&manifest)).unwrap(),
+            String::from_utf8(encode_v1_to_v2_migration_manifest_v2(&manifest).unwrap()).unwrap(),
             manifest_case["canonical_utf8"].as_str().unwrap()
         );
         assert_eq!(
-            canonical_v1_to_v2_migration_manifest_root_v2(&manifest),
+            canonical_v1_to_v2_migration_manifest_root_v2(&manifest).unwrap(),
             manifest_case["root"].as_str().unwrap()
         );
     }
@@ -891,6 +968,18 @@ mod resource_tests {
             B1BAuthorityCarrierCodeV2::JsonDepthLimit.as_str(),
             "json_depth_limit"
         );
+    }
+
+    #[test]
+    fn fcis_b1b_encoder_revalidates_hostile_internal_carrier() {
+        let invalid = FCISAuthorityHeaderV2 {
+            chain_deployment_id: String::new(),
+            sequence: BigUint::ZERO,
+            fee_distribution_configuration_root: String::new(),
+        };
+        let reject = encode_fcis_authority_header_v2(&invalid).unwrap_err();
+        assert_eq!(reject.code(), B1BAuthorityCarrierCodeV2::InvalidValue);
+        assert_eq!(reject.path(), ["authority_header", "chain_deployment_id"]);
     }
 
     #[test]

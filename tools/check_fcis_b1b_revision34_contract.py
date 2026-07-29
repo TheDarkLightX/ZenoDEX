@@ -24,6 +24,7 @@ SCHEMA_PATH = Path("src/core/fcis_b1b_authority_schema.py")
 ADMISSION_PATH = Path("src/core/fcis_b1b_authority_admission.py")
 CODEC_PATH = Path("src/core/fcis_b1b_authority_codec.py")
 PYTHON_PATHS = (VALUES_PATH, SCHEMA_PATH, ADMISSION_PATH, CODEC_PATH)
+CANONICAL_PATH = Path("src/state/canonical.py")
 RUST_PATH = Path("rust-runtime/crates/zenodex-runtime-core/src/fcis_b1b_authority.rs")
 RUST_LIB_PATH = Path("rust-runtime/crates/zenodex-runtime-core/src/lib.rs")
 FIXTURE_PATH = Path("tests/fixtures/fcis_b1b_authority_v2_golden.json")
@@ -43,6 +44,7 @@ TEST_PATHS = (
 REQUIRED_PATHS = (
     REVISION_PATH,
     *PYTHON_PATHS,
+    CANONICAL_PATH,
     RUST_PATH,
     RUST_LIB_PATH,
     FIXTURE_PATH,
@@ -152,6 +154,32 @@ EXPECTED_RUST_STRUCT_FIELDS = {
         "zenodex/fcis/migration/v1-to-v2-manifest/v2"
     ],
 }
+EXPECTED_RUST_DERIVE = "#[derive(Debug, Clone, PartialEq, Eq)]"
+EXPECTED_RUST_METHODS = {
+    "FCISAuthorityHeaderV2": (
+        "try_new",
+        "chain_deployment_id",
+        "sequence",
+        "fee_distribution_configuration_root",
+    ),
+    "DeploymentBootstrapAnchorClaimV2": (
+        "try_new",
+        "chain_deployment_id",
+        "expected_migration_manifest_root",
+    ),
+    "V1ToV2MigrationManifestV2": (
+        "try_new",
+        "chain_deployment_id",
+        "expected_v1_pre_root",
+        "fee_distribution_domain_id",
+        "expected_initial_configuration_root",
+        "initial_sequence",
+        "initial_configuration_version",
+        "initial_activation_sequence",
+        "source_snapshot_version",
+        "target_snapshot_version",
+    ),
+}
 EXPECTED_ROOT_DOMAINS = {
     "BOOTSTRAP_ANCHOR_CLAIM_ROOT_DOMAIN_V2": "fcis_deployment_bootstrap_anchor_claim",
     "MIGRATION_MANIFEST_ROOT_DOMAIN_V2": "fcis_v1_to_v2_migration_manifest",
@@ -223,6 +251,9 @@ RUST_ALLOWED_FUNCTIONS = frozenset(
         "u256_max",
         "text_is_canonical",
         "digest_is_canonical",
+        "validate_authority_header_fields_v2",
+        "validate_bootstrap_anchor_claim_fields_v2",
+        "validate_migration_manifest_fields_v2",
         "as_str",
         "resource",
         "invalid",
@@ -421,12 +452,63 @@ def _direct_annotated_fields(node: ast.ClassDef) -> tuple[str, ...]:
     )
 
 
-def _target_carrier_names(target: ast.AST) -> set[str]:
-    return {
-        child.id
-        for child in ast.walk(target)
-        if isinstance(child, ast.Name) and child.id in PYTHON_CARRIER_NAMES
-    }
+def _assigned_names(node: ast.AST) -> tuple[str, ...]:
+    return tuple(
+        child.id for child in ast.walk(node) if isinstance(child, ast.Name)
+    )
+
+
+def _carrier_aliases(tree: ast.Module) -> tuple[set[str], set[str]]:
+    aliases = set(PYTHON_CARRIER_NAMES)
+    declared_aliases: set[str] = set()
+    edges: list[tuple[str, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and (node.module or "").endswith(
+            "fcis_b1b_authority_values"
+        ):
+            for imported in node.names:
+                if imported.name not in PYTHON_CARRIER_NAMES:
+                    continue
+                local_name = imported.asname or imported.name
+                aliases.add(local_name)
+                if local_name != imported.name:
+                    declared_aliases.add(local_name)
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Name):
+            for target in node.targets:
+                edges.extend((name, node.value.id) for name in _assigned_names(target))
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and node.value is not None
+            and isinstance(node.value, ast.Name)
+        ):
+            edges.extend(
+                (name, node.value.id) for name in _assigned_names(node.target)
+            )
+
+    changed = True
+    while changed:
+        changed = False
+        for alias_target, alias_source in edges:
+            if alias_source in aliases and alias_target not in aliases:
+                aliases.add(alias_target)
+                declared_aliases.add(alias_target)
+                changed = True
+    return aliases, declared_aliases
+
+
+def _expression_references_alias(node: ast.AST, aliases: set[str]) -> bool:
+    return any(
+        isinstance(child, ast.Name) and child.id in aliases
+        for child in ast.walk(node)
+    )
+
+
+def _dynamic_mutation_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return None
 
 
 def _check_python_identity_mutations(
@@ -435,6 +517,8 @@ def _check_python_identity_mutations(
     findings: list[Finding],
 ) -> None:
     details: set[str] = set()
+    aliases, declared_aliases = _carrier_aliases(tree)
+    details.update(f"{name}: carrier class alias" for name in declared_aliases)
     for node in ast.walk(tree):
         targets: tuple[ast.AST, ...] = ()
         if isinstance(node, ast.Assign):
@@ -444,34 +528,131 @@ def _check_python_identity_mutations(
         elif isinstance(node, ast.Delete):
             targets = tuple(node.targets)
         for target in targets:
-            for name in _target_carrier_names(target):
+            target_names = {
+                child.id
+                for child in ast.walk(target)
+                if isinstance(child, ast.Name) and child.id in aliases
+            }
+            for name in target_names:
                 details.add(f"{name}: attribute or class replacement")
+            if any(
+                isinstance(child, ast.Call)
+                and _dynamic_mutation_name(child.func) in {"globals", "vars"}
+                for child in ast.walk(target)
+            ):
+                details.add("dynamic namespace replacement")
 
-        if not isinstance(node, ast.Call) or not node.args:
+        assigned_value: ast.expr | None = None
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            assigned_value = node.value
+        if (
+            isinstance(assigned_value, ast.Attribute)
+            and _expression_references_alias(assigned_value.value, aliases)
+        ):
+            details.add("carrier method or descriptor capture")
+
+        if not isinstance(node, ast.Call):
+            continue
+        mutation_name = _dynamic_mutation_name(node.func)
+        if mutation_name in {"globals", "vars"}:
+            details.add(f"dynamic namespace call: {mutation_name}")
+        if not node.args:
             continue
         first_argument = node.args[0]
-        if isinstance(first_argument, ast.Name):
-            if first_argument.id in PYTHON_CARRIER_NAMES:
-                details.add(f"{first_argument.id}: post-definition call")
+        if (
+            mutation_name in {"setattr", "delattr", "__setattr__", "__delattr__"}
+            and _expression_references_alias(first_argument, aliases)
+        ):
+            details.add(f"carrier post-definition call: {mutation_name}")
 
     for detail in sorted(details):
         findings.append(Finding("B1B1_PYTHON_IDENTITY_MUTATION", str(path), detail))
 
 
-_RUNTIME_FIELD_PROBE = (
-    "import dataclasses, importlib.util, json, pathlib, sys\n"
-    "path = pathlib.Path(sys.argv[1])\n"
-    "spec = importlib.util.spec_from_file_location('_b1b_values_probe', path)\n"
-    "if spec is None or spec.loader is None:\n"
-    "    raise RuntimeError('cannot load carrier module')\n"
-    "module = importlib.util.module_from_spec(spec)\n"
-    "sys.modules[spec.name] = module\n"
-    "spec.loader.exec_module(module)\n"
-    "names = json.loads(sys.argv[2])\n"
-    "result = {name: [field.name for field in dataclasses.fields(getattr(module, name))] "
-    "for name in names}\n"
-    "print(json.dumps(result, sort_keys=True, separators=(',', ':')))\n"
+_RUNTIME_FIELD_PROBE = r"""
+import dataclasses
+import importlib
+import json
+import pathlib
+import sys
+import types
+
+root = pathlib.Path(sys.argv[1])
+for package_name, relative_path in (
+    ("src", "src"),
+    ("src.core", "src/core"),
+    ("src.state", "src/state"),
+):
+    package = types.ModuleType(package_name)
+    package.__path__ = [str(root / relative_path)]
+    sys.modules[package_name] = package
+
+values = importlib.import_module("src.core.fcis_b1b_authority_values")
+names = json.loads(sys.argv[2])
+baseline = {}
+for name in names:
+    carrier = getattr(values, name)
+    baseline[name] = {
+        "carrier": carrier,
+        "post_init": getattr(carrier, "__post_init__", None),
+        "eq": carrier.__eq__,
+        "hash": carrier.__hash__,
+    }
+
+schema = importlib.import_module("src.core.fcis_b1b_authority_schema")
+admission = importlib.import_module("src.core.fcis_b1b_authority_admission")
+codec = importlib.import_module("src.core.fcis_b1b_authority_codec")
+
+for name in names:
+    carrier = getattr(values, name)
+    before = baseline[name]
+    if carrier is not before["carrier"]:
+        raise RuntimeError(f"{name}: class object changed")
+    if carrier.__bases__ != (object,):
+        raise RuntimeError(f"{name}: base classes changed")
+    if getattr(carrier, "__post_init__", None) is not before["post_init"]:
+        raise RuntimeError(f"{name}: __post_init__ changed")
+    if carrier.__eq__ is not before["eq"] or carrier.__hash__ is not before["hash"]:
+        raise RuntimeError(f"{name}: equality identity changed")
+
+module_imports = {
+    schema: names[:3],
+    admission: names,
+    codec: names[3:],
+}
+for module, imported_names in module_imports.items():
+    for name in imported_names:
+        if getattr(module, name) is not baseline[name]["carrier"]:
+            raise RuntimeError(f"{module.__name__}.{name}: binding changed")
+
+zero = "0x" + ("0" * 64)
+invalid_specimens = (
+    lambda: values.FCISAuthorityHeaderV2("bypass", -1, "not-a-digest"),
+    lambda: values.DeploymentBootstrapAnchorClaimV2("", "not-a-digest"),
+    lambda: values.V1ToV2MigrationManifestV2(
+        "", "bad", "", "bad", -1, 0, -1, -1, -1
+    ),
 )
+for construct in invalid_specimens:
+    try:
+        construct()
+    except (TypeError, ValueError):
+        pass
+    else:
+        raise RuntimeError("invalid sentinel carrier constructed")
+
+left = values.FCISAuthorityHeaderV2("deployment", 0, zero)
+equal = values.FCISAuthorityHeaderV2("deployment", 0, zero)
+different = values.FCISAuthorityHeaderV2("deployment", 1, zero)
+if left != equal or left == different or hash(left) != hash(equal):
+    raise RuntimeError("carrier equality/hash semantics changed")
+
+result = {
+    name: [field.name for field in dataclasses.fields(getattr(values, name))]
+    for name in names
+}
+print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+"""
 
 
 def _check_runtime_dataclass_fields(
@@ -485,7 +666,7 @@ def _check_runtime_dataclass_fields(
                 "-I",
                 "-c",
                 _RUNTIME_FIELD_PROBE,
-                str((root / VALUES_PATH).resolve()),
+                str(root),
                 json.dumps(RUNTIME_FIELD_CLASS_NAMES),
             ],
             check=False,
@@ -586,9 +767,6 @@ def _check_python_class_closure(
                 Finding("B1B1_PYTHON_FIELD_SET", str(path), f"{name}: class assignment")
             )
 
-    _check_python_identity_mutations(path, tree, findings)
-
-
 def _carrier_references(node: ast.AST) -> set[str]:
     references: set[str] = set()
     for child in ast.walk(node):
@@ -680,6 +858,7 @@ def _check_python_carriers(root: Path, findings: list[Finding]) -> None:
         if tree is not None:
             trees[path] = tree
             _check_python_imports_and_consumers(path, tree, findings)
+            _check_python_identity_mutations(path, tree, findings)
 
     value_tree = trees.get(VALUES_PATH)
     if value_tree is not None:
@@ -722,6 +901,54 @@ def _rust_struct_block(text: str, name: str) -> str | None:
         re.DOTALL,
     )
     return match.group("body") if match else None
+
+
+def _rust_struct_attributes(text: str, name: str) -> tuple[str, ...] | None:
+    match = re.search(
+        rf"(?P<attributes>(?:^[ \t]*#\[[^\n]+\][ \t]*\n)*)"
+        rf"^[ \t]*pub struct {re.escape(name)}\s*\{{",
+        text,
+        re.MULTILINE,
+    )
+    if match is None:
+        return None
+    return tuple(
+        line.strip() for line in match.group("attributes").splitlines() if line.strip()
+    )
+
+
+def _rust_braced_block(text: str, opening_brace: int) -> str | None:
+    depth = 0
+    for index in range(opening_brace, len(text)):
+        character = text[index]
+        if character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth == 0:
+                return text[opening_brace + 1 : index]
+    return None
+
+
+def _rust_inherent_impl_blocks(text: str, name: str) -> tuple[str, ...]:
+    blocks: list[str] = []
+    for match in re.finditer(rf"\bimpl\s+{re.escape(name)}\s*\{{", text):
+        opening_brace = text.find("{", match.start())
+        block = _rust_braced_block(text, opening_brace)
+        if block is not None:
+            blocks.append(block)
+    return tuple(blocks)
+
+
+def _rust_impl_methods(block: str) -> tuple[str, ...]:
+    return tuple(
+        match.group("name")
+        for match in re.finditer(
+            r"(?:\bpub(?:\([^)]*\))?\s+)?fn\s+"
+            r"(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*\(",
+            block,
+        )
+    )
 
 
 def _rust_fields(block: str) -> tuple[tuple[str, bool], ...] | None:
@@ -779,58 +1006,131 @@ def _check_rust_function_surface(
             )
 
 
-def _check_rust_carriers(root: Path, findings: list[Finding]) -> None:
-    text = _read(root, RUST_PATH)
-    for name, expected_fields in EXPECTED_RUST_STRUCT_FIELDS.items():
-        block = _rust_struct_block(text, name)
-        if block is None:
-            findings.append(Finding("B1B1_RUST_STRUCT", str(RUST_PATH), name))
-            continue
-        parsed = _rust_fields(block)
-        if parsed is None:
-            findings.append(
-                Finding("B1B1_RUST_FIELD_SET", str(RUST_PATH), f"{name}: unparsed")
+def _check_rust_struct_shape(
+    text: str,
+    name: str,
+    expected_fields: tuple[str, ...],
+    findings: list[Finding],
+) -> None:
+    attributes = _rust_struct_attributes(text, name)
+    if attributes != (EXPECTED_RUST_DERIVE,):
+        findings.append(
+            Finding(
+                "B1B1_RUST_DERIVE_SURFACE",
+                str(RUST_PATH),
+                f"{name}: expected {(EXPECTED_RUST_DERIVE,)!r}, got {attributes!r}",
             )
-            continue
-        actual_fields = tuple(field for field, _ in parsed)
-        if actual_fields != expected_fields:
+        )
+    block = _rust_struct_block(text, name)
+    if block is None:
+        findings.append(Finding("B1B1_RUST_STRUCT", str(RUST_PATH), name))
+        return
+    parsed = _rust_fields(block)
+    if parsed is None:
+        findings.append(
+            Finding("B1B1_RUST_FIELD_SET", str(RUST_PATH), f"{name}: unparsed")
+        )
+        return
+    actual_fields = tuple(field for field, _ in parsed)
+    if actual_fields != expected_fields:
+        findings.append(
+            Finding(
+                "B1B1_RUST_FIELD_SET",
+                str(RUST_PATH),
+                f"{name}: expected {expected_fields!r}, got {actual_fields!r}",
+            )
+        )
+    for field, public in parsed:
+        if public:
             findings.append(
                 Finding(
-                    "B1B1_RUST_FIELD_SET",
+                    "B1B1_RUST_PUBLIC_FIELD",
                     str(RUST_PATH),
-                    f"{name}: expected {expected_fields!r}, got {actual_fields!r}",
+                    f"{name}.{field}",
                 )
             )
-        for field, public in parsed:
-            if public:
-                findings.append(
-                    Finding(
-                        "B1B1_RUST_PUBLIC_FIELD",
-                        str(RUST_PATH),
-                        f"{name}.{field}",
-                    )
-                )
-        for trait in ("PartialEq", "Eq", "Hash"):
-            if re.search(
-                rf"\bimpl\s+(?:[A-Za-z0-9_:]+\s*::\s*)?{trait}\s+for\s+{re.escape(name)}\b",
-                text,
-            ):
-                findings.append(
-                    Finding(
-                        "B1B1_RUST_IDENTITY",
-                        str(RUST_PATH),
-                        f"{name}: custom {trait}",
-                    )
-                )
 
+
+def _check_rust_impl_surface(
+    production: str,
+    name: str,
+    findings: list[Finding],
+) -> None:
+    trait_impls = tuple(
+        match.group("trait").strip()
+        for match in re.finditer(
+            rf"\bimpl\s+(?P<trait>[^{{;]+?)\s+for\s+{re.escape(name)}\b",
+            production,
+        )
+    )
+    if trait_impls:
+        findings.append(
+            Finding(
+                "B1B1_RUST_IMPL_SURFACE",
+                str(RUST_PATH),
+                f"{name}: trait impls {trait_impls!r}",
+            )
+        )
+    impl_blocks = _rust_inherent_impl_blocks(production, name)
+    if len(impl_blocks) != 1:
+        findings.append(
+            Finding(
+                "B1B1_RUST_IMPL_SURFACE",
+                str(RUST_PATH),
+                f"{name}: expected one inherent impl, got {len(impl_blocks)}",
+            )
+        )
+        return
+    methods = _rust_impl_methods(impl_blocks[0])
+    if methods != EXPECTED_RUST_METHODS[name]:
+        findings.append(
+            Finding(
+                "B1B1_RUST_IMPL_SURFACE",
+                str(RUST_PATH),
+                f"{name}: methods {methods!r}",
+            )
+        )
+    if re.search(
+        r"(?:^|\n)\s*(?:pub(?:\([^)]*\))?\s+)?(?:const|type)\b",
+        impl_blocks[0],
+    ):
+        findings.append(
+            Finding(
+                "B1B1_RUST_IMPL_SURFACE",
+                str(RUST_PATH),
+                f"{name}: associated const or type",
+            )
+        )
+
+
+def _check_rust_macro_surface(
+    production: str,
+    name: str,
+    findings: list[Finding],
+) -> None:
+    if re.search(
+        rf"\b[A-Za-z_][A-Za-z0-9_]*!\s*[({{\[][^;\n]*\b{re.escape(name)}\b",
+        production,
+    ):
+        findings.append(
+            Finding(
+                "B1B1_RUST_IMPL_SURFACE",
+                str(RUST_PATH),
+                f"{name}: macro-generated surface",
+            )
+        )
+
+
+def _check_rust_root_domains(text: str, findings: list[Finding]) -> None:
     for assignment, expected in EXPECTED_ROOT_DOMAINS.items():
         token = f'pub const {assignment}: &str = "{expected}";'
         if token not in text:
             findings.append(
                 Finding("B1B1_RUST_ROOT_DOMAIN", str(RUST_PATH), assignment)
             )
-    _check_rust_function_surface(text, findings)
 
+
+def _check_rust_module_export(root: Path, findings: list[Finding]) -> None:
     lib_text = _read(root, RUST_LIB_PATH)
     carrier_lines = tuple(
         line.strip()
@@ -846,6 +1146,18 @@ def _check_rust_carriers(root: Path, findings: list[Finding]) -> None:
                 f"carrier references {carrier_lines!r}",
             )
         )
+
+
+def _check_rust_carriers(root: Path, findings: list[Finding]) -> None:
+    text = _read(root, RUST_PATH)
+    production = _rust_production_prefix(text)
+    for name, expected_fields in EXPECTED_RUST_STRUCT_FIELDS.items():
+        _check_rust_struct_shape(text, name, expected_fields, findings)
+        _check_rust_impl_surface(production, name, findings)
+        _check_rust_macro_surface(production, name, findings)
+    _check_rust_root_domains(text, findings)
+    _check_rust_function_surface(text, findings)
+    _check_rust_module_export(root, findings)
 
 
 def _runtime_candidate_paths(root: Path) -> tuple[Path, ...]:

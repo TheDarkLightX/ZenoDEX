@@ -29,6 +29,9 @@ from .fcis_b1b_authority_values import (
     FCISAuthorityHeaderV2,
     V1ToV2MigrationManifestSourceV2,
     V1ToV2MigrationManifestV2,
+    _validate_authority_header_fields_v2,
+    _validate_bootstrap_anchor_claim_fields_v2,
+    _validate_migration_manifest_fields_v2,
 )
 
 
@@ -165,6 +168,11 @@ def _construct_from_source_v2(schema_id: str, source: object) -> B1BAuthorityAdm
     try:
         if schema_id == FCIS_AUTHORITY_HEADER_SCHEMA_ID_V2:
             header_source = cast(FCISAuthorityHeaderSourceV2, source)
+            _validate_authority_header_fields_v2(
+                header_source.chain_deployment_id,
+                header_source.sequence,
+                header_source.fee_distribution_configuration_root,
+            )
             return FCISAuthorityHeaderV2(
                 cast(str, header_source.chain_deployment_id),
                 cast(int, header_source.sequence),
@@ -172,12 +180,27 @@ def _construct_from_source_v2(schema_id: str, source: object) -> B1BAuthorityAdm
             )
         if schema_id == DEPLOYMENT_BOOTSTRAP_ANCHOR_CLAIM_SCHEMA_ID_V2:
             anchor_source = cast(DeploymentBootstrapAnchorClaimSourceV2, source)
+            _validate_bootstrap_anchor_claim_fields_v2(
+                anchor_source.chain_deployment_id,
+                anchor_source.expected_migration_manifest_root,
+            )
             return DeploymentBootstrapAnchorClaimV2(
                 cast(str, anchor_source.chain_deployment_id),
                 cast(str, anchor_source.expected_migration_manifest_root),
             )
         if schema_id == V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2:
             manifest_source = cast(V1ToV2MigrationManifestSourceV2, source)
+            _validate_migration_manifest_fields_v2(
+                manifest_source.chain_deployment_id,
+                manifest_source.expected_v1_pre_root,
+                manifest_source.fee_distribution_domain_id,
+                manifest_source.expected_initial_configuration_root,
+                manifest_source.initial_sequence,
+                manifest_source.initial_configuration_version,
+                manifest_source.initial_activation_sequence,
+                manifest_source.source_snapshot_version,
+                manifest_source.target_snapshot_version,
+            )
             return V1ToV2MigrationManifestV2(
                 cast(str, manifest_source.chain_deployment_id),
                 cast(str, manifest_source.expected_v1_pre_root),

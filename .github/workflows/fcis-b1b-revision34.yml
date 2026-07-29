@@ -44,7 +44,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+      - name: Verify exact requested head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -104,12 +109,28 @@ jobs:
             tools/check_fcis_m5_p4b5a_atdd_contract.py \
             tools/fcis_m5_p4b5a_atdd_policy.py \
             tools/fcis_m5_p4b5a_atdd_validation.py
+      - name: Verify exact packet topology and exported delivery
+        run: |
+          python -m tools.build_fcis_b1b1_implementation_review_packet --check
+          python -m tools.build_fcis_b1b1_implementation_review_packet \
+            --export-delivery "${RUNNER_TEMP}/fcis-b1b1-delivery"
+          python -m tools.build_fcis_b1b1_implementation_review_packet \
+            --check-delivery "${RUNNER_TEMP}/fcis-b1b1-delivery"
+      - name: Upload verified exact-head delivery
+        uses: actions/upload-artifact@v4
+        with:
+          name: fcis-b1b1-exact-head-delivery
+          path: ${{ runner.temp }}/fcis-b1b1-delivery
+          if-no-files-found: error
 
   rust-parity:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
       - name: Check Rust formatting
         run: cargo fmt --manifest-path rust-runtime/Cargo.toml -p zenodex-runtime-core -- --check
       - name: Run all B1B carrier parity and boundary tests

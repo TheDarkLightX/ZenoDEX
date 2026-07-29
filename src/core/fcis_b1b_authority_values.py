@@ -113,6 +113,62 @@ def _require_digest_v2(name: str, value: object) -> str:
     return value
 
 
+def _validate_authority_header_fields_v2(
+    chain_deployment_id: object,
+    sequence: object,
+    fee_distribution_configuration_root: object,
+) -> None:
+    _require_text_v2("chain deployment identifier", chain_deployment_id)
+    _require_u256_v2("protocol sequence", sequence)
+    _require_digest_v2(
+        "fee distribution configuration root",
+        fee_distribution_configuration_root,
+    )
+
+
+def _validate_bootstrap_anchor_claim_fields_v2(
+    chain_deployment_id: object,
+    expected_migration_manifest_root: object,
+) -> None:
+    _require_text_v2("chain deployment identifier", chain_deployment_id)
+    _require_digest_v2(
+        "expected migration manifest root",
+        expected_migration_manifest_root,
+    )
+
+
+def _validate_migration_manifest_fields_v2(
+    chain_deployment_id: object,
+    expected_v1_pre_root: object,
+    fee_distribution_domain_id: object,
+    expected_initial_configuration_root: object,
+    initial_sequence: object,
+    initial_configuration_version: object,
+    initial_activation_sequence: object,
+    source_snapshot_version: object,
+    target_snapshot_version: object,
+) -> None:
+    _require_text_v2("chain deployment identifier", chain_deployment_id)
+    _require_digest_v2("expected V1 pre-root", expected_v1_pre_root)
+    _require_text_v2(
+        "fee distribution domain identifier",
+        fee_distribution_domain_id,
+    )
+    _require_digest_v2(
+        "expected initial configuration root",
+        expected_initial_configuration_root,
+    )
+    _require_u256_v2("initial protocol sequence", initial_sequence)
+    _require_u256_v2(
+        "initial configuration version",
+        initial_configuration_version,
+        positive=True,
+    )
+    _require_u256_v2("initial activation sequence", initial_activation_sequence)
+    _require_u256_v2("source snapshot version", source_snapshot_version)
+    _require_u256_v2("target snapshot version", target_snapshot_version)
+
+
 @final
 @dataclass(frozen=True, slots=True)
 class FCISAuthorityHeaderV2:
@@ -123,10 +179,9 @@ class FCISAuthorityHeaderV2:
     fee_distribution_configuration_root: str
 
     def __post_init__(self) -> None:
-        _require_text_v2("chain deployment identifier", self.chain_deployment_id)
-        _require_u256_v2("protocol sequence", self.sequence)
-        _require_digest_v2(
-            "fee distribution configuration root",
+        _validate_authority_header_fields_v2(
+            self.chain_deployment_id,
+            self.sequence,
             self.fee_distribution_configuration_root,
         )
 
@@ -140,9 +195,8 @@ class DeploymentBootstrapAnchorClaimV2:
     expected_migration_manifest_root: str
 
     def __post_init__(self) -> None:
-        _require_text_v2("chain deployment identifier", self.chain_deployment_id)
-        _require_digest_v2(
-            "expected migration manifest root",
+        _validate_bootstrap_anchor_claim_fields_v2(
+            self.chain_deployment_id,
             self.expected_migration_manifest_root,
         )
 
@@ -167,28 +221,17 @@ class V1ToV2MigrationManifestV2:
     target_snapshot_version: int
 
     def __post_init__(self) -> None:
-        _require_text_v2("chain deployment identifier", self.chain_deployment_id)
-        _require_digest_v2("expected V1 pre-root", self.expected_v1_pre_root)
-        _require_text_v2(
-            "fee distribution domain identifier",
+        _validate_migration_manifest_fields_v2(
+            self.chain_deployment_id,
+            self.expected_v1_pre_root,
             self.fee_distribution_domain_id,
-        )
-        _require_digest_v2(
-            "expected initial configuration root",
             self.expected_initial_configuration_root,
-        )
-        _require_u256_v2("initial protocol sequence", self.initial_sequence)
-        _require_u256_v2(
-            "initial configuration version",
+            self.initial_sequence,
             self.initial_configuration_version,
-            positive=True,
-        )
-        _require_u256_v2(
-            "initial activation sequence",
             self.initial_activation_sequence,
+            self.source_snapshot_version,
+            self.target_snapshot_version,
         )
-        _require_u256_v2("source snapshot version", self.source_snapshot_version)
-        _require_u256_v2("target snapshot version", self.target_snapshot_version)
 
 
 @final
