@@ -1,0 +1,815 @@
+#!/usr/bin/env python3
+"""Fail-closed structural gate for the unmounted FCIS B1B-1 carrier slice."""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import hashlib
+import json
+import re
+from dataclasses import dataclass
+from pathlib import Path
+
+REPORT_SCHEMA = "zenodex/fcis/b1b-revision34-contract-check/v3"
+REVISION_PATH = Path(
+    "docs/research/FCIS_M5_P4B5A_B1B_COMMITTED_CONFIGURATION_AUTHORITY_REVISION_3_4_20260729.md"
+)
+REVISION_SHA256 = "cae6562b5e0cade2a03827a2a8f591561317b6cf684de4d22d726c25917108c5"
+
+VALUES_PATH = Path("src/core/fcis_b1b_authority_values.py")
+SCHEMA_PATH = Path("src/core/fcis_b1b_authority_schema.py")
+ADMISSION_PATH = Path("src/core/fcis_b1b_authority_admission.py")
+CODEC_PATH = Path("src/core/fcis_b1b_authority_codec.py")
+PYTHON_PATHS = (VALUES_PATH, SCHEMA_PATH, ADMISSION_PATH, CODEC_PATH)
+RUST_PATH = Path("rust-runtime/crates/zenodex-runtime-core/src/fcis_b1b_authority.rs")
+RUST_LIB_PATH = Path("rust-runtime/crates/zenodex-runtime-core/src/lib.rs")
+FIXTURE_PATH = Path("tests/fixtures/fcis_b1b_authority_v2_golden.json")
+BUILDER_PATH = Path("tools/build_fcis_b1b_authority_v2_golden.py")
+CHECKER_PATH = Path("tools/check_fcis_b1b_revision34_contract.py")
+TEST_PATHS = (
+    Path("tests/core/test_fcis_b1b_authority_values.py"),
+    Path("tests/core/test_fcis_b1b_authority_admission.py"),
+    Path("tests/core/test_fcis_b1b_authority_resource_bounds.py"),
+    Path("tests/core/test_fcis_b1b_authority_golden.py"),
+    Path("tests/core/test_fcis_b1b1_carriers.py"),
+    Path("tests/tools/test_check_fcis_b1b_revision34_contract.py"),
+)
+
+# Mutation tests copy exactly this bounded inventory. Keep it small enough to
+# run under a constrained /tmp without cloning the repository.
+REQUIRED_PATHS = (
+    REVISION_PATH,
+    *PYTHON_PATHS,
+    RUST_PATH,
+    RUST_LIB_PATH,
+    FIXTURE_PATH,
+    BUILDER_PATH,
+    CHECKER_PATH,
+    *TEST_PATHS,
+)
+MAX_MUTATION_FIXTURE_BYTES = 2_000_000
+MAX_RUNTIME_SOURCE_BYTES = 2_000_000
+
+FORBIDDEN_PATH_GLOBS = (
+    "src/core/fcis_fee_distribution_configuration_content_validation.py",
+    "src/core/fcis_b1b_*migration*candidate*.py",
+    "src/core/fcis_b1b_*publication*.py",
+    "src/core/fcis_b1b_*state_bound*.py",
+    "src/state/*fcis*b1b*",
+    "src/integration/*fcis*b1b*",
+    "integration/*fcis*b1b*",
+)
+FORBIDDEN_AUTHORITY_SYMBOLS = (
+    "PinnedDeploymentBootstrapVerifierV2",
+    "VerifiedV1ToV2MigrationAuthorityV2",
+    "V1ToV2MigrationCandidateV2",
+    "FCISCommittedStateV2",
+    "StateBoundFeeDistributionConfigurationV2",
+    "TransitionCauseV2",
+    "V2EvaluationCandidate",
+    "V2Decision",
+    "ConfigurationUpdateCommandClaimV2",
+    "AuthenticatedConfigurationUpdateCommandV2",
+    "V2CommitBundle",
+    "PublishedFCISV2Commit",
+)
+FORBIDDEN_FUNCTION_PARTS = (
+    "advance_authority",
+    "advance_header",
+    "update_authority",
+    "update_header",
+    "bind_configuration",
+    "construct_pinned",
+    "derive_migration",
+    "publish",
+)
+
+EXPECTED_SCHEMA_FIELDS = {
+    "zenodex/fcis/state/authority-header/v2": (
+        "chain_deployment_id",
+        "sequence",
+        "fee_distribution_configuration_root",
+    ),
+    "zenodex/fcis/deployment/bootstrap-anchor-claim/v2": (
+        "chain_deployment_id",
+        "expected_migration_manifest_root",
+    ),
+    "zenodex/fcis/migration/v1-to-v2-manifest/v2": (
+        "chain_deployment_id",
+        "expected_v1_pre_root",
+        "fee_distribution_domain_id",
+        "expected_initial_configuration_root",
+        "initial_sequence",
+        "initial_configuration_version",
+        "initial_activation_sequence",
+        "source_snapshot_version",
+        "target_snapshot_version",
+    ),
+}
+EXPECTED_PYTHON_CLASS_FIELDS = {
+    "FCISAuthorityHeaderSourceV2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/state/authority-header/v2"
+    ],
+    "DeploymentBootstrapAnchorClaimSourceV2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/deployment/bootstrap-anchor-claim/v2"
+    ],
+    "V1ToV2MigrationManifestSourceV2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/migration/v1-to-v2-manifest/v2"
+    ],
+    "FCISAuthorityHeaderV2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/state/authority-header/v2"
+    ],
+    "DeploymentBootstrapAnchorClaimV2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/deployment/bootstrap-anchor-claim/v2"
+    ],
+    "V1ToV2MigrationManifestV2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/migration/v1-to-v2-manifest/v2"
+    ],
+    "B1BAuthorityAdmissionRejectV2": ("code", "path"),
+}
+EXPECTED_SCHEMA_ASSIGNMENTS = {
+    "FCIS_AUTHORITY_HEADER_FIELDS_V2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/state/authority-header/v2"
+    ],
+    "DEPLOYMENT_BOOTSTRAP_ANCHOR_CLAIM_FIELDS_V2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/deployment/bootstrap-anchor-claim/v2"
+    ],
+    "V1_TO_V2_MIGRATION_MANIFEST_FIELDS_V2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/migration/v1-to-v2-manifest/v2"
+    ],
+}
+EXPECTED_RUST_STRUCT_FIELDS = {
+    "FCISAuthorityHeaderV2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/state/authority-header/v2"
+    ],
+    "DeploymentBootstrapAnchorClaimV2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/deployment/bootstrap-anchor-claim/v2"
+    ],
+    "V1ToV2MigrationManifestV2": EXPECTED_SCHEMA_FIELDS[
+        "zenodex/fcis/migration/v1-to-v2-manifest/v2"
+    ],
+}
+EXPECTED_ROOT_DOMAINS = {
+    "BOOTSTRAP_ANCHOR_CLAIM_ROOT_DOMAIN_V2": "fcis_deployment_bootstrap_anchor_claim",
+    "MIGRATION_MANIFEST_ROOT_DOMAIN_V2": "fcis_v1_to_v2_migration_manifest",
+}
+
+PYTHON_CARRIER_NAMES = frozenset(EXPECTED_PYTHON_CLASS_FIELDS)
+RUST_CARRIER_NAMES = frozenset(EXPECTED_RUST_STRUCT_FIELDS)
+PYTHON_ALLOWED_IMPORTS = {
+    VALUES_PATH: frozenset(),
+    SCHEMA_PATH: frozenset(
+        {
+            "FCISAuthorityHeaderSourceV2",
+            "DeploymentBootstrapAnchorClaimSourceV2",
+            "V1ToV2MigrationManifestSourceV2",
+        }
+    ),
+    ADMISSION_PATH: PYTHON_CARRIER_NAMES,
+    CODEC_PATH: frozenset(
+        {
+            "FCISAuthorityHeaderV2",
+            "DeploymentBootstrapAnchorClaimV2",
+            "V1ToV2MigrationManifestV2",
+        }
+    ),
+}
+PYTHON_ALLOWED_CARRIER_FUNCTIONS = {
+    VALUES_PATH: frozenset(),
+    SCHEMA_PATH: frozenset(),
+    ADMISSION_PATH: frozenset(
+        {
+            "_reject",
+            "scan",
+            "_scan_token",
+            "_add_node",
+            "validate_fcis_b1b_json_resource_bounds_v2",
+            "_construct_from_source_v2",
+            "admit_fcis_b1b_authority_source_v2",
+            "_source_from_mapping_v2",
+            "decode_fcis_b1b_authority_v2",
+        }
+    ),
+    CODEC_PATH: frozenset(
+        {
+            "_authority_header_projection_v2",
+            "_bootstrap_anchor_claim_projection_v2",
+            "_migration_manifest_projection_v2",
+            "encode_fcis_b1b_authority_v2",
+            "canonical_bootstrap_anchor_claim_root_v2",
+            "canonical_v1_to_v2_migration_manifest_root_v2",
+        }
+    ),
+}
+RUST_ALLOWED_FUNCTIONS = frozenset(
+    {
+        "new",
+        "scan",
+        "scan_string_character",
+        "scan_token",
+        "add_node",
+        "validate_fcis_b1b_json_resource_bounds_v2",
+        "u256_max",
+        "text_is_canonical",
+        "digest_is_canonical",
+        "as_str",
+        "resource",
+        "invalid",
+        "code",
+        "path",
+        "try_new",
+        "chain_deployment_id",
+        "sequence",
+        "fee_distribution_configuration_root",
+        "expected_migration_manifest_root",
+        "expected_v1_pre_root",
+        "fee_distribution_domain_id",
+        "expected_initial_configuration_root",
+        "initial_sequence",
+        "initial_configuration_version",
+        "initial_activation_sequence",
+        "source_snapshot_version",
+        "target_snapshot_version",
+        "int_json",
+        "envelope",
+        "authority_header_json",
+        "bootstrap_anchor_claim_json",
+        "migration_manifest_json",
+        "encode_fcis_authority_header_v2",
+        "encode_deployment_bootstrap_anchor_claim_v2",
+        "encode_v1_to_v2_migration_manifest_v2",
+        "canonical_bootstrap_anchor_claim_root_v2",
+        "canonical_v1_to_v2_migration_manifest_root_v2",
+    }
+)
+RUST_ALLOWED_PUBLIC_FUNCTIONS = frozenset(
+    {
+        "validate_fcis_b1b_json_resource_bounds_v2",
+        "as_str",
+        "code",
+        "path",
+        "try_new",
+        "chain_deployment_id",
+        "sequence",
+        "fee_distribution_configuration_root",
+        "expected_migration_manifest_root",
+        "expected_v1_pre_root",
+        "fee_distribution_domain_id",
+        "expected_initial_configuration_root",
+        "initial_sequence",
+        "initial_configuration_version",
+        "initial_activation_sequence",
+        "source_snapshot_version",
+        "target_snapshot_version",
+        "encode_fcis_authority_header_v2",
+        "encode_deployment_bootstrap_anchor_claim_v2",
+        "encode_v1_to_v2_migration_manifest_v2",
+        "canonical_bootstrap_anchor_claim_root_v2",
+        "canonical_v1_to_v2_migration_manifest_root_v2",
+    }
+)
+RUNTIME_SCAN_ROOTS = (Path("src"), Path("integration"), Path("rust-runtime"), Path("zk"))
+RUNTIME_EXCLUDED_PARTS = frozenset(
+    {".git", ".venv", "__pycache__", "node_modules", "target"}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Finding:
+    code: str
+    path: str
+    detail: str
+
+
+@dataclass(frozen=True, slots=True)
+class Report:
+    ok: bool
+    findings: tuple[Finding, ...]
+    runtime_files_scanned: int
+
+
+def _read(root: Path, path: Path) -> str:
+    return (root / path).read_text(encoding="utf-8")
+
+
+def _decorator_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Call):
+        return _decorator_name(node.func)
+    return None
+
+
+def _is_final_frozen_slots_dataclass(node: ast.ClassDef) -> bool:
+    names = {_decorator_name(decorator) for decorator in node.decorator_list}
+    if "final" not in names or "dataclass" not in names:
+        return False
+    for decorator in node.decorator_list:
+        if not isinstance(decorator, ast.Call) or _decorator_name(decorator) != "dataclass":
+            continue
+        keywords = {keyword.arg: keyword.value for keyword in decorator.keywords}
+        frozen = keywords.get("frozen")
+        slots = keywords.get("slots")
+        eq = keywords.get("eq")
+        unsafe_hash = keywords.get("unsafe_hash")
+        return (
+            isinstance(frozen, ast.Constant)
+            and frozen.value is True
+            and isinstance(slots, ast.Constant)
+            and slots.value is True
+            and not (isinstance(eq, ast.Constant) and eq.value is False)
+            and not (isinstance(unsafe_hash, ast.Constant) and unsafe_hash.value is True)
+        )
+    return False
+
+
+def _literal_assignment(tree: ast.Module, name: str) -> object | None:
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+            try:
+                return ast.literal_eval(node.value)
+            except (ValueError, TypeError):
+                return None
+    return None
+
+
+def _append_parse_failure(
+    findings: list[Finding],
+    path: Path,
+    exc: SyntaxError,
+) -> None:
+    findings.append(
+        Finding("B1B1_PYTHON_PARSE", str(path), f"{exc.msg} at line {exc.lineno}")
+    )
+
+
+def _check_revision_blob(root: Path, findings: list[Finding]) -> None:
+    digest = hashlib.sha256((root / REVISION_PATH).read_bytes()).hexdigest()
+    if digest != REVISION_SHA256:
+        findings.append(
+            Finding(
+                "REV34_BLOB_DRIFT",
+                str(REVISION_PATH),
+                f"expected {REVISION_SHA256}, got {digest}",
+            )
+        )
+
+
+def _check_forbidden_paths(root: Path, findings: list[Finding]) -> None:
+    for pattern in FORBIDDEN_PATH_GLOBS:
+        for path in sorted(root.glob(pattern)):
+            if path.is_file():
+                findings.append(
+                    Finding(
+                        "B1B1_FORBIDDEN_PATH",
+                        str(path.relative_to(root)),
+                        pattern,
+                    )
+                )
+
+
+def _parse_python(
+    path: Path,
+    text: str,
+    findings: list[Finding],
+) -> ast.Module | None:
+    try:
+        return ast.parse(text, filename=str(path))
+    except SyntaxError as exc:
+        _append_parse_failure(findings, path, exc)
+        return None
+
+
+def _direct_annotated_fields(node: ast.ClassDef) -> tuple[str, ...]:
+    return tuple(
+        child.target.id
+        for child in node.body
+        if isinstance(child, ast.AnnAssign) and isinstance(child.target, ast.Name)
+    )
+
+
+def _check_python_class_closure(
+    path: Path,
+    tree: ast.Module,
+    findings: list[Finding],
+) -> None:
+    classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
+    source_names = {
+        "FCISAuthorityHeaderSourceV2",
+        "DeploymentBootstrapAnchorClaimSourceV2",
+        "V1ToV2MigrationManifestSourceV2",
+    }
+    for name, expected_fields in EXPECTED_PYTHON_CLASS_FIELDS.items():
+        node = classes.get(name)
+        if node is None:
+            findings.append(Finding("B1B1_VALUE_MISSING", str(path), name))
+            continue
+        if not _is_final_frozen_slots_dataclass(node):
+            findings.append(Finding("B1B1_VALUE_NOT_IMMUTABLE", str(path), name))
+        actual_fields = _direct_annotated_fields(node)
+        if actual_fields != expected_fields:
+            findings.append(
+                Finding(
+                    "B1B1_PYTHON_FIELD_SET",
+                    str(path),
+                    f"{name}: expected {expected_fields!r}, got {actual_fields!r}",
+                )
+            )
+        allowed_methods = set() if name in source_names else {"__post_init__"}
+        actual_methods = {
+            child.name
+            for child in node.body
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        if actual_methods != allowed_methods:
+            findings.append(
+                Finding(
+                    "B1B1_PYTHON_IDENTITY",
+                    str(path),
+                    f"{name}: methods {sorted(actual_methods)!r}",
+                )
+            )
+        if any(isinstance(child, ast.Assign) for child in node.body):
+            findings.append(
+                Finding("B1B1_PYTHON_FIELD_SET", str(path), f"{name}: class assignment")
+            )
+
+
+def _carrier_references(node: ast.AST) -> set[str]:
+    references: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name) and child.id in PYTHON_CARRIER_NAMES:
+            references.add(child.id)
+        elif isinstance(child, ast.Attribute) and child.attr in PYTHON_CARRIER_NAMES:
+            references.add(child.attr)
+    return references
+
+
+def _check_python_imports_and_consumers(
+    path: Path,
+    tree: ast.Module,
+    findings: list[Finding],
+) -> None:
+    allowed_imports = PYTHON_ALLOWED_IMPORTS[path]
+    allowed_functions = PYTHON_ALLOWED_CARRIER_FUNCTIONS[path]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if "fcis_b1b_authority_values" in alias.name:
+                    findings.append(
+                        Finding("B1B1_CARRIER_IMPORT", str(path), alias.name)
+                    )
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if not module.endswith("fcis_b1b_authority_values"):
+                continue
+            for alias in node.names:
+                if alias.name == "*" or alias.asname is not None:
+                    findings.append(
+                        Finding(
+                            "B1B1_CARRIER_IMPORT",
+                            str(path),
+                            f"{alias.name} as {alias.asname}",
+                        )
+                    )
+                if (
+                    alias.name in PYTHON_CARRIER_NAMES
+                    and alias.name not in allowed_imports
+                ):
+                    findings.append(
+                        Finding("B1B1_CARRIER_IMPORT", str(path), alias.name)
+                    )
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            references = _carrier_references(node)
+            if references and node.name not in allowed_functions:
+                findings.append(
+                    Finding(
+                        "B1B1_CARRIER_CONSUMER",
+                        str(path),
+                        f"{node.name}: {sorted(references)!r}",
+                    )
+                )
+            if any(part in node.name for part in FORBIDDEN_FUNCTION_PARTS):
+                findings.append(
+                    Finding("B1B1_BARE_HEADER_TRANSITION", str(path), node.name)
+                )
+
+    # Only the admission constructor may instantiate an exact carrier.
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for call in (child for child in ast.walk(node) if isinstance(child, ast.Call)):
+            if (
+                isinstance(call.func, ast.Name)
+                and call.func.id
+                in {
+                    "FCISAuthorityHeaderV2",
+                    "DeploymentBootstrapAnchorClaimV2",
+                    "V1ToV2MigrationManifestV2",
+                }
+                and not (path == ADMISSION_PATH and node.name == "_construct_from_source_v2")
+            ):
+                findings.append(
+                    Finding(
+                        "B1B1_CARRIER_CONSTRUCTOR",
+                        str(path),
+                        f"{node.name}: {call.func.id}",
+                    )
+                )
+
+
+def _check_python_carriers(root: Path, findings: list[Finding]) -> None:
+    texts = {path: _read(root, path) for path in PYTHON_PATHS}
+    trees: dict[Path, ast.Module] = {}
+    for path, text in texts.items():
+        tree = _parse_python(path, text, findings)
+        if tree is not None:
+            trees[path] = tree
+            _check_python_imports_and_consumers(path, tree, findings)
+
+    value_tree = trees.get(VALUES_PATH)
+    if value_tree is not None:
+        _check_python_class_closure(VALUES_PATH, value_tree, findings)
+    for schema_id in EXPECTED_SCHEMA_FIELDS:
+        if schema_id not in texts[VALUES_PATH]:
+            findings.append(Finding("B1B1_SCHEMA_ID", str(VALUES_PATH), schema_id))
+
+    schema_tree = trees.get(SCHEMA_PATH)
+    if schema_tree is not None:
+        for assignment, expected in EXPECTED_SCHEMA_ASSIGNMENTS.items():
+            actual = _literal_assignment(schema_tree, assignment)
+            if actual != expected:
+                findings.append(
+                    Finding(
+                        "B1B1_SCHEMA_FIELD_SET",
+                        str(SCHEMA_PATH),
+                        f"{assignment}: {actual!r}",
+                    )
+                )
+
+    codec_tree = trees.get(CODEC_PATH)
+    if codec_tree is not None:
+        for assignment, expected_domain in EXPECTED_ROOT_DOMAINS.items():
+            actual = _literal_assignment(codec_tree, assignment)
+            if actual != expected_domain:
+                findings.append(
+                    Finding(
+                        "B1B1_ROOT_DOMAIN",
+                        str(CODEC_PATH),
+                        f"{assignment}: {actual!r}",
+                    )
+                )
+
+
+def _rust_struct_block(text: str, name: str) -> str | None:
+    match = re.search(
+        rf"pub struct {re.escape(name)}\s*\{{(?P<body>.*?)\n\}}",
+        text,
+        re.DOTALL,
+    )
+    return match.group("body") if match else None
+
+
+def _rust_fields(block: str) -> tuple[tuple[str, bool], ...] | None:
+    fields: list[tuple[str, bool]] = []
+    for raw_line in block.splitlines():
+        line = raw_line.split("//", 1)[0].strip()
+        if not line or line.startswith("#["):
+            continue
+        match = re.fullmatch(
+            r"(?:(pub(?:\([^)]*\))?)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*.+,",
+            line,
+        )
+        if match is None:
+            return None
+        fields.append((match.group(2), match.group(1) is not None))
+    return tuple(fields)
+
+
+def _rust_production_prefix(text: str) -> str:
+    marker = "#[cfg(test)]"
+    return text.split(marker, 1)[0]
+
+
+def _check_rust_function_surface(
+    text: str,
+    findings: list[Finding],
+) -> None:
+    production = _rust_production_prefix(text)
+    matches = list(
+        re.finditer(
+            r"(?P<public>\bpub\s+)?fn\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*(?:<[^>{}]*>)?\s*\(",
+            production,
+        )
+    )
+    for index, match in enumerate(matches):
+        name = match.group("name")
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(production)
+        segment = production[match.start() : end]
+        references = sorted(name for name in RUST_CARRIER_NAMES if name in segment)
+        if name not in RUST_ALLOWED_FUNCTIONS:
+            findings.append(
+                Finding(
+                    "B1B1_RUST_CARRIER_CONSUMER",
+                    str(RUST_PATH),
+                    f"{name}: {references!r}",
+                )
+            )
+        if match.group("public") and name not in RUST_ALLOWED_PUBLIC_FUNCTIONS:
+            findings.append(
+                Finding("B1B1_RUST_PUBLIC_SURFACE", str(RUST_PATH), name)
+            )
+        if any(part in name for part in FORBIDDEN_FUNCTION_PARTS):
+            findings.append(
+                Finding("B1B1_RUST_BARE_TRANSITION", str(RUST_PATH), name)
+            )
+
+
+def _check_rust_carriers(root: Path, findings: list[Finding]) -> None:
+    text = _read(root, RUST_PATH)
+    for name, expected_fields in EXPECTED_RUST_STRUCT_FIELDS.items():
+        block = _rust_struct_block(text, name)
+        if block is None:
+            findings.append(Finding("B1B1_RUST_STRUCT", str(RUST_PATH), name))
+            continue
+        parsed = _rust_fields(block)
+        if parsed is None:
+            findings.append(
+                Finding("B1B1_RUST_FIELD_SET", str(RUST_PATH), f"{name}: unparsed")
+            )
+            continue
+        actual_fields = tuple(field for field, _ in parsed)
+        if actual_fields != expected_fields:
+            findings.append(
+                Finding(
+                    "B1B1_RUST_FIELD_SET",
+                    str(RUST_PATH),
+                    f"{name}: expected {expected_fields!r}, got {actual_fields!r}",
+                )
+            )
+        for field, public in parsed:
+            if public:
+                findings.append(
+                    Finding(
+                        "B1B1_RUST_PUBLIC_FIELD",
+                        str(RUST_PATH),
+                        f"{name}.{field}",
+                    )
+                )
+        for trait in ("PartialEq", "Eq", "Hash"):
+            if re.search(
+                rf"\bimpl\s+(?:[A-Za-z0-9_:]+\s*::\s*)?{trait}\s+for\s+{re.escape(name)}\b",
+                text,
+            ):
+                findings.append(
+                    Finding(
+                        "B1B1_RUST_IDENTITY",
+                        str(RUST_PATH),
+                        f"{name}: custom {trait}",
+                    )
+                )
+
+    for assignment, expected in EXPECTED_ROOT_DOMAINS.items():
+        token = f'pub const {assignment}: &str = "{expected}";'
+        if token not in text:
+            findings.append(
+                Finding("B1B1_RUST_ROOT_DOMAIN", str(RUST_PATH), assignment)
+            )
+    _check_rust_function_surface(text, findings)
+
+    lib_text = _read(root, RUST_LIB_PATH)
+    carrier_lines = tuple(
+        line.strip()
+        for line in lib_text.splitlines()
+        if "fcis_b1b_authority" in line
+        or any(name in line for name in RUST_CARRIER_NAMES)
+    )
+    if carrier_lines != ("pub mod fcis_b1b_authority;",):
+        findings.append(
+            Finding(
+                "B1B1_RUST_MODULE_EXPORT",
+                str(RUST_LIB_PATH),
+                f"carrier references {carrier_lines!r}",
+            )
+        )
+
+
+def _runtime_candidate_paths(root: Path) -> tuple[Path, ...]:
+    result: set[Path] = set()
+    for relative_root in RUNTIME_SCAN_ROOTS:
+        scan_root = root / relative_root
+        if not scan_root.is_dir():
+            continue
+        for suffix in ("*.py", "*.rs"):
+            result.update(
+                path
+                for path in scan_root.rglob(suffix)
+                if path.is_file()
+                and not any(part in RUNTIME_EXCLUDED_PARTS for part in path.parts)
+            )
+    return tuple(sorted(result))
+
+
+def _check_runtime_reachability(root: Path, findings: list[Finding]) -> int:
+    allowed = {path.as_posix() for path in (*PYTHON_PATHS, RUST_PATH, RUST_LIB_PATH)}
+    markers = (
+        "fcis_b1b_authority",
+        *tuple(PYTHON_CARRIER_NAMES),
+        *tuple(RUST_CARRIER_NAMES),
+    )
+    paths = _runtime_candidate_paths(root)
+    for path in paths:
+        relative = path.relative_to(root).as_posix()
+        if path.stat().st_size > MAX_RUNTIME_SOURCE_BYTES:
+            findings.append(
+                Finding(
+                    "B1B1_RUNTIME_SCAN_LIMIT",
+                    relative,
+                    f"{path.stat().st_size} bytes",
+                )
+            )
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            findings.append(
+                Finding("B1B1_RUNTIME_PARSE", relative, f"UTF-8: {exc.start}")
+            )
+            continue
+        for symbol in FORBIDDEN_AUTHORITY_SYMBOLS:
+            if symbol in text:
+                findings.append(
+                    Finding("B1B1_PREMATURE_AUTHORITY", relative, symbol)
+                )
+        if relative in allowed:
+            continue
+        marker = next((candidate for candidate in markers if candidate in text), None)
+        if marker is not None:
+            code = (
+                "B1B1_RUST_CARRIER_CONSUMER"
+                if path.suffix == ".rs"
+                else "B1B1_RUNTIME_REACHABILITY"
+            )
+            findings.append(Finding(code, relative, marker))
+    return len(paths)
+
+
+def check_repository(root: Path) -> Report:
+    root = root.resolve()
+    findings: list[Finding] = []
+    for path in REQUIRED_PATHS:
+        if not (root / path).is_file():
+            findings.append(
+                Finding("MISSING_PATH", str(path), "required file is absent")
+            )
+    if findings:
+        return Report(False, tuple(findings), 0)
+
+    _check_revision_blob(root, findings)
+    _check_forbidden_paths(root, findings)
+    _check_python_carriers(root, findings)
+    _check_rust_carriers(root, findings)
+    runtime_files_scanned = _check_runtime_reachability(root, findings)
+    return Report(not findings, tuple(findings), runtime_files_scanned)
+
+
+def _payload(report: Report) -> dict[str, object]:
+    return {
+        "schema": REPORT_SCHEMA,
+        "ok": report.ok,
+        "required_path_count": len(REQUIRED_PATHS),
+        "runtime_files_scanned": report.runtime_files_scanned,
+        "findings": [
+            {
+                "code": finding.code,
+                "path": finding.path,
+                "detail": finding.detail,
+            }
+            for finding in report.findings
+        ],
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=Path, default=Path.cwd())
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+    report = check_repository(args.root)
+    payload = _payload(report)
+    if args.json:
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(f"ok={report.ok}")
+        print(f"required_paths={len(REQUIRED_PATHS)}")
+        print(f"runtime_files_scanned={report.runtime_files_scanned}")
+        for finding in report.findings:
+            print(f"{finding.code}: {finding.path}: {finding.detail}")
+    return 0 if report.ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
