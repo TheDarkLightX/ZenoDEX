@@ -16,6 +16,7 @@ from src.core.fcis_b1b_authority_values import (
     DEPLOYMENT_BOOTSTRAP_ANCHOR_CLAIM_SCHEMA_ID_V2,
     FCIS_AUTHORITY_HEADER_SCHEMA_ID_V2,
     FCIS_B1B_AUTHORITY_SCHEMA_REVISION_V2,
+    MAX_B1B_TEXT_CHARACTERS_V2,
     MAX_U256_V2,
     V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2,
     DeploymentBootstrapAnchorClaimV2,
@@ -69,8 +70,74 @@ def build() -> dict[str, object]:
         6,
     )
     return {
-        "version": 1,
+        "version": 2,
         "schema_revision": FCIS_B1B_AUTHORITY_SCHEMA_REVISION_V2,
+        "u256_boundaries": [
+            0,
+            1,
+            MAX_U256_V2 - 1,
+            MAX_U256_V2,
+        ],
+        "negative_cases": [
+            {
+                "id": "identifier_empty",
+                "kind": "identifier",
+                "value": "",
+                "languages": ["python", "rust"],
+                "expected_code": "invalid_value",
+            },
+            {
+                "id": "identifier_character_and_utf8_overflow",
+                "kind": "identifier",
+                "value": "🧪" * (MAX_B1B_TEXT_CHARACTERS_V2 + 1),
+                "languages": ["python", "rust"],
+                "expected_code": "invalid_value",
+            },
+            {
+                "id": "digest_uppercase",
+                "kind": "digest",
+                "value": "0x" + ("A" * 64),
+                "languages": ["python", "rust"],
+                "expected_code": "invalid_value",
+            },
+            {
+                "id": "digest_malformed_length",
+                "kind": "digest",
+                "value": "0x0",
+                "languages": ["python", "rust"],
+                "expected_code": "invalid_value",
+            },
+            {
+                "id": "u256_boolean_alias",
+                "kind": "u256",
+                "value": True,
+                "languages": ["python"],
+                "rust_exclusion": "BigUint has no Boolean inhabitant",
+                "expected_code": "invalid_value",
+            },
+            {
+                "id": "u256_negative",
+                "kind": "u256",
+                "value": -1,
+                "languages": ["python"],
+                "rust_exclusion": "BigUint has no negative inhabitant",
+                "expected_code": "invalid_value",
+            },
+            {
+                "id": "u256_overflow",
+                "kind": "u256",
+                "value": MAX_U256_V2 + 1,
+                "languages": ["python", "rust"],
+                "expected_code": "invalid_value",
+            },
+            {
+                "id": "positive_u256_zero",
+                "kind": "positive_u256",
+                "value": 0,
+                "languages": ["python", "rust"],
+                "expected_code": "invalid_value",
+            },
+        ],
         "cases": [
             {
                 "id": "authority_header_initial",

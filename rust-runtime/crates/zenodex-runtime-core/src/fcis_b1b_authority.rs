@@ -434,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn shared_vectors_match_python_bytes_and_roots() {
+    fn fcis_b1b_authority_golden_shared_vectors_match_python_bytes_and_roots() {
         let document = fixture();
 
         let header_case = case(&document, "authority_header_initial");
@@ -507,22 +507,45 @@ mod tests {
     }
 
     #[test]
-    fn full_u256_range_and_carrier_only_fixed_constants_are_supported() {
+    fn fcis_b1b_authority_u256_boundaries_and_carrier_only_constants() {
         let document = fixture();
-        let maximum = case(&document, "authority_header_u256_maximum");
-        let header = FCISAuthorityHeaderV2::try_new(
-            maximum["value"]["chain_deployment_id"]
-                .as_str()
-                .unwrap()
-                .to_owned(),
-            biguint(&maximum["value"]["sequence"]),
-            maximum["value"]["fee_distribution_configuration_root"]
-                .as_str()
-                .unwrap()
-                .to_owned(),
-        )
-        .unwrap();
-        assert_eq!(header.sequence(), &u256_max());
+        let boundaries = document["u256_boundaries"]
+            .as_array()
+            .expect("u256 boundaries");
+        assert_eq!(boundaries.len(), 4);
+        for encoded in boundaries {
+            let boundary = biguint(encoded);
+            let header = FCISAuthorityHeaderV2::try_new(
+                "deployment".to_owned(),
+                boundary.clone(),
+                format!("0x{}", "0".repeat(64)),
+            )
+            .unwrap();
+            assert_eq!(header.sequence(), &boundary);
+
+            let positive_version = if boundary == BigUint::ZERO {
+                BigUint::from(1_u8)
+            } else {
+                boundary.clone()
+            };
+            let manifest = V1ToV2MigrationManifestV2::try_new(
+                "deployment".to_owned(),
+                format!("0x{}", "0".repeat(64)),
+                "domain".to_owned(),
+                format!("0x{}", "1".repeat(64)),
+                boundary.clone(),
+                positive_version.clone(),
+                boundary.clone(),
+                boundary.clone(),
+                boundary.clone(),
+            )
+            .unwrap();
+            assert_eq!(manifest.initial_sequence(), &boundary);
+            assert_eq!(manifest.initial_configuration_version(), &positive_version);
+            assert_eq!(manifest.initial_activation_sequence(), &boundary);
+            assert_eq!(manifest.source_snapshot_version(), &boundary);
+            assert_eq!(manifest.target_snapshot_version(), &boundary);
+        }
 
         let carrier_only = case(&document, "structurally_exact_wrong_fixed_constants");
         let value = &carrier_only["value"];
@@ -549,18 +572,57 @@ mod tests {
     }
 
     #[test]
-    fn malformed_digests_and_out_of_range_u256_reject() {
-        assert!(FCISAuthorityHeaderV2::try_new(
-            "deployment".to_owned(),
-            BigUint::ZERO,
-            format!("0x{}", "A".repeat(64)),
-        )
-        .is_err());
-        assert!(FCISAuthorityHeaderV2::try_new(
-            "deployment".to_owned(),
-            u256_max() + BigUint::from(1_u8),
-            format!("0x{}", "0".repeat(64)),
-        )
-        .is_err());
+    fn fcis_b1b_authority_golden_shared_negative_vectors_reject() {
+        let document = fixture();
+        let cases = document["negative_cases"]
+            .as_array()
+            .expect("negative cases");
+        let mut rust_cases = 0_usize;
+        for case in cases {
+            let languages = case["languages"].as_array().expect("languages");
+            let is_rust = languages.iter().any(|value| value.as_str() == Some("rust"));
+            if !is_rust {
+                assert!(case["rust_exclusion"].as_str().is_some());
+                continue;
+            }
+            rust_cases += 1;
+            assert_eq!(case["expected_code"].as_str(), Some("invalid_value"));
+            let kind = case["kind"].as_str().expect("negative kind");
+            let rejected = match kind {
+                "identifier" => FCISAuthorityHeaderV2::try_new(
+                    case["value"].as_str().expect("identifier").to_owned(),
+                    BigUint::ZERO,
+                    format!("0x{}", "0".repeat(64)),
+                )
+                .is_err(),
+                "digest" => FCISAuthorityHeaderV2::try_new(
+                    "deployment".to_owned(),
+                    BigUint::ZERO,
+                    case["value"].as_str().expect("digest").to_owned(),
+                )
+                .is_err(),
+                "u256" => FCISAuthorityHeaderV2::try_new(
+                    "deployment".to_owned(),
+                    biguint(&case["value"]),
+                    format!("0x{}", "0".repeat(64)),
+                )
+                .is_err(),
+                "positive_u256" => V1ToV2MigrationManifestV2::try_new(
+                    "deployment".to_owned(),
+                    format!("0x{}", "0".repeat(64)),
+                    "domain".to_owned(),
+                    format!("0x{}", "1".repeat(64)),
+                    BigUint::ZERO,
+                    biguint(&case["value"]),
+                    BigUint::ZERO,
+                    BigUint::from(4_u8),
+                    BigUint::from(5_u8),
+                )
+                .is_err(),
+                other => panic!("unknown negative kind: {other}"),
+            };
+            assert!(rejected, "negative case accepted: {}", case["id"]);
+        }
+        assert_eq!(rust_cases, 6);
     }
 }
