@@ -41,7 +41,7 @@ jobs:
 
           BASE_SHA='6c22f52c5e65f14b4501a62a049d231fd48aa2d3'
           ARCHIVE_SHA='c26611308d5026b452cdfaaec9cc416304f4b06582200bad1d9debd7c911e1e8'
-          MD_SHA='0cce014acd454132fb5ea2a0d4da3719eb185e29936141a8266c17a520abc889'
+          MD_SHA='4603ab599a295922c76b977047c549c1332a7e28a7136a17ebe098d59e412e60'
           JSON_SHA='4152a911f4de39898cc781f2713a23aaf038c7e04929be95bc1973f3ef3f4348'
           CHECKER_SHA='e04e49cad0423b4921c98680c7b14ffeac1e2b8f2ae5093473e49d09a190b8e4'
 
@@ -70,6 +70,17 @@ jobs:
           tar --extract --xz --file /tmp/fcis_m5_to_m6_payload.tar.xz \
             --directory /tmp/fcis_m5_to_m6_payload \
             --no-same-owner --no-same-permissions
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('/tmp/fcis_m5_to_m6_payload/FCIS_M5_TO_M6_REFINEMENT_MATRIX.md')
+          lines = path.read_text(encoding='utf-8').splitlines()
+          path.write_text(
+              '\n'.join(line.rstrip() for line in lines) + '\n',
+              encoding='utf-8',
+          )
+          PY
 
           install -D -m 0644 \
             /tmp/fcis_m5_to_m6_payload/FCIS_M5_TO_M6_REFINEMENT_MATRIX.md \
