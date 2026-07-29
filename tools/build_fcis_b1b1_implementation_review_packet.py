@@ -458,22 +458,31 @@ def re_full_hex(value: str) -> bool:
     return len(value) == 40 and all(character in "0123456789abcdef" for character in value)
 
 
-def _verify_packet_relation(target_commit: str) -> tuple[str, str]:
-    head = _git_text("rev-parse", "HEAD")
-    parent_line = _git_text("rev-list", "--parents", "-n", "1", head).split()
+def _verify_packet_commit_relation(
+    packet_commit: str,
+    target_commit: str,
+) -> str:
+    parent_line = _git_text(
+        "rev-list",
+        "--parents",
+        "-n",
+        "1",
+        packet_commit,
+    ).split()
     if len(parent_line) != 2 or parent_line[1] != target_commit:
         raise ValueError("packet commit must have exactly target as its one parent")
-    entries = _changed_entries(head, base_commit=target_commit)
-    actual_paths = {
-        entry.target_path or entry.source_path
-        for entry in entries
-    }
-    if (
-        actual_paths != set(OUTPUT_PATHS)
-        or any(entry.status[0] not in {"A", "M"} for entry in entries)
+    entries = _changed_entries(packet_commit, base_commit=target_commit)
+    actual_paths = {entry.target_path or entry.source_path for entry in entries}
+    if actual_paths != set(OUTPUT_PATHS) or any(
+        entry.status[0] not in {"A", "M"} for entry in entries
     ):
         raise ValueError(f"packet commit changed unexpected entries: {entries!r}")
-    return head, _git_text("rev-parse", f"{head}^{{tree}}")
+    return _git_text("rev-parse", f"{packet_commit}^{{tree}}")
+
+
+def _verify_packet_relation(target_commit: str) -> tuple[str, str]:
+    head = _git_text("rev-parse", "HEAD")
+    return head, _verify_packet_commit_relation(head, target_commit)
 
 
 def _check() -> None:
@@ -548,29 +557,59 @@ def _export_delivery(destination: Path) -> None:
     (destination / DELIVERY_RECEIPT_NAME).write_bytes(_json_bytes(receipt))
 
 
-def _check_delivery(destination: Path) -> None:
-    destination = destination.resolve()
-    receipt_path = destination / DELIVERY_RECEIPT_NAME
-    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+def _check_delivery_graph(
+    receipt: Mapping[str, object],
+    bundle_path: Path,
+) -> str:
     if receipt.get("schema") != "zenodex/fcis/b1b1-exact-head-delivery/v1":
         raise ValueError("unknown delivery receipt schema")
+    base_commit = receipt.get("base_commit")
     packet_commit = receipt.get("packet_commit")
     target_commit = receipt.get("target_commit")
+    if base_commit != BASE_PACKET_COMMIT:
+        raise ValueError("delivery base commit mismatch")
     if type(packet_commit) is not str or not re_full_hex(packet_commit):
         raise ValueError("delivery has no exact packet commit")
     if type(target_commit) is not str or not re_full_hex(target_commit):
         raise ValueError("delivery has no exact target commit")
-    bundle_path = destination / DELIVERY_BUNDLE_NAME
     if hashlib.sha256(bundle_path.read_bytes()).hexdigest() != receipt.get(
         "bundle_sha256"
     ):
         raise ValueError("delivery bundle hash mismatch")
+
     subprocess.run(["git", "bundle", "verify", str(bundle_path)], check=True)
     heads = _git_text("bundle", "list-heads", str(bundle_path))
-    if packet_commit not in heads:
-        raise ValueError("delivery bundle omits packet commit")
+    if heads != f"{packet_commit} HEAD":
+        raise ValueError("delivery bundle omits exact packet HEAD")
     if receipt.get("packet_parent") != target_commit:
         raise ValueError("delivery packet parent mismatch")
+    packet_tree = _verify_packet_commit_relation(packet_commit, target_commit)
+    actual_trees = {
+        "base_tree": _git_text("rev-parse", f"{base_commit}^{{tree}}"),
+        "target_tree": _git_text("rev-parse", f"{target_commit}^{{tree}}"),
+        "packet_tree": packet_tree,
+    }
+    for field, actual_tree in actual_trees.items():
+        if receipt.get(field) != actual_tree:
+            label = field.removesuffix("_tree").replace("_", " ")
+            raise ValueError(f"delivery {label} tree mismatch")
+
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", base_commit, target_commit],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if ancestor.returncode != 0:
+        raise ValueError("delivery target does not descend from delivery base")
+    return packet_commit
+
+
+def _check_delivery_packet_files(
+    destination: Path,
+    receipt: Mapping[str, object],
+    packet_commit: str,
+) -> None:
     packet_files = receipt.get("packet_files")
     if type(packet_files) is not dict or set(packet_files) != {
         path.as_posix() for path in OUTPUT_PATHS
@@ -582,6 +621,9 @@ def _check_delivery(destination: Path) -> None:
             raise ValueError(f"delivery packet hash mismatch: {path}")
         if payload != _commit_blob(packet_commit, path):
             raise ValueError(f"delivery packet blob mismatch: {path}")
+
+
+def _check_delivery_file_set(destination: Path) -> None:
     expected_files = {
         Path(DELIVERY_BUNDLE_NAME),
         Path(DELIVERY_RECEIPT_NAME),
@@ -597,6 +639,18 @@ def _check_delivery(destination: Path) -> None:
     }
     if actual_files != expected_files:
         raise ValueError("delivery contains undeclared files")
+
+
+def _check_delivery(destination: Path) -> None:
+    destination = destination.resolve()
+    receipt_path = destination / DELIVERY_RECEIPT_NAME
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if type(receipt) is not dict:
+        raise ValueError("delivery receipt must be an object")
+    bundle_path = destination / DELIVERY_BUNDLE_NAME
+    packet_commit = _check_delivery_graph(receipt, bundle_path)
+    _check_delivery_packet_files(destination, receipt, packet_commit)
+    _check_delivery_file_set(destination)
 
 
 def main() -> int:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import fields
 
 import pytest
 
@@ -26,6 +27,7 @@ from src.core.fcis_b1b_authority_values import (
     V1_TO_V2_MIGRATION_MANIFEST_SCHEMA_ID_V2,
     B1BAuthorityAdmissionCodeV2,
     B1BAuthorityAdmissionRejectV2,
+    DeploymentBootstrapAnchorClaimSourceV2,
     DeploymentBootstrapAnchorClaimV2,
     FCISAuthorityHeaderSourceV2,
     FCISAuthorityHeaderV2,
@@ -79,6 +81,23 @@ def test_schema_registry_is_closed_and_field_exact() -> None:
     }
     with pytest.raises(TypeError):
         FCIS_B1B_AUTHORITY_FIELDS_BY_SCHEMA_V2["unknown"] = ()  # type: ignore[index]
+
+
+def test_stored_dataclass_fields_equal_the_canonical_projection_fields() -> None:
+    expected_by_type = {
+        FCISAuthorityHeaderSourceV2: FCIS_AUTHORITY_HEADER_FIELDS_V2,
+        FCISAuthorityHeaderV2: FCIS_AUTHORITY_HEADER_FIELDS_V2,
+        DeploymentBootstrapAnchorClaimSourceV2: (
+            DEPLOYMENT_BOOTSTRAP_ANCHOR_CLAIM_FIELDS_V2
+        ),
+        DeploymentBootstrapAnchorClaimV2: (
+            DEPLOYMENT_BOOTSTRAP_ANCHOR_CLAIM_FIELDS_V2
+        ),
+        V1ToV2MigrationManifestSourceV2: V1_TO_V2_MIGRATION_MANIFEST_FIELDS_V2,
+        V1ToV2MigrationManifestV2: V1_TO_V2_MIGRATION_MANIFEST_FIELDS_V2,
+    }
+    for carrier_type, expected_fields in expected_by_type.items():
+        assert tuple(field.name for field in fields(carrier_type)) == expected_fields
 
 
 def test_schema_unknown_missing_duplicate_and_trailing_bytes_reject() -> None:

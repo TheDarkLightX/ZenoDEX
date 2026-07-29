@@ -8,6 +8,8 @@ import ast
 import hashlib
 import json
 import re
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -156,6 +158,14 @@ EXPECTED_ROOT_DOMAINS = {
 }
 
 PYTHON_CARRIER_NAMES = frozenset(EXPECTED_PYTHON_CLASS_FIELDS)
+RUNTIME_FIELD_CLASS_NAMES = (
+    "FCISAuthorityHeaderSourceV2",
+    "DeploymentBootstrapAnchorClaimSourceV2",
+    "V1ToV2MigrationManifestSourceV2",
+    "FCISAuthorityHeaderV2",
+    "DeploymentBootstrapAnchorClaimV2",
+    "V1ToV2MigrationManifestV2",
+)
 RUST_CARRIER_NAMES = frozenset(EXPECTED_RUST_STRUCT_FIELDS)
 PYTHON_ALLOWED_IMPORTS = {
     VALUES_PATH: frozenset(),
@@ -301,25 +311,45 @@ def _decorator_name(node: ast.expr) -> str | None:
     return None
 
 
-def _is_final_frozen_slots_dataclass(node: ast.ClassDef) -> bool:
+def _has_exact_carrier_decorators(node: ast.ClassDef) -> bool:
+    if len(node.decorator_list) != 2:
+        return False
+    final_decorator, dataclass_decorator = node.decorator_list
+    if not isinstance(final_decorator, ast.Name) or final_decorator.id != "final":
+        return False
+    if (
+        not isinstance(dataclass_decorator, ast.Call)
+        or _decorator_name(dataclass_decorator) != "dataclass"
+        or dataclass_decorator.args
+    ):
+        return False
+    keywords = {keyword.arg: keyword.value for keyword in dataclass_decorator.keywords}
+    if set(keywords) != {"frozen", "slots"}:
+        return False
+    for name in ("frozen", "slots"):
+        value = keywords[name]
+        if not isinstance(value, ast.Constant) or value.value is not True:
+            return False
+    return True
+
+
+def _has_required_immutable_decorators(node: ast.ClassDef) -> bool:
     names = {_decorator_name(decorator) for decorator in node.decorator_list}
     if "final" not in names or "dataclass" not in names:
         return False
     for decorator in node.decorator_list:
-        if not isinstance(decorator, ast.Call) or _decorator_name(decorator) != "dataclass":
+        if not isinstance(decorator, ast.Call):
+            continue
+        if _decorator_name(decorator) != "dataclass":
             continue
         keywords = {keyword.arg: keyword.value for keyword in decorator.keywords}
         frozen = keywords.get("frozen")
         slots = keywords.get("slots")
-        eq = keywords.get("eq")
-        unsafe_hash = keywords.get("unsafe_hash")
         return (
             isinstance(frozen, ast.Constant)
             and frozen.value is True
             and isinstance(slots, ast.Constant)
             and slots.value is True
-            and not (isinstance(eq, ast.Constant) and eq.value is False)
-            and not (isinstance(unsafe_hash, ast.Constant) and unsafe_hash.value is True)
         )
     return False
 
@@ -391,6 +421,115 @@ def _direct_annotated_fields(node: ast.ClassDef) -> tuple[str, ...]:
     )
 
 
+def _target_carrier_names(target: ast.AST) -> set[str]:
+    return {
+        child.id
+        for child in ast.walk(target)
+        if isinstance(child, ast.Name) and child.id in PYTHON_CARRIER_NAMES
+    }
+
+
+def _check_python_identity_mutations(
+    path: Path,
+    tree: ast.Module,
+    findings: list[Finding],
+) -> None:
+    details: set[str] = set()
+    for node in ast.walk(tree):
+        targets: tuple[ast.AST, ...] = ()
+        if isinstance(node, ast.Assign):
+            targets = tuple(node.targets)
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+            targets = (node.target,)
+        elif isinstance(node, ast.Delete):
+            targets = tuple(node.targets)
+        for target in targets:
+            for name in _target_carrier_names(target):
+                details.add(f"{name}: attribute or class replacement")
+
+        if not isinstance(node, ast.Call) or not node.args:
+            continue
+        first_argument = node.args[0]
+        if isinstance(first_argument, ast.Name):
+            if first_argument.id in PYTHON_CARRIER_NAMES:
+                details.add(f"{first_argument.id}: post-definition call")
+
+    for detail in sorted(details):
+        findings.append(Finding("B1B1_PYTHON_IDENTITY_MUTATION", str(path), detail))
+
+
+_RUNTIME_FIELD_PROBE = (
+    "import dataclasses, importlib.util, json, pathlib, sys\n"
+    "path = pathlib.Path(sys.argv[1])\n"
+    "spec = importlib.util.spec_from_file_location('_b1b_values_probe', path)\n"
+    "if spec is None or spec.loader is None:\n"
+    "    raise RuntimeError('cannot load carrier module')\n"
+    "module = importlib.util.module_from_spec(spec)\n"
+    "sys.modules[spec.name] = module\n"
+    "spec.loader.exec_module(module)\n"
+    "names = json.loads(sys.argv[2])\n"
+    "result = {name: [field.name for field in dataclasses.fields(getattr(module, name))] "
+    "for name in names}\n"
+    "print(json.dumps(result, sort_keys=True, separators=(',', ':')))\n"
+)
+
+
+def _check_runtime_dataclass_fields(
+    root: Path,
+    findings: list[Finding],
+) -> None:
+    try:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-c",
+                _RUNTIME_FIELD_PROBE,
+                str((root / VALUES_PATH).resolve()),
+                json.dumps(RUNTIME_FIELD_CLASS_NAMES),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        findings.append(
+            Finding(
+                "B1B1_PYTHON_RUNTIME_FIELDS",
+                str(VALUES_PATH),
+                f"probe failed closed: {exc}",
+            )
+        )
+        return
+    if completed.returncode != 0:
+        detail = completed.stderr.strip()[-1_000:] or f"exit {completed.returncode}"
+        findings.append(Finding("B1B1_PYTHON_RUNTIME_FIELDS", str(VALUES_PATH), detail))
+        return
+    try:
+        actual = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        findings.append(
+            Finding(
+                "B1B1_PYTHON_RUNTIME_FIELDS",
+                str(VALUES_PATH),
+                f"invalid probe output: {exc.msg}",
+            )
+        )
+        return
+    expected = {
+        name: list(EXPECTED_PYTHON_CLASS_FIELDS[name]) for name in RUNTIME_FIELD_CLASS_NAMES
+    }
+    if actual != expected:
+        findings.append(
+            Finding(
+                "B1B1_PYTHON_RUNTIME_FIELDS",
+                str(VALUES_PATH),
+                f"expected {expected!r}, got {actual!r}",
+            )
+        )
+
+
 def _check_python_class_closure(
     path: Path,
     tree: ast.Module,
@@ -407,8 +546,18 @@ def _check_python_class_closure(
         if node is None:
             findings.append(Finding("B1B1_VALUE_MISSING", str(path), name))
             continue
-        if not _is_final_frozen_slots_dataclass(node):
+        if not _has_required_immutable_decorators(node):
             findings.append(Finding("B1B1_VALUE_NOT_IMMUTABLE", str(path), name))
+        if not _has_exact_carrier_decorators(node):
+            findings.append(Finding("B1B1_PYTHON_DECORATORS", str(path), name))
+        if node.bases or node.keywords:
+            findings.append(
+                Finding(
+                    "B1B1_PYTHON_CLASS_SHAPE",
+                    str(path),
+                    f"{name}: bases={len(node.bases)}, keywords={len(node.keywords)}",
+                )
+            )
         actual_fields = _direct_annotated_fields(node)
         if actual_fields != expected_fields:
             findings.append(
@@ -436,6 +585,8 @@ def _check_python_class_closure(
             findings.append(
                 Finding("B1B1_PYTHON_FIELD_SET", str(path), f"{name}: class assignment")
             )
+
+    _check_python_identity_mutations(path, tree, findings)
 
 
 def _carrier_references(node: ast.AST) -> set[str]:
@@ -771,6 +922,8 @@ def check_repository(root: Path) -> Report:
     _check_revision_blob(root, findings)
     _check_forbidden_paths(root, findings)
     _check_python_carriers(root, findings)
+    if not findings:
+        _check_runtime_dataclass_fields(root, findings)
     _check_rust_carriers(root, findings)
     runtime_files_scanned = _check_runtime_reachability(root, findings)
     return Report(not findings, tuple(findings), runtime_files_scanned)

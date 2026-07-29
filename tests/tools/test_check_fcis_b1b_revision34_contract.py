@@ -4,6 +4,8 @@ import ast
 import shutil
 from pathlib import Path
 
+import pytest
+
 from tools.check_fcis_b1b_revision34_contract import (
     CHECKER_PATH,
     MAX_MUTATION_FIXTURE_BYTES,
@@ -11,6 +13,8 @@ from tools.check_fcis_b1b_revision34_contract import (
     REVISION_PATH,
     RUST_LIB_PATH,
     RUST_PATH,
+    Finding,
+    _check_runtime_dataclass_fields,
     check_repository,
 )
 
@@ -209,6 +213,132 @@ def test_custom_python_carrier_equality_is_detected(tmp_path: Path) -> None:
         "        _require_text_v2(\"chain deployment identifier\", self.chain_deployment_id)",
     )
     assert "B1B1_PYTHON_IDENTITY" in _codes(root)
+
+
+@pytest.mark.parametrize(
+    "base_definition",
+    (
+        (
+            "@dataclass(frozen=True, slots=True)\n"
+            "class _HiddenAuthorityState:\n"
+            '    hidden_policy_selector: str = field(init=False, default="GOOD")\n'
+        ),
+        (
+            "@dataclass(frozen=True, slots=True)\n"
+            "class _HiddenAuthorityState:\n"
+            '    hidden_policy_selector: str = field(init=False, default="GOOD", compare=True)\n'
+        ),
+        (
+            "class _HiddenAuthorityState:\n"
+            "    @property\n"
+            "    def hidden_policy_selector(self) -> str:\n"
+            '        return "GOOD"\n'
+        ),
+    ),
+    ids=("inherited-init-false-field", "inherited-compare-field", "inherited-property"),
+)
+def test_python_carrier_base_class_is_detected(
+    tmp_path: Path,
+    base_definition: str,
+) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    _replace(
+        root,
+        Path("src/core/fcis_b1b_authority_values.py"),
+        "from dataclasses import dataclass",
+        "from dataclasses import dataclass, field",
+    )
+    _replace(
+        root,
+        Path("src/core/fcis_b1b_authority_values.py"),
+        "@final\n@dataclass(frozen=True, slots=True)\nclass FCISAuthorityHeaderV2:",
+        base_definition
+        + "\n@final\n@dataclass(frozen=True, slots=True)\n"
+        + "class FCISAuthorityHeaderV2(_HiddenAuthorityState):",
+    )
+    assert "B1B1_PYTHON_CLASS_SHAPE" in _codes(root)
+
+
+def test_runtime_field_probe_detects_inherited_stored_state(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    _replace(
+        root,
+        Path("src/core/fcis_b1b_authority_values.py"),
+        "from dataclasses import dataclass",
+        "from dataclasses import dataclass, field",
+    )
+    _replace(
+        root,
+        Path("src/core/fcis_b1b_authority_values.py"),
+        "@final\n@dataclass(frozen=True, slots=True)\nclass FCISAuthorityHeaderV2:",
+        "@dataclass(frozen=True, slots=True)\n"
+        "class _HiddenAuthorityState:\n"
+        '    hidden_policy_selector: str = field(init=False, default="GOOD")\n'
+        "\n@final\n@dataclass(frozen=True, slots=True)\n"
+        "class FCISAuthorityHeaderV2(_HiddenAuthorityState):",
+    )
+    findings: list[Finding] = []
+    _check_runtime_dataclass_fields(root, findings)
+    assert {finding.code for finding in findings} == {
+        "B1B1_PYTHON_RUNTIME_FIELDS"
+    }
+
+
+def test_extra_python_carrier_decorator_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    _replace(
+        root,
+        Path("src/core/fcis_b1b_authority_values.py"),
+        "@final\n@dataclass(frozen=True, slots=True)\nclass FCISAuthorityHeaderV2:",
+        "def identity_replacing_decorator(carrier_type):\n"
+        "    carrier_type.__eq__ = lambda self, other: True\n"
+        "    return carrier_type\n\n"
+        "@identity_replacing_decorator\n"
+        "@final\n@dataclass(frozen=True, slots=True)\n"
+        "class FCISAuthorityHeaderV2:",
+    )
+    assert "B1B1_PYTHON_DECORATORS" in _codes(root)
+
+
+def test_python_carrier_metaclass_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    _replace(
+        root,
+        Path("src/core/fcis_b1b_authority_values.py"),
+        "@final\n@dataclass(frozen=True, slots=True)\nclass FCISAuthorityHeaderV2:",
+        "class _InjectingMeta(type):\n"
+        "    def __new__(metaclass, name, bases, namespace):\n"
+        '        namespace["hidden_policy_selector"] = "GOOD"\n'
+        "        return super().__new__(metaclass, name, bases, namespace)\n\n"
+        "@final\n@dataclass(frozen=True, slots=True)\n"
+        "class FCISAuthorityHeaderV2(metaclass=_InjectingMeta):",
+    )
+    assert "B1B1_PYTHON_CLASS_SHAPE" in _codes(root)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "FCISAuthorityHeaderV2.__eq__ = lambda self, other: True\n",
+        'setattr(FCISAuthorityHeaderV2, "__hash__", lambda self: 0)\n',
+        'type.__setattr__(FCISAuthorityHeaderV2, "__eq__", lambda self, other: True)\n',
+        'delattr(FCISAuthorityHeaderV2, "__post_init__")\n',
+    ),
+    ids=(
+        "module-equality-replacement",
+        "setattr-hash",
+        "type-setattr-equality",
+        "delattr-post-init",
+    ),
+)
+def test_python_carrier_post_definition_identity_mutation_is_detected(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    path = root / "src/core/fcis_b1b_authority_values.py"
+    path.write_text(path.read_text(encoding="utf-8") + "\n" + mutation, encoding="utf-8")
+    assert "B1B1_PYTHON_IDENTITY_MUTATION" in _codes(root)
 
 
 def test_extra_rust_carrier_field_is_detected(tmp_path: Path) -> None:
