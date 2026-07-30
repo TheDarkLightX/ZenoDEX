@@ -310,6 +310,40 @@ def test_event_granularity_counterexample_is_retained() -> None:
         left + right for left, right in zip(first[2], second[2], strict=True)
     )
 
+    key = _key()
+    production_policy = _policy((5_000, 2_000, 3_000))
+    grouped_result = allocator.apply_fee_apportionment_v2(
+        contributions=(
+            FeeAmountCandidateV2(key, 493),
+            FeeAmountCandidateV2(key, 374),
+        ),
+        policy=production_policy,
+        state=_state(key, (0, 0, 0)),
+    )
+    first_result = allocator.apply_fee_apportionment_v2(
+        contributions=(FeeAmountCandidateV2(key, 493),),
+        policy=production_policy,
+        state=_state(key, (0, 0, 0)),
+    )
+    assert type(grouped_result) is FeeApportionmentTransitionOkV2
+    assert type(first_result) is FeeApportionmentTransitionOkV2
+    second_result = allocator.apply_fee_apportionment_v2(
+        contributions=(FeeAmountCandidateV2(key, 374),),
+        policy=production_policy,
+        state=first_result.state,
+    )
+    assert type(second_result) is FeeApportionmentTransitionOkV2
+    public_split = tuple(
+        left + right
+        for left, right in zip(
+            first_result.allocations[0].amounts,
+            second_result.allocations[0].amounts,
+            strict=True,
+        )
+    )
+
     assert whole[2] == (434, 173, 260)
     assert split == (433, 174, 260)
     assert whole[2] != split
+    assert grouped_result.allocations[0].amounts == whole[2]
+    assert public_split == split

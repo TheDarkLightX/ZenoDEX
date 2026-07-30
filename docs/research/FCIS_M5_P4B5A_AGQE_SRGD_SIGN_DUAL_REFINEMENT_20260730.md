@@ -55,9 +55,32 @@ Existing ZenoDEX algorithm identifier:
 LEAP and ZAG are discovery sources. The ZenoDEX Lean compiler and executable
 tests decide the claims made by this checkpoint.
 
+### 2.1 Occurrence terminology
+
+ZenoDEX has two distinct occurrence layers:
+
+```text
+witness occurrence
+  = one fill-bound provisional protocol-fee witness retained in settlement
+    order with its own occurrence ID
+
+allocator occurrence
+  = one transition-level amount grouped by
+    (fee_distribution_domain_id, asset)
+```
+
+The existing allocator consumes allocator occurrences. Within one accepted
+settlement transition, duplicate same-key witness amounts are grouped and raw
+input permutation does not change the allocator result. Across accepted
+transitions, the persistent deficit state advances between groups, so an
+adapter may not merge those transition boundaries.
+
+This document uses `allocator occurrence` for the theorem input. The witness
+tuple remains separate lineage evidence and must not be discarded.
+
 ## 3. Exact algebraic relation
 
-For one canonical fee occurrence, let:
+For one grouped allocator occurrence, let:
 
 ```text
 D                       = denominator
@@ -283,9 +306,10 @@ b_wrong = (0, 1, 0)
 
 The permanent mutation test kills this sign/order error.
 
-### 6.2 Event granularity
+### 6.2 Allocator-occurrence granularity
 
-AGQE/SRGD is stateful per canonical occurrence. Arbitrary splitting or merging
+AGQE/SRGD is stateful per grouped allocator occurrence. Arbitrary splitting
+across accepted transitions or merging across those transition boundaries
 changes the protocol result.
 
 Retained witness:
@@ -294,18 +318,23 @@ Retained witness:
 D = 10
 weights = (5, 2, 3)
 
-one occurrence of 867:
+one allocator occurrence of 867:
   (434, 173, 260)
 
-two occurrences of 493 then 374:
+two allocator occurrences of 493 then 374:
   (433, 174, 260)
 ```
 
 Both outcomes satisfy quota bounds. They are different transitions.
 
-Therefore a mounted system must bind the exact ordered fee-occurrence sequence
-into the candidate and receipt. An adapter may not aggregate, split, merge, or
-reorder occurrences independently.
+Two raw witness amounts of 493 and 374 in the same accepted transition are
+canonically grouped to one allocator occurrence of 867. The same amounts in
+two accepted transitions are two allocator occurrences because the first
+post-state becomes the second pre-state.
+
+Therefore a mounted system must bind both the exact ordered witness tuple and
+the exact grouped allocator-occurrence tuple into the candidate and receipt.
+An adapter may not split, merge, or reorder accepted transition boundaries.
 
 ### 6.3 Role count
 
@@ -332,7 +361,7 @@ ATDD-R3 Transition
 
 ATDD-R4 Adaptive sequence
   Given an arbitrary authorized policy sequence and one fixed history identity
-  When every canonical occurrence carries the prior state forward
+  When every grouped allocator occurrence carries the prior state forward
   Then the sign-dual relation holds after every tested step.
 
 ATDD-R5 U256 boundary
@@ -342,9 +371,10 @@ ATDD-R5 U256 boundary
   evaluating amount * weight.
 
 ATDD-R6 Granularity rejection
-  Given two different occurrence partitions with the same aggregate amount
+  Given the same amounts grouped in one accepted transition or split across two
   When their transition results differ
-  Then an adapter must not treat the partitions as one canonical lineage.
+  Then lineage preserves both the witness tuple and allocator-occurrence tuple
+  and an adapter must not merge the accepted transition boundary.
 ```
 
 ## 8. Evidence ledger
@@ -383,10 +413,10 @@ store-current rederivation
 no-bypass evidence
 ```
 
-The next LineageCube checkpoint should instantiate one narrow fee occurrence:
+The next LineageCube checkpoint should instantiate one allocator occurrence:
 
 ```text
-canonical occurrence
+grouped allocator occurrence
   -> SRGD/AGQE evaluation
   -> authenticated policy/current state
   -> candidate and receipt
@@ -444,7 +474,7 @@ runtime authority.
 
 This checkpoint does not establish:
 
-- canonical ZenoDEX fee-occurrence extraction;
+- canonical witness extraction or witness-to-allocator grouping;
 - authentication of the active distribution policy;
 - current-state provenance;
 - a committed V2 state or state root;
@@ -460,7 +490,8 @@ This checkpoint does not establish:
 
 Keep the existing SRGD-v1 implementation and schema unchanged.
 
-Next, freeze canonical ordered fee-occurrence semantics and prove the recursive
-fold refinement over those occurrences. Then add explicit Rust sign-dual
-vectors. Only after those pass should the allocator enter a source-bound
-LineageCube candidate and atomic publication design.
+Next, freeze the canonical ordered witness tuple and its deterministic mapping
+to grouped allocator occurrences, then prove the recursive fold refinement over
+those allocator occurrences. Add explicit Rust sign-dual vectors after that.
+Only after those pass should the allocator enter a source-bound LineageCube
+candidate and atomic publication design.
