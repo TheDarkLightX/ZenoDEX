@@ -4,6 +4,8 @@
 status: IMPLEMENTED_UNMOUNTED_EXACT_HEAD_REPAIR_PENDING_REVIEW
 checkpoint: B1B-1
 repaired implementation code head before this report:
+  3154fab3f5bd4221b3fdc0bd9f55fedd46e33153
+prior repaired implementation code head:
   83a45dbfe5821e38bfaf6389aa3aeaad366580de
 prior reviewed exact-head target:
   a48ac55385cc22d62b5ca00339d60da443d73be6
@@ -25,8 +27,8 @@ approved Revision 3.4 document SHA-256:
 
 ## Result
 
-The repair retains every earlier exact-head correction and closes the two Rust
-source-layout counterexamples reported by independent review:
+The repair retains every earlier exact-head correction and closes the remaining
+Rust source-layout escape family exposed by minimized mutation:
 
 1. all four Python carrier modules reject direct and transitive carrier aliases,
    method capture, dynamic namespace replacement, and post-definition identity
@@ -36,10 +38,11 @@ source-layout counterexamples reported by independent review:
    sentinels, and canonical dataclass fields;
 3. admission and canonical projection use standalone pure field validators, so
    hostile replacement of a class hook cannot bypass point-of-use validation;
-4. item-aware Rust scanning blanks only complete top-level `cfg(test)` modules,
-   inspects production items before, between, and after them, collects balanced
-   multiline outer attributes, and closes inherent-implementation, trait,
-   macro, const, static, type-alias, and public-function construction surfaces;
+4. item-aware Rust scanning examines every top-level item regardless of source
+   position, excludes only complete top-level `cfg(test)` modules, requires exact
+   carrier implementation headers and top-level function inventories, and rejects
+   qualified, trait, where-clause, aliased, nested-module, `include!`, and
+   attribute-macro construction surfaces;
 5. every Rust encoder and root function freshly revalidates the value and
    returns a typed result;
 6. dedicated CI checks out the exact pull-request head, verifies that identity,
@@ -151,6 +154,9 @@ globals/vars replacement and carrier method capture
 extra Rust derives, trait constructors, macros, and unchecked constructors
 post-test and between-test Rust constructors, trait implementations, helpers,
 macros, constants, and type aliases
+where-clause and qualified-target carrier implementations
+carrier `use` aliases and allow-listed constructor names outside exact impls
+nested production modules, `include!`, and impl/method attribute macros
 multiline cfg_attr derives and attribute macros
 deleted Rust encoder revalidation
 direct extra Rust carrier fields
@@ -195,7 +201,7 @@ The Git-aware acceptance gate reports:
 acceptance_case_count: 20
 b1b1_case_count: 12
 b1b2_case_count: 8
-changed_path_count: 30
+changed_path_count: 35
 errors: []
 ok: true
 phase_order: [B1B-1, B1B-2]
@@ -207,11 +213,11 @@ independent exact-head review returns the required B1B-1 approval verdict.
 ## Evidence
 
 Commands run at repaired code head
-`83a45dbfe5821e38bfaf6389aa3aeaad366580de`:
+`3154fab3f5bd4221b3fdc0bd9f55fedd46e33153`:
 
 ```text
 python3 -m pytest -q <focused B1B-1 carrier, checker, and packet tests>
-  160 passed
+  168 passed
 
 python3 -m pytest -q <three B1A configuration suites>
   14 passed
@@ -233,7 +239,7 @@ python3 -m tools.check_fcis_m5_p4b5a_atdd_contract \
   --assigned-id ATDD-B1B1-009 \
   --diff-base 1665e788a4c4daf43982262c307d0c04b914d89b
   ok=true, acceptance_case_count=20, b1b1_case_count=12,
-  b1b2_case_count=8, changed_path_count=30
+  b1b2_case_count=8, changed_path_count=35
 
 ruff check <complete focused B1B-1 Python surface>
   passed
