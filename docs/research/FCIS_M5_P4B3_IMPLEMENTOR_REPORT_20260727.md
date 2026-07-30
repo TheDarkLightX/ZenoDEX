@@ -24,12 +24,14 @@ The exact final P4B3-C commit is the commit containing this report. Git records
 that identifier externally because a file cannot contain the hash of the
 commit that contains the file without changing that commit.
 
-Branch and worktree:
+Branch:
 
 ```text
 agent/codex-fcis-m5-p4b3-complete-20260727
-/home/trevormoc/Downloads/Autonomous Tau DEX/.worktrees/fcis-m5-p4b3-complete
 ```
+
+The machine-local review checkout path was intentionally redacted from this
+public report.
 
 ## Review grade
 
