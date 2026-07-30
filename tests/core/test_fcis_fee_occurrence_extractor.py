@@ -162,11 +162,14 @@ def test_two_direct_swap_witnesses_preserve_canonical_settlement_order() -> None
         for fill in evaluation.material.settlement.fills
         if fill.protocol_fee_paid is not None
     )
-    assert tuple(
-        entry.intent_id
-        for entry in result.settlement_index.entries
-        if entry.fill is not None and entry.fill.protocol_fee_paid is not None
-    ) == expected_order
+    assert (
+        tuple(
+            entry.intent_id
+            for entry in result.settlement_index.entries
+            if entry.fill is not None and entry.fill.protocol_fee_paid is not None
+        )
+        == expected_order
+    )
 
 
 def test_fee_policy_rotation_changes_occurrence_context_but_not_state_key() -> None:
