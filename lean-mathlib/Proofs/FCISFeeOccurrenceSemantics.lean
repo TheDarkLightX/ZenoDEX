@@ -34,17 +34,20 @@ def updateAt
     (state : Key → Value) : Key → Value :=
   fun query => if query = key then update (state query) else state query
 
-/-- Distinct-key transitions commute, validating canonical key order per segment. -/
+/--
+Distinct-key transitions agree at every observation point, validating canonical
+key order per segment without requiring function extensionality.
+-/
 theorem distinct_key_updates_commute
     {Key Value : Type}
     [DecidableEq Key]
     (left right : Key)
     (leftUpdate rightUpdate : Value → Value)
     (state : Key → Value)
+    (query : Key)
     (distinct : left ≠ right) :
-    updateAt right rightUpdate (updateAt left leftUpdate state) =
-      updateAt left leftUpdate (updateAt right rightUpdate state) := by
-  funext query
+    updateAt right rightUpdate (updateAt left leftUpdate state) query =
+      updateAt left leftUpdate (updateAt right rightUpdate state) query := by
   by_cases atLeft : query = left
   · subst query
     simp [updateAt, distinct, Ne.symm distinct]
