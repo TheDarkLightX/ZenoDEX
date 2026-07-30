@@ -18,7 +18,7 @@ from dataclasses import InitVar, dataclass
 from enum import Enum
 from typing import TypeAlias, final
 
-from .fcis_commit_bundle_derivation import CommitBundleV1, build_commit_bundle_v1
+from .fcis_commit_bundle_derivation import build_commit_bundle_v1
 from .fcis_decision_derivation import AcceptV1, RejectV1, evaluate_fcis_decision_v1
 from .fcis_fee_occurrence_extractor import (
     SourceBoundFeeOccurrenceRejectV1,
@@ -170,11 +170,6 @@ def derive_source_bound_fcis_lineage_v1(
             extraction.code.value,
             *extraction.path,
         )
-    if type(extraction) is not SourceBoundFeeOccurrenceV1:
-        return _reject_v1(
-            FCISSourceBoundLineageCodeV1.INTERNAL_RELATION_FAILURE,
-            "extraction",
-        )
 
     decision = evaluate_fcis_decision_v1(
         state_source=state_source,
@@ -200,11 +195,6 @@ def derive_source_bound_fcis_lineage_v1(
             FCISSourceBoundLineageCodeV1.BUNDLE_REJECTED,
             bundle.receipt.public_reason,
         )
-    if type(bundle) is not CommitBundleV1:
-        return _reject_v1(
-            FCISSourceBoundLineageCodeV1.INTERNAL_RELATION_FAILURE,
-            "bundle",
-        )
 
     closure = build_fcis_lineage_closure_from_artifacts_v1(
         evaluation=evaluation,
@@ -219,11 +209,6 @@ def derive_source_bound_fcis_lineage_v1(
             FCISSourceBoundLineageCodeV1.CLOSURE_REJECTED,
             closure.code.value,
             *closure.path,
-        )
-    if type(closure) is not FCISLineageClosureCertificateV1:
-        return _reject_v1(
-            FCISSourceBoundLineageCodeV1.INTERNAL_RELATION_FAILURE,
-            "closure",
         )
     if closure.evaluation is not extraction.evaluation:
         return _reject_v1(
@@ -279,11 +264,6 @@ def verify_source_bound_fcis_lineage_v1(
             fresh_extraction.code.value,
             *fresh_extraction.path,
         )
-    if type(fresh_extraction) is not SourceBoundFeeOccurrenceV1:
-        return _reject_v1(
-            FCISSourceBoundLineageCodeV1.INTERNAL_RELATION_FAILURE,
-            "fresh_extraction",
-        )
     if fresh_extraction != certificate.extraction:
         return _reject_v1(
             FCISSourceBoundLineageCodeV1.LINEAGE_IDENTITY_MISMATCH,
@@ -303,11 +283,6 @@ def verify_source_bound_fcis_lineage_v1(
             FCISSourceBoundLineageCodeV1.CLOSURE_REJECTED,
             fresh_closure.code.value,
             *fresh_closure.path,
-        )
-    if type(fresh_closure) is not FCISLineageClosureCertificateV1:
-        return _reject_v1(
-            FCISSourceBoundLineageCodeV1.INTERNAL_RELATION_FAILURE,
-            "fresh_closure",
         )
     if fresh_closure != certificate.closure:
         return _reject_v1(

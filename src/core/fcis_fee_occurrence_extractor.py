@@ -328,7 +328,7 @@ def extract_source_bound_fee_occurrence_v1(
 
     if type(evaluation) is not FCISStepEvaluationOkV1:
         return _reject_v1(SourceBoundFeeOccurrenceCodeV1.WRONG_EXACT_TYPE, "evaluation")
-    exact_evaluation = evaluation
+    exact_evaluation = cast(FCISStepEvaluationOkV1, evaluation)
     try:
         _revalidate_evaluation_v1(exact_evaluation)
         if not _replay_matches_v1(exact_evaluation):
@@ -495,11 +495,6 @@ def extract_source_bound_fee_occurrence_v1(
             SourceBoundFeeOccurrenceCodeV1.NORMALIZATION_REJECTED,
             segment_result.code.value,
             *segment_result.path,
-        )
-    if type(segment_result) is not CanonicalFeeOccurrenceSegmentV1:
-        return _reject_v1(
-            SourceBoundFeeOccurrenceCodeV1.INTERNAL_RELATION_FAILURE,
-            "segment",
         )
     segment = segment_result
     try:
