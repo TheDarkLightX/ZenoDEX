@@ -1,0 +1,97 @@
+name: fcis-m6-r01-segmented-lineage
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/fcis-m6-r01-segmented-lineage.yml"
+      - "src/core/fcis_fee_occurrence_normal_form.py"
+      - "tests/core/test_fcis_fee_occurrence_normal_form.py"
+      - "lean-mathlib/lakefile.lean"
+      - "lean-mathlib/lean-toolchain"
+      - "lean-mathlib/Proofs/FCISFeeOccurrenceSemantics.lean"
+  pull_request:
+    paths:
+      - ".github/workflows/fcis-m6-r01-segmented-lineage.yml"
+      - "src/core/fcis_fee_occurrence_normal_form.py"
+      - "tests/core/test_fcis_fee_occurrence_normal_form.py"
+      - "lean-mathlib/lakefile.lean"
+      - "lean-mathlib/lean-toolchain"
+      - "lean-mathlib/Proofs/FCISFeeOccurrenceSemantics.lean"
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: python-reference-and-adversarial-tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install exact development requirements
+        run: python -m pip install --requirement requirements-dev.txt
+      - name: Compile exact files
+        run: |
+          python -m py_compile \
+            src/core/fcis_fee_occurrence_normal_form.py \
+            tests/core/test_fcis_fee_occurrence_normal_form.py
+      - name: Lint and format-check exact files
+        run: |
+          python -m ruff check \
+            src/core/fcis_fee_occurrence_normal_form.py \
+            tests/core/test_fcis_fee_occurrence_normal_form.py
+          python -m ruff format --check \
+            src/core/fcis_fee_occurrence_normal_form.py \
+            tests/core/test_fcis_fee_occurrence_normal_form.py
+      - name: Type-check the immutable normalizer
+        run: python -m mypy src/core/fcis_fee_occurrence_normal_form.py
+      - name: Run focused semantic and adversarial tests
+        run: python -m pytest -q tests/core/test_fcis_fee_occurrence_normal_form.py
+
+  lean:
+    name: lean-theorems-and-dependency-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Materialize the pinned compatible mathlib tree
+        run: |
+          git clone \
+            --depth 1 \
+            --branch v4.27.0 \
+            https://github.com/leanprover-community/mathlib4.git \
+            external/mathlib4
+      - name: Build the exact theorem root with mathlib cache
+        uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9
+        with:
+          lake-package-directory: lean-mathlib
+          build-args: Proofs.FCISFeeOccurrenceSemantics
+          test: false
+          lint: false
+          use-mathlib-cache: true
+      - name: Audit theorem dependencies
+        working-directory: lean-mathlib
+        run: |
+          lake env lean Proofs/FCISFeeOccurrenceSemantics.lean | tee dependency-audit.txt
+          grep -Fx "'FCISFeeOccurrenceSemantics.no_exact_recovery_from_noninjective_projection' does not depend on any axioms" dependency-audit.txt
+          grep -Fx "'FCISFeeOccurrenceSemantics.distinct_key_updates_commute' does not depend on any axioms" dependency-audit.txt
+          grep -Fx "'FCISFeeOccurrenceSemantics.occurrence_fold_conjugacy' does not depend on any axioms" dependency-audit.txt
+      - name: Reject proof placeholders and trust-expanding declarations
+        run: |
+          if grep -n -E '\b(sorry|admit|axiom|unsafe)\b' \
+            lean-mathlib/Proofs/FCISFeeOccurrenceSemantics.lean; then
+            exit 1
+          fi
