@@ -101,19 +101,16 @@ theorem occurrence_fold_conjugacy
 theorem production_whole_bonus :
     SRGDBonusRel 10000 0 0 0 7500 7500 5000 1 1 0 := by
   simp [SRGDBonusRel, IsBonusBit]
-  omega
 
 /-- The first split occurrence, amount 1, selects role 2. -/
 theorem production_first_split_bonus :
     SRGDBonusRel 10000 0 0 0 2500 2500 5000 0 0 1 := by
   simp [SRGDBonusRel, IsBonusBit]
-  omega
 
 /-- After the first split state, amount 2 selects role 0 by fixed tie order. -/
 theorem production_second_split_bonus :
     SRGDBonusRel 10000 2500 2500 (-5000) 5000 5000 0 1 0 0 := by
   simp [SRGDBonusRel, IsBonusBit]
-  omega
 
 /--
 A zero-history production-denominator counterexample: amount 3 is not equivalent
