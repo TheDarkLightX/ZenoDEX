@@ -2,9 +2,10 @@
 
 This unmounted research module removes caller-selected SLNF boundary, policy,
 and witness roots. It first performs the evaluator's exact command, context,
-state, and pre-state-binding admissions, but it does not run the nonce, spot,
-fee, or successor transition. It then derives the exact direct-swap
-protocol-fee witness tuple from the admitted settlement and invokes the existing
+state, and pre-state-binding admissions. It then runs the exact strong-settlement
+replay, but it does not run the nonce, fee-state, or successor transition. Only
+after that replay does it derive the direct-swap protocol-fee witness tuple and
+invoke the existing
 Segmented Lineage Normal Form normalizer.
 
 The resulting occurrence evidence is therefore upstream of the candidate and
@@ -52,6 +53,7 @@ from .fcis_step_evaluator import (
     _admit_exact_command_v1,
     _admit_exact_state_v1,
     _pre_state_binding_v1,
+    _spot_candidate_observed_v5,
 )
 from .fcis_support_profile_v5 import _command_preimage_v5
 from .settlement_schema import fill_action_text_v1
@@ -75,6 +77,7 @@ class SourceBoundFeeOccurrenceCodeV1(Enum):
     WRONG_EXACT_TYPE = "wrong_exact_type"
     SOURCE_ADMISSION_REJECTED = "source_admission_rejected"
     SOURCE_BINDING_REJECTED = "source_binding_rejected"
+    SETTLEMENT_REPLAY_REJECTED = "settlement_replay_rejected"
     SETTLEMENT_INDEX_REJECTED = "settlement_index_rejected"
     MISSING_FEE_DISTRIBUTION_POLICY = "missing_fee_distribution_policy"
     MISSING_PROTOCOL_FEE_WITNESS = "missing_protocol_fee_witness"
@@ -431,6 +434,20 @@ def _extract_admitted_v1(
     execution_context_hash: str,
     pre_state_root: str,
 ) -> SourceBoundFeeOccurrenceResultV1:
+    replay, _state_read_trace = _spot_candidate_observed_v5(
+        state=material.pre_state,
+        settlement=material.settlement,
+        intents=material.intents,
+        context=material.context,
+    )
+    if type(replay) is FCISStepEvaluationRejectV1:
+        return _reject_v1(
+            SourceBoundFeeOccurrenceCodeV1.SETTLEMENT_REPLAY_REJECTED,
+            replay.phase.value,
+            replay.code,
+            *_path_text_v1(replay.path),
+        )
+
     index_result = derive_exact_settlement_index_admitted_v1(
         material.settlement,
         material.intents,

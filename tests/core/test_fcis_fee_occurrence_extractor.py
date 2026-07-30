@@ -202,6 +202,18 @@ def test_missing_distribution_policy_fails_closed_before_evaluation() -> None:
     assert result.code is SourceBoundFeeOccurrenceCodeV1.MISSING_FEE_DISTRIBUTION_POLICY
 
 
+def test_forged_exact_fill_rejects_before_witness_normalization() -> None:
+    inputs = _exact_inputs()
+    settlement = inputs["settlement"]
+    forged_fill = replace(settlement.fills[0], protocol_fee_paid=1)
+    forged_settlement = replace(settlement, fills=(forged_fill,))
+
+    result = _extract({**inputs, "settlement": forged_settlement})
+
+    assert type(result) is SourceBoundFeeOccurrenceRejectV1
+    assert result.code is SourceBoundFeeOccurrenceCodeV1.SETTLEMENT_REPLAY_REJECTED
+
+
 def test_corrupted_cached_source_root_fails_fresh_rederivation() -> None:
     result = _extract()
     assert type(result) is SourceBoundFeeOccurrenceV1
