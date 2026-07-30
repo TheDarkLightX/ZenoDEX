@@ -9,40 +9,59 @@
 This checkpoint removes caller-selected fee boundary, policy, witness, semantic,
 and lineage roots from the concrete R04 derivation surface.
 
-The new source chain is:
+The corrected source chain is:
 
 ```text
-exact retained pre-state + settlement + intents + context
-  -> independent exact step replay
+exact command + context + pre-state admission
+  -> canonical pre-state binding
   -> exact settlement index
   -> direct-swap protocol-fee witness tuple
   -> transition-local SLNF segment
   -> semantic_stream_root + lineage_stream_root
-  -> evaluation/receipt/bundle/outbox closure
+  -> deterministic kernel evaluation
+  -> decision/receipt/bundle/outbox closure
 ```
 
-The public source-bound function accepts no occurrence segment and no root.
+The public source-bound function accepts no occurrence segment, no root, no
+candidate, and no post-state.
+
+This ordering is essential. An occurrence root must be available before the
+candidate that consumes it. Deriving it from a completed candidate would reverse
+the required refinement chain and could create a hash cycle once fee occurrence
+semantics affect the successor state.
 
 This narrows the source-continuity gap. It does not authenticate the shell input,
-prove that the retained state is the datastore-current head, or establish a
+prove that the admitted state is the datastore-current head, or establish a
 production deployment/configuration authority.
 
-## Source-bound extractor
+## Pre-evaluation source-bound extractor
 
-`src/core/fcis_fee_occurrence_extractor.py` consumes one exact
-`FCISStepEvaluationOkV1`.
+`src/core/fcis_fee_occurrence_extractor.py` consumes:
 
-Before extracting a witness, it:
+```text
+state_source
+settlement
+intents
+context
+```
 
-1. revalidates every retained evaluation root;
-2. reruns the exact evaluator from the retained committed pre-state, settlement,
-   intents, and context;
-3. requires the replayed evaluation to equal the supplied evaluation;
-4. derives the exact settlement index and intent/fill coverage relation;
-5. derives boundary and fee-policy roots from retained source values;
-6. creates source-witness roots from the exact command/context/state lineage,
+Before any candidate evaluation, it:
+
+1. runs the evaluator's exact command admission;
+2. runs exact context admission;
+3. runs exact committed-state admission;
+4. derives the canonical context hash and pre-state root;
+5. derives the canonical command root from the admitted settlement and intents;
+6. constructs one exact `FCISEvaluatedMaterialV1` containing only admitted
+   pre-evaluation material;
+7. derives the exact settlement index and intent/fill coverage relation;
+8. derives boundary and fee-policy roots from those source values;
+9. creates source-witness roots from the command/context/pre-state lineage,
    settlement position, intent, assets, pool, fill values, and protocol fee;
-7. invokes the existing SLNF normalizer.
+10. invokes the existing SLNF normalizer.
+
+The boundary and witness roots do not contain a post-state, candidate, receipt,
+or bundle root.
 
 For a direct swap, the witness key is:
 
@@ -52,6 +71,9 @@ For a direct swap, the witness key is:
 
 and the witness amount is the exact `protocol_fee_paid` retained by the accepted
 fill. Zero protocol fees remain explicit witnesses.
+
+A defensive verifier re-admits the retained source material, re-extracts the
+complete segment, and rejects any cached-root or witness substitution.
 
 ## Honest route boundary
 
@@ -92,9 +114,9 @@ research identity, not final configuration authority.
 `src/core/fcis_source_bound_lineage.py` performs:
 
 ```text
-evaluate
-  -> source-bound fee extraction
-  -> decide
+source admission and fee extraction
+  -> deterministic candidate evaluation
+  -> decision
   -> bundle
   -> concrete lineage closure
 ```
@@ -102,19 +124,19 @@ evaluate
 It returns one controlled `FCISSourceBoundLineageCertificateV1` retaining:
 
 ```text
-source extraction
+pre-evaluation source extraction
 concrete R04 closure
 exact transition budget
 ```
 
-The wrapper requires object identity between:
+The wrapper requires exact equality between:
 
 ```text
-extraction.evaluation
-closure.evaluation
+extraction.material
+closure.evaluation.material
 ```
 
-and between:
+and object identity between:
 
 ```text
 extraction.segment
@@ -126,10 +148,13 @@ It also requires the closed claim set to contain every member of the frozen
 
 The defensive verifier does not trust the cached closed set. It freshly:
 
-1. re-extracts the fee occurrence segment from the retained evaluation;
-2. rebuilds the complete concrete closure from evaluation, decision, bundle,
-   budget, and source-derived segment;
-3. compares the fresh extraction and closure with the retained values.
+1. re-admits and re-extracts the fee occurrence segment from retained source
+   material;
+2. reruns candidate evaluation from that same material;
+3. requires the fresh evaluator material to equal the extraction material;
+4. rebuilds the complete concrete closure from the fresh evaluation, retained
+   decision and bundle, budget, and source-derived segment;
+5. compares the fresh closure with the retained value.
 
 A coordinated attacker cannot remove or alter a claim and merely recompute the
 claim-set root.
@@ -157,13 +182,13 @@ proof.
 
 The new tests retain:
 
-- no caller root or occurrence-segment parameter;
+- no caller root, occurrence-segment, candidate, or post-state parameter;
 - zero protocol-fee witness retention;
 - nonzero direct-swap fee-to-input-asset binding;
-- two-witness settlement order and unique source roots;
+- two-witness canonical settlement order and unique source roots;
 - policy rotation changes occurrence context but not the entitlement state key;
-- missing fee-distribution policy rejection;
-- corrupted evaluation-lineage rejection;
+- missing fee-distribution policy rejection before candidate evaluation;
+- cached source-root corruption rejected by fresh rederivation;
 - missing required claim with attacker-recomputed root;
 - conflicting digest with attacker-recomputed root;
 - stale current-state rejection;
@@ -178,6 +203,7 @@ This checkpoint does not yet prove or implement:
 - datastore-current rederivation before evaluation or publication;
 - a deployment-pinned complete fee-distribution configuration;
 - route per-leg protocol-fee provenance;
+- the source-derived segment as an actual input to the mounted fee allocator;
 - roots embedded in the production candidate, receipt, and bundle schemas;
 - Python/Rust extraction and root parity;
 - transactional datastore publication and real crash recovery;
@@ -186,6 +212,6 @@ This checkpoint does not yet prove or implement:
 - mounted no-bypass.
 
 The next safe artifact is a schema-reviewed candidate/receipt/bundle extension
-that embeds the source-derived roots, followed by datastore-current and
-transactional publication evidence. Nothing in this checkpoint authorizes a
-mount.
+that embeds the pre-evaluation source-derived roots, followed by
+store-current rederivation and transactional publication evidence. Nothing in
+this checkpoint authorizes a mount.
