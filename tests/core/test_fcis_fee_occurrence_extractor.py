@@ -157,11 +157,16 @@ def test_two_direct_swap_witnesses_preserve_canonical_settlement_order() -> None
     assert type(result) is SourceBoundFeeOccurrenceV1
     assert tuple(witness.position for witness in result.segment.ordered_witnesses) == (0, 1)
     assert len({witness.source_witness_root for witness in result.segment.ordered_witnesses}) == 2
+    expected_order = tuple(
+        fill.intent_id
+        for fill in evaluation.material.settlement.fills
+        if fill.protocol_fee_paid is not None
+    )
     assert tuple(
         entry.intent_id
         for entry in result.settlement_index.entries
         if entry.fill is not None and entry.fill.protocol_fee_paid is not None
-    ) == (first.intent_id, second.intent_id)
+    ) == expected_order
 
 
 def test_fee_policy_rotation_changes_occurrence_context_but_not_state_key() -> None:
