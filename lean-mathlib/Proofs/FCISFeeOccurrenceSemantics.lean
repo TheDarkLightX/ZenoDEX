@@ -18,6 +18,34 @@ theorem witness_projection_noninjective :
       [867] ≠ [493, 374] := by
   decide
 
+/-- A semantic projection collision rules out exact recovery of every source. -/
+theorem no_exact_recovery_from_noninjective_projection
+    {Witness Semantic : Type}
+    (project : Witness → Semantic)
+    (left right : Witness)
+    (samePoint : project left = project right)
+    (differentWitnesses : left ≠ right) :
+    ¬ ∃ recover : Semantic → Witness,
+      ∀ witness : Witness, recover (project witness) = witness := by
+  intro claimedRecovery
+  rcases claimedRecovery with ⟨recover, exactRecovery⟩
+  apply differentWitnesses
+  calc
+    left = recover (project left) := (exactRecovery left).symm
+    _ = recover (project right) := congrArg recover samePoint
+    _ = right := exactRecovery right
+
+/-- Grouped fee mass alone cannot recover every exact witness decomposition. -/
+theorem no_exact_fee_witness_recovery_from_mass :
+    ¬ ∃ recover : Nat → List Nat,
+      ∀ witness : List Nat, recover (segmentMass witness) = witness := by
+  exact no_exact_recovery_from_noninjective_projection
+    segmentMass
+    [867]
+    [493, 374]
+    witness_projection_noninjective.1
+    witness_projection_noninjective.2
+
 /-- Equal global mass does not determine the accepted-transition word. -/
 theorem global_mass_forgets_transition_boundaries :
     segmentMass (List.flatten [[493, 374]]) =
@@ -100,6 +128,8 @@ theorem production_split_merge_boundary_counterexample :
   decide
 
 #print axioms witness_projection_noninjective
+#print axioms no_exact_recovery_from_noninjective_projection
+#print axioms no_exact_fee_witness_recovery_from_mass
 #print axioms global_mass_forgets_transition_boundaries
 #print axioms distinct_key_updates_commute
 #print axioms occurrence_fold_conjugacy
