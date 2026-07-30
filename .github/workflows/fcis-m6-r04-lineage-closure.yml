@@ -1,22 +1,38 @@
 name: fcis-m6-r04-lineage-closure
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - ".github/workflows/fcis-m6-r04-lineage-closure.yml"
+      - "src/core/fcis_lineage_closure.py"
+      - "src/core/fcis_fee_occurrence_extractor.py"
+      - "src/core/fcis_source_bound_lineage.py"
+      - "tests/core/test_fcis_lineage_closure.py"
+      - "tests/core/test_fcis_fee_occurrence_extractor.py"
+      - "tests/core/test_fcis_source_bound_lineage.py"
+  pull_request:
+    paths:
+      - ".github/workflows/fcis-m6-r04-lineage-closure.yml"
+      - "src/core/fcis_lineage_closure.py"
+      - "src/core/fcis_fee_occurrence_extractor.py"
+      - "src/core/fcis_source_bound_lineage.py"
+      - "tests/core/test_fcis_lineage_closure.py"
+      - "tests/core/test_fcis_fee_occurrence_extractor.py"
+      - "tests/core/test_fcis_source_bound_lineage.py"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  harden-rule-manifest:
+  assurance:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout exact branch head
+      - name: Checkout exact source head
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
-          persist-credentials: true
-          ref: ${{ github.sha }}
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
@@ -25,250 +41,46 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - name: Install exact development requirements
         run: python -m pip install --requirement requirements-dev.txt
-      - name: Add validated rule manifest and synchronous closure
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          source = Path("src/core/fcis_lineage_closure.py")
-          text = source.read_text(encoding="utf-8")
-
-          completeness_anchor = (
-              '        if self.certificate_root != self.closed_claims.root:\n'
-              '            raise ValueError("lineage certificate root does not match its closed claims")\n'
-          )
-          completeness = completeness_anchor + (
-              "        actual_keys = frozenset(claim.key for claim in self.closed_claims.claims)\n"
-              "        if actual_keys != frozenset(FCISLineageClaimKeyV1):\n"
-              "            raise ValueError(\"lineage certificate closed claim set is incomplete\")\n"
-          )
-          if completeness_anchor not in text:
-              raise SystemExit("missing certificate completeness anchor")
-          text = text.replace(completeness_anchor, completeness, 1)
-
-          derive_anchor = "\n\ndef _derive_rule_value_v1(\n"
-          manifest = '''
-
-_DERIVED_LINEAGE_KEYS_V1 = frozenset(
-    (
-        FCISLineageClaimKeyV1.EVALUATION_CERTIFICATE_ROOT,
-        FCISLineageClaimKeyV1.RECEIPT_CERTIFICATE_ROOT,
-        FCISLineageClaimKeyV1.BUNDLE_CERTIFICATE_ROOT,
-        FCISLineageClaimKeyV1.OUTBOX_CERTIFICATE_ROOT,
-    )
-)
-
-
-def _validate_lineage_rules_v1(
-    rules: object,
-) -> tuple[_LineageRuleV1, ...]:
-    """Validate one complete, single-writer, acyclic derivation manifest."""
-
-    if type(rules) is not tuple:
-        raise TypeError("lineage rules must be an exact tuple")
-    typed: list[_LineageRuleV1] = []
-    rule_ids: set[str] = set()
-    outputs: set[FCISLineageClaimKeyV1] = set()
-    for rule_object in cast(tuple[object, ...], rules):
-        if type(rule_object) is not _LineageRuleV1:
-            raise TypeError("lineage rule must be exact")
-        rule = rule_object
-        if type(rule.rule_id) is not str or not rule.rule_id:
-            raise TypeError("lineage rule identifier must be an exact nonempty string")
-        if rule.rule_id in rule_ids:
-            raise ValueError("lineage rule identifiers must be unique")
-        rule_ids.add(rule.rule_id)
-        if type(rule.output) is not FCISLineageClaimKeyV1:
-            raise TypeError("lineage rule output must be exact")
-        if rule.output not in _DERIVED_LINEAGE_KEYS_V1:
-            raise ValueError("lineage rule output is outside the derived-key registry")
-        if rule.output in outputs:
-            raise ValueError("lineage derived keys must have exactly one writer")
-        outputs.add(rule.output)
-        if type(rule.dependencies) is not tuple or not rule.dependencies:
-            raise TypeError("lineage rule dependencies must be a nonempty exact tuple")
-        if any(type(dependency) is not FCISLineageClaimKeyV1 for dependency in rule.dependencies):
-            raise TypeError("lineage rule dependency must be exact")
-        if len(set(rule.dependencies)) != len(rule.dependencies):
-            raise ValueError("lineage rule dependencies must be unique")
-        if rule.output in rule.dependencies:
-            raise ValueError("lineage rule cannot depend on its own output")
-        typed.append(rule)
-    if outputs != _DERIVED_LINEAGE_KEYS_V1:
-        raise ValueError("lineage rule manifest must write every derived key exactly once")
-
-    dependencies_by_output = {
-        rule.output: tuple(
-            dependency
-            for dependency in rule.dependencies
-            if dependency in _DERIVED_LINEAGE_KEYS_V1
-        )
-        for rule in typed
-    }
-    visited: set[FCISLineageClaimKeyV1] = set()
-    while len(visited) < len(_DERIVED_LINEAGE_KEYS_V1):
-        ready = tuple(
-            sorted(
-                (
-                    output
-                    for output, dependencies in dependencies_by_output.items()
-                    if output not in visited
-                    and all(dependency in visited for dependency in dependencies)
-                ),
-                key=lambda key: key.value.encode("utf-8"),
-            )
-        )
-        if not ready:
-            raise ValueError("lineage derived-rule graph must be acyclic")
-        visited.update(ready)
-    return tuple(typed)
-'''
-          if derive_anchor not in text:
-              raise SystemExit("missing rule-manifest insertion anchor")
-          text = text.replace(derive_anchor, manifest + derive_anchor, 1)
-
-          close_start = text.index("def _close_claims_v1(")
-          close_end = text.index("\n\ndef close_fcis_lineage_claim_sets_v1", close_start)
-          replacement = '''def _close_claims_v1(
-    seed: FCISLineageClaimSetV1,
-    rules: object = _LINEAGE_RULES_V1,
-) -> FCISLineageClaimSetV1:
-    """Compute a bounded synchronous fixed point independent of rule order."""
-
-    if type(seed) is not FCISLineageClaimSetV1:
-        raise TypeError("lineage closure seed must be exact")
-    seed.__post_init__()
-    exact_rules = _validate_lineage_rules_v1(rules)
-    values = {claim.key: claim.value_digest for claim in seed.claims}
-    for _round in range(len(exact_rules) + 1):
-        pending: dict[FCISLineageClaimKeyV1, str] = {}
-        for rule in exact_rules:
-            if any(dependency not in values for dependency in rule.dependencies):
-                continue
-            derived = _derive_rule_value_v1(rule, values)
-            current = values.get(rule.output)
-            if current is not None and current != derived:
-                raise ValueError(f"derived lineage claim conflict: {rule.output.value}")
-            if current is None:
-                previous = pending.get(rule.output)
-                if previous is not None and previous != derived:
-                    raise ValueError(f"derived lineage writer conflict: {rule.output.value}")
-                pending[rule.output] = derived
-        if not pending:
-            return _claim_set_v1(tuple(values.items()))
-        for output in sorted(pending, key=lambda key: key.value.encode("utf-8")):
-            values[output] = pending[output]
-    raise RuntimeError("bounded lineage closure did not reach a fixed point")
-'''
-          text = text[:close_start] + replacement + text[close_end:]
-          source.write_text(text, encoding="utf-8")
-
-          test = Path("tests/core/test_fcis_lineage_closure.py")
-          text = test.read_text(encoding="utf-8")
-          import_anchor = "from hashlib import sha256\n"
-          if import_anchor not in text:
-              raise SystemExit("missing test dataclass import anchor")
-          text = text.replace(
-              import_anchor,
-              "from dataclasses import replace\n" + import_anchor,
-              1,
-          )
-          rule_import_anchor = "    FCISLineageClosureRejectV1,\n"
-          if rule_import_anchor not in text:
-              raise SystemExit("missing test private-rule import anchor")
-          text = text.replace(
-              rule_import_anchor,
-              rule_import_anchor
-              + "    _LINEAGE_RULES_V1,\n"
-              + "    _LineageRuleV1,\n"
-              + "    _close_claims_v1,\n",
-              1,
-          )
-          tests = '''
-
-
-def test_all_rule_orders_reach_the_same_synchronous_fixed_point() -> None:
-    certificate = _derive(_segment("whole", (867,)))
-    assert type(certificate) is FCISLineageClosureCertificateV1
-    seed = canonicalize_fcis_lineage_claims_v1(
-        certificate.semantic_claims.claims
-        + certificate.authority_claims.claims
-        + certificate.durability_claims.claims
-    )
-
-    results = {
-        _close_claims_v1(seed, tuple(order))
-        for order in permutations(_LINEAGE_RULES_V1)
-    }
-
-    assert results == {certificate.closed_claims}
-
-
-def test_rule_manifest_rejects_duplicate_missing_writer_and_cycle() -> None:
-    first = _LINEAGE_RULES_V1[0]
-    duplicate_writer = _LineageRuleV1(
-        "duplicate-writer",
-        first.output,
-        first.dependencies,
-    )
-    with pytest.raises(ValueError, match="exactly one writer"):
-        _close_claims_v1(
-            FCISLineageClaimSetV1(()),
-            _LINEAGE_RULES_V1 + (duplicate_writer,),
-        )
-
-    with pytest.raises(ValueError, match="every derived key exactly once"):
-        _close_claims_v1(FCISLineageClaimSetV1(()), _LINEAGE_RULES_V1[:-1])
-
-    by_output = {rule.output: rule for rule in _LINEAGE_RULES_V1}
-    evaluation = by_output[FCISLineageClaimKeyV1.EVALUATION_CERTIFICATE_ROOT]
-    receipt = by_output[FCISLineageClaimKeyV1.RECEIPT_CERTIFICATE_ROOT]
-    cyclic = tuple(
-        replace(
-            rule,
-            dependencies=(FCISLineageClaimKeyV1.RECEIPT_CERTIFICATE_ROOT,),
-        )
-        if rule is evaluation
-        else replace(
-            rule,
-            dependencies=(FCISLineageClaimKeyV1.EVALUATION_CERTIFICATE_ROOT,),
-        )
-        if rule is receipt
-        else rule
-        for rule in _LINEAGE_RULES_V1
-    )
-    with pytest.raises(ValueError, match="acyclic"):
-        _close_claims_v1(FCISLineageClaimSetV1(()), cyclic)
-'''
-          text = text.rstrip() + tests + "\n"
-          test.write_text(text, encoding="utf-8")
-          PY
-          python -m ruff check --fix \
-            src/core/fcis_lineage_closure.py \
-            tests/core/test_fcis_lineage_closure.py
-          python -m ruff format \
-            src/core/fcis_lineage_closure.py \
-            tests/core/test_fcis_lineage_closure.py
-      - name: Validate rule-manifest hardening
+      - name: Compile exact files
         run: |
           python -m py_compile \
+            src/core/fcis_fee_occurrence_normal_form.py \
             src/core/fcis_lineage_closure.py \
-            tests/core/test_fcis_lineage_closure.py
-          python -m ruff check \
-            src/core/fcis_lineage_closure.py \
-            tests/core/test_fcis_lineage_closure.py
-          python -m mypy src/core/fcis_lineage_closure.py
-          python -m pytest -q \
+            src/core/fcis_fee_occurrence_extractor.py \
+            src/core/fcis_source_bound_lineage.py \
+            tests/core/test_fcis_fee_occurrence_normal_form.py \
             tests/core/test_fcis_lineage_closure.py \
+            tests/core/test_fcis_fee_occurrence_extractor.py \
             tests/core/test_fcis_source_bound_lineage.py
-      - name: Commit the validated closure engine
-        env:
-          HEAD_BRANCH: codex/fcis-m6-r04-lineage-closure-20260730
+      - name: Lint and format-check exact files
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
+          python -m ruff check \
+            src/core/fcis_fee_occurrence_normal_form.py \
             src/core/fcis_lineage_closure.py \
-            tests/core/test_fcis_lineage_closure.py
-          git commit -m "Validate lineage rule manifest and synchronous closure"
-          git push origin "HEAD:${HEAD_BRANCH}"
+            src/core/fcis_fee_occurrence_extractor.py \
+            src/core/fcis_source_bound_lineage.py \
+            tests/core/test_fcis_fee_occurrence_normal_form.py \
+            tests/core/test_fcis_lineage_closure.py \
+            tests/core/test_fcis_fee_occurrence_extractor.py \
+            tests/core/test_fcis_source_bound_lineage.py
+          python -m ruff format --check \
+            src/core/fcis_lineage_closure.py \
+            src/core/fcis_fee_occurrence_extractor.py \
+            src/core/fcis_source_bound_lineage.py \
+            tests/core/test_fcis_lineage_closure.py \
+            tests/core/test_fcis_fee_occurrence_extractor.py \
+            tests/core/test_fcis_source_bound_lineage.py
+      - name: Type-check immutable research modules
+        run: |
+          python -m mypy \
+            src/core/fcis_fee_occurrence_normal_form.py \
+            src/core/fcis_lineage_closure.py \
+            src/core/fcis_fee_occurrence_extractor.py \
+            src/core/fcis_source_bound_lineage.py
+      - name: Run focused R01 and R04 semantic tests
+        run: |
+          python -m pytest -q \
+            tests/core/test_fcis_fee_occurrence_normal_form.py \
+            tests/core/test_fcis_lineage_closure.py \
+            tests/core/test_fcis_fee_occurrence_extractor.py \
+            tests/core/test_fcis_source_bound_lineage.py
