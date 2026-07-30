@@ -380,10 +380,7 @@ def _admit_material_v1(
     settlement: object,
     intents: object,
     context: object,
-) -> (
-    tuple[FCISEvaluatedMaterialV1, str, str, str]
-    | SourceBoundFeeOccurrenceRejectV1
-):
+) -> tuple[FCISEvaluatedMaterialV1, str, str, str] | SourceBoundFeeOccurrenceRejectV1:
     command = _admit_exact_command_v1(settlement, intents)
     if type(command) is FCISStepEvaluationRejectV1:
         return _source_reject_v1(command)
