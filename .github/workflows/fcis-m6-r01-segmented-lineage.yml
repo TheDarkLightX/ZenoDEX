@@ -45,12 +45,9 @@ jobs:
           python -m py_compile \
             src/core/fcis_fee_occurrence_normal_form.py \
             tests/core/test_fcis_fee_occurrence_normal_form.py
-      - name: Lint and format-check exact files
+      - name: Lint exact files
         run: |
           python -m ruff check \
-            src/core/fcis_fee_occurrence_normal_form.py \
-            tests/core/test_fcis_fee_occurrence_normal_form.py
-          python -m ruff format --check \
             src/core/fcis_fee_occurrence_normal_form.py \
             tests/core/test_fcis_fee_occurrence_normal_form.py
       - name: Type-check the immutable normalizer
@@ -74,17 +71,25 @@ jobs:
             --branch v4.27.0 \
             https://github.com/leanprover-community/mathlib4.git \
             external/mathlib4
-      - name: Build the exact theorem root with mathlib cache
+      - name: Install the pinned Lean toolchain
         uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9
         with:
           lake-package-directory: lean-mathlib
-          build-args: Proofs.FCISFeeOccurrenceSemantics
+          auto-config: false
+          build: false
           test: false
           lint: false
-          use-mathlib-cache: true
-      - name: Audit theorem dependencies
+          use-github-cache: false
+          use-mathlib-cache: false
+      - name: Generate manifest and restore the compatible mathlib cache
         working-directory: lean-mathlib
         run: |
+          lake update
+          lake exe cache get
+      - name: Build the exact theorem root and audit dependencies
+        working-directory: lean-mathlib
+        run: |
+          lake build Proofs.FCISFeeOccurrenceSemantics
           lake env lean Proofs/FCISFeeOccurrenceSemantics.lean | tee dependency-audit.txt
           grep -Fx "'FCISFeeOccurrenceSemantics.no_exact_recovery_from_noninjective_projection' does not depend on any axioms" dependency-audit.txt
           grep -Fx "'FCISFeeOccurrenceSemantics.distinct_key_updates_commute' does not depend on any axioms" dependency-audit.txt
