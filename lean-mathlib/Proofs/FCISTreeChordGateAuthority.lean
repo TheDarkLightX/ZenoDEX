@@ -104,8 +104,8 @@ theorem gateComplete_cross
     (complete : GateComplete stage crossed) :
     GateComplete (stage + 1) (insert stage crossed) := by
   intro gate gateBeforeTarget
-  by_cases gate = stage
-  · simp [gate, Finset.mem_insert]
+  by_cases h : gate = stage
+  · simpa [h]
   · have gateBeforeSource : gate < stage := by omega
     exact Finset.mem_insert_of_mem (complete gate gateBeforeSource)
 
@@ -139,7 +139,7 @@ theorem equal_lineage_extension
     (same : left = right) :
     Function.update left role (some digest) =
       Function.update right role (some digest) := by
-  simpa [same]
+  simpa only [same]
 
 #print axioms DPath.run_eq_canonical
 #print axioms DPath.two_paths_agree
