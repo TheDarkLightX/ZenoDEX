@@ -71,16 +71,25 @@ jobs:
             --branch v4.27.0 \
             https://github.com/leanprover-community/mathlib4.git \
             external/mathlib4
-      - name: Install the pinned Lean toolchain
-        uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9
-        with:
-          lake-package-directory: lean-mathlib
-          auto-config: false
-          build: false
-          test: false
-          lint: false
-          use-github-cache: false
-          use-mathlib-cache: false
+      - name: Install pinned Elan and the project Lean toolchain
+        env:
+          ELAN_INSTALLER_COMMIT: b6cec7e10fe4965a605aaf60d1cb4a5837f0462b
+        run: |
+          curl \
+            --proto '=https' \
+            --tlsv1.2 \
+            --fail \
+            --silent \
+            --show-error \
+            --location \
+            "https://raw.githubusercontent.com/leanprover/elan/${ELAN_INSTALLER_COMMIT}/elan-init.sh" \
+            --output /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install "$(cat lean-mathlib/lean-toolchain)"
+          "$HOME/.elan/bin/elan" default "$(cat lean-mathlib/lean-toolchain)"
+          "$HOME/.elan/bin/lean" --version
+          "$HOME/.elan/bin/lake" --version
       - name: Generate manifest and restore the compatible mathlib cache
         working-directory: lean-mathlib
         run: |
