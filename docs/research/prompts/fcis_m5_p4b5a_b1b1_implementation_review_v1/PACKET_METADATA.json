@@ -2,10 +2,10 @@
   "base_packet_commit": "1665e788a4c4daf43982262c307d0c04b914d89b",
   "base_packet_tree": "629a73c32912b0ebee799cdebeaf3314323e2896",
   "change_status_counts": {
-    "A": 29,
+    "A": 34,
     "M": 1
   },
-  "changed_path_count": 30,
+  "changed_path_count": 35,
   "delivery_receipt_rule": "packet commit SHA, tree, parent, bundle hash, and packet hashes are recorded after commit in external DELIVERY_RECEIPT.json",
   "inventory_rule": "every deletion-aware committed change from approved base through target, every target-present changed blob, bounded immutable context, and standalone-runnable Rust core workspace closure",
   "manifest_entry_count": 78,
@@ -19,6 +19,6 @@
   "packet_relation": "documentation-only commit exactly one child of target",
   "rust_closure_entry_count": 31,
   "schema": "zenodex/fcis/b1b1-implementation-review-packet/v2",
-  "target_commit": "35192b8522c8d287b7fa52332622a642fc8a4b1b",
-  "target_tree": "7993c0c75472654b8ff6c6f3f30b01531d5a98b6"
+  "target_commit": "5f87f7e3dd14a8a097083ff4da81b2bdd1b75927",
+  "target_tree": "fe1b924d5253620c73df00e00fc4334417707912"
 }

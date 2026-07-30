@@ -251,3 +251,23 @@ def test_canonical_carrier_encoding_is_injective_over_boundary_samples() -> None
                 right_bytes = encode_fcis_b1b_authority_v2(schema_id, right)
                 if left_bytes == right_bytes:
                     assert left == right
+
+
+def test_admission_and_codec_use_pure_validation_when_class_hook_is_hostile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(FCISAuthorityHeaderV2, "__post_init__", lambda self: None)
+    invalid_source = FCISAuthorityHeaderSourceV2("bypass", -1, "not-a-digest")
+    admitted = admit_fcis_b1b_authority_source_v2(
+        FCIS_AUTHORITY_HEADER_SCHEMA_ID_V2,
+        invalid_source,
+    )
+    assert type(admitted) is B1BAuthorityAdmissionRejectV2
+    assert admitted.code is B1BAuthorityAdmissionCodeV2.INVALID_VALUE
+
+    invalid_carrier = FCISAuthorityHeaderV2("bypass", -1, "not-a-digest")
+    with pytest.raises((TypeError, ValueError)):
+        encode_fcis_b1b_authority_v2(
+            FCIS_AUTHORITY_HEADER_SCHEMA_ID_V2,
+            invalid_carrier,
+        )

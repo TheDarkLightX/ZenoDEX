@@ -3,7 +3,7 @@
 Review target:
 
 ```text
-implementation commit: 35192b8522c8d287b7fa52332622a642fc8a4b1b
+implementation commit: 5f87f7e3dd14a8a097083ff4da81b2bdd1b75927
 approved design packet: 1665e788a4c4daf43982262c307d0c04b914d89b
 required verdict: APPROVE_B1B1_EXACT_HEAD_UNMOUNTED
                or REVISE_B1B1_EXACT_HEAD

@@ -12,6 +12,9 @@ from .fcis_b1b_authority_values import (
     DeploymentBootstrapAnchorClaimV2,
     FCISAuthorityHeaderV2,
     V1ToV2MigrationManifestV2,
+    _validate_authority_header_fields_v2,
+    _validate_bootstrap_anchor_claim_fields_v2,
+    _validate_migration_manifest_fields_v2,
 )
 
 BOOTSTRAP_ANCHOR_CLAIM_ROOT_DOMAIN_V2 = "fcis_deployment_bootstrap_anchor_claim"
@@ -19,7 +22,11 @@ MIGRATION_MANIFEST_ROOT_DOMAIN_V2 = "fcis_v1_to_v2_migration_manifest"
 
 
 def _authority_header_projection_v2(value: FCISAuthorityHeaderV2) -> dict[str, object]:
-    value.__post_init__()
+    _validate_authority_header_fields_v2(
+        value.chain_deployment_id,
+        value.sequence,
+        value.fee_distribution_configuration_root,
+    )
     return {
         "chain_deployment_id": value.chain_deployment_id,
         "sequence": value.sequence,
@@ -30,7 +37,10 @@ def _authority_header_projection_v2(value: FCISAuthorityHeaderV2) -> dict[str, o
 def _bootstrap_anchor_claim_projection_v2(
     value: DeploymentBootstrapAnchorClaimV2,
 ) -> dict[str, object]:
-    value.__post_init__()
+    _validate_bootstrap_anchor_claim_fields_v2(
+        value.chain_deployment_id,
+        value.expected_migration_manifest_root,
+    )
     return {
         "chain_deployment_id": value.chain_deployment_id,
         "expected_migration_manifest_root": value.expected_migration_manifest_root,
@@ -40,7 +50,17 @@ def _bootstrap_anchor_claim_projection_v2(
 def _migration_manifest_projection_v2(
     value: V1ToV2MigrationManifestV2,
 ) -> dict[str, object]:
-    value.__post_init__()
+    _validate_migration_manifest_fields_v2(
+        value.chain_deployment_id,
+        value.expected_v1_pre_root,
+        value.fee_distribution_domain_id,
+        value.expected_initial_configuration_root,
+        value.initial_sequence,
+        value.initial_configuration_version,
+        value.initial_activation_sequence,
+        value.source_snapshot_version,
+        value.target_snapshot_version,
+    )
     return {
         "chain_deployment_id": value.chain_deployment_id,
         "expected_v1_pre_root": value.expected_v1_pre_root,
