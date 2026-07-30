@@ -1,16 +1,18 @@
-"""Pure source-bound extraction of one transition-local fee occurrence segment.
+"""Pure pre-evaluation extraction of one transition-local fee segment.
 
 This unmounted research module removes caller-selected SLNF boundary, policy,
-and witness roots. It replays an exact ``FCISStepEvaluationOkV1`` from its
-retained committed pre-state, settlement, intents, and context, derives one
-canonical direct-swap protocol-fee witness tuple, and then invokes the existing
+and witness roots. It first performs the evaluator's exact command, context,
+state, and pre-state-binding admissions, but it does not run the nonce, spot,
+fee, or successor transition. It then derives the exact direct-swap
+protocol-fee witness tuple from the admitted settlement and invokes the existing
 Segmented Lineage Normal Form normalizer.
 
-The resulting roots are bound to the retained evaluation. They are not yet
-proof that the shell authenticated the command, current store head, context,
-fee policy, deployment, or configuration. Route protocol-fee extraction remains
-fail-closed because the current route fill does not retain per-leg protocol-fee
-amounts and assets.
+The resulting occurrence evidence is therefore upstream of the candidate and
+post-state. It cannot form a hash cycle when a later evaluator consumes the
+segment. Exact Python admission is still not proof that the shell authenticated
+the command, selected the datastore-current state, or pinned the deployment and
+configuration. Route protocol-fee extraction remains fail-closed because the
+current route fill does not retain per-leg protocol-fee amounts and assets.
 """
 
 from __future__ import annotations
@@ -20,9 +22,9 @@ from enum import Enum
 from hashlib import sha256
 from typing import TypeAlias, cast, final
 
+from ..state.canonical import sha256_hex
 from ..state.intent_snapshots import owned_intent_field_v1, owned_intent_kind_text_v1
 from ..state.intents import IntentKind
-from .fcis_decision_derivation import _revalidate_evaluation_v1
 from .fcis_fee_apportionment_values import (
     MAX_FEE_AMOUNT_V2,
     SRGD_ALGORITHM_VERSION_V1,
@@ -41,12 +43,21 @@ from .fcis_settlement_index import (
     ExactSettlementIndexV1,
     derive_exact_settlement_index_admitted_v1,
 )
-from .fcis_step_evaluation_values import FCISStepEvaluationOkV1
-from .fcis_step_evaluator import evaluate_fcis_step_candidate_v1
+from .fcis_step_evaluation_values import (
+    FCISEvaluatedMaterialV1,
+    FCISStepEvaluationRejectV1,
+)
+from .fcis_step_evaluator import (
+    _admit_context_v1,
+    _admit_exact_command_v1,
+    _admit_exact_state_v1,
+    _pre_state_binding_v1,
+)
+from .fcis_support_profile_v5 import _command_preimage_v5
 from .settlement_schema import fill_action_text_v1
 from .settlement_snapshots import OwnedFillV1
 
-SOURCE_BOUND_FEE_OCCURRENCE_VERSION_V1 = "zenodex/fcis/fee-occurrence/source-bound-extractor/v1"
+SOURCE_BOUND_FEE_OCCURRENCE_VERSION_V1 = "zenodex/fcis/fee-occurrence/source-bound-extractor/v2"
 PROTOCOL_FEE_DISTRIBUTION_DOMAIN_ID_V1 = "protocol-fees"
 
 _SOURCE_BOUND_FEE_OCCURRENCE_TOKEN_V1 = object()
@@ -62,13 +73,15 @@ _ROUTE_KINDS_V1 = (
 
 class SourceBoundFeeOccurrenceCodeV1(Enum):
     WRONG_EXACT_TYPE = "wrong_exact_type"
-    EVALUATION_LINEAGE_MISMATCH = "evaluation_lineage_mismatch"
+    SOURCE_ADMISSION_REJECTED = "source_admission_rejected"
+    SOURCE_BINDING_REJECTED = "source_binding_rejected"
     SETTLEMENT_INDEX_REJECTED = "settlement_index_rejected"
     MISSING_FEE_DISTRIBUTION_POLICY = "missing_fee_distribution_policy"
     MISSING_PROTOCOL_FEE_WITNESS = "missing_protocol_fee_witness"
     ROUTE_FEE_PROVENANCE_GAP = "route_fee_provenance_gap"
     INVALID_SOURCE_WITNESS = "invalid_source_witness"
     NORMALIZATION_REJECTED = "normalization_rejected"
+    SOURCE_REDERIVATION_MISMATCH = "source_rederivation_mismatch"
     INTERNAL_RELATION_FAILURE = "internal_relation_failure"
 
 
@@ -93,9 +106,12 @@ class SourceBoundFeeOccurrenceRejectV1:
 @final
 @dataclass(frozen=True, slots=True)
 class SourceBoundFeeOccurrenceV1:
-    """One replay-derived SLNF segment retaining the exact source evaluation."""
+    """One admitted pre-evaluation material and its exact SLNF segment."""
 
-    evaluation: FCISStepEvaluationOkV1
+    material: FCISEvaluatedMaterialV1
+    command_root: str
+    execution_context_hash: str
+    pre_state_root: str
     settlement_index: ExactSettlementIndexV1
     boundary_root: str
     policy_root: str
@@ -105,8 +121,16 @@ class SourceBoundFeeOccurrenceV1:
     def __post_init__(self, _construction_token: object) -> None:
         if _construction_token is not _SOURCE_BOUND_FEE_OCCURRENCE_TOKEN_V1:
             raise TypeError("source-bound fee occurrence requires controlled derivation")
-        if type(self.evaluation) is not FCISStepEvaluationOkV1:
-            raise TypeError("source-bound fee evaluation must be exact")
+        if type(self.material) is not FCISEvaluatedMaterialV1:
+            raise TypeError("source-bound fee material must be exact")
+        self.material.__post_init__()
+        for name, value in (
+            ("command_root", self.command_root),
+            ("execution_context_hash", self.execution_context_hash),
+            ("pre_state_root", self.pre_state_root),
+        ):
+            if not _0x_digest_is_canonical_v1(value):
+                raise TypeError(f"source-bound fee {name} must be canonical")
         if type(self.settlement_index) is not ExactSettlementIndexV1:
             raise TypeError("source-bound fee settlement index must be exact")
         if not _plain_digest_is_canonical_v1(self.boundary_root):
@@ -138,6 +162,19 @@ def _reject_v1(
     )
 
 
+def _path_text_v1(path: tuple[str | int, ...]) -> tuple[str, ...]:
+    return tuple(str(part) for part in path)
+
+
+def _source_reject_v1(reject: FCISStepEvaluationRejectV1) -> SourceBoundFeeOccurrenceRejectV1:
+    return _reject_v1(
+        SourceBoundFeeOccurrenceCodeV1.SOURCE_ADMISSION_REJECTED,
+        reject.phase.value,
+        reject.code,
+        *_path_text_v1(reject.path),
+    )
+
+
 def _plain_digest_is_canonical_v1(value: object) -> bool:
     return (
         type(value) is str
@@ -147,16 +184,20 @@ def _plain_digest_is_canonical_v1(value: object) -> bool:
     )
 
 
+def _0x_digest_is_canonical_v1(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) == 66
+        and value.startswith("0x")
+        and value == value.lower()
+        and all(character in "0123456789abcdef" for character in value[2:])
+    )
+
+
 def _require_0x_digest_bytes_v1(name: str, value: object) -> bytes:
-    if (
-        type(value) is not str
-        or len(value) != 66
-        or not value.startswith("0x")
-        or value != value.lower()
-        or any(character not in "0123456789abcdef" for character in value[2:])
-    ):
+    if not _0x_digest_is_canonical_v1(value):
         raise ValueError(f"{name} must be a canonical lowercase 0x digest")
-    return bytes.fromhex(value[2:])
+    return bytes.fromhex(cast(str, value)[2:])
 
 
 def _require_plain_digest_bytes_v1(name: str, value: object) -> bytes:
@@ -210,25 +251,25 @@ def _hash_frames_v1(domain: str, *fields: bytes) -> str:
     return digest.hexdigest()
 
 
-def _boundary_root_v1(evaluation: FCISStepEvaluationOkV1) -> str:
-    evidence = evaluation.evidence
+def _boundary_root_v1(
+    command_root: str,
+    execution_context_hash: str,
+    pre_state_root: str,
+) -> str:
     return _hash_frames_v1(
-        "zenodex/fcis/fee-occurrence/source-boundary/v1",
+        "zenodex/fcis/fee-occurrence/source-boundary/v2",
         _text_v1(SOURCE_BOUND_FEE_OCCURRENCE_VERSION_V1),
-        _text_v1(evidence.algorithm_id),
-        _u32_v1(evidence.algorithm_version),
-        _require_0x_digest_bytes_v1("command root", evidence.command_root),
-        _require_0x_digest_bytes_v1("execution context hash", evidence.execution_context_hash),
-        _require_0x_digest_bytes_v1("pre-state root", evidence.pre_state_root),
-        _require_0x_digest_bytes_v1("post-state root", evidence.post_state_root),
-        _require_0x_digest_bytes_v1("support root", evidence.support_root),
-        _require_0x_digest_bytes_v1("support-set commitment", evidence.support_set_commitment),
-        _require_0x_digest_bytes_v1("snapshot commitment", evidence.snapshot_commitment),
+        _require_0x_digest_bytes_v1("command root", command_root),
+        _require_0x_digest_bytes_v1(
+            "execution context hash",
+            execution_context_hash,
+        ),
+        _require_0x_digest_bytes_v1("pre-state root", pre_state_root),
     )
 
 
-def _policy_root_v1(evaluation: FCISStepEvaluationOkV1) -> str:
-    context = evaluation.material.context
+def _policy_root_v1(material: FCISEvaluatedMaterialV1) -> str:
+    context = material.context
     policy = context.fee_split_policy
     if policy is None:
         raise ValueError("source-bound extraction requires a fee distribution policy")
@@ -236,7 +277,7 @@ def _policy_root_v1(evaluation: FCISStepEvaluationOkV1) -> str:
     context.settlement.__post_init__()
     policy.__post_init__()
     return _hash_frames_v1(
-        "zenodex/fcis/fee-occurrence/source-policy/v1",
+        "zenodex/fcis/fee-occurrence/source-policy/v2",
         _text_v1(SOURCE_BOUND_FEE_OCCURRENCE_VERSION_V1),
         _text_v1(SRGD_ALGORITHM_VERSION_V1),
         _text_v1(PROTOCOL_FEE_DISTRIBUTION_DOMAIN_ID_V1),
@@ -259,7 +300,9 @@ def _validated_optional_amount_v1(name: str, value: object) -> int | None:
 
 def _source_witness_root_v1(
     *,
-    evaluation: FCISStepEvaluationOkV1,
+    command_root: str,
+    execution_context_hash: str,
+    pre_state_root: str,
     boundary_root: str,
     policy_root: str,
     settlement_position: int,
@@ -272,16 +315,17 @@ def _source_witness_root_v1(
     amount: int,
     fill: OwnedFillV1,
 ) -> str:
-    evidence = evaluation.evidence
     return _hash_frames_v1(
-        "zenodex/fcis/fee-occurrence/source-witness/v1",
+        "zenodex/fcis/fee-occurrence/source-witness/v2",
         _text_v1(SOURCE_BOUND_FEE_OCCURRENCE_VERSION_V1),
         _require_plain_digest_bytes_v1("boundary root", boundary_root),
         _require_plain_digest_bytes_v1("policy root", policy_root),
-        _require_0x_digest_bytes_v1("command root", evidence.command_root),
-        _require_0x_digest_bytes_v1("execution context hash", evidence.execution_context_hash),
-        _require_0x_digest_bytes_v1("pre-state root", evidence.pre_state_root),
-        _require_0x_digest_bytes_v1("post-state root", evidence.post_state_root),
+        _require_0x_digest_bytes_v1("command root", command_root),
+        _require_0x_digest_bytes_v1(
+            "execution context hash",
+            execution_context_hash,
+        ),
+        _require_0x_digest_bytes_v1("pre-state root", pre_state_root),
         _u32_v1(settlement_position),
         _u32_v1(witness_position),
         _text_v1(intent_id),
@@ -292,58 +336,104 @@ def _source_witness_root_v1(
         _u256_v1(amount),
         _optional_text_v1(fill.reason),
         _optional_u256_v1(
-            _validated_optional_amount_v1("fill.amount_in_filled", fill.amount_in_filled)
-        ),
-        _optional_u256_v1(
-            _validated_optional_amount_v1("fill.amount_out_filled", fill.amount_out_filled)
-        ),
-        _optional_u256_v1(_validated_optional_amount_v1("fill.fee_paid", fill.fee_paid)),
-        _optional_u256_v1(
-            _validated_optional_amount_v1("fill.protocol_fee_paid", fill.protocol_fee_paid)
-        ),
-        _optional_u256_v1(
-            _validated_optional_amount_v1("fill.reserve_in_before", fill.reserve_in_before)
-        ),
-        _optional_u256_v1(
-            _validated_optional_amount_v1("fill.reserve_out_before", fill.reserve_out_before)
-        ),
-    )
-
-
-def _replay_matches_v1(evaluation: FCISStepEvaluationOkV1) -> bool:
-    material = evaluation.material
-    replay = evaluate_fcis_step_candidate_v1(
-        state_source=material.pre_state,
-        settlement=material.settlement,
-        intents=material.intents,
-        context=material.context,
-    )
-    return type(replay) is FCISStepEvaluationOkV1 and replay == evaluation
-
-
-def extract_source_bound_fee_occurrence_v1(
-    evaluation: object,
-) -> SourceBoundFeeOccurrenceResultV1:
-    """Replay one exact evaluation and derive its direct-swap fee witness segment."""
-
-    if type(evaluation) is not FCISStepEvaluationOkV1:
-        return _reject_v1(SourceBoundFeeOccurrenceCodeV1.WRONG_EXACT_TYPE, "evaluation")
-    exact_evaluation = cast(FCISStepEvaluationOkV1, evaluation)
-    try:
-        _revalidate_evaluation_v1(exact_evaluation)
-        if not _replay_matches_v1(exact_evaluation):
-            return _reject_v1(
-                SourceBoundFeeOccurrenceCodeV1.EVALUATION_LINEAGE_MISMATCH,
-                "evaluation",
-                "replay",
+            _validated_optional_amount_v1(
+                "fill.amount_in_filled",
+                fill.amount_in_filled,
             )
+        ),
+        _optional_u256_v1(
+            _validated_optional_amount_v1(
+                "fill.amount_out_filled",
+                fill.amount_out_filled,
+            )
+        ),
+        _optional_u256_v1(
+            _validated_optional_amount_v1(
+                "fill.fee_paid",
+                fill.fee_paid,
+            )
+        ),
+        _optional_u256_v1(
+            _validated_optional_amount_v1(
+                "fill.protocol_fee_paid",
+                fill.protocol_fee_paid,
+            )
+        ),
+        _optional_u256_v1(
+            _validated_optional_amount_v1(
+                "fill.reserve_in_before",
+                fill.reserve_in_before,
+            )
+        ),
+        _optional_u256_v1(
+            _validated_optional_amount_v1(
+                "fill.reserve_out_before",
+                fill.reserve_out_before,
+            )
+        ),
+    )
+
+
+def _admit_material_v1(
+    *,
+    state_source: object,
+    settlement: object,
+    intents: object,
+    context: object,
+) -> (
+    tuple[FCISEvaluatedMaterialV1, str, str, str]
+    | SourceBoundFeeOccurrenceRejectV1
+):
+    command = _admit_exact_command_v1(settlement, intents)
+    if type(command) is FCISStepEvaluationRejectV1:
+        return _source_reject_v1(command)
+    exact_settlement, exact_intents = command
+
+    exact_context = _admit_context_v1(context)
+    if type(exact_context) is FCISStepEvaluationRejectV1:
+        return _source_reject_v1(exact_context)
+
+    exact_state = _admit_exact_state_v1(state_source)
+    if type(exact_state) is FCISStepEvaluationRejectV1:
+        return _source_reject_v1(exact_state)
+
+    pre_binding = _pre_state_binding_v1(exact_state, exact_context)
+    if type(pre_binding) is FCISStepEvaluationRejectV1:
+        return _reject_v1(
+            SourceBoundFeeOccurrenceCodeV1.SOURCE_BINDING_REJECTED,
+            pre_binding.phase.value,
+            pre_binding.code,
+            *_path_text_v1(pre_binding.path),
+        )
+    _context_bytes, execution_context_hash, _preimage, pre_state_root = pre_binding
+    try:
+        command_root = sha256_hex(
+            _command_preimage_v5(
+                exact_settlement,
+                exact_intents,
+            )
+        )
+        material = FCISEvaluatedMaterialV1(
+            pre_state=exact_state,
+            settlement=exact_settlement,
+            intents=exact_intents,
+            context=exact_context,
+        )
     except (AttributeError, TypeError, ValueError, ArithmeticError):
         return _reject_v1(
-            SourceBoundFeeOccurrenceCodeV1.EVALUATION_LINEAGE_MISMATCH,
-            "evaluation",
+            SourceBoundFeeOccurrenceCodeV1.INTERNAL_RELATION_FAILURE,
+            "material",
         )
+    return material, command_root, execution_context_hash, pre_state_root
 
-    material = exact_evaluation.material
+
+def _extract_admitted_v1(
+    *,
+    material: FCISEvaluatedMaterialV1,
+    command_root: str,
+    execution_context_hash: str,
+    pre_state_root: str,
+) -> SourceBoundFeeOccurrenceResultV1:
     index_result = derive_exact_settlement_index_admitted_v1(
         material.settlement,
         material.intents,
@@ -355,11 +445,6 @@ def extract_source_bound_fee_occurrence_v1(
             "settlement_index",
             index_result.reason,
         )
-    if type(index_result) is not ExactSettlementIndexV1:
-        return _reject_v1(
-            SourceBoundFeeOccurrenceCodeV1.INTERNAL_RELATION_FAILURE,
-            "settlement_index",
-        )
     settlement_index = index_result
 
     if material.context.fee_split_policy is None:
@@ -369,8 +454,12 @@ def extract_source_bound_fee_occurrence_v1(
             "fee_split_policy",
         )
     try:
-        boundary_root = _boundary_root_v1(exact_evaluation)
-        policy_root = _policy_root_v1(exact_evaluation)
+        boundary_root = _boundary_root_v1(
+            command_root,
+            execution_context_hash,
+            pre_state_root,
+        )
+        policy_root = _policy_root_v1(material)
     except (AttributeError, TypeError, ValueError, ArithmeticError):
         return _reject_v1(
             SourceBoundFeeOccurrenceCodeV1.INTERNAL_RELATION_FAILURE,
@@ -457,7 +546,9 @@ def extract_source_bound_fee_occurrence_v1(
             )
             witness_position = len(witnesses)
             source_root = _source_witness_root_v1(
-                evaluation=exact_evaluation,
+                command_root=command_root,
+                execution_context_hash=execution_context_hash,
+                pre_state_root=pre_state_root,
                 boundary_root=boundary_root,
                 policy_root=policy_root,
                 settlement_position=settlement_position,
@@ -496,14 +587,16 @@ def extract_source_bound_fee_occurrence_v1(
             segment_result.code.value,
             *segment_result.path,
         )
-    segment = segment_result
     try:
         return SourceBoundFeeOccurrenceV1(
-            evaluation=exact_evaluation,
+            material=material,
+            command_root=command_root,
+            execution_context_hash=execution_context_hash,
+            pre_state_root=pre_state_root,
             settlement_index=settlement_index,
             boundary_root=boundary_root,
             policy_root=policy_root,
-            segment=segment,
+            segment=segment_result,
             _construction_token=_SOURCE_BOUND_FEE_OCCURRENCE_TOKEN_V1,
         )
     except (AttributeError, TypeError, ValueError, ArithmeticError):
@@ -511,6 +604,65 @@ def extract_source_bound_fee_occurrence_v1(
             SourceBoundFeeOccurrenceCodeV1.INTERNAL_RELATION_FAILURE,
             "result",
         )
+
+
+def extract_source_bound_fee_occurrence_v1(
+    *,
+    state_source: object,
+    settlement: object,
+    intents: object,
+    context: object,
+) -> SourceBoundFeeOccurrenceResultV1:
+    """Derive SLNF occurrence evidence before candidate evaluation."""
+
+    admitted = _admit_material_v1(
+        state_source=state_source,
+        settlement=settlement,
+        intents=intents,
+        context=context,
+    )
+    if type(admitted) is SourceBoundFeeOccurrenceRejectV1:
+        return admitted
+    material, command_root, execution_context_hash, pre_state_root = admitted
+    return _extract_admitted_v1(
+        material=material,
+        command_root=command_root,
+        execution_context_hash=execution_context_hash,
+        pre_state_root=pre_state_root,
+    )
+
+
+def verify_source_bound_fee_occurrence_v1(
+    occurrence: object,
+) -> SourceBoundFeeOccurrenceRejectV1 | None:
+    """Re-admit the retained sources and compare the complete fresh extraction."""
+
+    if type(occurrence) is not SourceBoundFeeOccurrenceV1:
+        return _reject_v1(
+            SourceBoundFeeOccurrenceCodeV1.WRONG_EXACT_TYPE,
+            "occurrence",
+        )
+    try:
+        occurrence.__post_init__(_SOURCE_BOUND_FEE_OCCURRENCE_TOKEN_V1)
+    except (AttributeError, TypeError, ValueError, ArithmeticError):
+        return _reject_v1(
+            SourceBoundFeeOccurrenceCodeV1.SOURCE_REDERIVATION_MISMATCH,
+            "occurrence",
+        )
+    fresh = extract_source_bound_fee_occurrence_v1(
+        state_source=occurrence.material.pre_state,
+        settlement=occurrence.material.settlement,
+        intents=occurrence.material.intents,
+        context=occurrence.material.context,
+    )
+    if type(fresh) is SourceBoundFeeOccurrenceRejectV1:
+        return fresh
+    if fresh != occurrence:
+        return _reject_v1(
+            SourceBoundFeeOccurrenceCodeV1.SOURCE_REDERIVATION_MISMATCH,
+            "occurrence",
+        )
+    return None
 
 
 __all__ = (
@@ -521,4 +673,5 @@ __all__ = (
     "SourceBoundFeeOccurrenceResultV1",
     "SourceBoundFeeOccurrenceV1",
     "extract_source_bound_fee_occurrence_v1",
+    "verify_source_bound_fee_occurrence_v1",
 )
