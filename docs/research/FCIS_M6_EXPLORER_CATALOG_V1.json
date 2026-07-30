@@ -1,0 +1,227 @@
+{
+  "candidates": [
+    {
+      "claims": [
+        "local edge coherence makes all declared paths with common endpoints agree",
+        "unit stage edges force every source-to-final path through every gate in order",
+        "partial lineage joins reject crossed source identities",
+        "an externally anchored topology root detects inserted or omitted declared publishers"
+      ],
+      "evidence": [
+        "pure Python checker",
+        "11 adversarial tests",
+        "independent bounded explicit-state search",
+        "Julia oracle source",
+        "ESSO-IR model",
+        "Lean connective theorem source"
+      ],
+      "falsifiers": [
+        "accepted stage-skipping edge",
+        "accepted same-stage lineage introduction",
+        "accepted conflicting source role",
+        "accepted receipt bound to a different source or target artifact",
+        "accepted non-spanning parent edge set",
+        "runtime publisher absent from the externally anchored topology inventory"
+      ],
+      "id": "TCG-1",
+      "morph_relation": "runtime authority chain maps by reduction to a rooted non-invertible diagram with a unit gate filtration and role-indexed lineage",
+      "name": "Tree-Chord-Gate Authority Certificate",
+      "novelty_disposition": "NEW_COMPOSITION_PROFILE; components are known graph, diagram, provenance, and complete-mediation ideas",
+      "smallest_next_artifact": "instantiate exact ZenoDEX publisher/checker inventory and independently derive topology root from deployment sources",
+      "status": "IMPLEMENTED_RESEARCH_CANDIDATE",
+      "symbols": "A_TCG=(G,T,lambda,alpha,Gamma,R,rho_top,rho_inst)",
+      "targets": [
+        "M6-R04",
+        "M6-R12",
+        "M6-01",
+        "M6-03",
+        "M6-09",
+        "M6-11"
+      ]
+    },
+    {
+      "claims": [
+        "authorized candidates embed into durable history by c",
+        "reopen is a left inverse r on committed candidates",
+        "crash intervention closure admits only exact PRE or exact POST authoritative views"
+      ],
+      "falsifiers": [
+        "reopen(commit(a)) differs from a",
+        "a crash produces an authoritative partial projection",
+        "delivered outbox effect lacks a durable ancestor"
+      ],
+      "id": "DRA-1",
+      "name": "Durable Retraction Algebra",
+      "novelty_disposition": "KNOWN_MATH_NEW_APPLICATION",
+      "smallest_next_artifact": "ESSO SQLite commit/reopen/outbox model with crash injection and a Lean retraction composition theorem",
+      "status": "PROPOSED",
+      "symbols": "c:A->D, r:D->A, r o c = id_A",
+      "targets": [
+        "M6-05",
+        "M6-06",
+        "D-05",
+        "D-06"
+      ]
+    },
+    {
+      "claims": [
+        "a migration changes the theorem-indexed authority atlas, not ordinary configuration",
+        "receipts survive only through an explicit evidence-transport map",
+        "concurrent authoritative profiles are rejected"
+      ],
+      "falsifiers": [
+        "old receipt accepted under a changed profile without transport proof",
+        "two profile roots simultaneously authorize publication",
+        "migration erases state or lineage identity"
+      ],
+      "id": "DAA-1",
+      "name": "Dynamic Authority Atlas",
+      "novelty_disposition": "NEW_COMPOSITION_PROFILE",
+      "smallest_next_artifact": "two-profile ESSO migration model and exact evidence invalidation rules",
+      "status": "PROPOSED",
+      "symbols": "M:P->Q with M_*:Evidence(P)->Evidence(Q)",
+      "targets": [
+        "M6-R03",
+        "M6-07",
+        "M6-08",
+        "M6-11"
+      ]
+    },
+    {
+      "claims": [
+        "L counts lineage conflicts",
+        "C counts failed chord receipts",
+        "G counts gate defects",
+        "P counts uncovered authority publishers",
+        "M6 authority closure requires Delta(A)=0"
+      ],
+      "falsifiers": [
+        "zero vector while a declared path disagrees",
+        "zero vector while a publisher bypasses the inventory",
+        "metric ordering hides a safety regression"
+      ],
+      "id": "ADV-1",
+      "name": "Assurance Defect Vector",
+      "novelty_disposition": "NEW_PROJECT_METRIC",
+      "smallest_next_artifact": "ZAG MAP-Elites descriptor and LEAP archive niche for authority certificates",
+      "status": "PROPOSED_METRIC",
+      "symbols": "Delta(A)=(L,C,G,P)",
+      "targets": [
+        "LEAP",
+        "ZAG",
+        "M6 review"
+      ]
+    },
+    {
+      "claims": [
+        "subsystem certificates glue only when overlap lineage and authority identities agree",
+        "nontrivial overlap obstruction is a concrete composition counterexample"
+      ],
+      "falsifiers": [
+        "locally compatible receipts glue to two distinct global effects",
+        "overlap equality omits an authority-bearing field",
+        "glued result reaches publication without global inventory coverage"
+      ],
+      "id": "ADESC-1",
+      "name": "Authority Descent",
+      "novelty_disposition": "KNOWN_SHEAF_DESCENT_IDEA_NEW_APPLICATION",
+      "smallest_next_artifact": "finite two-service gluing checker and counterexample catalog",
+      "status": "SPECULATIVE_PROGRAM",
+      "symbols": "local receipts + overlap agreement => global authority object",
+      "targets": [
+        "ZenoFCIS composition",
+        "multi-service M6"
+      ]
+    },
+    {
+      "claims": [
+        "addition records alternative derivations",
+        "multiplication records joint dependencies",
+        "filtration records the strongest completed authority gate"
+      ],
+      "falsifiers": [
+        "semiring compression identifies two effects with different authority ancestry",
+        "filtration allows a source role before its gate",
+        "provenance expression cannot be replayed to exact source roots"
+      ],
+      "id": "FPS-1",
+      "name": "Filtered Provenance Semiring",
+      "novelty_disposition": "KNOWN_MATH_NEW_APPLICATION",
+      "smallest_next_artifact": "bounded provenance polynomial checker over one ZenoDEX candidate",
+      "status": "PRIOR_ART_ALIGNED_PROPOSAL",
+      "symbols": "K[X] with authority-depth filtration F_0 subset ... subset F_k",
+      "targets": [
+        "lineage diagnostics",
+        "audit UI",
+        "proof market"
+      ]
+    },
+    {
+      "claims": [
+        "search sign flips, coordinate permutations, affine maps, and quotient/lift maps before NEW_MECHANISM",
+        "classify exact conjugacies as isomorphic reformulations or new certificate profiles"
+      ],
+      "falsifiers": [
+        "candidate labeled new while a bounded exact conjugacy exists",
+        "false duplicate caused by a non-liftable abstraction",
+        "output equality checked without state-transition equality"
+      ],
+      "id": "EBN-1",
+      "name": "Equivalence-Before-Novelty Gate",
+      "novelty_disposition": "NEW_LEAP_GOVERNANCE_PROFILE",
+      "smallest_next_artifact": "LEAP bounded conjugacy relation profile with SRGD/AGQE regression fixture",
+      "status": "WORKFLOW_CORRECTION",
+      "symbols": "phi(T_old(s,e)) = T_new(phi(s),e), O_old=O_new o phi",
+      "targets": [
+        "LEAP",
+        "Morph",
+        "ZAG"
+      ]
+    },
+    {
+      "claims": [
+        "adjacent intervention swaps are admitted only at exact prefix states",
+        "failed diamonds become minimized phase-distinction counterexamples"
+      ],
+      "falsifiers": [
+        "canonicalization removes a trace whose final authoritative view differs",
+        "commutation receipt ignores an externally visible effect",
+        "static operation-name independence is used in place of a state-indexed receipt"
+      ],
+      "id": "CDTQ-2",
+      "name": "State-Indexed Intervention Trace Quotient",
+      "novelty_disposition": "KNOWN_TRACE_THEORY_NEW_RECEIPT_PROFILE",
+      "smallest_next_artifact": "ESSO dynamic diamond cache for SQLite retry/recovery actions",
+      "status": "PROPOSED_REFINEMENT",
+      "symbols": "ab ~_s ba iff T_b(T_a(s)) = T_a(T_b(s)) with equal observations",
+      "targets": [
+        "M6 crash/retry search",
+        "ESSO state-space reduction"
+      ]
+    }
+  ],
+  "date": "2026-07-30",
+  "novelty_policy": {
+    "labels": [
+      "NEW_MECHANISM_CANDIDATE",
+      "NEW_COMPOSITION_PROFILE",
+      "KNOWN_MATH_NEW_APPLICATION",
+      "ISOMORPHIC_REFORMULATION",
+      "NEW_CERTIFICATE_PROFILE",
+      "SPECULATIVE_PROGRAM",
+      "REFUTED_DUPLICATE"
+    ],
+    "principle": "Novelty is a claim to falsify, not a premise.",
+    "required_duplicate_searches": [
+      "sign duality",
+      "coordinate permutation",
+      "affine state conjugacy",
+      "renaming and representation isomorphism",
+      "quotient/lift equivalence",
+      "existing internal implementation",
+      "known literature construction"
+    ]
+  },
+  "schema_version": "zenodex.fcis.m6-explorer-catalog.v1",
+  "status": "RESEARCH_ONLY_NO_RUNTIME_AUTHORITY"
+}

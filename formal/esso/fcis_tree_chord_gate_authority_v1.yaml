@@ -1,0 +1,517 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_tree_chord_gate_authority_v1
+  created_by: leap-explorer
+  seed: 0
+  notes: Nine-gate M6 authority filtration. Safe transitions cross exactly one gate, record its lineage/receipt
+    fact, and retain artifact coherence.
+observables:
+  state_vars:
+  - phase
+  - seen_canonical
+  - seen_auth
+  - seen_state
+  - seen_context
+  - seen_decision
+  - seen_authorize
+  - seen_commit
+  - seen_reopen
+  - seen_delivery
+  - artifact_coherent
+  - lineage_conflict
+  effects: []
+types: []
+state_vars:
+- id: phase
+  role: control
+  type:
+    kind: enum
+    symbols:
+    - S0
+    - S1
+    - S2
+    - S3
+    - S4
+    - S5
+    - S6
+    - S7
+    - S8
+    - S9
+- id: seen_canonical
+  role: data
+  type:
+    kind: bool
+- id: seen_auth
+  role: data
+  type:
+    kind: bool
+- id: seen_state
+  role: data
+  type:
+    kind: bool
+- id: seen_context
+  role: data
+  type:
+    kind: bool
+- id: seen_decision
+  role: data
+  type:
+    kind: bool
+- id: seen_authorize
+  role: data
+  type:
+    kind: bool
+- id: seen_commit
+  role: data
+  type:
+    kind: bool
+- id: seen_reopen
+  role: data
+  type:
+    kind: bool
+- id: seen_delivery
+  role: data
+  type:
+    kind: bool
+- id: artifact_coherent
+  role: data
+  type:
+    kind: bool
+- id: lineage_conflict
+  role: data
+  type:
+    kind: bool
+invariants:
+- id: S1RequiresSeenCanonical
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: S1
+      - op: '='
+        args:
+        - var: phase
+        - enum: S2
+      - op: '='
+        args:
+        - var: phase
+        - enum: S3
+      - op: '='
+        args:
+        - var: phase
+        - enum: S4
+      - op: '='
+        args:
+        - var: phase
+        - enum: S5
+      - op: '='
+        args:
+        - var: phase
+        - enum: S6
+      - op: '='
+        args:
+        - var: phase
+        - enum: S7
+      - op: '='
+        args:
+        - var: phase
+        - enum: S8
+      - op: '='
+        args:
+        - var: phase
+        - enum: S9
+    - var: seen_canonical
+- id: S2RequiresSeenAuth
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: S2
+      - op: '='
+        args:
+        - var: phase
+        - enum: S3
+      - op: '='
+        args:
+        - var: phase
+        - enum: S4
+      - op: '='
+        args:
+        - var: phase
+        - enum: S5
+      - op: '='
+        args:
+        - var: phase
+        - enum: S6
+      - op: '='
+        args:
+        - var: phase
+        - enum: S7
+      - op: '='
+        args:
+        - var: phase
+        - enum: S8
+      - op: '='
+        args:
+        - var: phase
+        - enum: S9
+    - var: seen_auth
+- id: S3RequiresSeenState
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: S3
+      - op: '='
+        args:
+        - var: phase
+        - enum: S4
+      - op: '='
+        args:
+        - var: phase
+        - enum: S5
+      - op: '='
+        args:
+        - var: phase
+        - enum: S6
+      - op: '='
+        args:
+        - var: phase
+        - enum: S7
+      - op: '='
+        args:
+        - var: phase
+        - enum: S8
+      - op: '='
+        args:
+        - var: phase
+        - enum: S9
+    - var: seen_state
+- id: S4RequiresSeenContext
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: S4
+      - op: '='
+        args:
+        - var: phase
+        - enum: S5
+      - op: '='
+        args:
+        - var: phase
+        - enum: S6
+      - op: '='
+        args:
+        - var: phase
+        - enum: S7
+      - op: '='
+        args:
+        - var: phase
+        - enum: S8
+      - op: '='
+        args:
+        - var: phase
+        - enum: S9
+    - var: seen_context
+- id: S5RequiresSeenDecision
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: S5
+      - op: '='
+        args:
+        - var: phase
+        - enum: S6
+      - op: '='
+        args:
+        - var: phase
+        - enum: S7
+      - op: '='
+        args:
+        - var: phase
+        - enum: S8
+      - op: '='
+        args:
+        - var: phase
+        - enum: S9
+    - var: seen_decision
+- id: S6RequiresSeenAuthorize
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: S6
+      - op: '='
+        args:
+        - var: phase
+        - enum: S7
+      - op: '='
+        args:
+        - var: phase
+        - enum: S8
+      - op: '='
+        args:
+        - var: phase
+        - enum: S9
+    - var: seen_authorize
+- id: S7RequiresSeenCommit
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: S7
+      - op: '='
+        args:
+        - var: phase
+        - enum: S8
+      - op: '='
+        args:
+        - var: phase
+        - enum: S9
+    - var: seen_commit
+- id: S8RequiresSeenReopen
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: S8
+      - op: '='
+        args:
+        - var: phase
+        - enum: S9
+    - var: seen_reopen
+- id: S9RequiresSeenDelivery
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: '='
+      args:
+      - var: phase
+      - enum: S9
+    - var: seen_delivery
+- id: ArtifactCoherence
+  kind: safety
+  expr:
+    var: artifact_coherent
+- id: NoLineageConflict
+  kind: safety
+  expr:
+    op: not
+    args:
+    - var: lineage_conflict
+init:
+- var: phase
+  expr:
+    enum: S0
+- var: seen_canonical
+  expr:
+    bool: false
+- var: seen_auth
+  expr:
+    bool: false
+- var: seen_state
+  expr:
+    bool: false
+- var: seen_context
+  expr:
+    bool: false
+- var: seen_decision
+  expr:
+    bool: false
+- var: seen_authorize
+  expr:
+    bool: false
+- var: seen_commit
+  expr:
+    bool: false
+- var: seen_reopen
+  expr:
+    bool: false
+- var: seen_delivery
+  expr:
+    bool: false
+- var: artifact_coherent
+  expr:
+    bool: true
+- var: lineage_conflict
+  expr:
+    bool: false
+actions:
+- id: canonical_ingress
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: phase
+    - enum: S0
+  updates:
+  - var: phase
+    expr:
+      enum: S1
+  - var: seen_canonical
+    expr:
+      bool: true
+  effects: {}
+- id: authenticate_invocation
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: phase
+    - enum: S1
+  updates:
+  - var: phase
+    expr:
+      enum: S2
+  - var: seen_auth
+    expr:
+      bool: true
+  effects: {}
+- id: bind_current_state
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: phase
+    - enum: S2
+  updates:
+  - var: phase
+    expr:
+      enum: S3
+  - var: seen_state
+    expr:
+      bool: true
+  effects: {}
+- id: bind_execution_context
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: phase
+    - enum: S3
+  updates:
+  - var: phase
+    expr:
+      enum: S4
+  - var: seen_context
+    expr:
+      bool: true
+  effects: {}
+- id: validate_runtime_decision
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: phase
+    - enum: S4
+  updates:
+  - var: phase
+    expr:
+      enum: S5
+  - var: seen_decision
+    expr:
+      bool: true
+  effects: {}
+- id: authorize_candidate
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: phase
+    - enum: S5
+  updates:
+  - var: phase
+    expr:
+      enum: S6
+  - var: seen_authorize
+    expr:
+      bool: true
+  effects: {}
+- id: atomic_publication
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: phase
+    - enum: S6
+  updates:
+  - var: phase
+    expr:
+      enum: S7
+  - var: seen_commit
+    expr:
+      bool: true
+  effects: {}
+- id: reopen_reauthorization
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: phase
+    - enum: S7
+  updates:
+  - var: phase
+    expr:
+      enum: S8
+  - var: seen_reopen
+    expr:
+      bool: true
+  effects: {}
+- id: deliver_outbox
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: phase
+    - enum: S8
+  updates:
+  - var: phase
+    expr:
+      enum: S9
+  - var: seen_delivery
+    expr:
+      bool: true
+  effects: {}

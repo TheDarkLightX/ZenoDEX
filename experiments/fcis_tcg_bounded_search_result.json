@@ -1,0 +1,65 @@
+{
+  "gate_count": 9,
+  "max_depth": 10,
+  "results": [
+    {
+      "explored_transitions": 19,
+      "mutation": "none",
+      "reachable_states": 10,
+      "status": "SAFE_WITHIN_BOUND",
+      "trace": [],
+      "trace_length": 0
+    },
+    {
+      "explored_transitions": 6,
+      "mutation": "stage_skip",
+      "reachable_states": 5,
+      "status": "VIOLATION",
+      "trace": [
+        "skip_to_sink"
+      ],
+      "trace_length": 1
+    },
+    {
+      "explored_transitions": 6,
+      "mutation": "fake_gate",
+      "reachable_states": 5,
+      "status": "VIOLATION",
+      "trace": [
+        "fake_gate_0"
+      ],
+      "trace_length": 1
+    },
+    {
+      "explored_transitions": 6,
+      "mutation": "lineage_without_gate",
+      "reachable_states": 5,
+      "status": "VIOLATION",
+      "trace": [
+        "inject_lineage_0"
+      ],
+      "trace_length": 1
+    },
+    {
+      "explored_transitions": 6,
+      "mutation": "lineage_conflict",
+      "reachable_states": 5,
+      "status": "VIOLATION",
+      "trace": [
+        "overwrite_existing_role"
+      ],
+      "trace_length": 1
+    },
+    {
+      "explored_transitions": 6,
+      "mutation": "artifact_chord_mismatch",
+      "reachable_states": 5,
+      "status": "VIOLATION",
+      "trace": [
+        "accept_mismatched_chord"
+      ],
+      "trace_length": 1
+    }
+  ],
+  "schema_version": "zenodex.fcis.tcg.bounded-search.v1"
+}
