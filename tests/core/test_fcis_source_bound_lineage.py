@@ -42,15 +42,16 @@ def test_source_bound_public_surface_has_no_fee_root_or_segment_argument() -> No
     )
 
 
-def test_source_bound_closure_retains_one_evaluation_and_segment_identity() -> None:
+def test_source_bound_closure_retains_one_material_and_segment_lineage() -> None:
     certificate = _certificate()
 
-    assert certificate.closure.evaluation is certificate.extraction.evaluation
+    assert certificate.closure.evaluation.material == certificate.extraction.material
     assert certificate.closure.occurrence_segment is certificate.extraction.segment
     assert certificate.certificate_root == certificate.closure.closed_claims.root
     assert frozenset(claim.key for claim in certificate.closure.closed_claims.claims) == frozenset(
         FCISLineageClaimKeyV1
     )
+    assert not hasattr(certificate.extraction, "post_state_root")
     assert verify_source_bound_fcis_lineage_v1(certificate) is None
 
 
@@ -93,7 +94,7 @@ def test_conflicting_digest_fails_after_coordinated_root_rehash() -> None:
 def test_actual_commit_port_exposes_only_pre_or_complete_post_at_crash_points() -> None:
     certificate = _certificate()
     bundle = certificate.closure.bundle
-    pre_state = certificate.extraction.evaluation.material.pre_state
+    pre_state = certificate.extraction.material.pre_state
     store = _initial_reference_commit_store_v1(pre_state)
 
     before = reference_commit_v1(
@@ -134,7 +135,7 @@ def test_crossed_outbox_is_rejected_by_the_actual_commit_port() -> None:
     foreign = _event_bundle()
     bundle = certificate.closure.bundle
     object.__setattr__(bundle, "outbox_plan", foreign.outbox_plan)
-    store = _initial_reference_commit_store_v1(certificate.extraction.evaluation.material.pre_state)
+    store = _initial_reference_commit_store_v1(certificate.extraction.material.pre_state)
 
     result = reference_commit_v1(store, bundle)
 
