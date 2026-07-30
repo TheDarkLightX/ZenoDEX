@@ -1,0 +1,63 @@
+name: FCIS M6 Tree-Chord-Gate
+
+on:
+  pull_request:
+    paths:
+      - "src/core/fcis_tree_chord_gate_authority.py"
+      - "tests/core/test_fcis_tree_chord_gate_authority.py"
+      - "experiments/fcis_tcg_bounded_search.py"
+      - "experiments/fcis_tcg_bounded_search_result.json"
+      - "experiments/julia/fcis_tree_chord_gate_oracle.jl"
+      - "formal/esso/fcis_tree_chord_gate_authority_v1.yaml"
+      - "lean-mathlib/Proofs/FCISTreeChordGateAuthority.lean"
+      - "lean-mathlib/lakefile.lean"
+      - ".github/workflows/fcis-m6-tree-chord-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-certificate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install pytest
+      - name: Run focused certificate tests
+        run: python -m pytest -q tests/core/test_fcis_tree_chord_gate_authority.py
+      - name: Replay bounded search
+        run: |
+          python experiments/fcis_tcg_bounded_search.py > /tmp/fcis-tcg-python.json
+          git diff --exit-code -- experiments/fcis_tcg_bounded_search_result.json
+
+  julia-oracle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.12"
+      - name: Run independent Julia oracle
+        run: julia --startup-file=no experiments/julia/fcis_tree_chord_gate_oracle.jl > /tmp/fcis-tcg-julia.json
+      - name: Compare Julia and frozen Python results
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = json.loads(
+              Path("experiments/fcis_tcg_bounded_search_result.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          actual = json.loads(Path("/tmp/fcis-tcg-julia.json").read_text(encoding="utf-8"))
+          if actual != expected:
+              raise SystemExit(
+                  "Julia oracle disagrees with frozen Python result\n"
+                  f"expected={json.dumps(expected, sort_keys=True)}\n"
+                  f"actual={json.dumps(actual, sort_keys=True)}"
+              )
+          PY
