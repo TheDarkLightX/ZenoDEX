@@ -5,6 +5,9 @@ on:
   push:
     paths:
       - ".github/workflows/fcis-m6-r04-lineage-closure.yml"
+  pull_request:
+    paths:
+      - ".github/workflows/fcis-m6-r04-lineage-closure.yml"
 
 permissions:
   contents: write
@@ -17,7 +20,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           persist-credentials: true
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
@@ -330,7 +333,7 @@ def test_low_level_caller_segment_builders_are_not_exported() -> None:
             tests/core/test_fcis_source_bound_lineage.py
       - name: Commit closure hardening once
         env:
-          HEAD_BRANCH: ${{ github.ref_name }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
