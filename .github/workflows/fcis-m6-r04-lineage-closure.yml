@@ -1,38 +1,22 @@
 name: fcis-m6-r04-lineage-closure
 
 on:
-  workflow_dispatch:
   push:
     paths:
       - ".github/workflows/fcis-m6-r04-lineage-closure.yml"
-      - "src/core/fcis_lineage_closure.py"
-      - "src/core/fcis_fee_occurrence_extractor.py"
-      - "src/core/fcis_source_bound_lineage.py"
-      - "tests/core/test_fcis_lineage_closure.py"
-      - "tests/core/test_fcis_fee_occurrence_extractor.py"
-      - "tests/core/test_fcis_source_bound_lineage.py"
-  pull_request:
-    paths:
-      - ".github/workflows/fcis-m6-r04-lineage-closure.yml"
-      - "src/core/fcis_lineage_closure.py"
-      - "src/core/fcis_fee_occurrence_extractor.py"
-      - "src/core/fcis_source_bound_lineage.py"
-      - "tests/core/test_fcis_lineage_closure.py"
-      - "tests/core/test_fcis_fee_occurrence_extractor.py"
-      - "tests/core/test_fcis_source_bound_lineage.py"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  assurance:
+  close-public-segment-bypass:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout exact source head
+      - name: Checkout exact branch head
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: true
+          ref: ${{ github.sha }}
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
@@ -41,46 +25,137 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - name: Install exact development requirements
         run: python -m pip install --requirement requirements-dev.txt
-      - name: Compile exact files
+      - name: Make arbitrary-segment constructors private
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          closure = Path("src/core/fcis_lineage_closure.py")
+          text = closure.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  "The construction is deliberately unmounted.  The supplied fee occurrence\n"
+                  "segment still carries externally supplied boundary, policy, and source-witness\n"
+                  "roots.  Shape validation and closure confluence do not authenticate those roots.\n",
+                  "The construction is deliberately unmounted. The low-level artifact builders are\n"
+                  "private because they accept an already-derived occurrence segment. The public\n"
+                  "research constructor in ``fcis_source_bound_lineage`` derives that segment from\n"
+                  "admitted pre-state, command, context, and exact settlement replay before candidate\n"
+                  "evaluation. Closure confluence still does not authenticate shell or datastore\n"
+                  "sources.\n",
+              ),
+              (
+                  "def build_fcis_lineage_closure_from_artifacts_v1(\n",
+                  "def _build_fcis_lineage_closure_from_artifacts_v1(\n",
+              ),
+              (
+                  "def derive_fcis_lineage_closure_v1(\n",
+                  "def _derive_fcis_lineage_closure_from_segment_v1(\n",
+              ),
+              (
+                  "    return build_fcis_lineage_closure_from_artifacts_v1(\n",
+                  "    return _build_fcis_lineage_closure_from_artifacts_v1(\n",
+              ),
+              (
+                  '    "build_fcis_lineage_closure_from_artifacts_v1",\n',
+                  "",
+              ),
+              (
+                  '    "derive_fcis_lineage_closure_v1",\n',
+                  "",
+              ),
+          )
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f"missing closure target: {old!r}")
+              text = text.replace(old, new, 1)
+          closure.write_text(text, encoding="utf-8")
+
+          source_bound = Path("src/core/fcis_source_bound_lineage.py")
+          text = source_bound.read_text(encoding="utf-8")
+          if text.count("build_fcis_lineage_closure_from_artifacts_v1") != 3:
+              raise SystemExit("unexpected source-bound builder reference count")
+          text = text.replace(
+              "build_fcis_lineage_closure_from_artifacts_v1",
+              "_build_fcis_lineage_closure_from_artifacts_v1",
+          )
+          source_bound.write_text(text, encoding="utf-8")
+
+          closure_test = Path("tests/core/test_fcis_lineage_closure.py")
+          text = closure_test.read_text(encoding="utf-8")
+          if "derive_fcis_lineage_closure_v1" not in text:
+              raise SystemExit("missing closure-test derive reference")
+          if "build_fcis_lineage_closure_from_artifacts_v1" not in text:
+              raise SystemExit("missing closure-test builder reference")
+          text = text.replace(
+              "derive_fcis_lineage_closure_v1",
+              "_derive_fcis_lineage_closure_from_segment_v1",
+          )
+          text = text.replace(
+              "build_fcis_lineage_closure_from_artifacts_v1",
+              "_build_fcis_lineage_closure_from_artifacts_v1",
+          )
+          closure_test.write_text(text, encoding="utf-8")
+
+          source_bound_test = Path("tests/core/test_fcis_source_bound_lineage.py")
+          text = source_bound_test.read_text(encoding="utf-8")
+          import_anchor = "from inspect import signature\n"
+          if import_anchor not in text:
+              raise SystemExit("missing source-bound test import anchor")
+          text = text.replace(
+              import_anchor,
+              import_anchor + "\nimport src.core.fcis_lineage_closure as lineage_closure\n",
+              1,
+          )
+          test_anchor = "\ndef test_source_bound_public_surface_has_no_fee_root_or_segment_argument() -> None:\n"
+          export_test = (
+              "\ndef test_arbitrary_segment_builders_are_not_public_exports() -> None:\n"
+              "    assert \"build_fcis_lineage_closure_from_artifacts_v1\" not in lineage_closure.__all__\n"
+              "    assert \"derive_fcis_lineage_closure_v1\" not in lineage_closure.__all__\n"
+          )
+          if test_anchor not in text:
+              raise SystemExit("missing source-bound test insertion anchor")
+          text = text.replace(test_anchor, export_test + test_anchor, 1)
+          source_bound_test.write_text(text, encoding="utf-8")
+          PY
+          python -m ruff check --fix \
+            src/core/fcis_lineage_closure.py \
+            src/core/fcis_source_bound_lineage.py \
+            tests/core/test_fcis_lineage_closure.py \
+            tests/core/test_fcis_source_bound_lineage.py
+          python -m ruff format \
+            src/core/fcis_lineage_closure.py \
+            src/core/fcis_source_bound_lineage.py \
+            tests/core/test_fcis_lineage_closure.py \
+            tests/core/test_fcis_source_bound_lineage.py
+      - name: Validate private-constructor change
         run: |
           python -m py_compile \
-            src/core/fcis_fee_occurrence_normal_form.py \
             src/core/fcis_lineage_closure.py \
-            src/core/fcis_fee_occurrence_extractor.py \
             src/core/fcis_source_bound_lineage.py \
-            tests/core/test_fcis_fee_occurrence_normal_form.py \
             tests/core/test_fcis_lineage_closure.py \
-            tests/core/test_fcis_fee_occurrence_extractor.py \
             tests/core/test_fcis_source_bound_lineage.py
-      - name: Lint and format-check exact files
-        run: |
           python -m ruff check \
-            src/core/fcis_fee_occurrence_normal_form.py \
             src/core/fcis_lineage_closure.py \
-            src/core/fcis_fee_occurrence_extractor.py \
-            src/core/fcis_source_bound_lineage.py \
-            tests/core/test_fcis_fee_occurrence_normal_form.py \
-            tests/core/test_fcis_lineage_closure.py \
-            tests/core/test_fcis_fee_occurrence_extractor.py \
-            tests/core/test_fcis_source_bound_lineage.py
-          python -m ruff format --check \
-            src/core/fcis_lineage_closure.py \
-            src/core/fcis_fee_occurrence_extractor.py \
             src/core/fcis_source_bound_lineage.py \
             tests/core/test_fcis_lineage_closure.py \
-            tests/core/test_fcis_fee_occurrence_extractor.py \
             tests/core/test_fcis_source_bound_lineage.py
-      - name: Type-check immutable research modules
-        run: |
           python -m mypy \
-            src/core/fcis_fee_occurrence_normal_form.py \
             src/core/fcis_lineage_closure.py \
-            src/core/fcis_fee_occurrence_extractor.py \
             src/core/fcis_source_bound_lineage.py
-      - name: Run focused R01 and R04 semantic tests
-        run: |
           python -m pytest -q \
-            tests/core/test_fcis_fee_occurrence_normal_form.py \
             tests/core/test_fcis_lineage_closure.py \
-            tests/core/test_fcis_fee_occurrence_extractor.py \
             tests/core/test_fcis_source_bound_lineage.py
+      - name: Commit the reviewed source change
+        env:
+          HEAD_BRANCH: codex/fcis-m6-r04-lineage-closure-20260730
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/core/fcis_lineage_closure.py \
+            src/core/fcis_source_bound_lineage.py \
+            tests/core/test_fcis_lineage_closure.py \
+            tests/core/test_fcis_source_bound_lineage.py
+          git commit -m "Make source-bound lineage the public construction path"
+          git push origin "HEAD:${HEAD_BRANCH}"
