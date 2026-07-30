@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from inspect import signature
 
+import src.core.fcis_lineage_closure as lineage_closure
 from src.core.fcis_commit_reference import (
     ReferenceCommitStatusV1,
     ReferenceCrashPointV1,
@@ -28,6 +29,11 @@ def _certificate() -> FCISSourceBoundLineageCertificateV1:
     result = derive_source_bound_fcis_lineage_v1(**_exact_inputs())
     assert type(result) is FCISSourceBoundLineageCertificateV1
     return result
+
+
+def test_arbitrary_segment_builders_are_not_public_exports() -> None:
+    assert "build_fcis_lineage_closure_from_artifacts_v1" not in lineage_closure.__all__
+    assert "derive_fcis_lineage_closure_v1" not in lineage_closure.__all__
 
 
 def test_source_bound_public_surface_has_no_fee_root_or_segment_argument() -> None:

@@ -5,9 +5,12 @@ bundle, and outbox plan into one closed claim language.  It also binds the
 Segmented Lineage Normal Form semantic and provenance roots through explicit
 receipt and bundle extension roots.
 
-The construction is deliberately unmounted.  The supplied fee occurrence
-segment still carries externally supplied boundary, policy, and source-witness
-roots.  Shape validation and closure confluence do not authenticate those roots.
+The construction is deliberately unmounted. The low-level artifact builders are
+private because they accept an already-derived occurrence segment. The public
+research constructor in ``fcis_source_bound_lineage`` derives that segment from
+admitted pre-state, command, context, and exact settlement replay before candidate
+evaluation. Closure confluence still does not authenticate shell or datastore
+sources.
 """
 
 from __future__ import annotations
@@ -840,7 +843,7 @@ def _build_extensions_v1(
     return receipt_extension, bundle_extension
 
 
-def build_fcis_lineage_closure_from_artifacts_v1(
+def _build_fcis_lineage_closure_from_artifacts_v1(
     *,
     evaluation: object,
     occurrence_segment: object,
@@ -939,7 +942,7 @@ def build_fcis_lineage_closure_from_artifacts_v1(
         )
 
 
-def derive_fcis_lineage_closure_v1(
+def _derive_fcis_lineage_closure_from_segment_v1(
     *,
     state_source: object,
     settlement: object,
@@ -996,7 +999,7 @@ def derive_fcis_lineage_closure_v1(
             FCISLineageClosureCodeV1.INTERNAL_RELATION_FAILURE,
             "bundle",
         )
-    return build_fcis_lineage_closure_from_artifacts_v1(
+    return _build_fcis_lineage_closure_from_artifacts_v1(
         evaluation=evaluation,
         occurrence_segment=occurrence_segment,
         decision=decision,
@@ -1018,8 +1021,6 @@ __all__ = (
     "FCISLineageClosureResultV1",
     "FCISLineageReceiptExtensionV1",
     "FCIS_LINEAGE_CANONICAL_AXIS_ORDER_V1",
-    "build_fcis_lineage_closure_from_artifacts_v1",
     "canonicalize_fcis_lineage_claims_v1",
     "close_fcis_lineage_claim_sets_v1",
-    "derive_fcis_lineage_closure_v1",
 )

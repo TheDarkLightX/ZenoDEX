@@ -30,7 +30,7 @@ from .fcis_lineage_closure import (
     FCISLineageClaimKeyV1,
     FCISLineageClosureCertificateV1,
     FCISLineageClosureRejectV1,
-    build_fcis_lineage_closure_from_artifacts_v1,
+    _build_fcis_lineage_closure_from_artifacts_v1,
 )
 from .fcis_step_evaluation_values import (
     FCISStepEvaluationOkV1,
@@ -206,7 +206,7 @@ def derive_source_bound_fcis_lineage_v1(
             bundle.receipt.public_reason,
         )
 
-    closure = build_fcis_lineage_closure_from_artifacts_v1(
+    closure = _build_fcis_lineage_closure_from_artifacts_v1(
         evaluation=evaluation,
         occurrence_segment=extraction.segment,
         decision=decision,
@@ -299,7 +299,7 @@ def verify_source_bound_fcis_lineage_v1(
             "fresh_material",
         )
 
-    fresh_closure = build_fcis_lineage_closure_from_artifacts_v1(
+    fresh_closure = _build_fcis_lineage_closure_from_artifacts_v1(
         evaluation=fresh_evaluation,
         occurrence_segment=certificate.extraction.segment,
         decision=certificate.closure.decision,

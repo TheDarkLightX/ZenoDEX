@@ -28,10 +28,10 @@ from src.core.fcis_lineage_closure import (
     FCISLineageClosureCertificateV1,
     FCISLineageClosureCodeV1,
     FCISLineageClosureRejectV1,
-    build_fcis_lineage_closure_from_artifacts_v1,
+    _build_fcis_lineage_closure_from_artifacts_v1,
+    _derive_fcis_lineage_closure_from_segment_v1,
     canonicalize_fcis_lineage_claims_v1,
     close_fcis_lineage_claim_sets_v1,
-    derive_fcis_lineage_closure_v1,
 )
 from src.core.fcis_step_evaluation_values import FCISStepEvaluationOkV1
 from src.core.fcis_step_evaluator import evaluate_fcis_step_candidate_v1
@@ -83,7 +83,7 @@ def _derive(
     *,
     axis_order: tuple[FCISLineageAxisV1, ...] = FCIS_LINEAGE_CANONICAL_AXIS_ORDER_V1,
 ) -> FCISLineageClosureCertificateV1 | FCISLineageClosureRejectV1:
-    return derive_fcis_lineage_closure_v1(
+    return _derive_fcis_lineage_closure_from_segment_v1(
         **_exact_inputs(),
         occurrence_segment=segment,
         axis_order=axis_order,
@@ -207,7 +207,7 @@ def test_bundle_must_retain_the_exact_decision_object() -> None:
     assert second_decision == first_decision
     assert second_decision is not first_decision
 
-    result = build_fcis_lineage_closure_from_artifacts_v1(
+    result = _build_fcis_lineage_closure_from_artifacts_v1(
         evaluation=evaluation,
         occurrence_segment=_segment("whole", (867,)),
         decision=second_decision,
@@ -221,7 +221,7 @@ def test_bundle_must_retain_the_exact_decision_object() -> None:
 def test_corrupt_cached_bundle_root_fails_fresh_recomputation() -> None:
     evaluation, decision, bundle = _artifacts()
     object.__setattr__(bundle, "_bundle_root", _root("corrupt-bundle"))
-    result = build_fcis_lineage_closure_from_artifacts_v1(
+    result = _build_fcis_lineage_closure_from_artifacts_v1(
         evaluation=evaluation,
         occurrence_segment=_segment("whole", (867,)),
         decision=decision,
