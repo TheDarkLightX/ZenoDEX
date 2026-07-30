@@ -1,9 +1,9 @@
 # FCIS M5-P4B5A B1B-1 exact-head repair review packet
 
 ```text
-exact implementation target: f56fbb8cdf0c4adde7aad0a3a776ab8663990b7d
+exact implementation target: 5f87f7e3dd14a8a097083ff4da81b2bdd1b75927
 approved Revision 3.4 packet:  1665e788a4c4daf43982262c307d0c04b914d89b
-changed entries:              30
+changed entries:              35
 manifest entries:             78
 packet relation:              documentation-only commit exactly one child of target
 ```
