@@ -1,0 +1,565 @@
+{
+  "acceptance_cases": [
+    {
+      "counterexample": "A subagent implements against a rewritten or stale Revision 3.4 document.",
+      "evidence_commands": [
+        "git rev-parse HEAD",
+        "sha256sum docs/research/FCIS_M5_P4B5A_B1B_COMMITTED_CONFIGURATION_AUTHORITY_REVISION_3_4_20260729.md",
+        "sha256sum -c docs/research/prompts/fcis_m5_p4b5a_b1b_revision34_review_v1/SOURCE_MANIFEST.sha256"
+      ],
+      "evidence_level": "source-pinned deterministic manifest",
+      "given": "The approved Revision 3.4 target, packet commit, document digest, manifest digest, and verdict.",
+      "id": "ATDD-B1B1-001",
+      "invariant": "B1B-1 derives from the independently approved Revision 3.4 source identity.",
+      "nonclaims": [
+        "The manifest does not approve any later implementation head.",
+        "The approval does not authorize a runtime mount."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "The complete approved packet matches before any implementation edit; later regression gates use immutable blobs and the new implementation manifest.",
+      "title": "Approved base packet passes one-time preflight",
+      "when": "The B1B-1 preflight runs in a clean isolated worktree."
+    },
+    {
+      "counterexample": "A documented gate passes only when PYTHONPATH or another hidden environment value is injected.",
+      "evidence_commands": [
+        "python3 -B tools/check_fcis_m5_p4b5a_atdd_contract.py --assigned-id ATDD-B1B1-009",
+        "python3 -m pytest -q tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py"
+      ],
+      "evidence_level": "clean-checkout executable acceptance test",
+      "given": "A clean checkout with the repository's recorded toolchain.",
+      "id": "ATDD-B1B1-002",
+      "invariant": "Every documented focused command is self-contained and reproducible.",
+      "nonclaims": [
+        "A focused command is not a whole-repository CI claim.",
+        "Local success does not establish cross-machine reproducibility."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "The commands pass without undocumented environment setup.",
+      "title": "Documented commands require no hidden environment",
+      "when": "A reviewer copies and runs each command exactly as written."
+    },
+    {
+      "counterexample": "A carrier accepts an unknown, missing, duplicated, or trailing field and produces canonical authority-shaped bytes.",
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_fcis_b1b1_carriers.py -k schema"
+      ],
+      "evidence_level": "closed-admission negative tests",
+      "given": "The three approved untrusted carrier families and their exact field registries.",
+      "id": "ATDD-B1B1-003",
+      "invariant": "Carrier decoding has closed fields, full consumption, and no authority promotion.",
+      "nonclaims": [
+        "Structural admission does not prove semantic authority.",
+        "Canonical bytes do not prove currentness."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "Only exact carrier values are admitted and every malformed projection rejects.",
+      "title": "Carrier schemas are closed and exact",
+      "when": "Positive vectors and unknown, missing, duplicate, and trailing-field mutants are decoded."
+    },
+    {
+      "counterexample": "A Boolean is accepted as an integer, a negative value is admitted, or U256_MAX plus one wraps.",
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_fcis_b1b_authority_values.py -k u256",
+        "cargo test --manifest-path rust-runtime/Cargo.toml -p zenodex-runtime-core fcis_b1b_authority_u256"
+      ],
+      "evidence_level": "boundary-value and cross-language tests",
+      "given": "Every sequence and migration scalar uses the exact U256 domain.",
+      "id": "ATDD-B1B1-004",
+      "invariant": "Python and Rust accept exactly integers from zero through U256_MAX, excluding Boolean aliases.",
+      "nonclaims": [
+        "This carrier test does not implement transition arithmetic.",
+        "It does not authorize sequence advancement."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "Zero, one, U256_MAX minus one, and U256_MAX agree; Boolean, negative, and overflow vectors reject.",
+      "title": "U256 boundaries and Boolean aliases are exact",
+      "when": "The shared boundary vector corpus is executed in Python and Rust."
+    },
+    {
+      "counterexample": "A surrogate, malformed digest, uppercase digest, empty identifier, or over-bound identifier crosses the boundary.",
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_fcis_b1b1_carriers.py -k identifiers"
+      ],
+      "evidence_level": "malformed-input and boundary tests",
+      "given": "Identifiers and digests have frozen scalar, length, Unicode, and lowercase-hex rules.",
+      "id": "ATDD-B1B1-005",
+      "invariant": "Text and digest admission is deterministic, bounded, and language-parity safe.",
+      "nonclaims": [
+        "Identifier syntax does not authenticate a deployment.",
+        "Digest syntax does not establish preimage legitimacy."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "Only bounded Unicode scalar identifiers and exact lowercase digests are admitted.",
+      "title": "Identifier and digest boundaries reject ambiguous values",
+      "when": "Shared Unicode, surrogate, length, case, and digest vectors run."
+    },
+    {
+      "counterexample": "Python and Rust serialize one admitted carrier to different bytes or roots.",
+      "evidence_commands": [
+        "python3 -m tools.build_fcis_b1b_authority_v2_golden --check",
+        "python3 -m pytest -q tests/core/test_fcis_b1b_authority_golden.py",
+        "cargo test --manifest-path rust-runtime/Cargo.toml -p zenodex-runtime-core fcis_b1b_authority_golden"
+      ],
+      "evidence_level": "source-pinned cross-language differential vectors",
+      "given": "One shared golden fixture covers all three carrier families and boundary rejections.",
+      "id": "ATDD-B1B1-006",
+      "invariant": "Python and Rust emit byte-identical canonical envelopes and domain-separated SHA-256 roots.",
+      "nonclaims": [
+        "Parity does not create verifier authority.",
+        "SHA-256 parity does not prove collision resistance."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "Every admitted byte string, root, and rejection class agrees exactly.",
+      "title": "Python and Rust canonical parity is exact",
+      "when": "Both implementations consume the same committed fixture."
+    },
+    {
+      "counterexample": "A carrier with initial sequence 1 or source snapshot 3 is treated as a verified migration authority.",
+      "evidence_commands": [
+        "python3 -m pytest -q tests/core/test_fcis_b1b1_carriers.py -k carrier_only"
+      ],
+      "evidence_level": "authority-boundary negative tests",
+      "given": "Migration manifest carriers may encode untrusted values before later semantic verification.",
+      "id": "ATDD-B1B1-007",
+      "invariant": "No admitted carrier can construct a pin, migration candidate, successor, or current authority.",
+      "nonclaims": [
+        "B1B-1 does not semantically verify migration constants.",
+        "B1B-1 does not execute V1-to-V2 migration."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "The value remains an untrusted carrier and no authority-bearing type is reachable.",
+      "title": "Carrier admission never promotes migration authority",
+      "when": "A structurally valid carrier contains semantically wrong fixed migration values."
+    },
+    {
+      "counterexample": "A public bare-header advance, anchor-to-pin conversion, committed-state type, or publication helper appears in B1B-1.",
+      "evidence_commands": [
+        "python3 -m tools.check_fcis_b1b_revision34_contract",
+        "python3 -m pytest -q tests/tools/test_check_fcis_b1b_revision34_contract.py"
+      ],
+      "evidence_level": "fail-closed structural checker and mutation tests",
+      "given": "The approved B1B-1 allowed and forbidden surfaces.",
+      "id": "ATDD-B1B1-008",
+      "invariant": "B1B-1 contains untrusted carriers and canonical infrastructure only.",
+      "nonclaims": [
+        "Structural isolation does not prove later migration correctness.",
+        "Private naming alone is not an authority boundary."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "The clean implementation passes and every premature-authority mutant is killed.",
+      "title": "Structural checker enforces the unmounted scope",
+      "when": "The allowed implementation and named scope-widening mutants are scanned."
+    },
+    {
+      "counterexample": "An implementation edit changes an authority-sensitive file without a mapped acceptance case or focused gate.",
+      "evidence_commands": [
+        "python3 -B tools/check_fcis_m5_p4b5a_atdd_contract.py --assigned-id ATDD-B1B1-009",
+        "git diff --check"
+      ],
+      "evidence_level": "requirements-to-evidence traceability gate",
+      "given": "Every B1B-1 change is assigned one ATDD case before editing.",
+      "id": "ATDD-B1B1-009",
+      "invariant": "Each changed authority-boundary file has a named acceptance owner and evidence command.",
+      "nonclaims": [
+        "Traceability does not replace code review.",
+        "A mapped test does not prove exhaustive correctness."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "Unmapped changes block the phase gate and mapped changes carry exact evidence.",
+      "title": "Every implementation change is acceptance-owned",
+      "when": "The subagent prepares its final changed-file and acceptance-ID ledger."
+    },
+    {
+      "counterexample": "A runtime module imports the new carrier path, a dispatcher mounts it, or a datastore writes it.",
+      "evidence_commands": [
+        "python3 -m tools.check_fcis_b1b_revision34_contract"
+      ],
+      "evidence_level": "reachability scan and structural negative test",
+      "given": "The B1B-1 checkpoint is explicitly unmounted.",
+      "id": "ATDD-B1B1-010",
+      "invariant": "No runtime, migration, state, publication, or value-moving path consumes the carriers.",
+      "nonclaims": [
+        "Absence of a mount does not prove future integration safety.",
+        "This checkpoint moves no value."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "Only value, schema, admission, codec, fixture, checker, test, and documentation surfaces reference them.",
+      "title": "B1B-1 remains unmounted",
+      "when": "Reachability and forbidden-import checks run on the exact implementation head."
+    },
+    {
+      "counterexample": "Each mutation test copies the full repository and exhausts temporary storage before the semantic assertion runs.",
+      "evidence_commands": [
+        "python3 -m pytest -q tests/tools/test_check_fcis_b1b_revision34_contract.py"
+      ],
+      "evidence_level": "disk-bounded deterministic mutation harness",
+      "given": "The structural checker declares a bounded required-path inventory and each mutant needs only those inputs.",
+      "id": "ATDD-B1B1-011",
+      "invariant": "Mutation evidence copies or synthesizes only declared required paths and remains deterministic under a bounded temporary-space budget.",
+      "nonclaims": [
+        "A bounded harness does not prove the checker is complete.",
+        "The test does not authorize deletion of unrelated temporary directories."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "Every mutant reaches its intended assertion without copying the repository or exhausting disk.",
+      "title": "Structural mutation fixtures are disk bounded",
+      "when": "The clean and mutant contract tests build their isolated fixture trees."
+    },
+    {
+      "counterexample": "A review packet omits a deleted guard, hashes pre-commit bytes, names an ancestor, omits its Cargo closure, or cannot prove the packet commit relation.",
+      "evidence_commands": [
+        "python3 -m pytest -q tests/tools/test_build_fcis_b1b1_implementation_review_packet.py",
+        "python3 -m tools.build_fcis_b1b1_implementation_review_packet --check",
+        "python3 -B tools/check_fcis_m5_p4b5a_atdd_contract.py --assigned-id ATDD-B1B1-009 --diff-base 1665e788a4c4daf43982262c307d0c04b914d89b"
+      ],
+      "evidence_level": "deletion-aware exact-head manifest plus bounded Git bundle and delivery receipt",
+      "given": "A completed B1B-1 implementation commit descended from the approved packet and an explicit changed-file inventory.",
+      "id": "ATDD-B1B1-012",
+      "invariant": "Independent review receives every addition, deletion tombstone, rename, implementation blob, packet sibling, and runnable Rust dependency at the exact committed head while approved architecture blobs remain byte-identical.",
+      "nonclaims": [
+        "The implementation manifest does not approve its own contents.",
+        "An exact-head local packet is not a green CI claim."
+      ],
+      "phase": "B1B-1",
+      "status": "ready",
+      "then": "The packet is source-current, sorted, deletion-aware, bound to one exact implementation commit, and exportable with an independently checkable packet SHA.",
+      "title": "Exact-head implementation packet is independently reproducible",
+      "when": "The packet builder and source-manifest checker run after the implementation commit."
+    },
+    {
+      "counterexample": "A decoded anchor claim or transaction-selected value constructs the deployment verifier.",
+      "evidence_commands": [
+        "python3 -m tools.check_fcis_b1b2_pinned_migration_design --manifest docs/research/prompts/fcis_m5_p4b5a_b1b2_pinned_migration_review_v1/SOURCE_MANIFEST.sha256"
+      ],
+      "evidence_level": "design-only source-continuity obligation",
+      "given": "A later pinned verifier must originate before transaction evaluation.",
+      "id": "ATDD-B1B2-001",
+      "invariant": "Deployment pin authority remains distinct from every decoded carrier.",
+      "nonclaims": [
+        "No pinned verifier is implemented in B1B-1.",
+        "Governance selection of the pin remains out of scope."
+      ],
+      "phase": "B1B-2",
+      "status": "design_only",
+      "then": "The B1B-2 design exposes no public claim-to-pin conversion.",
+      "title": "Pinned verifier origin is independent",
+      "when": "The proposed verifier interface and constructor boundary are falsified."
+    },
+    {
+      "counterexample": "A manifest and its root are changed together after verification while the independent pin is absent.",
+      "evidence_commands": [
+        "python3 -m tools.check_fcis_b1b2_pinned_migration_design --manifest docs/research/prompts/fcis_m5_p4b5a_b1b2_pinned_migration_review_v1/SOURCE_MANIFEST.sha256"
+      ],
+      "evidence_level": "design-only coordinated-mutation obligation",
+      "given": "The manifest root and deployment ID are independently pinned.",
+      "id": "ATDD-B1B2-002",
+      "invariant": "Every migration derivation repeats manifest-root and deployment comparisons against the pin.",
+      "nonclaims": [
+        "No migration derivation is implemented in B1B-1.",
+        "The pin does not establish political authority."
+      ],
+      "phase": "B1B-2",
+      "status": "design_only",
+      "then": "Coordinated carrier mutation cannot preserve the independent provenance relation.",
+      "title": "Manifest identity remains bound to the pin",
+      "when": "The B1B-2 source-bound signature and use sites are reviewed."
+    },
+    {
+      "counterexample": "Migration derives from a bundle-carried or historical V1 state while the store-current state differs.",
+      "evidence_commands": [
+        "python3 -m tools.check_fcis_b1b2_pinned_migration_design --manifest docs/research/prompts/fcis_m5_p4b5a_b1b2_pinned_migration_review_v1/SOURCE_MANIFEST.sha256"
+      ],
+      "evidence_level": "design-only current-state binding obligation",
+      "given": "A migration publication transaction can load the exact current V1 state.",
+      "id": "ATDD-B1B2-003",
+      "invariant": "Migration candidate derivation is a deterministic function of the pin, manifest, exact store-current V1 state, and validated initial configuration.",
+      "nonclaims": [
+        "Datastore linearizability remains a later checkpoint.",
+        "No publication path is authorized."
+      ],
+      "phase": "B1B-2",
+      "status": "design_only",
+      "then": "Bundle-carried state is equality material only and stale states reject.",
+      "title": "Migration uses the store-current exact V1 state",
+      "when": "The B1B-2 relation is checked against currentness and stale-state witnesses."
+    },
+    {
+      "counterexample": "Migration silently changes a retained namespace, carries nonzero legacy dust, or chooses variable 0/1/0 and 4-to-5 constants.",
+      "evidence_commands": [
+        "python3 -m tools.check_fcis_b1b2_pinned_migration_design --manifest docs/research/prompts/fcis_m5_p4b5a_b1b2_pinned_migration_review_v1/SOURCE_MANIFEST.sha256"
+      ],
+      "evidence_level": "design-only exact projection obligation",
+      "given": "The V1 and proposed V2 namespace inventories are explicit.",
+      "id": "ATDD-B1B2-004",
+      "invariant": "All retained namespaces are exact identities, V1 fee dust is zero, V2 fee apportionment is canonically empty, and fixed constants are 0/1/0 and 4-to-5.",
+      "nonclaims": [
+        "The V2 committed-state schema remains a later checkpoint.",
+        "No fee allocator is mounted."
+      ],
+      "phase": "B1B-2",
+      "status": "design_only",
+      "then": "Every namespace and fixed constant has one named equality or rejection.",
+      "title": "Migration projection is explicit and deterministic",
+      "when": "The reference transition design is compared field by field."
+    },
+    {
+      "counterexample": "A durable verified-authority wrapper reaches migration after the independent pinned verifier has left the relation.",
+      "evidence_commands": [
+        "python3 -m tools.check_fcis_b1b2_pinned_migration_design --manifest docs/research/prompts/fcis_m5_p4b5a_b1b2_pinned_migration_review_v1/SOURCE_MANIFEST.sha256"
+      ],
+      "evidence_level": "design-only capability-continuity obligation",
+      "given": "Hostile coordinated mutation remains in scope.",
+      "id": "ATDD-B1B2-005",
+      "invariant": "The pin is an explicit input at each migration-authority use.",
+      "nonclaims": [
+        "A future implementation may choose a different non-transferable capability representation after review.",
+        "B1B-1 creates no authority wrapper."
+      ],
+      "phase": "B1B-2",
+      "status": "design_only",
+      "then": "Self-consistent mutation cannot replace independent provenance.",
+      "title": "Migration authority does not survive without the pin",
+      "when": "The design searches for transferable verified wrappers and mutation gaps."
+    },
+    {
+      "counterexample": "Commit-time migration trusts a prederived candidate or uses a pin argument that is never read.",
+      "evidence_commands": [
+        "python3 -m tools.check_fcis_b1b2_pinned_migration_design --manifest docs/research/prompts/fcis_m5_p4b5a_b1b2_pinned_migration_review_v1/SOURCE_MANIFEST.sha256"
+      ],
+      "evidence_level": "design-only publication rederivation obligation",
+      "given": "Publication later receives the store-current V1 state and the pinned verifier.",
+      "id": "ATDD-B1B2-006",
+      "invariant": "Commit-time publication rederives the complete migration candidate with the pin and store-current state.",
+      "nonclaims": [
+        "B1B-2 does not authorize a datastore mount.",
+        "Crash recovery remains a later checkpoint."
+      ],
+      "phase": "B1B-2",
+      "status": "design_only",
+      "then": "A pin-ignored or bundle-state mutant is named and must fail before later promotion.",
+      "title": "Migration publication must rederive with the pin",
+      "when": "The later publication contract is traced from each independent source."
+    },
+    {
+      "counterexample": "A source-binding comparison is deleted, a second migration route is added, or V2-to-V1 downgrade becomes representable.",
+      "evidence_commands": [
+        "python3 -m tools.check_fcis_b1b2_pinned_migration_design --manifest docs/research/prompts/fcis_m5_p4b5a_b1b2_pinned_migration_review_v1/SOURCE_MANIFEST.sha256"
+      ],
+      "evidence_level": "design-only mutation inventory",
+      "given": "Every B1B-2 authority comparison has a named negative mutant.",
+      "id": "ATDD-B1B2-007",
+      "invariant": "The later implementation cannot omit a load-bearing source relation without killing evidence.",
+      "nonclaims": [
+        "Named mutants are planned evidence until implemented.",
+        "A mutation inventory is not a proof."
+      ],
+      "phase": "B1B-2",
+      "status": "design_only",
+      "then": "The design packet maps each authority fact to its independent source and killing test.",
+      "title": "B1B-2 has a permanent falsification inventory",
+      "when": "A reviewer deletes or substitutes each proposed source comparison."
+    },
+    {
+      "counterexample": "A subagent begins B1B-2 implementation without a new committed ATDD contract revision, exact B1B-1 implementation approval identity, exact B1B-2 design approval identity, or explicit user implementation authority.",
+      "evidence_commands": [
+        "python3 -m tools.check_fcis_b1b2_pinned_migration_design --manifest docs/research/prompts/fcis_m5_p4b5a_b1b2_pinned_migration_review_v1/SOURCE_MANIFEST.sha256"
+      ],
+      "evidence_level": "deterministic promotion gate",
+      "given": "A new committed ATDD contract revision, exact B1B-1 implementation approval identity, exact B1B-2 design approval identity, and explicit user implementation authority are four independent gates.",
+      "id": "ATDD-B1B2-008",
+      "invariant": "B1B-2 execution remains unauthorized until one new committed ATDD contract revision records the exact B1B-1 and B1B-2 approval identities and explicit user implementation authority.",
+      "nonclaims": [
+        "A passing B1B-1 suite does not approve B1B-2.",
+        "Subagent consensus does not replace independent review."
+      ],
+      "phase": "B1B-2",
+      "status": "design_only",
+      "then": "The checker rejects B1B-2 execution unless all four source-pinned promotion conditions hold.",
+      "title": "B1B-2 execution has a closed promotion gate",
+      "when": "The phase matrix is checked before subagent assignment."
+    }
+  ],
+  "contract_version": "1.0.0",
+  "normative_authority": {
+    "document_path": "docs/research/FCIS_M5_P4B5A_B1B_COMMITTED_CONFIGURATION_AUTHORITY_REVISION_3_4_20260729.md",
+    "document_sha256": "cae6562b5e0cade2a03827a2a8f591561317b6cf684de4d22d726c25917108c5",
+    "packet_commit": "1665e788a4c4daf43982262c307d0c04b914d89b",
+    "packet_manifest_path": "docs/research/prompts/fcis_m5_p4b5a_b1b_revision34_review_v1/SOURCE_MANIFEST.sha256",
+    "packet_manifest_sha256": "46c721c8dcc2082e8ea08e6cfb664e375cab2ff45b2dbf79b570093423017b9a",
+    "target_commit": "a8b9d191b91a3258e3d7857784bbd6067a0463e1",
+    "verdict": "APPROVE_B1B1_REVISION_3_4_UNMOUNTED",
+    "carrier_definition_path": "docs/research/FCIS_M5_P4B5A_B1B_COMMITTED_CONFIGURATION_AUTHORITY_REVISION_3_1_20260729.md",
+    "carrier_definition_sha256": "a71752f138dc2de165dff78bd526d3ab734d900e6bbf0394832f6cb8b7a33226"
+  },
+  "phase_order": [
+    "B1B-1",
+    "B1B-2"
+  ],
+  "phases": {
+    "B1B-1": {
+      "authorized_scope": [
+        "FCISAuthorityHeaderV2",
+        "DeploymentBootstrapAnchorClaimV2",
+        "V1ToV2MigrationManifestV2",
+        "closed schemas and field registries",
+        "canonical Python codecs and roots",
+        "canonical Rust codecs and roots",
+        "shared positive and negative vectors",
+        "limited structural-checker coverage"
+      ],
+      "execution_authorized": true,
+      "forbidden_scope": [
+        "ConfigurationUpdateCommandClaimV2",
+        "AuthenticatedConfigurationUpdateCommandV2",
+        "PinnedDeploymentBootstrapVerifierV2",
+        "V1ToV2MigrationCandidateV2",
+        "FCISCommittedStateV2",
+        "StateBoundFeeDistributionConfigurationV2",
+        "TransitionCauseV2",
+        "V2EvaluationCandidate",
+        "V2Decision",
+        "V2CommitBundle",
+        "successor-producing transition",
+        "configuration update",
+        "receipt",
+        "outbox plan",
+        "proof input",
+        "publication",
+        "runtime mount"
+      ],
+      "promotion_gate": "independent exact-head implementation review",
+      "status": "authorized_unmounted_implementation"
+    },
+    "B1B-2": {
+      "authorized_scope": [
+        "pinned verifier interface design",
+        "source-bound deterministic V1-to-V2 migration design",
+        "explicit namespace projection",
+        "permanent mutation plan"
+      ],
+      "execution_authorized": false,
+      "forbidden_scope": [
+        "implementation",
+        "pinned verifier construction",
+        "migration successor",
+        "committed V2 state",
+        "publication",
+        "runtime mount"
+      ],
+      "promotion_gate": "new committed ATDD contract revision + exact B1B-1 implementation approval identity + exact B1B-2 design approval identity + explicit user implementation authority",
+      "status": "design_only_blocked_pending_b1b1_exact_head_approval"
+    }
+  },
+  "probity": {
+    "authority": false,
+    "install_authorized": false,
+    "mode": "optional_isolated_pilot",
+    "normative_gate": "repository ATDD matrix, deterministic checker, and executable tests"
+  },
+  "schema": "zenodex/fcis-m5-p4b5a-atdd-contract/v1",
+  "subagent_prompts": {
+    "b1b1_implementation": "docs/research/prompts/fcis_m5_p4b5a_atdd_subagents_v1/B1B1_IMPLEMENTATION_PROMPT.md",
+    "b1b1_review": "docs/research/prompts/fcis_m5_p4b5a_atdd_subagents_v1/B1B1_REVIEW_PROMPT.md",
+    "b1b2_design": "docs/research/prompts/fcis_m5_p4b5a_atdd_subagents_v1/B1B2_DESIGN_PROMPT.md",
+    "b1b2_review": "docs/research/prompts/fcis_m5_p4b5a_atdd_subagents_v1/B1B2_REVIEW_PROMPT.md"
+  },
+  "b1b2_design_gate": {
+    "approval_verdict": "APPROVE_B1B2_SOURCE_BOUND_MIGRATION_DESIGN_UNMOUNTED",
+    "design_document_path": "docs/research/FCIS_M5_P4B5A_B1B2_PINNED_MIGRATION_REFERENCE_DESIGN_20260729.md",
+    "design_manifest_path": "docs/research/prompts/fcis_m5_p4b5a_b1b2_pinned_migration_review_v1/SOURCE_MANIFEST.sha256",
+    "implementation_requires": [
+      "new committed ATDD contract revision",
+      "exact B1B-1 implementation approval identity",
+      "exact B1B-2 design approval identity",
+      "explicit user implementation authority"
+    ],
+    "review_prompt_path": "docs/research/prompts/fcis_m5_p4b5a_atdd_subagents_v1/B1B2_REVIEW_PROMPT.md",
+    "status": "planned_review_only",
+    "design_packet": {
+      "builder_command": "python3 -m tools.build_fcis_b1b2_pinned_migration_review_packet --check",
+      "builder_path": "tools/build_fcis_b1b2_pinned_migration_review_packet.py",
+      "inventory_rule": "all committed paths changed from the exact independently approved B1B-1 packet commit through the design target, plus immutable authority and exact B1B-1 approval sources",
+      "manifest_self_hash": "excluded",
+      "packet_relation": "documentation-only packet commit exactly one child of design target"
+    }
+  },
+  "case_lifecycle": {
+    "design_obligation": [
+      "ATDD-B1B2-001",
+      "ATDD-B1B2-002",
+      "ATDD-B1B2-003",
+      "ATDD-B1B2-004",
+      "ATDD-B1B2-005",
+      "ATDD-B1B2-006",
+      "ATDD-B1B2-007",
+      "ATDD-B1B2-008"
+    ],
+    "implementation": [
+      "ATDD-B1B1-002",
+      "ATDD-B1B1-003",
+      "ATDD-B1B1-004",
+      "ATDD-B1B1-005",
+      "ATDD-B1B1-006",
+      "ATDD-B1B1-007",
+      "ATDD-B1B1-008",
+      "ATDD-B1B1-011"
+    ],
+    "live_evidence": [
+      "ATDD-B1B1-001",
+      "ATDD-B1B1-009"
+    ],
+    "mutation_kill_required": [
+      "ATDD-B1B1-003",
+      "ATDD-B1B1-004",
+      "ATDD-B1B1-005",
+      "ATDD-B1B1-006",
+      "ATDD-B1B1-007"
+    ],
+    "phase_gate": [
+      "ATDD-B1B1-009",
+      "ATDD-B1B1-010",
+      "ATDD-B1B1-012"
+    ],
+    "planned_evidence": [
+      "ATDD-B1B1-002",
+      "ATDD-B1B1-003",
+      "ATDD-B1B1-004",
+      "ATDD-B1B1-005",
+      "ATDD-B1B1-006",
+      "ATDD-B1B1-007",
+      "ATDD-B1B1-008",
+      "ATDD-B1B1-010",
+      "ATDD-B1B1-011",
+      "ATDD-B1B1-012",
+      "ATDD-B1B2-001",
+      "ATDD-B1B2-002",
+      "ATDD-B1B2-003",
+      "ATDD-B1B2-004",
+      "ATDD-B1B2-005",
+      "ATDD-B1B2-006",
+      "ATDD-B1B2-007",
+      "ATDD-B1B2-008"
+    ],
+    "precondition": [
+      "ATDD-B1B1-001"
+    ],
+    "red_required": [
+      "ATDD-B1B1-002",
+      "ATDD-B1B1-008",
+      "ATDD-B1B1-011"
+    ]
+  },
+  "path_ownership_registry": "tools/fcis_m5_p4b5a_atdd_policy.py#PATH_OWNERS"
+}

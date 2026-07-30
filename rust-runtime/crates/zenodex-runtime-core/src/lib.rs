@@ -27,6 +27,7 @@ pub mod burn_receipts;
 pub mod canonical;
 pub mod cpmm_swap;
 pub mod error;
+pub mod fcis_b1b_authority;
 pub mod fcis_fee_apportionment;
 pub mod fcis_fee_distribution_configuration;
 pub mod fee_router;

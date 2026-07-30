@@ -1,0 +1,149 @@
+name: FCIS B1B-1 Unmounted Carriers
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/fcis-b1b-revision34.yml"
+      - "docs/research/FCIS_M5_P4B5A_ATDD_EXECUTION_CONTRACT_20260729.md"
+      - "docs/research/FCIS_M5_P4B5A_B1B*"
+      - "docs/research/prompts/fcis_m5_p4b5a_atdd_subagents_v1/**"
+      - "docs/research/prompts/fcis_m5_p4b5a_b1b_revision34_review_v1/**"
+      - "docs/research/prompts/fcis_m5_p4b5a_b1b1_implementation_review_v1/**"
+      - "src/core/fcis_b1b_authority_*.py"
+      - "src/state/canonical.py"
+      - "rust-runtime/crates/zenodex-runtime-core/src/fcis_b1b_authority.rs"
+      - "rust-runtime/crates/zenodex-runtime-core/src/canonical.rs"
+      - "rust-runtime/crates/zenodex-runtime-core/Cargo.toml"
+      - "rust-runtime/Cargo.toml"
+      - "rust-runtime/Cargo.lock"
+      - "rust-runtime/rust-toolchain.toml"
+      - "rust-runtime/crates/zenodex-runtime-core/src/lib.rs"
+      - "tests/core/test_fcis_b1b_authority_*.py"
+      - "tests/core/test_fcis_b1b1_carriers.py"
+      - "tests/fixtures/fcis_b1b_authority_v2_golden.json"
+      - "tests/tools/test_check_fcis_b1b_revision34_contract.py"
+      - "tests/tools/test_build_fcis_b1b1_implementation_review_packet.py"
+      - "tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py"
+      - "tools/build_fcis_b1b_authority_v2_golden.py"
+      - "tools/build_fcis_b1b1_implementation_review_packet.py"
+      - "tools/check_fcis_b1b_revision34_contract.py"
+      - "tools/check_fcis_m5_p4b5a_atdd_contract.py"
+      - "tools/fcis_m5_p4b5a_atdd_policy.py"
+      - "tools/fcis_m5_p4b5a_atdd_validation.py"
+      - "pyproject.toml"
+      - "requirements-core.lock.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-carriers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact requested head
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install hash-locked runtime and pinned test tools
+        run: |
+          python -m pip install --disable-pip-version-check --require-hashes \
+            -r requirements-core.lock.txt
+          python -m pip install --disable-pip-version-check \
+            pytest==9.0.3 ruff==0.15.13
+      - name: Verify approved architecture and ATDD ownership
+        run: |
+          sha256sum \
+            docs/research/FCIS_M5_P4B5A_B1B_COMMITTED_CONFIGURATION_AUTHORITY_REVISION_3_4_20260729.md
+          python -m tools.check_fcis_m5_p4b5a_atdd_contract \
+            --assigned-id ATDD-B1B1-009 \
+            --diff-base 1665e788a4c4daf43982262c307d0c04b914d89b
+      - name: Check source-current vectors and unmounted scope
+        run: |
+          python -m tools.build_fcis_b1b_authority_v2_golden --check
+          python -m tools.check_fcis_b1b_revision34_contract --json
+      - name: Run carrier, parity, and mutation tests
+        run: |
+          python -m pytest -q \
+            tests/core/test_fcis_b1b_authority_values.py \
+            tests/core/test_fcis_b1b_authority_admission.py \
+            tests/core/test_fcis_b1b_authority_resource_bounds.py \
+            tests/core/test_fcis_b1b_authority_golden.py \
+            tests/core/test_fcis_b1b1_carriers.py \
+            tests/tools/test_check_fcis_b1b_revision34_contract.py \
+            tests/tools/test_build_fcis_b1b1_implementation_review_packet.py \
+            tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py
+          python -m pytest -q \
+            tests/core/test_fcis_fee_distribution_configuration.py \
+            tests/core/test_fcis_fee_distribution_configuration_admission.py \
+            tests/core/test_fcis_fee_distribution_configuration_golden.py
+          python -m pytest -q \
+            tests/tools/test_check_fcis_authority_snapshot_contract.py \
+            -k p4b5a
+      - name: Lint focused Python surface
+        run: |
+          python -m ruff check \
+            src/core/fcis_b1b_authority_values.py \
+            src/core/fcis_b1b_authority_schema.py \
+            src/core/fcis_b1b_authority_admission.py \
+            src/core/fcis_b1b_authority_codec.py \
+            tests/core/test_fcis_b1b_authority_values.py \
+            tests/core/test_fcis_b1b_authority_admission.py \
+            tests/core/test_fcis_b1b_authority_resource_bounds.py \
+            tests/core/test_fcis_b1b_authority_golden.py \
+            tests/core/test_fcis_b1b1_carriers.py \
+            tests/tools/test_check_fcis_b1b_revision34_contract.py \
+            tests/tools/test_build_fcis_b1b1_implementation_review_packet.py \
+            tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py \
+            tools/build_fcis_b1b_authority_v2_golden.py \
+            tools/build_fcis_b1b1_implementation_review_packet.py \
+            tools/check_fcis_b1b_revision34_contract.py \
+            tools/check_fcis_m5_p4b5a_atdd_contract.py \
+            tools/fcis_m5_p4b5a_atdd_policy.py \
+            tools/fcis_m5_p4b5a_atdd_validation.py
+      - name: Verify exact packet topology and exported delivery
+        run: |
+          python -m tools.build_fcis_b1b1_implementation_review_packet --check
+          python -m tools.build_fcis_b1b1_implementation_review_packet \
+            --export-delivery "${RUNNER_TEMP}/fcis-b1b1-delivery"
+          python -m tools.build_fcis_b1b1_implementation_review_packet \
+            --check-delivery "${RUNNER_TEMP}/fcis-b1b1-delivery"
+      - name: Upload verified exact-head delivery
+        uses: actions/upload-artifact@v4
+        with:
+          name: fcis-b1b1-exact-head-delivery
+          path: ${{ runner.temp }}/fcis-b1b1-delivery
+          if-no-files-found: error
+
+  rust-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path rust-runtime/Cargo.toml -p zenodex-runtime-core -- --check
+      - name: Run all B1B carrier parity and boundary tests
+        run: |
+          cargo test --locked \
+            --manifest-path rust-runtime/Cargo.toml \
+            -p zenodex-runtime-core \
+            fcis_b1b_authority \
+            -- --nocapture
+      - name: Lint the Rust carrier module
+        run: |
+          cargo clippy --locked \
+            --manifest-path rust-runtime/Cargo.toml \
+            -p zenodex-runtime-core \
+            --lib \
+            -- -D warnings
