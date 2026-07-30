@@ -20,6 +20,7 @@ from src.core.fcis_fee_occurrence_normal_form import (
     canonicalize_fee_occurrence_segment_v1,
 )
 from src.core.fcis_lineage_closure import (
+    FCIS_LINEAGE_CANONICAL_AXIS_ORDER_V1,
     FCISLineageAxisV1,
     FCISLineageClaimKeyV1,
     FCISLineageClaimSetV1,
@@ -27,7 +28,6 @@ from src.core.fcis_lineage_closure import (
     FCISLineageClosureCertificateV1,
     FCISLineageClosureCodeV1,
     FCISLineageClosureRejectV1,
-    FCIS_LINEAGE_CANONICAL_AXIS_ORDER_V1,
     build_fcis_lineage_closure_from_artifacts_v1,
     canonicalize_fcis_lineage_claims_v1,
     close_fcis_lineage_claim_sets_v1,
@@ -116,18 +116,22 @@ def test_all_six_axis_orders_close_to_one_concrete_certificate() -> None:
         assert type(result) is FCISLineageClosureCertificateV1
         roots.add(result.certificate_root)
         closed_claims.add(result.closed_claims)
-        assert result.closed_claims.value_for(
-            FCISLineageClaimKeyV1.EVALUATION_CERTIFICATE_ROOT
-        ) is not None
-        assert result.closed_claims.value_for(
-            FCISLineageClaimKeyV1.RECEIPT_CERTIFICATE_ROOT
-        ) == result.receipt_extension.extension_root
-        assert result.closed_claims.value_for(
-            FCISLineageClaimKeyV1.BUNDLE_CERTIFICATE_ROOT
-        ) == result.bundle_extension.bundle_extension_root
-        assert result.closed_claims.value_for(
-            FCISLineageClaimKeyV1.OUTBOX_CERTIFICATE_ROOT
-        ) == result.bundle_extension.outbox_extension_root
+        assert (
+            result.closed_claims.value_for(FCISLineageClaimKeyV1.EVALUATION_CERTIFICATE_ROOT)
+            is not None
+        )
+        assert (
+            result.closed_claims.value_for(FCISLineageClaimKeyV1.RECEIPT_CERTIFICATE_ROOT)
+            == result.receipt_extension.extension_root
+        )
+        assert (
+            result.closed_claims.value_for(FCISLineageClaimKeyV1.BUNDLE_CERTIFICATE_ROOT)
+            == result.bundle_extension.bundle_extension_root
+        )
+        assert (
+            result.closed_claims.value_for(FCISLineageClaimKeyV1.OUTBOX_CERTIFICATE_ROOT)
+            == result.bundle_extension.outbox_extension_root
+        )
 
     assert len(roots) == 1
     assert len(closed_claims) == 1
@@ -143,8 +147,7 @@ def test_same_semantics_different_provenance_conflicts_across_faces() -> None:
         == split.occurrence_segment.semantic_stream_root
     )
     assert (
-        whole.occurrence_segment.lineage_stream_root
-        != split.occurrence_segment.lineage_stream_root
+        whole.occurrence_segment.lineage_stream_root != split.occurrence_segment.lineage_stream_root
     )
 
     crossed = close_fcis_lineage_claim_sets_v1(
@@ -188,9 +191,7 @@ def test_semantic_axis_alone_cannot_mint_receipt_or_bundle_authority() -> None:
 
 def test_boundary_and_policy_substitution_change_the_terminal_certificate() -> None:
     base = _derive(_segment("same", (867,)))
-    changed_boundary = _derive(
-        _segment("same", (867,), boundary_label="foreign-boundary")
-    )
+    changed_boundary = _derive(_segment("same", (867,), boundary_label="foreign-boundary"))
     changed_policy = _derive(_segment("same", (867,), policy_label="foreign-policy"))
     assert type(base) is FCISLineageClosureCertificateV1
     assert type(changed_boundary) is FCISLineageClosureCertificateV1

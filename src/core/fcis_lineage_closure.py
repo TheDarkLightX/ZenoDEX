@@ -24,8 +24,8 @@ from .fcis_commit_bundle_derivation import (
     recompute_outbox_plan_v1,
 )
 from .fcis_decision_derivation import (
-    AcceptV1,
     FCIS_SPOT_TRANSITION_BUDGET_V1,
+    AcceptV1,
     RejectV1,
     _claim_root_v1,
     _derive_plan_v1,
@@ -204,8 +204,7 @@ class FCISLineageClaimSetV1:
             payload.extend(_frame_v1(claim.key.value.encode("utf-8")))
             payload.extend(_raw32_v1(claim.value_digest))
         return sha256_hex(
-            domain_sep_bytes("zenodex/fcis/lineage-closure-claim-set", version=1)
-            + bytes(payload)
+            domain_sep_bytes("zenodex/fcis/lineage-closure-claim-set", version=1) + bytes(payload)
         )
 
 
@@ -326,12 +325,8 @@ class FCISLineageClosureRejectV1:
             raise TypeError("lineage closure rejection path must be an exact string tuple")
 
 
-FCISLineageClosureResultV1: TypeAlias = (
-    FCISLineageClosureCertificateV1 | FCISLineageClosureRejectV1
-)
-FCISLineageClaimClosureResultV1: TypeAlias = (
-    FCISLineageClaimSetV1 | FCISLineageClosureRejectV1
-)
+FCISLineageClosureResultV1: TypeAlias = FCISLineageClosureCertificateV1 | FCISLineageClosureRejectV1
+FCISLineageClaimClosureResultV1: TypeAlias = FCISLineageClaimSetV1 | FCISLineageClosureRejectV1
 
 
 def _reject_v1(
@@ -356,7 +351,7 @@ def canonicalize_fcis_lineage_claims_v1(
     for claim_object in cast(tuple[object, ...], claims):
         if type(claim_object) is not FCISLineageClaimV1:
             raise TypeError("lineage claim source item must be exact")
-        claim = cast(FCISLineageClaimV1, claim_object)
+        claim = claim_object
         claim.__post_init__()
         previous = values.get(claim.key)
         if previous is not None and previous != claim.value_digest:
@@ -484,8 +479,7 @@ def _derive_rule_value_v1(
         payload.extend(_frame_v1(dependency.value.encode("utf-8")))
         payload.extend(_raw32_v1(values[dependency]))
     return sha256_hex(
-        domain_sep_bytes("zenodex/fcis/lineage-closure-derived-claim", version=1)
-        + bytes(payload)
+        domain_sep_bytes("zenodex/fcis/lineage-closure-derived-claim", version=1) + bytes(payload)
     )
 
 
@@ -787,9 +781,7 @@ def _build_extensions_v1(
     bundle: CommitBundleV1,
 ) -> tuple[FCISLineageReceiptExtensionV1, FCISLineageBundleExtensionV1]:
     semantic_closed = _close_claims_v1(semantic_claims)
-    evaluation_root = semantic_closed.value_for(
-        FCISLineageClaimKeyV1.EVALUATION_CERTIFICATE_ROOT
-    )
+    evaluation_root = semantic_closed.value_for(FCISLineageClaimKeyV1.EVALUATION_CERTIFICATE_ROOT)
     if evaluation_root is None:
         raise ValueError("semantic claims did not derive an evaluation certificate")
     receipt_root = acceptance_receipt_root_v1(decision)
@@ -833,12 +825,8 @@ def _build_extensions_v1(
         )
     )
     bundle_closed = _close_claims_v1(bundle_seed)
-    bundle_extension_root = bundle_closed.value_for(
-        FCISLineageClaimKeyV1.BUNDLE_CERTIFICATE_ROOT
-    )
-    outbox_extension_root = bundle_closed.value_for(
-        FCISLineageClaimKeyV1.OUTBOX_CERTIFICATE_ROOT
-    )
+    bundle_extension_root = bundle_closed.value_for(FCISLineageClaimKeyV1.BUNDLE_CERTIFICATE_ROOT)
+    outbox_extension_root = bundle_closed.value_for(FCISLineageClaimKeyV1.OUTBOX_CERTIFICATE_ROOT)
     if bundle_extension_root is None or outbox_extension_root is None:
         raise ValueError("bundle inputs did not derive complete durability extensions")
     bundle_extension = FCISLineageBundleExtensionV1(
