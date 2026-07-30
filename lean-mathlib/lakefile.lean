@@ -8,5 +8,9 @@ require mathlib from "../external/mathlib4"
 
 @[default_target]
 lean_lib Proofs {
-  roots := #[`Proofs, `Proofs.FCISFeeOccurrenceSemantics]
+  roots := #[
+    `Proofs,
+    `Proofs.FCISFeeOccurrenceSemantics,
+    `Proofs.FCISTreeChordGateAuthority
+  ]
 }
