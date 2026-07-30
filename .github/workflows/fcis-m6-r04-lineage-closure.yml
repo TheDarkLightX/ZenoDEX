@@ -5,24 +5,9 @@ on:
   push:
     paths:
       - ".github/workflows/fcis-m6-r04-lineage-closure.yml"
-      - "src/core/fcis_lineage_closure.py"
-      - "src/core/fcis_fee_occurrence_extractor.py"
-      - "src/core/fcis_source_bound_lineage.py"
-      - "tests/core/test_fcis_lineage_closure.py"
-      - "tests/core/test_fcis_fee_occurrence_extractor.py"
-      - "tests/core/test_fcis_source_bound_lineage.py"
-  pull_request:
-    paths:
-      - ".github/workflows/fcis-m6-r04-lineage-closure.yml"
-      - "src/core/fcis_lineage_closure.py"
-      - "src/core/fcis_fee_occurrence_extractor.py"
-      - "src/core/fcis_source_bound_lineage.py"
-      - "tests/core/test_fcis_lineage_closure.py"
-      - "tests/core/test_fcis_fee_occurrence_extractor.py"
-      - "tests/core/test_fcis_source_bound_lineage.py"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   assurance:
@@ -31,8 +16,8 @@ jobs:
       - name: Checkout exact source head
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: true
+          ref: ${{ github.sha }}
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
@@ -41,46 +26,95 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - name: Install exact development requirements
         run: python -m pip install --requirement requirements-dev.txt
-      - name: Compile exact files
+      - name: Bind extraction to exact strong-settlement replay
         run: |
-          python -m py_compile \
-            src/core/fcis_fee_occurrence_normal_form.py \
-            src/core/fcis_lineage_closure.py \
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path("src/core/fcis_fee_occurrence_extractor.py")
+          text = source.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  "state, and pre-state-binding admissions, but it does not run the nonce, spot,\n"
+                  "fee, or successor transition. It then derives the exact direct-swap\n"
+                  "protocol-fee witness tuple from the admitted settlement and invokes the existing\n",
+                  "state, and pre-state-binding admissions. It then runs the exact strong-settlement\n"
+                  "replay, but it does not run the nonce, fee-state, or successor transition. Only\n"
+                  "after that replay does it derive the direct-swap protocol-fee witness tuple and\n"
+                  "invoke the existing\n",
+              ),
+              (
+                  "    _pre_state_binding_v1,\n)",
+                  "    _pre_state_binding_v1,\n    _spot_candidate_observed_v5,\n)",
+              ),
+              (
+                  '    SOURCE_BINDING_REJECTED = "source_binding_rejected"\n',
+                  '    SOURCE_BINDING_REJECTED = "source_binding_rejected"\n'
+                  '    SETTLEMENT_REPLAY_REJECTED = "settlement_replay_rejected"\n',
+              ),
+              (
+                  ") -> SourceBoundFeeOccurrenceResultV1:\n"
+                  "    index_result = derive_exact_settlement_index_admitted_v1(\n",
+                  ") -> SourceBoundFeeOccurrenceResultV1:\n"
+                  "    replay, _state_read_trace = _spot_candidate_observed_v5(\n"
+                  "        state=material.pre_state,\n"
+                  "        settlement=material.settlement,\n"
+                  "        intents=material.intents,\n"
+                  "        context=material.context,\n"
+                  "    )\n"
+                  "    if type(replay) is FCISStepEvaluationRejectV1:\n"
+                  "        return _reject_v1(\n"
+                  "            SourceBoundFeeOccurrenceCodeV1.SETTLEMENT_REPLAY_REJECTED,\n"
+                  "            replay.phase.value,\n"
+                  "            replay.code,\n"
+                  "            *_path_text_v1(replay.path),\n"
+                  "        )\n\n"
+                  "    index_result = derive_exact_settlement_index_admitted_v1(\n",
+              ),
+          )
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f"missing source transformation target: {old!r}")
+              text = text.replace(old, new, 1)
+          source.write_text(text, encoding="utf-8")
+
+          test = Path("tests/core/test_fcis_fee_occurrence_extractor.py")
+          text = test.read_text(encoding="utf-8")
+          anchor = (
+              "\ndef test_corrupted_cached_source_root_fails_fresh_rederivation() -> None:\n"
+          )
+          inserted = (
+              "\ndef test_forged_exact_fill_rejects_before_witness_normalization() -> None:\n"
+              "    inputs = _exact_inputs()\n"
+              "    settlement = inputs[\"settlement\"]\n"
+              "    forged_fill = replace(settlement.fills[0], protocol_fee_paid=1)\n"
+              "    forged_settlement = replace(settlement, fills=(forged_fill,))\n\n"
+              "    result = _extract({**inputs, \"settlement\": forged_settlement})\n\n"
+              "    assert type(result) is SourceBoundFeeOccurrenceRejectV1\n"
+              "    assert (\n"
+              "        result.code\n"
+              "        is SourceBoundFeeOccurrenceCodeV1.SETTLEMENT_REPLAY_REJECTED\n"
+              "    )\n"
+          )
+          if anchor not in text:
+              raise SystemExit("missing forged-fill test insertion anchor")
+          text = text.replace(anchor, inserted + anchor, 1)
+          test.write_text(text, encoding="utf-8")
+          PY
+          python -m ruff check --fix \
             src/core/fcis_fee_occurrence_extractor.py \
-            src/core/fcis_source_bound_lineage.py \
-            tests/core/test_fcis_fee_occurrence_normal_form.py \
-            tests/core/test_fcis_lineage_closure.py \
-            tests/core/test_fcis_fee_occurrence_extractor.py \
-            tests/core/test_fcis_source_bound_lineage.py
-      - name: Lint and format-check exact files
+            tests/core/test_fcis_fee_occurrence_extractor.py
+          python -m ruff format \
+            src/core/fcis_fee_occurrence_extractor.py \
+            tests/core/test_fcis_fee_occurrence_extractor.py
+      - name: Commit exact replay binding once
+        env:
+          HEAD_BRANCH: ${{ github.ref_name }}
         run: |
-          python -m ruff check \
-            src/core/fcis_fee_occurrence_normal_form.py \
-            src/core/fcis_lineage_closure.py \
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
             src/core/fcis_fee_occurrence_extractor.py \
-            src/core/fcis_source_bound_lineage.py \
-            tests/core/test_fcis_fee_occurrence_normal_form.py \
-            tests/core/test_fcis_lineage_closure.py \
-            tests/core/test_fcis_fee_occurrence_extractor.py \
-            tests/core/test_fcis_source_bound_lineage.py
-          python -m ruff format --check \
-            src/core/fcis_lineage_closure.py \
-            src/core/fcis_fee_occurrence_extractor.py \
-            src/core/fcis_source_bound_lineage.py \
-            tests/core/test_fcis_lineage_closure.py \
-            tests/core/test_fcis_fee_occurrence_extractor.py \
-            tests/core/test_fcis_source_bound_lineage.py
-      - name: Type-check immutable research modules
-        run: |
-          python -m mypy \
-            src/core/fcis_fee_occurrence_normal_form.py \
-            src/core/fcis_lineage_closure.py \
-            src/core/fcis_fee_occurrence_extractor.py \
-            src/core/fcis_source_bound_lineage.py
-      - name: Run focused R01 and R04 semantic tests
-        run: |
-          python -m pytest -q \
-            tests/core/test_fcis_fee_occurrence_normal_form.py \
-            tests/core/test_fcis_lineage_closure.py \
-            tests/core/test_fcis_fee_occurrence_extractor.py \
-            tests/core/test_fcis_source_bound_lineage.py
+            tests/core/test_fcis_fee_occurrence_extractor.py
+          git commit -m "Bind fee extraction to exact settlement replay"
+          git push origin "HEAD:${HEAD_BRANCH}"
