@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install pytest
+      - run: python -m pip install pytest typing_extensions
       - name: Run focused certificate tests
         run: python -m pytest -q tests/core/test_fcis_tree_chord_gate_authority.py
       - name: Replay bounded search
