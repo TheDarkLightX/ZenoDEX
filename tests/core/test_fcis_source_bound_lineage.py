@@ -134,9 +134,7 @@ def test_crossed_outbox_is_rejected_by_the_actual_commit_port() -> None:
     foreign = _event_bundle()
     bundle = certificate.closure.bundle
     object.__setattr__(bundle, "outbox_plan", foreign.outbox_plan)
-    store = _initial_reference_commit_store_v1(
-        certificate.extraction.evaluation.material.pre_state
-    )
+    store = _initial_reference_commit_store_v1(certificate.extraction.evaluation.material.pre_state)
 
     result = reference_commit_v1(store, bundle)
 

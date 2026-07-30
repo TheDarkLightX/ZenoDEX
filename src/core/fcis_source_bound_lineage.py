@@ -272,9 +272,7 @@ def verify_source_bound_fcis_lineage_v1(
             "certificate",
         )
 
-    fresh_extraction = extract_source_bound_fee_occurrence_v1(
-        certificate.extraction.evaluation
-    )
+    fresh_extraction = extract_source_bound_fee_occurrence_v1(certificate.extraction.evaluation)
     if type(fresh_extraction) is SourceBoundFeeOccurrenceRejectV1:
         return _reject_v1(
             FCISSourceBoundLineageCodeV1.EXTRACTION_REJECTED,

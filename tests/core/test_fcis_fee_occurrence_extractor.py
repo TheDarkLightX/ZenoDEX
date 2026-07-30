@@ -74,9 +74,7 @@ def _nonzero_protocol_fee_inputs() -> tuple[dict[str, object], int, str]:
 
 
 def test_extractor_has_no_caller_selected_root_arguments() -> None:
-    assert tuple(signature(extract_source_bound_fee_occurrence_v1).parameters) == (
-        "evaluation",
-    )
+    assert tuple(signature(extract_source_bound_fee_occurrence_v1).parameters) == ("evaluation",)
 
 
 def test_zero_protocol_fee_remains_an_explicit_source_bound_witness() -> None:
@@ -190,9 +188,7 @@ def test_fee_policy_rotation_changes_occurrence_context_but_not_state_key() -> N
 def test_missing_distribution_policy_fails_closed() -> None:
     inputs = _exact_inputs()
     context = replace(inputs["context"], fee_split_policy=None)
-    result = extract_source_bound_fee_occurrence_v1(
-        _evaluate({**inputs, "context": context})
-    )
+    result = extract_source_bound_fee_occurrence_v1(_evaluate({**inputs, "context": context}))
 
     assert type(result) is SourceBoundFeeOccurrenceRejectV1
     assert result.code is SourceBoundFeeOccurrenceCodeV1.MISSING_FEE_DISTRIBUTION_POLICY

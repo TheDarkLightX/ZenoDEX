@@ -46,9 +46,7 @@ from .fcis_step_evaluator import evaluate_fcis_step_candidate_v1
 from .settlement_schema import fill_action_text_v1
 from .settlement_snapshots import OwnedFillV1
 
-SOURCE_BOUND_FEE_OCCURRENCE_VERSION_V1 = (
-    "zenodex/fcis/fee-occurrence/source-bound-extractor/v1"
-)
+SOURCE_BOUND_FEE_OCCURRENCE_VERSION_V1 = "zenodex/fcis/fee-occurrence/source-bound-extractor/v1"
 PROTOCOL_FEE_DISTRIBUTION_DOMAIN_ID_V1 = "protocol-fees"
 
 _SOURCE_BOUND_FEE_OCCURRENCE_TOKEN_V1 = object()
@@ -220,18 +218,12 @@ def _boundary_root_v1(evaluation: FCISStepEvaluationOkV1) -> str:
         _text_v1(evidence.algorithm_id),
         _u32_v1(evidence.algorithm_version),
         _require_0x_digest_bytes_v1("command root", evidence.command_root),
-        _require_0x_digest_bytes_v1(
-            "execution context hash", evidence.execution_context_hash
-        ),
+        _require_0x_digest_bytes_v1("execution context hash", evidence.execution_context_hash),
         _require_0x_digest_bytes_v1("pre-state root", evidence.pre_state_root),
         _require_0x_digest_bytes_v1("post-state root", evidence.post_state_root),
         _require_0x_digest_bytes_v1("support root", evidence.support_root),
-        _require_0x_digest_bytes_v1(
-            "support-set commitment", evidence.support_set_commitment
-        ),
-        _require_0x_digest_bytes_v1(
-            "snapshot commitment", evidence.snapshot_commitment
-        ),
+        _require_0x_digest_bytes_v1("support-set commitment", evidence.support_set_commitment),
+        _require_0x_digest_bytes_v1("snapshot commitment", evidence.snapshot_commitment),
     )
 
 
@@ -287,9 +279,7 @@ def _source_witness_root_v1(
         _require_plain_digest_bytes_v1("boundary root", boundary_root),
         _require_plain_digest_bytes_v1("policy root", policy_root),
         _require_0x_digest_bytes_v1("command root", evidence.command_root),
-        _require_0x_digest_bytes_v1(
-            "execution context hash", evidence.execution_context_hash
-        ),
+        _require_0x_digest_bytes_v1("execution context hash", evidence.execution_context_hash),
         _require_0x_digest_bytes_v1("pre-state root", evidence.pre_state_root),
         _require_0x_digest_bytes_v1("post-state root", evidence.post_state_root),
         _u32_v1(settlement_position),
@@ -309,19 +299,13 @@ def _source_witness_root_v1(
         ),
         _optional_u256_v1(_validated_optional_amount_v1("fill.fee_paid", fill.fee_paid)),
         _optional_u256_v1(
-            _validated_optional_amount_v1(
-                "fill.protocol_fee_paid", fill.protocol_fee_paid
-            )
+            _validated_optional_amount_v1("fill.protocol_fee_paid", fill.protocol_fee_paid)
         ),
         _optional_u256_v1(
-            _validated_optional_amount_v1(
-                "fill.reserve_in_before", fill.reserve_in_before
-            )
+            _validated_optional_amount_v1("fill.reserve_in_before", fill.reserve_in_before)
         ),
         _optional_u256_v1(
-            _validated_optional_amount_v1(
-                "fill.reserve_out_before", fill.reserve_out_before
-            )
+            _validated_optional_amount_v1("fill.reserve_out_before", fill.reserve_out_before)
         ),
     )
 
