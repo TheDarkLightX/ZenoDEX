@@ -180,6 +180,34 @@ EXPECTED_RUST_METHODS = {
         "target_snapshot_version",
     ),
 }
+EXPECTED_RUST_IMPL_ATTRIBUTES = {
+    "FCISAuthorityHeaderV2": (),
+    "DeploymentBootstrapAnchorClaimV2": (),
+    "V1ToV2MigrationManifestV2": ("#[allow(clippy::too_many_arguments)]",),
+}
+EXPECTED_RUST_TOP_LEVEL_FUNCTIONS = (
+    ("pub", "validate_fcis_b1b_json_resource_bounds_v2", ()),
+    ("", "u256_max", ()),
+    ("", "text_is_canonical", ()),
+    ("", "digest_is_canonical", ()),
+    ("", "validate_authority_header_fields_v2", ()),
+    ("", "validate_bootstrap_anchor_claim_fields_v2", ()),
+    (
+        "",
+        "validate_migration_manifest_fields_v2",
+        ("#[allow(clippy::too_many_arguments)]",),
+    ),
+    ("", "int_json", ()),
+    ("", "envelope", ()),
+    ("", "authority_header_json", ()),
+    ("", "bootstrap_anchor_claim_json", ()),
+    ("", "migration_manifest_json", ()),
+    ("pub", "encode_fcis_authority_header_v2", ()),
+    ("pub", "encode_deployment_bootstrap_anchor_claim_v2", ()),
+    ("pub", "encode_v1_to_v2_migration_manifest_v2", ()),
+    ("pub", "canonical_bootstrap_anchor_claim_root_v2", ()),
+    ("pub", "canonical_v1_to_v2_migration_manifest_root_v2", ()),
+)
 EXPECTED_ROOT_DOMAINS = {
     "BOOTSTRAP_ANCHOR_CLAIM_ROOT_DOMAIN_V2": "fcis_deployment_bootstrap_anchor_claim",
     "MIGRATION_MANIFEST_ROOT_DOMAIN_V2": "fcis_v1_to_v2_migration_manifest",
@@ -1037,13 +1065,10 @@ def _normalize_rust_attribute(attribute: str) -> str:
     return re.sub(r"\s+", "", attribute)
 
 
-def _rust_struct_attributes(text: str, name: str) -> tuple[str, ...] | None:
+def _rust_preceding_attributes(text: str, offset: int) -> tuple[str, ...]:
     masked = _rust_mask_non_code(text)
-    match = re.search(rf"\bpub\s+struct\s+{re.escape(name)}\s*\{{", masked)
-    if match is None:
-        return None
     attributes: list[str] = []
-    cursor = match.start()
+    cursor = offset
     while True:
         while cursor > 0 and masked[cursor - 1].isspace():
             cursor -= 1
@@ -1069,6 +1094,31 @@ def _rust_struct_attributes(text: str, name: str) -> tuple[str, ...] | None:
     return tuple(attributes)
 
 
+def _rust_all_attributes(text: str) -> tuple[str, ...]:
+    masked = _rust_mask_non_code(text)
+    attributes: list[str] = []
+    cursor = 0
+    while True:
+        start = masked.find("#[", cursor)
+        if start < 0:
+            break
+        closing = _rust_matching_delimiter(masked, start + 1, "[", "]")
+        if closing is None:
+            attributes.append("<unclosed>")
+            break
+        attributes.append(_normalize_rust_attribute(text[start : closing + 1]))
+        cursor = closing + 1
+    return tuple(attributes)
+
+
+def _rust_struct_attributes(text: str, name: str) -> tuple[str, ...] | None:
+    masked = _rust_mask_non_code(text)
+    match = re.search(rf"\bpub\s+struct\s+{re.escape(name)}\s*\{{", masked)
+    if match is None:
+        return None
+    return _rust_preceding_attributes(text, match.start())
+
+
 def _rust_braced_block(text: str, opening_brace: int) -> str | None:
     masked = _rust_mask_non_code(text)
     closing_brace = _rust_matching_brace(masked, opening_brace)
@@ -1077,15 +1127,27 @@ def _rust_braced_block(text: str, opening_brace: int) -> str | None:
     return text[opening_brace + 1 : closing_brace]
 
 
-def _rust_inherent_impl_blocks(text: str, name: str) -> tuple[str, ...]:
-    blocks: list[str] = []
+def _rust_impl_items(text: str) -> tuple[tuple[int, str, str], ...]:
+    """Collect every top-level Rust impl header and body in source order."""
+
+    items: list[tuple[int, str, str]] = []
     masked = _rust_mask_non_code(text)
-    for match in re.finditer(rf"\bimpl\s+{re.escape(name)}\s*\{{", masked):
-        opening_brace = masked.find("{", match.start(), match.end())
-        block = _rust_braced_block(text, opening_brace)
-        if block is not None:
-            blocks.append(block)
-    return tuple(blocks)
+    for match in re.finditer(r"\bimpl\b", masked):
+        if not _rust_top_level_at(masked, match.start()):
+            continue
+        opening_brace = masked.find("{", match.end())
+        if opening_brace < 0:
+            continue
+        semicolon = masked.find(";", match.end(), opening_brace)
+        if semicolon >= 0:
+            continue
+        closing_brace = _rust_matching_brace(masked, opening_brace)
+        if closing_brace is None:
+            continue
+        header = masked[match.start():opening_brace].strip()
+        body = text[opening_brace + 1 : closing_brace]
+        items.append((match.start(), header, body))
+    return tuple(items)
 
 
 def _rust_impl_methods(block: str) -> tuple[str, ...]:
@@ -1097,6 +1159,72 @@ def _rust_impl_methods(block: str) -> tuple[str, ...]:
             block,
         )
     )
+
+
+def _rust_top_level_functions(
+    text: str,
+) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    masked = _rust_mask_non_code(text)
+    functions: list[tuple[str, str, tuple[str, ...]]] = []
+    for match in re.finditer(
+        r"(?P<visibility>\bpub(?:\s*\([^)]*\))?\s+)?"
+        r"\bfn\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\b",
+        masked,
+    ):
+        if not _rust_top_level_at(masked, match.start()):
+            continue
+        visibility = "".join((match.group("visibility") or "").split())
+        functions.append(
+            (
+                visibility,
+                match.group("name"),
+                _rust_preceding_attributes(text, match.start()),
+            )
+        )
+    return tuple(functions)
+
+
+def _check_rust_top_level_surface(
+    production: str,
+    findings: list[Finding],
+) -> None:
+    actual_functions = _rust_top_level_functions(production)
+    if actual_functions != EXPECTED_RUST_TOP_LEVEL_FUNCTIONS:
+        findings.append(
+            Finding(
+                "B1B1_RUST_PUBLIC_SURFACE",
+                str(RUST_PATH),
+                f"top-level functions {actual_functions!r}",
+            )
+        )
+
+    masked = _rust_mask_non_code(production)
+    for match in re.finditer(r"\b(?:mod|trait)\s+[A-Za-z_][A-Za-z0-9_]*", masked):
+        if _rust_top_level_at(masked, match.start()):
+            findings.append(
+                Finding(
+                    "B1B1_RUST_IMPL_SURFACE",
+                    str(RUST_PATH),
+                    "unexpected production module or trait",
+                )
+            )
+
+    for match in re.finditer(r"\buse\b[^;]*;", masked, re.DOTALL):
+        if not _rust_top_level_at(masked, match.start()):
+            continue
+        segment = match.group(0)
+        carrier = next(
+            (name for name in RUST_CARRIER_NAMES if name in segment),
+            None,
+        )
+        if carrier is not None:
+            findings.append(
+                Finding(
+                    "B1B1_RUST_IMPL_SURFACE",
+                    str(RUST_PATH),
+                    f"{carrier}: carrier use-alias surface",
+                )
+            )
 
 
 def _rust_fields(block: str) -> tuple[tuple[str, bool], ...] | None:
@@ -1218,38 +1346,88 @@ def _check_rust_struct_shape(
             )
 
 
+def _rust_carrier_impl_blocks(
+    production: str,
+    name: str,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    carrier_pattern = re.compile(rf"\b{re.escape(name)}\b")
+    expected_header = f"impl{name}"
+    impl_blocks: list[str] = []
+    unexpected_headers: list[str] = []
+    for start, header, block in _rust_impl_items(production):
+        if carrier_pattern.search(header) is None:
+            continue
+        attributes = _rust_preceding_attributes(production, start)
+        if _normalize_rust_attribute(header) == expected_header and not attributes:
+            impl_blocks.append(block)
+            continue
+        detail = " ".join(header.split())
+        unexpected_headers.append(f"{attributes!r} {detail}")
+    return tuple(impl_blocks), tuple(unexpected_headers)
+
+
+def _rust_has_associated_type_or_const(block: str) -> bool:
+    return (
+        re.search(
+            r"(?:^|\n)\s*(?:pub(?:\([^)]*\))?\s+)?(?:const|type)\b",
+            block,
+        )
+        is not None
+    )
+
+
+def _rust_impl_contains_macro(block: str) -> bool:
+    return (
+        re.search(
+            r"\b[A-Za-z_][A-Za-z0-9_]*!\s*[({\[]",
+            _rust_mask_non_code(block),
+        )
+        is not None
+    )
+
+
 def _check_rust_impl_surface(
     production: str,
     name: str,
     findings: list[Finding],
 ) -> None:
-    masked = _rust_mask_non_code(production)
-    trait_impls = tuple(
-        match.group("trait").strip()
-        for match in re.finditer(
-            rf"\bimpl\s+(?P<trait>[^{{;]+?)\s+for\s+{re.escape(name)}\b",
-            masked,
-        )
-    )
-    if trait_impls:
+    impl_blocks, unexpected_headers = _rust_carrier_impl_blocks(production, name)
+    if unexpected_headers:
         findings.append(
             Finding(
                 "B1B1_RUST_IMPL_SURFACE",
                 str(RUST_PATH),
-                f"{name}: trait impls {trait_impls!r}",
+                f"{name}: unexpected impl headers {unexpected_headers!r}",
             )
         )
-    impl_blocks = _rust_inherent_impl_blocks(production, name)
     if len(impl_blocks) != 1:
         findings.append(
             Finding(
                 "B1B1_RUST_IMPL_SURFACE",
                 str(RUST_PATH),
-                f"{name}: expected one inherent impl, got {len(impl_blocks)}",
+                f"{name}: expected one exact inherent impl, got {len(impl_blocks)}",
             )
         )
         return
-    methods = _rust_impl_methods(impl_blocks[0])
+    block = impl_blocks[0]
+    if _rust_impl_contains_macro(block):
+        findings.append(
+            Finding(
+                "B1B1_RUST_IMPL_SURFACE",
+                str(RUST_PATH),
+                f"{name}: macro invocation inside carrier impl",
+            )
+        )
+    attributes = _rust_all_attributes(block)
+    if attributes != EXPECTED_RUST_IMPL_ATTRIBUTES[name]:
+        findings.append(
+            Finding(
+                "B1B1_RUST_IMPL_SURFACE",
+                str(RUST_PATH),
+                f"{name}: impl attributes {attributes!r}",
+            )
+        )
+    methods = _rust_impl_methods(block)
     if methods != EXPECTED_RUST_METHODS[name]:
         findings.append(
             Finding(
@@ -1258,10 +1436,7 @@ def _check_rust_impl_surface(
                 f"{name}: methods {methods!r}",
             )
         )
-    if re.search(
-        r"(?:^|\n)\s*(?:pub(?:\([^)]*\))?\s+)?(?:const|type)\b",
-        impl_blocks[0],
-    ):
+    if _rust_has_associated_type_or_const(block):
         findings.append(
             Finding(
                 "B1B1_RUST_IMPL_SURFACE",
@@ -1371,6 +1546,7 @@ def _check_rust_carriers(root: Path, findings: list[Finding]) -> None:
         _check_rust_impl_surface(production, name, findings)
         _check_rust_macro_surface(production, name, findings)
     _check_rust_carrier_data_surface(production, findings)
+    _check_rust_top_level_surface(production, findings)
     _check_rust_root_domains(text, findings)
     _check_rust_function_surface(text, findings)
     _check_rust_module_export(root, findings)

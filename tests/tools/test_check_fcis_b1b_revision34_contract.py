@@ -481,6 +481,70 @@ def test_rust_trait_constructor_is_detected(tmp_path: Path, mutation: str) -> No
             "}\n"
         ),
         (
+            "impl FCISAuthorityHeaderV2 where FCISAuthorityHeaderV2: Clone {\n"
+            "    pub(crate) fn new(\n"
+            "        chain_deployment_id: String,\n"
+            "        sequence: BigUint,\n"
+            "        fee_distribution_configuration_root: String,\n"
+            "    ) -> Self {\n"
+            "        Self {\n"
+            "            chain_deployment_id,\n"
+            "            sequence,\n"
+            "            fee_distribution_configuration_root,\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        ),
+        (
+            "pub(crate) trait RawCarrierFactory { fn try_new() -> Self; }\n"
+            "impl RawCarrierFactory for "
+            "crate::fcis_b1b_authority::FCISAuthorityHeaderV2 {\n"
+            "    fn try_new() -> Self {\n"
+            "        Self {\n"
+            "            chain_deployment_id: String::new(),\n"
+            "            sequence: BigUint::ZERO,\n"
+            "            fee_distribution_configuration_root: String::new(),\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        ),
+        (
+            "use self::FCISAuthorityHeaderV2 as HeaderAlias;\n"
+            "pub(crate) trait RawCarrierFactory { fn try_new() -> Self; }\n"
+            "impl RawCarrierFactory for HeaderAlias {\n"
+            "    fn try_new() -> Self {\n"
+            "        Self {\n"
+            "            chain_deployment_id: String::new(),\n"
+            "            sequence: BigUint::ZERO,\n"
+            "            fee_distribution_configuration_root: String::new(),\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        ),
+        (
+            "pub(crate) fn try_new(\n"
+            "    chain_deployment_id: String,\n"
+            "    sequence: BigUint,\n"
+            "    fee_distribution_configuration_root: String,\n"
+            "  ) -> FCISAuthorityHeaderV2 {\n"
+            "    FCISAuthorityHeaderV2 { chain_deployment_id, sequence, "
+            "fee_distribution_configuration_root }\n"
+            "}\n"
+        ),
+        (
+            "mod hidden_carrier_constructor {\n"
+            "    use super::FCISAuthorityHeaderV2;\n"
+            "    use num_bigint::BigUint;\n"
+            "    pub(crate) fn try_new() -> FCISAuthorityHeaderV2 {\n"
+            "        FCISAuthorityHeaderV2 {\n"
+            "            chain_deployment_id: String::new(),\n"
+            "            sequence: BigUint::ZERO,\n"
+            "            fee_distribution_configuration_root: String::new(),\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        ),
+        (
             "impl Default for FCISAuthorityHeaderV2 {\n"
             "    fn default() -> Self {\n"
             "        Self {\n"
@@ -523,6 +587,11 @@ def test_rust_trait_constructor_is_detected(tmp_path: Path, mutation: str) -> No
     ),
     ids=(
         "unchecked-inherent-constructor",
+        "where-clause-inherent-constructor",
+        "qualified-trait-constructor",
+        "use-alias-trait-constructor",
+        "top-level-allowlisted-constructor",
+        "nested-module-allowlisted-constructor",
         "manual-default",
         "manual-from",
         "public-carrier-helper",
@@ -548,6 +617,59 @@ def test_rust_production_item_after_test_modules_is_detected(
         "B1B1_RUST_CARRIER_CONSUMER",
         "B1B1_RUST_PUBLIC_SURFACE",
     } & codes
+
+
+def test_rust_macro_inside_carrier_impl_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    helper = root / RUST_PATH.parent / "fcis_b1b_hidden_methods.rs"
+    helper.write_text(
+        "pub(crate) fn new(\n"
+        "    chain_deployment_id: String,\n"
+        "    sequence: BigUint,\n"
+        "    fee_distribution_configuration_root: String,\n"
+        "  ) -> Self {\n"
+        "    Self { chain_deployment_id, sequence, "
+        "fee_distribution_configuration_root }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    _replace(
+        root,
+        RUST_PATH,
+        "impl FCISAuthorityHeaderV2 {\n",
+        "impl FCISAuthorityHeaderV2 {\n"
+        "    include!(\"fcis_b1b_hidden_methods.rs\");\n",
+    )
+    assert "B1B1_RUST_IMPL_SURFACE" in _codes(root)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    (
+        (
+            "impl FCISAuthorityHeaderV2 {\n",
+            "#[cfg_attr(\n"
+            "    all(),\n"
+            "    carrier_methods\n"
+            ")]\n"
+            "impl FCISAuthorityHeaderV2 {\n",
+        ),
+        (
+            "    pub fn try_new(\n",
+            "    #[cfg_attr(all(), carrier_method)]\n"
+            "    pub fn try_new(\n",
+        ),
+    ),
+    ids=("impl-attribute", "method-attribute"),
+)
+def test_rust_carrier_impl_attribute_surface_is_detected(
+    tmp_path: Path,
+    old: str,
+    new: str,
+) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    _replace(root, RUST_PATH, old, new)
+    assert "B1B1_RUST_IMPL_SURFACE" in _codes(root)
 
 
 def test_rust_second_inherent_impl_between_test_modules_is_detected(
