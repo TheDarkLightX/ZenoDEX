@@ -10,9 +10,8 @@ from src.core.fcis_fee_occurrence_extractor import (
     SourceBoundFeeOccurrenceRejectV1,
     SourceBoundFeeOccurrenceV1,
     extract_source_bound_fee_occurrence_v1,
+    verify_source_bound_fee_occurrence_v1,
 )
-from src.core.fcis_step_evaluation_values import FCISStepEvaluationOkV1
-from src.core.fcis_step_evaluator import evaluate_fcis_step_candidate_v1
 from src.core.settlement_snapshots import snapshot_settlement
 from src.state.fcis_execution_context_values import FCISFeeSplitPolicySourceV1
 from src.state.intent_snapshots import admit_intent_batch, owned_intent_field_v1
@@ -26,16 +25,14 @@ from tests.core.test_fcis_step_evaluator import (
 )
 
 
-def _evaluate(inputs: dict[str, object] | None = None) -> FCISStepEvaluationOkV1:
+def _extract(inputs: dict[str, object] | None = None):
     exact_inputs = _exact_inputs() if inputs is None else inputs
-    result = evaluate_fcis_step_candidate_v1(
+    return extract_source_bound_fee_occurrence_v1(
         state_source=exact_inputs["state_source"],
         settlement=exact_inputs["settlement"],
         intents=exact_inputs["intents"],
         context=exact_inputs["context"],
     )
-    assert type(result) is FCISStepEvaluationOkV1
-    return result
 
 
 def _nonzero_protocol_fee_inputs() -> tuple[dict[str, object], int, str]:
@@ -73,33 +70,39 @@ def _nonzero_protocol_fee_inputs() -> tuple[dict[str, object], int, str]:
     )
 
 
-def test_extractor_has_no_caller_selected_root_arguments() -> None:
-    assert tuple(signature(extract_source_bound_fee_occurrence_v1).parameters) == ("evaluation",)
+def test_extractor_has_no_candidate_or_caller_selected_root_arguments() -> None:
+    assert tuple(signature(extract_source_bound_fee_occurrence_v1).parameters) == (
+        "state_source",
+        "settlement",
+        "intents",
+        "context",
+    )
 
 
 def test_zero_protocol_fee_remains_an_explicit_source_bound_witness() -> None:
-    evaluation = _evaluate()
-    result = extract_source_bound_fee_occurrence_v1(evaluation)
+    result = _extract()
 
     assert type(result) is SourceBoundFeeOccurrenceV1
-    assert result.evaluation is evaluation
     assert len(result.segment.ordered_witnesses) == 1
     witness = result.segment.ordered_witnesses[0]
     assert witness.position == 0
     assert witness.amount == 0
     assert witness.key.fee_distribution_domain_id == PROTOCOL_FEE_DISTRIBUTION_DOMAIN_ID_V1
     assert witness.key.asset == owned_intent_field_v1(
-        evaluation.material.intents[0],
+        result.material.intents[0],
         "asset_in",
     )
     assert len(witness.source_witness_root) == 64
     assert result.segment.boundary_root == result.boundary_root
     assert result.segment.policy_root == result.policy_root
+    assert not hasattr(result, "evaluation")
+    assert not hasattr(result, "post_state_root")
+    assert verify_source_bound_fee_occurrence_v1(result) is None
 
 
 def test_nonzero_protocol_fee_is_bound_to_the_direct_swap_input_asset() -> None:
     inputs, expected_fee, expected_asset = _nonzero_protocol_fee_inputs()
-    result = extract_source_bound_fee_occurrence_v1(_evaluate(inputs))
+    result = _extract(inputs)
 
     assert type(result) is SourceBoundFeeOccurrenceV1
     assert result.segment.semantic_vector == (
@@ -144,7 +147,7 @@ def test_two_direct_swap_witnesses_preserve_canonical_settlement_order() -> None
             protocol_fee_recipient_pubkey=recipient,
         ),
     )
-    evaluation = _evaluate(
+    result = _extract(
         {
             "state_source": _state_source(state),
             "settlement": snapshot_settlement(settlement),
@@ -152,14 +155,13 @@ def test_two_direct_swap_witnesses_preserve_canonical_settlement_order() -> None
             "context": context,
         }
     )
-    result = extract_source_bound_fee_occurrence_v1(evaluation)
 
     assert type(result) is SourceBoundFeeOccurrenceV1
     assert tuple(witness.position for witness in result.segment.ordered_witnesses) == (0, 1)
     assert len({witness.source_witness_root for witness in result.segment.ordered_witnesses}) == 2
     expected_order = tuple(
         fill.intent_id
-        for fill in evaluation.material.settlement.fills
+        for fill in result.material.settlement.fills
         if fill.protocol_fee_paid is not None
     )
     assert (
@@ -174,7 +176,7 @@ def test_two_direct_swap_witnesses_preserve_canonical_settlement_order() -> None
 
 def test_fee_policy_rotation_changes_occurrence_context_but_not_state_key() -> None:
     inputs = _exact_inputs()
-    first = extract_source_bound_fee_occurrence_v1(_evaluate(inputs))
+    first = _extract(inputs)
     rotated_context = replace(
         inputs["context"],
         fee_split_policy=FCISFeeSplitPolicySourceV1(
@@ -183,9 +185,7 @@ def test_fee_policy_rotation_changes_occurrence_context_but_not_state_key() -> N
             rewards_bps=0,
         ),
     )
-    second = extract_source_bound_fee_occurrence_v1(
-        _evaluate({**inputs, "context": rotated_context})
-    )
+    second = _extract({**inputs, "context": rotated_context})
 
     assert type(first) is SourceBoundFeeOccurrenceV1
     assert type(second) is SourceBoundFeeOccurrenceV1
@@ -193,20 +193,21 @@ def test_fee_policy_rotation_changes_occurrence_context_but_not_state_key() -> N
     assert first.segment.ordered_witnesses[0].key == second.segment.ordered_witnesses[0].key
 
 
-def test_missing_distribution_policy_fails_closed() -> None:
+def test_missing_distribution_policy_fails_closed_before_evaluation() -> None:
     inputs = _exact_inputs()
     context = replace(inputs["context"], fee_split_policy=None)
-    result = extract_source_bound_fee_occurrence_v1(_evaluate({**inputs, "context": context}))
+    result = _extract({**inputs, "context": context})
 
     assert type(result) is SourceBoundFeeOccurrenceRejectV1
     assert result.code is SourceBoundFeeOccurrenceCodeV1.MISSING_FEE_DISTRIBUTION_POLICY
 
 
-def test_corrupted_evaluation_lineage_rejects_before_witness_extraction() -> None:
-    evaluation = _evaluate()
-    object.__setattr__(evaluation.evidence, "command_root", "0x" + "00" * 32)
+def test_corrupted_cached_source_root_fails_fresh_rederivation() -> None:
+    result = _extract()
+    assert type(result) is SourceBoundFeeOccurrenceV1
+    object.__setattr__(result, "command_root", "0x" + "00" * 32)
 
-    result = extract_source_bound_fee_occurrence_v1(evaluation)
+    reject = verify_source_bound_fee_occurrence_v1(result)
 
-    assert type(result) is SourceBoundFeeOccurrenceRejectV1
-    assert result.code is SourceBoundFeeOccurrenceCodeV1.EVALUATION_LINEAGE_MISMATCH
+    assert type(reject) is SourceBoundFeeOccurrenceRejectV1
+    assert reject.code is SourceBoundFeeOccurrenceCodeV1.SOURCE_REDERIVATION_MISMATCH
