@@ -1,0 +1,330 @@
+{
+  "claims": [
+    {
+      "dependencies": [
+        "M6-R06",
+        "M6-R07"
+      ],
+      "evidence": [
+        "src/core/fcis_durable_retraction.py",
+        "tests/core/test_fcis_durable_retraction.py",
+        "lean-mathlib/Proofs/FCISDurableRetraction.lean"
+      ],
+      "id": "M6-CLAIM-CDR-001",
+      "promotion_blockers": [
+        "remote exact-head CI not yet run",
+        "concrete datastore refinement absent",
+        "authenticated genesis absent"
+      ],
+      "refutations": [
+        "missing evidence row",
+        "surplus evidence row",
+        "duplicate row",
+        "row reorder",
+        "crossed evidence",
+        "selected-root rehash"
+      ],
+      "statement": "For encode:A->D and partial checked reopen:D->Except Reject A with reopen(encode(a))=ok(a), an accepted durable layout d is authoritative exactly when reopen(d)=ok(a) and encode(a)=d for some a.",
+      "status": "PROVED_CONNECTIVE_MATH",
+      "title": "Authoritative durable layouts are canonical reopen fixed points"
+    },
+    {
+      "dependencies": [
+        "M6-R05"
+      ],
+      "evidence": [
+        "src/core/fcis_durable_retraction.py",
+        "tests/core/test_fcis_durable_retraction.py"
+      ],
+      "id": "M6-CLAIM-DCF-001",
+      "promotion_blockers": [
+        "production CAS absent",
+        "real transport/concurrency harness absent"
+      ],
+      "refutations": [
+        "same ID different fingerprint accepted",
+        "same nullifier double commit",
+        "lost response causes duplicate commit"
+      ],
+      "statement": "Every canonical stored request resolves to already committed, absent retryable, stale, or definite rejection; newly committed is an attempt result, while INDETERMINATE is a client observation only.",
+      "status": "EVIDENCED_BOUNDED",
+      "title": "Indeterminate transport knowledge is not a durable commit state"
+    },
+    {
+      "dependencies": [
+        "M6-R07",
+        "M6-R11"
+      ],
+      "evidence": [
+        "src/core/fcis_durable_retraction.py",
+        "tests/core/test_fcis_durable_retraction.py"
+      ],
+      "id": "M6-CLAIM-REAUTH-001",
+      "promotion_blockers": [
+        "external signature/quorum verification absent",
+        "production shell latch absent"
+      ],
+      "refutations": [
+        "commit without token",
+        "foreign snapshot token",
+        "old token after commit",
+        "old token after authority switch"
+      ],
+      "statement": "A state-changing action requires a fresh controlled authorization token bound to exact snapshot, current state, authority epoch, deployment configuration, verifier profile, statement, and freshness bounds; a successful state change invalidates the old token.",
+      "status": "EVIDENCED_BOUNDED",
+      "title": "Canonical reopen does not restore value-moving authority"
+    },
+    {
+      "dependencies": [
+        "M6-R10"
+      ],
+      "evidence": [
+        "src/core/fcis_durable_retraction.py",
+        "tests/core/test_fcis_durable_retraction.py"
+      ],
+      "id": "M6-CLAIM-OUTBOX-001",
+      "promotion_blockers": [
+        "real destination contract absent",
+        "leasing/worker crash adapter absent"
+      ],
+      "refutations": [
+        "delivery without outbox",
+        "payload collision",
+        "forged receipt root",
+        "foreign receipt acknowledgment"
+      ],
+      "statement": "If effect identity binds commit, ordinal, destination, payload and writer profile, and a destination verifier produces a controlled receipt bound to effect, payload, adapter, idempotency, and response identities, a lost ack retries the same semantic effect rather than creating a new one.",
+      "status": "EVIDENCED_BOUNDED",
+      "title": "Stable effect identity reduces lost acknowledgments to idempotent redelivery"
+    },
+    {
+      "dependencies": [
+        "M6-R11"
+      ],
+      "evidence": [
+        "src/core/fcis_durable_retraction.py",
+        "formal/esso/fcis_durable_retraction_v1.yaml",
+        "experiments/fcis_durable_retraction_bounded_search_result.json"
+      ],
+      "id": "M6-CLAIM-MIGRATION-001",
+      "promotion_blockers": [
+        "profile-specific evidence transport absent",
+        "real transactional switch absent"
+      ],
+      "refutations": [
+        "phase skip",
+        "old writer after switch",
+        "writer during quiescence",
+        "history rewrite"
+      ],
+      "statement": "The exact seven-phase lifecycle preserves historical atoms and permits legacy, none, then target writer only.",
+      "status": "EVIDENCED_BOUNDED",
+      "title": "Authority epochs preserve history while switching the unique writer"
+    },
+    {
+      "dependencies": [
+        "M6-R04",
+        "M6-R05",
+        "M6-R10",
+        "TCG-1"
+      ],
+      "evidence": [
+        "docs/research/FCIS_M6_DURABLE_RETRACTION_BREAKTHROUGH_20260731.md",
+        "lean-mathlib/Proofs/FCISDurableRetraction.lean"
+      ],
+      "id": "M6-CLAIM-RQAG-001",
+      "promotion_blockers": [
+        "typed StutterReceipt not implemented",
+        "combined TCG quotient theorem absent"
+      ],
+      "refutations": [
+        "new commit classified as stutter",
+        "migration classified as stutter",
+        "ack publication classified as stutter",
+        "same visible root but changed hidden evidence"
+      ],
+      "statement": "Runtime retry/reopen/redelivery loops may be removed only with receipts proving observational identity on canonical values; the remaining quotient path is checked by TCG.",
+      "status": "TESTABLE",
+      "title": "Verified canonical stutters may be quotiented before TCG path checking"
+    },
+    {
+      "dependencies": [
+        "M6-R02",
+        "PR496",
+        "PR497"
+      ],
+      "evidence": [
+        "docs/research/FCIS_M6_R02_COMPLETE_SRGD_THEOREM_20260731.md"
+      ],
+      "id": "M6-CLAIM-R02-EUCLIDEAN-001",
+      "promotion_blockers": [
+        "trace Lean theorem absent",
+        "Rust implementation absent",
+        "Kani/SMT receipt absent"
+      ],
+      "refutations": [
+        "valid U256 overflow",
+        "quota mismatch",
+        "zero-weight allocation",
+        "cross-language tie mismatch"
+      ],
+      "statement": "With A=Dq+r, base_i=q*w_i+floor(r*w_i/D) and rem_i=(r*w_i) mod D exactly refine floor(A*w_i/D), while admitted intermediate values remain bounded.",
+      "status": "THEOREM_SPECIFIED",
+      "title": "Euclidean SRGD computes full-U256 quotas without wide ideal products"
+    },
+    {
+      "dependencies": [
+        "M6-R03",
+        "M6-R02"
+      ],
+      "evidence": [
+        "docs/research/FCIS_M6_R02_COMPLETE_SRGD_THEOREM_20260731.md"
+      ],
+      "id": "M6-CLAIM-R03-SRF-001",
+      "promotion_blockers": [
+        "schema values absent",
+        "trace conjugacy theorem absent",
+        "migration packet absent"
+      ],
+      "refutations": [
+        "representation label changes state key",
+        "destination rotation changes state key",
+        "zero-reset migration",
+        "partial entry transport"
+      ],
+      "statement": "The entitlement key uses one semantic profile and fixed role order, while SRGD deficit and AGQE surplus are representation codecs related by sigma=-d.",
+      "status": "TESTABLE",
+      "title": "Semantic/representation factorization prevents sign-dual migration resets"
+    },
+    {
+      "dependencies": [
+        "M6-R04",
+        "M6-R08",
+        "M6-R09",
+        "M6-R12"
+      ],
+      "evidence": [
+        "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md"
+      ],
+      "id": "M6-CLAIM-ANF-001",
+      "promotion_blockers": [
+        "ANF value/checker absent",
+        "composition Lean theorem absent",
+        "publisher inventory unanchored"
+      ],
+      "refutations": [
+        "crossed C3 receipt",
+        "foreign TCG topology",
+        "foreign proof context",
+        "DRA atom from another epoch",
+        "outbox from another bundle"
+      ],
+      "statement": "A source-bound C3 certificate, anchored TCG instance, proof context, and CDR publication transition bind every accepted durable effect to one authenticated source lineage.",
+      "status": "HYPOTHESIS",
+      "title": "Horizontal lineage, global mediation, and vertical durability compose as Authority Normal Form"
+    }
+  ],
+  "date": "2026-07-31",
+  "default_promotion": "DO_NOT_PROMOTE_M6",
+  "frontier": [
+    {
+      "action": "Compile and review DRA Lean/Python/Julia/ESSO packet at exact head",
+      "rank": 1,
+      "reason": "Turns R05-R11 connective abstraction into reproducible evidence."
+    },
+    {
+      "action": "Implement and prove R02 Euclidean trace theorem and Rust parity",
+      "rank": 2,
+      "reason": "Closes remaining arithmetic theorem and full-U256 refinement."
+    },
+    {
+      "action": "Integrate source-bound C3, TCG, and DRA as ANF",
+      "rank": 3,
+      "reason": "Highest-impact composition bridge."
+    },
+    {
+      "action": "Implement concrete datastore fixed-point refinement and crash campaign",
+      "rank": 4,
+      "reason": "R09 is the decisive production boundary."
+    },
+    {
+      "action": "Derive and anchor complete publisher inventory",
+      "rank": 5,
+      "reason": "Required for no-bypass and TCG completeness."
+    },
+    {
+      "action": "Freeze and prove zUSD whole-system invariant across all command families",
+      "rank": 6,
+      "reason": "Final economic safety closure."
+    }
+  ],
+  "problem_status": [
+    {
+      "problem_id": "M6-R01",
+      "status": "PROVED_IMPLEMENTED_TESTED_UNMOUNTED",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R02",
+      "status": "ONE_STEP_CORE_PROVED_TRACE_SPECIFIED_UNMOUNTED",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R03",
+      "status": "SIGN_DUAL_ONE_STEP_PROVED_IDENTITY_SPECIFIED_UNMOUNTED",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R04",
+      "status": "MULTIPLE_REFERENCE_CERTIFICATES_TESTED_UNMOUNTED",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R05",
+      "status": "ABSTRACT_REFERENCE_MODEL_TESTED_UNMOUNTED",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R06",
+      "status": "ABSTRACT_FIXED_POINT_MODEL_TESTED_UNMOUNTED",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R07",
+      "status": "ABSTRACT_REOPEN_AND_REAUTH_MODEL_TESTED_UNMOUNTED",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R08",
+      "status": "OPEN",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R09",
+      "status": "ABSTRACT_PRE_POST_MODEL_TESTED_CONCRETE_OPEN",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R10",
+      "status": "ABSTRACT_IDEMPOTENT_MODEL_TESTED_ADAPTER_OPEN",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R11",
+      "status": "ABSTRACT_EPOCH_MODEL_TESTED_CONCRETE_OPEN",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R12",
+      "status": "OPEN",
+      "task_prefix": null
+    },
+    {
+      "problem_id": "M6-R13",
+      "status": "OPEN",
+      "task_prefix": null
+    }
+  ],
+  "promotion_authority": "NONE",
+  "schema_version": "zenodex.fcis.m6.research-kernel-ledger.v2"
+}

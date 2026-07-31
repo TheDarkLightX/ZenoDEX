@@ -1,0 +1,211 @@
+{
+  "schema": "zenodex.fcis.m6-durable-retraction-luna-repair-tasks.v1",
+  "status": "candidate",
+  "review_verdict": "REVISE_M6_DURABLE_RETRACTION_RESEARCH_PACKET_V1",
+  "base_commit": "babffa56dcbddc5886487fbb6e62740b15370000",
+  "intended_branch": "agent/fcis-m6-r05-r11-durable-retraction-20260731",
+  "runtime_posture": "UNMOUNTED",
+  "tasks": [
+    {
+      "id": "L00",
+      "dependencies": [],
+      "objective": "Create a clean exact-base worktree and verify the candidate packet inputs before editing.",
+      "required_actions": [
+        "Verify the base commit and tree locally and remotely.",
+        "Verify the TAR SHA-256 3d1ac7ed5d9404cc4b293a9707502e4e4d8d714498448501b4b878d7b8afcd70.",
+        "Verify the ZIP SHA-256 8e1c5cea2588682f84da2a9fe71f7e1b2bacd79143f1df12695d4542e81d9890.",
+        "Record the ZIP/TAR file-set mismatch before selecting the canonical source projection.",
+        "Confirm the target branch still equals the declared base or stop."
+      ],
+      "completion_evidence": [
+        "exact base commit and tree",
+        "clean worktree status",
+        "archive hash report",
+        "input file inventory"
+      ]
+    },
+    {
+      "id": "L01",
+      "dependencies": [
+        "L00"
+      ],
+      "objective": "Add minimized failing evidence for every blocking review finding before repairing behavior.",
+      "required_actions": [
+        "Retain a self-selected external authorization root witness.",
+        "Retain an acknowledgment-without-delivery witness.",
+        "Retain u32 overflow, Boolean-alias, string crash-point, and oversized-table witnesses.",
+        "Retain the failing Lean compile log and wrong-total-reopen statement as evidence."
+      ],
+      "completion_evidence": [
+        "named negative tests fail on the original packet for the intended reason",
+        "each witness maps to a stable requirement ID"
+      ]
+    },
+    {
+      "id": "L02",
+      "dependencies": [
+        "L01"
+      ],
+      "objective": "Replace caller-mintable reopen authorization with a verifier-produced, exact-subject authority witness.",
+      "required_actions": [
+        "Define immutable external authorization evidence and a controlled verified witness.",
+        "Bind the witness to snapshot root, state root, authority root, epoch, deployment/configuration identity, verifier identity, and authorization statement root.",
+        "Require the verified witness to construct a reopen token.",
+        "Represent ESSO authorization as an explicit verified environment premise.",
+        "Reject self-selected roots and stale or cross-subject witnesses."
+      ],
+      "forbidden_shortcuts": [
+        "Boolean authorized flag",
+        "caller-supplied digest treated as verified",
+        "module-private constructor presented as a cryptographic boundary"
+      ],
+      "completion_evidence": [
+        "self-selected root mutant killed",
+        "cross-snapshot, cross-deployment, cross-epoch, and changed-head mutants killed",
+        "reject-is-no-op"
+      ]
+    },
+    {
+      "id": "L03",
+      "dependencies": [
+        "L01"
+      ],
+      "objective": "Require destination-verifier evidence before a committed outbox row can be acknowledged.",
+      "required_actions": [
+        "Define a controlled VerifiedDestinationReceiptV1 or equivalent.",
+        "Bind effect ID, destination, payload root, destination receipt root, adapter/verifier profile, and idempotency identity.",
+        "Make acknowledgment consume the verified value.",
+        "Reject a merely well-shaped or locally recomputed digest.",
+        "Preserve the committed outbox row and stable effect identity on lost acknowledgment."
+      ],
+      "forbidden_shortcuts": [
+        "public hash helper used as proof of delivery",
+        "caller-constructible receipt with no verifier provenance",
+        "deleting outbox provenance after acknowledgment"
+      ],
+      "completion_evidence": [
+        "forged-root-without-delivery mutant killed",
+        "cross-effect, cross-destination, cross-payload, and wrong-verifier mutants killed",
+        "lost-ack retry retains one semantic effect identity"
+      ]
+    },
+    {
+      "id": "L04",
+      "dependencies": [
+        "L01"
+      ],
+      "objective": "Make malformed, oversized, and wrong-type boundary values fail closed.",
+      "required_actions": [
+        "Apply exact type checks at security-sensitive Python integer and Boolean boundaries.",
+        "Bound OutboxRowV1.ordinal to u32 before encoding.",
+        "Require an exact CrashPointV1 enum.",
+        "Add explicit per-table row and canonical-byte budgets before expensive reconstruction.",
+        "Convert host overflow failures to stable typed rejects as defense in depth."
+      ],
+      "completion_evidence": [
+        "u32 maximum passes and maximum plus one rejects",
+        "Boolean aliases reject",
+        "string crash point rejects with no commit",
+        "oversized tables reject before hashing",
+        "no uncaught OverflowError"
+      ]
+    },
+    {
+      "id": "L05",
+      "dependencies": [
+        "L01"
+      ],
+      "objective": "Repair the Lean formalization so it models partial reopen and compiles under Lean 4.27.",
+      "required_actions": [
+        "Model reopen with Except Reject A or an equivalent accepted-layout subtype.",
+        "Prove the encode/reopen left inverse.",
+        "Prove encode injectivity, successful normalization idempotence, and authoritative fixed-point characterization.",
+        "Repair stutter iteration and idempotence statements using APIs available in the pinned toolchain.",
+        "Document the runtime-field-to-formal-symbol mapping."
+      ],
+      "completion_evidence": [
+        "lake build Proofs.FCISDurableRetraction passes",
+        "direct Lean compile passes",
+        "no sorry, admit, user axiom, unsafe, or sorryAx dependency",
+        "theorem names and assumptions appear in a dependency audit"
+      ]
+    },
+    {
+      "id": "L06",
+      "dependencies": [
+        "L02",
+        "L03",
+        "L04",
+        "L05"
+      ],
+      "objective": "Synchronize all executable models, documents, claim ledgers, and the task graph with the repaired semantics.",
+      "required_actions": [
+        "Update Python and Julia models together and require exact parsed result equality.",
+        "Update ESSO to treat verified external grants and destination evidence as explicit premises.",
+        "Add ESSO validation and verify-multi to CI.",
+        "Correct the bounded-search depth claim to 14.",
+        "Remove PROVED_CONNECTIVE_MATH until the exact Lean gate passes.",
+        "Describe the 105-task graph's R02-R13 coverage accurately."
+      ],
+      "completion_evidence": [
+        "Python frozen result regenerated by its source command",
+        "Julia output equals the Python JSON document",
+        "ESSO validate passes",
+        "ESSO verify-multi with z3,cvc5 passes without UNKNOWN or disagreement",
+        "ledger and report claim labels match gate results"
+      ]
+    },
+    {
+      "id": "L07",
+      "dependencies": [
+        "L06"
+      ],
+      "objective": "Pass focused source, type, test, model, and proof quality gates.",
+      "required_actions": [
+        "Pass Python compilation.",
+        "Pass Ruff lint and format checks.",
+        "Pass strict mypy on the durable-retraction core.",
+        "Pass focused tests and mutation witnesses.",
+        "Pass Python/Julia parity, ESSO multi-solver verification, and Lean checks.",
+        "Run the repository style map, trust-surface red flags, and focused design metrics."
+      ],
+      "completion_evidence": [
+        "exact command log with exit codes",
+        "toolchain versions",
+        "commands not run and why",
+        "no weakening or deletion of negative evidence"
+      ]
+    },
+    {
+      "id": "L08",
+      "dependencies": [
+        "L07"
+      ],
+      "objective": "Create a reproducible exact-head implementation target and documentation-only review packet on a remote draft PR.",
+      "required_actions": [
+        "Commit the implementation target from the declared base.",
+        "Create one documentation-only child packet commit.",
+        "Include a status-aware inventory that represents deletions.",
+        "Produce one canonical archive and source manifest.",
+        "Run exact-head CI and upload the verified packet artifact.",
+        "Keep the PR draft, unmounted, and unmerged."
+      ],
+      "completion_evidence": [
+        "base, target, and packet commits and trees",
+        "one-parent packet relation",
+        "remote branch and draft PR URL",
+        "manifest and archive SHA-256 values",
+        "exact-head workflow URL and results",
+        "explicit M6 nonclaims"
+      ]
+    }
+  ],
+  "terminal_condition": [
+    "All blocking witnesses are retained and killed by the repaired implementation.",
+    "Python, Julia, ESSO, Lean, Ruff, mypy, and focused tests pass.",
+    "Claims match evidence.",
+    "One canonical archive is reproducible.",
+    "A remote draft PR exposes the exact implementation target and packet child.",
+    "The diff contains no production mount, datastore adapter, authority switch, or value-moving path."
+  ]
+}
