@@ -9,39 +9,21 @@
 - Base commit: `babffa56dcbddc5886487fbb6e62740b15370000`
 - Base tree: `eb6771943bc490d1f9664d26ec14622a8849b010`
 - Repair branch: `agent/fcis-m6-r05-r11-durable-retraction-20260731`
-- Original implementation commit: `84b344e3fac132047d83a61cf70ecd687c494161`
-- Original packet commit: `eba5f91e21b9bb901325382158de887135c4bec7`
-- Reviewed functional implementation target commit: `38c49c5be268a1c758e98f6b4b8ca131c1f054c6`
-- Reviewed functional implementation target tree: `7830632e7a00838ede43d309e037d58e5128b0d0`
-- Exact-head delivery implementation target commit: `c5954655616629b657bb546207f11af518f897a8`
-- Exact-head delivery implementation target tree: `e5a0c6040813570a811181a6d718234cdccb446b`
-- Exact-head delivery target parent: reviewed functional implementation target above
-- Final packet child: exactly one documentation-only child of the exact-head
-  delivery target. The post-commit receipt records its commit, tree, parent
-  commit/tree, manifest digest, archive digest, and every packet-file digest.
+- Prior packet head: `7deeb3403c933402393d15553cc87563aa71b752`
+- Reviewed functional implementation target commit:
+  `ecf26f987c3d6393501fec66ddfc3429fb8634c7`
+- Reviewed functional implementation target tree:
+  `fdf154ac143a9f9a9e840fbbf49761190d138920`
+- Final packet: exactly one documentation-only child of the reviewed functional
+  target. The hosted post-commit receipt records the packet commit, tree,
+  parent, manifest digest, archive digest, and packet-file digests.
 
-The reviewed functional target contains the implementation, tests, ESSO, and
-Lean repairs. The exact-head delivery target changes only the read-only
-workflow: it validates the complete manifest/archive relation, regenerates the
-canonical archive, generates a post-commit receipt, and uploads the verified
-archive and receipt. The final packet child contains research documents, exact
-repair inputs, the source manifest, inventory, toolchain record, nonclaims, and
-the canonical archive. The two intermediate documentation commits from the
-earlier delivery attempt are excluded from the final delivery topology.
+The functional target changes four files: the reference core, focused tests,
+public finite-model checker, and read-only assurance workflow. The packet child
+contains only research documents, task artifacts, exact repair inputs,
+integrity records, and the canonical archive.
 
-## Post-commit delivery receipt
-
-The packet cannot contain its own commit, tree, or archive digest without a
-self-referential hash. The authoritative final handoff is therefore generated
-after the packet child is committed as
-`artifacts/fcis-m6-external-delivery-receipt.json`. The delivery workflow
-binds the receipt to the repository, branch, exact PR head, reviewed functional
-target commit/tree, packet commit/tree/parent commit/tree, manifest path/hash,
-archive path/hash, and all archive member hashes. The receipt is uploaded
-alongside the verified archive and is excluded from the canonical packet
-archive.
-
-Reviewed input hashes:
+## Reviewed input hashes
 
 | Artifact | SHA-256 |
 | --- | --- |
@@ -52,118 +34,117 @@ Reviewed input hashes:
 | `REVIEW_AND_REPAIR_SPEC.md` | `322f9de857b7ca073f40b280c2057cc69184622e06d547a82fa1ae8fe2f096b4` |
 | `REPAIR_TASKS.json` | `373fb78412cfb8a74bfe90cd363e1b5e938c1930f00e8cdff5a557b69d36ed39` |
 
-The reviewed source ZIP and TAR share 15 common files. The ZIP alone contains
-`README_BUNDLE.md` and `SHA256SUMS.txt`; the TAR alone contains
-`lean-mathlib/lakefile.lean`. The canonical packet declares the union rather
-than silently choosing one projection. Its archive contains the 29 manifest
-files, the root `SHA256SUMS.txt` ledger, and the source manifest itself: 31
-members total. The archive excludes itself.
+## Closed review findings
 
-## Repair claims and evidence
+### Complete retry identity
 
-1. Reopen authorization now requires raw evidence to pass through a
-   shell-owned verifier adapter, an opaque verifier-produced grant, and core
-   grant admission before a controlled witness can be constructed. The subject
-   binds exact snapshot, current state, authority epoch, deployment
-   configuration, verifier profile, statement, and freshness interval.
-2. `deliver_effect` no longer constructs a destination response. It requires a
-   shell-owned adapter to return an opaque verified receipt. Raw responses and
-   caller-constructed structural receipts are rejected. `lose_ack` requires an
-   exact Boolean.
-3. Publication atoms and retry classification are bound to deployment and
-   verifier context. Effect identity excludes adapter profile rotation while
-   outbox and acknowledgment rows retain adapter provenance.
-4. Migration rejects identical legacy and target writer roots and binds every
-   transport transition to its predecessor authority root, lifecycle phase, and
-   writer set. Malformed snapshot, atom, crash, Boolean, and output values fail
-   closed with typed rejection; `CommitAttemptV1` validates its carried output.
-5. Lean models partial reopen with `Except Reject A` and compiles the required
-   connective theorem set. ESSO, Python, and Julia use explicit verified
-   environment-premise vocabulary.
+`PublicationAtomV1.fingerprint` now commits `sequence`. A new atom is
+`ABSENT_RETRYABLE` only when all of these hold:
 
-Permanent witnesses retained in
-`tests/core/test_fcis_durable_retraction.py` cover raw self-selected
-authorization, changed-head authorization, cross-deployment and cross-epoch
-authorization, wrong-subject verifier grants, missing destination adapters,
-raw/local destination receipts, crossed effect/destination/payload/verifier
-receipts, adapter-profile rotation, identical migration roots, forged
-transition roots, u32 maximum-plus-one and Boolean aliases, invalid string
-crash points, oversized tables, malformed commit outputs, the Lean
-partial-reopen shape, and the ESSO grant premise.
+```text
+sequence = committed atom count + 1
+authority epoch index = current authority epoch index
+authority state root = current authority state root
+expected pre-state root = current state root
+writer profile is currently allowed
+deployment and verifier profiles match the canonical history
+```
+
+Permanent witnesses reject same-content/different-sequence fingerprints,
+sequence gaps, and stale or future authority-epoch indices.
+
+### Verifier-at-use authority boundary
+
+The module no longer contains importable construction tokens, caller-mintable
+grant capabilities, or built-in accepting head/destination verifiers.
+Authorization evidence and destination response evidence remain immutable
+structural data. Every authority-bearing use freshly invokes a shell-selected
+verifier and independently binds the result to the exact current subject.
+
+The accepting adapters used by focused tests live only in the test module and
+are named as test-only premises. A production shell must select and pin a sound
+cryptographic adapter. This reference core neither supplies nor proves one.
+
+### Public bounded-model gate
+
+Public CI no longer checks out or executes private ESSO. The checked-in
+`tools/check_fcis_durable_retraction_model.py` validates the exact ESSO-IR
+subset, exhaustively explores every reachable state and enabled transition,
+checks every invariant after every transition, and self-tests semantic mutants.
+
+Current exact result:
+
+```text
+reachable states:     56
+enabled transitions: 268
+actions:              14
+invariants:           10
+mutants killed:        4
+```
+
+The retained private ESSO run is historical optional evidence. It is never a
+required public workflow dependency or a substitute for production refinement.
 
 ## Exact local verification
 
-The following gates passed in the isolated worktree:
+The following gates passed against the reviewed functional target:
 
 ```text
-python3 -m py_compile ...                              PASS
-python3 -m ruff check ...                              PASS
-python3 -m ruff format --check ...                     PASS
-python3 -m mypy src/core/fcis_durable_retraction.py    PASS
 python3 -m pytest -q tests/core/test_fcis_durable_retraction.py
-39 passed
+44 passed
+
+python3 -m ruff check \
+  src/core/fcis_durable_retraction.py \
+  tests/core/test_fcis_durable_retraction.py \
+  tools/check_fcis_durable_retraction_model.py
+PASS
+
+python3 -m ruff format --check <same files>
+PASS
+
+python3 -m mypy --strict \
+  src/core/fcis_durable_retraction.py \
+  tools/check_fcis_durable_retraction_model.py
+PASS
+
+python3 tools/check_fcis_durable_retraction_model.py --self-test
+PASS: 56 states, 268 transitions, four mutants killed
 ```
 
-The Python bounded explorer reports `max_depth=14`, 49 safe reachable states,
-254 safe transitions, and seven killed mutants. Its generated JSON is
-structurally and byte-identical to the frozen result. The Julia oracle is
-structurally identical to the Python result.
+The Python bounded explorer regenerated the frozen result with 49 safe states,
+254 safe transitions, and seven killed mutants. Julia 1.12.6 produced the same
+structured result. The pinned `Proofs.FCISDurableRetraction` Lean target built
+against mathlib commit `a3a10db0e9d66acbebf76c5e6a135066525ac900`.
+The checked theorem file contains no `sorry`, user axiom, or unsafe declaration;
+ordinary closure results retain Lean's recorded `propext` dependency.
 
-ESSO was run from clean pinned checkout
-`external/ESSO-ci` at commit `ef5b06cb7dbed9e8a78d27e9918550ee591e42eb`, tree
-`478db05f8f75f5c7cf0fe6164c097f0ea398cb32`. `validate` passed.
-`verify-multi` passed 15/15 inductive queries, with Z3 4.15.4 and CVC5 1.1.2
-agreeing on every query, no UNKNOWN, no timeout, no disagreement, and
-deterministic fingerprints.
+Historical optional evidence records private ESSO commit
+`ef5b06cb7dbed9e8a78d27e9918550ee591e42eb`, tree
+`478db05f8f75f5c7cf0fe6164c097f0ea398cb32`, with 15/15 prior Z3/CVC5
+inductive-query agreement. It was not rerun for this repair and is not needed
+to reproduce the public packet.
 
-Lean used toolchain `leanprover/lean4:v4.27.0`, Lean commit
-`db93fe1608548721853390a10cd40580fe7d22ae`, and mathlib commit
-`a3a10db0e9d66acbebf76c5e6a135066525ac900`:
+## Luna task graph disposition
 
-```text
-cd lean-mathlib
-lake update                         PASS
-lake exe cache get                  PASS
-lake build Proofs.FCISDurableRetraction PASS
-lake env lean Proofs/FCISDurableRetraction.lean PASS
-```
+The 105-task graph remains a production implementation plan. All task records
+remain `PLANNED` until their individual acceptance gates and receipts pass. The
+current Python, Julia, Lean, and bounded-model results are prerequisite evidence
+only. The continuation prompt pins this functional target and routes unavailable
+private ESSO work to the public checker plus an explicit nonclaim.
 
-The direct axiom audit reports no `sorryAx`, user axiom, or unsafe dependency.
-The ordinary connective proofs use Lean's `propext` theorem dependency only.
+## Nonclaims and residual obligations
 
-The exact dependency and tool versions are recorded in
-`docs/research/FCIS_M6_LUNA_TOOLCHAIN_V1.json`. The workflow uses
-`requirements-dev.lock.txt` with SHA-256
-`8ae2a245984d66a60e7fde6c0504b79b1de8fbcc86027b2a42c4adb7164229d8`, checks
-the supplied repair-input sums, and checks the exact ESSO and mathlib commit
-and tree values.
+- No concrete SQLite/PostgreSQL transaction, production CAS, WAL/crash
+  refinement, or multi-process concurrency result exists.
+- No production signer/quorum, deployment trust root, authenticated proof
+  context, or destination idempotency adapter is supplied.
+- No complete publisher inventory or mounted no-bypass result exists.
+- No runtime mount, authority switch, migration, deployment, merge, or value
+  movement was performed.
+- No whole-system zUSD debt/backing theorem or production refinement is closed.
+- A passing bounded model does not prove a production datastore or shell.
 
-## Nonclaims and unrun gates
-
-- The Python verifier and destination adapters are deterministic research
-  boundary models. They do not establish production signer, quorum, deployment,
-  or destination trust. Python object-construction privacy is not claimed as
-  cryptographic unforgeability.
-- No concrete SQLite/PostgreSQL schema, WAL/crash refinement, production CAS,
-  authenticated genesis, live destination contract, or complete publisher
-  inventory is proved.
-- No runtime mount, authority switch, deployment, value movement, migration,
-  merge, or production compatibility decision was performed.
-- The repository triage scripts named by the prompt were not present in the
-  isolated worktree. Each exact invocation failed with `python3: can't open
-  file ...: [Errno 2] No such file or directory`; these scanners are not
-  claimed.
-- Repository-wide pytest collection remains outside this focused gate and has
-  unrelated pre-existing import failures, including missing `cbor2`, missing
-  integration exports, and absent `external/ESSO` wiring. The focused gate is
-  the declared M6 command and passes.
-- The exact-head delivery target and packet child are prepared for a draft PR.
-  The hosted packet-delivery job is the acceptance gate for the final branch:
-  it checks the exact PR head, one-child topology, both ledgers, every manifest
-  file, archive membership and bytes, deterministic archive regeneration, and
-  post-commit receipt upload. Hosted CI results and the generated receipt are
-  not claimed until that run completes.
-
-The safe operational next step is the delivery-only draft PR and exact-head
-workflow run. Keep the work unmounted until concrete datastore,
-external-verifier, destination, and no-bypass evidence exists.
+The next safe implementation slice is the concrete expected-root CAS and
+canonical durable-layout adapter, followed by two-connection concurrency and
+PRE/POST crash-recovery evidence. Keep the work unmounted until the production
+shell, proof context, and no-bypass gates pass.

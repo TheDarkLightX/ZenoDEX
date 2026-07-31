@@ -3,6 +3,24 @@
   "default_decision": "DO_NOT_PROMOTE_M6",
   "schema_version": "zenodex.fcis.m6.luna-task-graph.v1",
   "task_count": 105,
+  "execution_baseline": {
+    "implementation_target_commit": "ecf26f987c3d6393501fec66ddfc3429fb8634c7",
+    "implementation_target_tree": "fdf154ac143a9f9a9e840fbbf49761190d138920",
+    "posture": "RESEARCH_ONLY_EXECUTABLE_UNMOUNTED",
+    "completed_prerequisite_evidence": [
+      "44 focused Python tests",
+      "public finite-state replay: 56 states and 268 transitions",
+      "four public model-checker self-test mutants killed",
+      "Python/Julia bounded parity: 49 states and 254 transitions",
+      "Lean durable-retraction theorem file compiled"
+    ],
+    "task_status_rule": "All 105 production tasks remain PLANNED until their own acceptance gates and receipts pass."
+  },
+  "tool_policy": {
+    "required_public_model_gate": "python3 tools/check_fcis_durable_retraction_model.py --self-test",
+    "private_esso": "OPTIONAL_HISTORICAL_EVIDENCE",
+    "private_tool_unavailable_result": "CONTINUE_WITH_PUBLIC_GATE_AND_RECORD_NONCLAIM"
+  },
   "coverage": {
     "external_prerequisites": [
       "R01"
@@ -709,7 +727,7 @@
       ],
       "principal_claim": "Bounded concurrent commit/migration words preserve at-most-once nullifiers.",
       "required_outputs": [
-        "ESSO/TLA model",
+        "public exhaustive model or TLA model",
         "state counts",
         "minimal mutants"
       ],
@@ -718,7 +736,7 @@
         "R05"
       ],
       "task_id": "E08",
-      "title": "ESSO/TLA nonce model"
+      "title": "Public finite-state/TLA nonce model"
     },
     {
       "acceptance_gate": "No optional evidence can escape the atom relation.",
@@ -1438,7 +1456,7 @@
         "R11"
       ],
       "task_id": "J09",
-      "title": "Migration ESSO/TLA/crash campaign"
+      "title": "Migration public-model/TLA/crash campaign"
     },
     {
       "acceptance_gate": "Deployment/build scan finds no unclassified publisher.",

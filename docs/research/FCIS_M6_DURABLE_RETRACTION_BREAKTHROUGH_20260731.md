@@ -339,17 +339,16 @@ The implementation separates raw external evidence from the authority boundary:
 ```text
 ExternalHeadAuthorizationEvidenceV1
   -> shell-owned verifier adapter
-  -> opaque ExternalHeadAuthorizationGrantV1
-  -> core grant admission
   -> VerifiedExternalHeadAuthorizationV1
   -> ReopenAuthorizationV1
 ```
 
-The core never turns raw evidence into a controlled witness. The deterministic
-research adapter checks exact subject, epoch, deployment, verifier profile,
-statement, and freshness bindings before returning its opaque grant. It does
-not verify a production signature, quorum, deployment trust root, or proof
-context. Those remain explicit external premises and nonclaims.
+Every authority-bearing operation freshly invokes the shell-selected verifier
+against the exact current subject. The core independently checks subject,
+epoch, deployment, verifier profile, statement, and freshness bindings. No
+accepting verifier or importable authority-minting token ships in the production
+source. A sound production signature, quorum, deployment trust root, and proof
+context remain explicit shell premises and nonclaims.
 
 ## 6. Authorized history and reopen
 
@@ -623,9 +622,9 @@ The bounded search explores all safe states through depth fourteen and freezes:
 254 safe transitions
 7 minimized mutant witnesses
 
-The Python semantic suite contains 39 focused tests, including permanent
-opaque-grant, destination-adapter, context-binding, migration-transition,
-type-width, resource-bound, Lean-shape, and ESSO-premise witnesses.
+The Python semantic suite contains 44 focused tests, including permanent
+verifier-at-use, destination-adapter, context-binding, migration-transition,
+type-width, resource-bound, Lean-shape, and bounded-model-premise witnesses.
 ```
 
 Mutants killed:
@@ -666,7 +665,7 @@ idempotent duplicate effect acceptance
 These are connective theorems under explicit premises. They do not prove a
 particular database or destination satisfies those premises.
 
-### 10.6 ESSO model
+### 10.6 Public model replay and optional ESSO evidence
 
 The ESSO-IR model represents:
 
@@ -682,10 +681,14 @@ exact migration lifecycle
 The authorization transition requires a singleton
 `VERIFIED_EXTERNAL_GRANT` environment premise and the acknowledgment transition
 requires a singleton `VERIFIED_DESTINATION_RECEIPT` premise. These are explicit
-verifier capabilities in the model, not Boolean authority flags. Local execution
-at ESSO commit `ef5b06cb7dbed9e8a78d27e9918550ee591e42eb` passed validation and
-15/15 inductive queries with Z3 and CVC5 agreement. This remains a bounded,
-unmounted model and does not establish external signer or destination trust.
+verifier premises in the model, not runtime authority. The checked-in public
+model checker exhaustively replays 56 reachable states and 268 enabled
+transitions, validates 10 invariants across 14 actions, and kills four semantic
+self-test mutants. Historical local execution at private ESSO commit
+`ef5b06cb7dbed9e8a78d27e9918550ee591e42eb` passed validation and 15/15
+inductive queries with Z3 and CVC5 agreement. Private ESSO is optional evidence
+and is not required by public CI. Neither bounded result establishes external
+signer or destination trust.
 
 ## 11. Relation to established work
 
@@ -772,7 +775,8 @@ exact Lean theorem layer:
 RESEARCH_HYPOTHESIS
 PROVED_CONNECTIVE_MATH
 PYTHON_REFERENCE_MODEL_TESTED
-ESSO_INDUCTIVE_MODEL_VERIFIED_BOUNDED
+ESSO_INDUCTIVE_MODEL_VERIFIED_BOUNDED_HISTORICAL
+PUBLIC_FINITE_MODEL_REPLAYED_BOUNDED
 PYTHON_JULIA_BOUNDED_PARITY
 UNMOUNTED
 ```

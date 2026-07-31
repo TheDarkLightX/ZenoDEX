@@ -5,7 +5,9 @@
 **Intended model:** GPT-5.6 Luna or another smaller implementation model  
 **Status:** `AUTHORITATIVE_TASK_DECOMPOSITION_NO_PRODUCTION_AUTHORITY`  
 **Primary repository:** `TheDarkLightX/ZenoDEX`  
-**Required supporting repositories:** `ZenoFCIS`, `ESSO`, `LEAP-MCP`, `Morph`, `ZAG`, `Research-Kernel-MCP`  
+**Required supporting repository:** `ZenoFCIS`
+
+**Optional research tools:** private `ESSO`, `LEAP-MCP`, `Morph`, `ZAG`, `Research-Kernel-MCP`
 **Starting research stack:** ZenoDEX PRs #496, #497, #498, #499 and the Durable Retraction follow-up PR
 
 ---
@@ -1120,9 +1122,9 @@ Fresh lookup must resolve the exact durable class.
 
 ---
 
-## E08 — Prove the abstract classifier in Lean/ESSO
+## E08 — Prove and publicly replay the abstract classifier
 
-Lean proves classifier partition/disjointness. ESSO/TLA explores concurrent commit and migration words. The database test is still required; the abstract model does not prove the SQL adapter.
+Lean proves classifier partition/disjointness. The checked-in exhaustive model checker or TLA explores concurrent commit and migration words. Private ESSO may supply additional evidence when available. The database test is still required; the abstract model does not prove the SQL adapter.
 
 ---
 
@@ -1637,7 +1639,7 @@ Rollback must restore a complete authorized history, configuration, residual sta
 
 ---
 
-## J09 — Migration ESSO/TLA/crash suite
+## J09 — Migration public-model/TLA/crash suite
 
 Explore every phase with crashes, retries, stale tokens, old/new writers, pending outbox rows, and restart. Permanent mutants include skipped phase, dual writers, missing residual transport, and mixed V1/V2 evidence.
 
@@ -1862,7 +1864,7 @@ all Rust tests, fmt, Clippy -D warnings
 Kani/SMT gates
 all Lean roots and axiom audits
 Julia independent oracles
-ESSO/TLA bounded models
+public exhaustive or TLA bounded models; optional private ESSO replay
 canonical vector parity
 crash and concurrency suites
 mutation suites
@@ -1961,7 +1963,7 @@ Every Morph card needs a reverse map or residual fiber and a list of lost inform
 
 Use only when a mechanism candidate fails or multiple algorithms remain. Do not restart allocator search while SRGD satisfies the current theorem. Use ZAG for implementation schedules, recovery policies, or alternative data structures only against a frozen verifier.
 
-### ESSO
+### Public model checker and optional ESSO
 
 Use for bounded stateful sequences:
 
@@ -2050,7 +2052,7 @@ Stopping one task does not mean stopping the program. Produce the smallest count
 3. 13-row M6 status matrix;
 4. theorem receipt index;
 5. Python/Rust/Julia parity report;
-6. ESSO/TLA bounded-model report;
+6. public exhaustive/TLA bounded-model report, plus optional ESSO evidence;
 7. datastore crash/concurrency report;
 8. outbox destination-contract report;
 9. migration execution report;
