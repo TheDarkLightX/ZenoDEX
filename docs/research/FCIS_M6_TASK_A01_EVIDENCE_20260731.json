@@ -1,0 +1,214 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "A01",
+  "base_sha": "5a20a601eee353ea39a7702ed30db7182662a741",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-A01-semantic-conflict-map-20260731",
+  "status": "IMPLEMENTED",
+  "acceptance": "No unresolved semantic conflict is auto-merged. Every observed cross-branch collision is classified before integration.",
+  "evidence_files": [
+    "docs/research/FCIS_M6_STACK_CONFLICT_MAP_20260731.md",
+    "docs/research/FCIS_M6_EXACT_HEAD_LEDGER_20260731.json",
+    "docs/research/FCIS_M6_WORKFLOW_EVIDENCE_LEDGER_20260731.json"
+  ],
+  "source_heads": {
+    "pr496": {
+      "commit": "4cad0c4ff203e6926991d33f4b314c4873792810",
+      "tree": "716a7b633dc3036aada1cad73787514c72710197"
+    },
+    "pr497": {
+      "commit": "0a51b2dc8729af34d86d717dff214576f7ae58c8",
+      "tree": "f9d93c6dbaba549a447af2e8931a1740b8edfc2e"
+    },
+    "pr498": {
+      "commit": "a94a1fa0586107a0a48aebbe4cd18c0d1029d481",
+      "tree": "0504abdf4c4b493a97baf06cfd73d4a3922d4cfb"
+    },
+    "pr499": {
+      "commit": "babffa56dcbddc5886487fbb6e62740b15370000",
+      "tree": "eb6771943bc490d1f9664d26ec14622a8849b010"
+    },
+    "pr501": {
+      "commit": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+      "tree": "a1d495eae0b26a369487ceb48cad5472abec74db"
+    }
+  },
+  "collisions": [
+    {
+      "id": "C-01",
+      "classification": "IDENTICAL",
+      "subject": "shared historical implementation report",
+      "surfaces": [
+        "docs/research/FCIS_M5_P4B3_IMPLEMENTOR_REPORT_20260727.md"
+      ],
+      "heads": [496, 497, 498, 499, 501],
+      "evidence": "All reviewed heads carry blob bc401d623f3e0ac84a2a7f48ac5813304c745b80.",
+      "action": "Reuse the inherited content and preserve its blob identity."
+    },
+    {
+      "id": "C-02",
+      "classification": "COMPATIBLE_ADDITIVE",
+      "subject": "Lean lakefile registry additions",
+      "surfaces": ["lean-mathlib/lakefile.lean"],
+      "heads": [496, 497, 498, 499, 501],
+      "evidence": "The registry evolves from blob 51bb017b9ab76a9c6e1306e84c60eedd4e2135d2 through the occurrence, TCG, and durable-retraction roots; each observed change adds a distinct proof root.",
+      "action": "Integrate by explicit union and run the full Lean build."
+    },
+    {
+      "id": "C-03",
+      "classification": "IDENTICAL",
+      "subject": "Lean import registry",
+      "surfaces": ["lean-mathlib/Proofs.lean"],
+      "heads": [496, 497, 498, 499, 501],
+      "evidence": "All reviewed heads carry blob 6e7e69c2d086506ee4491613e5f9c5704bf891f6.",
+      "action": "Reuse the identical registry content."
+    },
+    {
+      "id": "C-04",
+      "classification": "COMPATIBLE_ADDITIVE",
+      "subject": "Lean declaration namespaces",
+      "surfaces": [
+        "FCISFeeApportionmentAGQESRGDRefinement",
+        "FCISFeeOccurrenceSemantics",
+        "FCISTreeChordGateAuthority",
+        "FCISDurableRetraction"
+      ],
+      "heads": [496, 497, 499, 501],
+      "evidence": "Each theorem root is distinct; no same declaration root with different content was found.",
+      "action": "Retain separate namespaces and compile the union."
+    },
+    {
+      "id": "C-05",
+      "classification": "SCHEMA_MIGRATION_REQUIRED",
+      "subject": "SLNF to source-bound occurrence schema",
+      "surfaces": [
+        "src/core/fcis_fee_occurrence_normal_form.py",
+        "src/core/fcis_source_bound_lineage.py",
+        "src/core/fcis_fee_occurrence_extractor.py"
+      ],
+      "heads": [497, 498],
+      "evidence": "The source-bound module consumes the SLNF segment while the constant named SOURCE_BOUND_FEE_OCCURRENCE_VERSION_V1 encodes zenodex/fcis/fee-occurrence/source-bound-extractor/v2.",
+      "action": "Define explicit version mapping, canonical field order, preimages, and migration tests before integration."
+    },
+    {
+      "id": "C-06",
+      "classification": "UNKNOWN_REQUIRES_REVIEW",
+      "subject": "lineage closure certificate to TCG authority certificate",
+      "surfaces": [
+        "FCISLineageClosureCertificateV1",
+        "FCISLineageClaimSetV1",
+        "LineageV1",
+        "TreeChordGateCertificateV1"
+      ],
+      "heads": [498, 499],
+      "evidence": "No checked adapter or equality theorem binds the R04 claim-set certificate to the TCG authority-instance and topology roots.",
+      "action": "Keep the branches isolated; require a checked binding in later A04 dependencies."
+    },
+    {
+      "id": "C-07",
+      "classification": "SCHEMA_MIGRATION_REQUIRED",
+      "subject": "TCG authority roots to DRA authority and history roots",
+      "surfaces": [
+        "authority_instance_root",
+        "authority_state_root",
+        "authorized_history",
+        "durable_snapshot"
+      ],
+      "heads": [499, 501],
+      "evidence": "TCG and DRA use distinct domain roots and no checked relation currently carries the TCG instance binding into the DRA authoritative snapshot.",
+      "action": "Extend the ANF schema and recomputation proof with an explicit TCG-to-DRA relation."
+    },
+    {
+      "id": "C-08",
+      "classification": "COMPATIBLE_ADDITIVE",
+      "subject": "root-domain identifiers",
+      "surfaces": [
+        "SLNF",
+        "source-bound lineage",
+        "TCG",
+        "DRA"
+      ],
+      "heads": [497, 498, 499, 501],
+      "evidence": "No exact literal root-domain collision was found in the audited namespaces.",
+      "action": "Retain domain separation, then prove the cross-layer bindings separately."
+    },
+    {
+      "id": "C-09",
+      "classification": "COMPATIBLE_ADDITIVE",
+      "subject": "workflow names",
+      "surfaces": [
+        ".github/workflows/fcis-m6-r01-segmented-lineage.yml",
+        ".github/workflows/fcis-m6-r04-lineage-closure.yml",
+        ".github/workflows/fcis-m6-tree-chord-gate.yml",
+        ".github/workflows/fcis-m6-durable-retraction.yml"
+      ],
+      "heads": [497, 498, 499, 501],
+      "evidence": "Each workflow has a distinct path and name; no duplicate workflow name was found.",
+      "action": "Retain all workflows and audit aggregate triggers and job coverage at integration time."
+    },
+    {
+      "id": "C-10",
+      "classification": "UNKNOWN_REQUIRES_REVIEW",
+      "subject": "parallel R04 branches",
+      "surfaces": ["PR #498", "PR #499"],
+      "heads": [498, 499],
+      "evidence": "Neither head is an ancestor of the other; their merge base is the PR #497 head.",
+      "action": "Require explicit integration review after A02 and A03."
+    }
+  ],
+  "ancestry": [
+    {
+      "relation": "496 ancestor of 497",
+      "result": false,
+      "merge_base": "557cfaaca79318a1757124fd61625433de82b105"
+    },
+    {
+      "relation": "497 ancestor of 498",
+      "result": true,
+      "merge_base": "0a51b2dc8729af34d86d717dff214576f7ae58c8"
+    },
+    {
+      "relation": "498 ancestor of 499",
+      "result": false,
+      "merge_base": "0a51b2dc8729af34d86d717dff214576f7ae58c8"
+    },
+    {
+      "relation": "499 ancestor of 501",
+      "result": true,
+      "merge_base": "babffa56dcbddc5886487fbb6e62740b15370000"
+    },
+    {
+      "relation": "497 ancestor of 499",
+      "result": true,
+      "merge_base": "0a51b2dc8729af34d86d717dff214576f7ae58c8"
+    }
+  ],
+  "negative_findings": [
+    "No RENAME_REQUIRED collision was observed in the checked exported Python symbols or Lean declaration roots.",
+    "No direct SEMANTIC_CONFLICT was observed in the checked same-path, symbol, schema-name, root-domain, or workflow-name comparisons.",
+    "Private helper name repetition is module-local and was not treated as an exported collision.",
+    "No production caller, datastore adapter, runtime authority switch, deployment path, or value-moving path was added by A01."
+  ],
+  "commands": [
+    "git status --short --branch",
+    "git rev-parse HEAD",
+    "git rev-parse HEAD^{tree}",
+    "git fetch origin codex/fcis-p4b5a-agqe-srgd-refinement-20260730",
+    "git show --format=fuller --stat <exact-head>",
+    "git ls-tree -r <exact-head>",
+    "git merge-base <head-a> <head-b>",
+    "git diff --name-status <merge-base> <head>",
+    "git grep for public symbol, root-domain, schema-version, and workflow-name comparisons",
+    "sha256sum on the A00 ledgers and A01 receipt files",
+    "python3 -m json.tool docs/research/FCIS_M6_TASK_A01_EVIDENCE_20260731.json",
+    "python3 tools/check_fcis_durable_retraction_model.py --self-test"
+  ],
+  "mutants": [],
+  "nonclaims": [
+    "A01 does not merge any branch or select a last-writer resolution for an unresolved relation.",
+    "A01 does not prove production schema refinement, datastore atomicity, or runtime authority ownership.",
+    "A01 does not mount M6, enable value movement, switch authority, deploy, or promote any claim.",
+    "The source map is complete only for the stated exact-head and audited-surface scope; later source changes require regeneration."
+  ]
+}
