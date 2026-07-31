@@ -34,7 +34,7 @@ from __future__ import annotations
 from dataclasses import InitVar, dataclass
 from enum import Enum
 from hashlib import sha256
-from typing import Final, TypeAlias, TypeGuard, cast
+from typing import Callable, Final, Protocol, TypeAlias, TypeGuard, cast
 
 MAX_TRANSITIONS: Final = 128
 MAX_OUTBOX_PER_TRANSITION: Final = 64
@@ -45,6 +45,11 @@ MAX_NULLIFIER_ROWS: Final = MAX_TRANSITIONS
 MAX_OUTBOX_ROWS: Final = MAX_TRANSITIONS * MAX_OUTBOX_PER_TRANSITION
 MAX_DESTINATION_RECEIPTS: Final = MAX_OUTBOX_ROWS
 MAX_DURABLE_CANONICAL_BYTES: Final = 8 * 1024 * 1024
+MAX_ATOM_TABLE_CANONICAL_BYTES: Final = 2 * 1024 * 1024
+MAX_EVIDENCE_TABLE_CANONICAL_BYTES: Final = 2 * 1024 * 1024
+MAX_NULLIFIER_TABLE_CANONICAL_BYTES: Final = 2 * 1024 * 1024
+MAX_OUTBOX_TABLE_CANONICAL_BYTES: Final = 2 * 1024 * 1024
+MAX_ACK_TABLE_CANONICAL_BYTES: Final = 2 * 1024 * 1024
 U32_MAX: Final = (1 << 32) - 1
 MAX_TEXT_BYTES: Final = 256
 _HEX: Final = frozenset("0123456789abcdef")
@@ -188,6 +193,8 @@ class PublicationAtomV1:
     bundle_root: str
     replay_root: str
     outbox: tuple[OutboxEffectV1, ...]
+    deployment_config_root: str = _DEFAULT_DEPLOYMENT_CONFIG_ROOT
+    verifier_profile_root: str = _DEFAULT_VERIFIER_PROFILE_ROOT
 
     def __post_init__(self) -> None:
         sequence = _exact_int(self.sequence, "sequence", minimum=1)
@@ -207,6 +214,8 @@ class PublicationAtomV1:
             "decision_root",
             "bundle_root",
             "replay_root",
+            "deployment_config_root",
+            "verifier_profile_root",
         ):
             _digest(object.__getattribute__(self, name), name)
         if type(self.outbox) is not tuple:
@@ -231,7 +240,6 @@ class PublicationAtomV1:
                 destination=effect.destination,
                 payload_root=effect.payload_root,
                 writer_profile_root=self.writer_profile_root,
-                adapter_profile_root=effect.adapter_profile_root,
             )
             if effect.effect_id != expected:
                 raise DurableRetractionError(
@@ -248,6 +256,8 @@ class PublicationAtomV1:
                 bytes.fromhex(self.expected_pre_root),
                 bytes.fromhex(self.post_state_root),
                 bytes.fromhex(self.writer_profile_root),
+                bytes.fromhex(self.deployment_config_root),
+                bytes.fromhex(self.verifier_profile_root),
                 self.authority_epoch_index.to_bytes(4, "big"),
                 bytes.fromhex(self.authority_state_root),
                 bytes.fromhex(self.nullifier_root),
@@ -278,14 +288,22 @@ def derive_effect_id(
     destination: str,
     payload_root: str,
     writer_profile_root: str,
-    adapter_profile_root: str,
+    adapter_profile_root: str | None = None,
 ) -> str:
+    """Derive the stable semantic effect identity.
+
+    ``adapter_profile_root`` is accepted as a compatibility-only validation
+    input.  Adapter provenance belongs in the outbox and acknowledgment rows;
+    rotating that profile must not create a second semantic effect identity.
+    """
+
     _digest(commit_id, "commit_id")
     checked_ordinal = _exact_u32(ordinal, "ordinal")
     _bounded_text(destination, "destination")
     _digest(payload_root, "payload_root")
     _digest(writer_profile_root, "writer_profile_root")
-    _digest(adapter_profile_root, "adapter_profile_root")
+    if adapter_profile_root is not None:
+        _digest(adapter_profile_root, "adapter_profile_root")
     return _hash_fields(
         "zenodex/fcis/dra/effect-id/v1",
         (
@@ -294,7 +312,6 @@ def derive_effect_id(
             destination.encode("utf-8"),
             bytes.fromhex(payload_root),
             bytes.fromhex(writer_profile_root),
-            bytes.fromhex(adapter_profile_root),
         ),
     )
 
@@ -328,9 +345,10 @@ class AuthorityStateV1:
     active_profile_root: str
     allowed_writer_roots: tuple[str, ...]
     transport_root: str
+    transition_root: str
 
     def __post_init__(self) -> None:
-        _exact_int(self.epoch_index, "epoch_index")
+        _exact_u32(self.epoch_index, "epoch_index")
         if type(self.phase) is not MigrationPhaseV1:
             raise DurableRetractionError("phase has the wrong exact type")
         for name in (
@@ -338,8 +356,11 @@ class AuthorityStateV1:
             "target_profile_root",
             "active_profile_root",
             "transport_root",
+            "transition_root",
         ):
             _digest(object.__getattribute__(self, name), name)
+        if self.legacy_profile_root == self.target_profile_root:
+            raise DurableRetractionError("legacy and target writer roots must differ")
         if type(self.allowed_writer_roots) is not tuple:
             raise DurableRetractionError("allowed_writer_roots must be an exact tuple")
         for writer in self.allowed_writer_roots:
@@ -367,6 +388,7 @@ class AuthorityStateV1:
             bytes.fromhex(self.target_profile_root),
             bytes.fromhex(self.active_profile_root),
             bytes.fromhex(self.transport_root),
+            bytes.fromhex(self.transition_root),
         ]
         fields.extend(bytes.fromhex(writer) for writer in self.allowed_writer_roots)
         return _hash_fields("zenodex/fcis/dra/authority-state/v1", tuple(fields))
@@ -388,18 +410,80 @@ def _authority_profile_for_phase(
     return target_profile_root, (target_profile_root,)
 
 
+def _authority_transition_root(
+    previous_authority_root: str | None,
+    *,
+    epoch_index: int,
+    phase: MigrationPhaseV1,
+    legacy_profile_root: str,
+    target_profile_root: str,
+    active_profile_root: str,
+    allowed_writer_roots: tuple[str, ...],
+    transport_root: str,
+) -> str:
+    previous = (
+        tagged_digest("migration/genesis")
+        if previous_authority_root is None
+        else previous_authority_root
+    )
+    _digest(previous, "previous_authority_root")
+    _exact_u32(epoch_index, "epoch_index")
+    if type(phase) is not MigrationPhaseV1:
+        raise DurableRetractionError("phase has the wrong exact type")
+    for name, value in (
+        ("legacy_profile_root", legacy_profile_root),
+        ("target_profile_root", target_profile_root),
+        ("active_profile_root", active_profile_root),
+        ("transport_root", transport_root),
+    ):
+        _digest(value, name)
+    if type(allowed_writer_roots) is not tuple:
+        raise DurableRetractionError("allowed_writer_roots must be an exact tuple")
+    for writer in allowed_writer_roots:
+        _digest(writer, "allowed_writer_root")
+    return _hash_fields(
+        "zenodex/fcis/dra/migration-transition/v1",
+        (
+            bytes.fromhex(previous),
+            epoch_index.to_bytes(4, "big"),
+            phase.value.encode("ascii"),
+            bytes.fromhex(legacy_profile_root),
+            bytes.fromhex(target_profile_root),
+            bytes.fromhex(active_profile_root),
+            *(bytes.fromhex(writer) for writer in allowed_writer_roots),
+            bytes.fromhex(transport_root),
+        ),
+    )
+
+
 def initial_authority_state(
     legacy_profile_root: str,
     target_profile_root: str,
 ) -> AuthorityStateV1:
+    legacy = _digest(legacy_profile_root, "legacy_profile_root")
+    target = _digest(target_profile_root, "target_profile_root")
+    if legacy == target:
+        raise DurableRetractionError("legacy and target writer roots must differ")
+    transport = tagged_digest("migration/genesis")
+    transition = _authority_transition_root(
+        None,
+        epoch_index=0,
+        phase=MigrationPhaseV1.LEGACY,
+        legacy_profile_root=legacy,
+        target_profile_root=target,
+        active_profile_root=legacy,
+        allowed_writer_roots=(legacy,),
+        transport_root=transport,
+    )
     return AuthorityStateV1(
         epoch_index=0,
         phase=MigrationPhaseV1.LEGACY,
-        legacy_profile_root=_digest(legacy_profile_root, "legacy_profile_root"),
-        target_profile_root=_digest(target_profile_root, "target_profile_root"),
-        active_profile_root=legacy_profile_root,
-        allowed_writer_roots=(legacy_profile_root,),
-        transport_root=tagged_digest("migration/genesis"),
+        legacy_profile_root=legacy,
+        target_profile_root=target,
+        active_profile_root=legacy,
+        allowed_writer_roots=(legacy,),
+        transport_root=transport,
+        transition_root=transition,
     )
 
 
@@ -413,6 +497,7 @@ def advance_authority_state(
     authority.__post_init__()
     if type(next_phase) is not MigrationPhaseV1:
         raise DurableRetractionError("next_phase has the wrong exact type")
+    checked_transport_root = _digest(transport_root, "transport_root")
     current_index = _PHASE_ORDER.index(authority.phase)
     if current_index + 1 >= len(_PHASE_ORDER):
         raise DurableRetractionError("the authority lifecycle is already terminal")
@@ -423,15 +508,79 @@ def advance_authority_state(
         authority.legacy_profile_root,
         authority.target_profile_root,
     )
-    return AuthorityStateV1(
-        epoch_index=authority.epoch_index + 1,
+    next_epoch = authority.epoch_index + 1
+    transition = _authority_transition_root(
+        authority.root,
+        epoch_index=next_epoch,
         phase=next_phase,
         legacy_profile_root=authority.legacy_profile_root,
         target_profile_root=authority.target_profile_root,
         active_profile_root=active,
         allowed_writer_roots=writers,
-        transport_root=_digest(transport_root, "transport_root"),
+        transport_root=checked_transport_root,
     )
+    return AuthorityStateV1(
+        epoch_index=next_epoch,
+        phase=next_phase,
+        legacy_profile_root=authority.legacy_profile_root,
+        target_profile_root=authority.target_profile_root,
+        active_profile_root=active,
+        allowed_writer_roots=writers,
+        transport_root=checked_transport_root,
+        transition_root=transition,
+    )
+
+
+def _validate_authority_epochs(authority_epochs: tuple[AuthorityStateV1, ...]) -> None:
+    if type(authority_epochs) is not tuple or not authority_epochs:
+        raise DurableRetractionError("authority_epochs must be a nonempty exact tuple")
+    if len(authority_epochs) > MAX_AUTHORITY_EPOCHS:
+        raise DurableRetractionError("authority_epochs exceeds its row bound")
+    previous: AuthorityStateV1 | None = None
+    for index, authority in enumerate(authority_epochs):
+        if type(authority) is not AuthorityStateV1:
+            raise DurableRetractionError("authority epoch has the wrong exact type")
+        authority.__post_init__()
+        if authority.epoch_index != index:
+            raise DurableRetractionError("authority epoch indices must be contiguous")
+        if previous is not None:
+            if (
+                authority.legacy_profile_root != previous.legacy_profile_root
+                or authority.target_profile_root != previous.target_profile_root
+            ):
+                raise DurableRetractionError("authority profile lineage changed identity")
+            previous_index = _PHASE_ORDER.index(previous.phase)
+            if (
+                previous_index + 1 >= len(_PHASE_ORDER)
+                or _PHASE_ORDER[previous_index + 1] is not authority.phase
+            ):
+                raise DurableRetractionError("authority lifecycle skipped or regressed")
+            expected_transition = _authority_transition_root(
+                previous.root,
+                epoch_index=authority.epoch_index,
+                phase=authority.phase,
+                legacy_profile_root=authority.legacy_profile_root,
+                target_profile_root=authority.target_profile_root,
+                active_profile_root=authority.active_profile_root,
+                allowed_writer_roots=authority.allowed_writer_roots,
+                transport_root=authority.transport_root,
+            )
+            if authority.transition_root != expected_transition:
+                raise DurableRetractionError("authority transition is not canonically bound")
+        else:
+            expected_genesis = _authority_transition_root(
+                None,
+                epoch_index=authority.epoch_index,
+                phase=authority.phase,
+                legacy_profile_root=authority.legacy_profile_root,
+                target_profile_root=authority.target_profile_root,
+                active_profile_root=authority.active_profile_root,
+                allowed_writer_roots=authority.allowed_writer_roots,
+                transport_root=authority.transport_root,
+            )
+            if authority.transition_root != expected_genesis:
+                raise DurableRetractionError("genesis authority transition is not canonical")
+        previous = authority
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -491,28 +640,7 @@ class AuthorizedHistoryV1:
         _digest(self.verifier_profile_root, "verifier_profile_root")
         if type(self.authority_epochs) is not tuple or not self.authority_epochs:
             raise DurableRetractionError("authority_epochs must be a nonempty exact tuple")
-        if len(self.authority_epochs) > MAX_AUTHORITY_EPOCHS:
-            raise DurableRetractionError("authority_epochs exceeds its row bound")
-        previous: AuthorityStateV1 | None = None
-        for index, authority in enumerate(self.authority_epochs):
-            if type(authority) is not AuthorityStateV1:
-                raise DurableRetractionError("authority epoch has the wrong exact type")
-            authority.__post_init__()
-            if authority.epoch_index != index:
-                raise DurableRetractionError("authority epoch indices must be contiguous")
-            if previous is not None:
-                if (
-                    authority.legacy_profile_root != previous.legacy_profile_root
-                    or authority.target_profile_root != previous.target_profile_root
-                ):
-                    raise DurableRetractionError("authority profile lineage changed identity")
-                previous_index = _PHASE_ORDER.index(previous.phase)
-                if (
-                    previous_index + 1 >= len(_PHASE_ORDER)
-                    or _PHASE_ORDER[previous_index + 1] is not authority.phase
-                ):
-                    raise DurableRetractionError("authority lifecycle skipped or regressed")
-            previous = authority
+        _validate_authority_epochs(self.authority_epochs)
         if type(self.atoms) is not tuple or len(self.atoms) > MAX_TRANSITIONS:
             raise DurableRetractionError("atoms has the wrong bounded shape")
         expected_pre = self.genesis_state_root
@@ -540,6 +668,13 @@ class AuthorizedHistoryV1:
             if atom.authority_state_root != authority.root:
                 raise DurableRetractionError(
                     "publication atom is not bound to its exact authority epoch"
+                )
+            if (
+                atom.deployment_config_root != self.deployment_config_root
+                or atom.verifier_profile_root != self.verifier_profile_root
+            ):
+                raise DurableRetractionError(
+                    "publication atom is not bound to its deployment and verifier context"
                 )
             if atom.writer_profile_root not in authority.allowed_writer_roots:
                 raise DurableRetractionError("publication atom uses a disabled writer")
@@ -634,12 +769,7 @@ class DurableSnapshotV1:
         _digest(self.verifier_profile_root, "verifier_profile_root")
         if type(self.authority_epochs) is not tuple or not self.authority_epochs:
             raise DurableRetractionError("authority_epochs must be a nonempty exact tuple")
-        if len(self.authority_epochs) > MAX_AUTHORITY_EPOCHS:
-            raise DurableRetractionError("authority_epochs exceeds its row bound")
-        for authority in self.authority_epochs:
-            if type(authority) is not AuthorityStateV1:
-                raise DurableRetractionError("authority epoch has the wrong exact type")
-            authority.__post_init__()
+        _validate_authority_epochs(self.authority_epochs)
         _digest(self.current_state_root, "current_state_root")
         _digest(self.snapshot_root, "snapshot_root")
         _validate_snapshot_tables(self)
@@ -658,11 +788,27 @@ def _validate_snapshot_tables(snapshot: DurableSnapshotV1) -> None:
         ("outbox_rows", snapshot.outbox_rows, MAX_OUTBOX_ROWS, OutboxRowV1),
         ("ack_rows", snapshot.ack_rows, MAX_ACKS, DeliveryAckV1),
     )
+    table_budgets = {
+        "atom_rows": MAX_ATOM_TABLE_CANONICAL_BYTES,
+        "evidence_rows": MAX_EVIDENCE_TABLE_CANONICAL_BYTES,
+        "nullifier_rows": MAX_NULLIFIER_TABLE_CANONICAL_BYTES,
+        "outbox_rows": MAX_OUTBOX_TABLE_CANONICAL_BYTES,
+        "ack_rows": MAX_ACK_TABLE_CANONICAL_BYTES,
+    }
+    coarse_row_bytes = {
+        "atom_rows": 256,
+        "evidence_rows": 128,
+        "nullifier_rows": 128,
+        "outbox_rows": 192,
+        "ack_rows": 256,
+    }
     for name, rows, maximum, row_type in tables:
         if type(rows) is not tuple:
             raise DurableRetractionError(f"{name} must be an exact tuple")
         if len(rows) > maximum:
             raise DurableRetractionError(f"{name} exceeds its row bound")
+        if len(rows) * coarse_row_bytes[name] > table_budgets[name]:
+            raise DurableRetractionError(f"{name} exceeds its canonical-byte budget")
         for row in rows:
             if type(row) is not row_type:
                 raise DurableRetractionError(f"{name} contains the wrong exact type")
@@ -677,6 +823,25 @@ def _validate_snapshot_tables(snapshot: DurableSnapshotV1) -> None:
         132 + len(row.destination.encode("utf-8")) for row in snapshot.outbox_rows
     )
     estimated_bytes += sum(192 + len(row.destination.encode("utf-8")) for row in snapshot.ack_rows)
+    if 512 * len(snapshot.atom_rows) > MAX_ATOM_TABLE_CANONICAL_BYTES:
+        raise DurableRetractionError("atom_rows exceeds its canonical-byte budget")
+    if (
+        sum(96 + len(row.kind.encode("utf-8")) for row in snapshot.evidence_rows)
+        > MAX_EVIDENCE_TABLE_CANONICAL_BYTES
+    ):
+        raise DurableRetractionError("evidence_rows exceeds its canonical-byte budget")
+    if 96 * len(snapshot.nullifier_rows) > MAX_NULLIFIER_TABLE_CANONICAL_BYTES:
+        raise DurableRetractionError("nullifier_rows exceeds its canonical-byte budget")
+    if (
+        sum(132 + len(row.destination.encode("utf-8")) for row in snapshot.outbox_rows)
+        > MAX_OUTBOX_TABLE_CANONICAL_BYTES
+    ):
+        raise DurableRetractionError("outbox_rows exceeds its canonical-byte budget")
+    if (
+        sum(192 + len(row.destination.encode("utf-8")) for row in snapshot.ack_rows)
+        > MAX_ACK_TABLE_CANONICAL_BYTES
+    ):
+        raise DurableRetractionError("ack_rows exceeds its canonical-byte budget")
     if estimated_bytes > MAX_DURABLE_CANONICAL_BYTES:
         raise DurableRetractionError("durable snapshot exceeds its total canonical-byte budget")
 
@@ -857,11 +1022,25 @@ def reopen_snapshot(snapshot: object) -> ReopenResultV1:
             if type(ack) is not DeliveryAckV1:
                 raise DurableRetractionError("ack row has the wrong exact type")
             ack.__post_init__()
-    except (AttributeError, DurableRetractionError, TypeError, ValueError):
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
         return ReopenRejectV1(ReopenCodeV1.INVALID_ROW, ("snapshot",))
     try:
         recomputed_snapshot_root = _snapshot_root_without_cache(exact)
-    except (OverflowError, AttributeError, DurableRetractionError, TypeError, ValueError):
+    except (
+        OverflowError,
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        RecursionError,
+    ):
         return ReopenRejectV1(ReopenCodeV1.RESOURCE_LIMIT, ("snapshot_root",))
     if recomputed_snapshot_root != exact.snapshot_root:
         return ReopenRejectV1(
@@ -893,14 +1072,31 @@ def reopen_snapshot(snapshot: object) -> ReopenResultV1:
             verifier_profile_root=exact.verifier_profile_root,
         )
         history.__post_init__()
-    except (AttributeError, DurableRetractionError, TypeError, ValueError):
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
         return ReopenRejectV1(ReopenCodeV1.HISTORY_INVALID, ("history",))
     if history.current_state_root != exact.current_state_root:
         return ReopenRejectV1(
             ReopenCodeV1.NONCANONICAL_LAYOUT,
             ("current_state_root",),
         )
-    canonical = encode_history(history)
+    try:
+        canonical = encode_history(history)
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
+        return ReopenRejectV1(ReopenCodeV1.RESOURCE_LIMIT, ("canonical_snapshot",))
     if canonical != exact:
         return ReopenRejectV1(
             ReopenCodeV1.NONCANONICAL_LAYOUT,
@@ -913,11 +1109,50 @@ def normalize_snapshot(snapshot: object) -> DurableSnapshotV1 | ReopenRejectV1:
     reopened = reopen_snapshot(snapshot)
     if not _is_history(reopened):
         return cast(ReopenRejectV1, reopened)
-    return encode_history(reopened)
+    try:
+        return encode_history(reopened)
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
+        return ReopenRejectV1(ReopenCodeV1.RESOURCE_LIMIT, ("canonical_snapshot",))
 
 
 _HEAD_AUTHORIZATION_TOKEN_V1 = object()
+_EXTERNAL_AUTHORIZATION_GRANT_TOKEN_V1 = object()
 _VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1 = object()
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalHeadAuthorizationVerifierCapabilityV1:
+    """Opaque provenance supplied by the shell-owned external verifier."""
+
+    verifier_profile_root: str
+
+    def __post_init__(self) -> None:
+        _digest(self.verifier_profile_root, "verifier_profile_root")
+
+
+class ExternalHeadAuthorizationVerifierAdapterV1(Protocol):
+    """Shell boundary that returns a verifier-produced authority capability."""
+
+    def produce_verified_external_head_authorization(
+        self,
+        evidence: object,
+        *,
+        expected_snapshot_root: object,
+        expected_current_state_root: object,
+        expected_authority_state_root: object,
+        expected_authority_epoch_index: object,
+        expected_deployment_config_root: object,
+        expected_verifier_profile_root: object,
+        current_epoch: object,
+    ) -> object:
+        """Return an opaque verified grant or a typed rejection."""
 
 
 def _external_attestation_root(
@@ -1013,8 +1248,8 @@ class ExternalHeadAuthorizationEvidenceV1:
 
 
 @dataclass(frozen=True, slots=True)
-class VerifiedExternalHeadAuthorizationV1:
-    """Verifier-produced authority witness consumed by the deterministic core."""
+class ExternalHeadAuthorizationGrantV1:
+    """Opaque shell output awaiting core admission."""
 
     snapshot_root: str
     current_state_root: str
@@ -1027,13 +1262,19 @@ class VerifiedExternalHeadAuthorizationV1:
     expiration_epoch: int | None
     attestation_root: str
     evidence_root: str
+    verifier_capability: ExternalHeadAuthorizationVerifierCapabilityV1
     _construction_token: InitVar[object]
 
     def __post_init__(self, _construction_token: object) -> None:
-        if _construction_token is not _VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1:
+        if _construction_token is not _EXTERNAL_AUTHORIZATION_GRANT_TOKEN_V1:
             raise DurableRetractionError(
-                "verified external authorization requires the verifier boundary"
+                "external authorization grant requires the verifier boundary"
             )
+        if type(self.verifier_capability) is not ExternalHeadAuthorizationVerifierCapabilityV1:
+            raise DurableRetractionError("external authorization lacks verifier capability")
+        self.verifier_capability.__post_init__()
+        if self.verifier_capability.verifier_profile_root != self.verifier_profile_root:
+            raise DurableRetractionError("external authorization capability is crossed")
         evidence = ExternalHeadAuthorizationEvidenceV1(
             snapshot_root=self.snapshot_root,
             current_state_root=self.current_state_root,
@@ -1054,9 +1295,151 @@ class VerifiedExternalHeadAuthorizationV1:
         if self.evidence_root != expected:
             raise DurableRetractionError("verified external evidence root mismatch")
 
+    def _revalidate(self) -> None:
+        self.__post_init__(_EXTERNAL_AUTHORIZATION_GRANT_TOKEN_V1)
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedExternalHeadAuthorizationV1:
+    """Core-admitted authority witness consumed by the deterministic core."""
+
+    snapshot_root: str
+    current_state_root: str
+    authority_state_root: str
+    authority_epoch_index: int
+    deployment_config_root: str
+    verifier_profile_root: str
+    external_statement_root: str
+    activation_epoch: int
+    expiration_epoch: int | None
+    attestation_root: str
+    evidence_root: str
+    verifier_capability: ExternalHeadAuthorizationVerifierCapabilityV1
+    _construction_token: InitVar[object]
+
+    def __post_init__(self, _construction_token: object) -> None:
+        if _construction_token is not _VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1:
+            raise DurableRetractionError("verified external authorization requires grant admission")
+        if type(self.verifier_capability) is not ExternalHeadAuthorizationVerifierCapabilityV1:
+            raise DurableRetractionError("external authorization lacks verifier capability")
+        self.verifier_capability.__post_init__()
+        if self.verifier_capability.verifier_profile_root != self.verifier_profile_root:
+            raise DurableRetractionError("external authorization capability is crossed")
+        evidence = ExternalHeadAuthorizationEvidenceV1(
+            snapshot_root=self.snapshot_root,
+            current_state_root=self.current_state_root,
+            authority_state_root=self.authority_state_root,
+            authority_epoch_index=self.authority_epoch_index,
+            deployment_config_root=self.deployment_config_root,
+            verifier_profile_root=self.verifier_profile_root,
+            external_statement_root=self.external_statement_root,
+            activation_epoch=self.activation_epoch,
+            expiration_epoch=self.expiration_epoch,
+            attestation_root=self.attestation_root,
+        )
+        expected = _external_evidence_root(
+            attestation_root=evidence.attestation_root,
+            external_statement_root=evidence.external_statement_root,
+            verifier_profile_root=evidence.verifier_profile_root,
+        )
+        if self.evidence_root != expected:
+            raise DurableRetractionError("verified external evidence root mismatch")
+
+    def _revalidate(self) -> None:
+        self.__post_init__(_VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1)
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchExternalHeadAuthorizationVerifierV1:
+    """Deterministic shell stub; it carries no production signer or quorum trust."""
+
+    def produce_verified_external_head_authorization(
+        self,
+        evidence: object,
+        *,
+        expected_snapshot_root: object,
+        expected_current_state_root: object,
+        expected_authority_state_root: object,
+        expected_authority_epoch_index: object,
+        expected_deployment_config_root: object,
+        expected_verifier_profile_root: object,
+        current_epoch: object,
+    ) -> object:
+        if type(evidence) is not ExternalHeadAuthorizationEvidenceV1:
+            return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("evidence",))
+        try:
+            evidence.__post_init__()
+            expected_values = (
+                (_digest(expected_snapshot_root, "expected_snapshot_root"), evidence.snapshot_root),
+                (
+                    _digest(expected_current_state_root, "expected_current_state_root"),
+                    evidence.current_state_root,
+                ),
+                (
+                    _digest(expected_authority_state_root, "expected_authority_state_root"),
+                    evidence.authority_state_root,
+                ),
+                (
+                    _exact_u32(expected_authority_epoch_index, "expected_authority_epoch_index"),
+                    evidence.authority_epoch_index,
+                ),
+                (
+                    _digest(expected_deployment_config_root, "expected_deployment_config_root"),
+                    evidence.deployment_config_root,
+                ),
+                (
+                    _digest(expected_verifier_profile_root, "expected_verifier_profile_root"),
+                    evidence.verifier_profile_root,
+                ),
+            )
+            if any(expected != actual for expected, actual in expected_values):
+                return ReopenRejectV1(
+                    ReopenCodeV1.NONCANONICAL_LAYOUT,
+                    ("evidence", "subject"),
+                )
+            epoch = _exact_u32(current_epoch, "current_epoch")
+            if epoch < evidence.activation_epoch or (
+                evidence.expiration_epoch is not None and epoch >= evidence.expiration_epoch
+            ):
+                return ReopenRejectV1(
+                    ReopenCodeV1.AUTHORIZATION_EXPIRED,
+                    ("evidence", "bounds"),
+                )
+            evidence_root = _external_evidence_root(
+                attestation_root=evidence.attestation_root,
+                external_statement_root=evidence.external_statement_root,
+                verifier_profile_root=evidence.verifier_profile_root,
+            )
+            return ExternalHeadAuthorizationGrantV1(
+                snapshot_root=evidence.snapshot_root,
+                current_state_root=evidence.current_state_root,
+                authority_state_root=evidence.authority_state_root,
+                authority_epoch_index=evidence.authority_epoch_index,
+                deployment_config_root=evidence.deployment_config_root,
+                verifier_profile_root=evidence.verifier_profile_root,
+                external_statement_root=evidence.external_statement_root,
+                activation_epoch=evidence.activation_epoch,
+                expiration_epoch=evidence.expiration_epoch,
+                attestation_root=evidence.attestation_root,
+                evidence_root=evidence_root,
+                verifier_capability=ExternalHeadAuthorizationVerifierCapabilityV1(
+                    evidence.verifier_profile_root
+                ),
+                _construction_token=_EXTERNAL_AUTHORIZATION_GRANT_TOKEN_V1,
+            )
+        except (
+            AttributeError,
+            DurableRetractionError,
+            TypeError,
+            ValueError,
+            OverflowError,
+            RecursionError,
+        ):
+            return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("evidence",))
+
 
 def verify_external_head_authorization(
-    evidence: object,
+    grant: object,
     *,
     expected_snapshot_root: object,
     expected_current_state_root: object,
@@ -1066,33 +1449,38 @@ def verify_external_head_authorization(
     expected_verifier_profile_root: object,
     current_epoch: object,
 ) -> VerifiedExternalHeadAuthorizationV1 | ReopenRejectV1:
-    """Model the shell-owned verifier boundary; deployment trust is a nonclaim."""
+    """Admit only an opaque grant returned by a shell-owned verifier.
 
-    if type(evidence) is not ExternalHeadAuthorizationEvidenceV1:
-        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("evidence",))
+    This function validates a grant result and creates the core-admitted
+    witness.  It never constructs authority from raw evidence.
+    Production signer, quorum, and deployment trust remain explicit nonclaims.
+    """
+
+    if type(grant) is not ExternalHeadAuthorizationGrantV1:
+        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("grant",))
     try:
-        evidence.__post_init__()
+        grant._revalidate()
         expected_values = (
-            (_digest(expected_snapshot_root, "expected_snapshot_root"), evidence.snapshot_root),
+            (_digest(expected_snapshot_root, "expected_snapshot_root"), grant.snapshot_root),
             (
                 _digest(expected_current_state_root, "expected_current_state_root"),
-                evidence.current_state_root,
+                grant.current_state_root,
             ),
             (
                 _digest(expected_authority_state_root, "expected_authority_state_root"),
-                evidence.authority_state_root,
+                grant.authority_state_root,
             ),
             (
                 _exact_u32(expected_authority_epoch_index, "expected_authority_epoch_index"),
-                evidence.authority_epoch_index,
+                grant.authority_epoch_index,
             ),
             (
                 _digest(expected_deployment_config_root, "expected_deployment_config_root"),
-                evidence.deployment_config_root,
+                grant.deployment_config_root,
             ),
             (
                 _digest(expected_verifier_profile_root, "expected_verifier_profile_root"),
-                evidence.verifier_profile_root,
+                grant.verifier_profile_root,
             ),
         )
         if any(expected != actual for expected, actual in expected_values):
@@ -1101,34 +1489,37 @@ def verify_external_head_authorization(
                 ("authorization", "subject"),
             )
         epoch = _exact_u32(current_epoch, "current_epoch")
-        if epoch < evidence.activation_epoch or (
-            evidence.expiration_epoch is not None and epoch >= evidence.expiration_epoch
+        if epoch < grant.activation_epoch or (
+            grant.expiration_epoch is not None and epoch >= grant.expiration_epoch
         ):
             return ReopenRejectV1(
                 ReopenCodeV1.AUTHORIZATION_EXPIRED,
                 ("authorization", "bounds"),
             )
-        evidence_root = _external_evidence_root(
-            attestation_root=evidence.attestation_root,
-            external_statement_root=evidence.external_statement_root,
-            verifier_profile_root=evidence.verifier_profile_root,
-        )
         return VerifiedExternalHeadAuthorizationV1(
-            snapshot_root=evidence.snapshot_root,
-            current_state_root=evidence.current_state_root,
-            authority_state_root=evidence.authority_state_root,
-            authority_epoch_index=evidence.authority_epoch_index,
-            deployment_config_root=evidence.deployment_config_root,
-            verifier_profile_root=evidence.verifier_profile_root,
-            external_statement_root=evidence.external_statement_root,
-            activation_epoch=evidence.activation_epoch,
-            expiration_epoch=evidence.expiration_epoch,
-            attestation_root=evidence.attestation_root,
-            evidence_root=evidence_root,
+            snapshot_root=grant.snapshot_root,
+            current_state_root=grant.current_state_root,
+            authority_state_root=grant.authority_state_root,
+            authority_epoch_index=grant.authority_epoch_index,
+            deployment_config_root=grant.deployment_config_root,
+            verifier_profile_root=grant.verifier_profile_root,
+            external_statement_root=grant.external_statement_root,
+            activation_epoch=grant.activation_epoch,
+            expiration_epoch=grant.expiration_epoch,
+            attestation_root=grant.attestation_root,
+            evidence_root=grant.evidence_root,
+            verifier_capability=grant.verifier_capability,
             _construction_token=_VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1,
         )
-    except (AttributeError, DurableRetractionError, TypeError, ValueError, OverflowError):
-        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("evidence",))
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
+        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("grant",))
 
 
 def _reopen_authorization_root(
@@ -1177,6 +1568,7 @@ class ReopenAuthorizationV1:
     expiration_epoch: int | None
     evidence_root: str
     authorization_root: str
+    verifier_capability: ExternalHeadAuthorizationVerifierCapabilityV1
     _construction_token: InitVar[object]
 
     def __post_init__(self, _construction_token: object) -> None:
@@ -1184,6 +1576,8 @@ class ReopenAuthorizationV1:
             raise DurableRetractionError(
                 "reopen authorization requires a verified external witness"
             )
+        if type(self.verifier_capability) is not ExternalHeadAuthorizationVerifierCapabilityV1:
+            raise DurableRetractionError("reopen authorization lacks verifier capability")
         self._revalidate()
 
     def _revalidate(self) -> None:
@@ -1198,6 +1592,9 @@ class ReopenAuthorizationV1:
             "authorization_root",
         ):
             _digest(object.__getattribute__(self, name), name)
+        self.verifier_capability.__post_init__()
+        if self.verifier_capability.verifier_profile_root != self.verifier_profile_root:
+            raise DurableRetractionError("reopen authorization capability is crossed")
         _exact_u32(self.authority_epoch_index, "authority_epoch_index")
         _exact_u32(self.activation_epoch, "activation_epoch")
         if self.expiration_epoch is not None:
@@ -1240,7 +1637,14 @@ def authorize_reopened_snapshot(
     verified = verified_external_authorization
     try:
         verified.__post_init__(_VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1)
-    except (AttributeError, DurableRetractionError, TypeError, ValueError, OverflowError):
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
         return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("authorization",))
     if (
         verified.snapshot_root != exact_snapshot.snapshot_root
@@ -1274,20 +1678,31 @@ def authorize_reopened_snapshot(
         expiration_epoch=verified.expiration_epoch,
         evidence_root=verified.evidence_root,
     )
-    return ReopenAuthorizationV1(
-        snapshot_root=verified.snapshot_root,
-        current_state_root=verified.current_state_root,
-        authority_state_root=verified.authority_state_root,
-        authority_epoch_index=verified.authority_epoch_index,
-        deployment_config_root=verified.deployment_config_root,
-        verifier_profile_root=verified.verifier_profile_root,
-        external_statement_root=verified.external_statement_root,
-        activation_epoch=verified.activation_epoch,
-        expiration_epoch=verified.expiration_epoch,
-        evidence_root=verified.evidence_root,
-        authorization_root=authorization_root,
-        _construction_token=_HEAD_AUTHORIZATION_TOKEN_V1,
-    )
+    try:
+        return ReopenAuthorizationV1(
+            snapshot_root=verified.snapshot_root,
+            current_state_root=verified.current_state_root,
+            authority_state_root=verified.authority_state_root,
+            authority_epoch_index=verified.authority_epoch_index,
+            deployment_config_root=verified.deployment_config_root,
+            verifier_profile_root=verified.verifier_profile_root,
+            external_statement_root=verified.external_statement_root,
+            activation_epoch=verified.activation_epoch,
+            expiration_epoch=verified.expiration_epoch,
+            evidence_root=verified.evidence_root,
+            authorization_root=authorization_root,
+            verifier_capability=verified.verifier_capability,
+            _construction_token=_HEAD_AUTHORIZATION_TOKEN_V1,
+        )
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
+        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("authorization",))
 
 
 def _authorization_matches_snapshot(
@@ -1299,7 +1714,14 @@ def _authorization_matches_snapshot(
         return False
     try:
         authorization._revalidate()
-    except (AttributeError, DurableRetractionError, TypeError, ValueError, OverflowError):
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
         return False
     current_epoch = history.authority.epoch_index
     return (
@@ -1349,17 +1771,55 @@ class CommitAttemptV1:
     client_observation: ClientObservationV1
     response_root: str | None
 
+    def __post_init__(self) -> None:
+        if type(self.snapshot) is not DurableSnapshotV1:
+            raise DurableRetractionError("commit result carries the wrong snapshot type")
+        self.snapshot.__post_init__()
+        if type(self.durable_resolution) is not CommitResolutionV1:
+            raise DurableRetractionError("commit result has the wrong resolution type")
+        if type(self.client_observation) is not ClientObservationV1:
+            raise DurableRetractionError("commit result has the wrong observation type")
+        if self.response_root is not None:
+            _digest(self.response_root, "response_root")
+        valid_observations = {
+            CommitResolutionV1.NEWLY_COMMITTED: (
+                ClientObservationV1.CONFIRMED_NEW,
+                ClientObservationV1.INDETERMINATE,
+            ),
+            CommitResolutionV1.ALREADY_COMMITTED: (ClientObservationV1.CONFIRMED_ALREADY,),
+            CommitResolutionV1.ABSENT_RETRYABLE: (ClientObservationV1.INDETERMINATE,),
+            CommitResolutionV1.STALE_STATE: (ClientObservationV1.CONFIRMED_STALE,),
+            CommitResolutionV1.DEFINITE_REJECTION: (ClientObservationV1.CONFIRMED_REJECTION,),
+        }
+        if self.client_observation not in valid_observations[self.durable_resolution]:
+            raise DurableRetractionError("commit result resolution and observation disagree")
+
 
 def classify_retry(
     history: AuthorizedHistoryV1,
     atom: PublicationAtomV1,
 ) -> tuple[CommitResolutionV1, str | None]:
     if type(history) is not AuthorizedHistoryV1:
-        raise DurableRetractionError("history has the wrong exact type")
+        return CommitResolutionV1.DEFINITE_REJECTION, None
     if type(atom) is not PublicationAtomV1:
-        raise DurableRetractionError("atom has the wrong exact type")
-    history.__post_init__()
-    atom.__post_init__()
+        return CommitResolutionV1.DEFINITE_REJECTION, None
+    try:
+        history.__post_init__()
+        atom.__post_init__()
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
+        return CommitResolutionV1.DEFINITE_REJECTION, None
+    if (
+        atom.deployment_config_root != history.deployment_config_root
+        or atom.verifier_profile_root != history.verifier_profile_root
+    ):
+        return CommitResolutionV1.DEFINITE_REJECTION, None
     for committed in history.atoms:
         if committed.commit_id == atom.commit_id:
             if committed.fingerprint == atom.fingerprint:
@@ -1377,26 +1837,42 @@ def classify_retry(
 
 
 def attempt_commit(
-    snapshot: DurableSnapshotV1,
+    snapshot: object,
     authorization: object,
-    atom: PublicationAtomV1,
-    crash_point: CrashPointV1 = CrashPointV1.NONE,
-) -> CommitAttemptV1:
+    atom: object,
+    crash_point: object = CrashPointV1.NONE,
+) -> CommitAttemptV1 | ReopenRejectV1:
+    if type(snapshot) is not DurableSnapshotV1:
+        return ReopenRejectV1(ReopenCodeV1.WRONG_EXACT_TYPE, ("snapshot",))
+    try:
+        snapshot.__post_init__()
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
+        return ReopenRejectV1(ReopenCodeV1.INVALID_ROW, ("snapshot",))
+    if type(atom) is not PublicationAtomV1:
+        return ReopenRejectV1(ReopenCodeV1.WRONG_EXACT_TYPE, ("atom",))
+    try:
+        atom.__post_init__()
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
+        return ReopenRejectV1(ReopenCodeV1.INVALID_ROW, ("atom",))
     if type(crash_point) is not CrashPointV1:
-        return CommitAttemptV1(
-            snapshot=snapshot,
-            durable_resolution=CommitResolutionV1.DEFINITE_REJECTION,
-            client_observation=ClientObservationV1.CONFIRMED_REJECTION,
-            response_root=None,
-        )
+        return ReopenRejectV1(ReopenCodeV1.WRONG_EXACT_TYPE, ("crash_point",))
     reopened = reopen_snapshot(snapshot)
     if not _is_history(reopened):
-        return CommitAttemptV1(
-            snapshot=snapshot,
-            durable_resolution=CommitResolutionV1.DEFINITE_REJECTION,
-            client_observation=ClientObservationV1.CONFIRMED_REJECTION,
-            response_root=None,
-        )
+        return cast(ReopenRejectV1, reopened)
     history = reopened
     if not _authorization_matches_snapshot(snapshot, history, authorization):
         return CommitAttemptV1(
@@ -1444,7 +1920,14 @@ def attempt_commit(
             verifier_profile_root=history.verifier_profile_root,
         )
         post = encode_history(appended)
-    except (AttributeError, DurableRetractionError, TypeError, ValueError):
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
         return CommitAttemptV1(
             snapshot=snapshot,
             durable_resolution=CommitResolutionV1.DEFINITE_REJECTION,
@@ -1559,6 +2042,25 @@ class DestinationResponseEvidenceV1:
 _VERIFIED_DESTINATION_RECEIPT_TOKEN_V1 = object()
 
 
+@dataclass(frozen=True, slots=True)
+class DestinationVerifierCapabilityV1:
+    """Opaque provenance supplied by a shell-owned destination adapter."""
+
+    adapter_profile_root: str
+    idempotency_root: str
+
+    def __post_init__(self) -> None:
+        _digest(self.adapter_profile_root, "adapter_profile_root")
+        _digest(self.idempotency_root, "idempotency_root")
+
+
+class DestinationVerifierAdapterV1(Protocol):
+    """Shell boundary that performs delivery and returns a verified receipt."""
+
+    def deliver_and_verify(self, effect: OutboxEffectV1) -> object:
+        """Return a verifier-produced receipt or a typed rejection."""
+
+
 def _verified_destination_evidence_root(
     *,
     attestation_root: str,
@@ -1588,11 +2090,20 @@ class VerifiedDestinationReceiptV1:
     response_root: str
     attestation_root: str
     evidence_root: str
+    verifier_capability: DestinationVerifierCapabilityV1
     _construction_token: InitVar[object]
 
     def __post_init__(self, _construction_token: object) -> None:
         if _construction_token is not _VERIFIED_DESTINATION_RECEIPT_TOKEN_V1:
             raise DurableRetractionError("destination receipt requires a verifier adapter")
+        if type(self.verifier_capability) is not DestinationVerifierCapabilityV1:
+            raise DurableRetractionError("destination receipt lacks verifier capability")
+        self.verifier_capability.__post_init__()
+        if (
+            self.verifier_capability.adapter_profile_root != self.adapter_profile_root
+            or self.verifier_capability.idempotency_root != self.idempotency_root
+        ):
+            raise DurableRetractionError("destination receipt capability is crossed")
         self._revalidate()
 
     def _revalidate(self) -> None:
@@ -1615,6 +2126,81 @@ class VerifiedDestinationReceiptV1:
             raise DurableRetractionError("verified destination evidence root mismatch")
 
 
+@dataclass(frozen=True, slots=True)
+class ResearchDestinationVerifierAdapterV1:
+    """Deterministic delivery stub; it carries no live destination trust."""
+
+    adapter_profile_root: str | None = None
+
+    def deliver_and_verify(self, effect: OutboxEffectV1) -> object:
+        try:
+            effect.__post_init__()
+            profile = (
+                effect.adapter_profile_root
+                if self.adapter_profile_root is None
+                else _digest(self.adapter_profile_root, "adapter_profile_root")
+            )
+            idempotency_root = derive_destination_idempotency_root(effect.effect_id)
+            destination_receipt_root = derive_destination_receipt_root(
+                effect_id=effect.effect_id,
+                destination=effect.destination,
+                payload_root=effect.payload_root,
+            )
+            response_root = tagged_digest(f"destination-response/{effect.effect_id}")
+            attestation_root = _destination_attestation_root(
+                effect_id=effect.effect_id,
+                destination=effect.destination,
+                payload_root=effect.payload_root,
+                destination_receipt_root=destination_receipt_root,
+                adapter_profile_root=profile,
+                idempotency_root=idempotency_root,
+                response_root=response_root,
+            )
+            raw_response = DestinationResponseEvidenceV1(
+                effect_id=effect.effect_id,
+                destination=effect.destination,
+                payload_root=effect.payload_root,
+                destination_receipt_root=destination_receipt_root,
+                adapter_profile_root=profile,
+                idempotency_root=idempotency_root,
+                response_root=response_root,
+                attestation_root=attestation_root,
+            )
+            raw_response.__post_init__()
+            return VerifiedDestinationReceiptV1(
+                effect_id=raw_response.effect_id,
+                destination=raw_response.destination,
+                payload_root=raw_response.payload_root,
+                destination_receipt_root=raw_response.destination_receipt_root,
+                adapter_profile_root=raw_response.adapter_profile_root,
+                idempotency_root=raw_response.idempotency_root,
+                response_root=raw_response.response_root,
+                attestation_root=raw_response.attestation_root,
+                evidence_root=_verified_destination_evidence_root(
+                    attestation_root=raw_response.attestation_root,
+                    adapter_profile_root=raw_response.adapter_profile_root,
+                    idempotency_root=raw_response.idempotency_root,
+                ),
+                verifier_capability=DestinationVerifierCapabilityV1(
+                    raw_response.adapter_profile_root,
+                    raw_response.idempotency_root,
+                ),
+                _construction_token=_VERIFIED_DESTINATION_RECEIPT_TOKEN_V1,
+            )
+        except (
+            AttributeError,
+            DurableRetractionError,
+            TypeError,
+            ValueError,
+            OverflowError,
+            RecursionError,
+        ):
+            return ReopenRejectV1(
+                ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
+                ("destination_adapter",),
+            )
+
+
 def verify_destination_response(
     response: object,
     *,
@@ -1622,21 +2208,25 @@ def verify_destination_response(
     expected_adapter_profile_root: object,
     expected_idempotency_root: object,
 ) -> VerifiedDestinationReceiptV1 | ReopenRejectV1:
-    """Model a destination-specific verifier; delivery deployment is a nonclaim."""
+    """Admit an opaque adapter-produced receipt without minting one.
 
-    if type(response) is not DestinationResponseEvidenceV1:
+    Raw destination evidence and structural receipt digests are rejected here.
+    A shell-owned adapter must contact and verify the destination first.
+    """
+
+    if type(response) is not VerifiedDestinationReceiptV1:
         return ReopenRejectV1(
             ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
             ("destination_response",),
         )
     try:
-        response.__post_init__()
         if type(expected_effect) is not OutboxEffectV1:
             return ReopenRejectV1(
                 ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
                 ("effect",),
             )
         expected_effect.__post_init__()
+        response._revalidate()
         adapter_profile_root = _digest(
             expected_adapter_profile_root,
             "expected_adapter_profile_root",
@@ -1654,35 +2244,22 @@ def verify_destination_response(
             or response.idempotency_root != idempotency_root
             or response.idempotency_root
             != derive_destination_idempotency_root(expected_effect.effect_id)
-            or response.destination_receipt_root
-            != derive_destination_receipt_root(
-                effect_id=expected_effect.effect_id,
-                destination=expected_effect.destination,
-                payload_root=expected_effect.payload_root,
-            )
+            or response.verifier_capability.adapter_profile_root != response.adapter_profile_root
+            or response.verifier_capability.idempotency_root != response.idempotency_root
         ):
             return ReopenRejectV1(
                 ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
                 ("destination_response", "binding"),
             )
-        evidence_root = _verified_destination_evidence_root(
-            attestation_root=response.attestation_root,
-            adapter_profile_root=response.adapter_profile_root,
-            idempotency_root=response.idempotency_root,
-        )
-        return VerifiedDestinationReceiptV1(
-            effect_id=response.effect_id,
-            destination=response.destination,
-            payload_root=response.payload_root,
-            destination_receipt_root=response.destination_receipt_root,
-            adapter_profile_root=response.adapter_profile_root,
-            idempotency_root=response.idempotency_root,
-            response_root=response.response_root,
-            attestation_root=response.attestation_root,
-            evidence_root=evidence_root,
-            _construction_token=_VERIFIED_DESTINATION_RECEIPT_TOKEN_V1,
-        )
-    except (AttributeError, DurableRetractionError, TypeError, ValueError, OverflowError):
+        return response
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
         return ReopenRejectV1(
             ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
             ("destination_response",),
@@ -1747,6 +2324,19 @@ class DeliveryAttemptV1:
     delivery_class: DeliveryClassV1
     receipt: VerifiedDestinationReceiptV1 | None
 
+    def __post_init__(self) -> None:
+        if type(self.destination_state) is not DestinationStateV1:
+            raise DurableRetractionError("delivery result carries the wrong destination state")
+        self.destination_state.__post_init__()
+        if type(self.delivery_class) is not DeliveryClassV1:
+            raise DurableRetractionError("delivery result has the wrong class type")
+        if self.receipt is not None:
+            if type(self.receipt) is not VerifiedDestinationReceiptV1:
+                raise DurableRetractionError("delivery result carries an unverified receipt")
+            self.receipt._revalidate()
+            if self.receipt not in self.destination_state.receipts:
+                raise DurableRetractionError("delivery result receipt is absent from its state")
+
 
 def _find_effect(history: AuthorizedHistoryV1, effect_id: str) -> OutboxEffectV1 | None:
     for atom in history.atoms:
@@ -1757,13 +2347,32 @@ def _find_effect(history: AuthorizedHistoryV1, effect_id: str) -> OutboxEffectV1
 
 
 def deliver_effect(
-    snapshot: DurableSnapshotV1,
-    destination_state: DestinationStateV1,
-    effect_id: str,
+    snapshot: object,
+    destination_state: object,
+    effect_id: object,
     *,
-    lose_ack: bool = False,
-) -> DeliveryAttemptV1:
-    _digest(effect_id, "effect_id")
+    adapter: object = None,
+    lose_ack: object = False,
+) -> DeliveryAttemptV1 | ReopenRejectV1:
+    if type(lose_ack) is not bool:
+        return ReopenRejectV1(ReopenCodeV1.WRONG_EXACT_TYPE, ("lose_ack",))
+    if type(snapshot) is not DurableSnapshotV1:
+        return ReopenRejectV1(ReopenCodeV1.WRONG_EXACT_TYPE, ("snapshot",))
+    if type(destination_state) is not DestinationStateV1:
+        return ReopenRejectV1(ReopenCodeV1.WRONG_EXACT_TYPE, ("destination_state",))
+    try:
+        snapshot.__post_init__()
+        destination_state.__post_init__()
+        checked_effect_id = _digest(effect_id, "effect_id")
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
+        return ReopenRejectV1(ReopenCodeV1.INVALID_ROW, ("delivery",))
     reopened = reopen_snapshot(snapshot)
     if not _is_history(reopened):
         return DeliveryAttemptV1(
@@ -1772,14 +2381,13 @@ def deliver_effect(
             None,
         )
     history = reopened
-    effect = _find_effect(history, effect_id)
+    effect = _find_effect(history, checked_effect_id)
     if effect is None:
         return DeliveryAttemptV1(
             destination_state,
             DeliveryClassV1.NOT_COMMITTED,
             None,
         )
-    destination_state.__post_init__()
     for existing in destination_state.receipts:
         if existing.effect_id != effect.effect_id:
             continue
@@ -1799,55 +2407,66 @@ def deliver_effect(
             DeliveryClassV1.PAYLOAD_COLLISION,
             None,
         )
-    idempotency_root = derive_destination_idempotency_root(effect.effect_id)
-    destination_receipt_root = derive_destination_receipt_root(
-        effect_id=effect.effect_id,
-        destination=effect.destination,
-        payload_root=effect.payload_root,
-    )
-    response_root = tagged_digest(f"destination-response/{effect.effect_id}")
-    raw_response = DestinationResponseEvidenceV1(
-        effect_id=effect.effect_id,
-        destination=effect.destination,
-        payload_root=effect.payload_root,
-        destination_receipt_root=destination_receipt_root,
-        adapter_profile_root=effect.adapter_profile_root,
-        idempotency_root=idempotency_root,
-        response_root=response_root,
-        attestation_root=_destination_attestation_root(
-            effect_id=effect.effect_id,
-            destination=effect.destination,
-            payload_root=effect.payload_root,
-            destination_receipt_root=destination_receipt_root,
-            adapter_profile_root=effect.adapter_profile_root,
-            idempotency_root=idempotency_root,
-            response_root=response_root,
-        ),
-    )
-    verified = verify_destination_response(
-        raw_response,
-        expected_effect=effect,
-        expected_adapter_profile_root=effect.adapter_profile_root,
-        expected_idempotency_root=idempotency_root,
-    )
-    if type(verified) is not VerifiedDestinationReceiptV1:
-        return DeliveryAttemptV1(
-            destination_state,
-            DeliveryClassV1.VERIFIER_REJECTED,
-            None,
+    if adapter is None:
+        return ReopenRejectV1(
+            ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
+            ("destination_adapter",),
         )
-    receipt = verified
-    next_state = DestinationStateV1(
-        tuple(sorted(destination_state.receipts + (receipt,), key=lambda item: item.effect_id))
-    )
-    delivery_class = (
-        DeliveryClassV1.INDETERMINATE_AFTER_ACCEPT if lose_ack else DeliveryClassV1.ACCEPTED_NEW
-    )
-    return DeliveryAttemptV1(next_state, delivery_class, receipt)
+    adapter_method = getattr(adapter, "deliver_and_verify", None)
+    if not callable(adapter_method):
+        return ReopenRejectV1(
+            ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
+            ("destination_adapter",),
+        )
+    try:
+        adapter_response = cast(Callable[[OutboxEffectV1], object], adapter_method)(effect)
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
+        return ReopenRejectV1(
+            ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
+            ("destination_adapter",),
+        )
+    try:
+        verified = verify_destination_response(
+            adapter_response,
+            expected_effect=effect,
+            expected_adapter_profile_root=effect.adapter_profile_root,
+            expected_idempotency_root=derive_destination_idempotency_root(effect.effect_id),
+        )
+        if type(verified) is ReopenRejectV1:
+            return verified
+        receipt = cast(VerifiedDestinationReceiptV1, verified)
+        next_state = DestinationStateV1(
+            tuple(sorted(destination_state.receipts + (receipt,), key=lambda item: item.effect_id))
+        )
+        delivery_class = (
+            DeliveryClassV1.INDETERMINATE_AFTER_ACCEPT
+            if lose_ack is True
+            else DeliveryClassV1.ACCEPTED_NEW
+        )
+        return DeliveryAttemptV1(next_state, delivery_class, receipt)
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
+        return ReopenRejectV1(
+            ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
+            ("destination_response",),
+        )
 
 
 def acknowledge_delivery(
-    snapshot: DurableSnapshotV1,
+    snapshot: object,
     authorization: object,
     receipt: object,
 ) -> DurableSnapshotV1 | ReopenRejectV1:
@@ -1856,7 +2475,8 @@ def acknowledge_delivery(
         history = reopened
     else:
         return cast(ReopenRejectV1, reopened)
-    if not _authorization_matches_snapshot(snapshot, history, authorization):
+    exact_snapshot = cast(DurableSnapshotV1, snapshot)
+    if not _authorization_matches_snapshot(exact_snapshot, history, authorization):
         return ReopenRejectV1(
             ReopenCodeV1.NONCANONICAL_LAYOUT,
             ("authorization",),
@@ -1868,7 +2488,14 @@ def acknowledge_delivery(
         )
     try:
         receipt._revalidate()
-    except (AttributeError, DurableRetractionError, TypeError, ValueError, OverflowError):
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
         return ReopenRejectV1(
             ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
             ("receipt",),
@@ -1902,7 +2529,7 @@ def acknowledge_delivery(
     old = existing.get(ack.effect_id)
     if old is not None:
         if old == ack:
-            return snapshot
+            return exact_snapshot
         return ReopenRejectV1(
             ReopenCodeV1.INCOMPLETE_OR_SURPLUS_EVIDENCE,
             ("ack", "collision"),
@@ -1915,30 +2542,43 @@ def acknowledge_delivery(
         deployment_config_root=history.deployment_config_root,
         verifier_profile_root=history.verifier_profile_root,
     )
-    return encode_history(next_history)
+    try:
+        return encode_history(next_history)
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
+        return ReopenRejectV1(ReopenCodeV1.RESOURCE_LIMIT, ("ack",))
 
 
 def migrate_snapshot(
-    snapshot: DurableSnapshotV1,
+    snapshot: object,
     authorization: object,
-    next_phase: MigrationPhaseV1,
-    transport_root: str,
+    next_phase: object,
+    transport_root: object,
 ) -> DurableSnapshotV1 | ReopenRejectV1:
     reopened = reopen_snapshot(snapshot)
     if _is_history(reopened):
         history = reopened
     else:
         return cast(ReopenRejectV1, reopened)
-    if not _authorization_matches_snapshot(snapshot, history, authorization):
+    exact_snapshot = cast(DurableSnapshotV1, snapshot)
+    if not _authorization_matches_snapshot(exact_snapshot, history, authorization):
         return ReopenRejectV1(
             ReopenCodeV1.NONCANONICAL_LAYOUT,
             ("authorization",),
         )
     try:
+        if type(next_phase) is not MigrationPhaseV1:
+            return ReopenRejectV1(ReopenCodeV1.WRONG_EXACT_TYPE, ("next_phase",))
         next_authority = advance_authority_state(
             history.authority,
             next_phase,
-            transport_root,
+            cast(str, transport_root),
         )
         # Existing atoms are historical facts and keep their contemporaneous
         # authority roots.  A profile transition is represented in the durable
@@ -1953,7 +2593,14 @@ def migrate_snapshot(
             verifier_profile_root=history.verifier_profile_root,
         )
         return encode_history(migrated)
-    except (AttributeError, DurableRetractionError, TypeError, ValueError):
+    except (
+        AttributeError,
+        DurableRetractionError,
+        TypeError,
+        ValueError,
+        OverflowError,
+        RecursionError,
+    ):
         return ReopenRejectV1(ReopenCodeV1.HISTORY_INVALID, ("migration",))
 
 
@@ -1969,11 +2616,16 @@ __all__ = (
     "DeliveryClassV1",
     "DestinationReceiptV1",
     "DestinationResponseEvidenceV1",
+    "DestinationVerifierAdapterV1",
+    "DestinationVerifierCapabilityV1",
     "DestinationStateV1",
     "DurableRetractionError",
     "DurableSnapshotV1",
     "EvidenceRowV1",
     "ExternalHeadAuthorizationEvidenceV1",
+    "ExternalHeadAuthorizationGrantV1",
+    "ExternalHeadAuthorizationVerifierAdapterV1",
+    "ExternalHeadAuthorizationVerifierCapabilityV1",
     "MigrationPhaseV1",
     "NullifierRowV1",
     "OutboxEffectV1",
@@ -1982,6 +2634,8 @@ __all__ = (
     "ReopenAuthorizationV1",
     "ReopenCodeV1",
     "ReopenRejectV1",
+    "ResearchDestinationVerifierAdapterV1",
+    "ResearchExternalHeadAuthorizationVerifierV1",
     "VerifiedDestinationReceiptV1",
     "VerifiedExternalHeadAuthorizationV1",
     "acknowledge_delivery",

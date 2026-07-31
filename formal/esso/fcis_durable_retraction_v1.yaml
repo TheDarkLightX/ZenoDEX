@@ -183,13 +183,19 @@ actions:
   - id: receive_verified_external_grant
     params:
       - id: verified_external_grant
-        type: {kind: bool}
+        type:
+          kind: enum
+          symbols:
+            - VERIFIED_EXTERNAL_GRANT
     guard:
       op: and
       args:
         - op: not
           args: [{var: head_authorized}]
-        - {param: verified_external_grant}
+        - op: '='
+          args:
+            - {param: verified_external_grant}
+            - {enum: VERIFIED_EXTERNAL_GRANT}
     updates:
       - var: head_authorized
         expr: {bool: true}
@@ -260,14 +266,20 @@ actions:
   - id: acknowledge_delivery
     params:
       - id: verified_destination_receipt
-        type: {kind: bool}
+        type:
+          kind: enum
+          symbols:
+            - VERIFIED_DESTINATION_RECEIPT
     guard:
       op: and
       args:
         - {var: head_authorized}
         - {var: external_effect}
         - {var: outbox_published}
-        - {param: verified_destination_receipt}
+        - op: '='
+          args:
+            - {param: verified_destination_receipt}
+            - {enum: VERIFIED_DESTINATION_RECEIPT}
     updates:
       - var: ack_published
         expr: {bool: true}

@@ -15,11 +15,18 @@ on:
       - "docs/research/FCIS_M6_R02_COMPLETE_SRGD_THEOREM_20260731.md"
       - "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md"
       - "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json"
+      - "docs/research/FCIS_M6_LUNA_REPAIR_REPORT_20260731.md"
+      - "docs/research/FCIS_M6_LUNA_NONCLAIMS_V1.md"
+      - "docs/research/FCIS_M6_LUNA_CHANGE_INVENTORY_V1.md"
+      - "docs/research/FCIS_M6_LUNA_SOURCE_MANIFEST_V1.json"
+      - "docs/research/FCIS_M6_LUNA_TOOLCHAIN_V1.json"
+      - "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/**"
       - "docs/research/FCIS_M6_RESEARCH_KERNEL_LEDGER_V2.json"
       - "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml"
       - "docs/research/FCIS_M6_LEAP_SURPRISE_PACKETS_V1.yaml"
       - "README_BUNDLE.md"
       - "SHA256SUMS.txt"
+      - "requirements-dev.lock.txt"
       - ".github/workflows/fcis-m6-durable-retraction.yml"
   workflow_dispatch:
 
@@ -35,14 +42,30 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact source head and supplied input hashes
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          (
+            cd docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair
+            sha256sum --check --strict SHA256SUMS.txt
+          )
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: "3.11"
+          python-version: "3.12.3"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
-      - name: Install exact development requirements
-        run: python -m pip install --requirement requirements-dev.txt
+          cache-dependency-path: requirements-dev.lock.txt
+      - name: Install hash-locked development requirements
+        run: python -m pip install --require-hashes --requirement requirements-dev.lock.txt
+      - name: Verify resolved Python environment
+        run: |
+          python --version
+          python -m pip check
+          python -m ruff --version
+          python -m mypy --version
+          python -m pytest --version
       - name: Compile focused files
         run: |
           python -m py_compile \
@@ -170,6 +193,11 @@ jobs:
           ref: ef5b06cb7dbed9e8a78d27e9918550ee591e42eb
           path: external/ESSO
           persist-credentials: false
+      - name: Verify pinned ESSO revision
+        working-directory: external/ESSO
+        run: |
+          test "$(git rev-parse HEAD)" = "ef5b06cb7dbed9e8a78d27e9918550ee591e42eb"
+          test "$(git rev-parse HEAD^{tree})" = "478db05f8f75f5c7cf0fe6164c097f0ea398cb32"
       - name: Run ESSO validation and fail-closed multi-solver gate
         env:
           PYTHONPATH: external/ESSO
@@ -188,11 +216,11 @@ jobs:
       - name: Set up pinned Julia action
         uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9
         with:
-          version: "1.12"
+          version: "1.12.6"
       - name: Set up Python for structural parity
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: "3.11"
+          python-version: "3.12.3"
       - name: Run independent Julia oracle
         run: |
           julia --startup-file=no \
@@ -239,13 +267,19 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Materialize pinned compatible mathlib
+      - name: Checkout pinned compatible mathlib
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: leanprover-community/mathlib4
+          ref: a3a10db0e9d66acbebf76c5e6a135066525ac900
+          path: external/mathlib4
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify pinned mathlib revision
+        working-directory: external/mathlib4
         run: |
-          git clone \
-            --depth 1 \
-            --branch v4.27.0 \
-            https://github.com/leanprover-community/mathlib4.git \
-            external/mathlib4
+          test "$(git rev-parse HEAD)" = "a3a10db0e9d66acbebf76c5e6a135066525ac900"
+          test "$(git rev-parse HEAD^{tree})" = "df91be6ed72be0f70aabcd56216d97a06c449a21"
       - name: Install pinned Elan and project Lean toolchain
         env:
           ELAN_INSTALLER_COMMIT: b6cec7e10fe4965a605aaf60d1cb4a5837f0462b
