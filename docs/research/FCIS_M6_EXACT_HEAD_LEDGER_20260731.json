@@ -1,0 +1,192 @@
+{
+  "schema_version": "zenodex.fcis.m6.exact-head-ledger.v1",
+  "generated_on": "2026-07-31",
+  "repository": "TheDarkLightX/ZenoDEX",
+  "base_branch": "agent/fcis-m6-r04-tree-chord-gate-authority-20260730",
+  "base_sha": "babffa56dcbddc5886487fbb6e62740b15370000",
+  "base_tree": "eb6771943bc490d1f9664d26ec14622a8849b010",
+  "source_head": {
+    "commit": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+    "tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+    "parent": "ecf26f987c3d6393501fec66ddfc3429fb8634c7",
+    "implementation_target": {
+      "commit": "ecf26f987c3d6393501fec66ddfc3429fb8634c7",
+      "tree": "fdf154ac143a9f9a9e840fbbf49761190d138920"
+    }
+  },
+  "pull_requests": [
+    {
+      "number": 496,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/496",
+      "base_branch": "agent/fcis-m5-p4b5a-b1b1-repair-v3-20260729",
+      "base_sha": "554758aa1536b01b911ba40b21afa4aec55c1b60",
+      "head_branch": "codex/fcis-p4b5a-agqe-srgd-refinement-20260730",
+      "head_sha": "4cad0c4ff203e6926991d33f4b314c4873792810",
+      "state": "open",
+      "draft": true,
+      "mergeable": true,
+      "changed_files": [
+        "docs/research/FCIS_M5_P4B3_IMPLEMENTOR_REPORT_20260727.md",
+        "docs/research/FCIS_M5_P4B5A_AGQE_SRGD_SIGN_DUAL_REFINEMENT_20260730.md",
+        "lean-mathlib/Proofs.lean",
+        "lean-mathlib/Proofs/FCISFeeApportionmentAGQESRGDRefinement.lean",
+        "tests/core/test_fcis_fee_apportionment_agqe_srgd_refinement.py"
+      ],
+      "workflow_runs": [
+        {"id": 30574930930, "name": "zeno-oracle-mvp", "conclusion": "success"},
+        {"id": 30574930753, "name": "fire-assurance", "conclusion": "success"},
+        {"id": 30574930735, "name": "container-assurance", "conclusion": "success"},
+        {"id": 30574930693, "name": "shape-v1-ratchet", "conclusion": "success"},
+        {"id": 30574930954, "name": "dependency-assurance", "conclusion": "failure"},
+        {"id": 30574930638, "name": "disaster-assurance-ratchet", "conclusion": "failure"},
+        {"id": 30574930761, "name": "zrpf-assurance", "conclusion": "success"}
+      ]
+    },
+    {
+      "number": 497,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/497",
+      "base_branch": "codex/fcis-p4b5a-agqe-srgd-refinement-20260730",
+      "base_sha": "557cfaaca79318a1757124fd61625433de82b105",
+      "head_branch": "codex/fcis-m6-r01-segmented-lineage-20260730",
+      "head_sha": "0a51b2dc8729af34d86d717dff214576f7ae58c8",
+      "state": "open",
+      "draft": true,
+      "mergeable": true,
+      "changed_files": [
+        ".github/workflows/fcis-m6-r01-segmented-lineage.yml",
+        "docs/research/FCIS_M5_P4B3_IMPLEMENTOR_REPORT_20260727.md",
+        "docs/research/FCIS_M6_R01_SEGMENTED_LINEAGE_NORMAL_FORM_20260730.md",
+        "lean-mathlib/Proofs/FCISFeeOccurrenceSemantics.lean",
+        "lean-mathlib/lakefile.lean",
+        "src/core/fcis_fee_occurrence_normal_form.py",
+        "tests/core/test_fcis_fee_occurrence_normal_form.py"
+      ],
+      "workflow_runs": [
+        {"id": 30576876109, "name": "shape-v1-ratchet", "conclusion": "success"},
+        {"id": 30576876133, "name": "zeno-oracle-mvp", "conclusion": "success"},
+        {"id": 30576876393, "name": "disaster-assurance-ratchet", "conclusion": "failure"},
+        {"id": 30576875992, "name": "fcis-m6-r01-segmented-lineage", "conclusion": "success"},
+        {"id": 30576875988, "name": "dependency-assurance", "conclusion": "failure"},
+        {"id": 30576876021, "name": "fire-assurance", "conclusion": "success"},
+        {"id": 30576875998, "name": "container-assurance", "conclusion": "success"},
+        {"id": 30576876002, "name": "zrpf-assurance", "conclusion": "success"}
+      ]
+    },
+    {
+      "number": 498,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/498",
+      "base_branch": "codex/fcis-m6-r01-segmented-lineage-20260730",
+      "base_sha": "0a51b2dc8729af34d86d717dff214576f7ae58c8",
+      "head_branch": "codex/fcis-m6-r04-lineage-closure-20260730",
+      "head_sha": "a94a1fa0586107a0a48aebbe4cd18c0d1029d481",
+      "state": "open",
+      "draft": true,
+      "mergeable": true,
+      "changed_files": [
+        ".github/workflows/fcis-m6-r04-lineage-closure.yml",
+        "docs/research/FCIS_M6_R01_R04_SOURCE_BOUND_LINEAGE_20260730.md",
+        "docs/research/FCIS_M6_R04_LINEAGE_CERTIFICATE_CLOSURE_20260730.md",
+        "src/core/fcis_fee_occurrence_extractor.py",
+        "src/core/fcis_lineage_closure.py",
+        "src/core/fcis_source_bound_lineage.py",
+        "tests/core/test_fcis_fee_occurrence_extractor.py",
+        "tests/core/test_fcis_lineage_closure.py",
+        "tests/core/test_fcis_source_bound_lineage.py"
+      ],
+      "workflow_runs": [
+        {"id": 30583887162, "name": "zrpf-assurance", "conclusion": "success"},
+        {"id": 30583887219, "name": "shape-v1-ratchet", "conclusion": "success"},
+        {"id": 30583887097, "name": "dependency-assurance", "conclusion": "failure"},
+        {"id": 30583887124, "name": "zeno-oracle-mvp", "conclusion": "success"},
+        {"id": 30583887138, "name": "container-assurance", "conclusion": "success"},
+        {"id": 30583887186, "name": "fcis-m6-r04-lineage-closure", "conclusion": "success"},
+        {"id": 30583887108, "name": "fire-assurance", "conclusion": "success"},
+        {"id": 30583887140, "name": "disaster-assurance-ratchet", "conclusion": "failure"}
+      ]
+    },
+    {
+      "number": 499,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/499",
+      "base_branch": "codex/fcis-m6-r01-segmented-lineage-20260730",
+      "base_sha": "0a51b2dc8729af34d86d717dff214576f7ae58c8",
+      "head_branch": "agent/fcis-m6-r04-tree-chord-gate-authority-20260730",
+      "head_sha": "babffa56dcbddc5886487fbb6e62740b15370000",
+      "state": "open",
+      "draft": true,
+      "mergeable": true,
+      "changed_files": [
+        ".github/workflows/fcis-m6-tree-chord-gate.yml",
+        "docs/research/FCIS_M6_EXPLORER_CATALOG_V1.json",
+        "docs/research/FCIS_M6_R04_TREE_CHORD_GATE_AUTHORITY_20260730.md",
+        "experiments/fcis_tcg_bounded_search.py",
+        "experiments/fcis_tcg_bounded_search_result.json",
+        "experiments/julia/fcis_tree_chord_gate_oracle.jl",
+        "formal/esso/fcis_tree_chord_gate_authority_v1.yaml",
+        "lean-mathlib/Proofs/FCISTreeChordGateAuthority.lean",
+        "lean-mathlib/lakefile.lean",
+        "src/core/fcis_tree_chord_gate_authority.py",
+        "tests/core/test_fcis_tree_chord_gate_authority.py"
+      ],
+      "workflow_runs": [
+        {"id": 30580573808, "name": "fire-assurance", "conclusion": "success"},
+        {"id": 30580573804, "name": "container-assurance", "conclusion": "success"},
+        {"id": 30580573838, "name": "fcis-m6-r01-segmented-lineage", "conclusion": "success"},
+        {"id": 30580573831, "name": "FCIS M6 Tree-Chord-Gate", "conclusion": "success"},
+        {"id": 30580573840, "name": "dependency-assurance", "conclusion": "failure"},
+        {"id": 30580573886, "name": "shape-v1-ratchet", "conclusion": "success"},
+        {"id": 30580573834, "name": "zeno-oracle-mvp", "conclusion": "success"},
+        {"id": 30580573910, "name": "disaster-assurance-ratchet", "conclusion": "failure"},
+        {"id": 30580573813, "name": "zrpf-assurance", "conclusion": "success"}
+      ]
+    },
+    {
+      "number": 501,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/501",
+      "base_branch": "agent/fcis-m6-r04-tree-chord-gate-authority-20260730",
+      "base_sha": "babffa56dcbddc5886487fbb6e62740b15370000",
+      "head_branch": "agent/fcis-m6-r05-r11-durable-retraction-20260731",
+      "head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+      "state": "open",
+      "draft": true,
+      "mergeable": true,
+      "changed_files": [
+        ".github/workflows/fcis-m6-durable-retraction.yml",
+        "README_BUNDLE.md",
+        "SHA256SUMS.txt",
+        "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz",
+        "docs/research/FCIS_M6_DURABLE_RETRACTION_BREAKTHROUGH_20260731.md",
+        "docs/research/FCIS_M6_LEAP_SURPRISE_PACKETS_V1.yaml",
+        "docs/research/FCIS_M6_LUNA_CHANGE_INVENTORY_V1.md",
+        "docs/research/FCIS_M6_LUNA_CONTINUATION_PROMPT_V2.md",
+        "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md",
+        "docs/research/FCIS_M6_LUNA_NONCLAIMS_V1.md",
+        "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair/LUNA_PROMPT.md",
+        "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair/README.md",
+        "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair/REPAIR_TASKS.json",
+        "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair/REVIEW_AND_REPAIR_SPEC.md",
+        "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair/SHA256SUMS.txt",
+        "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/source/SHA256SUMS.txt",
+        "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/source/repair-zip.bin",
+        "docs/research/FCIS_M6_LUNA_REPAIR_REPORT_20260731.md",
+        "docs/research/FCIS_M6_LUNA_SOURCE_MANIFEST_V1.json",
+        "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json",
+        "docs/research/FCIS_M6_LUNA_TOOLCHAIN_V1.json",
+        "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml",
+        "docs/research/FCIS_M6_R02_COMPLETE_SRGD_THEOREM_20260731.md",
+        "docs/research/FCIS_M6_RESEARCH_KERNEL_LEDGER_V2.json",
+        "experiments/fcis_durable_retraction_bounded_search.py",
+        "experiments/fcis_durable_retraction_bounded_search_result.json",
+        "experiments/julia/fcis_durable_retraction_oracle.jl",
+        "formal/esso/fcis_durable_retraction_v1.yaml",
+        "lean-mathlib/Proofs/FCISDurableRetraction.lean",
+        "lean-mathlib/lakefile.lean",
+        "src/core/fcis_durable_retraction.py",
+        "tests/core/test_fcis_durable_retraction.py",
+        "tools/check_fcis_durable_retraction_model.py"
+      ],
+      "workflow_runs": [
+        {"id": 30648508074, "name": "FCIS M6 Durable Retraction", "conclusion": "success"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "A00",
+  "base_sha": "babffa56dcbddc5886487fbb6e62740b15370000",
+  "head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "luna/task-A00-exact-head-ledger-20260731",
+  "status": "IMPLEMENTED",
+  "acceptance": "Repeated generation is byte-identical while GitHub state is unchanged.",
+  "evidence_files": [
+    "docs/research/FCIS_M6_EXACT_HEAD_LEDGER_20260731.json",
+    "docs/research/FCIS_M6_WORKFLOW_EVIDENCE_LEDGER_20260731.json"
+  ],
+  "ledger_sha256": {
+    "docs/research/FCIS_M6_EXACT_HEAD_LEDGER_20260731.json": "fd5380d7b6c585b7bb1890cb8bc7f3f7487a024e5e485c2b0e6faa99789d1498",
+    "docs/research/FCIS_M6_WORKFLOW_EVIDENCE_LEDGER_20260731.json": "ee9e2882bab46bcf9b8a9925fb1d587850e4dd895e3259ecaca0f94cc81b2b32"
+  },
+  "commands": [
+    "git fetch origin agent/fcis-m6-r04-tree-chord-gate-authority-20260730",
+    "git status --short --branch",
+    "git rev-parse HEAD",
+    "git rev-parse HEAD^{tree}",
+    "python3 -m json.tool docs/research/FCIS_M6_EXACT_HEAD_LEDGER_20260731.json",
+    "python3 -m json.tool docs/research/FCIS_M6_WORKFLOW_EVIDENCE_LEDGER_20260731.json",
+    "python3 tools/check_fcis_durable_retraction_model.py --self-test"
+  ],
+  "results": {
+    "exact_head_verified": true,
+    "base_head_verified": true,
+    "dedicated_workflow_run": 30648508074,
+    "dedicated_workflow_conclusion": "success",
+    "public_model_gate": "pass: 56 reachable states, 268 enabled transitions, 10 invariants, four mutants killed"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "No production task beyond A00 is completed.",
+    "No runtime or value-moving path is mounted."
+  ]
+}

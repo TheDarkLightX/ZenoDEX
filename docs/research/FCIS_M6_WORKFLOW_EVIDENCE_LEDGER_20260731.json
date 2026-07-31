@@ -1,0 +1,84 @@
+{
+  "schema_version": "zenodex.fcis.m6.workflow-evidence-ledger.v1",
+  "generated_on": "2026-07-31",
+  "repository": "TheDarkLightX/ZenoDEX",
+  "source_head": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "workflow_runs": [
+    {
+      "pr": 496,
+      "head_sha": "4cad0c4ff203e6926991d33f4b314c4873792810",
+      "runs": [
+        {"id": 30574930930, "name": "zeno-oracle-mvp", "conclusion": "success"},
+        {"id": 30574930753, "name": "fire-assurance", "conclusion": "success"},
+        {"id": 30574930735, "name": "container-assurance", "conclusion": "success"},
+        {"id": 30574930693, "name": "shape-v1-ratchet", "conclusion": "success"},
+        {"id": 30574930954, "name": "dependency-assurance", "conclusion": "failure"},
+        {"id": 30574930638, "name": "disaster-assurance-ratchet", "conclusion": "failure"},
+        {"id": 30574930761, "name": "zrpf-assurance", "conclusion": "success"}
+      ]
+    },
+    {
+      "pr": 497,
+      "head_sha": "0a51b2dc8729af34d86d717dff214576f7ae58c8",
+      "runs": [
+        {"id": 30576876109, "name": "shape-v1-ratchet", "conclusion": "success"},
+        {"id": 30576876133, "name": "zeno-oracle-mvp", "conclusion": "success"},
+        {"id": 30576876393, "name": "disaster-assurance-ratchet", "conclusion": "failure"},
+        {"id": 30576875992, "name": "fcis-m6-r01-segmented-lineage", "conclusion": "success"},
+        {"id": 30576875988, "name": "dependency-assurance", "conclusion": "failure"},
+        {"id": 30576876021, "name": "fire-assurance", "conclusion": "success"},
+        {"id": 30576875998, "name": "container-assurance", "conclusion": "success"},
+        {"id": 30576876002, "name": "zrpf-assurance", "conclusion": "success"}
+      ]
+    },
+    {
+      "pr": 498,
+      "head_sha": "a94a1fa0586107a0a48aebbe4cd18c0d1029d481",
+      "runs": [
+        {"id": 30583887162, "name": "zrpf-assurance", "conclusion": "success"},
+        {"id": 30583887219, "name": "shape-v1-ratchet", "conclusion": "success"},
+        {"id": 30583887097, "name": "dependency-assurance", "conclusion": "failure"},
+        {"id": 30583887124, "name": "zeno-oracle-mvp", "conclusion": "success"},
+        {"id": 30583887138, "name": "container-assurance", "conclusion": "success"},
+        {"id": 30583887186, "name": "fcis-m6-r04-lineage-closure", "conclusion": "success"},
+        {"id": 30583887108, "name": "fire-assurance", "conclusion": "success"},
+        {"id": 30583887140, "name": "disaster-assurance-ratchet", "conclusion": "failure"}
+      ]
+    },
+    {
+      "pr": 499,
+      "head_sha": "babffa56dcbddc5886487fbb6e62740b15370000",
+      "runs": [
+        {"id": 30580573808, "name": "fire-assurance", "conclusion": "success"},
+        {"id": 30580573804, "name": "container-assurance", "conclusion": "success"},
+        {"id": 30580573838, "name": "fcis-m6-r01-segmented-lineage", "conclusion": "success"},
+        {"id": 30580573831, "name": "FCIS M6 Tree-Chord-Gate", "conclusion": "success"},
+        {"id": 30580573840, "name": "dependency-assurance", "conclusion": "failure"},
+        {"id": 30580573886, "name": "shape-v1-ratchet", "conclusion": "success"},
+        {"id": 30580573834, "name": "zeno-oracle-mvp", "conclusion": "success"},
+        {"id": 30580573910, "name": "disaster-assurance-ratchet", "conclusion": "failure"},
+        {"id": 30580573813, "name": "zrpf-assurance", "conclusion": "success"}
+      ]
+    },
+    {
+      "pr": 501,
+      "head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+      "run_id": 30648508074,
+      "workflow": "FCIS M6 Durable Retraction",
+      "conclusion": "success",
+      "jobs": [
+        {"id": 91215764299, "name": "python-reference", "conclusion": "success"},
+        {"id": 91215764300, "name": "lean-theorems", "conclusion": "success"},
+        {"id": 91215764309, "name": "julia-oracle", "conclusion": "success"},
+        {"id": 91215764360, "name": "packet-delivery", "conclusion": "success"}
+      ],
+      "evidence_scope": "The dedicated M6 workflow is fully green. Other broad repository workflows are separate evidence and are not substituted for this run."
+    }
+  ],
+  "query_scope": "GitHub connector workflow runs associated with each exact PR head; PR 501 includes the complete job result for run 30648508074.",
+  "nonclaims": [
+    "Historical workflow failures in broad repository assurance do not establish a failure of the dedicated M6 packet.",
+    "A green research workflow does not prove production datastore, verifier authenticity, runtime mounting, no-bypass, or M6 promotion."
+  ]
+}
