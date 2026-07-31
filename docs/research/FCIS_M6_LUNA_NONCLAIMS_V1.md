@@ -15,7 +15,12 @@ This packet does not claim:
 - network-level exactly-once delivery;
 - a combined TCG quotient theorem or completion of R01-R13;
 - a returned peer-review result or passing remote CI before those events occur.
+- unforgeability of Python object construction. The repaired model enforces an
+  explicit shell-owned verifier-adapter boundary and rejects raw evidence, but
+  production capability authenticity remains an external premise.
 
 `PROVED_CONNECTIVE_MATH` refers only to the checked Lean connective theorem
-layer. `TESTED_BOUNDED` refers only to the stated bounded models and focused
-tests. `UNMOUNTED` remains the runtime posture.
+layer. `PYTHON_REFERENCE_MODEL_TESTED`,
+`ESSO_INDUCTIVE_MODEL_VERIFIED_BOUNDED`, and `PYTHON_JULIA_BOUNDED_PARITY`
+refer only to their recorded executable gates. `UNMOUNTED` remains the runtime
+posture.

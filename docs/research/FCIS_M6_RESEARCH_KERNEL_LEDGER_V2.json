@@ -70,7 +70,7 @@
         "old token after commit",
         "old token after authority switch"
       ],
-      "statement": "A state-changing action requires a fresh controlled authorization token bound to exact snapshot, current state, authority epoch, deployment configuration, verifier profile, statement, and freshness bounds; a successful state change invalidates the old token.",
+      "statement": "A state-changing action requires a fresh core-admitted authorization token derived only from an opaque verifier-produced grant and bound to exact snapshot, current state, authority epoch, deployment configuration, verifier profile, statement, and freshness bounds; a successful state change invalidates the old token.",
       "status": "EVIDENCED_BOUNDED",
       "title": "Canonical reopen does not restore value-moving authority"
     },
@@ -93,7 +93,7 @@
         "forged receipt root",
         "foreign receipt acknowledgment"
       ],
-      "statement": "If effect identity binds commit, ordinal, destination, payload and writer profile, and a destination verifier produces a controlled receipt bound to effect, payload, adapter, idempotency, and response identities, a lost ack retries the same semantic effect rather than creating a new one.",
+      "statement": "If effect identity binds commit, ordinal, destination, payload and writer profile, while adapter provenance remains in the outbox and acknowledgment rows, and a destination verifier produces an opaque receipt bound to effect, payload, adapter, idempotency, and response identities, a lost ack retries the same semantic effect rather than creating a new one.",
       "status": "EVIDENCED_BOUNDED",
       "title": "Stable effect identity reduces lost acknowledgments to idempotent redelivery"
     },
@@ -117,7 +117,7 @@
         "writer during quiescence",
         "history rewrite"
       ],
-      "statement": "The exact seven-phase lifecycle preserves historical atoms and permits legacy, none, then target writer only.",
+      "statement": "The exact seven-phase lifecycle preserves historical atoms, rejects identical legacy and target writer roots, binds each transport transition to its predecessor authority root, and permits legacy, none, then target writer only.",
       "status": "EVIDENCED_BOUNDED",
       "title": "Authority epochs preserve history while switching the unique writer"
     },

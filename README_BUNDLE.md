@@ -21,8 +21,19 @@ Key entry points:
 - `docs/research/FCIS_M6_LUNA_REPAIR_REPORT_20260731.md`
 - `docs/research/FCIS_M6_LUNA_SOURCE_MANIFEST_V1.json`
 - `docs/research/FCIS_M6_LUNA_CHANGE_INVENTORY_V1.md`
+- `docs/research/FCIS_M6_LUNA_TOOLCHAIN_V1.json`
 - `docs/research/FCIS_M6_LUNA_NONCLAIMS_V1.md`
 
+The reviewed functional implementation target is the authority-boundary repair
+recorded in `docs/research/FCIS_M6_LUNA_REPAIR_REPORT_20260731.md`. The exact-head
+delivery target changes only the workflow. It checks the supplied repair-input
+SHA-256 ledger, installs the hash-locked Python requirements, verifies the exact
+ESSO and mathlib dependency revisions, and validates the final packet.
+
 The canonical archive and its manifest are generated from the declared source
-set. The exact implementation target and documentation-only packet child are
-identified in the repair report and final handoff.
+set. The final branch has one workflow-only delivery target followed by one
+documentation-only packet child. The workflow regenerates the archive
+byte-for-byte, creates `artifacts/fcis-m6-external-delivery-receipt.json` after
+the packet commit, and uploads that receipt with the archive. Nothing in this
+bundle authorizes runtime mounting, authority switching, value movement, or M6
+promotion.

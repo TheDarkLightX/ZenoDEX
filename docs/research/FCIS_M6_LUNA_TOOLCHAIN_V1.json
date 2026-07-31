@@ -1,0 +1,59 @@
+{
+  "schema_version": "zenodex.fcis.m6.luna-toolchain.v1",
+  "contract": "fcis-m6-durable-retraction-luna-repair-v1",
+  "base_commit": "babffa56dcbddc5886487fbb6e62740b15370000",
+  "implementation_target_commit": "c5954655616629b657bb546207f11af518f897a8",
+  "implementation_target_tree": "e5a0c6040813570a811181a6d718234cdccb446b",
+  "python": {
+    "workflow_version": "3.12.3",
+    "requirements_lock": "requirements-dev.lock.txt",
+    "requirements_lock_sha256": "8ae2a245984d66a60e7fde6c0504b79b1de8fbcc86027b2a42c4adb7164229d8",
+    "local_gate_versions": {
+      "python": "3.12.3",
+      "pytest": "7.4.4",
+      "ruff": "0.16.0",
+      "mypy": "2.1.0",
+      "z3-solver": "4.15.4.0",
+      "PyYAML": "6.0.1"
+    },
+    "workflow_lock_versions": {
+      "pytest": "9.0.3",
+      "ruff": "0.15.13",
+      "mypy": "1.20.2",
+      "z3-solver": "4.16.0.0",
+      "PyYAML": "6.0.3"
+    }
+  },
+  "julia": {
+    "version": "1.12.6",
+    "workflow_action": "julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9"
+  },
+  "lean": {
+    "toolchain_file": "lean-mathlib/lean-toolchain",
+    "toolchain": "leanprover/lean4:v4.27.0",
+    "lean_commit": "db93fe1608548721853390a10cd40580fe7d22ae",
+    "lake_version": "5.0.0-src+db93fe1",
+    "mathlib_commit": "a3a10db0e9d66acbebf76c5e6a135066525ac900",
+    "mathlib_tree": "df91be6ed72be0f70aabcd56216d97a06c449a21"
+  },
+  "esso": {
+    "repository": "git@github.com:TheDarkLightX/ESSO.git",
+    "commit": "ef5b06cb7dbed9e8a78d27e9918550ee591e42eb",
+    "tree": "478db05f8f75f5c7cf0fe6164c097f0ea398cb32",
+    "pyproject_sha256": "4020ace6554a12b99c0267e2ca5f91446b0a025858f8a81ad3832234b1d2a2d3",
+    "schema_sha256": "fd354cc37ec2e237f65a90dc975c859f23f54296625e562b44f3ac73e2949627",
+    "local_checkout": "external/ESSO-ci",
+    "workflow_checkout": "external/ESSO"
+  },
+  "solvers": {
+    "z3": "4.15.4",
+    "cvc5": "1.1.2"
+  },
+  "workflow_action_commits": {
+    "actions/checkout": "df4cb1c069e1874edd31b4311f1884172cec0e10",
+    "actions/setup-python": "ece7cb06caefa5fff74198d8649806c4678c61a1",
+    "elan_installer": "b6cec7e10fe4965a605aaf60d1cb4a5837f0462b",
+    "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+  },
+  "dependency_policy": "No new runtime or formal dependency was added; source checkouts and Python packages are recorded by exact revision or hash-locked requirements."
+}

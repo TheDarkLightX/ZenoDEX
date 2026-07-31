@@ -196,6 +196,8 @@ PublicationAtom =
   decision_root
   bundle_root
   replay_root
+  deployment_config_root
+  verifier_profile_root
   ordered outbox tuple
 ```
 
@@ -332,11 +334,22 @@ This closes the abstract form of the R07 falsifier:
 reopened state accepts a value-moving command before reauthorization
 ```
 
-The implementation separates raw external evidence from a controlled
-`VerifiedExternalHeadAuthorizationV1`. The local adapter checks exact subject,
-epoch, deployment, verifier profile, statement, and freshness bindings before
-constructing the reopen token. It does not verify a production signature,
-quorum, deployment trust root, or proof context.
+The implementation separates raw external evidence from the authority boundary:
+
+```text
+ExternalHeadAuthorizationEvidenceV1
+  -> shell-owned verifier adapter
+  -> opaque ExternalHeadAuthorizationGrantV1
+  -> core grant admission
+  -> VerifiedExternalHeadAuthorizationV1
+  -> ReopenAuthorizationV1
+```
+
+The core never turns raw evidence into a controlled witness. The deterministic
+research adapter checks exact subject, epoch, deployment, verifier profile,
+statement, and freshness bindings before returning its opaque grant. It does
+not verify a production signature, quorum, deployment trust root, or proof
+context. Those remain explicit external premises and nonclaims.
 
 ## 6. Authorized history and reopen
 
@@ -395,6 +408,10 @@ effect_id = H(
   writer_profile_root
 )
 ```
+
+`adapter_profile_root` is deliberately absent from this derivation. Adapter
+provenance remains in the outbox and acknowledgment rows, so profile rotation
+does not create a second semantic effect identity.
 
 The complete ordered outbox tuple is inside the publication atom. Therefore:
 
@@ -467,10 +484,16 @@ The research model represents every phase as an authority epoch with:
 epoch_index
 legacy_profile_root
 target_profile_root
-active_profile_root
-allowed_writer_roots
-transport_root
+  active_profile_root
+  allowed_writer_roots
+  transport_root
+  predecessor-bound transition_root
 ```
+
+The legacy and target writer roots must be distinct. Every non-genesis
+`transition_root` hashes the predecessor authority root, the next lifecycle
+phase, the active/allowed writer set, and the exact transport root. Migration
+therefore cannot substitute an unbound transport or silently reset authority.
 
 Rules:
 
@@ -600,9 +623,9 @@ The bounded search explores all safe states through depth fourteen and freezes:
 254 safe transitions
 7 minimized mutant witnesses
 
-The Python semantic suite contains 29 focused tests, including permanent
-authorization, destination-verifier, type-width, resource-bound, Lean-shape,
-and ESSO-premise witnesses.
+The Python semantic suite contains 39 focused tests, including permanent
+opaque-grant, destination-adapter, context-binding, migration-transition,
+type-width, resource-bound, Lean-shape, and ESSO-premise witnesses.
 ```
 
 Mutants killed:
@@ -656,12 +679,13 @@ exact migration lifecycle
   legacy / none / target writer modes
 ```
 
-The authorization transition requires a `verified_external_grant` parameter and
-the acknowledgment transition requires a `verified_destination_receipt`
-parameter. Local execution at ESSO commit `ef5b06cb7dbed9e8a78d27e9918550ee591e42eb`
-passed validation and 15/15 inductive queries with Z3 and CVC5 agreement. This
-remains a bounded, unmounted model and does not establish external signer or
-destination trust.
+The authorization transition requires a singleton
+`VERIFIED_EXTERNAL_GRANT` environment premise and the acknowledgment transition
+requires a singleton `VERIFIED_DESTINATION_RECEIPT` premise. These are explicit
+verifier capabilities in the model, not Boolean authority flags. Local execution
+at ESSO commit `ef5b06cb7dbed9e8a78d27e9918550ee591e42eb` passed validation and
+15/15 inductive queries with Z3 and CVC5 agreement. This remains a bounded,
+unmounted model and does not establish external signer or destination trust.
 
 ## 11. Relation to established work
 
@@ -741,12 +765,15 @@ whole-system zUSD debt/backing closure
 
 ## 13. Promotion rule
 
-This checkpoint may be labeled:
+This checkpoint may be labeled, with `PROVED_CONNECTIVE_MATH` scoped only to the
+exact Lean theorem layer:
 
 ```text
+RESEARCH_HYPOTHESIS
 PROVED_CONNECTIVE_MATH
-IMPLEMENTED_REFERENCE_MODEL
-TESTED_BOUNDED
+PYTHON_REFERENCE_MODEL_TESTED
+ESSO_INDUCTIVE_MODEL_VERIFIED_BOUNDED
+PYTHON_JULIA_BOUNDED_PARITY
 UNMOUNTED
 ```
 
