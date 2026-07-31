@@ -8,6 +8,7 @@ from ..state.state_snapshot_values import (
     MAX_STATE_STRING_CHARACTERS_V1,
     MAX_STATE_STRING_UTF8_BYTES_V1,
 )
+from .fcis_fee_apportionment_transition import FeeQuotaV2, compute_fee_quota_v2
 from .fcis_fee_apportionment_values import (
     BPS_DENOMINATOR_V2,
     MAX_FEE_AMOUNT_CANDIDATES_V2,
@@ -55,7 +56,8 @@ def _top_level_shape_reject_v2(
             FeeApportionmentTransitionCodeV2.WRONG_EXACT_TYPE,
             ("state",),
         )
-    entries_object: object = state.entries
+    exact_state = cast(CommittedFeeApportionmentStateV2, state)
+    entries_object: object = exact_state.entries
     if type(entries_object) is not tuple:
         return _reject_v2(
             FeeApportionmentTransitionCodeV2.WRONG_EXACT_TYPE,
@@ -84,14 +86,14 @@ def _contribution_type_reject_v2(
                 FeeApportionmentTransitionCodeV2.WRONG_EXACT_TYPE,
                 base,
             )
-        candidate = candidate_object
+        candidate = cast(FeeAmountCandidateV2, candidate_object)
         key_object: object = candidate.key
         if type(key_object) is not FeeApportionmentKeyV2:
             return _reject_v2(
                 FeeApportionmentTransitionCodeV2.WRONG_EXACT_TYPE,
                 base + ("key",),
             )
-        key = key_object
+        key = cast(FeeApportionmentKeyV2, key_object)
         domain_object: object = key.fee_distribution_domain_id
         asset_object: object = key.asset
         amount_object: object = candidate.amount
@@ -137,7 +139,8 @@ def _state_type_reject_v2(
     state: CommittedFeeApportionmentStateV2,
 ) -> FeeApportionmentTransitionRejectV2 | None:
     algorithm_object: object = state.algorithm_version
-    entries_object: object = state.entries
+    exact_state = cast(CommittedFeeApportionmentStateV2, state)
+    entries_object: object = exact_state.entries
     if type(algorithm_object) is not str:
         return _reject_v2(
             FeeApportionmentTransitionCodeV2.WRONG_EXACT_TYPE,
@@ -156,14 +159,14 @@ def _state_type_reject_v2(
                 FeeApportionmentTransitionCodeV2.WRONG_EXACT_TYPE,
                 base,
             )
-        entry = entry_object
+        entry = cast(FeeDeficitEntryV2, entry_object)
         entry_key_object: object = entry.key
         if type(entry_key_object) is not FeeApportionmentKeyV2:
             return _reject_v2(
                 FeeApportionmentTransitionCodeV2.WRONG_EXACT_TYPE,
                 base + ("key",),
             )
-        key = entry_key_object
+        key = cast(FeeApportionmentKeyV2, entry_key_object)
         domain_object = key.fee_distribution_domain_id
         asset_object = key.asset
         buyback_object: object = entry.deficit_buyback
@@ -219,7 +222,7 @@ def _text_is_canonical_v2(value: str) -> bool:
         encoded = value.encode("utf-8")
     except UnicodeEncodeError:
         return False
-    return len(encoded) <= MAX_STATE_STRING_UTF8_BYTES_V1
+    return bool(len(encoded) <= MAX_STATE_STRING_UTF8_BYTES_V1)
 
 
 def _identifier_reject_v2(
@@ -431,22 +434,18 @@ def _allocation_v2(
     policy: FeeDistributionPolicyV2,
     deficits_pre: tuple[int, int, int],
 ) -> AssetFeeAllocationV2 | FeeApportionmentTransitionRejectV2:
-    cycles, remainder = divmod(amount, BPS_DENOMINATOR_V2)
-    products = (
-        remainder * policy.buyback_bps,
-        remainder * policy.treasury_bps,
-        remainder * policy.rewards_bps,
+    quota_results = tuple(
+        compute_fee_quota_v2(amount=amount, weight=weight)
+        for weight in policy.weights
     )
-    lowers = (
-        cycles * policy.buyback_bps + products[0] // BPS_DENOMINATOR_V2,
-        cycles * policy.treasury_bps + products[1] // BPS_DENOMINATOR_V2,
-        cycles * policy.rewards_bps + products[2] // BPS_DENOMINATOR_V2,
-    )
-    fractions = (
-        products[0] % BPS_DENOMINATOR_V2,
-        products[1] % BPS_DENOMINATOR_V2,
-        products[2] % BPS_DENOMINATOR_V2,
-    )
+    if any(type(quota) is not FeeQuotaV2 for quota in quota_results):
+        return _reject_v2(
+            FeeApportionmentTransitionCodeV2.INTERNAL_RELATION_FAILURE,
+            ("relation", "quota"),
+        )
+    quotas = cast(tuple[FeeQuotaV2, ...], quota_results)
+    lowers = quotas[0].base, quotas[1].base, quotas[2].base
+    fractions = quotas[0].remainder, quotas[1].remainder, quotas[2].remainder
     try:
         bonuses = _select_bonuses_v2(deficits_pre, fractions)
     except ValueError:

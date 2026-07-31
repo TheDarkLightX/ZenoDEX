@@ -45,6 +45,7 @@ SOURCE_PATHS = (
     "src/core/fcis_fee_apportionment_codec.py",
     "src/core/fcis_fee_apportionment_admission.py",
     "src/core/fcis_fee_apportionment_allocator.py",
+    "src/core/fcis_fee_apportionment_transition.py",
 )
 
 

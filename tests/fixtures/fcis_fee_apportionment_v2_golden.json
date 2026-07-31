@@ -939,15 +939,16 @@
       }
     }
   ],
-  "generator_sha256": "9ca65041f68c9e56299768ce814bf8e11be559fdab7dd1d6a8bc1e2684b4f48c",
+  "generator_sha256": "ba94d46a3f12d466c1e3ca85b0c08874d7e4213e1277f33919fcf4c3f947f41b",
   "implementation_contract_sha256": "877ca9c8902d688a72d95bad427d67936d2ed1e53887d13968e611ca160311c8",
   "kernel": "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1",
   "oracle_scope": "Python whole-result bytes for cross-language refinement; the independent eight-bonus oracle is a separate test.",
   "python_source_sha256": {
     "src/core/fcis_fee_apportionment_admission.py": "3cdd8e501cdf4264a1f02d23ede91884b1dc14c537de94b4caafb84cb5880830",
-    "src/core/fcis_fee_apportionment_allocator.py": "dfa5d07a1d66f42440529f6e5d801bf8c16994787a50b4f2c7e995d3fe8d5efa",
+    "src/core/fcis_fee_apportionment_allocator.py": "cde842368b51d5af015d3d46e3bb0046bbec5dd4d89ef437b1ab7dfa7d1130ed",
     "src/core/fcis_fee_apportionment_codec.py": "a8f0be8e8c622fed49a31bcb5f3916d39565ef7ffcad82067c54a89b9393e95e",
     "src/core/fcis_fee_apportionment_schema.py": "100b3591064bc3e8bc68952582d919eafe16e54300ca658110b91f79221f26c1",
+    "src/core/fcis_fee_apportionment_transition.py": "a6753cdc51655841f8e94ae73daab8c9dac4d401a7dc87b59f6ad7267a48d10e",
     "src/core/fcis_fee_apportionment_values.py": "2cea2da46a61a8dd399a4a7c911503f61e57861ae0096b3e5e3af028d6f3535d"
   },
   "schema_revision": "zenodex/fcis/fee-apportionment/v2",
