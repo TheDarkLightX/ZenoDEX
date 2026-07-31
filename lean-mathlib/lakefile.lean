@@ -11,6 +11,7 @@ lean_lib Proofs {
   roots := #[
     `Proofs,
     `Proofs.FCISFeeOccurrenceSemantics,
-    `Proofs.FCISTreeChordGateAuthority
+    `Proofs.FCISTreeChordGateAuthority,
+    `Proofs.FCISDurableRetraction
   ]
 }

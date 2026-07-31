@@ -1,0 +1,295 @@
+name: FCIS M6 Durable Retraction
+
+on:
+  pull_request:
+    paths:
+      - "src/core/fcis_durable_retraction.py"
+      - "tests/core/test_fcis_durable_retraction.py"
+      - "experiments/fcis_durable_retraction_bounded_search.py"
+      - "experiments/fcis_durable_retraction_bounded_search_result.json"
+      - "experiments/julia/fcis_durable_retraction_oracle.jl"
+      - "formal/esso/fcis_durable_retraction_v1.yaml"
+      - "lean-mathlib/Proofs/FCISDurableRetraction.lean"
+      - "lean-mathlib/lakefile.lean"
+      - "docs/research/FCIS_M6_DURABLE_RETRACTION_BREAKTHROUGH_20260731.md"
+      - "docs/research/FCIS_M6_R02_COMPLETE_SRGD_THEOREM_20260731.md"
+      - "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md"
+      - "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json"
+      - "docs/research/FCIS_M6_RESEARCH_KERNEL_LEDGER_V2.json"
+      - "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml"
+      - "docs/research/FCIS_M6_LEAP_SURPRISE_PACKETS_V1.yaml"
+      - "README_BUNDLE.md"
+      - "SHA256SUMS.txt"
+      - ".github/workflows/fcis-m6-durable-retraction.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-reference:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install exact development requirements
+        run: python -m pip install --requirement requirements-dev.txt
+      - name: Compile focused files
+        run: |
+          python -m py_compile \
+            src/core/fcis_durable_retraction.py \
+            tests/core/test_fcis_durable_retraction.py \
+            experiments/fcis_durable_retraction_bounded_search.py
+      - name: Lint and format-check focused files
+        run: |
+          python -m ruff check \
+            src/core/fcis_durable_retraction.py \
+            tests/core/test_fcis_durable_retraction.py \
+            experiments/fcis_durable_retraction_bounded_search.py
+          python -m ruff format --check \
+            src/core/fcis_durable_retraction.py \
+            tests/core/test_fcis_durable_retraction.py \
+            experiments/fcis_durable_retraction_bounded_search.py
+      - name: Type-check durable reference model
+        run: python -m mypy src/core/fcis_durable_retraction.py
+      - name: Run focused semantic tests
+        run: python -m pytest -q tests/core/test_fcis_durable_retraction.py
+      - name: Replay bounded search
+        run: |
+          python experiments/fcis_durable_retraction_bounded_search.py \
+            > /tmp/fcis-durable-retraction-python.json
+          git diff --exit-code -- \
+            experiments/fcis_durable_retraction_bounded_search_result.json
+      - name: Validate research artifacts and task graph
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          import yaml
+
+          task_graph = json.loads(
+              Path("docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if task_graph["task_count"] != len(task_graph["tasks"]):
+              raise SystemExit("task_count does not match tasks")
+          task_ids = [task["task_id"] for task in task_graph["tasks"]]
+          if len(task_ids) != len(set(task_ids)):
+              raise SystemExit("duplicate Luna task ID")
+          coverage = task_graph["coverage"]
+          if coverage["external_prerequisites"] != ["R01"]:
+              raise SystemExit("unexpected external prerequisite coverage")
+          if coverage["target_obligations"] != [
+              "R02", "R03", "R04", "R05", "R06", "R07",
+              "R08", "R09", "R10", "R11", "R12", "R13",
+          ]:
+              raise SystemExit("task graph must target R02-R13 exactly")
+          known = set(task_ids)
+          by_id = {task["task_id"]: task for task in task_graph["tasks"]}
+          for task in task_graph["tasks"]:
+              missing = set(task["dependencies"]) - known
+              if missing:
+                  raise SystemExit(
+                      f"unknown dependencies for {task['task_id']}: {sorted(missing)}"
+                  )
+
+          color = {task_id: 0 for task_id in known}
+
+          def visit(task_id: str) -> None:
+              if color[task_id] == 1:
+                  raise SystemExit(f"dependency cycle at {task_id}")
+              if color[task_id] == 2:
+                  return
+              color[task_id] = 1
+              for dependency in by_id[task_id]["dependencies"]:
+                  visit(dependency)
+              color[task_id] = 2
+
+          for task_id in task_ids:
+              visit(task_id)
+
+          ledger = json.loads(
+              Path("docs/research/FCIS_M6_RESEARCH_KERNEL_LEDGER_V2.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if ledger["promotion_authority"] != "NONE":
+              raise SystemExit("research ledger must not grant promotion authority")
+          if len(ledger["problem_status"]) != 13:
+              raise SystemExit("research ledger must cover all 13 M6 problems")
+
+          morph = yaml.safe_load(
+              Path("docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if len(morph["cards"]) != 3:
+              raise SystemExit("unexpected Morph relation-card count")
+          leap = yaml.safe_load(
+              Path("docs/research/FCIS_M6_LEAP_SURPRISE_PACKETS_V1.yaml").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if len(leap["packets"]) != 4:
+              raise SystemExit("unexpected LEAP surprise-packet count")
+          esso = yaml.safe_load(
+              Path("formal/esso/fcis_durable_retraction_v1.yaml").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if esso["meta"]["model_id"] != "fcis_durable_retraction_v1":
+              raise SystemExit("unexpected ESSO model ID")
+          if len(esso["actions"]) != 14 or len(esso["invariants"]) != 10:
+              raise SystemExit("unexpected ESSO action or invariant count")
+          action_ids = {action["id"] for action in esso["actions"]}
+          if "receive_verified_external_grant" not in action_ids:
+              raise SystemExit("ESSO grant premise is absent")
+          if "authorize_reopened_head" in action_ids:
+              raise SystemExit("caller-controlled ESSO authorization remains")
+          if "verified_external_grant" not in str(esso):
+              raise SystemExit("ESSO verified grant parameter is absent")
+          if "verified_destination_receipt" not in str(esso):
+              raise SystemExit("ESSO verified destination premise is absent")
+          PY
+
+      - name: Checkout pinned ESSO verifier
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: TheDarkLightX/ESSO
+          ref: ef5b06cb7dbed9e8a78d27e9918550ee591e42eb
+          path: external/ESSO
+          persist-credentials: false
+      - name: Run ESSO validation and fail-closed multi-solver gate
+        env:
+          PYTHONPATH: external/ESSO
+        run: |
+          python -m ESSO validate formal/esso/fcis_durable_retraction_v1.yaml
+          python -m ESSO verify-multi formal/esso/fcis_durable_retraction_v1.yaml --solvers z3,cvc5
+
+  julia-oracle:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up pinned Julia action
+        uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9
+        with:
+          version: "1.12"
+      - name: Set up Python for structural parity
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+      - name: Run independent Julia oracle
+        run: |
+          julia --startup-file=no \
+            experiments/julia/fcis_durable_retraction_oracle.jl \
+            > /tmp/fcis-durable-retraction-julia.json
+      - name: Compare Julia and frozen Python results
+        run: |
+          python experiments/fcis_durable_retraction_bounded_search.py \
+            > /tmp/fcis-durable-retraction-python-generated.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = json.loads(
+              Path(
+                  "experiments/fcis_durable_retraction_bounded_search_result.json"
+              ).read_text(encoding="utf-8")
+          )
+          actual = json.loads(
+              Path("/tmp/fcis-durable-retraction-julia.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          generated = json.loads(
+              Path("/tmp/fcis-durable-retraction-python-generated.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if generated != expected:
+              raise SystemExit("generated Python result disagrees with frozen result")
+          if actual != expected:
+              raise SystemExit(
+                  "Julia oracle disagrees with frozen Python result\n"
+                  f"expected={json.dumps(expected, sort_keys=True)}\n"
+                  f"actual={json.dumps(actual, sort_keys=True)}"
+              )
+          PY
+
+  lean-theorems:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Materialize pinned compatible mathlib
+        run: |
+          git clone \
+            --depth 1 \
+            --branch v4.27.0 \
+            https://github.com/leanprover-community/mathlib4.git \
+            external/mathlib4
+      - name: Install pinned Elan and project Lean toolchain
+        env:
+          ELAN_INSTALLER_COMMIT: b6cec7e10fe4965a605aaf60d1cb4a5837f0462b
+        run: |
+          curl \
+            --proto '=https' \
+            --tlsv1.2 \
+            --fail \
+            --silent \
+            --show-error \
+            --location \
+            "https://raw.githubusercontent.com/leanprover/elan/${ELAN_INSTALLER_COMMIT}/elan-init.sh" \
+            --output /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install "$(cat lean-mathlib/lean-toolchain)"
+          "$HOME/.elan/bin/elan" default "$(cat lean-mathlib/lean-toolchain)"
+          "$HOME/.elan/bin/lean" --version
+          "$HOME/.elan/bin/lake" --version
+      - name: Generate manifest and restore mathlib cache
+        working-directory: lean-mathlib
+        run: |
+          lake update
+          lake exe cache get
+      - name: Build theorem root and capture axiom audit
+        working-directory: lean-mathlib
+        run: |
+          lake build Proofs.FCISDurableRetraction
+          lake env lean Proofs/FCISDurableRetraction.lean | tee dependency-audit.txt
+          grep -F "FCISDurableRetraction.DurableRetraction.reopen_encode_ok" \
+            dependency-audit.txt
+          grep -F "FCISDurableRetraction.DurableRetraction.fixed_iff_in_encode_range" \
+            dependency-audit.txt
+          grep -F "FCISDurableRetraction.DurableRetraction.normalize_idempotent" \
+            dependency-audit.txt
+          grep -F "FCISDurableRetraction.same_commit_resolves_already" \
+            dependency-audit.txt
+          grep -F "FCISDurableRetraction.changed_head_invalidates_old_authorization" \
+            dependency-audit.txt
+          grep -F "FCISDurableRetraction.crash_view_cases" dependency-audit.txt
+          grep -F "FCISDurableRetraction.stutter_iterate" dependency-audit.txt
+      - name: Reject proof placeholders and trust-expanding declarations
+        run: |
+          if grep -n -E '\b(sorry|admit|axiom|unsafe)\b' \
+            lean-mathlib/Proofs/FCISDurableRetraction.lean; then
+            exit 1
+          fi

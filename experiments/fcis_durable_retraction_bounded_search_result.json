@@ -1,0 +1,99 @@
+{
+  "max_depth": 14,
+  "mutants": [
+    {
+      "id": "split_publication",
+      "killed": true,
+      "minimal_trace": [
+        "mutant_commit_state_only"
+      ],
+      "violations": [
+        "AtomicPublication"
+      ]
+    },
+    {
+      "id": "orphan_delivery",
+      "killed": true,
+      "minimal_trace": [
+        "mutant_deliver_without_outbox"
+      ],
+      "violations": [
+        "NoEffectWithoutCommittedOutbox"
+      ]
+    },
+    {
+      "id": "orphan_ack",
+      "killed": true,
+      "minimal_trace": [
+        "mutant_ack_without_delivery"
+      ],
+      "violations": [
+        "AckHasCommittedDeliveredAncestor"
+      ]
+    },
+    {
+      "id": "same_nonce_double_commit",
+      "killed": true,
+      "minimal_trace": [
+        "receive_verified_external_grant",
+        "atomic_commit",
+        "mutant_second_same_nonce_commit"
+      ],
+      "violations": [
+        "SameNonceAtMostOnce"
+      ]
+    },
+    {
+      "id": "old_writer_after_switch",
+      "killed": true,
+      "minimal_trace": [
+        "receive_verified_external_grant",
+        "advance_migration_phase",
+        "receive_verified_external_grant",
+        "advance_migration_phase",
+        "receive_verified_external_grant",
+        "advance_migration_phase",
+        "receive_verified_external_grant",
+        "advance_migration_phase",
+        "mutant_old_writer_commit"
+      ],
+      "violations": [
+        "OldWriterDisabledAfterSwitch"
+      ]
+    },
+    {
+      "id": "unauthorized_publication",
+      "killed": true,
+      "minimal_trace": [
+        "mutant_publish_without_head_authorization"
+      ],
+      "violations": [
+        "PublicationRequiresFreshHeadAuthorization"
+      ]
+    },
+    {
+      "id": "selected_root_reopen",
+      "killed": true,
+      "minimal_trace": [
+        "receive_verified_external_grant",
+        "atomic_commit",
+        "mutant_drop_receipt_keep_state_root"
+      ],
+      "violations": [
+        "AtomicPublication"
+      ]
+    }
+  ],
+  "safe_invariants": [
+    "AtomicPublication",
+    "NoEffectWithoutCommittedOutbox",
+    "AckHasCommittedDeliveredAncestor",
+    "SameNonceAtMostOnce",
+    "OldWriterDisabledAfterSwitch",
+    "PublicationRequiresFreshHeadAuthorization",
+    "MigrationPhaseBound"
+  ],
+  "safe_reachable_state_count": 49,
+  "safe_transition_count": 254,
+  "schema_version": "zenodex.fcis.durable-retraction-search.v1"
+}
