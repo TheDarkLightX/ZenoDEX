@@ -154,7 +154,7 @@ def _frame_v1(value: bytes) -> bytes:
 
 
 def _raw32_v1(value: str) -> bytes:
-    return hex_to_bytes_fixed(value, nbytes=32, name="lineage_digest")
+    return cast(bytes, hex_to_bytes_fixed(value, nbytes=32, name="lineage_digest"))
 
 
 @final
@@ -206,9 +206,9 @@ class FCISLineageClaimSetV1:
         for claim in self.claims:
             payload.extend(_frame_v1(claim.key.value.encode("utf-8")))
             payload.extend(_raw32_v1(claim.value_digest))
-        return sha256_hex(
+        return cast(str, sha256_hex(
             domain_sep_bytes("zenodex/fcis/lineage-closure-claim-set", version=1) + bytes(payload)
-        )
+        ))
 
 
 @final
@@ -481,9 +481,9 @@ def _derive_rule_value_v1(
     for dependency in rule.dependencies:
         payload.extend(_frame_v1(dependency.value.encode("utf-8")))
         payload.extend(_raw32_v1(values[dependency]))
-    return sha256_hex(
+    return cast(str, sha256_hex(
         domain_sep_bytes("zenodex/fcis/lineage-closure-derived-claim", version=1) + bytes(payload)
-    )
+    ))
 
 
 def _close_claims_v1(seed: FCISLineageClaimSetV1) -> FCISLineageClaimSetV1:
