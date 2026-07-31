@@ -1,0 +1,69 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "B03",
+  "base_sha": "dca9015f4976519d4b7dc99ac8cbd0c2ec8fee35",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-B03-lean-srgd-theorems-20260731",
+  "status": "PROVED",
+  "evidence_files": [
+    "docs/research/m6_tasks/TASK_B03_REPORT.md",
+    "docs/research/m6_tasks/TASK_B03_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_B03_SOURCE_MANIFEST.sha256",
+    "docs/research/m6_tasks/TASK_B03_LEAN_PROOF_RECEIPT.json",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDTrace.lean",
+    "lean-mathlib/Proofs.lean",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean",
+    "lean-mathlib/Proofs/FCISFeeApportionmentAGQESRGDRefinement.lean"
+  ],
+  "commands": [
+    "cd lean-mathlib && lake env lean Proofs/FCISFeeApportionmentSRGDTrace.lean with an ephemeral external -> ../external link",
+    "cd lean-mathlib && lake build with an ephemeral external -> ../external link",
+    "bash /home/trevormoc/.codex/skills/lean-proof-engineering/scripts/audit_lean_proof.sh --file Proofs/FCISFeeApportionmentSRGDTrace.lean --theorem FCISFeeApportionmentSRGDTrace.safe_euclidean_floor",
+    "printf '#print axioms ...' | cd lean-mathlib && lake env lean --stdin with the ephemeral external link",
+    "rg -n -i 'sorry|admit|axiom|unsafe' lean-mathlib/Proofs/FCISFeeApportionmentSRGDTrace.lean",
+    "git diff --check",
+    "git diff --cached --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks B03"
+  ],
+  "tool_versions": {
+    "python3": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "lake": "Lake version 5.0.0-src+7e01a1b",
+    "lean": "Lean version 4.27.0 (lean-toolchain)",
+    "proof_audit": "lean-proof-engineering audit_lean_proof.sh"
+  },
+  "source_hashes": {
+    "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+    "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
+    "docs/research/m6_tasks/TASK_EVIDENCE_SCHEMA_V1.json": "9dd6d015ef69c31c5a41a61f7a73c5c3d8057baf4cfc6f85eb52fffd065d5640",
+    "docs/research/m6_tasks/validate_task_packet.py": "cda422bb55c5601e8be42148454d7affc44df9c22d66f749861592f3e4549c3a",
+    "docs/research/m6_tasks/TASK_B03_LEAN_PROOF_RECEIPT.json": "a4071d92a662ff29473c61537a262e0669d97ce572ca040671707447eb5ab595",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDTrace.lean": "b3f51628cce67f18669dc9eb59040497e1d20c9a000c36198bf66e6ad36abde7",
+    "lean-mathlib/Proofs.lean": "82af09fe31b3809480010ef35a24a167f9cfa90146b6178ae131ee30fd075052",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean": "a7104b2abca37e9ababbe121db34c91bf4fa973a3042f9ed30f165b37bfc92b0",
+    "lean-mathlib/Proofs/FCISFeeApportionmentAGQESRGDRefinement.lean": "df98713406075ea2b00b77f3449e6354f59f2b7b7087fa3349ff3ad1f48afde4",
+    "lean-mathlib/lakefile.lean": "269e55625ea26d5a01938dcfd15b87b19eccbc3f8ac8b95b53f06882bd9c7c33",
+    "lean-mathlib/lean-toolchain": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+  },
+  "results": {
+    "implementation_commit": "81adfa8d47a142e77a3cb31d7e5f2dbb815e8ea4",
+    "implementation_tree": "20728c44e9a8abde538c7a892f1ff78db42648cb",
+    "focused_lean": "pass; Lean 4.27.0",
+    "full_lean_build": "pass; 8148 jobs",
+    "placeholder_scan": "pass; zero placeholders",
+    "public_theorems": "6 named B03 theorems compiled",
+    "axiom_audit": "recorded in report and #print axioms output",
+    "task_packet": "selected B03 validation passed; 13 manifest entries",
+    "runtime_mount": "none"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "B03 does not prove the full adaptive trace or cumulative discrepancy theorem.",
+    "B03 does not complete U256 Lean, Python, or Rust refinement.",
+    "B03 does not prove production datastore, consensus, API, migration, or runtime refinement.",
+    "The local mathlib dependency is accessed through an ephemeral uncommitted link.",
+    "No remote implementation commit, hosted CI run, draft PR, or publication is claimed.",
+    "M6 remains research-only, executable, and unmounted; no value movement is authorized."
+  ]
+}
