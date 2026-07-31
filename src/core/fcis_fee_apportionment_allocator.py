@@ -8,6 +8,10 @@ from ..state.state_snapshot_values import (
     MAX_STATE_STRING_CHARACTERS_V1,
     MAX_STATE_STRING_UTF8_BYTES_V1,
 )
+from .fcis_fee_apportionment_selector import (
+    FeeBonusSelectorRejectV2,
+    select_fee_bonuses_v2,
+)
 from .fcis_fee_apportionment_transition import FeeQuotaV2, compute_fee_quota_v2
 from .fcis_fee_apportionment_values import (
     BPS_DENOMINATOR_V2,
@@ -398,33 +402,16 @@ def _select_bonuses_v2(
     *,
     denominator: int = BPS_DENOMINATOR_V2,
 ) -> tuple[int, int, int]:
-    """Refine the unique support-respecting score and semantic-tie relation."""
+    """Compatibility wrapper for the typed exact three-role selector."""
 
-    if (
-        type(denominator) is not int
-        or denominator <= 0
-        or type(deficits) is not tuple
-        or type(fractions) is not tuple
-        or len(deficits) != 3
-        or len(fractions) != 3
-        or any(type(value) is not int for value in deficits + fractions)
-        or any(not 0 <= value < denominator for value in fractions)
-        or sum(fractions) % denominator != 0
-    ):
-        raise ValueError("invalid SRGD selector relation input")
-    seat_count = sum(fractions) // denominator
-    if seat_count not in (0, 1, 2):
-        raise ValueError("invalid SRGD selector seat count")
-    eligible = [index for index, fraction in enumerate(fractions) if fraction > 0]
-    if len(eligible) < seat_count:
-        raise ValueError("SRGD selector lacks positive-support candidates")
-    eligible.sort(key=lambda index: (-(deficits[index] + fractions[index]), index))
-    selected = set(eligible[:seat_count])
-    return (
-        1 if 0 in selected else 0,
-        1 if 1 in selected else 0,
-        1 if 2 in selected else 0,
+    selection = select_fee_bonuses_v2(
+        deficits=deficits,
+        fractions=fractions,
+        denominator=denominator,
     )
+    if type(selection) is FeeBonusSelectorRejectV2:
+        raise ValueError(f"{selection.code.value}: {selection.path}")
+    return selection.bonuses
 
 
 def _allocation_v2(
