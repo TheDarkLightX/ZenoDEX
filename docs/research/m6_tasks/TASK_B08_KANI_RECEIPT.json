@@ -1,0 +1,49 @@
+{
+  "schema_version": "zenodex.fcis.m6.b08.kani-receipt.v1",
+  "assistant": "kani",
+  "kani_version": "0.60.0",
+  "repo_root": "FCIS-M6-codex-task-B08",
+  "target_file": "formal/fcis_m6_b08_arithmetic/src/lib.rs",
+  "checker_command": "cargo kani -Z unstable-options --manifest-path formal/fcis_m6_b08_arithmetic/Cargo.toml --lib --output-format terse --harness-timeout 120s",
+  "checker_status": "pass",
+  "checker_exit_code": 0,
+  "harnesses": [
+    {
+      "name": "kani_contracts::euclidean_machine_bounds_hold",
+      "status": "pass",
+      "failed_checks": 0,
+      "checked_properties": 13,
+      "claim": "The explicit quotient/remainder refinement preserves q*w, r*w, and base bounds for the admitted u16/u32 subset."
+    },
+    {
+      "name": "kani_contracts::valid_fixed_allocation_is_bounded",
+      "status": "pass",
+      "failed_checks": 0,
+      "checked_properties": 225,
+      "claim": "Every accepted fixed-role bonus allocation is at most the modeled amount."
+    },
+    {
+      "name": "kani_contracts::selector_score_is_inside_admitted_range",
+      "status": "pass",
+      "failed_checks": 0,
+      "checked_properties": 17,
+      "claim": "Deficit plus fraction stays inside the admitted signed selector interval."
+    }
+  ],
+  "retained_failing_witnesses": [
+    {
+      "attempt": "u32 quota_machine_bounds_hold",
+      "command": "cargo kani -Z unstable-options --manifest-path formal/fcis_m6_b08_arithmetic/Cargo.toml --lib --output-format terse --harness-timeout 120s",
+      "status": "timeout",
+      "interpretation": "Non-supporting. The final model does not claim this harness."
+    }
+  ],
+  "warnings": [
+    "Kani reported target-feature warnings and unreachable unsupported-construct warnings for caller_location/foreign function; no such construct was reachable in the three successful harnesses."
+  ],
+  "nonclaims": [
+    "Kani did not explore the full U256 domain.",
+    "The successful Kani model is a strict u16 amount/u32 intermediate refinement subset of production AmountU256.",
+    "This receipt does not prove the BigUint adapter, production runtime mounting, or value movement."
+  ]
+}

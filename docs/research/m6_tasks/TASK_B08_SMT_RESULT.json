@@ -1,0 +1,85 @@
+{
+  "query_labels": [
+    "B08_Q1_QW_U256_BOUND",
+    "B08_Q2_RESIDUAL_PRODUCT_BOUND",
+    "B08_Q3_BASE_BOUND",
+    "B08_Q4_ALLOCATION_BOUND",
+    "B08_Q5_SCORE_BOUND"
+  ],
+  "rendered_query_sha256": {
+    "B08_Q1_QW_U256_BOUND": "ad24b85784cd574c6ce1d1c0fbfa5030940f6c469e069f65718a771e50b59151",
+    "B08_Q2_RESIDUAL_PRODUCT_BOUND": "05a14f5becf8c9330941d42668ad42c2af0c77abf5235c0beb4e602ba7e9a043",
+    "B08_Q3_BASE_BOUND": "c71ae4f005304e0e366592ae5cbc408ce8aa0fe92a61c191407684b44ba380c8",
+    "B08_Q4_ALLOCATION_BOUND": "c064ef40a2fb91802b19c0623893d76a9fd89efa1f6f3fa74dfd27db796949d5",
+    "B08_Q5_SCORE_BOUND": "c291692227fd6fceb0dde21b02874b5bcef7bf007fc6cdad7ca0250a2eb8230a"
+  },
+  "results": [
+    {
+      "binary": "/home/trevormoc/.local/bin/z3",
+      "queries": {
+        "B08_Q1_QW_U256_BOUND": {
+          "status": "pass",
+          "stderr": "",
+          "stdout": "B08_Q1_QW_U256_BOUND\nunsat\n"
+        },
+        "B08_Q2_RESIDUAL_PRODUCT_BOUND": {
+          "status": "pass",
+          "stderr": "",
+          "stdout": "B08_Q2_RESIDUAL_PRODUCT_BOUND\nunsat\n"
+        },
+        "B08_Q3_BASE_BOUND": {
+          "status": "pass",
+          "stderr": "",
+          "stdout": "B08_Q3_BASE_BOUND\nunsat\n"
+        },
+        "B08_Q4_ALLOCATION_BOUND": {
+          "status": "pass",
+          "stderr": "",
+          "stdout": "B08_Q4_ALLOCATION_BOUND\nunsat\n"
+        },
+        "B08_Q5_SCORE_BOUND": {
+          "status": "pass",
+          "stderr": "",
+          "stdout": "B08_Q5_SCORE_BOUND\nunsat\n"
+        }
+      },
+      "status": "pass",
+      "version": "Z3 version 4.15.4 - 64 bit"
+    },
+    {
+      "binary": "/usr/bin/cvc5",
+      "queries": {
+        "B08_Q1_QW_U256_BOUND": {
+          "status": "pass",
+          "stderr": "",
+          "stdout": "\"B08_Q1_QW_U256_BOUND\"\nunsat\n"
+        },
+        "B08_Q2_RESIDUAL_PRODUCT_BOUND": {
+          "status": "pass",
+          "stderr": "",
+          "stdout": "\"B08_Q2_RESIDUAL_PRODUCT_BOUND\"\nunsat\n"
+        },
+        "B08_Q3_BASE_BOUND": {
+          "status": "pass",
+          "stderr": "",
+          "stdout": "\"B08_Q3_BASE_BOUND\"\nunsat\n"
+        },
+        "B08_Q4_ALLOCATION_BOUND": {
+          "status": "pass",
+          "stderr": "",
+          "stdout": "\"B08_Q4_ALLOCATION_BOUND\"\nunsat\n"
+        },
+        "B08_Q5_SCORE_BOUND": {
+          "status": "pass",
+          "stderr": "",
+          "stdout": "\"B08_Q5_SCORE_BOUND\"\nunsat\n"
+        }
+      },
+      "status": "pass",
+      "version": "This is cvc5 version 1.1.2"
+    }
+  ],
+  "schema_version": "zenodex.fcis.m6.b08.smt-receipt.v1",
+  "smt_file": "srgd_bounds.smt2",
+  "smt_sha256": "72521d24414cbcbd62683d12daaddf924f0085b924f26fc601355e837925d8b9"
+}
