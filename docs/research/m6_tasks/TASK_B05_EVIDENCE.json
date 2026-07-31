@@ -1,0 +1,76 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "B05",
+  "base_sha": "1e8f09324a62332a8e300fa53e2829e97fc11bb0",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-B05-cumulative-discrepancy-20260731",
+  "status": "PROVED",
+  "evidence_files": [
+    "docs/research/m6_tasks/TASK_B05_REPORT.md",
+    "docs/research/m6_tasks/TASK_B05_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_B05_SOURCE_MANIFEST.sha256",
+    "docs/research/m6_tasks/TASK_B05_LEAN_PROOF_RECEIPT.json",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDCumulative.lean",
+    "lean-mathlib/Proofs.lean",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDAdaptiveTrace.lean",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDTrace.lean",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean"
+  ],
+  "commands": [
+    "cd lean-mathlib && lake env lean Proofs/FCISFeeApportionmentSRGDCumulative.lean with an ephemeral external -> ../external link",
+    "cd lean-mathlib && lake build with an ephemeral external -> ../external link",
+    "bash /home/trevormoc/.codex/skills/lean-proof-engineering/scripts/audit_lean_proof.sh --file Proofs/FCISFeeApportionmentSRGDCumulative.lean --theorem FCISFeeApportionmentSRGDCumulative.role0_word_history_identity",
+    "printf '#print axioms ...' | cd lean-mathlib && lake env lean --stdin with the ephemeral external link",
+    "rg -n -i 'sorry|admit|axiom|unsafe' lean-mathlib/Proofs/FCISFeeApportionmentSRGDCumulative.lean",
+    "git diff --check",
+    "git diff --cached --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks B05"
+  ],
+  "tool_versions": {
+    "python3": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "lake": "Lake version 5.0.0-src+7e01a1b",
+    "lean": "Lean version 4.27.0 (lean-toolchain)",
+    "proof_audit": "lean-proof-engineering audit_lean_proof.sh"
+  },
+  "source_hashes": {
+    "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+    "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
+    "docs/research/m6_tasks/TASK_EVIDENCE_SCHEMA_V1.json": "9dd6d015ef69c31c5a41a61f7a73c5c3d8057baf4cfc6f85eb52fffd065d5640",
+    "docs/research/m6_tasks/validate_task_packet.py": "cda422bb55c5601e8be42148454d7affc44df9c22d66f749861592f3e4549c3a",
+    "docs/research/m6_tasks/TASK_B05_LEAN_PROOF_RECEIPT.json": "e564935ae5c3dfdc275058df535f87c68c77457f05b259929c895adee69f51c1",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDCumulative.lean": "6af80207beb59d48ff609ae4d9550fe230112b379de112a05731148acabc6b85",
+    "lean-mathlib/Proofs.lean": "378e959c4397ffb270b4ac4bb5a57e922ebb153d172c14dcffcce1938180aa81",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDAdaptiveTrace.lean": "9c70689a7d08f5b8178ae7d119d88fe0ae49d4e7e6d6045ee62850d4e85fdf79",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDTrace.lean": "b3f51628cce67f18669dc9eb59040497e1d20c9a000c36198bf66e6ad36abde7",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean": "a7104b2abca37e9ababbe121db34c91bf4fa973a3042f9ed30f165b37bfc92b0",
+    "lean-mathlib/lakefile.lean": "269e55625ea26d5a01938dcfd15b87b19eccbc3f8ac8b95b53f06882bd9c7c33",
+    "lean-mathlib/lean-toolchain": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+  },
+  "results": {
+    "implementation_commit": "079856f24833f2fe5ebc7ab066c57a63b5367a36",
+    "implementation_tree": "2498ead95f855cf5a6ab068499066cfe869c7171",
+    "implementation_parent": "930992b813907a77d7b8d458da3dbd99d6dd7318",
+    "focused_lean": "pass; Lean 4.27.0",
+    "full_lean_build": "pass; 8150 jobs",
+    "placeholder_scan": "pass; zero placeholders",
+    "integer_history_identity": "pass; explicit initial and zero forms",
+    "rational_interpretation": "pass; absolute difference below one",
+    "nested_b04_history": "pass; ordered segments retained",
+    "public_theorems": "7 named B05 theorems compiled",
+    "axiom_audit": "recorded in report and #print axioms output",
+    "task_packet": "selected B05 validation passed; 14 manifest entries",
+    "runtime_mount": "none"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "B05 does not prove a bundled all-three-role cumulative theorem; role-0 is the explicit bridge.",
+    "B05 does not provide the taskbook's named stateful reset, reorder, aggregation, and policy-substitution mutant suite.",
+    "B05 does not complete U256 Lean, Python, or Rust refinement.",
+    "B05 does not prove production datastore, consensus, API, migration, or runtime refinement.",
+    "The local mathlib dependency is accessed through an ephemeral uncommitted link.",
+    "No remote implementation commit, hosted CI run, draft PR, or publication is claimed.",
+    "M6 remains research-only, executable, and unmounted; no value movement is authorized."
+  ]
+}

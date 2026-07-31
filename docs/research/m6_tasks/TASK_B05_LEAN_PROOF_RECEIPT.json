@@ -1,0 +1,36 @@
+{
+  "generated_at_utc": "2026-07-31T19:44:55.682824+00:00",
+  "assistant": "lean",
+  "cwd": "/media/trevormoc/Encrypted Crucia/ZenoDex-GLM-5-2/TEMP-ZENODEX-LUNA-REPAIR-V1/FCIS-M6-codex-task-B05",
+  "repo_root": "/media/trevormoc/Encrypted Crucia/ZenoDex-GLM-5-2/TEMP-ZENODEX-LUNA-REPAIR-V1/FCIS-M6-codex-task-B05",
+  "git_commit": "079856f24833f2fe5ebc7ab066c57a63b5367a36",
+  "git_status_porcelain": [
+    "?? docs/research/m6_tasks/TASK_B05_LEAN_PROOF_RECEIPT.json"
+  ],
+  "files": [
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDCumulative.lean"
+  ],
+  "theorems": [
+    "FCISFeeApportionmentSRGDCumulative.role0_word_history_identity"
+  ],
+  "checker_command": "created=0; if test ! -e external/mathlib4; then ln -s ../external external; created=1; fi; (cd lean-mathlib && lake env lean Proofs/FCISFeeApportionmentSRGDCumulative.lean); status=$?; if test \"$created\" = 1; then rm -f external; fi; exit \"$status\"",
+  "checker_status": "pass",
+  "checker_exit_code": null,
+  "imports": {
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDCumulative.lean": [
+      "Proofs.FCISFeeApportionmentSRGDAdaptiveTrace",
+      "Mathlib.Data.Rat.Lemmas",
+      "Mathlib.Tactic"
+    ]
+  },
+  "placeholders": {
+    "blocked": false,
+    "match_count": 0,
+    "matches": [],
+    "scan_exit_code": 0
+  },
+  "proof_idea": "",
+  "key_lemmas": [],
+  "risks": [],
+  "notes": []
+}
