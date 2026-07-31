@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "zenodex/fcis/m6/task-evidence/v1",
+  "title": "FCIS M6 task evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "status",
+    "branch",
+    "evidence_files",
+    "commands",
+    "tool_versions",
+    "source_hashes",
+    "results",
+    "mutants",
+    "nonclaims"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "zenodex.fcis.m6.task-evidence.v1"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*[0-9]+$"
+    },
+    "base_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "source_head_sha": {
+      "type": "string",
+      "pattern": "^(NONE|[0-9a-f]{40})$"
+    },
+    "source_head_tree": {
+      "type": "string",
+      "pattern": "^(NONE|[0-9a-f]{40})$"
+    },
+    "branch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "PLANNED",
+        "IMPLEMENTED",
+        "TESTED",
+        "PROVED",
+        "MOUNTED",
+        "UNMOUNTED",
+        "GAP",
+        "UNKNOWN"
+      ]
+    },
+    "evidence_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "tool_versions": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "source_hashes": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "results": {
+      "type": "object"
+    },
+    "mutants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "invariant"],
+        "additionalProperties": true,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "status": {"type": "string", "minLength": 1},
+          "invariant": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "nonclaims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

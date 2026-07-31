@@ -1,0 +1,59 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "A03",
+  "base_sha": "5b5a6000250b4009e1ddafebd383927348a8cd75",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-A03-evidence-directory-20260731",
+  "status": "IMPLEMENTED",
+  "evidence_files": [
+    "docs/research/m6_tasks/TASK_REPORT_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_EVIDENCE_SCHEMA_V1.json",
+    "docs/research/m6_tasks/TASK_SOURCE_MANIFEST_CONTRACT_V1.md",
+    "docs/research/m6_tasks/validate_task_packet.py",
+    "docs/research/m6_tasks/TASK_A03_REPORT.md",
+    "docs/research/m6_tasks/TASK_A03_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_A03_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 --version",
+    "git --version",
+    "sha256sum --version | head -1",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_EVIDENCE_SCHEMA_V1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_A03_EVIDENCE.json",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks A03",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_A03_SOURCE_MANIFEST.sha256",
+    "deterministic sorted manifest regeneration followed by byte comparison",
+    "python3 -m ruff check docs/research/m6_tasks/validate_task_packet.py",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python3": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "sha256sum": "sha256sum (GNU coreutils) 9.4"
+  },
+  "source_hashes": {
+    "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+    "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
+    "docs/research/FCIS_M6_TASK_A01_REPORT_20260731.md": "888db63869abccf5cfef597c6ac201b54077e937d2b2f9f30516c306274b1b70",
+    "docs/research/FCIS_M6_STACK_CONFLICT_MAP_20260731.md": "41333ee2ae4ca68bafb44079625bfc1f268361f85cbcdea02ba6dde9b6a7791d"
+  },
+  "results": {
+    "report_schema_parse": "pass",
+    "evidence_schema_parse": "pass",
+    "sample_packet_validator": "pass",
+    "manifest_check": "pass",
+    "repeated_manifest_generation": "byte-identical",
+    "ruff": "pass",
+    "multi_packet_mode": "implemented; selected A03 validation pass",
+    "manifest_entries": 6
+  },
+  "mutants": [],
+  "nonclaims": [
+    "A03 does not prove an M6 theorem or production runtime refinement.",
+    "A03 does not mount a caller, datastore, authority switch, deployment, or value-moving path.",
+    "The local validator is a research evidence tool and is not a production authority gate.",
+    "Future schema changes require a versioned contract and new validator evidence."
+  ]
+}
