@@ -1,0 +1,115 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "B06",
+  "base_sha": "5f24fae3587bb5a2262a9655ba8258b1b4272cde",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-B06-python-postconditions-20260731",
+  "status": "TESTED",
+  "evidence_files": [
+    "docs/research/m6_tasks/TASK_B06_REPORT.md",
+    "docs/research/m6_tasks/TASK_B06_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_B06_SOURCE_MANIFEST.sha256",
+    "src/core/fcis_fee_apportionment_postconditions.py",
+    "src/core/fcis_fee_apportionment_allocator.py",
+    "src/core/fcis_fee_apportionment_selector.py",
+    "src/core/fcis_fee_apportionment_transition.py",
+    "src/core/fcis_fee_apportionment_values.py",
+    "src/core/fcis_m6_profile_ids.py",
+    "tests/core/test_fcis_fee_apportionment_postconditions.py",
+    "tests/core/test_fcis_fee_apportionment_allocator.py",
+    "tests/core/test_fcis_fee_apportionment_selector.py",
+    "tests/core/test_fcis_fee_apportionment_transition.py",
+    "tests/core/test_fcis_fee_apportionment_width_mutants.py"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_fee_apportionment_postconditions.py src/core/fcis_fee_apportionment_allocator.py tests/core/test_fcis_fee_apportionment_postconditions.py",
+    "python3 -m ruff check src/core/fcis_fee_apportionment_postconditions.py src/core/fcis_fee_apportionment_allocator.py tests/core/test_fcis_fee_apportionment_postconditions.py",
+    "python3 -m mypy --strict src/core/fcis_fee_apportionment_postconditions.py src/core/fcis_fee_apportionment_allocator.py src/core/fcis_fee_apportionment_transition.py",
+    "python3 -m pytest -q tests/core/test_fcis_fee_apportionment_postconditions.py tests/core/test_fcis_fee_apportionment_allocator.py tests/core/test_fcis_fee_apportionment_selector.py tests/core/test_fcis_fee_apportionment_transition.py tests/core/test_fcis_fee_apportionment_width_mutants.py",
+    "python3 tools/check_fcis_durable_retraction_model.py --self-test",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks B06",
+    "git diff --check",
+    "git diff --cached --check"
+  ],
+  "tool_versions": {
+    "python3": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+    "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
+    "docs/research/m6_tasks/TASK_EVIDENCE_SCHEMA_V1.json": "9dd6d015ef69c31c5a41a61f7a73c5c3d8057baf4cfc6f85eb52fffd065d5640",
+    "docs/research/m6_tasks/validate_task_packet.py": "cda422bb55c5601e8be42148454d7affc44df9c22d66f749861592f3e4549c3a",
+    "src/core/fcis_m6_profile_ids.py": "c49a51688c453776d49726de24f295c84ffe4219b18f8692ad5a4d7c628e232f",
+    "src/core/fcis_fee_apportionment_transition.py": "a6753cdc51655841f8e94ae73daab8c9dac4d401a7dc87b59f6ad7267a48d10e",
+    "src/core/fcis_fee_apportionment_selector.py": "d314e31ffdaaba54bc55c8b2314e01ade6b891fa32c730336f2bed10caa45cc5",
+    "src/core/fcis_fee_apportionment_allocator.py": "c1ecb50c36dc2653f38b76619bc345a97e72fc2b12437db69bd2483c3cac8483",
+    "src/core/fcis_fee_apportionment_postconditions.py": "6ddc234a6c61744bb1fdf5c716b75663f0c073c472e0941d4ac0f72b14d6c6dc",
+    "tests/core/test_fcis_fee_apportionment_postconditions.py": "5103f85fa1782de8767de942dbf310e182a67dd5db8c102303a84d4dcfe32545",
+    "tests/core/test_fcis_fee_apportionment_allocator.py": "fa6c6981278f20e6eadd986e5565f28022d84e016c55ae8bfc6c53ec5170855c",
+    "tests/core/test_fcis_fee_apportionment_selector.py": "33144ddfde2869abd72c3bca0a84fc80e111e8563d314fe0223476bec49daffb",
+    "tests/core/test_fcis_fee_apportionment_transition.py": "48c962242789f78052dd615b7f1104092c345af7b64209f162cfa27a852be647",
+    "tests/core/test_fcis_fee_apportionment_width_mutants.py": "d358f52d933a21c5a83f3fce1b03dd3d613f42f4bab70e7961a28e4da1ddd709"
+  },
+  "results": {
+    "implementation_commit": "cd88bc4b528feb3b03ebbd0e0aaff006eebe72dd",
+    "implementation_tree": "11833bef96ae185d4cced814b67387d5c877247c",
+    "implementation_parent": "5f24fae3587bb5a2262a9655ba8258b1b4272cde",
+    "py_compile": "pass",
+    "ruff": "pass",
+    "strict_mypy": "pass",
+    "focused_tests": "41 passed",
+    "public_model_self_test": "pass; 56 reachable states and 268 enabled transitions",
+    "postcondition_relation": "typed Accept/Reject relation checked before controlled construction",
+    "task_packet": "selected B06 validation passed; 16 manifest entries",
+    "runtime_mount": "none"
+  },
+  "mutants": [
+    {
+      "id": "B06_SUM_ALLOCATIONS",
+      "status": "covered",
+      "invariant": "Role allocations conserve the input amount."
+    },
+    {
+      "id": "B06_LOCAL_QUOTA",
+      "status": "covered",
+      "invariant": "Each role amount equals its Euclidean base plus its selected bonus."
+    },
+    {
+      "id": "B06_POST_DEFICIT_RECURRENCE",
+      "status": "covered",
+      "invariant": "Post deficits equal pre deficit plus fraction minus denominator times bonus."
+    },
+    {
+      "id": "B06_BONUS_ORDER",
+      "status": "covered",
+      "invariant": "Bonus bits match the positive-support score order and fixed tie break."
+    },
+    {
+      "id": "B06_ZERO_WEIGHT_SUPPORT",
+      "status": "covered",
+      "invariant": "Zero-weight roles receive zero fraction, bonus, and amount."
+    },
+    {
+      "id": "B06_FIXED_ROLE_PROFILE_DRIFT",
+      "status": "covered",
+      "invariant": "The shared fixed role profile remains buyback, treasury, rewards."
+    },
+    {
+      "id": "B06_NO_CANDIDATE_ON_RELATION_REJECT",
+      "status": "covered",
+      "invariant": "A postcondition failure maps to internal rejection before candidate construction."
+    }
+  ],
+  "nonclaims": [
+    "B06 does not prove the general SRGD theorem or refine the Lean relation.",
+    "B06 does not implement Rust, Kani/SMT, or the three-way parity campaign.",
+    "B06 does not prove production consensus, datastore, authority, migration, effect, or value-moving behavior.",
+    "B06 remains an unmounted research kernel and authorizes no value movement.",
+    "No remote implementation commit, hosted CI run, draft PR, or publication is claimed."
+  ]
+}
