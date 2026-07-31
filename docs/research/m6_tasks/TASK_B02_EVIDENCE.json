@@ -1,0 +1,97 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "B02",
+  "base_sha": "d00cbaf35aea6d86c49ff4d2f58c906330df0198",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-B02-exact-selector-20260731",
+  "status": "TESTED",
+  "evidence_files": [
+    "docs/research/m6_tasks/TASK_B02_REPORT.md",
+    "docs/research/m6_tasks/TASK_B02_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_B02_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_fee_apportionment_selector.py src/core/fcis_fee_apportionment_transition.py src/core/fcis_fee_apportionment_allocator.py tests/core/test_fcis_fee_apportionment_selector.py",
+    "python3 -m ruff check src/core/fcis_fee_apportionment_selector.py src/core/fcis_fee_apportionment_transition.py src/core/fcis_fee_apportionment_allocator.py tests/core/test_fcis_fee_apportionment_admission.py tests/core/test_fcis_fee_apportionment_agqe_srgd_refinement.py tests/core/test_fcis_fee_apportionment_allocator.py tests/core/test_fcis_fee_apportionment_golden.py tests/core/test_fcis_fee_apportionment_transition.py tests/core/test_fcis_fee_apportionment_width_mutants.py tests/core/test_fcis_fee_apportionment_selector.py tools/build_fcis_fee_apportionment_v2_golden.py",
+    "python3 -m mypy --strict src/core/fcis_fee_apportionment_selector.py src/core/fcis_fee_apportionment_transition.py src/core/fcis_fee_apportionment_allocator.py",
+    "python3 -m pytest -q tests/core/test_fcis_fee_apportionment_admission.py tests/core/test_fcis_fee_apportionment_agqe_srgd_refinement.py tests/core/test_fcis_fee_apportionment_allocator.py tests/core/test_fcis_fee_apportionment_golden.py tests/core/test_fcis_fee_apportionment_transition.py tests/core/test_fcis_fee_apportionment_width_mutants.py tests/core/test_fcis_fee_apportionment_selector.py",
+    "python3 tools/build_fcis_fee_apportionment_v2_golden.py",
+    "python3 tools/build_fcis_fee_apportionment_v2_golden.py --check",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_B02_SOURCE_MANIFEST.sha256",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks B02",
+    "git diff --check",
+    "git diff --cached --check"
+  ],
+  "tool_versions": {
+    "python3": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+    "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
+    "docs/research/m6_tasks/TASK_EVIDENCE_SCHEMA_V1.json": "9dd6d015ef69c31c5a41a61f7a73c5c3d8057baf4cfc6f85eb52fffd065d5640",
+    "docs/research/m6_tasks/validate_task_packet.py": "cda422bb55c5601e8be42148454d7affc44df9c22d66f749861592f3e4549c3a",
+    "src/core/fcis_m6_profile_ids.py": "c49a51688c453776d49726de24f295c84ffe4219b18f8692ad5a4d7c628e232f",
+    "src/core/fcis_fee_apportionment_transition.py": "a6753cdc51655841f8e94ae73daab8c9dac4d401a7dc87b59f6ad7267a48d10e",
+    "src/core/fcis_fee_apportionment_selector.py": "d314e31ffdaaba54bc55c8b2314e01ade6b891fa32c730336f2bed10caa45cc5",
+    "src/core/fcis_fee_apportionment_allocator.py": "3a614715fdfbcc69806032d853216c77f6b880818150a6dd1749b77736e2aa79",
+    "tests/core/test_fcis_fee_apportionment_transition.py": "48c962242789f78052dd615b7f1104092c345af7b64209f162cfa27a852be647",
+    "tests/core/test_fcis_fee_apportionment_width_mutants.py": "d358f52d933a21c5a83f3fce1b03dd3d613f42f4bab70e7961a28e4da1ddd709",
+    "tests/core/test_fcis_fee_apportionment_selector.py": "33144ddfde2869abd72c3bca0a84fc80e111e8563d314fe0223476bec49daffb",
+    "tests/core/test_fcis_fee_apportionment_allocator.py": "fa6c6981278f20e6eadd986e5565f28022d84e016c55ae8bfc6c53ec5170855c",
+    "tests/core/test_fcis_fee_apportionment_agqe_srgd_refinement.py": "306fa49142c0180b203f0b7a176e9675831ea39a18d6b1339bad83c140eacaff",
+    "tests/core/test_fcis_fee_apportionment_golden.py": "11e89ccbc31c335ac417fb165a9e9db5e05dad0cd619662bc7b41de3bc88a22b",
+    "tools/build_fcis_fee_apportionment_v2_golden.py": "86947301f3b81404f6c54f4abe8dc83ec0f6c7c5ce13c005a4fc2f2df9c58ef0",
+    "tests/fixtures/fcis_fee_apportionment_v2_golden.json": "6c9a6189b951302412f1a9c23997082ba13cab48a8832b41280f6fc018bce373"
+  },
+  "results": {
+    "implementation_commit": "ff1da03a4be13a87390466f5f60c2dbb7254d2d4",
+    "implementation_tree": "b97456cf8abb25a579699535706f52d8d8c9936f",
+    "focused_tests": "45 passed",
+    "golden_fixture": "regenerated and --check passed; 12 cases",
+    "task_packet": "selected B02 validation passed; 18 manifest entries",
+    "multi_packet_validation": "historical B01 source hash mismatch after the intentional B02 allocator descendant change",
+    "ruff": "pass",
+    "strict_mypy": "pass for 3 touched source modules",
+    "py_compile": "pass",
+    "selector_relation": "exact three-role score/support/tie relation passes",
+    "runtime_mount": "none"
+  },
+  "mutants": [
+    {
+      "id": "B02_OMIT_CURRENT_FRACTION",
+      "status": "covered",
+      "invariant": "Selector score includes deficit plus current fraction."
+    },
+    {
+      "id": "B02_REVERSE_FIXED_TIE_ORDER",
+      "status": "covered",
+      "invariant": "Equal scores resolve in buyback, treasury, rewards order."
+    },
+    {
+      "id": "B02_SELECT_ZERO_REMAINDER_ROLE",
+      "status": "covered",
+      "invariant": "A selected bonus requires positive fraction support."
+    },
+    {
+      "id": "B02_SELECT_WRONG_SEAT_COUNT",
+      "status": "covered",
+      "invariant": "Bonus-bit sum equals sum(fractions) divided by the denominator."
+    },
+    {
+      "id": "B02_UNORDERED_ROLE_MAPPING",
+      "status": "covered",
+      "invariant": "The selector returns a fixed three-bit tuple without unordered mappings."
+    }
+  ],
+  "nonclaims": [
+    "B02 does not prove the general R02 theorem or adaptive trace properties.",
+    "B02 does not prove Rust, datastore, consensus, API, migration, or runtime refinement.",
+    "B02 remains an unmounted Python research kernel and does not authorize value movement.",
+    "No remote implementation commit, hosted CI run, draft PR, or publication is claimed."
+  ]
+}
