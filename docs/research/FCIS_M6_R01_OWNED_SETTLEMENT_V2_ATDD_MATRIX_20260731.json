@@ -1,0 +1,389 @@
+{
+  "acceptance_cases": [
+    {
+      "counterexample": "An inner occurrence claim stores the final OwnedSettlementV2 root and makes its own canonical preimage recursive.",
+      "given": "The exact local occurrence claim is nested inside OwnedSettlementV2.",
+      "id": "ATDD-M6-R01-OSV2-001",
+      "invariant": "No value inside the settlement depends on owned_settlement_root_v2.",
+      "nonclaims": [
+        "Acyclicity does not authenticate the settlement.",
+        "This case does not authorize a codec implementation."
+      ],
+      "status": "design_ready",
+      "then": "The self-root field and every backward dependency edge reject.",
+      "title": "Settlement root dependency is acyclic",
+      "when": "The dependency graph and inner-claim field registry are checked."
+    },
+    {
+      "counterexample": "An occurrence ID derived from command_root is stored inside the settlement that command_root hashes.",
+      "given": "The command root commits the exact admitted settlement and intent tuple.",
+      "id": "ATDD-M6-R01-OSV2-002",
+      "invariant": "Command-derived occurrence IDs exist only in controlled evidence after command_root is known.",
+      "nonclaims": [
+        "The command schema and domain separator remain to be frozen.",
+        "An occurrence ID does not prove current-state provenance."
+      ],
+      "status": "design_ready",
+      "then": "The inner occurrence_id field and any command-root cycle reject.",
+      "title": "Occurrence identity is derived after command identity",
+      "when": "The inner-claim registry and dependency graph are checked."
+    },
+    {
+      "counterexample": "The settlement root projection omits provisional claims, allowing unequal settlements to share one root.",
+      "given": "OwnedSettlementV2 contains one mandatory exact occurrence-claim tuple.",
+      "id": "ATDD-M6-R01-OSV2-003",
+      "invariant": "The full canonical settlement envelope includes the complete occurrence-claim tuple.",
+      "nonclaims": [
+        "Hash commitment does not establish semantic correctness.",
+        "SHA-256 collision resistance is assumed."
+      ],
+      "status": "design_ready",
+      "then": "Any omission or blanking projection is rejected by the exact root strategy.",
+      "title": "Settlement root commits every local occurrence claim",
+      "when": "The root strategy and outer field registry are checked."
+    },
+    {
+      "counterexample": "A caller supplies a matching settlement root and claim tuple without fresh replay from the exact pre-state.",
+      "given": "The exact current state, authenticated command, validated configuration, and authenticated context remain present.",
+      "id": "ATDD-M6-R01-OSV2-004",
+      "invariant": "Expected, admitted, and consumed claim tuples are exactly equal before controlled evidence exists.",
+      "nonclaims": [
+        "The current replay kernel is unmounted.",
+        "This relation does not prove datastore currentness."
+      ],
+      "status": "design_ready",
+      "then": "Coordinated claim and root substitution rejects against fresh source-bound replay.",
+      "title": "Claim tuple equality is source-bound",
+      "when": "The controlled derivation sources and equality gate are checked."
+    },
+    {
+      "counterexample": "A shell selects configuration, pre-state, command, or context roots independently of their authenticated sources.",
+      "given": "Every authority-bearing root has one independently retained source value.",
+      "id": "ATDD-M6-R01-OSV2-005",
+      "invariant": "Submitted roots are equality targets and never independent authority inputs.",
+      "nonclaims": [
+        "The exact authentication mechanisms remain later checkpoints.",
+        "A validated configuration claim carries no state authority by itself."
+      ],
+      "status": "design_ready",
+      "then": "The controlled batch is derived only after point-of-use reconstruction of every root.",
+      "title": "Independent sources remain present through binding",
+      "when": "The source-role registry and graph predecessors are checked."
+    },
+    {
+      "counterexample": "A zero-valued fee claim creates duplicate or economically empty lineage.",
+      "given": "The mandatory occurrence-claim tuple may be empty.",
+      "id": "ATDD-M6-R01-OSV2-006",
+      "invariant": "Only a strictly positive provisional protocol fee produces an inner occurrence claim.",
+      "nonclaims": [
+        "A zero-fee fill may still appear in the settlement fill tuple.",
+        "This does not change quote or fill semantics."
+      ],
+      "status": "design_ready",
+      "then": "Zero provisional fee produces no claim and positive fee produces exactly one fill-bound claim.",
+      "title": "Zero fee has one canonical absence representation",
+      "when": "The claim cardinality policy is checked."
+    },
+    {
+      "counterexample": "An earlier failure leaves a replay candidate, witness batch, receipt, bundle, or effect plan.",
+      "given": "Decode, admission, validation, replay, equality, and binding are ordered phases.",
+      "id": "ATDD-M6-R01-OSV2-007",
+      "invariant": "Every rejection before controlled derivation carries no authority-bearing output.",
+      "nonclaims": [
+        "Committed-failure semantics are outside this checkpoint.",
+        "No publication shell is implemented."
+      ],
+      "status": "design_ready",
+      "then": "The no-successor output list remains complete and closed.",
+      "title": "Early rejection is authority-empty",
+      "when": "The rejection authority registry is checked."
+    },
+    {
+      "counterexample": "A design-only carrier clarification is treated as permission to mount V2 settlement authority.",
+      "given": "The exact carrier and controlled-batch schemas still require independent review.",
+      "id": "ATDD-M6-R01-OSV2-008",
+      "invariant": "This contract remains design-only and unmounted.",
+      "nonclaims": [
+        "No V2 settlement carrier is implemented by this contract.",
+        "No runtime, receipt, bundle, proof, or datastore path is approved."
+      ],
+      "status": "design_ready",
+      "then": "Implementation and mount authority remain false.",
+      "title": "Design evidence cannot promote runtime authority",
+      "when": "The phase flags and nonclaim set are checked."
+    }
+  ],
+  "claim_cardinality_policy": {
+    "empty_tuple_allowed": true,
+    "positive_fee_emits_exactly_one_claim": true,
+    "zero_fee_emits_claim": false
+  },
+  "contract_version": "1.0.0",
+  "decision": {
+    "controlled_batch_type": "StateBoundProvisionalProtocolFeeWitnessBatchV2",
+    "forbidden_inner_claim_fields": [
+      "command_root",
+      "owned_settlement_root",
+      "pre_state_root",
+      "configuration_root",
+      "execution_context_hash",
+      "occurrence_id",
+      "source_witness_root",
+      "witness_batch_root",
+      "receipt_root",
+      "bundle_root",
+      "outbox_root"
+    ],
+    "inner_claim_fields": [
+      "fill_position",
+      "intent_id",
+      "fee_distribution_domain_id",
+      "pool_snapshot_fingerprint",
+      "pool_id",
+      "asset",
+      "sender_pubkey",
+      "swap_kind",
+      "recipient_pubkey",
+      "asset_out",
+      "amount_specified",
+      "limit_amount",
+      "recipient_output_credit",
+      "total_fee_amount",
+      "protocol_fee_share_bps",
+      "sender_input_debit",
+      "pool_reserve_credit",
+      "provisional_fee_amount",
+      "reserve_in_before",
+      "reserve_out_before",
+      "reserve_in_after",
+      "reserve_out_after"
+    ],
+    "inner_claim_type": "ProvisionalProtocolFeeOccurrenceClaimV2",
+    "outer_field_registry": [
+      "module",
+      "version",
+      "batch_ref",
+      "included_intents",
+      "fills",
+      "balance_deltas",
+      "reserve_deltas",
+      "lp_deltas",
+      "provisional_protocol_fee_witnesses",
+      "events"
+    ],
+    "root_strategy": "full_settlement_envelope_then_external_state_bound_batch"
+  },
+  "dependency_graph": {
+    "edges": [
+      {
+        "from": "authenticated_command_bytes",
+        "to": "admitted_owned_settlement_v2"
+      },
+      {
+        "from": "authenticated_command_bytes",
+        "to": "admitted_intent_tuple_v2"
+      },
+      {
+        "from": "authenticated_command_bytes",
+        "to": "command_root_v2"
+      },
+      {
+        "from": "authenticated_command_bytes",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "admitted_owned_settlement_v2",
+        "to": "admitted_local_claim_tuple_v2"
+      },
+      {
+        "from": "admitted_owned_settlement_v2",
+        "to": "owned_settlement_root_v2"
+      },
+      {
+        "from": "admitted_owned_settlement_v2",
+        "to": "command_root_v2"
+      },
+      {
+        "from": "admitted_owned_settlement_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "admitted_intent_tuple_v2",
+        "to": "recomputed_local_claim_tuple_v2"
+      },
+      {
+        "from": "admitted_intent_tuple_v2",
+        "to": "command_root_v2"
+      },
+      {
+        "from": "admitted_intent_tuple_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "admitted_local_claim_tuple_v2",
+        "to": "owned_settlement_root_v2"
+      },
+      {
+        "from": "exact_pre_state_v2",
+        "to": "pre_state_root_v2"
+      },
+      {
+        "from": "exact_pre_state_v2",
+        "to": "recomputed_local_claim_tuple_v2"
+      },
+      {
+        "from": "exact_pre_state_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "validated_active_configuration_v2",
+        "to": "configuration_root_v2"
+      },
+      {
+        "from": "validated_active_configuration_v2",
+        "to": "recomputed_local_claim_tuple_v2"
+      },
+      {
+        "from": "validated_active_configuration_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "authenticated_execution_context_v2",
+        "to": "execution_context_hash_v2"
+      },
+      {
+        "from": "authenticated_execution_context_v2",
+        "to": "recomputed_local_claim_tuple_v2"
+      },
+      {
+        "from": "authenticated_execution_context_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "admitted_local_claim_tuple_v2",
+        "to": "exact_claim_tuple_equality_v2"
+      },
+      {
+        "from": "recomputed_local_claim_tuple_v2",
+        "to": "exact_claim_tuple_equality_v2"
+      },
+      {
+        "from": "recomputed_local_claim_tuple_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "command_root_v2",
+        "to": "occurrence_id_tuple_v2"
+      },
+      {
+        "from": "exact_claim_tuple_equality_v2",
+        "to": "occurrence_id_tuple_v2"
+      },
+      {
+        "from": "owned_settlement_root_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "command_root_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "pre_state_root_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "configuration_root_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "execution_context_hash_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "exact_claim_tuple_equality_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "occurrence_id_tuple_v2",
+        "to": "state_bound_witness_batch_v2"
+      },
+      {
+        "from": "state_bound_witness_batch_v2",
+        "to": "witness_batch_root_v2"
+      }
+    ],
+    "nodes": [
+      "authenticated_command_bytes",
+      "admitted_owned_settlement_v2",
+      "admitted_intent_tuple_v2",
+      "admitted_local_claim_tuple_v2",
+      "exact_pre_state_v2",
+      "validated_active_configuration_v2",
+      "authenticated_execution_context_v2",
+      "recomputed_local_claim_tuple_v2",
+      "exact_claim_tuple_equality_v2",
+      "owned_settlement_root_v2",
+      "command_root_v2",
+      "pre_state_root_v2",
+      "configuration_root_v2",
+      "execution_context_hash_v2",
+      "occurrence_id_tuple_v2",
+      "state_bound_witness_batch_v2",
+      "witness_batch_root_v2"
+    ],
+    "topological_order": [
+      "authenticated_command_bytes",
+      "exact_pre_state_v2",
+      "validated_active_configuration_v2",
+      "authenticated_execution_context_v2",
+      "admitted_owned_settlement_v2",
+      "admitted_intent_tuple_v2",
+      "admitted_local_claim_tuple_v2",
+      "owned_settlement_root_v2",
+      "command_root_v2",
+      "pre_state_root_v2",
+      "configuration_root_v2",
+      "execution_context_hash_v2",
+      "recomputed_local_claim_tuple_v2",
+      "exact_claim_tuple_equality_v2",
+      "occurrence_id_tuple_v2",
+      "state_bound_witness_batch_v2",
+      "witness_batch_root_v2"
+    ]
+  },
+  "implementation_authorized": false,
+  "mount_authorized": false,
+  "no_successor_outputs": [
+    "successor",
+    "patch",
+    "allocation",
+    "receipt",
+    "bundle",
+    "proof_input",
+    "effect",
+    "outbox"
+  ],
+  "nonclaims": [
+    "OwnedSettlementV2 admission and canonical codecs are not implemented.",
+    "The controlled witness batch is not implemented.",
+    "The command schema and root preimage are not frozen.",
+    "No state, configuration, receipt, bundle, proof, publication, or mount authority exists.",
+    "Python and Rust parity is not established."
+  ],
+  "normative_source": {
+    "architecture_path": "docs/research/prompts/fcis_m5_p4b5a_dynamic_apportionment_architecture_v1/SRGD_V1_AMENDMENT.md",
+    "architecture_sha256": "c8fc946d916923fed8282112a5b4722fae774c67147e37a76b6099701f3f17e8",
+    "current_command_root_path": "src/core/fcis_support_profile_v5.py",
+    "current_command_root_sha256": "d6b10072761318b07813bb6b0898e7f5b6592b1cd22ef4ae7bf2d11073952000",
+    "implementation_base_commit": "f891607a77671403042b34d6bc45d907aae69115"
+  },
+  "schema": "zenodex/fcis/m6-r01-owned-settlement-v2-atdd/v1",
+  "source_roles": {
+    "authenticated_command_bytes": "freshly reauthenticated canonical command bytes",
+    "authenticated_execution_context_v2": "independently authenticated execution context",
+    "exact_pre_state_v2": "store-current exact pre-state at publication",
+    "submitted_roots": "equality targets only",
+    "validated_active_configuration_v2": "point-of-use B1A-validated active configuration bound to exact state"
+  },
+  "status": "draft_for_independent_review_unmounted"
+}
