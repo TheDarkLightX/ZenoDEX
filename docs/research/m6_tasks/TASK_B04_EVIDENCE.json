@@ -1,0 +1,72 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "B04",
+  "base_sha": "4ea8611852f2fe1aad0177bf4f7ea0e1c921c9b5",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-B04-adaptive-trace-20260731",
+  "status": "PROVED",
+  "evidence_files": [
+    "docs/research/m6_tasks/TASK_B04_REPORT.md",
+    "docs/research/m6_tasks/TASK_B04_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_B04_SOURCE_MANIFEST.sha256",
+    "docs/research/m6_tasks/TASK_B04_LEAN_PROOF_RECEIPT.json",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDAdaptiveTrace.lean",
+    "lean-mathlib/Proofs.lean",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDTrace.lean",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean"
+  ],
+  "commands": [
+    "cd lean-mathlib && lake env lean Proofs/FCISFeeApportionmentSRGDAdaptiveTrace.lean with an ephemeral external -> ../external link",
+    "cd lean-mathlib && lake build with an ephemeral external -> ../external link",
+    "bash /home/trevormoc/.codex/skills/lean-proof-engineering/scripts/audit_lean_proof.sh --file Proofs/FCISFeeApportionmentSRGDAdaptiveTrace.lean --theorem FCISFeeApportionmentSRGDAdaptiveTrace.valid_word_preserves_state",
+    "printf '#print axioms ...' | cd lean-mathlib && lake env lean --stdin with the ephemeral external link",
+    "rg -n -i 'sorry|admit|axiom|unsafe' lean-mathlib/Proofs/FCISFeeApportionmentSRGDAdaptiveTrace.lean",
+    "git diff --check",
+    "git diff --cached --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks B04"
+  ],
+  "tool_versions": {
+    "python3": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "lake": "Lake version 5.0.0-src+7e01a1b",
+    "lean": "Lean version 4.27.0 (lean-toolchain)",
+    "proof_audit": "lean-proof-engineering audit_lean_proof.sh"
+  },
+  "source_hashes": {
+    "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+    "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
+    "docs/research/m6_tasks/TASK_EVIDENCE_SCHEMA_V1.json": "9dd6d015ef69c31c5a41a61f7a73c5c3d8057baf4cfc6f85eb52fffd065d5640",
+    "docs/research/m6_tasks/validate_task_packet.py": "cda422bb55c5601e8be42148454d7affc44df9c22d66f749861592f3e4549c3a",
+    "docs/research/m6_tasks/TASK_B04_LEAN_PROOF_RECEIPT.json": "cdf325db8a3fec4f1691dd72e9920b67ea24c2d020ef0d1eaa556a1ee008205b",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDAdaptiveTrace.lean": "9c70689a7d08f5b8178ae7d119d88fe0ae49d4e7e6d6045ee62850d4e85fdf79",
+    "lean-mathlib/Proofs.lean": "399aa136eb208c2e1f0bb903f38e307b503283f2fcae2c73065eba64c9dd05bb",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDTrace.lean": "b3f51628cce67f18669dc9eb59040497e1d20c9a000c36198bf66e6ad36abde7",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean": "a7104b2abca37e9ababbe121db34c91bf4fa973a3042f9ed30f165b37bfc92b0",
+    "lean-mathlib/lakefile.lean": "269e55625ea26d5a01938dcfd15b87b19eccbc3f8ac8b95b53f06882bd9c7c33",
+    "lean-mathlib/lean-toolchain": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb"
+  },
+  "results": {
+    "implementation_commit": "b182bdbdc842ef54f46194a31b3a76e3d6efc906",
+    "implementation_tree": "fb91f2655b48e3b286b175e712e87b4b083832a9",
+    "focused_lean": "pass; Lean 4.27.0",
+    "full_lean_build": "pass; 8149 jobs",
+    "placeholder_scan": "pass; zero placeholders",
+    "public_theorems": "3 named B04 theorems compiled",
+    "nested_slnf_carrier": "pass; segments remain nested and ordered",
+    "policy_adaptivity": "pass; policy witness is carried per occurrence",
+    "axiom_audit": "recorded in report and #print axioms output",
+    "task_packet": "selected B04 validation passed; 13 manifest entries",
+    "runtime_mount": "none"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "The policy witness is a formal theorem carrier, not a production verifier or authority grant.",
+    "B04 does not prove the cumulative discrepancy/history identity theorem.",
+    "B04 does not complete U256 Lean, Python, or Rust refinement.",
+    "B04 does not prove production datastore, consensus, API, migration, or runtime refinement.",
+    "The local mathlib dependency is accessed through an ephemeral uncommitted link.",
+    "No remote implementation commit, hosted CI run, draft PR, or publication is claimed.",
+    "M6 remains research-only, executable, and unmounted; no value movement is authorized."
+  ]
+}
