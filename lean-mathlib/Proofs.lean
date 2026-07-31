@@ -52,6 +52,7 @@ import Proofs.FeeDustCarryConservation
 import Proofs.FCISFeeApportionmentSRGD
 import Proofs.FCISFeeApportionmentAGQESRGDRefinement
 import Proofs.FCISFeeApportionmentSRGDTrace
+import Proofs.FCISFeeApportionmentSRGDAdaptiveTrace
 import Proofs.FeeRevenueBoundedness
 import Proofs.FeeSplitRoundingGap
 import Proofs.FiniteTraceBarriers
