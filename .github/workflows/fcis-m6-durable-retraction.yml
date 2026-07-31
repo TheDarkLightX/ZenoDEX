@@ -26,6 +26,7 @@ on:
       - "docs/research/FCIS_M6_LEAP_SURPRISE_PACKETS_V1.yaml"
       - "README_BUNDLE.md"
       - "SHA256SUMS.txt"
+      - "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz"
       - "requirements-dev.lock.txt"
       - ".github/workflows/fcis-m6-durable-retraction.yml"
   workflow_dispatch:
@@ -327,3 +328,211 @@ jobs:
             lean-mathlib/Proofs/FCISDurableRetraction.lean; then
             exit 1
           fi
+
+  packet-delivery:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Validate exact head, topology, ledgers, manifest, and archive
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          sha256sum --check --strict SHA256SUMS.txt
+          (
+            cd docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair
+            sha256sum --check --strict SHA256SUMS.txt
+          )
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import tarfile
+          from pathlib import Path
+
+          root = Path(".")
+          manifest_path = Path(
+              "docs/research/FCIS_M6_LUNA_SOURCE_MANIFEST_V1.json"
+          )
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          archive_path = Path(manifest["canonical_archive"])
+          if archive_path != Path(
+              "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz"
+          ):
+              raise SystemExit("unexpected canonical archive path")
+          if manifest["archive_excludes"] != [archive_path.as_posix()]:
+              raise SystemExit("archive exclusion does not name the archive")
+
+          entries = manifest["files"]
+          paths = [entry["path"] for entry in entries]
+          if len(paths) != len(set(paths)):
+              raise SystemExit("manifest contains duplicate file paths")
+          expected_hashes = {entry["path"]: entry["sha256"] for entry in entries}
+          expected = set(paths) | set(manifest["integrity_ledgers"]) | {
+              manifest_path.as_posix()
+          }
+          for name in expected:
+              path = Path(name)
+              if path.is_absolute() or ".." in path.parts:
+                  raise SystemExit(f"unsafe packet path: {name}")
+              if not path.is_file():
+                  raise SystemExit(f"missing packet file: {name}")
+          for name, expected_hash in expected_hashes.items():
+              actual_hash = hashlib.sha256(Path(name).read_bytes()).hexdigest()
+              if actual_hash != expected_hash:
+                  raise SystemExit(f"manifest hash mismatch: {name}")
+
+          target = manifest["implementation_target_commit"]
+          target_tree = subprocess.check_output(
+              ["git", "rev-parse", f"{target}^{{tree}}"], text=True
+          ).strip()
+          if target_tree != manifest["implementation_target_tree"]:
+              raise SystemExit("implementation target tree mismatch")
+          packet_commit = subprocess.check_output(
+              ["git", "rev-parse", "HEAD"], text=True
+          ).strip()
+          packet_parent = subprocess.check_output(
+              ["git", "rev-parse", "HEAD^"], text=True
+          ).strip()
+          if packet_parent != target:
+              raise SystemExit(
+                  "packet must be exactly one documentation-only child of target"
+              )
+          if packet_commit != os.environ["EXPECTED_SHA"]:
+              raise SystemExit("workflow head is not the checked-out PR head")
+
+          with tarfile.open(archive_path, "r:gz") as archive:
+              members = archive.getmembers()
+              names = [member.name for member in members]
+              if len(names) != len(set(names)):
+                  raise SystemExit("archive contains duplicate members")
+              if set(names) != expected:
+                  raise SystemExit(
+                      "archive members differ from manifest and integrity ledgers"
+                  )
+              for member in members:
+                  if not member.isfile():
+                      raise SystemExit(
+                          f"archive member is not a regular file: {member.name}"
+                      )
+                  if member.name.startswith("/") or ".." in Path(member.name).parts:
+                      raise SystemExit(f"unsafe archive member: {member.name}")
+                  archived = archive.extractfile(member)
+                  if archived is None or archived.read() != Path(
+                      member.name
+                  ).read_bytes():
+                      raise SystemExit(f"archive content mismatch: {member.name}")
+          Path("/tmp/fcis-m6-archive-members.txt").write_text(
+              "".join(f"{name}\n" for name in sorted(expected)),
+              encoding="utf-8",
+          )
+          print(
+              f"manifest/archive relation: PASS ({len(names)} members; "
+              f"target={target}; packet={packet_commit})"
+          )
+          PY
+
+      - name: Regenerate canonical archive byte-for-byte
+        run: |
+          tar \
+            --sort=name \
+            --mtime='UTC 2026-07-31 00:00:00' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            --mode=0644 \
+            -cf /tmp/fcis-m6-durable-retraction.tar \
+            -T /tmp/fcis-m6-archive-members.txt
+          gzip -n -f /tmp/fcis-m6-durable-retraction.tar
+          cmp --silent \
+            /tmp/fcis-m6-durable-retraction.tar.gz \
+            artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz
+          sha256sum artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz
+
+      - name: Generate post-commit external delivery receipt
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import tarfile
+          from pathlib import Path
+
+          def git(*args: str) -> str:
+              return subprocess.check_output(["git", *args], text=True).strip()
+
+          root = Path(".")
+          manifest_path = Path(
+              "docs/research/FCIS_M6_LUNA_SOURCE_MANIFEST_V1.json"
+          )
+          archive_path = Path(
+              "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz"
+          )
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          with tarfile.open(archive_path, "r:gz") as archive:
+              member_names = sorted(member.name for member in archive.getmembers())
+          packet_files = [
+              {
+                  "path": name,
+                  "sha256": hashlib.sha256((root / name).read_bytes()).hexdigest(),
+              }
+              for name in member_names
+          ]
+          receipt = {
+              "schema_version": "zenodex.fcis.m6.external-delivery-receipt.v1",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "branch": os.environ["HEAD_BRANCH"],
+              "event": os.environ["GITHUB_EVENT_NAME"],
+              "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "source_head_commit": os.environ["EXPECTED_SHA"],
+              "implementation_target": {
+                  "commit": manifest["implementation_target_commit"],
+                  "tree": manifest["implementation_target_tree"],
+              },
+              "packet": {
+                  "commit": git("rev-parse", "HEAD"),
+                  "tree": git("rev-parse", "HEAD^{tree}"),
+                  "parent_commit": git("rev-parse", "HEAD^"),
+                  "parent_tree": git("rev-parse", "HEAD^^{tree}"),
+              },
+              "manifest": {
+                  "path": manifest_path.as_posix(),
+                  "sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+              },
+              "archive": {
+                  "path": archive_path.as_posix(),
+                  "sha256": hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+              },
+              "packet_files": packet_files,
+          }
+          if receipt["packet"]["commit"] != os.environ["EXPECTED_SHA"]:
+              raise SystemExit("receipt head does not match checked-out head")
+          if receipt["packet"]["parent_commit"] != receipt["implementation_target"]["commit"]:
+              raise SystemExit("receipt topology is not target -> packet child")
+          Path("artifacts/fcis-m6-external-delivery-receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(receipt, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload verified packet and delivery receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fcis-m6-durable-retraction-delivery-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz
+            artifacts/fcis-m6-external-delivery-receipt.json
+          if-no-files-found: error
+          retention-days: 14
