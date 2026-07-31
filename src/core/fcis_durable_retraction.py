@@ -31,7 +31,7 @@ idempotent effect identities, or that every production publisher is inventoried.
 
 from __future__ import annotations
 
-from dataclasses import InitVar, dataclass
+from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha256
 from typing import Callable, Final, Protocol, TypeAlias, TypeGuard, cast
@@ -251,6 +251,7 @@ class PublicationAtomV1:
         return _hash_fields(
             "zenodex/fcis/dra/commit-fingerprint/v1",
             (
+                self.sequence.to_bytes(8, "big"),
                 bytes.fromhex(self.commit_id),
                 bytes.fromhex(self.command_root),
                 bytes.fromhex(self.expected_pre_root),
@@ -1122,25 +1123,10 @@ def normalize_snapshot(snapshot: object) -> DurableSnapshotV1 | ReopenRejectV1:
         return ReopenRejectV1(ReopenCodeV1.RESOURCE_LIMIT, ("canonical_snapshot",))
 
 
-_HEAD_AUTHORIZATION_TOKEN_V1 = object()
-_EXTERNAL_AUTHORIZATION_GRANT_TOKEN_V1 = object()
-_VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1 = object()
-
-
-@dataclass(frozen=True, slots=True)
-class ExternalHeadAuthorizationVerifierCapabilityV1:
-    """Opaque provenance supplied by the shell-owned external verifier."""
-
-    verifier_profile_root: str
-
-    def __post_init__(self) -> None:
-        _digest(self.verifier_profile_root, "verifier_profile_root")
-
-
 class ExternalHeadAuthorizationVerifierAdapterV1(Protocol):
-    """Shell boundary that returns a verifier-produced authority capability."""
+    """Shell-selected trust premise for external head authorization."""
 
-    def produce_verified_external_head_authorization(
+    def verify_external_head_authorization(
         self,
         evidence: object,
         *,
@@ -1152,7 +1138,7 @@ class ExternalHeadAuthorizationVerifierAdapterV1(Protocol):
         expected_verifier_profile_root: object,
         current_epoch: object,
     ) -> object:
-        """Return an opaque verified grant or a typed rejection."""
+        """Return exact True only after authoritative external verification."""
 
 
 def _external_attestation_root(
@@ -1248,60 +1234,8 @@ class ExternalHeadAuthorizationEvidenceV1:
 
 
 @dataclass(frozen=True, slots=True)
-class ExternalHeadAuthorizationGrantV1:
-    """Opaque shell output awaiting core admission."""
-
-    snapshot_root: str
-    current_state_root: str
-    authority_state_root: str
-    authority_epoch_index: int
-    deployment_config_root: str
-    verifier_profile_root: str
-    external_statement_root: str
-    activation_epoch: int
-    expiration_epoch: int | None
-    attestation_root: str
-    evidence_root: str
-    verifier_capability: ExternalHeadAuthorizationVerifierCapabilityV1
-    _construction_token: InitVar[object]
-
-    def __post_init__(self, _construction_token: object) -> None:
-        if _construction_token is not _EXTERNAL_AUTHORIZATION_GRANT_TOKEN_V1:
-            raise DurableRetractionError(
-                "external authorization grant requires the verifier boundary"
-            )
-        if type(self.verifier_capability) is not ExternalHeadAuthorizationVerifierCapabilityV1:
-            raise DurableRetractionError("external authorization lacks verifier capability")
-        self.verifier_capability.__post_init__()
-        if self.verifier_capability.verifier_profile_root != self.verifier_profile_root:
-            raise DurableRetractionError("external authorization capability is crossed")
-        evidence = ExternalHeadAuthorizationEvidenceV1(
-            snapshot_root=self.snapshot_root,
-            current_state_root=self.current_state_root,
-            authority_state_root=self.authority_state_root,
-            authority_epoch_index=self.authority_epoch_index,
-            deployment_config_root=self.deployment_config_root,
-            verifier_profile_root=self.verifier_profile_root,
-            external_statement_root=self.external_statement_root,
-            activation_epoch=self.activation_epoch,
-            expiration_epoch=self.expiration_epoch,
-            attestation_root=self.attestation_root,
-        )
-        expected = _external_evidence_root(
-            attestation_root=evidence.attestation_root,
-            external_statement_root=evidence.external_statement_root,
-            verifier_profile_root=evidence.verifier_profile_root,
-        )
-        if self.evidence_root != expected:
-            raise DurableRetractionError("verified external evidence root mismatch")
-
-    def _revalidate(self) -> None:
-        self.__post_init__(_EXTERNAL_AUTHORIZATION_GRANT_TOKEN_V1)
-
-
-@dataclass(frozen=True, slots=True)
 class VerifiedExternalHeadAuthorizationV1:
-    """Core-admitted authority witness consumed by the deterministic core."""
+    """Exact verifier result data; it needs fresh verification at every use."""
 
     snapshot_root: str
     current_state_root: str
@@ -1314,17 +1248,8 @@ class VerifiedExternalHeadAuthorizationV1:
     expiration_epoch: int | None
     attestation_root: str
     evidence_root: str
-    verifier_capability: ExternalHeadAuthorizationVerifierCapabilityV1
-    _construction_token: InitVar[object]
 
-    def __post_init__(self, _construction_token: object) -> None:
-        if _construction_token is not _VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1:
-            raise DurableRetractionError("verified external authorization requires grant admission")
-        if type(self.verifier_capability) is not ExternalHeadAuthorizationVerifierCapabilityV1:
-            raise DurableRetractionError("external authorization lacks verifier capability")
-        self.verifier_capability.__post_init__()
-        if self.verifier_capability.verifier_profile_root != self.verifier_profile_root:
-            raise DurableRetractionError("external authorization capability is crossed")
+    def __post_init__(self) -> None:
         evidence = ExternalHeadAuthorizationEvidenceV1(
             snapshot_root=self.snapshot_root,
             current_state_root=self.current_state_root,
@@ -1346,101 +1271,13 @@ class VerifiedExternalHeadAuthorizationV1:
             raise DurableRetractionError("verified external evidence root mismatch")
 
     def _revalidate(self) -> None:
-        self.__post_init__(_VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1)
-
-
-@dataclass(frozen=True, slots=True)
-class ResearchExternalHeadAuthorizationVerifierV1:
-    """Deterministic shell stub; it carries no production signer or quorum trust."""
-
-    def produce_verified_external_head_authorization(
-        self,
-        evidence: object,
-        *,
-        expected_snapshot_root: object,
-        expected_current_state_root: object,
-        expected_authority_state_root: object,
-        expected_authority_epoch_index: object,
-        expected_deployment_config_root: object,
-        expected_verifier_profile_root: object,
-        current_epoch: object,
-    ) -> object:
-        if type(evidence) is not ExternalHeadAuthorizationEvidenceV1:
-            return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("evidence",))
-        try:
-            evidence.__post_init__()
-            expected_values = (
-                (_digest(expected_snapshot_root, "expected_snapshot_root"), evidence.snapshot_root),
-                (
-                    _digest(expected_current_state_root, "expected_current_state_root"),
-                    evidence.current_state_root,
-                ),
-                (
-                    _digest(expected_authority_state_root, "expected_authority_state_root"),
-                    evidence.authority_state_root,
-                ),
-                (
-                    _exact_u32(expected_authority_epoch_index, "expected_authority_epoch_index"),
-                    evidence.authority_epoch_index,
-                ),
-                (
-                    _digest(expected_deployment_config_root, "expected_deployment_config_root"),
-                    evidence.deployment_config_root,
-                ),
-                (
-                    _digest(expected_verifier_profile_root, "expected_verifier_profile_root"),
-                    evidence.verifier_profile_root,
-                ),
-            )
-            if any(expected != actual for expected, actual in expected_values):
-                return ReopenRejectV1(
-                    ReopenCodeV1.NONCANONICAL_LAYOUT,
-                    ("evidence", "subject"),
-                )
-            epoch = _exact_u32(current_epoch, "current_epoch")
-            if epoch < evidence.activation_epoch or (
-                evidence.expiration_epoch is not None and epoch >= evidence.expiration_epoch
-            ):
-                return ReopenRejectV1(
-                    ReopenCodeV1.AUTHORIZATION_EXPIRED,
-                    ("evidence", "bounds"),
-                )
-            evidence_root = _external_evidence_root(
-                attestation_root=evidence.attestation_root,
-                external_statement_root=evidence.external_statement_root,
-                verifier_profile_root=evidence.verifier_profile_root,
-            )
-            return ExternalHeadAuthorizationGrantV1(
-                snapshot_root=evidence.snapshot_root,
-                current_state_root=evidence.current_state_root,
-                authority_state_root=evidence.authority_state_root,
-                authority_epoch_index=evidence.authority_epoch_index,
-                deployment_config_root=evidence.deployment_config_root,
-                verifier_profile_root=evidence.verifier_profile_root,
-                external_statement_root=evidence.external_statement_root,
-                activation_epoch=evidence.activation_epoch,
-                expiration_epoch=evidence.expiration_epoch,
-                attestation_root=evidence.attestation_root,
-                evidence_root=evidence_root,
-                verifier_capability=ExternalHeadAuthorizationVerifierCapabilityV1(
-                    evidence.verifier_profile_root
-                ),
-                _construction_token=_EXTERNAL_AUTHORIZATION_GRANT_TOKEN_V1,
-            )
-        except (
-            AttributeError,
-            DurableRetractionError,
-            TypeError,
-            ValueError,
-            OverflowError,
-            RecursionError,
-        ):
-            return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("evidence",))
+        self.__post_init__()
 
 
 def verify_external_head_authorization(
-    grant: object,
+    evidence: object,
     *,
+    verifier_adapter: object,
     expected_snapshot_root: object,
     expected_current_state_root: object,
     expected_authority_state_root: object,
@@ -1449,38 +1286,36 @@ def verify_external_head_authorization(
     expected_verifier_profile_root: object,
     current_epoch: object,
 ) -> VerifiedExternalHeadAuthorizationV1 | ReopenRejectV1:
-    """Admit only an opaque grant returned by a shell-owned verifier.
+    """Invoke a shell-selected verifier, then bind its result to the exact subject."""
 
-    This function validates a grant result and creates the core-admitted
-    witness.  It never constructs authority from raw evidence.
-    Production signer, quorum, and deployment trust remain explicit nonclaims.
-    """
-
-    if type(grant) is not ExternalHeadAuthorizationGrantV1:
-        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("grant",))
+    if type(evidence) is not ExternalHeadAuthorizationEvidenceV1:
+        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("evidence",))
+    verifier_method = getattr(verifier_adapter, "verify_external_head_authorization", None)
+    if not callable(verifier_method):
+        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("verifier",))
     try:
-        grant._revalidate()
+        evidence.__post_init__()
         expected_values = (
-            (_digest(expected_snapshot_root, "expected_snapshot_root"), grant.snapshot_root),
+            (_digest(expected_snapshot_root, "expected_snapshot_root"), evidence.snapshot_root),
             (
                 _digest(expected_current_state_root, "expected_current_state_root"),
-                grant.current_state_root,
+                evidence.current_state_root,
             ),
             (
                 _digest(expected_authority_state_root, "expected_authority_state_root"),
-                grant.authority_state_root,
+                evidence.authority_state_root,
             ),
             (
                 _exact_u32(expected_authority_epoch_index, "expected_authority_epoch_index"),
-                grant.authority_epoch_index,
+                evidence.authority_epoch_index,
             ),
             (
                 _digest(expected_deployment_config_root, "expected_deployment_config_root"),
-                grant.deployment_config_root,
+                evidence.deployment_config_root,
             ),
             (
                 _digest(expected_verifier_profile_root, "expected_verifier_profile_root"),
-                grant.verifier_profile_root,
+                evidence.verifier_profile_root,
             ),
         )
         if any(expected != actual for expected, actual in expected_values):
@@ -1489,27 +1324,44 @@ def verify_external_head_authorization(
                 ("authorization", "subject"),
             )
         epoch = _exact_u32(current_epoch, "current_epoch")
-        if epoch < grant.activation_epoch or (
-            grant.expiration_epoch is not None and epoch >= grant.expiration_epoch
+        if epoch < evidence.activation_epoch or (
+            evidence.expiration_epoch is not None and epoch >= evidence.expiration_epoch
         ):
             return ReopenRejectV1(
                 ReopenCodeV1.AUTHORIZATION_EXPIRED,
                 ("authorization", "bounds"),
             )
+        decision = cast(Callable[..., object], verifier_method)(
+            evidence,
+            expected_snapshot_root=expected_snapshot_root,
+            expected_current_state_root=expected_current_state_root,
+            expected_authority_state_root=expected_authority_state_root,
+            expected_authority_epoch_index=expected_authority_epoch_index,
+            expected_deployment_config_root=expected_deployment_config_root,
+            expected_verifier_profile_root=expected_verifier_profile_root,
+            current_epoch=current_epoch,
+        )
+        if decision is not True:
+            return ReopenRejectV1(
+                ReopenCodeV1.UNVERIFIED_AUTHORIZATION,
+                ("verifier", "decision"),
+            )
         return VerifiedExternalHeadAuthorizationV1(
-            snapshot_root=grant.snapshot_root,
-            current_state_root=grant.current_state_root,
-            authority_state_root=grant.authority_state_root,
-            authority_epoch_index=grant.authority_epoch_index,
-            deployment_config_root=grant.deployment_config_root,
-            verifier_profile_root=grant.verifier_profile_root,
-            external_statement_root=grant.external_statement_root,
-            activation_epoch=grant.activation_epoch,
-            expiration_epoch=grant.expiration_epoch,
-            attestation_root=grant.attestation_root,
-            evidence_root=grant.evidence_root,
-            verifier_capability=grant.verifier_capability,
-            _construction_token=_VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1,
+            snapshot_root=evidence.snapshot_root,
+            current_state_root=evidence.current_state_root,
+            authority_state_root=evidence.authority_state_root,
+            authority_epoch_index=evidence.authority_epoch_index,
+            deployment_config_root=evidence.deployment_config_root,
+            verifier_profile_root=evidence.verifier_profile_root,
+            external_statement_root=evidence.external_statement_root,
+            activation_epoch=evidence.activation_epoch,
+            expiration_epoch=evidence.expiration_epoch,
+            attestation_root=evidence.attestation_root,
+            evidence_root=_external_evidence_root(
+                attestation_root=evidence.attestation_root,
+                external_statement_root=evidence.external_statement_root,
+                verifier_profile_root=evidence.verifier_profile_root,
+            ),
         )
     except (
         AttributeError,
@@ -1519,7 +1371,7 @@ def verify_external_head_authorization(
         OverflowError,
         RecursionError,
     ):
-        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("grant",))
+        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("verifier",))
 
 
 def _reopen_authorization_root(
@@ -1555,7 +1407,7 @@ def _reopen_authorization_root(
 
 @dataclass(frozen=True, slots=True)
 class ReopenAuthorizationV1:
-    """Fresh authorization derived only from a verifier-produced exact witness."""
+    """Bound evidence record that must be freshly reverified at point of use."""
 
     snapshot_root: str
     current_state_root: str
@@ -1566,18 +1418,11 @@ class ReopenAuthorizationV1:
     external_statement_root: str
     activation_epoch: int
     expiration_epoch: int | None
+    attestation_root: str
     evidence_root: str
     authorization_root: str
-    verifier_capability: ExternalHeadAuthorizationVerifierCapabilityV1
-    _construction_token: InitVar[object]
 
-    def __post_init__(self, _construction_token: object) -> None:
-        if _construction_token is not _HEAD_AUTHORIZATION_TOKEN_V1:
-            raise DurableRetractionError(
-                "reopen authorization requires a verified external witness"
-            )
-        if type(self.verifier_capability) is not ExternalHeadAuthorizationVerifierCapabilityV1:
-            raise DurableRetractionError("reopen authorization lacks verifier capability")
+    def __post_init__(self) -> None:
         self._revalidate()
 
     def _revalidate(self) -> None:
@@ -1588,19 +1433,36 @@ class ReopenAuthorizationV1:
             "deployment_config_root",
             "verifier_profile_root",
             "external_statement_root",
+            "attestation_root",
             "evidence_root",
             "authorization_root",
         ):
             _digest(object.__getattribute__(self, name), name)
-        self.verifier_capability.__post_init__()
-        if self.verifier_capability.verifier_profile_root != self.verifier_profile_root:
-            raise DurableRetractionError("reopen authorization capability is crossed")
         _exact_u32(self.authority_epoch_index, "authority_epoch_index")
         _exact_u32(self.activation_epoch, "activation_epoch")
         if self.expiration_epoch is not None:
             _exact_u32(self.expiration_epoch, "expiration_epoch")
             if self.expiration_epoch <= self.activation_epoch:
                 raise DurableRetractionError("expiration_epoch must follow activation_epoch")
+        evidence = ExternalHeadAuthorizationEvidenceV1(
+            snapshot_root=self.snapshot_root,
+            current_state_root=self.current_state_root,
+            authority_state_root=self.authority_state_root,
+            authority_epoch_index=self.authority_epoch_index,
+            deployment_config_root=self.deployment_config_root,
+            verifier_profile_root=self.verifier_profile_root,
+            external_statement_root=self.external_statement_root,
+            activation_epoch=self.activation_epoch,
+            expiration_epoch=self.expiration_epoch,
+            attestation_root=self.attestation_root,
+        )
+        expected_evidence_root = _external_evidence_root(
+            attestation_root=evidence.attestation_root,
+            external_statement_root=evidence.external_statement_root,
+            verifier_profile_root=evidence.verifier_profile_root,
+        )
+        if self.evidence_root != expected_evidence_root:
+            raise DurableRetractionError("reopen authorization evidence root mismatch")
         expected = _reopen_authorization_root(
             snapshot_root=self.snapshot_root,
             current_state_root=self.current_state_root,
@@ -1622,7 +1484,8 @@ class ReopenAuthorizationV1:
 def authorize_reopened_snapshot(
     snapshot: object,
     *,
-    verified_external_authorization: object,
+    external_authorization_evidence: object,
+    verifier_adapter: object,
 ) -> ReopenAuthorizationV1 | ReopenRejectV1:
     if not isinstance(snapshot, DurableSnapshotV1) or type(snapshot) is not DurableSnapshotV1:
         return ReopenRejectV1(ReopenCodeV1.WRONG_EXACT_TYPE, ("snapshot",))
@@ -1632,67 +1495,46 @@ def authorize_reopened_snapshot(
     else:
         return cast(ReopenRejectV1, reopened)
     exact_snapshot = snapshot
-    if type(verified_external_authorization) is not VerifiedExternalHeadAuthorizationV1:
-        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("authorization",))
-    verified = verified_external_authorization
-    try:
-        verified.__post_init__(_VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1)
-    except (
-        AttributeError,
-        DurableRetractionError,
-        TypeError,
-        ValueError,
-        OverflowError,
-        RecursionError,
-    ):
-        return ReopenRejectV1(ReopenCodeV1.UNVERIFIED_AUTHORIZATION, ("authorization",))
-    if (
-        verified.snapshot_root != exact_snapshot.snapshot_root
-        or verified.current_state_root != history.current_state_root
-        or verified.authority_state_root != history.authority.root
-        or verified.authority_epoch_index != history.authority.epoch_index
-        or verified.deployment_config_root != exact_snapshot.deployment_config_root
-        or verified.verifier_profile_root != exact_snapshot.verifier_profile_root
-    ):
-        return ReopenRejectV1(
-            ReopenCodeV1.NONCANONICAL_LAYOUT,
-            ("authorization", "subject"),
-        )
-    current_epoch = history.authority.epoch_index
-    if current_epoch < verified.activation_epoch or (
-        verified.expiration_epoch is not None and current_epoch >= verified.expiration_epoch
-    ):
-        return ReopenRejectV1(
-            ReopenCodeV1.AUTHORIZATION_EXPIRED,
-            ("authorization", "bounds"),
-        )
+    verified = verify_external_head_authorization(
+        external_authorization_evidence,
+        verifier_adapter=verifier_adapter,
+        expected_snapshot_root=exact_snapshot.snapshot_root,
+        expected_current_state_root=history.current_state_root,
+        expected_authority_state_root=history.authority.root,
+        expected_authority_epoch_index=history.authority.epoch_index,
+        expected_deployment_config_root=exact_snapshot.deployment_config_root,
+        expected_verifier_profile_root=exact_snapshot.verifier_profile_root,
+        current_epoch=history.authority.epoch_index,
+    )
+    if type(verified) is ReopenRejectV1:
+        return verified
+    admitted = cast(VerifiedExternalHeadAuthorizationV1, verified)
     authorization_root = _reopen_authorization_root(
-        snapshot_root=verified.snapshot_root,
-        current_state_root=verified.current_state_root,
-        authority_state_root=verified.authority_state_root,
-        authority_epoch_index=verified.authority_epoch_index,
-        deployment_config_root=verified.deployment_config_root,
-        verifier_profile_root=verified.verifier_profile_root,
-        external_statement_root=verified.external_statement_root,
-        activation_epoch=verified.activation_epoch,
-        expiration_epoch=verified.expiration_epoch,
-        evidence_root=verified.evidence_root,
+        snapshot_root=admitted.snapshot_root,
+        current_state_root=admitted.current_state_root,
+        authority_state_root=admitted.authority_state_root,
+        authority_epoch_index=admitted.authority_epoch_index,
+        deployment_config_root=admitted.deployment_config_root,
+        verifier_profile_root=admitted.verifier_profile_root,
+        external_statement_root=admitted.external_statement_root,
+        activation_epoch=admitted.activation_epoch,
+        expiration_epoch=admitted.expiration_epoch,
+        evidence_root=admitted.evidence_root,
     )
     try:
         return ReopenAuthorizationV1(
-            snapshot_root=verified.snapshot_root,
-            current_state_root=verified.current_state_root,
-            authority_state_root=verified.authority_state_root,
-            authority_epoch_index=verified.authority_epoch_index,
-            deployment_config_root=verified.deployment_config_root,
-            verifier_profile_root=verified.verifier_profile_root,
-            external_statement_root=verified.external_statement_root,
-            activation_epoch=verified.activation_epoch,
-            expiration_epoch=verified.expiration_epoch,
-            evidence_root=verified.evidence_root,
+            snapshot_root=admitted.snapshot_root,
+            current_state_root=admitted.current_state_root,
+            authority_state_root=admitted.authority_state_root,
+            authority_epoch_index=admitted.authority_epoch_index,
+            deployment_config_root=admitted.deployment_config_root,
+            verifier_profile_root=admitted.verifier_profile_root,
+            external_statement_root=admitted.external_statement_root,
+            activation_epoch=admitted.activation_epoch,
+            expiration_epoch=admitted.expiration_epoch,
+            attestation_root=admitted.attestation_root,
+            evidence_root=admitted.evidence_root,
             authorization_root=authorization_root,
-            verifier_capability=verified.verifier_capability,
-            _construction_token=_HEAD_AUTHORIZATION_TOKEN_V1,
         )
     except (
         AttributeError,
@@ -1709,6 +1551,7 @@ def _authorization_matches_snapshot(
     snapshot: DurableSnapshotV1,
     history: AuthorizedHistoryV1,
     authorization: object,
+    verifier_adapter: object,
 ) -> bool:
     if type(authorization) is not ReopenAuthorizationV1:
         return False
@@ -1724,7 +1567,7 @@ def _authorization_matches_snapshot(
     ):
         return False
     current_epoch = history.authority.epoch_index
-    return (
+    subject_matches = (
         authorization.snapshot_root == snapshot.snapshot_root
         and authorization.current_state_root == history.current_state_root
         and authorization.authority_state_root == history.authority.root
@@ -1736,6 +1579,26 @@ def _authorization_matches_snapshot(
             authorization.expiration_epoch is None or current_epoch < authorization.expiration_epoch
         )
     )
+    if not subject_matches:
+        return False
+    evidence = ExternalHeadAuthorizationEvidenceV1(
+        snapshot_root=authorization.snapshot_root,
+        current_state_root=authorization.current_state_root,
+        authority_state_root=authorization.authority_state_root,
+        authority_epoch_index=authorization.authority_epoch_index,
+        deployment_config_root=authorization.deployment_config_root,
+        verifier_profile_root=authorization.verifier_profile_root,
+        external_statement_root=authorization.external_statement_root,
+        activation_epoch=authorization.activation_epoch,
+        expiration_epoch=authorization.expiration_epoch,
+        attestation_root=authorization.attestation_root,
+    )
+    refreshed = authorize_reopened_snapshot(
+        snapshot,
+        external_authorization_evidence=evidence,
+        verifier_adapter=verifier_adapter,
+    )
+    return type(refreshed) is ReopenAuthorizationV1 and refreshed == authorization
 
 
 class CommitResolutionV1(Enum):
@@ -1829,6 +1692,10 @@ def classify_retry(
             return CommitResolutionV1.DEFINITE_REJECTION, None
     if history.current_state_root != atom.expected_pre_root:
         return CommitResolutionV1.STALE_STATE, None
+    if atom.sequence != len(history.atoms) + 1:
+        return CommitResolutionV1.DEFINITE_REJECTION, None
+    if atom.authority_epoch_index != history.authority.epoch_index:
+        return CommitResolutionV1.DEFINITE_REJECTION, None
     if atom.authority_state_root != history.authority.root:
         return CommitResolutionV1.DEFINITE_REJECTION, None
     if atom.writer_profile_root not in history.authority.allowed_writer_roots:
@@ -1841,6 +1708,8 @@ def attempt_commit(
     authorization: object,
     atom: object,
     crash_point: object = CrashPointV1.NONE,
+    *,
+    authorization_verifier_adapter: object,
 ) -> CommitAttemptV1 | ReopenRejectV1:
     if type(snapshot) is not DurableSnapshotV1:
         return ReopenRejectV1(ReopenCodeV1.WRONG_EXACT_TYPE, ("snapshot",))
@@ -1874,7 +1743,12 @@ def attempt_commit(
     if not _is_history(reopened):
         return cast(ReopenRejectV1, reopened)
     history = reopened
-    if not _authorization_matches_snapshot(snapshot, history, authorization):
+    if not _authorization_matches_snapshot(
+        snapshot,
+        history,
+        authorization,
+        authorization_verifier_adapter,
+    ):
         return CommitAttemptV1(
             snapshot=snapshot,
             durable_resolution=CommitResolutionV1.DEFINITE_REJECTION,
@@ -2039,26 +1913,19 @@ class DestinationResponseEvidenceV1:
             raise DurableRetractionError("destination response attestation mismatch")
 
 
-_VERIFIED_DESTINATION_RECEIPT_TOKEN_V1 = object()
-
-
-@dataclass(frozen=True, slots=True)
-class DestinationVerifierCapabilityV1:
-    """Opaque provenance supplied by a shell-owned destination adapter."""
-
-    adapter_profile_root: str
-    idempotency_root: str
-
-    def __post_init__(self) -> None:
-        _digest(self.adapter_profile_root, "adapter_profile_root")
-        _digest(self.idempotency_root, "idempotency_root")
-
-
 class DestinationVerifierAdapterV1(Protocol):
-    """Shell boundary that performs delivery and returns a verified receipt."""
+    """Shell-selected trust premise for delivery and receipt verification."""
 
     def deliver_and_verify(self, effect: OutboxEffectV1) -> object:
-        """Return a verifier-produced receipt or a typed rejection."""
+        """Deliver the effect and return raw destination response evidence."""
+
+    def verify_destination_response(
+        self,
+        response: DestinationResponseEvidenceV1,
+        *,
+        expected_effect: OutboxEffectV1,
+    ) -> object:
+        """Return exact True only after authoritative destination verification."""
 
 
 def _verified_destination_evidence_root(
@@ -2079,7 +1946,7 @@ def _verified_destination_evidence_root(
 
 @dataclass(frozen=True, slots=True)
 class VerifiedDestinationReceiptV1:
-    """Adapter-produced receipt consumed by durable acknowledgment."""
+    """Exact destination result data requiring fresh verification at each use."""
 
     effect_id: str
     destination: str
@@ -2090,20 +1957,8 @@ class VerifiedDestinationReceiptV1:
     response_root: str
     attestation_root: str
     evidence_root: str
-    verifier_capability: DestinationVerifierCapabilityV1
-    _construction_token: InitVar[object]
 
-    def __post_init__(self, _construction_token: object) -> None:
-        if _construction_token is not _VERIFIED_DESTINATION_RECEIPT_TOKEN_V1:
-            raise DurableRetractionError("destination receipt requires a verifier adapter")
-        if type(self.verifier_capability) is not DestinationVerifierCapabilityV1:
-            raise DurableRetractionError("destination receipt lacks verifier capability")
-        self.verifier_capability.__post_init__()
-        if (
-            self.verifier_capability.adapter_profile_root != self.adapter_profile_root
-            or self.verifier_capability.idempotency_root != self.idempotency_root
-        ):
-            raise DurableRetractionError("destination receipt capability is crossed")
+    def __post_init__(self) -> None:
         self._revalidate()
 
     def _revalidate(self) -> None:
@@ -2126,98 +1981,26 @@ class VerifiedDestinationReceiptV1:
             raise DurableRetractionError("verified destination evidence root mismatch")
 
 
-@dataclass(frozen=True, slots=True)
-class ResearchDestinationVerifierAdapterV1:
-    """Deterministic delivery stub; it carries no live destination trust."""
-
-    adapter_profile_root: str | None = None
-
-    def deliver_and_verify(self, effect: OutboxEffectV1) -> object:
-        try:
-            effect.__post_init__()
-            profile = (
-                effect.adapter_profile_root
-                if self.adapter_profile_root is None
-                else _digest(self.adapter_profile_root, "adapter_profile_root")
-            )
-            idempotency_root = derive_destination_idempotency_root(effect.effect_id)
-            destination_receipt_root = derive_destination_receipt_root(
-                effect_id=effect.effect_id,
-                destination=effect.destination,
-                payload_root=effect.payload_root,
-            )
-            response_root = tagged_digest(f"destination-response/{effect.effect_id}")
-            attestation_root = _destination_attestation_root(
-                effect_id=effect.effect_id,
-                destination=effect.destination,
-                payload_root=effect.payload_root,
-                destination_receipt_root=destination_receipt_root,
-                adapter_profile_root=profile,
-                idempotency_root=idempotency_root,
-                response_root=response_root,
-            )
-            raw_response = DestinationResponseEvidenceV1(
-                effect_id=effect.effect_id,
-                destination=effect.destination,
-                payload_root=effect.payload_root,
-                destination_receipt_root=destination_receipt_root,
-                adapter_profile_root=profile,
-                idempotency_root=idempotency_root,
-                response_root=response_root,
-                attestation_root=attestation_root,
-            )
-            raw_response.__post_init__()
-            return VerifiedDestinationReceiptV1(
-                effect_id=raw_response.effect_id,
-                destination=raw_response.destination,
-                payload_root=raw_response.payload_root,
-                destination_receipt_root=raw_response.destination_receipt_root,
-                adapter_profile_root=raw_response.adapter_profile_root,
-                idempotency_root=raw_response.idempotency_root,
-                response_root=raw_response.response_root,
-                attestation_root=raw_response.attestation_root,
-                evidence_root=_verified_destination_evidence_root(
-                    attestation_root=raw_response.attestation_root,
-                    adapter_profile_root=raw_response.adapter_profile_root,
-                    idempotency_root=raw_response.idempotency_root,
-                ),
-                verifier_capability=DestinationVerifierCapabilityV1(
-                    raw_response.adapter_profile_root,
-                    raw_response.idempotency_root,
-                ),
-                _construction_token=_VERIFIED_DESTINATION_RECEIPT_TOKEN_V1,
-            )
-        except (
-            AttributeError,
-            DurableRetractionError,
-            TypeError,
-            ValueError,
-            OverflowError,
-            RecursionError,
-        ):
-            return ReopenRejectV1(
-                ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
-                ("destination_adapter",),
-            )
-
-
 def verify_destination_response(
     response: object,
     *,
+    verifier_adapter: object,
     expected_effect: OutboxEffectV1,
     expected_adapter_profile_root: object,
     expected_idempotency_root: object,
 ) -> VerifiedDestinationReceiptV1 | ReopenRejectV1:
-    """Admit an opaque adapter-produced receipt without minting one.
+    """Invoke the selected destination verifier and bind its result."""
 
-    Raw destination evidence and structural receipt digests are rejected here.
-    A shell-owned adapter must contact and verify the destination first.
-    """
-
-    if type(response) is not VerifiedDestinationReceiptV1:
+    if type(response) is not DestinationResponseEvidenceV1:
         return ReopenRejectV1(
             ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
             ("destination_response",),
+        )
+    verifier_method = getattr(verifier_adapter, "verify_destination_response", None)
+    if not callable(verifier_method):
+        return ReopenRejectV1(
+            ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
+            ("destination_verifier",),
         )
     try:
         if type(expected_effect) is not OutboxEffectV1:
@@ -2226,7 +2009,7 @@ def verify_destination_response(
                 ("effect",),
             )
         expected_effect.__post_init__()
-        response._revalidate()
+        response.__post_init__()
         adapter_profile_root = _digest(
             expected_adapter_profile_root,
             "expected_adapter_profile_root",
@@ -2244,14 +2027,35 @@ def verify_destination_response(
             or response.idempotency_root != idempotency_root
             or response.idempotency_root
             != derive_destination_idempotency_root(expected_effect.effect_id)
-            or response.verifier_capability.adapter_profile_root != response.adapter_profile_root
-            or response.verifier_capability.idempotency_root != response.idempotency_root
         ):
             return ReopenRejectV1(
                 ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
                 ("destination_response", "binding"),
             )
-        return response
+        decision = cast(Callable[..., object], verifier_method)(
+            response,
+            expected_effect=expected_effect,
+        )
+        if decision is not True:
+            return ReopenRejectV1(
+                ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
+                ("destination_verifier", "decision"),
+            )
+        return VerifiedDestinationReceiptV1(
+            effect_id=response.effect_id,
+            destination=response.destination,
+            payload_root=response.payload_root,
+            destination_receipt_root=response.destination_receipt_root,
+            adapter_profile_root=response.adapter_profile_root,
+            idempotency_root=response.idempotency_root,
+            response_root=response.response_root,
+            attestation_root=response.attestation_root,
+            evidence_root=_verified_destination_evidence_root(
+                attestation_root=response.attestation_root,
+                adapter_profile_root=response.adapter_profile_root,
+                idempotency_root=response.idempotency_root,
+            ),
+        )
     except (
         AttributeError,
         DurableRetractionError,
@@ -2435,6 +2239,7 @@ def deliver_effect(
     try:
         verified = verify_destination_response(
             adapter_response,
+            verifier_adapter=adapter,
             expected_effect=effect,
             expected_adapter_profile_root=effect.adapter_profile_root,
             expected_idempotency_root=derive_destination_idempotency_root(effect.effect_id),
@@ -2469,6 +2274,9 @@ def acknowledge_delivery(
     snapshot: object,
     authorization: object,
     receipt: object,
+    *,
+    authorization_verifier_adapter: object,
+    destination_verifier_adapter: object,
 ) -> DurableSnapshotV1 | ReopenRejectV1:
     reopened = reopen_snapshot(snapshot)
     if _is_history(reopened):
@@ -2476,7 +2284,12 @@ def acknowledge_delivery(
     else:
         return cast(ReopenRejectV1, reopened)
     exact_snapshot = cast(DurableSnapshotV1, snapshot)
-    if not _authorization_matches_snapshot(exact_snapshot, history, authorization):
+    if not _authorization_matches_snapshot(
+        exact_snapshot,
+        history,
+        authorization,
+        authorization_verifier_adapter,
+    ):
         return ReopenRejectV1(
             ReopenCodeV1.NONCANONICAL_LAYOUT,
             ("authorization",),
@@ -2515,6 +2328,28 @@ def acknowledge_delivery(
         return ReopenRejectV1(
             ReopenCodeV1.INCOMPLETE_OR_SURPLUS_EVIDENCE,
             ("receipt", "crossed"),
+        )
+    raw_response = DestinationResponseEvidenceV1(
+        effect_id=receipt.effect_id,
+        destination=receipt.destination,
+        payload_root=receipt.payload_root,
+        destination_receipt_root=receipt.destination_receipt_root,
+        adapter_profile_root=receipt.adapter_profile_root,
+        idempotency_root=receipt.idempotency_root,
+        response_root=receipt.response_root,
+        attestation_root=receipt.attestation_root,
+    )
+    refreshed = verify_destination_response(
+        raw_response,
+        verifier_adapter=destination_verifier_adapter,
+        expected_effect=effect,
+        expected_adapter_profile_root=effect.adapter_profile_root,
+        expected_idempotency_root=derive_destination_idempotency_root(effect.effect_id),
+    )
+    if type(refreshed) is not VerifiedDestinationReceiptV1 or refreshed != receipt:
+        return ReopenRejectV1(
+            ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT,
+            ("receipt", "fresh_verification"),
         )
     ack = DeliveryAckV1(
         effect_id=receipt.effect_id,
@@ -2560,6 +2395,8 @@ def migrate_snapshot(
     authorization: object,
     next_phase: object,
     transport_root: object,
+    *,
+    authorization_verifier_adapter: object,
 ) -> DurableSnapshotV1 | ReopenRejectV1:
     reopened = reopen_snapshot(snapshot)
     if _is_history(reopened):
@@ -2567,7 +2404,12 @@ def migrate_snapshot(
     else:
         return cast(ReopenRejectV1, reopened)
     exact_snapshot = cast(DurableSnapshotV1, snapshot)
-    if not _authorization_matches_snapshot(exact_snapshot, history, authorization):
+    if not _authorization_matches_snapshot(
+        exact_snapshot,
+        history,
+        authorization,
+        authorization_verifier_adapter,
+    ):
         return ReopenRejectV1(
             ReopenCodeV1.NONCANONICAL_LAYOUT,
             ("authorization",),
@@ -2617,15 +2459,12 @@ __all__ = (
     "DestinationReceiptV1",
     "DestinationResponseEvidenceV1",
     "DestinationVerifierAdapterV1",
-    "DestinationVerifierCapabilityV1",
     "DestinationStateV1",
     "DurableRetractionError",
     "DurableSnapshotV1",
     "EvidenceRowV1",
     "ExternalHeadAuthorizationEvidenceV1",
-    "ExternalHeadAuthorizationGrantV1",
     "ExternalHeadAuthorizationVerifierAdapterV1",
-    "ExternalHeadAuthorizationVerifierCapabilityV1",
     "MigrationPhaseV1",
     "NullifierRowV1",
     "OutboxEffectV1",
@@ -2634,8 +2473,6 @@ __all__ = (
     "ReopenAuthorizationV1",
     "ReopenCodeV1",
     "ReopenRejectV1",
-    "ResearchDestinationVerifierAdapterV1",
-    "ResearchExternalHeadAuthorizationVerifierV1",
     "VerifiedDestinationReceiptV1",
     "VerifiedExternalHeadAuthorizationV1",
     "acknowledge_delivery",

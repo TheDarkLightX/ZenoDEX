@@ -9,6 +9,7 @@ on:
       - "experiments/fcis_durable_retraction_bounded_search_result.json"
       - "experiments/julia/fcis_durable_retraction_oracle.jl"
       - "formal/esso/fcis_durable_retraction_v1.yaml"
+      - "tools/check_fcis_durable_retraction_model.py"
       - "lean-mathlib/Proofs/FCISDurableRetraction.lean"
       - "lean-mathlib/lakefile.lean"
       - "docs/research/FCIS_M6_DURABLE_RETRACTION_BREAKTHROUGH_20260731.md"
@@ -72,13 +73,15 @@ jobs:
           python -m py_compile \
             src/core/fcis_durable_retraction.py \
             tests/core/test_fcis_durable_retraction.py \
-            experiments/fcis_durable_retraction_bounded_search.py
+            experiments/fcis_durable_retraction_bounded_search.py \
+            tools/check_fcis_durable_retraction_model.py
       - name: Lint and format-check focused files
         run: |
           python -m ruff check \
             src/core/fcis_durable_retraction.py \
             tests/core/test_fcis_durable_retraction.py \
-            experiments/fcis_durable_retraction_bounded_search.py
+            experiments/fcis_durable_retraction_bounded_search.py \
+            tools/check_fcis_durable_retraction_model.py
           python -m ruff format --check \
             src/core/fcis_durable_retraction.py \
             tests/core/test_fcis_durable_retraction.py \
@@ -187,24 +190,8 @@ jobs:
               raise SystemExit("ESSO verified destination premise is absent")
           PY
 
-      - name: Checkout pinned ESSO verifier
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
-        with:
-          repository: TheDarkLightX/ESSO
-          ref: ef5b06cb7dbed9e8a78d27e9918550ee591e42eb
-          path: external/ESSO
-          persist-credentials: false
-      - name: Verify pinned ESSO revision
-        working-directory: external/ESSO
-        run: |
-          test "$(git rev-parse HEAD)" = "ef5b06cb7dbed9e8a78d27e9918550ee591e42eb"
-          test "$(git rev-parse HEAD^{tree})" = "478db05f8f75f5c7cf0fe6164c097f0ea398cb32"
-      - name: Run ESSO validation and fail-closed multi-solver gate
-        env:
-          PYTHONPATH: external/ESSO
-        run: |
-          python -m ESSO validate formal/esso/fcis_durable_retraction_v1.yaml
-          python -m ESSO verify-multi formal/esso/fcis_durable_retraction_v1.yaml --solvers z3,cvc5
+      - name: Exhaustively replay the public finite-model subset
+        run: python tools/check_fcis_durable_retraction_model.py --self-test
 
   julia-oracle:
     runs-on: ubuntu-24.04

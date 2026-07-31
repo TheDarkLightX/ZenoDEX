@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import src.core.fcis_durable_retraction as durable_retraction
 from src.core.fcis_durable_retraction import (
     AuthorizedHistoryV1,
     ClientObservationV1,
@@ -26,8 +27,6 @@ from src.core.fcis_durable_retraction import (
     ReopenAuthorizationV1,
     ReopenCodeV1,
     ReopenRejectV1,
-    ResearchDestinationVerifierAdapterV1,
-    ResearchExternalHeadAuthorizationVerifierV1,
     VerifiedDestinationReceiptV1,
     VerifiedExternalHeadAuthorizationV1,
     _destination_attestation_root,
@@ -51,6 +50,45 @@ from src.core.fcis_durable_retraction import (
     verify_destination_response,
     verify_external_head_authorization,
 )
+
+
+class _TestOnlyAcceptingHeadVerifier:
+    """Deterministic test premise; never suitable for a mounted shell."""
+
+    """Test-only stand-in for the shell's authoritative verifier."""
+
+    def verify_external_head_authorization(self, evidence: object, **_expected: object) -> object:
+        return type(evidence) is ExternalHeadAuthorizationEvidenceV1
+
+
+class _TestOnlyAcceptingDestinationVerifier:
+    """Deterministic test premise; never suitable for a mounted shell."""
+
+    """Test-only stand-in for destination delivery and receipt verification."""
+
+    def __init__(self, adapter_profile_root: str | None = None) -> None:
+        self.adapter_profile_root = adapter_profile_root
+
+    def deliver_and_verify(self, effect: OutboxEffectV1) -> object:
+        return _raw_destination_response(
+            effect,
+            adapter_profile_root=self.adapter_profile_root,
+        )
+
+    def verify_destination_response(
+        self,
+        response: DestinationResponseEvidenceV1,
+        *,
+        expected_effect: OutboxEffectV1,
+    ) -> object:
+        return (
+            type(response) is DestinationResponseEvidenceV1
+            and type(expected_effect) is OutboxEffectV1
+        )
+
+
+_HEAD_VERIFIER = _TestOnlyAcceptingHeadVerifier()
+_DESTINATION_VERIFIER = _TestOnlyAcceptingDestinationVerifier()
 
 
 def _authority():
@@ -98,20 +136,9 @@ def _verified_external_authorization(
         expiration_epoch=None,
         attestation_root=attestation_root,
     )
-    verifier = ResearchExternalHeadAuthorizationVerifierV1()
-    grant = verifier.produce_verified_external_head_authorization(
-        evidence,
-        expected_snapshot_root=snapshot.snapshot_root,
-        expected_current_state_root=history.current_state_root,
-        expected_authority_state_root=history.authority.root,
-        expected_authority_epoch_index=history.authority.epoch_index,
-        expected_deployment_config_root=snapshot.deployment_config_root,
-        expected_verifier_profile_root=snapshot.verifier_profile_root,
-        current_epoch=history.authority.epoch_index,
-    )
-    assert type(grant) is not ReopenRejectV1
     result = verify_external_head_authorization(
-        grant,
+        evidence,
+        verifier_adapter=_HEAD_VERIFIER,
         expected_snapshot_root=snapshot.snapshot_root,
         expected_current_state_root=history.current_state_root,
         expected_authority_state_root=history.authority.root,
@@ -125,12 +152,70 @@ def _verified_external_authorization(
 
 
 def _authorization(snapshot: DurableSnapshotV1) -> ReopenAuthorizationV1:
+    verified = _verified_external_authorization(snapshot)
+    evidence = ExternalHeadAuthorizationEvidenceV1(
+        snapshot_root=verified.snapshot_root,
+        current_state_root=verified.current_state_root,
+        authority_state_root=verified.authority_state_root,
+        authority_epoch_index=verified.authority_epoch_index,
+        deployment_config_root=verified.deployment_config_root,
+        verifier_profile_root=verified.verifier_profile_root,
+        external_statement_root=verified.external_statement_root,
+        activation_epoch=verified.activation_epoch,
+        expiration_epoch=verified.expiration_epoch,
+        attestation_root=verified.attestation_root,
+    )
     result = authorize_reopened_snapshot(
         snapshot,
-        verified_external_authorization=_verified_external_authorization(snapshot),
+        external_authorization_evidence=evidence,
+        verifier_adapter=_HEAD_VERIFIER,
     )
     assert type(result) is ReopenAuthorizationV1
     return result
+
+
+def _attempt_commit(
+    snapshot: object,
+    authorization: object,
+    atom: object,
+    crash_point: object = CrashPointV1.NONE,
+) -> CommitAttemptV1 | ReopenRejectV1:
+    return attempt_commit(
+        snapshot,
+        authorization,
+        atom,
+        crash_point,
+        authorization_verifier_adapter=_HEAD_VERIFIER,
+    )
+
+
+def _migrate_snapshot(
+    snapshot: object,
+    authorization: object,
+    next_phase: object,
+    transport_root: object,
+) -> DurableSnapshotV1 | ReopenRejectV1:
+    return migrate_snapshot(
+        snapshot,
+        authorization,
+        next_phase,
+        transport_root,
+        authorization_verifier_adapter=_HEAD_VERIFIER,
+    )
+
+
+def _acknowledge_delivery(
+    snapshot: object,
+    authorization: object,
+    receipt: object,
+) -> DurableSnapshotV1 | ReopenRejectV1:
+    return acknowledge_delivery(
+        snapshot,
+        authorization,
+        receipt,
+        authorization_verifier_adapter=_HEAD_VERIFIER,
+        destination_verifier_adapter=_DESTINATION_VERIFIER,
+    )
 
 
 def _atom(
@@ -236,7 +321,7 @@ def _rehash(snapshot: DurableSnapshotV1, **changes: object) -> DurableSnapshotV1
 
 
 def _commit(snapshot: DurableSnapshotV1, label: str) -> DurableSnapshotV1:
-    result = attempt_commit(snapshot, _authorization(snapshot), _atom(snapshot, label=label))
+    result = _attempt_commit(snapshot, _authorization(snapshot), _atom(snapshot, label=label))
     assert type(result) is not ReopenRejectV1
     assert result.durable_resolution is CommitResolutionV1.NEWLY_COMMITTED
     assert result.client_observation is ClientObservationV1.CONFIRMED_NEW
@@ -290,7 +375,7 @@ def test_corrupt_cached_snapshot_root_rejects_before_reopen_authority() -> None:
 def test_reopen_does_not_restore_value_moving_authority_without_fresh_token() -> None:
     pre = _empty_snapshot()
     atom = _atom(pre, label="one")
-    missing = attempt_commit(pre, None, atom)
+    missing = _attempt_commit(pre, None, atom)
     assert missing.durable_resolution is CommitResolutionV1.DEFINITE_REJECTION
     history = reopen_snapshot(pre)
     assert type(history) is AuthorizedHistoryV1
@@ -319,7 +404,8 @@ def test_reopen_does_not_restore_value_moving_authority_without_fresh_token() ->
     )
     forged = authorize_reopened_snapshot(
         pre,
-        verified_external_authorization=raw,
+        external_authorization_evidence=raw,
+        verifier_adapter=object(),
     )
     assert type(forged) is ReopenRejectV1
 
@@ -327,8 +413,8 @@ def test_reopen_does_not_restore_value_moving_authority_without_fresh_token() ->
 def test_same_request_retry_returns_original_response_without_second_commit() -> None:
     pre = _empty_snapshot()
     atom = _atom(pre, label="one")
-    first = attempt_commit(pre, _authorization(pre), atom)
-    second = attempt_commit(first.snapshot, _authorization(first.snapshot), atom)
+    first = _attempt_commit(pre, _authorization(pre), atom)
+    second = _attempt_commit(first.snapshot, _authorization(first.snapshot), atom)
     assert first.durable_resolution is CommitResolutionV1.NEWLY_COMMITTED
     assert second.durable_resolution is CommitResolutionV1.ALREADY_COMMITTED
     assert second.response_root == atom.response_root
@@ -339,9 +425,9 @@ def test_two_distinct_commands_with_one_nullifier_cannot_both_commit() -> None:
     pre = _empty_snapshot()
     first_atom = _atom(pre, label="first", nullifier_label="shared")
     second_atom = _atom(pre, label="second", nullifier_label="shared")
-    first = attempt_commit(pre, _authorization(pre), first_atom)
+    first = _attempt_commit(pre, _authorization(pre), first_atom)
     assert first.durable_resolution is CommitResolutionV1.NEWLY_COMMITTED
-    second = attempt_commit(first.snapshot, _authorization(first.snapshot), second_atom)
+    second = _attempt_commit(first.snapshot, _authorization(first.snapshot), second_atom)
     assert second.durable_resolution in (
         CommitResolutionV1.STALE_STATE,
         CommitResolutionV1.DEFINITE_REJECTION,
@@ -355,7 +441,7 @@ def test_two_distinct_commands_with_one_nullifier_cannot_both_commit() -> None:
 def test_commit_id_collision_is_definite_rejection() -> None:
     pre = _empty_snapshot()
     first_atom = _atom(pre, label="first")
-    committed = attempt_commit(pre, _authorization(pre), first_atom).snapshot
+    committed = _attempt_commit(pre, _authorization(pre), first_atom).snapshot
     colliding = _atom(
         pre,
         label="foreign",
@@ -368,18 +454,49 @@ def test_commit_id_collision_is_definite_rejection() -> None:
     assert response is None
 
 
+def test_retry_identity_includes_the_exact_publication_sequence() -> None:
+    pre = _empty_snapshot()
+    committed_atom = _atom(pre, label="sequence-bound")
+    committed = _attempt_commit(pre, _authorization(pre), committed_atom).snapshot
+    history = reopen_snapshot(committed)
+    assert type(history) is AuthorizedHistoryV1
+    wrong_sequence = replace(committed_atom, sequence=committed_atom.sequence + 1)
+
+    assert wrong_sequence.fingerprint != committed_atom.fingerprint
+    resolution, response = classify_retry(history, wrong_sequence)
+    assert resolution is CommitResolutionV1.DEFINITE_REJECTION
+    assert response is None
+
+
+def test_retryable_absence_requires_the_exact_next_sequence_and_epoch() -> None:
+    snapshot = _empty_snapshot()
+    history = reopen_snapshot(snapshot)
+    assert type(history) is AuthorizedHistoryV1
+    atom = _atom(snapshot, label="retryable-index")
+
+    wrong_sequence = replace(atom, sequence=atom.sequence + 1)
+    sequence_resolution, sequence_response = classify_retry(history, wrong_sequence)
+    assert sequence_resolution is CommitResolutionV1.DEFINITE_REJECTION
+    assert sequence_response is None
+
+    wrong_epoch = replace(atom, authority_epoch_index=history.authority.epoch_index + 1)
+    epoch_resolution, epoch_response = classify_retry(history, wrong_epoch)
+    assert epoch_resolution is CommitResolutionV1.DEFINITE_REJECTION
+    assert epoch_response is None
+
+
 def test_crash_refinement_exposes_only_exact_pre_or_exact_post() -> None:
     pre = _empty_snapshot()
     atom = _atom(pre, label="one")
-    before = attempt_commit(pre, _authorization(pre), atom, CrashPointV1.BEFORE_LINEARIZATION)
-    after = attempt_commit(pre, _authorization(pre), atom, CrashPointV1.AFTER_LINEARIZATION)
+    before = _attempt_commit(pre, _authorization(pre), atom, CrashPointV1.BEFORE_LINEARIZATION)
+    after = _attempt_commit(pre, _authorization(pre), atom, CrashPointV1.AFTER_LINEARIZATION)
     assert before.snapshot == pre
     assert before.durable_resolution is CommitResolutionV1.ABSENT_RETRYABLE
     assert before.client_observation is ClientObservationV1.INDETERMINATE
     assert after.snapshot != pre
     assert after.durable_resolution is CommitResolutionV1.NEWLY_COMMITTED
     assert after.client_observation is ClientObservationV1.INDETERMINATE
-    resolved = attempt_commit(after.snapshot, _authorization(after.snapshot), atom)
+    resolved = _attempt_commit(after.snapshot, _authorization(after.snapshot), atom)
     assert resolved.durable_resolution is CommitResolutionV1.ALREADY_COMMITTED
 
 
@@ -403,7 +520,7 @@ def test_lost_ack_retries_the_same_semantic_effect_identity() -> None:
         snapshot,
         DestinationStateV1(()),
         effect.effect_id,
-        adapter=ResearchDestinationVerifierAdapterV1(),
+        adapter=_TestOnlyAcceptingDestinationVerifier(),
         lose_ack=True,
     )
     assert type(first) is not ReopenRejectV1
@@ -413,12 +530,12 @@ def test_lost_ack_retries_the_same_semantic_effect_identity() -> None:
         snapshot,
         first.destination_state,
         effect.effect_id,
-        adapter=ResearchDestinationVerifierAdapterV1(),
+        adapter=_TestOnlyAcceptingDestinationVerifier(),
     )
     assert type(retry) is not ReopenRejectV1
     assert retry.delivery_class is DeliveryClassV1.ALREADY_ACCEPTED
     assert retry.receipt == first.receipt
-    acknowledged = acknowledge_delivery(snapshot, _authorization(snapshot), retry.receipt)
+    acknowledged = _acknowledge_delivery(snapshot, _authorization(snapshot), retry.receipt)
     assert type(acknowledged) is DurableSnapshotV1
     reopened = reopen_snapshot(acknowledged)
     assert type(reopened) is AuthorizedHistoryV1
@@ -441,7 +558,7 @@ def test_crossed_destination_receipt_cannot_ack_an_effect() -> None:
             payload_root=effect.payload_root,
         ),
     )
-    result = acknowledge_delivery(snapshot, _authorization(snapshot), crossed)
+    result = _acknowledge_delivery(snapshot, _authorization(snapshot), crossed)
     assert type(result) is ReopenRejectV1
     assert result.code is ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT
 
@@ -479,7 +596,7 @@ def test_migration_preserves_history_and_disables_old_writer_after_switch() -> N
         MigrationPhaseV1.AUTHORITY_SWITCH,
     )
     for phase in phases:
-        migrated = migrate_snapshot(
+        migrated = _migrate_snapshot(
             snapshot,
             _authorization(snapshot),
             phase,
@@ -493,10 +610,10 @@ def test_migration_preserves_history_and_disables_old_writer_after_switch() -> N
     assert history.authority.phase is MigrationPhaseV1.AUTHORITY_SWITCH
     old_writer = history.authority.legacy_profile_root
     old_atom = _atom(snapshot, label="old-writer", writer_root=old_writer)
-    old_result = attempt_commit(snapshot, _authorization(snapshot), old_atom)
+    old_result = _attempt_commit(snapshot, _authorization(snapshot), old_atom)
     assert old_result.durable_resolution is CommitResolutionV1.DEFINITE_REJECTION
     target_atom = _atom(snapshot, label="target-writer")
-    target_result = attempt_commit(snapshot, _authorization(snapshot), target_atom)
+    target_result = _attempt_commit(snapshot, _authorization(snapshot), target_atom)
     assert target_result.durable_resolution is CommitResolutionV1.NEWLY_COMMITTED
     reopened = reopen_snapshot(target_result.snapshot)
     assert type(reopened) is AuthorizedHistoryV1
@@ -512,7 +629,7 @@ def test_quiesced_phase_allows_no_value_moving_writer() -> None:
         MigrationPhaseV1.DUAL_CHECK,
         MigrationPhaseV1.QUIESCED,
     ):
-        migrated = migrate_snapshot(
+        migrated = _migrate_snapshot(
             snapshot,
             _authorization(snapshot),
             phase,
@@ -525,7 +642,7 @@ def test_quiesced_phase_allows_no_value_moving_writer() -> None:
         label="quiesced",
         writer_root=tagged_digest("profile/legacy"),
     )
-    result = attempt_commit(snapshot, _authorization(snapshot), atom)
+    result = _attempt_commit(snapshot, _authorization(snapshot), atom)
     assert result.durable_resolution is CommitResolutionV1.DEFINITE_REJECTION
 
 
@@ -543,7 +660,8 @@ def test_dr_auth_01_self_selected_external_root_is_rejected() -> None:
     )
     result = authorize_reopened_snapshot(
         snapshot,
-        verified_external_authorization=object(),
+        external_authorization_evidence=object(),
+        verifier_adapter=_HEAD_VERIFIER,
     )
     assert type(result) is ReopenRejectV1
 
@@ -553,7 +671,7 @@ def test_dr_auth_02_changed_head_invalidates_the_old_verified_authorization() ->
     old_authorization = _authorization(pre)
     changed = _commit(pre, "changed-head")
     atom = _atom(changed, label="stale-authorization")
-    result = attempt_commit(changed, old_authorization, atom)
+    result = _attempt_commit(changed, old_authorization, atom)
     assert result.durable_resolution is CommitResolutionV1.DEFINITE_REJECTION
     assert result.snapshot == changed
 
@@ -571,7 +689,7 @@ def test_dr_auth_03_cross_deployment_authorization_is_rejected() -> None:
         )
     )
     foreign_authorization = _authorization(foreign)
-    result = attempt_commit(
+    result = _attempt_commit(
         snapshot, foreign_authorization, _atom(snapshot, label="cross-deployment")
     )
     assert result.durable_resolution is CommitResolutionV1.DEFINITE_REJECTION
@@ -581,14 +699,14 @@ def test_dr_auth_03_cross_deployment_authorization_is_rejected() -> None:
 def test_dr_auth_04_cross_epoch_authorization_is_rejected() -> None:
     snapshot = _empty_snapshot()
     old_authorization = _authorization(snapshot)
-    migrated = migrate_snapshot(
+    migrated = _migrate_snapshot(
         snapshot,
         old_authorization,
         MigrationPhaseV1.SHADOW_REPLAY,
         tagged_digest("transport/cross-epoch"),
     )
     assert type(migrated) is DurableSnapshotV1
-    result = attempt_commit(migrated, old_authorization, _atom(migrated, label="cross-epoch"))
+    result = _attempt_commit(migrated, old_authorization, _atom(migrated, label="cross-epoch"))
     assert result.durable_resolution is CommitResolutionV1.DEFINITE_REJECTION
     assert result.snapshot == migrated
 
@@ -608,7 +726,7 @@ def test_dr_ack_01_local_receipt_digest_without_delivery_is_rejected() -> None:
             payload_root=effect.payload_root,
         ),
     )
-    result = acknowledge_delivery(snapshot, _authorization(snapshot), forged)
+    result = _acknowledge_delivery(snapshot, _authorization(snapshot), forged)
     assert type(result) is ReopenRejectV1
     assert snapshot == _commit(_empty_snapshot(), "ack-without-delivery")
 
@@ -623,11 +741,11 @@ def test_dr_ack_02_cross_effect_verified_receipt_is_rejected() -> None:
         first,
         DestinationStateV1(()),
         effect.effect_id,
-        adapter=ResearchDestinationVerifierAdapterV1(),
+        adapter=_TestOnlyAcceptingDestinationVerifier(),
     )
     assert type(delivery) is not ReopenRejectV1
     assert type(delivery.receipt) is VerifiedDestinationReceiptV1
-    result = acknowledge_delivery(second, _authorization(second), delivery.receipt)
+    result = _acknowledge_delivery(second, _authorization(second), delivery.receipt)
     assert type(result) is ReopenRejectV1
     assert result.code is ReopenCodeV1.INCOMPLETE_OR_SURPLUS_EVIDENCE
     assert second == _commit(_empty_snapshot(), "second-effect")
@@ -648,6 +766,7 @@ def test_dr_ack_03_cross_destination_payload_and_verifier_are_rejected() -> None
     ):
         verified = verify_destination_response(
             response,
+            verifier_adapter=_DESTINATION_VERIFIER,
             expected_effect=effect,
             expected_adapter_profile_root=effect.adapter_profile_root,
             expected_idempotency_root=derive_destination_idempotency_root(effect.effect_id),
@@ -675,7 +794,7 @@ def test_dr_bound_01_outbox_ordinal_is_u32_and_rejects_boolean_alias() -> None:
 def test_dr_bound_02_string_crash_point_is_a_typed_rejection() -> None:
     snapshot = _empty_snapshot()
     atom = _atom(snapshot, label="string-crash-point")
-    result = attempt_commit(
+    result = _attempt_commit(
         snapshot,
         _authorization(snapshot),
         atom,
@@ -731,6 +850,7 @@ def test_dr_auth_00_raw_evidence_cannot_mint_a_verified_grant() -> None:
     )
     result = verify_external_head_authorization(
         raw,
+        verifier_adapter=object(),
         expected_snapshot_root=snapshot.snapshot_root,
         expected_current_state_root=history.current_state_root,
         expected_authority_state_root=history.authority.root,
@@ -743,7 +863,32 @@ def test_dr_auth_00_raw_evidence_cannot_mint_a_verified_grant() -> None:
     assert result.code is ReopenCodeV1.UNVERIFIED_AUTHORIZATION
 
 
-def test_dr_auth_00b_verifier_grant_is_bound_to_requested_subject() -> None:
+def test_dr_auth_00a_module_tokens_cannot_be_imported_to_mint_authority() -> None:
+    forbidden = (
+        "_HEAD_AUTHORIZATION_TOKEN_V1",
+        "_EXTERNAL_AUTHORIZATION_GRANT_TOKEN_V1",
+        "_VERIFIED_EXTERNAL_AUTHORIZATION_TOKEN_V1",
+        "_VERIFIED_DESTINATION_RECEIPT_TOKEN_V1",
+    )
+    assert all(not hasattr(durable_retraction, name) for name in forbidden)
+
+
+def test_dr_auth_00b_commit_reverifies_the_authorization_at_point_of_use() -> None:
+    snapshot = _empty_snapshot()
+    authorization = _authorization(snapshot)
+    atom = _atom(snapshot, label="fresh-verifier-required")
+    result = attempt_commit(
+        snapshot,
+        authorization,
+        atom,
+        authorization_verifier_adapter=object(),
+    )
+    assert type(result) is not ReopenRejectV1
+    assert result.durable_resolution is CommitResolutionV1.DEFINITE_REJECTION
+    assert result.snapshot == snapshot
+
+
+def test_dr_auth_00c_verifier_result_is_bound_to_requested_subject() -> None:
     snapshot = _empty_snapshot()
     history = reopen_snapshot(snapshot)
     assert type(history) is AuthorizedHistoryV1
@@ -770,20 +915,44 @@ def test_dr_auth_00b_verifier_grant_is_bound_to_requested_subject() -> None:
             expiration_epoch=None,
         ),
     )
-    result = (
-        ResearchExternalHeadAuthorizationVerifierV1().produce_verified_external_head_authorization(
-            raw,
-            expected_snapshot_root=tagged_digest("foreign/requested-snapshot"),
-            expected_current_state_root=history.current_state_root,
-            expected_authority_state_root=history.authority.root,
-            expected_authority_epoch_index=history.authority.epoch_index,
-            expected_deployment_config_root=snapshot.deployment_config_root,
-            expected_verifier_profile_root=snapshot.verifier_profile_root,
-            current_epoch=history.authority.epoch_index,
-        )
+    result = verify_external_head_authorization(
+        raw,
+        verifier_adapter=_HEAD_VERIFIER,
+        expected_snapshot_root=tagged_digest("foreign/requested-snapshot"),
+        expected_current_state_root=history.current_state_root,
+        expected_authority_state_root=history.authority.root,
+        expected_authority_epoch_index=history.authority.epoch_index,
+        expected_deployment_config_root=snapshot.deployment_config_root,
+        expected_verifier_profile_root=snapshot.verifier_profile_root,
+        current_epoch=history.authority.epoch_index,
     )
     assert type(result) is ReopenRejectV1
     assert result.code is ReopenCodeV1.NONCANONICAL_LAYOUT
+
+
+def test_dr_ack_00a_acknowledgment_reverifies_the_destination_at_point_of_use() -> None:
+    snapshot = _commit(_empty_snapshot(), "fresh-destination-verifier")
+    history = reopen_snapshot(snapshot)
+    assert type(history) is AuthorizedHistoryV1
+    effect = history.atoms[0].outbox[0]
+    delivery = deliver_effect(
+        snapshot,
+        DestinationStateV1(()),
+        effect.effect_id,
+        adapter=_DESTINATION_VERIFIER,
+    )
+    assert type(delivery) is not ReopenRejectV1
+    assert type(delivery.receipt) is VerifiedDestinationReceiptV1
+    result = acknowledge_delivery(
+        snapshot,
+        _authorization(snapshot),
+        delivery.receipt,
+        authorization_verifier_adapter=_HEAD_VERIFIER,
+        destination_verifier_adapter=object(),
+    )
+    assert type(result) is ReopenRejectV1
+    assert result.code is ReopenCodeV1.UNVERIFIED_DESTINATION_RECEIPT
+    assert snapshot == _commit(_empty_snapshot(), "fresh-destination-verifier")
 
 
 def test_dr_ack_00_committed_delivery_requires_a_shell_adapter() -> None:
@@ -825,7 +994,7 @@ def test_dr_ack_05_lose_ack_requires_an_exact_boolean() -> None:
         snapshot,
         DestinationStateV1(()),
         effect.effect_id,
-        adapter=ResearchDestinationVerifierAdapterV1(),
+        adapter=_TestOnlyAcceptingDestinationVerifier(),
         lose_ack=1,
     )
     assert type(result) is ReopenRejectV1
@@ -843,7 +1012,7 @@ def test_dr_context_01_retry_classification_rejects_foreign_publication_context(
     resolution, response = classify_retry(history, atom)
     assert resolution is CommitResolutionV1.DEFINITE_REJECTION
     assert response is None
-    result = attempt_commit(snapshot, _authorization(snapshot), atom)
+    result = _attempt_commit(snapshot, _authorization(snapshot), atom)
     assert type(result) is not ReopenRejectV1
     assert result.durable_resolution is CommitResolutionV1.DEFINITE_REJECTION
     assert result.snapshot == snapshot
@@ -887,8 +1056,8 @@ def test_dr_migration_02_transition_binding_is_canonical() -> None:
 def test_dr_input_01_malformed_inputs_return_typed_rejections() -> None:
     snapshot = _empty_snapshot()
     atom = _atom(snapshot, label="malformed-inputs")
-    assert type(attempt_commit(object(), _authorization(snapshot), atom)) is ReopenRejectV1
-    assert type(attempt_commit(snapshot, _authorization(snapshot), object())) is ReopenRejectV1
+    assert type(_attempt_commit(object(), _authorization(snapshot), atom)) is ReopenRejectV1
+    assert type(_attempt_commit(snapshot, _authorization(snapshot), object())) is ReopenRejectV1
     with pytest.raises(DurableRetractionError, match="wrong snapshot type"):
         CommitAttemptV1(
             snapshot=object(),
