@@ -1,0 +1,91 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "B07",
+  "base_sha": "1ce445409c0e783e3b927e0bd389693cdefb7f59",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-B07-rust-srgd-transition-20260731",
+  "status": "TESTED",
+  "evidence_files": [
+    "docs/research/m6_tasks/TASK_B07_REPORT.md",
+    "docs/research/m6_tasks/TASK_B07_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_B07_SOURCE_MANIFEST.sha256",
+    "rust-runtime/Cargo.toml",
+    "rust-runtime/crates/zenodex-runtime-core/Cargo.toml",
+    "rust-runtime/crates/zenodex-runtime-core/src/fcis_fee_apportionment.rs",
+    "rust-runtime/crates/zenodex-runtime-core/src/lib.rs",
+    "tests/fixtures/fcis_fee_apportionment_v2_golden.json"
+  ],
+  "commands": [
+    "cargo fmt --all -- --check from rust-runtime/",
+    "cargo check -p zenodex-runtime-core from rust-runtime/",
+    "cargo test -p zenodex-runtime-core fcis_fee_apportionment --lib from rust-runtime/",
+    "cargo test -p zenodex-runtime-core from rust-runtime/",
+    "cargo clippy -p zenodex-runtime-core --all-targets -- -D warnings from rust-runtime/",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks B07",
+    "git diff --check",
+    "git diff --cached --check"
+  ],
+  "tool_versions": {
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)",
+    "cargo": "cargo 1.96.0 (30a34c682 2026-05-25)",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+    "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
+    "docs/research/m6_tasks/TASK_EVIDENCE_SCHEMA_V1.json": "9dd6d015ef69c31c5a41a61f7a73c5c3d8057baf4cfc6f85eb52fffd065d5640",
+    "docs/research/m6_tasks/validate_task_packet.py": "cda422bb55c5601e8be42148454d7affc44df9c22d66f749861592f3e4549c3a",
+    "rust-runtime/Cargo.toml": "1df0bce1b9f4ea911b30544ade06df37b103a49dd929b8d2d55d3ac0d1ea8735",
+    "rust-runtime/crates/zenodex-runtime-core/Cargo.toml": "1347d636419e202c8f76b275d996a2477f15cfd082c6189253324ac1a23c1ebb",
+    "rust-runtime/crates/zenodex-runtime-core/src/fcis_fee_apportionment.rs": "0edbd3716c751077414f5a2ae0a4967f1171b98d14e9f6ab9a509cc7288748a1",
+    "rust-runtime/crates/zenodex-runtime-core/src/lib.rs": "989de6e86d10adc6d14a28f57df46943717fb67d3a90f6ba7d194344123505cb",
+    "tests/fixtures/fcis_fee_apportionment_v2_golden.json": "6c9a6189b951302412f1a9c23997082ba13cab48a8832b41280f6fc018bce373"
+  },
+  "results": {
+    "implementation_commit": "dedba1713e23e00b07d9bc953a503864f6c5afb3",
+    "implementation_tree": "830b9cf8285ddb00e66e35ed5cb1841760c89673",
+    "implementation_parent": "1ce445409c0e783e3b927e0bd389693cdefb7f59",
+    "cargo_check": "pass",
+    "focused_tests": "7 passed",
+    "full_runtime_core_tests": "196 unit tests, 6 robustness tests, doc-tests passed",
+    "rustfmt": "pass",
+    "clippy": "pass; -D warnings",
+    "task_packet": "selected B07 validation passed; 11 manifest entries",
+    "runtime_mount": "none"
+  },
+  "mutants": [
+    {
+      "id": "B07_SIGNED_DEFICIT_REWARD_OVERFLOW",
+      "status": "covered",
+      "invariant": "Rewards deficit derivation fails closed before narrowing."
+    },
+    {
+      "id": "B07_WIDE_SELECTOR_SCORE",
+      "status": "covered",
+      "invariant": "Selector score addition cannot overflow the admitted signed range."
+    },
+    {
+      "id": "B07_POST_DEFICIT_BOUND",
+      "status": "covered",
+      "invariant": "Every post deficit remains strictly inside (-D,D)."
+    },
+    {
+      "id": "B07_AMOUNT_CONSERVATION",
+      "status": "covered",
+      "invariant": "Role amounts sum exactly to the input amount."
+    },
+    {
+      "id": "B07_U256_MAX_QUOTA",
+      "status": "covered",
+      "invariant": "Admitted U256 maximum inputs preserve base and remainder bounds."
+    }
+  ],
+  "nonclaims": [
+    "B07 does not prove general SRGD theorem or Kani/SMT arithmetic refinement.",
+    "B07 does not complete the three-way Python/Rust/Julia parity campaign.",
+    "B07 does not prove production consensus, datastore, authority, migration, effect, or value-moving behavior.",
+    "The Rust module remains an unmounted candidate kernel and authorizes no value movement.",
+    "No remote implementation commit, hosted CI run, draft PR, or publication is claimed."
+  ]
+}
