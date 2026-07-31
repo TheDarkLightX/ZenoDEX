@@ -51,8 +51,8 @@
     "formal/fcis_m6_b08_arithmetic/srgd_bounds.smt2": "72521d24414cbcbd62683d12daaddf924f0085b924f26fc601355e837925d8b9"
   },
   "results": {
-    "implementation_commit": "PENDING_COMMIT",
-    "implementation_tree": "PENDING_TREE",
+    "implementation_commit": "aae4912d3f0df953c14cfda7f6a83e73c0b8252b",
+    "implementation_tree": "91824ae7d157b1dd8aeb6691086079db590ff3b2",
     "implementation_parent": "4b1807f8b15bfbfd5b83c34c5f17c2a3a3d83248",
     "kani": "3 harnesses passed, 0 failures",
     "z3": "5/5 unsat",
@@ -60,7 +60,7 @@
     "rust_tests": "4 passed; doc-tests passed",
     "rustfmt": "pass",
     "clippy": "pass; -D warnings",
-    "task_packet": "pending final manifest validation",
+    "task_packet": "selected B08 validation passed; 14 manifest entries",
     "runtime_mount": "none"
   },
   "mutants": [
