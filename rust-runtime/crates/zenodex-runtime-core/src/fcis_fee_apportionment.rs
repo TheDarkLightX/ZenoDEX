@@ -11,9 +11,13 @@ use num_bigint::{BigInt, BigUint};
 use crate::canonical::{canonical_json_bytes, sha256_hex, JsonValue};
 
 pub const BPS_DENOMINATOR_V2: u32 = 10_000;
+const BPS_DENOMINATOR_I64_V2: i64 = 10_000;
+const BPS_DENOMINATOR_U16_V2: u16 = 10_000;
 pub const MAX_FEE_AMOUNT_CANDIDATES_V2: usize = 256;
 pub const MAX_FEE_APPORTIONMENT_KEYS_V2: usize = 50_000;
 pub const SRGD_ALGORITHM_VERSION_V1: &str = "SUPPORT_RESPECTING_GREEDY_DEFICIT_V1";
+pub const FIXED_ROLE_ORDER_ID_V1: &str = "fee-occurrence/role-order/buyback-treasury-rewards/v1";
+const FIXED_ROLE_ORDER_V1: [&str; 3] = ["buyback", "treasury", "rewards"];
 
 pub const COMMITTED_FEE_APPORTIONMENT_STATE_SCHEMA_ID_V2: &str =
     "zenodex/fcis/fee-apportionment/committed-state/v2";
@@ -186,6 +190,7 @@ pub struct FeeDeficitEntryV2 {
     key: FeeApportionmentKeyV2,
     deficit_buyback: i32,
     deficit_treasury: i32,
+    deficit_rewards: i32,
 }
 
 impl FeeDeficitEntryV2 {
@@ -194,10 +199,21 @@ impl FeeDeficitEntryV2 {
         deficit_buyback: i32,
         deficit_treasury: i32,
     ) -> Result<Self, FeeApportionmentTransitionRejectV2> {
+        let deficit_rewards = i64::from(deficit_buyback)
+            .checked_neg()
+            .and_then(|value| value.checked_sub(i64::from(deficit_treasury)))
+            .and_then(|value| i32::try_from(value).ok())
+            .ok_or_else(|| {
+                FeeApportionmentTransitionRejectV2::new(
+                    FeeApportionmentTransitionCodeV2::InvalidPrestate,
+                    &["state", "entries", "deficit_rewards"],
+                )
+            })?;
         let entry = Self {
             key,
             deficit_buyback,
             deficit_treasury,
+            deficit_rewards,
         };
         let deficits = entry.deficits();
         if deficits
@@ -229,7 +245,7 @@ impl FeeDeficitEntryV2 {
         [
             self.deficit_buyback,
             self.deficit_treasury,
-            -self.deficit_buyback - self.deficit_treasury,
+            self.deficit_rewards,
         ]
     }
 }
@@ -427,8 +443,8 @@ fn select_bonuses(
         ));
     }
     eligible.sort_by(|left, right| {
-        let left_score = deficits[*left] + i32::from(fractions[*left]);
-        let right_score = deficits[*right] + i32::from(fractions[*right]);
+        let left_score = i64::from(deficits[*left]) + i64::from(fractions[*left]);
+        let right_score = i64::from(deficits[*right]) + i64::from(fractions[*right]);
         right_score.cmp(&left_score).then_with(|| left.cmp(right))
     });
     let mut bonuses = [0_u8; 3];
@@ -447,89 +463,283 @@ fn small_biguint_to_u32(value: &BigUint) -> Option<u32> {
     }
 }
 
-fn allocate_one(
-    key: FeeApportionmentKeyV2,
-    amount: BigUint,
-    policy: &FeeDistributionPolicyV2,
-    deficits_pre: [i32; 3],
-) -> Result<AssetFeeAllocationV2, FeeApportionmentTransitionRejectV2> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct QuotaPartsV2 {
+    base: BigUint,
+    remainder: u16,
+}
+
+fn quota_for(
+    amount: &BigUint,
+    weight: u16,
+) -> Result<QuotaPartsV2, FeeApportionmentTransitionRejectV2> {
     let denominator = BigUint::from(BPS_DENOMINATOR_V2);
-    let cycles = &amount / &denominator;
-    let remainder_big = &amount % &denominator;
-    let remainder = small_biguint_to_u32(&remainder_big).ok_or_else(|| {
+    let cycles = amount / &denominator;
+    let residual_big = amount % &denominator;
+    let residual = small_biguint_to_u32(&residual_big).ok_or_else(|| {
         FeeApportionmentTransitionRejectV2::new(
             FeeApportionmentTransitionCodeV2::InternalRelationFailure,
             &["relation", "remainder"],
         )
     })?;
+    let product = residual.checked_mul(u32::from(weight)).ok_or_else(|| {
+        FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "residual_product_overflow"],
+        )
+    })?;
+    let residual_bound = BPS_DENOMINATOR_V2
+        .checked_mul(BPS_DENOMINATOR_V2)
+        .ok_or_else(|| {
+            FeeApportionmentTransitionRejectV2::new(
+                FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+                &["relation", "denominator_bound"],
+            )
+        })?;
+    if product >= residual_bound {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "residual_product_bound"],
+        ));
+    }
+    let base = &cycles * BigUint::from(weight) + BigUint::from(product / BPS_DENOMINATOR_V2);
+    let remainder = u16::try_from(product % BPS_DENOMINATOR_V2).map_err(|_| {
+        FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "fraction"],
+        )
+    })?;
+    if base > *amount {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "base_bound"],
+        ));
+    }
+    Ok(QuotaPartsV2 { base, remainder })
+}
+
+fn checked_post_deficits(
+    deficits_pre: [i32; 3],
+    fractions: [u16; 3],
+    bonuses: [u8; 3],
+) -> Result<[i32; 3], FeeApportionmentTransitionRejectV2> {
+    let mut deficits_post = [0_i32; 3];
+    for index in 0..3 {
+        let bonus_term = BPS_DENOMINATOR_I64_V2
+            .checked_mul(i64::from(bonuses[index]))
+            .ok_or_else(|| {
+                FeeApportionmentTransitionRejectV2::new(
+                    FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+                    &["relation", "post_deficit_arithmetic"],
+                )
+            })?;
+        let value = i64::from(deficits_pre[index])
+            .checked_add(i64::from(fractions[index]))
+            .and_then(|value| value.checked_sub(bonus_term))
+            .ok_or_else(|| {
+                FeeApportionmentTransitionRejectV2::new(
+                    FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+                    &["relation", "post_deficit_arithmetic"],
+                )
+            })?;
+        if !(-BPS_DENOMINATOR_I64_V2 < value && value < BPS_DENOMINATOR_I64_V2) {
+            return Err(FeeApportionmentTransitionRejectV2::new(
+                FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+                &["relation", "post_deficit_bound"],
+            ));
+        }
+        deficits_post[index] = i32::try_from(value).map_err(|_| {
+            FeeApportionmentTransitionRejectV2::new(
+                FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+                &["relation", "post_deficit_width"],
+            )
+        })?;
+    }
+    if deficits_post
+        .iter()
+        .map(|value| i64::from(*value))
+        .sum::<i64>()
+        != 0
+    {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "post_deficit_conservation"],
+        ));
+    }
+    Ok(deficits_post)
+}
+
+fn revalidate_allocation_postconditions(
+    amount: &BigUint,
+    policy: &FeeDistributionPolicyV2,
+    fractions: [u16; 3],
+    bonuses: [u8; 3],
+    amount_values: &[BigUint; 3],
+    deficits_pre: [i32; 3],
+    deficits_post: [i32; 3],
+) -> Result<(), FeeApportionmentTransitionRejectV2> {
+    if FIXED_ROLE_ORDER_ID_V1 != "fee-occurrence/role-order/buyback-treasury-rewards/v1"
+        || FIXED_ROLE_ORDER_V1 != ["buyback", "treasury", "rewards"]
+    {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "fixed_role_order"],
+        ));
+    }
+    if deficits_pre
+        .iter()
+        .any(|value| !(-BPS_DENOMINATOR_I32_V2 < *value && *value < BPS_DENOMINATOR_I32_V2))
+        || deficits_pre
+            .iter()
+            .map(|value| i64::from(*value))
+            .sum::<i64>()
+            != 0
+    {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InvalidPrestate,
+            &["state", "entries", "deficits"],
+        ));
+    }
+    if bonuses.iter().any(|value| *value > 1) {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "bonus_bit"],
+        ));
+    }
+
     let weights = policy.weights();
-    let products = [
-        remainder * u32::from(weights[0]),
-        remainder * u32::from(weights[1]),
-        remainder * u32::from(weights[2]),
+    let quotas = [
+        quota_for(amount, weights[0])?,
+        quota_for(amount, weights[1])?,
+        quota_for(amount, weights[2])?,
     ];
-    let lowers = [
-        &cycles * BigUint::from(weights[0]) + BigUint::from(products[0] / BPS_DENOMINATOR_V2),
-        &cycles * BigUint::from(weights[1]) + BigUint::from(products[1] / BPS_DENOMINATOR_V2),
-        &cycles * BigUint::from(weights[2]) + BigUint::from(products[2] / BPS_DENOMINATOR_V2),
+    let expected_fractions = [
+        quotas[0].remainder,
+        quotas[1].remainder,
+        quotas[2].remainder,
     ];
-    let fractions = [
-        u16::try_from(products[0] % BPS_DENOMINATOR_V2).map_err(|_| {
-            FeeApportionmentTransitionRejectV2::new(
+    if fractions != expected_fractions {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "local_quota_fraction"],
+        ));
+    }
+    let fraction_sum = fractions.iter().map(|value| u32::from(*value)).sum::<u32>();
+    let seat_remainder = fraction_sum % BPS_DENOMINATOR_V2;
+    let seat_count = fraction_sum / BPS_DENOMINATOR_V2;
+    if seat_remainder != 0 || seat_count > 2 {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "bonus_count"],
+        ));
+    }
+    if bonuses.iter().map(|value| u32::from(*value)).sum::<u32>() != seat_count {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "bonus_count"],
+        ));
+    }
+    for index in 0..3 {
+        if weights[index] == 0
+            && (fractions[index] != 0
+                || bonuses[index] != 0
+                || amount_values[index] != BigUint::ZERO)
+        {
+            return Err(FeeApportionmentTransitionRejectV2::new(
                 FeeApportionmentTransitionCodeV2::InternalRelationFailure,
-                &["relation", "fraction"],
-            )
-        })?,
-        u16::try_from(products[1] % BPS_DENOMINATOR_V2).map_err(|_| {
-            FeeApportionmentTransitionRejectV2::new(
+                &["relation", "zero_weight_support"],
+            ));
+        }
+        if bonuses[index] == 1 && fractions[index] == 0 {
+            return Err(FeeApportionmentTransitionRejectV2::new(
                 FeeApportionmentTransitionCodeV2::InternalRelationFailure,
-                &["relation", "fraction"],
-            )
-        })?,
-        u16::try_from(products[2] % BPS_DENOMINATOR_V2).map_err(|_| {
-            FeeApportionmentTransitionRejectV2::new(
-                FeeApportionmentTransitionCodeV2::InternalRelationFailure,
-                &["relation", "fraction"],
-            )
-        })?,
-    ];
-    let bonuses = select_bonuses(
-        deficits_pre,
-        fractions,
-        u16::try_from(BPS_DENOMINATOR_V2).map_err(|_| {
-            FeeApportionmentTransitionRejectV2::new(
-                FeeApportionmentTransitionCodeV2::InternalRelationFailure,
-                &["relation", "denominator"],
-            )
-        })?,
-    )?;
-    let amount_values = [
-        &lowers[0] + BigUint::from(bonuses[0]),
-        &lowers[1] + BigUint::from(bonuses[1]),
-        &lowers[2] + BigUint::from(bonuses[2]),
-    ];
-    let deficits_post = [
-        deficits_pre[0] + i32::from(fractions[0]) - BPS_DENOMINATOR_I32_V2 * i32::from(bonuses[0]),
-        deficits_pre[1] + i32::from(fractions[1]) - BPS_DENOMINATOR_I32_V2 * i32::from(bonuses[1]),
-        deficits_pre[2] + i32::from(fractions[2]) - BPS_DENOMINATOR_I32_V2 * i32::from(bonuses[2]),
+                &["relation", "bonus_support"],
+            ));
+        }
+    }
+    let expected_bonuses = select_bonuses(deficits_pre, fractions, BPS_DENOMINATOR_U16_V2)?;
+    if bonuses != expected_bonuses {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "bonus_order"],
+        ));
+    }
+    let expected_amounts = [
+        &quotas[0].base + BigUint::from(bonuses[0]),
+        &quotas[1].base + BigUint::from(bonuses[1]),
+        &quotas[2].base + BigUint::from(bonuses[2]),
     ];
     let amount_sum = &amount_values[0] + &amount_values[1] + &amount_values[2];
-    if amount_sum != amount
-        || deficits_post.iter().sum::<i32>() != 0
+    if amount_sum != *amount {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "amount_conservation"],
+        ));
+    }
+    if amount_values != &expected_amounts {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "local_quota_amount"],
+        ));
+    }
+    if amount_values.iter().any(|value| value > &u256_max()) {
+        return Err(FeeApportionmentTransitionRejectV2::new(
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure,
+            &["relation", "allocation_width"],
+        ));
+    }
+    let expected_post = checked_post_deficits(deficits_pre, fractions, bonuses)?;
+    if deficits_post != expected_post
+        || deficits_post
+            .iter()
+            .map(|value| i64::from(*value))
+            .sum::<i64>()
+            != 0
         || deficits_post
             .iter()
             .any(|value| !(-BPS_DENOMINATOR_I32_V2 < *value && *value < BPS_DENOMINATOR_I32_V2))
-        || bonuses
-            .iter()
-            .zip(fractions.iter())
-            .any(|(bonus, fraction)| *bonus == 1 && *fraction == 0)
-        || amount_values.iter().any(|value| value > &u256_max())
     {
         return Err(FeeApportionmentTransitionRejectV2::new(
             FeeApportionmentTransitionCodeV2::InternalRelationFailure,
             &["relation", "postconditions"],
         ));
     }
+    Ok(())
+}
+
+fn allocate_one(
+    key: FeeApportionmentKeyV2,
+    amount: BigUint,
+    policy: &FeeDistributionPolicyV2,
+    deficits_pre: [i32; 3],
+) -> Result<AssetFeeAllocationV2, FeeApportionmentTransitionRejectV2> {
+    let weights = policy.weights();
+    let quotas = [
+        quota_for(&amount, weights[0])?,
+        quota_for(&amount, weights[1])?,
+        quota_for(&amount, weights[2])?,
+    ];
+    let fractions = [
+        quotas[0].remainder,
+        quotas[1].remainder,
+        quotas[2].remainder,
+    ];
+    let bonuses = select_bonuses(deficits_pre, fractions, BPS_DENOMINATOR_U16_V2)?;
+    let amount_values = [
+        &quotas[0].base + BigUint::from(bonuses[0]),
+        &quotas[1].base + BigUint::from(bonuses[1]),
+        &quotas[2].base + BigUint::from(bonuses[2]),
+    ];
+    let deficits_post = checked_post_deficits(deficits_pre, fractions, bonuses)?;
+    revalidate_allocation_postconditions(
+        &amount,
+        policy,
+        fractions,
+        bonuses,
+        &amount_values,
+        deficits_pre,
+        deficits_post,
+    )?;
     Ok(AssetFeeAllocationV2 {
         key,
         amount: AmountU256::try_new(amount)?,
@@ -990,5 +1200,80 @@ mod tests {
             }
         }
         assert_eq!(checked, 592);
+    }
+    #[test]
+    fn deficit_entry_rejects_signed_width_overflow_without_panicking() {
+        let key =
+            FeeApportionmentKeyV2::try_new("domain".to_owned(), "asset".to_owned()).expect("key");
+        let rejected = FeeDeficitEntryV2::try_new(key, i32::MAX, i32::MAX)
+            .expect_err("rewards deficit must be checked before narrowing");
+        assert_eq!(
+            rejected.code(),
+            FeeApportionmentTransitionCodeV2::InvalidPrestate
+        );
+        assert_eq!(
+            rejected.path(),
+            &[
+                "state".to_owned(),
+                "entries".to_owned(),
+                "deficit_rewards".to_owned()
+            ]
+        );
+    }
+
+    #[test]
+    fn selector_score_uses_wide_intermediates() {
+        let bonuses = select_bonuses([i32::MAX, i32::MAX, 0], [1, 3, 0], 4)
+            .expect("wide score must remain ordered");
+        assert_eq!(bonuses, [0, 1, 0]);
+    }
+
+    #[test]
+    fn checked_post_deficits_reject_out_of_range_relation() {
+        let rejected = checked_post_deficits([9_999, -9_999, 0], [9_999, 0, 0], [0, 0, 0])
+            .expect_err("post deficit must remain strictly inside the atom");
+        assert_eq!(
+            rejected.code(),
+            FeeApportionmentTransitionCodeV2::InternalRelationFailure
+        );
+        assert_eq!(
+            rejected.path(),
+            &["relation".to_owned(), "post_deficit_bound".to_owned()]
+        );
+    }
+
+    #[test]
+    fn rust_postcondition_rejects_amount_conservation_mutant() {
+        let policy = FeeDistributionPolicyV2::try_new(
+            [3_333, 3_333, 3_334],
+            [
+                "buyback".to_owned(),
+                "treasury".to_owned(),
+                "rewards".to_owned(),
+            ],
+        )
+        .expect("policy");
+        let rejected = revalidate_allocation_postconditions(
+            &BigUint::from(1_u8),
+            &policy,
+            [3_333, 3_333, 3_334],
+            [0, 0, 1],
+            &[BigUint::from(1_u8), BigUint::ZERO, BigUint::from(1_u8)],
+            [0, 0, 0],
+            [3_333, 3_333, -6_666],
+        )
+        .expect_err("mutated allocation must not be accepted");
+        assert_eq!(
+            rejected.path(),
+            &["relation".to_owned(), "amount_conservation".to_owned()]
+        );
+    }
+
+    #[test]
+    fn quota_revalidation_handles_u256_maximum() {
+        let amount = u256_max();
+        let quota = quota_for(&amount, 9_999).expect("maximum U256 quota");
+        assert!(quota.base <= amount);
+        assert!(u32::from(quota.remainder) < BPS_DENOMINATOR_V2);
     }
 }
