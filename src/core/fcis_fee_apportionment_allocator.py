@@ -8,7 +8,12 @@ from ..state.state_snapshot_values import (
     MAX_STATE_STRING_CHARACTERS_V1,
     MAX_STATE_STRING_UTF8_BYTES_V1,
 )
+from .fcis_fee_apportionment_postconditions import (
+    FeeAllocationPostconditionRejectV2,
+    revalidate_fee_allocation_postconditions_v2,
+)
 from .fcis_fee_apportionment_selector import (
+    FeeBonusSelectionV2,
     FeeBonusSelectorRejectV2,
     select_fee_bonuses_v2,
 )
@@ -411,7 +416,9 @@ def _select_bonuses_v2(
     )
     if type(selection) is FeeBonusSelectorRejectV2:
         raise ValueError(f"{selection.code.value}: {selection.path}")
-    return selection.bonuses
+    if type(selection) is not FeeBonusSelectionV2:
+        raise ValueError("selector returned an unknown result type")
+    return cast(tuple[int, int, int], selection.bonuses)
 
 
 def _allocation_v2(
@@ -450,16 +457,20 @@ def _allocation_v2(
         deficits_pre[1] + fractions[1] - BPS_DENOMINATOR_V2 * bonuses[1],
         deficits_pre[2] + fractions[2] - BPS_DENOMINATOR_V2 * bonuses[2],
     )
-    if (
-        sum(amounts) != amount
-        or sum(deficits_post) != 0
-        or any(not -BPS_DENOMINATOR_V2 < value < BPS_DENOMINATOR_V2 for value in deficits_post)
-        or any(bonus and fraction == 0 for bonus, fraction in zip(bonuses, fractions, strict=True))
-        or any(amount_value > MAX_FEE_AMOUNT_V2 for amount_value in amounts)
-    ):
+    postconditions = revalidate_fee_allocation_postconditions_v2(
+        amount=amount,
+        policy=policy,
+        fractions=fractions,
+        bonuses=bonuses,
+        amounts=amounts,
+        deficits_pre=deficits_pre,
+        deficits_post=deficits_post,
+    )
+    if type(postconditions) is FeeAllocationPostconditionRejectV2:
         return _reject_v2(
             FeeApportionmentTransitionCodeV2.INTERNAL_RELATION_FAILURE,
-            ("relation", "postconditions"),
+            ("relation", "postconditions", postconditions.code.value)
+            + postconditions.path,
         )
     try:
         return _asset_fee_allocation_v2(
