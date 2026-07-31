@@ -1,0 +1,101 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "B01",
+  "base_sha": "7f70c0133ecd0873147ac4903215473f95f93dc6",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-B01-overflow-safe-quota-20260731",
+  "status": "TESTED",
+  "evidence_files": [
+    "docs/research/m6_tasks/TASK_B01_REPORT.md",
+    "docs/research/m6_tasks/TASK_B01_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_B01_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_fee_apportionment_transition.py src/core/fcis_fee_apportionment_allocator.py tests/core/test_fcis_fee_apportionment_transition.py tests/core/test_fcis_fee_apportionment_width_mutants.py",
+    "python3 -m ruff check src/core/fcis_fee_apportionment_transition.py src/core/fcis_fee_apportionment_allocator.py tests/core/test_fcis_fee_apportionment_admission.py tests/core/test_fcis_fee_apportionment_agqe_srgd_refinement.py tests/core/test_fcis_fee_apportionment_allocator.py tests/core/test_fcis_fee_apportionment_golden.py tests/core/test_fcis_fee_apportionment_transition.py tests/core/test_fcis_fee_apportionment_width_mutants.py tools/build_fcis_fee_apportionment_v2_golden.py",
+    "python3 -m mypy --strict src/core/fcis_fee_apportionment_transition.py src/core/fcis_fee_apportionment_allocator.py",
+    "python3 -m pytest -q tests/core/test_fcis_fee_apportionment_admission.py tests/core/test_fcis_fee_apportionment_agqe_srgd_refinement.py tests/core/test_fcis_fee_apportionment_allocator.py tests/core/test_fcis_fee_apportionment_golden.py tests/core/test_fcis_fee_apportionment_transition.py tests/core/test_fcis_fee_apportionment_width_mutants.py",
+    "python3 tools/build_fcis_fee_apportionment_v2_golden.py",
+    "python3 tools/build_fcis_fee_apportionment_v2_golden.py --check",
+    "git diff --check",
+    "git diff --cached --check"
+  ],
+  "tool_versions": {
+    "python3": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+    "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
+    "docs/research/m6_tasks/TASK_EVIDENCE_SCHEMA_V1.json": "9dd6d015ef69c31c5a41a61f7a73c5c3d8057baf4cfc6f85eb52fffd065d5640",
+    "docs/research/m6_tasks/validate_task_packet.py": "cda422bb55c5601e8be42148454d7affc44df9c22d66f749861592f3e4549c3a",
+    "src/core/fcis_m6_profile_ids.py": "c49a51688c453776d49726de24f295c84ffe4219b18f8692ad5a4d7c628e232f",
+    "src/core/fcis_fee_apportionment_transition.py": "a6753cdc51655841f8e94ae73daab8c9dac4d401a7dc87b59f6ad7267a48d10e",
+    "src/core/fcis_fee_apportionment_allocator.py": "cde842368b51d5af015d3d46e3bb0046bbec5dd4d89ef437b1ab7dfa7d1130ed",
+    "tests/core/test_fcis_fee_apportionment_transition.py": "48c962242789f78052dd615b7f1104092c345af7b64209f162cfa27a852be647",
+    "tests/core/test_fcis_fee_apportionment_width_mutants.py": "d358f52d933a21c5a83f3fce1b03dd3d613f42f4bab70e7961a28e4da1ddd709",
+    "tests/core/test_fcis_fee_apportionment_allocator.py": "fa6c6981278f20e6eadd986e5565f28022d84e016c55ae8bfc6c53ec5170855c",
+    "tests/core/test_fcis_fee_apportionment_agqe_srgd_refinement.py": "306fa49142c0180b203f0b7a176e9675831ea39a18d6b1339bad83c140eacaff",
+    "tests/core/test_fcis_fee_apportionment_golden.py": "11e89ccbc31c335ac417fb165a9e9db5e05dad0cd619662bc7b41de3bc88a22b",
+    "tools/build_fcis_fee_apportionment_v2_golden.py": "ba94d46a3f12d466c1e3ca85b0c08874d7e4213e1277f33919fcf4c3f947f41b",
+    "tests/fixtures/fcis_fee_apportionment_v2_golden.json": "7894770f5a03650703abdcb3954e149f550efb9cd233114e850b2bb4d80cb09d"
+  },
+  "results": {
+    "implementation_commit": "9b290540e96b840ee07795f35dac938e7d524cf2",
+    "implementation_tree": "5e3108bb88b1f619beb9cb84a1d68cef0933913a",
+    "focused_tests": "35 passed",
+    "golden_fixture": "regenerated and --check passed; 12 cases",
+    "ruff": "pass",
+    "strict_mypy": "pass for 2 touched source modules",
+    "py_compile": "pass",
+    "width_boundary": "U256_MAX vectors and exact Euclidean postconditions pass",
+    "runtime_mount": "none"
+  },
+  "mutants": [
+    {
+      "id": "B01_BOOL_AMOUNT",
+      "status": "covered",
+      "invariant": "Boolean amounts fail the exact-integer boundary."
+    },
+    {
+      "id": "B01_BOOL_WEIGHT_AND_DENOMINATOR",
+      "status": "covered",
+      "invariant": "Boolean width parameters fail the exact-integer boundary."
+    },
+    {
+      "id": "B01_FLOAT_QUOTA",
+      "status": "covered",
+      "invariant": "U256 boundary results remain exact integer relations."
+    },
+    {
+      "id": "B01_TRUNCATED_MACHINE_WIDTH",
+      "status": "covered",
+      "invariant": "U256_MAX does not truncate in quotient, base, or remainder."
+    },
+    {
+      "id": "B01_FULL_AMOUNT_WEIGHT_PRODUCT",
+      "status": "covered",
+      "invariant": "The primitive source contains no amount-times-weight product."
+    },
+    {
+      "id": "B01_UNCHECKED_BASE_GROWTH",
+      "status": "covered",
+      "invariant": "Quota value construction rejects inconsistent or oversized base values."
+    },
+    {
+      "id": "B01_ALLOCATOR_BYPASS",
+      "status": "covered",
+      "invariant": "Allocator arithmetic fails closed when quota derivation rejects."
+    }
+  ],
+  "nonclaims": [
+    "B01 does not prove the general R02 theorem or the B02-B09 obligations.",
+    "B01 does not prove Rust, datastore, consensus, API, migration, or runtime refinement.",
+    "B01 remains an unmounted Python research kernel and does not authorize value movement.",
+    "No remote implementation commit, hosted CI run, draft PR, or publication is claimed."
+  ]
+}
