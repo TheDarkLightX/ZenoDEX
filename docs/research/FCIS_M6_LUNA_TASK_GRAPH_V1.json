@@ -1,0 +1,1905 @@
+{
+  "date": "2026-07-31",
+  "default_decision": "DO_NOT_PROMOTE_M6",
+  "schema_version": "zenodex.fcis.m6.luna-task-graph.v1",
+  "task_count": 105,
+  "execution_baseline": {
+    "implementation_target_commit": "ecf26f987c3d6393501fec66ddfc3429fb8634c7",
+    "implementation_target_tree": "fdf154ac143a9f9a9e840fbbf49761190d138920",
+    "posture": "RESEARCH_ONLY_EXECUTABLE_UNMOUNTED",
+    "completed_prerequisite_evidence": [
+      "44 focused Python tests",
+      "public finite-state replay: 56 states and 268 transitions",
+      "four public model-checker self-test mutants killed",
+      "Python/Julia bounded parity: 49 states and 254 transitions",
+      "Lean durable-retraction theorem file compiled"
+    ],
+    "task_status_rule": "All 105 production tasks remain PLANNED until their own acceptance gates and receipts pass."
+  },
+  "tool_policy": {
+    "required_public_model_gate": "python3 tools/check_fcis_durable_retraction_model.py --self-test",
+    "private_esso": "OPTIONAL_HISTORICAL_EVIDENCE",
+    "private_tool_unavailable_result": "CONTINUE_WITH_PUBLIC_GATE_AND_RECORD_NONCLAIM"
+  },
+  "coverage": {
+    "external_prerequisites": [
+      "R01"
+    ],
+    "program_composition_task_ranges": [
+      "A00-A04",
+      "M01-M08"
+    ],
+    "target_obligations": [
+      "R02",
+      "R03",
+      "R04",
+      "R05",
+      "R06",
+      "R07",
+      "R08",
+      "R09",
+      "R10",
+      "R11",
+      "R12",
+      "R13"
+    ]
+  },
+  "tasks": [
+    {
+      "acceptance_gate": "Repeated generation is byte-identical while GitHub state is unchanged.",
+      "dependencies": [],
+      "principal_claim": "The implementation packet names immutable exact source heads.",
+      "required_outputs": [
+        "exact-head ledger JSON",
+        "workflow evidence ledger"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "A00",
+      "title": "Record exact research heads"
+    },
+    {
+      "acceptance_gate": "No unresolved semantic conflict is auto-merged.",
+      "dependencies": [
+        "A00"
+      ],
+      "principal_claim": "Every cross-branch collision is classified before integration.",
+      "required_outputs": [
+        "stack conflict map"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "A01",
+      "title": "Produce semantic conflict map"
+    },
+    {
+      "acceptance_gate": "No duplicate domain or representation/semantic alias survives.",
+      "dependencies": [
+        "A01"
+      ],
+      "principal_claim": "All layers use one reviewed semantic/version/domain registry.",
+      "required_outputs": [
+        "profile identifier module",
+        "identifier mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R02",
+        "R03",
+        "R04",
+        "R08"
+      ],
+      "task_id": "A02",
+      "title": "Freeze shared M6 identifiers"
+    },
+    {
+      "acceptance_gate": "A sample task packet validates and hashes reproducibly.",
+      "dependencies": [
+        "A00"
+      ],
+      "principal_claim": "Every task emits deterministic evidence and provenance.",
+      "required_outputs": [
+        "task report schema",
+        "evidence JSON schema",
+        "source manifest contract"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "A03",
+      "title": "Create task evidence directory"
+    },
+    {
+      "acceptance_gate": "All inherited research gates pass at one exact head.",
+      "dependencies": [
+        "A01",
+        "A02",
+        "A03"
+      ],
+      "principal_claim": "PR498, PR499, and DRA research artifacts coexist without semantic collision.",
+      "required_outputs": [
+        "integration branch",
+        "compatibility report",
+        "green focused gates"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "A04",
+      "title": "Build reviewed integration base"
+    },
+    {
+      "acceptance_gate": "U256 edge vectors and postconditions pass.",
+      "dependencies": [
+        "A02"
+      ],
+      "principal_claim": "Floor quota is computed for every U256 amount without amount*weight overflow.",
+      "required_outputs": [
+        "Python primitive",
+        "boundary tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R02"
+      ],
+      "task_id": "B01",
+      "title": "Overflow-safe Euclidean quota primitive"
+    },
+    {
+      "acceptance_gate": "All small-domain selector vectors match the theorem relation.",
+      "dependencies": [
+        "B01"
+      ],
+      "principal_claim": "The unique support-respecting fixed-order selector is implemented exactly.",
+      "required_outputs": [
+        "selector implementation",
+        "tie/support mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R02"
+      ],
+      "task_id": "B02",
+      "title": "Exact three-role selector"
+    },
+    {
+      "acceptance_gate": "Lean builds with no placeholders or new axioms.",
+      "dependencies": [
+        "B01",
+        "B02"
+      ],
+      "principal_claim": "Conservation, support, local quota, and residual-count laws hold generally.",
+      "required_outputs": [
+        "FCISFeeApportionmentSRGDTrace.lean",
+        "axiom report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R02"
+      ],
+      "task_id": "B03",
+      "title": "Lean one-occurrence arithmetic laws"
+    },
+    {
+      "acceptance_gate": "Lean theorem builds and exposes policy adaptivity explicitly.",
+      "dependencies": [
+        "B03"
+      ],
+      "principal_claim": "Every finite SLNF occurrence word preserves strict deficit validity under arbitrary valid policies.",
+      "required_outputs": [
+        "trace relation",
+        "inductive theorem"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R02"
+      ],
+      "task_id": "B04",
+      "title": "Lean adaptive trace theorem"
+    },
+    {
+      "acceptance_gate": "Lean theorem follows from exact history identity and strict deficit bound.",
+      "dependencies": [
+        "B04"
+      ],
+      "principal_claim": "Every role's cumulative discrepancy remains strictly below one atom.",
+      "required_outputs": [
+        "history identity lemmas",
+        "rational discrepancy theorem"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R02"
+      ],
+      "task_id": "B05",
+      "title": "Cumulative discrepancy theorem"
+    },
+    {
+      "acceptance_gate": "All theorem postconditions are freshly checked before construction.",
+      "dependencies": [
+        "B02"
+      ],
+      "principal_claim": "No Python Accept can violate the theorem conclusions.",
+      "required_outputs": [
+        "closed Accept/Reject implementation",
+        "postcondition mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R02"
+      ],
+      "task_id": "B06",
+      "title": "Python postcondition revalidation"
+    },
+    {
+      "acceptance_gate": "fmt, clippy -D warnings, and focused tests pass.",
+      "dependencies": [
+        "B02",
+        "A02"
+      ],
+      "principal_claim": "Rust computes the exact same pure relation with checked widths.",
+      "required_outputs": [
+        "Rust transition",
+        "Rust tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R02"
+      ],
+      "task_id": "B07",
+      "title": "Rust SRGD transition"
+    },
+    {
+      "acceptance_gate": "No UNKNOWN/timeout; all bounded arithmetic obligations pass.",
+      "dependencies": [
+        "B07"
+      ],
+      "principal_claim": "Admitted U256 inputs cannot overflow the Euclidean implementation.",
+      "required_outputs": [
+        "Kani/SMT harness",
+        "tool receipt"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R02"
+      ],
+      "task_id": "B08",
+      "title": "Kani/SMT arithmetic refinement"
+    },
+    {
+      "acceptance_gate": "All frozen vectors match at one exact head.",
+      "dependencies": [
+        "B05",
+        "B06",
+        "B07",
+        "B08"
+      ],
+      "principal_claim": "Python, Rust, and an independent oracle agree on state, allocations, bytes, and rejects.",
+      "required_outputs": [
+        "golden vectors",
+        "exhaustive small-domain report",
+        "production edge report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R02"
+      ],
+      "task_id": "B09",
+      "title": "Three-way parity campaign"
+    },
+    {
+      "acceptance_gate": "State identity never depends on representation label.",
+      "dependencies": [
+        "A02"
+      ],
+      "principal_claim": "SRGD and AGQE are representations of one semantic entitlement transition.",
+      "required_outputs": [
+        "semantic/representation constants",
+        "schema note"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R03"
+      ],
+      "task_id": "C01",
+      "title": "Factor semantic profile from representation"
+    },
+    {
+      "acceptance_gate": "All excluded dimensions leave the key unchanged.",
+      "dependencies": [
+        "C01"
+      ],
+      "principal_claim": "Policy destination/custody rotation cannot reset entitlement history.",
+      "required_outputs": [
+        "key value/codec",
+        "rotation mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R03"
+      ],
+      "task_id": "C02",
+      "title": "Freeze entitlement key"
+    },
+    {
+      "acceptance_gate": "Unknown fields/versions and caller roots reject.",
+      "dependencies": [
+        "C02"
+      ],
+      "principal_claim": "Every representation migration is a typed root-bound manifest.",
+      "required_outputs": [
+        "migration manifest values",
+        "canonical codecs",
+        "vectors"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R03"
+      ],
+      "task_id": "C03",
+      "title": "Migration values and codecs"
+    },
+    {
+      "acceptance_gate": "Complete source/target entry equality and strict validity pass.",
+      "dependencies": [
+        "C03"
+      ],
+      "principal_claim": "Every entry is transported by sigma=-d with no reset or omission.",
+      "required_outputs": [
+        "transport function",
+        "entry equality checker",
+        "mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R03"
+      ],
+      "task_id": "C04",
+      "title": "Exact sign-dual state transport"
+    },
+    {
+      "acceptance_gate": "Lean builds and key preservation is explicit.",
+      "dependencies": [
+        "B04",
+        "C04"
+      ],
+      "principal_claim": "The sign-dual map conjugates the complete SLNF fold.",
+      "required_outputs": [
+        "trace conjugacy theorem",
+        "involution theorem"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R03"
+      ],
+      "task_id": "C05",
+      "title": "Lean trace conjugacy"
+    },
+    {
+      "acceptance_gate": "Every reset/partial transport mutant is killed.",
+      "dependencies": [
+        "C04"
+      ],
+      "principal_claim": "No ordinary configuration change or representation migration erases residual history.",
+      "required_outputs": [
+        "ATDD mutants",
+        "stateful rotation tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R03"
+      ],
+      "task_id": "C06",
+      "title": "Rotation/reset mutation suite"
+    },
+    {
+      "acceptance_gate": "Packet self-check and exact-head review pass.",
+      "dependencies": [
+        "C05",
+        "C06"
+      ],
+      "principal_claim": "An independent reviewer can reproduce every migrated entry and root.",
+      "required_outputs": [
+        "source manifest",
+        "old/new vectors",
+        "review prompt"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R03"
+      ],
+      "task_id": "C07",
+      "title": "Exact migration review packet"
+    },
+    {
+      "acceptance_gate": "Every field is freshly recomputable and versioned.",
+      "dependencies": [
+        "A04",
+        "C01"
+      ],
+      "principal_claim": "One immutable value names every horizontal, global, and temporal authority root.",
+      "required_outputs": [
+        "FCISAuthorityNormalFormV1",
+        "codec/root vectors"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R04"
+      ],
+      "task_id": "D01",
+      "title": "Define Authority Normal Form"
+    },
+    {
+      "acceptance_gate": "No post-hoc root attachment path remains.",
+      "dependencies": [
+        "D01",
+        "B06"
+      ],
+      "principal_claim": "The actual candidate consumes the exact source-derived occurrence segment.",
+      "required_outputs": [
+        "evaluation schema update",
+        "identity tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R04"
+      ],
+      "task_id": "D02",
+      "title": "Bind source SLNF into evaluation"
+    },
+    {
+      "acceptance_gate": "Foreign or missing ANF fields reject.",
+      "dependencies": [
+        "D02"
+      ],
+      "principal_claim": "The acceptance receipt authorizes exactly one ANF identity.",
+      "required_outputs": [
+        "receipt schema/root update",
+        "crossed receipt mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R04"
+      ],
+      "task_id": "D03",
+      "title": "Bind ANF into receipt"
+    },
+    {
+      "acceptance_gate": "Crossed outbox/bundle mutants reject before commit.",
+      "dependencies": [
+        "D03"
+      ],
+      "principal_claim": "Bundle and outbox derive from the same exact decision and ANF.",
+      "required_outputs": [
+        "bundle schema update",
+        "outbox recomputation"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R04"
+      ],
+      "task_id": "D04",
+      "title": "Bind ANF into bundle/outbox"
+    },
+    {
+      "acceptance_gate": "Inserted/omitted publisher changes the independently derived root.",
+      "dependencies": [
+        "A04"
+      ],
+      "principal_claim": "The pinned topology root comes from deployment/build sources, not the certificate.",
+      "required_outputs": [
+        "publisher inventory generator",
+        "anchored topology root"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R04",
+        "R12"
+      ],
+      "task_id": "D05",
+      "title": "Independently derive TCG inventory"
+    },
+    {
+      "acceptance_gate": "Every rule permutation reaches one fixed point or the fixed tuple is formally proved.",
+      "dependencies": [
+        "A04"
+      ],
+      "principal_claim": "Derived keys have complete single-writer acyclic deterministic closure.",
+      "required_outputs": [
+        "typed rule manifest",
+        "acyclicity/order tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R04"
+      ],
+      "task_id": "D06",
+      "title": "Validate C3 rule manifest"
+    },
+    {
+      "acceptance_gate": "New commits, acks, and migrations cannot masquerade as stutters.",
+      "dependencies": [
+        "A04"
+      ],
+      "principal_claim": "Only observational identities on canonical values are collapsed.",
+      "required_outputs": [
+        "StutterReceiptV1",
+        "checker",
+        "negative mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R04",
+        "R05",
+        "R10"
+      ],
+      "task_id": "D07",
+      "title": "Implement RQAG stutter receipts"
+    },
+    {
+      "acceptance_gate": "All source substitution and crossed-axis tests reject.",
+      "dependencies": [
+        "D01",
+        "D04",
+        "D05",
+        "D06",
+        "D07"
+      ],
+      "principal_claim": "One external-instance checker recomputes the complete authority normal form.",
+      "required_outputs": [
+        "combined checker",
+        "stable rejection codes"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R04"
+      ],
+      "task_id": "D08",
+      "title": "Combined ANF checker"
+    },
+    {
+      "acceptance_gate": "All named mutants are permanently killed.",
+      "dependencies": [
+        "D08"
+      ],
+      "principal_claim": "Every lineage or temporal crossing is detected.",
+      "required_outputs": [
+        "mutant catalog",
+        "focused tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R04"
+      ],
+      "task_id": "D09",
+      "title": "Cross-axis/temporal mutants"
+    },
+    {
+      "acceptance_gate": "Lean builds with authentication/inventory premises visible.",
+      "dependencies": [
+        "D08"
+      ],
+      "principal_claim": "Horizontal coherence, TCG mediation, durable retraction, and effect ancestry compose.",
+      "required_outputs": [
+        "Lean theorem",
+        "premise/nonclaim report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R04"
+      ],
+      "task_id": "D10",
+      "title": "Lean ANF composition theorem"
+    },
+    {
+      "acceptance_gate": "Server randomness/post-state cannot change request identity.",
+      "dependencies": [
+        "A02"
+      ],
+      "principal_claim": "Retry identity is stable and bound to authenticated invocation semantics.",
+      "required_outputs": [
+        "request identity schema",
+        "codec/root"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R05"
+      ],
+      "task_id": "E01",
+      "title": "Authenticated request identity"
+    },
+    {
+      "acceptance_gate": "Cross-deployment and sender/nonce substitutions reject.",
+      "dependencies": [
+        "E01"
+      ],
+      "principal_claim": "One authenticated sender/nonce maps to one canonical nullifier.",
+      "required_outputs": [
+        "nullifier function",
+        "vectors"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R05"
+      ],
+      "task_id": "E02",
+      "title": "Nonce/nullifier relation"
+    },
+    {
+      "acceptance_gate": "Concurrent duplicate insertions have one winner.",
+      "dependencies": [
+        "E02"
+      ],
+      "principal_claim": "Commit IDs, nullifiers, and effects are unique at the datastore boundary.",
+      "required_outputs": [
+        "migration SQL",
+        "constraint tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R05",
+        "R09"
+      ],
+      "task_id": "E03",
+      "title": "Database uniqueness constraints"
+    },
+    {
+      "acceptance_gate": "All five durable cases and indeterminate observation tests pass.",
+      "dependencies": [
+        "E03"
+      ],
+      "principal_claim": "Every retry resolves to one disjoint durable class; transport knowledge is separate.",
+      "required_outputs": [
+        "classifier",
+        "Lean partition theorem",
+        "tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R05"
+      ],
+      "task_id": "E04",
+      "title": "Total stored-state classifier"
+    },
+    {
+      "acceptance_gate": "No preflight-read/unguarded-write path exists.",
+      "dependencies": [
+        "E03",
+        "E04"
+      ],
+      "principal_claim": "Current-root and authority checks linearize with publication.",
+      "required_outputs": [
+        "transaction function",
+        "CAS tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R05",
+        "R09"
+      ],
+      "task_id": "E05",
+      "title": "Expected-root atomic CAS"
+    },
+    {
+      "acceptance_gate": "One canonical history atom and nullifier remain.",
+      "dependencies": [
+        "E05"
+      ],
+      "principal_claim": "Two same-nonce commands cannot both commit.",
+      "required_outputs": [
+        "multi-connection tests",
+        "barrier harness"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R05"
+      ],
+      "task_id": "E06",
+      "title": "Real concurrency harness"
+    },
+    {
+      "acceptance_gate": "No duplicate semantic commit after any loss point.",
+      "dependencies": [
+        "E05"
+      ],
+      "principal_claim": "Fresh canonical lookup resolves every lost-response point.",
+      "required_outputs": [
+        "fault injection",
+        "retry report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R05"
+      ],
+      "task_id": "E07",
+      "title": "Transport-loss campaign"
+    },
+    {
+      "acceptance_gate": "Frozen model exhausts its manifest with no safe invariant violation.",
+      "dependencies": [
+        "E04"
+      ],
+      "principal_claim": "Bounded concurrent commit/migration words preserve at-most-once nullifiers.",
+      "required_outputs": [
+        "public exhaustive model or TLA model",
+        "state counts",
+        "minimal mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R05"
+      ],
+      "task_id": "E08",
+      "title": "Public finite-state/TLA nonce model"
+    },
+    {
+      "acceptance_gate": "No optional evidence can escape the atom relation.",
+      "dependencies": [
+        "D04",
+        "E02"
+      ],
+      "principal_claim": "One atom binds every required durable transition fact.",
+      "required_outputs": [
+        "history atom values/codec",
+        "schema registry"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R06",
+        "R07"
+      ],
+      "task_id": "F01",
+      "title": "Production history atom schema"
+    },
+    {
+      "acceptance_gate": "Encoder output is canonical and deterministic.",
+      "dependencies": [
+        "F01"
+      ],
+      "principal_claim": "One function materializes every authoritative row.",
+      "required_outputs": [
+        "encoder",
+        "projection tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R06",
+        "R07"
+      ],
+      "task_id": "F02",
+      "title": "Canonical history encoder"
+    },
+    {
+      "acceptance_gate": "Malformed/ambiguous layouts never yield partial authority.",
+      "dependencies": [
+        "F02"
+      ],
+      "principal_claim": "Every accepted layout reconstructs one complete authorized history.",
+      "required_outputs": [
+        "reopen parser/checker",
+        "stable rejects"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R06",
+        "R07"
+      ],
+      "task_id": "F03",
+      "title": "Total fail-closed reopen"
+    },
+    {
+      "acceptance_gate": "Missing/surplus/duplicate/reordered/crossed layouts reject even after cache rehash.",
+      "dependencies": [
+        "F03"
+      ],
+      "principal_claim": "Authoritative layouts are exactly encode(reopen(layout)) fixed points.",
+      "required_outputs": [
+        "fixed-point comparator",
+        "all-table mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R06"
+      ],
+      "task_id": "F04",
+      "title": "Whole-layout fixed-point gate"
+    },
+    {
+      "acceptance_gate": "Caller-selected empty history cannot become authority.",
+      "dependencies": [
+        "F01",
+        "G01"
+      ],
+      "principal_claim": "History begins only from a deployment-pinned authorized genesis.",
+      "required_outputs": [
+        "genesis schema",
+        "root vectors",
+        "mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R07",
+        "R08"
+      ],
+      "task_id": "F05",
+      "title": "Authenticated genesis"
+    },
+    {
+      "acceptance_gate": "Value-moving actions reject without exact current token; state change invalidates token.",
+      "dependencies": [
+        "F03",
+        "F05"
+      ],
+      "principal_claim": "Restarted/reopened state is locked until a fresh exact-head token is verified.",
+      "required_outputs": [
+        "authorization token/checker",
+        "restart tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R07"
+      ],
+      "task_id": "F06",
+      "title": "Fresh reopen-head authorization"
+    },
+    {
+      "acceptance_gate": "Truncated or orphaned histories reject.",
+      "dependencies": [
+        "F04",
+        "F05"
+      ],
+      "principal_claim": "Compaction preserves complete state, nullifier, authority, and outbox ancestry.",
+      "required_outputs": [
+        "checkpoint certificate",
+        "replay/transport proof"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R07"
+      ],
+      "task_id": "F07",
+      "title": "Checkpoint/truncation semantics"
+    },
+    {
+      "acceptance_gate": "No partial layout accepts a command.",
+      "dependencies": [
+        "F04"
+      ],
+      "principal_claim": "Every injected physical corruption exposes PRE, POST, or rejection/lock only.",
+      "required_outputs": [
+        "fault matrix",
+        "reopen results"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R07",
+        "R09"
+      ],
+      "task_id": "F08",
+      "title": "Reopen corruption campaign"
+    },
+    {
+      "acceptance_gate": "Every recovered layout is a reference fixed point.",
+      "dependencies": [
+        "F04",
+        "H04"
+      ],
+      "principal_claim": "The production database's recovered authoritative states refine the CDR model.",
+      "required_outputs": [
+        "refinement report",
+        "mapping tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R06",
+        "R07"
+      ],
+      "task_id": "F09",
+      "title": "Concrete CDR refinement"
+    },
+    {
+      "acceptance_gate": "Unknown/stale fields reject before verification.",
+      "dependencies": [
+        "A02"
+      ],
+      "principal_claim": "Every proof authority dimension is explicit in one closed typed context.",
+      "required_outputs": [
+        "FCISProofContextV1",
+        "admission tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R08"
+      ],
+      "task_id": "G01",
+      "title": "Proof-context values"
+    },
+    {
+      "acceptance_gate": "Byte and root parity pass.",
+      "dependencies": [
+        "G01"
+      ],
+      "principal_claim": "Python/Rust compute one canonical proof-context identity.",
+      "required_outputs": [
+        "codec",
+        "golden vectors"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R08"
+      ],
+      "task_id": "G02",
+      "title": "Proof-context codec/root"
+    },
+    {
+      "acceptance_gate": "Proof-supplied registry substitutions reject.",
+      "dependencies": [
+        "G01"
+      ],
+      "principal_claim": "Proofs cannot select verifier/key/schema authority.",
+      "required_outputs": [
+        "registry values",
+        "activation/retirement checks"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R08"
+      ],
+      "task_id": "G03",
+      "title": "Pinned verifier registry"
+    },
+    {
+      "acceptance_gate": "Caller public-input roots are ignored/rejected.",
+      "dependencies": [
+        "D01",
+        "G02",
+        "G03"
+      ],
+      "principal_claim": "Verifier public inputs are recomputed from the exact ANF.",
+      "required_outputs": [
+        "public input derivation",
+        "journal checker"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R08",
+        "R04"
+      ],
+      "task_id": "G04",
+      "title": "ANF public-input binding"
+    },
+    {
+      "acceptance_gate": "All named substitutions are killed.",
+      "dependencies": [
+        "G04"
+      ],
+      "principal_claim": "Cross-deployment, stale-key, stale-state, and schema substitutions reject.",
+      "required_outputs": [
+        "mutant suite"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R08"
+      ],
+      "task_id": "G05",
+      "title": "Proof substitution/freshness mutants"
+    },
+    {
+      "acceptance_gate": "No free debt/state/journal path remains.",
+      "dependencies": [
+        "G04"
+      ],
+      "principal_claim": "The concrete verifier uses pinned keys and exact public inputs.",
+      "required_outputs": [
+        "adapter",
+        "focused verifier tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R08"
+      ],
+      "task_id": "G06",
+      "title": "RISC0/other verifier adapter"
+    },
+    {
+      "acceptance_gate": "The theorem compiles and does not claim cryptographic soundness.",
+      "dependencies": [
+        "G02"
+      ],
+      "principal_claim": "Accepted context equality implies equality of all authority dimensions.",
+      "required_outputs": [
+        "Lean theorem",
+        "axiom report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R08"
+      ],
+      "task_id": "G07",
+      "title": "Lean schema injectivity theorem"
+    },
+    {
+      "acceptance_gate": "No unmapped or multiply authoritative field remains.",
+      "dependencies": [
+        "F01"
+      ],
+      "principal_claim": "Every atom field has one canonical physical representation/projection.",
+      "required_outputs": [
+        "field-column matrix"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R09"
+      ],
+      "task_id": "H01",
+      "title": "Map publication atom to tables"
+    },
+    {
+      "acceptance_gate": "One commit exposes complete POST or no change.",
+      "dependencies": [
+        "E05",
+        "H01"
+      ],
+      "principal_claim": "State, authority, history, nullifier, evidence, bundle, replay, and outbox publish together.",
+      "required_outputs": [
+        "transaction implementation",
+        "SQL tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R09"
+      ],
+      "task_id": "H02",
+      "title": "Single atomic publication transaction"
+    },
+    {
+      "acceptance_gate": "Every named crash point is reachable and repeatable.",
+      "dependencies": [
+        "H02"
+      ],
+      "principal_claim": "Every logical transaction boundary can be crashed reproducibly.",
+      "required_outputs": [
+        "fault hooks",
+        "crash manifest"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R09"
+      ],
+      "task_id": "H03",
+      "title": "Deterministic crash instrumentation"
+    },
+    {
+      "acceptance_gate": "No third authoritative mixture occurs.",
+      "dependencies": [
+        "H03",
+        "F04"
+      ],
+      "principal_claim": "Recovery exposes exact PRE, exact POST, or rejection only.",
+      "required_outputs": [
+        "process restart harness",
+        "PRE/POST comparator"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R09"
+      ],
+      "task_id": "H04",
+      "title": "Post-crash canonical reopen"
+    },
+    {
+      "acceptance_gate": "Every observed result maps to one serial order.",
+      "dependencies": [
+        "H02",
+        "I05",
+        "J07"
+      ],
+      "principal_claim": "Commit, ack, migration, and checkpoint outcomes match a serial reference history.",
+      "required_outputs": [
+        "concurrency suite"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R09"
+      ],
+      "task_id": "H05",
+      "title": "Concurrent operation linearization"
+    },
+    {
+      "acceptance_gate": "Unsafe settings fail startup/CI.",
+      "dependencies": [
+        "H02"
+      ],
+      "principal_claim": "Runtime database configuration satisfies the assumed durability contract.",
+      "required_outputs": [
+        "configuration checker",
+        "deployment tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R09"
+      ],
+      "task_id": "H06",
+      "title": "Durability configuration assertions"
+    },
+    {
+      "acceptance_gate": "No abstract action lacks a concrete mapping/nonclaim.",
+      "dependencies": [
+        "H04",
+        "H06"
+      ],
+      "principal_claim": "Each DRA action maps to exact SQL, constraints, and recovery evidence.",
+      "required_outputs": [
+        "refinement report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R09"
+      ],
+      "task_id": "H07",
+      "title": "Concrete transaction refinement report"
+    },
+    {
+      "acceptance_gate": "Exact-head approval or explicit blockers.",
+      "dependencies": [
+        "H07"
+      ],
+      "principal_claim": "An independent adversarial review fails to produce a durable mixture.",
+      "required_outputs": [
+        "review packet",
+        "review verdict"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R09"
+      ],
+      "task_id": "H08",
+      "title": "Independent atomicity review"
+    },
+    {
+      "acceptance_gate": "Same atom/ordinal/payload yields same ID; substitutions differ.",
+      "dependencies": [
+        "D04"
+      ],
+      "principal_claim": "Every semantic effect has one provenance-bound stable ID.",
+      "required_outputs": [
+        "effect ID function",
+        "vectors"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R10"
+      ],
+      "task_id": "I01",
+      "title": "Stable effect identity"
+    },
+    {
+      "acceptance_gate": "No committed effect exists without its atom.",
+      "dependencies": [
+        "H02",
+        "I01"
+      ],
+      "principal_claim": "Outbox semantic rows are atomic members of publication.",
+      "required_outputs": [
+        "table/schema",
+        "transaction tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R10"
+      ],
+      "task_id": "I02",
+      "title": "Committed outbox schema"
+    },
+    {
+      "acceptance_gate": "Expired/crashed leases remain recoverably deliverable.",
+      "dependencies": [
+        "I02"
+      ],
+      "principal_claim": "Workers may retry attempts without changing semantic identity.",
+      "required_outputs": [
+        "lease algorithm",
+        "multi-worker tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R10"
+      ],
+      "task_id": "I03",
+      "title": "Safe leasing"
+    },
+    {
+      "acceptance_gate": "Duplicate attempt is observationally idempotent.",
+      "dependencies": [
+        "I01"
+      ],
+      "principal_claim": "The external destination recognizes stable effect identity or the effect type is unmountable.",
+      "required_outputs": [
+        "adapter contract",
+        "dedup tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R10"
+      ],
+      "task_id": "I04",
+      "title": "Destination dedup adapter"
+    },
+    {
+      "acceptance_gate": "Well-shaped foreign receipt roots reject.",
+      "dependencies": [
+        "I04"
+      ],
+      "principal_claim": "Only an exact verified destination receipt can acknowledge the committed effect.",
+      "required_outputs": [
+        "ack schema/checker",
+        "forgery mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R10"
+      ],
+      "task_id": "I05",
+      "title": "Provenance-bound acknowledgment"
+    },
+    {
+      "acceptance_gate": "Redelivery returns already accepted and one durable ack.",
+      "dependencies": [
+        "I03",
+        "I05"
+      ],
+      "principal_claim": "Crash after external accept cannot create a second semantic effect.",
+      "required_outputs": [
+        "fault tests",
+        "redelivery report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R10"
+      ],
+      "task_id": "I06",
+      "title": "Lost-ack recovery"
+    },
+    {
+      "acceptance_gate": "Every scenario has exact expected durable/external state.",
+      "dependencies": [
+        "I06"
+      ],
+      "principal_claim": "All delivery/lease/ack crash combinations preserve ancestry and recoverability.",
+      "required_outputs": [
+        "BDD/ATDD matrix"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R10"
+      ],
+      "task_id": "I07",
+      "title": "Outbox disaster matrix"
+    },
+    {
+      "acceptance_gate": "No unsupported exactly-once wording remains.",
+      "dependencies": [
+        "I07"
+      ],
+      "principal_claim": "Documentation/API claims match atomic enqueue plus at-least-once idempotent delivery.",
+      "required_outputs": [
+        "contract docs",
+        "claim checker"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R10"
+      ],
+      "task_id": "I08",
+      "title": "Honest delivery contract"
+    },
+    {
+      "acceptance_gate": "Skip/reverse/unknown phases reject.",
+      "dependencies": [
+        "A02"
+      ],
+      "principal_claim": "Authority phases form one closed linear state machine.",
+      "required_outputs": [
+        "enum/transition checker"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R11"
+      ],
+      "task_id": "J01",
+      "title": "Exact migration lifecycle"
+    },
+    {
+      "acceptance_gate": "Dual writer and quiesced writer mutants fail.",
+      "dependencies": [
+        "J01"
+      ],
+      "principal_claim": "Exactly legacy, none, or target writer is enabled by phase.",
+      "required_outputs": [
+        "writer policy",
+        "mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R11"
+      ],
+      "task_id": "J02",
+      "title": "Writer matrix"
+    },
+    {
+      "acceptance_gate": "No artifact silently survives profile change.",
+      "dependencies": [
+        "C04",
+        "G04",
+        "F01"
+      ],
+      "principal_claim": "Every artifact is preserved, transported, invalidated, or forbidden explicitly.",
+      "required_outputs": [
+        "transport matrix",
+        "typed maps"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R11"
+      ],
+      "task_id": "J03",
+      "title": "Evidence transport classification"
+    },
+    {
+      "acceptance_gate": "Cross-profile/sequence substitutions reject.",
+      "dependencies": [
+        "J03"
+      ],
+      "principal_claim": "Migration is pinned to exact source/target roots and activation sequence.",
+      "required_outputs": [
+        "manifest",
+        "codec/root"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R11"
+      ],
+      "task_id": "J04",
+      "title": "Root/sequence-bound migration manifest"
+    },
+    {
+      "acceptance_gate": "Any divergence is retained and phase advance rejects.",
+      "dependencies": [
+        "J04"
+      ],
+      "principal_claim": "Target shadow output has no authority and divergence blocks progression.",
+      "required_outputs": [
+        "shadow runner",
+        "equality/refinement checker"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R11"
+      ],
+      "task_id": "J05",
+      "title": "Shadow replay and dual check"
+    },
+    {
+      "acceptance_gate": "All writers reject in QUIESCED.",
+      "dependencies": [
+        "J02",
+        "K01"
+      ],
+      "principal_claim": "No value-moving writer is reachable during final switch checks.",
+      "required_outputs": [
+        "quiescence gate",
+        "entrypoint tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R11",
+        "R12"
+      ],
+      "task_id": "J06",
+      "title": "Quiescence enforcement"
+    },
+    {
+      "acceptance_gate": "Old writer cannot commit after switch.",
+      "dependencies": [
+        "J04",
+        "J06",
+        "F06"
+      ],
+      "principal_claim": "Writer profile/epoch changes atomically and invalidates old tokens.",
+      "required_outputs": [
+        "switch transaction",
+        "stale writer tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R11"
+      ],
+      "task_id": "J07",
+      "title": "Authority switch and stale-token rejection"
+    },
+    {
+      "acceptance_gate": "Balance-only or partial rollback rejects.",
+      "dependencies": [
+        "J07"
+      ],
+      "principal_claim": "Rollback restores complete authorized history/config/residual/nullifier/outbox state.",
+      "required_outputs": [
+        "rollback certificate",
+        "recovery tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R11"
+      ],
+      "task_id": "J08",
+      "title": "Complete rollback semantics"
+    },
+    {
+      "acceptance_gate": "Frozen campaign exhausts without safe invariant failure.",
+      "dependencies": [
+        "J08"
+      ],
+      "principal_claim": "All bounded phase/crash/retry words preserve one writer and complete history.",
+      "required_outputs": [
+        "model",
+        "state counts",
+        "mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R11"
+      ],
+      "task_id": "J09",
+      "title": "Migration public-model/TLA/crash campaign"
+    },
+    {
+      "acceptance_gate": "Deployment/build scan finds no unclassified publisher.",
+      "dependencies": [
+        "A04"
+      ],
+      "principal_claim": "Every production path capable of state/effect change is named.",
+      "required_outputs": [
+        "machine-readable inventory"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R12"
+      ],
+      "task_id": "K01",
+      "title": "Value-moving entrypoint inventory"
+    },
+    {
+      "acceptance_gate": "Core modules cannot import/use side-effect adapters.",
+      "dependencies": [
+        "K01",
+        "D08"
+      ],
+      "principal_claim": "Only one narrow verified commit port can publish value-moving state.",
+      "required_outputs": [
+        "capability interface",
+        "dependency rules"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R12"
+      ],
+      "task_id": "K02",
+      "title": "Unique publication capability"
+    },
+    {
+      "acceptance_gate": "Syntax-aware checker kills all structural bypass mutants.",
+      "dependencies": [
+        "K02"
+      ],
+      "principal_claim": "Forbidden direct writes/imports/legacy publishers fail CI.",
+      "required_outputs": [
+        "AST/Rust parser checker",
+        "mutation tests"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R12"
+      ],
+      "task_id": "K03",
+      "title": "Static reachability checker"
+    },
+    {
+      "acceptance_gate": "Added/removed publisher requires reviewed root change.",
+      "dependencies": [
+        "D05",
+        "K01"
+      ],
+      "principal_claim": "Publisher inventory and topology root are independently pinned.",
+      "required_outputs": [
+        "topology generator",
+        "root artifact"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R12",
+        "R04"
+      ],
+      "task_id": "K04",
+      "title": "Anchored TCG topology"
+    },
+    {
+      "acceptance_gate": "All return-success/direct-write/skip-check mutants are killed.",
+      "dependencies": [
+        "K02",
+        "K03"
+      ],
+      "principal_claim": "Every entrypoint fails when its verified commit edge is bypassed.",
+      "required_outputs": [
+        "mutation campaign"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R12"
+      ],
+      "task_id": "K05",
+      "title": "Dynamic bypass mutants"
+    },
+    {
+      "acceptance_gate": "Production build and runtime cannot invoke legacy publisher.",
+      "dependencies": [
+        "J07",
+        "K03"
+      ],
+      "principal_claim": "Legacy publishers are unreachable after authority switch.",
+      "required_outputs": [
+        "build/runtime gates"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R12",
+        "R11"
+      ],
+      "task_id": "K06",
+      "title": "Seal legacy paths"
+    },
+    {
+      "acceptance_gate": "No direct protected-table writer or untracked worker remains.",
+      "dependencies": [
+        "K04",
+        "K06"
+      ],
+      "principal_claim": "Operational credentials/commands cannot bypass source-level controls.",
+      "required_outputs": [
+        "deployment audit report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R12"
+      ],
+      "task_id": "K07",
+      "title": "Deployment boundary audit"
+    },
+    {
+      "acceptance_gate": "Independent exact-head/deployment review approves or blocks.",
+      "dependencies": [
+        "K05",
+        "K07"
+      ],
+      "principal_claim": "Every inventoried value move consumes one verified ANF bundle at the unique port.",
+      "required_outputs": [
+        "theorem/evidence packet"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R12"
+      ],
+      "task_id": "K08",
+      "title": "Mounted no-bypass theorem packet"
+    },
+    {
+      "acceptance_gate": "Every term has schema field, scale, and authority source.",
+      "dependencies": [
+        "A04"
+      ],
+      "principal_claim": "Debt/backing terms are exact stored quantities, not UI/index approximations.",
+      "required_outputs": [
+        "economic state spec"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R13"
+      ],
+      "task_id": "L01",
+      "title": "Authoritative economic quantities"
+    },
+    {
+      "acceptance_gate": "No ambiguous total or hidden rounding premise remains.",
+      "dependencies": [
+        "L01"
+      ],
+      "principal_claim": "Nominal conservation and oracle-valued safety are explicit separate theorems.",
+      "required_outputs": [
+        "Lean-ready invariant spec"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R13"
+      ],
+      "task_id": "L02",
+      "title": "Whole-system invariant statement"
+    },
+    {
+      "acceptance_gate": "No value-changing entrypoint lacks an economic classification.",
+      "dependencies": [
+        "L01",
+        "K01"
+      ],
+      "principal_claim": "Every debt/backing-changing command and delta is inventoried.",
+      "required_outputs": [
+        "machine-readable effect matrix"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R13",
+        "R12"
+      ],
+      "task_id": "L03",
+      "title": "Command effect matrix"
+    },
+    {
+      "acceptance_gate": "All command family theorem roots build.",
+      "dependencies": [
+        "L02",
+        "L03"
+      ],
+      "principal_claim": "Every pure accepted command preserves the invariant under explicit premises.",
+      "required_outputs": [
+        "Lean theorems",
+        "Python reference"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R13"
+      ],
+      "task_id": "L04",
+      "title": "Pure command preservation theorems"
+    },
+    {
+      "acceptance_gate": "No stale/pending/zero observation path accepts.",
+      "dependencies": [
+        "G04",
+        "L04"
+      ],
+      "principal_claim": "Every price-dependent transition uses seen, positive, finalized, fresh Oracle context.",
+      "required_outputs": [
+        "guard/checker",
+        "stale mutants"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R13",
+        "R08"
+      ],
+      "task_id": "L05",
+      "title": "Oracle freshness/finality enforcement"
+    },
+    {
+      "acceptance_gate": "Lean builds with all transport premises explicit.",
+      "dependencies": [
+        "L04",
+        "L05",
+        "J03"
+      ],
+      "principal_claim": "The invariant composes across accepted commands, migration, and recovery.",
+      "required_outputs": [
+        "trace theorem"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R13"
+      ],
+      "task_id": "L06",
+      "title": "Finite command trace theorem"
+    },
+    {
+      "acceptance_gate": "All command/edge vectors match.",
+      "dependencies": [
+        "L04"
+      ],
+      "principal_claim": "Both implementations compute identical deltas, rounding, roots, and rejects.",
+      "required_outputs": [
+        "vectors",
+        "differential report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R13"
+      ],
+      "task_id": "L07",
+      "title": "Python/Rust economic parity"
+    },
+    {
+      "acceptance_gate": "No debt/backing write exists outside verified candidate/commit.",
+      "dependencies": [
+        "D01",
+        "H02",
+        "L04"
+      ],
+      "principal_claim": "Every economic state change is certified and atomically published inside ANF.",
+      "required_outputs": [
+        "economic delta certificate",
+        "schema integration"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R13",
+        "R04",
+        "R09"
+      ],
+      "task_id": "L08",
+      "title": "Bind economics into ANF/DRA"
+    },
+    {
+      "acceptance_gate": "Independent review approves all command families or reports blockers.",
+      "dependencies": [
+        "L06",
+        "L07",
+        "L08",
+        "K08"
+      ],
+      "principal_claim": "No uncovered command, stale Oracle, overflow, migration mismatch, or bypass survives.",
+      "required_outputs": [
+        "audit packet",
+        "counterexample ledger"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "R13"
+      ],
+      "task_id": "L09",
+      "title": "Whole-system falsification audit"
+    },
+    {
+      "acceptance_gate": "Complete focused and repository gates pass.",
+      "dependencies": [
+        "B09",
+        "C07",
+        "D10",
+        "E08",
+        "F09",
+        "G07",
+        "H08",
+        "I08",
+        "J09",
+        "K08",
+        "L09"
+      ],
+      "principal_claim": "All approved exact heads coexist in one reviewed integration.",
+      "required_outputs": [
+        "integration branch",
+        "conflict report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "M01",
+      "title": "Final integration branch"
+    },
+    {
+      "acceptance_gate": "No failed, skipped, unknown, stale, or missing required gate.",
+      "dependencies": [
+        "M01"
+      ],
+      "principal_claim": "All formal, differential, crash, concurrency, mutation, and inventory gates pass at one head.",
+      "required_outputs": [
+        "assurance ledger"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "M02",
+      "title": "Complete assurance run"
+    },
+    {
+      "acceptance_gate": "All required exact-head approvals present.",
+      "dependencies": [
+        "M02"
+      ],
+      "principal_claim": "Separate reviewers falsify math, authority, storage, delivery, migration, bypass, and economics.",
+      "required_outputs": [
+        "review verdicts"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "M03",
+      "title": "Independent domain reviews"
+    },
+    {
+      "acceptance_gate": "Every divergence retained; no new writer capability.",
+      "dependencies": [
+        "M03"
+      ],
+      "principal_claim": "New implementation observes production inputs without publication authority.",
+      "required_outputs": [
+        "shadow deployment report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "M04",
+      "title": "Shadow mount"
+    },
+    {
+      "acceptance_gate": "No suppressed divergence.",
+      "dependencies": [
+        "M04"
+      ],
+      "principal_claim": "Legacy writer publishes only when reviewed equality/refinement holds.",
+      "required_outputs": [
+        "dual-check report"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "M05",
+      "title": "Dual check"
+    },
+    {
+      "acceptance_gate": "Pinned roots and stale-writer rejection verified.",
+      "dependencies": [
+        "M05",
+        "J09"
+      ],
+      "principal_claim": "Authority transitions through the exact migration lifecycle.",
+      "required_outputs": [
+        "switch execution record"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "M06",
+      "title": "Quiesce and authority switch"
+    },
+    {
+      "acceptance_gate": "Canonical reopen and pending-effect recovery pass.",
+      "dependencies": [
+        "M06"
+      ],
+      "principal_claim": "Actual durable history, nullifiers, effects, ANF, and entrypoints remain valid after switch.",
+      "required_outputs": [
+        "post-switch audit"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "M07",
+      "title": "Post-switch validation"
+    },
+    {
+      "acceptance_gate": "Explicit PROMOTE_M6 only with complete evidence; otherwise DO_NOT_PROMOTE_M6.",
+      "dependencies": [
+        "M07"
+      ],
+      "principal_claim": "All 13 obligations are proved, implemented, mounted, and tested at their proper layers.",
+      "required_outputs": [
+        "13-row status matrix",
+        "promotion verdict"
+      ],
+      "status": "PLANNED",
+      "targets": [
+        "program"
+      ],
+      "task_id": "M08",
+      "title": "M6 promotion decision"
+    }
+  ]
+}

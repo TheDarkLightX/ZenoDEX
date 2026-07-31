@@ -1,0 +1,120 @@
+schema_version: zenodex.fcis.m6.morph-relation-cards.v1
+date: 2026-07-31
+authority_effect: NONE
+cards:
+  - relation_id: CDR_PHYSICAL_TO_AUTHORIZED_V1
+    source_domain: >-
+      Exact bounded durable table layouts after the storage engine has performed
+      its own physical recovery.
+    target_domain: >-
+      Canonical AuthorizedHistoryV1 values containing genesis, authority epochs,
+      publication atoms, nullifiers, evidence, outbox effects, and acknowledgments.
+    forward_map: >-
+      reopen : DurableLayout -> AuthorizedHistory | Reject
+    reverse_or_lift: >-
+      encode : AuthorizedHistory -> DurableLayout
+    relation_kind: exact_on_canonical_fixed_points
+    preserved_predicates:
+      - current state root
+      - complete ordered publication history
+      - commit identity and fingerprint uniqueness
+      - nullifier uniqueness and ancestry
+      - complete evidence projections
+      - outbox ancestry and identity
+      - acknowledgment ancestry
+      - authority epoch and writer validity
+    lost_information:
+      - physical WAL records
+      - uncommitted pages
+      - locks and leases
+      - storage-engine internal transaction IDs
+      - nonauthoritative indexes and caches
+    residual_fiber: >-
+      Physical recovery receipt and concrete adapter refinement evidence proving
+      that the storage engine's exposed layout is the layout checked by reopen.
+    reverse_obligations:
+      - reopen(encode(history)) = history
+      - encode(reopen(layout)) = layout for every accepted layout
+      - exact type, order, uniqueness, and resource bounds
+      - concrete crash recovery exposes PRE, POST, or rejection only
+    counterexamples:
+      - selected state root matches while receipt row is missing
+      - valid-looking surplus evidence row
+      - transition without nullifier
+      - nullifier without transition
+      - crossed receipt or outbox row
+    authority_effect: NONE
+
+  - relation_id: RQAG_RUNTIME_TRACE_TO_TCG_PATH_V1
+    source_domain: >-
+      Cyclic runtime traces containing retries, reopen/re-encode, repeated pure
+      verification, destination redelivery, commits, acknowledgments, migrations,
+      and crashes.
+    target_domain: >-
+      Finite Tree-Chord-Gate authority paths over theorem-bearing semantic,
+      authorization, publication, reopen, and delivery stages.
+    forward_map: >-
+      quotientTrace removes only adjacent operations carrying valid
+      StutterReceiptV1 certificates, then maps every remaining operation to its
+      pinned TCG edge.
+    reverse_or_lift: >-
+      liftPath pairs the TCG path with the ordered residual fiber of removed
+      stutter receipts and reconstructs an observationally equivalent runtime
+      trace class, not necessarily the original byte-identical trace.
+    relation_kind: observational_soundness_conditional
+    preserved_predicates:
+      - canonical authority state
+      - ANF lineage identity
+      - committed history root
+      - externally visible semantic effects
+      - gate crossing order
+    lost_information:
+      - number of identical retry attempts
+      - number of identical pure verification repetitions
+      - timing and transport-loss positions inside verified stutters
+      - storage-engine physical recovery steps
+    residual_fiber: >-
+      Ordered StutterReceiptV1 values with operation ID, pre/post canonical roots,
+      observable roots, checker identity, and verification receipt.
+    reverse_obligations:
+      - every removed operation is an observational identity on the exact canonical value
+      - new commit, ack publication, and migration are never stutters
+      - remaining edges are complete and use the independently anchored topology
+      - lifted trace preserves original-domain safety predicates
+    counterexamples:
+      - same visible state root but missing receipt row hidden as a stutter
+      - new commit removed as retry
+      - migration phase change removed as reopen
+      - payload-changing redelivery removed as destination dedup
+    authority_effect: NONE
+
+  - relation_id: SRGD_AGQE_SIGN_DUAL_TRACE_V1
+    source_domain: >-
+      Ordered SLNF allocator occurrences with SRGD signed-deficit state.
+    target_domain: >-
+      The same ordered occurrences with AGQE cumulative-surplus state.
+    forward_map: >-
+      phi(d0,d1,d2) = (-d0,-d1,-d2)
+    reverse_or_lift: >-
+      phi is its own inverse.
+    relation_kind: exact_conjugacy_target
+    preserved_predicates:
+      - semantic entitlement key
+      - role order
+      - allocations
+      - zero-sum state
+      - strict discrepancy bounds
+      - cumulative entitlement history
+    lost_information:
+      - representation label only
+    residual_fiber: none
+    reverse_obligations:
+      - phi(phi(state)) = state
+      - phi(SRGD_step(state,event)) = AGQE_step(phi(state),event)
+      - conjugacy extends over the complete SLNF word
+      - migration transports every state entry
+    counterexamples:
+      - target initialized to zero
+      - representation label inserted into the semantic state key
+      - occurrence word reordered or globally grouped
+    authority_effect: NONE

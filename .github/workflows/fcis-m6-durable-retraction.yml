@@ -1,0 +1,525 @@
+name: FCIS M6 Durable Retraction
+
+on:
+  pull_request:
+    paths:
+      - "src/core/fcis_durable_retraction.py"
+      - "tests/core/test_fcis_durable_retraction.py"
+      - "experiments/fcis_durable_retraction_bounded_search.py"
+      - "experiments/fcis_durable_retraction_bounded_search_result.json"
+      - "experiments/julia/fcis_durable_retraction_oracle.jl"
+      - "formal/esso/fcis_durable_retraction_v1.yaml"
+      - "tools/check_fcis_durable_retraction_model.py"
+      - "lean-mathlib/Proofs/FCISDurableRetraction.lean"
+      - "lean-mathlib/lakefile.lean"
+      - "docs/research/FCIS_M6_DURABLE_RETRACTION_BREAKTHROUGH_20260731.md"
+      - "docs/research/FCIS_M6_R02_COMPLETE_SRGD_THEOREM_20260731.md"
+      - "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md"
+      - "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json"
+      - "docs/research/FCIS_M6_LUNA_REPAIR_REPORT_20260731.md"
+      - "docs/research/FCIS_M6_LUNA_NONCLAIMS_V1.md"
+      - "docs/research/FCIS_M6_LUNA_CHANGE_INVENTORY_V1.md"
+      - "docs/research/FCIS_M6_LUNA_SOURCE_MANIFEST_V1.json"
+      - "docs/research/FCIS_M6_LUNA_TOOLCHAIN_V1.json"
+      - "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/**"
+      - "docs/research/FCIS_M6_RESEARCH_KERNEL_LEDGER_V2.json"
+      - "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml"
+      - "docs/research/FCIS_M6_LEAP_SURPRISE_PACKETS_V1.yaml"
+      - "README_BUNDLE.md"
+      - "SHA256SUMS.txt"
+      - "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz"
+      - "requirements-dev.lock.txt"
+      - ".github/workflows/fcis-m6-durable-retraction.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-reference:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact source head and supplied input hashes
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          (
+            cd docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair
+            sha256sum --check --strict SHA256SUMS.txt
+          )
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.3"
+          cache: pip
+          cache-dependency-path: requirements-dev.lock.txt
+      - name: Install hash-locked development requirements
+        run: python -m pip install --require-hashes --requirement requirements-dev.lock.txt
+      - name: Verify resolved Python environment
+        run: |
+          python --version
+          python -m pip check
+          python -m ruff --version
+          python -m mypy --version
+          python -m pytest --version
+      - name: Compile focused files
+        run: |
+          python -m py_compile \
+            src/core/fcis_durable_retraction.py \
+            tests/core/test_fcis_durable_retraction.py \
+            experiments/fcis_durable_retraction_bounded_search.py \
+            tools/check_fcis_durable_retraction_model.py
+      - name: Lint and format-check focused files
+        run: |
+          python -m ruff check \
+            src/core/fcis_durable_retraction.py \
+            tests/core/test_fcis_durable_retraction.py \
+            experiments/fcis_durable_retraction_bounded_search.py \
+            tools/check_fcis_durable_retraction_model.py
+          python -m ruff format --check \
+            src/core/fcis_durable_retraction.py \
+            tests/core/test_fcis_durable_retraction.py \
+            experiments/fcis_durable_retraction_bounded_search.py
+      - name: Type-check durable reference model
+        run: python -m mypy src/core/fcis_durable_retraction.py
+      - name: Run focused semantic tests
+        run: python -m pytest -q tests/core/test_fcis_durable_retraction.py
+      - name: Replay bounded search
+        run: |
+          python experiments/fcis_durable_retraction_bounded_search.py \
+            > /tmp/fcis-durable-retraction-python.json
+          git diff --exit-code -- \
+            experiments/fcis_durable_retraction_bounded_search_result.json
+      - name: Validate research artifacts and task graph
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          import yaml
+
+          task_graph = json.loads(
+              Path("docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if task_graph["task_count"] != len(task_graph["tasks"]):
+              raise SystemExit("task_count does not match tasks")
+          task_ids = [task["task_id"] for task in task_graph["tasks"]]
+          if len(task_ids) != len(set(task_ids)):
+              raise SystemExit("duplicate Luna task ID")
+          coverage = task_graph["coverage"]
+          if coverage["external_prerequisites"] != ["R01"]:
+              raise SystemExit("unexpected external prerequisite coverage")
+          if coverage["target_obligations"] != [
+              "R02", "R03", "R04", "R05", "R06", "R07",
+              "R08", "R09", "R10", "R11", "R12", "R13",
+          ]:
+              raise SystemExit("task graph must target R02-R13 exactly")
+          known = set(task_ids)
+          by_id = {task["task_id"]: task for task in task_graph["tasks"]}
+          for task in task_graph["tasks"]:
+              missing = set(task["dependencies"]) - known
+              if missing:
+                  raise SystemExit(
+                      f"unknown dependencies for {task['task_id']}: {sorted(missing)}"
+                  )
+
+          color = {task_id: 0 for task_id in known}
+
+          def visit(task_id: str) -> None:
+              if color[task_id] == 1:
+                  raise SystemExit(f"dependency cycle at {task_id}")
+              if color[task_id] == 2:
+                  return
+              color[task_id] = 1
+              for dependency in by_id[task_id]["dependencies"]:
+                  visit(dependency)
+              color[task_id] = 2
+
+          for task_id in task_ids:
+              visit(task_id)
+
+          ledger = json.loads(
+              Path("docs/research/FCIS_M6_RESEARCH_KERNEL_LEDGER_V2.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if ledger["promotion_authority"] != "NONE":
+              raise SystemExit("research ledger must not grant promotion authority")
+          if len(ledger["problem_status"]) != 13:
+              raise SystemExit("research ledger must cover all 13 M6 problems")
+
+          morph = yaml.safe_load(
+              Path("docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if len(morph["cards"]) != 3:
+              raise SystemExit("unexpected Morph relation-card count")
+          leap = yaml.safe_load(
+              Path("docs/research/FCIS_M6_LEAP_SURPRISE_PACKETS_V1.yaml").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if len(leap["packets"]) != 4:
+              raise SystemExit("unexpected LEAP surprise-packet count")
+          esso = yaml.safe_load(
+              Path("formal/esso/fcis_durable_retraction_v1.yaml").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if esso["meta"]["model_id"] != "fcis_durable_retraction_v1":
+              raise SystemExit("unexpected ESSO model ID")
+          if len(esso["actions"]) != 14 or len(esso["invariants"]) != 10:
+              raise SystemExit("unexpected ESSO action or invariant count")
+          action_ids = {action["id"] for action in esso["actions"]}
+          if "receive_verified_external_grant" not in action_ids:
+              raise SystemExit("ESSO grant premise is absent")
+          if "authorize_reopened_head" in action_ids:
+              raise SystemExit("caller-controlled ESSO authorization remains")
+          if "verified_external_grant" not in str(esso):
+              raise SystemExit("ESSO verified grant parameter is absent")
+          if "verified_destination_receipt" not in str(esso):
+              raise SystemExit("ESSO verified destination premise is absent")
+          PY
+
+      - name: Exhaustively replay the public finite-model subset
+        run: python tools/check_fcis_durable_retraction_model.py --self-test
+
+  julia-oracle:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up pinned Julia action
+        uses: julia-actions/setup-julia@4c0cb0fce8556fdb04a90347310e5db8b1f98fb9
+        with:
+          version: "1.12.6"
+      - name: Set up Python for structural parity
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12.3"
+      - name: Run independent Julia oracle
+        run: |
+          julia --startup-file=no \
+            experiments/julia/fcis_durable_retraction_oracle.jl \
+            > /tmp/fcis-durable-retraction-julia.json
+      - name: Compare Julia and frozen Python results
+        run: |
+          python experiments/fcis_durable_retraction_bounded_search.py \
+            > /tmp/fcis-durable-retraction-python-generated.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = json.loads(
+              Path(
+                  "experiments/fcis_durable_retraction_bounded_search_result.json"
+              ).read_text(encoding="utf-8")
+          )
+          actual = json.loads(
+              Path("/tmp/fcis-durable-retraction-julia.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          generated = json.loads(
+              Path("/tmp/fcis-durable-retraction-python-generated.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if generated != expected:
+              raise SystemExit("generated Python result disagrees with frozen result")
+          if actual != expected:
+              raise SystemExit(
+                  "Julia oracle disagrees with frozen Python result\n"
+                  f"expected={json.dumps(expected, sort_keys=True)}\n"
+                  f"actual={json.dumps(actual, sort_keys=True)}"
+              )
+          PY
+
+  lean-theorems:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout pinned compatible mathlib
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          repository: leanprover-community/mathlib4
+          ref: a3a10db0e9d66acbebf76c5e6a135066525ac900
+          path: external/mathlib4
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify pinned mathlib revision
+        working-directory: external/mathlib4
+        run: |
+          test "$(git rev-parse HEAD)" = "a3a10db0e9d66acbebf76c5e6a135066525ac900"
+          test "$(git rev-parse HEAD^{tree})" = "df91be6ed72be0f70aabcd56216d97a06c449a21"
+      - name: Install pinned Elan and project Lean toolchain
+        env:
+          ELAN_INSTALLER_COMMIT: b6cec7e10fe4965a605aaf60d1cb4a5837f0462b
+        run: |
+          curl \
+            --proto '=https' \
+            --tlsv1.2 \
+            --fail \
+            --silent \
+            --show-error \
+            --location \
+            "https://raw.githubusercontent.com/leanprover/elan/${ELAN_INSTALLER_COMMIT}/elan-init.sh" \
+            --output /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install "$(cat lean-mathlib/lean-toolchain)"
+          "$HOME/.elan/bin/elan" default "$(cat lean-mathlib/lean-toolchain)"
+          "$HOME/.elan/bin/lean" --version
+          "$HOME/.elan/bin/lake" --version
+      - name: Generate manifest and restore mathlib cache
+        working-directory: lean-mathlib
+        run: |
+          lake update
+          lake exe cache get
+      - name: Build theorem root and capture axiom audit
+        working-directory: lean-mathlib
+        run: |
+          lake build Proofs.FCISDurableRetraction
+          lake env lean Proofs/FCISDurableRetraction.lean | tee dependency-audit.txt
+          grep -F "FCISDurableRetraction.DurableRetraction.reopen_encode_ok" \
+            dependency-audit.txt
+          grep -F "FCISDurableRetraction.DurableRetraction.fixed_iff_in_encode_range" \
+            dependency-audit.txt
+          grep -F "FCISDurableRetraction.DurableRetraction.normalize_idempotent" \
+            dependency-audit.txt
+          grep -F "FCISDurableRetraction.same_commit_resolves_already" \
+            dependency-audit.txt
+          grep -F "FCISDurableRetraction.changed_head_invalidates_old_authorization" \
+            dependency-audit.txt
+          grep -F "FCISDurableRetraction.crash_view_cases" dependency-audit.txt
+          grep -F "FCISDurableRetraction.stutter_iterate" dependency-audit.txt
+      - name: Reject proof placeholders and trust-expanding declarations
+        run: |
+          if grep -n -E '\b(sorry|admit|axiom|unsafe)\b' \
+            lean-mathlib/Proofs/FCISDurableRetraction.lean; then
+            exit 1
+          fi
+
+  packet-delivery:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Validate exact head, topology, ledgers, manifest, and archive
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          sha256sum --check --strict SHA256SUMS.txt
+          (
+            cd docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair
+            sha256sum --check --strict SHA256SUMS.txt
+          )
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import tarfile
+          from pathlib import Path
+
+          root = Path(".")
+          manifest_path = Path(
+              "docs/research/FCIS_M6_LUNA_SOURCE_MANIFEST_V1.json"
+          )
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          archive_path = Path(manifest["canonical_archive"])
+          if archive_path != Path(
+              "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz"
+          ):
+              raise SystemExit("unexpected canonical archive path")
+          if manifest["archive_excludes"] != [archive_path.as_posix()]:
+              raise SystemExit("archive exclusion does not name the archive")
+
+          entries = manifest["files"]
+          paths = [entry["path"] for entry in entries]
+          if len(paths) != len(set(paths)):
+              raise SystemExit("manifest contains duplicate file paths")
+          expected_hashes = {entry["path"]: entry["sha256"] for entry in entries}
+          expected = set(paths) | set(manifest["integrity_ledgers"]) | {
+              manifest_path.as_posix()
+          }
+          for name in expected:
+              path = Path(name)
+              if path.is_absolute() or ".." in path.parts:
+                  raise SystemExit(f"unsafe packet path: {name}")
+              if not path.is_file():
+                  raise SystemExit(f"missing packet file: {name}")
+          for name, expected_hash in expected_hashes.items():
+              actual_hash = hashlib.sha256(Path(name).read_bytes()).hexdigest()
+              if actual_hash != expected_hash:
+                  raise SystemExit(f"manifest hash mismatch: {name}")
+
+          target = manifest["implementation_target_commit"]
+          target_tree = subprocess.check_output(
+              ["git", "rev-parse", f"{target}^{{tree}}"], text=True
+          ).strip()
+          if target_tree != manifest["implementation_target_tree"]:
+              raise SystemExit("implementation target tree mismatch")
+          packet_commit = subprocess.check_output(
+              ["git", "rev-parse", "HEAD"], text=True
+          ).strip()
+          packet_parent = subprocess.check_output(
+              ["git", "rev-parse", "HEAD^"], text=True
+          ).strip()
+          if packet_parent != target:
+              raise SystemExit(
+                  "packet must be exactly one documentation-only child of target"
+              )
+          if packet_commit != os.environ["EXPECTED_SHA"]:
+              raise SystemExit("workflow head is not the checked-out PR head")
+
+          with tarfile.open(archive_path, "r:gz") as archive:
+              members = archive.getmembers()
+              names = [member.name for member in members]
+              if len(names) != len(set(names)):
+                  raise SystemExit("archive contains duplicate members")
+              if set(names) != expected:
+                  raise SystemExit(
+                      "archive members differ from manifest and integrity ledgers"
+                  )
+              for member in members:
+                  if not member.isfile():
+                      raise SystemExit(
+                          f"archive member is not a regular file: {member.name}"
+                      )
+                  if member.name.startswith("/") or ".." in Path(member.name).parts:
+                      raise SystemExit(f"unsafe archive member: {member.name}")
+                  archived = archive.extractfile(member)
+                  if archived is None or archived.read() != Path(
+                      member.name
+                  ).read_bytes():
+                      raise SystemExit(f"archive content mismatch: {member.name}")
+          Path("/tmp/fcis-m6-archive-members.txt").write_text(
+              "".join(f"{name}\n" for name in sorted(expected)),
+              encoding="utf-8",
+          )
+          print(
+              f"manifest/archive relation: PASS ({len(names)} members; "
+              f"target={target}; packet={packet_commit})"
+          )
+          PY
+
+      - name: Regenerate canonical archive byte-for-byte
+        run: |
+          tar \
+            --sort=name \
+            --mtime='UTC 2026-07-31 00:00:00' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            --mode=0644 \
+            -cf /tmp/fcis-m6-durable-retraction.tar \
+            -T /tmp/fcis-m6-archive-members.txt
+          gzip -n -f /tmp/fcis-m6-durable-retraction.tar
+          cmp --silent \
+            /tmp/fcis-m6-durable-retraction.tar.gz \
+            artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz
+          sha256sum artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz
+
+      - name: Generate post-commit external delivery receipt
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import tarfile
+          from pathlib import Path
+
+          def git(*args: str) -> str:
+              return subprocess.check_output(["git", *args], text=True).strip()
+
+          root = Path(".")
+          manifest_path = Path(
+              "docs/research/FCIS_M6_LUNA_SOURCE_MANIFEST_V1.json"
+          )
+          archive_path = Path(
+              "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz"
+          )
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          with tarfile.open(archive_path, "r:gz") as archive:
+              member_names = sorted(member.name for member in archive.getmembers())
+          packet_files = [
+              {
+                  "path": name,
+                  "sha256": hashlib.sha256((root / name).read_bytes()).hexdigest(),
+              }
+              for name in member_names
+          ]
+          receipt = {
+              "schema_version": "zenodex.fcis.m6.external-delivery-receipt.v1",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "branch": os.environ["HEAD_BRANCH"],
+              "event": os.environ["GITHUB_EVENT_NAME"],
+              "workflow_run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "source_head_commit": os.environ["EXPECTED_SHA"],
+              "implementation_target": {
+                  "commit": manifest["implementation_target_commit"],
+                  "tree": manifest["implementation_target_tree"],
+              },
+              "packet": {
+                  "commit": git("rev-parse", "HEAD"),
+                  "tree": git("rev-parse", "HEAD^{tree}"),
+                  "parent_commit": git("rev-parse", "HEAD^"),
+                  "parent_tree": git("rev-parse", "HEAD^^{tree}"),
+              },
+              "manifest": {
+                  "path": manifest_path.as_posix(),
+                  "sha256": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+              },
+              "archive": {
+                  "path": archive_path.as_posix(),
+                  "sha256": hashlib.sha256(archive_path.read_bytes()).hexdigest(),
+              },
+              "packet_files": packet_files,
+          }
+          if receipt["packet"]["commit"] != os.environ["EXPECTED_SHA"]:
+              raise SystemExit("receipt head does not match checked-out head")
+          if receipt["packet"]["parent_commit"] != receipt["implementation_target"]["commit"]:
+              raise SystemExit("receipt topology is not target -> packet child")
+          Path("artifacts/fcis-m6-external-delivery-receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(receipt, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload verified packet and delivery receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fcis-m6-durable-retraction-delivery-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz
+            artifacts/fcis-m6-external-delivery-receipt.json
+          if-no-files-found: error
+          retention-days: 14

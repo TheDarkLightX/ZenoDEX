@@ -1,0 +1,376 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_durable_retraction_v1
+  created_by: leap-dra-research
+  seed: 0
+  notes: >-
+    Bounded crash/retry/reopen/outbox/migration model. One atomic publication
+    writes state, receipt, nullifier, replay evidence, and outbox together.
+    Indeterminate transport outcomes are observations, not durable states.
+    Reopen and restart clear value-moving authority; commit, acknowledgment,
+    and migration require a fresh exact-head authorization action and consume it.
+    The authorization action has an explicit verifier-produced external grant
+    premise, and acknowledgment has an explicit verified destination receipt
+    premise. This is a bounded unmounted model, not a deployment or signer.
+observables:
+  state_vars:
+    - phase
+    - writer_mode
+    - head_authorized
+    - state_published
+    - receipt_published
+    - nullifier_published
+    - replay_published
+    - outbox_published
+    - external_effect
+    - ack_published
+    - commit_seen
+  effects: []
+types: []
+state_vars:
+  - id: phase
+    role: control
+    type:
+      kind: enum
+      symbols:
+        - LEGACY
+        - SHADOW_REPLAY
+        - DUAL_CHECK
+        - QUIESCED
+        - AUTHORITY_SWITCH
+        - POST_SWITCH_VALIDATION
+        - LEGACY_DISABLED
+  - id: writer_mode
+    role: control
+    type:
+      kind: enum
+      symbols:
+        - LEGACY_WRITER
+        - NO_WRITER
+        - TARGET_WRITER
+  - id: head_authorized
+    role: control
+    type: {kind: bool}
+  - id: state_published
+    role: data
+    type: {kind: bool}
+  - id: receipt_published
+    role: data
+    type: {kind: bool}
+  - id: nullifier_published
+    role: data
+    type: {kind: bool}
+  - id: replay_published
+    role: data
+    type: {kind: bool}
+  - id: outbox_published
+    role: data
+    type: {kind: bool}
+  - id: external_effect
+    role: data
+    type: {kind: bool}
+  - id: ack_published
+    role: data
+    type: {kind: bool}
+  - id: commit_seen
+    role: data
+    type: {kind: bool}
+invariants:
+  - id: StateIffReceipt
+    kind: safety
+    expr:
+      op: '='
+      args: [{var: state_published}, {var: receipt_published}]
+  - id: StateIffNullifier
+    kind: safety
+    expr:
+      op: '='
+      args: [{var: state_published}, {var: nullifier_published}]
+  - id: StateIffReplay
+    kind: safety
+    expr:
+      op: '='
+      args: [{var: state_published}, {var: replay_published}]
+  - id: StateIffOutbox
+    kind: safety
+    expr:
+      op: '='
+      args: [{var: state_published}, {var: outbox_published}]
+  - id: EffectRequiresCommittedOutbox
+    kind: safety
+    expr:
+      op: =>
+      args:
+        - {var: external_effect}
+        - op: and
+          args: [{var: state_published}, {var: outbox_published}]
+  - id: AckRequiresEffectAndOutbox
+    kind: safety
+    expr:
+      op: =>
+      args:
+        - {var: ack_published}
+        - op: and
+          args: [{var: external_effect}, {var: outbox_published}]
+  - id: CommitSeenIffPublication
+    kind: safety
+    expr:
+      op: '='
+      args: [{var: commit_seen}, {var: state_published}]
+  - id: QuiescedHasNoWriter
+    kind: safety
+    expr:
+      op: =>
+      args:
+        - op: '='
+          args: [{var: phase}, {enum: QUIESCED}]
+        - op: '='
+          args: [{var: writer_mode}, {enum: NO_WRITER}]
+  - id: PreSwitchUsesLegacyWriter
+    kind: safety
+    expr:
+      op: =>
+      args:
+        - op: or
+          args:
+            - op: '='
+              args: [{var: phase}, {enum: LEGACY}]
+            - op: '='
+              args: [{var: phase}, {enum: SHADOW_REPLAY}]
+            - op: '='
+              args: [{var: phase}, {enum: DUAL_CHECK}]
+        - op: '='
+          args: [{var: writer_mode}, {enum: LEGACY_WRITER}]
+  - id: PostSwitchUsesTargetWriter
+    kind: safety
+    expr:
+      op: =>
+      args:
+        - op: or
+          args:
+            - op: '='
+              args: [{var: phase}, {enum: AUTHORITY_SWITCH}]
+            - op: '='
+              args: [{var: phase}, {enum: POST_SWITCH_VALIDATION}]
+            - op: '='
+              args: [{var: phase}, {enum: LEGACY_DISABLED}]
+        - op: '='
+          args: [{var: writer_mode}, {enum: TARGET_WRITER}]
+init:
+  - var: phase
+    expr: {enum: LEGACY}
+  - var: writer_mode
+    expr: {enum: LEGACY_WRITER}
+  - var: head_authorized
+    expr: {bool: false}
+  - var: state_published
+    expr: {bool: false}
+  - var: receipt_published
+    expr: {bool: false}
+  - var: nullifier_published
+    expr: {bool: false}
+  - var: replay_published
+    expr: {bool: false}
+  - var: outbox_published
+    expr: {bool: false}
+  - var: external_effect
+    expr: {bool: false}
+  - var: ack_published
+    expr: {bool: false}
+  - var: commit_seen
+    expr: {bool: false}
+actions:
+  - id: receive_verified_external_grant
+    params:
+      - id: verified_external_grant
+        type:
+          kind: enum
+          symbols:
+            - VERIFIED_EXTERNAL_GRANT
+    guard:
+      op: and
+      args:
+        - op: not
+          args: [{var: head_authorized}]
+        - op: '='
+          args:
+            - {param: verified_external_grant}
+            - {enum: VERIFIED_EXTERNAL_GRANT}
+    updates:
+      - var: head_authorized
+        expr: {bool: true}
+    effects: {}
+  - id: restart_reopen
+    params: []
+    guard: {bool: true}
+    updates:
+      - var: head_authorized
+        expr: {bool: false}
+    effects: {}
+  - id: atomic_publication
+    params: []
+    guard:
+      op: and
+      args:
+        - {var: head_authorized}
+        - op: not
+          args: [{var: commit_seen}]
+        - op: not
+          args:
+            - op: '='
+              args: [{var: writer_mode}, {enum: NO_WRITER}]
+    updates:
+      - var: state_published
+        expr: {bool: true}
+      - var: receipt_published
+        expr: {bool: true}
+      - var: nullifier_published
+        expr: {bool: true}
+      - var: replay_published
+        expr: {bool: true}
+      - var: outbox_published
+        expr: {bool: true}
+      - var: commit_seen
+        expr: {bool: true}
+      - var: head_authorized
+        expr: {bool: false}
+    effects: {}
+  - id: retry_same_commit
+    params: []
+    guard: {var: commit_seen}
+    updates: []
+    effects: {}
+  - id: crash_before_linearization
+    params: []
+    guard:
+      op: not
+      args: [{var: commit_seen}]
+    updates:
+      - var: head_authorized
+        expr: {bool: false}
+    effects: {}
+  - id: crash_after_linearization
+    params: []
+    guard: {var: commit_seen}
+    updates:
+      - var: head_authorized
+        expr: {bool: false}
+    effects: {}
+  - id: deliver_committed_effect
+    params: []
+    guard: {var: outbox_published}
+    updates:
+      - var: external_effect
+        expr: {bool: true}
+    effects: {}
+  - id: acknowledge_delivery
+    params:
+      - id: verified_destination_receipt
+        type:
+          kind: enum
+          symbols:
+            - VERIFIED_DESTINATION_RECEIPT
+    guard:
+      op: and
+      args:
+        - {var: head_authorized}
+        - {var: external_effect}
+        - {var: outbox_published}
+        - op: '='
+          args:
+            - {param: verified_destination_receipt}
+            - {enum: VERIFIED_DESTINATION_RECEIPT}
+    updates:
+      - var: ack_published
+        expr: {bool: true}
+      - var: head_authorized
+        expr: {bool: false}
+    effects: {}
+  - id: enter_shadow_replay
+    params: []
+    guard:
+      op: and
+      args:
+        - {var: head_authorized}
+        - op: '='
+          args: [{var: phase}, {enum: LEGACY}]
+    updates:
+      - var: phase
+        expr: {enum: SHADOW_REPLAY}
+      - var: head_authorized
+        expr: {bool: false}
+    effects: {}
+  - id: enter_dual_check
+    params: []
+    guard:
+      op: and
+      args:
+        - {var: head_authorized}
+        - op: '='
+          args: [{var: phase}, {enum: SHADOW_REPLAY}]
+    updates:
+      - var: phase
+        expr: {enum: DUAL_CHECK}
+      - var: head_authorized
+        expr: {bool: false}
+    effects: {}
+  - id: quiesce_writers
+    params: []
+    guard:
+      op: and
+      args:
+        - {var: head_authorized}
+        - op: '='
+          args: [{var: phase}, {enum: DUAL_CHECK}]
+    updates:
+      - var: phase
+        expr: {enum: QUIESCED}
+      - var: writer_mode
+        expr: {enum: NO_WRITER}
+      - var: head_authorized
+        expr: {bool: false}
+    effects: {}
+  - id: switch_authority
+    params: []
+    guard:
+      op: and
+      args:
+        - {var: head_authorized}
+        - op: '='
+          args: [{var: phase}, {enum: QUIESCED}]
+    updates:
+      - var: phase
+        expr: {enum: AUTHORITY_SWITCH}
+      - var: writer_mode
+        expr: {enum: TARGET_WRITER}
+      - var: head_authorized
+        expr: {bool: false}
+    effects: {}
+  - id: validate_post_switch
+    params: []
+    guard:
+      op: and
+      args:
+        - {var: head_authorized}
+        - op: '='
+          args: [{var: phase}, {enum: AUTHORITY_SWITCH}]
+    updates:
+      - var: phase
+        expr: {enum: POST_SWITCH_VALIDATION}
+      - var: head_authorized
+        expr: {bool: false}
+    effects: {}
+  - id: disable_legacy
+    params: []
+    guard:
+      op: and
+      args:
+        - {var: head_authorized}
+        - op: '='
+          args: [{var: phase}, {enum: POST_SWITCH_VALIDATION}]
+    updates:
+      - var: phase
+        expr: {enum: LEGACY_DISABLED}
+      - var: head_authorized
+        expr: {bool: false}
+    effects: {}

@@ -1,0 +1,172 @@
+{
+  "schema_version": "zenodex.fcis.m6.luna-source-manifest.v1",
+  "contract": "fcis-m6-durable-retraction-luna-repair-v1",
+  "base_commit": "babffa56dcbddc5886487fbb6e62740b15370000",
+  "implementation_target_commit": "ecf26f987c3d6393501fec66ddfc3429fb8634c7",
+  "implementation_target_tree": "fdf154ac143a9f9a9e840fbbf49761190d138920",
+  "canonical_archive": "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz",
+  "archive_excludes": [
+    "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz"
+  ],
+  "integrity_ledgers": [
+    "SHA256SUMS.txt",
+    "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair/SHA256SUMS.txt"
+  ],
+  "files": [
+    {
+      "path": ".github/workflows/fcis-m6-durable-retraction.yml",
+      "sha256": "efa1b83042c8d7b7484ee61936aceb1a9c4506db2a76ab475163018cc8a239c6",
+      "role": "read_only_ci"
+    },
+    {
+      "path": "requirements-dev.lock.txt",
+      "sha256": "8ae2a245984d66a60e7fde6c0504b79b1de8fbcc86027b2a42c4adb7164229d8",
+      "role": "hash_locked_python_dependencies"
+    },
+    {
+      "path": "experiments/fcis_durable_retraction_bounded_search.py",
+      "sha256": "3bc19d78d6ad863908b2a4e3120b81fca33fdcda22d190b02525e99e5964daec",
+      "role": "bounded_python_oracle"
+    },
+    {
+      "path": "experiments/fcis_durable_retraction_bounded_search_result.json",
+      "sha256": "f4f525f6c5c5b7dbc09485b9d9eed32410b3eaf015b91aed616583ca4973c040",
+      "role": "frozen_bounded_result"
+    },
+    {
+      "path": "experiments/julia/fcis_durable_retraction_oracle.jl",
+      "sha256": "23392a676079fc04e9b368a2f3dbb51a07ff73a4703a485ed5b59a1355aeb5dd",
+      "role": "independent_julia_oracle"
+    },
+    {
+      "path": "formal/esso/fcis_durable_retraction_v1.yaml",
+      "sha256": "3d8eff642b67e0daee1afe3f05fc9401370e5313e2c63b9d4f2b7872d68d8b18",
+      "role": "private_optional_esso_ir_source"
+    },
+    {
+      "path": "tools/check_fcis_durable_retraction_model.py",
+      "sha256": "e97fe5071a46ceb70190ed09391007f9392ec6e2aa0171c92e584ce1c41e7082",
+      "role": "public_exhaustive_model_checker"
+    },
+    {
+      "path": "lean-mathlib/Proofs/FCISDurableRetraction.lean",
+      "sha256": "d3a637d73375ba8a187bf59cecb10846970648fd9294e325e51a54ae3d42896c",
+      "role": "lean_theorem_root"
+    },
+    {
+      "path": "lean-mathlib/lakefile.lean",
+      "sha256": "269e55625ea26d5a01938dcfd15b87b19eccbc3f8ac8b95b53f06882bd9c7c33",
+      "role": "lean_project_root"
+    },
+    {
+      "path": "src/core/fcis_durable_retraction.py",
+      "sha256": "a39181be542c979acd96f7da316366c79b74e29affc156aa691c4f134752a82a",
+      "role": "python_reference_core"
+    },
+    {
+      "path": "tests/core/test_fcis_durable_retraction.py",
+      "sha256": "393db55a223498d5283e24c563a61b7a8fcb0baa20df1a6edaa02f7f579ba090",
+      "role": "permanent_regression_witnesses"
+    },
+    {
+      "path": "README_BUNDLE.md",
+      "sha256": "24ab28c83e90e792f111eef3c1b21f7aff43d8e8162258c720eb3de4611acaba",
+      "role": "packet_readme"
+    },
+    {
+      "path": "docs/research/FCIS_M6_DURABLE_RETRACTION_BREAKTHROUGH_20260731.md",
+      "sha256": "0f39ec30e184545f9ee489a8ef381b23ca81874a09e87145e183210ed05a9a0e",
+      "role": "research_report"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LEAP_SURPRISE_PACKETS_V1.yaml",
+      "sha256": "e9bda2c0305a83a3ed196568b49887afb1d4b4812ca9734088f140491b67c082",
+      "role": "research_artifact"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md",
+      "sha256": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
+      "role": "taskbook"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json",
+      "sha256": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+      "role": "task_graph"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_CONTINUATION_PROMPT_V2.md",
+      "sha256": "2ea6d18fa154d466a09982d2069c42b03984e3f1eed3fbb2430e7e2df553e37f",
+      "role": "luna_continuation_prompt"
+    },
+    {
+      "path": "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml",
+      "sha256": "19a9426487ad05f56c8b34889f84b130c92d1d650fdd5c4e3e6c014b27fc49fc",
+      "role": "research_artifact"
+    },
+    {
+      "path": "docs/research/FCIS_M6_R02_COMPLETE_SRGD_THEOREM_20260731.md",
+      "sha256": "654946b3a02976e1b9a5fba8137adc567f73d113987f7cbcee73f5d7b49c5ced",
+      "role": "research_artifact"
+    },
+    {
+      "path": "docs/research/FCIS_M6_RESEARCH_KERNEL_LEDGER_V2.json",
+      "sha256": "4cb06e75ead38ddc54ba83c9811e2dc924464f87394e9a31b1c8facfa519adbe",
+      "role": "research_ledger"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_REPAIR_REPORT_20260731.md",
+      "sha256": "390d8187717b82cf4027d41456f172c95c9c9f1cce7f6ea26607cb6f0c007f4f",
+      "role": "repair_report"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_CHANGE_INVENTORY_V1.md",
+      "sha256": "a43ff44654f53b766652093f68176d14b462b187464f009b0969fe4e45556201",
+      "role": "change_inventory"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_TOOLCHAIN_V1.json",
+      "sha256": "e85dd671b7458fd5fe86ef9c09adeb18c87ea2a7e74d782879ec33ea5f702421",
+      "role": "exact_toolchain_record"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_NONCLAIMS_V1.md",
+      "sha256": "931a847de33d1d4351a61689c6ba517f0dd52d6f9966d64195873c351dcd6453",
+      "role": "nonclaims"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair/README.md",
+      "sha256": "7ed0cd23f2f12b004bc6c05b304e7e87c3026b08fcfeab506ff287581491db2c",
+      "role": "authoritative_repair_input"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair/REVIEW_AND_REPAIR_SPEC.md",
+      "sha256": "322f9de857b7ca073f40b280c2057cc69184622e06d547a82fa1ae8fe2f096b4",
+      "role": "authoritative_repair_input"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair/REPAIR_TASKS.json",
+      "sha256": "373fb78412cfb8a74bfe90cd363e1b5e938c1930f00e8cdff5a557b69d36ed39",
+      "role": "authoritative_repair_input"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair/LUNA_PROMPT.md",
+      "sha256": "acadf5085f77b640c6008f8321f280880e652e56fb22609cfbb0eef548efa94b",
+      "role": "authoritative_prompt"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/repair/SHA256SUMS.txt",
+      "sha256": "9e3207a1c7d046e798c62aa8a823d1328f47667e86b657c8414a2d514ad6b8e2",
+      "role": "input_hash_ledger"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/source/SHA256SUMS.txt",
+      "sha256": "9e3207a1c7d046e798c62aa8a823d1328f47667e86b657c8414a2d514ad6b8e2",
+      "role": "source_archive_hash_ledger"
+    },
+    {
+      "path": "docs/research/FCIS_M6_LUNA_REPAIR_INPUTS_V1/source/repair-zip.bin",
+      "sha256": "341ad62d45a3ff6cfa3b6437b482302654880f96c6c97e3fc505dd8db6c39a37",
+      "role": "repair_zip_projection"
+    }
+  ]
+}

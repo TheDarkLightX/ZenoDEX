@@ -1,0 +1,150 @@
+# FCIS M6 Luna Durable-Retraction Repair Report
+
+**Contract:** `fcis-m6-durable-retraction-luna-repair-v1`  
+**Date:** 2026-07-31  
+**Posture:** `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED`
+
+## Exact source and topology
+
+- Base commit: `babffa56dcbddc5886487fbb6e62740b15370000`
+- Base tree: `eb6771943bc490d1f9664d26ec14622a8849b010`
+- Repair branch: `agent/fcis-m6-r05-r11-durable-retraction-20260731`
+- Prior packet head: `7deeb3403c933402393d15553cc87563aa71b752`
+- Reviewed functional implementation target commit:
+  `ecf26f987c3d6393501fec66ddfc3429fb8634c7`
+- Reviewed functional implementation target tree:
+  `fdf154ac143a9f9a9e840fbbf49761190d138920`
+- Final packet: exactly one documentation-only child of the reviewed functional
+  target. The hosted post-commit receipt records the packet commit, tree,
+  parent, manifest digest, archive digest, and packet-file digests.
+
+The functional target changes four files: the reference core, focused tests,
+public finite-model checker, and read-only assurance workflow. The packet child
+contains only research documents, task artifacts, exact repair inputs,
+integrity records, and the canonical archive.
+
+## Reviewed input hashes
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `fcis-m6-durable-retraction-tree.tar.gz` | `3d1ac7ed5d9404cc4b293a9707502e4e4d8d714498448501b4b878d7b8afcd70` |
+| `fcis-m6-durable-retraction-bundle.zip` | `8e1c5cea2588682f84da2a9fe71f7e1b2bacd79143f1df12695d4542e81d9890` |
+| `fcis-m6-durable-retraction-luna-repair-v1.zip` | `341ad62d45a3ff6cfa3b6437b482302654880f96c6c97e3fc505dd8db6c39a37` |
+| `LUNA_PROMPT.md` | `acadf5085f77b640c6008f8321f280880e652e56fb22609cfbb0eef548efa94b` |
+| `REVIEW_AND_REPAIR_SPEC.md` | `322f9de857b7ca073f40b280c2057cc69184622e06d547a82fa1ae8fe2f096b4` |
+| `REPAIR_TASKS.json` | `373fb78412cfb8a74bfe90cd363e1b5e938c1930f00e8cdff5a557b69d36ed39` |
+
+## Closed review findings
+
+### Complete retry identity
+
+`PublicationAtomV1.fingerprint` now commits `sequence`. A new atom is
+`ABSENT_RETRYABLE` only when all of these hold:
+
+```text
+sequence = committed atom count + 1
+authority epoch index = current authority epoch index
+authority state root = current authority state root
+expected pre-state root = current state root
+writer profile is currently allowed
+deployment and verifier profiles match the canonical history
+```
+
+Permanent witnesses reject same-content/different-sequence fingerprints,
+sequence gaps, and stale or future authority-epoch indices.
+
+### Verifier-at-use authority boundary
+
+The module no longer contains importable construction tokens, caller-mintable
+grant capabilities, or built-in accepting head/destination verifiers.
+Authorization evidence and destination response evidence remain immutable
+structural data. Every authority-bearing use freshly invokes a shell-selected
+verifier and independently binds the result to the exact current subject.
+
+The accepting adapters used by focused tests live only in the test module and
+are named as test-only premises. A production shell must select and pin a sound
+cryptographic adapter. This reference core neither supplies nor proves one.
+
+### Public bounded-model gate
+
+Public CI no longer checks out or executes private ESSO. The checked-in
+`tools/check_fcis_durable_retraction_model.py` validates the exact ESSO-IR
+subset, exhaustively explores every reachable state and enabled transition,
+checks every invariant after every transition, and self-tests semantic mutants.
+
+Current exact result:
+
+```text
+reachable states:     56
+enabled transitions: 268
+actions:              14
+invariants:           10
+mutants killed:        4
+```
+
+The retained private ESSO run is historical optional evidence. It is never a
+required public workflow dependency or a substitute for production refinement.
+
+## Exact local verification
+
+The following gates passed against the reviewed functional target:
+
+```text
+python3 -m pytest -q tests/core/test_fcis_durable_retraction.py
+44 passed
+
+python3 -m ruff check \
+  src/core/fcis_durable_retraction.py \
+  tests/core/test_fcis_durable_retraction.py \
+  tools/check_fcis_durable_retraction_model.py
+PASS
+
+python3 -m ruff format --check <same files>
+PASS
+
+python3 -m mypy --strict \
+  src/core/fcis_durable_retraction.py \
+  tools/check_fcis_durable_retraction_model.py
+PASS
+
+python3 tools/check_fcis_durable_retraction_model.py --self-test
+PASS: 56 states, 268 transitions, four mutants killed
+```
+
+The Python bounded explorer regenerated the frozen result with 49 safe states,
+254 safe transitions, and seven killed mutants. Julia 1.12.6 produced the same
+structured result. The pinned `Proofs.FCISDurableRetraction` Lean target built
+against mathlib commit `a3a10db0e9d66acbebf76c5e6a135066525ac900`.
+The checked theorem file contains no `sorry`, user axiom, or unsafe declaration;
+ordinary closure results retain Lean's recorded `propext` dependency.
+
+Historical optional evidence records private ESSO commit
+`ef5b06cb7dbed9e8a78d27e9918550ee591e42eb`, tree
+`478db05f8f75f5c7cf0fe6164c097f0ea398cb32`, with 15/15 prior Z3/CVC5
+inductive-query agreement. It was not rerun for this repair and is not needed
+to reproduce the public packet.
+
+## Luna task graph disposition
+
+The 105-task graph remains a production implementation plan. All task records
+remain `PLANNED` until their individual acceptance gates and receipts pass. The
+current Python, Julia, Lean, and bounded-model results are prerequisite evidence
+only. The continuation prompt pins this functional target and routes unavailable
+private ESSO work to the public checker plus an explicit nonclaim.
+
+## Nonclaims and residual obligations
+
+- No concrete SQLite/PostgreSQL transaction, production CAS, WAL/crash
+  refinement, or multi-process concurrency result exists.
+- No production signer/quorum, deployment trust root, authenticated proof
+  context, or destination idempotency adapter is supplied.
+- No complete publisher inventory or mounted no-bypass result exists.
+- No runtime mount, authority switch, migration, deployment, merge, or value
+  movement was performed.
+- No whole-system zUSD debt/backing theorem or production refinement is closed.
+- A passing bounded model does not prove a production datastore or shell.
+
+The next safe implementation slice is the concrete expected-root CAS and
+canonical durable-layout adapter, followed by two-connection concurrency and
+PRE/POST crash-recovery evidence. Keep the work unmounted until the production
+shell, proof context, and no-bypass gates pass.

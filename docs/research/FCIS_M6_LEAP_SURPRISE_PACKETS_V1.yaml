@@ -1,0 +1,94 @@
+schema_version: zenodex.fcis.m6.leap-surprise-packets.v1
+date: 2026-07-31
+authority_effect: NONE
+packets:
+  - problem_id: M6-R06-SELECTED-ROOT-INCOMPLETENESS
+    original_domain: durable publication tables and reopen acceptance
+    failure_kind: alias
+    minimal_witness: >-
+      Start with one canonical committed layout. Remove the receipt evidence row,
+      retain the state/current root, and recompute every cache/root available to
+      the attacker. A verifier that checks only selected digests still accepts.
+    expected_relation: >-
+      Accepted reopen implies the complete durable layout is exactly the
+      authoritative materialization of one reconstructed history.
+    observed_relation: >-
+      Selected-root equality does not imply row-set completeness or cross-table
+      lineage.
+    authority_impact: state
+    reproduction:
+      - tests/core/test_fcis_durable_retraction.py::test_missing_surplus_duplicate_and_reordered_evidence_all_reject
+      - experiments/fcis_durable_retraction_bounded_search.py mutant selected_root_reopen
+    sealed_fields:
+      - expected complete evidence row set
+      - canonical encoder output
+    leap_result: >-
+      Introduce Canonical Durable Retraction and accept only fixed points of
+      encode(reopen(layout)).
+
+  - problem_id: M6-R07-REOPEN-AUTHORITY-CONFLATION
+    original_domain: recovered canonical state and runtime publication authority
+    failure_kind: lift_gap
+    minimal_witness: >-
+      Reopen a byte-perfect canonical snapshot after process restart and call the
+      value-moving commit function before any external deployment/head authority
+      is re-established.
+    expected_relation: >-
+      Canonical recovery proves what is stored; it does not prove the restarted
+      process is authorized to resume value movement.
+    observed_relation: >-
+      A design that returns an immediately writable store conflates evidence with
+      permission.
+    authority_impact: state
+    reproduction:
+      - tests/core/test_fcis_durable_retraction.py::test_reopen_does_not_restore_value_moving_authority_without_fresh_token
+    sealed_fields:
+      - external authorization root
+      - pinned current snapshot root
+      - pinned authority epoch root
+    leap_result: >-
+      Add a fresh reopen-head authorization latch whose token is invalidated by
+      every state-changing snapshot-root change.
+
+  - problem_id: M6-R04-CYCLIC-RUNTIME-VS-DAG-CERTIFICATE
+    original_domain: runtime traces with retry, recovery, redelivery, migration, and commit
+    failure_kind: representation
+    minimal_witness: >-
+      A same-commit retry and canonical reopen form cycles, while the reviewed
+      TCG theorem is stated over directed authority paths in a DAG.
+    expected_relation: >-
+      Harmless retry/reopen loops should not create new authority, while real
+      commits and migrations must remain visible theorem-bearing transitions.
+    observed_relation: >-
+      Treating every loop as a new TCG edge explodes the topology; deleting all
+      loops erases state changes.
+    authority_impact: state_and_delivery
+    reproduction:
+      - docs/research/FCIS_M6_DURABLE_RETRACTION_BREAKTHROUGH_20260731.md
+    sealed_fields:
+      - operation semantic class
+      - pre/post canonical roots
+      - observable equality
+    leap_result: >-
+      Retraction-Quotiented Authority Graph: remove only loops carrying checked
+      observational-identity receipts, then apply TCG to the quotient path.
+
+  - problem_id: M6-R03-REPRESENTATION-RENAMING-RESET
+    original_domain: persistent fee entitlement history across SRGD/AGQE migration
+    failure_kind: alias
+    minimal_witness: >-
+      Rename SRGD deficit state as AGQE surplus, allocate a new state key from the
+      representation label, and initialize the new entry to zero.
+    expected_relation: >-
+      Sign-dual representations preserve one semantic entitlement history.
+    observed_relation: >-
+      Representation identity used as semantic identity permits a fairness reset.
+    authority_impact: value
+    reproduction:
+      - docs/research/FCIS_M6_R02_COMPLETE_SRGD_THEOREM_20260731.md
+    sealed_fields:
+      - canonical semantic profile ID
+      - complete old state entries
+    leap_result: >-
+      Factor semantic profile from representation codec. Keep one entitlement key
+      and migrate every coordinate by sigma=-deficit.
