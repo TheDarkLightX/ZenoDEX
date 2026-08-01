@@ -1,0 +1,142 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "D08",
+  "base_sha": "f721d3bc11929c7649f93655f362e7ee0cc13a07",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_m6_d08_combined_anf.py",
+    "experiments/fcis_m6_d08_combined_anf_check.py",
+    "tests/core/test_fcis_m6_d08_combined_anf.py",
+    "docs/research/m6_tasks/TASK_D08_COMBINED_ANF_VECTOR.json",
+    "docs/research/FCIS_M6_D08_COMBINED_ANF_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_D08_PLAN.md",
+    "docs/research/m6_tasks/TASK_D08_REPORT.md",
+    "docs/research/m6_tasks/TASK_D08_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_D08_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py",
+    "python3 -m ruff check src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py",
+    "python3 -m ruff format --check src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py",
+    "python3 -m mypy --strict src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_d08_combined_anf.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d07_stutter_receipt.py tests/core/test_fcis_m6_d06_rule_manifest.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m6_d05_tcg_inventory.py tests/core/test_fcis_tree_chord_gate_authority.py tests/core/test_fcis_authority_normal_form_v1.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_decision_derivation.py tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "PYTHONPATH=. python3 experiments/fcis_m6_d08_combined_anf_check.py",
+    "python3 -m experiments.fcis_m6_d07_stutter_receipt_check",
+    "python3 -m experiments.fcis_m6_d06_rule_manifest_check",
+    "python3 -m experiments.fcis_m6_d05_tcg_inventory_check",
+    "python3 -m experiments.fcis_m6_d04_anf_bundle_outbox_check",
+    "python3 -m experiments.fcis_m6_d03_anf_receipt_binding_check",
+    "python3 -m experiments.fcis_m6_d02_source_bound_evaluation_check",
+    "python3 -m experiments.fcis_m6_d01_vector_check",
+    "python3 -m experiments.fcis_m6_c07_review_packet_check",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_D08_COMBINED_ANF_VECTOR.json",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D08",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_D08_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_m6_d08_combined_anf.py": "ec0b87e6dabdfe16e84eb49c0df6481d9292b4e375512f50d2729b909b7cfd63",
+    "experiments/fcis_m6_d08_combined_anf_check.py": "7087d5654fc2064f9bacad40915e95d4a43a661506dd7c4e44a09d0a825454db",
+    "tests/core/test_fcis_m6_d08_combined_anf.py": "095a183aabeac1318f2e2fd6835efa9afa480de5ef25e3547ff92bc9e673c69b",
+    "docs/research/m6_tasks/TASK_D08_COMBINED_ANF_VECTOR.json": "fbdda916f6920fabc310dcef0cdc63663e7fa68106aef31780ea98d3602e5e4a",
+    "docs/research/FCIS_M6_D08_COMBINED_ANF_SCHEMA_V1.md": "7b4eb055350d62044c139f612cd5f6ac792c1bfd661bda611db242de00a28285",
+    "docs/research/m6_tasks/TASK_D08_PLAN.md": "3290d7fc6e432d803f6344f5fab465265644037f1e0349df6792d56fea43c54a",
+    "docs/research/m6_tasks/TASK_D08_REPORT.md": "5396b1f1fee341e1d160508b904083d760a14038669c1d71470afeb81e593574"
+  },
+  "results": {
+    "implementation_commit": "6f1f31697",
+    "implementation_tree": "938dbe9994ef527335f2167edf010d9dc0cfff2b",
+    "implementation_parent": "f721d3bc11929c7649f93655f362e7ee0cc13a07",
+    "focused_d08_tests": "5 passed",
+    "d08_dependency_regression": "202 passed",
+    "d08_vector_checker": "pass; D08_COMBINED_ANF_MATCH; 5 mutants killed",
+    "d07_vector_checker": "pass; D07_STUTTER_RECEIPT_MATCH",
+    "d06_vector_checker": "pass; D06_LINEAGE_RULE_MANIFEST_MATCH",
+    "d05_vector_checker": "pass; D05_TCG_INVENTORY_MATCH",
+    "d04_vector_checker": "pass; D04_ANF_BUNDLE_OUTBOX_MATCH",
+    "d03_vector_checker": "pass; D03_ANF_RECEIPT_BINDING_MATCH",
+    "d02_vector_checker": "pass; D02_SOURCE_BOUND_EVALUATION_MATCH",
+    "d01_vector_checker": "pass; D01_VECTOR_MATCH",
+    "c07_packet_checker": "pass; C07_REVIEW_PACKET_MATCH",
+    "python_compile": "pass; 3 files",
+    "ruff": "pass; 3 files",
+    "ruff_format": "pass; 3 files",
+    "mypy_strict": "pass; 3 files",
+    "json_vector": "pass",
+    "validator": "pass; 8 manifest entries",
+    "source_manifest": "pass; 8 manifest entries",
+    "runtime_mount": "none",
+    "remote_publication": "none"
+  },
+  "mutants": [
+    {
+      "id": "D08_TCG_TOPOLOGY_SUBSTITUTION",
+      "status": "killed_by_test_and_checker",
+      "invariant": "TCG topology and instance roots must match the anchored certificate"
+    },
+    {
+      "id": "D08_C3_ROOT_SUBSTITUTION",
+      "status": "killed_by_test_and_checker",
+      "invariant": "ANF C3 roots must equal freshly recomputed closure claims"
+    },
+    {
+      "id": "D08_PROOF_CONTEXT_SUBSTITUTION",
+      "status": "killed_by_test_and_checker",
+      "invariant": "required proof context must bind every ANF context field"
+    },
+    {
+      "id": "D08_PUBLICATION_AUTHORITY_SUBSTITUTION",
+      "status": "killed_by_test_and_checker",
+      "invariant": "DRA atom authority state must equal reopened PRE history"
+    },
+    {
+      "id": "D08_LATER_DECISION_SUBSTITUTION",
+      "status": "killed_by_test_and_checker",
+      "invariant": "the final ANF decision must be freshly evaluated"
+    },
+    {
+      "id": "D08_WRONG_EXACT_INSTANCE",
+      "status": "killed_by_test",
+      "invariant": "composition input type is exact and closed"
+    },
+    {
+      "id": "D08_SOURCE_EXTRACTION_FAILURE",
+      "status": "killed_by_test",
+      "invariant": "malformed source inputs become typed source rejection"
+    },
+    {
+      "id": "D08_MISSING_PROOF_CONTEXT",
+      "status": "killed_by_test",
+      "invariant": "required proof context cannot be omitted"
+    },
+    {
+      "id": "D08_POST_HISTORY_SUBSTITUTION",
+      "status": "killed_by_test",
+      "invariant": "POST must be exactly PRE plus the expected publication atom"
+    },
+    {
+      "id": "D08_MALFORMED_TCG_CERTIFICATE",
+      "status": "killed_by_test",
+      "invariant": "malformed TCG evidence cannot escape as an exception"
+    }
+  ],
+  "nonclaims": [
+    "D08 is tested unmounted composition evidence for a finite research language.",
+    "The proof-context field is structural binding and does not verify a cryptographic proof.",
+    "TCG and inventory inputs remain research premises until production sources and verifiers are mounted.",
+    "The DRA snapshot relation does not refine a production datastore, crash protocol, concurrent transaction, or recovery worker.",
+    "D08 does not prove source-input authentication, TCG completeness, destination idempotency, API no-bypass coverage, migration authority, deployment identity, or value movement.",
+    "No Lean, Julia, ESSO, production adapter, remote implementation commit, hosted CI run, draft PR, merge, deployment, migration, or runtime authority change is claimed."
+  ]
+}
