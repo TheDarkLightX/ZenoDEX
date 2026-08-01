@@ -1,6 +1,7 @@
 # H03 plan: deterministic logical crash instrumentation
 
-Status: implementation in progress; research-only and unmounted.
+Status: implemented and tested in an isolated adapter; research-only and
+unmounted. H04-H08 remain pending.
 
 ## Objective
 

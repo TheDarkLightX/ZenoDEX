@@ -1,0 +1,74 @@
+# FCIS M6 Task H03 Report
+
+TASK_ID: H03
+BASE_SHA: 0c723e3836ca98e3fa37e17276e76afb6ccdffca
+SOURCE_HEAD_SHA: d97731a55e248a131b646abc063e0cd2e8db9c65
+SOURCE_HEAD_TREE: 87eb62e398b8826f8e1f446844f8c8546b35e244
+BRANCH: codex/task-H03-deterministic-crash-20260801
+FILES_CHANGED:
+- experiments/fcis_m6_h02_sqlite_publication.py
+- tests/core/test_fcis_m6_h03_crash_points.py
+- docs/research/m6_tasks/TASK_H03_PLAN.md
+- docs/research/m6_tasks/TASK_H03_CRASH_MANIFEST_V1.json
+
+IMPLEMENTATION_HEAD_SHA: d97731a55e248a131b646abc063e0cd2e8db9c65
+IMPLEMENTATION_TREE: 87eb62e398b8826f8e1f446844f8c8546b35e244
+IMPLEMENTATION_PARENT: 0c723e3836ca98e3fa37e17276e76afb6ccdffca
+
+CLAIM_IMPLEMENTED: H03 adds a closed deterministic crash-point registry and
+one-shot fault hook to the isolated H02 SQLite publication adapter. The hook
+surfaces the pre-BEGIN, post-BEGIN, pre-CAS, post-CAS-check, every logical
+publication-row boundary, pre-COMMIT, and post-COMMIT/pre-response points. The
+optional authority-successor helper also exposes its epoch and allowed-writer
+insert boundaries. The injected exception is deliberately outside the normal
+typed-rejection catches so a later harness can model process loss.
+
+COMMANDS_RUN:
+- PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py
+- PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h03_crash_points.py
+- PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py
+- python3 -m py_compile experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py
+- python3 -m ruff check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py
+- python3 -m ruff format --check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py
+- python3 -m mypy --strict experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py
+- git diff --check
+- python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks H03
+- sha256sum --check --strict docs/research/m6_tasks/TASK_H03_SOURCE_MANIFEST.sha256
+
+RESULTS:
+- H02 regression suite passed: 8 passed.
+- H03 crash-point suite passed: 23 passed.
+- Combined H02/H03 suite passed: 31 passed.
+- All 20 manifest points are registered and match the JSON manifest.
+- 16 ordinary publication points are reachable twice on fresh seeded
+  connections and raise the same named surrogate.
+- 4 optional authority-insert points are reachable twice through the direct
+  authority helper and leave no rows after rollback.
+- The post-COMMIT/pre-response point leaves the staged POST root durable in the
+  connection; H04 must perform the fresh-process canonical reopen.
+- Python compilation, Ruff, formatting, and strict mypy pass.
+
+MUTANTS_ADDED: None. The reachability and repeatability suite is the positive
+H03 hook contract; H04 owns PRE/POST recovery mutants.
+
+FORMAL_EVIDENCE: None. H03 supplies executable isolated-adapter evidence and
+does not add a machine-checked theorem.
+
+REMAINING_NONCLAIMS:
+- H03 does not terminate a real operating-system process or establish a real
+  crash boundary.
+- H03 does not prove SQLite filesystem durability, WAL/fsync behavior,
+  power-loss recovery, or deployment configuration.
+- H03 does not prove that every post-crash layout is exact PRE or exact POST;
+  H04 remains pending.
+- H03 does not prove concurrent linearization, runtime caller coverage,
+  no-bypass behavior, destination idempotency, migration mounting, or value
+  movement.
+- Whole-system accounting, backing, liability, and zUSD safety remain open.
+- M6 remains unmounted and non-promotable.
+
+REVIEW_RISKS: The fault hook is an isolated research seam and is not connected
+to a production datastore or process supervisor. The authority-successor
+points are tested through the private table helper because the current D08
+fixture binds its publication atom to the existing authority epoch. The 1,000+
+line adapter remains an auditability hotspot.
