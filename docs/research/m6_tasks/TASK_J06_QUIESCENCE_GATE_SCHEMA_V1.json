@@ -1,0 +1,49 @@
+{
+  "schema": "zenodex/fcis/m6/j06/quiescence-gate-schema/v1",
+  "task_id": "J06",
+  "status": "RESEARCH_ONLY_UNMOUNTED",
+  "required_fields": [
+    "schema",
+    "manifest_root",
+    "entrypoint_inventory_root",
+    "phase",
+    "activation_sequence",
+    "authority_epoch_index",
+    "authority_state_root",
+    "current_head_root",
+    "replay_head_root",
+    "covered_writer_ids",
+    "evidence_markers",
+    "quiescence_root"
+  ],
+  "required_writer_ids": [
+    "api_http_ingress",
+    "background_outbox_delivery",
+    "durable_recovery_worker",
+    "durable_state_adapter",
+    "entitlement_migration_worker",
+    "governance_administrator",
+    "legacy_fcis_runtime",
+    "operator_cli",
+    "outbox_lease_worker"
+  ],
+  "rejection_codes": [
+    "entrypoint_not_covered",
+    "authority_epoch_mismatch",
+    "authority_root_mismatch",
+    "head_mismatch",
+    "sequence_mismatch",
+    "quiesced_writer_rejected"
+  ],
+  "invariants": [
+    "phase is QUIESCED",
+    "current_head_root equals replay_head_root",
+    "every covered writer attempt is rejected",
+    "every rejection preserves head and authority roots"
+  ],
+  "nonclaims": [
+    "no production barrier or datastore transaction claim",
+    "no runtime reachability or deployment completeness claim",
+    "M6 remains unmounted and non-promotable"
+  ]
+}

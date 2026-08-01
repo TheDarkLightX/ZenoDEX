@@ -1,0 +1,37 @@
+{
+  "schema": "zenodex/fcis/m6/j06/quiescence-gate-config/v1",
+  "profile_id": "research-unmounted-j06-final-replay-quiescence",
+  "expected_j04_manifest_root": "8bf0ac5af1164a52e9e3fb122a3f517d1c1b2fee90e7a13b6f7ec4329f9ba145",
+  "expected_k01_entrypoint_inventory_root": "ada2cfe46294edb82bd1504e5184b24bb64077c3fe5e3d5497752905422fbf63",
+  "expected_quiesced_epoch": 3,
+  "expected_quiesced_authority_root": "15274929f06ed6f9da30915093d0c76d8170564fae1c302432551f41dea07611",
+  "activation_sequence": 100,
+  "expected_current_head_root": "b74f0877adaea7462099f75d57c02550912980bca632b718a32b5d36ebae345c",
+  "expected_replay_head_root": "b74f0877adaea7462099f75d57c02550912980bca632b718a32b5d36ebae345c",
+  "required_writer_ids": [
+    "api_http_ingress",
+    "background_outbox_delivery",
+    "durable_recovery_worker",
+    "durable_state_adapter",
+    "entitlement_migration_worker",
+    "governance_administrator",
+    "legacy_fcis_runtime",
+    "operator_cli",
+    "outbox_lease_worker"
+  ],
+  "evidence_markers": [
+    "API_WRITER_QUIESCED",
+    "CLI_WRITER_QUIESCED",
+    "WORKER_WRITER_QUIESCED",
+    "ADMIN_WRITER_QUIESCED",
+    "DIRECT_ADAPTER_WRITER_QUIESCED",
+    "HEAD_REPLAY_EQUAL"
+  ],
+  "pinned_quiescence_root": "2ec80931468d21fdfbe97e7cd59ed6d3e1f8c7b22fcd49b9446ae2edcbbd7744",
+  "nonclaims": [
+    "J06 is a bounded quiescence admission model, not a production barrier or datastore transaction",
+    "K01 is a reviewed source-set inventory and does not prove dynamic reachability or deployment completeness",
+    "J04 manifest evidence and J02 authority state remain research premises in this slice",
+    "M6 remains unmounted, research-only, and non-promotable"
+  ]
+}
