@@ -1,0 +1,110 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "D02",
+  "base_sha": "9f5ffc7803deb2c27757ce9aa7c20b8b2f2bc288",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_step_evaluation_values.py",
+    "src/core/fcis_step_evaluator.py",
+    "src/core/fcis_decision_derivation.py",
+    "src/core/fcis_source_bound_lineage.py",
+    "tests/core/test_fcis_m6_d02_source_bound_evaluation.py",
+    "experiments/fcis_m6_d02_source_bound_evaluation_check.py",
+    "docs/research/m6_tasks/TASK_D02_SOURCE_BOUND_EVALUATION_VECTOR.json",
+    "docs/research/FCIS_M6_D02_SOURCE_BOUND_EVALUATION_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_D02_PLAN.md",
+    "docs/research/m6_tasks/TASK_D02_REPORT.md",
+    "docs/research/m6_tasks/TASK_D02_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_D02_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_step_evaluation_values.py src/core/fcis_step_evaluator.py src/core/fcis_decision_derivation.py src/core/fcis_source_bound_lineage.py tests/core/test_fcis_m6_d02_source_bound_evaluation.py experiments/fcis_m6_d02_source_bound_evaluation_check.py",
+    "python3 -m ruff check src/core/fcis_step_evaluation_values.py src/core/fcis_step_evaluator.py src/core/fcis_decision_derivation.py src/core/fcis_source_bound_lineage.py tests/core/test_fcis_m6_d02_source_bound_evaluation.py experiments/fcis_m6_d02_source_bound_evaluation_check.py",
+    "python3 -m ruff format --check src/core/fcis_step_evaluation_values.py src/core/fcis_step_evaluator.py src/core/fcis_decision_derivation.py src/core/fcis_source_bound_lineage.py tests/core/test_fcis_m6_d02_source_bound_evaluation.py experiments/fcis_m6_d02_source_bound_evaluation_check.py",
+    "python3 -m mypy --strict src/core/fcis_step_evaluation_values.py src/core/fcis_step_evaluator.py src/core/fcis_decision_derivation.py src/core/fcis_source_bound_lineage.py tests/core/test_fcis_m6_d02_source_bound_evaluation.py experiments/fcis_m6_d02_source_bound_evaluation_check.py",
+    "python3 -m pytest -q tests/core/test_fcis_m6_d02_source_bound_evaluation.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_step_evaluator.py tests/core/test_fcis_decision_derivation.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_D02_SOURCE_BOUND_EVALUATION_VECTOR.json",
+    "python3 -m experiments.fcis_m6_d02_source_bound_evaluation_check",
+    "python3 -m experiments.fcis_m6_d01_vector_check",
+    "python3 -m experiments.fcis_m6_c07_review_packet_check",
+    "python3 -m pytest -q tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D02",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_D02_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_step_evaluation_values.py": "83b58bf959d28b86137b367900f550c744bda441116d21532f245d257df08efb",
+    "src/core/fcis_step_evaluator.py": "76786ffd0e335466e825fbda1904d08fb9800dcd724b3682cde5f4a5c26a860b",
+    "src/core/fcis_decision_derivation.py": "536e3351bc1c84456ef063f3b8e8f28f303ea9e490fbb8a9cd37ef18148f1ad2",
+    "src/core/fcis_source_bound_lineage.py": "7ca449ddd82c8459bec93fa77f0c94ed6eb5cceb584d52c6f5c482bdb139f1c6",
+    "tests/core/test_fcis_m6_d02_source_bound_evaluation.py": "3bfb929c953690743f885cca545f579f1c286763680caadd030d4e891aec960c",
+    "experiments/fcis_m6_d02_source_bound_evaluation_check.py": "65c63889f5aea90d0d9c2f7961f269f6cc86e11b2db3962b1dcd1ed8c2173710",
+    "docs/research/m6_tasks/TASK_D02_SOURCE_BOUND_EVALUATION_VECTOR.json": "816321731618f2c111d6e1f5122d7fca8acb9f39c49981d1bfdc2992cee09766",
+    "docs/research/FCIS_M6_D02_SOURCE_BOUND_EVALUATION_SCHEMA_V1.md": "e843f407eef23c7d1f04350f62941e3b9d1d5f2b5413b04306276401eed9cc4a",
+    "docs/research/m6_tasks/TASK_D02_PLAN.md": "a1e746027788b09144a6c035e98bcd6a7fede6dfede8e80c76689a8151b72bb9",
+    "docs/research/m6_tasks/TASK_D02_REPORT.md": "5251445672af607327ceb599fdfdcae8b8ff32168c5dccd163e34622cae4580c"
+  },
+  "results": {
+    "implementation_commit": "5fad488a113f2ba980f18a4ae4a7b0b1af66c63c",
+    "implementation_tree": "088d252ac1f7d32e9a54c36eafcf4f13e5071def",
+    "implementation_parent": "9f5ffc7803deb2c27757ce9aa7c20b8b2f2bc288",
+    "focused_tests": "43 passed",
+    "d02_vector_checker": "pass; D02_SOURCE_BOUND_EVALUATION_MATCH",
+    "d01_vector_checker": "pass; D01_VECTOR_MATCH",
+    "c07_packet_checker": "pass; C07_REVIEW_PACKET_MATCH",
+    "dependency_c01_c04_c06_tests": "53 passed",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "ruff_format": "pass",
+    "mypy_strict": "pass; 6 files",
+    "json_vector": "pass",
+    "validator": "pass; 11 manifest entries",
+    "source_manifest": "pass; 11 manifest entries",
+    "runtime_mount": "none",
+    "remote_publication": "none"
+  },
+  "mutants": [
+    {
+      "id": "D02_CROSSED_SOURCE_SEGMENT",
+      "status": "killed_by_test_and_checker",
+      "invariant": "fresh source verification rejects a segment from a different context"
+    },
+    {
+      "id": "D02_CALLER_MINTED_BINDING",
+      "status": "killed_by_test",
+      "invariant": "only controlled evaluator derivation creates the source binding"
+    },
+    {
+      "id": "D02_CANDIDATE_EVIDENCE_BINDING_SPLIT",
+      "status": "killed_by_test_and_checker",
+      "invariant": "candidate and evidence retain the identical source binding"
+    },
+    {
+      "id": "D02_POST_HOC_SOURCE_ATTACHMENT",
+      "status": "killed_by_test_and_checker",
+      "invariant": "the exact source segment is present before the fee transition and candidate construction"
+    },
+    {
+      "id": "D02_LEGACY_WIRE_SCHEMA_EXPANSION",
+      "status": "killed_by_dependency_regression",
+      "invariant": "source provenance does not alter the established four-field fee allocation codec"
+    }
+  ],
+  "nonclaims": [
+    "D02 is tested unmounted evidence for a source-bound Python evaluation path.",
+    "D02 does not authenticate the outer caller or prove that all runtime entry points use the source-bound path.",
+    "D02 does not mount a datastore transaction, durable publication, recovery, outbox, migration, proof context, or value movement.",
+    "D02 does not claim that the B06 SLNF allocator is semantically mounted into the existing total settlement-fee accumulator.",
+    "No remote implementation commit, hosted CI run, draft PR, merge, deployment, production migration, or value movement is claimed."
+  ]
+}
