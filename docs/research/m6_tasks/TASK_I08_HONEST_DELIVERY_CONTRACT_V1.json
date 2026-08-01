@@ -1,0 +1,51 @@
+{
+  "schema_version": "zenodex.fcis.m6.i08.honest-delivery-contract.v1",
+  "task_id": "I08",
+  "status": "RESEARCH_ONLY_UNMOUNTED",
+  "documentation_file": "TASK_I08_HONEST_DELIVERY_CONTRACT_V1.md",
+  "required_claim_ids": [
+    "ATOMIC_ENQUEUE",
+    "AT_LEAST_ONCE_ATTEMPTS",
+    "STABLE_IDEMPOTENT_SEMANTIC_IDENTITY",
+    "PROVENANCE_BOUND_ACKNOWLEDGMENT"
+  ],
+  "claims": [
+    {
+      "id": "ATOMIC_ENQUEUE",
+      "phrase": "atomic enqueue",
+      "meaning": "A committed publication atom contains the outbox row or the transaction exposes no durable enqueue.",
+      "status": "RESEARCH_ONLY_UNMOUNTED"
+    },
+    {
+      "id": "AT_LEAST_ONCE_ATTEMPTS",
+      "phrase": "at-least-once attempts",
+      "meaning": "A committed pending effect may be attempted again after lease expiry, crash, timeout, or response loss.",
+      "status": "RESEARCH_ONLY_UNMOUNTED"
+    },
+    {
+      "id": "STABLE_IDEMPOTENT_SEMANTIC_IDENTITY",
+      "phrase": "stable idempotent semantic identity",
+      "meaning": "Every retry reuses the committed effect identity and payload binding; duplicate delivery is deduplicated by the destination contract.",
+      "status": "RESEARCH_ONLY_UNMOUNTED"
+    },
+    {
+      "id": "PROVENANCE_BOUND_ACKNOWLEDGMENT",
+      "phrase": "provenance-bound acknowledgment",
+      "meaning": "A local acknowledgment requires verified membership, receipt provenance, adapter identity, verifier identity, and subject binding.",
+      "status": "RESEARCH_ONLY_UNMOUNTED"
+    }
+  ],
+  "api_names": {
+    "enqueue": "atomic_enqueue",
+    "attempt": "at_least_once_attempt",
+    "identity": "stable_effect_identity",
+    "acknowledgment": "provenance_bound_ack"
+  },
+  "nonclaims": [
+    "network-level exactly-once delivery",
+    "production destination semantics without a verified dedup contract",
+    "runtime mounting or value movement",
+    "filesystem or power-loss durability",
+    "whole-system accounting, backing, or zUSD safety"
+  ]
+}
