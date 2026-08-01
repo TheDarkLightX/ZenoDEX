@@ -1,0 +1,353 @@
+{
+  "schema_version": "zenodex.fcis.m6.i07.outbox-disaster-matrix.v1",
+  "task_id": "I07",
+  "scope": "FCIS M6 outbox enqueue, lease, destination, acknowledgment, recovery, and migration boundaries",
+  "required_scenario_ids": [
+    "delivery_before_local_commit",
+    "orphan_outbox_row",
+    "payload_collision_same_effect_id",
+    "foreign_receipt_ack",
+    "ack_before_delivery",
+    "lost_lease",
+    "worker_crash_before_send",
+    "worker_crash_after_send",
+    "worker_crash_after_ack_write",
+    "migration_during_delivery"
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "delivery_before_local_commit",
+      "trigger": "A worker attempts delivery before the publication transaction commits the outbox row.",
+      "preconditions": [
+        "the candidate effect is not a member of a committed canonical outbox",
+        "the worker has no committed effect witness"
+      ],
+      "fault_boundary": "before publication COMMIT and before destination send",
+      "expected_durable_state": {
+        "reopen": "REJECT",
+        "outbox": "ABSENT_OR_UNCOMMITTED",
+        "ack": "ABSENT",
+        "authority": "NO_COMMIT"
+      },
+      "expected_external_state": {
+        "delivery_attempts": 0,
+        "semantic_effects": 0,
+        "receipt": "NO_DELIVERY"
+      },
+      "required_invariants": [
+        "committed_outbox_precedes_delivery",
+        "effect_identity_is_not_caller_mintable",
+        "rejected_transition_is_a_no_op"
+      ],
+      "evidence_refs": [
+        "tests/core/test_fcis_m6_i02_committed_outbox.py::test_unknown_effect_cannot_be_leased",
+        "tests/core/test_fcis_m6_i03_safe_leasing.py::test_missing_effect_rejects"
+      ],
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no network send or production worker is proven"
+      ]
+    },
+    {
+      "scenario_id": "orphan_outbox_row",
+      "trigger": "A durable layout contains an outbox row without its complete publication ancestry.",
+      "preconditions": [
+        "outbox effect ancestry is incomplete or crossed",
+        "canonical reopen is required before any state change"
+      ],
+      "fault_boundary": "reopen after an incomplete or surplus row family",
+      "expected_durable_state": {
+        "reopen": "REJECT",
+        "outbox": "ORPHAN_REJECTED",
+        "ack": "ABSENT",
+        "authority": "RECOVERY_REJECTED"
+      },
+      "expected_external_state": {
+        "delivery_attempts": 0,
+        "semantic_effects": 0,
+        "receipt": "NO_DELIVERY"
+      },
+      "required_invariants": [
+        "canonical_reopen_rejects_orphan_rows",
+        "selected_root_is_not_complete_evidence",
+        "recovery_rejects_before_effects"
+      ],
+      "evidence_refs": [
+        "tests/core/test_fcis_m6_h02_sqlite_publication.py::test_orphan_outbox_row_rejects",
+        "tests/core/test_fcis_m6_h04_crash_recovery.py::test_recovery_rejects_third_layout"
+      ],
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no power-loss datastore theorem is claimed"
+      ]
+    },
+    {
+      "scenario_id": "payload_collision_same_effect_id",
+      "trigger": "A retry reuses an effect ID while presenting a different payload root.",
+      "preconditions": [
+        "the destination already has a record for the effect ID",
+        "the retry payload root differs from the committed payload root"
+      ],
+      "fault_boundary": "destination deduplication lookup before acceptance",
+      "expected_durable_state": {
+        "reopen": "ACCEPT",
+        "outbox": "COMMITTED_UNCHANGED",
+        "ack": "ABSENT",
+        "authority": "UNCHANGED"
+      },
+      "expected_external_state": {
+        "delivery_attempts": 1,
+        "semantic_effects": 0,
+        "receipt": "PAYLOAD_CONFLICT_REJECTED"
+      },
+      "required_invariants": [
+        "same_effect_id_cannot_change_payload",
+        "destination_state_is_unchanged_on_reject",
+        "retry_cannot_mint_a_second_semantic_effect"
+      ],
+      "evidence_refs": [
+        "tests/core/test_fcis_m6_i04_destination_dedup.py::test_payload_collision_rejects",
+        "experiments/fcis_m6_i04_destination_dedup.py::deliver_effect_v1"
+      ],
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no external destination implementation is proven"
+      ]
+    },
+    {
+      "scenario_id": "foreign_receipt_ack",
+      "trigger": "A caller presents a well-shaped receipt root from another effect or destination.",
+      "preconditions": [
+        "the committed effect has a destination record",
+        "the presented receipt root is not the canonical receipt for that record"
+      ],
+      "fault_boundary": "acknowledgment verification before local journal write",
+      "expected_durable_state": {
+        "reopen": "ACCEPT",
+        "outbox": "DELIVERED_UNACKED",
+        "ack": "ABSENT_REJECTED",
+        "authority": "UNCHANGED"
+      },
+      "expected_external_state": {
+        "delivery_attempts": 1,
+        "semantic_effects": 1,
+        "receipt": "FOREIGN_RECEIPT_REJECTED"
+      },
+      "required_invariants": [
+        "ack_receipt_must_match_effect_and_destination",
+        "foreign_receipt_cannot_create_local_ack",
+        "subject_root_is_recomputed"
+      ],
+      "evidence_refs": [
+        "tests/core/test_fcis_m6_i05_ack_provenance.py::test_foreign_receipt_root_rejects_without_accepting_a_digest_shape",
+        "experiments/fcis_m6_i05_ack_provenance.py::verify_ack_provenance_v1"
+      ],
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no production receipt bytes or verifier identity is proven"
+      ]
+    },
+    {
+      "scenario_id": "ack_before_delivery",
+      "trigger": "A caller presents an acknowledgment before the destination record exists.",
+      "preconditions": [
+        "the effect is committed but destination delivery has not occurred",
+        "the acknowledgment fields may be well-shaped but lack delivery membership"
+      ],
+      "fault_boundary": "acknowledgment verification before destination membership",
+      "expected_durable_state": {
+        "reopen": "ACCEPT",
+        "outbox": "COMMITTED_PENDING",
+        "ack": "ABSENT_REJECTED",
+        "authority": "UNCHANGED"
+      },
+      "expected_external_state": {
+        "delivery_attempts": 0,
+        "semantic_effects": 0,
+        "receipt": "ACK_REJECTED"
+      },
+      "required_invariants": [
+        "ack_requires_delivery_membership",
+        "ack_before_delivery_is_rejected",
+        "rejected_transition_is_a_no_op"
+      ],
+      "evidence_refs": [
+        "tests/core/test_fcis_m6_i05_ack_provenance.py::test_ack_before_delivery_rejects_even_with_well_shaped_receipt",
+        "docs/research/m6_tasks/TASK_I05_ACK_PROVENANCE_SCHEMA_V1.json"
+      ],
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no local durable journal adapter is proven"
+      ]
+    },
+    {
+      "scenario_id": "lost_lease",
+      "trigger": "A worker loses its lease or becomes unable to complete before lease expiry.",
+      "preconditions": [
+        "the effect remains committed in the outbox",
+        "the lease expiry is reached under explicit logical time"
+      ],
+      "fault_boundary": "lease expiry reclaim before a new worker claim",
+      "expected_durable_state": {
+        "reopen": "ACCEPT",
+        "outbox": "PENDING_AFTER_RECLAIM",
+        "ack": "ABSENT",
+        "authority": "UNCHANGED"
+      },
+      "expected_external_state": {
+        "delivery_attempts": 0,
+        "semantic_effects": 0,
+        "receipt": "NO_DELIVERY"
+      },
+      "required_invariants": [
+        "lease_reclaim_preserves_effect_identity",
+        "expired_lease_is_not_active_authority",
+        "attempt_count_is_bounded"
+      ],
+      "evidence_refs": [
+        "tests/core/test_fcis_m6_i03_safe_leasing.py::test_expired_lease_is_reclaimed_and_released",
+        "experiments/fcis_m6_h02_sqlite_publication.py::reclaim_expired_outbox_leases"
+      ],
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no production worker supervision is proven"
+      ]
+    },
+    {
+      "scenario_id": "worker_crash_before_send",
+      "trigger": "A worker crashes after leasing and before any destination send.",
+      "preconditions": [
+        "the outbox row is committed and leased",
+        "no destination record or receipt exists"
+      ],
+      "fault_boundary": "worker failure before destination invocation",
+      "expected_durable_state": {
+        "reopen": "ACCEPT",
+        "outbox": "PENDING_AFTER_RECLAIM",
+        "ack": "ABSENT",
+        "authority": "UNCHANGED"
+      },
+      "expected_external_state": {
+        "delivery_attempts": 0,
+        "semantic_effects": 0,
+        "receipt": "NO_DELIVERY"
+      },
+      "required_invariants": [
+        "expired_lease_returns_to_pending",
+        "worker_crash_before_send_has_no_external_effect",
+        "retry_uses_the_committed_effect"
+      ],
+      "evidence_refs": [
+        "tests/core/test_fcis_m6_i03_safe_leasing.py::test_expired_lease_is_reclaimed_and_released",
+        "docs/research/m6_tasks/TASK_I03_LEASING_SCHEMA_V1.json"
+      ],
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no process supervisor or power-loss behavior is proven"
+      ]
+    },
+    {
+      "scenario_id": "worker_crash_after_send",
+      "trigger": "A worker sends successfully, then crashes before local acknowledgment.",
+      "preconditions": [
+        "the destination accepted the committed effect once",
+        "the local acknowledgment is absent after the crash"
+      ],
+      "fault_boundary": "after destination acceptance and before local ack write",
+      "expected_durable_state": {
+        "reopen": "ACCEPT",
+        "outbox": "DELIVERED_UNACKED",
+        "ack": "ABSENT",
+        "authority": "UNCHANGED"
+      },
+      "expected_external_state": {
+        "delivery_attempts": 2,
+        "semantic_effects": 1,
+        "receipt": "ALREADY_ACCEPTED"
+      },
+      "required_invariants": [
+        "redelivery_is_idempotent",
+        "same_effect_id_survives_response_loss",
+        "receipt_provenance_precedes_ack_write"
+      ],
+      "evidence_refs": [
+        "tests/core/test_fcis_m6_i06_lost_ack_recovery.py::test_redelivery_is_already_accepted_and_writes_one_durable_ack",
+        "experiments/fcis_m6_i06_lost_ack_recovery.py::lose_response_after_destination_acceptance_v1"
+      ],
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no external exactly-once network claim is made"
+      ]
+    },
+    {
+      "scenario_id": "worker_crash_after_ack_write",
+      "trigger": "A worker crashes after the local acknowledgment journal write.",
+      "preconditions": [
+        "the destination accepted the effect",
+        "the local acknowledgment is already durable and provenance-bound"
+      ],
+      "fault_boundary": "after local ack write and before worker response",
+      "expected_durable_state": {
+        "reopen": "ACCEPT",
+        "outbox": "ACK_DURABLE",
+        "ack": "ONE_DURABLE",
+        "authority": "UNCHANGED"
+      },
+      "expected_external_state": {
+        "delivery_attempts": 1,
+        "semantic_effects": 1,
+        "receipt": "ACCEPTED"
+      },
+      "required_invariants": [
+        "durable_ack_is_written_once",
+        "ack_is_bound_to_committed_effect",
+        "response_loss_does_not_erase_durable_ack"
+      ],
+      "evidence_refs": [
+        "tests/core/test_fcis_m6_i06_lost_ack_recovery.py::test_repeated_redelivery_does_not_append_a_second_local_ack",
+        "docs/research/m6_tasks/TASK_I06_LOST_ACK_SCHEMA_V1.json"
+      ],
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no production journal durability or worker response protocol is proven"
+      ]
+    },
+    {
+      "scenario_id": "migration_during_delivery",
+      "trigger": "The authority epoch changes while a worker holds an older delivery context.",
+      "preconditions": [
+        "the worker context names the previous authority epoch",
+        "the migration transition changes the active writer or delivery profile"
+      ],
+      "fault_boundary": "delivery-use authorization check after migration phase advance",
+      "expected_durable_state": {
+        "reopen": "ACCEPT",
+        "outbox": "COMMITTED_PENDING",
+        "ack": "ABSENT",
+        "authority": "STALE_WRITER_REJECTED"
+      },
+      "expected_external_state": {
+        "delivery_attempts": 0,
+        "semantic_effects": 0,
+        "receipt": "DELIVERY_BLOCKED"
+      },
+      "required_invariants": [
+        "authority_epoch_blocks_stale_delivery",
+        "migration_does_not_cross_profiles",
+        "stale_delivery_is_a_no_op"
+      ],
+      "evidence_refs": [
+        "docs/research/m6_tasks/TASK_H07_REFINEMENT_MATRIX_V1.json:DRA-EFFECT-DELIVERY",
+        "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md:J07"
+      ],
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "the real migration authority switch is not implemented"
+      ]
+    }
+  ],
+  "global_nonclaims": [
+    "M6 remains unmounted and non-promotable",
+    "the matrix does not prove production datastore durability, network delivery, migration mounting, no-bypass coverage, accounting, backing, or zUSD safety"
+  ]
+}
