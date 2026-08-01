@@ -1,0 +1,121 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "D06",
+  "base_sha": "4120fbd0a6cf52fb7ea3dc8595ab4b14143a67fb",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_lineage_closure.py",
+    "experiments/fcis_m6_d06_rule_manifest_check.py",
+    "tests/core/test_fcis_m6_d06_rule_manifest.py",
+    "docs/research/m6_tasks/TASK_D06_RULE_MANIFEST_VECTOR.json",
+    "docs/research/FCIS_M6_D06_LINEAGE_RULE_MANIFEST_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_D06_PLAN.md",
+    "docs/research/m6_tasks/TASK_D06_REPORT.md",
+    "docs/research/m6_tasks/TASK_D06_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_D06_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_lineage_closure.py tests/core/test_fcis_m6_d06_rule_manifest.py experiments/fcis_m6_d06_rule_manifest_check.py",
+    "python3 -m ruff check src/core/fcis_lineage_closure.py tests/core/test_fcis_m6_d06_rule_manifest.py experiments/fcis_m6_d06_rule_manifest_check.py",
+    "python3 -m ruff format --check src/core/fcis_lineage_closure.py tests/core/test_fcis_m6_d06_rule_manifest.py experiments/fcis_m6_d06_rule_manifest_check.py",
+    "python3 -m mypy --strict src/core/fcis_lineage_closure.py tests/core/test_fcis_m6_d06_rule_manifest.py experiments/fcis_m6_d06_rule_manifest_check.py",
+    "python3 -m pytest -q tests/core/test_fcis_m6_d06_rule_manifest.py",
+    "python3 -m pytest -q tests/core/test_fcis_m6_d06_rule_manifest.py tests/core/test_fcis_lineage_closure.py",
+    "python3 -m pytest -q tests/core/test_fcis_m6_d06_rule_manifest.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m6_d05_tcg_inventory.py tests/core/test_fcis_tree_chord_gate_authority.py tests/core/test_fcis_authority_normal_form_v1.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_decision_derivation.py tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "python3 -m experiments.fcis_m6_d06_rule_manifest_check",
+    "python3 -m experiments.fcis_m6_d05_tcg_inventory_check",
+    "python3 -m experiments.fcis_m6_d04_anf_bundle_outbox_check",
+    "python3 -m experiments.fcis_m6_d03_anf_receipt_binding_check",
+    "python3 -m experiments.fcis_m6_d02_source_bound_evaluation_check",
+    "python3 -m experiments.fcis_m6_d01_vector_check",
+    "python3 -m experiments.fcis_m6_c07_review_packet_check",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_D06_RULE_MANIFEST_VECTOR.json",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_lineage_closure.py": "e07e4fec8147b85d251cfe42573d5320d8b77282631a8bb15a4020ce641c3afd",
+    "experiments/fcis_m6_d06_rule_manifest_check.py": "f7cc7db3bab37ea9e217599514e757828ef3d2b3c8fb5aa076f478ce4d236e99",
+    "tests/core/test_fcis_m6_d06_rule_manifest.py": "654a8afba99e28945d9b92d06b7b2027381d97bf79b17a7a85eb2f460cf8c5a2",
+    "docs/research/m6_tasks/TASK_D06_RULE_MANIFEST_VECTOR.json": "e756f838a09bbf9fd5b3cc1c531099af35aca3a350cd5cfb6a33e7e70de9bbb7",
+    "docs/research/FCIS_M6_D06_LINEAGE_RULE_MANIFEST_SCHEMA_V1.md": "cbfd329620af885dbba3c499a9508cb81fc408c051fbfcc57467d79058c3cfce",
+    "docs/research/m6_tasks/TASK_D06_PLAN.md": "65e71e3af15f0ecde44213e16e088c113899f646e12a94443d6c30729fcfd35c",
+    "docs/research/m6_tasks/TASK_D06_REPORT.md": "bd3b24901d35de0e278677d42279ac9e66da5bcdfbbb7e59e165b6d57ed2187c"
+  },
+  "results": {
+    "implementation_commit": "d0fefb321d5e0c5ed027816137ce99b8de15d487",
+    "implementation_tree": "8e12ffabe9334b57dc03a264e747f5a45a97f15a",
+    "implementation_parent": "4120fbd0a6cf52fb7ea3dc8595ab4b14143a67fb",
+    "focused_d06_tests": "6 passed",
+    "d06_c3_tests": "15 passed",
+    "d06_dependency_regression": "188 passed",
+    "d06_checker": "pass; D06_LINEAGE_RULE_MANIFEST_MATCH",
+    "d05_vector_checker": "pass; D05_TCG_INVENTORY_MATCH",
+    "d04_vector_checker": "pass; D04_ANF_BUNDLE_OUTBOX_MATCH",
+    "d03_vector_checker": "pass; D03_ANF_RECEIPT_BINDING_MATCH",
+    "d02_vector_checker": "pass; D02_SOURCE_BOUND_EVALUATION_MATCH",
+    "d01_vector_checker": "pass; D01_VECTOR_MATCH",
+    "c07_packet_checker": "pass; C07_REVIEW_PACKET_MATCH",
+    "python_compile": "pass; 3 files",
+    "ruff": "pass; 3 files",
+    "ruff_format": "pass; 3 files",
+    "mypy_strict": "pass; 3 files",
+    "json_vector": "pass",
+    "all_rule_permutations": 24,
+    "manifest_root": "0xc344deaeb5094dd17687b1b187b04445acca462beaf3feed5d13684af94972d5",
+    "runtime_mount": "none",
+    "remote_publication": "none"
+  },
+  "mutants": [
+    {
+      "id": "D06_DUPLICATE_WRITER",
+      "status": "killed_by_test_and_checker",
+      "invariant": "every derived key has exactly one declared writer"
+    },
+    {
+      "id": "D06_MISSING_WRITER",
+      "status": "killed_by_test_and_checker",
+      "invariant": "the manifest covers the complete closed derived-key registry"
+    },
+    {
+      "id": "D06_CYCLIC_DEPENDENCY",
+      "status": "killed_by_test_and_checker",
+      "invariant": "derived dependencies are acyclic"
+    },
+    {
+      "id": "D06_NONCANONICAL_RULE_ORDER",
+      "status": "killed_by_test_and_checker",
+      "invariant": "manifest rules use canonical topological order"
+    },
+    {
+      "id": "D06_MANIFEST_ROOT_SUBSTITUTION",
+      "status": "killed_by_test_and_checker",
+      "invariant": "the manifest root recomputes from its exact contents"
+    },
+    {
+      "id": "D06_FOREIGN_TEST_RULE_SET",
+      "status": "killed_by_test_and_checker",
+      "invariant": "the private permutation seam cannot add a new rule authority"
+    },
+    {
+      "id": "D06_WRONG_DEPENDENCY_COLLECTION",
+      "status": "killed_by_test",
+      "invariant": "rule dependencies are an exact tuple at the typed boundary"
+    }
+  ],
+  "nonclaims": [
+    "D06 is tested unmounted evidence for the concrete C3 rule registry.",
+    "The 24-permutation result is bounded evidence for this exact four-rule registry, not a general theorem for arbitrary future registries.",
+    "The manifest does not prove complete production claim-producer, caller, datastore, deployment, or effect-sink inventory.",
+    "No Lean theorem, Julia execution, private ESSO run, production adapter, runtime mount, authority switch, hosted CI run, remote publication, draft PR, merge, deployment, migration, or value movement is claimed."
+  ]
+}
