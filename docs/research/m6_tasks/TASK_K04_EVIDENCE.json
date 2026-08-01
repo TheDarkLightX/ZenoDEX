@@ -1,0 +1,80 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "K04",
+  "base_sha": "83d033e4c914c89638b33620b1977abf3a4db9d7",
+  "source_head_sha": "a2399ef21e36eacc4ba1aa3d51a4651bb1f05365",
+  "source_head_tree": "86a2ca351419ecef3b96053888b8618342924d19",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_k04_topology_anchor_v1.json",
+    "src/core/fcis_m6_k04_topology_anchor.py",
+    "tools/build_fcis_m6_k04_topology_anchor.py",
+    "experiments/fcis_m6_k04_topology_anchor_check.py",
+    "tests/tools/test_fcis_m6_k04_topology_anchor.py",
+    "docs/research/m6_tasks/TASK_K04_TOPOLOGY_ANCHOR_V1.json",
+    "docs/research/m6_tasks/FCIS_M6_K04_ANCHORED_TOPOLOGY_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_K04_PLAN.md",
+    "docs/research/m6_tasks/TASK_K04_REPORT.md",
+    "docs/research/m6_tasks/TASK_K04_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_K04_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_m6_k04_topology_anchor.py tools/build_fcis_m6_k04_topology_anchor.py experiments/fcis_m6_k04_topology_anchor_check.py tests/tools/test_fcis_m6_k04_topology_anchor.py",
+    "python3 -m ruff check src/core/fcis_m6_k04_topology_anchor.py tools/build_fcis_m6_k04_topology_anchor.py experiments/fcis_m6_k04_topology_anchor_check.py tests/tools/test_fcis_m6_k04_topology_anchor.py",
+    "python3 -m ruff format --check src/core/fcis_m6_k04_topology_anchor.py tools/build_fcis_m6_k04_topology_anchor.py experiments/fcis_m6_k04_topology_anchor_check.py tests/tools/test_fcis_m6_k04_topology_anchor.py",
+    "python3 -m mypy --strict src/core/fcis_m6_k04_topology_anchor.py tools/build_fcis_m6_k04_topology_anchor.py experiments/fcis_m6_k04_topology_anchor_check.py tests/tools/test_fcis_m6_k04_topology_anchor.py",
+    "python3 -m json.tool config/deploy/fcis_m6_k04_topology_anchor_v1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_K04_TOPOLOGY_ANCHOR_V1.json",
+    "python3 tools/build_fcis_m6_d05_tcg_inventory.py --check",
+    "python3 tools/build_fcis_m6_k01_entrypoint_inventory.py --check",
+    "python3 tools/build_fcis_m6_k04_topology_anchor.py --check",
+    "python3 experiments/fcis_m6_k04_topology_anchor_check.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/tools/test_fcis_m6_k04_topology_anchor.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K04",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_K04_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_k04_topology_anchor_v1.json": "050c78a63d731361bfb570965bdf4691bc66ea3ffbea563bbbcbee3c7ea4133d",
+    "src/core/fcis_m6_k04_topology_anchor.py": "b783445a655d0b25b9cd053ae963ff071d442ce14ec67a58fde28d3824f8bd84",
+    "tools/build_fcis_m6_k04_topology_anchor.py": "0b5e92f48de8aaf185149177f237d460ad469dcfb1c3ae363b8ab2b6bddd14ec",
+    "experiments/fcis_m6_k04_topology_anchor_check.py": "7ea13d7cd75e7b19f1f224d4b12aa188a9fed2b71ee4217b892961e2595d19cd",
+    "tests/tools/test_fcis_m6_k04_topology_anchor.py": "06377e6d6d77e74859e6ef82fba88f53b24e2e23a0af8b67284605874d6b9ab5",
+    "docs/research/m6_tasks/TASK_K04_TOPOLOGY_ANCHOR_V1.json": "ad9f997526145d295b8a4be34f3d029fb4e31092f1092f3d044c98f692a0d0e6",
+    "docs/research/m6_tasks/FCIS_M6_K04_ANCHORED_TOPOLOGY_SCHEMA_V1.md": "f0632a50d7425f1256b2883d0ceb9d1792acb2ac0739ed3cdba2e3ba70681185",
+    "docs/research/m6_tasks/TASK_K04_PLAN.md": "2586a9d220429508d8b00cda902c980b700a44ad19e8ff8c57d5af37e57d5880"
+  },
+  "results": {
+    "d05_upstream_pin": "pass; inventory and topology roots match",
+    "k01_upstream_pin": "pass; entrypoint inventory root matches",
+    "publisher_count": "15",
+    "source_union_count": "greater than or equal to 20",
+    "topology_anchor_root": "60c11a0b9f694712abb452434481105f63c8576f1897994fa745bed0f42e0577",
+    "focused_tests": "pass; 3 passed",
+    "implementation_commit": "a2399ef21e36eacc4ba1aa3d51a4651bb1f05365",
+    "implementation_tree": "86a2ca351419ecef3b96053888b8618342924d19",
+    "implementation_parent": "83d033e4c914c89638b33620b1977abf3a4db9d7"
+  },
+  "mutants": [
+    "publisher insertion changes topology root",
+    "source-set insertion changes topology root",
+    "D05 topology root substitution changes topology root",
+    "noncanonical publisher order rejected",
+    "derived root differing from pinned root rejected"
+  ],
+  "nonclaims": [
+    "K04 is a root relation over reviewed D05 and K01 inputs.",
+    "K04 does not prove complete production publisher coverage or deployment reachability.",
+    "K04 does not prove datastore authority, legacy sealing, dynamic call-graph closure, or value movement.",
+    "No mounted caller, authority switch, deployment, migration, or value movement is claimed.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
