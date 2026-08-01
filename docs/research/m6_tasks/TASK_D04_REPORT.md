@@ -2,13 +2,13 @@
 
 TASK_ID: D04
 BASE_SHA: 3acf6285f8a3feef32c838b2a459d18fd721ae8d
-SOURCE_HEAD_SHA: a5b315a3287d1fe052f95a0879ef4d4740030d3b
-SOURCE_HEAD_TREE: 15a891ea7546df9178e5e618c2094cb5d9dcb4bf
+SOURCE_HEAD_SHA: d8f4206f3a16ed61cdaaf5231bd8f62bcbe38c0f
+SOURCE_HEAD_TREE: 38c3673fc185bd88ad5d452a099c65b44a965447
 BRANCH: codex/task-D04-anf-bundle-outbox-repair-20260801
 
-IMPLEMENTATION_HEAD_SHA: a5b315a3287d1fe052f95a0879ef4d4740030d3b
-IMPLEMENTATION_TREE: 15a891ea7546df9178e5e618c2094cb5d9dcb4bf
-IMPLEMENTATION_PARENT: 3acf6285f8a3feef32c838b2a459d18fd721ae8d
+IMPLEMENTATION_HEAD_SHA: d8f4206f3a16ed61cdaaf5231bd8f62bcbe38c0f
+IMPLEMENTATION_TREE: 38c3673fc185bd88ad5d452a099c65b44a965447
+IMPLEMENTATION_PARENT: 22099f578978d621831bead94dede4a85d75305b
 ORIGINAL_D04_BASE: 64db43c26683c529157d32b8c02a6df30e3bd24c
 
 FILES_CHANGED:
@@ -21,9 +21,11 @@ FILES_CHANGED:
 - src/core/fcis_authority_dispatch.py
 - src/core/fcis_commit_bundle_derivation.py
 - src/core/fcis_commit_reference.py
+- src/core/fcis_lineage_closure.py
 - tests/core/test_fcis_commit_bundle_derivation.py
 - tests/core/test_fcis_commit_reference.py
 - tests/core/test_fcis_m5_authority_admission.py
+- tests/core/test_fcis_lineage_closure.py
 - experiments/fcis_m6_d04_anf_bundle_outbox_check.py
 - docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json
 - docs/research/FCIS_M6_D04_ANF_BUNDLE_OUTBOX_SCHEMA_V1.md
@@ -35,14 +37,16 @@ schema identities with a required authority-normal-form root. The controlled
 builder retains the exact ANF value. The reference commit port recomputes and
 verifies the ANF, outbox plan, outbox root, bundle bytes, and bundle root before
 publication. Store validation repeats the same complete check over every
-retained publication before retry classification.
+retained publication before retry classification. V1 bundle admission rejects
+ANF-bound decisions, and lineage closure hashes each outbox through its exact
+V1 or V2 schema.
 
 COMMANDS_RUN:
 
-- python3 -m py_compile experiments/fcis_m6_d04_anf_bundle_outbox_check.py src/core/fcis_authority_dispatch.py src/core/fcis_authority_schema.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_bundle_values.py src/core/fcis_commit_reference.py src/core/fcis_outbox_values.py src/state/state_admission_profile.py src/state/state_snapshot_schema.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py
-- python3 -m ruff check experiments/fcis_m6_d04_anf_bundle_outbox_check.py src/core/fcis_authority_dispatch.py src/core/fcis_authority_schema.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_bundle_values.py src/core/fcis_commit_reference.py src/core/fcis_outbox_values.py src/state/state_admission_profile.py src/state/state_snapshot_schema.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py
-- python3 -m ruff format --check experiments/fcis_m6_d04_anf_bundle_outbox_check.py src/core/fcis_authority_dispatch.py src/core/fcis_authority_schema.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_bundle_values.py src/core/fcis_commit_reference.py src/core/fcis_outbox_values.py src/state/state_admission_profile.py src/state/state_snapshot_schema.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py
-- python3 -m mypy --strict src/state/state_snapshot_schema.py src/state/state_admission_profile.py src/core/fcis_outbox_values.py src/core/fcis_commit_bundle_values.py src/core/fcis_authority_schema.py src/core/fcis_authority_dispatch.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_reference.py tests/core/test_fcis_commit_bundle_derivation.py experiments/fcis_m6_d04_anf_bundle_outbox_check.py
+- python3 -m py_compile experiments/fcis_m6_d04_anf_bundle_outbox_check.py src/core/fcis_authority_dispatch.py src/core/fcis_authority_schema.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_bundle_values.py src/core/fcis_commit_reference.py src/core/fcis_lineage_closure.py src/core/fcis_outbox_values.py src/state/state_admission_profile.py src/state/state_snapshot_schema.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m5_authority_admission.py
+- python3 -m ruff check experiments/fcis_m6_d04_anf_bundle_outbox_check.py src/core/fcis_authority_dispatch.py src/core/fcis_authority_schema.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_bundle_values.py src/core/fcis_commit_reference.py src/core/fcis_lineage_closure.py src/core/fcis_outbox_values.py src/state/state_admission_profile.py src/state/state_snapshot_schema.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m5_authority_admission.py
+- python3 -m ruff format --check experiments/fcis_m6_d04_anf_bundle_outbox_check.py src/core/fcis_authority_dispatch.py src/core/fcis_authority_schema.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_bundle_values.py src/core/fcis_commit_reference.py src/core/fcis_lineage_closure.py src/core/fcis_outbox_values.py src/state/state_admission_profile.py src/state/state_snapshot_schema.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m5_authority_admission.py
+- python3 -m mypy --strict src/state/state_snapshot_schema.py src/state/state_admission_profile.py src/core/fcis_outbox_values.py src/core/fcis_commit_bundle_values.py src/core/fcis_authority_schema.py src/core/fcis_authority_dispatch.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_reference.py src/core/fcis_lineage_closure.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_lineage_closure.py experiments/fcis_m6_d04_anf_bundle_outbox_check.py
 - python3 -m pytest -q tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_decision_derivation.py tests/state/test_state_snapshot_schema_drift.py tests/state/test_state_admission_profile.py
 - python3 -m pytest -q tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py
 - python3 -m json.tool docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json
@@ -58,14 +62,15 @@ COMMANDS_RUN:
 RESULTS:
 
 - The focused D04, bundle, reference-port, authority-admission, lineage,
-  decision, and state-schema suite passed: 146 passed.
+  decision, and state-schema suite passed: 148 passed.
 - The focused C01-C04/C06 dependency regression suite passed: 53 passed.
 - D04 deterministic checker passed: D04_ANF_BUNDLE_OUTBOX_MATCH.
 - D03 deterministic checker passed: D03_ANF_RECEIPT_BINDING_MATCH.
 - D02 deterministic checker passed: D02_SOURCE_BOUND_EVALUATION_MATCH.
 - D01 deterministic checker passed: D01_VECTOR_MATCH.
 - C07 deterministic checker passed: C07_REVIEW_PACKET_MATCH.
-- Python compilation, Ruff check, Ruff format, and strict mypy passed.
+- Python compilation passed over 14 files; Ruff check and format passed over
+  the same 14 files; strict mypy passed over 12 files.
 - The deterministic V2 vector and legacy V1 golden vector passed.
 - The legacy V1 outbox root remains
   0xf7ac577051aaac3bf3704a9a699c2174235c262c62716c1663b792d32cacc0e9.
@@ -79,17 +84,18 @@ RESULTS:
   inherited failure in the stale fee-apportionment source-hash fixture. The
   same failure exists at the reviewed D04 implementation base and was not
   regenerated during this focused repair.
-- Task validation and source-manifest validation passed with 17 manifest
+- Task validation and source-manifest validation passed with 19 manifest
   entries. The exact-range whitespace gate is run after the receipt commit so
   it covers both the implementation and receipt trees.
-- No remote publication, pull request, merge, runtime mount, deployment,
+- PR #502 is the review surface. No merge, runtime mount, deployment,
   authority switch, or value movement is claimed.
 
 MUTANTS_ADDED: Permanent tests and the deterministic checker reject missing or
 foreign retained ANF values at initial commit, corruption of a retained ANF
 before retry, missing required V2 ANF roots, crossed V2 outer roots, crossed
-decision or outbox lineage, stale cached roots, and any drift from the frozen
-legacy V1 canonical bytes and roots.
+decision or outbox lineage, stale cached roots, ANF-bound decisions admitted
+through the V1 bundle schema, V2 outboxes hashed through the V1 schema, and any
+drift from the frozen legacy V1 canonical bytes and roots.
 
 FORMAL_EVIDENCE: None added. D04 supplies typed executable canonical-schema,
 commit-port, replay, and mutation evidence. It does not add a Lean theorem or
@@ -106,8 +112,8 @@ REMAINING_NONCLAIMS:
   reachability remain downstream obligations.
 - The inherited fee-apportionment source-hash fixture remains stale and is
   outside this D04 authority surface.
-- No remote publication, pull request, merge, deployment, production
-  migration, authority switch, or value movement is claimed.
+- PR #502 is the review surface. No merge, deployment, production migration,
+  authority switch, runtime mount, or value movement is claimed.
 
 REVIEW_RISKS: The public wrapper remains named `CommitBundleV1` for compatibility
 while its exact canonical claim and outbox values select V1 or V2 by retained
