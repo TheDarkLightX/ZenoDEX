@@ -1,0 +1,76 @@
+{
+  "schema": "zenodex/fcis/m6/k03/static-no-bypass-policy/v1",
+  "profile_id": "research-unmounted-k03-protected-core-slice",
+  "unique_port_module": "src/core/fcis_m6_k02_commit_port.py",
+  "python_protected_paths": [
+    "src/core/fcis_durable_retraction.py",
+    "src/core/fcis_m6_d08_combined_anf.py",
+    "src/core/fcis_m6_k01_entrypoint_inventory.py",
+    "src/core/fcis_m6_k02_commit_port.py"
+  ],
+  "rust_protected_paths": [],
+  "forbidden_core_imports": [
+    "logging",
+    "os",
+    "pathlib",
+    "random",
+    "requests",
+    "socket",
+    "sqlite3",
+    "subprocess",
+    "time"
+  ],
+  "forbidden_python_calls": [
+    "commit",
+    "connect",
+    "execute",
+    "executemany",
+    "open",
+    "send",
+    "write"
+  ],
+  "forbidden_rust_modules": [
+    "rand",
+    "rusqlite",
+    "std::fs",
+    "std::net",
+    "std::process",
+    "std::time"
+  ],
+  "forbidden_rust_calls": [
+    "commit",
+    "execute",
+    "send",
+    "write_all"
+  ],
+  "legacy_publisher_calls": [
+    "apply_zusd_monetary_ops",
+    "evaluate_refinement_v1",
+    "publish_atom"
+  ],
+  "legacy_allowed_paths": [
+    "src/core/fcis_legacy_refinement.py"
+  ],
+  "authoritative_constructor_calls": [
+    "CommitBundleV1",
+    "D08CombinedANFAcceptV1",
+    "D08CombinedANFRejectV1",
+    "PublicationAtomV1",
+    "VerifiedDestinationReceiptV1"
+  ],
+  "authoritative_allowed_paths": [
+    "src/core/fcis_durable_retraction.py",
+    "src/core/fcis_m6_d08_combined_anf.py"
+  ],
+  "direct_writer_sql_markers": [
+    "DELETE FROM",
+    "INSERT INTO",
+    "UPDATE "
+  ],
+  "nonclaims": [
+    "This policy covers only the named protected source paths.",
+    "An empty Rust protected path list records that no M6 Rust publisher is mounted in this slice.",
+    "The policy does not prove deployment reachability, complete call-graph closure, or datastore authority.",
+    "A passing checker does not authorize production value movement."
+  ]
+}
