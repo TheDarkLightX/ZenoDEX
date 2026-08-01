@@ -1,0 +1,141 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "C06",
+  "base_sha": "96f9fa3fa78bbe1f51a9da3be15a9026d8f84e0c",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C06-rotation-reset-mutants-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_entitlement_rotation_admission_v1.py",
+    "tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "docs/research/m6_tasks/TASK_C06_PLAN.md",
+    "docs/research/FCIS_M6_C06_ROTATION_RESET_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_C06_REPORT.md",
+    "docs/research/m6_tasks/TASK_C06_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_C06_SOURCE_MANIFEST.sha256",
+    "src/core/fcis_entitlement_transport_v1.py",
+    "tests/core/test_fcis_entitlement_transport_v1.py",
+    "experiments/fcis_m6_c04_vector_check.py",
+    "docs/research/m6_tasks/TASK_C04_PLAN.md",
+    "docs/research/FCIS_M6_C04_SIGN_DUAL_TRANSPORT_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_C04_SIGN_DUAL_VECTOR.json",
+    "docs/research/m6_tasks/TASK_C04_REPORT.md",
+    "docs/research/m6_tasks/TASK_C04_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_C04_SOURCE_MANIFEST.sha256",
+    "src/core/fcis_entitlement_migration_values_v1.py",
+    "src/core/fcis_entitlement_migration_codec_v1.py",
+    "src/core/fcis_entitlement_key_v1.py",
+    "src/core/fcis_entitlement_key_codec_v1.py",
+    "docs/research/FCIS_M6_C02_ENTITLEMENT_KEY_SCHEMA_V1.md"
+  ],
+  "commands": [
+    "python3 -m compileall -q src/core/fcis_entitlement_rotation_admission_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "/home/trevormoc/.local/bin/ruff check src/core/fcis_entitlement_rotation_admission_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "/home/trevormoc/.local/bin/mypy --strict src/core/fcis_entitlement_rotation_admission_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "pytest -q tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "pytest -q tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "python3 .claude/skills/zenodex-style-map/scripts/which_style.py src/core/fcis_entitlement_rotation_admission_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "python3 .claude/skills/zenodex-security-analysis/scripts/trust_surface.py",
+    "python3 .claude/skills/zenodex-security-analysis/scripts/redflags.py src/core/fcis_entitlement_rotation_admission_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks C06",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_C06_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_entitlement_rotation_admission_v1.py": "131e8a19d7d31c8eca858946f9df2cb930dabfa6247dd38799ca18809e52ea2a",
+    "tests/core/test_fcis_entitlement_rotation_admission_v1.py": "d1f97de52389128574181e3df1b19b52b48f196076426747b6dbd9c6eb209ce5",
+    "docs/research/m6_tasks/TASK_C06_PLAN.md": "1eb99507afd3a4df185ff6f37fdf736c328608895e7b7148902dbe7c79415ab7",
+    "docs/research/FCIS_M6_C06_ROTATION_RESET_SCHEMA_V1.md": "0d168c8316c8731e57f2ff6ab1a2956071cd0b224c89a9f5ad4c646baed2456b",
+    "src/core/fcis_entitlement_transport_v1.py": "a225e0df0fb9ca47e7e1af05d9896fac561ecb6b41cef76677605799a1262076",
+    "tests/core/test_fcis_entitlement_transport_v1.py": "fd4dd44af81d1b9967d866a4a166f275132e57ff0c157c7db150f3cc7d9e29a5",
+    "experiments/fcis_m6_c04_vector_check.py": "bd6c9678f6825557bfa48d4044c99cf5451d85116a8fa7f3c8f1c9799c80c704",
+    "docs/research/m6_tasks/TASK_C04_PLAN.md": "25b71c5b7bcc8a362c23f6f6785492f062fd2a88b8210ee075e0bddc25357cb6",
+    "docs/research/FCIS_M6_C04_SIGN_DUAL_TRANSPORT_SCHEMA_V1.md": "d57208ff5ee04b1c3e6faa96b1a04023b0904963ce44b82469106394f00f6ab1",
+    "docs/research/m6_tasks/TASK_C04_SIGN_DUAL_VECTOR.json": "299172b415f15979f7dfd0b326dce6e0f6aa7fbcd72f444b4c2d6a79afb11ba7",
+    "docs/research/m6_tasks/TASK_C04_REPORT.md": "170f279c34e22e484de264a5f10f82e2685b2b9245cdd7cdf9814fdd4f86390f",
+    "docs/research/m6_tasks/TASK_C04_EVIDENCE.json": "147f3e1e4de9153abf65b12a98a250693e41e3fc1aaa95157625e7415eff8548",
+    "docs/research/m6_tasks/TASK_C04_SOURCE_MANIFEST.sha256": "9c7319564092b52cb2b66caf5fb151e70083aa872f3cf31e3a5c51633e7f6bd7",
+    "src/core/fcis_entitlement_migration_values_v1.py": "680d3921d002a7d1846c3ccd44ac74a15bcf41fe885c44362610bfe25705e5b1",
+    "src/core/fcis_entitlement_migration_codec_v1.py": "b134e0e7ec8564244c41758cd915ccf361c4d1034036cb25913228aa0d2e6a50",
+    "src/core/fcis_entitlement_key_v1.py": "a60bb53254b79b7796598cd32b31360127d50153847d832d3ac8742fd268f11e",
+    "src/core/fcis_entitlement_key_codec_v1.py": "0cf0261e2bd7c40081fcf21d2b33ab62fd00539841a423bbbc42309027f52df1",
+    "docs/research/FCIS_M6_C02_ENTITLEMENT_KEY_SCHEMA_V1.md": "0e59806b237db0f5ceb5ba4c5f1771f8406a6011416c1f4f950f43ccc0fb24ab"
+  },
+  "results": {
+    "implementation_commit": "f2967acfa7d1e744caac5cb85aceb7795f1e9fab",
+    "implementation_tree": "81572d8f9d44b166984152f2c6f6eb8612a72b05",
+    "implementation_parent": "96f9fa3fa78bbe1f51a9da3be15a9026d8f84e0c",
+    "focused_tests": "12 passed",
+    "combined_c01_c04_c06_tests": "53 passed",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "mypy_strict": "pass",
+    "stateful_rotation_sequence": "pass",
+    "representation_migration": "pass; exact C04 target required",
+    "zero_reset": "pass; rejected",
+    "partial_entry": "pass; rejected",
+    "cross_deployment": "pass; rejected before transport",
+    "style_security_scanners": "unavailable; repository-local .claude paths absent",
+    "runtime_mount": "none"
+  },
+  "mutants": [
+    {
+      "id": "C06_POLICY_ROTATION",
+      "status": "covered_by_regression_assertion",
+      "invariant": "ordinary policy changes preserve the exact key and residual history"
+    },
+    {
+      "id": "C06_DESTINATION_ROTATION",
+      "status": "covered_by_regression_assertion",
+      "invariant": "destination changes preserve the exact key and residual history"
+    },
+    {
+      "id": "C06_CUSTODY_ROTATION",
+      "status": "covered_by_regression_assertion",
+      "invariant": "custody changes preserve the exact key and residual history"
+    },
+    {
+      "id": "C06_ROTATION_SEQUENCE_RESET",
+      "status": "covered_by_regression_assertion",
+      "invariant": "a sequence of ordinary rotations cannot reset state"
+    },
+    {
+      "id": "C06_ZERO_RESET",
+      "status": "covered_by_regression_assertion",
+      "invariant": "a nonzero source cannot migrate to an all-zero target"
+    },
+    {
+      "id": "C06_PARTIAL_ENTRY_SET",
+      "status": "covered_by_regression_assertion",
+      "invariant": "migration cannot omit or add an entry"
+    },
+    {
+      "id": "C06_CROSS_DEPLOYMENT_SUBSTITUTION",
+      "status": "covered_by_regression_assertion",
+      "invariant": "source and target deployment IDs must equal current context"
+    },
+    {
+      "id": "C06_KEY_SUBSTITUTION",
+      "status": "covered_by_regression_assertion",
+      "invariant": "ordinary rotation cannot substitute the C02 key"
+    },
+    {
+      "id": "C06_HISTORY_MUTATION",
+      "status": "covered_by_regression_assertion",
+      "invariant": "ordinary rotation cannot change ordered residual entries"
+    }
+  ],
+  "nonclaims": [
+    "C06 is tested research evidence for typed rotation and deployment-bound comparison.",
+    "C06 does not authenticate deployment IDs or roots, create a production authority witness, mount runtime or datastore paths, switch migration authority, establish destination idempotency, or move value.",
+    "No remote implementation commit, hosted CI run, draft PR, or production promotion is claimed."
+  ]
+}
