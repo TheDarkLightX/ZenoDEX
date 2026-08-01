@@ -1,0 +1,114 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "C05",
+  "base_sha": "9244c43a6ff105cfbf047ee2299ac0904630e780",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C05-lean-trace-conjugacy-20260801",
+  "status": "PROVED",
+  "evidence_files": [
+    "lean-mathlib/Proofs/FCISFeeApportionmentAGQESRGDTraceConjugacy.lean",
+    "lean-mathlib/Proofs.lean",
+    "docs/research/FCIS_M6_C05_TRACE_CONJUGACY_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_C05_PLAN.md",
+    "docs/research/m6_tasks/TASK_C05_NEGATIVE_WITNESSES.md",
+    "docs/research/m6_tasks/TASK_C05_LEAN_PROOF_RECEIPT.json",
+    "docs/research/m6_tasks/TASK_C05_REPORT.md",
+    "docs/research/m6_tasks/TASK_C05_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_C05_SOURCE_MANIFEST.sha256",
+    "lean-mathlib/Proofs/FCISFeeApportionmentAGQESRGDRefinement.lean",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDAdaptiveTrace.lean",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDTrace.lean",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean",
+    "docs/research/m6_tasks/TASK_C04_REPORT.md",
+    "docs/research/m6_tasks/TASK_C04_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_C04_SOURCE_MANIFEST.sha256",
+    "src/core/fcis_entitlement_transport_v1.py",
+    "tests/core/test_fcis_entitlement_transport_v1.py",
+    "experiments/fcis_m6_c04_vector_check.py",
+    "docs/research/m6_tasks/TASK_C04_PLAN.md",
+    "docs/research/FCIS_M6_C04_SIGN_DUAL_TRANSPORT_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_C04_SIGN_DUAL_VECTOR.json",
+    "docs/research/m6_tasks/TASK_B04_REPORT.md",
+    "docs/research/m6_tasks/TASK_B04_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_B04_LEAN_PROOF_RECEIPT.json",
+    "docs/research/m6_tasks/TASK_B04_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "cd lean-mathlib && lake build Proofs/FCISFeeApportionmentSRGDAdaptiveTrace.lean",
+    "cd lean-mathlib && lake build Proofs/FCISFeeApportionmentAGQESRGDTraceConjugacy.lean",
+    "cd lean-mathlib && lake build",
+    "lake env lean /dev/stdin with #print axioms for five C05 theorems",
+    "rg -n -i 'sorry|admit|axiom|unsafe' lean-mathlib/Proofs/FCISFeeApportionmentAGQESRGDTraceConjugacy.lean",
+    "sha256sum lean-mathlib/Proofs/FCISFeeApportionmentAGQESRGDTraceConjugacy.lean lean-mathlib/Proofs.lean",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks C05",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_C05_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "lean_toolchain": "leanprover/lean4:v4.27.0",
+    "lean": "Lean 4.27.0 (db93fe1608548721853390a10cd40580fe7d22ae)",
+    "lake": "Lake 5.0.0-src+7e01a1b",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "lean-mathlib/Proofs/FCISFeeApportionmentAGQESRGDTraceConjugacy.lean": "df0af4b8816caf94a2b31a7bb9ff0277abb0c66305935e3e9fa3a414a2d70939",
+    "lean-mathlib/Proofs.lean": "4d1ff082b77c983459b2025e58a47098cf737754aac6338bc061ca23a09baa7d",
+    "docs/research/m6_tasks/TASK_C05_PLAN.md": "b8f221bbf85434308a5bcf2fc1dce863614da3b8d58b63d7581d65a7e70725d4",
+    "docs/research/FCIS_M6_C05_TRACE_CONJUGACY_SCHEMA_V1.md": "66e6549c5032ff75e78ec0ad64bd77d28e2737ca081648ccf6e15b30cfc79c29",
+    "docs/research/m6_tasks/TASK_C05_NEGATIVE_WITNESSES.md": "8f7114f03494e4a46cddaa7077959743a5dcab5e4dc54ca5a5e9064b6f07066c",
+    "docs/research/m6_tasks/TASK_C05_LEAN_PROOF_RECEIPT.json": "6dc639d8988159933940e75a34ed3f811c75bcd6ebf8baeb125d3668fd2179be",
+    "lean-mathlib/Proofs/FCISFeeApportionmentAGQESRGDRefinement.lean": "df98713406075ea2b00b77f3449e6354f59f2b7b7087fa3349ff3ad1f48afde4",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDAdaptiveTrace.lean": "9c70689a7d08f5b8178ae7d119d88fe0ae49d4e7e6d6045ee62850d4e85fdf79",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGDTrace.lean": "b3f51628cce67f18669dc9eb59040497e1d20c9a000c36198bf66e6ad36abde7",
+    "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean": "a7104b2abca37e9ababbe121db34c91bf4fa973a3042f9ed30f165b37bfc92b0",
+    "docs/research/m6_tasks/TASK_C04_REPORT.md": "170f279c34e22e484de264a5f10f82e2685b2b9245cdd7cdf9814fdd4f86390f",
+    "docs/research/m6_tasks/TASK_C04_EVIDENCE.json": "147f3e1e4de9153abf65b12a98a250693e41e3fc1aaa95157625e7415eff8548",
+    "docs/research/m6_tasks/TASK_C04_SOURCE_MANIFEST.sha256": "9c7319564092b52cb2b66caf5fb151e70083aa872f3cf31e3a5c51633e7f6bd7",
+    "src/core/fcis_entitlement_transport_v1.py": "a225e0df0fb9ca47e7e1af05d9896fac561ecb6b41cef76677605799a1262076",
+    "tests/core/test_fcis_entitlement_transport_v1.py": "fd4dd44af81d1b9967d866a4a166f275132e57ff0c157c7db150f3cc7d9e29a5",
+    "experiments/fcis_m6_c04_vector_check.py": "bd6c9678f6825557bfa48d4044c99cf5451d85116a8fa7f3c8f1c9799c80c704",
+    "docs/research/m6_tasks/TASK_C04_PLAN.md": "25b71c5b7bcc8a362c23f6f6785492f062fd2a88b8210ee075e0bddc25357cb6",
+    "docs/research/FCIS_M6_C04_SIGN_DUAL_TRANSPORT_SCHEMA_V1.md": "d57208ff5ee04b1c3e6faa96b1a04023b0904963ce44b82469106394f00f6ab1",
+    "docs/research/m6_tasks/TASK_C04_SIGN_DUAL_VECTOR.json": "299172b415f15979f7dfd0b326dce6e0f6aa7fbcd72f444b4c2d6a79afb11ba7",
+    "docs/research/m6_tasks/TASK_B04_REPORT.md": "f8937ca787dc7c72b04163904bafc334d2e5b8b1d473520e81c30af73688bf88",
+    "docs/research/m6_tasks/TASK_B04_EVIDENCE.json": "eb76bfd795e860121ccb92802f5307d61c76d562dd60b3fa56a136d43e9b089d",
+    "docs/research/m6_tasks/TASK_B04_LEAN_PROOF_RECEIPT.json": "cdf325db8a3fec4f1691dd72e9920b67ea24c2d020ef0d1eaa556a1ee008205b",
+    "docs/research/m6_tasks/TASK_B04_SOURCE_MANIFEST.sha256": "482eea72a98f563c594ba4c1fa75d594d78c29182e1723f82d01f3123d24df83"
+  },
+  "results": {
+    "implementation_commit": "b673800187bfc92af24ab552b96b260ffe5357f4",
+    "implementation_tree": "38fd5166310844c5537d13f05d9d8bfae918f585",
+    "implementation_parent": "9244c43a6ff105cfbf047ee2299ac0904630e780",
+    "focused_dependency_build": "pass; 5 jobs",
+    "focused_c05_build": "pass; 6 jobs",
+    "full_build": "pass; 8151 jobs",
+    "theorem_surface": "trace_conjugacy, phi_state_involution, phi_keyed_state_key_preserved, valid_srgd_word_sign_dual",
+    "placeholder_scan": "pass; zero matches",
+    "axiom_audit": "pass; standard Lean foundations only",
+    "runtime_mount": "none"
+  },
+  "mutants": [
+    {
+      "id": "C05_STRUCTURE_EXT_FAILURE",
+      "status": "retained_and_repaired",
+      "invariant": "the state equality proof must use a valid extensionality/elimination path"
+    },
+    {
+      "id": "C05_WORD_REWRITE_DIRECTION",
+      "status": "retained_and_repaired",
+      "invariant": "outer word induction must rewrite the AGQE segment fold to the mapped SRGD segment fold"
+    },
+    {
+      "id": "C05_UNBUILT_DEPENDENCY",
+      "status": "retained_environment_witness",
+      "invariant": "focused Lean checking requires the B04 Proofs object file to be built"
+    }
+  ],
+  "nonclaims": [
+    "C05 is a machine-checked theorem for the declared Lean formal carriers.",
+    "C05 does not establish production Python/Rust refinement, canonical-byte parity, authority provenance, datastore durability, runtime mounting, deployment, migration switching, destination behavior, or value movement.",
+    "The formal TraceKey is not a production authority witness.",
+    "No remote implementation commit, hosted CI run, draft PR, or production promotion is claimed."
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "assistant": "codex",
+  "git_commit": "b673800187bfc92af24ab552b96b260ffe5357f4",
+  "files": [
+    "lean-mathlib/Proofs/FCISFeeApportionmentAGQESRGDTraceConjugacy.lean",
+    "lean-mathlib/Proofs.lean"
+  ],
+  "theorems": [
+    "FCISFeeApportionmentAGQESRGDTraceConjugacy.phi_state_involution",
+    "FCISFeeApportionmentAGQESRGDTraceConjugacy.phi_keyed_state_key_preserved",
+    "FCISFeeApportionmentAGQESRGDTraceConjugacy.one_step_sign_dual",
+    "FCISFeeApportionmentAGQESRGDTraceConjugacy.fold_segment_sign_dual",
+    "FCISFeeApportionmentAGQESRGDTraceConjugacy.fold_word_sign_dual",
+    "FCISFeeApportionmentAGQESRGDTraceConjugacy.valid_srgd_segment_sign_dual",
+    "FCISFeeApportionmentAGQESRGDTraceConjugacy.valid_srgd_word_sign_dual",
+    "FCISFeeApportionmentAGQESRGDTraceConjugacy.trace_conjugacy"
+  ],
+  "checker_command": "created=0; if test ! -e external; then ln -s ../external external; created=1; fi; (cd lean-mathlib && lake build Proofs/FCISFeeApportionmentAGQESRGDTraceConjugacy.lean); status=$?; if test \"$created\" = 1; then rm -f external; fi; exit \"$status\"",
+  "checker_status": "pass",
+  "full_build": "pass; lake build; 8151 jobs",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "placeholders": {
+    "blocked": false,
+    "match_count": 0,
+    "matches": []
+  },
+  "axiom_audit": {
+    "phi_state_involution": ["propext"],
+    "fold_word_sign_dual": ["propext", "Quot.sound"],
+    "valid_srgd_word_sign_dual": ["propext", "Quot.sound"],
+    "phi_keyed_state_key_preserved": [],
+    "trace_conjugacy": ["propext", "Quot.sound"]
+  },
+  "notes": [
+    "The axiom audit reports only Lean standard logical foundations; no user axiom or proof placeholder was introduced.",
+    "The full build was run with the local external/mathlib4 checkout through an ephemeral link, and the link was removed afterward.",
+    "The theorem is a research carrier result and has no production runtime or value-moving mount."
+  ]
+}
