@@ -1,0 +1,59 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "J03",
+  "base_sha": "add3233005c6695a02b1b1bc4207bc837062ec32",
+  "source_head_sha": "88750b214de53623fcdca105fc37b5a90ff0c885",
+  "source_head_tree": "69f2f1c5f3e5532c5ea77cdbcea6653f2746ff41",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "tools/check_fcis_m6_j03_transport_map.py",
+    "tests/core/test_fcis_m6_j03_transport_map.py",
+    "docs/research/m6_tasks/TASK_J03_TRANSPORT_MAP_V1.json",
+    "docs/research/m6_tasks/TASK_J03_PLAN.md",
+    "docs/research/m6_tasks/TASK_J03_REPORT.md",
+    "docs/research/m6_tasks/TASK_J03_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_J03_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 tools/check_fcis_m6_j03_transport_map.py docs/research/m6_tasks/TASK_J03_TRANSPORT_MAP_V1.json",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_j03_transport_map.py",
+    "python3 -m ruff check tools/check_fcis_m6_j03_transport_map.py tests/core/test_fcis_m6_j03_transport_map.py",
+    "python3 -m ruff format --check tools/check_fcis_m6_j03_transport_map.py tests/core/test_fcis_m6_j03_transport_map.py",
+    "python3 -m mypy --strict tools/check_fcis_m6_j03_transport_map.py tests/core/test_fcis_m6_j03_transport_map.py",
+    "python3 -m py_compile tools/check_fcis_m6_j03_transport_map.py tests/core/test_fcis_m6_j03_transport_map.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_J03_TRANSPORT_MAP_V1.json",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J03",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_J03_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "tools/check_fcis_m6_j03_transport_map.py": "c2cbde328b73c1041adad9343f69de24de66db2046ad1d9411d99ced7ccb8c2d",
+    "tests/core/test_fcis_m6_j03_transport_map.py": "82b78a38af8a399a6b87d94c2392a8ac703660a322af07aa201d0d29cad994bb",
+    "docs/research/m6_tasks/TASK_J03_TRANSPORT_MAP_V1.json": "056357470f6c860e701367fecf70fd2733b1eca8930423c4b5e518d962753a0a",
+    "docs/research/m6_tasks/TASK_J03_PLAN.md": "6279982342545e9654b58c5b7158ba4c1851827e0c2747d8e47336293272515d"
+  },
+  "results": {
+    "transport_checker": "pass; exact eight-artifact policy",
+    "focused_tests": "pass; 5 passed",
+    "negative_witnesses": "pass; missing roots, unconditioned preservation, and mapping drift reject",
+    "artifact_coverage": "pass; state, configuration, fees, proof contexts, receipts, nullifiers, history, and outbox",
+    "implementation_commit": "88750b214de53623fcdca105fc37b5a90ff0c885",
+    "implementation_tree": "69f2f1c5f3e5532c5ea77cdbcea6653f2746ff41",
+    "implementation_parent": "add3233005c6695a02b1b1bc4207bc837062ec32"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "J03 is a migration obligation registry and is not a transport proof.",
+    "J03 does not prove production migration or datastore behavior.",
+    "J03 does not prove runtime mounting or value movement.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
