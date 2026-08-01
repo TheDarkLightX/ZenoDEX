@@ -1,0 +1,30 @@
+{
+  "schema_version": "zenodex.fcis.m6.i06.lost-ack.v1",
+  "task_id": "I06",
+  "phases": [
+    "ready",
+    "response_lost_after_destination_acceptance",
+    "ack_durable"
+  ],
+  "recovery_contract": [
+    "destination record survives the simulated response loss",
+    "local acknowledgment is absent in the response-lost phase",
+    "redelivery uses the original effect identity and payload root",
+    "redelivery must return ALREADY_ACCEPTED",
+    "the receipt passes the I05 provenance verifier",
+    "the local journal contains exactly one acknowledgment write",
+    "later redelivery does not append another local acknowledgment"
+  ],
+  "rejection_witnesses": [
+    "ready state skips the crash phase",
+    "forged destination receipt root",
+    "attempt counter overflow",
+    "malformed state"
+  ],
+  "nonclaims": [
+    "no filesystem or power-loss durability",
+    "no production worker or network delivery",
+    "no destination adapter refinement or runtime mounting",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
