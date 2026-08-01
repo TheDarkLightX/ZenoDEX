@@ -1,0 +1,302 @@
+{
+  "schema": "zenodex/fcis/m6/k01/value-moving-entrypoint-inventory-config/v1",
+  "profile_id": "research-unmounted-k01-reviewed-source-set",
+  "coverage_status": "reviewed_source_set_only",
+  "deployment_source_paths": [
+    ".docker/entrypoint.sh",
+    "bin/zenoctl",
+    "config/deploy/production-strict.yaml",
+    "rust-runtime/crates/zenodex-runtime-cli/src/main.rs"
+  ],
+  "entrypoints": [
+    {
+      "publisher_id": "api_http_ingress",
+      "kind": "api",
+      "symbol_path": "src/integration/api_server.py",
+      "caller": "HTTP route dispatch and request handlers",
+      "input_type": "untrusted HTTP method, path, and JSON command body",
+      "state_effect_touched": "candidate commands, state transitions, receipts, and external effect plans",
+      "required_anf_commit_port_call": "authenticated_command_to_anf_to_unique_commit_port",
+      "legacy_status": "unverified_repository_candidate",
+      "runtime_reachability_evidence": "unverified_repository_candidate",
+      "value_moving": true,
+      "authority_sink": false,
+      "source_paths": [
+        "src/integration/api_server.py"
+      ]
+    },
+    {
+      "publisher_id": "autotrader_external_api",
+      "kind": "autotrader_external_surface",
+      "symbol_path": "src/integration/autotrader_live_api.py:handle_autotrader_live_request",
+      "caller": "autotrader live HTTP route",
+      "input_type": "signed or operator-supplied testnet execution request",
+      "state_effect_touched": "testnet transaction submission and execution identifiers",
+      "required_anf_commit_port_call": "outside_m6_no_commit_port_claim",
+      "legacy_status": "outside_m6_scope",
+      "runtime_reachability_evidence": "outside_m6_mount_unverified",
+      "value_moving": true,
+      "authority_sink": false,
+      "source_paths": [
+        "src/integration/autotrader_live_api.py"
+      ]
+    },
+    {
+      "publisher_id": "background_outbox_delivery",
+      "kind": "background_outbox_worker",
+      "symbol_path": "src/core/fcis_durable_retraction.py:deliver_effect",
+      "caller": "outbox worker or explicit delivery coordinator",
+      "input_type": "committed outbox effect and shell-selected destination verifier adapter",
+      "state_effect_touched": "destination side effect, delivery receipt, and durable acknowledgment",
+      "required_anf_commit_port_call": "committed_outbox_to_verified_destination_and_ack_port",
+      "legacy_status": "research_model_only",
+      "runtime_reachability_evidence": "unmounted_research_model",
+      "value_moving": true,
+      "authority_sink": true,
+      "source_paths": [
+        "src/core/fcis_durable_retraction.py",
+        "src/core/fcis_outbox_values.py"
+      ]
+    },
+    {
+      "publisher_id": "durable_recovery_worker",
+      "kind": "recovery_worker",
+      "symbol_path": "src/core/fcis_durable_retraction.py:authorize_reopened_snapshot",
+      "caller": "restart and recovery coordinator",
+      "input_type": "canonical durable snapshot, fresh external authorization, and deployment identity",
+      "state_effect_touched": "reopen authorization latch and subsequent value-moving admission",
+      "required_anf_commit_port_call": "canonical_reopen_and_fresh_head_authorization_to_unique_commit_port",
+      "legacy_status": "research_model_only",
+      "runtime_reachability_evidence": "unmounted_research_model",
+      "value_moving": true,
+      "authority_sink": true,
+      "source_paths": [
+        "src/core/fcis_durable_retraction.py",
+        "src/integration/zeno_key_recovery_v0.py"
+      ]
+    },
+    {
+      "publisher_id": "durable_state_adapter",
+      "kind": "direct_datastore_adapter",
+      "symbol_path": "experiments/fcis_m6_h02_sqlite_publication.py:publish_atom",
+      "caller": "research transaction adapter",
+      "input_type": "verified ANF publication row set and current durable snapshot",
+      "state_effect_touched": "successor state, authority, history, nullifiers, receipts, ANF rows, and outbox rows",
+      "required_anf_commit_port_call": "anf_verified_atomic_publication_port",
+      "legacy_status": "research_model_only",
+      "runtime_reachability_evidence": "unmounted_research_model",
+      "value_moving": true,
+      "authority_sink": true,
+      "source_paths": [
+        "experiments/fcis_m6_h02_sqlite_publication.py",
+        "src/core/fcis_durable_retraction.py",
+        "src/state/committed_dex_snapshot.py"
+      ]
+    },
+    {
+      "publisher_id": "entitlement_migration_worker",
+      "kind": "migration_worker",
+      "symbol_path": "src/core/fcis_entitlement_migration_codec_v1.py:decode_representation_migration_manifest_v1",
+      "caller": "migration coordinator and phase-transition worker",
+      "input_type": "canonical encoded migration manifest and source/target state roots",
+      "state_effect_touched": "representation transport, migration authority phase, and post-switch writer set",
+      "required_anf_commit_port_call": "migration_manifest_and_dual_check_to_unique_commit_port",
+      "legacy_status": "research_model_only",
+      "runtime_reachability_evidence": "unmounted_research_model",
+      "value_moving": true,
+      "authority_sink": true,
+      "source_paths": [
+        "src/core/fcis_entitlement_migration_codec_v1.py",
+        "src/core/fcis_entitlement_migration_values_v1.py"
+      ]
+    },
+    {
+      "publisher_id": "governance_administrator",
+      "kind": "administrator",
+      "symbol_path": "src/integration/autogov_live_apply_api.py:handle_autogov_request",
+      "caller": "governance operator or autonomous-governance route",
+      "input_type": "policy, trajectory receipt, and node-anchored authority request",
+      "state_effect_touched": "governance policy surface and authority configuration",
+      "required_anf_commit_port_call": "authenticated_command_to_anf_to_unique_commit_port",
+      "legacy_status": "unverified_repository_candidate",
+      "runtime_reachability_evidence": "unverified_repository_candidate",
+      "value_moving": true,
+      "authority_sink": true,
+      "source_paths": [
+        "src/integration/autogov_live_apply_api.py",
+        "src/integration/zeno_governance_authority.py"
+      ]
+    },
+    {
+      "publisher_id": "legacy_fcis_runtime",
+      "kind": "legacy_runtime",
+      "symbol_path": "src/core/fcis_legacy_refinement.py:evaluate_refinement_v1",
+      "caller": "legacy evidence/runtime dispatcher",
+      "input_type": "legacy or exact observation pair and settlement evidence",
+      "state_effect_touched": "legacy state writes, receipts, nullifiers, and outbox projections",
+      "required_anf_commit_port_call": "legacy_writer_must_be_rejected_after_authority_switch",
+      "legacy_status": "legacy_path",
+      "runtime_reachability_evidence": "legacy_reachability_unverified",
+      "value_moving": true,
+      "authority_sink": true,
+      "source_paths": [
+        "src/core/fcis_legacy_refinement.py",
+        "src/core/fcis_legacy_refinement_admission.py"
+      ]
+    },
+    {
+      "publisher_id": "operator_cli",
+      "kind": "cli",
+      "symbol_path": "tools/zenoctl.py:main",
+      "caller": "operator shell, container entrypoint, or deployment runner",
+      "input_type": "argv, environment, deployment profile, and operator command payload",
+      "state_effect_touched": "initialization, migration, recovery, and operational state-changing commands",
+      "required_anf_commit_port_call": "authenticated_command_to_anf_to_unique_commit_port",
+      "legacy_status": "unverified_repository_candidate",
+      "runtime_reachability_evidence": "unverified_repository_candidate",
+      "value_moving": true,
+      "authority_sink": false,
+      "source_paths": [
+        "bin/zenoctl",
+        "tools/zenoctl.py"
+      ]
+    },
+    {
+      "publisher_id": "outbox_lease_worker",
+      "kind": "background_outbox_worker",
+      "symbol_path": "experiments/fcis_m6_h02_sqlite_publication.py:acquire_outbox_lease",
+      "caller": "outbox worker lease scheduler",
+      "input_type": "effect identity, worker identity, current time, and lease expiry",
+      "state_effect_touched": "attempt count, lease ownership, delivery status, and retryability",
+      "required_anf_commit_port_call": "committed_outbox_to_verified_destination_and_ack_port",
+      "legacy_status": "research_model_only",
+      "runtime_reachability_evidence": "unmounted_research_model",
+      "value_moving": true,
+      "authority_sink": true,
+      "source_paths": [
+        "experiments/fcis_m6_h02_sqlite_publication.py",
+        "src/core/fcis_durable_retraction.py"
+      ]
+    },
+    {
+      "publisher_id": "perps_external_api",
+      "kind": "perps_external_surface",
+      "symbol_path": "src/integration/perps_api.py:handle_perps_request",
+      "caller": "perps HTTP route",
+      "input_type": "perps command body and market/account identifiers",
+      "state_effect_touched": "positions, collateral, market state, and liquidation-related effects",
+      "required_anf_commit_port_call": "r13_whole_system_commit_and_backing_gate_required",
+      "legacy_status": "outside_m6_scope",
+      "runtime_reachability_evidence": "outside_m6_mount_unverified",
+      "value_moving": true,
+      "authority_sink": true,
+      "source_paths": [
+        "src/integration/perps_api.py"
+      ]
+    },
+    {
+      "publisher_id": "proof_verifier",
+      "kind": "proof_verifier",
+      "symbol_path": "src/integration/proof_verifier.py",
+      "caller": "proof admission callback",
+      "input_type": "untrusted proof bytes and verifier profile metadata",
+      "state_effect_touched": "verification decision and proof-context evidence only",
+      "required_anf_commit_port_call": "proof_verifier_only_no_value_write",
+      "legacy_status": "not_value_moving",
+      "runtime_reachability_evidence": "proof_input_only",
+      "value_moving": false,
+      "authority_sink": false,
+      "source_paths": [
+        "src/integration/proof_verifier.py",
+        "src/integration/recursive_stark_verifier_adapter.py"
+      ]
+    },
+    {
+      "publisher_id": "zusd_api",
+      "kind": "zusd_external_surface",
+      "symbol_path": "src/integration/zusd_api.py:handle_zusd_request",
+      "caller": "zUSD HTTP route",
+      "input_type": "zUSD action body, oracle evidence, and account identifiers",
+      "state_effect_touched": "zUSD balances, debt-like state, oracle-linked history, and transaction effects",
+      "required_anf_commit_port_call": "r13_whole_system_commit_and_backing_gate_required",
+      "legacy_status": "outside_m6_scope",
+      "runtime_reachability_evidence": "outside_m6_mount_unverified",
+      "value_moving": true,
+      "authority_sink": true,
+      "source_paths": [
+        "src/integration/zusd_api.py"
+      ]
+    },
+    {
+      "publisher_id": "zusd_monetary_bridge",
+      "kind": "zusd_external_surface",
+      "symbol_path": "src/integration/zusd_monetary_bridge.py:apply_zusd_monetary_ops",
+      "caller": "zUSD monetary command dispatcher",
+      "input_type": "raw operation sequence, sender identity, block timestamp, and monetary state",
+      "state_effect_touched": "zUSD balances, nonce table, debt/liability fields, and stability-pool state",
+      "required_anf_commit_port_call": "r13_whole_system_commit_and_backing_gate_required",
+      "legacy_status": "outside_m6_scope",
+      "runtime_reachability_evidence": "outside_m6_mount_unverified",
+      "value_moving": true,
+      "authority_sink": true,
+      "source_paths": [
+        "src/integration/zusd_monetary_bridge.py"
+      ]
+    },
+    {
+      "publisher_id": "zusd_monetary_wallet_api",
+      "kind": "zusd_external_surface",
+      "symbol_path": "src/integration/zusd_monetary_wallet_api.py:handle_zusd_monetary_wallet_request",
+      "caller": "zUSD wallet HTTP route",
+      "input_type": "wallet action body, oracle proof context, and signed transaction payload",
+      "state_effect_touched": "zUSD monetary operations and chain transaction submission",
+      "required_anf_commit_port_call": "r13_whole_system_commit_and_backing_gate_required",
+      "legacy_status": "outside_m6_scope",
+      "runtime_reachability_evidence": "outside_m6_mount_unverified",
+      "value_moving": true,
+      "authority_sink": true,
+      "source_paths": [
+        "src/integration/zusd_monetary_wallet_api.py"
+      ]
+    }
+  ],
+  "coverage_notes": [
+    {
+      "surface_id": "deployment_reachability",
+      "disposition": "required_next_audit",
+      "reason": "Deployment and build files are source-bound, but this packet does not prove process reachability, image inclusion, credentials, or worker launch behavior.",
+      "paths": [
+        ".docker/entrypoint.sh",
+        "bin/zenoctl",
+        "config/deploy/production-strict.yaml",
+        "rust-runtime/crates/zenodex-runtime-cli/src/main.rs"
+      ]
+    },
+    {
+      "surface_id": "dynamic_call_graph",
+      "disposition": "unverified",
+      "reason": "K01 records reviewed candidate symbols and their required edges; it does not execute a complete runtime call-graph or deployment scan.",
+      "paths": []
+    },
+    {
+      "surface_id": "m6_runtime_mount",
+      "disposition": "absent_in_this_slice",
+      "reason": "No mounted FCIS M6 caller, datastore authority, runtime switch, or value-moving path is claimed in this recovery checkout.",
+      "paths": [
+        "experiments/fcis_m6_h02_sqlite_publication.py",
+        "src/core/fcis_durable_retraction.py"
+      ]
+    },
+    {
+      "surface_id": "r13_zusd_and_backing",
+      "disposition": "outside_m6",
+      "reason": "zUSD, perps, and collateral/backing surfaces are inventoried as separate candidates and remain outside the K01 M6 closure claim until the L wave is complete.",
+      "paths": [
+        "src/integration/perps_api.py",
+        "src/integration/zusd_api.py",
+        "src/integration/zusd_monetary_bridge.py",
+        "src/integration/zusd_monetary_wallet_api.py"
+      ]
+    }
+  ]
+}
