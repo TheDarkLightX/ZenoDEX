@@ -1,0 +1,132 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "D01",
+  "base_sha": "efa09ef7bc54c7f3c0ddede193e921c753563e99",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_authority_normal_form_v1.py",
+    "tests/core/test_fcis_authority_normal_form_v1.py",
+    "experiments/fcis_m6_d01_vector_check.py",
+    "docs/research/m6_tasks/TASK_D01_AUTHORITY_NORMAL_FORM_VECTOR.json",
+    "docs/research/FCIS_M6_D01_AUTHORITY_NORMAL_FORM_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_D01_PLAN.md",
+    "docs/research/m6_tasks/TASK_D01_REPORT.md",
+    "docs/research/m6_tasks/TASK_D01_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_D01_SOURCE_MANIFEST.sha256",
+    "docs/research/m6_tasks/TASK_C07_MIGRATION_REVIEW_PACKET.json",
+    "docs/research/m6_tasks/TASK_C07_REPORT.md",
+    "docs/research/m6_tasks/TASK_C07_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_C07_SOURCE_MANIFEST.sha256",
+    "docs/research/FCIS_M6_C07_MIGRATION_REVIEW_PACKET_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_C07_PLAN.md",
+    "src/core/fcis_m6_profile_ids.py",
+    "tests/core/test_fcis_m6_profile_ids.py",
+    "src/core/fcis_lineage_closure.py",
+    "src/core/fcis_tree_chord_gate_authority.py",
+    "src/core/fcis_durable_retraction.py"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_authority_normal_form_v1.py tests/core/test_fcis_authority_normal_form_v1.py experiments/fcis_m6_d01_vector_check.py",
+    "python3 -m ruff check src/core/fcis_authority_normal_form_v1.py tests/core/test_fcis_authority_normal_form_v1.py experiments/fcis_m6_d01_vector_check.py",
+    "python3 -m mypy --strict src/core/fcis_authority_normal_form_v1.py tests/core/test_fcis_authority_normal_form_v1.py experiments/fcis_m6_d01_vector_check.py",
+    "pytest -q tests/core/test_fcis_authority_normal_form_v1.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_D01_AUTHORITY_NORMAL_FORM_VECTOR.json",
+    "python3 -m experiments.fcis_m6_d01_vector_check",
+    "pytest -q tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "python3 -m experiments.fcis_m6_c07_review_packet_check",
+    "git diff --cached --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D01",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_D01_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_authority_normal_form_v1.py": "cab5f73e626a07cda420b3813c24640474a7260c2dabd83130cd2739285833a9",
+    "tests/core/test_fcis_authority_normal_form_v1.py": "a4d488cbc04a8556609593803f3f7a4cd1f7c8f7e908b2d4cd5a30df9362ae93",
+    "experiments/fcis_m6_d01_vector_check.py": "b3d9dc2b1b8f0c8e9c31c0425a96895a49058cf06561f31c51ce4aa1ee5b5051",
+    "docs/research/m6_tasks/TASK_D01_AUTHORITY_NORMAL_FORM_VECTOR.json": "5ca6100c9f2019e04f145d1af4803e01f4127c233eaa069047fc1b84f1cd6425",
+    "docs/research/FCIS_M6_D01_AUTHORITY_NORMAL_FORM_SCHEMA_V1.md": "25f89d417897b9fa378d98b3c69f55e99d6ddbe409ce93febfbd4161dc2f5f5a",
+    "docs/research/m6_tasks/TASK_D01_PLAN.md": "3755ae3e657a51a4efd1936b3c4ec8c4c4c1b25c57d8fd78a2873bb22006e207",
+    "docs/research/m6_tasks/TASK_C07_MIGRATION_REVIEW_PACKET.json": "23714b7204f04bf2fd85b6d51b3c8f76abfd386c5ff9ac532de29e847a21554e",
+    "docs/research/m6_tasks/TASK_C07_REPORT.md": "fef1f65ead0e97da2b1f1760360ff73fd8e39764281c3fa5c02567576fabed0c",
+    "docs/research/m6_tasks/TASK_C07_EVIDENCE.json": "db6cb6e18076e41ea193723e60c9c5fc59335b67e5bab70457debe6c330bc655",
+    "docs/research/m6_tasks/TASK_C07_SOURCE_MANIFEST.sha256": "454b66d839708d42c124138ffe7b66fb198e66575782b3e37b68c82f659782c0",
+    "docs/research/FCIS_M6_C07_MIGRATION_REVIEW_PACKET_SCHEMA_V1.md": "c77fc7bad2e2564663564b5f39ddb48fcc72324d15afb3ecd3a9b5b6ead9c8f0",
+    "docs/research/m6_tasks/TASK_C07_PLAN.md": "874cc967595f7561cc2a3a18ffc2d678ff5f06ea4cc697f6ac6dbda129a98168",
+    "src/core/fcis_m6_profile_ids.py": "c49a51688c453776d49726de24f295c84ffe4219b18f8692ad5a4d7c628e232f",
+    "tests/core/test_fcis_m6_profile_ids.py": "6a999f9250c9190438041c49a3d7b1ef07491050f23a24fc6fddb5d1edccaade",
+    "src/core/fcis_lineage_closure.py": "25fdf5fc16eaa0980dba96aeea6f89025500245146f300342afe00f3d9b57c5e",
+    "src/core/fcis_tree_chord_gate_authority.py": "669327f6fea5dedd3ea6aea561a5f987a511fbaa804c3c47b937673d0e563592",
+    "src/core/fcis_durable_retraction.py": "a39181be542c979acd96f7da316366c79b74e29affc156aa691c4f134752a82a"
+  },
+  "results": {
+    "implementation_commit": "2848840b20630aff2103083c42090b23b8b1d404",
+    "implementation_tree": "e18eb488e35dc266894a3470f660a2b3de438f21",
+    "implementation_parent": "efa09ef7bc54c7f3c0ddede193e921c753563e99",
+    "focused_tests": "7 passed",
+    "vector_checker": "pass; D01_VECTOR_MATCH",
+    "dependency_c01_c04_c06_tests": "53 passed",
+    "dependency_c07_packet_checker": "pass; C07_REVIEW_PACKET_MATCH",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "mypy_strict": "pass; 3 source files",
+    "anf_root": "0x1a2ac6e298b57f8068c0f5b88e55ea1f7802e4771d28b20f9267bd6529c26433",
+    "proof_context_policy": "pass; required and not-required states are distinct",
+    "validator": "pass; 19 manifest entries",
+    "source_manifest": "pass; 19 manifest entries",
+    "runtime_mount": "none",
+    "remote_publication": "none"
+  },
+  "mutants": [
+    {
+      "id": "D01_WRONG_EXACT_TYPE",
+      "status": "covered_by_regression_assertion",
+      "invariant": "codec and decoder accept only exact owned types"
+    },
+    {
+      "id": "D01_UNKNOWN_OR_MISSING_FIELD",
+      "status": "covered_by_regression_assertion",
+      "invariant": "the ANF field registry is closed"
+    },
+    {
+      "id": "D01_DUPLICATE_FIELD",
+      "status": "covered_by_regression_assertion",
+      "invariant": "duplicate JSON fields reject before construction"
+    },
+    {
+      "id": "D01_NONCANONICAL_BYTES",
+      "status": "covered_by_regression_assertion",
+      "invariant": "decoded bytes equal the canonical encoding exactly"
+    },
+    {
+      "id": "D01_ROOT_TYPE_DRIFT",
+      "status": "covered_by_regression_assertion",
+      "invariant": "every root is a lowercase fixed-width digest"
+    },
+    {
+      "id": "D01_PROOF_CONTEXT_MISMATCH",
+      "status": "covered_by_regression_assertion",
+      "invariant": "proof requirement and proof root presence agree"
+    },
+    {
+      "id": "D01_FIELD_ROOT_DRIFT",
+      "status": "covered_by_metamorphic_test",
+      "invariant": "changing any registered root changes the complete ANF root"
+    }
+  ],
+  "nonclaims": [
+    "D01 is tested unmounted evidence for a scalar Authority Normal Form carrier.",
+    "D01 does not authenticate supplied roots or prove source-derived recomputation.",
+    "D01 does not bind ANF into evaluation, receipt, bundle, outbox, proof, TCG, DRA, or runtime paths.",
+    "D01 does not prove TCG inventory completeness, proof-context validity, datastore durability, migration authority, or value movement.",
+    "No remote implementation commit, hosted CI run, draft PR, merge, deployment, production migration, or value movement is claimed."
+  ]
+}
