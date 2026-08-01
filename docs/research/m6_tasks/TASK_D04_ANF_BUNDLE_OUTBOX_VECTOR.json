@@ -22,6 +22,8 @@
     "foreign_anf_rejected": true,
     "valid_reference_publication": true,
     "legacy_v1_canonical_preserved": true,
+    "legacy_v1_rejects_anf_bound_decision": true,
+    "anf_v2_lineage_closure_succeeds": true,
     "corrupted_anf_rejected_at_commit": true,
     "stored_corrupted_anf_rejected": true
   }

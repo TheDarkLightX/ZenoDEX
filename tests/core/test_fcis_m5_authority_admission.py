@@ -550,6 +550,29 @@ def test_legacy_commit_bundle_claim_preserves_exact_v1_field_surface() -> None:
     assert bundle.receipt is bundle.decision.receipt
 
 
+def test_legacy_v1_bundle_rejects_anf_bound_decision() -> None:
+    """D04: ANF-bound decisions cannot cross the legacy bundle schema."""
+
+    sources = _sources()
+    legacy = cast(
+        CommitBundleSourceV1,
+        sources[FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1],
+    )
+    anf = cast(
+        CommitBundleSourceV2,
+        sources[FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2],
+    )
+
+    rejected = admit_fcis_authority_claim_v1(
+        FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1,
+        replace(legacy, decision=anf.decision),
+    )
+
+    assert type(rejected) is AdmitReject
+    assert rejected.code is AdmitCode.DOMAIN_INVARIANT
+    assert rejected.path == ()
+
+
 def test_anf_bound_commit_bundle_claim_uses_required_v2_root() -> None:
     bundle = _admit(
         FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2,

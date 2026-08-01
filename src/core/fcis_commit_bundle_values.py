@@ -73,6 +73,11 @@ class CommitBundleClaimV1:
             raise TypeError("bundle outbox_plan must be exact")
         if self.expected_pre_root != self.receipt.binding.pre_state_root:
             raise ValueError("bundle expected root must equal the receipt pre-root")
+        if (
+            self.receipt.binding.authority_normal_form_version is not None
+            or self.receipt.binding.authority_normal_form_root is not None
+        ):
+            raise ValueError("ANF-bound decision requires the V2 bundle schema")
 
     @property
     def next_state(self) -> FCISCommittedStateV1:

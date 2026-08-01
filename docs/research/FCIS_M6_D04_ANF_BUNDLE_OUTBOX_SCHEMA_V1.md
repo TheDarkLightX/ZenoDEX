@@ -56,8 +56,18 @@ canonical_authority_normal_form_root_v1(bundle.authority_normal_form)
     == bundle.decision.receipt.binding.authority_normal_form_root
 ```
 
-An unbound receipt can produce only a V1 outbox and bundle claim. An ANF-bound
-receipt can produce only a V2 outbox and bundle claim.
+An unbound receipt can produce only a V1 outbox and bundle claim. Direct V1
+admission rejects a decision whose receipt carries an ANF version or root. An
+ANF-bound receipt can produce only a V2 outbox and bundle claim.
+
+Lineage closure recomputes the outbox root through the bundle's exact schema:
+
+```text
+OutboxPlanV1 -> zenodex/fcis/outbox-plan/v1, version 1
+OutboxPlanV2 -> zenodex/fcis/outbox-plan/v2, version 2
+```
+
+It does not project a V2 plan through the legacy V1 encoder.
 
 ## Commit-time recomputation
 

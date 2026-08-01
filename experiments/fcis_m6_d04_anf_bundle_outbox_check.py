@@ -7,6 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
+from src.core.fcis_authority_admission import admit_fcis_authority_claim_v1
 from src.core.fcis_commit_bundle_derivation import (
     CommitBundleV1,
     build_anf_bound_commit_bundle_v1,
@@ -20,12 +21,18 @@ from src.core.fcis_commit_bundle_derivation import (
 from src.core.fcis_commit_bundle_values import (
     FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1,
     FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2,
+    CommitBundleSourceV1,
+    CommitBundleSourceV2,
 )
 from src.core.fcis_commit_reference import ReferenceCommitStatusV1, reference_commit_v1
 from src.core.fcis_decision_derivation import (
     AcceptV1,
     RejectV1,
     acceptance_receipt_root_v1,
+)
+from src.core.fcis_lineage_closure import (
+    FCISLineageClosureCertificateV1,
+    _build_fcis_lineage_closure_from_artifacts_v1,
 )
 from src.core.fcis_outbox_values import (
     FCIS_OUTBOX_PLAN_SCHEMA_ID_V1,
@@ -34,8 +41,12 @@ from src.core.fcis_outbox_values import (
     OutboxPlanV2,
 )
 from src.state.canonical import sha256_hex
+from src.state.snapshot_combinators import AdmitReject
 from tests.core.test_fcis_commit_bundle_derivation import _anf_accept_with_value, _event_accept
 from tests.core.test_fcis_commit_reference import _store_from_pre_state
+from tests.core.test_fcis_decision_derivation import _exact_inputs
+from tests.core.test_fcis_lineage_closure import _anf_artifacts, _segment
+from tests.core.test_fcis_m5_authority_admission import _sources as _authority_sources
 
 _VECTOR_PATH = Path("docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json")
 
@@ -118,6 +129,35 @@ def main() -> int:
     )
     if legacy_v1_canonical_preserved is not expected["legacy_v1_canonical_preserved"]:
         raise AssertionError("D04 legacy V1 canonical identity changed")
+
+    authority_sources = _authority_sources()
+    legacy_bundle_source = cast(
+        CommitBundleSourceV1,
+        authority_sources[FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1],
+    )
+    anf_bundle_source = cast(
+        CommitBundleSourceV2,
+        authority_sources[FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2],
+    )
+    legacy_anf_result = admit_fcis_authority_claim_v1(
+        FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1,
+        replace(legacy_bundle_source, decision=anf_bundle_source.decision),
+    )
+    legacy_v1_rejects_anf_bound_decision = type(legacy_anf_result) is AdmitReject
+    if legacy_v1_rejects_anf_bound_decision is not expected["legacy_v1_rejects_anf_bound_decision"]:
+        raise AssertionError("D04 legacy V1 admitted an ANF-bound decision")
+
+    lineage_evaluation, lineage_decision, lineage_bundle = _anf_artifacts()
+    lineage_result = _build_fcis_lineage_closure_from_artifacts_v1(
+        evaluation=lineage_evaluation,
+        occurrence_segment=_segment("d04-anf", (867,)),
+        decision=lineage_decision,
+        bundle=lineage_bundle,
+        budget=_exact_inputs()["budget"],
+    )
+    anf_v2_lineage_closure_succeeds = type(lineage_result) is FCISLineageClosureCertificateV1
+    if anf_v2_lineage_closure_succeeds is not expected["anf_v2_lineage_closure_succeeds"]:
+        raise AssertionError("D04 ANF-bound V2 lineage closure failed")
 
     corrupted_decision, corrupted_anf = _anf_accept_with_value()
     corrupted_bundle = build_anf_bound_commit_bundle_v1(corrupted_decision, corrupted_anf)

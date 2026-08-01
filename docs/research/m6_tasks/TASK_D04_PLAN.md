@@ -14,6 +14,8 @@ The controlled builder retains the exact `FCISAuthorityNormalFormV1`. The
 reference commit port recomputes that value's root, the outbox plan and root,
 and the bundle bytes and root before publication. Store validation repeats the
 same checks for every retained publication before retry classification.
+Lineage closure selects the outbox root through the bundle's exact V1 or V2
+schema instead of applying a fixed legacy schema to both variants.
 
 ## Preflight record
 
@@ -46,9 +48,11 @@ claim level:
 - `src/core/fcis_authority_dispatch.py`
 - `src/core/fcis_commit_bundle_derivation.py`
 - `src/core/fcis_commit_reference.py`
+- `src/core/fcis_lineage_closure.py`
 - `tests/core/test_fcis_commit_bundle_derivation.py`
 - `tests/core/test_fcis_commit_reference.py`
 - `tests/core/test_fcis_m5_authority_admission.py`
+- `tests/core/test_fcis_lineage_closure.py`
 - `experiments/fcis_m6_d04_anf_bundle_outbox_check.py`
 - `docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json`
 - `docs/research/FCIS_M6_D04_ANF_BUNDLE_OUTBOX_SCHEMA_V1.md`
@@ -76,7 +80,9 @@ git diff --check <declared-base>..<receipt>
 - missing or corrupted retained ANF at the reference commit port;
 - corrupted ANF in an already retained publication before retry;
 - stale cached bundle root after any mutation;
-- any change to the frozen legacy V1 canonical vector.
+- any change to the frozen legacy V1 canonical vector;
+- direct V1 bundle admission of an ANF-bound decision;
+- V2 outbox hashing through the legacy V1 schema during lineage closure.
 
 ## Nonclaims
 
