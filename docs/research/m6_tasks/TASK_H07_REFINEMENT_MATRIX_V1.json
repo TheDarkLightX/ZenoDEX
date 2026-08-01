@@ -1,0 +1,121 @@
+{
+  "schema_version": "zenodex.fcis.m6.h07.refinement-matrix.v1",
+  "task_id": "H07",
+  "scope": "isolated H02 SQLite adapter and H03/H04/H06 research evidence",
+  "required_action_ids": [
+    "DRA-INIT",
+    "DRA-REOPEN",
+    "DRA-PUBLISH",
+    "DRA-AUTHORITY-APPEND",
+    "DRA-ACK",
+    "DRA-RETRY",
+    "DRA-CRASH-RECOVERY",
+    "DRA-DURABILITY",
+    "DRA-EFFECT-DELIVERY"
+  ],
+  "actions": [
+    {
+      "action_id": "DRA-INIT",
+      "abstract_action": "initialize a canonical durable snapshot",
+      "status": "MAPPED",
+      "sql_transaction": "initialize_database: BEGIN, singleton absence check, complete seed inserts, COMMIT",
+      "isolation_assumptions": ["single SQLite connection", "schema creation precedes seed transaction", "foreign-key enforcement is enabled by the H02 connection factory"],
+      "uniqueness_constraints": ["snapshot_meta.singleton = 1", "authority epoch primary key", "atom sequence/commit/nullifier uniqueness", "evidence (commit_id, kind) primary key", "outbox effect_id and (commit_id, ordinal) uniqueness", "ANF commit_id primary key"],
+      "recovery_behavior": "any validation or SQLite error rolls back the seed transaction; post-commit read_state must equal the seed state",
+      "test_evidence": ["tests/core/test_fcis_m6_h02_sqlite_publication.py::test_atom_history_requires_an_f_row_when_seed_has_atoms", "experiments/fcis_m6_h02_sqlite_publication.py::initialize_database"],
+      "nonclaims": ["no production bootstrap path", "no filesystem durability proof"]
+    },
+    {
+      "action_id": "DRA-REOPEN",
+      "abstract_action": "reconstruct the complete authoritative history or reject",
+      "status": "MAPPED",
+      "sql_transaction": "read-only SELECT reconstruction through read_state; no write transaction",
+      "isolation_assumptions": ["one stable connection view during reconstruction", "a caller must not treat a selected root as sufficient"],
+      "uniqueness_constraints": ["all table primary keys and foreign keys are rechecked by typed row reconstruction", "cached ANF-set and publication roots must rederive"],
+      "recovery_behavior": "missing, surplus, crossed, stale, malformed, or noncanonical rows raise H02StorageError; no state-changing operation may proceed",
+      "test_evidence": ["tests/core/test_fcis_m6_h02_sqlite_publication.py::test_one_transaction_publishes_complete_post", "tests/core/test_fcis_m6_h02_sqlite_publication.py::test_sql_abort_after_partial_insert_rolls_back_every_row"],
+      "nonclaims": ["no production datastore adapter", "no power-loss recovery proof"]
+    },
+    {
+      "action_id": "DRA-PUBLISH",
+      "abstract_action": "atomically publish successor state, authority, atom, evidence, nullifier, outbox, and ANF relation",
+      "status": "MAPPED",
+      "sql_transaction": "publish_atom: BEGIN IMMEDIATE; read PRE; root/authority CAS; update snapshot_meta; insert logical rows; read complete POST; COMMIT",
+      "isolation_assumptions": ["BEGIN IMMEDIATE serializes SQLite writers for this connection/database", "CAS predicates use expected state, snapshot, publication, and authority heads", "uncommitted rows are not the durable authority boundary"],
+      "uniqueness_constraints": ["snapshot_meta singleton update", "atom sequence/commit/nullifier uniqueness", "evidence composite key", "outbox effect and commit/ordinal uniqueness", "ANF commit primary key", "foreign keys from evidence/nullifier/outbox/ANF to atom"],
+      "recovery_behavior": "typed stale-CAS rejects roll back; any insert/read mismatch rolls back; successful COMMIT returns one H02CommitV1; post-COMMIT response loss is modeled by H03/H04",
+      "test_evidence": ["tests/core/test_fcis_m6_h02_sqlite_publication.py::test_one_transaction_publishes_complete_post", "tests/core/test_fcis_m6_h02_sqlite_publication.py::test_sql_abort_after_partial_insert_rolls_back_every_row", "tests/core/test_fcis_m6_h03_crash_points.py", "tests/core/test_fcis_m6_h04_crash_recovery.py"],
+      "nonclaims": ["no production datastore refinement", "no concurrent linearizability proof", "D08 fixture has an empty outbox"]
+    },
+    {
+      "action_id": "DRA-AUTHORITY-APPEND",
+      "abstract_action": "append the next authority epoch as part of the publication atom",
+      "status": "MAPPED_WITH_FIXTURE_GAP",
+      "sql_transaction": "publish_atom optional next_authority branch calls _insert_authority inside the same BEGIN IMMEDIATE transaction",
+      "isolation_assumptions": ["authority epoch append must be one exact successor", "allowed writer rows share the transaction"],
+      "uniqueness_constraints": ["authority_epochs.epoch_index primary key", "authority_allowed_writers composite primary key", "snapshot_meta authority head CAS"],
+      "recovery_behavior": "H03 authority-helper fault points roll back on the harness connection; full D08 publication with a verifier-produced authority-transition atom remains open",
+      "test_evidence": ["tests/core/test_fcis_m6_h03_crash_points.py::test_each_authority_insert_crash_point_is_reachable_and_repeatable", "experiments/fcis_m6_h02_sqlite_publication.py::_post_authorities"],
+      "nonclaims": ["current D08 fixture does not construct an authority-transition atom", "no mounted migration authority"]
+    },
+    {
+      "action_id": "DRA-ACK",
+      "abstract_action": "publish a destination acknowledgment bound to a committed effect",
+      "status": "OPEN_NONCLAIM",
+      "sql_transaction": "no H02 acknowledgment-write operation; delivery_acks table is declared and reopened but not populated by a worker",
+      "isolation_assumptions": ["an acknowledgment must be after committed outbox membership", "destination receipt provenance must be verified at use"],
+      "uniqueness_constraints": ["delivery_acks.effect_id primary key in the logical schema", "missing foreign-key/worker binding remains an open adapter obligation"],
+      "recovery_behavior": "no H02 recovery behavior is claimed; I05-I07 must define provenance, lost-ack, and redelivery behavior",
+      "test_evidence": ["docs/research/m6_tasks/FCIS_M6_H02_SQLITE_PUBLICATION_SCHEMA_V1.md:delivery_acks", "docs/research/m6_tasks/TASK_H02_REPORT.md:REMAINING_NONCLAIMS"],
+      "nonclaims": ["no destination effect", "no acknowledgment acceptance", "no worker implementation"]
+    },
+    {
+      "action_id": "DRA-RETRY",
+      "abstract_action": "classify a retry against canonical durable commit identity and current state",
+      "status": "OPEN_NONCLAIM",
+      "sql_transaction": "no public retry classifier is mounted in H02; only the lower-level CAS and canonical reopen are available",
+      "isolation_assumptions": ["client indeterminacy is distinct from durable outcome", "commit identity, fingerprint, nonce, and expected roots must be compared"],
+      "uniqueness_constraints": ["atom commit_id and nullifier uniqueness are available to a future classifier", "no retry API/refinement is declared here"],
+      "recovery_behavior": "H04 only classifies storage after a fault; H05 and later retry work must distinguish already committed, absent retryable, stale, and definite collision",
+      "test_evidence": ["docs/research/m6_tasks/TASK_H02_PLAN.md:Typed rejection surface", "docs/research/m6_tasks/TASK_H04_REPORT.md:RESULTS"],
+      "nonclaims": ["no concurrent retry proof", "no mounted caller classifier"]
+    },
+    {
+      "action_id": "DRA-CRASH-RECOVERY",
+      "abstract_action": "after a crash expose exact PRE, exact POST, or rejection",
+      "status": "MAPPED",
+      "sql_transaction": "H03 fault hook interrupts a named boundary; H04 child process exits; parent opens a fresh connection and calls read_state",
+      "isolation_assumptions": ["SQLite connection close rolls back an uncommitted transaction in this harness", "the post-COMMIT point is already durable before the child exits"],
+      "uniqueness_constraints": ["complete state equality includes all rederived row families and roots", "a third layout is classified REJECTED"],
+      "recovery_behavior": "15 ordinary pre-COMMIT points recover exact PRE; post-COMMIT/pre-response recovers exact POST; authority-helper-only points remain deferred",
+      "test_evidence": ["tests/core/test_fcis_m6_h04_crash_recovery.py", "docs/research/m6_tasks/TASK_H04_RECOVERY_MATRIX_V1.json"],
+      "nonclaims": ["no power-loss or filesystem crash proof", "no production supervisor integration"]
+    },
+    {
+      "action_id": "DRA-DURABILITY",
+      "abstract_action": "ensure the storage configuration satisfies the assumed transaction profile",
+      "status": "MAPPED_WITH_MOUNT_GAP",
+      "sql_transaction": "H06 observes pragmas outside an open transaction; configure helper applies WAL/FULL/foreign_keys/busy_timeout/NORMAL and rechecks",
+      "isolation_assumptions": ["file-backed SQLite database", "WAL and synchronous FULL are required observed settings", "configuration must be checked before publication"],
+      "uniqueness_constraints": ["not a row uniqueness property; typed profile checker rejects missing or weakened settings"],
+      "recovery_behavior": "weak profile returns a stable typed rejection; H06 is not automatically wired into H02 production startup",
+      "test_evidence": ["tests/core/test_fcis_m6_h06_durability_config.py", "docs/research/m6_tasks/TASK_H06_DURABILITY_PROFILE_V1.json"],
+      "nonclaims": ["no filesystem durability theorem", "no PostgreSQL profile", "no production startup binding"]
+    },
+    {
+      "action_id": "DRA-EFFECT-DELIVERY",
+      "abstract_action": "deliver each committed outbox effect with stable identity and destination idempotency",
+      "status": "OPEN_NONCLAIM",
+      "sql_transaction": "H02 inserts outbox rows inside publication but has no worker lease/send/ack transaction",
+      "isolation_assumptions": ["effect identity is derived from commit, ordinal, destination, payload root, and writer profile", "destination acknowledgment must retain provenance"],
+      "uniqueness_constraints": ["publication_outbox effect_id primary key and (commit_id, ordinal) uniqueness", "destination-side deduplication is not implemented"],
+      "recovery_behavior": "H04 verifies storage relation only; I01-I07 must define leasing, redelivery, lost acknowledgment, and destination receipt behavior",
+      "test_evidence": ["tests/core/test_fcis_m6_h02_sqlite_publication.py::test_one_transaction_publishes_complete_post", "docs/research/m6_tasks/FCIS_M6_H02_SQLITE_PUBLICATION_SCHEMA_V1.md:publication_outbox"],
+      "nonclaims": ["no external delivery", "no worker idempotency", "no destination receipt verification"]
+    }
+  ],
+  "global_nonclaims": [
+    "M6 remains unmounted and non-promotable",
+    "no production datastore, caller, migration, value movement, or zUSD safety theorem is established"
+  ]
+}
