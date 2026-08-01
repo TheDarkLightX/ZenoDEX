@@ -1,6 +1,7 @@
 # H06 plan: fail-closed SQLite durability configuration
 
-Status: implementation in progress; research-only and unmounted.
+Status: implemented and tested in an isolated checker; research-only and
+unmounted. H05 and H07-H08 remain pending.
 
 ## Objective
 
