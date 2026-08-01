@@ -1,0 +1,39 @@
+{
+  "schema_version": "zenodex.fcis.m6.i01.effect-id-vectors.v1",
+  "task_id": "I01",
+  "preimage_fields": [
+    "commit_id",
+    "ordinal",
+    "destination",
+    "payload_root",
+    "writer_profile_root"
+  ],
+  "adapter_profile_is_operational_only": true,
+  "vectors": [
+    {
+      "vector_id": "case-a",
+      "commit_id": "0e3ac1e57df485980ee2418b7227a644ea8eab3918e7fbd16730ce85aa1c9623",
+      "ordinal": 0,
+      "destination": "destination.alpha",
+      "payload_root": "e0c049164313be06758a07f5994c2e9a5d7fd427b8fc90f6313be9b311035611",
+      "writer_profile_root": "2d6df5599d3dd70bc4561a04c86a7c740a3bdce034b0179499624b686dd01726",
+      "adapter_profile_root": "e9c73818e9c9ddb87f440025cda9933f8c747890de7aa0dc66a5112143017799",
+      "effect_id": "e8fb4bb789fb3801c91ec30f1e38fc55f7d3500663fe1bc2dcfbdc49648fac5c"
+    },
+    {
+      "vector_id": "case-b",
+      "commit_id": "9cb2d0eba0efa5851dc2aa5da4cce569443991a873c36c21dc1c0c99c1f4cce2",
+      "ordinal": 3,
+      "destination": "destination.beta",
+      "payload_root": "e65bed220ffb6256ae350567d6e1be12ed572193bbd67ecccc8d4c3ecaeed787",
+      "writer_profile_root": "76be2cdb90b70b44760452c44fbe3cd1df216521e6769300ec9ec6e4b7ca1ca6",
+      "adapter_profile_root": "8f797ca9e867fd1b0d6f641473e4fbe05a02927843a77e97a630485b222d9a24",
+      "effect_id": "bd2b2d075d14a5e565447bd5e328824e0dbe5983d8d032f28953b5dc95dac6aa"
+    }
+  ],
+  "nonclaims": [
+    "vectors do not prove destination idempotency",
+    "vectors do not prove committed outbox insertion or worker delivery",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
