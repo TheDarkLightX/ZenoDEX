@@ -1,0 +1,59 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "J02",
+  "base_sha": "62157f14df220b134264bba24898134e14287f55",
+  "source_head_sha": "b8589dd09ee5f7283273d5a1c38c004fc23a1185",
+  "source_head_tree": "fc01fd46448f6bccfec958029912fff44643d294",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "tools/check_fcis_m6_j02_writer_matrix.py",
+    "tests/core/test_fcis_m6_j02_writer_matrix.py",
+    "docs/research/m6_tasks/TASK_J02_WRITER_MATRIX_SCHEMA_V1.json",
+    "docs/research/m6_tasks/TASK_J02_PLAN.md",
+    "docs/research/m6_tasks/TASK_J02_REPORT.md",
+    "docs/research/m6_tasks/TASK_J02_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_J02_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "PYTHONPATH=. python3 tools/check_fcis_m6_j02_writer_matrix.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_j02_writer_matrix.py",
+    "python3 -m ruff check tools/check_fcis_m6_j02_writer_matrix.py tests/core/test_fcis_m6_j02_writer_matrix.py",
+    "python3 -m ruff format --check tools/check_fcis_m6_j02_writer_matrix.py tests/core/test_fcis_m6_j02_writer_matrix.py",
+    "python3 -m mypy --strict tools/check_fcis_m6_j02_writer_matrix.py tests/core/test_fcis_m6_j02_writer_matrix.py",
+    "python3 -m py_compile tools/check_fcis_m6_j02_writer_matrix.py tests/core/test_fcis_m6_j02_writer_matrix.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_J02_WRITER_MATRIX_SCHEMA_V1.json",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J02",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_J02_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "tools/check_fcis_m6_j02_writer_matrix.py": "edf8e2b435bfbbbcd16a1a3e7ccbd425340c7baf375748552c0333b3e24ccb39",
+    "tests/core/test_fcis_m6_j02_writer_matrix.py": "c986ddefe6fb578df29e3981f45ffa75c656ac7e3f1a90edcd7c0120d56c9e02",
+    "docs/research/m6_tasks/TASK_J02_WRITER_MATRIX_SCHEMA_V1.json": "43817846638de777f0b06478a6c93190ddf57f5b5a848cf6f94dcd32ad673358",
+    "docs/research/m6_tasks/TASK_J02_PLAN.md": "3b54d41bf7e66809ea97a28ca54fb2e5c904e57ba7d6b90e27eda0a6080da70d"
+  },
+  "results": {
+    "writer_checker": "pass; exact phase-to-writer matrix",
+    "focused_tests": "pass; 4 passed",
+    "negative_witnesses": "pass; dual writer, quiesced writer, and stale legacy writer reject",
+    "profile_binding": "pass; active profile equals the enabled writer profile",
+    "implementation_commit": "b8589dd09ee5f7283273d5a1c38c004fc23a1185",
+    "implementation_tree": "fc01fd46448f6bccfec958029912fff44643d294",
+    "implementation_parent": "62157f14df220b134264bba24898134e14287f55"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "J02 is a research writer-policy checker and is not production middleware.",
+    "J02 does not prove no-bypass reachability, stale-token transactions, or migration behavior.",
+    "J02 does not prove runtime mounting or value movement.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
