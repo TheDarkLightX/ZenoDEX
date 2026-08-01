@@ -1,0 +1,179 @@
+{
+  "schema_version": "zenodex.fcis.m6.dra-table-matrix.v1",
+  "task_id": "H01",
+  "source_module": "src/core/fcis_durable_retraction.py",
+  "source_type": "PublicationAtomV1",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "canonical_writer": "encode_history",
+  "partial_reopen": "reopen_snapshot",
+  "fixed_point": "encode_history(reopen_snapshot(snapshot)) == snapshot",
+  "table_contracts": [
+    {
+      "table": "snapshot_meta",
+      "key": "singleton",
+      "role": "canonical header plus checked derived caches"
+    },
+    {
+      "table": "authority_epochs",
+      "key": "epoch_index",
+      "role": "canonical authority rows"
+    },
+    {
+      "table": "authority_allowed_writers",
+      "key": "(epoch_index, writer_profile_root)",
+      "role": "canonical child rows for the ordered writer-set projection"
+    },
+    {
+      "table": "publication_atoms",
+      "key": "sequence",
+      "role": "canonical scalar atom rows"
+    },
+    {
+      "table": "publication_evidence",
+      "key": "(commit_id, kind)",
+      "role": "checked projection of atom evidence roots"
+    },
+    {
+      "table": "publication_nullifiers",
+      "key": "nullifier_root",
+      "role": "checked projection of atom nullifiers"
+    },
+    {
+      "table": "publication_outbox",
+      "key": "effect_id",
+      "role": "checked projection of atom outbox effects"
+    },
+    {
+      "table": "delivery_acks",
+      "key": "effect_id",
+      "role": "canonical durable acknowledgment rows bound to outbox"
+    }
+  ],
+  "fields": [
+    {
+      "field": "sequence",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "sequence",
+      "checked_relation": "positive bounded integer; primary key; contiguous from one"
+    },
+    {
+      "field": "commit_id",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "commit_id",
+      "checked_relation": "lowercase digest; unique; all child references resolve to this atom"
+    },
+    {
+      "field": "command_root",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "command_root",
+      "checked_relation": "equals the command evidence projection for the same commit"
+    },
+    {
+      "field": "expected_pre_root",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "expected_pre_root",
+      "checked_relation": "equals genesis for sequence one or the prior post-state root"
+    },
+    {
+      "field": "post_state_root",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "post_state_root",
+      "checked_relation": "final value equals the checked current-state projection"
+    },
+    {
+      "field": "writer_profile_root",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "writer_profile_root",
+      "checked_relation": "belongs to the phase-derived allowed writer set"
+    },
+    {
+      "field": "authority_epoch_index",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "authority_epoch_index",
+      "checked_relation": "exact u32 foreign key to a contiguous authority epoch"
+    },
+    {
+      "field": "authority_state_root",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "authority_state_root",
+      "checked_relation": "equals the referenced authority row root and authority evidence projection"
+    },
+    {
+      "field": "nullifier_root",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "nullifier_root",
+      "checked_relation": "lowercase digest; globally unique; nullifier row is an exact projection"
+    },
+    {
+      "field": "response_root",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "response_root",
+      "checked_relation": "equals the response evidence projection for the same commit"
+    },
+    {
+      "field": "receipt_root",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "receipt_root",
+      "checked_relation": "equals the receipt evidence projection for the same commit"
+    },
+    {
+      "field": "decision_root",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "decision_root",
+      "checked_relation": "equals the decision evidence projection for the same commit"
+    },
+    {
+      "field": "bundle_root",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "bundle_root",
+      "checked_relation": "equals the bundle evidence projection for the same commit"
+    },
+    {
+      "field": "replay_root",
+      "representation_role": "canonical-column",
+      "table": "publication_atoms",
+      "locator": "replay_root",
+      "checked_relation": "equals the replay evidence projection for the same commit"
+    },
+    {
+      "field": "outbox",
+      "representation_role": "checked-projection",
+      "table": "publication_outbox",
+      "locator": "rows WHERE commit_id = publication_atoms.commit_id ORDER BY ordinal",
+      "checked_relation": "reconstruct effects, require ordinals 0..n-1, then require exact tuple equality"
+    },
+    {
+      "field": "deployment_config_root",
+      "representation_role": "checked-projection",
+      "table": "snapshot_meta",
+      "locator": "deployment_config_root; atom copy at publication_atoms.deployment_config_root",
+      "checked_relation": "snapshot header is canonical and every atom copy equals it"
+    },
+    {
+      "field": "verifier_profile_root",
+      "representation_role": "checked-projection",
+      "table": "snapshot_meta",
+      "locator": "verifier_profile_root; atom copy at publication_atoms.verifier_profile_root",
+      "checked_relation": "snapshot header is canonical and every atom copy equals it"
+    }
+  ],
+  "open_boundary": {
+    "field": "anf_root",
+    "status": "absent_from_PublicationAtomV1",
+    "required_follow_up": "H02/H07 must add a checked proof-context relation or exact external table before claiming atomic ANF publication"
+  }
+}
