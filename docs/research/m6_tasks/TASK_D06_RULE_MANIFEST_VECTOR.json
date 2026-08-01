@@ -1,0 +1,62 @@
+{
+  "schema_version": "zenodex.fcis.m6.d06.rule-manifest-vector.v1",
+  "task_id": "D06",
+  "manifest_root": "0xc344deaeb5094dd17687b1b187b04445acca462beaf3feed5d13684af94972d5",
+  "rule_count": 4,
+  "derived_key_count": 4,
+  "permutation_count": 24,
+  "acyclic": true,
+  "one_writer": true,
+  "complete_coverage": true,
+  "fixed_point": true,
+  "all_permutations_same_root": true,
+  "rules": [
+    {
+      "rule_id": "derive-evaluation-certificate",
+      "output": "derived/evaluation_certificate_root",
+      "dependencies": [
+        "candidate/commit_plan_root",
+        "candidate/patch_root",
+        "fee/boundary_root",
+        "fee/lineage_stream_root",
+        "fee/policy_root",
+        "fee/semantic_stream_root",
+        "fee/witness_tuple_root",
+        "source/command_root",
+        "source/execution_context_hash",
+        "source/next_state_root",
+        "source/pre_state_root",
+        "source/snapshot_commitment",
+        "source/support_root",
+        "source/support_set_commitment"
+      ]
+    },
+    {
+      "rule_id": "derive-receipt-certificate",
+      "output": "derived/receipt_certificate_root",
+      "dependencies": [
+        "authority/acceptance_receipt_root",
+        "authority/budget_hash",
+        "derived/evaluation_certificate_root"
+      ]
+    },
+    {
+      "rule_id": "derive-bundle-certificate",
+      "output": "derived/bundle_certificate_root",
+      "dependencies": [
+        "derived/receipt_certificate_root",
+        "durability/base_bundle_root",
+        "durability/outbox_plan_root"
+      ]
+    },
+    {
+      "rule_id": "derive-outbox-certificate",
+      "output": "derived/outbox_certificate_root",
+      "dependencies": [
+        "authority/acceptance_receipt_root",
+        "derived/bundle_certificate_root",
+        "durability/outbox_plan_root"
+      ]
+    }
+  ]
+}

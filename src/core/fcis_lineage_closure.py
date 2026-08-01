@@ -56,6 +56,7 @@ from .fcis_transition_values import (
 )
 
 FCIS_LINEAGE_CLOSURE_VERSION_V1 = "zenodex/fcis/lineage-closure/v1"
+FCIS_LINEAGE_RULE_MANIFEST_VERSION_V1 = "zenodex/fcis/lineage-rule-manifest/v1"
 FCIS_LINEAGE_RECEIPT_EXTENSION_VERSION_V1 = "zenodex/fcis/lineage-receipt-extension/v1"
 FCIS_LINEAGE_BUNDLE_EXTENSION_VERSION_V1 = "zenodex/fcis/lineage-bundle-extension/v1"
 MAX_FCIS_LINEAGE_CLAIMS_V1 = 64
@@ -206,9 +207,13 @@ class FCISLineageClaimSetV1:
         for claim in self.claims:
             payload.extend(_frame_v1(claim.key.value.encode("utf-8")))
             payload.extend(_raw32_v1(claim.value_digest))
-        return cast(str, sha256_hex(
-            domain_sep_bytes("zenodex/fcis/lineage-closure-claim-set", version=1) + bytes(payload)
-        ))
+        return cast(
+            str,
+            sha256_hex(
+                domain_sep_bytes("zenodex/fcis/lineage-closure-claim-set", version=1)
+                + bytes(payload)
+            ),
+        )
 
 
 @final
@@ -392,81 +397,234 @@ class _LineageRuleV1:
     output: FCISLineageClaimKeyV1
     dependencies: tuple[FCISLineageClaimKeyV1, ...]
 
+    def __post_init__(self) -> None:
+        if (
+            type(self.rule_id) is not str
+            or not self.rule_id
+            or self.rule_id != self.rule_id.strip()
+        ):
+            raise ValueError("lineage rule ID must be a nonempty canonical string")
+        if type(self.output) is not FCISLineageClaimKeyV1:
+            raise TypeError("lineage rule output must be exact")
+        if type(self.dependencies) is not tuple:
+            raise TypeError("lineage rule dependencies must be an exact tuple")
+        for dependency in self.dependencies:
+            if type(dependency) is not FCISLineageClaimKeyV1:
+                raise TypeError("lineage rule dependency must be exact")
+        if len(set(self.dependencies)) != len(self.dependencies):
+            raise ValueError("lineage rule dependencies must be unique")
+        canonical = tuple(sorted(self.dependencies, key=lambda item: item.value.encode("utf-8")))
+        if self.dependencies != canonical:
+            raise ValueError("lineage rule dependencies must use canonical key order")
+        if self.output in self.dependencies:
+            raise ValueError("lineage rule cannot depend on its own output")
 
-_LINEAGE_RULES_V1 = tuple(
-    sorted(
-        (
-            _LineageRuleV1(
-                "derive-evaluation-certificate",
-                FCISLineageClaimKeyV1.EVALUATION_CERTIFICATE_ROOT,
-                tuple(
-                    sorted(
-                        (
-                            FCISLineageClaimKeyV1.COMMAND_ROOT,
-                            FCISLineageClaimKeyV1.EXECUTION_CONTEXT_HASH,
-                            FCISLineageClaimKeyV1.PRE_STATE_ROOT,
-                            FCISLineageClaimKeyV1.NEXT_STATE_ROOT,
-                            FCISLineageClaimKeyV1.SUPPORT_ROOT,
-                            FCISLineageClaimKeyV1.SUPPORT_SET_COMMITMENT,
-                            FCISLineageClaimKeyV1.SNAPSHOT_COMMITMENT,
-                            FCISLineageClaimKeyV1.PATCH_ROOT,
-                            FCISLineageClaimKeyV1.COMMIT_PLAN_ROOT,
-                            FCISLineageClaimKeyV1.FEE_BOUNDARY_ROOT,
-                            FCISLineageClaimKeyV1.FEE_POLICY_ROOT,
-                            FCISLineageClaimKeyV1.FEE_WITNESS_TUPLE_ROOT,
-                            FCISLineageClaimKeyV1.FEE_SEMANTIC_STREAM_ROOT,
-                            FCISLineageClaimKeyV1.FEE_LINEAGE_STREAM_ROOT,
-                        ),
-                        key=lambda item: item.value.encode("utf-8"),
+
+def _lineage_derived_claim_keys_v1() -> tuple[FCISLineageClaimKeyV1, ...]:
+    return tuple(
+        key
+        for key in sorted(
+            tuple(FCISLineageClaimKeyV1),
+            key=lambda item: item.value.encode("utf-8"),
+        )
+        if key.value.startswith("derived/")
+    )
+
+
+_LINEAGE_DERIVED_KEYS_V1 = _lineage_derived_claim_keys_v1()
+
+
+def _validate_lineage_rule_collection_v1(
+    rules: tuple[_LineageRuleV1, ...],
+    derived_keys: tuple[FCISLineageClaimKeyV1, ...],
+    *,
+    require_canonical_order: bool,
+) -> dict[FCISLineageClaimKeyV1, int]:
+    if type(rules) is not tuple:
+        raise TypeError("lineage rule collection must be an exact tuple")
+    if type(derived_keys) is not tuple:
+        raise TypeError("lineage derived-key collection must be an exact tuple")
+    expected_derived_keys = _lineage_derived_claim_keys_v1()
+    if derived_keys != expected_derived_keys:
+        raise ValueError("lineage derived-key coverage is not the closed canonical set")
+    if not rules or len(rules) > len(derived_keys):
+        raise ValueError("lineage rule collection has an invalid bounded size")
+    for rule in rules:
+        if type(rule) is not _LineageRuleV1:
+            raise TypeError("lineage rule collection item must be exact")
+        rule.__post_init__()
+    outputs = tuple(rule.output for rule in rules)
+    if len(set(outputs)) != len(outputs):
+        raise ValueError("lineage derived keys must have one writer each")
+    if set(outputs) != set(derived_keys):
+        raise ValueError("lineage rules do not have complete derived-key coverage")
+
+    derived_output_keys = set(outputs)
+    remaining = set(outputs)
+    depths: dict[FCISLineageClaimKeyV1, int] = {}
+    while remaining:
+        ready = tuple(
+            sorted(
+                (
+                    rule
+                    for rule in rules
+                    if rule.output in remaining
+                    and all(
+                        dependency not in derived_output_keys or dependency in depths
+                        for dependency in rule.dependencies
                     )
                 ),
-            ),
-            _LineageRuleV1(
-                "derive-receipt-certificate",
-                FCISLineageClaimKeyV1.RECEIPT_CERTIFICATE_ROOT,
-                tuple(
-                    sorted(
-                        (
-                            FCISLineageClaimKeyV1.EVALUATION_CERTIFICATE_ROOT,
-                            FCISLineageClaimKeyV1.BUDGET_HASH,
-                            FCISLineageClaimKeyV1.ACCEPTANCE_RECEIPT_ROOT,
-                        ),
-                        key=lambda item: item.value.encode("utf-8"),
-                    )
+                key=lambda rule: rule.output.value.encode("utf-8"),
+            )
+        )
+        if not ready:
+            raise ValueError("lineage rule dependencies contain a cycle")
+        for rule in ready:
+            dependency_depths = tuple(
+                depths[dependency]
+                for dependency in rule.dependencies
+                if dependency in derived_output_keys
+            )
+            depths[rule.output] = 1 + max(dependency_depths, default=0)
+            remaining.remove(rule.output)
+
+    if require_canonical_order:
+        canonical_rules = tuple(
+            sorted(
+                rules,
+                key=lambda rule: (
+                    depths[rule.output],
+                    rule.output.value.encode("utf-8"),
                 ),
-            ),
-            _LineageRuleV1(
-                "derive-bundle-certificate",
-                FCISLineageClaimKeyV1.BUNDLE_CERTIFICATE_ROOT,
-                tuple(
-                    sorted(
-                        (
-                            FCISLineageClaimKeyV1.RECEIPT_CERTIFICATE_ROOT,
-                            FCISLineageClaimKeyV1.BASE_BUNDLE_ROOT,
-                            FCISLineageClaimKeyV1.OUTBOX_PLAN_ROOT,
-                        ),
-                        key=lambda item: item.value.encode("utf-8"),
-                    )
-                ),
-            ),
-            _LineageRuleV1(
-                "derive-outbox-certificate",
-                FCISLineageClaimKeyV1.OUTBOX_CERTIFICATE_ROOT,
-                tuple(
-                    sorted(
-                        (
-                            FCISLineageClaimKeyV1.BUNDLE_CERTIFICATE_ROOT,
-                            FCISLineageClaimKeyV1.OUTBOX_PLAN_ROOT,
-                            FCISLineageClaimKeyV1.ACCEPTANCE_RECEIPT_ROOT,
-                        ),
-                        key=lambda item: item.value.encode("utf-8"),
-                    )
-                ),
+            )
+        )
+        if rules != canonical_rules:
+            raise ValueError("lineage rules must use canonical dependency order")
+    return depths
+
+
+def _lineage_rule_manifest_root_v1(
+    rules: tuple[_LineageRuleV1, ...],
+    derived_keys: tuple[FCISLineageClaimKeyV1, ...],
+) -> str:
+    payload = bytearray()
+    payload.extend(_frame_v1(FCIS_LINEAGE_RULE_MANIFEST_VERSION_V1.encode("utf-8")))
+    payload.extend(_u32_be_v1(len(derived_keys)))
+    for key in derived_keys:
+        payload.extend(_frame_v1(key.value.encode("utf-8")))
+    payload.extend(_u32_be_v1(len(rules)))
+    payload.extend(_u32_be_v1(len(rules) + 1))
+    for rule in rules:
+        payload.extend(_frame_v1(rule.rule_id.encode("utf-8")))
+        payload.extend(_frame_v1(rule.output.value.encode("utf-8")))
+        payload.extend(_u32_be_v1(len(rule.dependencies)))
+        for dependency in rule.dependencies:
+            payload.extend(_frame_v1(dependency.value.encode("utf-8")))
+    return cast(
+        str,
+        sha256_hex(
+            domain_sep_bytes("zenodex/fcis/lineage-rule-manifest", version=1) + bytes(payload)
+        ),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _LineageRuleManifestV1:
+    rules: tuple[_LineageRuleV1, ...]
+    derived_keys: tuple[FCISLineageClaimKeyV1, ...]
+    manifest_root: str
+
+    def __post_init__(self) -> None:
+        _validate_lineage_rule_collection_v1(
+            self.rules,
+            self.derived_keys,
+            require_canonical_order=True,
+        )
+        _require_digest_v1("lineage rule manifest root", self.manifest_root)
+        expected_root = _lineage_rule_manifest_root_v1(self.rules, self.derived_keys)
+        if self.manifest_root != expected_root:
+            raise ValueError("lineage rule manifest root does not match its contents")
+
+
+def _build_lineage_rule_manifest_v1() -> _LineageRuleManifestV1:
+    rules = (
+        _LineageRuleV1(
+            "derive-evaluation-certificate",
+            FCISLineageClaimKeyV1.EVALUATION_CERTIFICATE_ROOT,
+            tuple(
+                sorted(
+                    (
+                        FCISLineageClaimKeyV1.COMMAND_ROOT,
+                        FCISLineageClaimKeyV1.EXECUTION_CONTEXT_HASH,
+                        FCISLineageClaimKeyV1.PRE_STATE_ROOT,
+                        FCISLineageClaimKeyV1.NEXT_STATE_ROOT,
+                        FCISLineageClaimKeyV1.SUPPORT_ROOT,
+                        FCISLineageClaimKeyV1.SUPPORT_SET_COMMITMENT,
+                        FCISLineageClaimKeyV1.SNAPSHOT_COMMITMENT,
+                        FCISLineageClaimKeyV1.PATCH_ROOT,
+                        FCISLineageClaimKeyV1.COMMIT_PLAN_ROOT,
+                        FCISLineageClaimKeyV1.FEE_BOUNDARY_ROOT,
+                        FCISLineageClaimKeyV1.FEE_POLICY_ROOT,
+                        FCISLineageClaimKeyV1.FEE_WITNESS_TUPLE_ROOT,
+                        FCISLineageClaimKeyV1.FEE_SEMANTIC_STREAM_ROOT,
+                        FCISLineageClaimKeyV1.FEE_LINEAGE_STREAM_ROOT,
+                    ),
+                    key=lambda item: item.value.encode("utf-8"),
+                )
             ),
         ),
-        key=lambda rule: rule.output.value.encode("utf-8"),
+        _LineageRuleV1(
+            "derive-receipt-certificate",
+            FCISLineageClaimKeyV1.RECEIPT_CERTIFICATE_ROOT,
+            tuple(
+                sorted(
+                    (
+                        FCISLineageClaimKeyV1.EVALUATION_CERTIFICATE_ROOT,
+                        FCISLineageClaimKeyV1.BUDGET_HASH,
+                        FCISLineageClaimKeyV1.ACCEPTANCE_RECEIPT_ROOT,
+                    ),
+                    key=lambda item: item.value.encode("utf-8"),
+                )
+            ),
+        ),
+        _LineageRuleV1(
+            "derive-bundle-certificate",
+            FCISLineageClaimKeyV1.BUNDLE_CERTIFICATE_ROOT,
+            tuple(
+                sorted(
+                    (
+                        FCISLineageClaimKeyV1.RECEIPT_CERTIFICATE_ROOT,
+                        FCISLineageClaimKeyV1.BASE_BUNDLE_ROOT,
+                        FCISLineageClaimKeyV1.OUTBOX_PLAN_ROOT,
+                    ),
+                    key=lambda item: item.value.encode("utf-8"),
+                )
+            ),
+        ),
+        _LineageRuleV1(
+            "derive-outbox-certificate",
+            FCISLineageClaimKeyV1.OUTBOX_CERTIFICATE_ROOT,
+            tuple(
+                sorted(
+                    (
+                        FCISLineageClaimKeyV1.BUNDLE_CERTIFICATE_ROOT,
+                        FCISLineageClaimKeyV1.OUTBOX_PLAN_ROOT,
+                        FCISLineageClaimKeyV1.ACCEPTANCE_RECEIPT_ROOT,
+                    ),
+                    key=lambda item: item.value.encode("utf-8"),
+                )
+            ),
+        ),
     )
-)
+    derived_keys = _LINEAGE_DERIVED_KEYS_V1
+    return _LineageRuleManifestV1(
+        rules,
+        derived_keys,
+        _lineage_rule_manifest_root_v1(rules, derived_keys),
+    )
+
+
+_LINEAGE_RULE_MANIFEST_V1 = _build_lineage_rule_manifest_v1()
 
 
 def _derive_rule_value_v1(
@@ -481,19 +639,33 @@ def _derive_rule_value_v1(
     for dependency in rule.dependencies:
         payload.extend(_frame_v1(dependency.value.encode("utf-8")))
         payload.extend(_raw32_v1(values[dependency]))
-    return cast(str, sha256_hex(
-        domain_sep_bytes("zenodex/fcis/lineage-closure-derived-claim", version=1) + bytes(payload)
-    ))
+    return cast(
+        str,
+        sha256_hex(
+            domain_sep_bytes("zenodex/fcis/lineage-closure-derived-claim", version=1)
+            + bytes(payload)
+        ),
+    )
 
 
-def _close_claims_v1(seed: FCISLineageClaimSetV1) -> FCISLineageClaimSetV1:
+def _close_claims_with_rules_v1(
+    seed: FCISLineageClaimSetV1,
+    rules: tuple[_LineageRuleV1, ...],
+) -> FCISLineageClaimSetV1:
     if type(seed) is not FCISLineageClaimSetV1:
         raise TypeError("lineage closure seed must be exact")
     seed.__post_init__()
+    _validate_lineage_rule_collection_v1(
+        rules,
+        _LINEAGE_DERIVED_KEYS_V1,
+        require_canonical_order=False,
+    )
+    if set(rules) != set(_LINEAGE_RULE_MANIFEST_V1.rules):
+        raise ValueError("lineage closure test rules differ from the validated manifest")
     values = {claim.key: claim.value_digest for claim in seed.claims}
-    for _round in range(len(_LINEAGE_RULES_V1) + 1):
+    for _round in range(len(rules) + 1):
         changed = False
-        for rule in _LINEAGE_RULES_V1:
+        for rule in rules:
             if any(dependency not in values for dependency in rule.dependencies):
                 continue
             derived = _derive_rule_value_v1(rule, values)
@@ -506,6 +678,10 @@ def _close_claims_v1(seed: FCISLineageClaimSetV1) -> FCISLineageClaimSetV1:
         if not changed:
             return _claim_set_v1(tuple(values.items()))
     raise RuntimeError("bounded lineage closure did not reach a fixed point")
+
+
+def _close_claims_v1(seed: FCISLineageClaimSetV1) -> FCISLineageClaimSetV1:
+    return _close_claims_with_rules_v1(seed, _LINEAGE_RULE_MANIFEST_V1.rules)
 
 
 def close_fcis_lineage_claim_sets_v1(
