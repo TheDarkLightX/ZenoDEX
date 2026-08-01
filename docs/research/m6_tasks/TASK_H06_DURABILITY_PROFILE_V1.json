@@ -1,0 +1,30 @@
+{
+  "schema_version": "zenodex.fcis.m6.h06.durability-profile.v1",
+  "task_id": "H06",
+  "backend": "sqlite",
+  "database_path": "file-backed main database",
+  "journal_mode": "wal",
+  "synchronous": 2,
+  "foreign_keys": 1,
+  "minimum_busy_timeout_ms": 5000,
+  "locking_mode": "normal",
+  "rejection_codes": [
+    "invalid_connection",
+    "transaction_open",
+    "not_file_backed",
+    "journal_mode_mismatch",
+    "synchronous_mismatch",
+    "foreign_keys_disabled",
+    "busy_timeout_too_low",
+    "locking_mode_mismatch",
+    "sql_error"
+  ],
+  "unsupported_backends": ["postgresql"],
+  "nonclaims": [
+    "filesystem power-loss durability",
+    "WAL/fsync behavior beyond observed pragmas",
+    "production startup coverage",
+    "concurrent linearization",
+    "value movement"
+  ]
+}
