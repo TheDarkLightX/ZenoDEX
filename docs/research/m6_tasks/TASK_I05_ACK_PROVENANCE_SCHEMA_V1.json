@@ -1,0 +1,35 @@
+{
+  "schema_version": "zenodex.fcis.m6.i05.ack-provenance.v1",
+  "task_id": "I05",
+  "ack_subject_fields": [
+    "effect_id",
+    "destination",
+    "payload_root",
+    "destination_receipt_root",
+    "adapter_profile_root",
+    "verifier_profile_root"
+  ],
+  "verification_rules": [
+    "effect destination equals verified contract destination",
+    "effect adapter profile equals verified contract adapter profile",
+    "receipt effect ID and payload root equal the committed effect",
+    "delivery state contains the exact canonical destination record",
+    "destination receipt root equals the I04-derived receipt root",
+    "verifier profile equals the declared destination-ack verifier profile",
+    "subject root is recomputed from every ack subject field"
+  ],
+  "rejection_witnesses": [
+    "ack before delivery",
+    "foreign receipt root",
+    "crossed effect and receipt",
+    "foreign adapter profile",
+    "foreign verifier profile",
+    "forged subject root"
+  ],
+  "nonclaims": [
+    "no real destination receipt bytes",
+    "no production verifier or worker",
+    "no lost-ack recovery or runtime mounting",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
