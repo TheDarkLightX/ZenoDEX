@@ -1,0 +1,71 @@
+{
+  "schema_version": "zenodex.fcis.m6.d07.stutter-receipt-vector.v1",
+  "task_id": "D07",
+  "eligible_operations": [
+    {
+      "operation_id": "0x0ce3200f2d2cb348ba0d9662ee8e12a65baaf9281f8ce1f850aac0655293c15b",
+      "operation_kind": "same_commit_retry",
+      "pre_canonical_root": "0x3b705b9188e6df0454d9ac9befc98ccf782483989567d532921d143ecc443354",
+      "post_canonical_root": "0x3b705b9188e6df0454d9ac9befc98ccf782483989567d532921d143ecc443354",
+      "observable_root": "0x13414e6e9bb7f2f2e3747f9236c74b07eba0ed5380535341549e81543e16ecb8",
+      "checker_id": "zenodex/fcis/rqag/checker/same-commit-retry/v1",
+      "verification_root": "0x831a36c28f9c130b7fd3a87fa7fa0fd2c67c90719b167e1983785ef14cff9813",
+      "receipt_root": "0xf8cbfe4fb7d27cda03bef9ebe04c007989cb3b1cae679d48645f412dca3e074a"
+    },
+    {
+      "operation_id": "0x729e554aa7bcab6cbc2f866ad806b7fed00b8fcbd3640fa36361c915c9a51359",
+      "operation_kind": "canonical_reopen_reencode",
+      "pre_canonical_root": "0x3b705b9188e6df0454d9ac9befc98ccf782483989567d532921d143ecc443354",
+      "post_canonical_root": "0x3b705b9188e6df0454d9ac9befc98ccf782483989567d532921d143ecc443354",
+      "observable_root": "0x13414e6e9bb7f2f2e3747f9236c74b07eba0ed5380535341549e81543e16ecb8",
+      "checker_id": "zenodex/fcis/rqag/checker/canonical-reopen-reencode/v1",
+      "verification_root": "0xd29b3c85baa3d43b3e46a3e325a42ae0dd52a8421ce4b5537dd1aa1639030bed",
+      "receipt_root": "0xa4e60033ecba25246d3f80fd4302c9ca4154dca86738af6fee59745bb50acd68"
+    },
+    {
+      "operation_id": "0xe3e63493ec9632a53040a4c281115f62c2f52e8abfb0828697f230768b2c4526",
+      "operation_kind": "same_effect_destination_dedup",
+      "pre_canonical_root": "0x3b705b9188e6df0454d9ac9befc98ccf782483989567d532921d143ecc443354",
+      "post_canonical_root": "0x3b705b9188e6df0454d9ac9befc98ccf782483989567d532921d143ecc443354",
+      "observable_root": "0x13414e6e9bb7f2f2e3747f9236c74b07eba0ed5380535341549e81543e16ecb8",
+      "checker_id": "zenodex/fcis/rqag/checker/same-effect-destination-dedup/v1",
+      "verification_root": "0xc49bf6ebae796f6bd58c9dbdb1482987831c76a88ce6e93d1b8d3a05cdfaf55b",
+      "receipt_root": "0x3caf35b9030732ee4059c9813f2a5031c046364fc6572aa5b60b4c76e8725bf3"
+    },
+    {
+      "operation_id": "0x7cda94d70a601afde12cf7f31812e0c1ae2150cde7c67bf57192b2d96811b8e3",
+      "operation_kind": "repeat_pure_verification",
+      "pre_canonical_root": "0x3b705b9188e6df0454d9ac9befc98ccf782483989567d532921d143ecc443354",
+      "post_canonical_root": "0x3b705b9188e6df0454d9ac9befc98ccf782483989567d532921d143ecc443354",
+      "observable_root": "0x13414e6e9bb7f2f2e3747f9236c74b07eba0ed5380535341549e81543e16ecb8",
+      "checker_id": "zenodex/fcis/rqag/checker/repeat-pure-verification/v1",
+      "verification_root": "0x288733aa50e3f5b7febf1e7b3853e5d24119ecdab36151d5ffc3f4fd6dcfbacd",
+      "receipt_root": "0x0d9bd05c01aa51c0556d8b9775f78465febf7942fc1b7cc0b02b803c5262cf8a"
+    }
+  ],
+  "forbidden_operations": [
+    "new_commit",
+    "ack_publication",
+    "migration"
+  ],
+  "expected_rejections": {
+    "forbidden_operation": "forbidden_operation",
+    "canonical_change": "canonical_state_changed",
+    "observable_change": "observable_state_changed",
+    "wrong_operation_kind": "wrong_exact_type",
+    "invalid_root": "invalid_root",
+    "checker_tamper": "checker_mismatch",
+    "verification_tamper": "invalid_receipt",
+    "direct_construction": "controlled verification"
+  },
+  "mutants": [
+    "D07_NEW_COMMIT_AS_STUTTER",
+    "D07_ACK_PUBLICATION_AS_STUTTER",
+    "D07_MIGRATION_AS_STUTTER",
+    "D07_CANONICAL_ROOT_CHANGE",
+    "D07_OBSERVABLE_ROOT_CHANGE",
+    "D07_CHECKER_SUBSTITUTION",
+    "D07_VERIFICATION_ROOT_SUBSTITUTION",
+    "D07_DIRECT_CONSTRUCTION"
+  ]
+}
