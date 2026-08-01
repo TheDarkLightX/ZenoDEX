@@ -1,0 +1,60 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "I06",
+  "base_sha": "95bf4f1e426886129682f822dbefd43e488deb4a",
+  "source_head_sha": "0b878056009dfaaf34bada1ec696d40b5bf7e13b",
+  "source_head_tree": "134f8e0afcc2d0fe34ca65a1d0d247aa59b66cd9",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "experiments/fcis_m6_i06_lost_ack_recovery.py",
+    "tests/core/test_fcis_m6_i06_lost_ack_recovery.py",
+    "docs/research/m6_tasks/TASK_I06_LOST_ACK_SCHEMA_V1.json",
+    "docs/research/m6_tasks/TASK_I06_PLAN.md",
+    "docs/research/m6_tasks/TASK_I06_REPORT.md",
+    "docs/research/m6_tasks/TASK_I06_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_I06_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m ruff check experiments/fcis_m6_i04_destination_dedup.py experiments/fcis_m6_i05_ack_provenance.py experiments/fcis_m6_i06_lost_ack_recovery.py tests/core/test_fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i05_ack_provenance.py tests/core/test_fcis_m6_i06_lost_ack_recovery.py",
+    "python3 -m ruff format --check experiments/fcis_m6_i04_destination_dedup.py experiments/fcis_m6_i05_ack_provenance.py experiments/fcis_m6_i06_lost_ack_recovery.py tests/core/test_fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i05_ack_provenance.py tests/core/test_fcis_m6_i06_lost_ack_recovery.py",
+    "python3 -m mypy --strict experiments/fcis_m6_i04_destination_dedup.py experiments/fcis_m6_i05_ack_provenance.py experiments/fcis_m6_i06_lost_ack_recovery.py tests/core/test_fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i05_ack_provenance.py tests/core/test_fcis_m6_i06_lost_ack_recovery.py",
+    "python3 -m py_compile experiments/fcis_m6_i04_destination_dedup.py experiments/fcis_m6_i05_ack_provenance.py experiments/fcis_m6_i06_lost_ack_recovery.py tests/core/test_fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i05_ack_provenance.py tests/core/test_fcis_m6_i06_lost_ack_recovery.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_i06_lost_ack_recovery.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i05_ack_provenance.py tests/core/test_fcis_m6_i06_lost_ack_recovery.py",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks I06",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_I06_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "experiments/fcis_m6_i06_lost_ack_recovery.py": "23f42deb4c17482ee7a1682d6e7af6e946f3e0e8c2059479ddbdb5f4516493f7",
+    "tests/core/test_fcis_m6_i06_lost_ack_recovery.py": "37656030a83e4063a3c471a44e2b877096b3d61436b9660d93e2cfe37c1931a6",
+    "docs/research/m6_tasks/TASK_I06_LOST_ACK_SCHEMA_V1.json": "2b1726582072a1f63fd8446d32f4e0c4a07d06f6924281f803dfe13579d28ab6",
+    "docs/research/m6_tasks/TASK_I06_PLAN.md": "1a597c5f9eced8265a194eee6173698cd4ba31db5a75556e3639304e15c67337"
+  },
+  "results": {
+    "focused_tests": "pass; 8 passed",
+    "combined_i04_i05_i06_tests": "pass; 22 passed",
+    "crash_window": "pass; destination acceptance survives while local ack is absent",
+    "redelivery": "pass; same effect returns ALREADY_ACCEPTED with the same receipt root",
+    "ack_idempotence": "pass; one local journal write across repeated redelivery",
+    "negative_witnesses": "pass; forged receipt, phase skip, malformed state, and overflow reject",
+    "implementation_commit": "0b878056009dfaaf34bada1ec696d40b5bf7e13b",
+    "implementation_tree": "134f8e0afcc2d0fe34ca65a1d0d247aa59b66cd9",
+    "implementation_parent": "95bf4f1e426886129682f822dbefd43e488deb4a"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "I06 is an immutable research state machine and is not a production delivery worker.",
+    "I06 does not prove filesystem durability, network delivery, or destination adapter behavior.",
+    "I06 does not prove runtime mounting or value movement.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
