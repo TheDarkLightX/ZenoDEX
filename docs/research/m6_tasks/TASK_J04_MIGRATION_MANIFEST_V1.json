@@ -1,0 +1,59 @@
+{
+  "schema_version": "zenodex.fcis.m6.j04.migration-manifest.v1",
+  "task_id": "J04",
+  "status": "RESEARCH_ONLY_UNMOUNTED",
+  "source_profile_root": "d4f501b4e9a6cf89f2dc5dc5d2800ef938253fdbeb05d80ff568cb7289d74e05",
+  "source_deployment_root": "689ea522ebfb175ce5703ddf6a563c2f3a4340f344a60ead4032c201e602b2e7",
+  "source_configuration_root": "d8f16c21d546cbbada644b548f90e0bbd93226fadf04c07192bbb624779c9482",
+  "target_profile_root": "4d2a55b2b5b2fbd2d274049b512bc2e3cb4ea9019ccbf584cf8ff1941e58a207",
+  "target_deployment_root": "0c1f7470684fff5d7626bd33be9a616bde3ec24e05bd4237a92aff096e1ec0da",
+  "target_configuration_root": "b20b64875c7ce6d6bce03977b0076a347f4a6ddbfed65cc6098d55814c680962",
+  "source_state_root": "17f3e4aa3e151a403bb6592cedf22128c1dc591e4d838cadd01db9a0425db29e",
+  "target_state_root": "ca99e1753b99ea674a761909a6f35d357f6eb1bf58d84540ac74f53f5e9a1476",
+  "source_history_root": "6e4d421b4c97af2d6584e592276c2f9482f5f88e9568c42e501efa2c73179434",
+  "target_history_root": "3af17064d25718998cb879c01372e13f3128a62021abd21f893b7f06f0a914fe",
+  "transport_maps": [
+    {
+      "artifact_id": "state",
+      "checker_id": "J03-STATE-MAP-CHECKER-V1",
+      "transport_root": "3f66aeba59b92d1d1f7bc6131127c401662523d7dcc786f66f4a13a92378e068"
+    },
+    {
+      "artifact_id": "residual_fee_history",
+      "checker_id": "J03-RESIDUAL-FEE-MAP-CHECKER-V1",
+      "transport_root": "0853614495a21f2c12760e20b8401bf479ef17e89f8b0f103494651ca0abf33f"
+    },
+    {
+      "artifact_id": "outbox_effects",
+      "checker_id": "J03-OUTBOX-EFFECT-MAP-CHECKER-V1",
+      "transport_root": "ba3aa6620a8678dddeb1ee6fd834fd0792096e1a8555a534c5ba4a487411ca5e"
+    }
+  ],
+  "activation_sequence": 100,
+  "rollback_window": {
+    "enabled": true,
+    "max_sequence_exclusive": 200,
+    "history_preserved": true,
+    "rules": [
+      "restore complete authorized history",
+      "do not restore balances alone",
+      "preserve nullifiers and outbox identity",
+      "reject rollback after the declared window"
+    ]
+  },
+  "quiescence_evidence": [
+    "API_WRITER_QUIESCED",
+    "CLI_WRITER_QUIESCED",
+    "WORKER_WRITER_QUIESCED",
+    "ADMIN_WRITER_QUIESCED",
+    "DIRECT_ADAPTER_WRITER_QUIESCED",
+    "HEAD_REPLAY_EQUAL"
+  ],
+  "complete_replay_evidence_root": "6cfaf4e34e7f107d48f62954aefe26d85d5bb3d40f3bdd25576ca95fc8ad5a56",
+  "manifest_root": "8bf0ac5af1164a52e9e3fb122a3f517d1c1b2fee90e7a13b6f7ec4329f9ba145",
+  "nonclaims": [
+    "M6 remains unmounted and non-promotable",
+    "transport checker IDs and roots are obligations, not completed transport proofs",
+    "no production migration, rollback, datastore, writer, accounting, backing, or zUSD safety claim"
+  ]
+}
