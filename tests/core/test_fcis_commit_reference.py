@@ -8,6 +8,7 @@ from src.core.fcis_commit_bundle_derivation import (
     CommitBundleV1,
     _derive_bundle_claim_v1,
     _derive_outbox_plan_v1,
+    build_anf_bound_commit_bundle_v1,
     build_commit_bundle_v1,
     recompute_bundle_root_v1,
 )
@@ -24,12 +25,14 @@ from src.core.fcis_decision_derivation import (
     AcceptV1,
     evaluate_fcis_decision_v1,
 )
+from src.core.fcis_outbox_values import OutboxPlanV1
 from src.state.fcis_committed_state_values import FCISCommittedStateV1
 from src.state.fcis_execution_context_values import (
     FCISSettlementExecutionContextSourceV1,
     FCISStepExecutionContextSourceV1,
 )
 from src.state.owned_json import snapshot_owned_json_object
+from tests.core.test_fcis_commit_bundle_derivation import _anf_accept_with_value
 from tests.core.test_fcis_decision_derivation import _exact_inputs, _two_event_inputs
 
 
@@ -419,9 +422,53 @@ def test_corrupted_publication_store_fails_closed_before_duplicate_detection() -
     assert result.store is first.store
 
 
+@pytest.mark.parametrize("corruption", ("missing", "foreign"))
+def test_d04_reference_commit_rejects_corrupted_retained_anf_without_publication(
+    corruption: str,
+) -> None:
+    """D04-COMMIT-001: commit-time ANF recomputation is mandatory."""
+
+    store = _store_from_pre_state()
+    decision, authority_normal_form = _anf_accept_with_value()
+    bundle = build_anf_bound_commit_bundle_v1(decision, authority_normal_form)
+    assert type(bundle) is CommitBundleV1
+    if corruption == "missing":
+        object.__setattr__(bundle, "authority_normal_form", None)
+    else:
+        foreign = replace(authority_normal_form, command_root="0x" + "99" * 32)
+        object.__setattr__(bundle, "authority_normal_form", foreign)
+
+    result = reference_commit_v1(store, bundle)
+
+    assert result.status is ReferenceCommitStatusV1.INVALID
+    assert result.store is store
+    assert result.store.publications == ()
+
+
+def test_d04_reference_store_rejects_corrupted_published_anf_before_retry() -> None:
+    """D04-COMMIT-002: reopen-style store validation rechecks retained ANF."""
+
+    store = _store_from_pre_state()
+    decision, authority_normal_form = _anf_accept_with_value()
+    bundle = build_anf_bound_commit_bundle_v1(decision, authority_normal_form)
+    assert type(bundle) is CommitBundleV1
+    published = reference_commit_v1(store, bundle)
+    assert published.status is ReferenceCommitStatusV1.PUBLISHED
+    foreign = replace(authority_normal_form, command_root="0x" + "99" * 32)
+    object.__setattr__(published.store.publications[0].bundle, "authority_normal_form", foreign)
+
+    retry_decision, retry_anf = _anf_accept_with_value()
+    retry_bundle = build_anf_bound_commit_bundle_v1(retry_decision, retry_anf)
+    result = reference_commit_v1(published.store, retry_bundle)
+
+    assert result.status is ReferenceCommitStatusV1.INVALID
+    assert result.store is published.store
+
+
 def test_decoded_bundle_claim_has_no_commit_authority() -> None:
     store = _store_from_pre_state()
     bundle = _bundle()
+    assert type(bundle.outbox_plan) is OutboxPlanV1
     decoded_claim = _derive_bundle_claim_v1(bundle.decision, bundle.outbox_plan)
 
     result = reference_commit_v1(store, decoded_claim)  # type: ignore[arg-type]

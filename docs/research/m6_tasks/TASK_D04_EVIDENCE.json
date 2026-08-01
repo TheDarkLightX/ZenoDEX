@@ -1,0 +1,162 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "D04",
+  "base_sha": "3acf6285f8a3feef32c838b2a459d18fd721ae8d",
+  "source_head_sha": "d8f4206f3a16ed61cdaaf5231bd8f62bcbe38c0f",
+  "source_head_tree": "38c3673fc185bd88ad5d452a099c65b44a965447",
+  "branch": "codex/task-D04-anf-bundle-outbox-repair-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/state/state_snapshot_schema.py",
+    "src/state/state_admission_profile.py",
+    "src/core/fcis_outbox_values.py",
+    "src/core/fcis_commit_bundle_values.py",
+    "src/core/fcis_authority_schema.py",
+    "src/core/fcis_authority_dispatch.py",
+    "src/core/fcis_commit_bundle_derivation.py",
+    "src/core/fcis_commit_reference.py",
+    "src/core/fcis_lineage_closure.py",
+    "tests/core/test_fcis_commit_bundle_derivation.py",
+    "tests/core/test_fcis_commit_reference.py",
+    "tests/core/test_fcis_m5_authority_admission.py",
+    "tests/core/test_fcis_lineage_closure.py",
+    "experiments/fcis_m6_d04_anf_bundle_outbox_check.py",
+    "docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json",
+    "docs/research/FCIS_M6_D04_ANF_BUNDLE_OUTBOX_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_D04_PLAN.md",
+    "docs/research/m6_tasks/TASK_D04_REPORT.md",
+    "docs/research/m6_tasks/TASK_D04_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_D04_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile experiments/fcis_m6_d04_anf_bundle_outbox_check.py src/core/fcis_authority_dispatch.py src/core/fcis_authority_schema.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_bundle_values.py src/core/fcis_commit_reference.py src/core/fcis_lineage_closure.py src/core/fcis_outbox_values.py src/state/state_admission_profile.py src/state/state_snapshot_schema.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m5_authority_admission.py",
+    "python3 -m ruff check experiments/fcis_m6_d04_anf_bundle_outbox_check.py src/core/fcis_authority_dispatch.py src/core/fcis_authority_schema.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_bundle_values.py src/core/fcis_commit_reference.py src/core/fcis_lineage_closure.py src/core/fcis_outbox_values.py src/state/state_admission_profile.py src/state/state_snapshot_schema.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m5_authority_admission.py",
+    "python3 -m ruff format --check experiments/fcis_m6_d04_anf_bundle_outbox_check.py src/core/fcis_authority_dispatch.py src/core/fcis_authority_schema.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_bundle_values.py src/core/fcis_commit_reference.py src/core/fcis_lineage_closure.py src/core/fcis_outbox_values.py src/state/state_admission_profile.py src/state/state_snapshot_schema.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m5_authority_admission.py",
+    "python3 -m mypy --strict src/state/state_snapshot_schema.py src/state/state_admission_profile.py src/core/fcis_outbox_values.py src/core/fcis_commit_bundle_values.py src/core/fcis_authority_schema.py src/core/fcis_authority_dispatch.py src/core/fcis_commit_bundle_derivation.py src/core/fcis_commit_reference.py src/core/fcis_lineage_closure.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_lineage_closure.py experiments/fcis_m6_d04_anf_bundle_outbox_check.py",
+    "python3 -m pytest -q tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_decision_derivation.py tests/state/test_state_snapshot_schema_drift.py tests/state/test_state_admission_profile.py",
+    "python3 -m pytest -q tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json",
+    "python3 -m experiments.fcis_m6_d04_anf_bundle_outbox_check",
+    "python3 -m experiments.fcis_m6_d03_anf_receipt_binding_check",
+    "python3 -m experiments.fcis_m6_d02_source_bound_evaluation_check",
+    "python3 -m experiments.fcis_m6_d01_vector_check",
+    "python3 -m experiments.fcis_m6_c07_review_packet_check",
+    "git diff --check 3acf6285f8a3feef32c838b2a459d18fd721ae8d..HEAD",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D04",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_D04_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/state/state_snapshot_schema.py": "2d19295a4a6b92c9dde35ec6499fc7585625486a7ac4acc5758b3f7306157984",
+    "src/state/state_admission_profile.py": "a953011f3da661c521e2bd9b39668c90c424cead81a03822b06093b938a141e0",
+    "src/core/fcis_outbox_values.py": "ced4bb392ff6d8b702033a546510c38507c2cc362009f1c44bb37bd9146f3726",
+    "src/core/fcis_commit_bundle_values.py": "3c46d8dbc2de72d1d8631c6272ddaf3389fa0504511844716f0e266eb52a30a8",
+    "src/core/fcis_authority_schema.py": "21512244ba40e319fc8ac8703f92b68d64cbb12bd711d9ced82080f70f63f6f5",
+    "src/core/fcis_authority_dispatch.py": "96bd695781329b90d40b77a6de92307f9df3b733cd31e79b8c8e9e2972d1a357",
+    "src/core/fcis_commit_bundle_derivation.py": "0fc7b90f3117819fcf201b61d0b0dc0d124fdc9e33eea583080d01b7053d369f",
+    "src/core/fcis_commit_reference.py": "59c1cb5897a9918f437df4bc14623bde423dbd42c1bac63c3e63500a8bd26343",
+    "src/core/fcis_lineage_closure.py": "75de8be0c4886f53062ee2a4d7de15ebb0a4d2ac24dc7b557c01238192234abd",
+    "tests/core/test_fcis_commit_bundle_derivation.py": "e5623a709a5ae535fd2e2034ac4645aafa8e8ee8da6393a851eb30cebf32fe29",
+    "tests/core/test_fcis_commit_reference.py": "228ddc7f633138d4f9eb3aa6e340f2e100a3699091220a0ef15af1fed3b37744",
+    "tests/core/test_fcis_m5_authority_admission.py": "f0ad27a96bf253652413d97c86dc8f2c58eb7ab0db42e3687f9a9ff84eac2a30",
+    "tests/core/test_fcis_lineage_closure.py": "427785a20656bd8c92d9de089e556b220c928b6f7d8e8e4975bbecc8cecd1312",
+    "experiments/fcis_m6_d04_anf_bundle_outbox_check.py": "04f58111909a45d43ea0f5230eabaa6918edee8981e0fe5beb1e7e1eee57479b",
+    "docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json": "f13eda38bad6285c5409b4654e79108d3ae7991cd3a71e3abf71caee5fc6f984",
+    "docs/research/FCIS_M6_D04_ANF_BUNDLE_OUTBOX_SCHEMA_V1.md": "fd2071689d33fd9fb55c099c6df2f9fc137101c52d3e763c740d5355da49d59a",
+    "docs/research/m6_tasks/TASK_D04_PLAN.md": "feca2f09f28ef392fd09cb24f427c7d77f453d360402af414eeea9d1ff646010",
+    "docs/research/m6_tasks/TASK_D04_REPORT.md": "bf0aa6d1fda0192621edbcf972e6fce9d4468ba3327218e6170d3589c84b76b1"
+  },
+  "results": {
+    "implementation_commit": "d8f4206f3a16ed61cdaaf5231bd8f62bcbe38c0f",
+    "implementation_tree": "38c3673fc185bd88ad5d452a099c65b44a965447",
+    "implementation_parent": "22099f578978d621831bead94dede4a85d75305b",
+    "original_d04_base": "64db43c26683c529157d32b8c02a6df30e3bd24c",
+    "focused_d04_and_refinement_tests": "148 passed",
+    "dependency_c01_c04_c06_tests": "53 passed",
+    "broad_fcis_state_diagnostic": "1360 passed; 1 inherited stale source-hash fixture failure",
+    "d04_vector_checker": "pass; D04_ANF_BUNDLE_OUTBOX_MATCH",
+    "d03_vector_checker": "pass; D03_ANF_RECEIPT_BINDING_MATCH",
+    "d02_vector_checker": "pass; D02_SOURCE_BOUND_EVALUATION_MATCH",
+    "d01_vector_checker": "pass; D01_VECTOR_MATCH",
+    "c07_packet_checker": "pass; C07_REVIEW_PACKET_MATCH",
+    "python_compile": "pass; 14 files",
+    "ruff": "pass; 14 files",
+    "ruff_format": "pass; 14 files",
+    "mypy_strict": "pass; 12 files",
+    "json_vector": "pass",
+    "legacy_v1_outbox_root": "0xf7ac577051aaac3bf3704a9a699c2174235c262c62716c1663b792d32cacc0e9",
+    "legacy_v1_bundle_root": "0x0626a082ff542b69fd1a14f9384dd1b5aa54025633a460de37dd372416827ee0",
+    "anf_v2_outbox_root": "0xb11f4139cf327a3029fb2a789c7e5e8157344c28b071b41bf3ce8e943d659858",
+    "anf_v2_bundle_root": "0x7e6a1f04bb04e514c8fde2b2419845382ab7e2fabbbfd68da2a371f946bed9e1",
+    "validator": "pass; 19 manifest entries",
+    "source_manifest": "pass; 19 manifest entries",
+    "exact_range_diff_check": "post-receipt gate; exact command recorded",
+    "runtime_mount": "none",
+    "remote_publication": "PR #502 review branch"
+  },
+  "mutants": [
+    {
+      "id": "D04_COMMIT_MISSING_RETAINED_ANF",
+      "status": "killed_by_test_and_checker",
+      "invariant": "an ANF-bound bundle cannot publish without the exact retained ANF"
+    },
+    {
+      "id": "D04_COMMIT_FOREIGN_RETAINED_ANF",
+      "status": "killed_by_test_and_checker",
+      "invariant": "the retained ANF root and every source-derived field are recomputed at commit"
+    },
+    {
+      "id": "D04_RETRY_CORRUPTED_RETAINED_ANF",
+      "status": "killed_by_test_and_checker",
+      "invariant": "store validation rechecks each retained ANF before retry classification"
+    },
+    {
+      "id": "D04_V1_CANONICAL_ABI_DRIFT",
+      "status": "killed_by_golden_vector",
+      "invariant": "legacy V1 outbox and bundle bytes and roots remain exact"
+    },
+    {
+      "id": "D04_V2_MISSING_ANF_ROOT",
+      "status": "killed_by_test",
+      "invariant": "ANF-bound V2 schemas require a canonical ANF root"
+    },
+    {
+      "id": "D04_V2_CROSSED_ANF_ROOT",
+      "status": "killed_by_test_and_checker",
+      "invariant": "receipt, outbox, bundle, and retained ANF roots agree exactly"
+    },
+    {
+      "id": "D04_CROSSED_DECISION_OR_OUTBOX",
+      "status": "killed_by_test_and_checker",
+      "invariant": "bundle lineage is freshly reconstructed from one exact decision"
+    },
+    {
+      "id": "D04_STALE_CACHED_ROOT",
+      "status": "killed_by_test_and_checker",
+      "invariant": "cached canonical roots cannot substitute for complete recomputation"
+    },
+    {
+      "id": "D04_V1_ANF_DECISION_SCHEMA_BYPASS",
+      "status": "killed_by_test_and_checker",
+      "invariant": "ANF-bound decisions cannot enter the legacy V1 bundle schema"
+    },
+    {
+      "id": "D04_V2_OUTBOX_HASHED_AS_V1",
+      "status": "killed_by_test_and_checker",
+      "invariant": "lineage closure recomputes each outbox root through its exact schema"
+    }
+  ],
+  "nonclaims": [
+    "D04 is tested unmounted Python reference evidence.",
+    "The V2 schema registrations do not mount a production writer or acceptance path.",
+    "D04 does not prove caller authentication, store-current authority, production atomicity, crash recovery, destination idempotency, proof context, DRA history, migration authority, or no-bypass reachability.",
+    "The broad diagnostic retains one inherited stale fee-apportionment source-hash fixture outside the D04 authority surface.",
+    "PR #502 is the review surface; no merge, deployment, production migration, authority switch, runtime mount, or value movement is claimed."
+  ]
+}

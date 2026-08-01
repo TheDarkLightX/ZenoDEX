@@ -25,6 +25,7 @@ from .fcis_commit_bundle_derivation import (
     build_commit_bundle_v1,
     recompute_bundle_root_v1,
     recompute_outbox_plan_v1,
+    recompute_outbox_root_v1,
 )
 from .fcis_decision_derivation import (
     FCIS_SPOT_TRANSITION_BUDGET_V1,
@@ -40,7 +41,6 @@ from .fcis_fee_occurrence_normal_form import (
     CanonicalFeeOccurrenceSegmentV1,
     fee_amount_candidates_from_segment_v1,
 )
-from .fcis_outbox_values import FCIS_OUTBOX_PLAN_SCHEMA_ID_V1
 from .fcis_step_evaluation_values import (
     FCISStepEvaluationOkV1,
     FCISStepEvaluationRejectV1,
@@ -206,9 +206,13 @@ class FCISLineageClaimSetV1:
         for claim in self.claims:
             payload.extend(_frame_v1(claim.key.value.encode("utf-8")))
             payload.extend(_raw32_v1(claim.value_digest))
-        return cast(str, sha256_hex(
-            domain_sep_bytes("zenodex/fcis/lineage-closure-claim-set", version=1) + bytes(payload)
-        ))
+        return cast(
+            str,
+            sha256_hex(
+                domain_sep_bytes("zenodex/fcis/lineage-closure-claim-set", version=1)
+                + bytes(payload)
+            ),
+        )
 
 
 @final
@@ -481,9 +485,13 @@ def _derive_rule_value_v1(
     for dependency in rule.dependencies:
         payload.extend(_frame_v1(dependency.value.encode("utf-8")))
         payload.extend(_raw32_v1(values[dependency]))
-    return cast(str, sha256_hex(
-        domain_sep_bytes("zenodex/fcis/lineage-closure-derived-claim", version=1) + bytes(payload)
-    ))
+    return cast(
+        str,
+        sha256_hex(
+            domain_sep_bytes("zenodex/fcis/lineage-closure-derived-claim", version=1)
+            + bytes(payload)
+        ),
+    )
 
 
 def _close_claims_v1(seed: FCISLineageClaimSetV1) -> FCISLineageClaimSetV1:
@@ -773,7 +781,7 @@ def _validate_bundle_v1(bundle: CommitBundleV1, decision: AcceptV1) -> tuple[str
     recomputed_outbox = recompute_outbox_plan_v1(bundle)
     if recomputed_outbox != bundle.outbox_plan:
         raise ValueError("bundle outbox plan failed recomputation")
-    _, outbox_root = _claim_root_v1(FCIS_OUTBOX_PLAN_SCHEMA_ID_V1, bundle.outbox_plan)
+    outbox_root = recompute_outbox_root_v1(bundle)
     return bundle_root, outbox_root
 
 

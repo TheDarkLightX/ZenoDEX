@@ -7,6 +7,7 @@ import pytest
 
 import src.core.fcis_commit_bundle_derivation as bundle_derivation
 from src.core.fcis_authority_admission import (
+    CanonicalAuthorityClaimBytesV1,
     admit_fcis_authority_claim_v1,
     encode_fcis_authority_claim_v1,
 )
@@ -24,7 +25,10 @@ from src.core.fcis_commit_bundle_derivation import (
     recompute_outbox_root_v1,
     verify_anf_bound_commit_bundle_v1,
 )
-from src.core.fcis_commit_bundle_values import FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1
+from src.core.fcis_commit_bundle_values import (
+    FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1,
+    FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2,
+)
 from src.core.fcis_decision_derivation import (
     AcceptV1,
     RejectV1,
@@ -35,8 +39,11 @@ from src.core.fcis_decision_derivation import (
 )
 from src.core.fcis_decision_values import FCISRejectCodeV1
 from src.core.fcis_outbox_values import (
+    FCIS_OUTBOX_PLAN_SCHEMA_ID_V1,
+    FCIS_OUTBOX_PLAN_SCHEMA_ID_V2,
     OutboxEffectKindV1,
     OutboxPlanV1,
+    OutboxPlanV2,
 )
 from src.core.settlement_snapshots import snapshot_settlement
 from src.state.canonical import (
@@ -114,6 +121,8 @@ def test_build_commit_bundle_from_accept_produces_exact_bundle() -> None:
     assert type(bundle) is CommitBundleV1
     assert bundle.decision is accept
     assert type(bundle.outbox_plan) is OutboxPlanV1
+    assert bundle.outbox_schema_id == FCIS_OUTBOX_PLAN_SCHEMA_ID_V1
+    assert bundle.bundle_schema_id == FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1
     assert tuple(field.name for field in fields(bundle)) == (
         "decision",
         "outbox_plan",
@@ -382,11 +391,15 @@ def test_outbox_and_bundle_literal_golden_vectors() -> None:
         "0x460a6968d9d0b355371f59ee45db918ca8bc6ea6030953437e9889171ff26aaa"
     )
     assert bundle.bundle_root == (
-        "0x1d4eb10d44c5d3c95e4201be101d8749fd1ac0ef75073b1f45029c68ea6eb246"
+        "0x0626a082ff542b69fd1a14f9384dd1b5aa54025633a460de37dd372416827ee0"
+    )
+    assert bundle.outbox_root == (
+        "0xf7ac577051aaac3bf3704a9a699c2174235c262c62716c1663b792d32cacc0e9"
     )
     assert sha256_hex(bundle.canonical_bundle_bytes) == (
-        "0x8842ebfc2a61b4b1708b17dcfa3cc42be445cd091ce4f7a5d30c552969d07c16"
+        "0xfdec6cd51d03e5384a282ab967b32026791c26672548fa70ff2c208e520071c1"
     )
+    assert len(bundle.canonical_bundle_bytes) == 9_043
 
 
 def test_exhaustive_bounded_event_derivation_is_deterministic_and_sensitive() -> None:
@@ -419,6 +432,7 @@ def test_bundle_claim_round_trips_through_the_closed_grammar() -> None:
     """M5-P3-BUNDLE-007: decoded claims round-trip through closed admission."""
 
     bundle = _event_bundle()
+    assert type(bundle.outbox_plan) is OutboxPlanV1
     claim = _derive_bundle_claim_v1(bundle.decision, bundle.outbox_plan)
     admitted = admit_fcis_authority_claim_v1(FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1, claim)
 
@@ -472,6 +486,9 @@ def test_d04_anf_bundle_recomputes_decision_outbox_and_all_roots() -> None:
     assert type(bundle) is CommitBundleV1
     assert bundle.decision is decision
     assert bundle.authority_normal_form is anf
+    assert type(bundle.outbox_plan) is OutboxPlanV2
+    assert bundle.outbox_schema_id == FCIS_OUTBOX_PLAN_SCHEMA_ID_V2
+    assert bundle.bundle_schema_id == FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2
     assert bundle.authority_normal_form_root == decision.receipt.binding.authority_normal_form_root
     assert bundle.outbox_plan.authority_normal_form_root == bundle.authority_normal_form_root
     assert recompute_anf_root_v1(bundle) == bundle.authority_normal_form_root
@@ -481,6 +498,30 @@ def test_d04_anf_bundle_recomputes_decision_outbox_and_all_roots() -> None:
     assert canonical_bytes == bundle.canonical_bundle_bytes
     assert bundle_root == bundle.bundle_root
     assert verify_anf_bound_commit_bundle_v1(bundle)
+
+
+def test_d04_anf_bundle_uses_distinct_v2_canonical_schema() -> None:
+    decision, anf = _anf_accept_with_value()
+    bundle = build_anf_bound_commit_bundle_v1(decision, anf)
+
+    assert type(bundle) is CommitBundleV1
+    assert type(bundle.outbox_plan) is OutboxPlanV2
+    claim = bundle_derivation._derive_anf_bound_bundle_claim_v2(
+        decision,
+        bundle.outbox_plan,
+    )
+    encoded = encode_fcis_authority_claim_v1(FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2, claim)
+    assert type(encoded) is CanonicalAuthorityClaimBytesV1
+    assert encoded.payload == bundle.canonical_bundle_bytes
+    encoded_outbox = encode_fcis_authority_claim_v1(
+        FCIS_OUTBOX_PLAN_SCHEMA_ID_V2,
+        bundle.outbox_plan,
+    )
+    assert type(encoded_outbox) is CanonicalAuthorityClaimBytesV1
+    expected_outbox_root = sha256_hex(
+        domain_sep_bytes(FCIS_OUTBOX_PLAN_SCHEMA_ID_V2, version=2) + encoded_outbox.payload
+    )
+    assert bundle.outbox_root == expected_outbox_root
 
 
 def test_d04_anf_builder_rejects_legacy_unbound_decision() -> None:

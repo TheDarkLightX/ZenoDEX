@@ -8,7 +8,7 @@ rather than copied into independently swappable fields.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import final
+from typing import cast, final
 
 from ..state.fcis_committed_state_values import FCISCommittedStateV1
 from .fcis_decision_values import (
@@ -17,10 +17,11 @@ from .fcis_decision_values import (
     CommittedFailureClaimV1,
     CommittedFailureReceiptClaimV1,
 )
-from .fcis_outbox_values import OutboxPlanV1
+from .fcis_outbox_values import OutboxPlanV1, OutboxPlanV2
 from .fcis_transition_values import CommitPlanV1
 
 FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1 = "zenodex/fcis/commit-bundle/v1"
+FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2 = "zenodex/fcis/commit-bundle/v2"
 
 
 @final
@@ -30,7 +31,16 @@ class CommitBundleSourceV1:
     decision: object
     receipt_root: object
     outbox_plan: object
-    authority_normal_form_root: object = None
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class CommitBundleSourceV2:
+    expected_pre_root: object
+    decision: object
+    receipt_root: object
+    outbox_plan: object
+    authority_normal_form_root: object
 
 
 def _is_digest_v1(value: object) -> bool:
@@ -51,7 +61,6 @@ class CommitBundleClaimV1:
     decision: AcceptClaimV1 | CommittedFailureClaimV1
     receipt_root: str
     outbox_plan: OutboxPlanV1
-    authority_normal_form_root: str | None = None
 
     def __post_init__(self) -> None:
         if not _is_digest_v1(self.expected_pre_root):
@@ -64,8 +73,62 @@ class CommitBundleClaimV1:
             raise TypeError("bundle outbox_plan must be exact")
         if self.expected_pre_root != self.receipt.binding.pre_state_root:
             raise ValueError("bundle expected root must equal the receipt pre-root")
-        receipt_anf_root = self.receipt.binding.authority_normal_form_root
-        if self.authority_normal_form_root != receipt_anf_root:
+        if (
+            self.receipt.binding.authority_normal_form_version is not None
+            or self.receipt.binding.authority_normal_form_root is not None
+        ):
+            raise ValueError("ANF-bound decision requires the V2 bundle schema")
+
+    @property
+    def next_state(self) -> FCISCommittedStateV1:
+        return self.decision.next_state
+
+    @property
+    def commit_plan(self) -> CommitPlanV1:
+        return self.decision.commit_plan
+
+    @property
+    def receipt(self) -> AcceptanceReceiptClaimV1 | CommittedFailureReceiptClaimV1:
+        return self.decision.receipt
+
+    @property
+    def next_state_root(self) -> str:
+        return cast(str, self.receipt.binding.next_state_root)
+
+    @property
+    def execution_context_hash(self) -> str:
+        return cast(str, self.receipt.binding.execution_context_hash)
+
+    @property
+    def command_or_batch_root(self) -> str:
+        return cast(str, self.receipt.binding.command_or_batch_root)
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class CommitBundleClaimV2:
+    """ANF-bound CAS-payload claim under a distinct canonical schema identity."""
+
+    expected_pre_root: str
+    decision: AcceptClaimV1 | CommittedFailureClaimV1
+    receipt_root: str
+    outbox_plan: OutboxPlanV2
+    authority_normal_form_root: str
+
+    def __post_init__(self) -> None:
+        if not _is_digest_v1(self.expected_pre_root):
+            raise TypeError("bundle expected_pre_root must be a canonical digest")
+        if type(self.decision) not in (AcceptClaimV1, CommittedFailureClaimV1):
+            raise TypeError("bundle decision must be an exact committable decision")
+        if not _is_digest_v1(self.receipt_root):
+            raise TypeError("bundle receipt_root must be a canonical digest")
+        if type(self.outbox_plan) is not OutboxPlanV2:
+            raise TypeError("ANF-bound bundle outbox_plan must be exact V2")
+        if not _is_digest_v1(self.authority_normal_form_root):
+            raise TypeError("bundle ANF root must be a canonical digest")
+        if self.expected_pre_root != self.receipt.binding.pre_state_root:
+            raise ValueError("bundle expected root must equal the receipt pre-root")
+        if self.authority_normal_form_root != self.receipt.binding.authority_normal_form_root:
             raise ValueError("bundle ANF root must equal the decision receipt ANF root")
         if self.outbox_plan.authority_normal_form_root != self.authority_normal_form_root:
             raise ValueError("bundle ANF root must equal the outbox ANF root")
@@ -84,19 +147,22 @@ class CommitBundleClaimV1:
 
     @property
     def next_state_root(self) -> str:
-        return self.receipt.binding.next_state_root
+        return cast(str, self.receipt.binding.next_state_root)
 
     @property
     def execution_context_hash(self) -> str:
-        return self.receipt.binding.execution_context_hash
+        return cast(str, self.receipt.binding.execution_context_hash)
 
     @property
     def command_or_batch_root(self) -> str:
-        return self.receipt.binding.command_or_batch_root
+        return cast(str, self.receipt.binding.command_or_batch_root)
 
 
 __all__ = (
     "CommitBundleSourceV1",
+    "CommitBundleSourceV2",
     "CommitBundleClaimV1",
+    "CommitBundleClaimV2",
     "FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1",
+    "FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2",
 )
