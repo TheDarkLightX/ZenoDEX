@@ -1,0 +1,35 @@
+{
+  "schema_version": "zenodex.fcis.m6.i04.destination-dedup.v1",
+  "task_id": "I04",
+  "supported_mechanisms": [
+    "native_idempotency_key",
+    "query_by_effect_id",
+    "application_receipt_table"
+  ],
+  "contract_binding": [
+    "destination",
+    "adapter_profile_root",
+    "mechanism",
+    "canonical_contract_root"
+  ],
+  "destination_record_fields": [
+    "effect_id",
+    "destination",
+    "payload_root",
+    "destination_receipt_root"
+  ],
+  "duplicate_rule": "same effect_id, destination, and payload_root returns ALREADY_ACCEPTED with the original receipt root",
+  "collision_rules": [
+    "same effect_id with a different payload_root rejects",
+    "same effect_id with a different destination rejects",
+    "effect adapter_profile_root must equal the verified contract profile",
+    "records are unique and sorted by effect_id"
+  ],
+  "unmountable_rule": "unsupported mechanism or forged contract root cannot produce a verified contract witness",
+  "nonclaims": [
+    "no network destination is implemented",
+    "no acknowledgment provenance or lost-ack recovery",
+    "no production adapter or runtime mounting",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
