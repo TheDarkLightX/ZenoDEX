@@ -1,0 +1,135 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "C04",
+  "base_sha": "ccc04a72a3d2feb612e52d40e8d393f3f6b117c3",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C04-sign-dual-transport-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_entitlement_transport_v1.py",
+    "tests/core/test_fcis_entitlement_transport_v1.py",
+    "experiments/fcis_m6_c04_vector_check.py",
+    "docs/research/FCIS_M6_C04_SIGN_DUAL_TRANSPORT_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_C04_PLAN.md",
+    "docs/research/m6_tasks/TASK_C04_SIGN_DUAL_VECTOR.json",
+    "docs/research/m6_tasks/TASK_C04_REPORT.md",
+    "docs/research/m6_tasks/TASK_C04_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_C04_SOURCE_MANIFEST.sha256",
+    "src/core/fcis_entitlement_migration_values_v1.py",
+    "src/core/fcis_entitlement_migration_codec_v1.py",
+    "docs/research/FCIS_M6_C02_ENTITLEMENT_KEY_SCHEMA_V1.md",
+    "docs/research/FCIS_M6_C01_SEMANTIC_PROFILE_SCHEMA_V1.md",
+    "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml",
+    "docs/research/FCIS_M5_P4B5A_AGQE_SRGD_SIGN_DUAL_REFINEMENT_20260730.md"
+  ],
+  "commands": [
+    "python3 -m compileall -q src/core/fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_transport_v1.py",
+    "/home/trevormoc/.local/bin/ruff check src/core/fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_transport_v1.py",
+    "/home/trevormoc/.local/bin/mypy --strict src/core/fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_transport_v1.py",
+    "pytest -q tests/core/test_fcis_entitlement_transport_v1.py",
+    "pytest -q tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py",
+    "python3 -m experiments.fcis_m6_c04_vector_check",
+    "python3 -m compileall -q experiments/fcis_m6_c04_vector_check.py",
+    "/home/trevormoc/.local/bin/ruff check experiments/fcis_m6_c04_vector_check.py",
+    "/home/trevormoc/.local/bin/mypy --strict experiments/fcis_m6_c04_vector_check.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_C04_SIGN_DUAL_VECTOR.json",
+    "python3 experiments/fcis_m6_c04_vector_check.py",
+    "python3 .claude/skills/zenodex-style-map/scripts/which_style.py src/core/fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_transport_v1.py",
+    "python3 .claude/skills/zenodex-security-analysis/scripts/trust_surface.py",
+    "python3 .claude/skills/zenodex-security-analysis/scripts/redflags.py src/core/fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_transport_v1.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks C04",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_C04_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_entitlement_transport_v1.py": "a225e0df0fb9ca47e7e1af05d9896fac561ecb6b41cef76677605799a1262076",
+    "tests/core/test_fcis_entitlement_transport_v1.py": "fd4dd44af81d1b9967d866a4a166f275132e57ff0c157c7db150f3cc7d9e29a5",
+    "experiments/fcis_m6_c04_vector_check.py": "bd6c9678f6825557bfa48d4044c99cf5451d85116a8fa7f3c8f1c9799c80c704",
+    "docs/research/FCIS_M6_C04_SIGN_DUAL_TRANSPORT_SCHEMA_V1.md": "d57208ff5ee04b1c3e6faa96b1a04023b0904963ce44b82469106394f00f6ab1",
+    "docs/research/m6_tasks/TASK_C04_PLAN.md": "25b71c5b7bcc8a362c23f6f6785492f062fd2a88b8210ee075e0bddc25357cb6",
+    "docs/research/m6_tasks/TASK_C04_SIGN_DUAL_VECTOR.json": "299172b415f15979f7dfd0b326dce6e0f6aa7fbcd72f444b4c2d6a79afb11ba7",
+    "src/core/fcis_entitlement_migration_values_v1.py": "680d3921d002a7d1846c3ccd44ac74a15bcf41fe885c44362610bfe25705e5b1",
+    "src/core/fcis_entitlement_migration_codec_v1.py": "b134e0e7ec8564244c41758cd915ccf361c4d1034036cb25913228aa0d2e6a50",
+    "docs/research/FCIS_M6_C02_ENTITLEMENT_KEY_SCHEMA_V1.md": "0e59806b237db0f5ceb5ba4c5f1771f8406a6011416c1f4f950f43ccc0fb24ab",
+    "docs/research/FCIS_M6_C01_SEMANTIC_PROFILE_SCHEMA_V1.md": "581fb5a3ff3f429ab1e302a963447d30afe637a87190bd9304ce71e711e7a595",
+    "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml": "19a9426487ad05f56c8b34889f84b130c92d1d650fdd5c4e3e6c014b27fc49fc",
+    "docs/research/FCIS_M5_P4B5A_AGQE_SRGD_SIGN_DUAL_REFINEMENT_20260730.md": "d231c1c6dbee73d5a1843cf9505d93c78685eb18bef557f7dbada3c374cbf273"
+  },
+  "results": {
+    "implementation_commit": "559d11b6c0c13c763432a3ee07eb0426198baa32",
+    "implementation_tree": "3545c56263714dbc9efcf181e44f902dff489256",
+    "implementation_parent": "ccc04a72a3d2feb612e52d40e8d393f3f6b117c3",
+    "old_state_root": "0x03140fa33aa67675547a9a4e5b34125a2ea5b108af75ceca46d5a02f13e7d8d0",
+    "new_state_root": "0xce34a2a26f62be9df6445a6035475addc5ef5618e373f247607b4f94c34a2c28",
+    "transport_relation": "every complete entry coordinate is negated; key and ordered entry IDs are preserved",
+    "involution": "pass; AGQE-to-SRGD round trip returns exact source state",
+    "focused_tests": "9 passed",
+    "combined_c03_c04_tests": "23 passed",
+    "vector_checker": "pass; C04_VECTOR_MATCH",
+    "vector_json": "pass",
+    "direct_vector_script": "failed ModuleNotFoundError; module-form execution passes",
+    "style_security_scanners": "unavailable; repository-local .claude paths absent",
+    "runtime_mount": "none"
+  },
+  "mutants": [
+    {
+      "id": "C04_WRONG_SOURCE_TYPE",
+      "status": "covered_by_regression_assertion",
+      "invariant": "source must be an exact EntitlementStateV1"
+    },
+    {
+      "id": "C04_WRONG_SOURCE_REPRESENTATION",
+      "status": "covered_by_regression_assertion",
+      "invariant": "SRGD-to-AGQE accepts only an SRGD source"
+    },
+    {
+      "id": "C04_WRONG_TARGET_TYPE",
+      "status": "covered_by_regression_assertion",
+      "invariant": "supplied target must be an exact EntitlementStateV1"
+    },
+    {
+      "id": "C04_WRONG_TARGET_REPRESENTATION",
+      "status": "covered_by_regression_assertion",
+      "invariant": "target representation must be the direction-specific AGQE value"
+    },
+    {
+      "id": "C04_KEY_SUBSTITUTION",
+      "status": "covered_by_regression_assertion",
+      "invariant": "semantic key and fixed role order remain equal"
+    },
+    {
+      "id": "C04_MISSING_ENTRY",
+      "status": "covered_by_regression_assertion",
+      "invariant": "no source entry may be omitted"
+    },
+    {
+      "id": "C04_SURPLUS_ENTRY",
+      "status": "covered_by_regression_assertion",
+      "invariant": "no target entry may be added"
+    },
+    {
+      "id": "C04_COORDINATE_DRIFT",
+      "status": "covered_by_regression_assertion",
+      "invariant": "each target coordinate equals the source negation"
+    },
+    {
+      "id": "C04_ZERO_RESET",
+      "status": "covered_by_regression_assertion",
+      "invariant": "a nonzero source entry cannot be replaced by zero coordinates"
+    }
+  ],
+  "nonclaims": [
+    "C04 is tested research evidence for typed complete-state sign-dual transport.",
+    "C04 does not prove complete trace conjugacy, authority provenance, datastore durability, runtime mounting, deployment, migration switching, destination idempotency, or value movement.",
+    "The exact target is a research verifier input; production must bind source and target to authenticated current context at commit time.",
+    "No remote implementation commit, hosted CI run, draft PR, or production promotion is claimed."
+  ]
+}
