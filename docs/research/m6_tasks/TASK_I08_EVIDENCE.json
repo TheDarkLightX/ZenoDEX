@@ -1,0 +1,60 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "I08",
+  "base_sha": "61bed1d774358a7a506fbd9342e3c1f0c617845d",
+  "source_head_sha": "bd23066ce004b821baba956b93f0b6e2f23a8cb5",
+  "source_head_tree": "d1e556bd7c42f2db7da5a15ecc6c1915bbd53f73",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "tools/check_fcis_m6_i08_honest_contract.py",
+    "tests/core/test_fcis_m6_i08_honest_delivery_contract.py",
+    "docs/research/m6_tasks/TASK_I08_HONEST_DELIVERY_CONTRACT_V1.json",
+    "docs/research/m6_tasks/TASK_I08_HONEST_DELIVERY_CONTRACT_V1.md",
+    "docs/research/m6_tasks/TASK_I08_PLAN.md",
+    "docs/research/m6_tasks/TASK_I08_REPORT.md",
+    "docs/research/m6_tasks/TASK_I08_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_I08_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 tools/check_fcis_m6_i08_honest_contract.py docs/research/m6_tasks/TASK_I08_HONEST_DELIVERY_CONTRACT_V1.json",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_i08_honest_delivery_contract.py",
+    "python3 -m ruff check tools/check_fcis_m6_i08_honest_contract.py tests/core/test_fcis_m6_i08_honest_delivery_contract.py",
+    "python3 -m ruff format --check tools/check_fcis_m6_i08_honest_contract.py tests/core/test_fcis_m6_i08_honest_delivery_contract.py",
+    "python3 -m mypy --strict tools/check_fcis_m6_i08_honest_contract.py tests/core/test_fcis_m6_i08_honest_delivery_contract.py",
+    "python3 -m py_compile tools/check_fcis_m6_i08_honest_contract.py tests/core/test_fcis_m6_i08_honest_delivery_contract.py",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks I08",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_I08_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "tools/check_fcis_m6_i08_honest_contract.py": "1bc397dee8d622f246ef0961cb2b3e8359684bce6dd92a6a75b55c9666722064",
+    "tests/core/test_fcis_m6_i08_honest_delivery_contract.py": "9ffcae0e333d58dced2e70c915677bea5238f9f7d9b68b425aa2bdffa3b84e85",
+    "docs/research/m6_tasks/TASK_I08_HONEST_DELIVERY_CONTRACT_V1.json": "5acb84e3d65fb01b8da7fd3edb39533e4207f76568c4ec745476dada093f0546",
+    "docs/research/m6_tasks/TASK_I08_HONEST_DELIVERY_CONTRACT_V1.md": "62dfab421acf80324c419d6181772611dbcddc9792e20e7a79e358a7903bf3a7",
+    "docs/research/m6_tasks/TASK_I08_PLAN.md": "5c880a8d8dcae2a7ec224f0539f892165c27895da1366cd1ba451048fadf01c3"
+  },
+  "results": {
+    "contract_checker": "pass; exact four supported claims and unmounted status",
+    "focused_tests": "pass; 5 passed",
+    "positive_wording_rejection": "pass; exactly-once claim and API mutations reject",
+    "documentation_boundary": "pass; four Claim lines and required nonclaims checked",
+    "implementation_commit": "bd23066ce004b821baba956b93f0b6e2f23a8cb5",
+    "implementation_tree": "d1e556bd7c42f2db7da5a15ecc6c1915bbd53f73",
+    "implementation_parent": "61bed1d774358a7a506fbd9342e3c1f0c617845d"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "I08 is a checked research claim surface and is not a production delivery API.",
+    "I08 does not prove atomic enqueue, network delivery, or destination idempotency.",
+    "I08 does not prove runtime mounting or value movement.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
