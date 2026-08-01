@@ -1,0 +1,44 @@
+{
+  "schema_version": "zenodex.fcis.m6.i02.outbox-schema.v1",
+  "task_id": "I02",
+  "semantic_fields": [
+    "effect_id",
+    "commit_id",
+    "ordinal",
+    "destination",
+    "payload_root",
+    "adapter_profile_root"
+  ],
+  "operational_fields": [
+    "status",
+    "lease_owner",
+    "lease_expiry",
+    "attempt_count",
+    "last_error",
+    "ack_receipt_root"
+  ],
+  "status_values": [
+    "PENDING",
+    "LEASED",
+    "DELIVERED",
+    "ACKED",
+    "FAILED"
+  ],
+  "binding_rules": [
+    "one publication_outbox row is keyed by effect_id",
+    "commit_id is a foreign key to publication_atoms",
+    "(commit_id, ordinal) is unique",
+    "operational fields do not enter derive_effect_id",
+    "leased rows require owner and expiry",
+    "non-leased rows have no active lease",
+    "acked rows require an acknowledgment receipt root",
+    "non-acked rows have no acknowledgment receipt root"
+  ],
+  "transaction_rule": "semantic and operational outbox fields are inserted by the same H02 publication transaction",
+  "payload_rule": "payload_root is the canonical payload reference in this isolated adapter",
+  "nonclaims": [
+    "no worker lease acquisition is implemented",
+    "no destination deduplication or receipt provenance is implemented",
+    "M6 remains unmounted and non-promotable"
+  ]
+}

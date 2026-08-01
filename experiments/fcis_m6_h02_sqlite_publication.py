@@ -158,6 +158,55 @@ def _bounded_text(value: object, label: str) -> str:
     return value
 
 
+class H02OutboxStatusV1(Enum):
+    """Operational delivery state kept separate from semantic effect identity."""
+
+    PENDING = "PENDING"
+    LEASED = "LEASED"
+    DELIVERED = "DELIVERED"
+    ACKED = "ACKED"
+    FAILED = "FAILED"
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class H02OutboxDeliveryRowV1:
+    """Typed operational fields for one committed semantic outbox effect."""
+
+    effect_id: str
+    status: H02OutboxStatusV1
+    lease_owner: str | None
+    lease_expiry: int | None
+    attempt_count: int
+    last_error: str | None
+    ack_receipt_root: str | None
+
+    def __post_init__(self) -> None:
+        _digest(self.effect_id, "effect_id")
+        if type(self.status) is not H02OutboxStatusV1:
+            raise H02Error("outbox status has the wrong exact type")
+        if self.lease_owner is not None:
+            _bounded_text(self.lease_owner, "lease_owner")
+        if self.lease_expiry is not None:
+            _exact_u32(self.lease_expiry, "lease_expiry")
+        _exact_u32(self.attempt_count, "attempt_count")
+        if self.last_error is not None:
+            _bounded_text(self.last_error, "last_error")
+        if self.ack_receipt_root is not None:
+            _digest(self.ack_receipt_root, "ack_receipt_root")
+        if (self.lease_owner is None) != (self.lease_expiry is None):
+            raise H02Error("lease owner and expiry must be present together")
+        if self.status is H02OutboxStatusV1.LEASED:
+            if self.lease_owner is None or self.lease_expiry is None:
+                raise H02Error("leased outbox row requires an owner and expiry")
+        elif self.lease_owner is not None or self.lease_expiry is not None:
+            raise H02Error("only a leased outbox row may carry a lease")
+        if self.status is H02OutboxStatusV1.ACKED:
+            if self.ack_receipt_root is None:
+                raise H02Error("acked outbox row requires an acknowledgment root")
+        elif self.ack_receipt_root is not None:
+            raise H02Error("only an acked outbox row may carry an acknowledgment root")
+
+
 def _framed_hash(domain: str, fields: tuple[bytes, ...]) -> str:
     digest = hashlib.sha256()
     domain_bytes = domain.encode("ascii")
@@ -339,6 +388,20 @@ def _text_column(name: str) -> str:
     )
 
 
+def _optional_text_column(name: str) -> str:
+    return (
+        f"{name} TEXT CHECK({name} IS NULL OR "
+        f"length(CAST({name} AS BLOB)) BETWEEN 1 AND {MAX_TEXT_BYTES})"
+    )
+
+
+def _optional_root_column(name: str) -> str:
+    return (
+        f"{name} TEXT CHECK({name} IS NULL OR "
+        f"(length({name}) = 64 AND {name} NOT GLOB '*[^0-9a-f]*'))"
+    )
+
+
 _DURABLE_TABLE_NAMES: Final[tuple[str, ...]] = (
     "snapshot_meta",
     "authority_epochs",
@@ -446,6 +509,17 @@ CREATE TABLE IF NOT EXISTS publication_outbox (
     {_text_column("destination")},
     {_root_column("payload_root")},
     {_root_column("adapter_profile_root")},
+    status TEXT NOT NULL CHECK(status IN ('PENDING', 'LEASED', 'DELIVERED', 'ACKED', 'FAILED')),
+    {_optional_text_column("lease_owner")},
+    lease_expiry INTEGER CHECK(lease_expiry IS NULL OR lease_expiry BETWEEN 0 AND {U32_MAX}),
+    attempt_count INTEGER NOT NULL CHECK(attempt_count BETWEEN 0 AND {U32_MAX}),
+    {_optional_text_column("last_error")},
+    {_optional_root_column("ack_receipt_root")},
+    CHECK((lease_owner IS NULL) = (lease_expiry IS NULL)),
+    CHECK(status <> 'LEASED' OR (lease_owner IS NOT NULL AND lease_expiry IS NOT NULL)),
+    CHECK(status = 'LEASED' OR (lease_owner IS NULL AND lease_expiry IS NULL)),
+    CHECK(status = 'ACKED' OR ack_receipt_root IS NULL),
+    CHECK(status <> 'ACKED' OR ack_receipt_root IS NOT NULL),
     UNIQUE(commit_id, ordinal)
 );
 
@@ -577,8 +651,9 @@ def _insert_atom(
         """
         INSERT INTO publication_outbox(
             effect_id, commit_id, ordinal, destination,
-            payload_root, adapter_profile_root
-        ) VALUES (?, ?, ?, ?, ?, ?)
+            payload_root, adapter_profile_root, status, lease_owner,
+            lease_expiry, attempt_count, last_error, ack_receipt_root
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             (
@@ -588,6 +663,12 @@ def _insert_atom(
                 effect.destination,
                 effect.payload_root,
                 effect.adapter_profile_root,
+                H02OutboxStatusV1.PENDING.value,
+                None,
+                None,
+                0,
+                None,
+                None,
             )
             for effect in atom.outbox
         ),
@@ -919,6 +1000,50 @@ def _read_anf_rows(connection: sqlite3.Connection) -> tuple[ANFPublicationRowV1,
     )
 
 
+def read_outbox_delivery_rows(
+    connection: sqlite3.Connection,
+    snapshot: dra.DurableSnapshotV1,
+) -> tuple[H02OutboxDeliveryRowV1, ...]:
+    """Reconstruct and bind mutable delivery fields to committed effects."""
+
+    if type(connection) is not sqlite3.Connection:
+        raise H02Error("connection has the wrong exact type")
+    if type(snapshot) is not dra.DurableSnapshotV1:
+        raise H02Error("snapshot has the wrong exact type")
+    try:
+        rows = tuple(
+            H02OutboxDeliveryRowV1(
+                effect_id=row[0],
+                status=H02OutboxStatusV1(row[1]),
+                lease_owner=row[2],
+                lease_expiry=row[3],
+                attempt_count=row[4],
+                last_error=row[5],
+                ack_receipt_root=row[6],
+            )
+            for row in connection.execute(
+                """
+                SELECT effect_id, status, lease_owner, lease_expiry,
+                       attempt_count, last_error, ack_receipt_root
+                FROM publication_outbox ORDER BY effect_id
+                """
+            )
+        )
+    except (
+        H02Error,
+        TypeError,
+        ValueError,
+        OverflowError,
+        sqlite3.Error,
+    ) as exc:
+        raise H02StorageError("outbox delivery row is invalid") from exc
+    expected_ids = tuple(sorted(row.effect_id for row in snapshot.outbox_rows))
+    actual_ids = tuple(row.effect_id for row in rows)
+    if actual_ids != expected_ids:
+        raise H02StorageError("outbox delivery rows do not match committed effects")
+    return rows
+
+
 def read_state(connection: sqlite3.Connection) -> SQLiteStateV1:
     if type(connection) is not sqlite3.Connection:
         raise H02Error("connection has the wrong exact type")
@@ -926,6 +1051,7 @@ def read_state(connection: sqlite3.Connection) -> SQLiteStateV1:
     reopened = dra.reopen_snapshot(snapshot)
     if type(reopened) is not dra.AuthorizedHistoryV1:
         raise H02StorageError("durable snapshot is not a canonical fixed point")
+    read_outbox_delivery_rows(connection, snapshot)
     anf_rows = _read_anf_rows(connection)
     meta = connection.execute(
         "SELECT anf_set_root, publication_root FROM snapshot_meta WHERE singleton = 1"
@@ -1134,6 +1260,8 @@ __all__ = (
     "H02CodeV1",
     "H02CommitV1",
     "H02Error",
+    "H02OutboxDeliveryRowV1",
+    "H02OutboxStatusV1",
     "H02RejectV1",
     "H02ResultV1",
     "SQLitePublicationRequestV1",
@@ -1142,5 +1270,6 @@ __all__ = (
     "create_database",
     "initialize_database",
     "publish_atom",
+    "read_outbox_delivery_rows",
     "read_state",
 )
