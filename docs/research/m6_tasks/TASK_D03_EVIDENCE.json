@@ -1,0 +1,115 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "D03",
+  "base_sha": "0c5c6c822dee5ed1c18ccd83e9b15cd760a9703c",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_decision_values.py",
+    "src/core/fcis_authority_schema.py",
+    "src/core/fcis_authority_dispatch.py",
+    "src/core/fcis_decision_derivation.py",
+    "tests/core/test_fcis_m6_d03_anf_receipt_binding.py",
+    "experiments/fcis_m6_d03_anf_receipt_binding_check.py",
+    "docs/research/m6_tasks/TASK_D03_ANF_RECEIPT_BINDING_VECTOR.json",
+    "docs/research/FCIS_M6_D03_ANF_RECEIPT_BINDING_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_D03_PLAN.md",
+    "docs/research/m6_tasks/TASK_D03_REPORT.md",
+    "docs/research/m6_tasks/TASK_D03_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_D03_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_decision_values.py src/core/fcis_authority_schema.py src/core/fcis_authority_dispatch.py src/core/fcis_decision_derivation.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py experiments/fcis_m6_d03_anf_receipt_binding_check.py",
+    "python3 -m ruff check src/core/fcis_decision_values.py src/core/fcis_authority_schema.py src/core/fcis_authority_dispatch.py src/core/fcis_decision_derivation.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py experiments/fcis_m6_d03_anf_receipt_binding_check.py",
+    "python3 -m ruff format --check src/core/fcis_decision_values.py src/core/fcis_authority_schema.py src/core/fcis_authority_dispatch.py src/core/fcis_decision_derivation.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py experiments/fcis_m6_d03_anf_receipt_binding_check.py",
+    "python3 -m mypy --strict src/core/fcis_decision_values.py src/core/fcis_authority_schema.py src/core/fcis_authority_dispatch.py src/core/fcis_decision_derivation.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py experiments/fcis_m6_d03_anf_receipt_binding_check.py",
+    "python3 -m pytest -q tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_decision_derivation.py tests/core/test_fcis_source_bound_lineage.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_D03_ANF_RECEIPT_BINDING_VECTOR.json",
+    "python3 -m experiments.fcis_m6_d03_anf_receipt_binding_check",
+    "python3 -m experiments.fcis_m6_d02_source_bound_evaluation_check",
+    "python3 -m experiments.fcis_m6_d01_vector_check",
+    "python3 -m experiments.fcis_m6_c07_review_packet_check",
+    "python3 -m pytest -q tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D03",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_D03_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_decision_values.py": "4984bdb7acbd71a0319c5b089441820657205ff07529797c9bb14a6cd8ba62b7",
+    "src/core/fcis_authority_schema.py": "dff2fddd5c535cb227fdf1fdd3db33e746e932ecc0cac65a3318530069b63a51",
+    "src/core/fcis_authority_dispatch.py": "96fa9bcec2bf7bf3dce8315ba608f2d5f2ccb1ec8bed9bc703ca070e99b506e4",
+    "src/core/fcis_decision_derivation.py": "6800bc9bc27835437eebe7d0a013bc11cd63a2d92910056f499f8b88d7e98a5a",
+    "tests/core/test_fcis_m6_d03_anf_receipt_binding.py": "7fbc52e7b43abdb3045c67ff44e23ea875fb18f0d1abd0caf6f90cc7afb4877e",
+    "experiments/fcis_m6_d03_anf_receipt_binding_check.py": "d81a42994bbc5bb6a7f8af7ec3ff5ce1a6deac74ad92e47a107cd59b4b89d929",
+    "docs/research/m6_tasks/TASK_D03_ANF_RECEIPT_BINDING_VECTOR.json": "16dc27aa9d7c302f2d6f4715c0487178fbb0f1f77b2f322bc321f3561a56c59b",
+    "docs/research/FCIS_M6_D03_ANF_RECEIPT_BINDING_SCHEMA_V1.md": "de8b8737d77e3b02b7252dcc2a98263aad4b57e161e99686370422d4b208aff7",
+    "docs/research/m6_tasks/TASK_D03_PLAN.md": "d602ca2e19f39e0c7f738811b720c4f4690edb5cac544d55f7321913f1e0bdc0",
+    "docs/research/m6_tasks/TASK_D03_REPORT.md": "f388a3a894e0c4fc473a91998697717614e143c88a8d9564eb1f820f1088bfb8"
+  },
+  "results": {
+    "implementation_commit": "a37698ba5aadd77c7fac192e52d8bcc5131d6788",
+    "implementation_tree": "b3d3d320dd496589712481c787e26c127fa9b1e5",
+    "implementation_parent": "0c5c6c822dee5ed1c18ccd83e9b15cd760a9703c",
+    "focused_d03_tests": "2 passed",
+    "d03_m5_decision_lineage_tests": "32 passed",
+    "d03_vector_checker": "pass; D03_ANF_RECEIPT_BINDING_MATCH",
+    "d02_vector_checker": "pass; D02_SOURCE_BOUND_EVALUATION_MATCH",
+    "d01_vector_checker": "pass; D01_VECTOR_MATCH",
+    "c07_packet_checker": "pass; C07_REVIEW_PACKET_MATCH",
+    "dependency_c01_c04_c06_tests": "53 passed",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "ruff_format": "pass",
+    "mypy_strict": "pass; 6 files",
+    "json_vector": "pass",
+    "anf_root": "0xb55b6560d00eace98a04119f35df3d256f26be510299845b8d1655ef915c919c",
+    "pre_anf_receipt_root": "0x4fd244d1dd5ee20ba5450021b4942b9e4ea614c9b56dff3db3ad26846b686ad0",
+    "validator": "pass; 11 manifest entries",
+    "source_manifest": "pass; 11 manifest entries",
+    "runtime_mount": "none",
+    "remote_publication": "none"
+  },
+  "mutants": [
+    {
+      "id": "D03_MISSING_ANF",
+      "status": "killed_by_test_and_checker",
+      "invariant": "the ANF-required source-bound entry point rejects a missing identity"
+    },
+    {
+      "id": "D03_CROSSED_ANF_SOURCE_FIELD",
+      "status": "killed_by_test_and_checker",
+      "invariant": "source-derived command and SLNF fields match the evaluated lineage"
+    },
+    {
+      "id": "D03_ANF_ROOT_OMITTED_FROM_PROJECTION",
+      "status": "killed_by_test",
+      "invariant": "canonical receipt bytes retain the ANF version and root"
+    },
+    {
+      "id": "D03_RECEIPT_ROOT_NOT_RECOMPUTED",
+      "status": "killed_by_test_and_checker",
+      "invariant": "the final acceptance receipt root is freshly recomputed from exact fields"
+    },
+    {
+      "id": "D03_LEGACY_RECEIPT_REGRESSION",
+      "status": "killed_by_dependency_regression",
+      "invariant": "legacy receipt admission and canonical round trips remain closed"
+    }
+  ],
+  "nonclaims": [
+    "D03 is tested unmounted evidence for an ANF-bound Python receipt path.",
+    "D03 does not independently derive or authenticate TCG, proof-context, DRA, migration, bundle, outbox, datastore, caller, or no-bypass state.",
+    "The ANF acceptance_receipt_root field names the pre-ANF receipt binding root in the declared acyclic construction.",
+    "Legacy unbound compatibility receipts do not by themselves authorize production value movement.",
+    "No remote implementation commit, hosted CI run, draft PR, merge, deployment, production migration, or value movement is claimed."
+  ]
+}
