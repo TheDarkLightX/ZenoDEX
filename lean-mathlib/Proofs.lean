@@ -51,6 +51,7 @@ import Proofs.FeeCeilDecomposition
 import Proofs.FeeDustCarryConservation
 import Proofs.FCISFeeApportionmentSRGD
 import Proofs.FCISFeeApportionmentAGQESRGDRefinement
+import Proofs.FCISFeeApportionmentAGQESRGDTraceConjugacy
 import Proofs.FCISFeeApportionmentSRGDTrace
 import Proofs.FCISFeeApportionmentSRGDAdaptiveTrace
 import Proofs.FCISFeeApportionmentSRGDCumulative
