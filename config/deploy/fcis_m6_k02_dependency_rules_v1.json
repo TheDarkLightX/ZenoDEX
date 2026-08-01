@@ -1,0 +1,49 @@
+{
+  "schema": "zenodex/fcis/m6/k02/unique-commit-port-dependency-rules/v1",
+  "profile_id": "research-unmounted-k02-core-boundary",
+  "unique_port_module": "src/core/fcis_m6_k02_commit_port.py",
+  "unique_port_id": "fcis/m6/unique-atomic-commit-port/v1",
+  "core_roots": [
+    "src/core"
+  ],
+  "forbidden_core_imports": [
+    "logging",
+    "os",
+    "pathlib",
+    "random",
+    "requests",
+    "socket",
+    "sqlite3",
+    "subprocess",
+    "time"
+  ],
+  "forbidden_core_effects": [
+    "database_write",
+    "filesystem_write",
+    "network_send",
+    "process_spawn",
+    "wall_clock_read",
+    "randomness_read",
+    "direct_outbox_write",
+    "direct_authoritative_receipt_construction"
+  ],
+  "required_verified_input_fields": [
+    "anf_accept",
+    "commit_id",
+    "expected_pre_state_root",
+    "post_state_root",
+    "authority_epoch_root",
+    "effect_root",
+    "sequence"
+  ],
+  "allowed_effect_shell_roots": [
+    "experiments",
+    "src/integration",
+    "src/state"
+  ],
+  "nonclaims": [
+    "The dependency rules are a research policy input for K03 AST/Rust checks.",
+    "The Python singleton is not a production capability or datastore adapter.",
+    "No mounted caller or value-moving path is authorized by this configuration."
+  ]
+}
