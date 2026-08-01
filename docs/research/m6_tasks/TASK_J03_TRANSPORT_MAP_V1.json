@@ -1,0 +1,198 @@
+{
+  "schema_version": "zenodex.fcis.m6.j03.transport-map.v1",
+  "task_id": "J03",
+  "status": "RESEARCH_ONLY_UNMOUNTED",
+  "required_artifact_ids": [
+    "state",
+    "configuration",
+    "residual_fee_history",
+    "proof_contexts",
+    "receipts",
+    "nullifiers",
+    "history",
+    "outbox_effects"
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "state",
+      "mapping": "TRANSPORTED_BY_PROVED_MAP",
+      "semantic_owner": "target state transition",
+      "source_profile_policy": "read from the complete source snapshot",
+      "target_profile_policy": "recompute and verify the target state root",
+      "cross_boundary": true,
+      "preservation_condition": "transport only through a proved state-map relation with conservation evidence",
+      "transport_checker_id": "J03-STATE-MAP-CHECKER-V1",
+      "transport_root": "J03-STATE-MAP-ROOT-REQUIRED",
+      "required_evidence": [
+        "complete source snapshot root",
+        "target recomputation root",
+        "state-map checker receipt",
+        "conservation and unit parity evidence"
+      ],
+      "acceptance_gate": "Source and target state roots agree under the reviewed transport relation.",
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no production balance migration is implemented"
+      ]
+    },
+    {
+      "artifact_id": "configuration",
+      "mapping": "INVALIDATED_AND_REGENERATED",
+      "semantic_owner": "target deployment and algorithm profile",
+      "source_profile_policy": "source configuration is retained as migration input and audit evidence",
+      "target_profile_policy": "regenerate target configuration and bind its root to activation",
+      "cross_boundary": true,
+      "preservation_condition": "invalidate source configuration for target authority and regenerate a target-bound configuration",
+      "transport_checker_id": "NONE",
+      "transport_root": "NONE",
+      "required_evidence": [
+        "source configuration root",
+        "target configuration root",
+        "target profile manifest",
+        "activation binding receipt"
+      ],
+      "acceptance_gate": "No target authority uses a source configuration root as an implicit continuation.",
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no production configuration activation is implemented"
+      ]
+    },
+    {
+      "artifact_id": "residual_fee_history",
+      "mapping": "TRANSPORTED_BY_PROVED_MAP",
+      "semantic_owner": "historical fee and residue ledger",
+      "source_profile_policy": "read complete source residue history with explicit units and rounding",
+      "target_profile_policy": "transport through a reviewed unit-preserving map and recompute target root",
+      "cross_boundary": true,
+      "preservation_condition": "transport only through a proved fee/residue map preserving atom totals and claimant identity",
+      "transport_checker_id": "J03-RESIDUAL-FEE-MAP-CHECKER-V1",
+      "transport_root": "J03-RESIDUAL-FEE-MAP-ROOT-REQUIRED",
+      "required_evidence": [
+        "source residue root",
+        "target residue root",
+        "unit and rounding ledger",
+        "map checker receipt"
+      ],
+      "acceptance_gate": "The transported history preserves the declared residue accounting relation.",
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no production fee migration is implemented"
+      ]
+    },
+    {
+      "artifact_id": "proof_contexts",
+      "mapping": "INVALIDATED_AND_REGENERATED",
+      "semantic_owner": "verifier image, algorithm, and proof-context profile",
+      "source_profile_policy": "source proof contexts remain historical evidence only",
+      "target_profile_policy": "regenerate and verify target contexts before target authority",
+      "cross_boundary": true,
+      "preservation_condition": "invalidate source contexts at the profile boundary and regenerate target-bound contexts",
+      "transport_checker_id": "NONE",
+      "transport_root": "NONE",
+      "required_evidence": [
+        "source verifier profile root",
+        "target verifier profile root",
+        "context regeneration manifest",
+        "target verifier receipt"
+      ],
+      "acceptance_gate": "A source proof context cannot authorize a target-profile transition.",
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no production proof-context migration is implemented"
+      ]
+    },
+    {
+      "artifact_id": "receipts",
+      "mapping": "PRESERVED_UNCHANGED",
+      "semantic_owner": "historical committed transition evidence",
+      "source_profile_policy": "preserve receipts as immutable evidence of source commits",
+      "target_profile_policy": "carry historical receipts unchanged and exclude them from new target authority",
+      "cross_boundary": true,
+      "preservation_condition": "preserve only when the receipt remains bound to its original commit, profile, and history position",
+      "transport_checker_id": "NONE",
+      "transport_root": "NONE",
+      "required_evidence": [
+        "source receipt root",
+        "history-position binding",
+        "profile identity binding",
+        "complete receipt-set equality"
+      ],
+      "acceptance_gate": "Historical receipts remain byte/root identical and cannot be reinterpreted under the target profile.",
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no production receipt migration is implemented"
+      ]
+    },
+    {
+      "artifact_id": "nullifiers",
+      "mapping": "PRESERVED_UNCHANGED",
+      "semantic_owner": "historical consumed-command and replay protection identities",
+      "source_profile_policy": "preserve the complete source nullifier set",
+      "target_profile_policy": "carry nullifiers unchanged and reject collisions or omissions",
+      "cross_boundary": true,
+      "preservation_condition": "preserve only when every nullifier remains bound to its original commit and fingerprint",
+      "transport_checker_id": "NONE",
+      "transport_root": "NONE",
+      "required_evidence": [
+        "source nullifier root",
+        "complete nullifier-set equality",
+        "commit/fingerprint binding",
+        "collision rejection receipt"
+      ],
+      "acceptance_gate": "The target history contains the exact source nullifier set with no orphan or crossed row.",
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no production nullifier migration is implemented"
+      ]
+    },
+    {
+      "artifact_id": "history",
+      "mapping": "PRESERVED_UNCHANGED",
+      "semantic_owner": "complete authorized source transition history",
+      "source_profile_policy": "preserve source history as the immutable ancestry of the migration",
+      "target_profile_policy": "append target authority transitions without rewriting source atoms",
+      "cross_boundary": true,
+      "preservation_condition": "preserve only when full canonical history equality and target-bound append evidence pass",
+      "transport_checker_id": "NONE",
+      "transport_root": "NONE",
+      "required_evidence": [
+        "source history root",
+        "target history root",
+        "canonical re-encode equality",
+        "authority append receipt"
+      ],
+      "acceptance_gate": "No migration step erases, rewrites, or reorders source history.",
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no production history migration is implemented"
+      ]
+    },
+    {
+      "artifact_id": "outbox_effects",
+      "mapping": "TRANSPORTED_BY_PROVED_MAP",
+      "semantic_owner": "committed semantic effects and their delivery ancestry",
+      "source_profile_policy": "read committed effects from the complete source outbox",
+      "target_profile_policy": "transport stable effect identities and rebind adapter/profile evidence explicitly",
+      "cross_boundary": true,
+      "preservation_condition": "transport only through a proved effect map preserving effect ID, ordinal, destination, payload, and commit ancestry",
+      "transport_checker_id": "J03-OUTBOX-EFFECT-MAP-CHECKER-V1",
+      "transport_root": "J03-OUTBOX-EFFECT-MAP-ROOT-REQUIRED",
+      "required_evidence": [
+        "source outbox root",
+        "target outbox root",
+        "effect identity parity",
+        "pending-delivery and acknowledgment recheck"
+      ],
+      "acceptance_gate": "Migration cannot mint, drop, cross, or silently reprofile a committed semantic effect.",
+      "nonclaims": [
+        "M6 remains unmounted and non-promotable",
+        "no production outbox migration or destination switch is implemented"
+      ]
+    }
+  ],
+  "global_nonclaims": [
+    "M6 remains unmounted and non-promotable",
+    "the map is a migration obligation registry, not proof of any transport relation",
+    "no production migration, datastore, writer, destination, accounting, backing, or zUSD safety claim"
+  ]
+}
