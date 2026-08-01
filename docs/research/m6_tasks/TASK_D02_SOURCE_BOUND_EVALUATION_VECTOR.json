@@ -1,0 +1,20 @@
+{
+  "schema_version": "zenodex.fcis.m6.d02.source-bound-evaluation.v1",
+  "fixture": "tests.core.test_fcis_decision_derivation._exact_inputs",
+  "binding_roots": {
+    "boundary_root": "9d0ffe1551a51a4f7545bb311d360e6ead09e0f3236bc7f7d9559c9139e6f137",
+    "lineage_stream_root": "e83957f871f2457808475168be729c5bc00b78afaaab64c65602a61482b83956",
+    "policy_root": "89d3bdb98c7a0d57df69e4b7b56d47fbb50982089216f4634cf69bc8b7415d10",
+    "semantic_stream_root": "eecd9fc77c50550d9c560c90f181de94836c201f276a72c653ac9cae7fe5905b",
+    "witness_tuple_root": "81db51b5585d24a741a877ad8df99163fec02670a0e83698ed9b3dfcabfc19b4"
+  },
+  "expected": {
+    "material_equal": true,
+    "candidate_evidence_binding_identity": true,
+    "segment_identity": true,
+    "regular_evaluation_source_binding": null,
+    "source_bound_decision_accepts": true,
+    "foreign_segment_reject_code": "source_occurrence_rejected",
+    "caller_minting_constructor": "rejects"
+  }
+}

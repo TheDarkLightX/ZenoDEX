@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import InitVar, dataclass
 from enum import Enum
-from typing import TypeAlias, final
+from typing import TypeAlias, cast, final
 
 from ..state.fcis_committed_state_values import FCISCommittedStateV1
 from ..state.fcis_execution_context_values import FCISStepExecutionContextV1
@@ -20,6 +20,10 @@ from ..state.state_transitions import (
     CanonicalLPPositionPatchV1,
     CanonicalNoncePatchV1,
     CanonicalPoolPatchV1,
+)
+from .fcis_fee_occurrence_normal_form import (
+    CanonicalFeeOccurrenceSegmentV1,
+    fee_amount_candidates_from_segment_v1,
 )
 from .fcis_support_profile_constants_v5 import (
     FCIS_SUPPORT_PROFILE_ID_V5,
@@ -65,6 +69,60 @@ class FCISStepEvaluationRejectV1:
             raise TypeError("evaluation public reason must be an exact nonempty string")
 
 
+_EVALUATION_SOURCE_BINDING_TOKEN_V1 = object()
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class FCISFeeOccurrenceBindingV1:
+    """The exact source-derived SLNF segment consumed by fee evaluation."""
+
+    segment: CanonicalFeeOccurrenceSegmentV1
+    boundary_root: str
+    policy_root: str
+    witness_tuple_root: str
+    semantic_stream_root: str
+    lineage_stream_root: str
+    _construction_token: InitVar[object]
+
+    def __post_init__(self, _construction_token: object) -> None:
+        if _construction_token is not _EVALUATION_SOURCE_BINDING_TOKEN_V1:
+            raise TypeError("fee occurrence binding requires controlled evaluation")
+        if type(self.segment) is not CanonicalFeeOccurrenceSegmentV1:
+            raise TypeError("fee occurrence binding segment must be exact")
+        fee_amount_candidates_from_segment_v1(self.segment)
+        expected = (
+            ("boundary_root", self.segment.boundary_root),
+            ("policy_root", self.segment.policy_root),
+            ("witness_tuple_root", self.segment.witness_tuple_root),
+            ("semantic_stream_root", self.segment.semantic_stream_root),
+            ("lineage_stream_root", self.segment.lineage_stream_root),
+        )
+        for name, value in expected:
+            supplied = object.__getattribute__(self, name)
+            if supplied != value:
+                raise ValueError(f"fee occurrence binding {name} drift")
+
+
+def _fee_occurrence_binding_from_evaluator_v1(
+    segment: object,
+) -> FCISFeeOccurrenceBindingV1:
+    """Create the source-binding witness only inside the evaluator boundary."""
+
+    if type(segment) is not CanonicalFeeOccurrenceSegmentV1:
+        raise TypeError("source fee occurrence segment must be exact")
+    exact_segment = cast(CanonicalFeeOccurrenceSegmentV1, segment)
+    return FCISFeeOccurrenceBindingV1(
+        segment=exact_segment,
+        boundary_root=exact_segment.boundary_root,
+        policy_root=exact_segment.policy_root,
+        witness_tuple_root=exact_segment.witness_tuple_root,
+        semantic_stream_root=exact_segment.semantic_stream_root,
+        lineage_stream_root=exact_segment.lineage_stream_root,
+        _construction_token=_EVALUATION_SOURCE_BINDING_TOKEN_V1,
+    )
+
+
 @final
 @dataclass(frozen=True, slots=True)
 class FCISFeeAllocationV1:
@@ -97,6 +155,7 @@ class FCISStepCandidateV1:
     lp_patch: CanonicalLPPositionPatchV1 | None
     nonce_patch: CanonicalNoncePatchV1 | None
     fee_allocation: FCISFeeAllocationV1 | None
+    source_fee_occurrence: FCISFeeOccurrenceBindingV1 | None = None
 
     def __post_init__(self) -> None:
         if type(self.state) is not FCISCommittedStateV1:
@@ -114,6 +173,11 @@ class FCISStepCandidateV1:
             raise TypeError("step nonce patch must be exact or None")
         if self.fee_allocation is not None and type(self.fee_allocation) is not FCISFeeAllocationV1:
             raise TypeError("step fee allocation must be exact or None")
+        if (
+            self.source_fee_occurrence is not None
+            and type(self.source_fee_occurrence) is not FCISFeeOccurrenceBindingV1
+        ):
+            raise TypeError("step source occurrence must be exact or None")
 
 
 @final
@@ -173,6 +237,7 @@ class FCISStepEvaluationEvidenceV1:
     state_read_count: int
     context_read_count: int
     witness_bytes: int
+    source_fee_occurrence: FCISFeeOccurrenceBindingV1 | None = None
 
     def __post_init__(self) -> None:
         if self.algorithm_id != FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1:
@@ -216,6 +281,11 @@ class FCISStepEvaluationEvidenceV1:
                 raise TypeError(f"{field_name} must be an exact nonnegative int")
         if self.witness_bytes == 0:
             raise ValueError("witness_bytes must account for support evidence")
+        if (
+            self.source_fee_occurrence is not None
+            and type(self.source_fee_occurrence) is not FCISFeeOccurrenceBindingV1
+        ):
+            raise TypeError("evaluation source occurrence must be exact or None")
 
 
 _EVALUATION_OK_CONSTRUCTION_TOKEN_V1 = object()
@@ -240,6 +310,9 @@ class FCISStepEvaluationOkV1:
             raise TypeError("evaluation candidate must be exact")
         if type(self.evidence) is not FCISStepEvaluationEvidenceV1:
             raise TypeError("evaluation evidence must be exact")
+        candidate_occurrence = self.candidate.source_fee_occurrence
+        if candidate_occurrence is not self.evidence.source_fee_occurrence:
+            raise ValueError("evaluation source occurrence is not the fee candidate input")
 
 
 def _evaluation_ok_from_evaluator_v1(
@@ -262,6 +335,7 @@ FCISStepEvaluationResultV1: TypeAlias = FCISStepEvaluationOkV1 | FCISStepEvaluat
 __all__ = (
     "FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1",
     "FCIS_STEP_EVALUATOR_ALGORITHM_VERSION_V1",
+    "FCISFeeOccurrenceBindingV1",
     "FCISEvaluatedMaterialV1",
     "FCISFeeAllocationV1",
     "FCISStepCandidateV1",

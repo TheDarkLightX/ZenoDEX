@@ -49,6 +49,7 @@ from ..state.state_snapshots import (
     snapshot_lp_table,
     snapshot_pool_map,
 )
+from .fcis_fee_occurrence_normal_form import fee_amount_candidates_from_segment_v1
 from .fcis_state_read_trace_v5 import (
     FCISContextReadTraceV5,
     FCISStateReadTraceV5,
@@ -59,6 +60,7 @@ from .fcis_step_evaluation_values import (
     FCIS_STEP_EVALUATOR_ALGORITHM_VERSION_V1,
     FCISEvaluatedMaterialV1,
     FCISFeeAllocationV1,
+    FCISFeeOccurrenceBindingV1,
     FCISStepCandidateV1,
     FCISStepEvaluationEvidenceV1,
     FCISStepEvaluationOkV1,
@@ -66,6 +68,7 @@ from .fcis_step_evaluation_values import (
     FCISStepEvaluationRejectV1,
     FCISStepEvaluationResultV1,
     _evaluation_ok_from_evaluator_v1,
+    _fee_occurrence_binding_from_evaluator_v1,
 )
 from .fcis_support_profile_constants_v5 import (
     FCIS_SUPPORT_PROFILE_ID_V5,
@@ -578,12 +581,14 @@ def _fee_candidate_v1(
     state: FCISCommittedStateV1,
     settlement: OwnedSettlementV1,
     context: FCISStepExecutionContextV1,
+    source_fee_occurrence: object | None = None,
 ) -> tuple[CommittedFeeAccumulatorStateV1, FCISFeeAllocationV1 | None] | FCISStepEvaluationRejectV1:
     result, _state_read_trace = _fee_candidate_observed_v5(
         state=state,
         settlement=settlement,
         context=context,
         state_read_trace=FCISStateReadTraceV5(),
+        source_fee_occurrence=source_fee_occurrence,
     )
     return result
 
@@ -594,10 +599,35 @@ def _fee_candidate_observed_v5(
     settlement: OwnedSettlementV1,
     context: FCISStepExecutionContextV1,
     state_read_trace: FCISStateReadTraceV5,
+    source_fee_occurrence: object | None = None,
 ) -> tuple[
     tuple[CommittedFeeAccumulatorStateV1, FCISFeeAllocationV1 | None] | FCISStepEvaluationRejectV1,
     FCISStateReadTraceV5,
 ]:
+    if source_fee_occurrence is not None:
+        if type(source_fee_occurrence) is not FCISFeeOccurrenceBindingV1:
+            return (
+                _reject(
+                    FCISStepEvaluationPhaseV1.FEE,
+                    "source_occurrence_rejected",
+                    ("source_fee_occurrence",),
+                    "fee source occurrence requires the exact evaluator binding",
+                ),
+                state_read_trace,
+            )
+        exact_source_fee_occurrence = source_fee_occurrence
+        try:
+            fee_amount_candidates_from_segment_v1(exact_source_fee_occurrence.segment)
+        except (TypeError, ValueError, ArithmeticError):
+            return (
+                _reject(
+                    FCISStepEvaluationPhaseV1.FEE,
+                    "source_occurrence_rejected",
+                    ("source_fee_occurrence", "segment"),
+                    "fee source occurrence segment failed exact projection",
+                ),
+                state_read_trace,
+            )
     policy = context.fee_split_policy
     if policy is None:
         return (state.fee_accumulator, None), state_read_trace
@@ -656,7 +686,9 @@ def _canonical_state_root_binding_v1(
 ) -> tuple[bytes, bytes, str]:
     """Delegate all eight fields to the shared canonical state binding."""
 
-    return canonical_committed_state_root_binding_v1(state, snapshot_version)
+    return cast(
+        tuple[bytes, bytes, str], canonical_committed_state_root_binding_v1(state, snapshot_version)
+    )
 
 
 def _pre_state_binding_v1(
@@ -692,6 +724,7 @@ def _candidate_evidence_v1(
     pre_binding: tuple[bytes, str, bytes, str],
     state_read_trace: FCISStateReadTraceV5,
     context_read_trace: FCISContextReadTraceV5,
+    source_fee_occurrence: FCISFeeOccurrenceBindingV1 | None = None,
 ) -> FCISStepEvaluationEvidenceV1 | FCISStepEvaluationRejectV1:
     context_bytes, context_hash, preimage, pre_root = pre_binding
     try:
@@ -755,6 +788,7 @@ def _candidate_evidence_v1(
         state_read_count=state_read_count,
         context_read_count=context_read_count,
         witness_bytes=witness_bytes,
+        source_fee_occurrence=source_fee_occurrence,
     )
 
 
@@ -799,8 +833,23 @@ def _evaluate_fcis_step_candidate_bound_v1(
     settlement: object,
     intents: object,
     context: object,
+    source_occurrence_segment: object | None = None,
 ) -> FCISStepEvaluationOkV1 | _FCISStepEvaluationBoundRejectV1:
     """Evaluate once while retaining only canonical rejection-prefix roots."""
+
+    source_binding: FCISFeeOccurrenceBindingV1 | None = None
+    if source_occurrence_segment is not None:
+        try:
+            source_binding = _fee_occurrence_binding_from_evaluator_v1(source_occurrence_segment)
+        except (TypeError, ValueError, ArithmeticError):
+            return _bound_reject_v1(
+                _reject(
+                    FCISStepEvaluationPhaseV1.EVIDENCE,
+                    "source_occurrence_rejected",
+                    ("source_fee_occurrence",),
+                    "source fee occurrence binding rejected before candidate construction",
+                )
+            )
 
     command = _admit_exact_command_v1(settlement, intents)
     if type(command) is FCISStepEvaluationRejectV1:
@@ -885,6 +934,7 @@ def _evaluate_fcis_step_candidate_bound_v1(
         settlement=exact_settlement,
         context=exact_context,
         state_read_trace=combined_read_trace,
+        source_fee_occurrence=source_binding,
     )
     if type(fee) is FCISStepEvaluationRejectV1:
         checked_reject = _reject_after_trace_containment_v5(
@@ -919,6 +969,7 @@ def _evaluate_fcis_step_candidate_bound_v1(
         lp_patch=spot.lp_patch,
         nonce_patch=nonce.patch,
         fee_allocation=fee[1],
+        source_fee_occurrence=source_binding,
     )
     evidence = _candidate_evidence_v1(
         pre_state=state,
@@ -929,6 +980,7 @@ def _evaluate_fcis_step_candidate_bound_v1(
         pre_binding=pre_binding,
         state_read_trace=complete_read_trace,
         context_read_trace=context_read_trace,
+        source_fee_occurrence=source_binding,
     )
     if type(evidence) is FCISStepEvaluationRejectV1:
         return _bound_reject_v1(
@@ -960,6 +1012,46 @@ def evaluate_fcis_step_candidate_v1(
         settlement=settlement,
         intents=intents,
         context=context,
+    )
+    if type(result) is _FCISStepEvaluationBoundRejectV1:
+        return result.reject
+    return result
+
+
+def evaluate_source_bound_fcis_step_candidate_v1(
+    *,
+    source_occurrence: object,
+) -> FCISStepEvaluationResultV1:
+    """Evaluate a candidate only after verifying its source-derived SLNF segment."""
+
+    from .fcis_fee_occurrence_extractor import (
+        SourceBoundFeeOccurrenceRejectV1,
+        SourceBoundFeeOccurrenceV1,
+        verify_source_bound_fee_occurrence_v1,
+    )
+
+    if type(source_occurrence) is not SourceBoundFeeOccurrenceV1:
+        return _reject(
+            FCISStepEvaluationPhaseV1.EVIDENCE,
+            "wrong_exact_type",
+            ("source_occurrence",),
+            "source-bound evaluation requires an exact source occurrence",
+        )
+    exact_occurrence = cast(SourceBoundFeeOccurrenceV1, source_occurrence)
+    source_reject = verify_source_bound_fee_occurrence_v1(exact_occurrence)
+    if type(source_reject) is SourceBoundFeeOccurrenceRejectV1:
+        return _reject(
+            FCISStepEvaluationPhaseV1.EVIDENCE,
+            "source_occurrence_rejected",
+            ("source_occurrence", source_reject.code.value, *source_reject.path),
+            "source-derived fee occurrence failed fresh verification",
+        )
+    result = _evaluate_fcis_step_candidate_bound_v1(
+        state_source=exact_occurrence.material.pre_state,
+        settlement=exact_occurrence.material.settlement,
+        intents=exact_occurrence.material.intents,
+        context=exact_occurrence.material.context,
+        source_occurrence_segment=exact_occurrence.segment,
     )
     if type(result) is _FCISStepEvaluationBoundRejectV1:
         return result.reject
@@ -1037,4 +1129,5 @@ __all__ = (
     "FCIS_STEP_EVALUATOR_UNMOUNTED_V1",
     "evaluate_fcis_spot_candidate_v1",
     "evaluate_fcis_step_candidate_v1",
+    "evaluate_source_bound_fcis_step_candidate_v1",
 )

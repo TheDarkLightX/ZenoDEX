@@ -15,10 +15,14 @@ from __future__ import annotations
 
 from dataclasses import InitVar, dataclass
 from enum import Enum
-from typing import TypeAlias, final
+from typing import TypeAlias, cast, final
 
 from .fcis_commit_bundle_derivation import build_commit_bundle_v1
-from .fcis_decision_derivation import AcceptV1, RejectV1, evaluate_fcis_decision_v1
+from .fcis_decision_derivation import (
+    AcceptV1,
+    RejectV1,
+    evaluate_source_bound_fcis_decision_v1,
+)
 from .fcis_fee_occurrence_extractor import (
     SourceBoundFeeOccurrenceRejectV1,
     SourceBoundFeeOccurrenceV1,
@@ -33,10 +37,11 @@ from .fcis_lineage_closure import (
     _build_fcis_lineage_closure_from_artifacts_v1,
 )
 from .fcis_step_evaluation_values import (
-    FCISStepEvaluationOkV1,
     FCISStepEvaluationRejectV1,
 )
-from .fcis_step_evaluator import evaluate_fcis_step_candidate_v1
+from .fcis_step_evaluator import (
+    evaluate_source_bound_fcis_step_candidate_v1,
+)
 from .fcis_transition_budget import TransitionBudgetV1
 
 _SOURCE_BOUND_LINEAGE_TOKEN_V1 = object()
@@ -104,7 +109,7 @@ class FCISSourceBoundLineageCertificateV1:
 
     @property
     def certificate_root(self) -> str:
-        return self.closure.certificate_root
+        return cast(str, self.closure.certificate_root)
 
 
 FCISSourceBoundLineageResultV1: TypeAlias = (
@@ -158,11 +163,8 @@ def derive_source_bound_fcis_lineage_v1(
             *extraction.path,
         )
 
-    evaluation = evaluate_fcis_step_candidate_v1(
-        state_source=state_source,
-        settlement=settlement,
-        intents=intents,
-        context=context,
+    evaluation = evaluate_source_bound_fcis_step_candidate_v1(
+        source_occurrence=extraction,
     )
     if type(evaluation) is FCISStepEvaluationRejectV1:
         return _reject_v1(
@@ -170,22 +172,14 @@ def derive_source_bound_fcis_lineage_v1(
             evaluation.phase.value,
             evaluation.code,
         )
-    if type(evaluation) is not FCISStepEvaluationOkV1:
-        return _reject_v1(
-            FCISSourceBoundLineageCodeV1.INTERNAL_RELATION_FAILURE,
-            "evaluation",
-        )
     if evaluation.material != extraction.material:
         return _reject_v1(
             FCISSourceBoundLineageCodeV1.LINEAGE_IDENTITY_MISMATCH,
             "material",
         )
 
-    decision = evaluate_fcis_decision_v1(
-        state_source=state_source,
-        settlement=settlement,
-        intents=intents,
-        context=context,
+    decision = evaluate_source_bound_fcis_decision_v1(
+        source_occurrence=extraction,
         budget=budget,
     )
     if type(decision) is RejectV1:
@@ -276,22 +270,14 @@ def verify_source_bound_fcis_lineage_v1(
         )
 
     material = certificate.extraction.material
-    fresh_evaluation = evaluate_fcis_step_candidate_v1(
-        state_source=material.pre_state,
-        settlement=material.settlement,
-        intents=material.intents,
-        context=material.context,
+    fresh_evaluation = evaluate_source_bound_fcis_step_candidate_v1(
+        source_occurrence=certificate.extraction,
     )
     if type(fresh_evaluation) is FCISStepEvaluationRejectV1:
         return _reject_v1(
             FCISSourceBoundLineageCodeV1.EVALUATION_REJECTED,
             fresh_evaluation.phase.value,
             fresh_evaluation.code,
-        )
-    if type(fresh_evaluation) is not FCISStepEvaluationOkV1:
-        return _reject_v1(
-            FCISSourceBoundLineageCodeV1.INTERNAL_RELATION_FAILURE,
-            "fresh_evaluation",
         )
     if fresh_evaluation.material != material:
         return _reject_v1(

@@ -72,6 +72,7 @@ from .fcis_step_evaluation_values import (
 from .fcis_step_evaluator import (
     _evaluate_fcis_step_candidate_bound_v1,
     _FCISStepEvaluationBoundRejectV1,
+    evaluate_source_bound_fcis_step_candidate_v1,
 )
 from .fcis_support_profile_v5 import _command_preimage_v5
 from .fcis_transition_budget import (
@@ -334,7 +335,7 @@ def _verify_balance_writes_v1(
     applied = apply_canonical_balance_patch_v1(pre, patch)
     if type(applied) is not BalancePatchApplyOkV1 or applied.state != post:
         raise ValueError("balance patch does not reproduce the successor")
-    return patch.writes
+    return cast(tuple[BalanceWriteV1, ...], patch.writes)
 
 
 def _verify_pool_writes_v1(
@@ -352,7 +353,7 @@ def _verify_pool_writes_v1(
     applied = apply_canonical_pool_patch_v1(pre, patch)
     if type(applied) is not PoolPatchApplyOkV1 or applied.state != post:
         raise ValueError("pool patch does not reproduce the successor")
-    return patch.writes
+    return cast(tuple[PoolWriteV1, ...], patch.writes)
 
 
 def _verify_lp_writes_v1(
@@ -370,7 +371,7 @@ def _verify_lp_writes_v1(
     applied = apply_canonical_lp_position_patch_v1(pre, patch)
     if type(applied) is not LPPositionPatchApplyOkV1 or applied.state != post:
         raise ValueError("LP patch does not reproduce the successor")
-    return patch.writes
+    return cast(tuple[LPPositionWriteV1, ...], patch.writes)
 
 
 def _derive_patch_v1(evaluation: FCISStepEvaluationOkV1) -> CanonicalDexPatchV1:
@@ -616,6 +617,45 @@ def _derive_accept_v1(
         return _prefix_reject_v1(reject, budget_hash=budget_hash, evaluation=evaluation)
 
 
+def evaluate_source_bound_fcis_decision_v1(
+    *,
+    source_occurrence: object,
+    budget: object,
+) -> DecisionV1:
+    """Derive the controlled decision from one verified source-bound evaluation."""
+
+    admitted_budget = _admit_budget_v1(budget)
+    if type(admitted_budget) is AdmitReject:
+        return _budget_admission_reject_v1(admitted_budget)
+    exact_budget = admitted_budget
+    try:
+        _, budget_hash = _claim_root_v1(
+            FCIS_TRANSITION_BUDGET_SCHEMA_ID_V1,
+            exact_budget,
+        )
+    except (TypeError, ValueError):
+        synthetic = AdmitReject(code=AdmitCode.DOMAIN_INVARIANT, path=())
+        return _budget_admission_reject_v1(synthetic)
+    evaluation = evaluate_source_bound_fcis_step_candidate_v1(
+        source_occurrence=source_occurrence,
+    )
+    if type(evaluation) is FCISStepEvaluationRejectV1:
+        public = FCISStepEvaluationRejectV1(
+            evaluation.phase,
+            FCISRejectCodeV1.CANONICAL_EVIDENCE_REJECTED.value,
+            evaluation.path,
+            evaluation.public_reason,
+        )
+        return _authoritative_reject_v1(
+            public,
+            budget_hash=budget_hash,
+            command_root=None,
+            execution_context_hash=None,
+            pre_state_root=None,
+        )
+    return _derive_accept_v1(evaluation, exact_budget, budget_hash)
+
+
 def evaluate_fcis_decision_v1(
     *,
     state_source: object,
@@ -672,5 +712,6 @@ __all__ = (
     "FCIS_SPOT_TRANSITION_BUDGET_V1",
     "RejectV1",
     "acceptance_receipt_root_v1",
+    "evaluate_source_bound_fcis_decision_v1",
     "evaluate_fcis_decision_v1",
 )
