@@ -1,0 +1,30 @@
+{
+  "source_representation_id": "srgd-deficit/v1",
+  "target_representation_id": "agqe-surplus/v1",
+  "semantic_key": {
+    "asset": "USDC",
+    "fee_distribution_domain_id": "protocol-fees",
+    "fixed_role_order_id": "fee-occurrence/role-order/buyback-treasury-rewards/v1",
+    "semantic_profile_id": "adaptive-global-quota-entitlement/three-role/v1"
+  },
+  "entry_mappings": [
+    {
+      "entry_id": "entry-0",
+      "source_coordinates": [3, -1, -2],
+      "target_coordinates": [-3, 1, 2]
+    },
+    {
+      "entry_id": "entry-1",
+      "source_coordinates": [-4, 2, 2],
+      "target_coordinates": [4, -2, -2]
+    }
+  ],
+  "old_state": {
+    "canonical_bytes_utf8": "{\"schema\":\"zenodex/fcis/entitlement/state/v1\",\"value\":{\"entries\":[{\"coordinates\":[3,-1,-2],\"entry_id\":\"entry-0\"},{\"coordinates\":[-4,2,2],\"entry_id\":\"entry-1\"}],\"key\":{\"asset\":\"USDC\",\"fee_distribution_domain_id\":\"protocol-fees\",\"fixed_role_order_id\":\"fee-occurrence/role-order/buyback-treasury-rewards/v1\",\"semantic_profile_id\":\"adaptive-global-quota-entitlement/three-role/v1\"},\"representation_id\":\"srgd-deficit/v1\"}}",
+    "root": "0x03140fa33aa67675547a9a4e5b34125a2ea5b108af75ceca46d5a02f13e7d8d0"
+  },
+  "new_state": {
+    "canonical_bytes_utf8": "{\"schema\":\"zenodex/fcis/entitlement/state/v1\",\"value\":{\"entries\":[{\"coordinates\":[-3,1,2],\"entry_id\":\"entry-0\"},{\"coordinates\":[4,-2,-2],\"entry_id\":\"entry-1\"}],\"key\":{\"asset\":\"USDC\",\"fee_distribution_domain_id\":\"protocol-fees\",\"fixed_role_order_id\":\"fee-occurrence/role-order/buyback-treasury-rewards/v1\",\"semantic_profile_id\":\"adaptive-global-quota-entitlement/three-role/v1\"},\"representation_id\":\"agqe-surplus/v1\"}}",
+    "root": "0xce34a2a26f62be9df6445a6035475addc5ef5618e373f247607b4f94c34a2c28"
+  }
+}
