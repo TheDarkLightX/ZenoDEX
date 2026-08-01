@@ -1,0 +1,11 @@
+{
+  "schema": "zenodex/fcis/entitlement/key/v1",
+  "value": {
+    "asset": "USDC",
+    "fee_distribution_domain_id": "protocol-fees",
+    "fixed_role_order_id": "fee-occurrence/role-order/buyback-treasury-rewards/v1",
+    "semantic_profile_id": "adaptive-global-quota-entitlement/three-role/v1"
+  },
+  "canonical_bytes_utf8": "{\"schema\":\"zenodex/fcis/entitlement/key/v1\",\"value\":{\"asset\":\"USDC\",\"fee_distribution_domain_id\":\"protocol-fees\",\"fixed_role_order_id\":\"fee-occurrence/role-order/buyback-treasury-rewards/v1\",\"semantic_profile_id\":\"adaptive-global-quota-entitlement/three-role/v1\"}}",
+  "sha256_hex": "0x84dcae8df6706df2316393e5cd37c7f02435b5e9e4a7c64279e9090966e7e56c"
+}

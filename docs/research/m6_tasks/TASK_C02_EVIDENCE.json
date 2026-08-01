@@ -1,0 +1,125 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "C02",
+  "base_sha": "5a34e7ac21f1c435b2fffd7e6a7693cff47f13b2",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C02-entitlement-key-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_entitlement_key_v1.py",
+    "src/core/fcis_entitlement_key_codec_v1.py",
+    "tests/core/test_fcis_entitlement_key_v1.py",
+    "docs/research/FCIS_M6_C02_ENTITLEMENT_KEY_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_C02_PLAN.md",
+    "docs/research/m6_tasks/TASK_C02_KEY_VECTOR.json",
+    "docs/research/m6_tasks/TASK_C02_REPORT.md",
+    "docs/research/m6_tasks/TASK_C02_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_C02_SOURCE_MANIFEST.sha256",
+    "docs/research/FCIS_M6_C01_SEMANTIC_PROFILE_SCHEMA_V1.md",
+    "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml",
+    "docs/research/FCIS_M5_P4B5A_AGQE_SRGD_SIGN_DUAL_REFINEMENT_20260730.md"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_entitlement_key_v1.py src/core/fcis_entitlement_key_codec_v1.py tests/core/test_fcis_entitlement_key_v1.py",
+    "python3 -m ruff check src/core/fcis_entitlement_key_v1.py src/core/fcis_entitlement_key_codec_v1.py tests/core/test_fcis_entitlement_key_v1.py",
+    "python3 -m pytest -q tests/core/test_fcis_entitlement_key_v1.py",
+    "python3 -m mypy --strict src/core/fcis_entitlement_key_v1.py src/core/fcis_entitlement_key_codec_v1.py tests/core/test_fcis_entitlement_key_v1.py",
+    "python3 -c '<C02 vector parity command>'",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_C02_KEY_VECTOR.json",
+    "git diff --check",
+    "python3 .claude/skills/zenodex-style-map/scripts/which_style.py <C02 paths>",
+    "python3 .claude/skills/zenodex-security-analysis/scripts/trust_surface.py",
+    "python3 .claude/skills/zenodex-security-analysis/scripts/redflags.py <C02 paths>",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks C02",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_C02_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_entitlement_key_v1.py": "a60bb53254b79b7796598cd32b31360127d50153847d832d3ac8742fd268f11e",
+    "src/core/fcis_entitlement_key_codec_v1.py": "0cf0261e2bd7c40081fcf21d2b33ab62fd00539841a423bbbc42309027f52df1",
+    "tests/core/test_fcis_entitlement_key_v1.py": "50cb31f21de157a6e616a07272fbdafe924602204da24704194b8b5cb008fa78",
+    "docs/research/m6_tasks/TASK_C02_PLAN.md": "7978172388eb2ba74f209f0abe7407b5a96847c8075963993139c0750395313d",
+    "docs/research/FCIS_M6_C02_ENTITLEMENT_KEY_SCHEMA_V1.md": "0e59806b237db0f5ceb5ba4c5f1771f8406a6011416c1f4f950f43ccc0fb24ab",
+    "docs/research/m6_tasks/TASK_C02_KEY_VECTOR.json": "603bdba24e45fb20899a023ed37c14315472e7821b0b2ca0650dfe2979e56400",
+    "docs/research/FCIS_M6_C01_SEMANTIC_PROFILE_SCHEMA_V1.md": "581fb5a3ff3f429ab1e302a963447d30afe637a87190bd9304ce71e711e7a595",
+    "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml": "19a9426487ad05f56c8b34889f84b130c92d1d650fdd5c4e3e6c014b27fc49fc",
+    "docs/research/FCIS_M5_P4B5A_AGQE_SRGD_SIGN_DUAL_REFINEMENT_20260730.md": "d231c1c6dbee73d5a1843cf9505d93c78685eb18bef557f7dbada3c374cbf273"
+  },
+  "results": {
+    "implementation_commit": "dd76d0a2aacf4061a263bdf8a0c0a2f5bcb8597e",
+    "implementation_tree": "748078e8ca4b6316ed87e79c2bc0afa9c8becea7",
+    "implementation_parent": "5a34e7ac21f1c435b2fffd7e6a7693cff47f13b2",
+    "schema_id": "zenodex/fcis/entitlement/key/v1",
+    "key_fields": [
+      "fee_distribution_domain_id",
+      "asset",
+      "semantic_profile_id",
+      "fixed_role_order_id"
+    ],
+    "excluded_dimensions": [
+      "buyback_destination",
+      "treasury_destination",
+      "rewards_destination",
+      "custody_account",
+      "ordinary_policy_weights",
+      "representation_codec"
+    ],
+    "canonical_vector_sha256": "0x84dcae8df6706df2316393e5cd37c7f02435b5e9e4a7c64279e9090966e7e56c",
+    "focused_tests": "12 passed",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "mypy_strict": "pass",
+    "vector_parity": "pass",
+    "runtime_mount": "none"
+  },
+  "mutants": [
+    {
+      "id": "C02_DOMAIN_OMITTED",
+      "status": "covered_by_regression_assertions",
+      "invariant": "domain is an explicit key field and changes canonical bytes"
+    },
+    {
+      "id": "C02_DESTINATION_IN_KEY",
+      "status": "covered_by_regression_assertions",
+      "invariant": "destination rotation leaves the key field set unchanged"
+    },
+    {
+      "id": "C02_CUSTODY_IN_KEY",
+      "status": "covered_by_regression_assertions",
+      "invariant": "custody rotation leaves the key field set unchanged"
+    },
+    {
+      "id": "C02_POLICY_WEIGHTS_IN_KEY",
+      "status": "covered_by_regression_assertions",
+      "invariant": "ordinary policy weights are excluded from identity"
+    },
+    {
+      "id": "C02_REPRESENTATION_IN_KEY",
+      "status": "covered_by_regression_assertions",
+      "invariant": "codec representation is excluded from identity"
+    },
+    {
+      "id": "C02_ROLE_PERMUTATION_ACCEPTED",
+      "status": "covered_by_regression_assertions",
+      "invariant": "only the frozen role order is accepted"
+    },
+    {
+      "id": "C02_SEMANTIC_PROFILE_ALIAS",
+      "status": "covered_by_regression_assertions",
+      "invariant": "only the C01 semantic profile is accepted"
+    }
+  ],
+  "nonclaims": [
+    "C02 is tested research evidence for the four-field entitlement identity and codec.",
+    "C02 does not prove or mount migration, authority, datastore, runtime, deployment, or value movement.",
+    "C02 does not rewire the B09 FeeApportionmentKeyV2 protocol.",
+    "No remote implementation commit, hosted CI run, draft PR, or production promotion is claimed."
+  ]
+}
