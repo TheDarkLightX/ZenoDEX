@@ -1,0 +1,87 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "J06",
+  "base_sha": "a39f28e6c2fbabf2d42859dd3b8cc1d34f569951",
+  "source_head_sha": "26e6054861876d64f9a383555b5cc8b85c53f6e8",
+  "source_head_tree": "990ab02d6ab89e96919cb6b3be938422c34d2753",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_j06_quiescence_v1.json",
+    "src/core/fcis_m6_j06_quiescence.py",
+    "tools/build_fcis_m6_j06_quiescence.py",
+    "tools/check_fcis_m6_j06_quiescence.py",
+    "experiments/fcis_m6_j06_quiescence_check.py",
+    "tests/core/test_fcis_m6_j06_quiescence.py",
+    "docs/research/m6_tasks/FCIS_M6_J06_QUIESCENCE_GATE_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_J06_PLAN.md",
+    "docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_SCHEMA_V1.json",
+    "docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_V1.json",
+    "docs/research/m6_tasks/TASK_J06_REPORT.md",
+    "docs/research/m6_tasks/TASK_J06_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_J06_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "PYTHONPATH=. python3 tools/check_fcis_m6_j06_quiescence.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_j06_quiescence.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_j01_migration_lifecycle.py tests/core/test_fcis_m6_j02_writer_matrix.py tests/core/test_fcis_m6_j04_migration_manifest.py tests/core/test_fcis_m6_j05_shadow_dual_check.py",
+    "python3 -m py_compile src/core/fcis_m6_j06_quiescence.py tools/build_fcis_m6_j06_quiescence.py tools/check_fcis_m6_j06_quiescence.py experiments/fcis_m6_j06_quiescence_check.py tests/core/test_fcis_m6_j06_quiescence.py",
+    "python3 -m ruff check src/core/fcis_m6_j06_quiescence.py tools/build_fcis_m6_j06_quiescence.py tools/check_fcis_m6_j06_quiescence.py experiments/fcis_m6_j06_quiescence_check.py tests/core/test_fcis_m6_j06_quiescence.py",
+    "python3 -m ruff format --check src/core/fcis_m6_j06_quiescence.py tools/build_fcis_m6_j06_quiescence.py tools/check_fcis_m6_j06_quiescence.py experiments/fcis_m6_j06_quiescence_check.py tests/core/test_fcis_m6_j06_quiescence.py",
+    "python3 -m mypy --strict src/core/fcis_m6_j06_quiescence.py tools/build_fcis_m6_j06_quiescence.py tools/check_fcis_m6_j06_quiescence.py experiments/fcis_m6_j06_quiescence_check.py tests/core/test_fcis_m6_j06_quiescence.py",
+    "python3 -m json.tool config/deploy/fcis_m6_j06_quiescence_v1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_V1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_SCHEMA_V1.json",
+    "git diff --check",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_J06_SOURCE_MANIFEST.sha256",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J06"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_j06_quiescence_v1.json": "3ba8ac1bbbbc03be347f952ff10b3f0a925a739bdeb81c4128ec868b70c621c3",
+    "src/core/fcis_m6_j06_quiescence.py": "9ea665a84e7d8d1137aa0a457e72f83f9477d75e8b16be5bf74635536895b355",
+    "tools/build_fcis_m6_j06_quiescence.py": "80d63c55fc9b6fad7fc04929b50f8a770df8f645c1e35a77552104132e0841c1",
+    "tools/check_fcis_m6_j06_quiescence.py": "55e71514f5885b17c2a0418d05facc7aea73bfc3838da40110774cb2de4ea6da",
+    "experiments/fcis_m6_j06_quiescence_check.py": "a92e43d7f75f956a0cf00ddb1dcebfd979d854699496092f4b4310dcd6580155",
+    "tests/core/test_fcis_m6_j06_quiescence.py": "b13f9b5415db6b3e7f7c42e811296546b508cd08e5a3a33e29582d16ab5c2254",
+    "docs/research/m6_tasks/FCIS_M6_J06_QUIESCENCE_GATE_SCHEMA_V1.md": "40332fdf2923abc869748fabe6c2d88c66492940bb6d8d948ca785def9daedab",
+    "docs/research/m6_tasks/TASK_J06_PLAN.md": "84460665e3f749c4d9f3fcf40e2716e510b3e057d5d3d13052f1c77960e5994f",
+    "docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_SCHEMA_V1.json": "30b876a0bbb121b2fc46d4b293001375d69d5be9747e6097dfe5b997118e7835",
+    "docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_V1.json": "79fe41b5675d1eecada838a1c457589d672d387a7d19e6fedb19fca9ff0695d0"
+  },
+  "results": {
+    "quiescence_root": "2ec80931468d21fdfbe97e7cd59ed6d3e1f8c7b22fcd49b9446ae2edcbbd7744",
+    "covered_writer_ids": "9",
+    "valid_attempts": "18",
+    "valid_attempts_rejected": "18",
+    "focused_tests": "pass; 5 passed",
+    "migration_regression": "pass; 20 passed",
+    "dependency_pins": "pass; J02, J04, and K01 roots and phase evidence match",
+    "implementation_commit": "26e6054861876d64f9a383555b5cc8b85c53f6e8",
+    "implementation_tree": "990ab02d6ab89e96919cb6b3be938422c34d2753",
+    "implementation_parent": "a39f28e6c2fbabf2d42859dd3b8cc1d34f569951"
+  },
+  "mutants": [
+    "uncovered entrypoint rejected",
+    "stale authority epoch rejected",
+    "foreign authority root rejected",
+    "stale head rejected",
+    "wrong activation sequence rejected",
+    "replay/current-head divergence rejected",
+    "accepted-result mutation rejected",
+    "state-changing-result mutation rejected"
+  ],
+  "nonclaims": [
+    "J06 is a bounded quiescence admission model, not a production barrier or datastore transaction",
+    "J06 does not prove dynamic runtime reachability or deployment completeness",
+    "J07 remains required for atomic authority switching and stale-writer rejection",
+    "J06 does not prove migration transport, rollback, accounting, backing, or zUSD safety",
+    "M6 remains unmounted, research-only, and non-promotable"
+  ]
+}
