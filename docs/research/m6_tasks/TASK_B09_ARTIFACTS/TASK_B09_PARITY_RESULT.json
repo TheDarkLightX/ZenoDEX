@@ -1,0 +1,66 @@
+{
+  "base_b08_receipt_commit": "aca4c441aef978ee74d145202c55c556700cbfa3",
+  "nonclaims": [
+    "The campaigns exercise an unmounted research kernel only.",
+    "Small-domain Rust production-D parity is outside scope because the Rust profile is fixed at D=10000.",
+    "Agreement does not prove requirements completeness, runtime mounting, datastore refinement, or economic correctness."
+  ],
+  "production": {
+    "adaptive_steps": 1000,
+    "baseline_shared_vectors": 12,
+    "exact_byte_match": true,
+    "julia_command": [
+      "/home/trevormoc/.local/bin/julia",
+      "--startup-file=no",
+      "/media/trevormoc/Encrypted Crucia/ZenoDex-GLM-5-2/TEMP-ZENODEX-LUNA-REPAIR-V1/FCIS-M6-codex-task-B09/experiments/julia/fcis_fee_apportionment_oracle.jl",
+      "/media/trevormoc/Encrypted Crucia/ZenoDex-GLM-5-2/TEMP-ZENODEX-LUNA-REPAIR-V1/FCIS-M6-codex-task-B09/docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_PRODUCTION_INPUT.tsv",
+      "/media/trevormoc/Encrypted Crucia/ZenoDex-GLM-5-2/TEMP-ZENODEX-LUNA-REPAIR-V1/FCIS-M6-codex-task-B09/docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_JULIA_OUTPUT.txt"
+    ],
+    "julia_sha256": "0888b330c56dbff0bcdf8611532c176088da32ac5e1f4db7100cd2ff221e55ed",
+    "production_edge_vectors": 10,
+    "python_sha256": "0888b330c56dbff0bcdf8611532c176088da32ac5e1f4db7100cd2ff221e55ed",
+    "rust_command": [
+      "cargo",
+      "run",
+      "--quiet",
+      "--manifest-path",
+      "/media/trevormoc/Encrypted Crucia/ZenoDex-GLM-5-2/TEMP-ZENODEX-LUNA-REPAIR-V1/FCIS-M6-codex-task-B09/formal/fcis_m6_b09_rust_parity/Cargo.toml",
+      "--",
+      "/media/trevormoc/Encrypted Crucia/ZenoDex-GLM-5-2/TEMP-ZENODEX-LUNA-REPAIR-V1/FCIS-M6-codex-task-B09/docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_PRODUCTION_INPUT.tsv",
+      "/media/trevormoc/Encrypted Crucia/ZenoDex-GLM-5-2/TEMP-ZENODEX-LUNA-REPAIR-V1/FCIS-M6-codex-task-B09/docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_RUST_OUTPUT.txt"
+    ],
+    "rust_sha256": "0888b330c56dbff0bcdf8611532c176088da32ac5e1f4db7100cd2ff221e55ed",
+    "total_vectors": 1022
+  },
+  "small_domain": {
+    "denominator_max": 12,
+    "denominator_min": 1,
+    "exact_byte_match": true,
+    "julia_command": [
+      "/home/trevormoc/.local/bin/julia",
+      "--startup-file=no",
+      "/media/trevormoc/Encrypted Crucia/ZenoDex-GLM-5-2/TEMP-ZENODEX-LUNA-REPAIR-V1/FCIS-M6-codex-task-B09/experiments/julia/fcis_fee_apportionment_oracle.jl",
+      "--small-domain",
+      "/media/trevormoc/Encrypted Crucia/ZenoDex-GLM-5-2/TEMP-ZENODEX-LUNA-REPAIR-V1/FCIS-M6-codex-task-B09/docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_SMALL_DOMAIN_INPUT.tsv",
+      "/media/trevormoc/Encrypted Crucia/ZenoDex-GLM-5-2/TEMP-ZENODEX-LUNA-REPAIR-V1/FCIS-M6-codex-task-B09/docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_SMALL_DOMAIN_JULIA_OUTPUT.txt"
+    ],
+    "julia_sha256": "1a59f2023c36fa0576bc37fa380731dd8543d7a6a90ced66fb30306b954e304b",
+    "python_sha256": "1a59f2023c36fa0576bc37fa380731dd8543d7a6a90ced66fb30306b954e304b",
+    "vectors": 1229773,
+    "vectors_by_denominator": {
+      "1": 6,
+      "10": 196746,
+      "11": 309816,
+      "12": 469651,
+      "2": 126,
+      "3": 760,
+      "4": 2775,
+      "5": 7686,
+      "6": 17836,
+      "7": 36576,
+      "8": 68445,
+      "9": 119350
+    }
+  },
+  "source_head": "476ec022e755ff049c39bf9f08c6606ac87532ca"
+}

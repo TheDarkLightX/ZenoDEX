@@ -1,0 +1,116 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "B09",
+  "base_sha": "aca4c441aef978ee74d145202c55c556700cbfa3",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-B09-three-way-parity-20260731",
+  "status": "TESTED",
+  "evidence_files": [
+    "docs/research/m6_tasks/TASK_B09_PLAN.md",
+    "docs/research/m6_tasks/TASK_B09_REPORT.md",
+    "docs/research/m6_tasks/TASK_B09_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_B09_SOURCE_MANIFEST.sha256",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_ARTIFACT_INDEX.json",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_PARITY_RESULT.json",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_PRODUCTION_INPUT.tsv.gz",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_PYTHON_OUTPUT.txt.gz",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_RUST_OUTPUT.txt.gz",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_JULIA_OUTPUT.txt.gz",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_SMALL_DOMAIN_INPUT.tsv.gz",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_SMALL_DOMAIN_PYTHON_OUTPUT.txt.gz",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_SMALL_DOMAIN_JULIA_OUTPUT.txt.gz",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_RUST_STDOUT.txt",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_RUST_STDERR.txt",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_JULIA_STDOUT.txt",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_JULIA_STDERR.txt",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_SMALL_DOMAIN_JULIA_STDOUT.txt",
+    "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_SMALL_DOMAIN_JULIA_STDERR.txt",
+    "experiments/fcis_fee_apportionment_parity.py",
+    "experiments/fcis_m6_b09_artifact_index.py",
+    "experiments/julia/fcis_fee_apportionment_oracle.jl",
+    "formal/fcis_m6_b09_rust_parity/Cargo.toml",
+    "formal/fcis_m6_b09_rust_parity/Cargo.lock",
+    "formal/fcis_m6_b09_rust_parity/src/main.rs"
+  ],
+  "commands": [
+    "cargo fmt --manifest-path formal/fcis_m6_b09_rust_parity/Cargo.toml -- --check",
+    "cargo check --manifest-path formal/fcis_m6_b09_rust_parity/Cargo.toml",
+    "cargo test --manifest-path formal/fcis_m6_b09_rust_parity/Cargo.toml",
+    "cargo clippy --manifest-path formal/fcis_m6_b09_rust_parity/Cargo.toml --all-targets -- -D warnings",
+    "python3 -m py_compile experiments/fcis_fee_apportionment_parity.py experiments/fcis_m6_b09_artifact_index.py",
+    "python3 -m ruff check experiments/fcis_fee_apportionment_parity.py experiments/fcis_m6_b09_artifact_index.py",
+    "python3 experiments/fcis_fee_apportionment_parity.py",
+    "python3 experiments/fcis_m6_b09_artifact_index.py docs/research/m6_tasks/TASK_B09_ARTIFACTS",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks B09",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "rustc": "rustc 1.87.0 (17067e9ac 2025-05-09)",
+    "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
+    "julia": "julia version 1.12.6",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+    "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
+    "docs/research/m6_tasks/TASK_EVIDENCE_SCHEMA_V1.json": "9dd6d015ef69c31c5a41a61f7a73c5c3d8057baf4cfc6f85eb52fffd065d5640",
+    "docs/research/m6_tasks/validate_task_packet.py": "cda422bb55c5601e8be42148454d7affc44df9c22d66f749861592f3e4549c3a",
+    "docs/research/m6_tasks/TASK_B09_PLAN.md": "e0c0981f415371e95626a1d4ec3c7633d28c596d236b954bba84c95dfb3bee4d",
+    "experiments/fcis_fee_apportionment_parity.py": "b151d725bd55781cb8a3b3fdc7deab90bb9cf7197845be13ebdacd017be7368d",
+    "experiments/fcis_m6_b09_artifact_index.py": "5147385b997028ad0a88ac3e2532c764735b5a8cbbac6de14c379518ddb7530a",
+    "experiments/julia/fcis_fee_apportionment_oracle.jl": "c148df30798108ae777f912f2e7dbea7a589b93b50178ef27df01fb6bee13504",
+    "formal/fcis_m6_b09_rust_parity/Cargo.toml": "b7cef245a22d92315a3c0f9c3a1a0b6e4876d506d81d1074dd9673ade252f43f",
+    "formal/fcis_m6_b09_rust_parity/Cargo.lock": "cdcc3b3df732146078102d27af9c7516ed7180a01a2e4b5174dd59e0a51b8759",
+    "formal/fcis_m6_b09_rust_parity/src/main.rs": "19efb97133944dc8d716aa489c125f1487c132610083df7754f9474f29b69f53"
+  },
+  "results": {
+    "implementation_commit": "6c0c881cdcbd05b8a6ca2011b08bec5e2828d25a",
+    "implementation_tree": "7c1981d57960d31bdfeb2355a7a7c5440a8cd275",
+    "implementation_parent": "aca4c441aef978ee74d145202c55c556700cbfa3",
+    "production_vectors": 1022,
+    "shared_baseline_vectors": 12,
+    "production_edge_vectors": 10,
+    "adaptive_steps": 1000,
+    "production_output_sha256": "0888b330c56dbff0bcdf8611532c176088da32ac5e1f4db7100cd2ff221e55ed",
+    "small_domain_vectors": 1229773,
+    "small_domain_output_sha256": "1a59f2023c36fa0576bc37fa380731dd8543d7a6a90ced66fb30306b954e304b",
+    "artifact_index_sha256": "9b12120c1e8f82ab1c803bccd37eba5f4ac9d8a8397de8d243eaaa4ecc00143a",
+    "parity_result_sha256": "0a56ec5c30370031e92627e140b072980694b5d84f59166f269712cb15f83935",
+    "python_rust_julia_production": "exact byte match",
+    "python_julia_small_domain": "exact byte match",
+    "rustfmt": "pass",
+    "rust_clippy": "pass; -D warnings",
+    "runtime_mount": "none"
+  },
+  "mutants": [
+    {
+      "id": "B09_JULIA_SUBSTRING_RECORD",
+      "status": "repaired_failure_witness",
+      "invariant": "The independent oracle must accept the declared SubString input boundary."
+    },
+    {
+      "id": "B09_JULIA_GROUP_KEY_SHADOW",
+      "status": "repaired_failure_witness",
+      "invariant": "Canonical grouping must execute without local binding shadowing."
+    },
+    {
+      "id": "B09_JULIA_ZERO_SUPPORT_SELECTOR",
+      "status": "repaired_failure_witness",
+      "invariant": "Bonus selection excludes zero-fraction roles before score ordering."
+    },
+    {
+      "id": "B09_JULIA_BIGINT_SUBSTRING",
+      "status": "repaired_failure_witness",
+      "invariant": "The exhaustive oracle must parse every bounded integer record."
+    }
+  ],
+  "nonclaims": [
+    "B09 is TESTED research evidence for an unmounted candidate relation.",
+    "Parity does not prove requirements completeness, economic correctness, production consensus, or runtime safety.",
+    "The small-domain campaign does not claim a runtime-configurable production denominator.",
+    "The Rust carrier remains BigUint and no fixed-width U256 adapter proof is included.",
+    "No remote implementation commit, hosted CI run, draft PR, or production promotion is claimed."
+  ]
+}
