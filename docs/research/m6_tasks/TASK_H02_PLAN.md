@@ -1,6 +1,7 @@
 # H02 plan: single atomic publication transaction
 
-Status: implementation in progress; research-only and unmounted.
+Status: implemented and tested in an isolated adapter; research-only and
+unmounted. H03-H08 remain pending.
 
 ## Objective
 

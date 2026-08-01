@@ -1,0 +1,64 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "H02",
+  "base_sha": "00d95e2b09be663e7d07547e4eab020718042d62",
+  "source_head_sha": "3eea372c4b7b672785ce897625d207358f6b6f36",
+  "source_head_tree": "23f3e3fe0d96044d974af8c26f9385efae1bf850",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "experiments/fcis_m6_h02_sqlite_publication.py",
+    "tests/core/test_fcis_m6_h02_sqlite_publication.py",
+    "docs/research/m6_tasks/TASK_H02_PLAN.md",
+    "docs/research/m6_tasks/FCIS_M6_H02_SQLITE_PUBLICATION_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_H02_REPORT.md",
+    "docs/research/m6_tasks/TASK_H02_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_H02_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py",
+    "python3 -m py_compile experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h02_sqlite_publication.py",
+    "python3 -m ruff check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h02_sqlite_publication.py",
+    "python3 -m ruff format --check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h02_sqlite_publication.py",
+    "python3 -m mypy --strict experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h02_sqlite_publication.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks H02",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_H02_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "experiments/fcis_m6_h02_sqlite_publication.py": "78ab9b9907e7d6b8371b961a9b2a7b8a62cf6d8f5b474f283b17c4ac3b3efe45",
+    "tests/core/test_fcis_m6_h02_sqlite_publication.py": "6cad48930a00e26d9184eb336073e895ea477b17f866f0c0a0bebc041003052d",
+    "docs/research/m6_tasks/TASK_H02_PLAN.md": "459b3b1b9426b62a60bed4e9466e1c0b6878de1df70f7975ece62499ba0fb6e4",
+    "docs/research/m6_tasks/FCIS_M6_H02_SQLITE_PUBLICATION_SCHEMA_V1.md": "3b27b05e83a55ff97e8145ef3b567ffc21e216ec3ba1b4ad27c02ee3762959cd"
+  },
+  "results": {
+    "focused_tests": "pass; 8 passed",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "ruff_format": "pass",
+    "mypy_strict": "pass; no issues found in 2 source files",
+    "complete_post": "pass; exact derived POST equals complete reopened state",
+    "stale_cas": "pass; snapshot, state, and authority stale cases preserve PRE",
+    "sql_rollback": "pass; forced evidence insert abort preserves PRE and leaves H02 tables empty",
+    "anf_binding": "pass; foreign acceptance and crossed witness are rejected",
+    "implementation_commit": "3eea372c4b7b672785ce897625d207358f6b6f36",
+    "implementation_tree": "23f3e3fe0d96044d974af8c26f9385efae1bf850",
+    "implementation_parent": "00d95e2b09be663e7d07547e4eab020718042d62"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "H02 is an isolated research adapter and is not mounted in production.",
+    "H02 does not prove filesystem durability, WAL/fsync behavior, power-loss recovery, or production datastore configuration.",
+    "H02 does not provide deterministic process-crash recovery; H03 and H04 remain pending.",
+    "H02 does not prove concurrent linearization, caller authentication, no-bypass coverage, or destination idempotency.",
+    "H02 does not mount migration authority or value movement.",
+    "H02 does not prove whole-system conservation, backing, liability, or zUSD safety.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
