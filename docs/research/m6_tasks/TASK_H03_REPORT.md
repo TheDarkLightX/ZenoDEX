@@ -1,9 +1,9 @@
 # FCIS M6 Task H03 Report
 
 TASK_ID: H03
-BASE_SHA: d257d6f086bf809cb8f56a9028fb3625d8f9fa5d
-SOURCE_HEAD_SHA: e52c09e84981f35db83a5aa390c49c9156c4c1ae
-SOURCE_HEAD_TREE: 38923f8baa019027d168ad872dc55def76f0b841
+BASE_SHA: e52c09e84981f35db83a5aa390c49c9156c4c1ae
+SOURCE_HEAD_SHA: 6275172d2130d2631f77d9b42ffc7d633e8f6545
+SOURCE_HEAD_TREE: 3d80dfe14513be4ea887385f338a98fe9e5f5d2c
 BRANCH: codex/task-H03-deterministic-crash-20260801
 FILES_CHANGED:
 - experiments/fcis_m6_h02_sqlite_publication.py
@@ -11,13 +11,14 @@ FILES_CHANGED:
 - docs/research/m6_tasks/TASK_H03_PLAN.md
 - docs/research/m6_tasks/TASK_H03_CRASH_MANIFEST_V1.json
 
-IMPLEMENTATION_HEAD_SHA: e52c09e84981f35db83a5aa390c49c9156c4c1ae
-IMPLEMENTATION_TREE: 38923f8baa019027d168ad872dc55def76f0b841
-IMPLEMENTATION_PARENT: d257d6f086bf809cb8f56a9028fb3625d8f9fa5d
+IMPLEMENTATION_HEAD_SHA: 6275172d2130d2631f77d9b42ffc7d633e8f6545
+IMPLEMENTATION_TREE: 3d80dfe14513be4ea887385f338a98fe9e5f5d2c
+IMPLEMENTATION_PARENT: e52c09e84981f35db83a5aa390c49c9156c4c1ae
 
 FOLLOW_UP_REPAIR: The shared adapter now rejects every nonempty durable table
-before initialization writes and compares staged seed state before commit. The
-H08 review receipt records the independent regression and exact repair.
+before initialization writes, compares staged seed state before commit, and
+binds typed operational outbox fields to each committed effect. H08 records
+the initialization regression and exact repair; I02 records the outbox schema.
 
 CLAIM_IMPLEMENTED: H03 adds a closed deterministic crash-point registry and
 one-shot fault hook to the isolated H02 SQLite publication adapter. The hook
@@ -31,10 +32,15 @@ COMMANDS_RUN:
 - PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py
 - PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h03_crash_points.py
 - PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py
+- PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_i02_committed_outbox.py
 - python3 -m py_compile experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py
 - python3 -m ruff check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py
 - python3 -m ruff format --check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py
 - python3 -m mypy --strict experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py
+- python3 -m ruff check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py
+- python3 -m ruff format --check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py
+- python3 -m mypy --strict experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py
+- python3 -m py_compile experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py
 - git diff --check
 - python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks H03
 - sha256sum --check --strict docs/research/m6_tasks/TASK_H03_SOURCE_MANIFEST.sha256
@@ -43,6 +49,8 @@ RESULTS:
 - H02 regression suite passed: 8 passed.
 - H03 crash-point suite passed: 23 passed.
 - Combined H02/H03 suite passed: 31 passed.
+- Current-head combined H02/H03/I02 suite passed after the I02 extension:
+  37 passed.
 - All 20 manifest points are registered and match the JSON manifest.
 - 16 ordinary publication points are reachable twice on fresh seeded
   connections and raise the same named surrogate.
@@ -50,8 +58,8 @@ RESULTS:
   authority helper and leave no rows after rollback.
 - The post-COMMIT/pre-response point leaves the staged POST root durable in the
   connection; H04 must perform the fresh-process canonical reopen.
-- Python compilation, Ruff, formatting, and strict mypy pass after the H08
-  initialization repair.
+- Python compilation, Ruff, formatting, and strict mypy pass at the current
+  I02 source head across the shared module and all affected tests.
 
 MUTANTS_ADDED: None. The reachability and repeatability suite is the positive
 H03 hook contract; H04 owns PRE/POST recovery mutants.
