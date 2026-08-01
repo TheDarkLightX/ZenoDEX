@@ -1,0 +1,127 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "D04",
+  "base_sha": "64db43c26683c529157d32b8c02a6df30e3bd24c",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_authority_dispatch.py",
+    "src/core/fcis_authority_schema.py",
+    "src/core/fcis_commit_bundle_derivation.py",
+    "src/core/fcis_commit_bundle_values.py",
+    "src/core/fcis_outbox_values.py",
+    "tests/core/test_fcis_commit_bundle_derivation.py",
+    "tests/core/test_fcis_m5_authority_admission.py",
+    "experiments/fcis_m6_d04_anf_bundle_outbox_check.py",
+    "docs/research/FCIS_M6_D04_ANF_BUNDLE_OUTBOX_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json",
+    "docs/research/m6_tasks/TASK_D04_PLAN.md",
+    "docs/research/m6_tasks/TASK_D04_REPORT.md",
+    "docs/research/m6_tasks/TASK_D04_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_D04_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_outbox_values.py src/core/fcis_commit_bundle_values.py src/core/fcis_authority_schema.py src/core/fcis_authority_dispatch.py src/core/fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_m5_authority_admission.py experiments/fcis_m6_d04_anf_bundle_outbox_check.py",
+    "python3 -m ruff check src/core/fcis_outbox_values.py src/core/fcis_commit_bundle_values.py src/core/fcis_authority_schema.py src/core/fcis_authority_dispatch.py src/core/fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_m5_authority_admission.py experiments/fcis_m6_d04_anf_bundle_outbox_check.py",
+    "python3 -m ruff format --check src/core/fcis_outbox_values.py src/core/fcis_commit_bundle_values.py src/core/fcis_authority_schema.py src/core/fcis_authority_dispatch.py src/core/fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_m5_authority_admission.py experiments/fcis_m6_d04_anf_bundle_outbox_check.py",
+    "python3 -m mypy --strict src/core/fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_bundle_derivation.py experiments/fcis_m6_d04_anf_bundle_outbox_check.py",
+    "python3 -m pytest -q tests/core/test_fcis_commit_bundle_derivation.py",
+    "python3 -m pytest -q tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_decision_derivation.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json",
+    "python3 -m experiments.fcis_m6_d04_anf_bundle_outbox_check",
+    "python3 -m experiments.fcis_m6_d03_anf_receipt_binding_check",
+    "python3 -m experiments.fcis_m6_d02_source_bound_evaluation_check",
+    "python3 -m experiments.fcis_m6_d01_vector_check",
+    "python3 -m experiments.fcis_m6_c07_review_packet_check",
+    "python3 -m pytest -q tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D04",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_D04_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_authority_dispatch.py": "26f1275e59d4e8198792e083af5c58a00e537ab89c5e3300794654a865ebf3b1",
+    "src/core/fcis_authority_schema.py": "7df773a3c1af1b8de89424b7fd33d901a62e68ec88b56b1a848a726a8c163782",
+    "src/core/fcis_commit_bundle_derivation.py": "a5cefe896fe6aac408d98786a0bc351947ecd55f1887aef9fd430be22032841b",
+    "src/core/fcis_commit_bundle_values.py": "dd209d14bdb5f29d7f443f66faac7b0e81e3c7b5e8f6ac539b8a694caf993938",
+    "src/core/fcis_outbox_values.py": "a923dd1d9d0fd4f7565c8bccfaf5aea2156bda7244e678a44a1e140d7aa902cf",
+    "tests/core/test_fcis_commit_bundle_derivation.py": "fae92c574b34fb15cbd0cb8da5f47c79cc30db7f80450efd9d5fb056eee95d6e",
+    "tests/core/test_fcis_m5_authority_admission.py": "2cafe8cf786d518f4ff993b9d460fb1885dbde0428effafa751577906d28be14",
+    "experiments/fcis_m6_d04_anf_bundle_outbox_check.py": "f070e33b64edb65500c0c2861726803a552af2e8ec8b057a59b60698a0891e62",
+    "docs/research/FCIS_M6_D04_ANF_BUNDLE_OUTBOX_SCHEMA_V1.md": "14ffe728dbb8404acbf8d4973e97d0159c2688c202d941eb682c68af015bec5e",
+    "docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json": "c822896b036e9d5cd536bc39d88454c33ecd4ca90e07ddb232eb3d8ffed90317",
+    "docs/research/m6_tasks/TASK_D04_PLAN.md": "565cdad4e3a5f1533b6ed1c14ad40697c8059a268494d5a3c253c4ba50bf21db",
+    "docs/research/m6_tasks/TASK_D04_REPORT.md": "71ea73941df6cb4fa75f7c0f481ff13a421c4c6aed233f3a5c60b7c1a54bc9e3"
+  },
+  "results": {
+    "implementation_commit": "3acf6285f8a3feef32c838b2a459d18fd721ae8d",
+    "implementation_tree": "74df77d2830005d2faf5469a0a602e8b274228ae",
+    "implementation_parent": "64db43c26683c529157d32b8c02a6df30e3bd24c",
+    "focused_d04_tests": "30 passed",
+    "broad_d04_regression": "105 passed",
+    "d04_vector_checker": "pass; D04_ANF_BUNDLE_OUTBOX_MATCH",
+    "d03_vector_checker": "pass; D03_ANF_RECEIPT_BINDING_MATCH",
+    "d02_vector_checker": "pass; D02_SOURCE_BOUND_EVALUATION_MATCH",
+    "d01_vector_checker": "pass; D01_VECTOR_MATCH",
+    "c07_packet_checker": "pass; C07_REVIEW_PACKET_MATCH",
+    "dependency_c01_c04_c06_tests": "53 passed",
+    "python_compile": "pass; 8 files",
+    "ruff": "pass; 8 files",
+    "ruff_format": "pass; 8 files",
+    "mypy_strict": "pass; 3 files",
+    "json_vector": "pass",
+    "validator": "pass; 13 manifest entries",
+    "source_manifest": "pass; 13 manifest entries",
+    "anf_root": "0xb55b6560d00eace98a04119f35df3d256f26be510299845b8d1655ef915c919c",
+    "decision_receipt_root": "0xd955702494c885d179750b92df711e47be1a52d58218855f1c3156520797130a",
+    "outbox_root": "0xf08adde03a8f239cba555525c23809d99b5f8d3d62f4ed298a3dedf827528fd5",
+    "bundle_root": "0xc4867b171856122375350694f9ecb27341fb2d0e51d2b8d13e8f5c8125debcac",
+    "bundle_bytes_sha256": "0xe34fc3cee259db69b12625c88a7b44c1e8239d7702684df47ec803a11443814a",
+    "outbox_record_count": 0,
+    "runtime_mount": "none",
+    "remote_publication": "none"
+  },
+  "mutants": [
+    {
+      "id": "D04_MISSING_ANF",
+      "status": "killed_by_test_and_checker",
+      "invariant": "ANF-required builder rejects missing exact ANF"
+    },
+    {
+      "id": "D04_FOREIGN_ANF",
+      "status": "killed_by_test_and_checker",
+      "invariant": "fresh full ANF root must match decision receipt"
+    },
+    {
+      "id": "D04_CROSSED_OUTBOX",
+      "status": "killed_by_test_and_checker",
+      "invariant": "outbox plan must derive from the same decision and ANF"
+    },
+    {
+      "id": "D04_CROSSED_DECISION",
+      "status": "killed_by_test_and_checker",
+      "invariant": "bundle must retain the exact accepted decision"
+    },
+    {
+      "id": "D04_STALE_CACHED_BUNDLE",
+      "status": "killed_by_test",
+      "invariant": "cached canonical bytes and root cannot bypass revalidation"
+    }
+  ],
+  "nonclaims": [
+    "D04 is tested unmounted evidence for the ANF-bound Python bundle and outbox planning path.",
+    "The retained ANF is a verified research-model value supplied to the builder; D04 does not authenticate its upstream construction or make caller data an opaque production authority witness.",
+    "Optional legacy bundle and outbox fields remain compatibility surfaces; a no-bypass audit is required to show every committable production path uses the ANF-required builder.",
+    "D04 does not establish TCG inventory, proof-context validity, DRA history, migration epoch, datastore atomicity, caller authentication, destination acknowledgment provenance, no-bypass reachability, or value movement.",
+    "The Python verifier adapters and deterministic fixtures are not production datastore, worker, network, or authority implementations.",
+    "No Lean proof, Julia execution, private ESSO run, remote implementation commit, hosted CI run, draft PR, merge, deployment, migration, or value movement is claimed."
+  ]
+}
