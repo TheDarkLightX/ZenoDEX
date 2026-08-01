@@ -12,6 +12,7 @@ lean_lib Proofs {
     `Proofs,
     `Proofs.FCISFeeOccurrenceSemantics,
     `Proofs.FCISTreeChordGateAuthority,
-    `Proofs.FCISDurableRetraction
+    `Proofs.FCISDurableRetraction,
+    `Proofs.FCISANFComposition
   ]
 }
