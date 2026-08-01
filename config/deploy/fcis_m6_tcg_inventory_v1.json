@@ -1,0 +1,122 @@
+{
+  "schema": "zenodex/fcis/m6/d05/tcg-publisher-inventory-config/v1",
+  "profile_id": "research-unmounted-reviewed-source-set",
+  "deployment_sources": [
+    {
+      "path": ".docker/entrypoint.sh",
+      "purpose": "container_entrypoint"
+    },
+    {
+      "path": "bin/zenoctl",
+      "purpose": "operator_cli_launcher"
+    },
+    {
+      "path": "config/deploy/production-strict.yaml",
+      "purpose": "production_deployment_profile"
+    },
+    {
+      "path": "rust-runtime/crates/zenodex-runtime-cli/src/main.rs",
+      "purpose": "runtime_cli_build_source"
+    }
+  ],
+  "publishers": [
+    {
+      "publisher_id": "api_http_ingress",
+      "kind": "api",
+      "entrypoint": "src.integration.api_server",
+      "source_paths": [
+        "src/integration/api_server.py"
+      ],
+      "effect_capable": true,
+      "authority_sink": false
+    },
+    {
+      "publisher_id": "background_outbox_delivery",
+      "kind": "background_outbox_worker",
+      "entrypoint": "src.core.fcis_outbox_values",
+      "source_paths": [
+        "src/core/fcis_durable_retraction.py",
+        "src/core/fcis_outbox_values.py"
+      ],
+      "effect_capable": true,
+      "authority_sink": true
+    },
+    {
+      "publisher_id": "durable_recovery_worker",
+      "kind": "recovery_worker",
+      "entrypoint": "src.core.fcis_durable_retraction",
+      "source_paths": [
+        "src/core/fcis_durable_retraction.py",
+        "src/integration/zeno_key_recovery_v0.py"
+      ],
+      "effect_capable": true,
+      "authority_sink": true
+    },
+    {
+      "publisher_id": "durable_state_adapter",
+      "kind": "direct_datastore_adapter",
+      "entrypoint": "src.core.fcis_durable_retraction",
+      "source_paths": [
+        "src/core/fcis_durable_retraction.py",
+        "src/state/committed_dex_snapshot.py"
+      ],
+      "effect_capable": true,
+      "authority_sink": true
+    },
+    {
+      "publisher_id": "entitlement_migration_worker",
+      "kind": "migration_worker",
+      "entrypoint": "src.core.fcis_entitlement_migration_codec_v1",
+      "source_paths": [
+        "src/core/fcis_entitlement_migration_codec_v1.py",
+        "src/core/fcis_entitlement_migration_values_v1.py"
+      ],
+      "effect_capable": true,
+      "authority_sink": true
+    },
+    {
+      "publisher_id": "governance_administrator",
+      "kind": "administrator",
+      "entrypoint": "src.integration.zeno_governance_authority",
+      "source_paths": [
+        "src/integration/autogov_live_apply_api.py",
+        "src/integration/zeno_governance_authority.py"
+      ],
+      "effect_capable": true,
+      "authority_sink": true
+    },
+    {
+      "publisher_id": "legacy_fcis_runtime",
+      "kind": "legacy_runtime",
+      "entrypoint": "src.core.fcis_legacy_refinement",
+      "source_paths": [
+        "src/core/fcis_legacy_refinement.py",
+        "src/core/fcis_legacy_refinement_admission.py"
+      ],
+      "effect_capable": true,
+      "authority_sink": true
+    },
+    {
+      "publisher_id": "operator_cli",
+      "kind": "cli",
+      "entrypoint": "tools.zenoctl:main",
+      "source_paths": [
+        "bin/zenoctl",
+        "tools/zenoctl.py"
+      ],
+      "effect_capable": true,
+      "authority_sink": false
+    },
+    {
+      "publisher_id": "proof_verifier",
+      "kind": "proof_verifier",
+      "entrypoint": "src.integration.proof_verifier",
+      "source_paths": [
+        "src/integration/proof_verifier.py",
+        "src/integration/recursive_stark_verifier_adapter.py"
+      ],
+      "effect_capable": false,
+      "authority_sink": false
+    }
+  ]
+}
