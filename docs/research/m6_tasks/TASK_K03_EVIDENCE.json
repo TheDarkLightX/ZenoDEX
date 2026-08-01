@@ -1,0 +1,74 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "K03",
+  "base_sha": "c3f4578562b73c9b2e054dbebb2759a21ed5c520",
+  "source_head_sha": "0460c9be4dba9c3a2d7a1a3c6430bfeb17d08ed7",
+  "source_head_tree": "5223e558c5f6119ee6dd99e3777e06ee805c885c",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_k03_static_no_bypass_policy_v1.json",
+    "tools/check_fcis_m6_k03_static_no_bypass.py",
+    "experiments/fcis_m6_k03_static_no_bypass_check.py",
+    "tests/tools/test_check_fcis_m6_k03_static_no_bypass.py",
+    "docs/research/m6_tasks/FCIS_M6_K03_STATIC_NO_BYPASS_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_K03_PLAN.md",
+    "docs/research/m6_tasks/TASK_K03_REPORT.md",
+    "docs/research/m6_tasks/TASK_K03_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_K03_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile tools/check_fcis_m6_k03_static_no_bypass.py experiments/fcis_m6_k03_static_no_bypass_check.py tests/tools/test_check_fcis_m6_k03_static_no_bypass.py",
+    "python3 -m ruff check tools/check_fcis_m6_k03_static_no_bypass.py experiments/fcis_m6_k03_static_no_bypass_check.py tests/tools/test_check_fcis_m6_k03_static_no_bypass.py",
+    "python3 -m ruff format --check tools/check_fcis_m6_k03_static_no_bypass.py experiments/fcis_m6_k03_static_no_bypass_check.py tests/tools/test_check_fcis_m6_k03_static_no_bypass.py",
+    "python3 -m mypy --strict tools/check_fcis_m6_k03_static_no_bypass.py experiments/fcis_m6_k03_static_no_bypass_check.py tests/tools/test_check_fcis_m6_k03_static_no_bypass.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/tools/test_check_fcis_m6_k03_static_no_bypass.py",
+    "python3 experiments/fcis_m6_k03_static_no_bypass_check.py",
+    "python3 tools/check_fcis_m6_k03_static_no_bypass.py",
+    "python3 -m json.tool config/deploy/fcis_m6_k03_static_no_bypass_policy_v1.json",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K03",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_K03_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0",
+    "rustc": "rustc 1.87.0 (17067e9ac 2025-05-09)"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_k03_static_no_bypass_policy_v1.json": "6ab2ee5fe379b3f5b74a4b62361aae7f866ee32bd74e16a7fad634397294b58c",
+    "tools/check_fcis_m6_k03_static_no_bypass.py": "5409053137e284b5d088cb1938d705b4f4b82d8073d332e3defe311622a61bb4",
+    "experiments/fcis_m6_k03_static_no_bypass_check.py": "43fed5a4943cd1f3168050e9a40fad493d88279ea75a9d1e1d76957baec1c48e",
+    "tests/tools/test_check_fcis_m6_k03_static_no_bypass.py": "5241eb8d9b2b95fc6727ee1739cbda6f22d798200496ad87bd9437ebb70763bf",
+    "docs/research/m6_tasks/FCIS_M6_K03_STATIC_NO_BYPASS_SCHEMA_V1.md": "2ec4fbb30c1866ff9ff005708bf645c6efe3bc503b7024b2c4c3d913178f084a",
+    "docs/research/m6_tasks/TASK_K03_PLAN.md": "50aea5b12624339da16d560f2f6f4657f82a590cfc1eeff156fc8ba26707f0bf"
+  },
+  "results": {
+    "schema": "zenodex/fcis/m6/k03/static-no-bypass/v1",
+    "current_scan": "pass; 4 Python protected files, 0 Rust M6 files, 0 issues",
+    "rust_scope_status": "unmounted_no_m6_rust_publisher",
+    "mutation_campaign": "pass; forbidden import, direct write, legacy, constructor, port, and Rust mutants killed",
+    "focused_tests": "pass; 4 passed",
+    "implementation_commit": "0460c9be4dba9c3a2d7a1a3c6430bfeb17d08ed7",
+    "implementation_tree": "5223e558c5f6119ee6dd99e3777e06ee805c885c",
+    "implementation_parent": "c3f4578562b73c9b2e054dbebb2759a21ed5c520"
+  },
+  "mutants": [
+    "forbidden sqlite3 import rejected",
+    "direct execute plus INSERT INTO rejected",
+    "legacy evaluate_refinement_v1 call rejected",
+    "direct D08 acceptance constructor rejected",
+    "direct publish_v1 call outside unique module rejected",
+    "Rust std::fs import and commit call rejected"
+  ],
+  "nonclaims": [
+    "K03 scans only the protected paths named by its reviewed policy.",
+    "The bounded Rust scanner does not establish a mounted Rust runtime closure.",
+    "K03 does not prove deployment reachability, credential isolation, complete call-graph closure, or datastore authority.",
+    "No mounted caller, authority switch, deployment, migration, or value movement is claimed.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
