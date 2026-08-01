@@ -1,0 +1,67 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "H01",
+  "base_sha": "a9eba746a5913649e2977ca5517ce8c42b470cae",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-H01-dra-publication-table-matrix-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_durable_retraction.py",
+    "docs/research/m6_tasks/TASK_H01_PLAN.md",
+    "docs/research/m6_tasks/TASK_H01_DRA_TABLE_MATRIX_V1.md",
+    "docs/research/m6_tasks/TASK_H01_DRA_TABLE_MATRIX_V1.json",
+    "experiments/fcis_m6_h01_table_matrix_check.py",
+    "docs/research/m6_tasks/TASK_H01_REPORT.md",
+    "docs/research/m6_tasks/TASK_H01_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_H01_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m json.tool docs/research/m6_tasks/TASK_H01_DRA_TABLE_MATRIX_V1.json",
+    "PYTHONPATH=. python3 experiments/fcis_m6_h01_table_matrix_check.py",
+    "python3 -m py_compile experiments/fcis_m6_h01_table_matrix_check.py",
+    "python3 -m ruff check experiments/fcis_m6_h01_table_matrix_check.py",
+    "python3 -m ruff format --check experiments/fcis_m6_h01_table_matrix_check.py",
+    "python3 -m mypy --strict experiments/fcis_m6_h01_table_matrix_check.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks H01",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_H01_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "src/core/fcis_durable_retraction.py": "a39181be542c979acd96f7da316366c79b74e29affc156aa691c4f134752a82a",
+    "docs/research/m6_tasks/TASK_H01_PLAN.md": "5559ebb5ec91d687bac97e45d829b9e9ed93a79a81b89aba1f629429eb5f7173",
+    "docs/research/m6_tasks/TASK_H01_DRA_TABLE_MATRIX_V1.md": "d3bbea9f9dd805c62fef41cca2eabedeb35cd13d1074c8ff0b9a7466fe61ff8d",
+    "docs/research/m6_tasks/TASK_H01_DRA_TABLE_MATRIX_V1.json": "a28e2d24912fb3ad66f5062d04d9aae1bb09a292bae8a7cd16f5e41b721368b6",
+    "experiments/fcis_m6_h01_table_matrix_check.py": "b2e5f7dc6e0bc68533c231cf41bde7e80bacf4fe86e02e8e1e2a485eb253847d",
+    "docs/research/m6_tasks/TASK_H01_REPORT.md": "5e64f904befead6a7f78b856eddcea356631110e7907db7fd2d3032c8ce296b4"
+  },
+  "results": {
+    "matrix_json": "pass; python json.tool",
+    "field_exhaustiveness": "pass; H01_TABLE_MATRIX_MATCH; 17 of 17 PublicationAtomV1 fields",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "ruff_format": "pass",
+    "mypy_strict": "pass",
+    "implementation_commit": "2c20dc2b46b3aba94c8676888e79a9a3d5c2aaba",
+    "implementation_tree": "601078bb300209c1dd7f26ca951d798d88ea50ed",
+    "implementation_parent": "a9eba746a5913649e2977ca5517ce8c42b470cae",
+    "anf_boundary": "explicitly open; anf_root is absent from PublicationAtomV1",
+    "packet_validator": "pass; H01 report/evidence/manifest validated; 7 manifest entries",
+    "manifest_check": "pass; sha256sum --check --strict; 7 entries"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "H01 is a logical field-to-table refinement contract and does not implement a production datastore.",
+    "H01 does not prove transaction atomicity, SQL isolation, WAL/fsync durability, crash recovery, or concurrent linearization.",
+    "H01 does not prove that production callers supply authenticated atoms or that a runtime publisher enforces the matrix.",
+    "The current model has no PublicationAtomV1 anf_root field; H02/H07 must define and bind that relation before atomic ANF publication is claimed.",
+    "Digest roots in the research model do not prove that referenced proof, receipt, response, or replay bytes are durably stored.",
+    "M6 remains unmounted and non-promotable; outbox, migration, no-bypass, whole-system accounting, and value-moving obligations remain open."
+  ]
+}
