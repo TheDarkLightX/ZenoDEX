@@ -6,9 +6,11 @@ publication, performs expected snapshot/state/authority CAS inside that
 transaction, and reopens the resulting rows through the canonical durable
 retraction model.
 
-It is not a production adapter. It does not establish filesystem durability,
-WAL/fsync semantics, concurrent linearization across deployment settings,
-runtime caller coverage, or value movement.
+It also exposes deterministic H03 logical fault hooks for the later crash and
+reopen harness. It is not a production adapter. It does not establish
+filesystem durability, WAL/fsync semantics, process-crash recovery, concurrent
+linearization across deployment settings, runtime caller coverage, or value
+movement.
 """
 
 from __future__ import annotations
@@ -40,6 +42,59 @@ class H02Error(ValueError):
 
 class H02StorageError(H02Error):
     """The SQLite layout is not a canonical H02 state."""
+
+
+class H03CrashPointV1(Enum):
+    """Named logical boundaries for deterministic H03 fault injection."""
+
+    BEFORE_BEGIN = "before_begin"
+    AFTER_BEGIN = "after_begin"
+    BEFORE_CAS = "before_cas"
+    AFTER_CAS_CHECK = "after_cas_check"
+    BEFORE_AUTHORITY_EPOCH_INSERT = "before_authority_epoch_insert"
+    AFTER_AUTHORITY_EPOCH_INSERT = "after_authority_epoch_insert"
+    BEFORE_AUTHORITY_WRITER_INSERT = "before_authority_writer_insert"
+    AFTER_AUTHORITY_WRITER_INSERT = "after_authority_writer_insert"
+    BEFORE_ATOM_INSERT = "before_atom_insert"
+    AFTER_ATOM_INSERT = "after_atom_insert"
+    BEFORE_EVIDENCE_INSERT = "before_evidence_insert"
+    AFTER_EVIDENCE_INSERT = "after_evidence_insert"
+    BEFORE_NULLIFIER_INSERT = "before_nullifier_insert"
+    AFTER_NULLIFIER_INSERT = "after_nullifier_insert"
+    BEFORE_OUTBOX_INSERT = "before_outbox_insert"
+    AFTER_OUTBOX_INSERT = "after_outbox_insert"
+    BEFORE_ANF_INSERT = "before_anf_insert"
+    AFTER_ANF_INSERT = "after_anf_insert"
+    BEFORE_COMMIT = "before_commit"
+    AFTER_COMMIT_BEFORE_RESPONSE = "after_commit_before_response"
+
+
+H03_CRASH_MANIFEST_V1: Final[tuple[H03CrashPointV1, ...]] = tuple(H03CrashPointV1)
+
+
+class H03InjectedCrash(RuntimeError):
+    """Deterministic process-fault surrogate; the publish path must not catch it."""
+
+    def __init__(self, point: H03CrashPointV1) -> None:
+        self.point = point
+        super().__init__(f"H03 injected crash at {point.value}")
+
+
+@dataclass(frozen=True, slots=True)
+class H03FaultHookV1:
+    """One-shot logical fault hook selected only by the research harness."""
+
+    point: H03CrashPointV1 | None = None
+
+    def __post_init__(self) -> None:
+        if self.point is not None and type(self.point) is not H03CrashPointV1:
+            raise H02Error("H03 fault point has the wrong exact type")
+
+    def checkpoint(self, point: H03CrashPointV1) -> None:
+        if type(point) is not H03CrashPointV1:
+            raise H02Error("H03 checkpoint has the wrong exact type")
+        if self.point is point:
+            raise H03InjectedCrash(point)
 
 
 class H02CodeV1(Enum):
@@ -407,10 +462,20 @@ def create_connection(path: str | Path = ":memory:") -> sqlite3.Connection:
     return connection
 
 
+def _checkpoint(
+    fault_hook: H03FaultHookV1 | None,
+    point: H03CrashPointV1,
+) -> None:
+    if fault_hook is not None:
+        fault_hook.checkpoint(point)
+
+
 def _insert_authority(
     connection: sqlite3.Connection,
     authority: dra.AuthorityStateV1,
+    fault_hook: H03FaultHookV1 | None = None,
 ) -> None:
+    _checkpoint(fault_hook, H03CrashPointV1.BEFORE_AUTHORITY_EPOCH_INSERT)
     connection.execute(
         """
         INSERT INTO authority_epochs(
@@ -428,6 +493,8 @@ def _insert_authority(
             authority.transition_root,
         ),
     )
+    _checkpoint(fault_hook, H03CrashPointV1.AFTER_AUTHORITY_EPOCH_INSERT)
+    _checkpoint(fault_hook, H03CrashPointV1.BEFORE_AUTHORITY_WRITER_INSERT)
     connection.executemany(
         """
         INSERT INTO authority_allowed_writers(epoch_index, writer_profile_root)
@@ -435,12 +502,15 @@ def _insert_authority(
         """,
         ((authority.epoch_index, writer) for writer in authority.allowed_writer_roots),
     )
+    _checkpoint(fault_hook, H03CrashPointV1.AFTER_AUTHORITY_WRITER_INSERT)
 
 
 def _insert_atom(
     connection: sqlite3.Connection,
     atom: dra.PublicationAtomV1,
+    fault_hook: H03FaultHookV1 | None = None,
 ) -> None:
+    _checkpoint(fault_hook, H03CrashPointV1.BEFORE_ATOM_INSERT)
     connection.execute(
         """
         INSERT INTO publication_atoms(
@@ -470,6 +540,8 @@ def _insert_atom(
             atom.verifier_profile_root,
         ),
     )
+    _checkpoint(fault_hook, H03CrashPointV1.AFTER_ATOM_INSERT)
+    _checkpoint(fault_hook, H03CrashPointV1.BEFORE_EVIDENCE_INSERT)
     connection.executemany(
         """
         INSERT INTO publication_evidence(commit_id, kind, value_root)
@@ -477,6 +549,8 @@ def _insert_atom(
         """,
         ((row.commit_id, row.kind, row.value_root) for row in dra._evidence_rows((atom,))),
     )
+    _checkpoint(fault_hook, H03CrashPointV1.AFTER_EVIDENCE_INSERT)
+    _checkpoint(fault_hook, H03CrashPointV1.BEFORE_NULLIFIER_INSERT)
     connection.execute(
         """
         INSERT INTO publication_nullifiers(nullifier_root, commit_id, fingerprint)
@@ -484,6 +558,8 @@ def _insert_atom(
         """,
         (atom.nullifier_root, atom.commit_id, atom.fingerprint),
     )
+    _checkpoint(fault_hook, H03CrashPointV1.AFTER_NULLIFIER_INSERT)
+    _checkpoint(fault_hook, H03CrashPointV1.BEFORE_OUTBOX_INSERT)
     connection.executemany(
         """
         INSERT INTO publication_outbox(
@@ -503,6 +579,7 @@ def _insert_atom(
             for effect in atom.outbox
         ),
     )
+    _checkpoint(fault_hook, H03CrashPointV1.AFTER_OUTBOX_INSERT)
 
 
 def _insert_ack(
@@ -531,7 +608,9 @@ def _insert_ack(
 def _insert_anf_row(
     connection: sqlite3.Connection,
     row: ANFPublicationRowV1,
+    fault_hook: H03FaultHookV1 | None = None,
 ) -> None:
+    _checkpoint(fault_hook, H03CrashPointV1.BEFORE_ANF_INSERT)
     connection.execute(
         """
         INSERT INTO anf_publications(commit_id, atom_root, anf_root, anf_version)
@@ -539,6 +618,7 @@ def _insert_anf_row(
         """,
         (row.commit_id, row.atom_root, row.anf_root, row.anf_version),
     )
+    _checkpoint(fault_hook, H03CrashPointV1.AFTER_ANF_INSERT)
 
 
 def _insert_snapshot_meta(
@@ -871,14 +951,21 @@ def _post_authorities(
 def publish_atom(
     connection: sqlite3.Connection,
     request: object,
+    fault_hook: object = None,
 ) -> H02ResultV1:
     if type(connection) is not sqlite3.Connection:
         return _reject(H02CodeV1.INVALID_REQUEST, "connection")
     if type(request) is not SQLitePublicationRequestV1:
         return _reject(H02CodeV1.INVALID_REQUEST, "request")
+    if fault_hook is not None and type(fault_hook) is not H03FaultHookV1:
+        return _reject(H02CodeV1.INVALID_REQUEST, "fault_hook")
     exact_request = request
+    exact_fault_hook = fault_hook
+    if exact_fault_hook is None:
+        exact_fault_hook = H03FaultHookV1()
     try:
         exact_request.__post_init__()
+        exact_fault_hook.__post_init__()
     except (
         AttributeError,
         H02Error,
@@ -890,10 +977,12 @@ def publish_atom(
     ):
         return _reject(H02CodeV1.INVALID_REQUEST, "request")
 
+    exact_fault_hook.checkpoint(H03CrashPointV1.BEFORE_BEGIN)
     try:
         connection.execute("BEGIN IMMEDIATE")
     except sqlite3.Error:
         return _reject(H02CodeV1.SQL_ROLLBACK, "begin")
+    exact_fault_hook.checkpoint(H03CrashPointV1.AFTER_BEGIN)
 
     try:
         pre_state = read_state(connection)
@@ -947,6 +1036,7 @@ def publish_atom(
             ),
         )
         authority = post_snapshot.authority_epochs[-1]
+        exact_fault_hook.checkpoint(H03CrashPointV1.BEFORE_CAS)
         cursor = connection.execute(
             """
             UPDATE snapshot_meta
@@ -979,15 +1069,18 @@ def publish_atom(
         )
         if cursor.rowcount != 1:
             return _rollback(connection, H02CodeV1.STALE_SNAPSHOT_CAS, "sql_cas")
+        exact_fault_hook.checkpoint(H03CrashPointV1.AFTER_CAS_CHECK)
 
         if exact_request.next_authority is not None:
-            _insert_authority(connection, exact_request.next_authority)
-        _insert_atom(connection, exact_request.atom)
-        _insert_anf_row(connection, new_anf_row)
+            _insert_authority(connection, exact_request.next_authority, exact_fault_hook)
+        _insert_atom(connection, exact_request.atom, exact_fault_hook)
+        _insert_anf_row(connection, new_anf_row, exact_fault_hook)
         actual_state = read_state(connection)
         if actual_state != post_state:
             raise H02StorageError("transaction rows do not equal complete POST")
+        exact_fault_hook.checkpoint(H03CrashPointV1.BEFORE_COMMIT)
         connection.commit()
+        exact_fault_hook.checkpoint(H03CrashPointV1.AFTER_COMMIT_BEFORE_RESPONSE)
         return H02CommitV1(
             post_snapshot=post_snapshot,
             anf_root=new_anf_row.anf_root,
@@ -1014,6 +1107,10 @@ def publish_atom(
 __all__ = (
     "ANFPublicationRowV1",
     "ANFPublicationWitnessV1",
+    "H03CrashPointV1",
+    "H03FaultHookV1",
+    "H03InjectedCrash",
+    "H03_CRASH_MANIFEST_V1",
     "H02CodeV1",
     "H02CommitV1",
     "H02Error",

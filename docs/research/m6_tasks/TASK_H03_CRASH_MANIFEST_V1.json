@@ -1,0 +1,34 @@
+{
+  "schema_version": "zenodex.fcis.m6.h03.crash-manifest.v1",
+  "task_id": "H03",
+  "source_module": "experiments/fcis_m6_h02_sqlite_publication.py",
+  "hook_type": "H03FaultHookV1",
+  "surrogate_type": "H03InjectedCrash",
+  "points": [
+    {"name": "BEFORE_BEGIN", "value": "before_begin", "operation": "publish_atom", "boundary": "before BEGIN IMMEDIATE", "layout": "PRE"},
+    {"name": "AFTER_BEGIN", "value": "after_begin", "operation": "publish_atom", "boundary": "after BEGIN IMMEDIATE", "layout": "PRE transaction open"},
+    {"name": "BEFORE_CAS", "value": "before_cas", "operation": "publish_atom", "boundary": "before snapshot_meta CAS update", "layout": "PRE transaction open"},
+    {"name": "AFTER_CAS_CHECK", "value": "after_cas_check", "operation": "publish_atom", "boundary": "after successful CAS row-count check", "layout": "staged POST transaction open"},
+    {"name": "BEFORE_AUTHORITY_EPOCH_INSERT", "value": "before_authority_epoch_insert", "operation": "_insert_authority", "boundary": "before authority_epochs insert", "layout": "staged POST transaction open"},
+    {"name": "AFTER_AUTHORITY_EPOCH_INSERT", "value": "after_authority_epoch_insert", "operation": "_insert_authority", "boundary": "after authority_epochs insert", "layout": "staged POST transaction open"},
+    {"name": "BEFORE_AUTHORITY_WRITER_INSERT", "value": "before_authority_writer_insert", "operation": "_insert_authority", "boundary": "before authority_allowed_writers insert", "layout": "staged POST transaction open"},
+    {"name": "AFTER_AUTHORITY_WRITER_INSERT", "value": "after_authority_writer_insert", "operation": "_insert_authority", "boundary": "after authority_allowed_writers insert", "layout": "staged POST transaction open"},
+    {"name": "BEFORE_ATOM_INSERT", "value": "before_atom_insert", "operation": "_insert_atom", "boundary": "before publication_atoms insert", "layout": "staged POST transaction open"},
+    {"name": "AFTER_ATOM_INSERT", "value": "after_atom_insert", "operation": "_insert_atom", "boundary": "after publication_atoms insert", "layout": "staged POST transaction open"},
+    {"name": "BEFORE_EVIDENCE_INSERT", "value": "before_evidence_insert", "operation": "_insert_atom", "boundary": "before publication_evidence insert", "layout": "staged POST transaction open"},
+    {"name": "AFTER_EVIDENCE_INSERT", "value": "after_evidence_insert", "operation": "_insert_atom", "boundary": "after publication_evidence insert", "layout": "staged POST transaction open"},
+    {"name": "BEFORE_NULLIFIER_INSERT", "value": "before_nullifier_insert", "operation": "_insert_atom", "boundary": "before publication_nullifiers insert", "layout": "staged POST transaction open"},
+    {"name": "AFTER_NULLIFIER_INSERT", "value": "after_nullifier_insert", "operation": "_insert_atom", "boundary": "after publication_nullifiers insert", "layout": "staged POST transaction open"},
+    {"name": "BEFORE_OUTBOX_INSERT", "value": "before_outbox_insert", "operation": "_insert_atom", "boundary": "before publication_outbox insert", "layout": "staged POST transaction open"},
+    {"name": "AFTER_OUTBOX_INSERT", "value": "after_outbox_insert", "operation": "_insert_atom", "boundary": "after publication_outbox insert", "layout": "staged POST transaction open"},
+    {"name": "BEFORE_ANF_INSERT", "value": "before_anf_insert", "operation": "_insert_anf_row", "boundary": "before anf_publications insert", "layout": "staged POST transaction open"},
+    {"name": "AFTER_ANF_INSERT", "value": "after_anf_insert", "operation": "_insert_anf_row", "boundary": "after anf_publications insert", "layout": "staged POST transaction open"},
+    {"name": "BEFORE_COMMIT", "value": "before_commit", "operation": "publish_atom", "boundary": "after complete POST reopen and before COMMIT", "layout": "complete POST transaction open"},
+    {"name": "AFTER_COMMIT_BEFORE_RESPONSE", "value": "after_commit_before_response", "operation": "publish_atom", "boundary": "after COMMIT before response", "layout": "POST durable, response absent"}
+  ],
+  "unsupported_boundaries": [
+    "operating-system process termination",
+    "WAL/fsync and filesystem power-loss boundaries",
+    "production datastore configuration"
+  ]
+}
