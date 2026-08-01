@@ -1,0 +1,34 @@
+{
+  "schema_version": "zenodex.fcis.m6.j02.writer-matrix.v1",
+  "task_id": "J02",
+  "status": "TESTED_RESEARCH_ONLY_UNMOUNTED",
+  "writer_matrix": {
+    "LEGACY": ["legacy"],
+    "SHADOW_REPLAY": ["legacy"],
+    "DUAL_CHECK": ["legacy"],
+    "QUIESCED": [],
+    "AUTHORITY_SWITCH": ["target"],
+    "POST_SWITCH_VALIDATION": ["target"],
+    "LEGACY_DISABLED": ["target"]
+  },
+  "rejected_mutants": [
+    "dual writer",
+    "legacy writer during QUIESCED",
+    "legacy writer after AUTHORITY_SWITCH",
+    "target writer before AUTHORITY_SWITCH",
+    "unknown phase writer"
+  ],
+  "invariants": [
+    "exactly one legacy writer before QUIESCED",
+    "no value-moving writer during QUIESCED",
+    "exactly one target writer from AUTHORITY_SWITCH onward",
+    "active profile equals the enabled writer profile",
+    "writer membership is derived from the authority phase"
+  ],
+  "nonclaims": [
+    "no production writer middleware",
+    "no API/CLI/admin/background-worker no-bypass audit",
+    "no stale-token transaction refinement",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
