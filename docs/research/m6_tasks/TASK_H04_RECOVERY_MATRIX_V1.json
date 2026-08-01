@@ -1,0 +1,38 @@
+{
+  "schema_version": "zenodex.fcis.m6.h04.recovery-matrix.v1",
+  "task_id": "H04",
+  "worker_module": "experiments.fcis_m6_h04_crash_recovery.py",
+  "worker_crash_exit_code": 73,
+  "comparator": "complete SQLiteStateV1 equality, including canonical rows and derived roots",
+  "cases": [
+    {"crash_point": "before_begin", "expected": "pre"},
+    {"crash_point": "after_begin", "expected": "pre"},
+    {"crash_point": "before_cas", "expected": "pre"},
+    {"crash_point": "after_cas_check", "expected": "pre"},
+    {"crash_point": "before_atom_insert", "expected": "pre"},
+    {"crash_point": "after_atom_insert", "expected": "pre"},
+    {"crash_point": "before_evidence_insert", "expected": "pre"},
+    {"crash_point": "after_evidence_insert", "expected": "pre"},
+    {"crash_point": "before_nullifier_insert", "expected": "pre"},
+    {"crash_point": "after_nullifier_insert", "expected": "pre"},
+    {"crash_point": "before_outbox_insert", "expected": "pre"},
+    {"crash_point": "after_outbox_insert", "expected": "pre"},
+    {"crash_point": "before_anf_insert", "expected": "pre"},
+    {"crash_point": "after_anf_insert", "expected": "pre"},
+    {"crash_point": "before_commit", "expected": "pre"},
+    {"crash_point": "after_commit_before_response", "expected": "post"}
+  ],
+  "deferred_cases": [
+    "before_authority_epoch_insert",
+    "after_authority_epoch_insert",
+    "before_authority_writer_insert",
+    "after_authority_writer_insert"
+  ],
+  "nonclaims": [
+    "filesystem power-loss durability",
+    "WAL/fsync deployment configuration",
+    "concurrent linearization",
+    "production runtime reachability",
+    "external effect delivery"
+  ]
+}
