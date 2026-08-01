@@ -1,0 +1,133 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "D05",
+  "base_sha": "8601a61154a00aafb1c7ba84d88939b0af4a2685",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_tcg_inventory_v1.json",
+    "src/core/fcis_tcg_inventory.py",
+    "tools/build_fcis_m6_d05_tcg_inventory.py",
+    "experiments/fcis_m6_d05_tcg_inventory_check.py",
+    "tests/core/test_fcis_m6_d05_tcg_inventory.py",
+    "docs/research/m6_tasks/TASK_D05_TCG_INVENTORY_VECTOR.json",
+    "docs/research/m6_tasks/FCIS_M6_D05_TCG_INVENTORY_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_D05_PLAN.md",
+    "docs/research/m6_tasks/TASK_D05_REPORT.md",
+    "docs/research/m6_tasks/TASK_D05_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_D05_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_tcg_inventory.py tools/build_fcis_m6_d05_tcg_inventory.py experiments/fcis_m6_d05_tcg_inventory_check.py tests/core/test_fcis_m6_d05_tcg_inventory.py",
+    "python3 -m ruff check src/core/fcis_tcg_inventory.py tools/build_fcis_m6_d05_tcg_inventory.py experiments/fcis_m6_d05_tcg_inventory_check.py tests/core/test_fcis_m6_d05_tcg_inventory.py",
+    "python3 -m ruff format --check src/core/fcis_tcg_inventory.py tools/build_fcis_m6_d05_tcg_inventory.py experiments/fcis_m6_d05_tcg_inventory_check.py tests/core/test_fcis_m6_d05_tcg_inventory.py",
+    "python3 -m mypy --strict src/core/fcis_tcg_inventory.py tools/build_fcis_m6_d05_tcg_inventory.py experiments/fcis_m6_d05_tcg_inventory_check.py tests/core/test_fcis_m6_d05_tcg_inventory.py",
+    "python3 -m pytest -q tests/core/test_fcis_m6_d05_tcg_inventory.py",
+    "python3 tools/build_fcis_m6_d05_tcg_inventory.py --check",
+    "python3 experiments/fcis_m6_d05_tcg_inventory_check.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_D05_TCG_INVENTORY_VECTOR.json",
+    "python3 -m pytest -q tests/core/test_fcis_m6_d05_tcg_inventory.py tests/core/test_fcis_tree_chord_gate_authority.py tests/core/test_fcis_authority_normal_form_v1.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_decision_derivation.py",
+    "python3 -m experiments.fcis_m6_d05_tcg_inventory_check",
+    "python3 -m experiments.fcis_m6_d04_anf_bundle_outbox_check",
+    "python3 -m experiments.fcis_m6_d03_anf_receipt_binding_check",
+    "python3 -m experiments.fcis_m6_d02_source_bound_evaluation_check",
+    "python3 -m experiments.fcis_m6_d01_vector_check",
+    "python3 -m experiments.fcis_m6_c07_review_packet_check",
+    "python3 -m pytest -q tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D05",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_D05_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_tcg_inventory_v1.json": "86890ed13de433216d60e8d48e9b85cf25088cd72252bcd800cfcd25624832b6",
+    "src/core/fcis_tcg_inventory.py": "d08f4ece40fc1cbadce8e5a4738d92e1ae09f8575e9ede795383ca16a32f0f2f",
+    "tools/build_fcis_m6_d05_tcg_inventory.py": "ad7c86cbb89ecdc1e8ddc631ff6c8e557f395d40071e6b3f200424c70195370d",
+    "experiments/fcis_m6_d05_tcg_inventory_check.py": "097ad00694df3d69af4443c26f69193fba0e31eb2847965fbb6467caeeb6d4fe",
+    "tests/core/test_fcis_m6_d05_tcg_inventory.py": "8c239876257994b7eb0d852d8d455add9edf32bfd579540ee0779c4774e0e7e9",
+    "docs/research/m6_tasks/TASK_D05_TCG_INVENTORY_VECTOR.json": "0a7f9daed287762278af7fca54ad76f6f024983c43f4e921176dc8771754403f",
+    "docs/research/m6_tasks/FCIS_M6_D05_TCG_INVENTORY_SCHEMA_V1.md": "b6766a389899f41d67bc48589a1ce6d85932fe66451c31e302aeb27994112bf0",
+    "docs/research/m6_tasks/TASK_D05_PLAN.md": "d1cee97120f504046e321f35946ab85ffca9dc74355202c70f1a7e1a46824fa9",
+    "docs/research/m6_tasks/TASK_D05_REPORT.md": "6479c05443e0ac10c1ee844c1a70e8f524ecf60aa091a9f251374e0815c007ab"
+  },
+  "results": {
+    "implementation_commit": "0741cc88cb8768eb2ec5478c3aa3048c57313d8a",
+    "implementation_tree": "c40167080553bcacfec2c23c4096913c1f4cf8b6",
+    "implementation_parent": "8601a61154a00aafb1c7ba84d88939b0af4a2685",
+    "focused_d05_tests": "6 passed",
+    "d05_upstream_regression": "129 passed",
+    "d05_vector_checker": "pass; D05_TCG_INVENTORY_MATCH",
+    "d05_builder_check": "pass; D05_TCG_INVENTORY_MATCH",
+    "d04_vector_checker": "pass; D04_ANF_BUNDLE_OUTBOX_MATCH",
+    "d03_vector_checker": "pass; D03_ANF_RECEIPT_BINDING_MATCH",
+    "d02_vector_checker": "pass; D02_SOURCE_BOUND_EVALUATION_MATCH",
+    "d01_vector_checker": "pass; D01_VECTOR_MATCH",
+    "c07_packet_checker": "pass; C07_REVIEW_PACKET_MATCH",
+    "dependency_c01_c04_c06_tests": "53 passed",
+    "python_compile": "pass; 4 files",
+    "ruff": "pass; 4 files",
+    "ruff_format": "pass; 4 files",
+    "mypy_strict": "pass; 4 files",
+    "json_vector": "pass",
+    "validator": "pass; 10 manifest entries",
+    "source_manifest": "pass; 10 manifest entries",
+    "publisher_inventory_root": "95fbc474cded934607e63cd0a3af6a7e78514033278818218f925ce0980870fb",
+    "topology_root": "9413e99452edf6106089600e48a214e2802a3b030c3697c0204460c94f579214",
+    "publisher_kind_count": 9,
+    "source_manifest_entry_count": 19,
+    "runtime_mount": "none",
+    "remote_publication": "none"
+  },
+  "mutants": [
+    {
+      "id": "D05_INSERTED_PUBLISHER",
+      "status": "killed_by_test_and_checker",
+      "invariant": "an inserted publisher changes both external roots"
+    },
+    {
+      "id": "D05_OMITTED_REQUIRED_PUBLISHER",
+      "status": "killed_by_test_and_checker",
+      "invariant": "omitting a required publisher kind rejects"
+    },
+    {
+      "id": "D05_SOURCE_DIGEST_SUBSTITUTION",
+      "status": "killed_by_test_and_checker",
+      "invariant": "a source digest substitution changes both external roots"
+    },
+    {
+      "id": "D05_CONFIGURATION_SUBSTITUTION",
+      "status": "killed_by_checker",
+      "invariant": "the reviewed configuration hash is bound into both roots"
+    },
+    {
+      "id": "D05_DUPLICATE_PUBLISHER_ID",
+      "status": "killed_by_test_and_checker",
+      "invariant": "publisher IDs are unique"
+    },
+    {
+      "id": "D05_UNANCHORED_SOURCE",
+      "status": "killed_by_test_and_checker",
+      "invariant": "every publisher source path is present in the source manifest"
+    },
+    {
+      "id": "D05_RUNTIME_CERTIFICATE_INPUT",
+      "status": "killed_by_checker",
+      "invariant": "the external inventory builder has no certificate-root input"
+    }
+  ],
+  "nonclaims": [
+    "D05 is tested unmounted evidence for a reviewed source inventory and its anchored topology root.",
+    "The configuration is a reviewed input; D05 does not prove that it contains every production publisher, worker, direct write, deployment target, or effect sink.",
+    "Source-file hashing does not prove runtime reachability, build inclusion, process isolation, caller authentication, datastore authority, or effect application semantics.",
+    "D05 does not bind a concrete TCG certificate, C3 claim set, proof context, DRA history, migration epoch, recovery transition, or destination acknowledgment to the topology root.",
+    "No Lean proof, Julia execution, private ESSO run, production deployment scan, mounted caller, runtime authority switch, remote implementation commit, hosted CI run, draft PR, merge, migration, deployment, or value movement is claimed."
+  ]
+}
