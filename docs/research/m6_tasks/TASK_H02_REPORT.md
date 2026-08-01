@@ -14,6 +14,7 @@ FILES_CHANGED:
 IMPLEMENTATION_HEAD_SHA: 3eea372c4b7b672785ce897625d207358f6b6f36
 IMPLEMENTATION_TREE: 23f3e3fe0d96044d974af8c26f9385efae1bf850
 IMPLEMENTATION_PARENT: 00d95e2b09be663e7d07547e4eab020718042d62
+SOURCE_SNAPSHOT: docs/research/m6_tasks/H02_SOURCE_SNAPSHOT/fcis_m6_h02_sqlite_publication.py
 
 CLAIM_IMPLEMENTED: H02 adds an isolated SQLite refinement with one
 BEGIN IMMEDIATE publication transaction. It reconstructs the complete PRE
@@ -45,7 +46,7 @@ RESULTS:
 - A forced SQLite abort after evidence insertion rolled back every H02 row.
 - Foreign verifier acceptance, atom-bearing seed without ANF, and crossed
   atom/witness cases rejected.
-- The source and test hashes match the H02 implementation commit.
+- The source snapshot and test hashes match the H02 implementation commit.
 
 MUTANTS_ADDED: None. Negative witnesses are covered by focused rejection and
 rollback tests.
