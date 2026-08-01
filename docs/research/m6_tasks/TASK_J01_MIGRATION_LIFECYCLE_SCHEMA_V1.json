@@ -1,0 +1,42 @@
+{
+  "schema_version": "zenodex.fcis.m6.j01.migration-lifecycle.v1",
+  "task_id": "J01",
+  "status": "TESTED_RESEARCH_ONLY_UNMOUNTED",
+  "phases": [
+    "LEGACY",
+    "SHADOW_REPLAY",
+    "DUAL_CHECK",
+    "QUIESCED",
+    "AUTHORITY_SWITCH",
+    "POST_SWITCH_VALIDATION",
+    "LEGACY_DISABLED"
+  ],
+  "allowed_edges": [
+    ["LEGACY", "SHADOW_REPLAY"],
+    ["SHADOW_REPLAY", "DUAL_CHECK"],
+    ["DUAL_CHECK", "QUIESCED"],
+    ["QUIESCED", "AUTHORITY_SWITCH"],
+    ["AUTHORITY_SWITCH", "POST_SWITCH_VALIDATION"],
+    ["POST_SWITCH_VALIDATION", "LEGACY_DISABLED"]
+  ],
+  "rejected_edges": [
+    "skip",
+    "reverse",
+    "repeat terminal",
+    "unknown phase",
+    "caller-selected ad hoc phase"
+  ],
+  "invariants": [
+    "genesis begins at LEGACY epoch zero",
+    "each accepted edge advances exactly one phase and one epoch",
+    "the transition root binds the previous authority root and next phase",
+    "LEGACY_DISABLED is terminal",
+    "no phase outside the seven-value closed enum is accepted"
+  ],
+  "nonclaims": [
+    "no production migration switch",
+    "no writer exclusion or stale-token refinement",
+    "no state transport, rollback, datastore, runtime, or value movement",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
