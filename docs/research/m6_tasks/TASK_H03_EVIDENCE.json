@@ -1,9 +1,9 @@
 {
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "H03",
-  "base_sha": "e52c09e84981f35db83a5aa390c49c9156c4c1ae",
-  "source_head_sha": "6275172d2130d2631f77d9b42ffc7d633e8f6545",
-  "source_head_tree": "3d80dfe14513be4ea887385f338a98fe9e5f5d2c",
+  "base_sha": "014f88efc3e3215bdfb9672dffb519414a740f9e",
+  "source_head_sha": "059f99d3b53001a7dd98b5f42ba2127e2c575f65",
+  "source_head_tree": "c1c1680948a957750f33c56698b97a5be8eb2bb3",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -20,6 +20,7 @@
     "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h03_crash_points.py",
     "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py",
     "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_i02_committed_outbox.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
     "python3 -m py_compile experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py",
     "python3 -m ruff check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py",
     "python3 -m ruff format --check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py",
@@ -28,6 +29,10 @@
     "python3 -m ruff format --check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py",
     "python3 -m mypy --strict experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py",
     "python3 -m py_compile experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py",
+    "python3 -m ruff check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "python3 -m ruff format --check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "python3 -m mypy --strict experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "python3 -m py_compile experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
     "git diff --check",
     "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks H03",
     "sha256sum --check --strict docs/research/m6_tasks/TASK_H03_SOURCE_MANIFEST.sha256"
@@ -40,7 +45,7 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "experiments/fcis_m6_h02_sqlite_publication.py": "9b26686ef652c32bb053053abf0101c64c2f805cc6257824fc6c33c155e3709d",
+    "experiments/fcis_m6_h02_sqlite_publication.py": "412400a225412f1889db99c44145825b228177dc06031ebbf488cacc95426659",
     "tests/core/test_fcis_m6_h03_crash_points.py": "5c53851ab28d7ed9cdfbae6c465d5a49b8fc6cdb5af5229487c904e0dd5d9d2f",
     "docs/research/m6_tasks/TASK_H03_PLAN.md": "ea6c81d6b504564a6f405048edbb8bc44ecb7335f5de2f93464ab5d2b8793b20",
     "docs/research/m6_tasks/TASK_H03_CRASH_MANIFEST_V1.json": "30de333663a55d54f2bf759f4a51f493b8651d0edf44bc46b2da5d4d027b57ee"
@@ -51,11 +56,12 @@
     "h03_reachability_repeatability": "pass; 23 passed after H08 repair",
     "combined_regression": "pass; 31 passed after H08 repair",
     "post_i02_regression": "pass; 37 passed across H02/H03/I02",
+    "post_i03_regression": "pass; 41 passed across H02/H03/I02/I03",
     "current_head_quality": "pass; Ruff, formatting, strict mypy, and py_compile across four affected files",
     "initialization_guard": "pass; all durable table families are checked before seed write",
-    "implementation_commit": "6275172d2130d2631f77d9b42ffc7d633e8f6545",
-    "implementation_tree": "3d80dfe14513be4ea887385f338a98fe9e5f5d2c",
-    "implementation_parent": "e52c09e84981f35db83a5aa390c49c9156c4c1ae",
+    "implementation_commit": "059f99d3b53001a7dd98b5f42ba2127e2c575f65",
+    "implementation_tree": "c1c1680948a957750f33c56698b97a5be8eb2bb3",
+    "implementation_parent": "014f88efc3e3215bdfb9672dffb519414a740f9e",
     "crash_surrogate": "H03InjectedCrash is not caught by normal H02 rejection handlers"
   },
   "mutants": [],

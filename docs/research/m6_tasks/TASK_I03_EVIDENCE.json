@@ -1,0 +1,65 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "I03",
+  "base_sha": "014f88efc3e3215bdfb9672dffb519414a740f9e",
+  "source_head_sha": "059f99d3b53001a7dd98b5f42ba2127e2c575f65",
+  "source_head_tree": "c1c1680948a957750f33c56698b97a5be8eb2bb3",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "experiments/fcis_m6_h02_sqlite_publication.py",
+    "tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "docs/research/m6_tasks/TASK_I03_LEASING_SCHEMA_V1.json",
+    "docs/research/m6_tasks/TASK_I03_PLAN.md",
+    "docs/research/m6_tasks/TASK_I03_REPORT.md",
+    "docs/research/m6_tasks/TASK_I03_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_I03_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m ruff format experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "python3 -m ruff check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "python3 -m ruff format --check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "python3 -m mypy --strict experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "python3 -m py_compile experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h08_independent_review.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h04_crash_recovery.py",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks I03",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_I03_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "experiments/fcis_m6_h02_sqlite_publication.py": "412400a225412f1889db99c44145825b228177dc06031ebbf488cacc95426659",
+    "tests/core/test_fcis_m6_i03_safe_leasing.py": "b5ca5ec7c00e8034824841de6f9b414a6bf5788a35c1aad6f8564c20416580c8",
+    "docs/research/m6_tasks/TASK_I03_LEASING_SCHEMA_V1.json": "7feb5e4b3fa769e9bcc5b78e2e132812f1e5e23963411f8e41199c5549f4a199",
+    "docs/research/m6_tasks/TASK_I03_PLAN.md": "c1a616a4a2c06d45fb156bb48afb898fdfde825330ffd34d124318b1fe3f17bf"
+  },
+  "results": {
+    "focused_tests": "pass; 4 passed",
+    "combined_regression": "pass; 41 passed across H02/H03/I02/I03",
+    "active_lease_exclusion": "pass; second worker rejected without state change",
+    "expiry_reclamation": "pass; expired lease returns to PENDING and can be re-leased",
+    "stable_identity": "pass; effect ID and payload root remain unchanged across workers",
+    "bounds_and_exhaustion": "pass; expiry arithmetic and attempt-count overflow reject",
+    "h08_regression": "pass; 20 passed",
+    "h04_regression": "pass; 17 passed",
+    "implementation_commit": "059f99d3b53001a7dd98b5f42ba2127e2c575f65",
+    "implementation_tree": "c1c1680948a957750f33c56698b97a5be8eb2bb3",
+    "implementation_parent": "014f88efc3e3215bdfb9672dffb519414a740f9e"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "I03 is an isolated research lease port and is not a production worker.",
+    "I03 does not prove destination delivery, deduplication, acknowledgment provenance, or lost-ack recovery.",
+    "I03 does not prove production datastore durability, schema migration, or runtime mounting.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
