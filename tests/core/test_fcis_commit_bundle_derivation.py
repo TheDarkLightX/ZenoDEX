@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import fields
+from dataclasses import fields, replace
+from typing import cast
 
 import pytest
 
@@ -9,14 +10,19 @@ from src.core.fcis_authority_admission import (
     admit_fcis_authority_claim_v1,
     encode_fcis_authority_claim_v1,
 )
+from src.core.fcis_authority_normal_form_v1 import FCISAuthorityNormalFormV1
 from src.core.fcis_commit_bundle_derivation import (
     CommitBundleV1,
     _derive_bundle_claim_v1,
     _derive_bundle_root_v1,
     _derive_outbox_plan_v1,
+    build_anf_bound_commit_bundle_v1,
     build_commit_bundle_v1,
+    recompute_anf_root_v1,
     recompute_bundle_root_v1,
     recompute_outbox_plan_v1,
+    recompute_outbox_root_v1,
+    verify_anf_bound_commit_bundle_v1,
 )
 from src.core.fcis_commit_bundle_values import FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1
 from src.core.fcis_decision_derivation import (
@@ -24,6 +30,8 @@ from src.core.fcis_decision_derivation import (
     RejectV1,
     acceptance_receipt_root_v1,
     evaluate_fcis_decision_v1,
+    evaluate_source_bound_fcis_decision_v1,
+    evaluate_source_bound_fcis_decision_with_anf_v1,
 )
 from src.core.fcis_decision_values import FCISRejectCodeV1
 from src.core.fcis_outbox_values import (
@@ -42,6 +50,11 @@ from src.state.intents import IntentKind
 from src.state.owned_json import project_owned_json, snapshot_owned_json_object
 from src.state.snapshot_combinators import AdmitOk
 from tests.core.test_fcis_decision_derivation import _exact_inputs
+from tests.core.test_fcis_m6_d03_anf_receipt_binding import (
+    _authority_normal_form,
+    _source_occurrence,
+    evaluate_source_bound_fcis_step_candidate_v1_for_test,
+)
 from tests.core.test_fcis_support_profile_v5 import (
     _context_source as _support_context_source,
 )
@@ -106,6 +119,7 @@ def test_build_commit_bundle_from_accept_produces_exact_bundle() -> None:
         "outbox_plan",
         "_canonical_bundle_bytes",
         "_bundle_root",
+        "authority_normal_form",
     )
     assert bundle.next_state is accept.next_state
     assert bundle.commit_plan is accept.commit_plan
@@ -261,7 +275,7 @@ def test_commit_bundle_constructor_requires_controlled_token() -> None:
 
 def test_build_commit_bundle_rejects_non_decision() -> None:
     with pytest.raises(TypeError, match="exact DecisionV1"):
-        build_commit_bundle_v1(object())  # type: ignore[arg-type]
+        build_commit_bundle_v1(object())
 
 
 def test_recompute_bundle_root_rejects_non_bundle() -> None:
@@ -310,7 +324,7 @@ def _expected_effect_identity(
         + len(payload).to_bytes(8, "big")
         + payload
     )
-    return sha256_hex(preimage)
+    return cast(str, sha256_hex(preimage))
 
 
 def test_effect_identity_exact_framing_and_field_sensitivity() -> None:
@@ -359,19 +373,19 @@ def test_outbox_and_bundle_literal_golden_vectors() -> None:
     payload = canonical_json_bytes(project_owned_json(record.payload))
     bundle = _event_bundle()
 
-    assert receipt_root == "0xc723eddeb8de4109067f5faef0f43588c8c38bbe7d4922c3535a7cf3a23cf227"
+    assert receipt_root == "0x313b513e357566987f2fe882577ec75ceb60fda5e04bac5f9aa6d073edd9d380"
     assert payload.hex() == "7b22616d6f756e74223a372c226b696e64223a226f6e65227d"
     assert record.effect_identity == (
-        "0x4b6a29f9f762a6f8134ce1705b59913325c63b57b59d9c097b9c9820ad5f1a56"
+        "0x5e5b37c1e16c2e3f7f1fc1d883a908458772e04c5310d0f83fa5ab2f206e7899"
     )
     assert record.idempotency_key == (
-        "0x8a0cf6a529309dbf322743c52fbedb759a735ec1bc582a2aca05114c6f776b6f"
+        "0x460a6968d9d0b355371f59ee45db918ca8bc6ea6030953437e9889171ff26aaa"
     )
     assert bundle.bundle_root == (
-        "0x67fae2221b654ca27b4f9a0d49e25cc9df8894dbca290387466018744047409c"
+        "0x1d4eb10d44c5d3c95e4201be101d8749fd1ac0ef75073b1f45029c68ea6eb246"
     )
     assert sha256_hex(bundle.canonical_bundle_bytes) == (
-        "0xea62214083eae37f0945be812cdd09c6ee7c6a3fede83ae9830ebc8857d78104"
+        "0x8842ebfc2a61b4b1708b17dcfa3cc42be445cd091ce4f7a5d30c552969d07c16"
     )
 
 
@@ -426,3 +440,84 @@ def test_event_mutation_changes_effect_identity_and_bundle_root() -> None:
 
     assert first_plan.records[0].effect_identity != second_plan.records[0].effect_identity
     assert first_root != second_root
+
+
+def _anf_accept_with_value() -> tuple[AcceptV1, FCISAuthorityNormalFormV1]:
+    inputs = _exact_inputs()
+    occurrence = _source_occurrence(inputs)
+    evaluation = evaluate_source_bound_fcis_step_candidate_v1_for_test(occurrence)
+    base = evaluate_source_bound_fcis_decision_v1(
+        source_occurrence=occurrence,
+        budget=inputs["budget"],
+    )
+    assert type(base) is AcceptV1
+    anf = _authority_normal_form(evaluation, base, inputs["budget"])
+    decision = evaluate_source_bound_fcis_decision_with_anf_v1(
+        source_occurrence=occurrence,
+        budget=inputs["budget"],
+        authority_normal_form=anf,
+    )
+    assert type(decision) is AcceptV1
+    return decision, anf
+
+
+def _anf_accept() -> AcceptV1:
+    return _anf_accept_with_value()[0]
+
+
+def test_d04_anf_bundle_recomputes_decision_outbox_and_all_roots() -> None:
+    decision, anf = _anf_accept_with_value()
+    bundle = build_anf_bound_commit_bundle_v1(decision, anf)
+
+    assert type(bundle) is CommitBundleV1
+    assert bundle.decision is decision
+    assert bundle.authority_normal_form is anf
+    assert bundle.authority_normal_form_root == decision.receipt.binding.authority_normal_form_root
+    assert bundle.outbox_plan.authority_normal_form_root == bundle.authority_normal_form_root
+    assert recompute_anf_root_v1(bundle) == bundle.authority_normal_form_root
+    assert recompute_outbox_plan_v1(bundle) == bundle.outbox_plan
+    assert recompute_outbox_root_v1(bundle) == bundle.outbox_root
+    canonical_bytes, bundle_root = recompute_bundle_root_v1(bundle)
+    assert canonical_bytes == bundle.canonical_bundle_bytes
+    assert bundle_root == bundle.bundle_root
+    assert verify_anf_bound_commit_bundle_v1(bundle)
+
+
+def test_d04_anf_builder_rejects_legacy_unbound_decision() -> None:
+    result = build_anf_bound_commit_bundle_v1(_accept(), None)
+
+    assert type(result) is RejectV1
+    assert result.receipt.public_reason == "commit bundle derivation rejected"
+
+
+def test_d04_crossed_foreign_outbox_rejects_before_publication() -> None:
+    decision, anf = _anf_accept_with_value()
+    bundle = build_anf_bound_commit_bundle_v1(decision, anf)
+    foreign = build_commit_bundle_v1(_event_accept())
+
+    assert type(bundle) is CommitBundleV1
+    assert type(foreign) is CommitBundleV1
+    object.__setattr__(bundle, "outbox_plan", foreign.outbox_plan)
+
+    assert not verify_anf_bound_commit_bundle_v1(bundle)
+
+
+def test_d04_crossed_decision_rejects_before_publication() -> None:
+    decision, anf = _anf_accept_with_value()
+    bundle = build_anf_bound_commit_bundle_v1(decision, anf)
+    foreign = build_commit_bundle_v1(_event_accept())
+
+    assert type(bundle) is CommitBundleV1
+    assert type(foreign) is CommitBundleV1
+    object.__setattr__(bundle, "decision", foreign.decision)
+
+    assert not verify_anf_bound_commit_bundle_v1(bundle)
+
+
+def test_d04_foreign_anf_rejects_before_publication() -> None:
+    decision, anf = _anf_accept_with_value()
+    foreign = replace(anf, command_root="0x" + "99" * 32)
+
+    result = build_anf_bound_commit_bundle_v1(decision, foreign)
+
+    assert type(result) is RejectV1

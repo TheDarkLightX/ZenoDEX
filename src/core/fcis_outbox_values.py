@@ -43,6 +43,7 @@ class OutboxRecordSourceV1:
 @dataclass(frozen=True, slots=True)
 class OutboxPlanSourceV1:
     records: object
+    authority_normal_form_root: object = None
 
 
 def _is_digest_v1(value: object) -> bool:
@@ -89,6 +90,7 @@ class OutboxPlanV1:
     """Canonical, duplicate-free outbox claim data carrying no delivery authority."""
 
     records: tuple[OutboxRecordV1, ...]
+    authority_normal_form_root: str | None = None
 
     def __post_init__(self) -> None:
         if type(self.records) is not tuple or any(
@@ -106,6 +108,10 @@ class OutboxPlanV1:
         keys = tuple(record.idempotency_key for record in self.records)
         if len(keys) != len(set(keys)):
             raise ValueError("outbox idempotency keys must be unique")
+        if self.authority_normal_form_root is not None and not _is_digest_v1(
+            self.authority_normal_form_root
+        ):
+            raise TypeError("outbox ANF root must be a canonical digest or None")
 
 
 __all__ = (

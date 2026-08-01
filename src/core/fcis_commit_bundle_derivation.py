@@ -29,6 +29,10 @@ from .fcis_authority_admission import (
     admit_fcis_authority_claim_v1,
     encode_fcis_authority_claim_v1,
 )
+from .fcis_authority_normal_form_v1 import (
+    FCISAuthorityNormalFormV1,
+    canonical_authority_normal_form_root_v1,
+)
 from .fcis_commit_bundle_values import (
     FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1,
     CommitBundleClaimV1,
@@ -50,6 +54,7 @@ from .fcis_decision_values import (
     CommittedFailureClaimV1,
     CommittedFailureReceiptClaimV1,
 )
+from .fcis_m6_profile_ids import ANF_VERSION_V1
 from .fcis_outbox_values import (
     FCIS_OUTBOX_PLAN_SCHEMA_ID_V1,
     OutboxEffectKindV1,
@@ -82,12 +87,21 @@ class CommitBundleV1:
     _canonical_bundle_bytes: bytes
     _bundle_root: str
     _construction_token: InitVar[object]
+    authority_normal_form: FCISAuthorityNormalFormV1 | None = None
 
     def __post_init__(self, _construction_token: object) -> None:
         if _construction_token is not _COMMIT_BUNDLE_CONSTRUCTION_TOKEN_V1:
             raise TypeError("CommitBundleV1 requires controlled derivation")
         if type(self.decision) not in (AcceptV1, CommittedFailureV1):
             raise TypeError("bundle decision must be an exact committable decision")
+        binding_root = self.decision.receipt.binding.authority_normal_form_root
+        if binding_root is None:
+            if self.authority_normal_form is not None:
+                raise ValueError("legacy bundle cannot carry an ANF value")
+        elif type(self.authority_normal_form) is not FCISAuthorityNormalFormV1:
+            raise TypeError("ANF-bound bundle requires an exact ANF value")
+        elif canonical_authority_normal_form_root_v1(self.authority_normal_form) != binding_root:
+            raise ValueError("bundle ANF value does not match the decision receipt")
         if type(self.outbox_plan) is not OutboxPlanV1:
             raise TypeError("bundle outbox_plan must be exact")
         if type(self._canonical_bundle_bytes) is not bytes:
@@ -116,11 +130,11 @@ class CommitBundleV1:
             else FCIS_COMMITTED_FAILURE_RECEIPT_SCHEMA_ID_V1
         )
         _, root = _claim_root_v1(schema_id, self.decision.receipt)
-        return root
+        return cast(str, root)
 
     @property
     def expected_pre_root(self) -> str:
-        return self.decision.receipt.binding.pre_state_root
+        return cast(str, self.decision.receipt.binding.pre_state_root)
 
     @property
     def bundle_root(self) -> str:
@@ -130,6 +144,15 @@ class CommitBundleV1:
     def canonical_bundle_bytes(self) -> bytes:
         return self._canonical_bundle_bytes
 
+    @property
+    def authority_normal_form_root(self) -> str | None:
+        return cast(str | None, self.receipt.binding.authority_normal_form_root)
+
+    @property
+    def outbox_root(self) -> str:
+        _, root = _claim_root_v1(FCIS_OUTBOX_PLAN_SCHEMA_ID_V1, self.outbox_plan)
+        return cast(str, root)
+
 
 CommitBundleBuildResultV1: TypeAlias = CommitBundleV1 | RejectV1
 
@@ -137,7 +160,7 @@ CommitBundleBuildResultV1: TypeAlias = CommitBundleV1 | RejectV1
 def _raw32(digest_hex: str) -> bytes:
     """Convert a canonical lowercase 0x 32-byte digest to raw bytes."""
 
-    return hex_to_bytes_fixed(digest_hex, nbytes=32, name="digest")
+    return cast(bytes, hex_to_bytes_fixed(digest_hex, nbytes=32, name="digest"))
 
 
 def _u32_be(value: int) -> bytes:
@@ -174,14 +197,17 @@ def _effect_identity_preimage_v1(
           || u64_be(len(p)) || p
     """
 
-    return (
-        domain_sep_bytes(_EFFECT_IDENTITY_DOMAIN_SEP_V1, version=1)
-        + _raw32(receipt_root)
-        + _u32_be(index)
-        + _u32_be(len(kind_utf8))
-        + kind_utf8
-        + _u64_be(len(payload_bytes))
-        + payload_bytes
+    return cast(
+        bytes,
+        (
+            domain_sep_bytes(_EFFECT_IDENTITY_DOMAIN_SEP_V1, version=1)
+            + _raw32(receipt_root)
+            + _u32_be(index)
+            + _u32_be(len(kind_utf8))
+            + kind_utf8
+            + _u64_be(len(payload_bytes))
+            + payload_bytes
+        ),
     )
 
 
@@ -201,18 +227,21 @@ def _idempotency_preimage_v1(
           || raw32(effect_identity)
     """
 
-    return (
-        domain_sep_bytes(_IDEMPOTENCY_DOMAIN_SEP_V1, version=1)
-        + _raw32(receipt_root)
-        + _u32_be(index)
-        + _raw32(effect_identity)
+    return cast(
+        bytes,
+        (
+            domain_sep_bytes(_IDEMPOTENCY_DOMAIN_SEP_V1, version=1)
+            + _raw32(receipt_root)
+            + _u32_be(index)
+            + _raw32(effect_identity)
+        ),
     )
 
 
 def _canonical_event_payload_bytes(event: OwnedJsonObjectV1) -> bytes:
     """Encode one already-owned event payload using the repository JSON codec."""
 
-    return canonical_json_bytes(project_owned_json(event))
+    return cast(bytes, canonical_json_bytes(project_owned_json(event)))
 
 
 def _derive_outbox_record_sources_v1(
@@ -253,12 +282,16 @@ def _derive_outbox_record_sources_v1(
 def _derive_outbox_plan_v1(
     events: tuple[OwnedJsonObjectV1, ...] | None,
     receipt_root: str,
+    authority_normal_form_root: str | None = None,
 ) -> OutboxPlanV1:
     """Admit one same-decision outbox plan through the closed grammar."""
 
     event_tuple = () if events is None else events
     sources = _derive_outbox_record_sources_v1(event_tuple, receipt_root)
-    plan_source = OutboxPlanSourceV1(records=sources)
+    plan_source = OutboxPlanSourceV1(
+        records=sources,
+        authority_normal_form_root=authority_normal_form_root,
+    )
     admitted = admit_fcis_authority_claim_v1(FCIS_OUTBOX_PLAN_SCHEMA_ID_V1, plan_source)
     if type(admitted) is not AdmitOk or type(admitted.value) is not OutboxPlanV1:
         raise ValueError("controlled outbox plan admission failed")
@@ -310,6 +343,7 @@ def _derive_bundle_claim_v1(
         decision=projected,
         receipt_root=receipt_root,
         outbox_plan=outbox_plan,
+        authority_normal_form_root=decision.receipt.binding.authority_normal_form_root,
     )
     admitted = admit_fcis_authority_claim_v1(FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1, source)
     if type(admitted) is not AdmitOk or type(admitted.value) is not CommitBundleClaimV1:
@@ -322,7 +356,7 @@ def _derive_bundle_claim_v1(
 
 def _receipt_root_for_decision_v1(decision: AcceptV1) -> str:
     _, root = _claim_root_v1(FCIS_ACCEPTANCE_RECEIPT_SCHEMA_ID_V1, decision.receipt)
-    return root
+    return cast(str, root)
 
 
 def _committed_failure_receipt_root_v1(decision: CommittedFailureV1) -> str:
@@ -330,7 +364,7 @@ def _committed_failure_receipt_root_v1(decision: CommittedFailureV1) -> str:
         FCIS_COMMITTED_FAILURE_RECEIPT_SCHEMA_ID_V1,
         decision.receipt,
     )
-    return root
+    return cast(str, root)
 
 
 def _derive_bundle_root_v1(claim: object) -> tuple[bytes, str]:
@@ -349,16 +383,33 @@ def _derive_bundle_root_v1(claim: object) -> tuple[bytes, str]:
 
 def _build_bundle_v1(
     decision: AcceptV1 | CommittedFailureV1,
+    authority_normal_form: object | None = None,
 ) -> CommitBundleV1:
     """Derive one controlled commit bundle from one committable decision."""
 
+    binding_root = decision.receipt.binding.authority_normal_form_root
+    exact_authority_normal_form: FCISAuthorityNormalFormV1 | None
+    if binding_root is None:
+        if authority_normal_form is not None:
+            raise ValueError("legacy bundle cannot carry an ANF value")
+        exact_authority_normal_form = None
+    else:
+        if type(authority_normal_form) is not FCISAuthorityNormalFormV1:
+            raise TypeError("ANF-bound bundle requires an exact ANF value")
+        exact_authority_normal_form = cast(FCISAuthorityNormalFormV1, authority_normal_form)
+        if canonical_authority_normal_form_root_v1(exact_authority_normal_form) != binding_root:
+            raise ValueError("bundle ANF value does not match the decision receipt")
     events = decision.commit_plan.effects.settlement.events
     receipt_root = (
         _receipt_root_for_decision_v1(decision)
         if type(decision) is AcceptV1
         else _committed_failure_receipt_root_v1(decision)
     )
-    outbox_plan = _derive_outbox_plan_v1(events, receipt_root)
+    outbox_plan = _derive_outbox_plan_v1(
+        events,
+        receipt_root,
+        decision.receipt.binding.authority_normal_form_root,
+    )
     claim = _derive_bundle_claim_v1(decision, outbox_plan)
     canonical_bytes, bundle_root = _derive_bundle_root_v1(claim)
     return CommitBundleV1(
@@ -367,6 +418,7 @@ def _build_bundle_v1(
         canonical_bytes,
         bundle_root,
         _COMMIT_BUNDLE_CONSTRUCTION_TOKEN_V1,
+        exact_authority_normal_form,
     )
 
 
@@ -403,13 +455,94 @@ def recompute_outbox_plan_v1(bundle: CommitBundleV1) -> OutboxPlanV1:
         raise TypeError("outbox recomputation requires an exact CommitBundleV1")
     events = bundle.decision.commit_plan.effects.settlement.events
     receipt_root = bundle.receipt_root
-    return _derive_outbox_plan_v1(events, receipt_root)
+    return _derive_outbox_plan_v1(
+        events,
+        receipt_root,
+        bundle.authority_normal_form_root,
+    )
+
+
+def build_anf_bound_commit_bundle_v1(
+    decision: DecisionV1,
+    authority_normal_form: object,
+) -> CommitBundleBuildResultV1:
+    """Build a bundle only when the decision carries the pinned ANF identity."""
+
+    if type(decision) is RejectV1:
+        return decision
+    if type(decision) not in (AcceptV1, CommittedFailureV1):
+        raise TypeError("build_anf_bound_commit_bundle_v1 requires an exact DecisionV1")
+    binding = decision.receipt.binding
+    if (
+        binding.authority_normal_form_version != ANF_VERSION_V1
+        or binding.authority_normal_form_root is None
+    ):
+        return _bundle_derivation_reject_v1(decision)
+    try:
+        return _build_bundle_v1(decision, authority_normal_form)
+    except (OverflowError, TypeError, ValueError):
+        return _bundle_derivation_reject_v1(decision)
+
+
+def recompute_anf_root_v1(bundle: CommitBundleV1) -> str:
+    """Recompute the ANF identity retained by the exact decision receipt."""
+
+    if type(bundle) is not CommitBundleV1:
+        raise TypeError("ANF root recomputation requires an exact CommitBundleV1")
+    binding = bundle.decision.receipt.binding
+    if binding.authority_normal_form_version != ANF_VERSION_V1:
+        raise ValueError("bundle does not carry the pinned ANF version")
+    exact_anf = bundle.authority_normal_form
+    if type(exact_anf) is not FCISAuthorityNormalFormV1:
+        raise ValueError("bundle does not retain an exact ANF value")
+    root = canonical_authority_normal_form_root_v1(exact_anf)
+    if root != binding.authority_normal_form_root:
+        raise ValueError("recomputed ANF root does not match the decision receipt")
+    return cast(str, root)
+
+
+def recompute_outbox_root_v1(bundle: CommitBundleV1) -> str:
+    """Recompute the outbox root from the same decision as the bundle."""
+
+    if type(bundle) is not CommitBundleV1:
+        raise TypeError("outbox root recomputation requires an exact CommitBundleV1")
+    plan = recompute_outbox_plan_v1(bundle)
+    _, root = _claim_root_v1(FCIS_OUTBOX_PLAN_SCHEMA_ID_V1, plan)
+    return cast(str, root)
+
+
+def verify_anf_bound_commit_bundle_v1(bundle: object) -> bool:
+    """Fail closed unless ANF, decision, outbox, and bundle roots agree."""
+
+    if type(bundle) is not CommitBundleV1:
+        return False
+    exact_bundle = bundle
+    try:
+        anf_root = recompute_anf_root_v1(exact_bundle)
+        recomputed_outbox = recompute_outbox_plan_v1(exact_bundle)
+        if recomputed_outbox != exact_bundle.outbox_plan:
+            return False
+        if exact_bundle.outbox_plan.authority_normal_form_root != anf_root:
+            return False
+        if recompute_outbox_root_v1(exact_bundle) != exact_bundle.outbox_root:
+            return False
+        canonical_bytes, bundle_root = recompute_bundle_root_v1(exact_bundle)
+        return (
+            canonical_bytes == exact_bundle.canonical_bundle_bytes
+            and bundle_root == exact_bundle.bundle_root
+        )
+    except (AttributeError, OverflowError, TypeError, ValueError):
+        return False
 
 
 __all__ = (
     "CommitBundleBuildResultV1",
     "CommitBundleV1",
     "build_commit_bundle_v1",
+    "build_anf_bound_commit_bundle_v1",
     "recompute_bundle_root_v1",
+    "recompute_anf_root_v1",
     "recompute_outbox_plan_v1",
+    "recompute_outbox_root_v1",
+    "verify_anf_bound_commit_bundle_v1",
 )

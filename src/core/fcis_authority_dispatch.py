@@ -409,14 +409,22 @@ def _construct_outbox_or_bundle_record(
             cast(OwnedMapV1[str, object], _field(values, 3, "payload")),
             cast(str, _field(values, 4, "idempotency_key")),
         )
-    if tag is StateRecordTagV1.FCIS_OUTBOX_PLAN and len(values) == 1:
-        return OutboxPlanV1(cast(tuple[OutboxRecordV1, ...], _field(values, 0, "records")))
-    if tag is StateRecordTagV1.FCIS_COMMIT_BUNDLE and len(values) == 4:
+    if tag is StateRecordTagV1.FCIS_OUTBOX_PLAN and len(values) in (1, 2):
+        return OutboxPlanV1(
+            cast(tuple[OutboxRecordV1, ...], _field(values, 0, "records")),
+            cast(str | None, _field(values, 1, "authority_normal_form_root"))
+            if len(values) == 2
+            else None,
+        )
+    if tag is StateRecordTagV1.FCIS_COMMIT_BUNDLE and len(values) in (4, 5):
         return CommitBundleClaimV1(
             cast(str, _field(values, 0, "expected_pre_root")),
             cast(AcceptClaimV1 | CommittedFailureClaimV1, _field(values, 1, "decision")),
             cast(str, _field(values, 2, "receipt_root")),
             cast(OutboxPlanV1, _field(values, 3, "outbox_plan")),
+            cast(str | None, _field(values, 4, "authority_normal_form_root"))
+            if len(values) == 5
+            else None,
         )
     raise ValueError("unsupported M5 outbox or bundle record")
 
@@ -687,13 +695,17 @@ def _project_decision_or_bundle_value(
             "idempotency_key": value.idempotency_key,
         }
     if _is_exact_type(value, OutboxPlanV1):
-        return {"records": child(value.records)}
+        return {
+            "records": child(value.records),
+            "authority_normal_form_root": value.authority_normal_form_root,
+        }
     if _is_exact_type(value, CommitBundleClaimV1):
         return {
             "expected_pre_root": value.expected_pre_root,
             "decision": child(value.decision),
             "receipt_root": value.receipt_root,
             "outbox_plan": child(value.outbox_plan),
+            "authority_normal_form_root": value.authority_normal_form_root,
         }
     raise TypeError("unsupported exact M5 decision or bundle projection")
 

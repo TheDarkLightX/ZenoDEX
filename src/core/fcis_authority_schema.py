@@ -459,6 +459,7 @@ OUTBOX_PLAN_SCHEMA_V1 = RecordOf(
                 MAX_FCIS_OUTBOX_RECORDS_V1,
             ),
         ),
+        _field("authority_normal_form_root", OPTIONAL_DIGEST_V1),
     ),
 )
 COMMIT_BUNDLE_SCHEMA_V1 = RecordOf(
@@ -468,6 +469,7 @@ COMMIT_BUNDLE_SCHEMA_V1 = RecordOf(
         _field("decision", COMMITTABLE_DECISION_SCHEMA_V1),
         _field("receipt_root", DIGEST_V1),
         _field("outbox_plan", OUTBOX_PLAN_SCHEMA_V1),
+        _field("authority_normal_form_root", OPTIONAL_DIGEST_V1),
     ),
 )
 

@@ -511,7 +511,7 @@ def test_outbox_indices_and_idempotency_keys_are_canonical() -> None:
     assert rejected.code is AdmitCode.DOMAIN_INVARIANT
 
 
-def test_commit_bundle_claim_is_minimal_and_carries_no_derived_authority() -> None:
+def test_commit_bundle_claim_carries_explicit_anf_root() -> None:
     bundle = _admit(
         FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1,
         _sources()[FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1],
@@ -522,6 +522,7 @@ def test_commit_bundle_claim_is_minimal_and_carries_no_derived_authority() -> No
         "decision",
         "receipt_root",
         "outbox_plan",
+        "authority_normal_form_root",
     )
     assert bundle.next_state is bundle.decision.next_state
     assert bundle.commit_plan is bundle.decision.commit_plan

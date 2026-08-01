@@ -30,6 +30,7 @@ class CommitBundleSourceV1:
     decision: object
     receipt_root: object
     outbox_plan: object
+    authority_normal_form_root: object = None
 
 
 def _is_digest_v1(value: object) -> bool:
@@ -50,6 +51,7 @@ class CommitBundleClaimV1:
     decision: AcceptClaimV1 | CommittedFailureClaimV1
     receipt_root: str
     outbox_plan: OutboxPlanV1
+    authority_normal_form_root: str | None = None
 
     def __post_init__(self) -> None:
         if not _is_digest_v1(self.expected_pre_root):
@@ -62,6 +64,11 @@ class CommitBundleClaimV1:
             raise TypeError("bundle outbox_plan must be exact")
         if self.expected_pre_root != self.receipt.binding.pre_state_root:
             raise ValueError("bundle expected root must equal the receipt pre-root")
+        receipt_anf_root = self.receipt.binding.authority_normal_form_root
+        if self.authority_normal_form_root != receipt_anf_root:
+            raise ValueError("bundle ANF root must equal the decision receipt ANF root")
+        if self.outbox_plan.authority_normal_form_root != self.authority_normal_form_root:
+            raise ValueError("bundle ANF root must equal the outbox ANF root")
 
     @property
     def next_state(self) -> FCISCommittedStateV1:
