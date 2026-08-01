@@ -1,0 +1,41 @@
+{
+  "schema_version": "zenodex.fcis.m6.i03.safe-leasing.v1",
+  "task_id": "I03",
+  "request_fields": [
+    "effect_id",
+    "worker_id",
+    "now",
+    "lease_duration"
+  ],
+  "derived_fields": [
+    "lease_expiry",
+    "attempt_count"
+  ],
+  "claimable_states": [
+    "PENDING",
+    "LEASED_EXPIRED"
+  ],
+  "nonclaimable_states": [
+    "LEASED_ACTIVE",
+    "DELIVERED",
+    "ACKED",
+    "FAILED"
+  ],
+  "transition_rules": [
+    "lease_expiry = now + lease_duration with checked u32 arithmetic",
+    "expired LEASED rows are reclassified to PENDING in the same transaction",
+    "a successful claim changes PENDING to LEASED exactly once",
+    "attempt_count increases by one and rejects u32 exhaustion",
+    "semantic effect_id and payload fields are read from the committed atom",
+    "a lease timeout cannot synthesize a new semantic effect ID",
+    "active leases reject another worker without changing durable state"
+  ],
+  "transaction_rule": "BEGIN IMMEDIATE plus conditional status/owner/expiry/attempt CAS",
+  "reaper_rule": "reclaim_expired_outbox_leases returns expired rows to PENDING atomically",
+  "nonclaims": [
+    "no destination delivery or deduplication",
+    "no acknowledgment provenance or lost-ack recovery",
+    "no production datastore or runtime mounting",
+    "M6 remains unmounted and non-promotable"
+  ]
+}

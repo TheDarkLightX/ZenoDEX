@@ -207,6 +207,74 @@ class H02OutboxDeliveryRowV1:
             raise H02Error("only an acked outbox row may carry an acknowledgment root")
 
 
+class H02LeaseCodeV1(Enum):
+    """Typed outcomes for the isolated outbox lease port."""
+
+    ACQUIRED = "lease_acquired"
+    NOT_AVAILABLE = "lease_not_available"
+    INVALID_REQUEST = "invalid_request"
+    REOPEN_REJECTED = "reopen_rejected"
+    SQL_ROLLBACK = "sql_rollback"
+
+
+@dataclass(frozen=True, slots=True)
+class H02OutboxLeaseRequestV1:
+    """A worker request using explicit logical time and a committed effect ID."""
+
+    effect_id: str
+    worker_id: str
+    now: int
+    lease_duration: int
+
+    def __post_init__(self) -> None:
+        _digest(self.effect_id, "effect_id")
+        _bounded_text(self.worker_id, "worker_id")
+        _exact_u32(self.now, "now")
+        _exact_u32(self.lease_duration, "lease_duration")
+        if self.lease_duration == 0:
+            raise H02Error("lease duration must be positive")
+        if self.now > U32_MAX - self.lease_duration:
+            raise H02Error("lease expiry overflows the u32 domain")
+
+    @property
+    def lease_expiry(self) -> int:
+        return self.now + self.lease_duration
+
+
+@dataclass(frozen=True, slots=True)
+class H02OutboxLeaseV1:
+    """A verifier-independent lease over one canonical committed effect."""
+
+    effect: dra.OutboxEffectV1
+    worker_id: str
+    lease_expiry: int
+    attempt_count: int
+
+    def __post_init__(self) -> None:
+        if type(self.effect) is not dra.OutboxEffectV1:
+            raise H02Error("leased effect has the wrong exact type")
+        _bounded_text(self.worker_id, "worker_id")
+        _exact_u32(self.lease_expiry, "lease_expiry")
+        _exact_u32(self.attempt_count, "attempt_count")
+        if self.attempt_count == 0:
+            raise H02Error("leased effect must have a positive attempt count")
+
+
+@dataclass(frozen=True, slots=True)
+class H02LeaseRejectV1:
+    code: H02LeaseCodeV1
+    path: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if type(self.code) is not H02LeaseCodeV1:
+            raise H02Error("lease rejection code has the wrong exact type")
+        if type(self.path) is not tuple or any(type(item) is not str for item in self.path):
+            raise H02Error("lease rejection path has the wrong exact type")
+
+
+H02LeaseResultV1: TypeAlias = H02OutboxLeaseV1 | H02LeaseRejectV1
+
+
 def _framed_hash(domain: str, fields: tuple[bytes, ...]) -> str:
     digest = hashlib.sha256()
     domain_bytes = domain.encode("ascii")
@@ -1044,6 +1112,234 @@ def read_outbox_delivery_rows(
     return rows
 
 
+def _lease_reject(code: H02LeaseCodeV1, *path: str) -> H02LeaseRejectV1:
+    return H02LeaseRejectV1(code=code, path=tuple(path))
+
+
+def _lease_rollback(
+    connection: sqlite3.Connection,
+    code: H02LeaseCodeV1,
+    *path: str,
+) -> H02LeaseRejectV1:
+    connection.rollback()
+    return _lease_reject(code, *path)
+
+
+def _effect_and_delivery(
+    state: SQLiteStateV1,
+    delivery_rows: tuple[H02OutboxDeliveryRowV1, ...],
+    effect_id: str,
+) -> tuple[dra.OutboxEffectV1, H02OutboxDeliveryRowV1] | None:
+    effects = {
+        effect.effect_id: effect for atom in state.snapshot.atom_rows for effect in atom.outbox
+    }
+    deliveries = {row.effect_id: row for row in delivery_rows}
+    effect = effects.get(effect_id)
+    delivery = deliveries.get(effect_id)
+    if effect is None or delivery is None:
+        return None
+    return effect, delivery
+
+
+def reclaim_expired_outbox_leases(
+    connection: sqlite3.Connection,
+    now: object,
+) -> int:
+    """Return expired operational leases to PENDING in one transaction."""
+
+    if type(connection) is not sqlite3.Connection:
+        raise H02Error("connection has the wrong exact type")
+    _exact_u32(now, "now")
+    exact_now = cast(int, now)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        state = read_state(connection)
+        cursor = connection.execute(
+            """
+            UPDATE publication_outbox
+            SET status = 'PENDING', lease_owner = NULL, lease_expiry = NULL
+            WHERE status = 'LEASED'
+              AND lease_owner IS NOT NULL
+              AND lease_expiry IS NOT NULL
+              AND lease_expiry <= ?
+            """,
+            (exact_now,),
+        )
+        read_outbox_delivery_rows(connection, state.snapshot)
+        connection.commit()
+        return cursor.rowcount
+    except H02StorageError:
+        connection.rollback()
+        raise
+    except (H02Error, sqlite3.Error) as exc:
+        connection.rollback()
+        if isinstance(exc, H02Error):
+            raise
+        raise H02StorageError("expired lease reaping failed") from exc
+
+
+def acquire_outbox_lease(
+    connection: sqlite3.Connection,
+    request: object,
+) -> H02LeaseResultV1:
+    """Atomically claim one committed effect without changing its identity."""
+
+    if type(connection) is not sqlite3.Connection:
+        return _lease_reject(H02LeaseCodeV1.INVALID_REQUEST, "connection")
+    if type(request) is not H02OutboxLeaseRequestV1:
+        return _lease_reject(H02LeaseCodeV1.INVALID_REQUEST, "request")
+    exact_request = request
+    try:
+        exact_request.__post_init__()
+    except (
+        AttributeError,
+        H02Error,
+        TypeError,
+        ValueError,
+        ArithmeticError,
+        OverflowError,
+        RecursionError,
+    ):
+        return _lease_reject(H02LeaseCodeV1.INVALID_REQUEST, "request")
+
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+    except sqlite3.Error:
+        return _lease_reject(H02LeaseCodeV1.SQL_ROLLBACK, "begin")
+
+    try:
+        state = read_state(connection)
+        delivery_rows = read_outbox_delivery_rows(connection, state.snapshot)
+        selected = _effect_and_delivery(state, delivery_rows, exact_request.effect_id)
+        if selected is None:
+            return _lease_rollback(
+                connection,
+                H02LeaseCodeV1.NOT_AVAILABLE,
+                "effect_id",
+            )
+        effect, delivery = selected
+        if delivery.status is H02OutboxStatusV1.LEASED:
+            if delivery.lease_owner is None or delivery.lease_expiry is None:
+                raise H02StorageError("leased row lost its lease binding")
+            if delivery.lease_expiry > exact_request.now:
+                return _lease_rollback(
+                    connection,
+                    H02LeaseCodeV1.NOT_AVAILABLE,
+                    "active_lease",
+                )
+            reclaimed = connection.execute(
+                """
+                UPDATE publication_outbox
+                SET status = 'PENDING', lease_owner = NULL, lease_expiry = NULL
+                WHERE effect_id = ?
+                  AND status = 'LEASED'
+                  AND lease_owner = ?
+                  AND lease_expiry = ?
+                  AND lease_expiry <= ?
+                """,
+                (
+                    exact_request.effect_id,
+                    delivery.lease_owner,
+                    delivery.lease_expiry,
+                    exact_request.now,
+                ),
+            )
+            if reclaimed.rowcount != 1:
+                return _lease_rollback(
+                    connection,
+                    H02LeaseCodeV1.NOT_AVAILABLE,
+                    "expired_lease_cas",
+                )
+            delivery_rows = read_outbox_delivery_rows(connection, state.snapshot)
+            selected = _effect_and_delivery(
+                state,
+                delivery_rows,
+                exact_request.effect_id,
+            )
+            if selected is None:
+                raise H02StorageError("reclaimed effect disappeared")
+            effect, delivery = selected
+        if delivery.status is not H02OutboxStatusV1.PENDING:
+            return _lease_rollback(
+                connection,
+                H02LeaseCodeV1.NOT_AVAILABLE,
+                "status",
+            )
+        if delivery.attempt_count == U32_MAX:
+            return _lease_rollback(
+                connection,
+                H02LeaseCodeV1.NOT_AVAILABLE,
+                "attempt_count",
+            )
+        next_attempt = delivery.attempt_count + 1
+        cursor = connection.execute(
+            """
+            UPDATE publication_outbox
+            SET status = 'LEASED', lease_owner = ?, lease_expiry = ?,
+                attempt_count = ?
+            WHERE effect_id = ?
+              AND status = 'PENDING'
+              AND lease_owner IS NULL
+              AND lease_expiry IS NULL
+              AND attempt_count = ?
+              AND ack_receipt_root IS NULL
+            """,
+            (
+                exact_request.worker_id,
+                exact_request.lease_expiry,
+                next_attempt,
+                exact_request.effect_id,
+                delivery.attempt_count,
+            ),
+        )
+        if cursor.rowcount != 1:
+            return _lease_rollback(
+                connection,
+                H02LeaseCodeV1.NOT_AVAILABLE,
+                "lease_cas",
+            )
+        updated_rows = read_outbox_delivery_rows(connection, state.snapshot)
+        updated = _effect_and_delivery(state, updated_rows, exact_request.effect_id)
+        if updated is None:
+            raise H02StorageError("leased effect disappeared")
+        updated_effect, updated_delivery = updated
+        if (
+            updated_effect != effect
+            or updated_delivery.status is not H02OutboxStatusV1.LEASED
+            or updated_delivery.lease_owner != exact_request.worker_id
+            or updated_delivery.lease_expiry != exact_request.lease_expiry
+            or updated_delivery.attempt_count != next_attempt
+        ):
+            raise H02StorageError("lease update does not match its canonical effect")
+        lease = H02OutboxLeaseV1(
+            effect=updated_effect,
+            worker_id=exact_request.worker_id,
+            lease_expiry=exact_request.lease_expiry,
+            attempt_count=next_attempt,
+        )
+        connection.commit()
+        return lease
+    except H02StorageError:
+        connection.rollback()
+        return _lease_reject(H02LeaseCodeV1.REOPEN_REJECTED, "state")
+    except (
+        H02Error,
+        dra.DurableRetractionError,
+        AttributeError,
+        TypeError,
+        ValueError,
+        ArithmeticError,
+        OverflowError,
+        IndexError,
+        sqlite3.IntegrityError,
+    ):
+        connection.rollback()
+        return _lease_reject(H02LeaseCodeV1.SQL_ROLLBACK, "transaction")
+    except sqlite3.Error:
+        connection.rollback()
+        return _lease_reject(H02LeaseCodeV1.SQL_ROLLBACK, "sqlite")
+
+
 def read_state(connection: sqlite3.Connection) -> SQLiteStateV1:
     if type(connection) is not sqlite3.Connection:
         raise H02Error("connection has the wrong exact type")
@@ -1261,7 +1557,12 @@ __all__ = (
     "H02CommitV1",
     "H02Error",
     "H02OutboxDeliveryRowV1",
+    "H02OutboxLeaseRequestV1",
+    "H02OutboxLeaseV1",
     "H02OutboxStatusV1",
+    "H02LeaseCodeV1",
+    "H02LeaseRejectV1",
+    "H02LeaseResultV1",
     "H02RejectV1",
     "H02ResultV1",
     "SQLitePublicationRequestV1",
@@ -1269,7 +1570,9 @@ __all__ = (
     "create_connection",
     "create_database",
     "initialize_database",
+    "acquire_outbox_lease",
     "publish_atom",
+    "reclaim_expired_outbox_leases",
     "read_outbox_delivery_rows",
     "read_state",
 )
