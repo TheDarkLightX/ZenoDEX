@@ -1,0 +1,31 @@
+{
+  "schema": "zenodex/fcis/m6/k04/topology-anchor-config/v1",
+  "profile_id": "research-unmounted-k04-pinned-topology",
+  "expected_d05_inventory_root": "95fbc474cded934607e63cd0a3af6a7e78514033278818218f925ce0980870fb",
+  "expected_d05_topology_root": "9413e99452edf6106089600e48a214e2802a3b030c3697c0204460c94f579214",
+  "expected_k01_entrypoint_inventory_root": "ada2cfe46294edb82bd1504e5184b24bb64077c3fe5e3d5497752905422fbf63",
+  "unique_port_id": "fcis/m6/unique-atomic-commit-port/v1",
+  "expected_publisher_ids": [
+    "api_http_ingress",
+    "autotrader_external_api",
+    "background_outbox_delivery",
+    "durable_recovery_worker",
+    "durable_state_adapter",
+    "entitlement_migration_worker",
+    "governance_administrator",
+    "legacy_fcis_runtime",
+    "operator_cli",
+    "outbox_lease_worker",
+    "perps_external_api",
+    "proof_verifier",
+    "zusd_api",
+    "zusd_monetary_bridge",
+    "zusd_monetary_wallet_api"
+  ],
+  "pinned_topology_anchor_root": "60c11a0b9f694712abb452434481105f63c8576f1897994fa745bed0f42e0577",
+  "nonclaims": [
+    "The D05 and K01 roots are reviewed upstream expectations, not runtime certificates.",
+    "The K04 root does not prove deployment reachability or complete production publisher coverage.",
+    "No topology anchor authorizes a mounted caller, datastore, migration, or value movement."
+  ]
+}
