@@ -1,0 +1,71 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "K05",
+  "base_sha": "a0d651d6bddf0b6f4e59c07a1085ccd489ed072e",
+  "source_head_sha": "edca73303b2f8201483c35dfee55ed84752e650c",
+  "source_head_tree": "69ee9ed990a95a69727809870972cb78219a3351",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_m6_k05_bypass_mutants.py",
+    "experiments/fcis_m6_k05_bypass_mutation_check.py",
+    "tests/tools/test_fcis_m6_k05_bypass_mutation.py",
+    "docs/research/m6_tasks/FCIS_M6_K05_BYPASS_MUTATION_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_K05_PLAN.md",
+    "docs/research/m6_tasks/TASK_K05_REPORT.md",
+    "docs/research/m6_tasks/TASK_K05_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_K05_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_m6_k05_bypass_mutants.py experiments/fcis_m6_k05_bypass_mutation_check.py tests/tools/test_fcis_m6_k05_bypass_mutation.py",
+    "python3 -m ruff check src/core/fcis_m6_k05_bypass_mutants.py experiments/fcis_m6_k05_bypass_mutation_check.py tests/tools/test_fcis_m6_k05_bypass_mutation.py",
+    "python3 -m ruff format --check src/core/fcis_m6_k05_bypass_mutants.py experiments/fcis_m6_k05_bypass_mutation_check.py tests/tools/test_fcis_m6_k05_bypass_mutation.py",
+    "python3 -m mypy --strict src/core/fcis_m6_k05_bypass_mutants.py experiments/fcis_m6_k05_bypass_mutation_check.py tests/tools/test_fcis_m6_k05_bypass_mutation.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/tools/test_fcis_m6_k05_bypass_mutation.py",
+    "python3 experiments/fcis_m6_k05_bypass_mutation_check.py",
+    "python3 tools/check_fcis_m6_k03_static_no_bypass.py",
+    "python3 tools/build_fcis_m6_k04_topology_anchor.py --check",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K05",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_K05_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "src/core/fcis_m6_k05_bypass_mutants.py": "1bcc1b54f311a7e2fc266e3c62e67a561d179521bed1cedfdd206e285a0104a2",
+    "experiments/fcis_m6_k05_bypass_mutation_check.py": "b05828d30d277d1c3a47f1823c51cfb8b1cfbc90dcf420410c234d5499d16a06",
+    "tests/tools/test_fcis_m6_k05_bypass_mutation.py": "872e23359a938d57b959c5b2aa903b0023524b975ece49af5a1a87539daaf23d",
+    "docs/research/m6_tasks/FCIS_M6_K05_BYPASS_MUTATION_SCHEMA_V1.md": "0500d9096ff084c88690b8d9b488ee98d6ba509c72056f18450b42e484d3f824",
+    "docs/research/m6_tasks/TASK_K05_PLAN.md": "5a501efe3c40905883f77d978365b921e48bd39394eab6c8c9dde1c808575571"
+  },
+  "results": {
+    "entrypoint_count": "15",
+    "mutant_kinds_per_entrypoint": "6",
+    "total_mutants": "90",
+    "killed_mutants": "90",
+    "current_root_cas": "pass; forged expected head rejected as STALE_HEAD",
+    "focused_tests": "pass; 2 passed",
+    "implementation_commit": "edca73303b2f8201483c35dfee55ed84752e650c",
+    "implementation_tree": "69ee9ed990a95a69727809870972cb78219a3351",
+    "implementation_parent": "a0d651d6bddf0b6f4e59c07a1085ccd489ed072e"
+  },
+  "mutants": [
+    "return success without commit",
+    "direct state write",
+    "direct outbox write",
+    "skip proof context",
+    "skip current-root CAS",
+    "use legacy writer"
+  ],
+  "nonclaims": [
+    "K05 is a bounded model matrix over reviewed K01 identities, not a mounted source-to-source mutation runner.",
+    "K05 does not prove dynamic reachability, datastore enforcement, deployment inclusion, or legacy sealing.",
+    "No mounted caller, authority switch, deployment, migration, or value movement is claimed.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
