@@ -1,1 +1,28 @@
-{"schema_version":"zenodex.fcis.m6.d04.anf-bundle-outbox.v1","anf_root":"0xb55b6560d00eace98a04119f35df3d256f26be510299845b8d1655ef915c919c","decision_receipt_root":"0xd955702494c885d179750b92df711e47be1a52d58218855f1c3156520797130a","outbox_root":"0xf08adde03a8f239cba555525c23809d99b5f8d3d62f4ed298a3dedf827528fd5","bundle_root":"0xc4867b171856122375350694f9ecb27341fb2d0e51d2b8d13e8f5c8125debcac","bundle_bytes_sha256":"0xe34fc3cee259db69b12625c88a7b44c1e8239d7702684df47ec803a11443814a","outbox_record_count":0,"expected":{"decision_identity_retained":true,"anf_root_retained_in_outbox":true,"receipt_root_recomputes":true,"outbox_root_recomputes":true,"bundle_root_recomputes":true,"crossed_outbox_rejected":true,"crossed_decision_rejected":true,"foreign_anf_rejected":true}}
+{
+  "schema_version": "zenodex.fcis.m6.d04.anf-bundle-outbox.v2",
+  "outbox_schema_id": "zenodex/fcis/outbox-plan/v2",
+  "bundle_schema_id": "zenodex/fcis/commit-bundle/v2",
+  "anf_root": "0xb55b6560d00eace98a04119f35df3d256f26be510299845b8d1655ef915c919c",
+  "decision_receipt_root": "0xd955702494c885d179750b92df711e47be1a52d58218855f1c3156520797130a",
+  "outbox_root": "0xb11f4139cf327a3029fb2a789c7e5e8157344c28b071b41bf3ce8e943d659858",
+  "bundle_root": "0x7e6a1f04bb04e514c8fde2b2419845382ab7e2fabbbfd68da2a371f946bed9e1",
+  "bundle_bytes_sha256": "0xe34fc3cee259db69b12625c88a7b44c1e8239d7702684df47ec803a11443814a",
+  "outbox_record_count": 0,
+  "legacy_outbox_root": "0xf7ac577051aaac3bf3704a9a699c2174235c262c62716c1663b792d32cacc0e9",
+  "legacy_bundle_root": "0x0626a082ff542b69fd1a14f9384dd1b5aa54025633a460de37dd372416827ee0",
+  "legacy_bundle_bytes_sha256": "0xfdec6cd51d03e5384a282ab967b32026791c26672548fa70ff2c208e520071c1",
+  "expected": {
+    "decision_identity_retained": true,
+    "anf_root_retained_in_outbox": true,
+    "receipt_root_recomputes": true,
+    "outbox_root_recomputes": true,
+    "bundle_root_recomputes": true,
+    "crossed_outbox_rejected": true,
+    "crossed_decision_rejected": true,
+    "foreign_anf_rejected": true,
+    "valid_reference_publication": true,
+    "legacy_v1_canonical_preserved": true,
+    "corrupted_anf_rejected_at_commit": true,
+    "stored_corrupted_anf_rejected": true
+  }
+}

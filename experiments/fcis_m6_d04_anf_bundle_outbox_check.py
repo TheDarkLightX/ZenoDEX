@@ -17,21 +17,37 @@ from src.core.fcis_commit_bundle_derivation import (
     recompute_outbox_root_v1,
     verify_anf_bound_commit_bundle_v1,
 )
+from src.core.fcis_commit_bundle_values import (
+    FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1,
+    FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2,
+)
+from src.core.fcis_commit_reference import ReferenceCommitStatusV1, reference_commit_v1
 from src.core.fcis_decision_derivation import (
     AcceptV1,
     RejectV1,
     acceptance_receipt_root_v1,
 )
+from src.core.fcis_outbox_values import (
+    FCIS_OUTBOX_PLAN_SCHEMA_ID_V1,
+    FCIS_OUTBOX_PLAN_SCHEMA_ID_V2,
+    OutboxPlanV1,
+    OutboxPlanV2,
+)
 from src.state.canonical import sha256_hex
 from tests.core.test_fcis_commit_bundle_derivation import _anf_accept_with_value, _event_accept
+from tests.core.test_fcis_commit_reference import _store_from_pre_state
 
 _VECTOR_PATH = Path("docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json")
 
 
 def main() -> int:
     vector = cast(dict[str, Any], json.loads(_VECTOR_PATH.read_text(encoding="utf-8")))
-    if vector["schema_version"] != "zenodex.fcis.m6.d04.anf-bundle-outbox.v1":
+    if vector["schema_version"] != "zenodex.fcis.m6.d04.anf-bundle-outbox.v2":
         raise AssertionError("D04 schema version drift")
+    if vector["outbox_schema_id"] != FCIS_OUTBOX_PLAN_SCHEMA_ID_V2:
+        raise AssertionError("D04 outbox schema identity drift")
+    if vector["bundle_schema_id"] != FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2:
+        raise AssertionError("D04 bundle schema identity drift")
     expected = cast(dict[str, Any], vector["expected"])
     decision, anf = _anf_accept_with_value()
     if type(decision) is not AcceptV1:
@@ -39,6 +55,12 @@ def main() -> int:
     bundle = build_anf_bound_commit_bundle_v1(decision, anf)
     if type(bundle) is not CommitBundleV1:
         raise AssertionError("D04 ANF-bound bundle rejected")
+    if type(bundle.outbox_plan) is not OutboxPlanV2:
+        raise AssertionError("D04 ANF-bound outbox did not use V2")
+    if bundle.outbox_schema_id != FCIS_OUTBOX_PLAN_SCHEMA_ID_V2:
+        raise AssertionError("D04 ANF-bound outbox schema projection drift")
+    if bundle.bundle_schema_id != FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2:
+        raise AssertionError("D04 ANF-bound bundle schema projection drift")
     decision_identity_retained = bundle.decision is decision
     if decision_identity_retained is not expected["decision_identity_retained"]:
         raise AssertionError("D04 bundle did not retain exact decision")
@@ -78,6 +100,62 @@ def main() -> int:
         raise AssertionError("D04 outbox cardinality drift")
     if not verify_anf_bound_commit_bundle_v1(bundle):
         raise AssertionError("D04 valid bundle failed verification")
+
+    valid_publication = reference_commit_v1(_store_from_pre_state(), bundle)
+    valid_reference_publication = valid_publication.status is ReferenceCommitStatusV1.PUBLISHED
+    if valid_reference_publication is not expected["valid_reference_publication"]:
+        raise AssertionError("D04 valid reference publication drift")
+
+    legacy = build_commit_bundle_v1(_event_accept())
+    if type(legacy) is not CommitBundleV1 or type(legacy.outbox_plan) is not OutboxPlanV1:
+        raise AssertionError("D04 legacy V1 fixture drift")
+    legacy_v1_canonical_preserved = (
+        legacy.outbox_schema_id == FCIS_OUTBOX_PLAN_SCHEMA_ID_V1
+        and legacy.bundle_schema_id == FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1
+        and legacy.outbox_root == vector["legacy_outbox_root"]
+        and legacy.bundle_root == vector["legacy_bundle_root"]
+        and sha256_hex(legacy.canonical_bundle_bytes) == vector["legacy_bundle_bytes_sha256"]
+    )
+    if legacy_v1_canonical_preserved is not expected["legacy_v1_canonical_preserved"]:
+        raise AssertionError("D04 legacy V1 canonical identity changed")
+
+    corrupted_decision, corrupted_anf = _anf_accept_with_value()
+    corrupted_bundle = build_anf_bound_commit_bundle_v1(corrupted_decision, corrupted_anf)
+    if type(corrupted_bundle) is not CommitBundleV1:
+        raise AssertionError("D04 corrupted fixture bundle rejected too early")
+    object.__setattr__(
+        corrupted_bundle,
+        "authority_normal_form",
+        replace(corrupted_anf, command_root="0x" + "99" * 32),
+    )
+    corrupted_result = reference_commit_v1(_store_from_pre_state(), corrupted_bundle)
+    corrupted_anf_rejected_at_commit = (
+        corrupted_result.status is ReferenceCommitStatusV1.INVALID
+        and corrupted_result.store.publications == ()
+    )
+    if corrupted_anf_rejected_at_commit is not expected["corrupted_anf_rejected_at_commit"]:
+        raise AssertionError("D04 commit port accepted a corrupted retained ANF")
+
+    stored_decision, stored_anf = _anf_accept_with_value()
+    stored_bundle = build_anf_bound_commit_bundle_v1(stored_decision, stored_anf)
+    if type(stored_bundle) is not CommitBundleV1:
+        raise AssertionError("D04 stored fixture bundle rejected")
+    stored_publication = reference_commit_v1(_store_from_pre_state(), stored_bundle)
+    if stored_publication.status is not ReferenceCommitStatusV1.PUBLISHED:
+        raise AssertionError("D04 stored fixture did not publish")
+    object.__setattr__(
+        stored_publication.store.publications[0].bundle,
+        "authority_normal_form",
+        replace(stored_anf, command_root="0x" + "99" * 32),
+    )
+    retry_decision, retry_anf = _anf_accept_with_value()
+    retry_bundle = build_anf_bound_commit_bundle_v1(retry_decision, retry_anf)
+    if type(retry_bundle) is not CommitBundleV1:
+        raise AssertionError("D04 retry fixture bundle rejected")
+    stored_result = reference_commit_v1(stored_publication.store, retry_bundle)
+    stored_corrupted_anf_rejected = stored_result.status is ReferenceCommitStatusV1.INVALID
+    if stored_corrupted_anf_rejected is not expected["stored_corrupted_anf_rejected"]:
+        raise AssertionError("D04 store validation accepted a corrupted retained ANF")
 
     foreign_anf = replace(anf, command_root="0x" + "99" * 32)
     foreign_anf_result = build_anf_bound_commit_bundle_v1(decision, foreign_anf)

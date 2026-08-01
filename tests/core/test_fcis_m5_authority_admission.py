@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from typing import cast
 
 import pytest
@@ -14,8 +14,11 @@ from src.core.fcis_authority_admission import (
 from src.core.fcis_authority_schema import FCIS_AUTHORITY_RECORD_REGISTRATIONS_V1
 from src.core.fcis_commit_bundle_values import (
     FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1,
+    FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2,
     CommitBundleClaimV1,
+    CommitBundleClaimV2,
     CommitBundleSourceV1,
+    CommitBundleSourceV2,
 )
 from src.core.fcis_decision_values import (
     FCIS_ACCEPTANCE_RECEIPT_SCHEMA_ID_V1,
@@ -37,11 +40,15 @@ from src.core.fcis_decision_values import (
     RejectionReceiptSourceV1,
     RejectSourceV1,
 )
+from src.core.fcis_m6_profile_ids import ANF_VERSION_V1
 from src.core.fcis_outbox_values import (
     FCIS_OUTBOX_PLAN_SCHEMA_ID_V1,
+    FCIS_OUTBOX_PLAN_SCHEMA_ID_V2,
     OutboxEffectKindV1,
     OutboxPlanSourceV1,
+    OutboxPlanSourceV2,
     OutboxPlanV1,
+    OutboxPlanV2,
     OutboxRecordSourceV1,
 )
 from src.core.fcis_step_evaluation_values import FCISStepEvaluationPhaseV1
@@ -267,6 +274,13 @@ def _sources() -> dict[str, object]:
             ),
         )
     )
+    anf_binding = replace(
+        _binding_source(),
+        authority_normal_form_version=ANF_VERSION_V1,
+        authority_normal_form_root=_DIGEST,
+    )
+    anf_accept = AcceptSourceV1(state, plan, AcceptanceReceiptSourceV1(anf_binding))
+    anf_outbox = OutboxPlanSourceV2(outbox.records, _DIGEST)
     return {
         FCIS_TRANSITION_BUDGET_SCHEMA_ID_V1: budget,
         FCIS_DEX_PATCH_SCHEMA_ID_V1: patch,
@@ -284,12 +298,20 @@ def _sources() -> dict[str, object]:
             receipt_root=_OTHER_DIGEST,
             outbox_plan=outbox,
         ),
+        FCIS_OUTBOX_PLAN_SCHEMA_ID_V2: anf_outbox,
+        FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2: CommitBundleSourceV2(
+            expected_pre_root=_DIGEST,
+            decision=anf_accept,
+            receipt_root=_OTHER_DIGEST,
+            outbox_plan=anf_outbox,
+            authority_normal_form_root=_DIGEST,
+        ),
     }
 
 
 def test_every_m5_top_level_schema_admits_reconstructs_and_encodes() -> None:
     sources = _sources()
-    assert len(sources) == 11
+    assert len(sources) == 13
     for schema_id, source in sources.items():
         owned = _admit(schema_id, source)
         first = encode_fcis_authority_claim_v1(schema_id, source)
@@ -511,7 +533,7 @@ def test_outbox_indices_and_idempotency_keys_are_canonical() -> None:
     assert rejected.code is AdmitCode.DOMAIN_INVARIANT
 
 
-def test_commit_bundle_claim_carries_explicit_anf_root() -> None:
+def test_legacy_commit_bundle_claim_preserves_exact_v1_field_surface() -> None:
     bundle = _admit(
         FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1,
         _sources()[FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1],
@@ -522,8 +544,51 @@ def test_commit_bundle_claim_carries_explicit_anf_root() -> None:
         "decision",
         "receipt_root",
         "outbox_plan",
-        "authority_normal_form_root",
     )
     assert bundle.next_state is bundle.decision.next_state
     assert bundle.commit_plan is bundle.decision.commit_plan
     assert bundle.receipt is bundle.decision.receipt
+
+
+def test_anf_bound_commit_bundle_claim_uses_required_v2_root() -> None:
+    bundle = _admit(
+        FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2,
+        _sources()[FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2],
+    )
+
+    assert type(bundle) is CommitBundleClaimV2
+    assert type(bundle.outbox_plan) is OutboxPlanV2
+    assert bundle.authority_normal_form_root == _DIGEST
+    assert bundle.outbox_plan.authority_normal_form_root == _DIGEST
+    assert bundle.receipt.binding.authority_normal_form_root == _DIGEST
+
+
+def test_anf_bound_v2_outbox_rejects_missing_root() -> None:
+    source = cast(
+        OutboxPlanSourceV2,
+        _sources()[FCIS_OUTBOX_PLAN_SCHEMA_ID_V2],
+    )
+
+    rejected = admit_fcis_authority_claim_v1(
+        FCIS_OUTBOX_PLAN_SCHEMA_ID_V2,
+        replace(source, authority_normal_form_root=None),
+    )
+
+    assert type(rejected) is AdmitReject
+    assert rejected.code is AdmitCode.WRONG_EXACT_TYPE
+    assert rejected.path == ("authority_normal_form_root",)
+
+
+def test_anf_bound_v2_bundle_rejects_crossed_outer_root() -> None:
+    source = cast(
+        CommitBundleSourceV2,
+        _sources()[FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2],
+    )
+
+    rejected = admit_fcis_authority_claim_v1(
+        FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2,
+        replace(source, authority_normal_form_root=_OTHER_DIGEST),
+    )
+
+    assert type(rejected) is AdmitReject
+    assert rejected.code is AdmitCode.DOMAIN_INVARIANT

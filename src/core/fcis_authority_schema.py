@@ -54,8 +54,11 @@ from ..state.state_transitions import (
 )
 from .fcis_commit_bundle_values import (
     FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1,
+    FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2,
     CommitBundleClaimV1,
+    CommitBundleClaimV2,
     CommitBundleSourceV1,
+    CommitBundleSourceV2,
 )
 from .fcis_decision_values import (
     FCIS_ACCEPTANCE_RECEIPT_SCHEMA_ID_V1,
@@ -85,10 +88,13 @@ from .fcis_decision_values import (
 )
 from .fcis_outbox_values import (
     FCIS_OUTBOX_PLAN_SCHEMA_ID_V1,
+    FCIS_OUTBOX_PLAN_SCHEMA_ID_V2,
     MAX_FCIS_OUTBOX_RECORDS_V1,
     OutboxEffectKindV1,
     OutboxPlanSourceV1,
+    OutboxPlanSourceV2,
     OutboxPlanV1,
+    OutboxPlanV2,
     OutboxRecordSourceV1,
     OutboxRecordV1,
 )
@@ -459,7 +465,6 @@ OUTBOX_PLAN_SCHEMA_V1 = RecordOf(
                 MAX_FCIS_OUTBOX_RECORDS_V1,
             ),
         ),
-        _field("authority_normal_form_root", OPTIONAL_DIGEST_V1),
     ),
 )
 COMMIT_BUNDLE_SCHEMA_V1 = RecordOf(
@@ -469,7 +474,31 @@ COMMIT_BUNDLE_SCHEMA_V1 = RecordOf(
         _field("decision", COMMITTABLE_DECISION_SCHEMA_V1),
         _field("receipt_root", DIGEST_V1),
         _field("outbox_plan", OUTBOX_PLAN_SCHEMA_V1),
-        _field("authority_normal_form_root", OPTIONAL_DIGEST_V1),
+    ),
+)
+OUTBOX_PLAN_SCHEMA_V2 = RecordOf(
+    StateRecordTagV1.FCIS_OUTBOX_PLAN_V2,
+    (
+        _field(
+            "records",
+            SequenceOf(
+                (SequenceSourceKind.EXACT_TUPLE,),
+                OUTBOX_RECORD_SCHEMA_V1,
+                0,
+                MAX_FCIS_OUTBOX_RECORDS_V1,
+            ),
+        ),
+        _field("authority_normal_form_root", DIGEST_V1),
+    ),
+)
+COMMIT_BUNDLE_SCHEMA_V2 = RecordOf(
+    StateRecordTagV1.FCIS_COMMIT_BUNDLE_V2,
+    (
+        _field("expected_pre_root", DIGEST_V1),
+        _field("decision", COMMITTABLE_DECISION_SCHEMA_V1),
+        _field("receipt_root", DIGEST_V1),
+        _field("outbox_plan", OUTBOX_PLAN_SCHEMA_V2),
+        _field("authority_normal_form_root", DIGEST_V1),
     ),
 )
 
@@ -570,6 +599,16 @@ FCIS_AUTHORITY_RECORD_REGISTRATIONS_V1 = (
     RecordRegistrationV1(
         StateRecordTagV1.FCIS_COMMIT_BUNDLE, CommitBundleSourceV1, CommitBundleClaimV1
     ),
+    RecordRegistrationV1(
+        StateRecordTagV1.FCIS_OUTBOX_PLAN_V2,
+        OutboxPlanSourceV2,
+        OutboxPlanV2,
+    ),
+    RecordRegistrationV1(
+        StateRecordTagV1.FCIS_COMMIT_BUNDLE_V2,
+        CommitBundleSourceV2,
+        CommitBundleClaimV2,
+    ),
 )
 FCIS_AUTHORITY_SCHEMA_REGISTRATIONS_V1 = (
     SchemaRegistrationV1(FCIS_TRANSITION_BUDGET_SCHEMA_ID_V1, TRANSITION_BUDGET_SCHEMA_V1),
@@ -585,6 +624,8 @@ FCIS_AUTHORITY_SCHEMA_REGISTRATIONS_V1 = (
     SchemaRegistrationV1(FCIS_DECISION_SCHEMA_ID_V1, DECISION_SCHEMA_V1),
     SchemaRegistrationV1(FCIS_OUTBOX_PLAN_SCHEMA_ID_V1, OUTBOX_PLAN_SCHEMA_V1),
     SchemaRegistrationV1(FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1, COMMIT_BUNDLE_SCHEMA_V1),
+    SchemaRegistrationV1(FCIS_OUTBOX_PLAN_SCHEMA_ID_V2, OUTBOX_PLAN_SCHEMA_V2),
+    SchemaRegistrationV1(FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2, COMMIT_BUNDLE_SCHEMA_V2),
 )
 FCIS_AUTHORITY_SCHEMA_IDS_V1 = tuple(
     registration.schema_id for registration in FCIS_AUTHORITY_SCHEMA_REGISTRATIONS_V1
