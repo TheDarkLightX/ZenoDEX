@@ -1,0 +1,133 @@
+{
+  "schema_version": "zenodex.fcis.m6.r03-migration-review-packet.v1",
+  "status": "TESTED / UNMOUNTED",
+  "source_head": {
+    "commit": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+    "tree": "a1d495eae0b26a369487ceb48cad5472abec74db"
+  },
+  "lineage_commits": {
+    "B09_implementation": {
+      "commit": "6c0c881cdcbd05b8a6ca2011b08bec5e2828d25a",
+      "tree": "7c1981d57960d31bdfeb2355a7a7c5440a8cd275"
+    },
+    "C02_implementation": {
+      "commit": "dd76d0a2aacf4061a263bdf8a0c0a2f5bcb8597e",
+      "tree": "748078e8ca4b6316ed87e79c2bc0afa9c8becea7"
+    },
+    "C03_implementation": {
+      "commit": "b96b372ac1fea4d43618277ba952587e449f3486",
+      "tree": "affe516d26b2df0d6ea05eaa33d13cd0ec62b517"
+    },
+    "C03_receipt": {
+      "commit": "ccc04a72a3d2feb612e52d40e8d393f3f6b117c3",
+      "tree": "47a60d8731983963d3d9a2e430a2171236be6cc0"
+    },
+    "C04_implementation": {
+      "commit": "559d11b6c0c13c763432a3ee07eb0426198baa32",
+      "tree": "3545c56263714dbc9efcf181e44f902dff489256"
+    },
+    "C04_receipt": {
+      "commit": "9244c43a6ff105cfbf047ee2299ac0904630e780",
+      "tree": "49fb043c09454edbfc1cd9d73ee4c6e9715a1cd6"
+    },
+    "C05_implementation": {
+      "commit": "b673800187bfc92af24ab552b96b260ffe5357f4",
+      "tree": "38fd5166310844c5537d13f05d9d8bfae918f585"
+    },
+    "C05_receipt": {
+      "commit": "96f9fa3fa78bbe1f51a9da3be15a9026d8f84e0c",
+      "tree": "116f17b9b3f39fb21ee674f4f80774b1196a2f7f"
+    },
+    "C06_implementation": {
+      "commit": "f2967acfa7d1e744caac5cb85aceb7795f1e9fab",
+      "tree": "81572d8f9d44b166984152f2c6f6eb8612a72b05"
+    },
+    "C06_receipt": {
+      "commit": "ed3bfa8e393c64a44b1cb2256a22ddf4e2875069",
+      "tree": "d7fbcddefa6a56eec2c2899ba12b85e80f706ed6"
+    }
+  },
+  "migration": {
+    "key": {
+      "asset": "USDC",
+      "fee_distribution_domain_id": "protocol-fees",
+      "fixed_role_order_id": "fee-occurrence/role-order/buyback-treasury-rewards/v1",
+      "semantic_profile_id": "adaptive-global-quota-entitlement/three-role/v1"
+    },
+    "migration_map_id": "migration-map-v1",
+    "activation_sequence": 7,
+    "authority_epoch_root": "0x1111111111111111111111111111111111111111111111111111111111111111",
+    "old_state": {
+      "representation_id": "srgd-deficit/v1",
+      "root": "0x03140fa33aa67675547a9a4e5b34125a2ea5b108af75ceca46d5a02f13e7d8d0",
+      "canonical_bytes_utf8": "{\"schema\":\"zenodex/fcis/entitlement/state/v1\",\"value\":{\"entries\":[{\"coordinates\":[3,-1,-2],\"entry_id\":\"entry-0\"},{\"coordinates\":[-4,2,2],\"entry_id\":\"entry-1\"}],\"key\":{\"asset\":\"USDC\",\"fee_distribution_domain_id\":\"protocol-fees\",\"fixed_role_order_id\":\"fee-occurrence/role-order/buyback-treasury-rewards/v1\",\"semantic_profile_id\":\"adaptive-global-quota-entitlement/three-role/v1\"},\"representation_id\":\"srgd-deficit/v1\"}}"
+    },
+    "new_state": {
+      "representation_id": "agqe-surplus/v1",
+      "root": "0xce34a2a26f62be9df6445a6035475addc5ef5618e373f247607b4f94c34a2c28",
+      "canonical_bytes_utf8": "{\"schema\":\"zenodex/fcis/entitlement/state/v1\",\"value\":{\"entries\":[{\"coordinates\":[-3,1,2],\"entry_id\":\"entry-0\"},{\"coordinates\":[4,-2,-2],\"entry_id\":\"entry-1\"}],\"key\":{\"asset\":\"USDC\",\"fee_distribution_domain_id\":\"protocol-fees\",\"fixed_role_order_id\":\"fee-occurrence/role-order/buyback-treasury-rewards/v1\",\"semantic_profile_id\":\"adaptive-global-quota-entitlement/three-role/v1\"},\"representation_id\":\"agqe-surplus/v1\"}}"
+    },
+    "entry_mappings": [
+      {
+        "entry_id": "entry-0",
+        "source_coordinates": [3, -1, -2],
+        "target_coordinates": [-3, 1, 2]
+      },
+      {
+        "entry_id": "entry-1",
+        "source_coordinates": [-4, 2, 2],
+        "target_coordinates": [4, -2, -2]
+      }
+    ],
+    "manifest": {
+      "sha256": "0x192295a2f3e5805c2080eb741b5e03e461b8673b642770684363055a969aff21",
+      "canonical_bytes_utf8": "{\"schema\":\"zenodex/fcis/entitlement/representation-migration/v1\",\"value\":{\"activation_sequence\":7,\"authority_epoch_root\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"migration_map_id\":\"migration-map-v1\",\"new_representation_id\":\"agqe-surplus/v1\",\"new_semantic_key\":{\"asset\":\"USDC\",\"fee_distribution_domain_id\":\"protocol-fees\",\"fixed_role_order_id\":\"fee-occurrence/role-order/buyback-treasury-rewards/v1\",\"semantic_profile_id\":\"adaptive-global-quota-entitlement/three-role/v1\"},\"new_state_root\":\"0xce34a2a26f62be9df6445a6035475addc5ef5618e373f247607b4f94c34a2c28\",\"old_representation_id\":\"srgd-deficit/v1\",\"old_semantic_key\":{\"asset\":\"USDC\",\"fee_distribution_domain_id\":\"protocol-fees\",\"fixed_role_order_id\":\"fee-occurrence/role-order/buyback-treasury-rewards/v1\",\"semantic_profile_id\":\"adaptive-global-quota-entitlement/three-role/v1\"},\"old_state_root\":\"0x03140fa33aa67675547a9a4e5b34125a2ea5b108af75ceca46d5a02f13e7d8d0\"}}"
+    }
+  },
+  "lean_theorems": {
+    "source": "lean-mathlib/Proofs/FCISFeeApportionmentAGQESRGDTraceConjugacy.lean",
+    "source_sha256": "df0af4b8816caf94a2b31a7bb9ff0277abb0c66305935e3e9fa3a414a2d70939",
+    "hash_rule": "sha256 of UTF-8 declaration text from theorem keyword through the next listed theorem keyword or namespace end, with CRLF normalized to LF",
+    "declarations": {
+      "phi_state_involution": "b2c376004f7fd49c8c115deb9e06471793e8916ff7e1c56ba94c22e37b7931a1",
+      "phi_keyed_state_key_preserved": "2c79f9426d6fe0deb5906e007f7428d455854eb17089809e2191d317485f4fa2",
+      "one_step_sign_dual": "9f059fd12bc8434de7030448a27c7f5d72177d12769d72e6e330585ad58d9e61",
+      "fold_segment_sign_dual": "ba226aaabee86cbf19881de8ac8e018a2ed249562bf0821876b4a38a1a8450c7",
+      "fold_word_sign_dual": "b430b6628adb15bed41954cc273f5c927abc2d81b9610dc69428d6195b3a1c08",
+      "valid_srgd_segment_sign_dual": "ebd117d7a402e493c0931e1d8966b12d6f8627556447435659d7062dfb257170",
+      "valid_srgd_word_sign_dual": "66099eb3ec81d886cb6f3c70c65aed740df5d7085555534813c49369b90a590f",
+      "trace_conjugacy": "3fcb611a986bc28f988549918faa5bf57b2990d9e8c8a345fc19d808bf382cf2"
+    }
+  },
+  "parity_vectors": {
+    "task_id": "B09",
+    "parity_result_path": "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_PARITY_RESULT.json",
+    "parity_result_sha256": "0a56ec5c30370031e92627e140b072980694b5d84f59166f269712cb15f83935",
+    "artifact_index_path": "docs/research/m6_tasks/TASK_B09_ARTIFACTS/TASK_B09_ARTIFACT_INDEX.json",
+    "artifact_index_sha256": "9b12120c1e8f82ab1c803bccd37eba5f4ac9d8a8397de8d243eaaa4ecc00143a",
+    "production": {
+      "vectors": 1022,
+      "python_rust_julia_exact_byte_match": true,
+      "output_sha256": "0888b330c56dbff0bcdf8611532c176088da32ac5e1f4db7100cd2ff221e55ed"
+    },
+    "small_domain": {
+      "denominators": "1..12",
+      "vectors": 1229773,
+      "python_julia_exact_byte_match": true,
+      "output_sha256": "1a59f2023c36fa0576bc37fa380731dd8543d7a6a90ced66fb30306b954e304b"
+    }
+  },
+  "review_commands": [
+    "python3 -m experiments.fcis_m6_c07_review_packet_check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks C07",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_C07_SOURCE_MANIFEST.sha256",
+    "cd lean-mathlib && lake build Proofs/FCISFeeApportionmentAGQESRGDTraceConjugacy.lean",
+    "pytest -q tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py"
+  ],
+  "nonclaims": [
+    "This packet is exact tested review evidence for the declared unmounted R03 research carriers.",
+    "It does not establish production runtime mounting, datastore durability, authenticated authority provenance, migration deployment, destination idempotency, or value movement.",
+    "B09 parity is bounded executable refinement evidence and does not prove requirements completeness, economic correctness, or production consensus.",
+    "The formal TraceKey and C06 context are research carriers, not production authority witnesses."
+  ]
+}
