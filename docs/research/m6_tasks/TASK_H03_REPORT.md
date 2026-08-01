@@ -1,9 +1,9 @@
 # FCIS M6 Task H03 Report
 
 TASK_ID: H03
-BASE_SHA: 0c723e3836ca98e3fa37e17276e76afb6ccdffca
-SOURCE_HEAD_SHA: d97731a55e248a131b646abc063e0cd2e8db9c65
-SOURCE_HEAD_TREE: 87eb62e398b8826f8e1f446844f8c8546b35e244
+BASE_SHA: d257d6f086bf809cb8f56a9028fb3625d8f9fa5d
+SOURCE_HEAD_SHA: e52c09e84981f35db83a5aa390c49c9156c4c1ae
+SOURCE_HEAD_TREE: 38923f8baa019027d168ad872dc55def76f0b841
 BRANCH: codex/task-H03-deterministic-crash-20260801
 FILES_CHANGED:
 - experiments/fcis_m6_h02_sqlite_publication.py
@@ -11,9 +11,13 @@ FILES_CHANGED:
 - docs/research/m6_tasks/TASK_H03_PLAN.md
 - docs/research/m6_tasks/TASK_H03_CRASH_MANIFEST_V1.json
 
-IMPLEMENTATION_HEAD_SHA: d97731a55e248a131b646abc063e0cd2e8db9c65
-IMPLEMENTATION_TREE: 87eb62e398b8826f8e1f446844f8c8546b35e244
-IMPLEMENTATION_PARENT: 0c723e3836ca98e3fa37e17276e76afb6ccdffca
+IMPLEMENTATION_HEAD_SHA: e52c09e84981f35db83a5aa390c49c9156c4c1ae
+IMPLEMENTATION_TREE: 38923f8baa019027d168ad872dc55def76f0b841
+IMPLEMENTATION_PARENT: d257d6f086bf809cb8f56a9028fb3625d8f9fa5d
+
+FOLLOW_UP_REPAIR: The shared adapter now rejects every nonempty durable table
+before initialization writes and compares staged seed state before commit. The
+H08 review receipt records the independent regression and exact repair.
 
 CLAIM_IMPLEMENTED: H03 adds a closed deterministic crash-point registry and
 one-shot fault hook to the isolated H02 SQLite publication adapter. The hook
@@ -46,7 +50,8 @@ RESULTS:
   authority helper and leave no rows after rollback.
 - The post-COMMIT/pre-response point leaves the staged POST root durable in the
   connection; H04 must perform the fresh-process canonical reopen.
-- Python compilation, Ruff, formatting, and strict mypy pass.
+- Python compilation, Ruff, formatting, and strict mypy pass after the H08
+  initialization repair.
 
 MUTANTS_ADDED: None. The reachability and repeatability suite is the positive
 H03 hook contract; H04 owns PRE/POST recovery mutants.
@@ -71,4 +76,5 @@ REVIEW_RISKS: The fault hook is an isolated research seam and is not connected
 to a production datastore or process supervisor. The authority-successor
 points are tested through the private table helper because the current D08
 fixture binds its publication atom to the existing authority epoch. The 1,000+
-line adapter remains an auditability hotspot.
+line adapter remains an auditability hotspot. The H08 initialization repair is
+not a production startup or filesystem-durability proof.

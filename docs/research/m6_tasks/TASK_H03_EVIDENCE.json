@@ -1,9 +1,9 @@
 {
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "H03",
-  "base_sha": "0c723e3836ca98e3fa37e17276e76afb6ccdffca",
-  "source_head_sha": "d97731a55e248a131b646abc063e0cd2e8db9c65",
-  "source_head_tree": "87eb62e398b8826f8e1f446844f8c8546b35e244",
+  "base_sha": "d257d6f086bf809cb8f56a9028fb3625d8f9fa5d",
+  "source_head_sha": "e52c09e84981f35db83a5aa390c49c9156c4c1ae",
+  "source_head_tree": "38923f8baa019027d168ad872dc55def76f0b841",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -35,19 +35,20 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "experiments/fcis_m6_h02_sqlite_publication.py": "2a33a0d42809b80690cad4c91971c9af2fb0676ddd30de6c219614b33d0d3c0f",
+    "experiments/fcis_m6_h02_sqlite_publication.py": "7f5e78fc64592aa741030f859bf78bf49d2b4f421641b3730c2474eb2db33c2c",
     "tests/core/test_fcis_m6_h03_crash_points.py": "5c53851ab28d7ed9cdfbae6c465d5a49b8fc6cdb5af5229487c904e0dd5d9d2f",
     "docs/research/m6_tasks/TASK_H03_PLAN.md": "ea6c81d6b504564a6f405048edbb8bc44ecb7335f5de2f93464ab5d2b8793b20",
     "docs/research/m6_tasks/TASK_H03_CRASH_MANIFEST_V1.json": "30de333663a55d54f2bf759f4a51f493b8651d0edf44bc46b2da5d4d027b57ee"
   },
   "results": {
     "manifest_points": "20 registered; 16 ordinary publication and 4 authority-helper points",
-    "h02_regression": "pass; 8 passed",
-    "h03_reachability_repeatability": "pass; 23 passed",
-    "combined_regression": "pass; 31 passed",
-    "implementation_commit": "d97731a55e248a131b646abc063e0cd2e8db9c65",
-    "implementation_tree": "87eb62e398b8826f8e1f446844f8c8546b35e244",
-    "implementation_parent": "0c723e3836ca98e3fa37e17276e76afb6ccdffca",
+    "h02_regression": "pass; 8 passed after H08 repair",
+    "h03_reachability_repeatability": "pass; 23 passed after H08 repair",
+    "combined_regression": "pass; 31 passed after H08 repair",
+    "initialization_guard": "pass; all durable table families are checked before seed write",
+    "implementation_commit": "e52c09e84981f35db83a5aa390c49c9156c4c1ae",
+    "implementation_tree": "38923f8baa019027d168ad872dc55def76f0b841",
+    "implementation_parent": "d257d6f086bf809cb8f56a9028fb3625d8f9fa5d",
     "crash_surrogate": "H03InjectedCrash is not caught by normal H02 rejection handlers"
   },
   "mutants": [],

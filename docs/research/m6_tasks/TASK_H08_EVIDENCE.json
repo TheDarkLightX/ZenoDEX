@@ -1,12 +1,13 @@
 {
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "H08",
-  "base_sha": "1b08782266211354cd59e6976475da27fb9e4516",
-  "source_head_sha": "f190abcc85acb27550d35f216ea9348f57613496",
-  "source_head_tree": "e9ade01701b3006f307aca122db68abc46059ee2",
+  "base_sha": "d257d6f086bf809cb8f56a9028fb3625d8f9fa5d",
+  "source_head_sha": "e52c09e84981f35db83a5aa390c49c9156c4c1ae",
+  "source_head_tree": "38923f8baa019027d168ad872dc55def76f0b841",
   "branch": "codex/task-H03-deterministic-crash-20260801",
-  "status": "GAP",
+  "status": "TESTED",
   "evidence_files": [
+    "experiments/fcis_m6_h02_sqlite_publication.py",
     "tests/core/test_fcis_m6_h08_independent_review.py",
     "docs/research/m6_tasks/TASK_H08_PLAN.md",
     "docs/research/m6_tasks/TASK_H08_REVIEW_MATRIX_V1.json",
@@ -15,10 +16,11 @@
     "docs/research/m6_tasks/TASK_H08_SOURCE_MANIFEST.sha256"
   ],
   "commands": [
-    "python3 -m ruff format tests/core/test_fcis_m6_h08_independent_review.py",
-    "python3 -m ruff check tests/core/test_fcis_m6_h08_independent_review.py",
-    "python3 -m mypy --strict tests/core/test_fcis_m6_h08_independent_review.py",
+    "python3 -m ruff format experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h08_independent_review.py",
+    "python3 -m ruff check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h08_independent_review.py",
+    "python3 -m mypy --strict experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h08_independent_review.py",
     "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h08_independent_review.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py",
     "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks H08",
     "sha256sum --check --strict docs/research/m6_tasks/TASK_H08_SOURCE_MANIFEST.sha256",
     "git diff --check"
@@ -31,25 +33,27 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "tests/core/test_fcis_m6_h08_independent_review.py": "00d4f22f0f9ed1462e689e8e21140eff5b45177ab30e7538dd0253444149e4b2",
-    "docs/research/m6_tasks/TASK_H08_PLAN.md": "f08765b4095d9abf16295a7c974ef03e6499817edcabc482e39b346000717e3d",
-    "docs/research/m6_tasks/TASK_H08_REVIEW_MATRIX_V1.json": "21be08b21ddd5f1e9f2a8f818253011b85b0410d58197bcbd7984986407ae4b5"
+    "experiments/fcis_m6_h02_sqlite_publication.py": "7f5e78fc64592aa741030f859bf78bf49d2b4f421641b3730c2474eb2db33c2c",
+    "tests/core/test_fcis_m6_h08_independent_review.py": "0dcb0e0abe0da13eec83a6659a7859dd97309bfc0f0dbe09bf71197437b54de1",
+    "docs/research/m6_tasks/TASK_H08_PLAN.md": "87935e7fcf4087d1f5d4c18abe57ec5eba8a893dcbdc9c1f748a52b16ab2b6e9",
+    "docs/research/m6_tasks/TASK_H08_REVIEW_MATRIX_V1.json": "eade1aec8e338d348c9b4b37d6e06394ff25ba5ac519e3aa61d940121544b5b5"
   },
   "results": {
     "focused_tests": "pass; 20 passed",
     "ordinary_crash_points": "pass; 16 exact PRE/POST classifications",
     "stale_cas": "pass; stale retry rejected without state change",
     "phantom_surplus_rows": "pass; missing and orphan evidence rejected",
-    "contaminated_initialization": "blocker; malformed partially initialized layout remains durable",
-    "implementation_commit": "f190abcc85acb27550d35f216ea9348f57613496",
-    "implementation_tree": "e9ade01701b3006f307aca122db68abc46059ee2",
-    "implementation_parent": "1b08782266211354cd59e6976475da27fb9e4516"
+    "contaminated_initialization": "pass; rejected before snapshot metadata write",
+    "h02_h03_regression": "pass; 31 passed",
+    "implementation_commit": "e52c09e84981f35db83a5aa390c49c9156c4c1ae",
+    "implementation_tree": "38923f8baa019027d168ad872dc55def76f0b841",
+    "implementation_parent": "d257d6f086bf809cb8f56a9028fb3625d8f9fa5d"
   },
   "mutants": [],
   "nonclaims": [
     "H08 is an independent research review and is not production approval.",
-    "The contaminated initialization witness remains open and requires repair.",
-    "H08 does not prove power-loss durability, authority-transition coverage, production datastore behavior, or value movement.",
+    "The initialization repair does not prove filesystem durability or production startup coverage.",
+    "H08 does not prove authority-transition fixture coverage, destination effects, migration, accounting, or value movement.",
     "M6 remains unmounted and non-promotable."
   ]
 }
