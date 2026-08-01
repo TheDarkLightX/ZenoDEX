@@ -1,0 +1,66 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "D10",
+  "base_sha": "cb952ac6c1cba7b6b26ae133d7530a3fa60ff663",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "status": "PROVED",
+  "evidence_files": [
+    "lean-mathlib/Proofs/FCISANFComposition.lean",
+    "lean-mathlib/lakefile.lean",
+    "docs/research/m6_tasks/TASK_D10_PLAN.md",
+    "docs/research/m6_tasks/TASK_D10_REPORT.md",
+    "docs/research/m6_tasks/TASK_D10_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_D10_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "cd lean-mathlib && lake env lean Proofs/FCISTreeChordGateAuthority.lean",
+    "cd lean-mathlib && lake env lean Proofs/FCISDurableRetraction.lean",
+    "cd lean-mathlib && lake build Proofs.FCISDurableRetraction Proofs.FCISTreeChordGateAuthority",
+    "cd lean-mathlib && lake env lean Proofs/FCISANFComposition.lean",
+    "cd lean-mathlib && lake build",
+    "python3 /home/trevormoc/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py --json --flag-axiom lean-mathlib/Proofs/FCISANFComposition.lean",
+    "rg -n -i '\\b(sorry|admit|axiom)\\b|\\?_+' lean-mathlib/Proofs/FCISANFComposition.lean",
+    "git diff --check",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_D10_EVIDENCE.json",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D10",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_D10_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "lean": "Lean (version 4.27.0, x86_64-unknown-linux-gnu, commit db93fe1608548721853390a10cd40580fe7d22ae, Release)",
+    "lake": "Lake version 5.0.0-src+db93fe1 (Lean version 4.27.0)",
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "placeholder_scanner": "scan_proof_placeholders.py (local proof-engineering skill)"
+  },
+  "source_hashes": {
+    "lean-mathlib/Proofs/FCISANFComposition.lean": "41bcf8ff44bb0526cfcb1ac2761eb08a363cb3fec3c9e14ebff5271dadc35060",
+    "lean-mathlib/lakefile.lean": "2bb569ac28cdc0ab5d69618cb506e47f9103589d4d1c0cea2e977c146aeebaed",
+    "docs/research/m6_tasks/TASK_D10_PLAN.md": "cc5df0646c3515a15cb4c167935aa6c6ae3bfab506f4b47ec8ca88c6c289d538",
+    "docs/research/m6_tasks/TASK_D10_REPORT.md": "64c03f6a2aadea32a80a94f5124e64136500406ef6baac8fd5523786704488cd"
+  },
+  "results": {
+    "implementation_commit": "407b7966ba9992972aa18af051097bde1a61ce8f",
+    "implementation_tree": "4e1a19bb38ecd39e0e6082273fbfb1c167a2e28b",
+    "implementation_parent": "cb952ac6c1cba7b6b26ae133d7530a3fa60ff663",
+    "focused_d10_lean": "pass; Lean 4.27.0",
+    "imported_dependency_targets": "pass; Proofs.FCISDurableRetraction and Proofs.FCISTreeChordGateAuthority",
+    "full_lean_build": "pass; 8152 jobs",
+    "placeholder_scan": "pass; blocked=false; match_count=0",
+    "direct_placeholder_tokens": "pass; no sorry/admit/axiom/tactic-hole tokens",
+    "partial_reopen_shape": "pass; D -> Except Reject A; value-or-reject theorem has no axioms",
+    "main_theorem_axiom_dependencies": "standard propext and Quot.sound through imported Finset gate evidence; no user axioms",
+    "packet_status": "abstract theorem proved; runtime unmounted"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "D10 proves only the stated abstract ANF composition theorem.",
+    "Authentication and inventory completeness are explicit premises; D10 does not prove that production callers or proof-context adapters supply them.",
+    "The global witness uses the existing GateComplete abstraction and does not prove complete production TCG inventory.",
+    "Atomic publication, recovery, outbox, and migration refinement remain incomplete.",
+    "Mounted unique authority and no-bypass evidence remain incomplete.",
+    "Whole-system conservation, liability, backing, and ZUSD safety theorem remain incomplete.",
+    "No production adapter, runtime mount, remote publication, hosted CI, merge, deployment, authority switch, migration, or value movement is claimed."
+  ]
+}
