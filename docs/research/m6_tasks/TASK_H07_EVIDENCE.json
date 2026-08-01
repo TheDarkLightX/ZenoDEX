@@ -1,0 +1,57 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "H07",
+  "base_sha": "568cdc014731c5f6d9c6b767af4baceaf7c64cb5",
+  "source_head_sha": "42b5f29e82d76df41f8c1ed25c8b4fefa675ae9a",
+  "source_head_tree": "876eccc843c9c366eb2385c966f56f6aa0bbc7a8",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "docs/research/m6_tasks/TASK_H07_REFINEMENT_MATRIX_V1.json",
+    "tools/check_fcis_m6_h07_refinement_matrix.py",
+    "tests/core/test_fcis_m6_h07_refinement_matrix.py",
+    "docs/research/m6_tasks/TASK_H07_PLAN.md",
+    "docs/research/m6_tasks/TASK_H07_REPORT.md",
+    "docs/research/m6_tasks/TASK_H07_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_H07_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 tools/check_fcis_m6_h07_refinement_matrix.py docs/research/m6_tasks/TASK_H07_REFINEMENT_MATRIX_V1.json",
+    "python3 -m ruff format tools/check_fcis_m6_h07_refinement_matrix.py tests/core/test_fcis_m6_h07_refinement_matrix.py",
+    "python3 -m ruff check tools/check_fcis_m6_h07_refinement_matrix.py tests/core/test_fcis_m6_h07_refinement_matrix.py",
+    "python3 -m mypy --strict tools/check_fcis_m6_h07_refinement_matrix.py tests/core/test_fcis_m6_h07_refinement_matrix.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h07_refinement_matrix.py",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks H07",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_H07_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "docs/research/m6_tasks/TASK_H07_REFINEMENT_MATRIX_V1.json": "3bc7ecee6e6f27165531685874db98a652ab8329a1b9cb41ae32b33a3bd14513",
+    "tools/check_fcis_m6_h07_refinement_matrix.py": "1c03205e21fe5a1ed6e439766533a980f8beb415e50111c945fb4282ca2eb581",
+    "tests/core/test_fcis_m6_h07_refinement_matrix.py": "312962876b4f05bf3b35529cabb7c2b9ef631d3175e75864d3b31886a3452bf8",
+    "docs/research/m6_tasks/TASK_H07_PLAN.md": "1ba251f59f50f85fb3e9d20cf009d5d7b5c9fc00c4999c92bcfb72f85b41fc1c"
+  },
+  "results": {
+    "matrix_checker": "pass; all nine required DRA actions covered",
+    "focused_tests": "pass; 1 passed",
+    "ruff": "pass",
+    "mypy_strict": "pass",
+    "implementation_commit": "42b5f29e82d76df41f8c1ed25c8b4fefa675ae9a",
+    "implementation_tree": "876eccc843c9c366eb2385c966f56f6aa0bbc7a8",
+    "implementation_parent": "568cdc014731c5f6d9c6b767af4baceaf7c64cb5"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "H07 is a structural matrix and checker for isolated research artifacts.",
+    "H07 does not implement destination delivery, retries, production startup binding, or a production datastore.",
+    "H07 does not prove concurrent linearizability, filesystem durability, migration, no-bypass coverage, or value movement.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
