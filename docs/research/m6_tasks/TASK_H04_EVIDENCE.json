@@ -1,0 +1,63 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "H04",
+  "base_sha": "0846ea9787cc68a9fd40803f2ee93ac674809f78",
+  "source_head_sha": "c6cfcb9b84b4a481e7cfd5e8021c4fc23dade80f",
+  "source_head_tree": "236886accd35cefd5d4ba92794511463e60c8afc",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "experiments/fcis_m6_h04_crash_recovery.py",
+    "tests/core/test_fcis_m6_h04_crash_recovery.py",
+    "docs/research/m6_tasks/TASK_H04_PLAN.md",
+    "docs/research/m6_tasks/TASK_H04_RECOVERY_MATRIX_V1.json",
+    "docs/research/m6_tasks/TASK_H04_REPORT.md",
+    "docs/research/m6_tasks/TASK_H04_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_H04_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h04_crash_recovery.py -k 'matrix or AFTER_COMMIT_BEFORE_RESPONSE'",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h04_crash_recovery.py -k 'BEFORE_BEGIN or AFTER_BEGIN or BEFORE_CAS or AFTER_CAS_CHECK'",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h04_crash_recovery.py -k 'BEFORE_ATOM_INSERT or AFTER_ATOM_INSERT or BEFORE_EVIDENCE_INSERT or AFTER_EVIDENCE_INSERT'",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h04_crash_recovery.py -k 'BEFORE_NULLIFIER_INSERT or AFTER_NULLIFIER_INSERT or BEFORE_OUTBOX_INSERT or AFTER_OUTBOX_INSERT'",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h04_crash_recovery.py -k 'BEFORE_ANF_INSERT or AFTER_ANF_INSERT or BEFORE_COMMIT or AFTER_COMMIT_BEFORE_RESPONSE'",
+    "python3 -m py_compile experiments/fcis_m6_h04_crash_recovery.py tests/core/test_fcis_m6_h04_crash_recovery.py",
+    "python3 -m ruff check experiments/fcis_m6_h04_crash_recovery.py tests/core/test_fcis_m6_h04_crash_recovery.py",
+    "python3 -m ruff format --check experiments/fcis_m6_h04_crash_recovery.py tests/core/test_fcis_m6_h04_crash_recovery.py",
+    "python3 -m mypy --strict experiments/fcis_m6_h04_crash_recovery.py tests/core/test_fcis_m6_h04_crash_recovery.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks H04",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_H04_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "experiments/fcis_m6_h04_crash_recovery.py": "9327cf4f939298dd4ea92edba48adee35cd011b99f19b9f9ed7f6f4993cb21d5",
+    "tests/core/test_fcis_m6_h04_crash_recovery.py": "fb0d2a2d5f5c933775928aceab3446b4874f9eeb3fc09a721a676fbafcf0154c",
+    "docs/research/m6_tasks/TASK_H04_PLAN.md": "4f41cf6a759198b291139660137e9cbb3e4997ef733f152d07762f1db692c320",
+    "docs/research/m6_tasks/TASK_H04_RECOVERY_MATRIX_V1.json": "ab6e804f1a4f788e6f34c5178f66d1c734e9316a5b9fb4929c8826c651bd6dfc"
+  },
+  "results": {
+    "matrix_smoke": "pass; 2 passed",
+    "ordinary_recovery_points": "pass; 16 passed across four grouped runs",
+    "pre_post_partition": "pass; 15 PRE and 1 POST",
+    "complete_state_comparator": "pass; no third layout classified as accepted",
+    "worker_exit": "pass; exit code 73 at all 16 points",
+    "implementation_commit": "c6cfcb9b84b4a481e7cfd5e8021c4fc23dade80f",
+    "implementation_tree": "236886accd35cefd5d4ba92794511463e60c8afc",
+    "implementation_parent": "0846ea9787cc68a9fd40803f2ee93ac674809f78"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "H04 is a research-only process harness and is not mounted in production.",
+    "H04 does not prove filesystem power-loss durability, WAL/fsync settings, or storage-engine behavior.",
+    "H04 does not cover authority-transition helper points through a full D08 publication.",
+    "H04 does not prove concurrency, external delivery, runtime no-bypass coverage, migration mounting, or value movement.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}

@@ -1,6 +1,7 @@
 # H04 plan: post-crash canonical reopen
 
-Status: implementation in progress; research-only and unmounted.
+Status: implemented and tested in an isolated harness; research-only and
+unmounted. H05-H08 remain pending.
 
 ## Objective
 
