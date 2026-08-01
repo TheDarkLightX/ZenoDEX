@@ -1,0 +1,55 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "H08",
+  "base_sha": "1b08782266211354cd59e6976475da27fb9e4516",
+  "source_head_sha": "f190abcc85acb27550d35f216ea9348f57613496",
+  "source_head_tree": "e9ade01701b3006f307aca122db68abc46059ee2",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "GAP",
+  "evidence_files": [
+    "tests/core/test_fcis_m6_h08_independent_review.py",
+    "docs/research/m6_tasks/TASK_H08_PLAN.md",
+    "docs/research/m6_tasks/TASK_H08_REVIEW_MATRIX_V1.json",
+    "docs/research/m6_tasks/TASK_H08_REPORT.md",
+    "docs/research/m6_tasks/TASK_H08_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_H08_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m ruff format tests/core/test_fcis_m6_h08_independent_review.py",
+    "python3 -m ruff check tests/core/test_fcis_m6_h08_independent_review.py",
+    "python3 -m mypy --strict tests/core/test_fcis_m6_h08_independent_review.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h08_independent_review.py",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks H08",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_H08_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "tests/core/test_fcis_m6_h08_independent_review.py": "00d4f22f0f9ed1462e689e8e21140eff5b45177ab30e7538dd0253444149e4b2",
+    "docs/research/m6_tasks/TASK_H08_PLAN.md": "f08765b4095d9abf16295a7c974ef03e6499817edcabc482e39b346000717e3d",
+    "docs/research/m6_tasks/TASK_H08_REVIEW_MATRIX_V1.json": "21be08b21ddd5f1e9f2a8f818253011b85b0410d58197bcbd7984986407ae4b5"
+  },
+  "results": {
+    "focused_tests": "pass; 20 passed",
+    "ordinary_crash_points": "pass; 16 exact PRE/POST classifications",
+    "stale_cas": "pass; stale retry rejected without state change",
+    "phantom_surplus_rows": "pass; missing and orphan evidence rejected",
+    "contaminated_initialization": "blocker; malformed partially initialized layout remains durable",
+    "implementation_commit": "f190abcc85acb27550d35f216ea9348f57613496",
+    "implementation_tree": "e9ade01701b3006f307aca122db68abc46059ee2",
+    "implementation_parent": "1b08782266211354cd59e6976475da27fb9e4516"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "H08 is an independent research review and is not production approval.",
+    "The contaminated initialization witness remains open and requires repair.",
+    "H08 does not prove power-loss durability, authority-transition coverage, production datastore behavior, or value movement.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
