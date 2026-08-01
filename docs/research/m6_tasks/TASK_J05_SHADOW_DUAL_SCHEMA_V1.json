@@ -1,0 +1,30 @@
+{
+  "schema_version": "zenodex.fcis.m6.j05.shadow-dual-check.v1",
+  "task_id": "J05",
+  "status": "TESTED_RESEARCH_ONLY_UNMOUNTED",
+  "comparison_modes": [
+    "exact_equality",
+    "reviewed_refinement"
+  ],
+  "contract": [
+    "shadow output binds J04 manifest root, activation sequence, target profile, and target result",
+    "shadow output carries no authority",
+    "exact equality requires source and target result roots to match",
+    "reviewed refinement requires the declared deterministic relation root",
+    "any divergence is retained as non-authoritative evidence",
+    "divergence blocks phase advancement"
+  ],
+  "rejection_witnesses": [
+    "forged relation root",
+    "foreign target profile",
+    "activation sequence crossing",
+    "authoritative shadow output",
+    "unknown comparison mode"
+  ],
+  "nonclaims": [
+    "no production shadow runner",
+    "no mounted migration authority",
+    "no proof that the reviewed relation is semantically complete",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
