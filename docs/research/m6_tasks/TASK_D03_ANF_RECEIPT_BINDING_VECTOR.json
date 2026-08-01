@@ -1,0 +1,15 @@
+{
+  "schema_version": "zenodex.fcis.m6.d03.anf-receipt-binding.v1",
+  "fixture": "tests.core.test_fcis_m6_d03_anf_receipt_binding._authority_normal_form",
+  "expected_anf_version": "zenodex/fcis/authority-normal-form/v1",
+  "anf_root": "0xb55b6560d00eace98a04119f35df3d256f26be510299845b8d1655ef915c919c",
+  "pre_anf_receipt_root": "0x4fd244d1dd5ee20ba5450021b4942b9e4ea614c9b56dff3db3ad26846b686ad0",
+  "expected": {
+    "receipt_contains_anf_root": true,
+    "final_receipt_root_recomputes": true,
+    "final_receipt_root_differs_from_pre_anf_root": true,
+    "missing_anf_rejects": true,
+    "foreign_source_field_rejects": true,
+    "canonical_round_trip": true
+  }
+}

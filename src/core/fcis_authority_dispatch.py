@@ -120,7 +120,10 @@ FCIS_AUTHORITY_SCHEMA_EXPECTED_TYPES_V1: tuple[tuple[str, tuple[type[object], ..
     (FCIS_ACCEPTANCE_RECEIPT_SCHEMA_ID_V1, (AcceptanceReceiptClaimV1,)),
     (FCIS_REJECTION_RECEIPT_SCHEMA_ID_V1, (RejectionReceiptClaimV1,)),
     (FCIS_COMMITTED_FAILURE_RECEIPT_SCHEMA_ID_V1, (CommittedFailureReceiptClaimV1,)),
-    (FCIS_DECISION_SCHEMA_ID_V1, (AcceptClaimV1, RejectClaimV1, CommittedFailureClaimV1)),
+    (
+        FCIS_DECISION_SCHEMA_ID_V1,
+        (AcceptClaimV1, RejectClaimV1, CommittedFailureClaimV1),
+    ),
     (FCIS_OUTBOX_PLAN_SCHEMA_ID_V1, (OutboxPlanV1,)),
     (FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1, (CommitBundleClaimV1,)),
 )
@@ -301,8 +304,18 @@ def _construct_path_or_binding_record(
         return RejectionPathTextPartV1(cast(str, _field(values, 0, "text")))
     if tag is StateRecordTagV1.FCIS_REJECTION_PATH_INDEX_PART and len(values) == 1:
         return RejectionPathIndexPartV1(cast(int, _field(values, 0, "index")))
-    if tag is not StateRecordTagV1.FCIS_RECEIPT_BINDING or len(values) != 16:
+    if tag is not StateRecordTagV1.FCIS_RECEIPT_BINDING or len(values) not in (16, 18):
         raise ValueError("unsupported rejection path or receipt binding record")
+    authority_normal_form_version = (
+        cast(str | None, _field(values, 16, "authority_normal_form_version"))
+        if len(values) == 18
+        else None
+    )
+    authority_normal_form_root = (
+        cast(str | None, _field(values, 17, "authority_normal_form_root"))
+        if len(values) == 18
+        else None
+    )
     return ReceiptBindingClaimV1(
         cast(str, _field(values, 0, "algorithm_id")),
         cast(int, _field(values, 1, "algorithm_version")),
@@ -320,6 +333,8 @@ def _construct_path_or_binding_record(
         cast(str, _field(values, 13, "snapshot_commitment")),
         cast(str, _field(values, 14, "patch_root")),
         cast(str, _field(values, 15, "commit_plan_root")),
+        authority_normal_form_version,
+        authority_normal_form_root,
     )
 
 
@@ -526,13 +541,25 @@ def _project_primary_write(value: object, child: ProjectChildV1) -> dict[str, ob
 
 def _project_optional_write(value: object, child: ProjectChildV1) -> dict[str, object]:
     if _is_exact_type(value, FeeAccumulatorWriteV1):
-        return {"expected": child(value.expected), "replacement": child(value.replacement)}
+        return {
+            "expected": child(value.expected),
+            "replacement": child(value.replacement),
+        }
     if _is_exact_type(value, VaultWriteV1):
-        return {"expected": child(value.expected), "replacement": child(value.replacement)}
+        return {
+            "expected": child(value.expected),
+            "replacement": child(value.replacement),
+        }
     if _is_exact_type(value, OracleWriteV1):
-        return {"expected": child(value.expected), "replacement": child(value.replacement)}
+        return {
+            "expected": child(value.expected),
+            "replacement": child(value.replacement),
+        }
     if _is_exact_type(value, PerpsWriteV1):
-        return {"expected": child(value.expected), "replacement": child(value.replacement)}
+        return {
+            "expected": child(value.expected),
+            "replacement": child(value.replacement),
+        }
     raise TypeError("unsupported exact optional write projection")
 
 
@@ -605,6 +632,8 @@ def _project_receipt_value(value: object, child: ProjectChildV1) -> dict[str, ob
             "snapshot_commitment": value.snapshot_commitment,
             "patch_root": value.patch_root,
             "commit_plan_root": value.commit_plan_root,
+            "authority_normal_form_version": value.authority_normal_form_version,
+            "authority_normal_form_root": value.authority_normal_form_root,
         }
     if _is_exact_type(value, AcceptanceReceiptClaimV1):
         return {"binding": child(value.binding)}
@@ -624,7 +653,10 @@ def _project_receipt_value(value: object, child: ProjectChildV1) -> dict[str, ob
             "public_reason": value.public_reason,
         }
     if _is_exact_type(value, CommittedFailureReceiptClaimV1):
-        return {"binding": child(value.binding), "failure_code": child(value.failure_code)}
+        return {
+            "binding": child(value.binding),
+            "failure_code": child(value.failure_code),
+        }
     raise TypeError("unsupported exact M5 receipt projection")
 
 

@@ -162,6 +162,7 @@ NONEMPTY_TEXT_V1 = ExactString(
     max_characters=MAX_FCIS_TEXT_CHARACTERS_V1,
 )
 OPTIONAL_DIGEST_V1 = OptionalValue(DIGEST_V1)
+OPTIONAL_ANF_VERSION_V1 = OptionalValue(NONEMPTY_TEXT_V1)
 OPTIONAL_POSITIVE_V1 = OptionalValue(POSITIVE_V1)
 
 TRANSITION_BUDGET_SCHEMA_V1 = RecordOf(
@@ -269,7 +270,10 @@ DEX_PATCH_SCHEMA_V1 = RecordOf(
         _field(
             "balance_writes",
             SequenceOf(
-                (SequenceSourceKind.EXACT_TUPLE,), BALANCE_WRITE_SCHEMA_V1, 0, MAX_BALANCES_V1
+                (SequenceSourceKind.EXACT_TUPLE,),
+                BALANCE_WRITE_SCHEMA_V1,
+                0,
+                MAX_BALANCES_V1,
             ),
         ),
         _field(
@@ -279,7 +283,10 @@ DEX_PATCH_SCHEMA_V1 = RecordOf(
         _field(
             "lp_writes",
             SequenceOf(
-                (SequenceSourceKind.EXACT_TUPLE,), LP_POSITION_WRITE_SCHEMA_V1, 0, MAX_LP_ENTRIES_V1
+                (SequenceSourceKind.EXACT_TUPLE,),
+                LP_POSITION_WRITE_SCHEMA_V1,
+                0,
+                MAX_LP_ENTRIES_V1,
             ),
         ),
         _field("fee_accumulator_write", OptionalValue(FEE_ACCUMULATOR_WRITE_SCHEMA_V1)),
@@ -306,7 +313,10 @@ REPLAY_UPDATE_SCHEMA_V1 = RecordOf(
         _field(
             "nonce_advances",
             SequenceOf(
-                (SequenceSourceKind.EXACT_TUPLE,), NONCE_ADVANCE_SCHEMA_V1, 0, MAX_NONCES_V1
+                (SequenceSourceKind.EXACT_TUPLE,),
+                NONCE_ADVANCE_SCHEMA_V1,
+                0,
+                MAX_NONCES_V1,
             ),
         ),
         _field(
@@ -359,6 +369,8 @@ RECEIPT_BINDING_SCHEMA_V1 = RecordOf(
         _field("snapshot_commitment", DIGEST_V1),
         _field("patch_root", DIGEST_V1),
         _field("commit_plan_root", DIGEST_V1),
+        _field("authority_normal_form_version", OPTIONAL_ANF_VERSION_V1),
+        _field("authority_normal_form_root", OPTIONAL_DIGEST_V1),
     ),
 )
 ACCEPTANCE_RECEIPT_SCHEMA_V1 = RecordOf(
@@ -473,19 +485,27 @@ FCIS_AUTHORITY_ENUM_REGISTRATIONS_V1 = (
 )
 FCIS_AUTHORITY_RECORD_REGISTRATIONS_V1 = (
     RecordRegistrationV1(
-        StateRecordTagV1.FCIS_TRANSITION_BUDGET, TransitionBudgetSourceV1, TransitionBudgetV1
+        StateRecordTagV1.FCIS_TRANSITION_BUDGET,
+        TransitionBudgetSourceV1,
+        TransitionBudgetV1,
     ),
     RecordRegistrationV1(StateRecordTagV1.FCIS_BALANCE_WRITE, BalanceWriteSourceV1, BalanceWriteV1),
     RecordRegistrationV1(StateRecordTagV1.FCIS_POOL_WRITE, PoolWriteSourceV1, PoolWriteV1),
     RecordRegistrationV1(
-        StateRecordTagV1.FCIS_LP_POSITION_VALUE, LPPositionValueSourceV1, LPPositionValueV1
+        StateRecordTagV1.FCIS_LP_POSITION_VALUE,
+        LPPositionValueSourceV1,
+        LPPositionValueV1,
     ),
     RecordRegistrationV1(
-        StateRecordTagV1.FCIS_LP_POSITION_WRITE, LPPositionWriteSourceV1, LPPositionWriteV1
+        StateRecordTagV1.FCIS_LP_POSITION_WRITE,
+        LPPositionWriteSourceV1,
+        LPPositionWriteV1,
     ),
     RecordRegistrationV1(StateRecordTagV1.FCIS_NONCE_ADVANCE, NonceAdvanceSourceV1, NonceAdvanceV1),
     RecordRegistrationV1(
-        StateRecordTagV1.FCIS_FEE_ALLOCATION, FCISFeeAllocationSourceV1, FCISFeeAllocationV1
+        StateRecordTagV1.FCIS_FEE_ALLOCATION,
+        FCISFeeAllocationSourceV1,
+        FCISFeeAllocationV1,
     ),
     RecordRegistrationV1(
         StateRecordTagV1.FCIS_FEE_ACCUMULATOR_WRITE,
@@ -500,7 +520,9 @@ FCIS_AUTHORITY_RECORD_REGISTRATIONS_V1 = (
     ),
     RecordRegistrationV1(StateRecordTagV1.FCIS_EFFECTS, OwnedDexEffectsSourceV1, OwnedDexEffectsV1),
     RecordRegistrationV1(
-        StateRecordTagV1.FCIS_NULLIFIER_RECORD, NullifierRecordSourceV1, NullifierRecordV1
+        StateRecordTagV1.FCIS_NULLIFIER_RECORD,
+        NullifierRecordSourceV1,
+        NullifierRecordV1,
     ),
     RecordRegistrationV1(StateRecordTagV1.FCIS_REPLAY_UPDATE, ReplayUpdateSourceV1, ReplayUpdateV1),
     RecordRegistrationV1(StateRecordTagV1.FCIS_COMMIT_PLAN, CommitPlanSourceV1, CommitPlanV1),
@@ -515,7 +537,9 @@ FCIS_AUTHORITY_RECORD_REGISTRATIONS_V1 = (
         RejectionPathIndexPartV1,
     ),
     RecordRegistrationV1(
-        StateRecordTagV1.FCIS_RECEIPT_BINDING, ReceiptBindingSourceV1, ReceiptBindingClaimV1
+        StateRecordTagV1.FCIS_RECEIPT_BINDING,
+        ReceiptBindingSourceV1,
+        ReceiptBindingClaimV1,
     ),
     RecordRegistrationV1(
         StateRecordTagV1.FCIS_ACCEPTANCE_RECEIPT,
@@ -523,7 +547,9 @@ FCIS_AUTHORITY_RECORD_REGISTRATIONS_V1 = (
         AcceptanceReceiptClaimV1,
     ),
     RecordRegistrationV1(
-        StateRecordTagV1.FCIS_REJECTION_RECEIPT, RejectionReceiptSourceV1, RejectionReceiptClaimV1
+        StateRecordTagV1.FCIS_REJECTION_RECEIPT,
+        RejectionReceiptSourceV1,
+        RejectionReceiptClaimV1,
     ),
     RecordRegistrationV1(
         StateRecordTagV1.FCIS_COMMITTED_FAILURE_RECEIPT,

@@ -7,7 +7,7 @@ current spot profile has no production path to ``CommittedFailureV1``.
 
 from __future__ import annotations
 
-from dataclasses import InitVar, dataclass
+from dataclasses import InitVar, dataclass, replace
 from typing import TypeAlias, cast, final
 
 from ..state.canonical import domain_sep_bytes, sha256_hex
@@ -48,6 +48,7 @@ from .fcis_authority_admission import (
     admit_fcis_authority_claim_v1,
     encode_fcis_authority_claim_v1,
 )
+from .fcis_authority_normal_form_v1 import FCISAuthorityNormalFormV1
 from .fcis_decision_values import (
     FCIS_ACCEPTANCE_RECEIPT_SCHEMA_ID_V1,
     FCIS_AUTHORITY_CODEC_VERSION_V1,
@@ -62,6 +63,7 @@ from .fcis_decision_values import (
     RejectionReceiptClaimV1,
     RejectionReceiptSourceV1,
 )
+from .fcis_m6_profile_ids import ANF_VERSION_V1
 from .fcis_step_evaluation_values import (
     FCIS_STEP_EVALUATOR_ALGORITHM_ID_V1,
     FCIS_STEP_EVALUATOR_ALGORITHM_VERSION_V1,
@@ -206,7 +208,9 @@ def _path_sources_v1(
     return tuple(result)
 
 
-def _registered_reject_v1(reject: FCISStepEvaluationRejectV1) -> FCISStepEvaluationRejectV1:
+def _registered_reject_v1(
+    reject: FCISStepEvaluationRejectV1,
+) -> FCISStepEvaluationRejectV1:
     try:
         FCISRejectCodeV1(reject.code)
         _path_sources_v1(reject.path)
@@ -249,7 +253,7 @@ def _authoritative_reject_v1(
     )
     if type(admitted) is not AdmitOk or type(admitted.value) is not RejectionReceiptClaimV1:
         raise ValueError("controlled rejection receipt admission failed")
-    receipt = cast(RejectionReceiptClaimV1, admitted.value)
+    receipt = admitted.value
     _claim_root_v1(FCIS_REJECTION_RECEIPT_SCHEMA_ID_V1, receipt)
     return RejectV1(receipt, _DECISION_CONSTRUCTION_TOKEN_V1)
 
@@ -562,10 +566,52 @@ def _budget_reject_v1(
     return _prefix_reject_v1(reject, budget_hash=budget_hash, evaluation=evaluation)
 
 
+def _validate_authority_normal_form_binding_v1(
+    evaluation: FCISStepEvaluationOkV1,
+    *,
+    patch_root: str,
+    plan_root: str,
+    budget_hash: str,
+    base_receipt_root: str,
+    authority_normal_form: object,
+) -> tuple[str, str]:
+    if type(authority_normal_form) is not FCISAuthorityNormalFormV1:
+        raise TypeError("D03 requires an exact Authority Normal Form")
+    exact = cast(FCISAuthorityNormalFormV1, authority_normal_form)
+    occurrence = evaluation.candidate.source_fee_occurrence
+    if occurrence is None:
+        raise ValueError("D03 requires source-bound fee occurrence evidence")
+    segment = occurrence.segment
+    expected = {
+        "command_root": evaluation.evidence.command_root,
+        "execution_context_root": evaluation.evidence.execution_context_hash,
+        "pre_state_root": evaluation.evidence.pre_state_root,
+        "next_state_root": evaluation.evidence.post_state_root,
+        "support_root": evaluation.evidence.support_root,
+        "support_set_commitment": evaluation.evidence.support_set_commitment,
+        "snapshot_commitment": evaluation.evidence.snapshot_commitment,
+        "patch_root": patch_root,
+        "commit_plan_root": plan_root,
+        "budget_root": budget_hash,
+        "boundary_root": f"0x{segment.boundary_root}",
+        "policy_root": f"0x{segment.policy_root}",
+        "witness_tuple_root": f"0x{segment.witness_tuple_root}",
+        "semantic_stream_root": f"0x{segment.semantic_stream_root}",
+        "lineage_stream_root": f"0x{segment.lineage_stream_root}",
+    }
+    for field_name, expected_value in expected.items():
+        if object.__getattribute__(exact, field_name) != expected_value:
+            raise ValueError(f"D03 ANF field drift: {field_name}")
+    if exact.acceptance_receipt_root != base_receipt_root:
+        raise ValueError("D03 ANF receipt root must name the pre-ANF receipt binding")
+    return ANF_VERSION_V1, exact.root
+
+
 def _derive_accept_v1(
     evaluation: FCISStepEvaluationOkV1,
     budget: TransitionBudgetV1,
     budget_hash: str,
+    authority_normal_form: object | None = None,
 ) -> DecisionV1:
     try:
         _revalidate_evaluation_v1(evaluation)
@@ -576,7 +622,7 @@ def _derive_accept_v1(
         _, patch_root = _claim_root_v1(FCIS_DEX_PATCH_SCHEMA_ID_V1, plan.patch)
         _, plan_root = _claim_root_v1(FCIS_COMMIT_PLAN_SCHEMA_ID_V1, plan)
         evidence = evaluation.evidence
-        binding = ReceiptBindingClaimV1(
+        base_binding = ReceiptBindingClaimV1(
             algorithm_id=evidence.algorithm_id,
             algorithm_version=evidence.algorithm_version,
             schema_version=FCIS_AUTHORITY_SCHEMA_VERSION_V1,
@@ -593,6 +639,27 @@ def _derive_accept_v1(
             snapshot_commitment=evidence.snapshot_commitment,
             patch_root=patch_root,
             commit_plan_root=plan_root,
+        )
+        base_receipt = AcceptanceReceiptClaimV1(base_binding)
+        _, base_receipt_root = _claim_root_v1(
+            FCIS_ACCEPTANCE_RECEIPT_SCHEMA_ID_V1,
+            base_receipt,
+        )
+        anf_version: str | None = None
+        anf_root: str | None = None
+        if authority_normal_form is not None:
+            anf_version, anf_root = _validate_authority_normal_form_binding_v1(
+                evaluation,
+                patch_root=patch_root,
+                plan_root=plan_root,
+                budget_hash=budget_hash,
+                base_receipt_root=base_receipt_root,
+                authority_normal_form=authority_normal_form,
+            )
+        binding = replace(
+            base_binding,
+            authority_normal_form_version=anf_version,
+            authority_normal_form_root=anf_root,
         )
         receipt = AcceptanceReceiptClaimV1(binding)
         receipt_bytes, _receipt_root = _claim_root_v1(
@@ -621,6 +688,7 @@ def evaluate_source_bound_fcis_decision_v1(
     *,
     source_occurrence: object,
     budget: object,
+    authority_normal_form: object | None = None,
 ) -> DecisionV1:
     """Derive the controlled decision from one verified source-bound evaluation."""
 
@@ -653,7 +721,41 @@ def evaluate_source_bound_fcis_decision_v1(
             execution_context_hash=None,
             pre_state_root=None,
         )
-    return _derive_accept_v1(evaluation, exact_budget, budget_hash)
+    return _derive_accept_v1(
+        evaluation,
+        exact_budget,
+        budget_hash,
+        authority_normal_form,
+    )
+
+
+def evaluate_source_bound_fcis_decision_with_anf_v1(
+    *,
+    source_occurrence: object,
+    budget: object,
+    authority_normal_form: object,
+) -> DecisionV1:
+    """Require one exact ANF identity before deriving a source-bound receipt."""
+
+    if type(authority_normal_form) is not FCISAuthorityNormalFormV1:
+        reject = FCISStepEvaluationRejectV1(
+            FCISStepEvaluationPhaseV1.EVIDENCE,
+            FCISRejectCodeV1.CANONICAL_BINDING_REJECTED.value,
+            ("authority_normal_form",),
+            "D03 requires one exact Authority Normal Form",
+        )
+        return _authoritative_reject_v1(
+            reject,
+            budget_hash=None,
+            command_root=None,
+            execution_context_hash=None,
+            pre_state_root=None,
+        )
+    return evaluate_source_bound_fcis_decision_v1(
+        source_occurrence=source_occurrence,
+        budget=budget,
+        authority_normal_form=authority_normal_form,
+    )
 
 
 def evaluate_fcis_decision_v1(
@@ -712,6 +814,7 @@ __all__ = (
     "FCIS_SPOT_TRANSITION_BUDGET_V1",
     "RejectV1",
     "acceptance_receipt_root_v1",
+    "evaluate_source_bound_fcis_decision_with_anf_v1",
     "evaluate_source_bound_fcis_decision_v1",
     "evaluate_fcis_decision_v1",
 )

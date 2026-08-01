@@ -13,6 +13,7 @@ from typing import TypeAlias, final
 
 from ..state.fcis_committed_state_values import FCISCommittedStateV1
 from ..state.owned_collections import OwnedEnumV1
+from .fcis_m6_profile_ids import ANF_VERSION_V1
 from .fcis_transition_values import CommitPlanV1
 
 FCIS_ACCEPTANCE_RECEIPT_SCHEMA_ID_V1 = "zenodex/fcis/receipt/accept/v1"
@@ -128,6 +129,8 @@ class ReceiptBindingSourceV1:
     snapshot_commitment: object
     patch_root: object
     commit_plan_root: object
+    authority_normal_form_version: object = None
+    authority_normal_form_root: object = None
 
 
 @final
@@ -203,6 +206,8 @@ class ReceiptBindingClaimV1:
     snapshot_commitment: str
     patch_root: str
     commit_plan_root: str
+    authority_normal_form_version: str | None = None
+    authority_normal_form_root: str | None = None
 
     def __post_init__(self) -> None:
         if type(self.algorithm_id) is not str or not self.algorithm_id:
@@ -231,6 +236,15 @@ class ReceiptBindingClaimV1:
         ):
             if not _is_digest_v1(object.__getattribute__(self, field_name)):
                 raise TypeError(f"{field_name} must be a canonical digest")
+        anf_version = self.authority_normal_form_version
+        anf_root = self.authority_normal_form_root
+        if (anf_version is None) != (anf_root is None):
+            raise ValueError("ANF version and root must be supplied together")
+        if anf_version is not None:
+            if anf_version != ANF_VERSION_V1:
+                raise ValueError("receipt ANF version is not the pinned version")
+            if not _is_digest_v1(anf_root):
+                raise TypeError("receipt ANF root must be a canonical digest")
 
 
 @final
