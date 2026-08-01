@@ -13,6 +13,7 @@ from experiments.fcis_m6_h02_sqlite_publication import (
     ANFPublicationWitnessV1,
     H02CodeV1,
     H02CommitV1,
+    H02Error,
     H02RejectV1,
     H02StorageError,
     H03CrashPointV1,
@@ -168,7 +169,7 @@ def test_h08_surplus_orphan_evidence_row_is_rejected(tmp_path: Path) -> None:
         connection.close()
 
 
-def test_h08_preexisting_non_snapshot_row_leaves_partial_initialization(
+def test_h08_preexisting_non_snapshot_row_is_rejected_before_initialization(
     tmp_path: Path,
 ) -> None:
     instance, _ = _fixture()
@@ -193,11 +194,11 @@ def test_h08_preexisting_non_snapshot_row_leaves_partial_initialization(
     )
 
     try:
-        with pytest.raises(dra.DurableRetractionError, match="lifecycle"):
+        with pytest.raises(H02Error, match="authority_epochs"):
             initialize_database(connection, instance.pre_snapshot)
-        assert connection.execute("SELECT COUNT(*) FROM snapshot_meta").fetchone() == (1,)
-        assert connection.execute("SELECT COUNT(*) FROM authority_epochs").fetchone() == (2,)
-        with pytest.raises(dra.DurableRetractionError, match="lifecycle"):
+        assert connection.execute("SELECT COUNT(*) FROM snapshot_meta").fetchone() == (0,)
+        assert connection.execute("SELECT COUNT(*) FROM authority_epochs").fetchone() == (1,)
+        with pytest.raises(H02StorageError, match="metadata"):
             read_state(connection)
     finally:
         connection.close()

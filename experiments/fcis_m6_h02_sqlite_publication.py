@@ -339,6 +339,19 @@ def _text_column(name: str) -> str:
     )
 
 
+_DURABLE_TABLE_NAMES: Final[tuple[str, ...]] = (
+    "snapshot_meta",
+    "authority_epochs",
+    "authority_allowed_writers",
+    "publication_atoms",
+    "publication_evidence",
+    "publication_nullifiers",
+    "publication_outbox",
+    "anf_publications",
+    "delivery_acks",
+)
+
+
 def _schema_sql() -> str:
     return f"""
 CREATE TABLE IF NOT EXISTS snapshot_meta (
@@ -663,6 +676,12 @@ def _insert_state_rows(
         _insert_anf_row(connection, row)
 
 
+def _require_empty_database(connection: sqlite3.Connection) -> None:
+    for table_name in _DURABLE_TABLE_NAMES:
+        if connection.execute(f"SELECT 1 FROM {table_name} LIMIT 1").fetchone() is not None:
+            raise H02Error(f"database table {table_name} is not empty")
+
+
 def initialize_database(
     connection: sqlite3.Connection,
     snapshot: dra.DurableSnapshotV1,
@@ -686,12 +705,13 @@ def initialize_database(
     )
     try:
         connection.execute("BEGIN")
-        if connection.execute("SELECT 1 FROM snapshot_meta").fetchone() is not None:
-            raise H02Error("database is already initialized")
+        _require_empty_database(connection)
         _insert_snapshot_meta(connection, state)
         _insert_state_rows(connection, state)
+        if read_state(connection) != state:
+            raise H02StorageError("staged database does not reopen to its seed state")
         connection.commit()
-    except (H02Error, sqlite3.Error):
+    except (H02Error, H02StorageError, sqlite3.Error):
         connection.rollback()
         raise
     if read_state(connection) != state:
