@@ -1,0 +1,45 @@
+{
+  "schema_version": "zenodex.fcis.m6.h08.review-matrix.v1",
+  "task_id": "H08",
+  "base_head": "1b08782266211354cd59e6976475da27fb9e4516",
+  "attacks": [
+    {
+      "attack_id": "H08-SPLIT-PUBLICATION",
+      "target": "ordinary H03 publication boundaries",
+      "attempt": "interrupt every ordinary fault point and reopen from a fresh file-backed connection",
+      "result": "PASS",
+      "evidence": "tests/core/test_fcis_m6_h08_independent_review.py::test_h08_crash_points_reopen_as_exact_pre_or_post",
+      "nonclaim": "authority-helper-only points and real power loss remain outside this fixture"
+    },
+    {
+      "attack_id": "H08-STALE-CAS",
+      "target": "two connections using the same pre-state request",
+      "attempt": "commit through connection one, retry through connection two with unchanged expected roots",
+      "result": "PASS",
+      "evidence": "tests/core/test_fcis_m6_h08_independent_review.py::test_h08_stale_cas_is_rejected_across_two_connections",
+      "nonclaim": "no production concurrent linearizability proof"
+    },
+    {
+      "attack_id": "H08-PHANTOM-SURPLUS",
+      "target": "complete evidence reconstruction",
+      "attempt": "delete a committed evidence row and insert an orphan evidence row",
+      "result": "PASS",
+      "evidence": "tests/core/test_fcis_m6_h08_independent_review.py::test_h08_missing_evidence_row_is_rejected; test_h08_surplus_orphan_evidence_row_is_rejected",
+      "nonclaim": "the hostile SQL mutation models storage corruption and is not a production adapter test"
+    },
+    {
+      "attack_id": "H08-CONTAMINATED-INIT",
+      "target": "initialization boundary",
+      "attempt": "insert an unrelated authority row before initialize_database",
+      "result": "BLOCKER",
+      "evidence": "tests/core/test_fcis_m6_h08_independent_review.py::test_h08_preexisting_non_snapshot_row_leaves_partial_initialization",
+      "nonclaim": "no repair is claimed in H08"
+    }
+  ],
+  "verdict": "GAP",
+  "required_repair": "Reject any nonempty durable table before seed commit or perform an atomic complete initialization with rollback on post-write reopen failure.",
+  "global_nonclaims": [
+    "M6 remains unmounted and non-promotable",
+    "No production datastore, caller, migration, value movement, or zUSD safety theorem is established"
+  ]
+}
