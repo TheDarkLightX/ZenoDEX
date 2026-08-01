@@ -1,0 +1,129 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "D09",
+  "base_sha": "2504f9c8bd6b9feb31e519eac76a3aa6db27b54b",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "experiments/fcis_m6_d09_crossed_axis_temporal_check.py",
+    "tests/core/test_fcis_m6_d09_crossed_axis_temporal.py",
+    "docs/research/m6_tasks/TASK_D09_CROSSED_AXIS_VECTOR.json",
+    "docs/research/FCIS_M6_D09_CROSSED_AXIS_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_D09_PLAN.md",
+    "docs/research/m6_tasks/TASK_D09_REPORT.md",
+    "docs/research/m6_tasks/TASK_D09_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_D09_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile experiments/fcis_m6_d09_crossed_axis_temporal_check.py tests/core/test_fcis_m6_d09_crossed_axis_temporal.py",
+    "python3 -m ruff check experiments/fcis_m6_d09_crossed_axis_temporal_check.py tests/core/test_fcis_m6_d09_crossed_axis_temporal.py",
+    "python3 -m ruff format --check experiments/fcis_m6_d09_crossed_axis_temporal_check.py tests/core/test_fcis_m6_d09_crossed_axis_temporal.py",
+    "python3 -m mypy --strict experiments/fcis_m6_d09_crossed_axis_temporal_check.py tests/core/test_fcis_m6_d09_crossed_axis_temporal.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_d09_crossed_axis_temporal.py",
+    "PYTHONPATH=. python3 experiments/fcis_m6_d09_crossed_axis_temporal_check.py",
+    "PYTHONPATH=. python3 experiments/fcis_m6_d08_combined_anf_check.py",
+    "python3 -m experiments.fcis_m6_d07_stutter_receipt_check",
+    "python3 -m experiments.fcis_m6_d06_rule_manifest_check",
+    "python3 -m experiments.fcis_m6_d05_tcg_inventory_check",
+    "python3 -m experiments.fcis_m6_d04_anf_bundle_outbox_check",
+    "python3 -m experiments.fcis_m6_d03_anf_receipt_binding_check",
+    "python3 -m experiments.fcis_m6_d02_source_bound_evaluation_check",
+    "python3 -m experiments.fcis_m6_d01_vector_check",
+    "python3 -m experiments.fcis_m6_c07_review_packet_check",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_D09_CROSSED_AXIS_VECTOR.json",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D09",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_D09_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "experiments/fcis_m6_d09_crossed_axis_temporal_check.py": "c1d1d1cf8e589320a9847f19e4f748b3b527db1bd1b79393b34b2225931f61d6",
+    "tests/core/test_fcis_m6_d09_crossed_axis_temporal.py": "4f5fcf70815c95da825a44c2d00d5f8573fe405b6979419becbf291f8d1ac9e5",
+    "docs/research/m6_tasks/TASK_D09_CROSSED_AXIS_VECTOR.json": "8b6d8c891a860b0c26eccbf0726d6126d8f0f3070ae3f90d07ae2a233b0d0dfe",
+    "docs/research/FCIS_M6_D09_CROSSED_AXIS_SCHEMA_V1.md": "7082b9fe9a16ae8290ec0ac830e1985d6461e0b9178067be1793e9d925d66c4b",
+    "docs/research/m6_tasks/TASK_D09_PLAN.md": "44ebdde31cff908db0648a2bb2143d5f198c97d44a8f3eefceb4c8f65e4e390f",
+    "docs/research/m6_tasks/TASK_D09_REPORT.md": "1f7d69a8d33a021de9bba849fe5d3de21be5b086a3e4922552534e027f830d36"
+  },
+  "results": {
+    "implementation_commit": "6adf03af9124ae17044bce097e460b42211b21d7",
+    "implementation_tree": "84fe640a06dd79aec99032360aa688c2bd3c82d8",
+    "implementation_parent": "2504f9c8bd6b9feb31e519eac76a3aa6db27b54b",
+    "focused_d09_tests": "3 passed",
+    "d09_checker": "pass; D09_CROSSED_AXIS_MATCH; 8 mutants killed",
+    "d08_checker": "pass; D08_COMBINED_ANF_MATCH",
+    "d07_vector_checker": "pass; D07_STUTTER_RECEIPT_MATCH",
+    "d06_vector_checker": "pass; D06_LINEAGE_RULE_MANIFEST_MATCH",
+    "d05_vector_checker": "pass; D05_TCG_INVENTORY_MATCH",
+    "d04_vector_checker": "pass; D04_ANF_BUNDLE_OUTBOX_MATCH",
+    "d03_vector_checker": "pass; D03_ANF_RECEIPT_BINDING_MATCH",
+    "d02_vector_checker": "pass; D02_SOURCE_BOUND_EVALUATION_MATCH",
+    "d01_vector_checker": "pass; D01_VECTOR_MATCH",
+    "c07_packet_checker": "pass; C07_REVIEW_PACKET_MATCH",
+    "python_compile": "pass; 2 files",
+    "ruff": "pass; 2 files",
+    "ruff_format": "pass; 2 files",
+    "mypy_strict": "pass; 2 files",
+    "json_vector": "pass",
+    "validator": "pass; 7 manifest entries",
+    "source_manifest": "pass; 7 manifest entries",
+    "runtime_mount": "none",
+    "remote_publication": "none"
+  },
+  "mutants": [
+    {
+      "id": "D09_SEMANTIC_1_RECEIPT_2",
+      "status": "killed_by_checker",
+      "invariant": "source-bound semantic and receipt identity cannot cross transitions"
+    },
+    {
+      "id": "D09_RECEIPT_1_BUNDLE_2",
+      "status": "killed_by_checker",
+      "invariant": "receipt and bundle must belong to one source lineage"
+    },
+    {
+      "id": "D09_BUNDLE_1_OUTBOX_2",
+      "status": "killed_by_checker",
+      "invariant": "bundle and outbox ancestry cannot cross transitions"
+    },
+    {
+      "id": "D09_FOREIGN_TCG_TOPOLOGY",
+      "status": "killed_by_checker",
+      "invariant": "TCG certificate must match the anchored topology"
+    },
+    {
+      "id": "D09_FOREIGN_DRA_AUTHORITY_EPOCH",
+      "status": "killed_by_checker",
+      "invariant": "DRA atom authority state must match PRE history"
+    },
+    {
+      "id": "D09_SAME_SEMANTIC_DIFFERENT_LINEAGE",
+      "status": "killed_by_checker",
+      "invariant": "semantic and lineage stream roots remain jointly bound"
+    },
+    {
+      "id": "D09_STUTTER_HIDES_NEW_COMMIT",
+      "status": "killed_by_checker",
+      "invariant": "new commit is a visible transition, not a stutter"
+    },
+    {
+      "id": "D09_STUTTER_HIDES_MIGRATION",
+      "status": "killed_by_checker",
+      "invariant": "migration is a visible authority transition, not a stutter"
+    }
+  ],
+  "nonclaims": [
+    "D09 is tested unmounted mutation evidence over two finite research fixtures.",
+    "The crossed-axis cases reject at the D08 lineage boundary and do not prove production row-level isolation or transaction atomicity.",
+    "Mathematical specifications and isolated invariants are substantial components, while end-to-end refinement from authenticated input to proved transition remains incomplete.",
+    "Atomic publication, recovery, outbox, migration refinement, mounted unique authority/no-bypass evidence, and the whole-system conservation/liability/backing/ZUSD theorem remain incomplete.",
+    "No Lean, Julia, ESSO, production adapter, remote implementation commit, hosted CI run, draft PR, merge, deployment, migration, runtime authority change, or value movement is claimed."
+  ]
+}
