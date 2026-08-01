@@ -1,0 +1,132 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "D07",
+  "base_sha": "789ec7338b3ea75f49deb56ef38406141f85ce66",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_stutter_receipt.py",
+    "experiments/fcis_m6_d07_stutter_receipt_check.py",
+    "tests/core/test_fcis_m6_d07_stutter_receipt.py",
+    "docs/research/m6_tasks/TASK_D07_STUTTER_RECEIPT_VECTOR.json",
+    "docs/research/FCIS_M6_D07_RQAG_STUTTER_RECEIPT_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_D07_PLAN.md",
+    "docs/research/m6_tasks/TASK_D07_REPORT.md",
+    "docs/research/m6_tasks/TASK_D07_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_D07_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_stutter_receipt.py tests/core/test_fcis_m6_d07_stutter_receipt.py experiments/fcis_m6_d07_stutter_receipt_check.py",
+    "python3 -m ruff check src/core/fcis_stutter_receipt.py tests/core/test_fcis_m6_d07_stutter_receipt.py experiments/fcis_m6_d07_stutter_receipt_check.py",
+    "python3 -m ruff format --check src/core/fcis_stutter_receipt.py tests/core/test_fcis_m6_d07_stutter_receipt.py experiments/fcis_m6_d07_stutter_receipt_check.py",
+    "python3 -m mypy --strict src/core/fcis_stutter_receipt.py tests/core/test_fcis_m6_d07_stutter_receipt.py experiments/fcis_m6_d07_stutter_receipt_check.py",
+    "python3 -m pytest -q tests/core/test_fcis_m6_d07_stutter_receipt.py",
+    "python3 -m pytest -q tests/core/test_fcis_m6_d07_stutter_receipt.py tests/core/test_fcis_m6_d06_rule_manifest.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m6_d05_tcg_inventory.py tests/core/test_fcis_tree_chord_gate_authority.py tests/core/test_fcis_authority_normal_form_v1.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_decision_derivation.py tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "python3 -m experiments.fcis_m6_d07_stutter_receipt_check",
+    "python3 -m experiments.fcis_m6_d06_rule_manifest_check",
+    "python3 -m experiments.fcis_m6_d05_tcg_inventory_check",
+    "python3 -m experiments.fcis_m6_d04_anf_bundle_outbox_check",
+    "python3 -m experiments.fcis_m6_d03_anf_receipt_binding_check",
+    "python3 -m experiments.fcis_m6_d02_source_bound_evaluation_check",
+    "python3 -m experiments.fcis_m6_d01_vector_check",
+    "python3 -m experiments.fcis_m6_c07_review_packet_check",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_D07_STUTTER_RECEIPT_VECTOR.json",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D07",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_D07_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_stutter_receipt.py": "96d9e2d1fc0943e1d5d5f8fb3120181b062dc9962d94ea9acdbdfab7f75caee4",
+    "experiments/fcis_m6_d07_stutter_receipt_check.py": "921e0929c8df696445e0da99e8e542e377f614f0da7d2ce1d4a7374b4f0766b7",
+    "tests/core/test_fcis_m6_d07_stutter_receipt.py": "f75b1122e1f9c2c5ccbc56135fc42fee8b6df320923f6b279331cf6ab1c44bc1",
+    "docs/research/m6_tasks/TASK_D07_STUTTER_RECEIPT_VECTOR.json": "914291f394a2eef1da32202a069c301838cfb5a07d95445ba8bbb1f5de7731b0",
+    "docs/research/FCIS_M6_D07_RQAG_STUTTER_RECEIPT_SCHEMA_V1.md": "fc0e85700e44d55fc817e1852af2d1c784173305a85bc06d6088567249676c19",
+    "docs/research/m6_tasks/TASK_D07_PLAN.md": "6cc7ad4ee02a5350e2aabbacbc0adcf20e093bb75ce0d991eb23a031d5562848",
+    "docs/research/m6_tasks/TASK_D07_REPORT.md": "971f54b59f159ac964747cf7623fcaee731cd10713bb3beee5fef09f3bec2c17"
+  },
+  "results": {
+    "implementation_commit": "bb67fe7661e33f3c5f852779dfedc1dc8dcecb21",
+    "implementation_tree": "5c892af058607a38afb75fa79a0a6fcd799d77dc",
+    "implementation_parent": "789ec7338b3ea75f49deb56ef38406141f85ce66",
+    "focused_d07_tests": "9 passed",
+    "d07_dependency_regression": "197 passed",
+    "d07_vector_checker": "pass; D07_STUTTER_RECEIPT_MATCH",
+    "d06_vector_checker": "pass; D06_LINEAGE_RULE_MANIFEST_MATCH",
+    "d05_vector_checker": "pass; D05_TCG_INVENTORY_MATCH",
+    "d04_vector_checker": "pass; D04_ANF_BUNDLE_OUTBOX_MATCH",
+    "d03_vector_checker": "pass; D03_ANF_RECEIPT_BINDING_MATCH",
+    "d02_vector_checker": "pass; D02_SOURCE_BOUND_EVALUATION_MATCH",
+    "d01_vector_checker": "pass; D01_VECTOR_MATCH",
+    "c07_packet_checker": "pass; C07_REVIEW_PACKET_MATCH",
+    "python_compile": "pass; 3 files",
+    "ruff": "pass; 3 files",
+    "ruff_format": "pass; 3 files",
+    "mypy_strict": "pass; 3 files",
+    "json_vector": "pass",
+    "validator": "pass; 8 manifest entries",
+    "source_manifest": "pass; 8 manifest entries",
+    "eligible_operation_count": 4,
+    "forbidden_operation_count": 3,
+    "runtime_mount": "none",
+    "remote_publication": "none"
+  },
+  "mutants": [
+    {
+      "id": "D07_NEW_COMMIT_AS_STUTTER",
+      "status": "killed_by_test_and_checker",
+      "invariant": "a new atomic commit is a visible authority transition"
+    },
+    {
+      "id": "D07_ACK_PUBLICATION_AS_STUTTER",
+      "status": "killed_by_test_and_checker",
+      "invariant": "acknowledgment publication remains a visible transition"
+    },
+    {
+      "id": "D07_MIGRATION_AS_STUTTER",
+      "status": "killed_by_test_and_checker",
+      "invariant": "migration remains a visible authority transition"
+    },
+    {
+      "id": "D07_CANONICAL_ROOT_CHANGE",
+      "status": "killed_by_test_and_checker",
+      "invariant": "stutters require exact canonical pre/post equality"
+    },
+    {
+      "id": "D07_OBSERVABLE_ROOT_CHANGE",
+      "status": "killed_by_test_and_checker",
+      "invariant": "stutters require exact observable pre/post equality"
+    },
+    {
+      "id": "D07_CHECKER_SUBSTITUTION",
+      "status": "killed_by_test_and_checker",
+      "invariant": "checker identity is pinned to the closed operation kind"
+    },
+    {
+      "id": "D07_VERIFICATION_ROOT_SUBSTITUTION",
+      "status": "killed_by_test_and_checker",
+      "invariant": "verification root is derived from operation and equality evidence"
+    },
+    {
+      "id": "D07_DIRECT_CONSTRUCTION",
+      "status": "killed_by_test_and_checker",
+      "invariant": "receipt construction requires a verifier-controlled token"
+    }
+  ],
+  "nonclaims": [
+    "D07 is tested unmounted evidence for the finite RQAG receipt language.",
+    "The model trusts an upstream classifier to truthfully identify the concrete operation kind and operation identity; it does not inspect a production database or runtime trace.",
+    "Same-effect destination deduplication remains a contract premise until a destination adapter proves idempotency and acknowledgment provenance.",
+    "D07 does not prove TCG quotient completeness, C3/ANF composition, durable publication, recovery, migration authority, proof-context mounting, or value movement.",
+    "The receipt construction token is a research-layer boundary and does not replace a production verifier or authenticated shell.",
+    "No Lean proof, Julia execution, ESSO run, production adapter, remote implementation commit, hosted CI run, draft PR, merge, deployment, migration, or runtime authority change is claimed."
+  ]
+}
