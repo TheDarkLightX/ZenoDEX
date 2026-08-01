@@ -1,0 +1,58 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "J05",
+  "base_sha": "bd42cd9bb7f09009e955cf8c105bb6925598ddb7",
+  "source_head_sha": "e85ec2aecc51221dad9624d05683b8e8d550c47b",
+  "source_head_tree": "f9f392bf06548f089bf1d675624827d1769e90d7",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "experiments/fcis_m6_j05_shadow_dual_check.py",
+    "tests/core/test_fcis_m6_j05_shadow_dual_check.py",
+    "docs/research/m6_tasks/TASK_J05_SHADOW_DUAL_SCHEMA_V1.json",
+    "docs/research/m6_tasks/TASK_J05_PLAN.md",
+    "docs/research/m6_tasks/TASK_J05_REPORT.md",
+    "docs/research/m6_tasks/TASK_J05_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_J05_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_j05_shadow_dual_check.py",
+    "python3 -m ruff check experiments/fcis_m6_j05_shadow_dual_check.py tests/core/test_fcis_m6_j05_shadow_dual_check.py",
+    "python3 -m ruff format --check experiments/fcis_m6_j05_shadow_dual_check.py tests/core/test_fcis_m6_j05_shadow_dual_check.py",
+    "python3 -m mypy --strict experiments/fcis_m6_j05_shadow_dual_check.py tests/core/test_fcis_m6_j05_shadow_dual_check.py",
+    "python3 -m py_compile experiments/fcis_m6_j05_shadow_dual_check.py tests/core/test_fcis_m6_j05_shadow_dual_check.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_J05_SHADOW_DUAL_SCHEMA_V1.json",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J05",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_J05_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "experiments/fcis_m6_j05_shadow_dual_check.py": "7f54120c5eac0f97229493efc73b57952e8a0506b05870e09428a591ba705b96",
+    "tests/core/test_fcis_m6_j05_shadow_dual_check.py": "081c680163a108cd1d1f945ada3e29887ccce04d21064a618d6724683a4d6bd8",
+    "docs/research/m6_tasks/TASK_J05_SHADOW_DUAL_SCHEMA_V1.json": "669d46a29c1678d00a328743cd1cd2328fb5094fbfbbbdc42374c48a4339323b",
+    "docs/research/m6_tasks/TASK_J05_PLAN.md": "e201dd1c972f5e2516a1fcb93b7133a290184876f4036a2359a447fa609c21d8"
+  },
+  "results": {
+    "shadow_dual_checker": "pass; exact equality and reviewed refinement modes",
+    "focused_tests": "pass; 6 passed",
+    "divergence_retention": "pass; mismatch retained and phase advance blocked",
+    "authority_boundary": "pass; shadow and divergence are non-authoritative",
+    "implementation_commit": "e85ec2aecc51221dad9624d05683b8e8d550c47b",
+    "implementation_tree": "f9f392bf06548f089bf1d675624827d1769e90d7",
+    "implementation_parent": "bd42cd9bb7f09009e955cf8c105bb6925598ddb7"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "J05 is a bounded shadow/dual-check model and is not a production replay runner.",
+    "J05 does not prove the reviewed relation or migration datastore behavior.",
+    "J05 does not prove runtime mounting or value movement.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
