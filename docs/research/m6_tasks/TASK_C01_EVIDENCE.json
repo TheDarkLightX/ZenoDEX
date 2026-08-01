@@ -1,0 +1,107 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "C01",
+  "base_sha": "a1756ac7899c53b415c7cf6179ff91f4e4519db2",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C01-semantic-profile-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "docs/research/FCIS_M6_C01_SEMANTIC_PROFILE_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_C01_PLAN.md",
+    "docs/research/m6_tasks/TASK_C01_REPORT.md",
+    "docs/research/m6_tasks/TASK_C01_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_C01_SOURCE_MANIFEST.sha256",
+    "src/core/fcis_m6_profile_ids.py",
+    "tests/core/test_fcis_m6_profile_ids.py",
+    "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml",
+    "docs/research/FCIS_M5_P4B5A_AGQE_SRGD_SIGN_DUAL_REFINEMENT_20260730.md",
+    "docs/research/m6_tasks/TASK_A02_REPORT.md",
+    "docs/research/m6_tasks/TASK_A02_EVIDENCE.json"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_m6_profile_ids.py tests/core/test_fcis_m6_profile_ids.py",
+    "python3 -m ruff check src/core/fcis_m6_profile_ids.py tests/core/test_fcis_m6_profile_ids.py",
+    "python3 -m pytest -q tests/core/test_fcis_m6_profile_ids.py",
+    "python3 -m mypy --strict src/core/fcis_m6_profile_ids.py tests/core/test_fcis_m6_profile_ids.py",
+    "git diff --check",
+    "rg -n 'adaptive-global-quota-entitlement/three-role/v1|srgd-deficit/v1|agqe-surplus/v1' --glob '!docs/research/FCIS_M6_C01_SEMANTIC_PROFILE_SCHEMA_V1.md' --glob '!docs/research/m6_tasks/TASK_C01_PLAN.md' src tests rust-runtime formal lean-mathlib",
+    "python3 .claude/skills/zenodex-style-map/scripts/which_style.py <C01 paths>",
+    "python3 .claude/skills/zenodex-security-analysis/scripts/trust_surface.py",
+    "python3 .claude/skills/zenodex-security-analysis/scripts/redflags.py <C01 paths>",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks C01",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_C01_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_m6_profile_ids.py": "c49a51688c453776d49726de24f295c84ffe4219b18f8692ad5a4d7c628e232f",
+    "tests/core/test_fcis_m6_profile_ids.py": "6a999f9250c9190438041c49a3d7b1ef07491050f23a24fc6fddb5d1edccaade",
+    "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml": "19a9426487ad05f56c8b34889f84b130c92d1d650fdd5c4e3e6c014b27fc49fc",
+    "docs/research/FCIS_M5_P4B5A_AGQE_SRGD_SIGN_DUAL_REFINEMENT_20260730.md": "d231c1c6dbee73d5a1843cf9505d93c78685eb18bef557f7dbada3c374cbf273",
+    "docs/research/m6_tasks/TASK_A02_REPORT.md": "1c9008c3c769b5d0e305f849dd744094ceef5930b9a2e298541bf47817fc89c7",
+    "docs/research/m6_tasks/TASK_A02_EVIDENCE.json": "e5cc26553ede97a0c06f6304f7cfddf4b9c2be42b7cf0befea6bbee48c2f4b27"
+  },
+  "results": {
+    "implementation_commit": "2e05c1b556a38b349463df4e5550eea6f9ef813c",
+    "implementation_tree": "2a8afbdefabbbed525d6b83531b5bafdcb12addd",
+    "implementation_parent": "a1756ac7899c53b415c7cf6179ff91f4e4519db2",
+    "semantic_profile_id": "adaptive-global-quota-entitlement/three-role/v1",
+    "representation_ids": [
+      "srgd-deficit/v1",
+      "agqe-surplus/v1"
+    ],
+    "representation_relation": "sigma=-d",
+    "focused_identifier_tests": "6 passed",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "mypy_strict": "pass",
+    "identifier_literal_scan": "canonical registry plus exact-value tests; no second source registry",
+    "style_map": "unavailable; repository-local .claude path absent",
+    "security_analysis": "unavailable; repository-local .claude path absent",
+    "runtime_mount": "none"
+  },
+  "mutants": [
+    {
+      "id": "C01_DUPLICATE_SEMANTIC_ID",
+      "status": "covered_by_inherited_A02_regression",
+      "invariant": "the semantic profile is the exact reviewed value"
+    },
+    {
+      "id": "C01_REPRESENTATION_USED_AS_SEMANTIC_ID",
+      "status": "covered_by_inherited_A02_regression",
+      "invariant": "semantic identity is distinct from both codec labels"
+    },
+    {
+      "id": "C01_DUPLICATE_REPRESENTATION_ID",
+      "status": "covered_by_inherited_A02_regression",
+      "invariant": "SRGD and AGQE representation IDs are distinct"
+    },
+    {
+      "id": "C01_ROLE_ORDER_SUBSTITUTION",
+      "status": "covered_by_inherited_A02_regression",
+      "invariant": "the fixed role order remains buyback, treasury, rewards"
+    },
+    {
+      "id": "C01_DOMAIN_COLLISION",
+      "status": "covered_by_inherited_A02_regression",
+      "invariant": "reviewed M6 domain identifiers remain unique"
+    },
+    {
+      "id": "C01_C3_CLAIM_KEY_DUPLICATION",
+      "status": "covered_by_inherited_A02_regression",
+      "invariant": "the C3 claim-key registry remains unique and ordered"
+    }
+  ],
+  "nonclaims": [
+    "C01 is tested research evidence for identity vocabulary and schema separation.",
+    "C01 does not implement or prove the C02 entitlement key.",
+    "C01 does not implement migration, authority, datastore, runtime, deployment, or value-moving paths.",
+    "No remote implementation commit, hosted CI run, draft PR, or production promotion is claimed."
+  ]
+}
