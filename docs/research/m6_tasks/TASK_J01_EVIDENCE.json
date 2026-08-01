@@ -1,0 +1,59 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "J01",
+  "base_sha": "063df78246ff2f7a1ea2c4b367e11a457c01babb",
+  "source_head_sha": "a55e7e7c0878425ce1a6373e8294d53374caed59",
+  "source_head_tree": "7d0346a9080c7e17a3f18726cadc759793a3e2f5",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "tools/check_fcis_m6_j01_migration_lifecycle.py",
+    "tests/core/test_fcis_m6_j01_migration_lifecycle.py",
+    "docs/research/m6_tasks/TASK_J01_MIGRATION_LIFECYCLE_SCHEMA_V1.json",
+    "docs/research/m6_tasks/TASK_J01_PLAN.md",
+    "docs/research/m6_tasks/TASK_J01_REPORT.md",
+    "docs/research/m6_tasks/TASK_J01_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_J01_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "PYTHONPATH=. python3 tools/check_fcis_m6_j01_migration_lifecycle.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_j01_migration_lifecycle.py",
+    "python3 -m ruff check tools/check_fcis_m6_j01_migration_lifecycle.py tests/core/test_fcis_m6_j01_migration_lifecycle.py",
+    "python3 -m ruff format --check tools/check_fcis_m6_j01_migration_lifecycle.py tests/core/test_fcis_m6_j01_migration_lifecycle.py",
+    "python3 -m mypy --strict tools/check_fcis_m6_j01_migration_lifecycle.py tests/core/test_fcis_m6_j01_migration_lifecycle.py",
+    "python3 -m py_compile tools/check_fcis_m6_j01_migration_lifecycle.py tests/core/test_fcis_m6_j01_migration_lifecycle.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_J01_MIGRATION_LIFECYCLE_SCHEMA_V1.json",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J01",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_J01_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "tools/check_fcis_m6_j01_migration_lifecycle.py": "69f0d9e2def6619937e1439ee2b04e416280f3affde58038e1d8d17d762698dd",
+    "tests/core/test_fcis_m6_j01_migration_lifecycle.py": "d97f2707b4bf280648f380ee74669276a015216fcaa6114e1ca1deb412b21132",
+    "docs/research/m6_tasks/TASK_J01_MIGRATION_LIFECYCLE_SCHEMA_V1.json": "6e8e0c5caf1f075a849d678fd84551ad2b9e129814396425cc326cd75d07a71f",
+    "docs/research/m6_tasks/TASK_J01_PLAN.md": "3685ff642fa861179bc849c84ff234916dbac353407041fa0681b20107366849"
+  },
+  "results": {
+    "lifecycle_checker": "pass; exact seven phases and six forward edges",
+    "focused_tests": "pass; 4 passed",
+    "negative_witnesses": "pass; skip, reverse, unknown, and terminal repeat reject",
+    "epoch_and_root_binding": "pass; each edge advances one epoch and binds the transition root",
+    "implementation_commit": "a55e7e7c0878425ce1a6373e8294d53374caed59",
+    "implementation_tree": "7d0346a9080c7e17a3f18726cadc759793a3e2f5",
+    "implementation_parent": "063df78246ff2f7a1ea2c4b367e11a457c01babb"
+  },
+  "mutants": [],
+  "nonclaims": [
+    "J01 is a research lifecycle checker and is not a production migration switch.",
+    "J01 does not prove writer exclusion, stale tokens, rollback, or datastore behavior.",
+    "J01 does not prove runtime mounting or value movement.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
