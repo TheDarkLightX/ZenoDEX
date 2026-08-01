@@ -1,0 +1,131 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "C03",
+  "base_sha": "9d84e18d61606a8beafa1d2350355175ee794fcf",
+  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
+  "branch": "codex/task-C03-migration-codecs-20260801",
+  "status": "TESTED",
+  "evidence_files": [
+    "src/core/fcis_entitlement_migration_values_v1.py",
+    "src/core/fcis_entitlement_migration_codec_v1.py",
+    "tests/core/test_fcis_entitlement_migration_v1.py",
+    "experiments/fcis_m6_c03_vector_check.py",
+    "docs/research/FCIS_M6_C03_MIGRATION_CODEC_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_C03_PLAN.md",
+    "docs/research/m6_tasks/TASK_C03_MIGRATION_VECTOR.json",
+    "docs/research/m6_tasks/TASK_C03_REPORT.md",
+    "docs/research/m6_tasks/TASK_C03_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_C03_SOURCE_MANIFEST.sha256",
+    "docs/research/FCIS_M6_C02_ENTITLEMENT_KEY_SCHEMA_V1.md",
+    "docs/research/FCIS_M6_C01_SEMANTIC_PROFILE_SCHEMA_V1.md",
+    "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml",
+    "docs/research/FCIS_M5_P4B5A_AGQE_SRGD_SIGN_DUAL_REFINEMENT_20260730.md"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_entitlement_migration_values_v1.py src/core/fcis_entitlement_migration_codec_v1.py tests/core/test_fcis_entitlement_migration_v1.py",
+    "python3 -m ruff check src/core/fcis_entitlement_migration_values_v1.py src/core/fcis_entitlement_migration_codec_v1.py tests/core/test_fcis_entitlement_migration_v1.py",
+    "python3 -m pytest -q tests/core/test_fcis_entitlement_migration_v1.py",
+    "python3 -m mypy --strict src/core/fcis_entitlement_migration_values_v1.py src/core/fcis_entitlement_migration_codec_v1.py tests/core/test_fcis_entitlement_migration_v1.py",
+    "python3 -m experiments.fcis_m6_c03_vector_check",
+    "python3 -m py_compile experiments/fcis_m6_c03_vector_check.py",
+    "python3 -m ruff check experiments/fcis_m6_c03_vector_check.py",
+    "python3 -m mypy --strict experiments/fcis_m6_c03_vector_check.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_C03_MIGRATION_VECTOR.json",
+    "python3 experiments/fcis_m6_c03_vector_check.py",
+    "python3 .claude/skills/zenodex-style-map/scripts/which_style.py <C03 paths>",
+    "python3 .claude/skills/zenodex-security-analysis/scripts/trust_surface.py",
+    "python3 .claude/skills/zenodex-security-analysis/scripts/redflags.py <C03 paths>",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks C03",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_C03_SOURCE_MANIFEST.sha256",
+    "git diff --check"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "git": "git version 2.54.0",
+    "ruff": "ruff 0.16.0",
+    "pytest": "pytest 7.4.4",
+    "mypy": "mypy 2.1.0 (compiled: yes)"
+  },
+  "source_hashes": {
+    "src/core/fcis_entitlement_migration_values_v1.py": "680d3921d002a7d1846c3ccd44ac74a15bcf41fe885c44362610bfe25705e5b1",
+    "src/core/fcis_entitlement_migration_codec_v1.py": "b134e0e7ec8564244c41758cd915ccf361c4d1034036cb25913228aa0d2e6a50",
+    "tests/core/test_fcis_entitlement_migration_v1.py": "424aded7a9126415a04e8e2e9c68401e08a51204335bd74fec752647fbeaee41",
+    "experiments/fcis_m6_c03_vector_check.py": "92178ea813b8a6a9040be4a7c5944fb286a49226448e9948006eb0292708776d",
+    "docs/research/m6_tasks/TASK_C03_PLAN.md": "0169b76725cf5a4b91c60a0c5bfbf3532b11b29edeeabd0c6a06420087045750",
+    "docs/research/FCIS_M6_C03_MIGRATION_CODEC_SCHEMA_V1.md": "75da61f42966399966452f4648d13b8cb2af180da84d80ee651216f478ae85eb",
+    "docs/research/m6_tasks/TASK_C03_MIGRATION_VECTOR.json": "2d58299a5e186d06c395b3e9964a1da29703693552a5ec82675c337ab22c03d9",
+    "docs/research/FCIS_M6_C02_ENTITLEMENT_KEY_SCHEMA_V1.md": "0e59806b237db0f5ceb5ba4c5f1771f8406a6011416c1f4f950f43ccc0fb24ab",
+    "docs/research/FCIS_M6_C01_SEMANTIC_PROFILE_SCHEMA_V1.md": "581fb5a3ff3f429ab1e302a963447d30afe637a87190bd9304ce71e711e7a595",
+    "docs/research/FCIS_M6_MORPH_RELATION_CARDS_V1.yaml": "19a9426487ad05f56c8b34889f84b130c92d1d650fdd5c4e3e6c014b27fc49fc",
+    "docs/research/FCIS_M5_P4B5A_AGQE_SRGD_SIGN_DUAL_REFINEMENT_20260730.md": "d231c1c6dbee73d5a1843cf9505d93c78685eb18bef557f7dbada3c374cbf273"
+  },
+  "results": {
+    "implementation_commit": "b96b372ac1fea4d43618277ba952587e449f3486",
+    "implementation_tree": "affe516d26b2df0d6ea05eaa33d13cd0ec62b517",
+    "implementation_parent": "9d84e18d61606a8beafa1d2350355175ee794fcf",
+    "state_schema_id": "zenodex/fcis/entitlement/state/v1",
+    "manifest_schema_id": "zenodex/fcis/entitlement/representation-migration/v1",
+    "old_state_root": "0xd00e47de6ce0e992ec2d0352b07beb669ae659de59c8a0e8aec140585f5afec1",
+    "new_state_root": "0xb13e5900bf5bd3c4950108ca18630feb7db483aa7cf21c4c7d4c1cc8d58b04d9",
+    "manifest_sha256": "0xfc06aa760f5bee66a919b24dec925e909178227b910381c3ac9ce5dd0a977438",
+    "focused_tests": "14 passed",
+    "vector_checker": "pass; C03_VECTOR_MATCH",
+    "style_security_scanners": "unavailable; repository-local .claude paths absent",
+    "direct_vector_script": "failed ModuleNotFoundError; module-form execution passes",
+    "runtime_mount": "none"
+  },
+  "mutants": [
+    {
+      "id": "C03_UNKNOWN_SCHEMA",
+      "status": "covered_by_regression_assertion",
+      "invariant": "unknown schema versions reject"
+    },
+    {
+      "id": "C03_UNKNOWN_ENVELOPE_FIELD",
+      "status": "covered_by_regression_assertion",
+      "invariant": "unknown envelope fields reject"
+    },
+    {
+      "id": "C03_UNKNOWN_STATE_FIELD",
+      "status": "covered_by_regression_assertion",
+      "invariant": "unknown state fields reject"
+    },
+    {
+      "id": "C03_UNKNOWN_MANIFEST_FIELD",
+      "status": "covered_by_regression_assertion",
+      "invariant": "unknown manifest fields reject"
+    },
+    {
+      "id": "C03_CALLER_NEW_STATE_ROOT",
+      "status": "covered_by_regression_assertion",
+      "invariant": "wire new_state_root must equal the recomputed verified-state root"
+    },
+    {
+      "id": "C03_MISSING_VERIFIED_STATE",
+      "status": "covered_by_regression_assertion",
+      "invariant": "manifest decoding requires exact expected state objects"
+    },
+    {
+      "id": "C03_DUPLICATE_ENTRY",
+      "status": "covered_by_regression_assertion",
+      "invariant": "state entry IDs are unique and strictly ordered"
+    },
+    {
+      "id": "C03_OUT_OF_ORDER_ENTRY",
+      "status": "covered_by_regression_assertion",
+      "invariant": "state entry order is canonical"
+    },
+    {
+      "id": "C03_NONCANONICAL_BYTES",
+      "status": "covered_by_regression_assertion",
+      "invariant": "decoder consumes exactly canonical bytes"
+    }
+  ],
+  "nonclaims": [
+    "C03 is tested research evidence for typed state/manifest values and codecs.",
+    "C03 does not prove or mount sign-dual transport, authority provenance, datastore, runtime, deployment, migration switch, or value movement.",
+    "The authority epoch root is format-checked only; it is not authenticated by C03.",
+    "No remote implementation commit, hosted CI run, draft PR, or production promotion is claimed."
+  ]
+}

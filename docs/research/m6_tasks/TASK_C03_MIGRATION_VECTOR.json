@@ -1,0 +1,14 @@
+{
+  "old_state": {
+    "canonical_bytes_utf8": "{\"schema\":\"zenodex/fcis/entitlement/state/v1\",\"value\":{\"entries\":[{\"coordinates\":[3,-1,-2],\"entry_id\":\"entry-0\"}],\"key\":{\"asset\":\"USDC\",\"fee_distribution_domain_id\":\"protocol-fees\",\"fixed_role_order_id\":\"fee-occurrence/role-order/buyback-treasury-rewards/v1\",\"semantic_profile_id\":\"adaptive-global-quota-entitlement/three-role/v1\"},\"representation_id\":\"srgd-deficit/v1\"}}",
+    "root": "0xd00e47de6ce0e992ec2d0352b07beb669ae659de59c8a0e8aec140585f5afec1"
+  },
+  "new_state": {
+    "canonical_bytes_utf8": "{\"schema\":\"zenodex/fcis/entitlement/state/v1\",\"value\":{\"entries\":[{\"coordinates\":[-3,1,2],\"entry_id\":\"entry-0\"}],\"key\":{\"asset\":\"USDC\",\"fee_distribution_domain_id\":\"protocol-fees\",\"fixed_role_order_id\":\"fee-occurrence/role-order/buyback-treasury-rewards/v1\",\"semantic_profile_id\":\"adaptive-global-quota-entitlement/three-role/v1\"},\"representation_id\":\"agqe-surplus/v1\"}}",
+    "root": "0xb13e5900bf5bd3c4950108ca18630feb7db483aa7cf21c4c7d4c1cc8d58b04d9"
+  },
+  "manifest": {
+    "canonical_bytes_utf8": "{\"schema\":\"zenodex/fcis/entitlement/representation-migration/v1\",\"value\":{\"activation_sequence\":7,\"authority_epoch_root\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"migration_map_id\":\"migration-map-v1\",\"new_representation_id\":\"agqe-surplus/v1\",\"new_semantic_key\":{\"asset\":\"USDC\",\"fee_distribution_domain_id\":\"protocol-fees\",\"fixed_role_order_id\":\"fee-occurrence/role-order/buyback-treasury-rewards/v1\",\"semantic_profile_id\":\"adaptive-global-quota-entitlement/three-role/v1\"},\"new_state_root\":\"0xb13e5900bf5bd3c4950108ca18630feb7db483aa7cf21c4c7d4c1cc8d58b04d9\",\"old_representation_id\":\"srgd-deficit/v1\",\"old_semantic_key\":{\"asset\":\"USDC\",\"fee_distribution_domain_id\":\"protocol-fees\",\"fixed_role_order_id\":\"fee-occurrence/role-order/buyback-treasury-rewards/v1\",\"semantic_profile_id\":\"adaptive-global-quota-entitlement/three-role/v1\"},\"old_state_root\":\"0xd00e47de6ce0e992ec2d0352b07beb669ae659de59c8a0e8aec140585f5afec1\"}}",
+    "sha256_hex": "0xfc06aa760f5bee66a919b24dec925e909178227b910381c3ac9ce5dd0a977438"
+  }
+}
