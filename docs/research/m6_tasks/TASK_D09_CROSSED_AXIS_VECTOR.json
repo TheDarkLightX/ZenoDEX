@@ -1,0 +1,18 @@
+{
+  "schema_version": "zenodex.fcis.m6.d09.crossed-axis.v1",
+  "transition_1_anf_root": "0x50f1f4119309fcb7e8a4a6d3ad86cc218be63c774fce8f61bb9d3cfd67432dd7",
+  "transition_2_anf_root": "0xa42f556f208221da6bae5021ad711d9309e651c1fd3d6d568a38c8e566821166",
+  "transition_1_bundle_root": "0x9416185495c104105ea43f77a23196c8c36c24d68872ebd873682545242bfd2a",
+  "transition_2_bundle_root": "0xf50a378c04c450cec3794c2919edebbbb33507a4d751986ac1dc11061c57c927",
+  "cases": {
+    "semantic_transition_1_receipt_transition_2": "source_lineage_mismatch",
+    "receipt_transition_1_bundle_transition_2": "source_lineage_mismatch",
+    "bundle_transition_1_outbox_transition_2": "source_lineage_mismatch",
+    "tcg_receipt_foreign_topology": "tcg_rejected",
+    "dra_atom_foreign_authority_epoch": "publication_rejected",
+    "same_semantic_different_lineage": "anf_base_binding_mismatch",
+    "stutter_hiding_new_commit": "forbidden_operation",
+    "stutter_hiding_migration": "forbidden_operation"
+  },
+  "mutants_killed": 8
+}
