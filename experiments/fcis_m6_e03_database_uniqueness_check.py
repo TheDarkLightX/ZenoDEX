@@ -16,9 +16,9 @@ if str(_ROOT) not in sys.path:
 
 import src.core.fcis_m6_e03_unique_commit_port as e03_core  # noqa: E402
 from experiments.fcis_m6_e03_database_uniqueness import (  # noqa: E402
+    E03_MIGRATION_SHA256_V1,
     E03CommitV1,
     E03DatabaseCodeV1,
-    E03_MIGRATION_SHA256_V1,
     E03RejectV1,
     create_e03_connection,
     persist_e03_commit,
