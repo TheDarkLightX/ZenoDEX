@@ -1,0 +1,39 @@
+{
+  "schema": "zenodex/fcis/m6/g01/proof-context-config/v1",
+  "profile_id": "fcis-m6-g01-proof-context-values-v1",
+  "context_schema": "zenodex/fcis/proof-context/v1",
+  "root_domain": "zenodex/fcis/m6/g01/proof-context",
+  "max_text_bytes": 256,
+  "epoch_domain": "u64",
+  "required_fields": [
+    "chain_id",
+    "deployment_id",
+    "state_root",
+    "configuration_root",
+    "protocol_version",
+    "language_runtime_version",
+    "verifier_implementation_id",
+    "verification_key_digest",
+    "statement_schema_id",
+    "algorithm_profile_id",
+    "history_genesis_authority_root",
+    "authority_epoch",
+    "not_before_epoch",
+    "expires_at_epoch",
+    "context_root"
+  ],
+  "root_preimage": "all required fields except context_root, under the versioned domain separator",
+  "invariants": [
+    "all roots are lowercase fixed 32-byte digests",
+    "all text is bounded UTF-8 without control characters",
+    "expiry is absent or not earlier than not-before",
+    "context_root rederives from every context field",
+    "active epoch checks are inclusive at both declared boundaries"
+  ],
+  "nonclaims": [
+    "immutable context construction is not proof verification",
+    "no caller-selected verifier registry entry is accepted by G01",
+    "no canonical byte or Rust parity claim; those belong to G02",
+    "no runtime mounting, authority, datastore, accounting, or value movement"
+  ]
+}
