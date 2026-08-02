@@ -1,0 +1,51 @@
+{
+  "schema": "zenodex/fcis/m6/f05/authenticated-genesis-config/v1",
+  "profile_id": "fcis-m6-f05-authenticated-genesis-v1",
+  "genesis_schema": "zenodex/fcis/m6/f05/authenticated-genesis/v1",
+  "pin_schema": "zenodex/fcis/m6/f05/genesis-pin/v1",
+  "genesis_root_domain": "zenodex/fcis/m6/f05/authenticated-genesis",
+  "pin_root_domain": "zenodex/fcis/m6/f05/genesis-pin",
+  "admission_root_domain": "zenodex/fcis/m6/f05/admission",
+  "required_genesis_fields": [
+    "chain_id",
+    "deployment_id",
+    "initial_state_root",
+    "initial_configuration_root",
+    "initial_authority_profile_id",
+    "initial_authority_profile_root",
+    "history_schema",
+    "proof_context_policy_id",
+    "proof_context_policy_root",
+    "migration_policy_id",
+    "migration_policy_root",
+    "genesis_root"
+  ],
+  "required_pin_fields": [
+    "chain_id",
+    "deployment_id",
+    "expected_genesis_root",
+    "expected_initial_state_root",
+    "expected_configuration_root",
+    "expected_authority_profile_id",
+    "expected_authority_profile_root",
+    "expected_history_schema",
+    "expected_proof_context_policy_id",
+    "expected_proof_context_policy_root",
+    "expected_migration_policy_id",
+    "expected_migration_policy_root",
+    "activation_epoch",
+    "pin_root"
+  ],
+  "invariants": [
+    "genesis_root rederives from every genesis field except genesis_root",
+    "pin_root rederives from every pin field except pin_root",
+    "the accepted relation matches chain, deployment, state, configuration, authority, history, proof, and migration fields",
+    "caller-selected empty or foreign history roots cannot match the deployment pin",
+    "all rejection outcomes are typed and fail closed"
+  ],
+  "nonclaims": [
+    "a caller can construct a value or pin in this research model",
+    "the acceptance value is a checked relation, not a cryptographic signature or runtime token",
+    "F05 does not implement a production configuration loader, signer/quorum, datastore, reopen latch, or value movement"
+  ]
+}
