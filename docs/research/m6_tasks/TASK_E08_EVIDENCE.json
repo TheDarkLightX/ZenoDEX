@@ -1,0 +1,87 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "E08",
+  "base_sha": "ad0e45eb0ac2512479f1c45b428c89ca8933552f",
+  "source_head_sha": "e0f029932a6f52d5f1dec9983855ff33f3923ee2",
+  "source_head_tree": "1cc358d94ff0e7eaa7778d5a84e809ffcd80cb32",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_e08_finite_state_v1.json",
+    "docs/research/m6_tasks/FCIS_M6_E08_FINITE_STATE_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_E08_FINITE_STATE_V1.json",
+    "docs/research/m6_tasks/TASK_E08_PLAN.md",
+    "docs/research/m6_tasks/TASK_E08_REPORT.md",
+    "docs/research/m6_tasks/TASK_E08_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_E08_SOURCE_MANIFEST.sha256",
+    "experiments/fcis_m6_e08_finite_state.py",
+    "experiments/fcis_m6_e08_finite_state_check.py",
+    "tests/core/test_fcis_m6_e08_finite_state.py",
+    "tools/build_fcis_m6_e08_finite_state.py"
+  ],
+  "commands": [
+    "python3 tools/build_fcis_m6_e08_finite_state.py",
+    "python3 tools/build_fcis_m6_e08_finite_state.py --check",
+    "PYTHONPATH=. python3 experiments/fcis_m6_e08_finite_state_check.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_e08_finite_state.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_e05_expected_root_cas.py tests/core/test_fcis_m6_e06_concurrency.py tests/core/test_fcis_m6_e07_transport_loss.py tests/core/test_fcis_m6_e08_finite_state.py",
+    "python3 -m py_compile experiments/fcis_m6_e08_finite_state.py experiments/fcis_m6_e08_finite_state_check.py tools/build_fcis_m6_e08_finite_state.py tests/core/test_fcis_m6_e08_finite_state.py",
+    "python3 -m ruff check experiments/fcis_m6_e08_finite_state.py experiments/fcis_m6_e08_finite_state_check.py tools/build_fcis_m6_e08_finite_state.py tests/core/test_fcis_m6_e08_finite_state.py",
+    "python3 -m ruff format --check experiments/fcis_m6_e08_finite_state.py experiments/fcis_m6_e08_finite_state_check.py tools/build_fcis_m6_e08_finite_state.py tests/core/test_fcis_m6_e08_finite_state.py",
+    "python3 -m mypy --strict experiments/fcis_m6_e08_finite_state.py experiments/fcis_m6_e08_finite_state_check.py tools/build_fcis_m6_e08_finite_state.py tests/core/test_fcis_m6_e08_finite_state.py",
+    "python3 -m json.tool config/deploy/fcis_m6_e08_finite_state_v1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_E08_FINITE_STATE_V1.json",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks E08",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_E08_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_e08_finite_state_v1.json": "17cbad544a466d70bea5a77e353e717e8bd5c4ffbdbf3258b6f445d97297ffef",
+    "docs/research/m6_tasks/FCIS_M6_E08_FINITE_STATE_SCHEMA_V1.md": "10d08f1dc331854c24a93c08f46adc7d035a8a6a50394ab6fe818a4ac57ef0b6",
+    "docs/research/m6_tasks/TASK_E08_FINITE_STATE_V1.json": "5d41843ec663fbdf4a7a465b2991c2a512aec4afb3f06eed3f0dbb0e4309b82f",
+    "docs/research/m6_tasks/TASK_E08_PLAN.md": "eab7085472eacb62a898ac310cc278e0bb1a16c4ef78c71b0602b63241395027",
+    "experiments/fcis_m6_e08_finite_state.py": "ed8ab8c430a6e656b371d49688b39318f9718ee223ba85f5e149e431d752effd",
+    "experiments/fcis_m6_e08_finite_state_check.py": "d7b3c4ebfb0b9f134892269a9b39d2ae71713ba699794de401ba597264c66450",
+    "tests/core/test_fcis_m6_e08_finite_state.py": "37144ebcb15880d82a76353478709a453f3cd105b9a62e57d06c291fd63a31cc",
+    "tools/build_fcis_m6_e08_finite_state.py": "4629d58c93ad3907636da0b99e8d00a1f8f1929391c4921c1c87c35dbd0233cf"
+  },
+  "results": {
+    "focused_e08_tests": "pass; 4 passed",
+    "combined_e05_e06_e07_e08_tests": "pass; 20 passed",
+    "independent_checker": "pass; E08_FINITE_STATE_CHECKS_PASS 9 54",
+    "source_vector": "pass; E08_FINITE_STATE_VECTOR_MATCH",
+    "max_depth": 6,
+    "reachable_states": 9,
+    "transitions": 54,
+    "accepted_transitions": 10,
+    "rejected_stutters": 44,
+    "invariant_checks": 324,
+    "invariant_failures": 0,
+    "killed_mutants": 5,
+    "repeatability": "pass; two explorations are byte-identical",
+    "implementation_commit": "e0f029932a6f52d5f1dec9983855ff33f3923ee2",
+    "implementation_tree": "1cc358d94ff0e7eaa7778d5a84e809ffcd80cb32",
+    "implementation_parent": "ad0e45eb0ac2512479f1c45b428c89ca8933552f"
+  },
+  "mutants": [
+    "duplicate nullifier",
+    "commit after quiescence",
+    "authority switch without quiescence",
+    "retry increments head",
+    "split publication"
+  ],
+  "nonclaims": [
+    "E08 is a bounded public finite-state model",
+    "E08 is not a Lean or TLA/TLC theorem",
+    "E08 does not prove E05 SQL behavior, production concurrency, real migration authority, or runtime mounting",
+    "E08 does not prove accounting, backing, zUSD safety, or value movement",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
