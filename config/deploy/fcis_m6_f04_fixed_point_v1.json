@@ -1,0 +1,38 @@
+{
+  "schema": "zenodex/fcis/m6/f04/fixed-point-config/v1",
+  "profile_id": "fcis-m6-f04-whole-layout-fixed-point-v1",
+  "input_schema": "zenodex/fcis/m6/f02/durable-layout/v1",
+  "gate_schema": "zenodex/fcis/m6/f04/fixed-point/v1",
+  "selected_root_is_insufficient": true,
+  "required_equality": "encode_history(reopen(layout)) == layout",
+  "mutation_families": [
+    "missing",
+    "extra",
+    "duplicate",
+    "reordered",
+    "crossed"
+  ],
+  "row_families": [
+    "header",
+    "authority_rows",
+    "history_rows",
+    "evidence_rows",
+    "nullifier_rows",
+    "outbox_rows",
+    "ack_rows"
+  ],
+  "pending_ack_policy": "an outbox without an ack is a valid pending-delivery state; ack deletion cannot be classified as corruption without prior-state or ack-obligation evidence",
+  "invariants": [
+    "successful F04 output contains one complete F02 history and layout",
+    "successful output is byte-identical to the supplied canonical layout bytes",
+    "invalid row mutations reject after selected layout-root rehash",
+    "all rejection paths preserve typed source rejection provenance"
+  ],
+  "nonclaims": [
+    "research fixed-point gate only",
+    "no physical datastore or crash-recovery refinement",
+    "no prior-state proof for distinguishing ack deletion from pending delivery",
+    "no restart authorization or runtime value movement",
+    "no accounting, backing, zUSD safety, or production mounting"
+  ]
+}
