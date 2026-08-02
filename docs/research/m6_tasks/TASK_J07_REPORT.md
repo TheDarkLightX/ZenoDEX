@@ -1,9 +1,9 @@
 # FCIS M6 Task J07 Report
 
 TASK_ID: J07
-BASE_SHA: 1d6f4441ada8baec64c8768985e552b97ee6dc65
-SOURCE_HEAD_SHA: 006e2507748d0de0525d636fdbb648b1f7f2f1e9
-SOURCE_HEAD_TREE: 676590e5899ef150ed8aae476d66305023f92f58
+BASE_SHA: c8a861119e59701c96c9106ff4ba154f7b4650a2
+SOURCE_HEAD_SHA: d40e2d7bc028d93c5f38f24b158567a9fff752fc
+SOURCE_HEAD_TREE: 3e1c984da840c02854e7846362bcffc340e7981b
 BRANCH: codex/task-m6-receipt-rebind-20260802
 
 FILES_CHANGED:
@@ -15,16 +15,18 @@ FILES_CHANGED:
 - tests/core/test_fcis_m6_j07_authority_switch_properties.py
 - tools/build_fcis_m6_j07_authority_switch.py
 
-IMPLEMENTATION_HEAD_SHA: 006e2507748d0de0525d636fdbb648b1f7f2f1e9
-IMPLEMENTATION_TREE: 676590e5899ef150ed8aae476d66305023f92f58
-IMPLEMENTATION_PARENT: 1d6f4441ada8baec64c8768985e552b97ee6dc65
+IMPLEMENTATION_HEAD_SHA: d40e2d7bc028d93c5f38f24b158567a9fff752fc
+IMPLEMENTATION_TREE: 3e1c984da840c02854e7846362bcffc340e7981b
+IMPLEMENTATION_PARENT: c8a861119e59701c96c9106ff4ba154f7b4650a2
 
 CLAIM_IMPLEMENTED: J07 adds an isolated authority-switch relation. It
 requires a verifier-owned J06 QUIESCED gate and rechecks the F06 migration
 authorization at point of use. The resulting atom advances the authority
 epoch exactly once, changes authority/snapshot/head roots together, preserves
 state and deployment roots, enables only the target profile, and rejects an
-old writer token against the post-switch context.
+old writer token against the post-switch context. The repair independently
+enforces state/deployment carry-forward, binds both contexts to the same
+gate/token and predecessor lineage, and bounds typed rejection paths.
 
 COMMANDS_RUN:
 - `PYTHONPATH=. python3 experiments/fcis_m6_j07_authority_switch_check.py`
@@ -40,22 +42,28 @@ RESULTS:
 - The independent checker passed with switch root
   `e44729c68c7b9de2876772f2d08123b048f1a6767dc26f45c10cec1f35e73fcb`.
 - The public vector matched source regeneration.
-- Focused and property tests passed: 6 passed.
-- The adjacent regression passed: 46 passed in 4.25 seconds before the final
-  packet-only changes.
+- Focused and property tests passed: 15 passed.
+- The adjacent regression passed: 55 passed in 4.70 seconds.
 - F06 migration authorization was checked at issue and use; the J07 fixture
   recorded two verifier calls.
 - Exact-class forged J06 gates and F06 tokens rejected.
 - A mutated registered J07 context and writer token rejected at use.
 - A legacy token rejected as stale after the switch; a fresh target token was
   accepted by the isolated post-switch writer gate.
+- A post context with changed state or deployment roots rejected during field
+  validation after canonical root recomputation.
+- A forged post context with a changed legacy profile rejected during switch
+  result validation.
+- Empty, over-capacity, and overlong typed rejection paths rejected.
 - The fixture’s final authority row is QUIESCED and the atom is authorized at
   DUAL_CHECK, preserving dependency coherence.
 
 MUTANTS_ADDED: Exact-class forged J06 gate, forged F06 token, mutated
 registered J07 context, mutated registered writer token, rejecting external
 verifier, profile collision, stale legacy token, target/legacy writer policy,
-phase mismatch, epoch mismatch, and root-change witnesses.
+phase mismatch, epoch mismatch, root-change witnesses, state/deployment
+carry-forward mutation, predecessor-lineage mutation, and rejection-path
+bound violations.
 
 FORMAL_EVIDENCE: No new Lean theorem is claimed. J07 supplies typed
 deterministic relation, canonical-root, property, and negative evidence.
@@ -74,4 +82,5 @@ mechanisms. A production refinement must replace them with authenticated
 verifier outputs and enforce the same complete switch atom inside the
 linearized datastore transaction. The J07 fixture is independent of the
 production runtime and does not establish that any real writer consults this
-gate.
+gate. The repair closes the declared bounded model obligations; it does not
+remove the external-verifier, datastore, or runtime-mounting premises.

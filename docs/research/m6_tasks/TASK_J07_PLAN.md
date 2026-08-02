@@ -1,9 +1,9 @@
 # FCIS M6 Task J07 Plan
 
 TASK_ID: J07
-BASE_SHA: 1d6f4441ada8baec64c8768985e552b97ee6dc65
-SOURCE_HEAD_SHA: 006e2507748d0de0525d636fdbb648b1f7f2f1e9
-SOURCE_HEAD_TREE: 676590e5899ef150ed8aae476d66305023f92f58
+BASE_SHA: c8a861119e59701c96c9106ff4ba154f7b4650a2
+SOURCE_HEAD_SHA: d40e2d7bc028d93c5f38f24b158567a9fff752fc
+SOURCE_HEAD_TREE: 3e1c984da840c02854e7846362bcffc340e7981b
 
 ## Objective
 
@@ -20,7 +20,9 @@ The slice covers:
 - exact phase and epoch transition from QUIESCED to AUTHORITY_SWITCH;
 - canonical authority, snapshot, and head root derivation;
 - unchanged current-state and deployment roots;
+- explicit post-context carry-forward and pre/post predecessor binding;
 - verifier-owned writer tokens with point-of-use provenance checks;
+- bounded typed rejection paths;
 - F06 migration authorization revalidation at switch use;
 - independent vector, focused tests, deterministic property tests, and typed
   negative witnesses.

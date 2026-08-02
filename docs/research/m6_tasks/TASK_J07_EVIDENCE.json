@@ -1,9 +1,9 @@
 {
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "J07",
-  "base_sha": "1d6f4441ada8baec64c8768985e552b97ee6dc65",
-  "source_head_sha": "006e2507748d0de0525d636fdbb648b1f7f2f1e9",
-  "source_head_tree": "676590e5899ef150ed8aae476d66305023f92f58",
+  "base_sha": "c8a861119e59701c96c9106ff4ba154f7b4650a2",
+  "source_head_sha": "d40e2d7bc028d93c5f38f24b158567a9fff752fc",
+  "source_head_tree": "3e1c984da840c02854e7846362bcffc340e7981b",
   "branch": "codex/task-m6-receipt-rebind-20260802",
   "status": "TESTED",
   "evidence_files": [
@@ -46,18 +46,18 @@
     "config/deploy/fcis_m6_j07_authority_switch_v1.json": "77117afcae683919501d9ab3f21748eae230fd18c433683c0497357bc7414008",
     "docs/research/m6_tasks/TASK_J07_AUTHORITY_SWITCH_V1.json": "38b8276bcf3192ea82b6453572fed19f8ffd4fe48bbe98869b18d554c397aeae",
     "experiments/fcis_m6_j07_authority_switch_check.py": "6a2529360f9a11315badbcd3453287edb62a07ae32255c72cc11047264aa44c6",
-    "src/core/fcis_m6_j07_authority_switch.py": "bafdab6cec01a5ae3bcfa986480f1082ea20e439c91f7009b7a377082ee82eed",
-    "tests/core/test_fcis_m6_j07_authority_switch.py": "380811dc5bc6a91abcff38deb93ac2da76937376dd10e5825da90bcf2ab8d712",
+    "src/core/fcis_m6_j07_authority_switch.py": "8cb971932176bc3b4a861024874a3e695ba325ef3b4d7c65928e07c684886372",
+    "tests/core/test_fcis_m6_j07_authority_switch.py": "17b34024b805717ac171e8745cad3481035d68a678275a5fce45061f37fa3645",
     "tests/core/test_fcis_m6_j07_authority_switch_properties.py": "0340ccfcce40becc84df346ffc3104c7ef965dc3fd0ddab7a76d14da2f787fb1",
     "tools/build_fcis_m6_j07_authority_switch.py": "678551997ccb96e6ce13d3208fdbae99ee3050a69563169fa1e0b75007a7f0da",
-    "docs/research/m6_tasks/FCIS_M6_J07_AUTHORITY_SWITCH_V1.md": "b9908160d0e8ed2086ea28ad15ede1d94d48e45138d1c482cd62b178041dde73",
-    "docs/research/m6_tasks/TASK_J07_PLAN.md": "ce57a0d229eef0f095dff4f41edff4ab4a1c3664a4918df52c6be91b94a22949"
+    "docs/research/m6_tasks/FCIS_M6_J07_AUTHORITY_SWITCH_V1.md": "26d2e5559599c042a4d69c0b54cd96d6f487ae167eb58b3c34a4c4f95833be4e",
+    "docs/research/m6_tasks/TASK_J07_PLAN.md": "98c41ce1b3783aad091f372dc3d299a0eb0b31cfd0dfa072e29825540af09ee5"
   },
   "results": {
     "independent_checker": "pass; J07_AUTHORITY_SWITCH_MATCH e44729c68c7b9de2876772f2d08123b048f1a6767dc26f45c10cec1f35e73fcb",
     "public_vector": "pass; J07_AUTHORITY_SWITCH_VECTOR_MATCH",
-    "focused_and_property_tests": "pass; 6 passed",
-    "adjacent_regression": "pass; 46 passed in 4.25 seconds before packet-only changes",
+    "focused_and_property_tests": "pass; 15 passed",
+    "adjacent_regression": "pass; 55 passed in 4.70 seconds",
     "f06_verifier_calls": 2,
     "pre_phase": "QUIESCED",
     "post_phase": "AUTHORITY_SWITCH",
@@ -72,9 +72,12 @@
     "ruff": "pass",
     "ruff_format": "pass",
     "mypy_strict": "pass",
-    "implementation_commit": "006e2507748d0de0525d636fdbb648b1f7f2f1e9",
-    "implementation_tree": "676590e5899ef150ed8aae476d66305023f92f58",
-    "implementation_parent": "1d6f4441ada8baec64c8768985e552b97ee6dc65"
+    "state_deployment_carry_forward": "pass; post context rejects changed state or deployment roots",
+    "complete_predecessor_lineage": "pass; switch result rejects changed profile or predecessor roots",
+    "rejection_path_bounds": "pass; empty, over-capacity, and overlong components rejected",
+    "implementation_commit": "d40e2d7bc028d93c5f38f24b158567a9fff752fc",
+    "implementation_tree": "3e1c984da840c02854e7846362bcffc340e7981b",
+    "implementation_parent": "c8a861119e59701c96c9106ff4ba154f7b4650a2"
   },
   "mutants": [
     "exact-class forged J06 gate",
@@ -85,7 +88,10 @@
     "profile collision",
     "stale legacy token after switch",
     "target-only writer policy",
-    "phase/epoch/root transition substitutions"
+    "phase/epoch/root transition substitutions",
+    "state/deployment carry-forward mutation",
+    "predecessor profile and root mutation",
+    "empty, over-capacity, and overlong rejection paths"
   ],
   "nonclaims": [
     "J07 is an isolated research relation and not a production transaction.",

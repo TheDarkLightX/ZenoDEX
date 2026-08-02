@@ -16,7 +16,11 @@ authority, snapshot, and head roots together, advances the epoch exactly once,
 and enables exactly the target writer profile. A legacy writer token bound to
 the predecessor context is rejected against the successor context. A fresh
 target token bound to the successor context is accepted by the isolated writer
-admission function.
+admission function. The repaired relation independently checks state and
+deployment carry-forward, binds the post context to the same gate and
+migration token as the pre context, and checks the complete predecessor
+lineage before accepting a switch result. Typed rejection paths are closed to
+eight bounded UTF-8 components.
 
 The implementation uses verifier-owned construction tokens plus identity and
 unchanged-field registries for J07 contexts and writer tokens. Exact-class
@@ -27,12 +31,11 @@ registered writer tokens are rejected at point of use.
 
 - independent checker: `J07_AUTHORITY_SWITCH_MATCH`
 - public vector builder: `J07_AUTHORITY_SWITCH_VECTOR_MATCH`
-- focused and property tests: 6 passed;
-- adjacent J01-J06, F05, and F06 regression: 46 passed before the final
-  packet freeze;
-- exact implementation commit: `006e2507748d0de0525d636fdbb648b1f7f2f1e9`;
+- focused and property tests: 15 passed;
+- adjacent J01-J06, F05, and F06 regression: 55 passed;
+- exact implementation commit: `d40e2d7bc028d93c5f38f24b158567a9fff752fc`;
 - exact implementation tree:
-  `676590e5899ef150ed8aae476d66305023f92f58`;
+  `3e1c984da840c02854e7846362bcffc340e7981b`;
 - pinned switch root:
   `e44729c68c7b9de2876772f2d08123b048f1a6767dc26f45c10cec1f35e73fcb`.
 
