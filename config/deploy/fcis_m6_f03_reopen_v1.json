@@ -1,0 +1,46 @@
+{
+  "schema": "zenodex/fcis/m6/f03/reopen-config/v1",
+  "profile_id": "fcis-m6-f03-total-fail-closed-reopen-v1",
+  "input_schema": "zenodex/fcis/m6/f02/durable-layout/v1",
+  "reopen_schema": "zenodex/fcis/m6/f03/reopen/v1",
+  "max_layout_bytes": 8388608,
+  "reopen_order": [
+    "exact input type and resource bounds",
+    "canonical UTF-8 and JSON decoding",
+    "exact row fields and nested type decoding",
+    "complete F01 atom reconstruction",
+    "authority and context lineage validation",
+    "state-chain replay",
+    "parallel evidence/nullifier/outbox/ack projection checks",
+    "canonical re-encoding",
+    "whole-layout fixed-point equality"
+  ],
+  "reject_codes": [
+    "wrong_exact_type",
+    "resource_limit",
+    "invalid_utf8",
+    "invalid_json",
+    "duplicate_field",
+    "noncanonical_bytes",
+    "wrong_schema",
+    "unknown_field",
+    "missing_field",
+    "row_decode_rejected",
+    "history_rejected",
+    "projection_mismatch",
+    "fixed_point_mismatch"
+  ],
+  "invariants": [
+    "successful reopen returns one complete F02 history",
+    "all accepted row families are complete and canonically ordered",
+    "reconstructed history re-encodes to the exact input layout",
+    "invalid or partial layouts return typed rejection"
+  ],
+  "nonclaims": [
+    "research reopen reference only",
+    "no filesystem or database crash recovery",
+    "no WAL/fsync or physical corruption guarantee",
+    "no restart authorization or runtime value movement",
+    "no accounting, backing, or zUSD safety theorem"
+  ]
+}
