@@ -1,0 +1,15 @@
+{
+  "schema": "zenodex/fcis/m6/e05/expected-root-cas-config/v1",
+  "profile_id": "fcis-m6-e05-expected-root-cas-v1",
+  "max_transitions": 128,
+  "max_effects_per_transition": 128,
+  "transaction": "BEGIN IMMEDIATE -> classifier -> complete head CAS -> publication/nullifier/effect inserts -> exact reopen -> COMMIT",
+  "nonclaims": [
+    "research-only SQLite adapter",
+    "no production authentication",
+    "no filesystem durability or WAL/fsync proof",
+    "no production concurrent linearizability proof",
+    "no process-crash recovery proof",
+    "no runtime mount, migration authority, accounting, backing, zUSD safety, or value movement"
+  ]
+}
