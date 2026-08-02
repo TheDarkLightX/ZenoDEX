@@ -1,0 +1,26 @@
+{
+  "schema": "zenodex/fcis/m6/j08/rollback-config/v1",
+  "profile_id": "fcis-m6-j08-complete-rollback-v1",
+  "rollback_schema": "zenodex/fcis/m6/j08/rollback/v1",
+  "complete_state_schema": "zenodex/fcis/m6/j08/complete-state/v1",
+  "certificate_schema": "zenodex/fcis/m6/j08/rollback-certificate/v1",
+  "reason_values": ["post_switch_validation_failure"],
+  "target_phase": "POST_SWITCH_VALIDATION",
+  "target_writer_set": "empty_until_fresh_authorization",
+  "invariants": [
+    "source and anchor are verifier-owned complete state aggregates",
+    "J07 authority-only switch preserves history residual nullifier outbox and effect roots",
+    "rollback restores every complete state root from the pre-switch anchor",
+    "rollback appends a history commitment instead of erasing history",
+    "rollback advances authority epoch exactly once",
+    "rollback exposes no value-moving capability and requires fresh authorization",
+    "balance-only and partial auxiliary rollback mutations reject",
+    "empty over-capacity and overlong rejection paths reject"
+  ],
+  "nonclaims": [
+    "J08 does not delete or rewrite a production datastore",
+    "J08 does not prove transaction isolation crash durability or runtime reachability",
+    "J08 does not authenticate the external complete-state verifier premise",
+    "M6 remains research-only unmounted and non-promotable"
+  ]
+}
