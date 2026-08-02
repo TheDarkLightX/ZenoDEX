@@ -1,0 +1,31 @@
+{
+  "schema": "zenodex/fcis/m6/f06/reopen-authorization-config/v1",
+  "profile_id": "fcis-m6-f06-reopen-authorization-v1",
+  "authorization_schema": "zenodex/fcis/m6/f06/reopen-authorization/v1",
+  "head_root_domain": "zenodex/fcis/m6/f06/reopen-head",
+  "external_evidence_root_domain": "zenodex/fcis/m6/f06/external-evidence",
+  "token_root_domain": "zenodex/fcis/m6/f06/authorization-token",
+  "required_head_fields": [
+    "genesis_root",
+    "snapshot_root",
+    "current_state_root",
+    "authority_state_root",
+    "authority_epoch",
+    "deployment_config_root",
+    "external_authorization_root",
+    "head_root"
+  ],
+  "operations": ["commit", "ack_publication", "migration"],
+  "invariants": [
+    "head fields are extracted only after F03 canonical reopen and F05 genesis binding",
+    "external evidence matches every exact head field",
+    "external verifier is called before token issue and again at every operation use",
+    "snapshot/state/authority/configuration/genesis/external roots are all token-bound",
+    "a changed head invalidates the previous token"
+  ],
+  "nonclaims": [
+    "the verifier adapter is an external authority premise in this research model",
+    "the Python token constructor is not a production cryptographic capability",
+    "F06 does not implement datastore crash recovery, a production verifier, migration execution, or value movement"
+  ]
+}
