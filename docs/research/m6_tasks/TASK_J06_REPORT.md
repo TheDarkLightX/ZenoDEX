@@ -1,10 +1,10 @@
 # FCIS M6 Task J06 Repair Report
 
 TASK_ID: J06
-BASE_SHA: 295a2dc5279b0b80ea7842dfe0190499725d94c7
-SOURCE_HEAD_SHA: fcfb22772b044c82131639d740a1fe2f60a65bbb
-SOURCE_HEAD_TREE: f7c48018f53b9c7154b9251e77c734928efd6296
-BRANCH: codex/task-H03-deterministic-crash-20260801
+BASE_SHA: f30a4f77f9c4bbbfcb93549ed8ab43136b467ea0
+SOURCE_HEAD_SHA: 2a4b0010df283ae939d7d0cddde75d862d17c6f9
+SOURCE_HEAD_TREE: b750b3e1189708e4a2371ef0bb3ed02b497d00a3
+BRANCH: codex/task-K01-J06-rebind-20260802
 FILES_CHANGED:
 - config/deploy/fcis_m6_j06_quiescence_v1.json
 - docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json
@@ -17,9 +17,9 @@ FILES_CHANGED:
 - tests/core/test_fcis_m6_j06_quiescence.py
 - tools/build_fcis_m6_j06_quiescence.py
 
-IMPLEMENTATION_HEAD_SHA: fcfb22772b044c82131639d740a1fe2f60a65bbb
-IMPLEMENTATION_TREE: f7c48018f53b9c7154b9251e77c734928efd6296
-IMPLEMENTATION_PARENT: 1e707a5fd7effd9b242862954685403dc113b586
+IMPLEMENTATION_HEAD_SHA: 2a4b0010df283ae939d7d0cddde75d862d17c6f9
+IMPLEMENTATION_TREE: b750b3e1189708e4a2371ef0bb3ed02b497d00a3
+IMPLEMENTATION_PARENT: f30a4f77f9c4bbbfcb93549ed8ab43136b467ea0
 
 CLAIM_IMPLEMENTED: J06 uses verifier-owned gate and result witnesses. Each
 admission result now carries a canonical full-attempt root and repeats the
@@ -52,10 +52,10 @@ COMMANDS_RUN:
 RESULTS:
 - J06 source, Ruff, formatting, strict mypy, and Python compilation gates pass
   for the changed implementation surface.
-- K01 was regenerated after the F16 H02 source change, producing inventory
-  root `d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385`.
+- K01 was regenerated after the later H02 source edit, producing inventory
+  root `fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a`.
   J06 now binds that root and derives quiescence root
-  `1f9690d4b7ef894a9571aa21ca13eae19c9405298c9713988d2db7a16afda20d`.
+  `9aafe665d1715757c852f65700f9e1c9d202d216afc5f44398941612ddb0e34a`.
 - The J06 checker passed; focused J06 tests passed: 9 passed. The migration
   regression passed: 20 passed.
 - The source change binds every rejection result to a canonical full attempt

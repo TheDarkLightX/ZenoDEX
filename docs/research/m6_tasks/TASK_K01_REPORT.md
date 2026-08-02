@@ -1,10 +1,10 @@
 # FCIS M6 Task K01 Report
 
 TASK_ID: K01
-BASE_SHA: 25c2d2181cad4455384f57ade54d971fcb68e275
-SOURCE_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
-SOURCE_HEAD_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
-BRANCH: codex/task-H03-deterministic-crash-20260801
+BASE_SHA: f30a4f77f9c4bbbfcb93549ed8ab43136b467ea0
+SOURCE_HEAD_SHA: 2a4b0010df283ae939d7d0cddde75d862d17c6f9
+SOURCE_HEAD_TREE: b750b3e1189708e4a2371ef0bb3ed02b497d00a3
+BRANCH: codex/task-K01-J06-rebind-20260802
 
 FILES_CHANGED:
 
@@ -17,12 +17,13 @@ FILES_CHANGED:
 - docs/research/m6_tasks/FCIS_M6_K01_VALUE_MOVING_ENTRYPOINT_SCHEMA_V1.md
 - docs/research/m6_tasks/TASK_K01_PLAN.md
 
-IMPLEMENTATION_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
-IMPLEMENTATION_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
-IMPLEMENTATION_PARENT: c3213000060d3224e1291d2bbf9992e41f8fd74b
+IMPLEMENTATION_HEAD_SHA: 2a4b0010df283ae939d7d0cddde75d862d17c6f9
+IMPLEMENTATION_TREE: b750b3e1189708e4a2371ef0bb3ed02b497d00a3
+IMPLEMENTATION_PARENT: f30a4f77f9c4bbbfcb93549ed8ab43136b467ea0
 
-DEPENDENCY_REBIND: The H02 source-bound row changed during the F16 repair;
-K01 was regenerated at the exact implementation head before J06 was rebuilt.
+DEPENDENCY_REBIND: The later H02 source edit changed a file included in the
+K01 source set. K01 was regenerated at the exact repair head before J06 was
+rebuilt, and the current K01 root is pinned by J06.
 
 CLAIM_IMPLEMENTED: K01 adds a typed, source-bound inventory for fifteen
 reviewed command, authority, datastore, migration, recovery, legacy,
@@ -30,7 +31,7 @@ proof-input, and external-effect candidate surfaces. The inventory requires
 the nine D05 publisher IDs, records caller/input/state-effect/ANF-commit-port
 fields, classifies legacy and proof-only paths, hashes its exact source set,
 and derives the canonical entrypoint inventory root
-d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385.
+fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a.
 
 COMMANDS_RUN:
 
@@ -51,9 +52,9 @@ COMMANDS_RUN:
 RESULTS:
 
 - K01 vector regeneration passed with the exact root
-  d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385.
-- The source-bound vector was regenerated after the F16 H02 verifier-use
-  change; the changed H02 bytes are therefore included in the K01 root.
+  fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a.
+- The source-bound vector was regenerated after the later H02 source edit;
+  the changed H02 bytes are therefore included in the K01 root.
 - The inventory contains fifteen canonically ordered rows and four explicit
   coverage notes.
 - The nine required D05 publisher IDs are present; omission is rejected.
