@@ -295,9 +295,12 @@ def deliver_effect_v1(
     exact_effect = cast(dra.OutboxEffectV1, effect)
     try:
         exact_effect.__post_init__()
-        exact_state.__post_init__()
     except (dra.DurableRetractionError, I04Error, TypeError, ValueError):
-        return exact_state, _reject(I04DedupCodeV1.INVALID_EFFECT, "effect_or_state")
+        return exact_state, _reject(I04DedupCodeV1.INVALID_EFFECT, "effect")
+    try:
+        exact_state.__post_init__()
+    except (I04Error, TypeError, ValueError):
+        return I04DestinationStateV1(), _reject(I04DedupCodeV1.STATE_INVALID, "state")
     if exact_effect.destination != exact_contract.destination:
         return exact_state, _reject(I04DedupCodeV1.DESTINATION_MISMATCH, "destination")
     if exact_effect.adapter_profile_root != exact_contract.adapter_profile_root:

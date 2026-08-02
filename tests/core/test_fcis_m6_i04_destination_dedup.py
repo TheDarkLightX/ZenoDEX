@@ -216,3 +216,10 @@ def test_destination_capacity_is_closed_at_construction_revalidation_and_deliver
     assert next_state == state
     assert isinstance(result, I04DedupRejectV1)
     assert result.code is I04DedupCodeV1.CAPACITY_EXCEEDED
+
+    forged_state = object.__new__(I04DestinationStateV1)
+    object.__setattr__(forged_state, "records", (*state.records, state.records[0]))
+    safe_state, invalid_state = deliver_effect_v1(contract, forged_state, _effect())
+    assert safe_state == I04DestinationStateV1()
+    assert isinstance(invalid_state, I04DedupRejectV1)
+    assert invalid_state.code is I04DedupCodeV1.STATE_INVALID
