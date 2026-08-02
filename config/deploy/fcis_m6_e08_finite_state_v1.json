@@ -1,0 +1,27 @@
+{
+  "schema": "zenodex/fcis/m6/e08/finite-state-config/v1",
+  "profile_id": "fcis-m6-e08-public-finite-state-v1",
+  "max_word_depth": 6,
+  "actions": [
+    "commit_a",
+    "commit_b",
+    "retry_a",
+    "retry_b",
+    "quiesce",
+    "authority_switch"
+  ],
+  "invariants": [
+    "unique_commit_ids",
+    "unique_nullifiers",
+    "head_matches_publications",
+    "head_matches_nullifiers",
+    "phase_monotone_shape",
+    "switch_requires_epoch"
+  ],
+  "nonclaims": [
+    "public bounded model only",
+    "no production datastore refinement",
+    "no real migration authority or runtime mounting",
+    "no accounting, backing, zUSD safety, or value movement"
+  ]
+}
