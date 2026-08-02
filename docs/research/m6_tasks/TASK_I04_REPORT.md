@@ -2,8 +2,8 @@
 
 TASK_ID: I04
 BASE_SHA: 8cf31c666babeca23b50c67b4fd3438669a08997
-SOURCE_HEAD_SHA: fcfb22772b044c82131639d740a1fe2f60a65bbb
-SOURCE_HEAD_TREE: f7c48018f53b9c7154b9251e77c734928efd6296
+SOURCE_HEAD_SHA: ce71c24cecae8396a8d7ac7879b2d35f827f4f5d
+SOURCE_HEAD_TREE: 332dcadbd0bc7e09f2e6d5eb700f4c13033fee97
 BRANCH: codex/task-H03-deterministic-crash-20260801
 FILES_CHANGED:
 - experiments/fcis_m6_i04_destination_dedup.py
@@ -11,9 +11,9 @@ FILES_CHANGED:
 - docs/research/m6_tasks/TASK_I04_DESTINATION_DEDUP_SCHEMA_V1.json
 - docs/research/m6_tasks/TASK_I04_PLAN.md
 
-IMPLEMENTATION_HEAD_SHA: fcfb22772b044c82131639d740a1fe2f60a65bbb
-IMPLEMENTATION_TREE: f7c48018f53b9c7154b9251e77c734928efd6296
-IMPLEMENTATION_PARENT: 1e707a5fd7effd9b242862954685403dc113b586
+IMPLEMENTATION_HEAD_SHA: ce71c24cecae8396a8d7ac7879b2d35f827f4f5d
+IMPLEMENTATION_TREE: 332dcadbd0bc7e09f2e6d5eb700f4c13033fee97
+IMPLEMENTATION_PARENT: 5f2c0431a438c5f944a46aea8e363f02a80ebc0e
 
 CLAIM_IMPLEMENTED: I04 retains the verifier-gated deterministic destination
 deduplication model and now closes the destination-record collection at 8,192
@@ -23,11 +23,12 @@ direct, forged, or mutated exact-class contracts return UNMOUNTABLE.
 The exported verifier-provenance predicate is used by downstream I05 and I06
 consumers at their own points of use.
 Destination state recursively revalidates every nested record. Construction
-and explicit revalidation reject over-capacity state; delivery at exact
-capacity returns CAPACITY_EXCEEDED without changing state. Duplicate attempts
-retain the original receipt root, while payload, destination, adapter-profile,
-unsupported-mechanism, and forged-contract crossings reject. Invalid-contract
-admission preserves a valid nonempty destination state exactly.
+and explicit revalidation reject over-capacity state. Accepted delivery owns
+the exact successor state and matching receipt in one immutable aggregate.
+Every rejection carries only its typed code and path, with no substitute
+successor or destination receipt. Duplicate attempts retain the original
+receipt root, while capacity, payload, destination, adapter-profile,
+unsupported-mechanism, and forged-contract crossings reject.
 
 COMMANDS_RUN:
 - `python3 -m ruff format --check experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py`
@@ -45,28 +46,27 @@ RESULTS:
   rejection passed.
 - Downstream point-of-use consumers reject exact-class forged contracts.
 - Nested destination-record field revalidation passed.
-- Focused I04 suite passed: 9 passed.
+- Focused I04 suite passed: 10 passed.
 - All three declared dedup mechanisms retain observational duplicate
   idempotence with stable effect, payload, and receipt roots.
 - Same-ID payload mutation, destination crossing, and adapter-profile crossing
-  reject without changing destination state.
+  return a rejection with no successor state.
 - Over-capacity construction and revalidation reject with the typed I04Error;
-  forged invalid state presented to delivery returns STATE_INVALID and a safe
-  empty state.
-- A new effect at exactly 8,192 records returns CAPACITY_EXCEEDED and leaves
-  the state unchanged.
-- An invalid contract presented with a valid nonempty state returns UNMOUNTABLE
-  and leaves that state unchanged.
+  forged invalid state presented to delivery returns STATE_INVALID without a
+  successor state or receipt.
+- A new effect at exactly 8,192 records returns CAPACITY_EXCEEDED without a
+  successor state.
+- Crossed accepted state/receipt construction rejects.
 - Ruff, formatting, strict mypy, Python compilation, packet validation, source
   manifest verification, and diff whitespace checks pass.
 
 MUTANTS_ADDED: Over-capacity construction, over-capacity revalidation, forged
-state revalidation, exact-capacity delivery, invalid-contract state loss,
-direct verified-contract construction, exact-class contract forgery, mutated
-registered contract, and malformed nested record fields are retained as
-negative witnesses in addition to the existing payload, destination,
-adapter-profile, unsupported-mechanism, duplicate, order, and invalid-effect
-witnesses.
+state revalidation, exact-capacity delivery, rejection-with-successor,
+invalid-contract state loss, direct verified-contract construction, exact-class
+contract forgery, mutated registered contract, malformed nested record fields,
+and crossed accepted state/receipt are retained as negative witnesses in
+addition to the existing payload, destination, adapter-profile,
+unsupported-mechanism, duplicate, order, and invalid-effect witnesses.
 
 FORMAL_EVIDENCE: None. I04 supplies executable deterministic adapter evidence;
 it adds no machine-checked theorem.

@@ -2,8 +2,8 @@
 
 TASK_ID: I05
 BASE_SHA: 2c16013cd34fc76edec607004f883df63bb0245a
-SOURCE_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
-SOURCE_HEAD_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
+SOURCE_HEAD_SHA: ce71c24cecae8396a8d7ac7879b2d35f827f4f5d
+SOURCE_HEAD_TREE: 332dcadbd0bc7e09f2e6d5eb700f4c13033fee97
 BRANCH: codex/task-H03-deterministic-crash-20260801
 FILES_CHANGED:
 - experiments/fcis_m6_i05_ack_provenance.py
@@ -11,15 +11,17 @@ FILES_CHANGED:
 - docs/research/m6_tasks/TASK_I05_ACK_PROVENANCE_SCHEMA_V1.json
 - docs/research/m6_tasks/TASK_I05_PLAN.md
 
-IMPLEMENTATION_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
-IMPLEMENTATION_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
-IMPLEMENTATION_PARENT: c3213000060d3224e1291d2bbf9992e41f8fd74b
+IMPLEMENTATION_HEAD_SHA: ce71c24cecae8396a8d7ac7879b2d35f827f4f5d
+IMPLEMENTATION_TREE: 332dcadbd0bc7e09f2e6d5eb700f4c13033fee97
+IMPLEMENTATION_PARENT: 5f2c0431a438c5f944a46aea8e363f02a80ebc0e
 
 CLAIM_IMPLEMENTED: I05 adds a verifier-gated acknowledgment provenance
 model. An acknowledgment is accepted only when its effect, destination,
 payload, destination receipt, adapter profile, verifier profile, and subject
 root agree, and the exact destination record is present in the deterministic
-I04 delivery state. I05 also requires a live I04 verifier-registered contract
+I04 delivery state. I05 freshly consumes I04's one owned
+successor-and-receipt accept aggregate; an I04 rejection provides neither.
+I05 also requires a live I04 verifier-registered contract
 at point of use, so an exact-class copied contract without verifier provenance
 cannot enter the verifier. An acknowledgment before delivery, a foreign
 receipt, a crossed effect and receipt, a foreign profile, an invalid candidate,
@@ -38,7 +40,7 @@ COMMANDS_RUN:
 
 RESULTS:
 - Focused I05 suite passed: 9 passed.
-- Combined I04/I05 suite passed: 17 passed.
+- Combined I04/I05 suite passed: 19 passed.
 - Acknowledgments bind effect ID, destination, payload root, destination
   receipt root, adapter profile, verifier profile, and recomputed subject
   root.
@@ -47,6 +49,8 @@ RESULTS:
   subject-root witnesses reject.
 - The verifier recomputes the expected I04 receipt root and requires exact
   membership in the delivered destination record set.
+- The verifier consumes the I04 accepted aggregate and never pairs a separately
+  returned successor with a receipt.
 - Exact-class copied I04 contracts without verifier provenance reject at I05
   point of use.
 - Ruff, formatting, strict mypy, Python compilation, packet validation, the
@@ -55,7 +59,8 @@ RESULTS:
 MUTANTS_ADDED: The focused suite contains negative witnesses for
 ack-before-delivery, foreign receipt roots, crossed effect and receipt,
 foreign adapter and verifier profiles, invalid candidate types, exact-class
-contracts without I04 verifier provenance, and forged subject roots.
+contracts without I04 verifier provenance, forged subject roots, and crossed
+I04 successor/receipt construction.
 
 FORMAL_EVIDENCE: None. I05 supplies executable deterministic verifier
 evidence; it adds no machine-checked theorem.

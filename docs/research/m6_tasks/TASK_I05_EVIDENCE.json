@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "I05",
   "base_sha": "2c16013cd34fc76edec607004f883df63bb0245a",
-  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
+  "source_head_sha": "ce71c24cecae8396a8d7ac7879b2d35f827f4f5d",
+  "source_head_tree": "332dcadbd0bc7e09f2e6d5eb700f4c13033fee97",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -34,23 +34,25 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "experiments/fcis_m6_i05_ack_provenance.py": "f1d40a9d2f3431c2cea936562fcdb92e93579846deadaebff4bbc8715911e25f",
-    "tests/core/test_fcis_m6_i05_ack_provenance.py": "bd9f8044cc7a0c1750a1afa5883cf37ce0923a42dbf624b06a1b758e81288dc6",
+    "experiments/fcis_m6_i05_ack_provenance.py": "62e077d41c2226501ff2fbf998606041c27d3eba19e65fc9b3ad045e75d42911",
+    "tests/core/test_fcis_m6_i05_ack_provenance.py": "2c6ef5e07f091ab44130ffd829af564a15c4315e4d6079f1b3f1256631fd3d57",
     "docs/research/m6_tasks/TASK_I05_ACK_PROVENANCE_SCHEMA_V1.json": "06f2e5b830af7704cc843b0b0b884e2ac962f0037a2322c080e3e818b3d28440",
-    "docs/research/m6_tasks/TASK_I05_PLAN.md": "856e0249f52b880226530f6074952657407d80053439115cc424d3ea915d6b2c"
+    "docs/research/m6_tasks/TASK_I05_PLAN.md": "469244c972d04aaf667b63c90fb72333920a9f1726d846bb94ac833fc14d8433"
   },
   "results": {
     "focused_tests": "pass; 9 passed",
-    "combined_i04_i05_tests": "pass; 17 passed",
+    "combined_i04_i05_tests": "pass; 19 passed",
     "provenance_binding": "pass; effect, destination, payload, receipt, adapter, verifier, and subject roots bind",
     "delivery_membership": "pass; exact I04 destination record is required",
     "rejection_witnesses": "pass; ack-before-delivery, crossed receipt, foreign profiles, invalid candidate, exact-class unprovenanced contract, and forged subject root reject",
-    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
-    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b"
+    "i04_result_binding": "pass; I05 consumes one owned successor-and-receipt accept aggregate",
+    "implementation_commit": "ce71c24cecae8396a8d7ac7879b2d35f827f4f5d",
+    "implementation_tree": "332dcadbd0bc7e09f2e6d5eb700f4c13033fee97",
+    "implementation_parent": "5f2c0431a438c5f944a46aea8e363f02a80ebc0e"
   },
   "mutants": [
-    "exact-class contract without I04 verifier provenance rejects at point of use"
+    "exact-class contract without I04 verifier provenance rejects at point of use",
+    "crossed I04 successor and receipt cannot form an accepted delivery"
   ],
   "nonclaims": [
     "I05 is an immutable research verifier and is not a production destination adapter.",

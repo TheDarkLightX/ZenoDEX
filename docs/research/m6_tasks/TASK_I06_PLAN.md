@@ -19,9 +19,11 @@ same effect ID redelivery
 The immutable reference state retains the destination record while dropping
 the local acknowledgment at the simulated crash point. Recovery does not
 accept a caller-supplied receipt or effect identity. It redelivers the stored
-effect, derives the acknowledgment subject from the returned receipt, passes
-the result through I05, and writes one immutable local journal entry. A later
-redelivery verifies the same acknowledgment and leaves its write count at one.
+effect, consumes I04's owned successor-and-receipt accept aggregate, derives
+the acknowledgment subject from that receipt, passes the result through I05,
+and writes one immutable local journal entry. A later redelivery verifies the
+same acknowledgment and leaves its write count at one. An I04 rejection carries
+no successor state for recovery to apply accidentally.
 
 Recovery-state construction and revalidation require the live I04 verifier
 provenance at point of use. An exact-class copied contract without that

@@ -25,6 +25,11 @@ returns no successor state. The port identity
 is a module-owned singleton constructed with a controlled token; direct caller
 construction and arbitrary capability objects reject.
 
+Current-state validation and request validation are separate authority
+boundaries. A malformed exact current-state value returns `WRONG_STATE`; a
+malformed request returns `WRONG_REQUEST`. This preserves whether the trusted
+store projection or caller-controlled input failed before publication.
+
 ## Dependency policy
 
 The companion dependency-rules JSON names the unique port module, forbidden

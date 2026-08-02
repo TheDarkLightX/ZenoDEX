@@ -19,10 +19,11 @@ verifier_profile_root
 
 The verifier requires the receipt to be present in the exact I04 destination
 record set for the effect. It recomputes the canonical destination receipt
-root from the verified contract and effect, then recomputes the acknowledgment
-subject root from the complete field tuple. A merely well-shaped foreign digest,
-an acknowledgment before delivery, a crossed receipt, or a foreign profile
-rejects.
+root from the verified contract and effect through I04's owned
+successor-and-receipt accept aggregate, then recomputes the acknowledgment
+subject root from the complete field tuple. A merely well-shaped foreign
+digest, an acknowledgment before delivery, a crossed receipt, or a foreign
+profile rejects.
 
 The I04 contract must also be a live verifier-registered witness at I05 point
 of use. An exact-class value with copied canonical fields but no verifier
