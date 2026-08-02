@@ -134,9 +134,7 @@ def test_history_is_a_word_and_projection_never_flattens_boundaries() -> None:
     assert type(right_segment) is CanonicalFeeOccurrenceSegmentV1
 
     whole_history = canonicalize_fee_occurrence_history_v1((one_segment,))
-    split_history = canonicalize_fee_occurrence_history_v1(
-        (left_segment, right_segment)
-    )
+    split_history = canonicalize_fee_occurrence_history_v1((left_segment, right_segment))
     assert type(whole_history) is CanonicalFeeOccurrenceHistoryV1
     assert type(split_history) is CanonicalFeeOccurrenceHistoryV1
     assert whole_history.semantic_word == (((_key(), 867),),)
@@ -301,9 +299,7 @@ def _reference_step(
     eligible.sort(key=lambda index: (-(deficits[index] + fractions[index]), index))
     selected = set(eligible[:seat_count])
     bonuses = tuple(int(index in selected) for index in range(3))
-    allocations = tuple(
-        lower + bonus for lower, bonus in zip(lowers, bonuses, strict=True)
-    )
+    allocations = tuple(lower + bonus for lower, bonus in zip(lowers, bonuses, strict=True))
     post = tuple(
         deficit + fraction - denominator * bonus
         for deficit, fraction, bonus in zip(
@@ -345,16 +341,13 @@ def test_d4_is_smallest_zero_history_boundary_counterexample_residue_domain() ->
                         denominator,
                     )
                     split_allocations = tuple(
-                        left + right
-                        for left, right in zip(first[0], second[0], strict=True)
+                        left + right for left, right in zip(first[0], second[0], strict=True)
                     )
                     assert whole == (split_allocations, second[1])
 
     whole = _reference_step(3, (1, 1, 2), (0, 0, 0), 4)
     first = _reference_step(1, (1, 1, 2), (0, 0, 0), 4)
     second = _reference_step(2, (1, 1, 2), first[1], 4)
-    split_allocations = tuple(
-        left + right for left, right in zip(first[0], second[0], strict=True)
-    )
+    split_allocations = tuple(left + right for left, right in zip(first[0], second[0], strict=True))
     assert whole == ((1, 1, 1), (-1, -1, 2))
     assert (split_allocations, second[1]) == ((1, 0, 2), (-1, 3, -2))

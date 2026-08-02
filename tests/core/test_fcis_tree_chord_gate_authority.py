@@ -40,8 +40,7 @@ _GATE_SPECS = (
 
 def _gates() -> tuple[AuthorityGateV1, ...]:
     return tuple(
-        AuthorityGateV1(index, label, (role,))
-        for index, (label, role) in enumerate(_GATE_SPECS)
+        AuthorityGateV1(index, label, (role,)) for index, (label, role) in enumerate(_GATE_SPECS)
     )
 
 
@@ -50,8 +49,7 @@ def _nodes(gates: tuple[AuthorityGateV1, ...]) -> tuple[AuthorityNodeV1, ...]:
     nodes = [AuthorityNodeV1("n0_raw_request", 0, _digest("artifact:0"), lineage)]
     for index, gate in enumerate(gates, start=1):
         introductions = tuple(
-            LineageBindingV1(role, _digest(f"source:{role}"))
-            for role in gate.introduction_roles
+            LineageBindingV1(role, _digest(f"source:{role}")) for role in gate.introduction_roles
         )
         lineage = merge_lineage(lineage, introductions)
         nodes.append(
@@ -90,9 +88,7 @@ def _edge_skeletons(
         gate = gates[source_stage]
         target = by_stage[target_stage]
         introductions = tuple(
-            binding
-            for binding in target.lineage
-            if binding.role in gate.introduction_roles
+            binding for binding in target.lineage if binding.role in gate.introduction_roles
         )
         edges.append(
             AuthorityEdgeV1(
@@ -142,7 +138,9 @@ def _build_certificate(
     )
     exact_parent_ids = tuple(sorted(exact_parent_ids))
     source_node_id = next(node.node_id for node in exact_nodes if node.stage == 0)
-    sink_node_ids = tuple(sorted(node.node_id for node in exact_nodes if node.stage == len(exact_gates)))
+    sink_node_ids = tuple(
+        sorted(node.node_id for node in exact_nodes if node.stage == len(exact_gates))
+    )
     topology_root = authority_topology_root(
         source_node_id=source_node_id,
         sink_node_ids=sink_node_ids,
@@ -197,8 +195,12 @@ def _verify(
     source = next(node for node in certificate.nodes if node.node_id == certificate.source_node_id)
     sink = next(node for node in certificate.nodes if node.node_id == certificate.sink_node_ids[0])
     return verify_tree_chord_gate_certificate(
-        expected_topology_root=certificate.topology_root if topology_root is None else topology_root,
-        expected_instance_root=certificate.instance_root if instance_root is None else instance_root,
+        expected_topology_root=certificate.topology_root
+        if topology_root is None
+        else topology_root,
+        expected_instance_root=certificate.instance_root
+        if instance_root is None
+        else instance_root,
         expected_source_node_id=certificate.source_node_id,
         expected_source_artifact_digest=(
             source.artifact_digest if source_artifact is None else source_artifact
@@ -261,7 +263,10 @@ def test_instance_root_and_receipt_subject_bind_artifacts() -> None:
     mutated_node = replace(decision, artifact_digest=_digest("substituted-decision"))
     mutated_nodes = tuple(
         sorted(
-            (mutated_node if node.node_id == decision.node_id else node for node in certificate.nodes),
+            (
+                mutated_node if node.node_id == decision.node_id else node
+                for node in certificate.nodes
+            ),
             key=lambda node: node.node_id.encode("utf-8"),
         )
     )
@@ -276,12 +281,12 @@ def test_instance_root_and_receipt_subject_bind_artifacts() -> None:
 def test_crossed_lineage_chord_is_rejected() -> None:
     certificate = _build_certificate()
     edge = next(item for item in certificate.edges if item.edge_id == "e41_runtime_decision")
-    wrong_introductions = (
-        LineageBindingV1("validated_decision", _digest("other-decision")),
-    )
+    wrong_introductions = (LineageBindingV1("validated_decision", _digest("other-decision")),)
     hostile_edge = replace(edge, introductions=wrong_introductions)
     hostile = _build_certificate(
-        edges=tuple(hostile_edge if item.edge_id == edge.edge_id else item for item in certificate.edges)
+        edges=tuple(
+            hostile_edge if item.edge_id == edge.edge_id else item for item in certificate.edges
+        )
     )
 
     verdict = _verify(hostile)
@@ -296,9 +301,7 @@ def test_same_stage_edge_cannot_introduce_lineage() -> None:
     hostile_nodes = tuple(
         sorted(
             (
-                replace(stage_five, stage=4)
-                if node.node_id == stage_five.node_id
-                else node
+                replace(stage_five, stage=4) if node.node_id == stage_five.node_id else node
                 for node in certificate.nodes
             ),
             key=lambda node: node.node_id.encode("utf-8"),
@@ -317,7 +320,9 @@ def test_gate_metadata_and_role_profile_are_exact() -> None:
     edge = next(item for item in certificate.edges if item.edge_id == "e50_authorize")
     hostile_edge = replace(edge, gate_label="wrong-gate")
     hostile = _build_certificate(
-        edges=tuple(hostile_edge if item.edge_id == edge.edge_id else item for item in certificate.edges)
+        edges=tuple(
+            hostile_edge if item.edge_id == edge.edge_id else item for item in certificate.edges
+        )
     )
     verdict = _verify(hostile)
     assert not verdict.accepted
@@ -338,7 +343,9 @@ def test_receipt_subject_checker_and_sink_expectation_are_bound() -> None:
     hostile_subject = replace(edge, receipt_subject_digest=_digest("unrelated-subject"))
     hostile = replace(
         certificate,
-        edges=tuple(hostile_subject if item.edge_id == edge.edge_id else item for item in certificate.edges),
+        edges=tuple(
+            hostile_subject if item.edge_id == edge.edge_id else item for item in certificate.edges
+        ),
     )
     subject_verdict = _verify(hostile)
     assert not subject_verdict.accepted
@@ -346,7 +353,9 @@ def test_receipt_subject_checker_and_sink_expectation_are_bound() -> None:
 
     checker_edge = replace(edge, checker_digest=_digest("substituted-checker"))
     checker_hostile = _build_certificate(
-        edges=tuple(checker_edge if item.edge_id == edge.edge_id else item for item in certificate.edges)
+        edges=tuple(
+            checker_edge if item.edge_id == edge.edge_id else item for item in certificate.edges
+        )
     )
     checker_verdict = _verify(
         checker_hostile,

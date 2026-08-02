@@ -516,12 +516,10 @@ def canonicalize_fee_occurrence_segment_v1(
     exact_boundary = cast(str, boundary_root)
     exact_policy = cast(str, policy_root)
     normalized_roots = tuple(
-        _normalized_witness_root_v1(exact_boundary, exact_policy, witness)
-        for witness in ordered
+        _normalized_witness_root_v1(exact_boundary, exact_policy, witness) for witness in ordered
     )
     root_by_position = {
-        witness.position: root
-        for witness, root in zip(ordered, normalized_roots, strict=True)
+        witness.position: root for witness, root in zip(ordered, normalized_roots, strict=True)
     }
     witness_tuple_root = _witness_tuple_root_v1(
         exact_boundary,

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import InitVar, dataclass
 from enum import Enum
-from typing import TypeAlias, cast, final
+from typing import TypeAlias, final
 
 from .fcis_commit_bundle_derivation import build_commit_bundle_v1
 from .fcis_decision_derivation import (
@@ -109,7 +109,7 @@ class FCISSourceBoundLineageCertificateV1:
 
     @property
     def certificate_root(self) -> str:
-        return cast(str, self.closure.certificate_root)
+        return self.closure.certificate_root
 
 
 FCISSourceBoundLineageResultV1: TypeAlias = (

@@ -24,10 +24,7 @@ from src.core.fcis_m6_profile_ids import (
 
 
 def test_semantic_profile_is_frozen_and_not_a_representation_alias() -> None:
-    assert (
-        SEMANTIC_ALLOCATOR_PROFILE_ID_V1
-        == "adaptive-global-quota-entitlement/three-role/v1"
-    )
+    assert SEMANTIC_ALLOCATOR_PROFILE_ID_V1 == "adaptive-global-quota-entitlement/three-role/v1"
     assert SEMANTIC_ALLOCATOR_PROFILE_ID_V1 not in {
         SRGD_REPRESENTATION_PROFILE_ID_V1,
         AGQE_REPRESENTATION_PROFILE_ID_V1,
@@ -41,9 +38,7 @@ def test_representation_profiles_are_distinct() -> None:
 
 
 def test_fixed_role_order_mutant_is_rejected_by_exact_tuple() -> None:
-    assert FIXED_ROLE_ORDER_ID_V1 == (
-        "fee-occurrence/role-order/buyback-treasury-rewards/v1"
-    )
+    assert FIXED_ROLE_ORDER_ID_V1 == ("fee-occurrence/role-order/buyback-treasury-rewards/v1")
     assert FIXED_ROLE_ORDER_V1 == ("buyback", "treasury", "rewards")
 
 
