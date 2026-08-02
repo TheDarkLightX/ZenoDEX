@@ -1,0 +1,45 @@
+{
+  "schema": "zenodex/fcis/m6/j07/authority-switch-config/v1",
+  "profile_id": "fcis-m6-j07-authority-switch-v1",
+  "j04_manifest_schema": "zenodex.fcis.m6.j04.migration-manifest.v1",
+  "j06_gate_schema": "zenodex/fcis/m6/j06/quiescence-gate/v1",
+  "f06_operation": "migration",
+  "expected_pre_phase": "QUIESCED",
+  "expected_post_phase": "AUTHORITY_SWITCH",
+  "expected_epoch_delta": 1,
+  "expected_post_active_profile_root": "f8dd39dd3867eef7bd7364e3d024b0d7240ecaee8d735edde74838bc8f69defa",
+  "expected_post_allowed_writer_roots": [
+    "f8dd39dd3867eef7bd7364e3d024b0d7240ecaee8d735edde74838bc8f69defa"
+  ],
+  "pinned_switch_root": "e44729c68c7b9de2876772f2d08123b048f1a6767dc26f45c10cec1f35e73fcb",
+  "required_switch_fields": [
+    "gate_root",
+    "migration_token_root",
+    "pre_context_root",
+    "post_context_root",
+    "pre_authority_state_root",
+    "post_authority_state_root",
+    "pre_head_root",
+    "post_head_root",
+    "pre_snapshot_root",
+    "post_snapshot_root",
+    "post_active_profile_root",
+    "post_allowed_writer_roots",
+    "switch_root"
+  ],
+  "invariants": [
+    "F06 migration authorization is rechecked at switch use",
+    "phase advances exactly from QUIESCED to AUTHORITY_SWITCH",
+    "authority epoch advances exactly once",
+    "authority, head, and snapshot roots change in one canonical switch atom",
+    "state and deployment roots remain unchanged by the authority switch",
+    "post-switch writer set contains exactly the target profile",
+    "old writer tokens fail closed against the post-switch context"
+  ],
+  "nonclaims": [
+    "J07 is an isolated research relation and not a production transaction",
+    "F06 external verifier and J06 gate are research premises in this slice",
+    "J07 does not prove runtime reachability, datastore atomicity, rollback, accounting, backing, or zUSD safety",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
