@@ -326,8 +326,15 @@ def persist_e03_commit(
     except (AttributeError, E03Error, TypeError, ValueError, ArithmeticError):
         return _reject(E03DatabaseCodeV1.INVALID_REQUEST, "candidate")
 
+    transaction_owned = False
     try:
         connection.execute("BEGIN IMMEDIATE")
+        transaction_owned = True
+        contract_error = _connection_contract_error(connection, require_idle=False)
+        if contract_error is not None:
+            connection.rollback()
+            transaction_owned = False
+            return _reject(E03DatabaseCodeV1.INVALID_REQUEST, "connection", contract_error)
         _insert_publication_rows(connection, rows)
         _verify_staged_rows(connection, rows)
         connection.commit()
@@ -338,15 +345,18 @@ def persist_e03_commit(
             effect_ids=rows.effect_ids,
         )
     except E03Error:
-        connection.rollback()
+        if transaction_owned:
+            connection.rollback()
         return _reject(E03DatabaseCodeV1.SQL_ROLLBACK, "staged_rows")
     except sqlite3.IntegrityError as exc:
-        connection.rollback()
+        if transaction_owned:
+            connection.rollback()
         if _is_constraint_error(exc):
             return _reject(E03DatabaseCodeV1.CONSTRAINT_COLLISION, "constraint")
         return _reject(E03DatabaseCodeV1.SQL_ROLLBACK, "integrity")
     except sqlite3.Error:
-        connection.rollback()
+        if transaction_owned:
+            connection.rollback()
         return _reject(E03DatabaseCodeV1.SQL_ROLLBACK, "sqlite")
 
 

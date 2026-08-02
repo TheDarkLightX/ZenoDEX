@@ -36,7 +36,9 @@ rollback for the final datastore decision.
 - rollback after an injected partial-insert failure;
 - pre-existing loose schema, point-of-use schema drift, and disabled
   foreign-key rejection;
-- caller-owned active-transaction rejection without rollback;
+- in-transaction schema revalidation after acquiring `BEGIN IMMEDIATE`;
+- caller-owned active-transaction rejection without rollback, including a
+  transaction started after the initial connection precheck;
 - concurrent duplicate insertion with exactly one winner;
 - exact-type, forged-witness, mutation, Boolean, bound, and canonical-order
   rejection tests;

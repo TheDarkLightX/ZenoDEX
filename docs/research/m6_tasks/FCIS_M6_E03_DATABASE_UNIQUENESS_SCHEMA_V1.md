@@ -63,11 +63,18 @@ foreign_keys = ON
 exact main-schema descriptor = descriptor produced by the pinned migration
 ```
 
-The exact descriptor rejects pre-existing loose tables, added triggers,
-views, or indexes, and other schema drift. A constraint or SQLite failure
-rolls back the entire adapter-owned transaction, so a commit row cannot survive
-a failed nullifier or effect insertion. Rejecting a caller-owned transaction
-does not roll that transaction back.
+After acquiring `BEGIN IMMEDIATE`, the adapter repeats the foreign-key and
+exact-schema checks before its first write. The acquired write reservation
+closes the cross-connection DDL window for the remaining transaction. The
+exact descriptor rejects pre-existing loose tables, added triggers, views,
+indexes, and other schema drift.
+
+The adapter records whether `BEGIN IMMEDIATE` succeeded and rolls back only a
+transaction it acquired. A caller transaction present at entry, or started in
+the interval before E03 acquires its transaction, is rejected without E03
+rolling it back. A constraint or SQLite failure after acquisition rolls back
+the entire adapter-owned transaction, so a commit row cannot survive a failed
+nullifier or effect insertion.
 
 ## Rejection rules
 
@@ -88,9 +95,10 @@ The tests cover successful complete insertion, deterministic source replay,
 nested mutation rejection, duplicate commit identity,
 same-nullifier/different-commit collision, direct effect-ID constraint
 collision, rollback after a denied partial insert, loose-schema rejection,
-point-of-use schema and foreign-key drift, caller-owned transaction
-preservation, exact-type rejection, and two concurrent duplicate insertions
-with exactly one committed winner.
+point-of-use schema and foreign-key drift, schema drift between the precheck
+and transaction acquisition, caller-owned transaction preservation at entry
+and after the precheck, exact-type rejection, and two concurrent duplicate
+insertions with exactly one committed winner.
 
 The adapter is an isolated SQLite experiment. It does not prove filesystem
 durability, WAL/fsync configuration, process-crash recovery, production

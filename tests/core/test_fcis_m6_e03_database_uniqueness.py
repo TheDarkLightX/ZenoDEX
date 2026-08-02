@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
 import pytest
 
+import experiments.fcis_m6_e03_database_uniqueness as e03_db
 import src.core.fcis_m6_e03_unique_commit_port as e03_core
 from experiments.fcis_m6_e03_database_uniqueness import (
     E03CommitV1,
@@ -267,6 +269,70 @@ def test_active_caller_transaction_is_rejected_without_rollback() -> None:
     assert rejected.path == ("connection", "active_transaction")
     assert connection.in_transaction
     assert connection.execute("SELECT value FROM caller_sentinel").fetchone() == (7,)
+    assert read_e03_counts(connection) == (0, 0, 0)
+    connection.rollback()
+
+
+def test_schema_drift_after_precheck_is_rejected_inside_transaction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = tmp_path / "e03-schema-race.sqlite3"
+    connection = create_e03_connection(database)
+    candidate = build_candidate()
+    original_verifier = cast(
+        Callable[[object], bool],
+        e03_db.is_verified_e03_commit_identity_v1,
+    )
+    drift_injected = False
+
+    def verify_then_drift(value: object) -> bool:
+        nonlocal drift_injected
+        verified = original_verifier(value)
+        if not drift_injected:
+            drift_injected = True
+            hostile = sqlite3.connect(database, isolation_level=None)
+            try:
+                hostile.execute(
+                    "CREATE TRIGGER hostile_e03_race AFTER INSERT "
+                    "ON e03_publication_commits BEGIN SELECT 1; END"
+                )
+            finally:
+                hostile.close()
+        return verified
+
+    monkeypatch.setattr(e03_db, "is_verified_e03_commit_identity_v1", verify_then_drift)
+    rejected = _assert_rejected(
+        persist_e03_commit(connection, candidate),
+        E03DatabaseCodeV1.INVALID_REQUEST,
+    )
+    assert rejected.path == ("connection", "schema")
+    assert read_e03_counts(connection) == (0, 0, 0)
+
+
+def test_transaction_started_after_precheck_is_not_rolled_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection = create_e03_connection()
+    candidate = build_candidate()
+    original_publication_rows = e03_db._publication_rows
+
+    def rows_then_start_caller_transaction(
+        identity: E03CommitIdentityV1,
+    ) -> e03_db._E03PublicationRowsV1:
+        rows = original_publication_rows(identity)
+        connection.execute("CREATE TEMP TABLE caller_race_sentinel(value INTEGER NOT NULL)")
+        connection.execute("BEGIN")
+        connection.execute("INSERT INTO caller_race_sentinel(value) VALUES (11)")
+        return rows
+
+    monkeypatch.setattr(e03_db, "_publication_rows", rows_then_start_caller_transaction)
+    _assert_rejected(
+        persist_e03_commit(connection, candidate),
+        E03DatabaseCodeV1.SQL_ROLLBACK,
+    )
+    assert connection.in_transaction
+    assert connection.execute("SELECT value FROM caller_race_sentinel").fetchone() == (11,)
     assert read_e03_counts(connection) == (0, 0, 0)
     connection.rollback()
 
