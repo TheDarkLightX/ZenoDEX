@@ -178,6 +178,8 @@ class StateRecordTagV1(Enum):
     FCIS_OUTBOX_RECORD = "fcis_outbox_record"
     FCIS_OUTBOX_PLAN = "fcis_outbox_plan"
     FCIS_COMMIT_BUNDLE = "fcis_commit_bundle"
+    FCIS_OUTBOX_PLAN_V2 = "fcis_outbox_plan_v2"
+    FCIS_COMMIT_BUNDLE_V2 = "fcis_commit_bundle_v2"
 
 
 def state_enum_tag_ordinal_v1(tag: StateEnumTagV1) -> int:

@@ -7,11 +7,14 @@ import pytest
 
 from src.core.fcis_commit_bundle_derivation import (
     CommitBundleV1,
+    build_anf_bound_commit_bundle_v1,
     build_commit_bundle_v1,
 )
 from src.core.fcis_decision_derivation import (
     AcceptV1,
     evaluate_fcis_decision_v1,
+    evaluate_source_bound_fcis_decision_v1,
+    evaluate_source_bound_fcis_decision_with_anf_v1,
 )
 from src.core.fcis_fee_apportionment_values import FeeApportionmentKeyV2
 from src.core.fcis_fee_occurrence_normal_form import (
@@ -36,6 +39,11 @@ from src.core.fcis_lineage_closure import (
 from src.core.fcis_step_evaluation_values import FCISStepEvaluationOkV1
 from src.core.fcis_step_evaluator import evaluate_fcis_step_candidate_v1
 from tests.core.test_fcis_decision_derivation import _exact_inputs
+from tests.core.test_fcis_m6_d03_anf_receipt_binding import (
+    _authority_normal_form,
+    _source_occurrence,
+    evaluate_source_bound_fcis_step_candidate_v1_for_test,
+)
 
 
 def _digest(label: str) -> str:
@@ -102,6 +110,27 @@ def _artifacts() -> tuple[FCISStepEvaluationOkV1, AcceptV1, CommitBundleV1]:
     assert type(evaluation) is FCISStepEvaluationOkV1
     assert type(decision) is AcceptV1
     bundle = build_commit_bundle_v1(decision)
+    assert type(bundle) is CommitBundleV1
+    return evaluation, decision, bundle
+
+
+def _anf_artifacts() -> tuple[FCISStepEvaluationOkV1, AcceptV1, CommitBundleV1]:
+    inputs = _exact_inputs()
+    occurrence = _source_occurrence(inputs)
+    evaluation = evaluate_source_bound_fcis_step_candidate_v1_for_test(occurrence)
+    base = evaluate_source_bound_fcis_decision_v1(
+        source_occurrence=occurrence,
+        budget=inputs["budget"],
+    )
+    assert type(base) is AcceptV1
+    authority_normal_form = _authority_normal_form(evaluation, base, inputs["budget"])
+    decision = evaluate_source_bound_fcis_decision_with_anf_v1(
+        source_occurrence=occurrence,
+        budget=inputs["budget"],
+        authority_normal_form=authority_normal_form,
+    )
+    assert type(decision) is AcceptV1
+    bundle = build_anf_bound_commit_bundle_v1(decision, authority_normal_form)
     assert type(bundle) is CommitBundleV1
     return evaluation, decision, bundle
 
@@ -216,6 +245,22 @@ def test_bundle_must_retain_the_exact_decision_object() -> None:
     )
     assert type(result) is FCISLineageClosureRejectV1
     assert result.code is FCISLineageClosureCodeV1.LINEAGE_MISMATCH
+
+
+def test_anf_bound_v2_outbox_closes_under_its_exact_schema() -> None:
+    """D04: lineage closure hashes an ANF outbox with its V2 schema."""
+
+    evaluation, decision, bundle = _anf_artifacts()
+    result = _build_fcis_lineage_closure_from_artifacts_v1(
+        evaluation=evaluation,
+        occurrence_segment=_segment("anf", (867,)),
+        decision=decision,
+        bundle=bundle,
+        budget=_exact_inputs()["budget"],
+    )
+
+    assert type(result) is FCISLineageClosureCertificateV1
+    assert result.bundle_extension.outbox_plan_root == bundle.outbox_root
 
 
 def test_corrupt_cached_bundle_root_fails_fresh_recomputation() -> None:

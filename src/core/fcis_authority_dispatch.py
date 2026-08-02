@@ -28,7 +28,9 @@ from ..state.state_transitions import (
 )
 from .fcis_commit_bundle_values import (
     FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1,
+    FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2,
     CommitBundleClaimV1,
+    CommitBundleClaimV2,
 )
 from .fcis_decision_values import (
     FCIS_ACCEPTANCE_RECEIPT_SCHEMA_ID_V1,
@@ -47,7 +49,9 @@ from .fcis_decision_values import (
 )
 from .fcis_outbox_values import (
     FCIS_OUTBOX_PLAN_SCHEMA_ID_V1,
+    FCIS_OUTBOX_PLAN_SCHEMA_ID_V2,
     OutboxPlanV1,
+    OutboxPlanV2,
     OutboxRecordV1,
 )
 from .fcis_step_evaluation_values import FCISFeeAllocationV1
@@ -109,6 +113,8 @@ FCIS_AUTHORITY_OWNED_TYPES_V1: tuple[type[object], ...] = (
     OutboxRecordV1,
     OutboxPlanV1,
     CommitBundleClaimV1,
+    OutboxPlanV2,
+    CommitBundleClaimV2,
 )
 
 FCIS_AUTHORITY_SCHEMA_EXPECTED_TYPES_V1: tuple[tuple[str, tuple[type[object], ...]], ...] = (
@@ -126,6 +132,8 @@ FCIS_AUTHORITY_SCHEMA_EXPECTED_TYPES_V1: tuple[tuple[str, tuple[type[object], ..
     ),
     (FCIS_OUTBOX_PLAN_SCHEMA_ID_V1, (OutboxPlanV1,)),
     (FCIS_COMMIT_BUNDLE_SCHEMA_ID_V1, (CommitBundleClaimV1,)),
+    (FCIS_OUTBOX_PLAN_SCHEMA_ID_V2, (OutboxPlanV2,)),
+    (FCIS_COMMIT_BUNDLE_SCHEMA_ID_V2, (CommitBundleClaimV2,)),
 )
 
 
@@ -409,22 +417,27 @@ def _construct_outbox_or_bundle_record(
             cast(OwnedMapV1[str, object], _field(values, 3, "payload")),
             cast(str, _field(values, 4, "idempotency_key")),
         )
-    if tag is StateRecordTagV1.FCIS_OUTBOX_PLAN and len(values) in (1, 2):
-        return OutboxPlanV1(
-            cast(tuple[OutboxRecordV1, ...], _field(values, 0, "records")),
-            cast(str | None, _field(values, 1, "authority_normal_form_root"))
-            if len(values) == 2
-            else None,
-        )
-    if tag is StateRecordTagV1.FCIS_COMMIT_BUNDLE and len(values) in (4, 5):
+    if tag is StateRecordTagV1.FCIS_OUTBOX_PLAN and len(values) == 1:
+        return OutboxPlanV1(cast(tuple[OutboxRecordV1, ...], _field(values, 0, "records")))
+    if tag is StateRecordTagV1.FCIS_COMMIT_BUNDLE and len(values) == 4:
         return CommitBundleClaimV1(
             cast(str, _field(values, 0, "expected_pre_root")),
             cast(AcceptClaimV1 | CommittedFailureClaimV1, _field(values, 1, "decision")),
             cast(str, _field(values, 2, "receipt_root")),
             cast(OutboxPlanV1, _field(values, 3, "outbox_plan")),
-            cast(str | None, _field(values, 4, "authority_normal_form_root"))
-            if len(values) == 5
-            else None,
+        )
+    if tag is StateRecordTagV1.FCIS_OUTBOX_PLAN_V2 and len(values) == 2:
+        return OutboxPlanV2(
+            cast(tuple[OutboxRecordV1, ...], _field(values, 0, "records")),
+            cast(str, _field(values, 1, "authority_normal_form_root")),
+        )
+    if tag is StateRecordTagV1.FCIS_COMMIT_BUNDLE_V2 and len(values) == 5:
+        return CommitBundleClaimV2(
+            cast(str, _field(values, 0, "expected_pre_root")),
+            cast(AcceptClaimV1 | CommittedFailureClaimV1, _field(values, 1, "decision")),
+            cast(str, _field(values, 2, "receipt_root")),
+            cast(OutboxPlanV2, _field(values, 3, "outbox_plan")),
+            cast(str, _field(values, 4, "authority_normal_form_root")),
         )
     raise ValueError("unsupported M5 outbox or bundle record")
 
@@ -695,11 +708,20 @@ def _project_decision_or_bundle_value(
             "idempotency_key": value.idempotency_key,
         }
     if _is_exact_type(value, OutboxPlanV1):
+        return {"records": child(value.records)}
+    if _is_exact_type(value, CommitBundleClaimV1):
+        return {
+            "expected_pre_root": value.expected_pre_root,
+            "decision": child(value.decision),
+            "receipt_root": value.receipt_root,
+            "outbox_plan": child(value.outbox_plan),
+        }
+    if _is_exact_type(value, OutboxPlanV2):
         return {
             "records": child(value.records),
             "authority_normal_form_root": value.authority_normal_form_root,
         }
-    if _is_exact_type(value, CommitBundleClaimV1):
+    if _is_exact_type(value, CommitBundleClaimV2):
         return {
             "expected_pre_root": value.expected_pre_root,
             "decision": child(value.decision),
@@ -752,6 +774,8 @@ def project_fcis_authority_v1(value: object, child: ProjectChildV1) -> object:
         OutboxRecordV1,
         OutboxPlanV1,
         CommitBundleClaimV1,
+        OutboxPlanV2,
+        CommitBundleClaimV2,
     ):
         return _project_decision_or_bundle_value(value, child)
     raise TypeError("unsupported exact M5 authority projection")

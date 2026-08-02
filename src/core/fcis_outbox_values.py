@@ -18,6 +18,7 @@ from ..state.owned_json import (
 )
 
 FCIS_OUTBOX_PLAN_SCHEMA_ID_V1 = "zenodex/fcis/outbox-plan/v1"
+FCIS_OUTBOX_PLAN_SCHEMA_ID_V2 = "zenodex/fcis/outbox-plan/v2"
 MAX_FCIS_OUTBOX_RECORDS_V1 = 4_096
 
 
@@ -43,7 +44,13 @@ class OutboxRecordSourceV1:
 @dataclass(frozen=True, slots=True)
 class OutboxPlanSourceV1:
     records: object
-    authority_normal_form_root: object = None
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class OutboxPlanSourceV2:
+    records: object
+    authority_normal_form_root: object
 
 
 def _is_digest_v1(value: object) -> bool:
@@ -90,7 +97,6 @@ class OutboxPlanV1:
     """Canonical, duplicate-free outbox claim data carrying no delivery authority."""
 
     records: tuple[OutboxRecordV1, ...]
-    authority_normal_form_root: str | None = None
 
     def __post_init__(self) -> None:
         if type(self.records) is not tuple or any(
@@ -108,18 +114,45 @@ class OutboxPlanV1:
         keys = tuple(record.idempotency_key for record in self.records)
         if len(keys) != len(set(keys)):
             raise ValueError("outbox idempotency keys must be unique")
-        if self.authority_normal_form_root is not None and not _is_digest_v1(
-            self.authority_normal_form_root
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class OutboxPlanV2:
+    """ANF-bound outbox data under a distinct canonical schema identity."""
+
+    records: tuple[OutboxRecordV1, ...]
+    authority_normal_form_root: str
+
+    def __post_init__(self) -> None:
+        if type(self.records) is not tuple or any(
+            type(record) is not OutboxRecordV1 for record in self.records
         ):
-            raise TypeError("outbox ANF root must be a canonical digest or None")
+            raise TypeError("outbox records must be an exact owned tuple")
+        if len(self.records) > MAX_FCIS_OUTBOX_RECORDS_V1:
+            raise ValueError("outbox record limit exceeded")
+        indices = tuple(record.effect_index for record in self.records)
+        if indices != tuple(range(len(self.records))):
+            raise ValueError("outbox effect indices must be contiguous protocol order")
+        identities = tuple(record.effect_identity for record in self.records)
+        if len(identities) != len(set(identities)):
+            raise ValueError("outbox effect identities must be unique")
+        keys = tuple(record.idempotency_key for record in self.records)
+        if len(keys) != len(set(keys)):
+            raise ValueError("outbox idempotency keys must be unique")
+        if not _is_digest_v1(self.authority_normal_form_root):
+            raise TypeError("outbox ANF root must be a canonical digest")
 
 
 __all__ = (
     "FCIS_OUTBOX_PLAN_SCHEMA_ID_V1",
+    "FCIS_OUTBOX_PLAN_SCHEMA_ID_V2",
     "MAX_FCIS_OUTBOX_RECORDS_V1",
     "OutboxEffectKindV1",
     "OutboxPlanSourceV1",
+    "OutboxPlanSourceV2",
     "OutboxPlanV1",
+    "OutboxPlanV2",
     "OutboxRecordSourceV1",
     "OutboxRecordV1",
 )

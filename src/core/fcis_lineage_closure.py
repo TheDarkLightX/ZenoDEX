@@ -25,6 +25,7 @@ from .fcis_commit_bundle_derivation import (
     build_commit_bundle_v1,
     recompute_bundle_root_v1,
     recompute_outbox_plan_v1,
+    recompute_outbox_root_v1,
 )
 from .fcis_decision_derivation import (
     FCIS_SPOT_TRANSITION_BUDGET_V1,
@@ -40,7 +41,6 @@ from .fcis_fee_occurrence_normal_form import (
     CanonicalFeeOccurrenceSegmentV1,
     fee_amount_candidates_from_segment_v1,
 )
-from .fcis_outbox_values import FCIS_OUTBOX_PLAN_SCHEMA_ID_V1
 from .fcis_step_evaluation_values import (
     FCISStepEvaluationOkV1,
     FCISStepEvaluationRejectV1,
@@ -949,7 +949,7 @@ def _validate_bundle_v1(bundle: CommitBundleV1, decision: AcceptV1) -> tuple[str
     recomputed_outbox = recompute_outbox_plan_v1(bundle)
     if recomputed_outbox != bundle.outbox_plan:
         raise ValueError("bundle outbox plan failed recomputation")
-    _, outbox_root = _claim_root_v1(FCIS_OUTBOX_PLAN_SCHEMA_ID_V1, bundle.outbox_plan)
+    outbox_root = recompute_outbox_root_v1(bundle)
     return bundle_root, outbox_root
 
 
