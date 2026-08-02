@@ -3,10 +3,11 @@
 ## Result
 
 - Verdict: `PASS_BOUNDED_INDEPENDENT_REPLAY`
-- Models: 8
-- Reachable states: 407
-- Enabled transitions: 2472
-- Named adversarial mutants killed: 49 of 49
+- Models: 12
+- Reachable states: 982
+- Enabled transitions: 7336
+- Formal invariants: 69
+- Named adversarial mutants killed: 76 of 76
 - ESSO dual-solver receipt: **not produced in this environment**; the committed gate must be rerun with pinned Z3 and cvc5.
 
 ## Model sizes
@@ -14,11 +15,15 @@
 | Model | Reachable states | Enabled transitions | Base violations |
 | --- | ---: | ---: | ---: |
 | `fcis_m6_atomic_publication_v1` | 7 | 16 | 0 |
+| `fcis_m6_history_fixed_point_v1` | 513 | 4368 | 0 |
 | `fcis_m6_managed_asset_issuance_v1` | 20 | 152 | 0 |
 | `fcis_m6_migration_writer_v1` | 18 | 32 | 0 |
 | `fcis_m6_no_bypass_v1` | 77 | 770 | 0 |
+| `fcis_m6_nonce_retry_classifier_v1` | 12 | 64 | 0 |
+| `fcis_m6_oracle_risk_gate_v1` | 27 | 159 | 0 |
 | `fcis_m6_outbox_delivery_v1` | 7 | 23 | 0 |
 | `fcis_m6_promotion_subject_v1` | 83 | 652 | 0 |
+| `fcis_m6_proof_context_v1` | 23 | 273 | 0 |
 | `fcis_m6_reopen_reauthorization_v1` | 69 | 288 | 0 |
 | `fcis_m6_value_flow_kernel_v1` | 126 | 539 | 0 |
 
@@ -31,7 +36,7 @@ The first bounded replay was not accepted. It exposed four specification weaknes
 3. authority switch without quiescence was not represented by a state predicate strong enough to refute the phase skip;
 4. the no-bypass model did not bind the commit-port capability to the currently selected entrypoint.
 
-The models were revised by making terminal evidence immutable, adding a quiescence ghost/premise, and binding the commit-port entrypoint identity. The second pass killed all original mutants. A further invariant-coverage pass added retained mutants until every one of the 42 invariants killed at least one named mutant. The final campaign contains 49 mutants.
+The models were revised by making terminal evidence immutable, adding a quiescence ghost/premise, and binding the commit-port entrypoint identity. The second pass killed all original mutants. A further invariant-coverage pass added retained mutants until every one of the original 42 invariants killed at least one named mutant. A second completeness review added separate nonce/retry, canonical-history, proof-context, and oracle-risk models rather than expanding the existing models. The final campaign contains 76 mutants, and each of the 69 invariants has at least one retained killing mutant.
 
 ## Final negative classes
 
@@ -84,6 +89,33 @@ The models were revised by making terminal evidence immutable, adding a quiescen
 - `NB_RECEIPT_WITHOUT_VALUE_CHANGE` -> `ReceiptIffValueChange`
 - `PS_PROOF_MOUNT_CROSS_LINEAGE` -> `PromotionRequiresProofMountSubjectEquality`
 - `PS_PROOF_TEST_CROSS_LINEAGE` -> `PromotionRequiresProofTestSubjectEquality`
+- `NR_COMMIT_COUNT_OMITTED` -> `CommittedIffOneCount`
+- `NR_HEAD_NOT_ADVANCED` -> `HeadEqualsCommitCount`
+- `NR_IDENTITY_NOT_SEALED` -> `CommittedIdentitySealed`
+- `NR_NULLIFIER_NOT_CONSUMED` -> `CommittedNullifierConsumed`
+- `NR_ABSENT_CLASS_WRONG` -> `AbsentRelationClassifiesNew`
+- `NR_RETRY_CLASS_WRONG` -> `ExactRetryClassifiesAlready`
+- `NR_COLLISION_CLASS_WRONG` -> `CollisionClassifiesRejection`
+- `NR_STALE_CLASS_WRONG` -> `StaleRelationClassifiesStale`
+- `HF_REMOVE_STATE_RETAINS_OPEN` -> `OpenRequiresStateRow`
+- `HF_REMOVE_HISTORY_RETAINS_OPEN` -> `OpenRequiresHistoryRow`
+- `HF_REMOVE_EVIDENCE_RETAINS_OPEN` -> `OpenRequiresEvidenceRow`
+- `HF_REMOVE_NULLIFIER_RETAINS_OPEN` -> `OpenRequiresNullifierRow`
+- `HF_REMOVE_RECEIPT_RETAINS_OPEN` -> `OpenRequiresReceiptRow`
+- `HF_REMOVE_OUTBOX_RETAINS_OPEN` -> `OpenRequiresOutboxRow`
+- `HF_REMOVE_AUTHORITY_RETAINS_OPEN` -> `OpenRequiresAuthorityRow`
+- `HF_CROSSED_RELATION_RETAINS_OPEN` -> `OpenRequiresValidRelations`
+- `HF_SURPLUS_ROW_RETAINS_OPEN` -> `OpenRequiresExactLayout`
+- `HF_REOPEN_IGNORES_FIXED_POINT` -> `OpenRequiresFixedPoint`
+- `HF_REENCODE_PARTIAL_LAYOUT` -> `FixedPointRequiresCompleteLayout`
+- `PC_VERIFY_NO_RECEIPT` -> `AcceptedIffVerifierReceipt`
+- `PC_ACCEPT_WITHOUT_REGISTRY` -> `AcceptedRequiresPinnedRegistry`
+- `PC_ACCEPT_WITHOUT_PROOF` -> `AcceptedRequiresProofPresent`
+- `PC_ACCEPT_FAULTY_CONTEXT` -> `AcceptedRequiresExactContext`
+- `OR_ACCEPT_PENDING_RISK` -> `RiskIncreaseRequiresFinalFresh`
+- `OR_ACCEPT_UNBOUND_REDUCE` -> `PriceDependentAcceptRequiresBoundContext`
+- `OR_RISK_CHANGE_NO_CERT` -> `ValueChangeRequiresEconomicCertificate`
+- `OR_REJECT_CHANGES_VALUE` -> `RejectHasNoValueChange`
 
 ## Required solver gate
 

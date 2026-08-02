@@ -19,7 +19,7 @@ ESSO supplies the small finite and inductive state-machine obligations. ATDD/BDD
 
 ## Exact formal decomposition
 
-The global property is deliberately split into eight small models. None has more than eleven state variables, and all parameter domains are finite.
+The global property is deliberately split into twelve small models. None has more than eleven state variables, and all parameter domains are finite.
 
 | Model | Principal claim | External premise left visible |
 | --- | --- | --- |
@@ -31,6 +31,10 @@ The global property is deliberately split into eight small models. None has more
 | `fcis_m6_migration_writer_v1` | Migration follows the seven phases and never has two authoritative writers | The complete writer inventory and deployment quiescence barrier are correct |
 | `fcis_m6_no_bypass_v1` | Every value change in the attested mounted inventory traverses the unique commit port | Inventory completeness is externally attested and deployment-bound |
 | `fcis_m6_promotion_subject_v1` | PROVED, IMPLEMENTED, MOUNTED, and TESTED evidence composes only at one exact lineage | Subject construction includes every authority-bearing source, build, schema, and deployment identity |
+| `fcis_m6_nonce_retry_classifier_v1` | First commit, exact retry, collision, nullifier conflict, stale state, and transport uncertainty have a total durable classification | Authenticated request identity and nonce/nullifier derivation are sound |
+| `fcis_m6_history_fixed_point_v1` | Canonical reopen accepts only a complete relation-valid whole-layout encoder fixed point | The storage engine exposes the complete layout checked by reopen |
+| `fcis_m6_proof_context_v1` | Proof acceptance requires a pinned registry, present proof, exact authority context, and verifier receipt | Cryptographic verification and registry authentication are sound |
+| `fcis_m6_oracle_risk_gate_v1` | Risk increase requires an exact bound finalized fresh non-deficit oracle context; recovery may use an exact finalized deficit context | Oracle authentication and finality are sound |
 
 The suite is intentionally not a monolithic model of ZenoDEX. A monolith would either be intractable or hide important assumptions in coarse Boolean variables.
 
@@ -70,7 +74,7 @@ FormalStep(pre, command) = Reject(reason)
 /\ outbox = empty
 ```
 
-ESSO verifies the finite state-machine premises. A small Lean or Tau composition theorem should combine the eight premise families without hiding inventory completeness, cryptographic soundness, or concrete durability as axioms.
+ESSO verifies the finite state-machine premises. A small Lean or Tau composition theorem should combine the twelve premise families without hiding inventory completeness, cryptographic soundness, or concrete durability as axioms.
 
 ## Formal-to-runtime refinement relation
 
@@ -108,7 +112,7 @@ Each formal action needs scenarios for:
 - concurrent or crash interleavings when the action touches authority or persistence;
 - the corresponding implementation mutant.
 
-Each formal invariant needs at least one retained mutant that violates it and is killed by the formal checker and the mounted runtime tests. The current bounded campaign has one or more mutants for every invariant in the eight models.
+Each formal invariant needs at least one retained mutant that violates it and is killed by the formal checker and the mounted runtime tests. The current bounded campaign has one or more mutants for every invariant in the twelve models.
 
 BDD scenarios become promotion evidence only when their step definitions call the actual mounted entrypoint and inspect the complete authoritative post-state, history atom, receipt, nullifier, economic certificate, outbox, and authority epoch. Calling a pure helper or research adapter is not mounted evidence.
 
@@ -146,6 +150,10 @@ The independent checker performs full finite reachable-state exploration and the
 - missing debit or credit;
 - generic zUSD mint/burn enabled;
 - partial publication row omitted;
+- exact retry misclassified or transport uncertainty persisted as authority;
+- missing, surplus, or crossed durable history rows accepted;
+- foreign proof context or caller public inputs accepted;
+- pending, stale, deficit, or unbound oracle context authorizing risk increase;
 - publish without candidate verification;
 - restart or epoch switch retaining authority;
 - delivery before commit or foreign acknowledgment;
@@ -167,14 +175,15 @@ The checked-in bounded result is reproducible, but it is not an ESSO solver rece
 
 ## Required next implementation order
 
-1. Pin and run ESSO/Z3/cvc5 over all eight models.
+1. Pin and run ESSO/Z3/cvc5 over all twelve models.
 2. Add the abstract Lean/Tau composition theorem with visible premises.
 3. Freeze `ManagedAssetPolicyV1`, including zUSD exclusion from generic mint, burn, and faucet paths.
-4. Freeze the full mounted command/entrypoint inventory, including the Tau application host.
-5. Implement canonical runtime-to-formal projections.
-6. Make the feature scenarios executable against the selected authority runtime.
-7. Mount one atomic publication capability and run concrete crash/concurrency refinement.
-8. Bind every receipt to one promotion subject and permit promotion only after the four exact-lineage gates.
+4. Freeze authenticated request identity, nonce/nullifier, proof-context, oracle-context, and history-layout schemas.
+5. Freeze the full mounted command/entrypoint inventory, including the Tau application host.
+6. Implement canonical runtime-to-formal projections for all twelve models.
+7. Make the feature scenarios executable against the selected authority runtime.
+8. Mount one atomic publication capability and run concrete retry, crash, concurrency, reopen, proof, oracle, outbox, and migration refinement.
+9. Bind every receipt to one promotion subject and permit promotion only after the four exact-lineage gates.
 
 ## Nonclaims
 

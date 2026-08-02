@@ -158,3 +158,79 @@ Feature: Mounted runtime refines the FCIS M6 formal safety suite
       | proof_subject | other_subject |
       | SUBJECT_A | SUBJECT_B |
       | SUBJECT_B | SUBJECT_A |
+
+  @model_fcis_m6_nonce_retry_classifier_v1
+  Scenario Outline: Retry and transport uncertainty preserve one durable commit
+    Given one authenticated request identity, nonce, nullifier, and expected head
+    When "<retry_case>" occurs through independent mounted clients
+    Then the durable classifier matches "fcis_m6_nonce_retry_classifier_v1"
+    And at most one semantic commit and nullifier exist
+    And INDETERMINATE is only a client observation resolved by fresh lookup
+
+    Examples:
+      | retry_case |
+      | first_commit |
+      | exact_concurrent_retry |
+      | same_id_different_fingerprint |
+      | nullifier_conflict |
+      | stale_expected_head |
+      | response_lost_after_commit |
+      | request_lost_before_server |
+
+  @model_fcis_m6_history_fixed_point_v1
+  Scenario Outline: Only complete canonical history fixed points reopen
+    Given a canonical committed layout exists
+    When "<history_fault>" is applied and every attacker-controlled cache is recomputed
+    Then canonical reopen either reconstructs the exact complete authorized history or rejects and locks
+    And an accepted layout equals the canonical re-encoding of the reconstructed history
+
+    Examples:
+      | history_fault |
+      | missing_state_row |
+      | missing_history_row |
+      | missing_evidence_row |
+      | missing_nullifier_row |
+      | missing_receipt_row |
+      | missing_outbox_row |
+      | missing_authority_row |
+      | crossed_relation |
+      | surplus_row |
+      | reordered_layout |
+
+  @model_fcis_m6_proof_context_v1
+  Scenario Outline: Proof authority cannot be substituted by caller data
+    Given the mounted verifier registry is pinned by the promotion subject
+    When a proof has "<context_fault>"
+    Then the proof decision matches "fcis_m6_proof_context_v1"
+    And no caller-supplied verifier, key, schema, algorithm, state root, deployment, or public-input root is accepted
+
+    Examples:
+      | context_fault |
+      | NONE |
+      | DEPLOYMENT |
+      | STATE |
+      | CONFIG |
+      | VERIFIER |
+      | KEY |
+      | SCHEMA |
+      | ALGORITHM |
+      | FRESHNESS |
+      | CALLER_PUBLIC_INPUT |
+
+  @model_fcis_m6_oracle_risk_gate_v1
+  Scenario Outline: Risk-increasing value movement requires exact finalized oracle authority
+    Given a price-dependent command is classified as "<risk_class>"
+    And the oracle context is "<oracle_status>"
+    When the command is evaluated through the mounted authority runtime
+    Then the decision matches "fcis_m6_oracle_risk_gate_v1"
+    And every accepted value change carries the exact economic certificate
+    And pending, stale, nonpositive, unseen, unbound, or deficit contexts cannot authorize risk increase
+
+    Examples:
+      | risk_class | oracle_status |
+      | risk_increase | FINAL_FRESH |
+      | risk_increase | PENDING |
+      | risk_increase | STALE |
+      | risk_increase | FINAL_DEFICIT |
+      | risk_reduce | FINAL_FRESH |
+      | risk_reduce | FINAL_DEFICIT |

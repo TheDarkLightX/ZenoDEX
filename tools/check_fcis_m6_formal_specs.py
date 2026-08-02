@@ -184,7 +184,6 @@ def explore(model: Mapping[str, Any], *, state_cap: int = 200_000) -> Exploratio
                 transitions += 1
                 action_counts[action["id"]] += 1
                 check_state(successor_tuple, action["id"], params)
-                # Invalid-domain successors are still counterexamples but should not expand the graph.
                 if all(successor_tuple[index[name]] in domains[name] for name in names) and successor_tuple not in seen:
                     seen.add(successor_tuple)
                     if len(seen) > state_cap:
@@ -271,9 +270,18 @@ def run(root: Path, output: Path) -> dict[str, Any]:
             elif count == 0:
                 errors.append(f"{mid}:{action} is vacuous/unreachable")
 
+    mutations: list[dict[str, Any]] = list(manifest.get("mutants", []))
+    for relative in manifest.get("mutant_manifests", []):
+        mutant_doc = json.loads((root / relative).read_text(encoding="utf-8"))
+        if mutant_doc.get("schema") != "zenodex/fcis/m6/formal-mutants/v1":
+            raise CheckError(f"{relative}: unsupported mutant manifest")
+        if any(item.get("model") != mutant_doc.get("model_id") for item in mutant_doc.get("mutants", [])):
+            raise CheckError(f"{relative}: crossed model identity")
+        mutations.extend(mutant_doc.get("mutants", []))
+
     mutant_results: list[dict[str, Any]] = []
     invariant_kills: dict[tuple[str, str], int] = {}
-    for mutation in manifest["mutants"]:
+    for mutation in mutations:
         model = models[mutation["model"]]
         mutated = mutate(model, mutation)
         result = explore(mutated)
