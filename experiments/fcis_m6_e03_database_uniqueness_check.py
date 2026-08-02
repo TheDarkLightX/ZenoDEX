@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 import sys
 import threading
 from pathlib import Path
@@ -13,6 +14,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+import src.core.fcis_m6_e03_unique_commit_port as e03_core  # noqa: E402
 from experiments.fcis_m6_e03_database_uniqueness import (  # noqa: E402
     E03CommitV1,
     E03DatabaseCodeV1,
@@ -34,7 +36,7 @@ from src.core.fcis_m6_e03_unique_commit_port import (  # noqa: E402
     E03CommitIdentityV1,
     E03EffectSpecV1,
     E03Error,
-    _mint_e03_commit_identity_v1,
+    derive_e03_commit_identity_v1,
     is_verified_e03_commit_identity_v1,
 )
 from tools.build_fcis_m6_e03_database_uniqueness import (  # noqa: E402
@@ -69,7 +71,7 @@ def _candidate(
     nullifier: E02NullifierV1,
     payload_root: str,
 ) -> E03CommitIdentityV1:
-    return _mint_e03_commit_identity_v1(
+    return derive_e03_commit_identity_v1(
         sequence=sequence,
         commit_id=commit_id,
         nullifier=nullifier,
@@ -141,7 +143,44 @@ def _concurrent_duplicate_check(candidate: E03CommitIdentityV1) -> None:
             database.unlink()
 
 
-def run_checks() -> None:
+def _loose_schema_check() -> None:
+    database = _ROOT / "docs/research/m6_tasks/.e03-loose-check.sqlite3"
+    if database.exists():
+        database.unlink()
+    connection = sqlite3.connect(database)
+    try:
+        connection.executescript(
+            """
+            CREATE TABLE e03_publication_commits (
+                sequence INTEGER, commit_id TEXT, fingerprint TEXT,
+                nullifier_root TEXT, request_identity_root TEXT
+            );
+            CREATE TABLE e03_publication_nullifiers (
+                nullifier_root TEXT, commit_id TEXT, fingerprint TEXT
+            );
+            CREATE TABLE e03_publication_effects (
+                effect_id TEXT, commit_id TEXT, ordinal INTEGER,
+                destination TEXT, payload_root TEXT,
+                writer_profile_root TEXT, adapter_profile_root TEXT
+            );
+            """
+        )
+    finally:
+        connection.close()
+    try:
+        try:
+            unexpected = create_e03_connection(database)
+        except E03Error:
+            pass
+        else:
+            unexpected.close()
+            raise AssertionError("E03 accepted a pre-existing loose schema")
+    finally:
+        if database.exists():
+            database.unlink()
+
+
+def _check_vector_and_replay() -> tuple[str, E03CommitIdentityV1]:
     baseline = build_payload()
     vector_path = _ROOT / DEFAULT_OUTPUT_PATH
     vector = json.loads(vector_path.read_text(encoding="utf-8"))
@@ -155,58 +194,87 @@ def run_checks() -> None:
         raise AssertionError("E03 candidate lost verifier provenance")
     if candidate.to_wire() != baseline["candidate"]:
         raise AssertionError("E03 candidate does not match its vector")
-
-    connection = create_e03_connection()
-    committed = persist_e03_commit(connection, candidate)
-    if type(committed) is not E03CommitV1:
-        raise AssertionError(f"valid E03 candidate was rejected: {committed!r}")
-    if read_e03_counts(connection) != (1, 1, 1):
-        raise AssertionError("complete E03 publication row set was not committed")
-    _expect_collision(persist_e03_commit(connection, candidate))
-    if read_e03_counts(connection) != (1, 1, 1):
-        raise AssertionError("duplicate E03 commit changed durable row counts")
-
-    same_nullifier = _candidate(
-        sequence=2,
-        commit_id="f" * 64,
+    if hasattr(e03_core, "_E03_COMMIT_REGISTRY_V1") or hasattr(
+        e03_core, "_E03_COMMIT_SNAPSHOTS_V1"
+    ):
+        raise AssertionError("E03 still depends on a process-local proof registry")
+    replayed = derive_e03_commit_identity_v1(
+        sequence=candidate.sequence,
+        commit_id=candidate.commit_id,
         nullifier=candidate.nullifier,
-        payload_root="c" * 64,
+        effects=candidate.effects,
     )
-    _expect_collision(persist_e03_commit(connection, same_nullifier))
-    if read_e03_counts(connection) != (1, 1, 1):
-        raise AssertionError("nullifier collision left a partial commit row")
+    if replayed is candidate or replayed.to_wire() != candidate.to_wire():
+        raise AssertionError("E03 source replay did not reconstruct the exact identity")
+    candidate_wire = baseline["candidate"]
+    if type(candidate_wire) is not dict or type(candidate_wire.get("fingerprint")) is not str:
+        raise AssertionError("E03 vector candidate fingerprint is malformed")
+    return cast(str, candidate_wire["fingerprint"]), candidate
 
-    connection.execute(
-        """
-        CREATE TRIGGER force_e03_check_abort
-        AFTER INSERT ON e03_publication_nullifiers
-        BEGIN
-            SELECT RAISE(ABORT, 'forced E03 check abort');
-        END
-        """
-    )
-    rollback_result = persist_e03_commit(
-        connection,
-        _candidate(
+
+def _deny_nullifier_insert(
+    action: int,
+    argument_one: str | None,
+    *_ignored: str | None,
+) -> int:
+    if action == sqlite3.SQLITE_INSERT and argument_one == "e03_publication_nullifiers":
+        return sqlite3.SQLITE_DENY
+    return sqlite3.SQLITE_OK
+
+
+def _check_database_atomicity(candidate: E03CommitIdentityV1) -> None:
+    connection = create_e03_connection()
+    try:
+        committed = persist_e03_commit(connection, candidate)
+        if type(committed) is not E03CommitV1:
+            raise AssertionError(f"valid E03 candidate was rejected: {committed!r}")
+        if read_e03_counts(connection) != (1, 1, 1):
+            raise AssertionError("complete E03 publication row set was not committed")
+        _expect_collision(persist_e03_commit(connection, candidate))
+        if read_e03_counts(connection) != (1, 1, 1):
+            raise AssertionError("duplicate E03 commit changed durable row counts")
+
+        same_nullifier = _candidate(
             sequence=2,
-            commit_id="e" * 64,
-            nullifier=_second_nullifier(),
-            payload_root="f" * 64,
-        ),
-    )
-    if type(rollback_result) is not E03RejectV1:
-        raise AssertionError("forced E03 abort was accepted")
-    if cast(E03RejectV1, rollback_result).code is not E03DatabaseCodeV1.SQL_ROLLBACK:
-        raise AssertionError("forced E03 abort did not report SQL rollback")
-    if read_e03_counts(connection) != (1, 1, 1):
-        raise AssertionError("forced E03 abort left partial rows")
+            commit_id="f" * 64,
+            nullifier=candidate.nullifier,
+            payload_root="c" * 64,
+        )
+        _expect_collision(persist_e03_commit(connection, same_nullifier))
+        if read_e03_counts(connection) != (1, 1, 1):
+            raise AssertionError("nullifier collision left a partial commit row")
 
+        connection.set_authorizer(_deny_nullifier_insert)
+        try:
+            rollback_result = persist_e03_commit(
+                connection,
+                _candidate(
+                    sequence=2,
+                    commit_id="e" * 64,
+                    nullifier=_second_nullifier(),
+                    payload_root="f" * 64,
+                ),
+            )
+        finally:
+            connection.set_authorizer(None)
+        if type(rollback_result) is not E03RejectV1:
+            raise AssertionError("forced E03 abort was accepted")
+        if cast(E03RejectV1, rollback_result).code is not E03DatabaseCodeV1.SQL_ROLLBACK:
+            raise AssertionError("forced E03 abort did not report SQL rollback")
+        if read_e03_counts(connection) != (1, 1, 1):
+            raise AssertionError("forced E03 abort left partial rows")
+    finally:
+        connection.close()
+
+
+def _check_construction_and_mutation(candidate: E03CommitIdentityV1) -> None:
     try:
         E03CommitIdentityV1(
             sequence=candidate.sequence,
             commit_id=candidate.commit_id,
             nullifier=candidate.nullifier,
             effects=candidate.effects,
+            fingerprint=candidate.fingerprint,
         )
     except E03Error:
         pass
@@ -216,9 +284,62 @@ def run_checks() -> None:
     object.__setattr__(candidate, "commit_id", "0" * 64)
     if is_verified_e03_commit_identity_v1(candidate):
         raise AssertionError("mutated E03 identity retained verifier provenance")
+    nested_mutation = build_candidate()
+    object.__setattr__(nested_mutation.effects[0], "payload_root", "0" * 64)
+    if is_verified_e03_commit_identity_v1(nested_mutation):
+        raise AssertionError("nested E03 mutation crossed the fingerprint seal")
 
+
+def _check_connection_contract() -> None:
+    foreign_keys_off = create_e03_connection()
+    foreign_keys_off.execute("PRAGMA foreign_keys = OFF")
+    foreign_key_result = persist_e03_commit(foreign_keys_off, build_candidate())
+    if type(foreign_key_result) is not E03RejectV1 or foreign_key_result.path != (
+        "connection",
+        "foreign_keys",
+    ):
+        raise AssertionError("E03 accepted a connection without foreign-key authority")
+    foreign_keys_off.close()
+
+    schema_drift = create_e03_connection()
+    schema_drift.execute(
+        "CREATE TRIGGER hostile_e03_check AFTER INSERT ON e03_publication_commits "
+        "BEGIN SELECT 1; END"
+    )
+    schema_result = persist_e03_commit(schema_drift, build_candidate())
+    if type(schema_result) is not E03RejectV1 or schema_result.path != (
+        "connection",
+        "schema",
+    ):
+        raise AssertionError("E03 accepted a drifted SQLite schema")
+    schema_drift.close()
+
+    active = create_e03_connection()
+    active.execute("CREATE TEMP TABLE caller_sentinel(value INTEGER NOT NULL)")
+    active.execute("BEGIN")
+    active.execute("INSERT INTO caller_sentinel(value) VALUES (7)")
+    active_result = persist_e03_commit(active, build_candidate())
+    if type(active_result) is not E03RejectV1 or active_result.path != (
+        "connection",
+        "active_transaction",
+    ):
+        raise AssertionError("E03 accepted a caller-owned active transaction")
+    if not active.in_transaction or active.execute(
+        "SELECT value FROM caller_sentinel"
+    ).fetchone() != (7,):
+        raise AssertionError("E03 rolled back caller-owned transaction state")
+    active.rollback()
+    active.close()
+
+
+def run_checks() -> None:
+    fingerprint, candidate = _check_vector_and_replay()
+    _check_database_atomicity(candidate)
+    _check_construction_and_mutation(candidate)
+    _check_connection_contract()
+    _loose_schema_check()
     _concurrent_duplicate_check(build_candidate())
-    print("E03_UNIQUENESS_MATCH", baseline["candidate"]["fingerprint"])
+    print("E03_UNIQUENESS_MATCH", fingerprint)
 
 
 if __name__ == "__main__":

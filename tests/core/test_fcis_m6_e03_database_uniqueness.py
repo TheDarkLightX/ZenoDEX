@@ -9,6 +9,7 @@ from typing import cast
 
 import pytest
 
+import src.core.fcis_m6_e03_unique_commit_port as e03_core
 from experiments.fcis_m6_e03_database_uniqueness import (
     E03CommitV1,
     E03DatabaseCodeV1,
@@ -27,7 +28,7 @@ from src.core.fcis_m6_e03_unique_commit_port import (
     E03CommitIdentityV1,
     E03EffectSpecV1,
     E03Error,
-    _mint_e03_commit_identity_v1,
+    derive_e03_commit_identity_v1,
     is_verified_e03_commit_identity_v1,
 )
 from tools.build_fcis_m6_e03_database_uniqueness import build_candidate
@@ -58,7 +59,7 @@ def _candidate(
 ) -> E03CommitIdentityV1:
     baseline = build_candidate()
     selected = baseline.nullifier if nullifier is None else cast(E02NullifierV1, nullifier)
-    return _mint_e03_commit_identity_v1(
+    return derive_e03_commit_identity_v1(
         sequence=sequence,
         commit_id=commit_id,
         nullifier=selected,
@@ -115,14 +116,39 @@ def test_constructor_forge_and_mutation_do_not_cross_authority_boundary() -> Non
             commit_id=candidate.commit_id,
             nullifier=candidate.nullifier,
             effects=candidate.effects,
+            fingerprint=candidate.fingerprint,
         )
 
     forged = object.__new__(E03CommitIdentityV1)
-    for name in ("sequence", "commit_id", "nullifier", "effects"):
+    for name in ("sequence", "commit_id", "nullifier", "effects", "fingerprint"):
         object.__setattr__(forged, name, object.__getattribute__(candidate, name))
     assert not is_verified_e03_commit_identity_v1(forged)
 
     object.__setattr__(candidate, "commit_id", _OTHER_ROOT)
+    assert not is_verified_e03_commit_identity_v1(candidate)
+    connection = create_e03_connection()
+    _assert_rejected(persist_e03_commit(connection, candidate), E03DatabaseCodeV1.INVALID_REQUEST)
+
+
+def test_candidate_replays_from_retained_sources_without_process_registry() -> None:
+    candidate = build_candidate()
+    assert not hasattr(e03_core, "_E03_COMMIT_REGISTRY_V1")
+    assert not hasattr(e03_core, "_E03_COMMIT_SNAPSHOTS_V1")
+
+    replayed = derive_e03_commit_identity_v1(
+        sequence=candidate.sequence,
+        commit_id=candidate.commit_id,
+        nullifier=candidate.nullifier,
+        effects=candidate.effects,
+    )
+    assert replayed is not candidate
+    assert is_verified_e03_commit_identity_v1(replayed)
+    assert replayed.to_wire() == candidate.to_wire()
+
+
+def test_nested_effect_mutation_breaks_the_retained_fingerprint_seal() -> None:
+    candidate = build_candidate()
+    object.__setattr__(candidate.effects[0], "payload_root", _OTHER_ROOT)
     assert not is_verified_e03_commit_identity_v1(candidate)
     connection = create_e03_connection()
     _assert_rejected(persist_e03_commit(connection, candidate), E03DatabaseCodeV1.INVALID_REQUEST)
@@ -147,7 +173,7 @@ def test_closed_effect_bounds_and_order_reject() -> None:
         )
     candidate = build_candidate()
     with pytest.raises(E03Error, match="exact tuple"):
-        _mint_e03_commit_identity_v1(
+        derive_e03_commit_identity_v1(
             sequence=1,
             commit_id=_ROOT,
             nullifier=candidate.nullifier,
@@ -160,6 +186,81 @@ def test_successful_insert_publishes_complete_identity_set() -> None:
     result = persist_e03_commit(connection, build_candidate())
     assert type(result) is E03CommitV1
     assert read_e03_counts(connection) == (1, 1, 1)
+
+
+def test_preexisting_loose_schema_is_rejected(tmp_path: Path) -> None:
+    database = tmp_path / "e03-loose.sqlite3"
+    connection = sqlite3.connect(database)
+    connection.executescript(
+        """
+        CREATE TABLE e03_publication_commits (
+            sequence INTEGER,
+            commit_id TEXT,
+            fingerprint TEXT,
+            nullifier_root TEXT,
+            request_identity_root TEXT
+        );
+        CREATE TABLE e03_publication_nullifiers (
+            nullifier_root TEXT,
+            commit_id TEXT,
+            fingerprint TEXT
+        );
+        CREATE TABLE e03_publication_effects (
+            effect_id TEXT,
+            commit_id TEXT,
+            ordinal INTEGER,
+            destination TEXT,
+            payload_root TEXT,
+            writer_profile_root TEXT,
+            adapter_profile_root TEXT
+        );
+        """
+    )
+    connection.close()
+
+    with pytest.raises(E03Error, match="schema"):
+        create_e03_connection(database)
+
+
+def test_point_of_use_connection_contract_rejects_drift_without_writes() -> None:
+    candidate = build_candidate()
+
+    foreign_keys_off = create_e03_connection()
+    foreign_keys_off.execute("PRAGMA foreign_keys = OFF")
+    rejected = _assert_rejected(
+        persist_e03_commit(foreign_keys_off, candidate),
+        E03DatabaseCodeV1.INVALID_REQUEST,
+    )
+    assert rejected.path == ("connection", "foreign_keys")
+    assert read_e03_counts(foreign_keys_off) == (0, 0, 0)
+
+    schema_drift = create_e03_connection()
+    schema_drift.execute(
+        "CREATE TRIGGER hostile_e03_trigger AFTER INSERT ON e03_publication_commits BEGIN SELECT 1; END"
+    )
+    rejected = _assert_rejected(
+        persist_e03_commit(schema_drift, candidate),
+        E03DatabaseCodeV1.INVALID_REQUEST,
+    )
+    assert rejected.path == ("connection", "schema")
+    assert read_e03_counts(schema_drift) == (0, 0, 0)
+
+
+def test_active_caller_transaction_is_rejected_without_rollback() -> None:
+    connection = create_e03_connection()
+    connection.execute("CREATE TEMP TABLE caller_sentinel(value INTEGER NOT NULL)")
+    connection.execute("BEGIN")
+    connection.execute("INSERT INTO caller_sentinel(value) VALUES (7)")
+
+    rejected = _assert_rejected(
+        persist_e03_commit(connection, build_candidate()),
+        E03DatabaseCodeV1.INVALID_REQUEST,
+    )
+    assert rejected.path == ("connection", "active_transaction")
+    assert connection.in_transaction
+    assert connection.execute("SELECT value FROM caller_sentinel").fetchone() == (7,)
+    assert read_e03_counts(connection) == (0, 0, 0)
+    connection.rollback()
 
 
 def test_duplicate_commit_and_same_nullifier_collision_are_atomic() -> None:
@@ -216,16 +317,23 @@ def test_effect_primary_key_is_enforced_even_for_hostile_raw_insert() -> None:
 
 def test_partial_insert_failure_rolls_back_all_identity_rows() -> None:
     connection = create_e03_connection()
-    connection.execute(
-        """
-        CREATE TRIGGER force_e03_abort
-        AFTER INSERT ON e03_publication_nullifiers
-        BEGIN
-            SELECT RAISE(ABORT, 'forced E03 abort');
-        END
-        """
-    )
-    result = persist_e03_commit(connection, build_candidate())
+
+    def deny_nullifier_insert(
+        action: int,
+        argument_one: str | None,
+        _argument_two: str | None,
+        _database: str | None,
+        _trigger: str | None,
+    ) -> int:
+        if action == sqlite3.SQLITE_INSERT and argument_one == "e03_publication_nullifiers":
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK
+
+    connection.set_authorizer(deny_nullifier_insert)
+    try:
+        result = persist_e03_commit(connection, build_candidate())
+    finally:
+        connection.set_authorizer(None)
     _assert_rejected(result, E03DatabaseCodeV1.SQL_ROLLBACK)
     assert read_e03_counts(connection) == (0, 0, 0)
 

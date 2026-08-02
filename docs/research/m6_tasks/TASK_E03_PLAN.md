@@ -5,10 +5,11 @@ and unmounted.
 
 ## Objective
 
-Refine the E02 verifier-owned nullifier into a complete unique-commit identity
-aggregate and publish its commit, nullifier, and derived effect rows in one
-transaction. The datastore must reject duplicate commit IDs, nullifiers,
-effect IDs, and per-commit ordinals through actual constraints.
+Refine the E02 verifier-owned nullifier into a replayable, fingerprint-sealed
+unique-commit identity aggregate and publish its commit, nullifier, and derived
+effect rows in one adapter-owned transaction. The datastore must reject
+duplicate commit IDs, nullifiers, effect IDs, and per-commit ordinals through
+actual constraints under the exact pinned schema.
 
 ## Contract
 
@@ -28,10 +29,14 @@ rollback for the final datastore decision.
 
 - migration SQL with exact digest and collection bounds;
 - canonical E03 vector derived from E02;
+- fresh source replay without a process-local proof registry;
 - successful complete insertion;
 - duplicate commit and same-nullifier collision rejection;
 - effect-ID and `(commit_id, ordinal)` uniqueness rejection;
 - rollback after an injected partial-insert failure;
+- pre-existing loose schema, point-of-use schema drift, and disabled
+  foreign-key rejection;
+- caller-owned active-transaction rejection without rollback;
 - concurrent duplicate insertion with exactly one winner;
 - exact-type, forged-witness, mutation, Boolean, bound, and canonical-order
   rejection tests;

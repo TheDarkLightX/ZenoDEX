@@ -2,7 +2,7 @@
 
 E03 keeps the datastore boundary small and explicit.  The pure side accepts
 only a verifier-derived E02 nullifier, derives effect identities from the
-commit/effect fields, and returns one transitively immutable aggregate.  The
+commit/effect fields, and returns one replayable fingerprint-sealed aggregate. The
 SQLite transaction that persists that aggregate lives in the experiment
 adapter; this module performs no I/O and makes no production-authentication
 claim.
@@ -10,10 +10,9 @@ claim.
 
 from __future__ import annotations
 
-from dataclasses import InitVar, dataclass
+from dataclasses import dataclass, field
 from hashlib import sha256
-from typing import Final, cast
-from weakref import WeakValueDictionary
+from typing import Final, cast, final
 
 from src.core import fcis_durable_retraction as dra
 from src.core.fcis_m6_e02_nonce_nullifier import (
@@ -32,8 +31,6 @@ MAX_E03_U32_V1: Final = dra.U32_MAX
 _HEX_DIGITS = frozenset("0123456789abcdef")
 
 _E03_COMMIT_CONSTRUCTION_TOKEN_V1 = object()
-_E03_COMMIT_REGISTRY_V1: WeakValueDictionary[int, E03CommitIdentityV1] = WeakValueDictionary()
-_E03_COMMIT_SNAPSHOTS_V1: dict[int, bytes] = {}
 
 
 class E03Error(ValueError):
@@ -120,41 +117,64 @@ class E03EffectSpecV1:
         }
 
 
-def _fingerprint_body(value: E03CommitIdentityV1) -> dict[str, object]:
+def _fingerprint_body(
+    *,
+    sequence: int,
+    commit_id: str,
+    nullifier: E02NullifierV1,
+    effects: tuple[E03EffectSpecV1, ...],
+) -> dict[str, object]:
     return {
         "schema": FCIS_M6_E03_SCHEMA_V1,
-        "sequence": value.sequence,
-        "commit_id": value.commit_id,
-        "nullifier_root": value.nullifier.nullifier_root,
-        "request_identity_root": value.nullifier.request_identity_root,
-        "effects": [effect.to_wire(commit_id=value.commit_id) for effect in value.effects],
+        "sequence": sequence,
+        "commit_id": commit_id,
+        "nullifier_root": nullifier.nullifier_root,
+        "request_identity_root": nullifier.request_identity_root,
+        "effects": [effect.to_wire(commit_id=commit_id) for effect in effects],
     }
 
 
-def _fingerprint(value: E03CommitIdentityV1) -> str:
+def _fingerprint(
+    *,
+    sequence: int,
+    commit_id: str,
+    nullifier: E02NullifierV1,
+    effects: tuple[E03EffectSpecV1, ...],
+) -> str:
     return sha256(
         FCIS_M6_E03_FINGERPRINT_SCHEMA_V1.encode("ascii")
         + b"\x00"
-        + canonical_json_bytes(_fingerprint_body(value))
+        + canonical_json_bytes(
+            _fingerprint_body(
+                sequence=sequence,
+                commit_id=commit_id,
+                nullifier=nullifier,
+                effects=effects,
+            )
+        )
     ).hexdigest()
 
 
-@dataclass(frozen=True, slots=True, weakref_slot=True)
+@final
+@dataclass(frozen=True, slots=True)
 class E03CommitIdentityV1:
-    """Verifier-owned aggregate persisted by the E03 unique commit port."""
+    """Replayable aggregate persisted by the E03 unique commit port."""
 
     sequence: int
     commit_id: str
     nullifier: E02NullifierV1
     effects: tuple[E03EffectSpecV1, ...]
-    _construction_token: InitVar[object | None] = None
+    fingerprint: str
+    _verification_marker: object | None = field(default=None, repr=False, compare=False)
 
-    def __post_init__(self, _construction_token: object | None) -> None:
-        if _construction_token is not _E03_COMMIT_CONSTRUCTION_TOKEN_V1:
+    def __post_init__(self) -> None:
+        if self._verification_marker is not _E03_COMMIT_CONSTRUCTION_TOKEN_V1:
             raise E03Error("E03 commit identity construction is verifier-owned")
         self._validate_fields()
 
     def _validate_fields(self) -> None:
+        if self._verification_marker is not _E03_COMMIT_CONSTRUCTION_TOKEN_V1:
+            raise E03Error("E03 commit identity lacks verifier provenance")
         sequence = _u32(self.sequence, "sequence", minimum=1)
         if sequence > MAX_E03_TRANSITIONS_V1:
             raise E03Error("sequence exceeds the E03 transition bound")
@@ -178,13 +198,14 @@ class E03CommitIdentityV1:
         effect_ids = tuple(effect.derive_effect_id(self.commit_id) for effect in self.effects)
         if len(set(effect_ids)) != len(effect_ids):
             raise E03Error("effect identities must be unique within the commit")
-
-    @property
-    def fingerprint(self) -> str:
-        """Return the canonical identity fingerprint for the complete aggregate."""
-
-        self._validate_fields()
-        return _fingerprint(self)
+        expected_fingerprint = _fingerprint(
+            sequence=sequence,
+            commit_id=self.commit_id,
+            nullifier=self.nullifier,
+            effects=self.effects,
+        )
+        if _digest(self.fingerprint, "fingerprint") != expected_fingerprint:
+            raise E03Error("fingerprint is not canonically bound to the retained sources")
 
     def to_wire(self) -> dict[str, object]:
         self._validate_fields()
@@ -199,48 +220,50 @@ class E03CommitIdentityV1:
         }
 
 
-def _register_commit_v1(value: E03CommitIdentityV1) -> E03CommitIdentityV1:
-    key = id(value)
-    _E03_COMMIT_REGISTRY_V1[key] = value
-    _E03_COMMIT_SNAPSHOTS_V1[key] = canonical_json_bytes(value.to_wire())
-    return value
-
-
-def _mint_e03_commit_identity_v1(
+def derive_e03_commit_identity_v1(
     *,
     sequence: int,
     commit_id: str,
     nullifier: E02NullifierV1,
     effects: tuple[E03EffectSpecV1, ...],
 ) -> E03CommitIdentityV1:
-    """Mint the bounded E03 witness from the preceding verifier-owned value."""
+    """Derive the bounded E03 witness from its complete retained sources."""
 
     if not is_verified_nullifier_v1(nullifier):
         raise E03Error("E02 nullifier must be verifier-derived")
-    return _register_commit_v1(
-        E03CommitIdentityV1(
+    return E03CommitIdentityV1(
+        sequence=sequence,
+        commit_id=commit_id,
+        nullifier=nullifier,
+        effects=effects,
+        fingerprint=_fingerprint(
             sequence=sequence,
             commit_id=commit_id,
             nullifier=nullifier,
             effects=effects,
-            _construction_token=_E03_COMMIT_CONSTRUCTION_TOKEN_V1,
-        )
+        ),
+        _verification_marker=_E03_COMMIT_CONSTRUCTION_TOKEN_V1,
     )
 
 
 def is_verified_e03_commit_identity_v1(value: object) -> bool:
-    """Return whether ``value`` is an unchanged verifier-derived aggregate."""
+    """Replay retained sources before accepting one E03 aggregate."""
 
     if type(value) is not E03CommitIdentityV1:
         return False
     identity = value
-    if _E03_COMMIT_REGISTRY_V1.get(id(identity)) is not identity:
-        return False
     try:
         identity._validate_fields()
-        expected = _E03_COMMIT_SNAPSHOTS_V1.get(id(identity))
-        return expected is not None and expected == cast(
-            bytes, canonical_json_bytes(identity.to_wire())
+        replayed = derive_e03_commit_identity_v1(
+            sequence=identity.sequence,
+            commit_id=identity.commit_id,
+            nullifier=identity.nullifier,
+            effects=identity.effects,
+        )
+        return (
+            replayed == identity
+            and replayed.fingerprint == identity.fingerprint
+            and replayed.to_wire() == identity.to_wire()
         )
     except (AttributeError, E02Error, E03Error, TypeError, ValueError, ArithmeticError):
         return False
@@ -256,5 +279,6 @@ __all__ = (
     "MAX_E03_EFFECTS_V1",
     "MAX_E03_TRANSITIONS_V1",
     "MAX_E03_U32_V1",
+    "derive_e03_commit_identity_v1",
     "is_verified_e03_commit_identity_v1",
 )

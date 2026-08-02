@@ -37,6 +37,12 @@ H("zenodex/fcis/m6/e03/commit-fingerprint/v1" || 0x00 || canonical_json(
 The effect collection is an exact tuple, canonically ordered by contiguous
 ordinals from zero, and bounded by `MAX_OUTBOX_PER_TRANSITION`.
 
+The fingerprint is retained as an immutable seal and is freshly recomputed
+from the complete source fields at every verifier and persistence boundary.
+Verification independently derives a second E03 aggregate from the retained
+E02 nullifier, sequence, commit ID, and effect tuple. No process-global object
+registry or object-ID snapshot participates in acceptance.
+
 ## SQL constraints
 
 `fcis_m6_e03_uniqueness_v1.sql` defines three logical relations:
@@ -48,16 +54,27 @@ ordinals from zero, and bounded by `MAX_OUTBOX_PER_TRANSITION`.
 | `e03_publication_effects` | `effect_id` primary key; foreign key to the commit; unique `(commit_id, ordinal)`; bounded ordinal and exact digest checks |
 
 The Python adapter verifies the complete staged rows before commit. SQLite
-constraints remain the final collision authority. A constraint failure rolls
-back the entire transaction, so a commit row cannot survive a failed
-nullifier or effect insertion.
+constraints remain the final collision authority. Before opening the
+transaction, the adapter requires:
+
+```text
+no caller-owned active transaction
+foreign_keys = ON
+exact main-schema descriptor = descriptor produced by the pinned migration
+```
+
+The exact descriptor rejects pre-existing loose tables, added triggers,
+views, or indexes, and other schema drift. A constraint or SQLite failure
+rolls back the entire adapter-owned transaction, so a commit row cannot survive
+a failed nullifier or effect insertion. Rejecting a caller-owned transaction
+does not roll that transaction back.
 
 ## Rejection rules
 
 ```text
-invalid candidate or connection -> INVALID_REQUEST
+invalid candidate, schema, pragma, or transaction ownership -> INVALID_REQUEST
 duplicate commit/nullifier/effect/ordinal -> CONSTRAINT_COLLISION
-trigger, malformed staged row, busy, or other SQLite failure -> SQL_ROLLBACK
+malformed staged row, denied write, busy, or other SQLite failure -> SQL_ROLLBACK
 valid complete aggregate -> COMMITTED
 ```
 
@@ -67,11 +84,13 @@ fingerprint, command identity, expected root, and current state.
 
 ## Evidence boundary
 
-The tests cover successful complete insertion, duplicate commit identity,
+The tests cover successful complete insertion, deterministic source replay,
+nested mutation rejection, duplicate commit identity,
 same-nullifier/different-commit collision, direct effect-ID constraint
-collision, rollback after a partial-insert trigger, exact-type and mutation
-rejection, and two concurrent duplicate insertions with exactly one committed
-winner.
+collision, rollback after a denied partial insert, loose-schema rejection,
+point-of-use schema and foreign-key drift, caller-owned transaction
+preservation, exact-type rejection, and two concurrent duplicate insertions
+with exactly one committed winner.
 
 The adapter is an isolated SQLite experiment. It does not prove filesystem
 durability, WAL/fsync configuration, process-crash recovery, production

@@ -28,7 +28,7 @@ from src.core.fcis_m6_e03_unique_commit_port import (  # noqa: E402
     E03CommitIdentityV1,
     E03EffectSpecV1,
     E03Error,
-    _mint_e03_commit_identity_v1,
+    derive_e03_commit_identity_v1,
 )
 from src.core.fcis_m6_profile_ids import (  # noqa: E402
     M6_PROFILE_REGISTRY_VERSION_V1,
@@ -245,7 +245,7 @@ def _build_candidate(
                 "adapter_profile_root",
             ),
         )
-        candidate = _mint_e03_commit_identity_v1(
+        candidate = derive_e03_commit_identity_v1(
             sequence=_integer(config["sequence"], "sequence", 128, positive=True),
             commit_id=_digest(config["commit_id"], "commit_id"),
             nullifier=nullifier,
