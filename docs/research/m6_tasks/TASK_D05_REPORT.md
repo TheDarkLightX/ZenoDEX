@@ -2,13 +2,13 @@
 
 TASK_ID: D05
 BASE_SHA: 8601a61154a00aafb1c7ba84d88939b0af4a2685
-SOURCE_HEAD_SHA: 476ec022e755ff049c39bf9f08c6606ac87532ca
-SOURCE_HEAD_TREE: a1d495eae0b26a369487ceb48cad5472abec74db
-BRANCH: codex/task-C07-exact-migration-review-packet-20260801
+SOURCE_HEAD_SHA: cc6627f5d07ecbba27594650c9bd367850fb80a4
+SOURCE_HEAD_TREE: 7af5f9e993e21b3fe7be03248adbe5a66e48eade
+BRANCH: codex/task-D08-replayable-accept-20260802
 
-IMPLEMENTATION_HEAD_SHA: 0741cc88cb8768eb2ec5478c3aa3048c57313d8a
-IMPLEMENTATION_TREE: c40167080553bcacfec2c23c4096913c1f4cf8b6
-IMPLEMENTATION_PARENT: 8601a61154a00aafb1c7ba84d88939b0af4a2685
+IMPLEMENTATION_HEAD_SHA: cc6627f5d07ecbba27594650c9bd367850fb80a4
+IMPLEMENTATION_TREE: 7af5f9e993e21b3fe7be03248adbe5a66e48eade
+IMPLEMENTATION_PARENT: e52c52207b6f7df432331830f66f7ee294827f00
 
 FILES_CHANGED:
 
@@ -71,14 +71,16 @@ RESULTS:
 - The focused C01-C04/C06 dependency regression suite passed: 53 passed.
 - The generated vector contains nine required publisher kinds and nineteen
   exact source-manifest entries.
+- The source-derived inventory was regenerated at the exact implementation
+  tree after the stacked runtime-source changes; no D05 constructor or verifier
+  semantics changed in this refresh.
 - The independently derived publisher inventory root is
-  95fbc474cded934607e63cd0a3af6a7e78514033278818218f925ce0980870fb.
+  e3b8fc99092de0fb56d08bf68ccb2f03278c776b684939765f86f1284fa9379e.
 - The independently derived anchored topology root is
-  9413e99452edf6106089600e48a214e2802a3b030c3697c0204460c94f579214.
+  e9fa1351ab36ecafa75ea9919ed791e31e17e998aa25521c4e3ce8a8f18f1857.
 - No Lean proof, Julia execution, private ESSO run, production deployment scan,
-  mounted caller, runtime authority switch, remote implementation commit,
-  hosted CI run, draft PR, merge, migration, deployment, or value movement is
-  claimed.
+  mounted caller, runtime authority switch, merge, migration, deployment, or
+  value movement is claimed.
 
 MUTANTS_ADDED: D05 covers an inserted publisher changing both external roots,
 omitted required publisher rejection, source-digest substitution changing both
@@ -107,9 +109,8 @@ REMAINING_NONCLAIMS:
   proof context, DRA history, migration epoch, recovery transition, or
   destination acknowledgment to the topology root.
 - No Lean proof, Julia execution, private ESSO run, production deployment scan,
-  mounted caller, runtime authority switch, remote implementation commit,
-  hosted CI run, draft PR, merge, migration, deployment, or value movement is
-  claimed.
+  mounted caller, runtime authority switch, merge, migration, deployment, or
+  value movement is claimed.
 
 REVIEW_RISKS: D05 improves the external-anchor boundary while preserving the
 main completeness risk: a manually reviewed configuration can omit a real
