@@ -21,6 +21,7 @@ def test_valid_combined_anf_returns_one_canonical_root() -> None:
     result = verify_combined_anf_v1(instance)
     assert type(result) is D08CombinedANFAcceptV1
     assert result.anf_root == instance.authority_normal_form.root
+    assert result.publication_atom == instance.publication_atom
 
 
 def test_wrong_exact_type_is_typed_rejection() -> None:

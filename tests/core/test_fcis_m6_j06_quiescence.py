@@ -16,6 +16,7 @@ from src.core.fcis_m6_j06_quiescence import (
     J06WriterAttemptV1,
     quiescence_root_from_body_v1,
     reject_writer_v1,
+    writer_attempt_root_v1,
 )
 from tools.build_fcis_m6_j06_quiescence import build_payload
 
@@ -88,10 +89,16 @@ def test_j06_public_gate_and_result_constructors_are_not_authority_minting_apis(
             quiescence_root=gate.quiescence_root,
         )
     with pytest.raises(J06Error, match="verifier-owned"):
+        attempt = _attempt(gate, gate.covered_writer_ids[0])
         J06AdmissionResultV1(
             gate_root=gate.quiescence_root,
+            attempt_root=writer_attempt_root_v1(attempt),
             publisher_id=gate.covered_writer_ids[0],
             writer_profile_root=gate.target_profile_root,
+            attempt_authority_epoch_index=attempt.authority_epoch_index,
+            attempt_authority_state_root=attempt.authority_state_root,
+            attempt_expected_head_root=attempt.expected_head_root,
+            attempt_sequence=attempt.sequence,
             command_root=dra.tagged_digest("test/command"),
             commit_id=dra.tagged_digest("test/commit"),
             code=J06RejectCodeV1.QUIESCED_WRITER_REJECTED,
@@ -132,3 +139,15 @@ def test_j06_writer_attempt_is_typed_and_bounded() -> None:
             command_root=dra.tagged_digest("test/command"),
             sequence=0,
         )
+
+
+def test_j06_rejection_identity_includes_the_complete_attempt() -> None:
+    gate = _gate(build_payload())
+    base = _attempt(gate, gate.covered_writer_ids[0])
+    first = reject_writer_v1(gate, replace(base, sequence=gate.activation_sequence + 1))
+    second = reject_writer_v1(gate, replace(base, sequence=gate.activation_sequence + 2))
+    assert first.code is J06RejectCodeV1.SEQUENCE_MISMATCH
+    assert second.code is J06RejectCodeV1.SEQUENCE_MISMATCH
+    assert first.attempt_sequence != second.attempt_sequence
+    assert first.attempt_root != second.attempt_root
+    assert first.to_wire() != second.to_wire()

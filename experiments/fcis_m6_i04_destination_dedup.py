@@ -7,9 +7,10 @@ or prove that an external destination implements any of the modeled modes.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 from enum import Enum
 from typing import Final, TypeAlias, cast
+from weakref import WeakValueDictionary
 
 from src.core import fcis_durable_retraction as dra
 
@@ -34,7 +35,11 @@ def _digest(value: object, label: str) -> str:
 def _bounded_text(value: object, label: str) -> str:
     if type(value) is not str:
         raise I04Error(f"{label} must be an exact string")
-    if not value or len(value.encode("utf-8")) > dra.MAX_TEXT_BYTES:
+    try:
+        encoded = value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise I04Error(f"{label} must be valid UTF-8") from exc
+    if not encoded or len(encoded) > dra.MAX_TEXT_BYTES:
         raise I04Error(f"{label} is empty or exceeds its byte bound")
     return value
 
@@ -85,7 +90,7 @@ class I04DedupContractCandidateV1:
         _digest(self.contract_root, "contract_root")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, weakref_slot=True)
 class I04VerifiedDedupContractV1:
     """Verifier-produced contract witness consumed by the model adapter."""
 
@@ -93,8 +98,14 @@ class I04VerifiedDedupContractV1:
     adapter_profile_root: str
     mode: I04DedupModeV1
     contract_root: str
+    _construction_token: InitVar[object | None] = None
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, _construction_token: object | None) -> None:
+        if _construction_token is not _I04_CONTRACT_CONSTRUCTION_TOKEN_V1:
+            raise I04Error("verified dedup contract construction is verifier-owned")
+        self._validate_fields()
+
+    def _validate_fields(self) -> None:
         _bounded_text(self.destination, "destination")
         _digest(self.adapter_profile_root, "adapter_profile_root")
         if type(self.mode) is not I04DedupModeV1:
@@ -106,6 +117,60 @@ class I04VerifiedDedupContractV1:
             self.mode,
         ):
             raise I04Error("dedup contract root is not canonical")
+
+
+_I04_CONTRACT_CONSTRUCTION_TOKEN_V1 = object()
+_I04_VERIFIED_CONTRACTS_V1: WeakValueDictionary[int, I04VerifiedDedupContractV1] = (
+    WeakValueDictionary()
+)
+_I04_VERIFIED_CONTRACT_SNAPSHOTS_V1: dict[int, tuple[object, ...]] = {}
+
+
+def _verified_contract_snapshot_v1(
+    contract: I04VerifiedDedupContractV1,
+) -> tuple[object, ...]:
+    return (
+        contract.destination,
+        contract.adapter_profile_root,
+        contract.mode,
+        contract.contract_root,
+    )
+
+
+def _mint_verified_contract_v1(
+    *,
+    destination: str,
+    adapter_profile_root: str,
+    mode: I04DedupModeV1,
+    contract_root: str,
+) -> I04VerifiedDedupContractV1:
+    contract = I04VerifiedDedupContractV1(
+        destination=destination,
+        adapter_profile_root=adapter_profile_root,
+        mode=mode,
+        contract_root=contract_root,
+        _construction_token=_I04_CONTRACT_CONSTRUCTION_TOKEN_V1,
+    )
+    identity = id(contract)
+    _I04_VERIFIED_CONTRACTS_V1[identity] = contract
+    _I04_VERIFIED_CONTRACT_SNAPSHOTS_V1[identity] = _verified_contract_snapshot_v1(contract)
+    return contract
+
+
+def _is_registered_verified_contract_v1(value: object) -> bool:
+    if type(value) is not I04VerifiedDedupContractV1:
+        return False
+    contract = value
+    registered = _I04_VERIFIED_CONTRACTS_V1.get(id(contract))
+    if registered is not contract:
+        return False
+    try:
+        contract._validate_fields()
+        return _I04_VERIFIED_CONTRACT_SNAPSHOTS_V1.get(id(contract)) == (
+            _verified_contract_snapshot_v1(contract)
+        )
+    except (AttributeError, I04Error, TypeError, ValueError, ArithmeticError, OverflowError):
+        return False
 
 
 I04ContractResultV1: TypeAlias = I04VerifiedDedupContractV1 | I04DedupRejectV1
@@ -148,7 +213,7 @@ def verify_dedup_contract_v1(candidate: object) -> I04ContractResultV1:
     )
     if candidate.contract_root != expected_root:
         return I04DedupRejectV1(I04DedupCodeV1.UNMOUNTABLE, ("contract_root",))
-    return I04VerifiedDedupContractV1(
+    return _mint_verified_contract_v1(
         destination=candidate.destination,
         adapter_profile_root=candidate.adapter_profile_root,
         mode=candidate.mode,
@@ -208,8 +273,10 @@ class I04DestinationStateV1:
                 "destination records exceed the closed capacity bound "
                 f"{MAX_DESTINATION_RECEIPTS_V1}"
             )
-        if any(type(record) is not I04DestinationRecordV1 for record in self.records):
-            raise I04Error("destination record has the wrong exact type")
+        for record in self.records:
+            if type(record) is not I04DestinationRecordV1:
+                raise I04Error("destination record has the wrong exact type")
+            record.__post_init__()
         if tuple(sorted(self.records, key=lambda record: record.effect_id)) != self.records:
             raise I04Error("destination records must be canonically ordered")
         effect_ids = tuple(record.effect_id for record in self.records)
@@ -284,13 +351,13 @@ def deliver_effect_v1(
 ) -> tuple[I04DestinationStateV1, I04DeliveryResultV1]:
     """Apply one effect to the deterministic destination model."""
 
-    if type(contract) is not I04VerifiedDedupContractV1:
+    if not _is_registered_verified_contract_v1(contract):
         return I04DestinationStateV1(), _reject(I04DedupCodeV1.UNMOUNTABLE, "contract")
     if type(state) is not I04DestinationStateV1:
         return I04DestinationStateV1(), _reject(I04DedupCodeV1.STATE_INVALID, "state")
     if type(effect) is not dra.OutboxEffectV1:
         return state, _reject(I04DedupCodeV1.INVALID_EFFECT, "effect")
-    exact_contract = contract
+    exact_contract = cast(I04VerifiedDedupContractV1, contract)
     exact_state = state
     exact_effect = cast(dra.OutboxEffectV1, effect)
     try:

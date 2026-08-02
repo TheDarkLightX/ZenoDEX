@@ -381,13 +381,42 @@ class J06WriterAttemptV1:
         _u32(self.sequence, "sequence", positive=True)
 
 
+def writer_attempt_body_v1(attempt: J06WriterAttemptV1) -> dict[str, object]:
+    """Return the complete canonical body of one attempted writer action."""
+
+    if type(attempt) is not J06WriterAttemptV1:
+        raise J06Error("attempt has the wrong exact type")
+    attempt.__post_init__()
+    return {
+        "publisher_id": attempt.publisher_id,
+        "writer_profile_root": attempt.writer_profile_root,
+        "authority_epoch_index": attempt.authority_epoch_index,
+        "authority_state_root": attempt.authority_state_root,
+        "expected_head_root": attempt.expected_head_root,
+        "commit_id": attempt.commit_id,
+        "command_root": attempt.command_root,
+        "sequence": attempt.sequence,
+    }
+
+
+def writer_attempt_root_v1(attempt: J06WriterAttemptV1) -> str:
+    """Derive the canonical identity of every field in one writer attempt."""
+
+    return _root(writer_attempt_body_v1(attempt))
+
+
 @dataclass(frozen=True, slots=True)
 class J06AdmissionResultV1:
     """Verifier-owned, state-preserving outcome of a J06 writer attempt."""
 
     gate_root: str
+    attempt_root: str
     publisher_id: str
     writer_profile_root: str
+    attempt_authority_epoch_index: int
+    attempt_authority_state_root: str
+    attempt_expected_head_root: str
+    attempt_sequence: int
     command_root: str
     commit_id: str
     code: J06RejectCodeV1
@@ -408,8 +437,16 @@ class J06AdmissionResultV1:
 
     def _validate_fields(self) -> None:
         _digest(self.gate_root, "gate_root")
+        _digest(self.attempt_root, "attempt_root")
         _text(self.publisher_id, "publisher_id")
         _digest(self.writer_profile_root, "writer_profile_root")
+        _u32(
+            self.attempt_authority_epoch_index,
+            "attempt_authority_epoch_index",
+        )
+        _digest(self.attempt_authority_state_root, "attempt_authority_state_root")
+        _digest(self.attempt_expected_head_root, "attempt_expected_head_root")
+        _u32(self.attempt_sequence, "attempt_sequence", positive=True)
         _digest(self.command_root, "command_root")
         _digest(self.commit_id, "commit_id")
         if type(self.code) is not J06RejectCodeV1:
@@ -430,13 +467,30 @@ class J06AdmissionResultV1:
             or pre_authority != post_authority
         ):
             raise J06Error("a J06 rejection changed authoritative state")
+        attempt = J06WriterAttemptV1(
+            publisher_id=self.publisher_id,
+            writer_profile_root=self.writer_profile_root,
+            authority_epoch_index=self.attempt_authority_epoch_index,
+            authority_state_root=self.attempt_authority_state_root,
+            expected_head_root=self.attempt_expected_head_root,
+            commit_id=self.commit_id,
+            command_root=self.command_root,
+            sequence=self.attempt_sequence,
+        )
+        if writer_attempt_root_v1(attempt) != self.attempt_root:
+            raise J06Error("attempt_root is not canonically bound")
 
     def to_wire(self) -> dict[str, object]:
         self._validate_fields()
         return {
             "gate_root": self.gate_root,
+            "attempt_root": self.attempt_root,
             "publisher_id": self.publisher_id,
             "writer_profile_root": self.writer_profile_root,
+            "attempt_authority_epoch_index": self.attempt_authority_epoch_index,
+            "attempt_authority_state_root": self.attempt_authority_state_root,
+            "attempt_expected_head_root": self.attempt_expected_head_root,
+            "attempt_sequence": self.attempt_sequence,
             "command_root": self.command_root,
             "commit_id": self.commit_id,
             "code": self.code.value,
@@ -459,8 +513,13 @@ def _mint_result_v1(
 ) -> J06AdmissionResultV1:
     return J06AdmissionResultV1(
         gate_root=gate.quiescence_root,
+        attempt_root=writer_attempt_root_v1(attempt),
         publisher_id=attempt.publisher_id,
         writer_profile_root=attempt.writer_profile_root,
+        attempt_authority_epoch_index=attempt.authority_epoch_index,
+        attempt_authority_state_root=attempt.authority_state_root,
+        attempt_expected_head_root=attempt.expected_head_root,
+        attempt_sequence=attempt.sequence,
         command_root=attempt.command_root,
         commit_id=attempt.commit_id,
         code=code,
@@ -523,4 +582,6 @@ __all__ = [
     "quiescence_root_from_body_v1",
     "quiescence_root_v1",
     "reject_writer_v1",
+    "writer_attempt_body_v1",
+    "writer_attempt_root_v1",
 ]

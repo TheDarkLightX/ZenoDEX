@@ -11,13 +11,17 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from experiments.fcis_m6_d08_combined_anf_check import build_instance  # noqa: E402
 from src.core import fcis_m6_d08_combined_anf as d08  # noqa: E402
 from src.core.fcis_durable_retraction import tagged_digest  # noqa: E402
+from src.core.fcis_m6_d08_combined_anf import verify_combined_anf_v1  # noqa: E402
 from src.core.fcis_m6_k02_commit_port import (  # noqa: E402
     K02CommitPortV1,
+    K02CommitRecordV1,
     K02CommitResolutionV1,
     K02CommitTransitionV1,
     K02Error,
+    K02PortStateV1,
     K02PublicationRequestV1,
     K02RejectCodeV1,
     K02RejectV1,
@@ -30,24 +34,14 @@ _RULES = _ROOT / "config/deploy/fcis_m6_k02_dependency_rules_v1.json"
 
 
 def _anf() -> d08.D08CombinedANFAcceptV1:
-    return d08.D08CombinedANFAcceptV1(
-        anf_root="0x" + ("a" * 64),
-        _construction_token=d08._D08_CONSTRUCTION_TOKEN_V1,
-    )
+    result = verify_combined_anf_v1(build_instance())
+    if type(result) is not d08.D08CombinedANFAcceptV1:
+        raise AssertionError(f"expected verified D08 fixture, got {result!r}")
+    return result
 
 
-def _request(
-    *, commit_tag: str, sequence: int, expected_pre_state_root: str
-) -> K02PublicationRequestV1:
-    return K02PublicationRequestV1(
-        commit_id=tagged_digest(f"k02/commit/{commit_tag}"),
-        expected_pre_state_root=expected_pre_state_root,
-        post_state_root=tagged_digest(f"k02/post/{commit_tag}"),
-        authority_epoch_root=tagged_digest("k02/authority/epoch-1"),
-        effect_root=tagged_digest(f"k02/effect/{commit_tag}"),
-        sequence=sequence,
-        anf_accept=_anf(),
-    )
+def _request() -> K02PublicationRequestV1:
+    return K02PublicationRequestV1(anf_accept=_anf())
 
 
 def _rules() -> dict[str, object]:
@@ -68,18 +62,14 @@ def run_checks() -> None:
     port = unique_commit_port_v1()
     if port is not unique_commit_port_v1():
         raise AssertionError("K02 did not return one singleton port identity")
-    initial = initial_port_state_v1(tagged_digest("k02/initial-head"))
-    request = _request(
-        commit_tag="one",
-        sequence=0,
-        expected_pre_state_root=initial.head_root,
-    )
+    request = _request()
+    initial = initial_port_state_v1(request.expected_pre_state_root)
     committed = publish_v1(port, initial, request)
     if not isinstance(committed, K02CommitTransitionV1):
         raise AssertionError(f"expected first commit, got {committed!r}")
     if committed.resolution is not K02CommitResolutionV1.NEWLY_COMMITTED:
         raise AssertionError("first commit was not newly committed")
-    if committed.state.next_sequence != 1:
+    if committed.state.next_sequence != 2:
         raise AssertionError("first commit did not advance sequence")
 
     retried = publish_v1(port, committed.state, request)
@@ -90,42 +80,51 @@ def run_checks() -> None:
     if retried.state != committed.state:
         raise AssertionError("same-commit retry changed durable port state")
 
-    collision_request = K02PublicationRequestV1(
-        commit_id=request.commit_id,
-        expected_pre_state_root=request.expected_pre_state_root,
-        post_state_root=tagged_digest("k02/post/collision"),
-        authority_epoch_root=request.authority_epoch_root,
-        effect_root=request.effect_root,
-        sequence=request.sequence,
-        anf_accept=_anf(),
+    collision_state = K02PortStateV1(
+        head_root=request.expected_pre_state_root,
+        next_sequence=2,
+        records=(
+            K02CommitRecordV1(
+                sequence=1,
+                commit_id=request.commit_id,
+                fingerprint_root=tagged_digest("k02/foreign-fingerprint"),
+                post_state_root=tagged_digest("k02/post/collision"),
+                response_root=tagged_digest("k02/response/collision"),
+            ),
+        ),
     )
-    collision = publish_v1(port, committed.state, collision_request)
+    collision = publish_v1(port, collision_state, request)
     if (
         not isinstance(collision, K02RejectV1)
         or collision.code is not K02RejectCodeV1.COMMIT_COLLISION
     ):
         raise AssertionError("same commit ID with changed fingerprint was accepted")
 
-    stale = _request(
-        commit_tag="two-stale",
-        sequence=1,
-        expected_pre_state_root=initial.head_root,
+    stale_result = publish_v1(
+        port,
+        initial_port_state_v1(tagged_digest("k02/stale-head")),
+        request,
     )
-    stale_result = publish_v1(port, committed.state, stale)
     if (
         not isinstance(stale_result, K02RejectV1)
         or stale_result.code is not K02RejectCodeV1.STALE_HEAD
     ):
         raise AssertionError("stale expected head was not rejected")
-    if committed.state != stale_result_state(committed.state, stale_result):
-        raise AssertionError("stale-head rejection did not preserve state")
 
-    wrong_sequence = _request(
-        commit_tag="two-sequence",
-        sequence=2,
-        expected_pre_state_root=committed.state.head_root,
+    sequence_state = K02PortStateV1(
+        head_root=request.expected_pre_state_root,
+        next_sequence=2,
+        records=(
+            K02CommitRecordV1(
+                sequence=1,
+                commit_id=tagged_digest("k02/sequence-history"),
+                fingerprint_root=tagged_digest("k02/sequence-fingerprint"),
+                post_state_root=tagged_digest("k02/sequence-post"),
+                response_root=tagged_digest("k02/sequence-response"),
+            ),
+        ),
     )
-    sequence_result = publish_v1(port, committed.state, wrong_sequence)
+    sequence_result = publish_v1(port, sequence_state, request)
     if not isinstance(sequence_result, K02RejectV1):
         raise AssertionError("wrong sequence was accepted")
     if sequence_result.code is not K02RejectCodeV1.SEQUENCE_MISMATCH:
@@ -155,27 +154,11 @@ def run_checks() -> None:
         raise AssertionError("K02 port could be constructed without its controlled token")
 
     try:
-        K02PublicationRequestV1(
-            commit_id=request.commit_id,
-            expected_pre_state_root=request.expected_pre_state_root,
-            post_state_root=request.post_state_root,
-            authority_epoch_root=request.authority_epoch_root,
-            effect_root=request.effect_root,
-            sequence=request.sequence,
-            anf_accept=object(),
-        )
+        K02PublicationRequestV1(anf_accept=object())
     except K02Error:
         pass
     else:
         raise AssertionError("raw caller object was accepted as an ANF witness")
-
-
-def stale_result_state(state: object, result: K02RejectV1) -> object:
-    """Keep the state-preservation assertion explicit for the checker."""
-
-    if result.code is not K02RejectCodeV1.STALE_HEAD:
-        raise AssertionError("unexpected result in state-preservation witness")
-    return state
 
 
 if __name__ == "__main__":

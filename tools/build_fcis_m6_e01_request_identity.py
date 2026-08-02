@@ -27,6 +27,9 @@ from src.state.canonical import canonical_json_bytes  # noqa: E402
 DEFAULT_CONFIG_PATH = Path("config/deploy/fcis_m6_e01_request_identity_v1.json")
 DEFAULT_OUTPUT_PATH = Path("docs/research/m6_tasks/TASK_E01_REQUEST_IDENTITY_V1.json")
 E01_CONFIG_SCHEMA_V1 = "zenodex/fcis/m6/e01/request-identity-config/v1"
+MAX_E01_NONCLAIMS_V1 = 32
+MAX_E01_NONCLAIM_BYTES_V1 = 512
+MAX_E01_NONCLAIMS_TOTAL_BYTES_V1 = 16 * 1024
 
 
 class _DuplicateJsonKey(ValueError):
@@ -58,7 +61,11 @@ def _load_json(path: Path) -> dict[str, object]:
 def _text(value: object, name: str, *, maximum_bytes: int = 2048) -> str:
     if type(value) is not str or not value:
         raise E01Error(f"{name} must be a nonempty exact string")
-    if len(value.encode("utf-8")) > maximum_bytes:
+    try:
+        encoded = value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise E01Error(f"{name} must be valid UTF-8") from exc
+    if len(encoded) > maximum_bytes:
         raise E01Error(f"{name} exceeds its byte bound")
     return value
 
@@ -127,9 +134,20 @@ def _load_config(path: Path) -> dict[str, object]:
     if (
         type(nonclaims) is not list
         or not nonclaims
+        or len(nonclaims) > MAX_E01_NONCLAIMS_V1
         or any(type(item) is not str or not item for item in nonclaims)
     ):
-        raise E01Error("nonclaims must be a nonempty string list")
+        raise E01Error("nonclaims must be a bounded nonempty string list")
+    checked_nonclaims = tuple(
+        _text(item, f"nonclaims[{index}]", maximum_bytes=MAX_E01_NONCLAIM_BYTES_V1)
+        for index, item in enumerate(nonclaims)
+    )
+    if len(set(checked_nonclaims)) != len(checked_nonclaims):
+        raise E01Error("nonclaims must be unique")
+    if sum(len(item.encode("utf-8")) for item in checked_nonclaims) > (
+        MAX_E01_NONCLAIMS_TOTAL_BYTES_V1
+    ):
+        raise E01Error("nonclaims exceed their total byte bound")
     return raw
 
 

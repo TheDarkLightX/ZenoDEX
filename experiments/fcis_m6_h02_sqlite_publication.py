@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Final, TypeAlias, cast
 
 from src.core import fcis_durable_retraction as dra
+from src.core import fcis_m6_d08_combined_anf as d08
 from src.core.fcis_m6_d08_combined_anf import (
     D08CombinedANFAcceptV1,
     D08CombinedANFInstanceV1,
@@ -299,6 +300,8 @@ class ANFPublicationWitnessV1:
             raise H02Error("ANF witness instance has the wrong exact type")
         if type(self.acceptance) is not D08CombinedANFAcceptV1:
             raise H02Error("ANF witness acceptance has the wrong exact type")
+        if not d08.is_verified_combined_anf_accept_v1(self.acceptance):
+            raise H02Error("ANF witness acceptance is not a verifier result")
         try:
             verified = verify_combined_anf_v1(self.instance)
         except (
@@ -321,7 +324,7 @@ class ANFPublicationWitnessV1:
 
     @property
     def anf_root(self) -> str:
-        return cast(str, self.acceptance.anf_root[2:])
+        return self.acceptance.anf_root[2:]
 
 
 @dataclass(frozen=True, slots=True)

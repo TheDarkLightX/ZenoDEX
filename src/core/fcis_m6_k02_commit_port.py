@@ -14,7 +14,13 @@ from enum import Enum
 from typing import Final, TypeAlias, cast
 
 from src.core import fcis_m6_d08_combined_anf as d08
-from src.core.fcis_durable_retraction import tagged_digest
+from src.core.fcis_durable_retraction import (
+    DurableRetractionError,
+    OutboxEffectV1,
+    PublicationAtomV1,
+    outbox_root,
+    tagged_digest,
+)
 
 K02_COMMIT_PORT_SCHEMA_V1: Final = "zenodex/fcis/m6/k02/unique-commit-port/v1"
 K02_UNIQUE_PORT_ID_V1: Final = "fcis/m6/unique-atomic-commit-port/v1"
@@ -57,22 +63,14 @@ def _digest(value: object, name: str) -> str:
     return value
 
 
-def _anf_digest(value: object, name: str) -> str:
-    if (
-        type(value) is not str
-        or len(value) != 66
-        or not value.startswith("0x")
-        or value != value.lower()
-        or any(character not in _HEX for character in value[2:])
-    ):
-        raise K02Error(f"{name} must be a lowercase 0x digest")
-    return value
-
-
 def _text(value: object, name: str) -> str:
     if type(value) is not str or not value:
         raise K02Error(f"{name} must be a nonempty exact string")
-    if len(value.encode("utf-8")) > 512:
+    try:
+        encoded = value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise K02Error(f"{name} must be valid UTF-8") from exc
+    if len(encoded) > 512:
         raise K02Error(f"{name} exceeds its byte bound")
     return value
 
@@ -85,27 +83,58 @@ def _u32(value: object, name: str) -> int:
 
 @dataclass(frozen=True, slots=True)
 class K02PublicationRequestV1:
-    """One immutable request that a verified ANF bundle may publish."""
+    """One request whose publication fields are owned by the D08 witness."""
 
-    commit_id: str
-    expected_pre_state_root: str
-    post_state_root: str
-    authority_epoch_root: str
-    effect_root: str
-    sequence: int
     anf_accept: object
 
     def __post_init__(self) -> None:
-        _digest(self.commit_id, "commit_id")
-        _digest(self.expected_pre_state_root, "expected_pre_state_root")
-        _digest(self.post_state_root, "post_state_root")
-        _digest(self.authority_epoch_root, "authority_epoch_root")
-        _digest(self.effect_root, "effect_root")
-        _u32(self.sequence, "sequence")
-        if type(self.anf_accept) is not d08.D08CombinedANFAcceptV1:
-            raise K02Error("publication request lacks an exact D08 acceptance witness")
-        exact_anf = cast(d08.D08CombinedANFAcceptV1, self.anf_accept)
-        _anf_digest(exact_anf.anf_root, "anf_accept.anf_root")
+        self.publication_atom.__post_init__()
+
+    @property
+    def publication_atom(self) -> PublicationAtomV1:
+        """Return the complete publication aggregate owned by D08."""
+
+        if not d08.is_verified_combined_anf_accept_v1(self.anf_accept):
+            raise K02Error("publication request lacks a verified D08 acceptance witness")
+        try:
+            return d08.authorized_publication_atom_v1(self.anf_accept)
+        except (
+            d08.D08CombinedANFError,
+            DurableRetractionError,
+            AttributeError,
+            TypeError,
+            ValueError,
+            ArithmeticError,
+            OverflowError,
+        ) as exc:
+            raise K02Error("D08 publication aggregate is invalid") from exc
+
+    @property
+    def commit_id(self) -> str:
+        return cast(str, self.publication_atom.commit_id)
+
+    @property
+    def expected_pre_state_root(self) -> str:
+        return cast(str, self.publication_atom.expected_pre_root)
+
+    @property
+    def post_state_root(self) -> str:
+        return cast(str, self.publication_atom.post_state_root)
+
+    @property
+    def authority_epoch_root(self) -> str:
+        return cast(str, self.publication_atom.authority_state_root)
+
+    @property
+    def effect_root(self) -> str:
+        return cast(
+            str,
+            outbox_root(cast(tuple[OutboxEffectV1, ...], self.publication_atom.outbox)),
+        )
+
+    @property
+    def sequence(self) -> int:
+        return cast(int, self.publication_atom.sequence)
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -141,9 +170,15 @@ class K02PortStateV1:
             raise K02Error("state.records must be an exact tuple")
         if len(self.records) > U32_MAX:
             raise K02Error("state.records exceeds its closed bound")
-        if tuple(record.sequence for record in self.records) != tuple(range(len(self.records))):
+        for record in self.records:
+            if type(record) is not K02CommitRecordV1:
+                raise K02Error("state record has the wrong exact type")
+            record.__post_init__()
+        if tuple(record.sequence for record in self.records) != tuple(
+            range(1, len(self.records) + 1)
+        ):
             raise K02Error("state record sequence is not contiguous")
-        if self.next_sequence != len(self.records):
+        if self.next_sequence != len(self.records) + 1:
             raise K02Error("state next_sequence does not match record count")
         commit_ids = tuple(record.commit_id for record in self.records)
         if len(set(commit_ids)) != len(commit_ids):
@@ -234,7 +269,7 @@ def initial_port_state_v1(head_root: object) -> K02PortStateV1:
 
     try:
         return K02PortStateV1(
-            head_root=_digest(head_root, "head_root"), next_sequence=0, records=()
+            head_root=_digest(head_root, "head_root"), next_sequence=1, records=()
         )
     except (K02Error, TypeError, ValueError, ArithmeticError, OverflowError) as exc:
         raise K02Error("invalid initial port state") from exc
@@ -245,13 +280,15 @@ def request_fingerprint_root_v1(request: K02PublicationRequestV1) -> str:
 
     request.__post_init__()
     exact_anf = cast(d08.D08CombinedANFAcceptV1, request.anf_accept)
+    exact_atom = request.publication_atom
     return cast(
         str,
         tagged_digest(
             "k02/request/v1/"
             f"{request.commit_id}/{request.expected_pre_state_root}/"
             f"{request.post_state_root}/{request.authority_epoch_root}/"
-            f"{request.effect_root}/{request.sequence}/{exact_anf.anf_root}"
+            f"{request.effect_root}/{request.sequence}/{exact_anf.anf_root}/"
+            f"{exact_atom.atom_root}"
         ),
     )
 
@@ -294,9 +331,16 @@ def publish_v1(port: object, state: object, request: object) -> K02ResultV1:
     try:
         exact_state.__post_init__()
         exact_request.__post_init__()
-    except (K02Error, TypeError, ValueError, ArithmeticError, OverflowError):
+    except (
+        AttributeError,
+        K02Error,
+        TypeError,
+        ValueError,
+        ArithmeticError,
+        OverflowError,
+    ):
         return _reject(K02RejectCodeV1.WRONG_REQUEST, "typed_fields")
-    if type(exact_request.anf_accept) is not d08.D08CombinedANFAcceptV1:
+    if not d08.is_verified_combined_anf_accept_v1(exact_request.anf_accept):
         return _reject(K02RejectCodeV1.ANF_WITNESS_REJECTED, "anf_accept")
     fingerprint_root = request_fingerprint_root_v1(exact_request)
     for record in exact_state.records:

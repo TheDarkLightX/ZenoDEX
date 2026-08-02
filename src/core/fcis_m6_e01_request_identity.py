@@ -14,6 +14,7 @@ from dataclasses import InitVar, dataclass
 from enum import Enum
 from hashlib import sha256
 from typing import Final
+from weakref import WeakValueDictionary
 
 from src.state.canonical import canonical_json_bytes
 
@@ -75,7 +76,7 @@ def _root(body: dict[str, object]) -> str:
     ).hexdigest()
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, weakref_slot=True)
 class E01AuthenticatedCommandV1:
     """Verifier-owned witness for one authenticated command invocation."""
 
@@ -113,6 +114,50 @@ class E01AuthenticatedCommandV1:
         }
 
 
+_E01_AUTHENTICATED_COMMANDS_V1: WeakValueDictionary[int, E01AuthenticatedCommandV1] = (
+    WeakValueDictionary()
+)
+_E01_AUTHENTICATED_COMMAND_SNAPSHOTS_V1: dict[int, tuple[object, ...]] = {}
+
+
+def _authenticated_command_snapshot_v1(
+    command: E01AuthenticatedCommandV1,
+) -> tuple[object, ...]:
+    return (
+        command.command_root,
+        command.sender_id,
+        command.command_family,
+        command.nonce,
+        command.authentication_profile_root,
+        command.authentication_evidence_root,
+    )
+
+
+def _register_authenticated_command_v1(
+    command: E01AuthenticatedCommandV1,
+) -> E01AuthenticatedCommandV1:
+    identity = id(command)
+    _E01_AUTHENTICATED_COMMANDS_V1[identity] = command
+    _E01_AUTHENTICATED_COMMAND_SNAPSHOTS_V1[identity] = _authenticated_command_snapshot_v1(command)
+    return command
+
+
+def _is_registered_authenticated_command_v1(value: object) -> bool:
+    if type(value) is not E01AuthenticatedCommandV1:
+        return False
+    command = value
+    registered = _E01_AUTHENTICATED_COMMANDS_V1.get(id(command))
+    if registered is not command:
+        return False
+    try:
+        command._validate_fields()
+        return _E01_AUTHENTICATED_COMMAND_SNAPSHOTS_V1.get(id(command)) == (
+            _authenticated_command_snapshot_v1(command)
+        )
+    except (AttributeError, E01Error, TypeError, ValueError, ArithmeticError, OverflowError):
+        return False
+
+
 def _mint_authenticated_command_v1(
     *,
     command_root: str,
@@ -129,14 +174,16 @@ def _mint_authenticated_command_v1(
     constructor from being mistaken for an authentication API.
     """
 
-    return E01AuthenticatedCommandV1(
-        command_root=command_root,
-        sender_id=sender_id,
-        command_family=command_family,
-        nonce=nonce,
-        authentication_profile_root=authentication_profile_root,
-        authentication_evidence_root=authentication_evidence_root,
-        _construction_token=_E01_COMMAND_CONSTRUCTION_TOKEN_V1,
+    return _register_authenticated_command_v1(
+        E01AuthenticatedCommandV1(
+            command_root=command_root,
+            sender_id=sender_id,
+            command_family=command_family,
+            nonce=nonce,
+            authentication_profile_root=authentication_profile_root,
+            authentication_evidence_root=authentication_evidence_root,
+            _construction_token=_E01_COMMAND_CONSTRUCTION_TOKEN_V1,
+        )
     )
 
 
@@ -231,7 +278,7 @@ def request_identity_root_from_body_v1(body: dict[str, object]) -> str:
     return _root(_strict_identity_body(body))
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, weakref_slot=True)
 class E01RequestIdentityV1:
     """The stable identity of one authenticated request invocation."""
 
@@ -265,6 +312,49 @@ class E01RequestIdentityV1:
         }
 
 
+_E01_REQUEST_IDENTITIES_V1: WeakValueDictionary[int, E01RequestIdentityV1] = WeakValueDictionary()
+_E01_REQUEST_IDENTITY_SNAPSHOTS_V1: dict[int, tuple[object, ...]] = {}
+
+
+def _request_identity_snapshot_v1(identity: E01RequestIdentityV1) -> tuple[object, ...]:
+    return (
+        identity.deployment_config_root,
+        identity.authentication_profile_root,
+        identity.sender_id,
+        identity.command_root,
+        identity.command_family,
+        identity.nonce,
+        identity.expected_sequence,
+        identity.authority_epoch_index,
+        identity.request_identity_root,
+    )
+
+
+def _register_request_identity_v1(
+    identity: E01RequestIdentityV1,
+) -> E01RequestIdentityV1:
+    identity_key = id(identity)
+    _E01_REQUEST_IDENTITIES_V1[identity_key] = identity
+    _E01_REQUEST_IDENTITY_SNAPSHOTS_V1[identity_key] = _request_identity_snapshot_v1(identity)
+    return identity
+
+
+def _is_registered_request_identity_v1(value: object) -> bool:
+    if type(value) is not E01RequestIdentityV1:
+        return False
+    identity = value
+    registered = _E01_REQUEST_IDENTITIES_V1.get(id(identity))
+    if registered is not identity:
+        return False
+    try:
+        identity._validate_fields()
+        return _E01_REQUEST_IDENTITY_SNAPSHOTS_V1.get(id(identity)) == (
+            _request_identity_snapshot_v1(identity)
+        )
+    except (AttributeError, E01Error, TypeError, ValueError, ArithmeticError, OverflowError):
+        return False
+
+
 def derive_request_identity_v1(
     *,
     authenticated_command: E01AuthenticatedCommandV1,
@@ -274,6 +364,8 @@ def derive_request_identity_v1(
 ) -> E01RequestIdentityV1:
     """Derive one identity from a verifier-owned command and exact context."""
 
+    if not _is_registered_authenticated_command_v1(authenticated_command):
+        raise E01Error("authenticated_command lacks verifier provenance")
     if type(authenticated_command) is not E01AuthenticatedCommandV1:
         raise E01Error("authenticated_command has the wrong exact type")
     authenticated_command._validate_fields()
@@ -299,17 +391,19 @@ def derive_request_identity_v1(
         expected_sequence=checked_sequence,
         authority_epoch_index=checked_epoch,
     )
-    return E01RequestIdentityV1(
-        deployment_config_root=checked_deployment,
-        authentication_profile_root=authenticated_command.authentication_profile_root,
-        sender_id=authenticated_command.sender_id,
-        command_root=authenticated_command.command_root,
-        command_family=authenticated_command.command_family,
-        nonce=authenticated_command.nonce,
-        expected_sequence=checked_sequence,
-        authority_epoch_index=checked_epoch,
-        request_identity_root=request_identity_root_from_body_v1(body),
-        _construction_token=_E01_IDENTITY_CONSTRUCTION_TOKEN_V1,
+    return _register_request_identity_v1(
+        E01RequestIdentityV1(
+            deployment_config_root=checked_deployment,
+            authentication_profile_root=authenticated_command.authentication_profile_root,
+            sender_id=authenticated_command.sender_id,
+            command_root=authenticated_command.command_root,
+            command_family=authenticated_command.command_family,
+            nonce=authenticated_command.nonce,
+            expected_sequence=checked_sequence,
+            authority_epoch_index=checked_epoch,
+            request_identity_root=request_identity_root_from_body_v1(body),
+            _construction_token=_E01_IDENTITY_CONSTRUCTION_TOKEN_V1,
+        )
     )
 
 
@@ -319,8 +413,10 @@ def same_request_identity_v1(
 ) -> bool:
     """Return whether two typed invocations have exactly one retry identity."""
 
-    if type(left) is not E01RequestIdentityV1 or type(right) is not E01RequestIdentityV1:
-        raise E01Error("identity comparison requires exact identity values")
+    if not _is_registered_request_identity_v1(left) or not _is_registered_request_identity_v1(
+        right
+    ):
+        raise E01Error("identity comparison requires verifier-derived identity values")
     left._validate_fields()
     right._validate_fields()
     return left.request_identity_root == right.request_identity_root and left == right

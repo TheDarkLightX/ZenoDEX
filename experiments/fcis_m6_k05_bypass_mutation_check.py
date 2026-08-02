@@ -11,8 +11,9 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from experiments.fcis_m6_d08_combined_anf_check import build_instance  # noqa: E402
 from src.core import fcis_m6_d08_combined_anf as d08  # noqa: E402
-from src.core.fcis_durable_retraction import tagged_digest  # noqa: E402
+from src.core.fcis_m6_d08_combined_anf import verify_combined_anf_v1  # noqa: E402
 from src.core.fcis_m6_k02_commit_port import (  # noqa: E402
     K02PublicationRequestV1,
     initial_port_state_v1,
@@ -41,19 +42,11 @@ def _entrypoint_ids() -> tuple[str, ...]:
     return tuple(ids)
 
 
-def _request(head_root: str) -> K02PublicationRequestV1:
-    return K02PublicationRequestV1(
-        commit_id=tagged_digest("k05/matrix/commit"),
-        expected_pre_state_root=head_root,
-        post_state_root=tagged_digest("k05/matrix/post"),
-        authority_epoch_root=tagged_digest("k05/matrix/authority"),
-        effect_root=tagged_digest("k05/matrix/effect"),
-        sequence=0,
-        anf_accept=d08.D08CombinedANFAcceptV1(
-            anf_root="0x" + ("c" * 64),
-            _construction_token=d08._D08_CONSTRUCTION_TOKEN_V1,
-        ),
-    )
+def _request() -> K02PublicationRequestV1:
+    result = verify_combined_anf_v1(build_instance())
+    if type(result) is not d08.D08CombinedANFAcceptV1:
+        raise AssertionError(f"expected verified D08 fixture, got {result!r}")
+    return K02PublicationRequestV1(anf_accept=result)
 
 
 def run_checks() -> None:
@@ -66,8 +59,8 @@ def run_checks() -> None:
     if ids != tuple(sorted(ids, key=lambda item: item.encode("utf-8"))):
         raise AssertionError("K01 entrypoint IDs are not canonical")
     port = unique_commit_port_v1()
-    state = initial_port_state_v1(tagged_digest("k05/matrix/head"))
-    request = _request(state.head_root)
+    request = _request()
+    state = initial_port_state_v1(request.expected_pre_state_root)
     results = run_mutation_matrix_v1(ids, port, state, request)
     if len(results) != 90:
         raise AssertionError(f"expected 90 K05 mutation results, found {len(results)}")

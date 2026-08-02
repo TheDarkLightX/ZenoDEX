@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from typing import Final, cast
+from typing import Final
 
 from src.core.fcis_durable_retraction import tagged_digest
 from src.core.fcis_m6_k02_commit_port import (
@@ -103,8 +103,8 @@ def evaluate_mutant_v1(
         raise K05Error("K05 requires the exact K02 port state")
     if type(request) is not K02PublicationRequestV1:
         raise K05Error("K05 requires the exact K02 publication request")
-    exact_state = cast(K02PortStateV1, state)
-    exact_request = cast(K02PublicationRequestV1, request)
+    exact_state = state
+    exact_request = request
     if mutant is K05MutantV1.RETURN_SUCCESS_WITHOUT_COMMIT:
         return _result(
             entrypoint_id,
@@ -140,13 +140,13 @@ def evaluate_mutant_v1(
             K05KillCodeV1.LEGACY_PUBLISHER_REJECTED,
             "the K01 legacy path remains non-authoritative until sealed by K06",
         )
-    stale_request = replace(
-        exact_request,
-        expected_pre_state_root=tagged_digest(
+    stale_state = replace(
+        exact_state,
+        head_root=tagged_digest(
             f"k05/forged-current-root/{entrypoint_id}/{exact_request.commit_id}"
         ),
     )
-    stale_result = publish_v1(port, exact_state, stale_request)
+    stale_result = publish_v1(port, stale_state, exact_request)
     if not isinstance(stale_result, K02RejectV1):
         raise K05Error("skip-current-root-CAS mutant unexpectedly published")
     if stale_result.code is not K02RejectCodeV1.STALE_HEAD:

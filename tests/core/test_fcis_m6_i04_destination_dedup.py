@@ -15,6 +15,7 @@ from experiments.fcis_m6_i04_destination_dedup import (
     I04DeliveryOutcomeV1,
     I04DestinationRecordV1,
     I04DestinationStateV1,
+    I04Error,
     I04VerifiedDedupContractV1,
     deliver_effect_v1,
     derive_dedup_contract_root,
@@ -152,6 +153,40 @@ def test_unverified_or_unsupported_contract_is_unmountable() -> None:
     assert unsupported.code is I04DedupCodeV1.UNMOUNTABLE
 
 
+def test_i04_verified_contract_requires_provenance_and_fresh_use_validation() -> None:
+    profile_root = tagged_digest("i04/adapter")
+    mode = I04DedupModeV1.QUERY_BY_EFFECT_ID
+    contract_root = derive_dedup_contract_root("i04-destination", profile_root, mode)
+    with pytest.raises(I04Error, match="verifier-owned"):
+        I04VerifiedDedupContractV1(
+            destination="i04-destination",
+            adapter_profile_root=profile_root,
+            mode=mode,
+            contract_root=contract_root,
+        )
+
+    verified = _contract(mode)
+    object.__setattr__(verified, "destination", "foreign-destination")
+    state, result = deliver_effect_v1(
+        verified,
+        I04DestinationStateV1(),
+        _effect(destination="foreign-destination"),
+    )
+    assert state == I04DestinationStateV1()
+    assert isinstance(result, I04DedupRejectV1)
+    assert result.code is I04DedupCodeV1.UNMOUNTABLE
+
+    forged = object.__new__(I04VerifiedDedupContractV1)
+    object.__setattr__(forged, "destination", "i04-destination")
+    object.__setattr__(forged, "adapter_profile_root", profile_root)
+    object.__setattr__(forged, "mode", mode)
+    object.__setattr__(forged, "contract_root", contract_root)
+    safe_state, forged_result = deliver_effect_v1(forged, I04DestinationStateV1(), _effect())
+    assert safe_state == I04DestinationStateV1()
+    assert isinstance(forged_result, I04DedupRejectV1)
+    assert forged_result.code is I04DedupCodeV1.UNMOUNTABLE
+
+
 def test_destination_state_rejects_duplicate_or_noncanonical_records() -> None:
     first = I04DestinationRecordV1(
         effect_id=tagged_digest("i04/effect-a"),
@@ -169,6 +204,14 @@ def test_destination_state_rejects_duplicate_or_noncanonical_records() -> None:
         I04DestinationStateV1(records=(second, first))
     with pytest.raises(ValueError, match="unique"):
         I04DestinationStateV1(records=(first, first))
+
+    malformed = object.__new__(I04DestinationRecordV1)
+    object.__setattr__(malformed, "effect_id", first.effect_id)
+    object.__setattr__(malformed, "destination", "")
+    object.__setattr__(malformed, "payload_root", first.payload_root)
+    object.__setattr__(malformed, "destination_receipt_root", first.destination_receipt_root)
+    with pytest.raises(ValueError, match="destination"):
+        I04DestinationStateV1(records=(malformed,))
 
 
 def test_invalid_effect_is_rejected_without_creating_destination_state() -> None:
