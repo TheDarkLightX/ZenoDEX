@@ -1,0 +1,10 @@
+[package]
+name = "fcis-m6-g02-proof-context-parity"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+zenodex-runtime-core = { path = "../../rust-runtime/crates/zenodex-runtime-core" }

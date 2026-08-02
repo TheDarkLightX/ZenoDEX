@@ -1,0 +1,27 @@
+{
+  "schema": "zenodex/fcis/m6/g02/proof-context-codec-config/v1",
+  "profile_id": "fcis-m6-g02-proof-context-codec-v1",
+  "context_schema": "zenodex/fcis/proof-context/v1",
+  "codec_schema": "zenodex/fcis/m6/g02/proof-context-codec/v1",
+  "magic": "FCIS-M6-G02\\x01",
+  "field_count": 15,
+  "length_frame": "u32 big-endian for field names and values; u64 big-endian for codec-root payload length",
+  "field_tags": {
+    "T": "bounded UTF-8 text",
+    "R": "bounded lowercase 0x-prefixed 32-byte root text",
+    "U": "u64 big-endian epoch",
+    "O": "0x00 for none or 0x01 followed by u64 big-endian epoch"
+  },
+  "codec_root_domain": "zenodex/fcis/m6/g02/proof-context-codec",
+  "invariants": [
+    "field names are closed and in one exact order",
+    "unknown versions, fields, duplicate fields, and trailing bytes reject",
+    "decoded G01 context root rederives before codec acceptance",
+    "Python and Rust reproduce one canonical payload and codec root"
+  ],
+  "nonclaims": [
+    "G02 does not verify a proof or authorize a verifier registry entry",
+    "G02 does not bind public inputs to ANF",
+    "G02 does not mount runtime callers, datastores, or value movement"
+  ]
+}
