@@ -1389,6 +1389,7 @@
       "acceptance_gate": "All writers reject in QUIESCED.",
       "dependencies": [
         "J02",
+        "J04",
         "K01"
       ],
       "principal_claim": "No value-moving writer is reachable during final switch checks.",

@@ -5,9 +5,14 @@
   "expected_k01_entrypoint_inventory_root": "ada2cfe46294edb82bd1504e5184b24bb64077c3fe5e3d5497752905422fbf63",
   "expected_quiesced_epoch": 3,
   "expected_quiesced_authority_root": "15274929f06ed6f9da30915093d0c76d8170564fae1c302432551f41dea07611",
+  "expected_legacy_profile_root": "16fa2532aa19d304813cceb2f8922ede8eb1c021b8116f34bff2e76f7d4c1231",
+  "expected_target_profile_root": "f8dd39dd3867eef7bd7364e3d024b0d7240ecaee8d735edde74838bc8f69defa",
   "activation_sequence": 100,
   "expected_current_head_root": "b74f0877adaea7462099f75d57c02550912980bca632b718a32b5d36ebae345c",
   "expected_replay_head_root": "b74f0877adaea7462099f75d57c02550912980bca632b718a32b5d36ebae345c",
+  "expected_current_snapshot_root": "fd7e9eb86a6b912491725d5c0c9931993f953f004264c62f1a5ef7403689abb5",
+  "expected_replay_snapshot_root": "fd7e9eb86a6b912491725d5c0c9931993f953f004264c62f1a5ef7403689abb5",
+  "expected_replay_evidence_root": "6cfaf4e34e7f107d48f62954aefe26d85d5bb3d40f3bdd25576ca95fc8ad5a56",
   "required_writer_ids": [
     "api_http_ingress",
     "background_outbox_delivery",
@@ -27,7 +32,7 @@
     "DIRECT_ADAPTER_WRITER_QUIESCED",
     "HEAD_REPLAY_EQUAL"
   ],
-  "pinned_quiescence_root": "2ec80931468d21fdfbe97e7cd59ed6d3e1f8c7b22fcd49b9446ae2edcbbd7744",
+  "pinned_quiescence_root": "fffcb1bb7e07c6b88056ce2f01e162a7f1e5ff48679638a0241a5c88388c1f5c",
   "nonclaims": [
     "J06 is a bounded quiescence admission model, not a production barrier or datastore transaction",
     "K01 is a reviewed source-set inventory and does not prove dynamic reachability or deployment completeness",

@@ -10,8 +10,13 @@
     "activation_sequence",
     "authority_epoch_index",
     "authority_state_root",
+    "legacy_profile_root",
+    "target_profile_root",
     "current_head_root",
     "replay_head_root",
+    "current_snapshot_root",
+    "replay_snapshot_root",
+    "replay_evidence_root",
     "covered_writer_ids",
     "evidence_markers",
     "quiescence_root"
@@ -31,6 +36,7 @@
     "entrypoint_not_covered",
     "authority_epoch_mismatch",
     "authority_root_mismatch",
+    "writer_profile_mismatch",
     "head_mismatch",
     "sequence_mismatch",
     "quiesced_writer_rejected"
@@ -38,11 +44,15 @@
   "invariants": [
     "phase is QUIESCED",
     "current_head_root equals replay_head_root",
+    "current_snapshot_root equals replay_snapshot_root",
+    "J04 complete replay evidence root is bound",
     "every covered writer attempt is rejected",
-    "every rejection preserves head and authority roots"
+    "every rejection preserves head, snapshot, and authority roots",
+    "gate and result witnesses require verifier-owned construction"
   ],
   "nonclaims": [
     "no production barrier or datastore transaction claim",
+    "no fresh replay recomputation claim",
     "no runtime reachability or deployment completeness claim",
     "M6 remains unmounted and non-promotable"
   ]

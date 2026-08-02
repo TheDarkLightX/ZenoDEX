@@ -20,6 +20,7 @@ from src.core.fcis_m6_j06_quiescence import (  # noqa: E402
     J06QuiescenceGateV1,
     J06RejectCodeV1,
     J06WriterAttemptV1,
+    _mint_gate_v1,
     reject_writer_v1,
 )
 from tools.build_fcis_m6_j06_quiescence import (  # noqa: E402
@@ -42,15 +43,20 @@ def _gate(payload: dict[str, object]) -> J06QuiescenceGateV1:
     markers = payload.get("evidence_markers")
     if type(writer_ids) is not list or type(markers) is not list:
         raise AssertionError("J06 vector collections are malformed")
-    return J06QuiescenceGateV1(
+    return _mint_gate_v1(
         manifest_root=cast(str, payload["manifest_root"]),
         entrypoint_inventory_root=cast(str, payload["entrypoint_inventory_root"]),
         phase=dra.MigrationPhaseV1(cast(str, payload["phase"])),
         activation_sequence=cast(int, payload["activation_sequence"]),
         authority_epoch_index=cast(int, payload["authority_epoch_index"]),
         authority_state_root=cast(str, payload["authority_state_root"]),
+        legacy_profile_root=cast(str, payload["legacy_profile_root"]),
+        target_profile_root=cast(str, payload["target_profile_root"]),
         current_head_root=cast(str, payload["current_head_root"]),
         replay_head_root=cast(str, payload["replay_head_root"]),
+        current_snapshot_root=cast(str, payload["current_snapshot_root"]),
+        replay_snapshot_root=cast(str, payload["replay_snapshot_root"]),
+        replay_evidence_root=cast(str, payload["replay_evidence_root"]),
         covered_writer_ids=tuple(cast(str, item) for item in writer_ids),
         evidence_markers=tuple(cast(str, item) for item in markers),
         quiescence_root=cast(str, payload["quiescence_root"]),
@@ -65,7 +71,9 @@ def _attempt(
 ) -> J06WriterAttemptV1:
     return J06WriterAttemptV1(
         publisher_id=publisher_id,
-        writer_profile_root=dra.tagged_digest(f"j06/{profile_label}-profile"),
+        writer_profile_root=(
+            gate.legacy_profile_root if profile_label == "legacy" else gate.target_profile_root
+        ),
         authority_epoch_index=gate.authority_epoch_index,
         authority_state_root=gate.authority_state_root,
         expected_head_root=gate.current_head_root,
@@ -88,6 +96,13 @@ def _assert_noop(result: J06AdmissionResultV1, gate: J06QuiescenceGateV1) -> Non
         or result.post_authority_state_root != gate.authority_state_root
     ):
         raise AssertionError("J06 changed authority state in a rejection")
+    if (
+        result.pre_snapshot_root != gate.current_snapshot_root
+        or result.post_snapshot_root != gate.current_snapshot_root
+    ):
+        raise AssertionError("J06 changed durable snapshot state in a rejection")
+    if result.gate_root != gate.quiescence_root:
+        raise AssertionError("J06 result is not bound to its gate")
 
 
 def run_checks() -> None:
@@ -101,6 +116,8 @@ def run_checks() -> None:
         raise AssertionError("J06 does not cover the exact in-scope K01 writer set")
     if gate.current_head_root != gate.replay_head_root:
         raise AssertionError("J06 accepted unequal replay/current heads")
+    if gate.current_snapshot_root != gate.replay_snapshot_root:
+        raise AssertionError("J06 accepted unequal replay/current snapshots")
 
     accepted_attempts = 0
     for publisher_id in gate.covered_writer_ids:
@@ -146,10 +163,16 @@ def run_checks() -> None:
     )
     if reject_writer_v1(gate, wrong_sequence).code is not J06RejectCodeV1.SEQUENCE_MISMATCH:
         raise AssertionError("wrong activation sequence was not rejected")
+    foreign_profile = replace(
+        _attempt(gate, gate.covered_writer_ids[0]),
+        writer_profile_root=dra.tagged_digest("j06/foreign-profile"),
+    )
+    if reject_writer_v1(gate, foreign_profile).code is not J06RejectCodeV1.WRITER_PROFILE_MISMATCH:
+        raise AssertionError("foreign writer profile was not rejected")
 
     try:
         replace(gate, replay_head_root=dra.tagged_digest("j06/divergent-replay"))
-    except J06Error:
+    except (J06Error, TypeError, ValueError):
         pass
     else:
         raise AssertionError("J06 accepted a replay/current-head divergence")
@@ -157,7 +180,7 @@ def run_checks() -> None:
     result = reject_writer_v1(gate, _attempt(gate, gate.covered_writer_ids[0]))
     try:
         replace(result, accepted=True)
-    except J06Error:
+    except (J06Error, TypeError, ValueError):
         pass
     else:
         raise AssertionError("J06 result could be mutated into an accepted outcome")

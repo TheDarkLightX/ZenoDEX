@@ -17,7 +17,7 @@ from src.core.fcis_m6_j06_quiescence import (  # noqa: E402
     J06_QUIESCENCE_MARKERS_V1,
     J06_REQUIRED_WRITER_IDS_V1,
     J06Error,
-    J06QuiescenceGateV1,
+    _mint_gate_v1,
     quiescence_payload_v1,
     quiescence_root_from_body_v1,
 )
@@ -106,9 +106,14 @@ def _load_config(path: Path) -> dict[str, object]:
         "expected_k01_entrypoint_inventory_root",
         "expected_quiesced_epoch",
         "expected_quiesced_authority_root",
+        "expected_legacy_profile_root",
+        "expected_target_profile_root",
         "activation_sequence",
         "expected_current_head_root",
         "expected_replay_head_root",
+        "expected_current_snapshot_root",
+        "expected_replay_snapshot_root",
+        "expected_replay_evidence_root",
         "required_writer_ids",
         "evidence_markers",
         "pinned_quiescence_root",
@@ -123,8 +128,13 @@ def _load_config(path: Path) -> dict[str, object]:
         "expected_j04_manifest_root",
         "expected_k01_entrypoint_inventory_root",
         "expected_quiesced_authority_root",
+        "expected_legacy_profile_root",
+        "expected_target_profile_root",
         "expected_current_head_root",
         "expected_replay_head_root",
+        "expected_current_snapshot_root",
+        "expected_replay_snapshot_root",
+        "expected_replay_evidence_root",
         "pinned_quiescence_root",
     ):
         _digest(raw[name], name)
@@ -211,9 +221,31 @@ def derive_payload(config_path: Path = _ROOT / DEFAULT_CONFIG_PATH) -> dict[str,
     )
     if authority.epoch_index != expected_epoch or authority.root != expected_authority_root:
         raise J06Error("J02 QUIESCED authority differs from the J06 pin")
+    expected_legacy_profile = _digest(
+        config["expected_legacy_profile_root"], "expected_legacy_profile_root"
+    )
+    expected_target_profile = _digest(
+        config["expected_target_profile_root"], "expected_target_profile_root"
+    )
+    if (
+        authority.legacy_profile_root != expected_legacy_profile
+        or authority.target_profile_root != expected_target_profile
+    ):
+        raise J06Error("J02 writer profile roots differ from the J06 pins")
 
     current_head_root = _digest(config["expected_current_head_root"], "expected_current_head_root")
     replay_head_root = _digest(config["expected_replay_head_root"], "expected_replay_head_root")
+    current_snapshot_root = _digest(
+        config["expected_current_snapshot_root"], "expected_current_snapshot_root"
+    )
+    replay_snapshot_root = _digest(
+        config["expected_replay_snapshot_root"], "expected_replay_snapshot_root"
+    )
+    replay_evidence_root = _digest(
+        manifest.get("complete_replay_evidence_root"), "J04 complete_replay_evidence_root"
+    )
+    if replay_evidence_root != config["expected_replay_evidence_root"]:
+        raise J06Error("J04 replay evidence root differs from the J06 pin")
     body = {
         "manifest_root": manifest_root,
         "entrypoint_inventory_root": inventory_root,
@@ -221,20 +253,30 @@ def derive_payload(config_path: Path = _ROOT / DEFAULT_CONFIG_PATH) -> dict[str,
         "activation_sequence": activation_sequence,
         "authority_epoch_index": authority.epoch_index,
         "authority_state_root": authority.root,
+        "legacy_profile_root": authority.legacy_profile_root,
+        "target_profile_root": authority.target_profile_root,
         "current_head_root": current_head_root,
         "replay_head_root": replay_head_root,
+        "current_snapshot_root": current_snapshot_root,
+        "replay_snapshot_root": replay_snapshot_root,
+        "replay_evidence_root": replay_evidence_root,
         "covered_writer_ids": list(writer_ids),
         "evidence_markers": list(J06_QUIESCENCE_MARKERS_V1),
     }
-    gate = J06QuiescenceGateV1(
+    gate = _mint_gate_v1(
         manifest_root=manifest_root,
         entrypoint_inventory_root=inventory_root,
         phase=authority.phase,
         activation_sequence=activation_sequence,
         authority_epoch_index=authority.epoch_index,
         authority_state_root=authority.root,
+        legacy_profile_root=authority.legacy_profile_root,
+        target_profile_root=authority.target_profile_root,
         current_head_root=current_head_root,
         replay_head_root=replay_head_root,
+        current_snapshot_root=current_snapshot_root,
+        replay_snapshot_root=replay_snapshot_root,
+        replay_evidence_root=replay_evidence_root,
         covered_writer_ids=writer_ids,
         evidence_markers=J06_QUIESCENCE_MARKERS_V1,
         quiescence_root=quiescence_root_from_body_v1(body),
