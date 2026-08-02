@@ -2,13 +2,14 @@
 
 TASK_ID: D04
 BASE_SHA: 3acf6285f8a3feef32c838b2a459d18fd721ae8d
-SOURCE_HEAD_SHA: d8f4206f3a16ed61cdaaf5231bd8f62bcbe38c0f
-SOURCE_HEAD_TREE: 38c3673fc185bd88ad5d452a099c65b44a965447
-BRANCH: codex/task-D04-anf-bundle-outbox-repair-20260801
+SOURCE_HEAD_SHA: e7c827d2a206f6bed6fc59fe9e6bbdfe679e34d2
+SOURCE_HEAD_TREE: fcae7f28ae277c1e62402269a253f80531972bf0
+BRANCH: codex/task-H03-deterministic-crash-20260801
 
-IMPLEMENTATION_HEAD_SHA: d8f4206f3a16ed61cdaaf5231bd8f62bcbe38c0f
-IMPLEMENTATION_TREE: 38c3673fc185bd88ad5d452a099c65b44a965447
-IMPLEMENTATION_PARENT: 22099f578978d621831bead94dede4a85d75305b
+IMPLEMENTATION_HEAD_SHA: e7c827d2a206f6bed6fc59fe9e6bbdfe679e34d2
+IMPLEMENTATION_TREE: fcae7f28ae277c1e62402269a253f80531972bf0
+IMPLEMENTATION_PARENT: ea8373ad406770e1060acfcdda8581ad51e02719
+MERGED_D04_HEAD: 5e4677c30210cdbaa1adb0c5775f112eb25f140e
 ORIGINAL_D04_BASE: 64db43c26683c529157d32b8c02a6df30e3bd24c
 
 FILES_CHANGED:
@@ -40,6 +41,8 @@ publication. Store validation repeats the same complete check over every
 retained publication before retry classification. V1 bundle admission rejects
 ANF-bound decisions, and lineage closure hashes each outbox through its exact
 V1 or V2 schema.
+The later M6 lineage-closure implementation was retained, and the exact-schema
+V2 outbox recomputation repair composes with it.
 
 COMMANDS_RUN:
 
@@ -56,6 +59,8 @@ COMMANDS_RUN:
 - python3 -m experiments.fcis_m6_d01_vector_check
 - python3 -m experiments.fcis_m6_c07_review_packet_check
 - git diff --check 3acf6285f8a3feef32c838b2a459d18fd721ae8d..HEAD
+- git diff --check ea8373ad406770e1060acfcdda8581ad51e02719..e7c827d2a206f6bed6fc59fe9e6bbdfe679e34d2
+- git diff --check e7c827d2a206f6bed6fc59fe9e6bbdfe679e34d2..HEAD
 - python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D04
 - sha256sum --check --strict docs/research/m6_tasks/TASK_D04_SOURCE_MANIFEST.sha256
 
@@ -85,9 +90,14 @@ RESULTS:
   same failure exists at the reviewed D04 implementation base and was not
   regenerated during this focused repair.
 - Task validation and source-manifest validation passed with 19 manifest
-  entries. The exact-range whitespace gate is run after the receipt commit so
-  it covers both the implementation and receipt trees.
-- PR #502 is the review surface. No merge, runtime mount, deployment,
+  entries.
+- The D04 merge delta and receipt delta pass `git diff --check`. The broad
+  historical range fails on seven inherited trailing-blank-line defects in
+  D09, H07, and I01 research documents; those files are outside D04 and were
+  preserved unchanged.
+- The reviewed PR #502 exact head was merged into the unmounted continuation
+  branch, retaining the later lineage-closure implementation.
+- No runtime mount, deployment,
   authority switch, or value movement is claimed.
 
 MUTANTS_ADDED: Permanent tests and the deterministic checker reject missing or
@@ -112,8 +122,9 @@ REMAINING_NONCLAIMS:
   reachability remain downstream obligations.
 - The inherited fee-apportionment source-hash fixture remains stale and is
   outside this D04 authority surface.
-- PR #502 is the review surface. No merge, deployment, production migration,
-  authority switch, runtime mount, or value movement is claimed.
+- PR #502 remains the source review surface. The continuation merge does not
+  authorize deployment, production migration, authority switch, runtime mount,
+  or value movement.
 
 REVIEW_RISKS: The public wrapper remains named `CommitBundleV1` for compatibility
 while its exact canonical claim and outbox values select V1 or V2 by retained

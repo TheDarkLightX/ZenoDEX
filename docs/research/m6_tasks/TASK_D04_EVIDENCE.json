@@ -2,9 +2,9 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "D04",
   "base_sha": "3acf6285f8a3feef32c838b2a459d18fd721ae8d",
-  "source_head_sha": "d8f4206f3a16ed61cdaaf5231bd8f62bcbe38c0f",
-  "source_head_tree": "38c3673fc185bd88ad5d452a099c65b44a965447",
-  "branch": "codex/task-D04-anf-bundle-outbox-repair-20260801",
+  "source_head_sha": "e7c827d2a206f6bed6fc59fe9e6bbdfe679e34d2",
+  "source_head_tree": "fcae7f28ae277c1e62402269a253f80531972bf0",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
     "src/state/state_snapshot_schema.py",
@@ -42,6 +42,8 @@
     "python3 -m experiments.fcis_m6_d01_vector_check",
     "python3 -m experiments.fcis_m6_c07_review_packet_check",
     "git diff --check 3acf6285f8a3feef32c838b2a459d18fd721ae8d..HEAD",
+    "git diff --check ea8373ad406770e1060acfcdda8581ad51e02719..e7c827d2a206f6bed6fc59fe9e6bbdfe679e34d2",
+    "git diff --check e7c827d2a206f6bed6fc59fe9e6bbdfe679e34d2..HEAD",
     "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks D04",
     "sha256sum --check --strict docs/research/m6_tasks/TASK_D04_SOURCE_MANIFEST.sha256"
   ],
@@ -61,7 +63,7 @@
     "src/core/fcis_authority_dispatch.py": "96bd695781329b90d40b77a6de92307f9df3b733cd31e79b8c8e9e2972d1a357",
     "src/core/fcis_commit_bundle_derivation.py": "0fc7b90f3117819fcf201b61d0b0dc0d124fdc9e33eea583080d01b7053d369f",
     "src/core/fcis_commit_reference.py": "59c1cb5897a9918f437df4bc14623bde423dbd42c1bac63c3e63500a8bd26343",
-    "src/core/fcis_lineage_closure.py": "75de8be0c4886f53062ee2a4d7de15ebb0a4d2ac24dc7b557c01238192234abd",
+    "src/core/fcis_lineage_closure.py": "20cb9d543ee15bb0a1b7f0497b090d2be9af4eb48a5186bb56382b0b41b4c05c",
     "tests/core/test_fcis_commit_bundle_derivation.py": "e5623a709a5ae535fd2e2034ac4645aafa8e8ee8da6393a851eb30cebf32fe29",
     "tests/core/test_fcis_commit_reference.py": "228ddc7f633138d4f9eb3aa6e340f2e100a3699091220a0ef15af1fed3b37744",
     "tests/core/test_fcis_m5_authority_admission.py": "f0ad27a96bf253652413d97c86dc8f2c58eb7ab0db42e3687f9a9ff84eac2a30",
@@ -70,12 +72,13 @@
     "docs/research/m6_tasks/TASK_D04_ANF_BUNDLE_OUTBOX_VECTOR.json": "f13eda38bad6285c5409b4654e79108d3ae7991cd3a71e3abf71caee5fc6f984",
     "docs/research/FCIS_M6_D04_ANF_BUNDLE_OUTBOX_SCHEMA_V1.md": "fd2071689d33fd9fb55c099c6df2f9fc137101c52d3e763c740d5355da49d59a",
     "docs/research/m6_tasks/TASK_D04_PLAN.md": "feca2f09f28ef392fd09cb24f427c7d77f453d360402af414eeea9d1ff646010",
-    "docs/research/m6_tasks/TASK_D04_REPORT.md": "bf0aa6d1fda0192621edbcf972e6fce9d4468ba3327218e6170d3589c84b76b1"
+    "docs/research/m6_tasks/TASK_D04_REPORT.md": "0d8b3f4b10f23435394cb8ad34a6e63a4ee869177b2590163f092922fbcfc1e8"
   },
   "results": {
-    "implementation_commit": "d8f4206f3a16ed61cdaaf5231bd8f62bcbe38c0f",
-    "implementation_tree": "38c3673fc185bd88ad5d452a099c65b44a965447",
-    "implementation_parent": "22099f578978d621831bead94dede4a85d75305b",
+    "implementation_commit": "e7c827d2a206f6bed6fc59fe9e6bbdfe679e34d2",
+    "implementation_tree": "fcae7f28ae277c1e62402269a253f80531972bf0",
+    "implementation_parent": "ea8373ad406770e1060acfcdda8581ad51e02719",
+    "merged_d04_head": "5e4677c30210cdbaa1adb0c5775f112eb25f140e",
     "original_d04_base": "64db43c26683c529157d32b8c02a6df30e3bd24c",
     "focused_d04_and_refinement_tests": "148 passed",
     "dependency_c01_c04_c06_tests": "53 passed",
@@ -96,9 +99,9 @@
     "anf_v2_bundle_root": "0x7e6a1f04bb04e514c8fde2b2419845382ab7e2fabbbfd68da2a371f946bed9e1",
     "validator": "pass; 19 manifest entries",
     "source_manifest": "pass; 19 manifest entries",
-    "exact_range_diff_check": "post-receipt gate; exact command recorded",
+    "exact_range_diff_check": "D04 merge and receipt deltas pass; broad historical range reports seven inherited trailing-blank-line defects in D09, H07, and I01 documents",
     "runtime_mount": "none",
-    "remote_publication": "PR #502 review branch"
+    "remote_publication": "PR #502 repair merged into the unmounted continuation branch"
   },
   "mutants": [
     {
@@ -157,6 +160,6 @@
     "The V2 schema registrations do not mount a production writer or acceptance path.",
     "D04 does not prove caller authentication, store-current authority, production atomicity, crash recovery, destination idempotency, proof context, DRA history, migration authority, or no-bypass reachability.",
     "The broad diagnostic retains one inherited stale fee-apportionment source-hash fixture outside the D04 authority surface.",
-    "PR #502 is the review surface; no merge, deployment, production migration, authority switch, runtime mount, or value movement is claimed."
+    "PR #502 is the source review surface; its exact head is merged only into the unmounted continuation branch, with no deployment, production migration, authority switch, runtime mount, or value movement."
   ]
 }
