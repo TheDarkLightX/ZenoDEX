@@ -1,0 +1,48 @@
+{
+  "schema": "zenodex/fcis/m6/f01/history-atom-config/v1",
+  "profile_id": "fcis-m6-f01-authoritative-history-atom-v1",
+  "atom_schema": "zenodex/fcis/m6/f01/history-atom/v1",
+  "nullifier_schema": "zenodex/fcis/m6/f01/history-nullifier/v1",
+  "outbox_schema": "zenodex/fcis/m6/f01/history-outbox/v1",
+  "max_atom_bytes": 524288,
+  "max_outbox_records": 4096,
+  "required_fields": [
+    "sequence",
+    "commit_id",
+    "command_root",
+    "expected_pre_state_root",
+    "post_state_root",
+    "deployment_config_root",
+    "verifier_profile_root",
+    "writer_profile_root",
+    "authority_epoch_index",
+    "authority_state_root",
+    "anf_root",
+    "proof_context_requirement",
+    "proof_context_root",
+    "nullifier",
+    "response_root",
+    "receipt_root",
+    "decision_root",
+    "bundle_root",
+    "replay_root",
+    "outbox"
+  ],
+  "invariants": [
+    "all roots are canonical lowercase 0x-prefixed 32-byte digests",
+    "E02 nullifier root rederives from deployment/sender/family/nonce",
+    "proof-context absence uses one explicit sentinel root",
+    "effect identity rederives from commit/ordinal/destination/payload/writer",
+    "idempotency root rederives from effect identity",
+    "outbox ordinals are contiguous and effect identities unique",
+    "unknown and missing wire fields reject"
+  ],
+  "nonclaims": [
+    "research schema and canonical codec only",
+    "no caller authentication",
+    "no verifier-minted runtime authority",
+    "no datastore transaction or reopen implementation",
+    "no production outbox delivery or destination authenticity",
+    "no accounting, backing, zUSD safety, or value movement"
+  ]
+}
