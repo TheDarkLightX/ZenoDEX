@@ -1,0 +1,38 @@
+{
+  "schema": "zenodex/fcis/m6/e01/request-identity-schema/v1",
+  "task_id": "E01",
+  "status": "RESEARCH_ONLY_UNMOUNTED",
+  "authenticated_command_fields": [
+    "command_root",
+    "sender_id",
+    "command_family",
+    "nonce",
+    "authentication_profile_root",
+    "authentication_evidence_root"
+  ],
+  "identity_fields": [
+    "deployment_config_root",
+    "authentication_profile_root",
+    "sender_id",
+    "command_root",
+    "command_family",
+    "nonce",
+    "expected_sequence",
+    "authority_epoch_index",
+    "request_identity_root"
+  ],
+  "invariants": [
+    "authenticated command construction is verifier-owned",
+    "request identity construction is verifier-owned",
+    "identity root is a strict canonical-body hash",
+    "expected_sequence is a positive u32",
+    "nonce is a u64",
+    "command family is a closed enum",
+    "M6 remains unmounted and non-promotable"
+  ],
+  "nonclaims": [
+    "no cryptographic authentication implementation",
+    "no commit authorization or nonce consumption",
+    "no datastore, API, deployment, or value movement"
+  ]
+}
