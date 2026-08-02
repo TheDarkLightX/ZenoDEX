@@ -34,6 +34,7 @@ FCIS_M6_J07_CONTEXT_SCHEMA_V1: Final = "zenodex/fcis/m6/j07/authority-context/v1
 FCIS_M6_J07_TOKEN_SCHEMA_V1: Final = "zenodex/fcis/m6/j07/writer-token/v1"
 FCIS_M6_J07_SWITCH_SCHEMA_V1: Final = "zenodex/fcis/m6/j07/switch-result/v1"
 MAX_J07_SEQUENCE_V1: Final = (1 << 32) - 1
+MAX_J07_PATH_PARTS_V1: Final = 8
 
 _J07_CONTEXT_CONSTRUCTION_TOKEN_V1 = object()
 _J07_TOKEN_CONSTRUCTION_TOKEN_V1 = object()
@@ -97,6 +98,16 @@ def _u32(value: object, name: str, *, positive: bool = False) -> int:
     if type(value) is not int or value < minimum or value > MAX_J07_SEQUENCE_V1:
         raise J07Error(f"{name} is outside its closed u32 bound")
     return value
+
+
+def _path(value: object, name: str) -> tuple[str, ...]:
+    if type(value) is not tuple or not value:
+        raise J07Error(f"{name} must be a nonempty exact tuple")
+    if len(value) > MAX_J07_PATH_PARTS_V1:
+        raise J07Error(f"{name} exceeds its closed collection bound")
+    return tuple(
+        _text(item, f"{name}[{index}]", maximum_bytes=64) for index, item in enumerate(value)
+    )
 
 
 def _root(value: object, name: str) -> str:
@@ -304,6 +315,10 @@ class J07AuthorityContextV1:
                 raise J07Error("post context active profile is not target")
             if self.allowed_writer_roots != (self.target_profile_root,):
                 raise J07Error("post context writer set is not target-only")
+            if self.current_state_root != self.previous_state_root:
+                raise J07Error("post context changed the current state root")
+            if self.deployment_config_root != self.previous_deployment_config_root:
+                raise J07Error("post context changed the deployment root")
             if self.authority_state_root == self.previous_authority_state_root:
                 raise J07Error("authority root did not change at switch")
             if self.current_head_root == self.previous_head_root:
@@ -627,8 +642,7 @@ class J07WriterRejectV1:
     def __post_init__(self) -> None:
         if type(self.code) is not J07RejectCodeV1:
             raise J07Error("writer rejection code has the wrong exact type")
-        if type(self.path) is not tuple or any(type(item) is not str for item in self.path):
-            raise J07Error("writer rejection path must be an exact string tuple")
+        _path(self.path, "writer rejection path")
 
 
 @dataclass(frozen=True, slots=True)
@@ -744,6 +758,29 @@ class J07SwitchSuccessV1:
             raise J07Error("switch gate root is not bound to pre context")
         if self.pre_context.migration_token_root != self.migration_token_root:
             raise J07Error("switch token root is not bound to pre context")
+        if self.post_context.gate_root != self.gate_root:
+            raise J07Error("switch gate root is not bound to post context")
+        if self.post_context.migration_token_root != self.migration_token_root:
+            raise J07Error("switch token root is not bound to post context")
+        if self.post_context.legacy_profile_root != self.pre_context.legacy_profile_root:
+            raise J07Error("switch changed the legacy profile identity")
+        if self.post_context.target_profile_root != self.pre_context.target_profile_root:
+            raise J07Error("switch changed the target profile identity")
+        if self.post_context.previous_epoch_index != self.pre_context.epoch_index:
+            raise J07Error("switch successor does not name the predecessor epoch")
+        if self.post_context.previous_authority_state_root != self.pre_context.authority_state_root:
+            raise J07Error("switch successor does not name the predecessor authority")
+        if self.post_context.previous_head_root != self.pre_context.current_head_root:
+            raise J07Error("switch successor does not name the predecessor head")
+        if self.post_context.previous_snapshot_root != self.pre_context.current_snapshot_root:
+            raise J07Error("switch successor does not name the predecessor snapshot")
+        if self.post_context.previous_state_root != self.pre_context.current_state_root:
+            raise J07Error("switch successor does not name the predecessor state")
+        if (
+            self.post_context.previous_deployment_config_root
+            != self.pre_context.deployment_config_root
+        ):
+            raise J07Error("switch successor does not name the predecessor deployment")
         if self.switch_root != _switch_root(
             self.gate_root,
             self.migration_token_root,
@@ -786,8 +823,7 @@ class J07SwitchRejectV1:
     def __post_init__(self) -> None:
         if type(self.code) is not J07RejectCodeV1:
             raise J07Error("switch rejection code has the wrong exact type")
-        if type(self.path) is not tuple or any(type(item) is not str for item in self.path):
-            raise J07Error("switch rejection path must be an exact string tuple")
+        _path(self.path, "switch rejection path")
 
 
 J07SwitchResultV1: TypeAlias = J07SwitchSuccessV1 | J07SwitchRejectV1

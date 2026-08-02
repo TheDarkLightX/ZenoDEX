@@ -14,10 +14,13 @@ from experiments.fcis_m6_j07_authority_switch_check import (
 from src.core.fcis_m6_j07_authority_switch import (
     J07Error,
     J07RejectCodeV1,
+    J07SwitchRejectV1,
     J07SwitchSuccessV1,
     J07WriterAcceptedV1,
     J07WriterRejectV1,
+    _context_root,
     _mint_writer_token_v1,
+    _register_context_v1,
     authorize_writer_v1,
     switch_authority_v1,
 )
@@ -89,3 +92,43 @@ def test_j07_registered_context_mutation_rejects_at_point_of_use() -> None:
     rejected = authorize_writer_v1(result.post_context, token)
     assert type(rejected) is J07WriterRejectV1
     assert rejected.code is J07RejectCodeV1.CONTEXT_REJECTED
+
+
+@pytest.mark.parametrize(  # type: ignore[untyped-decorator]
+    "field", ("current_state_root", "deployment_config_root")
+)
+def test_j07_post_context_cannot_change_state_or_deployment(
+    field: str,
+) -> None:
+    _, _, _, _, result = _switch()
+    context = result.post_context
+    replacement = "f" * 64
+    object.__setattr__(context, field, replacement)
+    object.__setattr__(context, "context_root", _context_root(context))
+    with pytest.raises(J07Error, match="changed the"):
+        context._validate_fields()
+
+
+def test_j07_switch_result_rechecks_predecessor_profile_identity() -> None:
+    _, _, _, _, result = _switch()
+    post = result.post_context
+    object.__setattr__(post, "legacy_profile_root", "f" * 64)
+    object.__setattr__(post, "context_root", _context_root(post))
+    _register_context_v1(post)
+    with pytest.raises(J07Error, match="legacy profile identity"):
+        result.to_wire()
+
+
+@pytest.mark.parametrize(  # type: ignore[untyped-decorator]
+    "rejection_type",
+    (J07WriterRejectV1, J07SwitchRejectV1),
+)
+@pytest.mark.parametrize(  # type: ignore[untyped-decorator]
+    "path", ((), tuple(f"p{index}" for index in range(9)), ("x" * 65,))
+)
+def test_j07_rejection_paths_are_bounded_and_typed(
+    rejection_type: type[J07WriterRejectV1] | type[J07SwitchRejectV1],
+    path: tuple[str, ...],
+) -> None:
+    with pytest.raises(J07Error):
+        rejection_type(J07RejectCodeV1.CONTEXT_REJECTED, path)
