@@ -15,6 +15,7 @@ from experiments.fcis_m6_e03_database_uniqueness import (
     E03DatabaseCodeV1,
     E03RejectV1,
     create_e03_connection,
+    migration_sql,
     persist_e03_commit,
     read_e03_counts,
 )
@@ -220,6 +221,13 @@ def test_preexisting_loose_schema_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(E03Error, match="schema"):
         create_e03_connection(database)
+
+
+def test_migration_loader_rejects_unpinned_sql(tmp_path: Path) -> None:
+    migration = tmp_path / "wrong.sql"
+    migration.write_text("SELECT 1;\n", encoding="utf-8")
+    with pytest.raises(E03Error, match="pinned digest"):
+        migration_sql(migration)
 
 
 def test_point_of_use_connection_contract_rejects_drift_without_writes() -> None:

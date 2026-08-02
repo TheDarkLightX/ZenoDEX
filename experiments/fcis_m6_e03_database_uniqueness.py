@@ -12,6 +12,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 from enum import Enum
+from hashlib import sha256
 from pathlib import Path
 from typing import Final, TypeAlias, cast
 
@@ -24,6 +25,7 @@ from src.core.fcis_m6_e03_unique_commit_port import (
 _ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MIGRATION_PATH: Final = Path("config/deploy/fcis_m6_e03_uniqueness_v1.sql")
 SQLITE_TIMEOUT_SECONDS: Final = 5.0
+E03_MIGRATION_SHA256_V1: Final = "bf03f9f0fcdb46ac507d6c7bd80ab3def6c11890d0ce2c6d328bfdaced672efb"
 _SCHEMA_DESCRIPTOR_QUERY: Final = """
     SELECT type, name, tbl_name, COALESCE(sql, '')
     FROM sqlite_schema
@@ -77,9 +79,12 @@ def migration_sql(path: Path = _ROOT / DEFAULT_MIGRATION_PATH) -> str:
     """Load the source-pinned migration used by the research adapter."""
 
     try:
-        value = path.read_text(encoding="utf-8")
+        encoded = path.read_bytes()
+        value = encoded.decode("utf-8")
     except (OSError, UnicodeError) as exc:
         raise E03Error("E03 migration SQL cannot be read") from exc
+    if sha256(encoded).hexdigest() != E03_MIGRATION_SHA256_V1:
+        raise E03Error("E03 migration SQL differs from its pinned digest")
     if not value or not value.endswith("\n"):
         raise E03Error("E03 migration SQL must be nonempty and newline terminated")
     return value
@@ -347,6 +352,7 @@ def persist_e03_commit(
 
 __all__ = (
     "DEFAULT_MIGRATION_PATH",
+    "E03_MIGRATION_SHA256_V1",
     "E03CommitV1",
     "E03DatabaseCodeV1",
     "E03RejectV1",

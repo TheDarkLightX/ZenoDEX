@@ -18,6 +18,7 @@ import src.core.fcis_m6_e03_unique_commit_port as e03_core  # noqa: E402
 from experiments.fcis_m6_e03_database_uniqueness import (  # noqa: E402
     E03CommitV1,
     E03DatabaseCodeV1,
+    E03_MIGRATION_SHA256_V1,
     E03RejectV1,
     create_e03_connection,
     persist_e03_commit,
@@ -188,6 +189,8 @@ def _check_vector_and_replay() -> tuple[str, E03CommitIdentityV1]:
         raise AssertionError("E03 vector is not the independently regenerated payload")
     if baseline["migration_sql_sha256"] != _migration_hash():
         raise AssertionError("E03 migration hash is not source-bound")
+    if baseline["migration_sql_sha256"] != E03_MIGRATION_SHA256_V1:
+        raise AssertionError("E03 adapter migration pin differs from the vector")
 
     candidate = build_candidate()
     if not is_verified_e03_commit_identity_v1(candidate):
