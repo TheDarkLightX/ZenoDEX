@@ -1,10 +1,10 @@
 {
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "K01",
-  "base_sha": "25c2d2181cad4455384f57ade54d971fcb68e275",
-  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
-  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "base_sha": "868ae8ef0da8a4f7fc52f444d7b459987f76c51e",
+  "source_head_sha": "8cd4e451138e86a3fa1012b1081112644114fa97",
+  "source_head_tree": "e58d21d10835bfe5dddb314d1cc11bf7bd773dd8",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
   "status": "TESTED",
   "evidence_files": [
     "config/deploy/fcis_m6_k01_entrypoint_inventory_v1.json",
@@ -46,7 +46,7 @@
     "tools/build_fcis_m6_k01_entrypoint_inventory.py": "2a43e64de3353f96b8aee792fe2d452dca4e41027dbc8d06c738feb99527a2e7",
     "experiments/fcis_m6_k01_entrypoint_inventory_check.py": "69410ab227a5d2f5ed49e321e3b0c5e48779e00cdaa6490a3a037d5be208d441",
     "tests/core/test_fcis_m6_k01_entrypoint_inventory.py": "6ed7b5c3f295f0c75e0097ee1053f60a5a28a3e152f6cca63aa081c8b03037d3",
-    "docs/research/m6_tasks/TASK_K01_VALUE_MOVING_ENTRYPOINT_INVENTORY_V1.json": "40775a08cadcff13451ca93f33ed98fc503127a13a702a6439654fd0e43c9864",
+    "docs/research/m6_tasks/TASK_K01_VALUE_MOVING_ENTRYPOINT_INVENTORY_V1.json": "cff6b5e56a9187a84f91474ca7f372e5572b7c619f2656793069db17bd22a6f7",
     "docs/research/m6_tasks/FCIS_M6_K01_VALUE_MOVING_ENTRYPOINT_SCHEMA_V1.md": "1be7dea2b22e82cd440e7c3c2cfa3d9bdb63c7f56e7b4ef83f3c375783b0227c",
     "docs/research/m6_tasks/TASK_K01_PLAN.md": "2d720d424b8e29824b783999ffdcf0ddfe1f37f0cc5c57272b44f6ac82b804ef"
   },
@@ -54,13 +54,13 @@
     "entrypoint_rows": "15",
     "coverage_status": "reviewed_source_set_only",
     "required_d05_publisher_ids": "pass; all 9 present",
-    "inventory_root": "d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385",
+    "inventory_root": "fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a",
     "focused_tests": "pass; 5 passed",
     "deterministic_checker": "pass; source, proof-only, legacy, omission, and insertion witnesses",
     "source_set_rebind": "pass; regenerated after the reviewed H02 verifier-use source change",
-    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
-    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b"
+    "implementation_commit": "8cd4e451138e86a3fa1012b1081112644114fa97",
+    "implementation_tree": "e58d21d10835bfe5dddb314d1cc11bf7bd773dd8",
+    "implementation_parent": "868ae8ef0da8a4f7fc52f444d7b459987f76c51e"
   },
   "mutants": [
     "omitted required publisher rejected",
