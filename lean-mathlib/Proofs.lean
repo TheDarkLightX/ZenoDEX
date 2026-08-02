@@ -55,6 +55,7 @@ import Proofs.FCISFeeApportionmentAGQESRGDTraceConjugacy
 import Proofs.FCISFeeApportionmentSRGDTrace
 import Proofs.FCISFeeApportionmentSRGDAdaptiveTrace
 import Proofs.FCISFeeApportionmentSRGDCumulative
+import Proofs.FCISM6E04RetryClassifier
 import Proofs.FeeRevenueBoundedness
 import Proofs.FeeSplitRoundingGap
 import Proofs.FiniteTraceBarriers

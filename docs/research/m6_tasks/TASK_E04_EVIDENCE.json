@@ -1,0 +1,54 @@
+{
+  "task_id": "E04",
+  "title": "Total stored-state classifier",
+  "status": "IMPLEMENTED_TESTED_RESEARCH_ONLY_UNMOUNTED",
+  "dependencies": ["E03"],
+  "implementation_commit": "c601cba60d5b7e234b61bc920fec945c51151b0f",
+  "implementation_tree": "09973a4133d3f3725e2b2b2c84aa30770840b379",
+  "principal_claim": "Every valid retry against one structurally validated stored-state view plus a subject-matching reopen receipt receives one durable class; client transport knowledge remains a separate coordinate.",
+  "source_vector": "docs/research/m6_tasks/TASK_E04_RETRY_CLASSIFIER_V1.json",
+  "formal_source": "lean-mathlib/Proofs/FCISM6E04RetryClassifier.lean",
+  "evidence": [
+    "five-value durable outcome enum is closed",
+    "exact duplicate resolves to ALREADY_COMMITTED",
+    "same commit with changed attempt fingerprint resolves to DEFINITE_REJECTION",
+    "same nullifier under another commit resolves to DEFINITE_REJECTION",
+    "changed current root resolves to STALE_STATE",
+    "changed sequence/authority/writer/profile resolves to DEFINITE_REJECTION",
+    "exact current head with unconsumed nullifier resolves to ABSENT_RETRYABLE",
+    "confirmed and indeterminate client knowledge preserve durable class",
+    "typed request/publication sequence binding rejects crossed source values",
+    "reopen receipt binds snapshot, head, authority, profiles, read version, and freshness epoch",
+    "constructor forgery, mutation, receipt mismatch, and rejection-path overflow fail closed",
+    "independent vector/checker replay passes",
+    "260 existing M6 core regression tests pass"
+  ],
+  "commands_run": [
+    "PYTHONPATH=. python3 experiments/fcis_m6_e04_retry_classifier.py --check",
+    "PYTHONPATH=. python3 experiments/fcis_m6_e04_retry_classifier_check.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_e04_retry_classifier.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_*.py",
+    "python3 -m ruff check src/core/fcis_m6_e04_retry_classifier.py experiments/fcis_m6_e04_retry_classifier.py experiments/fcis_m6_e04_retry_classifier_check.py tools/build_fcis_m6_e04_retry_classifier.py tests/core/test_fcis_m6_e04_retry_classifier.py",
+    "python3 -m ruff format --check src/core/fcis_m6_e04_retry_classifier.py experiments/fcis_m6_e04_retry_classifier.py experiments/fcis_m6_e04_retry_classifier_check.py tools/build_fcis_m6_e04_retry_classifier.py tests/core/test_fcis_m6_e04_retry_classifier.py",
+    "python3 -m py_compile src/core/fcis_m6_e04_retry_classifier.py experiments/fcis_m6_e04_retry_classifier.py experiments/fcis_m6_e04_retry_classifier_check.py tools/build_fcis_m6_e04_retry_classifier.py tests/core/test_fcis_m6_e04_retry_classifier.py",
+    "python3 -m mypy --strict --follow-imports=skip src/core/fcis_m6_e04_retry_classifier.py experiments/fcis_m6_e04_retry_classifier.py experiments/fcis_m6_e04_retry_classifier_check.py tools/build_fcis_m6_e04_retry_classifier.py tests/core/test_fcis_m6_e04_retry_classifier.py",
+    "mkdir -p .e04-lean-build/Proofs && LEAN_PATH=/home/trevormoc/deps/mathlib4/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/LeanSearchClient/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/Qq/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/aesop/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/batteries/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/importGraph/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/plausible/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/proofwidgets/.lake/build/lib/lean /home/trevormoc/.elan/toolchains/leanprover--lean4---v4.27.0/bin/lean -R lean-mathlib -o .e04-lean-build/Proofs/FCISDurableRetraction.olean lean-mathlib/Proofs/FCISDurableRetraction.lean",
+    "LEAN_PATH=.e04-lean-build:/home/trevormoc/deps/mathlib4/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/LeanSearchClient/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/Qq/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/aesop/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/batteries/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/importGraph/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/plausible/.lake/build/lib/lean:/home/trevormoc/deps/mathlib4/.lake/packages/proofwidgets/.lake/build/lib/lean /home/trevormoc/.elan/toolchains/leanprover--lean4---v4.27.0/bin/lean -R lean-mathlib -o .e04-lean-build/Proofs/FCISM6E04RetryClassifier.olean lean-mathlib/Proofs/FCISM6E04RetryClassifier.lean"
+  ],
+  "commands_not_run_or_blocked": [
+    "The ordinary Lake command could not use the shared Mathlib build because its lock file is read-only in this sandbox; a direct Lean 4.27 compilation passed against the existing local Mathlib build.",
+    "The Lean artifact is an abstract Boolean partition and does not formalize partial reopen value-or-reject semantics or Python refinement.",
+    "full lake build",
+    "production datastore or CAS tests",
+    "runtime mount, authority switch, deployment, or value movement",
+    "hosted CI, Julia, ESSO, and production crash/durability tests"
+  ],
+  "nonclaims": [
+    "E04 consumes E01, E02, and E03 verifier-owned research values as premises; it does not implement cryptographic authentication.",
+    "The pure classifier performs no datastore I/O and cannot prove transaction isolation, durability, or crash recovery.",
+    "The reopen receipt is a structural model port; it does not prove that a production datastore supplied a canonical, fresh, authentic read.",
+    "The model does not prove production caller reachability, destination authenticity/idempotency, accounting, backing, zUSD safety, or value movement.",
+    "The E04 private registries are model provenance guards and are not a production authentication mechanism.",
+    "M6 remains research-only, unmounted, and non-promotable."
+  ]
+}
