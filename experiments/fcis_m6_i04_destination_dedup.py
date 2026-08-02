@@ -295,7 +295,35 @@ class I04DestinationStateV1:
             raise I04Error("destination effect identities must be unique")
 
 
-I04DeliveryResultV1: TypeAlias = I04DestinationReceiptV1 | I04DedupRejectV1
+@dataclass(frozen=True, slots=True)
+class I04DeliveryAcceptV1:
+    """One accepted destination transition with its exact successor and receipt."""
+
+    next_state: I04DestinationStateV1
+    receipt: I04DestinationReceiptV1
+
+    def __post_init__(self) -> None:
+        if type(self.next_state) is not I04DestinationStateV1:
+            raise I04Error("delivery successor has the wrong exact type")
+        if type(self.receipt) is not I04DestinationReceiptV1:
+            raise I04Error("delivery receipt has the wrong exact type")
+        self.next_state.__post_init__()
+        self.receipt.__post_init__()
+        record = next(
+            (item for item in self.next_state.records if item.effect_id == self.receipt.effect_id),
+            None,
+        )
+        if record is None:
+            raise I04Error("delivery successor does not contain the receipt effect")
+        if (
+            record.destination != self.receipt.destination
+            or record.payload_root != self.receipt.payload_root
+            or record.destination_receipt_root != self.receipt.destination_receipt_root
+        ):
+            raise I04Error("delivery successor and receipt do not agree")
+
+
+I04DeliveryResultV1: TypeAlias = I04DeliveryAcceptV1 | I04DedupRejectV1
 
 
 def _reject(code: I04DedupCodeV1, *path: str) -> I04DedupRejectV1:
@@ -320,23 +348,26 @@ def _deliver_against_record_table(
     contract: I04VerifiedDedupContractV1,
     state: I04DestinationStateV1,
     effect: dra.OutboxEffectV1,
-) -> tuple[I04DestinationStateV1, I04DeliveryResultV1]:
+) -> I04DeliveryResultV1:
     records = {record.effect_id: record for record in state.records}
     existing = records.get(effect.effect_id)
     if existing is not None:
         if existing.destination != effect.destination:
-            return state, _reject(I04DedupCodeV1.DESTINATION_MISMATCH, "effect_id")
+            return _reject(I04DedupCodeV1.DESTINATION_MISMATCH, "effect_id")
         if existing.payload_root != effect.payload_root:
-            return state, _reject(I04DedupCodeV1.PAYLOAD_CONFLICT, "effect_id")
-        return state, I04DestinationReceiptV1(
-            effect_id=existing.effect_id,
-            destination=existing.destination,
-            payload_root=existing.payload_root,
-            destination_receipt_root=existing.destination_receipt_root,
-            outcome=I04DeliveryOutcomeV1.ALREADY_ACCEPTED,
+            return _reject(I04DedupCodeV1.PAYLOAD_CONFLICT, "effect_id")
+        return I04DeliveryAcceptV1(
+            next_state=state,
+            receipt=I04DestinationReceiptV1(
+                effect_id=existing.effect_id,
+                destination=existing.destination,
+                payload_root=existing.payload_root,
+                destination_receipt_root=existing.destination_receipt_root,
+                outcome=I04DeliveryOutcomeV1.ALREADY_ACCEPTED,
+            ),
         )
     if len(state.records) >= MAX_DESTINATION_RECEIPTS_V1:
-        return state, _reject(I04DedupCodeV1.CAPACITY_EXCEEDED, "records")
+        return _reject(I04DedupCodeV1.CAPACITY_EXCEEDED, "records")
     record = I04DestinationRecordV1(
         effect_id=effect.effect_id,
         destination=effect.destination,
@@ -346,12 +377,15 @@ def _deliver_against_record_table(
     next_state = I04DestinationStateV1(
         records=tuple(sorted((*state.records, record), key=lambda item: item.effect_id))
     )
-    return next_state, I04DestinationReceiptV1(
-        effect_id=record.effect_id,
-        destination=record.destination,
-        payload_root=record.payload_root,
-        destination_receipt_root=record.destination_receipt_root,
-        outcome=I04DeliveryOutcomeV1.ACCEPTED,
+    return I04DeliveryAcceptV1(
+        next_state=next_state,
+        receipt=I04DestinationReceiptV1(
+            effect_id=record.effect_id,
+            destination=record.destination,
+            payload_root=record.payload_root,
+            destination_receipt_root=record.destination_receipt_root,
+            outcome=I04DeliveryOutcomeV1.ACCEPTED,
+        ),
     )
 
 
@@ -359,30 +393,30 @@ def deliver_effect_v1(
     contract: object,
     state: object,
     effect: object,
-) -> tuple[I04DestinationStateV1, I04DeliveryResultV1]:
+) -> I04DeliveryResultV1:
     """Apply one effect to the deterministic destination model."""
 
     if type(state) is not I04DestinationStateV1:
-        return I04DestinationStateV1(), _reject(I04DedupCodeV1.STATE_INVALID, "state")
+        return _reject(I04DedupCodeV1.STATE_INVALID, "state")
     exact_contract = cast(I04VerifiedDedupContractV1, contract)
     exact_state = state
     try:
         exact_state.__post_init__()
     except (I04Error, TypeError, ValueError):
-        return I04DestinationStateV1(), _reject(I04DedupCodeV1.STATE_INVALID, "state")
+        return _reject(I04DedupCodeV1.STATE_INVALID, "state")
     if not _is_registered_verified_contract_v1(contract):
-        return exact_state, _reject(I04DedupCodeV1.UNMOUNTABLE, "contract")
+        return _reject(I04DedupCodeV1.UNMOUNTABLE, "contract")
     if type(effect) is not dra.OutboxEffectV1:
-        return exact_state, _reject(I04DedupCodeV1.INVALID_EFFECT, "effect")
+        return _reject(I04DedupCodeV1.INVALID_EFFECT, "effect")
     exact_effect = cast(dra.OutboxEffectV1, effect)
     try:
         exact_effect.__post_init__()
     except (dra.DurableRetractionError, I04Error, TypeError, ValueError):
-        return exact_state, _reject(I04DedupCodeV1.INVALID_EFFECT, "effect")
+        return _reject(I04DedupCodeV1.INVALID_EFFECT, "effect")
     if exact_effect.destination != exact_contract.destination:
-        return exact_state, _reject(I04DedupCodeV1.DESTINATION_MISMATCH, "destination")
+        return _reject(I04DedupCodeV1.DESTINATION_MISMATCH, "destination")
     if exact_effect.adapter_profile_root != exact_contract.adapter_profile_root:
-        return exact_state, _reject(
+        return _reject(
             I04DedupCodeV1.ADAPTER_PROFILE_MISMATCH,
             "adapter_profile_root",
         )
@@ -393,7 +427,7 @@ def deliver_effect_v1(
         return _deliver_against_record_table(exact_contract, exact_state, exact_effect)
     if mode is I04DedupModeV1.APPLICATION_RECEIPT_TABLE:
         return _deliver_against_record_table(exact_contract, exact_state, exact_effect)
-    return exact_state, _reject(I04DedupCodeV1.UNMOUNTABLE, "mode")
+    return _reject(I04DedupCodeV1.UNMOUNTABLE, "mode")
 
 
 __all__ = (
@@ -402,6 +436,7 @@ __all__ = (
     "I04DedupContractCandidateV1",
     "I04DedupModeV1",
     "I04DedupRejectV1",
+    "I04DeliveryAcceptV1",
     "I04DeliveryOutcomeV1",
     "I04DeliveryResultV1",
     "I04DestinationReceiptV1",

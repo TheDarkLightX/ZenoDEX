@@ -12,6 +12,7 @@ from experiments.fcis_m6_i04_destination_dedup import (
     I04DedupContractCandidateV1,
     I04DedupModeV1,
     I04DedupRejectV1,
+    I04DeliveryAcceptV1,
     I04DeliveryOutcomeV1,
     I04DestinationRecordV1,
     I04DestinationStateV1,
@@ -69,36 +70,38 @@ def _contract(mode: I04DedupModeV1) -> I04VerifiedDedupContractV1:
     return result
 
 
+def _accepted(result: object) -> I04DeliveryAcceptV1:
+    assert isinstance(result, I04DeliveryAcceptV1)
+    return result
+
+
 def test_each_declared_mechanism_is_observationally_idempotent() -> None:
     for mode in I04DedupModeV1:
         contract = _contract(mode)
         effect = _effect()
 
-        first_state, first = deliver_effect_v1(contract, I04DestinationStateV1(), effect)
-        second_state, second = deliver_effect_v1(contract, first_state, effect)
+        first = _accepted(deliver_effect_v1(contract, I04DestinationStateV1(), effect))
+        second = _accepted(deliver_effect_v1(contract, first.next_state, effect))
 
-        assert first_state.records == second_state.records
-        assert not isinstance(first, I04DedupRejectV1)
-        assert not isinstance(second, I04DedupRejectV1)
-        assert first.outcome is I04DeliveryOutcomeV1.ACCEPTED
-        assert second.outcome is I04DeliveryOutcomeV1.ALREADY_ACCEPTED
-        assert first.effect_id == second.effect_id == effect.effect_id
-        assert first.payload_root == second.payload_root == effect.payload_root
-        assert first.destination_receipt_root == second.destination_receipt_root
+        assert first.next_state.records == second.next_state.records
+        assert first.receipt.outcome is I04DeliveryOutcomeV1.ACCEPTED
+        assert second.receipt.outcome is I04DeliveryOutcomeV1.ALREADY_ACCEPTED
+        assert first.receipt.effect_id == second.receipt.effect_id == effect.effect_id
+        assert first.receipt.payload_root == second.receipt.payload_root == effect.payload_root
+        assert first.receipt.destination_receipt_root == second.receipt.destination_receipt_root
 
 
 def test_same_effect_id_with_changed_payload_rejects_without_state_change() -> None:
     contract = _contract(I04DedupModeV1.APPLICATION_RECEIPT_TABLE)
     effect = _effect()
-    accepted_state, accepted = deliver_effect_v1(contract, I04DestinationStateV1(), effect)
-    assert not isinstance(accepted, I04DedupRejectV1)
+    accepted = _accepted(deliver_effect_v1(contract, I04DestinationStateV1(), effect))
 
     changed = replace(effect, payload_root=tagged_digest("i04/foreign-payload"))
-    next_state, result = deliver_effect_v1(contract, accepted_state, changed)
+    result = deliver_effect_v1(contract, accepted.next_state, changed)
 
-    assert next_state == accepted_state
     assert isinstance(result, I04DedupRejectV1)
     assert result.code is I04DedupCodeV1.PAYLOAD_CONFLICT
+    assert not hasattr(result, "next_state")
 
 
 def test_destination_and_adapter_profile_crossings_reject() -> None:
@@ -106,7 +109,7 @@ def test_destination_and_adapter_profile_crossings_reject() -> None:
     effect = _effect()
 
     foreign_destination = replace(effect, destination="foreign-destination")
-    _, destination_result = deliver_effect_v1(
+    destination_result = deliver_effect_v1(
         contract,
         I04DestinationStateV1(),
         foreign_destination,
@@ -118,7 +121,7 @@ def test_destination_and_adapter_profile_crossings_reject() -> None:
         effect,
         adapter_profile_root=tagged_digest("i04/foreign-adapter"),
     )
-    _, profile_result = deliver_effect_v1(contract, I04DestinationStateV1(), foreign_profile)
+    profile_result = deliver_effect_v1(contract, I04DestinationStateV1(), foreign_profile)
     assert isinstance(profile_result, I04DedupRejectV1)
     assert profile_result.code is I04DedupCodeV1.ADAPTER_PROFILE_MISMATCH
 
@@ -167,12 +170,11 @@ def test_i04_verified_contract_requires_provenance_and_fresh_use_validation() ->
 
     verified = _contract(mode)
     object.__setattr__(verified, "destination", "foreign-destination")
-    state, result = deliver_effect_v1(
+    result = deliver_effect_v1(
         verified,
         I04DestinationStateV1(),
         _effect(destination="foreign-destination"),
     )
-    assert state == I04DestinationStateV1()
     assert isinstance(result, I04DedupRejectV1)
     assert result.code is I04DedupCodeV1.UNMOUNTABLE
 
@@ -181,8 +183,7 @@ def test_i04_verified_contract_requires_provenance_and_fresh_use_validation() ->
     object.__setattr__(forged, "adapter_profile_root", profile_root)
     object.__setattr__(forged, "mode", mode)
     object.__setattr__(forged, "contract_root", contract_root)
-    safe_state, forged_result = deliver_effect_v1(forged, I04DestinationStateV1(), _effect())
-    assert safe_state == I04DestinationStateV1()
+    forged_result = deliver_effect_v1(forged, I04DestinationStateV1(), _effect())
     assert isinstance(forged_result, I04DedupRejectV1)
     assert forged_result.code is I04DedupCodeV1.UNMOUNTABLE
 
@@ -190,14 +191,28 @@ def test_i04_verified_contract_requires_provenance_and_fresh_use_validation() ->
 def test_invalid_contract_rejects_without_changing_valid_destination_state() -> None:
     contract = _contract(I04DedupModeV1.QUERY_BY_EFFECT_ID)
     effect = _effect()
-    state, accepted = deliver_effect_v1(contract, I04DestinationStateV1(), effect)
-    assert not isinstance(accepted, I04DedupRejectV1)
+    accepted = _accepted(deliver_effect_v1(contract, I04DestinationStateV1(), effect))
 
-    next_state, result = deliver_effect_v1(object(), state, effect)
+    result = deliver_effect_v1(object(), accepted.next_state, effect)
 
-    assert next_state == state
     assert isinstance(result, I04DedupRejectV1)
     assert result.code is I04DedupCodeV1.UNMOUNTABLE
+    assert not hasattr(result, "next_state")
+
+
+def test_delivery_accept_owns_one_matching_state_and_receipt_pair() -> None:
+    contract = _contract(I04DedupModeV1.APPLICATION_RECEIPT_TABLE)
+    accepted = _accepted(deliver_effect_v1(contract, I04DestinationStateV1(), _effect()))
+    crossed_receipt = replace(
+        accepted.receipt,
+        payload_root=tagged_digest("i04/crossed-receipt-payload"),
+    )
+
+    with pytest.raises(I04Error, match="do not agree"):
+        I04DeliveryAcceptV1(
+            next_state=accepted.next_state,
+            receipt=crossed_receipt,
+        )
 
 
 def test_destination_state_rejects_duplicate_or_noncanonical_records() -> None:
@@ -231,11 +246,11 @@ def test_invalid_effect_is_rejected_without_creating_destination_state() -> None
     contract = _contract(I04DedupModeV1.QUERY_BY_EFFECT_ID)
     state = I04DestinationStateV1()
 
-    next_state, result = deliver_effect_v1(contract, state, object())
+    result = deliver_effect_v1(contract, state, object())
 
-    assert next_state == state
     assert isinstance(result, I04DedupRejectV1)
     assert result.code is I04DedupCodeV1.INVALID_EFFECT
+    assert not hasattr(result, "next_state")
 
 
 def _at_capacity_state() -> I04DestinationStateV1:
@@ -267,15 +282,15 @@ def test_destination_capacity_is_closed_at_construction_revalidation_and_deliver
     with pytest.raises(ValueError, match="capacity bound"):
         over_capacity.__post_init__()
 
-    next_state, result = deliver_effect_v1(contract, state, _effect(payload_label="i04/full"))
+    result = deliver_effect_v1(contract, state, _effect(payload_label="i04/full"))
 
-    assert next_state == state
     assert isinstance(result, I04DedupRejectV1)
     assert result.code is I04DedupCodeV1.CAPACITY_EXCEEDED
+    assert not hasattr(result, "next_state")
 
     forged_state = object.__new__(I04DestinationStateV1)
     object.__setattr__(forged_state, "records", (*state.records, state.records[0]))
-    safe_state, invalid_state = deliver_effect_v1(contract, forged_state, _effect())
-    assert safe_state == I04DestinationStateV1()
+    invalid_state = deliver_effect_v1(contract, forged_state, _effect())
     assert isinstance(invalid_state, I04DedupRejectV1)
     assert invalid_state.code is I04DedupCodeV1.STATE_INVALID
+    assert not hasattr(invalid_state, "next_state")

@@ -9,7 +9,7 @@ import pytest
 from experiments.fcis_m6_i04_destination_dedup import (
     I04DedupContractCandidateV1,
     I04DedupModeV1,
-    I04DedupRejectV1,
+    I04DeliveryAcceptV1,
     I04DestinationReceiptV1,
     I04DestinationStateV1,
     I04VerifiedDedupContractV1,
@@ -82,10 +82,10 @@ def _delivered(
     effect: OutboxEffectV1,
 ) -> tuple[I04VerifiedDedupContractV1, I04DestinationStateV1, I04DestinationReceiptV1]:
     contract = _contract(effect)
-    state, result = deliver_effect_v1(contract, I04DestinationStateV1(), effect)
-    if isinstance(result, I04DedupRejectV1):
+    result = deliver_effect_v1(contract, I04DestinationStateV1(), effect)
+    if not isinstance(result, I04DeliveryAcceptV1):
         raise AssertionError(f"expected destination delivery, got {result!r}")
-    return contract, state, result
+    return contract, result.next_state, result.receipt
 
 
 def _candidate(

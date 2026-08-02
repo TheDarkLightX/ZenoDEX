@@ -8,6 +8,7 @@ from typing import Final, TypeAlias, cast
 
 from experiments.fcis_m6_i04_destination_dedup import (
     I04DedupRejectV1,
+    I04DeliveryAcceptV1,
     I04DestinationReceiptV1,
     I04DestinationStateV1,
     I04VerifiedDedupContractV1,
@@ -190,13 +191,17 @@ def verify_ack_provenance_v1(candidate: object) -> I05AckResultV1:
     if receipt.effect_id != effect.effect_id or receipt.payload_root != effect.payload_root:
         return _reject(I05AckCodeV1.EFFECT_MISMATCH, "receipt")
 
-    expected_state, expected_result = deliver_effect_v1(
+    expected_delivery = deliver_effect_v1(
         contract,
         I04DestinationStateV1(),
         effect,
     )
-    if isinstance(expected_result, I04DedupRejectV1):
+    if isinstance(expected_delivery, I04DedupRejectV1):
         return _reject(I05AckCodeV1.RECEIPT_MISMATCH, "destination_contract")
+    if type(expected_delivery) is not I04DeliveryAcceptV1:
+        return _reject(I05AckCodeV1.RECEIPT_MISMATCH, "destination_contract")
+    expected_state = expected_delivery.next_state
+    expected_result = expected_delivery.receipt
     expected_record = next(
         (record for record in expected_state.records if record.effect_id == effect.effect_id),
         None,

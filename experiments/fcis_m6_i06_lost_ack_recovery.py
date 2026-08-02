@@ -19,6 +19,7 @@ from typing import TypeAlias, cast
 
 from experiments.fcis_m6_i04_destination_dedup import (
     I04DedupRejectV1,
+    I04DeliveryAcceptV1,
     I04DeliveryOutcomeV1,
     I04DestinationReceiptV1,
     I04DestinationStateV1,
@@ -236,20 +237,22 @@ def lose_response_after_destination_acceptance_v1(value: object) -> I06StateResu
     state = validated
     if state.phase is not I06PhaseV1.READY:
         return _reject(I06RecoveryCodeV1.INVALID_PHASE, "crash_point")
-    next_destination_state, result = deliver_effect_v1(
+    delivery = deliver_effect_v1(
         state.contract,
         state.destination_state,
         state.effect,
     )
-    if isinstance(result, I04DedupRejectV1):
-        return _reject(I06RecoveryCodeV1.DESTINATION_REJECTED, result.code.value)
-    if result.outcome is not I04DeliveryOutcomeV1.ACCEPTED:
+    if isinstance(delivery, I04DedupRejectV1):
+        return _reject(I06RecoveryCodeV1.DESTINATION_REJECTED, delivery.code.value)
+    if type(delivery) is not I04DeliveryAcceptV1:
+        return _reject(I06RecoveryCodeV1.DESTINATION_REJECTED, "invalid_result")
+    if delivery.receipt.outcome is not I04DeliveryOutcomeV1.ACCEPTED:
         return _reject(I06RecoveryCodeV1.EXPECTED_ALREADY_ACCEPTED, "initial_delivery")
     try:
         return I06DeliveryStateV1(
             effect=state.effect,
             contract=state.contract,
-            destination_state=next_destination_state,
+            destination_state=delivery.next_state,
             phase=I06PhaseV1.RESPONSE_LOST_AFTER_DESTINATION_ACCEPTANCE,
             delivery_attempts=1,
         )
@@ -284,16 +287,18 @@ def _ack_candidate(
 def _verified_redelivery_ack(
     state: I06DeliveryStateV1,
 ) -> I05VerifiedAckV1 | I06RecoveryRejectV1:
-    next_destination_state, result = deliver_effect_v1(
+    delivery = deliver_effect_v1(
         state.contract,
         state.destination_state,
         state.effect,
     )
-    if isinstance(result, I04DedupRejectV1):
-        return _reject(I06RecoveryCodeV1.DESTINATION_REJECTED, result.code.value)
-    if result.outcome is not I04DeliveryOutcomeV1.ALREADY_ACCEPTED:
+    if isinstance(delivery, I04DedupRejectV1):
+        return _reject(I06RecoveryCodeV1.DESTINATION_REJECTED, delivery.code.value)
+    if type(delivery) is not I04DeliveryAcceptV1:
+        return _reject(I06RecoveryCodeV1.DESTINATION_REJECTED, "invalid_result")
+    if delivery.receipt.outcome is not I04DeliveryOutcomeV1.ALREADY_ACCEPTED:
         return _reject(I06RecoveryCodeV1.EXPECTED_ALREADY_ACCEPTED, "redelivery")
-    candidate = _ack_candidate(state, result, next_destination_state)
+    candidate = _ack_candidate(state, delivery.receipt, delivery.next_state)
     verified = verify_ack_provenance_v1(candidate)
     if isinstance(verified, I05AckRejectV1):
         return _reject(
