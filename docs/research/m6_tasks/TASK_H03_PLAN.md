@@ -1,15 +1,16 @@
 # H03 plan: deterministic logical crash instrumentation
 
 Status: implemented and tested in an isolated adapter; research-only and
-unmounted. H04-H08 remain pending.
+unmounted. H04-H08 now provide later model, review, and integration evidence;
+production crash refinement remains open.
 
 ## Objective
 
 Expose deterministic, one-shot fault hooks at every logical publication
 boundary named by the M6 taskbook. The hook must raise a dedicated crash
 surrogate that the publication path does not translate into a typed rejection.
-The later H04 task will close the connection/process and classify the reopened
-layout as exact PRE, exact POST, or rejection.
+H04 closes the connection/process in the research model and classifies the
+reopened layout as exact PRE, exact POST, or rejection.
 
 ## Hook contract
 
@@ -35,8 +36,8 @@ current verifier fixture binds the atom to the existing authority epoch.
 
 The selected point is an immutable enum value. A fresh connection and the same
 request reach the same point. H03 tests explicitly roll back a still-open
-transaction after catching the surrogate. H04 remains responsible for a fresh
-connection/process reopen and exact PRE/POST comparison.
+transaction after catching the surrogate. H04 supplies the fresh
+connection/process reopen and exact PRE/POST model comparison.
 
 ## Evidence boundary
 

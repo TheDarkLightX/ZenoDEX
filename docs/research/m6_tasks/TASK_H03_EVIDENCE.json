@@ -2,9 +2,9 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "H03",
   "base_sha": "014f88efc3e3215bdfb9672dffb519414a740f9e",
-  "source_head_sha": "059f99d3b53001a7dd98b5f42ba2127e2c575f65",
-  "source_head_tree": "c1c1680948a957750f33c56698b97a5be8eb2bb3",
-  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "source_head_sha": "bdb8781861084a775a4c48a70afabc0545396354",
+  "source_head_tree": "e114841afd3a06745c9780865a5af18de802f8a0",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
   "status": "TESTED",
   "evidence_files": [
     "experiments/fcis_m6_h02_sqlite_publication.py",
@@ -21,6 +21,7 @@
     "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py",
     "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_i02_committed_outbox.py",
     "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h08_independent_review.py tests/core/test_fcis_m6_i02_committed_outbox.py tests/core/test_fcis_m6_i03_safe_leasing.py",
     "python3 -m py_compile experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py",
     "python3 -m ruff check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py",
     "python3 -m ruff format --check experiments/fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py",
@@ -45,9 +46,9 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "experiments/fcis_m6_h02_sqlite_publication.py": "412400a225412f1889db99c44145825b228177dc06031ebbf488cacc95426659",
+    "experiments/fcis_m6_h02_sqlite_publication.py": "05275b11af7447d45c369a6aa456d16decb91fe28c1a41d63ecd507567df10cd",
     "tests/core/test_fcis_m6_h03_crash_points.py": "5c53851ab28d7ed9cdfbae6c465d5a49b8fc6cdb5af5229487c904e0dd5d9d2f",
-    "docs/research/m6_tasks/TASK_H03_PLAN.md": "ea6c81d6b504564a6f405048edbb8bc44ecb7335f5de2f93464ab5d2b8793b20",
+    "docs/research/m6_tasks/TASK_H03_PLAN.md": "0c231a46c1933b2a75fb3bbdef7cfbb6c4425af2982065df2fe04f5dc67d891e",
     "docs/research/m6_tasks/TASK_H03_CRASH_MANIFEST_V1.json": "30de333663a55d54f2bf759f4a51f493b8651d0edf44bc46b2da5d4d027b57ee"
   },
   "results": {
@@ -57,18 +58,21 @@
     "combined_regression": "pass; 31 passed after H08 repair",
     "post_i02_regression": "pass; 37 passed across H02/H03/I02",
     "post_i03_regression": "pass; 41 passed across H02/H03/I02/I03",
-    "current_head_quality": "pass; Ruff, formatting, strict mypy, and py_compile across four affected files",
+    "current_head_quality": "pass; Ruff, formatting, strict mypy, and py_compile across eight affected files",
+    "current_combined_regression": "pass; 61 passed across H02/H03/H08/I02/I03",
+    "validator": "pass; 6 manifest entries",
+    "source_manifest": "pass; 6 manifest entries",
     "initialization_guard": "pass; all durable table families are checked before seed write",
-    "implementation_commit": "059f99d3b53001a7dd98b5f42ba2127e2c575f65",
-    "implementation_tree": "c1c1680948a957750f33c56698b97a5be8eb2bb3",
-    "implementation_parent": "014f88efc3e3215bdfb9672dffb519414a740f9e",
+    "implementation_commit": "bdb8781861084a775a4c48a70afabc0545396354",
+    "implementation_tree": "e114841afd3a06745c9780865a5af18de802f8a0",
+    "implementation_parent": "10c07c1012c1097834878d3578724ec568816e82",
     "crash_surrogate": "H03InjectedCrash is not caught by normal H02 rejection handlers"
   },
   "mutants": [],
   "nonclaims": [
     "H03 is an isolated research hook and is not mounted in production.",
     "H03 does not prove real process-crash behavior, filesystem durability, WAL/fsync, or power-loss recovery.",
-    "H03 does not prove exact PRE/POST recovery; H04 remains pending.",
+    "H03 alone does not prove exact PRE/POST recovery; H04 supplies tested model evidence, while production crash refinement remains open.",
     "H03 does not prove concurrency, runtime no-bypass coverage, destination idempotency, migration mounting, or value movement.",
     "M6 remains unmounted and non-promotable."
   ]

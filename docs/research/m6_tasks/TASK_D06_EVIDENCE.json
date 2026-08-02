@@ -2,9 +2,9 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "D06",
   "base_sha": "4120fbd0a6cf52fb7ea3dc8595ab4b14143a67fb",
-  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
-  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
-  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "source_head_sha": "bdb8781861084a775a4c48a70afabc0545396354",
+  "source_head_tree": "e114841afd3a06745c9780865a5af18de802f8a0",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
   "status": "TESTED",
   "evidence_files": [
     "src/core/fcis_lineage_closure.py",
@@ -43,20 +43,20 @@
     "mypy": "mypy 2.1.0 (compiled: yes)"
   },
   "source_hashes": {
-    "src/core/fcis_lineage_closure.py": "e07e4fec8147b85d251cfe42573d5320d8b77282631a8bb15a4020ce641c3afd",
+    "src/core/fcis_lineage_closure.py": "20cb9d543ee15bb0a1b7f0497b090d2be9af4eb48a5186bb56382b0b41b4c05c",
     "experiments/fcis_m6_d06_rule_manifest_check.py": "f7cc7db3bab37ea9e217599514e757828ef3d2b3c8fb5aa076f478ce4d236e99",
     "tests/core/test_fcis_m6_d06_rule_manifest.py": "654a8afba99e28945d9b92d06b7b2027381d97bf79b17a7a85eb2f460cf8c5a2",
     "docs/research/m6_tasks/TASK_D06_RULE_MANIFEST_VECTOR.json": "e756f838a09bbf9fd5b3cc1c531099af35aca3a350cd5cfb6a33e7e70de9bbb7",
     "docs/research/FCIS_M6_D06_LINEAGE_RULE_MANIFEST_SCHEMA_V1.md": "cbfd329620af885dbba3c499a9508cb81fc408c051fbfcc57467d79058c3cfce",
     "docs/research/m6_tasks/TASK_D06_PLAN.md": "65e71e3af15f0ecde44213e16e088c113899f646e12a94443d6c30729fcfd35c",
-    "docs/research/m6_tasks/TASK_D06_REPORT.md": "bd3b24901d35de0e278677d42279ac9e66da5bcdfbbb7e59e165b6d57ed2187c"
+    "docs/research/m6_tasks/TASK_D06_REPORT.md": "1346963979cbc1fc97531a2fed790637f98ecfda6b8b8b863a4d25e16f478805"
   },
   "results": {
-    "implementation_commit": "d0fefb321d5e0c5ed027816137ce99b8de15d487",
-    "implementation_tree": "8e12ffabe9334b57dc03a264e747f5a45a97f15a",
-    "implementation_parent": "4120fbd0a6cf52fb7ea3dc8595ab4b14143a67fb",
+    "implementation_commit": "d8f4206f3a16ed61cdaaf5231bd8f62bcbe38c0f",
+    "implementation_tree": "38c3673fc185bd88ad5d452a099c65b44a965447",
+    "implementation_parent": "22099f578978d621831bead94dede4a85d75305b",
     "focused_d06_tests": "6 passed",
-    "d06_c3_tests": "15 passed",
+    "d06_c3_tests": "16 passed",
     "d06_dependency_regression": "188 passed",
     "d06_checker": "pass; D06_LINEAGE_RULE_MANIFEST_MATCH",
     "d05_vector_checker": "pass; D05_TCG_INVENTORY_MATCH",
@@ -73,7 +73,10 @@
     "all_rule_permutations": 24,
     "manifest_root": "0xc344deaeb5094dd17687b1b187b04445acca462beaf3feed5d13684af94972d5",
     "runtime_mount": "none",
-    "remote_publication": "none"
+    "receipt_rebind": "pass; shared lineage source revalidated after reviewed D04 repair",
+    "validator": "pass; 8 manifest entries",
+    "source_manifest": "pass; 8 manifest entries",
+    "remote_publication": "review-only branch or PR carries no authority and is not a merge"
   },
   "mutants": [
     {
@@ -116,6 +119,6 @@
     "D06 is tested unmounted evidence for the concrete C3 rule registry.",
     "The 24-permutation result is bounded evidence for this exact four-rule registry, not a general theorem for arbitrary future registries.",
     "The manifest does not prove complete production claim-producer, caller, datastore, deployment, or effect-sink inventory.",
-    "No Lean theorem, Julia execution, private ESSO run, production adapter, runtime mount, authority switch, hosted CI run, remote publication, draft PR, merge, deployment, migration, or value movement is claimed."
+    "No Lean theorem, Julia execution, private ESSO run, production adapter, runtime mount, authority switch, merge, deployment, migration, or value movement is claimed."
   ]
 }
