@@ -1,0 +1,88 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "G01",
+  "base_sha": "a3e1b8a7d03ab6ca810b774f5f899053a5bd384b",
+  "source_head_sha": "dff97e38392c5c8febf5c0c13acd8e29a9db17c2",
+  "source_head_tree": "1f1814098c64dc744a42b44e92348b3fd2e3213f",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_g01_proof_context_v1.json",
+    "src/core/fcis_m6_g01_proof_context.py",
+    "experiments/fcis_m6_g01_proof_context_check.py",
+    "tests/core/test_fcis_m6_g01_proof_context.py",
+    "tests/core/test_fcis_m6_g01_proof_context_properties.py",
+    "tools/build_fcis_m6_g01_proof_context.py",
+    "docs/research/m6_tasks/TASK_G01_PROOF_CONTEXT_V1.json",
+    "docs/research/m6_tasks/FCIS_M6_G01_PROOF_CONTEXT_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_G01_PLAN.md",
+    "docs/research/m6_tasks/TASK_G01_REPORT.md",
+    "docs/research/m6_tasks/TASK_G01_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_G01_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m json.tool config/deploy/fcis_m6_g01_proof_context_v1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_G01_PROOF_CONTEXT_V1.json",
+    "python3 tools/build_fcis_m6_g01_proof_context.py",
+    "python3 tools/build_fcis_m6_g01_proof_context.py --check",
+    "PYTHONPATH=. python3 experiments/fcis_m6_g01_proof_context_check.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_g01_proof_context.py tests/core/test_fcis_m6_g01_proof_context_properties.py",
+    "python3 -m py_compile src/core/fcis_m6_g01_proof_context.py experiments/fcis_m6_g01_proof_context_check.py tools/build_fcis_m6_g01_proof_context.py tests/core/test_fcis_m6_g01_proof_context.py tests/core/test_fcis_m6_g01_proof_context_properties.py",
+    "python3 -m ruff check src/core/fcis_m6_g01_proof_context.py experiments/fcis_m6_g01_proof_context_check.py tools/build_fcis_m6_g01_proof_context.py tests/core/test_fcis_m6_g01_proof_context.py tests/core/test_fcis_m6_g01_proof_context_properties.py",
+    "python3 -m ruff format --check src/core/fcis_m6_g01_proof_context.py experiments/fcis_m6_g01_proof_context_check.py tools/build_fcis_m6_g01_proof_context.py tests/core/test_fcis_m6_g01_proof_context.py tests/core/test_fcis_m6_g01_proof_context_properties.py",
+    "python3 -m mypy --strict src/core/fcis_m6_g01_proof_context.py experiments/fcis_m6_g01_proof_context_check.py tools/build_fcis_m6_g01_proof_context.py tests/core/test_fcis_m6_g01_proof_context.py tests/core/test_fcis_m6_g01_proof_context_properties.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks G01",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_G01_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_g01_proof_context_v1.json": "ac1c436d46c67cb42cc28450d84bd8260fee17148c137f22011a65a24903cd5f",
+    "docs/research/m6_tasks/FCIS_M6_G01_PROOF_CONTEXT_SCHEMA_V1.md": "a46c3d76d6bc51f8bfa0f8509d646d912971f104ec968da0bb6e9019589d4510",
+    "docs/research/m6_tasks/TASK_G01_PROOF_CONTEXT_V1.json": "c682c8adbc1af6276025263e0576a11716e2c9f8c1ba54bcb7edb6819cd0cb68",
+    "docs/research/m6_tasks/TASK_G01_PLAN.md": "8f0195677f2b944ac0a7e6bc6c70bee2967f6b2a070dba586d9b55d32ffe8475",
+    "experiments/fcis_m6_g01_proof_context_check.py": "eb5c099fac2350409bf5d206f698347ed7a78c38ba11af8a1f2828a83413ff3b",
+    "src/core/fcis_m6_g01_proof_context.py": "8b75df2a09c24bd77a215da2c5110aecdc9294efe13e9c967b258a3005576438",
+    "tests/core/test_fcis_m6_g01_proof_context.py": "dcff0c4d28464487e5b6ee58904e0799cfdcc95f12c4b09617d065221c9ff4e5",
+    "tests/core/test_fcis_m6_g01_proof_context_properties.py": "994b7bf45b47bc981b678788aad302528cb3cae523860a8d4df28f7a19d32757",
+    "tools/build_fcis_m6_g01_proof_context.py": "771a9b29f3d4a7286736a504262f0905f39ad67eb9f2c56c40ff405f8fb7ef64"
+  },
+  "results": {
+    "focused_and_property_tests": "pass; 6 passed",
+    "property_campaign": "pass; deterministic 24-example cap",
+    "active_epoch_boundaries": "5 and 10 accepted; 4 and 11 rejected",
+    "mutants_rejected": 7,
+    "independent_checker": "pass; G01_PROOF_CONTEXT_CHECKS_PASS 0xbea741b344275061cb32a4814db551900f4f0511dbbffc8e46c3bbf9e320a5cf",
+    "source_vector": "pass; G01_PROOF_CONTEXT_VECTOR_MATCH",
+    "context_root": "0xbea741b344275061cb32a4814db551900f4f0511dbbffc8e46c3bbf9e320a5cf",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "ruff_format": "pass",
+    "mypy_strict": "pass",
+    "implementation_commit": "dff97e38392c5c8febf5c0c13acd8e29a9db17c2",
+    "implementation_tree": "1f1814098c64dc744a42b44e92348b3fd2e3213f",
+    "implementation_parent": "a3e1b8a7d03ab6ca810b774f5f899053a5bd384b"
+  },
+  "mutants": [
+    "state_root_substitution",
+    "context_root_forgery",
+    "incomplete_exact_object",
+    "boolean_epoch",
+    "before_not_before_epoch",
+    "after_expiry_epoch",
+    "generated state_root substitutions"
+  ],
+  "nonclaims": [
+    "G01 is an immutable research value, not a verified proof witness",
+    "G01 does not provide G02 canonical byte or Rust parity evidence",
+    "G01 does not pin a G03 verifier registry or bind G04 public inputs",
+    "G01 does not prove filesystem, datastore, runtime, authority, or value movement",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
