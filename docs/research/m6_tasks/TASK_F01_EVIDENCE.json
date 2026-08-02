@@ -1,0 +1,89 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "F01",
+  "base_sha": "58c0a5b206aafc4dfa327524032bcca2f8e1c773",
+  "source_head_sha": "0fcea1c43f69ef1eb29cd85248b9c4435c2d9516",
+  "source_head_tree": "4594804cdba78032d64cb4ae1800be069870fa92",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_f01_history_atom_v1.json",
+    "src/core/fcis_m6_f01_history_atom.py",
+    "experiments/fcis_m6_f01_history_atom_check.py",
+    "tests/core/test_fcis_m6_f01_history_atom.py",
+    "tools/build_fcis_m6_f01_history_atom.py",
+    "docs/research/m6_tasks/FCIS_M6_F01_HISTORY_ATOM_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_F01_HISTORY_ATOM_V1.json",
+    "docs/research/m6_tasks/TASK_F01_PLAN.md",
+    "docs/research/m6_tasks/TASK_F01_REPORT.md",
+    "docs/research/m6_tasks/TASK_F01_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_F01_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m json.tool config/deploy/fcis_m6_f01_history_atom_v1.json",
+    "python3 tools/build_fcis_m6_f01_history_atom.py",
+    "python3 tools/build_fcis_m6_f01_history_atom.py --check",
+    "PYTHONPATH=. python3 experiments/fcis_m6_f01_history_atom_check.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_f01_history_atom.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_f01_history_atom.py tests/core/test_fcis_m6_e05_expected_root_cas.py tests/core/test_fcis_m6_e06_concurrency.py tests/core/test_fcis_m6_e07_transport_loss.py tests/core/test_fcis_m6_e08_finite_state.py",
+    "python3 -m py_compile src/core/fcis_m6_f01_history_atom.py experiments/fcis_m6_f01_history_atom_check.py tools/build_fcis_m6_f01_history_atom.py tests/core/test_fcis_m6_f01_history_atom.py",
+    "python3 -m ruff check src/core/fcis_m6_f01_history_atom.py experiments/fcis_m6_f01_history_atom_check.py tools/build_fcis_m6_f01_history_atom.py tests/core/test_fcis_m6_f01_history_atom.py",
+    "python3 -m ruff format --check src/core/fcis_m6_f01_history_atom.py experiments/fcis_m6_f01_history_atom_check.py tools/build_fcis_m6_f01_history_atom.py tests/core/test_fcis_m6_f01_history_atom.py",
+    "python3 -m mypy --strict src/core/fcis_m6_f01_history_atom.py experiments/fcis_m6_f01_history_atom_check.py tools/build_fcis_m6_f01_history_atom.py tests/core/test_fcis_m6_f01_history_atom.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks F01",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_F01_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_f01_history_atom_v1.json": "cf920e53acdde485eac2b832dba52b0dfbd1e1d21f526799323b985e4128ae71",
+    "docs/research/m6_tasks/FCIS_M6_F01_HISTORY_ATOM_SCHEMA_V1.md": "203400b4236cd3dc5af105fac98b90bf058df05027cb018a36d60f2686cd4598",
+    "docs/research/m6_tasks/TASK_F01_HISTORY_ATOM_V1.json": "8cb83001f4ad3c15a649e602a6ec01344c7fb5931c2c729003570553cdce12ee",
+    "docs/research/m6_tasks/TASK_F01_PLAN.md": "074dcbbcb64dd403a38da12d25996e47d17e2350542c22b7d99f5493b415326a",
+    "experiments/fcis_m6_f01_history_atom_check.py": "e612369ecc7a19b96ae515f9af937f95450ae746c087dc8d24a0164fe43f40f5",
+    "src/core/fcis_m6_f01_history_atom.py": "23a76c91b877ccfa9d39d484100c31fae4b5a972f7235653c323a616b4d22e9a",
+    "tests/core/test_fcis_m6_f01_history_atom.py": "d13597b9b0e90a9686e3293a59c27c2deda7c26f4406afe6b35fb1f44554c9c7",
+    "tools/build_fcis_m6_f01_history_atom.py": "424cfa461fe8987239b25a872d0b065def4249a20e28d66ed18240431e31efd6"
+  },
+  "results": {
+    "focused_f01_tests": "pass; 5 passed",
+    "combined_e05_e06_e07_e08_f01_tests": "pass; 25 passed",
+    "independent_checker": "pass; F01_HISTORY_ATOM_CHECKS_PASS 0xb0ce80f709a727b6d66661470cd997dbc65c78d4b39cd525560925124e63cdd8",
+    "source_vector": "pass; F01_HISTORY_ATOM_VECTOR_MATCH",
+    "atom_root": "0xb0ce80f709a727b6d66661470cd997dbc65c78d4b39cd525560925124e63cdd8",
+    "top_level_value_fields": 20,
+    "outbox_records": 1,
+    "mutation_witnesses_rejected": 9,
+    "python_compile": "pass",
+    "ruff": "pass",
+    "ruff_format": "pass",
+    "mypy_strict": "pass",
+    "implementation_commit": "0fcea1c43f69ef1eb29cd85248b9c4435c2d9516",
+    "implementation_tree": "4594804cdba78032d64cb4ae1800be069870fa92",
+    "implementation_parent": "58c0a5b206aafc4dfa327524032bcca2f8e1c773"
+  },
+  "mutants": [
+    "missing ANF root",
+    "unknown atom field",
+    "noncanonical bytes",
+    "crossed E02 nullifier",
+    "crossed outbox effect identity",
+    "stale idempotency root",
+    "invalid proof-context sentinel",
+    "wrong exact atom type",
+    "wrong outbox collection type"
+  ],
+  "nonclaims": [
+    "F01 is a typed research schema and canonical codec",
+    "F01 does not authenticate callers or mint runtime authority",
+    "F01 does not implement F02 encoding, F03 reopen, or a production datastore",
+    "F01 does not prove proof soundness, crash recovery, external delivery, migration mounting, no-bypass coverage, accounting, backing, zUSD safety, or value movement",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
