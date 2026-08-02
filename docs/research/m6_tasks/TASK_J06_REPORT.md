@@ -31,8 +31,7 @@ configured durable snapshot roots, the covered writer set, and the quiescence
 markers. Foreign writer profiles and malformed candidate bodies reject.
 
 COMMANDS_RUN:
-- `python3 tools/build_fcis_m6_j06_quiescence.py --check` (blocked by the
-  pre-existing K01 inventory-root drift recorded below)
+- `python3 tools/build_fcis_m6_j06_quiescence.py --check`
 - `PYTHONPATH=. python3 tools/check_fcis_m6_j06_quiescence.py`
 - `PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_j06_quiescence.py`
 - `PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_j01_migration_lifecycle.py tests/core/test_fcis_m6_j02_writer_matrix.py tests/core/test_fcis_m6_j04_migration_manifest.py tests/core/test_fcis_m6_j05_shadow_dual_check.py`
@@ -51,22 +50,23 @@ COMMANDS_RUN:
 RESULTS:
 - J06 source, Ruff, formatting, strict mypy, and Python compilation gates pass
   for the changed implementation surface.
-- The complete vector/checker/focused-test gate is blocked before J06
-  admission evaluation because the current K01 builder derives inventory root
-  `d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385`, while
-  the J06 configuration and vector pin
-  `ada2cfe46294edb82bd1504e5184b24bb64077c3fe5e3d5497752905422fbf63`.
+- K01 was regenerated after the F16 H02 source change, producing inventory
+  root `d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385`.
+  J06 now binds that root and derives quiescence root
+  `1f9690d4b7ef894a9571aa21ca13eae19c9405298c9713988d2db7a16afda20d`.
+- The J06 checker passed; focused J06 tests passed: 8 passed. The migration
+  regression passed: 20 passed.
 - The source change binds every rejection result to a canonical full attempt
   root, including attempted sequence, expected head, authority root, epoch,
   command, publisher, and writer profile.
-- The prior 18-attempt and migration-regression receipts are not re-promoted
-  to this head while the K01 dependency remains stale.
+- The prior 18-attempt receipt remains outside this rebind; the current checker
+  and focused gates are the promoted evidence for this head.
 
 MUTANTS_ADDED: Caller-forged gate, caller-forged result, malformed root body,
 foreign profile, unequal snapshot, unequal replay/current head, stale epoch,
 foreign authority root, stale head, wrong sequence, uncovered publisher, and
 attempt-sequence/attempt-head identity-collision witnesses are retained as
-negative tests. The full behavioral receipt remains blocked by K01 drift.
+negative tests. The dependency pin is now revalidated at the current head.
 
 FORMAL_EVIDENCE: None. J06 supplies executable typed-model evidence and adds
 no machine-checked theorem or production transaction proof.
@@ -84,8 +84,7 @@ REMAINING_NONCLAIMS:
   zUSD safety. M6 remains research-only, unmounted, and non-promotable.
 
 REVIEW_RISKS: The witness completeness is bounded by the K01 reviewed source
-set and configured model snapshot. The stale K01 pin currently prevents a
-complete J06 vector/checker receipt. A production refinement must independently
+set and configured model snapshot. A production refinement must independently
 recompute the complete durable snapshot, enforce the gate at every reachable
 writer inside the linearized datastore transaction, preserve the authority
 epoch, and provide process and deployment evidence.

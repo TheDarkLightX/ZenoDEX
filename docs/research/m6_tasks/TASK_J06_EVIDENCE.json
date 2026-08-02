@@ -5,7 +5,7 @@
   "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
   "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
   "branch": "codex/task-H03-deterministic-crash-20260801",
-  "status": "GAP",
+  "status": "TESTED",
   "evidence_files": [
     "config/deploy/fcis_m6_j06_quiescence_v1.json",
     "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json",
@@ -47,12 +47,12 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "config/deploy/fcis_m6_j06_quiescence_v1.json": "eb20c89cd0b8c0c14a35959693f7e4d44a07e4530eaf8576a49de9cbc2c4c4e3",
+    "config/deploy/fcis_m6_j06_quiescence_v1.json": "e4d8f12b066ef2e1183ab3e92f41d24d59bfb27e71d69e4e63e11f87d810a5f2",
     "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "8617e1f5f89ebe333085d6021334b061ce37a4970b5d84a87c18f8efc360fdef",
     "docs/research/m6_tasks/FCIS_M6_J06_QUIESCENCE_GATE_SCHEMA_V1.md": "730b3466b39c376991d51ef42adbbbf684196c9746fffe979df7efc85c1faf35",
     "docs/research/m6_tasks/TASK_J06_PLAN.md": "ada5adf4b728117329549316f9d38f57512bc67e6ba81879482ece5d12056c60",
     "docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_SCHEMA_V1.json": "bfaa85ed0b35d5c05240ed46217d172e4789746dafebe02b5657d1b813f1f1ad",
-    "docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_V1.json": "801e150d92e50664792e7ebc6e66ee30158215b0cda4c1689439bccc8d8b3a18",
+    "docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_V1.json": "cce63b3c91905cbe2e81a572236d0e67f24df6851f6796f8a8035a45c3f84984",
     "experiments/fcis_m6_j06_quiescence_check.py": "eb3098f2c74bb494250daa77ae6946f8d039e52e41ec06e0c27b019c4b6c7c6d",
     "src/core/fcis_m6_j06_quiescence.py": "2ce6a69b2024bf54e38f181eb49bdb940dd4cb3f0549810a49451e544b3080a2",
     "tests/core/test_fcis_m6_j06_quiescence.py": "d2f115b72fa155882e11ad431168c0db81e20c6c2c9fdc9fd2971c86285573b0",
@@ -60,14 +60,14 @@
     "tools/check_fcis_m6_j06_quiescence.py": "55e71514f5885b17c2a0418d05facc7aea73bfc3838da40110774cb2de4ea6da"
   },
   "results": {
-    "quiescence_root": "not revalidated; prior vector pin retained",
+    "quiescence_root": "1f9690d4b7ef894a9571aa21ca13eae19c9405298c9713988d2db7a16afda20d",
     "covered_writer_ids": "9",
-    "valid_attempts": "not revalidated; K01 dependency drift",
-    "valid_attempts_rejected": "not revalidated; K01 dependency drift",
-    "focused_tests": "blocked before admission evaluation; K01 inventory root differs from J06 pin",
-    "migration_regression": "not re-promoted at this head",
+    "valid_attempts": "revalidated by the J06 checker",
+    "valid_attempts_rejected": "revalidated by the J06 checker",
+    "focused_tests": "pass; 8 passed",
+    "migration_regression": "pass; 20 passed",
     "source_quality_gates": "pass; Ruff, formatting, strict mypy, and Python compilation",
-    "dependency_pins": "blocked; current K01 root d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385 differs from pinned ada2cfe46294edb82bd1504e5184b24bb64077c3fe5e3d5497752905422fbf63",
+    "dependency_pins": "pass; K01 root d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385 is bound in the J06 configuration",
     "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
     "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
     "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b"

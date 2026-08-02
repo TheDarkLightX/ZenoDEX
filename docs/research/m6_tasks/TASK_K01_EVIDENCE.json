@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "K01",
   "base_sha": "25c2d2181cad4455384f57ade54d971fcb68e275",
-  "source_head_sha": "667ca2e0c59545e48f083fe8a91f0485f3aec982",
-  "source_head_tree": "68bb792f63bdd947cc1621d0710be8db35172824",
+  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -46,7 +46,7 @@
     "tools/build_fcis_m6_k01_entrypoint_inventory.py": "2a43e64de3353f96b8aee792fe2d452dca4e41027dbc8d06c738feb99527a2e7",
     "experiments/fcis_m6_k01_entrypoint_inventory_check.py": "69410ab227a5d2f5ed49e321e3b0c5e48779e00cdaa6490a3a037d5be208d441",
     "tests/core/test_fcis_m6_k01_entrypoint_inventory.py": "6ed7b5c3f295f0c75e0097ee1053f60a5a28a3e152f6cca63aa081c8b03037d3",
-    "docs/research/m6_tasks/TASK_K01_VALUE_MOVING_ENTRYPOINT_INVENTORY_V1.json": "411a0b954df08292d7d1b8341e5ab4b3905da74d11c227960b4011d8c9110edf",
+    "docs/research/m6_tasks/TASK_K01_VALUE_MOVING_ENTRYPOINT_INVENTORY_V1.json": "40775a08cadcff13451ca93f33ed98fc503127a13a702a6439654fd0e43c9864",
     "docs/research/m6_tasks/FCIS_M6_K01_VALUE_MOVING_ENTRYPOINT_SCHEMA_V1.md": "1be7dea2b22e82cd440e7c3c2cfa3d9bdb63c7f56e7b4ef83f3c375783b0227c",
     "docs/research/m6_tasks/TASK_K01_PLAN.md": "2d720d424b8e29824b783999ffdcf0ddfe1f37f0cc5c57272b44f6ac82b804ef"
   },
@@ -54,12 +54,13 @@
     "entrypoint_rows": "15",
     "coverage_status": "reviewed_source_set_only",
     "required_d05_publisher_ids": "pass; all 9 present",
-    "inventory_root": "ada2cfe46294edb82bd1504e5184b24bb64077c3fe5e3d5497752905422fbf63",
+    "inventory_root": "d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385",
     "focused_tests": "pass; 5 passed",
     "deterministic_checker": "pass; source, proof-only, legacy, omission, and insertion witnesses",
-    "implementation_commit": "667ca2e0c59545e48f083fe8a91f0485f3aec982",
-    "implementation_tree": "68bb792f63bdd947cc1621d0710be8db35172824",
-    "implementation_parent": "25c2d2181cad4455384f57ade54d971fcb68e275"
+    "source_set_rebind": "pass; regenerated after the reviewed H02 verifier-use source change",
+    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
+    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b"
   },
   "mutants": [
     "omitted required publisher rejected",

@@ -2,8 +2,8 @@
 
 TASK_ID: K01
 BASE_SHA: 25c2d2181cad4455384f57ade54d971fcb68e275
-SOURCE_HEAD_SHA: 667ca2e0c59545e48f083fe8a91f0485f3aec982
-SOURCE_HEAD_TREE: 68bb792f63bdd947cc1621d0710be8db35172824
+SOURCE_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+SOURCE_HEAD_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
 BRANCH: codex/task-H03-deterministic-crash-20260801
 
 FILES_CHANGED:
@@ -17,9 +17,12 @@ FILES_CHANGED:
 - docs/research/m6_tasks/FCIS_M6_K01_VALUE_MOVING_ENTRYPOINT_SCHEMA_V1.md
 - docs/research/m6_tasks/TASK_K01_PLAN.md
 
-IMPLEMENTATION_HEAD_SHA: 667ca2e0c59545e48f083fe8a91f0485f3aec982
-IMPLEMENTATION_TREE: 68bb792f63bdd947cc1621d0710be8db35172824
-IMPLEMENTATION_PARENT: 25c2d2181cad4455384f57ade54d971fcb68e275
+IMPLEMENTATION_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+IMPLEMENTATION_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
+IMPLEMENTATION_PARENT: c3213000060d3224e1291d2bbf9992e41f8fd74b
+
+DEPENDENCY_REBIND: The H02 source-bound row changed during the F16 repair;
+K01 was regenerated at the exact implementation head before J06 was rebuilt.
 
 CLAIM_IMPLEMENTED: K01 adds a typed, source-bound inventory for fifteen
 reviewed command, authority, datastore, migration, recovery, legacy,
@@ -27,7 +30,7 @@ proof-input, and external-effect candidate surfaces. The inventory requires
 the nine D05 publisher IDs, records caller/input/state-effect/ANF-commit-port
 fields, classifies legacy and proof-only paths, hashes its exact source set,
 and derives the canonical entrypoint inventory root
-ada2cfe46294edb82bd1504e5184b24bb64077c3fe5e3d5497752905422fbf63.
+d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385.
 
 COMMANDS_RUN:
 
@@ -40,6 +43,7 @@ COMMANDS_RUN:
 - python3 experiments/fcis_m6_k01_entrypoint_inventory_check.py
 - python3 -m json.tool config/deploy/fcis_m6_k01_entrypoint_inventory_v1.json
 - python3 -m json.tool docs/research/m6_tasks/TASK_K01_VALUE_MOVING_ENTRYPOINT_INVENTORY_V1.json
+- python3 tools/build_fcis_m6_k01_entrypoint_inventory.py (dependency rebind)
 - git diff --check
 - python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K01
 - sha256sum --check --strict docs/research/m6_tasks/TASK_K01_SOURCE_MANIFEST.sha256
@@ -47,7 +51,9 @@ COMMANDS_RUN:
 RESULTS:
 
 - K01 vector regeneration passed with the exact root
-  ada2cfe46294edb82bd1504e5184b24bb64077c3fe5e3d5497752905422fbf63.
+  d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385.
+- The source-bound vector was regenerated after the F16 H02 verifier-use
+  change; the changed H02 bytes are therefore included in the K01 root.
 - The inventory contains fifteen canonically ordered rows and four explicit
   coverage notes.
 - The nine required D05 publisher IDs are present; omission is rejected.
