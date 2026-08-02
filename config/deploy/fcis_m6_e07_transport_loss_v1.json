@@ -1,0 +1,17 @@
+{
+  "schema": "zenodex/fcis/m6/e07/transport-loss-config/v1",
+  "profile_id": "fcis-m6-e07-transport-loss-v1",
+  "loss_points": [
+    "before_request_reaches_server",
+    "after_validation_before_transaction",
+    "after_transaction_commit_before_response",
+    "after_response_generation_during_transport"
+  ],
+  "transport_knowledge": "indeterminate",
+  "nonclaims": [
+    "research-only transport shell",
+    "fresh lookup uses E04 verifier-owned model values",
+    "no network or process-crash proof",
+    "no production datastore, runtime, authority, accounting, or value movement"
+  ]
+}
