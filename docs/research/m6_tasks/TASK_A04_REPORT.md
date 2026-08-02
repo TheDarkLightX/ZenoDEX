@@ -2,8 +2,8 @@
 
 TASK_ID: A04
 BASE_SHA: `99b4d635e1fb72f24c213d034f4bfb1ab7d35686`
-SOURCE_HEAD_SHA: `19dc60b0e27bf9878fa2c9192c517a23a61a08d2`
-SOURCE_HEAD_TREE: `34290096df16f5a63c17494360abf8b24bd90d89`
+SOURCE_HEAD_SHA: `e7c827d2a206f6bed6fc59fe9e6bbdfe679e34d2`
+SOURCE_HEAD_TREE: `fcae7f28ae277c1e62402269a253f80531972bf0`
 BRANCH: `codex/task-H03-deterministic-crash-20260801`
 
 INTEGRATION_INPUTS:
@@ -21,8 +21,12 @@ INTEGRATION_INPUTS:
 - Current A04 source-quality repair commit:
   `19dc60b0e27bf9878fa2c9192c517a23a61a08d2`, tree
   `34290096df16f5a63c17494360abf8b24bd90d89`.
-- No remote implementation commit or hosted CI run is claimed by this local
-  packet.
+- Reviewed D04 repair head:
+  `5e4677c30210cdbaa1adb0c5775f112eb25f140e`.
+- D04/continuation merge commit:
+  `e7c827d2a206f6bed6fc59fe9e6bbdfe679e34d2`, tree
+  `fcae7f28ae277c1e62402269a253f80531972bf0`.
+- No hosted CI run is claimed for the merged continuation head.
 
 FILES_CHANGED:
 
@@ -51,9 +55,10 @@ INTEGRATED_PR498_INVENTORY:
 - `tests/core/test_fcis_source_bound_lineage.py`
 
 CLAIM_IMPLEMENTED: The A04 research packet is revalidated against the exact
-local source head recorded above. The seven integrated source modules and seven
-focused test modules pass Python compilation, Ruff check, Ruff format check,
-strict mypy, and focused tests after a source-quality repair. The inherited
+local source head recorded above. The D04 V1/V2 outbox-lineage repair composes
+with the later lineage-closure implementation. The seven integrated source
+modules and seven focused test modules pass Python compilation, Ruff check,
+Ruff format check, strict mypy, and focused tests. The inherited
 Tree–Chord–Gate, DRA, Julia, public-model, and domain-identifier evidence is
 retained with its declared scope. The current Lean rerun is blocked by the
 read-only shared mathlib checkout. No runtime mount is performed.
@@ -91,7 +96,7 @@ RESULTS:
 - Ruff: pass.
 - Ruff format check: pass, 14 files already formatted.
 - Strict mypy: pass on 7 source files after the type-only repair.
-- Focused tests: `96 passed`.
+- Focused tests: `97 passed`.
 - Lean: blocked on the current isolated rerun because the shared mathlib
   checkout is read-only and cannot create
   `/home/trevormoc/deps/mathlib4/.lake/config/mathlib/lakefile.olean.lock`
@@ -133,4 +138,6 @@ REVIEW_RISKS: The Python quality gates and bounded model evidence are green,
 while the current exact-head Lean replay remains blocked. Cross-certificate
 semantic bindings remain explicit follow-up obligations. Later integration must
 consume the A02 registry and prove the A01 schema relations before any mounted
-or value-moving path is considered.
+or value-moving path is considered. The D04 merge adds exact V2 outbox schema
+selection to lineage closure; the focused lineage suite retains this as a
+permanent regression.

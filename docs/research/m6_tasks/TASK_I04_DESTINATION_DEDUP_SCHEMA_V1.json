@@ -24,6 +24,17 @@
     "payload_root",
     "destination_receipt_root"
   ],
+  "delivery_result": {
+    "accept_fields": [
+      "next_state",
+      "receipt"
+    ],
+    "reject_fields": [
+      "code",
+      "path"
+    ],
+    "rejection_rule": "a rejection carries no successor state or destination receipt"
+  },
   "max_destination_receipts": 8192,
   "duplicate_rule": "same effect_id, destination, and payload_root returns ALREADY_ACCEPTED with the original receipt root",
   "collision_rules": [
@@ -32,6 +43,7 @@
     "effect adapter_profile_root must equal the verified contract profile",
     "records are unique and sorted by effect_id",
     "nested destination-record fields are revalidated at every state boundary",
+    "the accepted successor and receipt are owned by one validated aggregate",
     "a new effect at exact capacity rejects without changing state",
     "an exact-class forged contract cannot enter a downstream consumer"
   ],

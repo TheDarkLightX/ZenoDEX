@@ -330,6 +330,16 @@ def publish_v1(port: object, state: object, request: object) -> K02ResultV1:
     exact_request = request
     try:
         exact_state.__post_init__()
+    except (
+        AttributeError,
+        K02Error,
+        TypeError,
+        ValueError,
+        ArithmeticError,
+        OverflowError,
+    ):
+        return _reject(K02RejectCodeV1.WRONG_STATE, "state")
+    try:
         exact_request.__post_init__()
     except (
         AttributeError,
@@ -339,7 +349,7 @@ def publish_v1(port: object, state: object, request: object) -> K02ResultV1:
         ArithmeticError,
         OverflowError,
     ):
-        return _reject(K02RejectCodeV1.WRONG_REQUEST, "typed_fields")
+        return _reject(K02RejectCodeV1.WRONG_REQUEST, "request")
     if not d08.is_verified_combined_anf_accept_v1(exact_request.anf_accept):
         return _reject(K02RejectCodeV1.ANF_WITNESS_REJECTED, "anf_accept")
     fingerprint_root = request_fingerprint_root_v1(exact_request)

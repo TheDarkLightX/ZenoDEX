@@ -2,8 +2,8 @@
 
 TASK_ID: I06
 BASE_SHA: 95bf4f1e426886129682f822dbefd43e488deb4a
-SOURCE_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
-SOURCE_HEAD_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
+SOURCE_HEAD_SHA: ce71c24cecae8396a8d7ac7879b2d35f827f4f5d
+SOURCE_HEAD_TREE: 332dcadbd0bc7e09f2e6d5eb700f4c13033fee97
 BRANCH: codex/task-H03-deterministic-crash-20260801
 FILES_CHANGED:
 - experiments/fcis_m6_i06_lost_ack_recovery.py
@@ -11,9 +11,9 @@ FILES_CHANGED:
 - docs/research/m6_tasks/TASK_I06_LOST_ACK_SCHEMA_V1.json
 - docs/research/m6_tasks/TASK_I06_PLAN.md
 
-IMPLEMENTATION_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
-IMPLEMENTATION_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
-IMPLEMENTATION_PARENT: c3213000060d3224e1291d2bbf9992e41f8fd74b
+IMPLEMENTATION_HEAD_SHA: ce71c24cecae8396a8d7ac7879b2d35f827f4f5d
+IMPLEMENTATION_TREE: 332dcadbd0bc7e09f2e6d5eb700f4c13033fee97
+IMPLEMENTATION_PARENT: 5f2c0431a438c5f944a46aea8e363f02a80ebc0e
 
 CLAIM_IMPLEMENTED: I06 adds a deterministic lost-ack recovery state machine
 for one committed effect. The simulated crash retains the destination record
@@ -22,7 +22,9 @@ effect, requires the destination to return ALREADY_ACCEPTED, verifies the
 receipt through I05, and writes one local acknowledgment journal entry. State
 construction and revalidation require a live I04 verifier-registered contract,
 so an exact-class copied contract cannot enter recovery. A later redelivery
-verifies the same acknowledgment without appending a second local write.
+verifies the same acknowledgment without appending a second local write. I06
+can advance destination state only from I04's owned accept aggregate; a reject
+contains no state for recovery to apply.
 
 COMMANDS_RUN:
 - python3 -m ruff check experiments/fcis_m6_i04_destination_dedup.py experiments/fcis_m6_i05_ack_provenance.py experiments/fcis_m6_i06_lost_ack_recovery.py tests/core/test_fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i05_ack_provenance.py tests/core/test_fcis_m6_i06_lost_ack_recovery.py
@@ -37,11 +39,12 @@ COMMANDS_RUN:
 
 RESULTS:
 - Focused I06 suite passed: 9 passed.
-- Combined I04/I05/I06 suite passed: 26 passed.
+- Combined I04/I05/I06 suite passed: 28 passed.
 - The crash state preserves the destination record and original effect ID,
   payload root, destination, and adapter profile while containing no local ack.
 - Redelivery returns the I04 ALREADY_ACCEPTED outcome, preserves the receipt
   root, passes I05 provenance verification, and records exactly one local ack.
+- I04 rejection provides no destination successor to the recovery machine.
 - Repeated redelivery returns an already-durable no-op and leaves the local
   journal write count at one.
 - Forged destination receipt roots, phase skipping, malformed state, and u32

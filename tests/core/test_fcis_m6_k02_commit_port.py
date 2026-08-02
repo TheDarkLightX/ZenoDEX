@@ -81,6 +81,20 @@ def test_k02_wrong_capability_and_stale_head_fail_closed() -> None:
     assert first.state != state
 
 
+def test_k02_malformed_store_state_is_classified_as_wrong_state() -> None:
+    request = _request()
+    malformed = object.__new__(K02PortStateV1)
+    object.__setattr__(malformed, "head_root", request.expected_pre_state_root)
+    object.__setattr__(malformed, "next_sequence", 1)
+    object.__setattr__(malformed, "records", (object(),))
+
+    result = publish_v1(unique_commit_port_v1(), malformed, request)
+
+    assert isinstance(result, K02RejectV1)
+    assert result.code is K02RejectCodeV1.WRONG_STATE
+    assert result.path == ("state",)
+
+
 def test_k02_publication_fields_are_owned_by_d08_and_collision_is_state_bound() -> None:
     request = _request()
     collision_state = K02PortStateV1(

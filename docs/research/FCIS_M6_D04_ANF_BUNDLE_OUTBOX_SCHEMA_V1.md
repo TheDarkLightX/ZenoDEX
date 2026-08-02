@@ -1,57 +1,88 @@
-# FCIS M6 D04 Bundle and Outbox Schema V1
+# FCIS M6 D04 Bundle and Outbox Schema Separation V1
 
-## Canonical fields
+## Canonical schema identities
 
-`OutboxPlanV1` is encoded as a closed record with:
-
-```text
-records
-authority_normal_form_root: optional lowercase 0x 32-byte digest
-```
-
-`CommitBundleClaimV1` is encoded as a closed record with:
+Legacy, ANF-unbound values retain their exact existing schemas and fields:
 
 ```text
-expected_pre_root
-decision
-receipt_root
-outbox_plan
-authority_normal_form_root: optional lowercase 0x 32-byte digest
+zenodex/fcis/outbox-plan/v1
+  records
+
+zenodex/fcis/commit-bundle/v1
+  expected_pre_root
+  decision
+  receipt_root
+  outbox_plan: zenodex/fcis/outbox-plan/v1
 ```
 
-The optional fields preserve legacy unbound replay claims. The D04 controlled
-builder requires a complete exact ANF whenever the nested receipt contains an
-ANF identity. Unknown fields, wrong arity, wrong types, and noncanonical
-digests reject through the existing authority grammar.
+ANF-bound values use distinct V2 schemas with a required root:
+
+```text
+zenodex/fcis/outbox-plan/v2
+  records
+  authority_normal_form_root: lowercase 0x 32-byte digest
+
+zenodex/fcis/commit-bundle/v2
+  expected_pre_root
+  decision
+  receipt_root
+  outbox_plan: zenodex/fcis/outbox-plan/v2
+  authority_normal_form_root: lowercase 0x 32-byte digest
+```
+
+The V2 root is required. `null`, omission, unknown fields, wrong arity, wrong
+types, and noncanonical digests reject through the closed authority grammar.
+The V1 codecs remain byte-identical to their pre-D04 definitions.
+V2 outbox and bundle roots use their V2 schema IDs and domain-separator version
+`2`; legacy roots retain domain-separator version `1`.
 
 ## Cross-field invariants
 
-For every admitted bundle claim:
+For every admitted V2 bundle claim:
 
 ```text
 bundle.authority_normal_form_root
     == bundle.decision.receipt.binding.authority_normal_form_root
+
 bundle.outbox_plan.authority_normal_form_root
     == bundle.authority_normal_form_root
 ```
 
-For an ANF-bound authoritative bundle, the controlled wrapper additionally
-retains the exact `FCISAuthorityNormalFormV1` value and checks:
+The controlled wrapper also retains the exact `FCISAuthorityNormalFormV1` and
+requires:
 
 ```text
 canonical_authority_normal_form_root_v1(bundle.authority_normal_form)
     == bundle.decision.receipt.binding.authority_normal_form_root
 ```
 
-The bundle wire bytes commit to the ANF root through the nested decision and
-the explicit outer field. They do not claim to be a production datastore
-record or a standalone caller authorization witness.
+An unbound receipt can produce only a V1 outbox and bundle claim. Direct V1
+admission rejects a decision whose receipt carries an ANF version or root. An
+ANF-bound receipt can produce only a V2 outbox and bundle claim.
 
-## Recomputed relations
+Lineage closure recomputes the outbox root through the bundle's exact schema:
 
-The D04 verifier reconstructs the receipt root from the exact decision, the
-ANF root from the retained exact ANF, the outbox plan from the decision events
-and receipt root, the outbox root from the recomputed plan, and the bundle bytes
-and root from the admitted claim. Any mismatch rejects before the reference
-publication atom is permitted to proceed.
+```text
+OutboxPlanV1 -> zenodex/fcis/outbox-plan/v1, version 1
+OutboxPlanV2 -> zenodex/fcis/outbox-plan/v2, version 2
+```
 
+It does not project a V2 plan through the legacy V1 encoder.
+
+## Commit-time recomputation
+
+The reference commit port independently revalidates the complete relation
+before publication and while reopening every retained publication:
+
+```text
+exact retained ANF
+  -> recomputed ANF root
+  -> receipt binding equality
+  -> recomputed V2 outbox plan and root
+  -> recomputed V2 bundle bytes and root
+  -> publication permitted
+```
+
+Missing, foreign, crossed, or post-construction-corrupted ANF values return
+`INVALID`, preserve the exact pre-store, and publish nothing. The schemas and
+reference port remain unmounted research evidence.

@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "K02",
   "base_sha": "b41d7954586c4cf0e309a625f40a9aff2e2a8999",
-  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
+  "source_head_sha": "ce71c24cecae8396a8d7ac7879b2d35f827f4f5d",
+  "source_head_tree": "332dcadbd0bc7e09f2e6d5eb700f4c13033fee97",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -38,11 +38,11 @@
   },
   "source_hashes": {
     "config/deploy/fcis_m6_k02_dependency_rules_v1.json": "dff3b35c1cd59aea816daa757b6140922805783d33649d874f23eb1f34a50f0c",
-    "src/core/fcis_m6_k02_commit_port.py": "a9456e084b011a0e8e64aa4378d125e7397672666a4bbfd1493f82ccc03f95b2",
+    "src/core/fcis_m6_k02_commit_port.py": "1e5b93ab30bb8ddedcf715edfc6fac654ccdcbc13f56937c102c970d02951a23",
     "experiments/fcis_m6_k02_commit_port_check.py": "2c85ffe14ab9bcc1beeb2de4ab38545e7261707d302c1a7394f0342c832d0b6a",
-    "tests/core/test_fcis_m6_k02_commit_port.py": "a5a20fe75c9b1e6539cd88684d9d2d8e4b46d00094db49bc11a46edaea9bf67a",
-    "docs/research/m6_tasks/FCIS_M6_K02_UNIQUE_COMMIT_PORT_SCHEMA_V1.md": "44b369ae01338842605de0b5ae8296ca01793152b70173c801a3ad997db63d3a",
-    "docs/research/m6_tasks/TASK_K02_PLAN.md": "95e3fb0066ea491e53226fe17bd68b7ee1fae5bdc0513293dcc3dbae2855d1a1"
+    "tests/core/test_fcis_m6_k02_commit_port.py": "73fa7ec0fc37c018bcf9f0494ef63ce101db39cef1df23a67659c4078a7bc9a1",
+    "docs/research/m6_tasks/FCIS_M6_K02_UNIQUE_COMMIT_PORT_SCHEMA_V1.md": "f631183675c9eb76f50875e5a4ab4ce08e719bcc2b65da2ea6bf18317c82d730",
+    "docs/research/m6_tasks/TASK_K02_PLAN.md": "2897a18a843026a578215dbca6f19b29ae5b936bcaa1d9724619170e7e69cacc"
   },
   "results": {
     "unique_port_id": "fcis/m6/unique-atomic-commit-port/v1",
@@ -50,15 +50,17 @@
     "first_commit": "NEWLY_COMMITTED",
     "same_commit_retry": "ALREADY_COMMITTED; state unchanged",
     "collision": "pass; state-bound changed fingerprint rejected",
-    "fail_closed_inputs": "pass; forged capability, raw/exact-class-forged D08, stale head, and sequence crossing rejected",
+    "fail_closed_inputs": "pass; malformed state, forged capability, raw/exact-class-forged D08, stale head, and sequence crossing rejected",
     "publication_field_ownership": "pass; request derives all publication fields from D08-owned atom",
-    "focused_tests": "pass; 6 passed",
-    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
-    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b"
+    "rejection_classification": "pass; malformed store state is WRONG_STATE and malformed request is WRONG_REQUEST",
+    "focused_tests": "pass; 7 passed",
+    "implementation_commit": "ce71c24cecae8396a8d7ac7879b2d35f827f4f5d",
+    "implementation_tree": "332dcadbd0bc7e09f2e6d5eb700f4c13033fee97",
+    "implementation_parent": "5f2c0431a438c5f944a46aea8e363f02a80ebc0e"
   },
   "mutants": [
     "arbitrary capability object rejected",
+    "malformed exact current state classified as WRONG_STATE",
     "caller-minted capability token rejected",
     "raw ANF witness rejected",
     "exact-class forged D08 witness rejected",

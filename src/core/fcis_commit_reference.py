@@ -35,13 +35,14 @@ from .fcis_commit_bundle_derivation import (
     CommitBundleV1,
     recompute_bundle_root_v1,
     recompute_outbox_plan_v1,
+    verify_anf_bound_commit_bundle_v1,
 )
 from .fcis_decision_derivation import AcceptV1, CommittedFailureV1
 from .fcis_decision_values import (
     AcceptanceReceiptClaimV1,
     CommittedFailureReceiptClaimV1,
 )
-from .fcis_outbox_values import OutboxPlanV1
+from .fcis_outbox_values import OutboxPlanV1, OutboxPlanV2
 from .fcis_transition_values import CommitPlanV1
 
 
@@ -144,8 +145,17 @@ def _revalidate_bundle_v1(bundle: object) -> bool:
             receipt_type = CommittedFailureReceiptClaimV1
         if not _has_exact_type_v1(decision.receipt, receipt_type):
             return False
-        if not _has_exact_type_v1(exact_bundle.outbox_plan, OutboxPlanV1):
-            return False
+        binding_root = decision.receipt.binding.authority_normal_form_root
+        if binding_root is None:
+            if not _has_exact_type_v1(exact_bundle.outbox_plan, OutboxPlanV1):
+                return False
+            if exact_bundle.authority_normal_form is not None:
+                return False
+        else:
+            if not _has_exact_type_v1(exact_bundle.outbox_plan, OutboxPlanV2):
+                return False
+            if not verify_anf_bound_commit_bundle_v1(exact_bundle):
+                return False
         recomputed_outbox = recompute_outbox_plan_v1(exact_bundle)
         if recomputed_outbox != exact_bundle.outbox_plan:
             return False
@@ -252,7 +262,7 @@ def _state_fields_equal_v1(
 ) -> bool:
     """Compare all eight state fields for exact equality."""
 
-    return (
+    return bool(
         left.balances == right.balances
         and left.pools == right.pools
         and left.lp_balances == right.lp_balances
@@ -302,7 +312,7 @@ def _observed_pre_root_v1(
     """Recompute the observed pre-root using the receipt snapshot version."""
 
     _, _, root = canonical_committed_state_root_binding_v1(state, snapshot_version)
-    return root
+    return cast(str, root)
 
 
 def _bundle_root_in_publications_v1(

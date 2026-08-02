@@ -20,12 +20,15 @@ enforce structurally.
    sequence, and immutable request fields from it.
 3. Construct one module-owned singleton port with a private construction token.
 4. Reject arbitrary port objects, caller-minted port tokens, raw ANF objects,
-   stale heads, sequence crossings, and commit fingerprint collisions.
+   malformed current state, stale heads, sequence crossings, and commit
+   fingerprint collisions.
 5. Revalidate D08 provenance, then recompute request, response, and
    successor-head roots at the port boundary.
 6. Return `NEWLY_COMMITTED` or `ALREADY_COMMITTED` with the exact state, or a
    typed rejection with no state-changing result.
-7. Preserve dependency rules as a closed JSON input for K03.
+7. Classify malformed current state as `WRONG_STATE` and malformed caller input
+   as `WRONG_REQUEST` before evaluating publication relations.
+8. Preserve dependency rules as a closed JSON input for K03.
 
 ## Evidence boundary
 

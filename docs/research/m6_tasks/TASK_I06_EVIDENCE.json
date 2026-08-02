@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "I06",
   "base_sha": "95bf4f1e426886129682f822dbefd43e488deb4a",
-  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
+  "source_head_sha": "ce71c24cecae8396a8d7ac7879b2d35f827f4f5d",
+  "source_head_tree": "332dcadbd0bc7e09f2e6d5eb700f4c13033fee97",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -34,21 +34,22 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "experiments/fcis_m6_i06_lost_ack_recovery.py": "e6966cfe02b723b32f78282c69278027684293e5413bea98b39b6a075a3288dd",
+    "experiments/fcis_m6_i06_lost_ack_recovery.py": "d174c4e7309313d954528749473553e252e91592eaa5797d86b9389523066a4e",
     "tests/core/test_fcis_m6_i06_lost_ack_recovery.py": "0e1f88d97950ad8ec4070de9424cfc26d432d7ac11ae88d31f2f635428ca1767",
     "docs/research/m6_tasks/TASK_I06_LOST_ACK_SCHEMA_V1.json": "c1493e3b0598d7f20f6b9b7948da2cc026959b9af5805a618fc7daf8de22c328",
-    "docs/research/m6_tasks/TASK_I06_PLAN.md": "679f5aa41b0f397aeb9525ff838eaa2ca5940dd588e2e4e30ab0b0dffd5cee4f"
+    "docs/research/m6_tasks/TASK_I06_PLAN.md": "4e817b4b7ed36dc2fa9d2bf7c33ee424338b76cd67083dbc60f366805af06f46"
   },
   "results": {
     "focused_tests": "pass; 9 passed",
-    "combined_i04_i05_i06_tests": "pass; 26 passed",
+    "combined_i04_i05_i06_tests": "pass; 28 passed",
     "crash_window": "pass; destination acceptance survives while local ack is absent",
     "redelivery": "pass; same effect returns ALREADY_ACCEPTED with the same receipt root",
     "ack_idempotence": "pass; one local journal write across repeated redelivery",
     "negative_witnesses": "pass; forged receipt, exact-class unprovenanced contract, phase skip, malformed state, and overflow reject",
-    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
-    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b"
+    "i04_result_binding": "pass; rejection carries no destination successor into recovery",
+    "implementation_commit": "ce71c24cecae8396a8d7ac7879b2d35f827f4f5d",
+    "implementation_tree": "332dcadbd0bc7e09f2e6d5eb700f4c13033fee97",
+    "implementation_parent": "5f2c0431a438c5f944a46aea8e363f02a80ebc0e"
   },
   "mutants": [
     "exact-class contract without I04 verifier provenance rejects during state construction"

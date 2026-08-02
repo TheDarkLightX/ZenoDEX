@@ -125,6 +125,8 @@ FCIS_REQUIRED_REGISTRY_IDS = (
     "zenodex/fcis/decision/v1",
     "zenodex/fcis/outbox-plan/v1",
     "zenodex/fcis/commit-bundle/v1",
+    "zenodex/fcis/outbox-plan/v2",
+    "zenodex/fcis/commit-bundle/v2",
 )
 FCIS_REGISTERED_REGISTRY_IDS = (
     "zenodex/fcis/state/balance-table/v1",
@@ -153,6 +155,8 @@ FCIS_REGISTERED_REGISTRY_IDS = (
     "zenodex/fcis/decision/v1",
     "zenodex/fcis/outbox-plan/v1",
     "zenodex/fcis/commit-bundle/v1",
+    "zenodex/fcis/outbox-plan/v2",
+    "zenodex/fcis/commit-bundle/v2",
 )
 
 _KNOWN_ADMISSION_SCHEMA_IDS_V1 = (
@@ -593,7 +597,7 @@ def _canonical_state_encoder(schema_id: str, value: object) -> bytes:
         max_depth=64,
         max_items=200_000,
     )
-    return canonical_json_bytes(projection)
+    return cast(bytes, canonical_json_bytes(projection))
 
 
 def admit(
