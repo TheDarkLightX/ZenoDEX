@@ -22,12 +22,15 @@ legacy, outbox lease, and direct datastore adapter surfaces.
 
 - the generated J06 vector is regenerated from J02, J04, and K01 dependency
   pins when those pins agree;
-- gate and result witnesses require verifier-owned construction tokens;
+- gate and result witnesses require verifier-owned construction tokens and the
+  gate is revalidated against verifier provenance at point of use;
 - 18 valid writer attempts (nine surfaces times legacy/target profile) reject;
 - unknown surfaces and stale epoch/root/profile/head/sequence witnesses reject;
 - malformed root bodies and unequal snapshots reject;
-- replay/current-head divergence, mutable accepted-result, and changed-attempt
+- replay/current-head divergence, mutable accepted-result, changed-attempt
   identity mutants reject;
+- an exact-class `object.__new__` forged gate is rejected at the admission
+  boundary;
 - strict Python quality gates pass; the current full receipt is blocked by the
   pre-existing K01 inventory-root drift.
 

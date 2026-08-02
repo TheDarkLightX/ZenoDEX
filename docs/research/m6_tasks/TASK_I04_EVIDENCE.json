@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "I04",
   "base_sha": "8cf31c666babeca23b50c67b4fd3438669a08997",
-  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
+  "source_head_sha": "fcfb22772b044c82131639d740a1fe2f60a65bbb",
+  "source_head_tree": "f7c48018f53b9c7154b9251e77c734928efd6296",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -34,13 +34,13 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "experiments/fcis_m6_i04_destination_dedup.py": "404ece13a31a0b672c8899023ba3ac1313e0150a03cc4b77797cbb8385fce1ca",
-    "tests/core/test_fcis_m6_i04_destination_dedup.py": "e3c0fc575690967ef146ef52fcc3ec9c3458cd86543c1a796787a72b7e5dd7a5",
+    "experiments/fcis_m6_i04_destination_dedup.py": "1b30d90bc6d2a052e9168416ae816fc7be830c0eb7b6736aba27904306b80708",
+    "tests/core/test_fcis_m6_i04_destination_dedup.py": "9e59fc558c85ca2448d91586f6d96e6bf2e0458f0ffad001966ea5d48bf7aca6",
     "docs/research/m6_tasks/TASK_I04_DESTINATION_DEDUP_SCHEMA_V1.json": "f0ddc4e6fd706eee854c1971f76f2095b782cea878cc52f6f76b711405b34007",
-    "docs/research/m6_tasks/TASK_I04_PLAN.md": "dccccef26848dc38dae8f5efb8eab6ab44350fb0163dc3d965556da6c75c06b0"
+    "docs/research/m6_tasks/TASK_I04_PLAN.md": "76d3139b7eb9fbd2d52c592a7cada31c7b6c8c8aac714dfd3374269f93c04f98"
   },
   "results": {
-    "focused_tests": "pass; 8 passed",
+    "focused_tests": "pass; 9 passed",
     "mechanism_coverage": "pass; native key, query-by-effect-ID, and receipt-table paths",
     "duplicate_idempotence": "pass; stable receipt root and unchanged destination state",
     "collision_rejection": "pass; payload, destination, and adapter-profile crossings reject",
@@ -48,15 +48,16 @@
     "unmountable_contracts": "pass; direct, forged, mutated, and unsupported contracts reject",
     "nested_record_validation": "pass; malformed nested record fields reject",
     "downstream_provenance": "pass; I05 and I06 reject exact-class copied contracts without I04 verifier provenance",
-    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
-    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b"
+    "implementation_commit": "fcfb22772b044c82131639d740a1fe2f60a65bbb",
+    "implementation_tree": "f7c48018f53b9c7154b9251e77c734928efd6296",
+    "implementation_parent": "1e707a5fd7effd9b242862954685403dc113b586"
   },
   "mutants": [
     "over-capacity state construction rejected",
     "over-capacity state revalidation rejected",
     "forged invalid state returns STATE_INVALID with safe state",
     "new effect at exact capacity rejected without state change",
+    "invalid contract preserves a valid nonempty state",
     "direct verified-contract construction rejected",
     "exact-class forged contract rejected",
     "mutated registered contract rejected",

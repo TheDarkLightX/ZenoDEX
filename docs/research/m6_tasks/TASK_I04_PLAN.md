@@ -22,7 +22,8 @@ accepted effects by effect ID, destination, and payload root, with at most
 `ALREADY_ACCEPTED` with the same destination receipt root. A same-ID payload or
 destination change rejects without changing destination state. A new effect at
 exact capacity returns a typed capacity rejection without changing destination
-state. Nested records are revalidated at every state boundary.
+state. Invalid contract admission also preserves a valid destination state.
+Nested records are revalidated at every state boundary.
 
 Unsupported mechanisms and forged contract roots return `UNMOUNTABLE`; no
 effect type is mountable on a merely asserted exactly-once claim.

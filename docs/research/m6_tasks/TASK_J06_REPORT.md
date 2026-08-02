@@ -2,8 +2,8 @@
 
 TASK_ID: J06
 BASE_SHA: 295a2dc5279b0b80ea7842dfe0190499725d94c7
-SOURCE_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
-SOURCE_HEAD_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
+SOURCE_HEAD_SHA: fcfb22772b044c82131639d740a1fe2f60a65bbb
+SOURCE_HEAD_TREE: f7c48018f53b9c7154b9251e77c734928efd6296
 BRANCH: codex/task-H03-deterministic-crash-20260801
 FILES_CHANGED:
 - config/deploy/fcis_m6_j06_quiescence_v1.json
@@ -17,9 +17,9 @@ FILES_CHANGED:
 - tests/core/test_fcis_m6_j06_quiescence.py
 - tools/build_fcis_m6_j06_quiescence.py
 
-IMPLEMENTATION_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
-IMPLEMENTATION_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
-IMPLEMENTATION_PARENT: c3213000060d3224e1291d2bbf9992e41f8fd74b
+IMPLEMENTATION_HEAD_SHA: fcfb22772b044c82131639d740a1fe2f60a65bbb
+IMPLEMENTATION_TREE: f7c48018f53b9c7154b9251e77c734928efd6296
+IMPLEMENTATION_PARENT: 1e707a5fd7effd9b242862954685403dc113b586
 
 CLAIM_IMPLEMENTED: J06 uses verifier-owned gate and result witnesses. Each
 admission result now carries a canonical full-attempt root and repeats the
@@ -28,7 +28,9 @@ and writer profile fields. The gate binds the J04 manifest and complete
 replay-evidence root, K01 inventory, J02 QUIESCED authority epoch,
 legacy/target writer profiles, equal configured current/replay heads, equal
 configured durable snapshot roots, the covered writer set, and the quiescence
-markers. Foreign writer profiles and malformed candidate bodies reject.
+markers. Gate use additionally requires registered verifier provenance and an
+unchanged-field snapshot. Foreign writer profiles, malformed candidate bodies,
+and exact-class forged gates reject.
 
 COMMANDS_RUN:
 - `python3 tools/build_fcis_m6_j06_quiescence.py --check`
@@ -54,15 +56,20 @@ RESULTS:
   root `d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385`.
   J06 now binds that root and derives quiescence root
   `1f9690d4b7ef894a9571aa21ca13eae19c9405298c9713988d2db7a16afda20d`.
-- The J06 checker passed; focused J06 tests passed: 8 passed. The migration
+- The J06 checker passed; focused J06 tests passed: 9 passed. The migration
   regression passed: 20 passed.
 - The source change binds every rejection result to a canonical full attempt
   root, including attempted sequence, expected head, authority root, epoch,
   command, publisher, and writer profile.
+- A caller-created exact-class gate made with `object.__new__` is rejected at
+  `reject_writer_v1` because it lacks the verifier registry entry; a registered
+  gate with mutated fields is rejected by the unchanged-field snapshot.
 - The prior 18-attempt receipt remains outside this rebind; the current checker
   and focused gates are the promoted evidence for this head.
 
-MUTANTS_ADDED: Caller-forged gate, caller-forged result, malformed root body,
+MUTANTS_ADDED: Caller-forged constructor-token gate, exact-class
+`object.__new__` gate, mutated registered gate, caller-forged result,
+malformed root body,
 foreign profile, unequal snapshot, unequal replay/current head, stale epoch,
 foreign authority root, stale head, wrong sequence, uncovered publisher, and
 attempt-sequence/attempt-head identity-collision witnesses are retained as
