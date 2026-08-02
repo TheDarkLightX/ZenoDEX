@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -353,7 +354,7 @@ def _read_vector() -> dict[str, object]:
     return cast(dict[str, object], value)
 
 
-def run_checks() -> dict[str, Any]:
+def run_checks(*, check_vector: bool = True) -> dict[str, Any]:
     instance = build_instance()
     result = verify_combined_anf_v1(instance)
     if type(result) is not D08CombinedANFAcceptV1:
@@ -425,14 +426,29 @@ def run_checks() -> dict[str, Any]:
         "d05_inventory_root": instance.tcg_expectation.inventory_root,
         "mutants_killed": 5,
     }
-    vector = _read_vector()
-    if vector.pop("schema_version", None) != ("zenodex.fcis.m6.d08.combined-anf-vector.v1"):
-        raise AssertionError("D08 vector has the wrong schema")
-    if vector != payload:
-        raise AssertionError("D08 vector does not match regenerated outputs")
+    if check_vector:
+        vector = _read_vector()
+        if vector.pop("schema_version", None) != ("zenodex.fcis.m6.d08.combined-anf-vector.v1"):
+            raise AssertionError("D08 vector has the wrong schema")
+        if vector != payload:
+            raise AssertionError("D08 vector does not match regenerated outputs")
     return payload
 
 
+def _write_vector(payload: dict[str, Any]) -> None:
+    vector = {
+        "schema_version": "zenodex.fcis.m6.d08.combined-anf-vector.v1",
+        **dict(sorted(payload.items())),
+    }
+    _VECTOR_PATH.write_text(json.dumps(vector, indent=2) + "\n", encoding="utf-8")
+
+
 if __name__ == "__main__":
-    print(json.dumps(run_checks(), sort_keys=True))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--write-vector", action="store_true")
+    args = parser.parse_args()
+    checked = run_checks(check_vector=not args.write_vector)
+    if args.write_vector:
+        _write_vector(checked)
+    print(json.dumps(checked, sort_keys=True))
     print("D08_COMBINED_ANF_MATCH")

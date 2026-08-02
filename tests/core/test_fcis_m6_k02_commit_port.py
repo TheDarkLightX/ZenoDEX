@@ -11,7 +11,7 @@ import pytest
 from experiments.fcis_m6_d08_combined_anf_check import build_instance
 from experiments.fcis_m6_k02_commit_port_check import run_checks
 from src.core import fcis_m6_d08_combined_anf as d08
-from src.core.fcis_durable_retraction import tagged_digest
+from src.core.fcis_durable_retraction import PublicationAtomV1, tagged_digest
 from src.core.fcis_m6_d08_combined_anf import verify_combined_anf_v1
 from src.core.fcis_m6_k02_commit_port import (
     K02CommitRecordV1,
@@ -59,6 +59,27 @@ def test_k02_success_and_retry_use_the_same_singleton_port() -> None:
     assert isinstance(retry, K02CommitTransitionV1)
     assert retry.resolution is K02CommitResolutionV1.ALREADY_COMMITTED
     assert retry.state == first.state
+
+
+def test_k02_publish_replays_d08_exactly_once_per_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _request()
+    state = initial_port_state_v1(request.expected_pre_state_root)
+    original = d08.authorized_publication_atom_v1
+    calls = 0
+
+    def counted(value: object) -> PublicationAtomV1:
+        nonlocal calls
+        calls += 1
+        return original(value)
+
+    monkeypatch.setattr(d08, "authorized_publication_atom_v1", counted)
+
+    result = publish_v1(unique_commit_port_v1(), state, request)
+
+    assert isinstance(result, K02CommitTransitionV1)
+    assert calls == 1
 
 
 def test_k02_wrong_capability_and_stale_head_fail_closed() -> None:

@@ -8,10 +8,9 @@ datastore or external proof verification.
 
 from __future__ import annotations
 
-from dataclasses import InitVar, dataclass
+from dataclasses import InitVar, dataclass, field
 from enum import Enum
 from typing import TypeAlias, cast, final
-from weakref import WeakValueDictionary
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 from .fcis_authority_normal_form_v1 import (
@@ -330,60 +329,61 @@ class D08CombinedANFInstanceV1:
 
 
 @final
-@dataclass(frozen=True, slots=True, weakref_slot=True)
+@dataclass(frozen=True, slots=True)
 class D08CombinedANFAcceptV1:
-    """Verifier-minted result owning the complete authorized publication atom."""
+    """Verifier-minted result retaining every source needed for fresh replay."""
 
+    instance: D08CombinedANFInstanceV1
     anf_root: str
     publication_atom: PublicationAtomV1
-    _construction_token: InitVar[object]
+    _verification_marker: object = field(repr=False, compare=False)
 
-    def __post_init__(self, _construction_token: object) -> None:
-        if _construction_token is not _D08_CONSTRUCTION_TOKEN_V1:
+    def __post_init__(self) -> None:
+        if self._verification_marker is not _D08_CONSTRUCTION_TOKEN_V1:
             raise TypeError("D08 acceptance requires controlled verification")
         self._validate_fields()
 
     def _validate_fields(self) -> None:
+        if type(self.instance) is not D08CombinedANFInstanceV1:
+            raise D08CombinedANFError("retained D08 instance must be exact")
+        self.instance.__post_init__()
         _anf_digest(self.anf_root, "anf_root")
         if type(self.publication_atom) is not PublicationAtomV1:
             raise D08CombinedANFError("publication_atom must be exact")
         self.publication_atom.__post_init__()
-
-
-_D08_ACCEPTS_V1: WeakValueDictionary[int, D08CombinedANFAcceptV1] = WeakValueDictionary()
-_D08_ACCEPT_SNAPSHOTS_V1: dict[int, tuple[str, str]] = {}
+        if self.anf_root != self.instance.authority_normal_form.root:
+            raise D08CombinedANFError("ANF root differs from the retained instance")
+        if self.publication_atom != self.instance.publication_atom:
+            raise D08CombinedANFError("publication atom differs from the retained instance")
 
 
 def _mint_accept_v1(
     *,
+    instance: D08CombinedANFInstanceV1,
     anf_root: str,
     publication_atom: PublicationAtomV1,
 ) -> D08CombinedANFAcceptV1:
-    accept = D08CombinedANFAcceptV1(
+    return D08CombinedANFAcceptV1(
+        instance=instance,
         anf_root=anf_root,
         publication_atom=publication_atom,
-        _construction_token=_D08_CONSTRUCTION_TOKEN_V1,
+        _verification_marker=_D08_CONSTRUCTION_TOKEN_V1,
     )
-    identity = id(accept)
-    _D08_ACCEPTS_V1[identity] = accept
-    _D08_ACCEPT_SNAPSHOTS_V1[identity] = (accept.anf_root, publication_atom.atom_root)
-    return accept
 
 
 def is_verified_combined_anf_accept_v1(value: object) -> bool:
-    """Check exact verifier provenance and unchanged publication contents."""
+    """Replay every retained D08 source before treating an accept as verified."""
 
     if type(value) is not D08CombinedANFAcceptV1:
         return False
     accept = value
-    registered = _D08_ACCEPTS_V1.get(id(accept))
-    if registered is not accept:
-        return False
     try:
         accept._validate_fields()
-        return _D08_ACCEPT_SNAPSHOTS_V1.get(id(accept)) == (
-            accept.anf_root,
-            accept.publication_atom.atom_root,
+        replayed = verify_combined_anf_v1(accept.instance)
+        return (
+            type(replayed) is D08CombinedANFAcceptV1
+            and replayed.anf_root == accept.anf_root
+            and replayed.publication_atom == accept.publication_atom
         )
     except (
         AttributeError,
@@ -393,15 +393,16 @@ def is_verified_combined_anf_accept_v1(value: object) -> bool:
         ValueError,
         ArithmeticError,
         OverflowError,
+        RecursionError,
     ):
         return False
 
 
 def authorized_publication_atom_v1(value: object) -> PublicationAtomV1:
-    """Return the D08-owned publication atom only after provenance revalidation."""
+    """Return the D08-owned atom only after complete point-of-use replay."""
 
     if not is_verified_combined_anf_accept_v1(value):
-        raise D08CombinedANFError("D08 acceptance lacks verifier provenance")
+        raise D08CombinedANFError("D08 acceptance failed point-of-use replay")
     accept = cast(D08CombinedANFAcceptV1, value)
     return accept.publication_atom
 
@@ -883,6 +884,7 @@ def verify_combined_anf_v1(
     if not verify_anf_bound_commit_bundle_v1(exact.bundle):
         return _reject(D08CombinedANFCodeV1.BUNDLE_REJECTED, "bundle")
     return _mint_accept_v1(
+        instance=exact,
         anf_root=anf_root,
         publication_atom=exact.publication_atom,
     )

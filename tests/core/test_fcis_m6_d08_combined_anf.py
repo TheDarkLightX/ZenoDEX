@@ -2,11 +2,16 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from experiments.fcis_m6_d08_combined_anf_check import build_instance
 from src.core.fcis_m6_d08_combined_anf import (
     D08CombinedANFAcceptV1,
     D08CombinedANFCodeV1,
+    D08CombinedANFError,
     D08CombinedANFRejectV1,
+    authorized_publication_atom_v1,
+    is_verified_combined_anf_accept_v1,
     verify_combined_anf_v1,
 )
 
@@ -22,6 +27,36 @@ def test_valid_combined_anf_returns_one_canonical_root() -> None:
     assert type(result) is D08CombinedANFAcceptV1
     assert result.anf_root == instance.authority_normal_form.root
     assert result.publication_atom == instance.publication_atom
+
+
+def test_acceptance_retains_complete_instance_for_deterministic_replay() -> None:
+    instance = build_instance()
+    first = verify_combined_anf_v1(instance)
+    assert type(first) is D08CombinedANFAcceptV1
+
+    assert first.instance == instance
+    second = verify_combined_anf_v1(first.instance)
+    assert type(second) is D08CombinedANFAcceptV1
+    assert second is not first
+    assert second.anf_root == first.anf_root
+    assert second.publication_atom == first.publication_atom
+    assert is_verified_combined_anf_accept_v1(first)
+    assert authorized_publication_atom_v1(first) == instance.publication_atom
+
+
+def test_point_of_use_replay_rejects_crossed_retained_instance() -> None:
+    instance = build_instance()
+    result = verify_combined_anf_v1(instance)
+    assert type(result) is D08CombinedANFAcceptV1
+    object.__setattr__(
+        result,
+        "instance",
+        replace(instance, decision=instance.base_decision),
+    )
+
+    assert not is_verified_combined_anf_accept_v1(result)
+    with pytest.raises(D08CombinedANFError, match="replay"):
+        authorized_publication_atom_v1(result)
 
 
 def test_wrong_exact_type_is_typed_rejection() -> None:
@@ -76,3 +111,4 @@ def test_stage_binding_mutants_are_rejected_at_their_own_boundary() -> None:
 def test_tcg_malformed_certificate_does_not_escape_as_an_exception() -> None:
     instance = build_instance()
     object.__setattr__(instance.tcg_certificate, "edges", "malformed")
+    assert _code(verify_combined_anf_v1(instance)) is D08CombinedANFCodeV1.TCG_REJECTED

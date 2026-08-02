@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from dataclasses import replace
 from pathlib import Path
-from typing import cast
+from typing import TypeGuard, cast
 
 import experiments.fcis_m6_d08_combined_anf_check as d08_fixture
 from src.core.batch_clearing import compute_settlement
@@ -62,7 +63,7 @@ def _build_instance_from(inputs: dict[str, object]) -> D08CombinedANFInstanceV1:
     original = d08_fixture._exact_inputs
     d08_fixture._exact_inputs = lambda: inputs
     try:
-        return d08_fixture.build_instance()
+        return cast(D08CombinedANFInstanceV1, d08_fixture.build_instance())
     finally:
         d08_fixture._exact_inputs = original
 
@@ -80,11 +81,14 @@ def _build_transitions() -> tuple[
     return first, second
 
 
+def _is_exact_d08_reject(value: object) -> TypeGuard[D08CombinedANFRejectV1]:
+    return type(value) is D08CombinedANFRejectV1
+
+
 def _d08_code(value: object) -> str:
-    if type(value) is not D08CombinedANFRejectV1:
+    if not _is_exact_d08_reject(value):
         raise AssertionError(f"D08 mutant unexpectedly accepted: {value!r}")
-    rejection = cast(D08CombinedANFRejectV1, value)
-    return cast(str, rejection.code.value)
+    return str(value.code.value)
 
 
 def _stutter_code(operation_kind: NonStutterOperationKindV1) -> str:
@@ -110,7 +114,7 @@ def _read_vector() -> dict[str, object]:
     return cast(dict[str, object], value)
 
 
-def run_checks() -> dict[str, object]:
+def run_checks(*, check_vector: bool = True) -> dict[str, object]:
     first, second = _build_transitions()
 
     semantic_receipt_cross = replace(first, base_decision=second.base_decision)
@@ -170,14 +174,29 @@ def run_checks() -> dict[str, object]:
         "cases": cases,
         "mutants_killed": len(cases),
     }
-    vector = _read_vector()
-    if vector.pop("schema_version", None) != "zenodex.fcis.m6.d09.crossed-axis.v1":
-        raise AssertionError("D09 vector has the wrong schema")
-    if vector != payload:
-        raise AssertionError("D09 vector does not match regenerated mutant outputs")
+    if check_vector:
+        vector = _read_vector()
+        if vector.pop("schema_version", None) != "zenodex.fcis.m6.d09.crossed-axis.v1":
+            raise AssertionError("D09 vector has the wrong schema")
+        if vector != payload:
+            raise AssertionError("D09 vector does not match regenerated mutant outputs")
     return payload
 
 
+def _write_vector(payload: dict[str, object]) -> None:
+    vector = {
+        "schema_version": "zenodex.fcis.m6.d09.crossed-axis.v1",
+        **payload,
+    }
+    _VECTOR_PATH.write_text(json.dumps(vector, indent=2) + "\n", encoding="utf-8")
+
+
 if __name__ == "__main__":
-    print(json.dumps(run_checks(), sort_keys=True))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--write-vector", action="store_true")
+    args = parser.parse_args()
+    checked = run_checks(check_vector=not args.write_vector)
+    if args.write_vector:
+        _write_vector(checked)
+    print(json.dumps(checked, sort_keys=True))
     print("D09_CROSSED_AXIS_MATCH")
