@@ -1,0 +1,90 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "F05",
+  "base_sha": "b3e29478d890fc255da4d7d0186a159bd7f7f7c8",
+  "source_head_sha": "a282d0e2dcb0785eeab233a800933819cd23c2df",
+  "source_head_tree": "2cb3981ba7005fbdada718d570d4a4d828f74770",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_f05_authenticated_genesis_v1.json",
+    "src/core/fcis_m6_f05_authenticated_genesis.py",
+    "experiments/fcis_m6_f05_authenticated_genesis_check.py",
+    "tests/core/test_fcis_m6_f05_authenticated_genesis.py",
+    "tests/core/test_fcis_m6_f05_authenticated_genesis_properties.py",
+    "tools/build_fcis_m6_f05_authenticated_genesis.py",
+    "docs/research/m6_tasks/TASK_F05_AUTHENTICATED_GENESIS_V1.json",
+    "docs/research/m6_tasks/FCIS_M6_F05_AUTHENTICATED_GENESIS_V1.md",
+    "docs/research/m6_tasks/TASK_F05_PLAN.md",
+    "docs/research/m6_tasks/TASK_F05_REPORT.md",
+    "docs/research/m6_tasks/TASK_F05_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_F05_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m json.tool config/deploy/fcis_m6_f05_authenticated_genesis_v1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_F05_AUTHENTICATED_GENESIS_V1.json",
+    "PYTHONPATH=. python3 tools/build_fcis_m6_f05_authenticated_genesis.py",
+    "PYTHONPATH=. python3 tools/build_fcis_m6_f05_authenticated_genesis.py --check",
+    "PYTHONPATH=. python3 experiments/fcis_m6_f05_authenticated_genesis_check.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_f05_authenticated_genesis.py tests/core/test_fcis_m6_f05_authenticated_genesis_properties.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_*.py",
+    "python3 -m py_compile src/core/fcis_m6_f05_authenticated_genesis.py experiments/fcis_m6_f05_authenticated_genesis_check.py tools/build_fcis_m6_f05_authenticated_genesis.py tests/core/test_fcis_m6_f05_authenticated_genesis.py tests/core/test_fcis_m6_f05_authenticated_genesis_properties.py",
+    "python3 -m ruff check src/core/fcis_m6_f05_authenticated_genesis.py experiments/fcis_m6_f05_authenticated_genesis_check.py tools/build_fcis_m6_f05_authenticated_genesis.py tests/core/test_fcis_m6_f05_authenticated_genesis.py tests/core/test_fcis_m6_f05_authenticated_genesis_properties.py",
+    "python3 -m ruff format --check src/core/fcis_m6_f05_authenticated_genesis.py experiments/fcis_m6_f05_authenticated_genesis_check.py tools/build_fcis_m6_f05_authenticated_genesis.py tests/core/test_fcis_m6_f05_authenticated_genesis.py tests/core/test_fcis_m6_f05_authenticated_genesis_properties.py",
+    "python3 -m mypy --strict src/core/fcis_m6_f05_authenticated_genesis.py experiments/fcis_m6_f05_authenticated_genesis_check.py tools/build_fcis_m6_f05_authenticated_genesis.py tests/core/test_fcis_m6_f05_authenticated_genesis.py tests/core/test_fcis_m6_f05_authenticated_genesis_properties.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks F05",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_F05_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_f05_authenticated_genesis_v1.json": "e0baac5d03ef648318c3a117043f5c4a0627dfc5734e4618f85419acf39d91be",
+    "src/core/fcis_m6_f05_authenticated_genesis.py": "136ee462aad164d3f5aa313032a24e8001a25e028a9f3c03d3e6fe1ecdf164df",
+    "experiments/fcis_m6_f05_authenticated_genesis_check.py": "20415711901f4821d12cfb98ca5cdfd0612aee9ec8aae7364be252603e4b555e",
+    "tests/core/test_fcis_m6_f05_authenticated_genesis.py": "b30b909144a35917b5bdb8ebe587d490c114057f8aa3417c2a5caac1e523546e",
+    "tests/core/test_fcis_m6_f05_authenticated_genesis_properties.py": "5da0fd581ab6e0a56e28dd42efca1b826c2f2f29187694b5db649ff419720d86",
+    "tools/build_fcis_m6_f05_authenticated_genesis.py": "43cf73166b3b9d100d352f28ce07e90f7724a52118ad804e84a15d7da58101b4",
+    "docs/research/m6_tasks/TASK_F05_AUTHENTICATED_GENESIS_V1.json": "b820f01ce24ea956dfe883ed132b6ba748846b812b2a63666215eb6d51bb2cbd",
+    "docs/research/m6_tasks/FCIS_M6_F05_AUTHENTICATED_GENESIS_V1.md": "b4c6cd5a04540cdee8ac146dabd670db761d2f7acb2cc83e5a2ded46efc3ee46",
+    "docs/research/m6_tasks/TASK_F05_PLAN.md": "a255b94b04f2cfba344678b37bd9e4825d3837f7b3d40f076e90d55f246e8e73"
+  },
+  "results": {
+    "focused_and_property_tests": "pass; 4 passed",
+    "broad_m6_core_regression": "pass; 316 passed in 289.79 seconds",
+    "property_campaign": "pass; deterministic 24-example cap",
+    "mutants_rejected": 6,
+    "independent_checker": "pass; F05_AUTHENTICATED_GENESIS_CHECKS_PASS 0x2429a95eb0e2d9cbd8d18224107b0a2a4416e86bd797579948bf9f7473404bea",
+    "source_vector": "pass; F05_AUTHENTICATED_GENESIS_VECTOR_MATCH",
+    "genesis_root": "0x490f37c731987e864c923dd30fc275b2fd8cde02cd70b07931aedc4ce5a870bb",
+    "pin_root": "0x0bf47a21d45a19245cb47be7bc0ca35f1f26eba557516f4113606084de12db0b",
+    "admission_root": "0x2429a95eb0e2d9cbd8d18224107b0a2a4416e86bd797579948bf9f7473404bea",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "ruff_format": "pass",
+    "mypy_strict": "pass",
+    "implementation_commit": "a282d0e2dcb0785eeab233a800933819cd23c2df",
+    "implementation_tree": "2cb3981ba7005fbdada718d570d4a4d828f74770",
+    "implementation_parent": "b3e29478d890fc255da4d7d0186a159bd7f7f7c8"
+  },
+  "mutants": [
+    "foreign initial state root",
+    "genesis root crossed with deployment pin",
+    "foreign chain pin",
+    "foreign authority profile pin",
+    "forged genesis root",
+    "generated initial-state-root substitutions"
+  ],
+  "nonclaims": [
+    "F05 is a checked research relation, not cryptographic authentication",
+    "the deployment pin must come from an authenticated deployment/configuration boundary in production",
+    "F05 does not issue the F06 fresh reopen-head token",
+    "F05 does not prove filesystem, datastore, runtime, migration, destination, accounting, backing, or zUSD safety",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
