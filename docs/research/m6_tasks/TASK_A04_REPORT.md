@@ -2,9 +2,9 @@
 
 TASK_ID: A04
 BASE_SHA: `99b4d635e1fb72f24c213d034f4bfb1ab7d35686`
-SOURCE_HEAD_SHA: `476ec022e755ff049c39bf9f08c6606ac87532ca`
-SOURCE_HEAD_TREE: `a1d495eae0b26a369487ceb48cad5472abec74db`
-BRANCH: `codex/task-A04-reviewed-integration-20260731`
+SOURCE_HEAD_SHA: `19dc60b0e27bf9878fa2c9192c517a23a61a08d2`
+SOURCE_HEAD_TREE: `34290096df16f5a63c17494360abf8b24bd90d89`
+BRANCH: `codex/task-H03-deterministic-crash-20260801`
 
 INTEGRATION_INPUTS:
 
@@ -15,14 +15,25 @@ INTEGRATION_INPUTS:
 - `git merge-tree --write-tree --messages` result tree:
   `5c5234d755101353a7ae63f5d72da651de99e738`.
 - Conflict-free merge commit: `485b58a83105a995d2db9eb3805e4710520b3b29`.
-- Strict-mypy repair commit: `f3eeddd9e5a58f72d290f13c2d40129aef8f10cc`.
-- Final integration head before the A04 receipt child:
-  `f3eeddd9e5a58f72d290f13c2d40129aef8f10cc`, tree
-  `5c26eb9dfc7e884e72ff82f307768502fb876b9f`.
+- Historical strict-mypy repair commit: `f3eeddd9e5a58f72d290f13c2d40129aef8f10cc`.
+- Current A04 revalidation parent: `e6fcd803da178342920a90e69d4b8bfa7a340cf1`,
+  tree `82d00e8cdf116b10e14f1f29c1db4c772d353352`.
+- Current A04 source-quality repair commit:
+  `19dc60b0e27bf9878fa2c9192c517a23a61a08d2`, tree
+  `34290096df16f5a63c17494360abf8b24bd90d89`.
+- No remote implementation commit or hosted CI run is claimed by this local
+  packet.
 
 FILES_CHANGED:
 
-- `src/core/fcis_lineage_closure.py` (three explicit type-boundary casts).
+- Current source-quality repair:
+  - `src/core/fcis_fee_occurrence_normal_form.py` (Ruff formatting).
+  - `src/core/fcis_m6_profile_ids.py` (Ruff formatting).
+  - `src/core/fcis_source_bound_lineage.py` (redundant-cast removal).
+  - `src/core/fcis_tree_chord_gate_authority.py` (Ruff formatting).
+  - `tests/core/test_fcis_fee_occurrence_normal_form.py` (Ruff formatting).
+  - `tests/core/test_fcis_m6_profile_ids.py` (Ruff formatting).
+  - `tests/core/test_fcis_tree_chord_gate_authority.py` (Ruff formatting).
 - `docs/research/m6_tasks/TASK_A04_REPORT.md`
 - `docs/research/m6_tasks/TASK_A04_EVIDENCE.json`
 - `docs/research/m6_tasks/TASK_A04_SOURCE_MANIFEST.sha256`
@@ -39,11 +50,13 @@ INTEGRATED_PR498_INVENTORY:
 - `tests/core/test_fcis_lineage_closure.py`
 - `tests/core/test_fcis_source_bound_lineage.py`
 
-CLAIM_IMPLEMENTED: A synthetic exact-head research integration branch contains
-the conflict-free PR498 additions on the A02/#501 base, with the inherited
-PR499 Tree–Chord–Gate and DRA surfaces preserved. All required local A04 gates
-are green after three explicit casts close the integrated lineage-closure
-module’s strict-mypy Any leaks. No runtime mount is performed.
+CLAIM_IMPLEMENTED: The A04 research packet is revalidated against the exact
+local source head recorded above. The seven integrated source modules and seven
+focused test modules pass Python compilation, Ruff check, Ruff format check,
+strict mypy, and focused tests after a source-quality repair. The inherited
+Tree–Chord–Gate, DRA, Julia, public-model, and domain-identifier evidence is
+retained with its declared scope. The current Lean rerun is blocked by the
+read-only shared mathlib checkout. No runtime mount is performed.
 
 COMMANDS_RUN:
 
@@ -53,6 +66,8 @@ COMMANDS_RUN:
   seven focused test modules
 - `python3 -m ruff check` over the seven integrated research modules and seven
   focused test modules
+- `python3 -m ruff format --check` over the seven integrated research modules
+  and seven focused test modules
 - `python3 -m mypy --strict` over the seven integrated research modules
 - `python3 -m pytest -q` over the seven focused test modules
 - `cd lean-mathlib && lake build` with a temporary local symlink to the existing
@@ -63,17 +78,25 @@ COMMANDS_RUN:
 - immutable-domain uniqueness check using `M6_DOMAIN_IDENTIFIERS_V1`
 - `python3 tools/check_fcis_durable_retraction_model.py --self-test`
 - `git diff --check`
+- `python3 .claude/skills/zenodex-style-map/scripts/which_style.py` was
+  unavailable because the repository-local script is absent in this worktree.
+- `python3 .claude/skills/zenodex-security-analysis/scripts/trust_surface.py`
+  and `redflags.py` were unavailable for the same reason.
 
 RESULTS:
 
-- Merge-tree result: conflict-free, result tree
+- Historical merge-tree result: conflict-free, result tree
   `5c5234d755101353a7ae63f5d72da651de99e738`.
 - Python compile: pass.
 - Ruff: pass.
+- Ruff format check: pass, 14 files already formatted.
 - Strict mypy: pass on 7 source files after the type-only repair.
 - Focused tests: `96 passed`.
-- Lean: `Build completed successfully (8153 jobs)`; existing linter warnings
-  remain outside this task’s scope.
+- Lean: blocked on the current isolated rerun because the shared mathlib
+  checkout is read-only and cannot create
+  `/home/trevormoc/deps/mathlib4/.lake/config/mathlib/lakefile.olean.lock`
+  (errno 30). The temporary symlink was removed. The earlier 8153-job result
+  remains historical evidence and is not re-promoted for this exact head.
 - Julia 1.12.6 TCG oracle: pass, 9 gates, safe baseline, all five targeted
   TCG mutations violated their named invariants.
 - Julia DRA oracle: pass, 49 states, 254 transitions, seven mutants killed.
@@ -85,25 +108,29 @@ RESULTS:
 MUTANTS_ADDED: None. A04 integrates and gates existing research models; it adds
 no new semantic mutant family.
 
-FORMAL_EVIDENCE: The complete Lean build and the inherited Julia/ESSO/Python
-model evidence are recorded as integration results. The three casts only make
-existing helper return types explicit and do not alter the hash formulas.
+FORMAL_EVIDENCE: The inherited Julia, ESSO/public-model, and Python evidence is
+recorded with its bounded scope. The current Python source-quality repair does
+not alter the hash formulas or authority rules. A current exact-head Lean
+replay remains unavailable because the shared mathlib checkout cannot be
+written in this environment.
 
 REMAINING_NONCLAIMS:
 
-- A04 proves direct Git/path/build coexistence for the selected exact heads;
+- A04 records exact local Git/path and Python quality-gate evidence for the
+  selected source head;
   it does not prove the unresolved C-05 SLNF/source-bound version migration,
   C-06 lineage-closure-to-TCG certificate binding, or C-07 TCG-to-DRA ANF
   relation from the A01 map.
 - The integrated branch remains research-only and unmounted. No production
   caller, datastore, API, authority switch, deployment, migration, or
   value-moving path was changed.
-- Lean success uses the existing local mathlib checkout through a temporary
-  workspace symlink; no dependency was committed.
+- The current Lean rerun was blocked by the read-only shared mathlib checkout;
+  no dependency path was committed.
 - No production readiness, M6 promotion, or exact remote implementation commit
   is claimed by this local A04 task branch.
 
-REVIEW_RISKS: The merge is syntactically and operationally green while the
-cross-certificate semantic bindings remain explicit follow-up obligations.
-Later integration must consume the A02 registry and prove the A01 schema
-relations before any mounted or value-moving path is considered.
+REVIEW_RISKS: The Python quality gates and bounded model evidence are green,
+while the current exact-head Lean replay remains blocked. Cross-certificate
+semantic bindings remain explicit follow-up obligations. Later integration must
+consume the A02 registry and prove the A01 schema relations before any mounted
+or value-moving path is considered.

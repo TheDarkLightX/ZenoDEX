@@ -2,9 +2,9 @@
 
 TASK_ID: A02
 BASE_SHA: `760a65eee950421148be615bb7c837b1ad737a83`
-SOURCE_HEAD_SHA: `476ec022e755ff049c39bf9f08c6606ac87532ca`
-SOURCE_HEAD_TREE: `a1d495eae0b26a369487ceb48cad5472abec74db`
-BRANCH: `codex/task-A02-profile-ids-20260731`
+SOURCE_HEAD_SHA: `19dc60b0e27bf9878fa2c9192c517a23a61a08d2`
+SOURCE_HEAD_TREE: `34290096df16f5a63c17494360abf8b24bd90d89`
+BRANCH: `codex/task-H03-deterministic-crash-20260801`
 
 FILES_CHANGED:
 
@@ -13,6 +13,10 @@ FILES_CHANGED:
 - `docs/research/m6_tasks/TASK_A02_REPORT.md`
 - `docs/research/m6_tasks/TASK_A02_EVIDENCE.json`
 - `docs/research/m6_tasks/TASK_A02_SOURCE_MANIFEST.sha256`
+
+REVALIDATION: The registry and its focused tests were revalidated against the
+current exact source head above after a Ruff-only formatting repair. The
+registry values, ordering, and identifier semantics were unchanged.
 
 CLAIM_IMPLEMENTED: One immutable shared M6 identifier module records the
 semantic allocator profile, SRGD and AGQE representation profiles, fixed role
