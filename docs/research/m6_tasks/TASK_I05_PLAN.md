@@ -1,7 +1,7 @@
 # I05 plan: provenance-bound acknowledgment
 
 Status: implemented and tested against the I04 deterministic destination
-model; research-only and unmounted. I06-I08 remain pending.
+model; research-only and unmounted. I07-I08 remain pending.
 
 ## Objective
 
@@ -23,6 +23,10 @@ root from the verified contract and effect, then recomputes the acknowledgment
 subject root from the complete field tuple. A merely well-shaped foreign digest,
 an acknowledgment before delivery, a crossed receipt, or a foreign profile
 rejects.
+
+The I04 contract must also be a live verifier-registered witness at I05 point
+of use. An exact-class value with copied canonical fields but no verifier
+provenance is rejected before receipt ancestry is evaluated.
 
 ## Evidence boundary
 

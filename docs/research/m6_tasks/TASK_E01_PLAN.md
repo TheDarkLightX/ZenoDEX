@@ -17,6 +17,10 @@ malformed roots, enum confusion, boolean-as-integer values, and width drift.
 - command-root and sequence mutations change the identity;
 - extra, missing, malformed, and boolean fields reject;
 - public command and identity constructors reject without verifier-owned tokens;
+- exact-class forged or mutated command witnesses fail registration and
+  point-of-use provenance revalidation;
+- bounded nonclaim collections reject invalid UTF-8, duplicates, and width
+  overflow;
 - focused tests and strict Python quality gates pass.
 
 ## Nonclaims

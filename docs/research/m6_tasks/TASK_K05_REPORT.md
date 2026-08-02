@@ -2,8 +2,8 @@
 
 TASK_ID: K05
 BASE_SHA: a0d651d6bddf0b6f4e59c07a1085ccd489ed072e
-SOURCE_HEAD_SHA: edca73303b2f8201483c35dfee55ed84752e650c
-SOURCE_HEAD_TREE: 69ee9ed990a95a69727809870972cb78219a3351
+SOURCE_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+SOURCE_HEAD_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
 BRANCH: codex/task-H03-deterministic-crash-20260801
 
 FILES_CHANGED:
@@ -14,9 +14,9 @@ FILES_CHANGED:
 - docs/research/m6_tasks/FCIS_M6_K05_BYPASS_MUTATION_SCHEMA_V1.md
 - docs/research/m6_tasks/TASK_K05_PLAN.md
 
-IMPLEMENTATION_HEAD_SHA: edca73303b2f8201483c35dfee55ed84752e650c
-IMPLEMENTATION_TREE: 69ee9ed990a95a69727809870972cb78219a3351
-IMPLEMENTATION_PARENT: a0d651d6bddf0b6f4e59c07a1085ccd489ed072e
+IMPLEMENTATION_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+IMPLEMENTATION_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
+IMPLEMENTATION_PARENT: c3213000060d3224e1291d2bbf9992e41f8fd74b
 
 CLAIM_IMPLEMENTED: K05 builds a deterministic six-mutant matrix for every
 one of the fifteen K01 entrypoint identities. All 90 cases are killed. The
@@ -45,7 +45,8 @@ RESULTS:
 - K01 provided 15 canonical entrypoint identities.
 - K05 produced exactly 90 results: 15 entrypoints x 6 mutations.
 - Every result was killed by its expected named invariant.
-- The K02 current-root CAS witness rejected the forged expected head as
+- The K02 current-root CAS witness replaced the caller request's old expected
+  head mutation with a mutation of the current state head and rejected it as
   `STALE_HEAD`.
 - Focused K05 suite passed: 2 passed.
 - Python compilation, Ruff, formatting, strict mypy, and diff whitespace

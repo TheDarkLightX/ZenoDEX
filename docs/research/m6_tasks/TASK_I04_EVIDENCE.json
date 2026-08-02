@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "I04",
   "base_sha": "8cf31c666babeca23b50c67b4fd3438669a08997",
-  "source_head_sha": "0071e414e0c415b8930649799fdd1be8f74f47af",
-  "source_head_tree": "5aace573ecfbc78ce20433439e4b21eef6ed1716",
+  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -34,27 +34,33 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "experiments/fcis_m6_i04_destination_dedup.py": "67922e39b79deb329d0187513a40008ae5ad40d5fcd7772832941721c0bf84af",
-    "tests/core/test_fcis_m6_i04_destination_dedup.py": "c30f42b3aea7cf0126b4522ddcd616777ffab1a91c787effbfb420e60d086b88",
-    "docs/research/m6_tasks/TASK_I04_DESTINATION_DEDUP_SCHEMA_V1.json": "eac1ac5f5d945e3df2a4ec1a2f36029c21b3fd08a2ad9cab130f2163b8832b99",
-    "docs/research/m6_tasks/TASK_I04_PLAN.md": "c9cda3c1ab2613d143f9d2ec2e8b92582d93737c1d9388aa02c9eead53bdb8b4"
+    "experiments/fcis_m6_i04_destination_dedup.py": "404ece13a31a0b672c8899023ba3ac1313e0150a03cc4b77797cbb8385fce1ca",
+    "tests/core/test_fcis_m6_i04_destination_dedup.py": "e3c0fc575690967ef146ef52fcc3ec9c3458cd86543c1a796787a72b7e5dd7a5",
+    "docs/research/m6_tasks/TASK_I04_DESTINATION_DEDUP_SCHEMA_V1.json": "f0ddc4e6fd706eee854c1971f76f2095b782cea878cc52f6f76b711405b34007",
+    "docs/research/m6_tasks/TASK_I04_PLAN.md": "dccccef26848dc38dae8f5efb8eab6ab44350fb0163dc3d965556da6c75c06b0"
   },
   "results": {
-    "focused_tests": "pass; 7 passed",
+    "focused_tests": "pass; 8 passed",
     "mechanism_coverage": "pass; native key, query-by-effect-ID, and receipt-table paths",
     "duplicate_idempotence": "pass; stable receipt root and unchanged destination state",
     "collision_rejection": "pass; payload, destination, and adapter-profile crossings reject",
     "capacity_bound": "pass; 8,192 maximum, typed state revalidation, and exact-capacity rejection",
-    "unmountable_contracts": "pass; forged and unsupported contracts reject",
-    "implementation_commit": "0071e414e0c415b8930649799fdd1be8f74f47af",
-    "implementation_tree": "5aace573ecfbc78ce20433439e4b21eef6ed1716",
-    "implementation_parent": "8cf31c666babeca23b50c67b4fd3438669a08997"
+    "unmountable_contracts": "pass; direct, forged, mutated, and unsupported contracts reject",
+    "nested_record_validation": "pass; malformed nested record fields reject",
+    "downstream_provenance": "pass; I05 and I06 reject exact-class copied contracts without I04 verifier provenance",
+    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
+    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b"
   },
   "mutants": [
     "over-capacity state construction rejected",
     "over-capacity state revalidation rejected",
     "forged invalid state returns STATE_INVALID with safe state",
-    "new effect at exact capacity rejected without state change"
+    "new effect at exact capacity rejected without state change",
+    "direct verified-contract construction rejected",
+    "exact-class forged contract rejected",
+    "mutated registered contract rejected",
+    "malformed nested destination record rejected"
   ],
   "nonclaims": [
     "I04 is an immutable research destination model and is not a network adapter",

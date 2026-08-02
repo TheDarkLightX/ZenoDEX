@@ -48,7 +48,10 @@ substitution, and malformed TCG evidence that must become typed rejection.
 - DRA accepts only the exact canonical PRE history plus one expected atom as
   the canonical POST history.
 - The final ANF decision and bundle are freshly recomputed and compared exactly.
-- Accept results contain one verifier-minted ANF root and no authority payload.
+- Accept results contain one verifier-minted ANF root and the complete
+  recomputed `PublicationAtomV1` owned by that acceptance. Downstream ports
+  derive publication fields from this aggregate and revalidate acceptance
+  provenance at point of use.
 
 ## Nonclaims
 
@@ -57,4 +60,3 @@ proof soundness, TCG completeness, source-input authentication, production
 datastore transactions, crash recovery, destination idempotency, API no-bypass
 coverage, migration authority, deployment identity, hosted CI, remote
 publication, or value movement.
-

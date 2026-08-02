@@ -12,20 +12,24 @@ exact J02 QUIESCED authority epoch and both writer-profile roots, the
 activation sequence, and equal current/replay heads and durable snapshots.
 
 The admission function enumerates the in-scope K01 value-moving surfaces and
-returns a typed state-preserving rejection for every writer attempt. The model
+returns a typed state-preserving rejection for every writer attempt. Each
+result carries a canonical root over the complete attempted sequence, expected
+head, authority root, epoch, command, publisher, and writer profile. The model
 covers API, CLI, background delivery/recovery, migration, administrator,
 legacy, outbox lease, and direct datastore adapter surfaces.
 
 ## Evidence
 
 - the generated J06 vector is regenerated from J02, J04, and K01 dependency
-  pins;
+  pins when those pins agree;
 - gate and result witnesses require verifier-owned construction tokens;
 - 18 valid writer attempts (nine surfaces times legacy/target profile) reject;
 - unknown surfaces and stale epoch/root/profile/head/sequence witnesses reject;
 - malformed root bodies and unequal snapshots reject;
-- replay/current-head divergence and mutable accepted-result mutants reject;
-- focused tests and strict Python quality gates pass.
+- replay/current-head divergence, mutable accepted-result, and changed-attempt
+  identity mutants reject;
+- strict Python quality gates pass; the current full receipt is blocked by the
+  pre-existing K01 inventory-root drift.
 
 ## Nonclaims
 

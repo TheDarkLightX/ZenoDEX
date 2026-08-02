@@ -10,9 +10,9 @@ evidence and structural proof context, verifies the durable publication atom
 and its PRE/POST history transition, then evaluates the ANF-bound decision and
 bundle.
 
-The verifier returns one controlled result carrying one canonical ANF root or a
-closed typed rejection. It grants no runtime authority and performs no external
-I/O.
+The verifier returns one controlled result carrying one canonical ANF root and,
+on success, the complete recomputed publication atom, or a closed typed
+rejection. It grants no runtime authority and performs no external I/O.
 
 ## Stage order
 
@@ -59,7 +59,13 @@ derived or recomputed; callers do not select a replacement root.
 
 ## Controlled result
 
-D08CombinedANFAcceptV1 contains only the verifier-minted ANF root.
+D08CombinedANFAcceptV1 contains the verifier-minted ANF root and the exact
+`PublicationAtomV1` recomputed from the verified PRE history, ANF-bound bundle,
+and outbox bindings. The acceptance is registered with an immutable field
+snapshot. Publication consumers must revalidate that registration and
+snapshot before using the atom, so a caller cannot select a different commit,
+successor state, authority root, sequence, or effect root alongside the
+acceptance.
 D08CombinedANFRejectV1 contains:
 
 - a closed D08CombinedANFCodeV1 value;
@@ -87,4 +93,3 @@ The TCG inventory and certificate are supplied research fixtures. The DRA
 snapshot model does not refine a production datastore or crash protocol. No
 caller, API, worker, destination, deployment, migration, authority switch, or
 value-moving path is mounted by this task.
-

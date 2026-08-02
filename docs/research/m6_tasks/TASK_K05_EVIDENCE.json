@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "K05",
   "base_sha": "a0d651d6bddf0b6f4e59c07a1085ccd489ed072e",
-  "source_head_sha": "edca73303b2f8201483c35dfee55ed84752e650c",
-  "source_head_tree": "69ee9ed990a95a69727809870972cb78219a3351",
+  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -37,8 +37,8 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "src/core/fcis_m6_k05_bypass_mutants.py": "1bcc1b54f311a7e2fc266e3c62e67a561d179521bed1cedfdd206e285a0104a2",
-    "experiments/fcis_m6_k05_bypass_mutation_check.py": "b05828d30d277d1c3a47f1823c51cfb8b1cfbc90dcf420410c234d5499d16a06",
+    "src/core/fcis_m6_k05_bypass_mutants.py": "fbd9b25b69ebc166da3593f0ac9a96e986dc660303b8a8fe0a57c12fb72d113f",
+    "experiments/fcis_m6_k05_bypass_mutation_check.py": "b9684e1177c82f78f0fc1e2b8db835f5f25b3ae7ea008536272f0026a8591d42",
     "tests/tools/test_fcis_m6_k05_bypass_mutation.py": "872e23359a938d57b959c5b2aa903b0023524b975ece49af5a1a87539daaf23d",
     "docs/research/m6_tasks/FCIS_M6_K05_BYPASS_MUTATION_SCHEMA_V1.md": "0500d9096ff084c88690b8d9b488ee98d6ba509c72056f18450b42e484d3f824",
     "docs/research/m6_tasks/TASK_K05_PLAN.md": "5a501efe3c40905883f77d978365b921e48bd39394eab6c8c9dde1c808575571"
@@ -48,11 +48,11 @@
     "mutant_kinds_per_entrypoint": "6",
     "total_mutants": "90",
     "killed_mutants": "90",
-    "current_root_cas": "pass; forged expected head rejected as STALE_HEAD",
+    "current_root_cas": "pass; forged current state head rejected as STALE_HEAD",
     "focused_tests": "pass; 2 passed",
-    "implementation_commit": "edca73303b2f8201483c35dfee55ed84752e650c",
-    "implementation_tree": "69ee9ed990a95a69727809870972cb78219a3351",
-    "implementation_parent": "a0d651d6bddf0b6f4e59c07a1085ccd489ed072e"
+    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
+    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b"
   },
   "mutants": [
     "return success without commit",

@@ -2,8 +2,8 @@
 
 TASK_ID: H02
 BASE_SHA: 00d95e2b09be663e7d07547e4eab020718042d62
-SOURCE_HEAD_SHA: 3eea372c4b7b672785ce897625d207358f6b6f36
-SOURCE_HEAD_TREE: 23f3e3fe0d96044d974af8c26f9385efae1bf850
+SOURCE_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+SOURCE_HEAD_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
 BRANCH: codex/task-H03-deterministic-crash-20260801
 FILES_CHANGED:
 - experiments/fcis_m6_h02_sqlite_publication.py
@@ -11,15 +11,16 @@ FILES_CHANGED:
 - docs/research/m6_tasks/TASK_H02_PLAN.md
 - docs/research/m6_tasks/FCIS_M6_H02_SQLITE_PUBLICATION_SCHEMA_V1.md
 
-IMPLEMENTATION_HEAD_SHA: 3eea372c4b7b672785ce897625d207358f6b6f36
-IMPLEMENTATION_TREE: 23f3e3fe0d96044d974af8c26f9385efae1bf850
-IMPLEMENTATION_PARENT: 00d95e2b09be663e7d07547e4eab020718042d62
+IMPLEMENTATION_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+IMPLEMENTATION_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
+IMPLEMENTATION_PARENT: c3213000060d3224e1291d2bbf9992e41f8fd74b
 SOURCE_SNAPSHOT: docs/research/m6_tasks/H02_SOURCE_SNAPSHOT/fcis_m6_h02_sqlite_publication.py
 
 CLAIM_IMPLEMENTED: H02 adds an isolated SQLite refinement with one
 BEGIN IMMEDIATE publication transaction. It reconstructs the complete PRE
 layout, checks expected snapshot/publication/state/authority roots, binds a
-verifier-produced D08 ANF witness, derives the complete POST relation,
+verifier-produced D08 ANF witness, revalidates its provenance at point of use,
+derives the complete POST relation,
 performs a SQL CAS, inserts the logical publication rows, reopens the
 uncommitted rows, compares them with the exact POST state, and commits or
 rolls back. The ANF relation is explicit because PublicationAtomV1 does not
@@ -45,7 +46,7 @@ RESULTS:
 - Stale snapshot, state, and authority CAS cases were no-ops.
 - A forced SQLite abort after evidence insertion rolled back every H02 row.
 - Foreign verifier acceptance, atom-bearing seed without ANF, and crossed
-  atom/witness cases rejected.
+  atom/witness cases rejected after D08 provenance revalidation.
 - The source snapshot and test hashes match the H02 implementation commit.
 
 MUTANTS_ADDED: None. Negative witnesses are covered by focused rejection and

@@ -6,19 +6,23 @@ unmounted and non-promotable.
 ## Objective
 
 Define one narrow publication edge that consumes only a verifier-produced D08
-acceptance witness and immutable values. Return a new immutable port state or a
-typed rejection. Keep side-effect adapters out of core and record the
-dependency policy that K03 will enforce structurally.
+acceptance witness. The witness owns the complete immutable publication atom;
+K02 derives every publication field from that aggregate and revalidates D08
+provenance at use. Return a new immutable port state or a typed rejection. Keep
+side-effect adapters out of core and record the dependency policy that K03 will
+enforce structurally.
 
 ## Procedure
 
-1. Use the existing controlled D08 construction witness as the required ANF
+1. Use the existing controlled D08 acceptance witness as the only request
    input type.
-2. Require exact bounded roots, sequence, and immutable request fields.
+2. Require the D08-owned publication aggregate and derive exact bounded roots,
+   sequence, and immutable request fields from it.
 3. Construct one module-owned singleton port with a private construction token.
 4. Reject arbitrary port objects, caller-minted port tokens, raw ANF objects,
    stale heads, sequence crossings, and commit fingerprint collisions.
-5. Recompute request, response, and successor-head roots at the port boundary.
+5. Revalidate D08 provenance, then recompute request, response, and
+   successor-head roots at the port boundary.
 6. Return `NEWLY_COMMITTED` or `ALREADY_COMMITTED` with the exact state, or a
    typed rejection with no state-changing result.
 7. Preserve dependency rules as a closed JSON input for K03.

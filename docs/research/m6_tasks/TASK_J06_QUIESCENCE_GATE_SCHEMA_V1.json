@@ -21,6 +21,11 @@
     "evidence_markers",
     "quiescence_root"
   ],
+  "attempt_identity_requirements": [
+    "attempt_root canonically hashes publisher, writer profile, epoch, authority root, expected head, commit, command, and sequence",
+    "admission results repeat every attempted field used by attempt_root",
+    "different attempted sequence or expected head values produce different result wire identities"
+  ],
   "required_writer_ids": [
     "api_http_ingress",
     "background_outbox_delivery",

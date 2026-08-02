@@ -23,6 +23,10 @@ effect, derives the acknowledgment subject from the returned receipt, passes
 the result through I05, and writes one immutable local journal entry. A later
 redelivery verifies the same acknowledgment and leaves its write count at one.
 
+Recovery-state construction and revalidation require the live I04 verifier
+provenance at point of use. An exact-class copied contract without that
+provenance is a typed invalid-state rejection.
+
 ## Evidence boundary
 
 I06 covers the named crash window, stable effect identity, destination

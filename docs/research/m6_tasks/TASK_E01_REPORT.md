@@ -2,8 +2,8 @@
 
 TASK_ID: E01
 BASE_SHA: 5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb
-SOURCE_HEAD_SHA: d620535366cbfad4047786eb1a4284e7ee006093
-SOURCE_HEAD_TREE: e2cb860faf14685c99f52b08959dd0207229d5fe
+SOURCE_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+SOURCE_HEAD_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
 BRANCH: codex/task-H03-deterministic-crash-20260801
 FILES_CHANGED:
 - config/deploy/fcis_m6_e01_request_identity_v1.json
@@ -16,16 +16,18 @@ FILES_CHANGED:
 - tests/core/test_fcis_m6_e01_request_identity.py
 - tools/build_fcis_m6_e01_request_identity.py
 
-IMPLEMENTATION_HEAD_SHA: d620535366cbfad4047786eb1a4284e7ee006093
-IMPLEMENTATION_TREE: e2cb860faf14685c99f52b08959dd0207229d5fe
-IMPLEMENTATION_PARENT: 5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb
+IMPLEMENTATION_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+IMPLEMENTATION_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
+IMPLEMENTATION_PARENT: c3213000060d3224e1291d2bbf9992e41f8fd74b
 
 CLAIM_IMPLEMENTED: E01 derives a canonical request identity only from a
 verifier-owned authenticated-command witness and explicit deployment,
-sequence, and authority context. The public command and identity constructors
-reject ordinary caller construction. The strict codec rejects extra or
-missing fields, malformed digests, unsupported command families, booleans in
-integer positions, and width violations. The stable identity binds the
+sequence, and authority context. Exact-class commands must also carry a
+verifier-registration snapshot that is revalidated at point of use, so an
+object.__new__ command or a mutated witness cannot cross the identity boundary.
+The strict codec rejects extra or missing fields, malformed digests,
+unsupported command families, booleans in integer positions, invalid UTF-8,
+and width/collection violations. The stable identity binds the
 authentication profile root while retaining evidence-root provenance on the
 command witness.
 
@@ -53,14 +55,17 @@ RESULTS:
   codec.
 - Public authenticated-command and identity constructors reject caller-minted
   values.
-- Focused E01 suite passed: 4 passed.
+- Exact-class forged-command provenance rejection passed.
+- Focused E01 suite passed: 5 passed.
 - Ruff, formatting, strict mypy, Python compilation, JSON parsing, packet
   validation, source manifest verification, and diff whitespace checks pass.
 
-MUTANTS_ADDED: Caller-minted authenticated command, caller-minted request
-identity, extra field, missing field, malformed digest, boolean nonce, command
-family mutation, command-root mutation, and sequence mutation are retained as
-negative witnesses.
+MUTANTS_ADDED: Caller-minted authenticated command, exact-class forged command
+without verifier provenance, mutated registered command, caller-minted request
+identity, extra field, missing field, malformed digest, invalid UTF-8,
+boolean nonce, command family mutation, command-root mutation, sequence
+mutation, and bounded nonclaim collection violations are retained as negative
+witnesses.
 
 FORMAL_EVIDENCE: None. E01 supplies executable typed-model evidence and adds
 no machine-checked cryptographic authentication theorem.

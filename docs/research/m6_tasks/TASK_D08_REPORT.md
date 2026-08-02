@@ -2,9 +2,9 @@
 
 TASK_ID: D08
 BASE_SHA: f721d3bc11929c7649f93655f362e7ee0cc13a07
-SOURCE_HEAD_SHA: 476ec022e755ff049c39bf9f08c6606ac87532ca
-SOURCE_HEAD_TREE: a1d495eae0b26a369487ceb48cad5472abec74db
-BRANCH: codex/task-C07-exact-migration-review-packet-20260801
+SOURCE_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+SOURCE_HEAD_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
+BRANCH: codex/task-H03-deterministic-crash-20260801
 FILES_CHANGED:
 - src/core/fcis_m6_d08_combined_anf.py
 - experiments/fcis_m6_d08_combined_anf_check.py
@@ -17,14 +17,17 @@ CLAIM_IMPLEMENTED: D08 composes source-bound lineage and C3 closure, anchored
 TCG evidence, structural proof-context binding, durable PRE/POST history
 reconstruction, and ANF-bound decision/bundle evaluation into one fail-closed
 research verifier. Each stage recomputes its own source before the later stage
-is evaluated. The verifier returns exactly one canonical ANF root on success or
-a closed typed rejection. It rejects later-root substitution, crossed or
-malformed TCG evidence, missing proof context, publication/history mismatch,
-and source extraction failures.
+is evaluated. A successful result owns the complete canonical
+`PublicationAtomV1` used by the later publication port, rather than returning
+an ANF root alongside caller-selected publication fields. The acceptance
+result carries verifier registration and is revalidated at point of use, so an
+exact-class forged or mutated result cannot authorize publication. D08 rejects
+later-root substitution, crossed or malformed TCG evidence, missing proof
+context, publication/history mismatch, and source extraction failures.
 
-IMPLEMENTATION_HEAD_SHA: 6f1f31697
-IMPLEMENTATION_TREE: 938dbe9994ef527335f2167edf010d9dc0cfff2b
-IMPLEMENTATION_PARENT: f721d3bc11929c7649f93655f362e7ee0cc13a07
+IMPLEMENTATION_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+IMPLEMENTATION_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
+IMPLEMENTATION_PARENT: c3213000060d3224e1291d2bbf9992e41f8fd74b
 
 COMMANDS_RUN:
 - python3 -m py_compile src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py
@@ -54,6 +57,8 @@ RESULTS:
 - The checker killed five targeted mutants: foreign TCG topology, foreign C3 root,
   foreign proof root/context, foreign publication authority state, and base
   decision substituted for the later ANF decision.
+- The successful acceptance owns the exact recomputed publication atom;
+  downstream K02 rejects a forged exact-class acceptance object.
 - The focused tests additionally covered wrong exact type, source extraction
   failure, missing proof context, PRE/POST history mismatch, later decision
   substitution, and malformed TCG evidence.
@@ -74,7 +79,8 @@ substitution, proof-context substitution, publication authority substitution,
 later decision substitution, wrong exact instance type, source extraction
 failure, missing proof context, crossed PRE/POST history, and malformed TCG
 certificate. Focused tests and the deterministic checker reject each named
-mutation at the relevant stage.
+mutation at the relevant stage. The downstream publication witness also
+retains the exact-class acceptance-forgery negative case.
 
 FORMAL_EVIDENCE: None. D08 supplies a typed executable composition relation, a
 canonical output vector, deterministic rejection codes, and mutation-killing
@@ -100,4 +106,3 @@ that stage order. The structural proof-context check must not be promoted to
 proof verification. Production refinement still requires authenticated source
 inputs, a transactional datastore adapter, crash injection, effect-worker
 provenance, caller/no-bypass audit, and a mounted authority lifecycle.
-

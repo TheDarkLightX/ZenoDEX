@@ -2,8 +2,8 @@
 
 TASK_ID: K02
 BASE_SHA: b41d7954586c4cf0e309a625f40a9aff2e2a8999
-SOURCE_HEAD_SHA: e47fe388b823b56a21763fce83c9a926e52b0e9d
-SOURCE_HEAD_TREE: f865f61ad5b7626f6fe9aebf40438a85fa5a8e2f
+SOURCE_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+SOURCE_HEAD_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
 BRANCH: codex/task-H03-deterministic-crash-20260801
 
 FILES_CHANGED:
@@ -15,17 +15,21 @@ FILES_CHANGED:
 - docs/research/m6_tasks/FCIS_M6_K02_UNIQUE_COMMIT_PORT_SCHEMA_V1.md
 - docs/research/m6_tasks/TASK_K02_PLAN.md
 
-IMPLEMENTATION_HEAD_SHA: e47fe388b823b56a21763fce83c9a926e52b0e9d
-IMPLEMENTATION_TREE: f865f61ad5b7626f6fe9aebf40438a85fa5a8e2f
-IMPLEMENTATION_PARENT: b41d7954586c4cf0e309a625f40a9aff2e2a8999
+IMPLEMENTATION_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
+IMPLEMENTATION_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
+IMPLEMENTATION_PARENT: c3213000060d3224e1291d2bbf9992e41f8fd74b
 
 CLAIM_IMPLEMENTED: K02 defines one research unique commit-port capability
-with identity `fcis/m6/unique-atomic-commit-port/v1`. The port consumes only
-an exact D08 verifier acceptance witness plus immutable request/state values.
-It returns newly-committed, already-committed, or typed rejection results.
-Same-commit retries preserve state, changed fingerprints reject as collisions,
-and stale heads or sequence crossings fail closed. A module-owned construction
-token prevents ordinary caller construction of another port instance.
+with identity `fcis/m6/unique-atomic-commit-port/v1`. The request contains only
+an exact D08 verifier acceptance witness. K02 obtains the complete
+`PublicationAtomV1` from that witness and derives commit, pre/post state,
+authority, effect, and sequence fields from the owned aggregate; callers cannot
+select a second publication tuple alongside the witness. D08 provenance is
+revalidated at point of use. It returns newly-committed, already-committed, or
+typed rejection results. Same-commit retries preserve state, changed
+fingerprints reject as collisions, and stale heads or sequence crossings fail
+closed. A module-owned construction token prevents ordinary caller
+construction of another port instance.
 
 COMMANDS_RUN:
 
@@ -46,15 +50,19 @@ RESULTS:
 - First publication classified as `NEWLY_COMMITTED` and advanced the
   immutable sequence/head state.
 - Same request classified as `ALREADY_COMMITTED` without changing state.
-- Same commit ID with a changed fingerprint rejected as `COMMIT_COLLISION`.
+- Same commit ID with a changed durable fingerprint rejected as
+  `COMMIT_COLLISION`.
 - Stale expected head, wrong sequence, arbitrary capability, caller-minted
   capability, and raw ANF witness all rejected.
-- Focused K02 suite passed: 5 passed.
+- Publication-field ownership, state-bound collision, and sequence witnesses
+  passed.
+- Focused K02 suite passed: 6 passed.
 - Python compilation, Ruff, formatting, strict mypy, JSON parsing, and diff
   whitespace checks passed.
 
 MUTANTS_ADDED: K02 covers a forged capability object, direct capability
-construction without the controlled token, raw ANF input, same-identity
+construction without the controlled token, raw and exact-class-forged D08
+inputs, caller-selected publication-field substitution, same-identity
 fingerprint collision, stale head, sequence crossing, and retry-state mutation
 witnesses.
 

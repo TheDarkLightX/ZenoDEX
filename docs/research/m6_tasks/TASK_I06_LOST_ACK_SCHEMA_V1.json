@@ -7,6 +7,7 @@
     "ack_durable"
   ],
   "recovery_contract": [
+    "state construction and revalidation require a live I04 verifier-registered contract",
     "destination record survives the simulated response loss",
     "local acknowledgment is absent in the response-lost phase",
     "redelivery uses the original effect identity and payload root",
@@ -18,6 +19,7 @@
   "rejection_witnesses": [
     "ready state skips the crash phase",
     "forged destination receipt root",
+    "exact-class contract without I04 verifier provenance",
     "attempt counter overflow",
     "malformed state"
   ],

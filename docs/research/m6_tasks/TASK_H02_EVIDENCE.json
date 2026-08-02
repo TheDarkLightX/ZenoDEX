@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "H02",
   "base_sha": "00d95e2b09be663e7d07547e4eab020718042d62",
-  "source_head_sha": "3eea372c4b7b672785ce897625d207358f6b6f36",
-  "source_head_tree": "23f3e3fe0d96044d974af8c26f9385efae1bf850",
+  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -33,6 +33,7 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
+    "experiments/fcis_m6_h02_sqlite_publication.py": "a117d9be3dcd2afa2e63afcce585a98bc81a6b69cfa08b721f6b6058e1af0f81",
     "docs/research/m6_tasks/H02_SOURCE_SNAPSHOT/fcis_m6_h02_sqlite_publication.py": "78ab9b9907e7d6b8371b961a9b2a7b8a62cf6d8f5b474f283b17c4ac3b3efe45",
     "tests/core/test_fcis_m6_h02_sqlite_publication.py": "6cad48930a00e26d9184eb336073e895ea477b17f866f0c0a0bebc041003052d",
     "docs/research/m6_tasks/TASK_H02_PLAN.md": "459b3b1b9426b62a60bed4e9466e1c0b6878de1df70f7975ece62499ba0fb6e4",
@@ -47,10 +48,10 @@
     "complete_post": "pass; exact derived POST equals complete reopened state",
     "stale_cas": "pass; snapshot, state, and authority stale cases preserve PRE",
     "sql_rollback": "pass; forced evidence insert abort preserves PRE and leaves H02 tables empty",
-    "anf_binding": "pass; foreign acceptance and crossed witness are rejected",
-    "implementation_commit": "3eea372c4b7b672785ce897625d207358f6b6f36",
-    "implementation_tree": "23f3e3fe0d96044d974af8c26f9385efae1bf850",
-    "implementation_parent": "00d95e2b09be663e7d07547e4eab020718042d62"
+    "anf_binding": "pass; foreign, crossed, and mutated exact-class acceptance witnesses are rejected",
+    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
+    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b"
   },
   "mutants": [],
   "nonclaims": [

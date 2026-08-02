@@ -2,9 +2,9 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "D08",
   "base_sha": "f721d3bc11929c7649f93655f362e7ee0cc13a07",
-  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
-  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
-  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
+  "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
     "src/core/fcis_m6_d08_combined_anf.py",
@@ -46,18 +46,18 @@
     "mypy": "mypy 2.1.0 (compiled: yes)"
   },
   "source_hashes": {
-    "src/core/fcis_m6_d08_combined_anf.py": "ec0b87e6dabdfe16e84eb49c0df6481d9292b4e375512f50d2729b909b7cfd63",
+    "src/core/fcis_m6_d08_combined_anf.py": "80a0c461ceb1e71a04592972b995c4f4353a41ec9080fe9ec2fdfa68a5c7366e",
     "experiments/fcis_m6_d08_combined_anf_check.py": "7087d5654fc2064f9bacad40915e95d4a43a661506dd7c4e44a09d0a825454db",
-    "tests/core/test_fcis_m6_d08_combined_anf.py": "095a183aabeac1318f2e2fd6835efa9afa480de5ef25e3547ff92bc9e673c69b",
+    "tests/core/test_fcis_m6_d08_combined_anf.py": "5a917348481f065a3915716ab381b3360a5f8fbc570b52c89d567d221453d2e2",
     "docs/research/m6_tasks/TASK_D08_COMBINED_ANF_VECTOR.json": "fbdda916f6920fabc310dcef0cdc63663e7fa68106aef31780ea98d3602e5e4a",
-    "docs/research/FCIS_M6_D08_COMBINED_ANF_SCHEMA_V1.md": "7b4eb055350d62044c139f612cd5f6ac792c1bfd661bda611db242de00a28285",
-    "docs/research/m6_tasks/TASK_D08_PLAN.md": "3290d7fc6e432d803f6344f5fab465265644037f1e0349df6792d56fea43c54a",
-    "docs/research/m6_tasks/TASK_D08_REPORT.md": "5396b1f1fee341e1d160508b904083d760a14038669c1d71470afeb81e593574"
+    "docs/research/FCIS_M6_D08_COMBINED_ANF_SCHEMA_V1.md": "c3c42d3af0e47e8fc0c64abe62d91bf6e6b07cecc27de6c9a1dc119842b9314c",
+    "docs/research/m6_tasks/TASK_D08_PLAN.md": "9c98094ca4d6065d94623b4107a4bb0088caf08ed2d267acbc3c32175f5a89d8",
+    "docs/research/m6_tasks/TASK_D08_REPORT.md": "a10ee49575e8bb126c9de8f94b040edbd3035c54b9d0e5362be42175f35d9fdc"
   },
   "results": {
-    "implementation_commit": "6f1f31697",
-    "implementation_tree": "938dbe9994ef527335f2167edf010d9dc0cfff2b",
-    "implementation_parent": "f721d3bc11929c7649f93655f362e7ee0cc13a07",
+    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
+    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b",
     "focused_d08_tests": "5 passed",
     "d08_dependency_regression": "202 passed",
     "d08_vector_checker": "pass; D08_COMBINED_ANF_MATCH; 5 mutants killed",
@@ -74,8 +74,8 @@
     "ruff_format": "pass; 3 files",
     "mypy_strict": "pass; 3 files",
     "json_vector": "pass",
-    "validator": "pass; 8 manifest entries",
-    "source_manifest": "pass; 8 manifest entries",
+    "validator": "pending packet refresh",
+    "source_manifest": "pending packet refresh",
     "runtime_mount": "none",
     "remote_publication": "none"
   },

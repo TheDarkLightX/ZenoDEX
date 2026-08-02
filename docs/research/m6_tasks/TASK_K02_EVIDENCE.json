@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "K02",
   "base_sha": "b41d7954586c4cf0e309a625f40a9aff2e2a8999",
-  "source_head_sha": "e47fe388b823b56a21763fce83c9a926e52b0e9d",
-  "source_head_tree": "f865f61ad5b7626f6fe9aebf40438a85fa5a8e2f",
+  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -38,28 +38,31 @@
   },
   "source_hashes": {
     "config/deploy/fcis_m6_k02_dependency_rules_v1.json": "dff3b35c1cd59aea816daa757b6140922805783d33649d874f23eb1f34a50f0c",
-    "src/core/fcis_m6_k02_commit_port.py": "2c3f7e569f6dec1d55fd56589c294f60a75860b1a2023a5c4e758fdd1d599ff5",
-    "experiments/fcis_m6_k02_commit_port_check.py": "3990144a2d79a21d6d23dd0a64790425fdc18b3324cf9026dc196a6eb3807a55",
-    "tests/core/test_fcis_m6_k02_commit_port.py": "2cc9a842e528e365525e4679409eb306e03643075cfe0309f6ebd9971e343b79",
-    "docs/research/m6_tasks/FCIS_M6_K02_UNIQUE_COMMIT_PORT_SCHEMA_V1.md": "ab42eb4371b6bff236581b4331e5533e30d6495e37bb77428982e05d47360c21",
-    "docs/research/m6_tasks/TASK_K02_PLAN.md": "ce88e0db5f0b1718b85fef46553a3c027d0420c435f05816b601e3f461e40760"
+    "src/core/fcis_m6_k02_commit_port.py": "a9456e084b011a0e8e64aa4378d125e7397672666a4bbfd1493f82ccc03f95b2",
+    "experiments/fcis_m6_k02_commit_port_check.py": "2c85ffe14ab9bcc1beeb2de4ab38545e7261707d302c1a7394f0342c832d0b6a",
+    "tests/core/test_fcis_m6_k02_commit_port.py": "a5a20fe75c9b1e6539cd88684d9d2d8e4b46d00094db49bc11a46edaea9bf67a",
+    "docs/research/m6_tasks/FCIS_M6_K02_UNIQUE_COMMIT_PORT_SCHEMA_V1.md": "44b369ae01338842605de0b5ae8296ca01793152b70173c801a3ad997db63d3a",
+    "docs/research/m6_tasks/TASK_K02_PLAN.md": "95e3fb0066ea491e53226fe17bd68b7ee1fae5bdc0513293dcc3dbae2855d1a1"
   },
   "results": {
     "unique_port_id": "fcis/m6/unique-atomic-commit-port/v1",
     "singleton_identity": "pass",
     "first_commit": "NEWLY_COMMITTED",
     "same_commit_retry": "ALREADY_COMMITTED; state unchanged",
-    "collision": "pass; changed fingerprint rejected",
-    "fail_closed_inputs": "pass; forged capability, raw ANF, stale head, and sequence crossing rejected",
-    "focused_tests": "pass; 5 passed",
-    "implementation_commit": "e47fe388b823b56a21763fce83c9a926e52b0e9d",
-    "implementation_tree": "f865f61ad5b7626f6fe9aebf40438a85fa5a8e2f",
-    "implementation_parent": "b41d7954586c4cf0e309a625f40a9aff2e2a8999"
+    "collision": "pass; state-bound changed fingerprint rejected",
+    "fail_closed_inputs": "pass; forged capability, raw/exact-class-forged D08, stale head, and sequence crossing rejected",
+    "publication_field_ownership": "pass; request derives all publication fields from D08-owned atom",
+    "focused_tests": "pass; 6 passed",
+    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
+    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
+    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b"
   },
   "mutants": [
     "arbitrary capability object rejected",
     "caller-minted capability token rejected",
     "raw ANF witness rejected",
+    "exact-class forged D08 witness rejected",
+    "caller-selected publication fields unavailable",
     "same commit ID with changed fingerprint rejected",
     "stale head rejected",
     "sequence crossing rejected",

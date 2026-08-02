@@ -12,6 +12,12 @@
     "mechanism",
     "canonical_contract_root"
   ],
+  "verified_contract_requirements": [
+    "constructor is verifier-controlled",
+    "delivery revalidates verifier provenance and unchanged contract fields",
+    "downstream consumers revalidate the live verifier provenance at point of use",
+    "direct or exact-class forged contracts are unmountable"
+  ],
   "destination_record_fields": [
     "effect_id",
     "destination",
@@ -25,7 +31,9 @@
     "same effect_id with a different destination rejects",
     "effect adapter_profile_root must equal the verified contract profile",
     "records are unique and sorted by effect_id",
-    "a new effect at exact capacity rejects without changing state"
+    "nested destination-record fields are revalidated at every state boundary",
+    "a new effect at exact capacity rejects without changing state",
+    "an exact-class forged contract cannot enter a downstream consumer"
   ],
   "unmountable_rule": "unsupported mechanism or forged contract root cannot produce a verified contract witness",
   "nonclaims": [

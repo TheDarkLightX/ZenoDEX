@@ -10,6 +10,7 @@
     "verifier_profile_root"
   ],
   "verification_rules": [
+    "contract is a live I04 verifier-registered witness at point of use",
     "effect destination equals verified contract destination",
     "effect adapter profile equals verified contract adapter profile",
     "receipt effect ID and payload root equal the committed effect",
@@ -24,7 +25,8 @@
     "crossed effect and receipt",
     "foreign adapter profile",
     "foreign verifier profile",
-    "forged subject root"
+    "forged subject root",
+    "exact-class contract without I04 verifier provenance"
   ],
   "nonclaims": [
     "no real destination receipt bytes",

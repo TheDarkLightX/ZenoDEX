@@ -23,6 +23,9 @@ The gate also carries the J04 quiescence markers and the J02 authority epoch.
 Its root is the canonical hash of every field except the self-reference. Gate
 and admission-result construction is verifier-owned in this model; ordinary
 callers cannot mint a self-consistent witness by choosing roots directly.
+Every admission result carries a canonical root over the complete attempted
+sequence, expected head, authority root, epoch, command, publisher, and writer
+profile fields.
 
 ## Admission contract
 
@@ -35,6 +38,9 @@ post_head_root = pre_head_root = g.current_head_root
 post_authority_state_root = pre_authority_state_root = g.authority_state_root
 post_snapshot_root = pre_snapshot_root = g.current_snapshot_root
 ```
+
+Two rejected attempts that differ only in sequence, expected head, authority
+root, or epoch therefore remain distinct evidence records.
 
 An attempt outside the covered K01 set, with a stale authority epoch/root,
 foreign expected head, or wrong activation sequence receives its own closed

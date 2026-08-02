@@ -3,10 +3,13 @@
 E01 derives one stable retry identity from a verifier-owned authenticated
 command witness and explicit deployment, sequence, and authority context.
 The public constructors for the authenticated command and request identity
-reject ordinary caller construction. The witness contains command, sender,
-family, nonce, authentication-profile, and authentication-evidence roots. The
-identity binds the stable authentication profile root and excludes ephemeral
-evidence bytes from its retry preimage.
+reject ordinary caller construction. The verifier registers each command and
+identity with an immutable field snapshot. Identity derivation and identity
+comparison revalidate exact type, registration, and unchanged canonical
+fields. The witness contains command, sender, family, nonce,
+authentication-profile, and authentication-evidence roots. The identity binds
+the stable authentication profile root and excludes ephemeral evidence bytes
+from its retry preimage.
 
 ## Canonical identity body
 
@@ -29,6 +32,7 @@ The request identity root is the domain-separated hash of this body.
 ## Boundary
 
 The private fixture mint helper stands for an external verifier that has
-already authenticated the command. E01 does not implement signatures,
-credential verification, commit authorization, datastore mutation, replay
-storage, or a mounted caller. M6 remains research-only and non-promotable.
+already authenticated the command; its registration is a model premise, not
+cryptographic authentication. E01 does not implement signatures, credential
+verification, commit authorization, datastore mutation, replay storage, or a
+mounted caller. M6 remains research-only and non-promotable.
