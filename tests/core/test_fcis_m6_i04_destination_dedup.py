@@ -7,6 +7,7 @@ from dataclasses import replace
 import pytest
 
 from experiments.fcis_m6_i04_destination_dedup import (
+    MAX_DESTINATION_RECEIPTS_V1,
     I04DedupCodeV1,
     I04DedupContractCandidateV1,
     I04DedupModeV1,
@@ -179,3 +180,39 @@ def test_invalid_effect_is_rejected_without_creating_destination_state() -> None
     assert next_state == state
     assert isinstance(result, I04DedupRejectV1)
     assert result.code is I04DedupCodeV1.INVALID_EFFECT
+
+
+def _at_capacity_state() -> I04DestinationStateV1:
+    records = tuple(
+        sorted(
+            (
+                I04DestinationRecordV1(
+                    effect_id=tagged_digest(f"i04/capacity/effect/{index:04d}"),
+                    destination="i04-destination",
+                    payload_root=tagged_digest(f"i04/capacity/payload/{index:04d}"),
+                    destination_receipt_root=tagged_digest(f"i04/capacity/receipt/{index:04d}"),
+                )
+                for index in range(MAX_DESTINATION_RECEIPTS_V1)
+            ),
+            key=lambda record: record.effect_id,
+        )
+    )
+    state = I04DestinationStateV1(records=records)
+    state.__post_init__()
+    return state
+
+
+def test_destination_capacity_is_closed_at_construction_revalidation_and_delivery() -> None:
+    state = _at_capacity_state()
+    contract = _contract(I04DedupModeV1.APPLICATION_RECEIPT_TABLE)
+
+    over_capacity = object.__new__(I04DestinationStateV1)
+    object.__setattr__(over_capacity, "records", (*state.records, state.records[0]))
+    with pytest.raises(ValueError, match="capacity bound"):
+        over_capacity.__post_init__()
+
+    next_state, result = deliver_effect_v1(contract, state, _effect(payload_label="i04/full"))
+
+    assert next_state == state
+    assert isinstance(result, I04DedupRejectV1)
+    assert result.code is I04DedupCodeV1.CAPACITY_EXCEEDED

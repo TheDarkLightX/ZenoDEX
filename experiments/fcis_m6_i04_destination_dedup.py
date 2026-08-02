@@ -9,13 +9,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import TypeAlias, cast
+from typing import Final, TypeAlias, cast
 
 from src.core import fcis_durable_retraction as dra
 
 
 class I04Error(ValueError):
     """Typed validation failure in the isolated I04 model."""
+
+
+MAX_DESTINATION_RECEIPTS_V1: Final = 8_192
 
 
 def _digest(value: object, label: str) -> str:
@@ -51,6 +54,7 @@ class I04DedupCodeV1(Enum):
     DESTINATION_MISMATCH = "destination_mismatch"
     ADAPTER_PROFILE_MISMATCH = "adapter_profile_mismatch"
     PAYLOAD_CONFLICT = "payload_conflict"
+    CAPACITY_EXCEEDED = "capacity_exceeded"
     STATE_INVALID = "state_invalid"
 
 
@@ -199,6 +203,11 @@ class I04DestinationStateV1:
     def __post_init__(self) -> None:
         if type(self.records) is not tuple:
             raise I04Error("destination records must be an exact tuple")
+        if len(self.records) > MAX_DESTINATION_RECEIPTS_V1:
+            raise I04Error(
+                "destination records exceed the closed capacity bound "
+                f"{MAX_DESTINATION_RECEIPTS_V1}"
+            )
         if any(type(record) is not I04DestinationRecordV1 for record in self.records):
             raise I04Error("destination record has the wrong exact type")
         if tuple(sorted(self.records, key=lambda record: record.effect_id)) != self.records:
@@ -248,6 +257,8 @@ def _deliver_against_record_table(
             destination_receipt_root=existing.destination_receipt_root,
             outcome=I04DeliveryOutcomeV1.ALREADY_ACCEPTED,
         )
+    if len(state.records) >= MAX_DESTINATION_RECEIPTS_V1:
+        return state, _reject(I04DedupCodeV1.CAPACITY_EXCEEDED, "records")
     record = I04DestinationRecordV1(
         effect_id=effect.effect_id,
         destination=effect.destination,
@@ -317,6 +328,7 @@ __all__ = (
     "I04DestinationStateV1",
     "I04Error",
     "I04VerifiedDedupContractV1",
+    "MAX_DESTINATION_RECEIPTS_V1",
     "deliver_effect_v1",
     "derive_dedup_contract_root",
     "verify_dedup_contract_v1",

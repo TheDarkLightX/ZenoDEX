@@ -18,12 +18,14 @@
     "payload_root",
     "destination_receipt_root"
   ],
+  "max_destination_receipts": 8192,
   "duplicate_rule": "same effect_id, destination, and payload_root returns ALREADY_ACCEPTED with the original receipt root",
   "collision_rules": [
     "same effect_id with a different payload_root rejects",
     "same effect_id with a different destination rejects",
     "effect adapter_profile_root must equal the verified contract profile",
-    "records are unique and sorted by effect_id"
+    "records are unique and sorted by effect_id",
+    "a new effect at exact capacity rejects without changing state"
   ],
   "unmountable_rule": "unsupported mechanism or forged contract root cannot produce a verified contract witness",
   "nonclaims": [
