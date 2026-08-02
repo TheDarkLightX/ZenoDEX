@@ -1,9 +1,9 @@
 {
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "I04",
-  "base_sha": "f2cfbeef28f64a570e20aea97fb30a6af17ef75e",
-  "source_head_sha": "5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb",
-  "source_head_tree": "1c9414653acd65cce22b6f89c90befc88ce80013",
+  "base_sha": "8cf31c666babeca23b50c67b4fd3438669a08997",
+  "source_head_sha": "0071e414e0c415b8930649799fdd1be8f74f47af",
+  "source_head_tree": "5aace573ecfbc78ce20433439e4b21eef6ed1716",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -34,8 +34,8 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "experiments/fcis_m6_i04_destination_dedup.py": "bd30ff76cf6c9b56af9c3f67b57a2b7c3e9e78ba38a6e4353818b0fa73edb750",
-    "tests/core/test_fcis_m6_i04_destination_dedup.py": "d0059ff8bbd8cdb7c00b4922c8f338a40478c0774920ba0f88f44550ee0cc716",
+    "experiments/fcis_m6_i04_destination_dedup.py": "67922e39b79deb329d0187513a40008ae5ad40d5fcd7772832941721c0bf84af",
+    "tests/core/test_fcis_m6_i04_destination_dedup.py": "c30f42b3aea7cf0126b4522ddcd616777ffab1a91c787effbfb420e60d086b88",
     "docs/research/m6_tasks/TASK_I04_DESTINATION_DEDUP_SCHEMA_V1.json": "eac1ac5f5d945e3df2a4ec1a2f36029c21b3fd08a2ad9cab130f2163b8832b99",
     "docs/research/m6_tasks/TASK_I04_PLAN.md": "c9cda3c1ab2613d143f9d2ec2e8b92582d93737c1d9388aa02c9eead53bdb8b4"
   },
@@ -44,15 +44,16 @@
     "mechanism_coverage": "pass; native key, query-by-effect-ID, and receipt-table paths",
     "duplicate_idempotence": "pass; stable receipt root and unchanged destination state",
     "collision_rejection": "pass; payload, destination, and adapter-profile crossings reject",
-    "capacity_bound": "pass; 8,192 maximum and typed exact-capacity rejection",
+    "capacity_bound": "pass; 8,192 maximum, typed state revalidation, and exact-capacity rejection",
     "unmountable_contracts": "pass; forged and unsupported contracts reject",
-    "implementation_commit": "5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb",
-    "implementation_tree": "1c9414653acd65cce22b6f89c90befc88ce80013",
-    "implementation_parent": "f2cfbeef28f64a570e20aea97fb30a6af17ef75e"
+    "implementation_commit": "0071e414e0c415b8930649799fdd1be8f74f47af",
+    "implementation_tree": "5aace573ecfbc78ce20433439e4b21eef6ed1716",
+    "implementation_parent": "8cf31c666babeca23b50c67b4fd3438669a08997"
   },
   "mutants": [
     "over-capacity state construction rejected",
     "over-capacity state revalidation rejected",
+    "forged invalid state returns STATE_INVALID with safe state",
     "new effect at exact capacity rejected without state change"
   ],
   "nonclaims": [

@@ -1,9 +1,9 @@
 # FCIS M6 Task I04 Repair Report
 
 TASK_ID: I04
-BASE_SHA: f2cfbeef28f64a570e20aea97fb30a6af17ef75e
-SOURCE_HEAD_SHA: 5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb
-SOURCE_HEAD_TREE: 1c9414653acd65cce22b6f89c90befc88ce80013
+BASE_SHA: 8cf31c666babeca23b50c67b4fd3438669a08997
+SOURCE_HEAD_SHA: 0071e414e0c415b8930649799fdd1be8f74f47af
+SOURCE_HEAD_TREE: 5aace573ecfbc78ce20433439e4b21eef6ed1716
 BRANCH: codex/task-H03-deterministic-crash-20260801
 FILES_CHANGED:
 - experiments/fcis_m6_i04_destination_dedup.py
@@ -11,9 +11,9 @@ FILES_CHANGED:
 - docs/research/m6_tasks/TASK_I04_DESTINATION_DEDUP_SCHEMA_V1.json
 - docs/research/m6_tasks/TASK_I04_PLAN.md
 
-IMPLEMENTATION_HEAD_SHA: 5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb
-IMPLEMENTATION_TREE: 1c9414653acd65cce22b6f89c90befc88ce80013
-IMPLEMENTATION_PARENT: f2cfbeef28f64a570e20aea97fb30a6af17ef75e
+IMPLEMENTATION_HEAD_SHA: 0071e414e0c415b8930649799fdd1be8f74f47af
+IMPLEMENTATION_TREE: 5aace573ecfbc78ce20433439e4b21eef6ed1716
+IMPLEMENTATION_PARENT: 8cf31c666babeca23b50c67b4fd3438669a08997
 
 CLAIM_IMPLEMENTED: I04 retains the verifier-gated deterministic destination
 deduplication model and now closes the destination-record collection at 8,192
@@ -40,14 +40,17 @@ RESULTS:
   idempotence with stable effect, payload, and receipt roots.
 - Same-ID payload mutation, destination crossing, and adapter-profile crossing
   reject without changing destination state.
-- Over-capacity construction and revalidation reject with the typed I04Error.
+- Over-capacity construction and revalidation reject with the typed I04Error;
+  forged invalid state presented to delivery returns STATE_INVALID and a safe
+  empty state.
 - A new effect at exactly 8,192 records returns CAPACITY_EXCEEDED and leaves
   the state unchanged.
 - Ruff, formatting, strict mypy, Python compilation, packet validation, source
   manifest verification, and diff whitespace checks pass.
 
-MUTANTS_ADDED: Over-capacity construction, over-capacity revalidation, and
-exact-capacity delivery are retained as negative witnesses in addition to the
+MUTANTS_ADDED: Over-capacity construction, over-capacity revalidation, forged
+state revalidation, and exact-capacity delivery are retained as negative
+witnesses in addition to the
 existing payload, destination, adapter-profile, forged-contract,
 unsupported-mechanism, duplicate, order, and invalid-effect witnesses.
 
