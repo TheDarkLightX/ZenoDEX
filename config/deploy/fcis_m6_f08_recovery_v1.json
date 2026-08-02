@@ -1,0 +1,32 @@
+{
+  "schema": "zenodex/fcis/m6/f08/recovery-config/v1",
+  "profile_id": "fcis-m6-f08-recovery-faults-v1",
+  "recovery_schema": "zenodex/fcis/m6/f08/recovery/v1",
+  "accepted_outcomes": ["pre", "post", "rejected_locked"],
+  "required_latch": "fresh_reopen_authorization",
+  "value_movement_allowed_after_observation": false,
+  "invariants": [
+    "PRE is byte-identical to the validated pre-publication layout",
+    "POST is byte-identical to the validated post-publication layout",
+    "corruption and a valid third layout expose rejection/lock only",
+    "rejected observations expose no partial layout root",
+    "every observation requires fresh authorization",
+    "a setup pair must contain two distinct F04 fixed points"
+  ],
+  "fault_surface": [
+    "header",
+    "authority_rows",
+    "history_rows",
+    "evidence_rows",
+    "nullifier_rows",
+    "outbox_rows",
+    "ack_rows",
+    "selected_root",
+    "truncated_bytes",
+    "invalid_utf8"
+  ],
+  "nonclaims": [
+    "F08 is an abstract crash/reopen relation and does not prove SQLite/PostgreSQL/WAL behavior",
+    "F08 does not implement a datastore adapter, fault injector, runtime command gate, or value movement"
+  ]
+}
