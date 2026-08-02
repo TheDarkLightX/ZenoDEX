@@ -1,0 +1,90 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "E07",
+  "base_sha": "2b452bd5f4aaccd4cd3acb0c938c0283cd7df31b",
+  "source_head_sha": "fe2fce12353f6dd4a6accc15764102a91a486345",
+  "source_head_tree": "db1437e7135e1d45547e3a93714c8b7e42b962bb",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_e07_transport_loss_v1.json",
+    "docs/research/m6_tasks/FCIS_M6_E07_TRANSPORT_LOSS_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_E07_TRANSPORT_LOSS_V1.json",
+    "docs/research/m6_tasks/TASK_E07_PLAN.md",
+    "docs/research/m6_tasks/TASK_E07_REPORT.md",
+    "docs/research/m6_tasks/TASK_E07_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_E07_SOURCE_MANIFEST.sha256",
+    "experiments/fcis_m6_e05_expected_root_cas.py",
+    "experiments/fcis_m6_e07_transport_loss.py",
+    "experiments/fcis_m6_e07_transport_loss_check.py",
+    "src/core/fcis_m6_e04_retry_classifier.py",
+    "tests/core/test_fcis_m6_e07_transport_loss.py",
+    "tools/build_fcis_m6_e07_transport_loss.py"
+  ],
+  "commands": [
+    "python3 tools/build_fcis_m6_e07_transport_loss.py",
+    "python3 tools/build_fcis_m6_e07_transport_loss.py --check",
+    "PYTHONPATH=. python3 experiments/fcis_m6_e07_transport_loss_check.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_e07_transport_loss.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_e05_expected_root_cas.py tests/core/test_fcis_m6_e06_concurrency.py tests/core/test_fcis_m6_e07_transport_loss.py",
+    "python3 -m py_compile experiments/fcis_m6_e07_transport_loss.py experiments/fcis_m6_e07_transport_loss_check.py tools/build_fcis_m6_e07_transport_loss.py tests/core/test_fcis_m6_e07_transport_loss.py",
+    "python3 -m ruff check experiments/fcis_m6_e07_transport_loss.py experiments/fcis_m6_e07_transport_loss_check.py tools/build_fcis_m6_e07_transport_loss.py tests/core/test_fcis_m6_e07_transport_loss.py",
+    "python3 -m ruff format --check experiments/fcis_m6_e07_transport_loss.py experiments/fcis_m6_e07_transport_loss_check.py tools/build_fcis_m6_e07_transport_loss.py tests/core/test_fcis_m6_e07_transport_loss.py",
+    "python3 -m mypy --strict experiments/fcis_m6_e07_transport_loss.py experiments/fcis_m6_e07_transport_loss_check.py tools/build_fcis_m6_e07_transport_loss.py tests/core/test_fcis_m6_e07_transport_loss.py",
+    "python3 -m json.tool config/deploy/fcis_m6_e07_transport_loss_v1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_E07_TRANSPORT_LOSS_V1.json",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks E07",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_E07_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_e07_transport_loss_v1.json": "8e1b29688afe617574ba8db3cf2ffbf90e3c9cb8cd8ec7d7a65768ce5f39f170",
+    "docs/research/m6_tasks/FCIS_M6_E07_TRANSPORT_LOSS_SCHEMA_V1.md": "a137f7f288e239d7daab9902d51d813fc86f2662ac6d2c32be8bec916ae141d1",
+    "docs/research/m6_tasks/TASK_E07_TRANSPORT_LOSS_V1.json": "4b599cd774687b4203821c26394183bc082f001ce3a8a1ac4af8281066387245",
+    "docs/research/m6_tasks/TASK_E07_PLAN.md": "1ecda088bbb3aa972c13cadc5b5ba7c9f34ad223f9c380474e549d45d3de29f3",
+    "experiments/fcis_m6_e05_expected_root_cas.py": "fe7bfdfbf4e6c940e10353fc33e3cf2f9ee22c255307cbe9767d894ea13d5007",
+    "experiments/fcis_m6_e07_transport_loss.py": "075fecf182ebbcbc2bec0ac8d66e0f431a32668e12fe3627844a8f0d50dd1aba",
+    "experiments/fcis_m6_e07_transport_loss_check.py": "6e8749eaf28700effb975610ad0eb40aa12797b1959d67daa55ffb7994ef0566",
+    "src/core/fcis_m6_e04_retry_classifier.py": "92683154c942711f64c95f2a613dc8dae009d56da14b657e0ea75b90888e9319",
+    "tests/core/test_fcis_m6_e07_transport_loss.py": "6c2a02647f5b32b68c9da729b43565aafbb1b8efff3917e96fd4ccd6105f0756",
+    "tools/build_fcis_m6_e07_transport_loss.py": "30d559061f0996a46ee9e9bb8b21942e944d18188d669cd608aa664e1d53f530"
+  },
+  "results": {
+    "focused_e07_tests": "pass; 2 passed",
+    "combined_e05_e06_e07_tests": "pass; 16 passed",
+    "independent_checker": "pass; E07_TRANSPORT_LOSS_CHECKS_PASS 4",
+    "source_vector": "pass; E07_TRANSPORT_LOSS_VECTOR_MATCH",
+    "before_server": "absent_retryable, indeterminate, blind retry committed, rows 1/1/1",
+    "after_validation": "absent_retryable, indeterminate, blind retry committed, rows 1/1/1",
+    "after_commit": "already_committed, indeterminate, blind retry stale_snapshot_cas, rows 1/1/1",
+    "after_response_generation": "already_committed, indeterminate, blind retry stale_snapshot_cas, rows 1/1/1",
+    "repeatability": "pass; two campaign summaries are byte-identical",
+    "implementation_commit": "fe2fce12353f6dd4a6accc15764102a91a486345",
+    "implementation_tree": "db1437e7135e1d45547e3a93714c8b7e42b962bb",
+    "implementation_parent": "2b452bd5f4aaccd4cd3acb0c938c0283cd7df31b"
+  },
+  "mutants": [
+    "request lost before server",
+    "validation completed without transaction",
+    "response lost after commit",
+    "response lost during transport",
+    "blind duplicate retry after POST",
+    "wrong durable class after PRE loss",
+    "wrong durable class after POST loss",
+    "transport knowledge collapsed into durable outcome"
+  ],
+  "nonclaims": [
+    "E07 is a deterministic local transport-shell model",
+    "E07 does not prove network, process-crash, filesystem-durability, or production retry behavior",
+    "E07 does not prove external datastore receipt authenticity or freshness",
+    "E07 does not mount callers, destination idempotency, migration authority, accounting, backing, zUSD safety, or value movement",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
