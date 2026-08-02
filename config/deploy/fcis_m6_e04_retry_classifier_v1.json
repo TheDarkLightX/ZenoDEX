@@ -1,0 +1,16 @@
+{
+  "schema": "zenodex/fcis/m6/e04/retry-classifier-config/v1",
+  "profile_id": "research-unmounted-e04-total-stored-state-classifier",
+  "identifier_registry_version": "zenodex/fcis/m6-profile-registry/v1",
+  "semantic_allocator_profile_id": "adaptive-global-quota-entitlement/three-role/v1",
+  "pinned_attempt_root": "f4e9098de664203338d56808cb77aa0ba14c8a0e704f7c0bd73b2e79757579b0",
+  "pinned_empty_snapshot_root": "582f833a68ebc4ee5bf24b64a05fe065bd6f3a892a28eba49791e8643f96264a",
+  "pinned_committed_snapshot_root": "cceafad2cbecdbe8ea47cce64ca21b93fb95b9b977506efd5d174ec0ba851691",
+  "nonclaims": [
+    "E04 consumes verifier-owned E01, E02, and E03 research values; it does not implement cryptographic authentication.",
+    "E04 is a pure classifier and does not perform a datastore read, write, CAS, crash recovery, or runtime mount.",
+    "E04 reopen receipts are structural model ports; they do not prove canonical durable-read authenticity or freshness in a production adapter.",
+    "E04 does not prove production transaction isolation, durability, destination idempotency, accounting, backing, or zUSD safety.",
+    "M6 remains research-only, unmounted, and non-promotable."
+  ]
+}
