@@ -1,0 +1,18 @@
+{
+  "schema": "zenodex/fcis/m6/e06/concurrency-config/v1",
+  "profile_id": "fcis-m6-e06-independent-connections-v1",
+  "worker_count": 2,
+  "required_races": [
+    "same_command_retry",
+    "same_sender_nonce_different_command",
+    "same_commit_id_different_fingerprint",
+    "commit_racing_quiescence",
+    "commit_racing_authority_switch"
+  ],
+  "nonclaims": [
+    "research-only SQLite concurrency harness",
+    "no production datastore isolation or linearizability proof",
+    "no real migration phase machine or authority mounting",
+    "no runtime caller coverage or value movement"
+  ]
+}
