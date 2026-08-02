@@ -1,10 +1,10 @@
 {
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "J06",
-  "base_sha": "868ae8ef0da8a4f7fc52f444d7b459987f76c51e",
-  "source_head_sha": "8cd4e451138e86a3fa1012b1081112644114fa97",
-  "source_head_tree": "e58d21d10835bfe5dddb314d1cc11bf7bd773dd8",
-  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "base_sha": "f30a4f77f9c4bbbfcb93549ed8ab43136b467ea0",
+  "source_head_sha": "2a4b0010df283ae939d7d0cddde75d862d17c6f9",
+  "source_head_tree": "b750b3e1189708e4a2371ef0bb3ed02b497d00a3",
+  "branch": "codex/task-K01-J06-rebind-20260802",
   "status": "TESTED",
   "evidence_files": [
     "config/deploy/fcis_m6_j06_quiescence_v1.json",
@@ -68,9 +68,9 @@
     "migration_regression": "pass; 20 passed",
     "source_quality_gates": "pass; Ruff, formatting, strict mypy, and Python compilation",
     "dependency_pins": "pass; K01 root fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a is bound in the J06 configuration",
-    "implementation_commit": "8cd4e451138e86a3fa1012b1081112644114fa97",
-    "implementation_tree": "e58d21d10835bfe5dddb314d1cc11bf7bd773dd8",
-    "implementation_parent": "868ae8ef0da8a4f7fc52f444d7b459987f76c51e"
+    "implementation_commit": "2a4b0010df283ae939d7d0cddde75d862d17c6f9",
+    "implementation_tree": "b750b3e1189708e4a2371ef0bb3ed02b497d00a3",
+    "implementation_parent": "f30a4f77f9c4bbbfcb93549ed8ab43136b467ea0"
   },
   "mutants": [
     "caller-forged gate rejected at constructor and point-of-use boundaries",

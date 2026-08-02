@@ -1,10 +1,10 @@
 # FCIS M6 Task J06 Repair Report
 
 TASK_ID: J06
-BASE_SHA: 868ae8ef0da8a4f7fc52f444d7b459987f76c51e
-SOURCE_HEAD_SHA: 8cd4e451138e86a3fa1012b1081112644114fa97
-SOURCE_HEAD_TREE: e58d21d10835bfe5dddb314d1cc11bf7bd773dd8
-BRANCH: codex/task-m6-receipt-rebind-20260802
+BASE_SHA: f30a4f77f9c4bbbfcb93549ed8ab43136b467ea0
+SOURCE_HEAD_SHA: 2a4b0010df283ae939d7d0cddde75d862d17c6f9
+SOURCE_HEAD_TREE: b750b3e1189708e4a2371ef0bb3ed02b497d00a3
+BRANCH: codex/task-K01-J06-rebind-20260802
 FILES_CHANGED:
 - config/deploy/fcis_m6_j06_quiescence_v1.json
 - docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json
@@ -17,9 +17,9 @@ FILES_CHANGED:
 - tests/core/test_fcis_m6_j06_quiescence.py
 - tools/build_fcis_m6_j06_quiescence.py
 
-IMPLEMENTATION_HEAD_SHA: 8cd4e451138e86a3fa1012b1081112644114fa97
-IMPLEMENTATION_TREE: e58d21d10835bfe5dddb314d1cc11bf7bd773dd8
-IMPLEMENTATION_PARENT: 868ae8ef0da8a4f7fc52f444d7b459987f76c51e
+IMPLEMENTATION_HEAD_SHA: 2a4b0010df283ae939d7d0cddde75d862d17c6f9
+IMPLEMENTATION_TREE: b750b3e1189708e4a2371ef0bb3ed02b497d00a3
+IMPLEMENTATION_PARENT: f30a4f77f9c4bbbfcb93549ed8ab43136b467ea0
 
 CLAIM_IMPLEMENTED: J06 uses verifier-owned gate and result witnesses. Each
 admission result now carries a canonical full-attempt root and repeats the
