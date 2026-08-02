@@ -1,0 +1,332 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_value_flow_kernel_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: Bounded generic asset-flow kernel. Every accepted transfer, escrow move, fee, external delivery, mint, and burn preserves the exact quantity identity. This is a project-independent algebraic core; concrete asset domains and command completeness remain refinement obligations.
+observables:
+  state_vars:
+  - alice
+  - bob
+  - escrow
+  - protocol
+  - external
+  - issued
+  effects: []
+types: []
+state_vars:
+- id: alice
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 5
+- id: bob
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 5
+- id: escrow
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 5
+- id: protocol
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 5
+- id: external
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 5
+- id: issued
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 5
+invariants:
+- id: AssetQuantityConservation
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - op: +
+      args:
+      - var: alice
+      - var: bob
+      - var: escrow
+      - var: protocol
+      - var: external
+    - var: issued
+init:
+- var: alice
+  expr:
+    const: 2
+- var: bob
+  expr:
+    const: 1
+- var: escrow
+  expr:
+    const: 0
+- var: protocol
+  expr:
+    const: 0
+- var: external
+  expr:
+    const: 0
+- var: issued
+  expr:
+    const: 3
+actions:
+- id: transfer_alice_to_bob
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    op: and
+    args:
+    - op: '>='
+      args:
+      - var: alice
+      - param: amount
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: bob
+        - param: amount
+      - const: 5
+  updates:
+  - var: alice
+    expr:
+      op: '-'
+      args:
+      - var: alice
+      - param: amount
+  - var: bob
+    expr:
+      op: +
+      args:
+      - var: bob
+      - param: amount
+  effects: {}
+- id: escrow_lock
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    op: and
+    args:
+    - op: '>='
+      args:
+      - var: alice
+      - param: amount
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: escrow
+        - param: amount
+      - const: 5
+  updates:
+  - var: alice
+    expr:
+      op: '-'
+      args:
+      - var: alice
+      - param: amount
+  - var: escrow
+    expr:
+      op: +
+      args:
+      - var: escrow
+      - param: amount
+  effects: {}
+- id: escrow_release
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    op: and
+    args:
+    - op: '>='
+      args:
+      - var: escrow
+      - param: amount
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: alice
+        - param: amount
+      - const: 5
+  updates:
+  - var: escrow
+    expr:
+      op: '-'
+      args:
+      - var: escrow
+      - param: amount
+  - var: alice
+    expr:
+      op: +
+      args:
+      - var: alice
+      - param: amount
+  effects: {}
+- id: fee_charge
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    op: and
+    args:
+    - op: '>='
+      args:
+      - var: alice
+      - param: amount
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: protocol
+        - param: amount
+      - const: 5
+  updates:
+  - var: alice
+    expr:
+      op: '-'
+      args:
+      - var: alice
+      - param: amount
+  - var: protocol
+    expr:
+      op: +
+      args:
+      - var: protocol
+      - param: amount
+  effects: {}
+- id: external_delivery
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    op: and
+    args:
+    - op: '>='
+      args:
+      - var: protocol
+      - param: amount
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: external
+        - param: amount
+      - const: 5
+  updates:
+  - var: protocol
+    expr:
+      op: '-'
+      args:
+      - var: protocol
+      - param: amount
+  - var: external
+    expr:
+      op: +
+      args:
+      - var: external
+      - param: amount
+  effects: {}
+- id: authorized_mint
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    op: and
+    args:
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: alice
+        - param: amount
+      - const: 5
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: issued
+        - param: amount
+      - const: 5
+  updates:
+  - var: alice
+    expr:
+      op: +
+      args:
+      - var: alice
+      - param: amount
+  - var: issued
+    expr:
+      op: +
+      args:
+      - var: issued
+      - param: amount
+  effects: {}
+- id: authorized_burn
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    op: and
+    args:
+    - op: '>='
+      args:
+      - var: alice
+      - param: amount
+    - op: '>='
+      args:
+      - var: issued
+      - param: amount
+  updates:
+  - var: alice
+    expr:
+      op: '-'
+      args:
+      - var: alice
+      - param: amount
+  - var: issued
+    expr:
+      op: '-'
+      args:
+      - var: issued
+      - param: amount
+  effects: {}

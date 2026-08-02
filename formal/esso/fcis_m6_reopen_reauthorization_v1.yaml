@@ -1,0 +1,245 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_reopen_reauthorization_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: Canonical recovery proves stored evidence but never restores publication authority. A fresh token must bind the exact reopened head and current authority epoch; commit and epoch switch consume or invalidate it. Corrupt reopen remains locked.
+observables:
+  state_vars:
+  - stored_head
+  - reopened_head
+  - canonical_open
+  - write_authorized
+  - authorized_head
+  - authority_epoch
+  - token_epoch
+  effects: []
+types: []
+state_vars:
+- id: stored_head
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+- id: reopened_head
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+- id: canonical_open
+  role: data
+  type:
+    kind: bool
+- id: write_authorized
+  role: data
+  type:
+    kind: bool
+- id: authorized_head
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+- id: authority_epoch
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+- id: token_epoch
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+invariants:
+- id: AuthorizedOnlyAfterCanonicalOpen
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: write_authorized
+    - var: canonical_open
+- id: AuthorizedHeadIsCurrentReopenedHead
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: write_authorized
+    - op: '='
+      args:
+      - var: authorized_head
+      - var: reopened_head
+- id: AuthorizedEpochIsCurrent
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: write_authorized
+    - op: '='
+      args:
+      - var: token_epoch
+      - var: authority_epoch
+- id: CanonicalOpenMatchesStoredHead
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: canonical_open
+    - op: '='
+      args:
+      - var: reopened_head
+      - var: stored_head
+init:
+- var: stored_head
+  expr:
+    const: 0
+- var: reopened_head
+  expr:
+    const: 0
+- var: canonical_open
+  expr:
+    bool: false
+- var: write_authorized
+  expr:
+    bool: false
+- var: authorized_head
+  expr:
+    const: 0
+- var: authority_epoch
+  expr:
+    const: 0
+- var: token_epoch
+  expr:
+    const: 0
+actions:
+- id: canonical_reopen
+  params: []
+  guard:
+    bool: true
+  updates:
+  - var: canonical_open
+    expr:
+      bool: true
+  - var: reopened_head
+    expr:
+      var: stored_head
+  - var: write_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: corrupt_reopen
+  params: []
+  guard:
+    bool: true
+  updates:
+  - var: canonical_open
+    expr:
+      bool: false
+  - var: write_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: grant_write_authority
+  params:
+  - id: head
+    type:
+      kind: int
+      min: 0
+      max: 2
+  - id: epoch
+    type:
+      kind: int
+      min: 0
+      max: 2
+  guard:
+    op: and
+    args:
+    - var: canonical_open
+    - op: '='
+      args:
+      - param: head
+      - var: reopened_head
+    - op: '='
+      args:
+      - param: epoch
+      - var: authority_epoch
+  updates:
+  - var: write_authorized
+    expr:
+      bool: true
+  - var: authorized_head
+    expr:
+      param: head
+  - var: token_epoch
+    expr:
+      param: epoch
+  effects: {}
+- id: commit_next_head
+  params: []
+  guard:
+    op: and
+    args:
+    - var: write_authorized
+    - var: canonical_open
+    - op: '='
+      args:
+      - var: authorized_head
+      - var: stored_head
+    - op: '='
+      args:
+      - var: token_epoch
+      - var: authority_epoch
+    - op: <
+      args:
+      - var: stored_head
+      - const: 2
+  updates:
+  - var: stored_head
+    expr:
+      op: +
+      args:
+      - var: stored_head
+      - const: 1
+  - var: reopened_head
+    expr:
+      op: +
+      args:
+      - var: reopened_head
+      - const: 1
+  - var: write_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: restart_process
+  params: []
+  guard:
+    bool: true
+  updates:
+  - var: canonical_open
+    expr:
+      bool: false
+  - var: write_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: switch_authority_epoch
+  params: []
+  guard:
+    op: <
+    args:
+    - var: authority_epoch
+    - const: 2
+  updates:
+  - var: authority_epoch
+    expr:
+      op: +
+      args:
+      - var: authority_epoch
+      - const: 1
+  - var: write_authorized
+    expr:
+      bool: false
+  effects: {}

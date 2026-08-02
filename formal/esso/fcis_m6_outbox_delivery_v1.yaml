@@ -1,0 +1,235 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_outbox_delivery_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: Atomic enqueue plus stable semantic identity. Delivery may be retried after transport or acknowledgment loss, but the externally observed semantic effect occurs at most once and acknowledgment is provenance-bound to the committed effect identity.
+observables:
+  state_vars:
+  - committed
+  - outbox_present
+  - delivered
+  - acked
+  - effect_count
+  - effect_id
+  - ack_id
+  effects: []
+types: []
+state_vars:
+- id: committed
+  role: data
+  type:
+    kind: bool
+- id: outbox_present
+  role: data
+  type:
+    kind: bool
+- id: delivered
+  role: data
+  type:
+    kind: bool
+- id: acked
+  role: data
+  type:
+    kind: bool
+- id: effect_count
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+- id: effect_id
+  role: control
+  type:
+    kind: enum
+    symbols:
+    - E0
+    - E1
+- id: ack_id
+  role: control
+  type:
+    kind: enum
+    symbols:
+    - E0
+    - E1
+invariants:
+- id: OutboxIffCommitted
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: outbox_present
+    - var: committed
+- id: DeliveryRequiresCommittedOutbox
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: delivered
+    - op: and
+      args:
+      - var: committed
+      - var: outbox_present
+- id: AckRequiresDelivery
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: acked
+    - var: delivered
+- id: AckBindsCommittedEffect
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: acked
+    - op: '='
+      args:
+      - var: ack_id
+      - var: effect_id
+- id: AtMostOneSemanticEffect
+  kind: safety
+  expr:
+    op: <=
+    args:
+    - var: effect_count
+    - const: 1
+- id: DeliveredIffOneSemanticEffect
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: delivered
+    - op: '='
+      args:
+      - var: effect_count
+      - const: 1
+init:
+- var: committed
+  expr:
+    bool: false
+- var: outbox_present
+  expr:
+    bool: false
+- var: delivered
+  expr:
+    bool: false
+- var: acked
+  expr:
+    bool: false
+- var: effect_count
+  expr:
+    const: 0
+- var: effect_id
+  expr:
+    enum: E0
+- var: ack_id
+  expr:
+    enum: E0
+actions:
+- id: atomic_commit_outbox
+  params:
+  - id: id
+    type:
+      kind: enum
+      symbols:
+      - E0
+      - E1
+  guard:
+    op: not
+    args:
+    - var: committed
+  updates:
+  - var: committed
+    expr:
+      bool: true
+  - var: outbox_present
+    expr:
+      bool: true
+  - var: effect_id
+    expr:
+      param: id
+  effects: {}
+- id: deliver_effect
+  params:
+  - id: id
+    type:
+      kind: enum
+      symbols:
+      - E0
+      - E1
+  guard:
+    op: and
+    args:
+    - var: committed
+    - var: outbox_present
+    - op: '='
+      args:
+      - param: id
+      - var: effect_id
+    - op: not
+      args:
+      - var: delivered
+  updates:
+  - var: delivered
+    expr:
+      bool: true
+  - var: effect_count
+    expr:
+      const: 1
+  effects: {}
+- id: redeliver_same_effect
+  params:
+  - id: id
+    type:
+      kind: enum
+      symbols:
+      - E0
+      - E1
+  guard:
+    op: and
+    args:
+    - var: delivered
+    - var: outbox_present
+    - op: '='
+      args:
+      - param: id
+      - var: effect_id
+  updates: []
+  effects: {}
+- id: acknowledge_effect
+  params:
+  - id: id
+    type:
+      kind: enum
+      symbols:
+      - E0
+      - E1
+  guard:
+    op: and
+    args:
+    - var: delivered
+    - op: '='
+      args:
+      - param: id
+      - var: effect_id
+  updates:
+  - var: acked
+    expr:
+      bool: true
+  - var: ack_id
+    expr:
+      param: id
+  effects: {}
+- id: lose_ack_transport
+  params: []
+  guard:
+    var: delivered
+  updates: []
+  effects: {}
+- id: worker_crash
+  params: []
+  guard:
+    bool: true
+  updates: []
+  effects: {}
