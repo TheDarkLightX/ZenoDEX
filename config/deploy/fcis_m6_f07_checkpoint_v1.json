@@ -1,0 +1,40 @@
+{
+  "schema": "zenodex/fcis/m6/f07/checkpoint-config/v1",
+  "profile_id": "fcis-m6-f07-full-tip-checkpoint-v1",
+  "checkpoint_schema": "zenodex/fcis/m6/f07/checkpoint/v1",
+  "compacted_snapshot_schema": "zenodex/fcis/m6/f07/compacted-snapshot/v1",
+  "history_schema": "zenodex/fcis/m6/f02/authorized-history/v1",
+  "proof_modes": ["replay", "approved_snapshot"],
+  "admitted_proof_mode": "replay",
+  "truncation_policy": "full_tip_only",
+  "required_checkpoint_fields": [
+    "prior_layout_root",
+    "prior_history_root",
+    "checkpoint_state_root",
+    "deployment_config_root",
+    "verifier_profile_root",
+    "genesis_admission_root",
+    "nullifier_accumulator_root",
+    "authority_epoch_summary_root",
+    "outbox_accumulator_root",
+    "pending_outbox",
+    "proof_kind",
+    "proof_root",
+    "checkpoint_genesis_root"
+  ],
+  "invariants": [
+    "checkpoint sequence is the complete prior history tip",
+    "prior history and layout roots are source-derived",
+    "nullifier accumulator covers every removed nullifier row",
+    "authority summary covers every prior authority epoch",
+    "outbox accumulator covers every prior outbox row",
+    "every unacknowledged effect retains its complete delivery identity",
+    "replay proof is recomputed from the source fixed point",
+    "partial-prefix truncation and unverified snapshot certificates reject"
+  ],
+  "nonclaims": [
+    "F07 does not delete a datastore row or mount compaction",
+    "F07 does not authenticate an external approved-snapshot signer",
+    "F07 does not prove crash recovery, concurrent publication, migration, accounting, backing, or zUSD safety"
+  ]
+}
