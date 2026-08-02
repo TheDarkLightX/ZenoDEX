@@ -1,0 +1,92 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "E05",
+  "base_sha": "48b471ea3ae1b07c876a128ed7f17bc595227001",
+  "source_head_sha": "96273b95ba8dba68fb1b7544dc4fa9f33eb2bf83",
+  "source_head_tree": "c49338d88f4173318744df2fcc442360b556f336",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_e05_expected_root_cas_v1.json",
+    "docs/research/m6_tasks/FCIS_M6_E05_EXPECTED_ROOT_CAS_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_E05_EXPECTED_ROOT_CAS_V1.json",
+    "docs/research/m6_tasks/TASK_E05_PLAN.md",
+    "docs/research/m6_tasks/TASK_E05_REPORT.md",
+    "docs/research/m6_tasks/TASK_E05_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_E05_SOURCE_MANIFEST.sha256",
+    "experiments/fcis_m6_e05_expected_root_cas.py",
+    "experiments/fcis_m6_e05_expected_root_cas_check.py",
+    "src/core/fcis_m6_e05_expected_root_cas.py",
+    "tests/core/test_fcis_m6_e05_expected_root_cas.py",
+    "tools/build_fcis_m6_e05_expected_root_cas.py"
+  ],
+  "commands": [
+    "python3 tools/build_fcis_m6_e05_expected_root_cas.py",
+    "python3 tools/build_fcis_m6_e05_expected_root_cas.py --check",
+    "PYTHONPATH=. python3 experiments/fcis_m6_e05_expected_root_cas_check.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_e05_expected_root_cas.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_*.py",
+    "python3 -m py_compile src/core/fcis_m6_e05_expected_root_cas.py experiments/fcis_m6_e05_expected_root_cas.py experiments/fcis_m6_e05_expected_root_cas_check.py tools/build_fcis_m6_e05_expected_root_cas.py tests/core/test_fcis_m6_e05_expected_root_cas.py",
+    "python3 -m ruff check src/core/fcis_m6_e05_expected_root_cas.py experiments/fcis_m6_e05_expected_root_cas.py experiments/fcis_m6_e05_expected_root_cas_check.py tools/build_fcis_m6_e05_expected_root_cas.py tests/core/test_fcis_m6_e05_expected_root_cas.py",
+    "python3 -m ruff format --check src/core/fcis_m6_e05_expected_root_cas.py experiments/fcis_m6_e05_expected_root_cas.py experiments/fcis_m6_e05_expected_root_cas_check.py tools/build_fcis_m6_e05_expected_root_cas.py tests/core/test_fcis_m6_e05_expected_root_cas.py",
+    "python3 -m mypy --strict src/core/fcis_m6_e05_expected_root_cas.py experiments/fcis_m6_e05_expected_root_cas.py experiments/fcis_m6_e05_expected_root_cas_check.py tools/build_fcis_m6_e05_expected_root_cas.py tests/core/test_fcis_m6_e05_expected_root_cas.py",
+    "python3 -m json.tool config/deploy/fcis_m6_e05_expected_root_cas_v1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_E05_EXPECTED_ROOT_CAS_V1.json",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks E05",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_E05_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_e05_expected_root_cas_v1.json": "ed97cea5d72200ab7d53f9b7c8894091e623f9f417992c2307783f9d5da70194",
+    "docs/research/m6_tasks/FCIS_M6_E05_EXPECTED_ROOT_CAS_SCHEMA_V1.md": "c946c6ecbc337ccd2fc28ad6b6ddf8b3d4aa0973a81f87a7cea21338df413648",
+    "docs/research/m6_tasks/TASK_E05_EXPECTED_ROOT_CAS_V1.json": "3d0a0b1d6b46032473dc219e66b704275909461f9551ef2bf5ef3ad06ec25c73",
+    "docs/research/m6_tasks/TASK_E05_PLAN.md": "26030fa0b81e6374c19f2bff0879ba7f148444c19bedd745e40ffbad544ed361",
+    "experiments/fcis_m6_e05_expected_root_cas.py": "fe7bfdfbf4e6c940e10353fc33e3cf2f9ee22c255307cbe9767d894ea13d5007",
+    "experiments/fcis_m6_e05_expected_root_cas_check.py": "b7f7f37d558998f2c05ee5f27e82ab6b53f01d7f73010de40cce52dc2f299d40",
+    "src/core/fcis_m6_e04_retry_classifier.py": "92683154c942711f64c95f2a613dc8dae009d56da14b657e0ea75b90888e9319",
+    "src/core/fcis_m6_e05_expected_root_cas.py": "a383e6868d4cbfffc5bc410295fc489d8df69410233b1c51d873bb4ba14560df",
+    "tests/core/test_fcis_m6_e05_expected_root_cas.py": "073c45a7f0266a9ee8c1b9c747c34da0022583dfcf78df438b446b294c7b6f15",
+    "tools/build_fcis_m6_e05_expected_root_cas.py": "327aa3a2e19d2c683c0638138a2dcfce032d12da55f45aac2b63a6425741f585"
+  },
+  "results": {
+    "focused_e05_tests": "pass; 12 passed",
+    "m6_core_regression": "pass; 272 passed in 251.70 seconds",
+    "independent_checker": "pass; E05_EXPECTED_ROOT_CAS_CHECKS_PASS",
+    "source_vector": "pass; E05_EXPECTED_ROOT_CAS_VECTOR_MATCH",
+    "cas_trace": "pass; BEGIN IMMEDIATE is first and head UPDATE precedes publication INSERT",
+    "stale_predecessor": "pass; STALE_SNAPSHOT_CAS with unchanged rows",
+    "authority_cas": "pass; STALE_AUTHORITY_CAS with unchanged rows",
+    "partial_insert_rollback": "pass; SQL_ROLLBACK restores zero publication/nullifier/effect rows",
+    "nested_reopen_checks": "pass; nested wire, effect, and nullifier mutations reject",
+    "implementation_commit": "96273b95ba8dba68fb1b7544dc4fa9f33eb2bf83",
+    "implementation_tree": "c49338d88f4173318744df2fcc442360b556f336",
+    "implementation_parent": "48b471ea3ae1b07c876a128ed7f17bc595227001"
+  },
+  "mutants": [
+    "old predecessor retry",
+    "state root mutation",
+    "authority epoch mutation",
+    "preflight read ordering",
+    "trigger abort after nullifier insertion",
+    "direct effect ID reuse",
+    "forged E04 state",
+    "crossed reopen receipt",
+    "nested attempt-wire mutation",
+    "missing effect projection",
+    "crossed nullifier projection"
+  ],
+  "nonclaims": [
+    "E05 is an isolated research-only SQLite adapter",
+    "E05 does not implement cryptographic authentication or external receipt freshness",
+    "E05 does not prove production WAL/fsync durability, crash recovery, or concurrent linearizability",
+    "E05 does not mount callers, migration authority, destination idempotency, accounting, backing, zUSD safety, or value movement",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
