@@ -151,3 +151,31 @@ def test_j06_rejection_identity_includes_the_complete_attempt() -> None:
     assert first.attempt_sequence != second.attempt_sequence
     assert first.attempt_root != second.attempt_root
     assert first.to_wire() != second.to_wire()
+
+
+def test_j06_rejects_object_new_forged_gate_at_point_of_use() -> None:
+    gate = _gate(build_payload())
+    attempt = _attempt(gate, gate.covered_writer_ids[0])
+    forged = object.__new__(J06QuiescenceGateV1)
+    for field in (
+        "manifest_root",
+        "entrypoint_inventory_root",
+        "phase",
+        "activation_sequence",
+        "authority_epoch_index",
+        "authority_state_root",
+        "legacy_profile_root",
+        "target_profile_root",
+        "current_head_root",
+        "replay_head_root",
+        "current_snapshot_root",
+        "replay_snapshot_root",
+        "replay_evidence_root",
+        "covered_writer_ids",
+        "evidence_markers",
+        "quiescence_root",
+    ):
+        object.__setattr__(forged, field, getattr(gate, field))
+
+    with pytest.raises(ValueError, match="provenance"):
+        reject_writer_v1(forged, attempt)

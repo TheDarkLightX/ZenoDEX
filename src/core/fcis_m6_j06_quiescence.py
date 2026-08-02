@@ -14,6 +14,7 @@ from dataclasses import InitVar, dataclass
 from enum import Enum
 from hashlib import sha256
 from typing import Final
+from weakref import WeakValueDictionary
 
 from src.core import fcis_durable_retraction as dra
 from src.state.canonical import canonical_json_bytes
@@ -127,7 +128,7 @@ def _root(payload: object) -> str:
     ).hexdigest()
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, weakref_slot=True)
 class J06QuiescenceGateV1:
     """Verifier-owned witness that final replay comparison is quiescent."""
 
@@ -304,6 +305,54 @@ def quiescence_root_from_body_v1(body: dict[str, object]) -> str:
     return _root(_strict_body(body))
 
 
+_J06_GATES_V1: WeakValueDictionary[int, J06QuiescenceGateV1] = WeakValueDictionary()
+_J06_GATE_SNAPSHOTS_V1: dict[int, tuple[object, ...]] = {}
+
+
+def _gate_snapshot_v1(gate: J06QuiescenceGateV1) -> tuple[object, ...]:
+    return (
+        gate.manifest_root,
+        gate.entrypoint_inventory_root,
+        gate.phase,
+        gate.activation_sequence,
+        gate.authority_epoch_index,
+        gate.authority_state_root,
+        gate.legacy_profile_root,
+        gate.target_profile_root,
+        gate.current_head_root,
+        gate.replay_head_root,
+        gate.current_snapshot_root,
+        gate.replay_snapshot_root,
+        gate.replay_evidence_root,
+        gate.covered_writer_ids,
+        gate.evidence_markers,
+        gate.quiescence_root,
+    )
+
+
+def _register_gate_v1(gate: J06QuiescenceGateV1) -> J06QuiescenceGateV1:
+    identity = id(gate)
+    _J06_GATES_V1[identity] = gate
+    _J06_GATE_SNAPSHOTS_V1[identity] = _gate_snapshot_v1(gate)
+    return gate
+
+
+def is_verified_quiescence_gate_v1(value: object) -> bool:
+    """Check verifier provenance and unchanged fields at point of use."""
+
+    if type(value) is not J06QuiescenceGateV1:
+        return False
+    gate = value
+    registered = _J06_GATES_V1.get(id(gate))
+    if registered is not gate:
+        return False
+    try:
+        gate._validate_fields()
+        return _J06_GATE_SNAPSHOTS_V1.get(id(gate)) == _gate_snapshot_v1(gate)
+    except (AttributeError, J06Error, TypeError, ValueError, ArithmeticError, OverflowError):
+        return False
+
+
 def _mint_gate_v1(
     *,
     manifest_root: str,
@@ -323,24 +372,26 @@ def _mint_gate_v1(
     evidence_markers: tuple[str, ...],
     quiescence_root: str,
 ) -> J06QuiescenceGateV1:
-    return J06QuiescenceGateV1(
-        manifest_root=manifest_root,
-        entrypoint_inventory_root=entrypoint_inventory_root,
-        phase=phase,
-        activation_sequence=activation_sequence,
-        authority_epoch_index=authority_epoch_index,
-        authority_state_root=authority_state_root,
-        legacy_profile_root=legacy_profile_root,
-        target_profile_root=target_profile_root,
-        current_head_root=current_head_root,
-        replay_head_root=replay_head_root,
-        current_snapshot_root=current_snapshot_root,
-        replay_snapshot_root=replay_snapshot_root,
-        replay_evidence_root=replay_evidence_root,
-        covered_writer_ids=covered_writer_ids,
-        evidence_markers=evidence_markers,
-        quiescence_root=quiescence_root,
-        _construction_token=_J06_GATE_CONSTRUCTION_TOKEN_V1,
+    return _register_gate_v1(
+        J06QuiescenceGateV1(
+            manifest_root=manifest_root,
+            entrypoint_inventory_root=entrypoint_inventory_root,
+            phase=phase,
+            activation_sequence=activation_sequence,
+            authority_epoch_index=authority_epoch_index,
+            authority_state_root=authority_state_root,
+            legacy_profile_root=legacy_profile_root,
+            target_profile_root=target_profile_root,
+            current_head_root=current_head_root,
+            replay_head_root=replay_head_root,
+            current_snapshot_root=current_snapshot_root,
+            replay_snapshot_root=replay_snapshot_root,
+            replay_evidence_root=replay_evidence_root,
+            covered_writer_ids=covered_writer_ids,
+            evidence_markers=evidence_markers,
+            quiescence_root=quiescence_root,
+            _construction_token=_J06_GATE_CONSTRUCTION_TOKEN_V1,
+        )
     )
 
 
@@ -541,30 +592,30 @@ def reject_writer_v1(
 ) -> J06AdmissionResultV1:
     """Reject a writer attempt while preserving the observed state exactly."""
 
-    if type(gate) is not J06QuiescenceGateV1:
-        raise J06Error("gate has the wrong exact type")
-    gate._validate_fields()
+    if not is_verified_quiescence_gate_v1(gate):
+        raise J06Error("gate lacks verifier provenance or has been mutated")
+    exact_gate = gate
     if type(attempt) is not J06WriterAttemptV1:
         raise J06Error("attempt has the wrong exact type")
     attempt.__post_init__()
-    if attempt.publisher_id not in gate.covered_writer_ids:
+    if attempt.publisher_id not in exact_gate.covered_writer_ids:
         code = J06RejectCodeV1.ENTRYPOINT_NOT_COVERED
-    elif attempt.authority_epoch_index != gate.authority_epoch_index:
+    elif attempt.authority_epoch_index != exact_gate.authority_epoch_index:
         code = J06RejectCodeV1.AUTHORITY_EPOCH_MISMATCH
-    elif attempt.authority_state_root != gate.authority_state_root:
+    elif attempt.authority_state_root != exact_gate.authority_state_root:
         code = J06RejectCodeV1.AUTHORITY_ROOT_MISMATCH
     elif attempt.writer_profile_root not in (
-        gate.legacy_profile_root,
-        gate.target_profile_root,
+        exact_gate.legacy_profile_root,
+        exact_gate.target_profile_root,
     ):
         code = J06RejectCodeV1.WRITER_PROFILE_MISMATCH
-    elif attempt.expected_head_root != gate.current_head_root:
+    elif attempt.expected_head_root != exact_gate.current_head_root:
         code = J06RejectCodeV1.HEAD_MISMATCH
-    elif attempt.sequence != gate.activation_sequence:
+    elif attempt.sequence != exact_gate.activation_sequence:
         code = J06RejectCodeV1.SEQUENCE_MISMATCH
     else:
         code = J06RejectCodeV1.QUIESCED_WRITER_REJECTED
-    return _mint_result_v1(gate=gate, attempt=attempt, code=code)
+    return _mint_result_v1(gate=exact_gate, attempt=attempt, code=code)
 
 
 __all__ = [
@@ -582,6 +633,7 @@ __all__ = [
     "quiescence_root_from_body_v1",
     "quiescence_root_v1",
     "reject_writer_v1",
+    "is_verified_quiescence_gate_v1",
     "writer_attempt_body_v1",
     "writer_attempt_root_v1",
 ]

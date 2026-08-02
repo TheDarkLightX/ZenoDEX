@@ -187,6 +187,19 @@ def test_i04_verified_contract_requires_provenance_and_fresh_use_validation() ->
     assert forged_result.code is I04DedupCodeV1.UNMOUNTABLE
 
 
+def test_invalid_contract_rejects_without_changing_valid_destination_state() -> None:
+    contract = _contract(I04DedupModeV1.QUERY_BY_EFFECT_ID)
+    effect = _effect()
+    state, accepted = deliver_effect_v1(contract, I04DestinationStateV1(), effect)
+    assert not isinstance(accepted, I04DedupRejectV1)
+
+    next_state, result = deliver_effect_v1(object(), state, effect)
+
+    assert next_state == state
+    assert isinstance(result, I04DedupRejectV1)
+    assert result.code is I04DedupCodeV1.UNMOUNTABLE
+
+
 def test_destination_state_rejects_duplicate_or_noncanonical_records() -> None:
     first = I04DestinationRecordV1(
         effect_id=tagged_digest("i04/effect-a"),

@@ -362,23 +362,23 @@ def deliver_effect_v1(
 ) -> tuple[I04DestinationStateV1, I04DeliveryResultV1]:
     """Apply one effect to the deterministic destination model."""
 
-    if not _is_registered_verified_contract_v1(contract):
-        return I04DestinationStateV1(), _reject(I04DedupCodeV1.UNMOUNTABLE, "contract")
     if type(state) is not I04DestinationStateV1:
         return I04DestinationStateV1(), _reject(I04DedupCodeV1.STATE_INVALID, "state")
-    if type(effect) is not dra.OutboxEffectV1:
-        return state, _reject(I04DedupCodeV1.INVALID_EFFECT, "effect")
     exact_contract = cast(I04VerifiedDedupContractV1, contract)
     exact_state = state
+    try:
+        exact_state.__post_init__()
+    except (I04Error, TypeError, ValueError):
+        return I04DestinationStateV1(), _reject(I04DedupCodeV1.STATE_INVALID, "state")
+    if not _is_registered_verified_contract_v1(contract):
+        return exact_state, _reject(I04DedupCodeV1.UNMOUNTABLE, "contract")
+    if type(effect) is not dra.OutboxEffectV1:
+        return exact_state, _reject(I04DedupCodeV1.INVALID_EFFECT, "effect")
     exact_effect = cast(dra.OutboxEffectV1, effect)
     try:
         exact_effect.__post_init__()
     except (dra.DurableRetractionError, I04Error, TypeError, ValueError):
         return exact_state, _reject(I04DedupCodeV1.INVALID_EFFECT, "effect")
-    try:
-        exact_state.__post_init__()
-    except (I04Error, TypeError, ValueError):
-        return I04DestinationStateV1(), _reject(I04DedupCodeV1.STATE_INVALID, "state")
     if exact_effect.destination != exact_contract.destination:
         return exact_state, _reject(I04DedupCodeV1.DESTINATION_MISMATCH, "destination")
     if exact_effect.adapter_profile_root != exact_contract.adapter_profile_root:
