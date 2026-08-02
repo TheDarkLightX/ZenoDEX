@@ -138,6 +138,21 @@ def test_valid_ack_binds_delivery_receipt_and_subject() -> None:
     )
 
 
+def test_ack_verifier_rejects_exact_class_contract_without_verifier_provenance() -> None:
+    effect = _effect()
+    contract, state, receipt = _delivered(effect)
+    forged = object.__new__(I04VerifiedDedupContractV1)
+    object.__setattr__(forged, "destination", contract.destination)
+    object.__setattr__(forged, "adapter_profile_root", contract.adapter_profile_root)
+    object.__setattr__(forged, "mode", contract.mode)
+    object.__setattr__(forged, "contract_root", contract.contract_root)
+
+    result = verify_ack_provenance_v1(_candidate(effect, forged, state, receipt))
+
+    assert isinstance(result, I05AckRejectV1)
+    assert result.code is I05AckCodeV1.INVALID_CANDIDATE
+
+
 def test_ack_before_delivery_rejects_even_with_well_shaped_receipt() -> None:
     effect = _effect()
     contract, delivered_state, receipt = _delivered(effect)

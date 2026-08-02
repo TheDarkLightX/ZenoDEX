@@ -24,6 +24,7 @@ from experiments.fcis_m6_i04_destination_dedup import (
     I04DestinationStateV1,
     I04VerifiedDedupContractV1,
     deliver_effect_v1,
+    is_verified_dedup_contract_v1,
 )
 from experiments.fcis_m6_i05_ack_provenance import (
     I05_VERIFIER_PROFILE_ROOT,
@@ -112,14 +113,13 @@ class I06DeliveryStateV1:
     def __post_init__(self) -> None:
         if type(self.effect) is not dra.OutboxEffectV1:
             raise I06Error("effect has the wrong exact type")
-        if type(self.contract) is not I04VerifiedDedupContractV1:
+        if not is_verified_dedup_contract_v1(self.contract):
             raise I06Error("contract has the wrong exact type")
         if type(self.destination_state) is not I04DestinationStateV1:
             raise I06Error("destination_state has the wrong exact type")
         if type(self.phase) is not I06PhaseV1:
             raise I06Error("phase has the wrong exact type")
         self.effect.__post_init__()
-        self.contract.__post_init__()
         self.destination_state.__post_init__()
         if self.effect.destination != self.contract.destination:
             raise I06Error("effect and contract destinations differ")
@@ -208,14 +208,13 @@ def _validate_state(value: object) -> I06DeliveryStateV1 | I06RecoveryRejectV1:
 def new_delivery_state_v1(contract: object, effect: object) -> I06StateResultV1:
     """Create a ready state without accepting or synthesizing an effect."""
 
-    if type(contract) is not I04VerifiedDedupContractV1:
+    if not is_verified_dedup_contract_v1(contract):
         return _reject(I06RecoveryCodeV1.INVALID_STATE, "contract")
     if type(effect) is not dra.OutboxEffectV1:
         return _reject(I06RecoveryCodeV1.INVALID_STATE, "effect")
     exact_contract = cast(I04VerifiedDedupContractV1, contract)
     exact_effect = cast(dra.OutboxEffectV1, effect)
     try:
-        exact_contract.__post_init__()
         exact_effect.__post_init__()
         state = I06DeliveryStateV1(
             effect=exact_effect,

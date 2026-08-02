@@ -173,6 +173,17 @@ def _is_registered_verified_contract_v1(value: object) -> bool:
         return False
 
 
+def is_verified_dedup_contract_v1(value: object) -> bool:
+    """Return whether ``value`` is a live, verifier-minted contract witness.
+
+    Consumers use this predicate at their own point of use.  Calling the
+    witness dataclass initializer again would require the private mint token
+    and would therefore reject an otherwise valid verifier-produced value.
+    """
+
+    return _is_registered_verified_contract_v1(value)
+
+
 I04ContractResultV1: TypeAlias = I04VerifiedDedupContractV1 | I04DedupRejectV1
 
 
@@ -401,5 +412,6 @@ __all__ = (
     "MAX_DESTINATION_RECEIPTS_V1",
     "deliver_effect_v1",
     "derive_dedup_contract_root",
+    "is_verified_dedup_contract_v1",
     "verify_dedup_contract_v1",
 )

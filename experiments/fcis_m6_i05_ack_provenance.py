@@ -12,6 +12,7 @@ from experiments.fcis_m6_i04_destination_dedup import (
     I04DestinationStateV1,
     I04VerifiedDedupContractV1,
     deliver_effect_v1,
+    is_verified_dedup_contract_v1,
 )
 from src.core import fcis_durable_retraction as dra
 
@@ -162,7 +163,7 @@ def verify_ack_provenance_v1(candidate: object) -> I05AckResultV1:
         return _reject(I05AckCodeV1.INVALID_CANDIDATE, "candidate")
     if type(candidate.effect) is not dra.OutboxEffectV1:
         return _reject(I05AckCodeV1.INVALID_CANDIDATE, "effect")
-    if type(candidate.contract) is not I04VerifiedDedupContractV1:
+    if not is_verified_dedup_contract_v1(candidate.contract):
         return _reject(I05AckCodeV1.INVALID_CANDIDATE, "contract")
     if type(candidate.delivery_state) is not I04DestinationStateV1:
         return _reject(I05AckCodeV1.INVALID_CANDIDATE, "delivery_state")
@@ -174,7 +175,6 @@ def verify_ack_provenance_v1(candidate: object) -> I05AckResultV1:
     receipt = cast(I04DestinationReceiptV1, candidate.receipt)
     try:
         effect.__post_init__()
-        contract.__post_init__()
         delivery_state.__post_init__()
         receipt.__post_init__()
     except (dra.DurableRetractionError, I05Error, ValueError, TypeError):

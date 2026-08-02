@@ -176,6 +176,20 @@ def test_ready_state_cannot_skip_the_destination_acceptance_crash_phase() -> Non
     assert result.code is I06RecoveryCodeV1.INVALID_PHASE
 
 
+def test_recovery_state_rejects_exact_class_contract_without_verifier_provenance() -> None:
+    ready = _ready()
+    forged = object.__new__(I04VerifiedDedupContractV1)
+    object.__setattr__(forged, "destination", ready.contract.destination)
+    object.__setattr__(forged, "adapter_profile_root", ready.contract.adapter_profile_root)
+    object.__setattr__(forged, "mode", ready.contract.mode)
+    object.__setattr__(forged, "contract_root", ready.contract.contract_root)
+
+    result = new_delivery_state_v1(forged, ready.effect)
+
+    assert isinstance(result, I06RecoveryRejectV1)
+    assert result.code is I06RecoveryCodeV1.INVALID_STATE
+
+
 def test_attempt_counter_overflow_rejects_without_redelivery() -> None:
     recovered = _recovered()
     exhausted = replace(recovered, delivery_attempts=U32_MAX)
