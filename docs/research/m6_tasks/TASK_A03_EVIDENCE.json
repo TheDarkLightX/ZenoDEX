@@ -34,7 +34,7 @@
     "sha256sum": "sha256sum (GNU coreutils) 9.4"
   },
   "source_hashes": {
-    "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+    "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "8617e1f5f89ebe333085d6021334b061ce37a4970b5d84a87c18f8efc360fdef",
     "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
     "docs/research/FCIS_M6_TASK_A01_REPORT_20260731.md": "888db63869abccf5cfef597c6ac201b54077e937d2b2f9f30516c306274b1b70",
     "docs/research/FCIS_M6_STACK_CONFLICT_MAP_20260731.md": "41333ee2ae4ca68bafb44079625bfc1f268361f85cbcdea02ba6dde9b6a7791d"
