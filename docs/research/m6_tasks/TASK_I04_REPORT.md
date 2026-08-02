@@ -1,9 +1,9 @@
-# FCIS M6 Task I04 Report
+# FCIS M6 Task I04 Repair Report
 
 TASK_ID: I04
-BASE_SHA: 79ed2a34312cab21c7335d1eb16e80f9715a2905
-SOURCE_HEAD_SHA: 1cd7680a9f8fd7ca221e99ab281df75f3bae36f5
-SOURCE_HEAD_TREE: 23a77e8d396a41c942ade2fc15647cd092fe510e
+BASE_SHA: f2cfbeef28f64a570e20aea97fb30a6af17ef75e
+SOURCE_HEAD_SHA: 5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb
+SOURCE_HEAD_TREE: 1c9414653acd65cce22b6f89c90befc88ce80013
 BRANCH: codex/task-H03-deterministic-crash-20260801
 FILES_CHANGED:
 - experiments/fcis_m6_i04_destination_dedup.py
@@ -11,47 +11,45 @@ FILES_CHANGED:
 - docs/research/m6_tasks/TASK_I04_DESTINATION_DEDUP_SCHEMA_V1.json
 - docs/research/m6_tasks/TASK_I04_PLAN.md
 
-IMPLEMENTATION_HEAD_SHA: 1cd7680a9f8fd7ca221e99ab281df75f3bae36f5
-IMPLEMENTATION_TREE: 23a77e8d396a41c942ade2fc15647cd092fe510e
-IMPLEMENTATION_PARENT: 79ed2a34312cab21c7335d1eb16e80f9715a2905
+IMPLEMENTATION_HEAD_SHA: 5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb
+IMPLEMENTATION_TREE: 1c9414653acd65cce22b6f89c90befc88ce80013
+IMPLEMENTATION_PARENT: f2cfbeef28f64a570e20aea97fb30a6af17ef75e
 
-CLAIM_IMPLEMENTED: I04 adds a verifier-gated deterministic destination
-deduplication model. It accepts native idempotency-key, query-by-effect-ID,
-and application-owned receipt-table mechanisms. Each accepted effect is
-recorded by effect ID, destination, and payload root. Duplicate attempts return
-the original destination receipt root as ALREADY_ACCEPTED; changed payload,
-destination, or adapter profile rejects without changing destination state.
-Unsupported mechanisms and forged contract roots are UNMOUNTABLE.
+CLAIM_IMPLEMENTED: I04 retains the verifier-gated deterministic destination
+deduplication model and now closes the destination-record collection at 8,192
+records. Construction and explicit revalidation reject over-capacity state;
+delivery at exact capacity returns CAPACITY_EXCEEDED without changing state.
+Duplicate attempts retain the original receipt root, while payload,
+destination, adapter-profile, unsupported-mechanism, and forged-contract
+crossings reject.
 
 COMMANDS_RUN:
-- python3 -m ruff format experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py
-- python3 -m ruff check experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py
-- python3 -m ruff format --check experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py
-- python3 -m mypy --strict experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py
-- python3 -m py_compile experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py
-- PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_i04_destination_dedup.py
-- python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks I04
-- sha256sum --check --strict docs/research/m6_tasks/TASK_I04_SOURCE_MANIFEST.sha256
-- git diff --check
+- `python3 -m ruff format --check experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py`
+- `python3 -m ruff check experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py`
+- `python3 -m mypy --strict experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py`
+- `python3 -m py_compile experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py`
+- `PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_i04_destination_dedup.py`
+- `python3 -m json.tool docs/research/m6_tasks/TASK_I04_DESTINATION_DEDUP_SCHEMA_V1.json`
+- `python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks I04`
+- `sha256sum --check --strict docs/research/m6_tasks/TASK_I04_SOURCE_MANIFEST.sha256`
+- `git diff --check`
 
 RESULTS:
-- Focused I04 suite passed: 6 passed.
-- All three declared dedup mechanisms produced the same observational
-  duplicate contract: stable effect ID, payload root, and receipt root.
-- Same-effect payload mutation rejected as PAYLOAD_CONFLICT with unchanged
-  destination state.
-- Destination and adapter-profile crossings rejected before acceptance.
-- Forged contract roots and unsupported caller-asserted exactly-once modes
-  returned UNMOUNTABLE.
-- Duplicate and noncanonical destination-record collections rejected.
-- Invalid effect input rejected without creating destination state.
-- Ruff, formatting, strict mypy, Python compilation, packet validation, and the
-  source manifest pass.
+- Focused I04 suite passed: 7 passed.
+- All three declared dedup mechanisms retain observational duplicate
+  idempotence with stable effect, payload, and receipt roots.
+- Same-ID payload mutation, destination crossing, and adapter-profile crossing
+  reject without changing destination state.
+- Over-capacity construction and revalidation reject with the typed I04Error.
+- A new effect at exactly 8,192 records returns CAPACITY_EXCEEDED and leaves
+  the state unchanged.
+- Ruff, formatting, strict mypy, Python compilation, packet validation, source
+  manifest verification, and diff whitespace checks pass.
 
-MUTANTS_ADDED: None. The focused suite contains negative witnesses for payload
-collision, destination crossing, adapter-profile crossing, forged contract,
-unsupported mechanism, duplicate records, noncanonical order, and invalid
-effect input.
+MUTANTS_ADDED: Over-capacity construction, over-capacity revalidation, and
+exact-capacity delivery are retained as negative witnesses in addition to the
+existing payload, destination, adapter-profile, forged-contract,
+unsupported-mechanism, duplicate, order, and invalid-effect witnesses.
 
 FORMAL_EVIDENCE: None. I04 supplies executable deterministic adapter evidence;
 it adds no machine-checked theorem.
@@ -60,15 +58,12 @@ REMAINING_NONCLAIMS:
 - I04 does not prove any external destination's native idempotency, query, or
   application receipt-table implementation.
 - I04 does not verify acknowledgment provenance, destination receipt bytes,
-  lost acknowledgments, worker delivery, or retry recovery.
-- I04 does not prove concurrent linearizability, production datastore
-  behavior, runtime reachability, migration, no-bypass coverage, accounting,
-  or zUSD safety.
-- No network, production destination, caller, or value-moving path is
-  mounted. M6 remains research-only and non-promotable.
+  lost acknowledgments, worker delivery, retry recovery, or production
+  concurrency.
+- I04 does not prove runtime reachability, migration, no-bypass coverage,
+  accounting, or zUSD safety. No production path is mounted.
+- M6 remains research-only and non-promotable.
 
-REVIEW_RISKS: The three mechanisms share one immutable reference state machine
-to expose the common observational contract. Production adapters still need
-mechanism-specific refinement evidence, receipt provenance binding, failure
-and timeout behavior, and an explicit unmount decision when the destination
-cannot provide a verified dedup contract.
+REVIEW_RISKS: The bound is enforced by the immutable reference state model. A
+production adapter must preserve the same capacity, ordering, transaction,
+and deduplication semantics through its own storage and destination evidence.

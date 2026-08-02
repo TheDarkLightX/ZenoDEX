@@ -42,7 +42,7 @@
     "experiments/fcis_m6_h02_sqlite_publication.py": "412400a225412f1889db99c44145825b228177dc06031ebbf488cacc95426659",
     "tests/core/test_fcis_m6_i02_committed_outbox.py": "7636d2877b468aca6b55ef8deaa423f1d3114f2d5e9c9e41bd5ec096ab2fdc48",
     "docs/research/m6_tasks/TASK_I02_OUTBOX_SCHEMA_V1.json": "b44e68567405415abf5ccf7ef3f9e4e5681a18fefbf2dc6587799bd9d36a5e3f",
-    "docs/research/m6_tasks/TASK_I02_PLAN.md": "2c2c435fb70f4c0520b4f8d660a80cf45b084a0b695ea351339d7aa890096dc9"
+    "docs/research/m6_tasks/TASK_I02_PLAN.md": "ab36af7b507540d74e2fd3436fc085bfe5a9f62781ace13a4fe7ecfdd9ca180b"
   },
   "results": {
     "focused_tests": "pass; 6 passed",

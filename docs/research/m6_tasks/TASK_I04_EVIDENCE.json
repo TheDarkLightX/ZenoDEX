@@ -1,9 +1,9 @@
 {
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "I04",
-  "base_sha": "79ed2a34312cab21c7335d1eb16e80f9715a2905",
-  "source_head_sha": "1cd7680a9f8fd7ca221e99ab281df75f3bae36f5",
-  "source_head_tree": "23a77e8d396a41c942ade2fc15647cd092fe510e",
+  "base_sha": "f2cfbeef28f64a570e20aea97fb30a6af17ef75e",
+  "source_head_sha": "5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb",
+  "source_head_tree": "1c9414653acd65cce22b6f89c90befc88ce80013",
   "branch": "codex/task-H03-deterministic-crash-20260801",
   "status": "TESTED",
   "evidence_files": [
@@ -16,12 +16,12 @@
     "docs/research/m6_tasks/TASK_I04_SOURCE_MANIFEST.sha256"
   ],
   "commands": [
-    "python3 -m ruff format experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py",
-    "python3 -m ruff check experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py",
     "python3 -m ruff format --check experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py",
+    "python3 -m ruff check experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py",
     "python3 -m mypy --strict experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py",
     "python3 -m py_compile experiments/fcis_m6_i04_destination_dedup.py tests/core/test_fcis_m6_i04_destination_dedup.py",
     "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_i04_destination_dedup.py",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_I04_DESTINATION_DEDUP_SCHEMA_V1.json",
     "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks I04",
     "sha256sum --check --strict docs/research/m6_tasks/TASK_I04_SOURCE_MANIFEST.sha256",
     "git diff --check"
@@ -34,27 +34,31 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "experiments/fcis_m6_i04_destination_dedup.py": "f3327a00086b255b9712d472e9d14e54a35a9a56878992cc556cb8b75015f5e6",
-    "tests/core/test_fcis_m6_i04_destination_dedup.py": "394e56698dc22a224c1badb42ae3e93f74aad8817b2a32acce7ac6244d95e956",
-    "docs/research/m6_tasks/TASK_I04_DESTINATION_DEDUP_SCHEMA_V1.json": "901682daa1715cb687a876f1e60b9e1c2dc46861681a6b919049f1b88eb31e49",
-    "docs/research/m6_tasks/TASK_I04_PLAN.md": "e6b11781dea120af465bdd70ea8c655e2b65a71b923d9d95bcec135741bc2e49"
+    "experiments/fcis_m6_i04_destination_dedup.py": "bd30ff76cf6c9b56af9c3f67b57a2b7c3e9e78ba38a6e4353818b0fa73edb750",
+    "tests/core/test_fcis_m6_i04_destination_dedup.py": "d0059ff8bbd8cdb7c00b4922c8f338a40478c0774920ba0f88f44550ee0cc716",
+    "docs/research/m6_tasks/TASK_I04_DESTINATION_DEDUP_SCHEMA_V1.json": "eac1ac5f5d945e3df2a4ec1a2f36029c21b3fd08a2ad9cab130f2163b8832b99",
+    "docs/research/m6_tasks/TASK_I04_PLAN.md": "c9cda3c1ab2613d143f9d2ec2e8b92582d93737c1d9388aa02c9eead53bdb8b4"
   },
   "results": {
-    "focused_tests": "pass; 6 passed",
+    "focused_tests": "pass; 7 passed",
     "mechanism_coverage": "pass; native key, query-by-effect-ID, and receipt-table paths",
     "duplicate_idempotence": "pass; stable receipt root and unchanged destination state",
     "collision_rejection": "pass; payload, destination, and adapter-profile crossings reject",
+    "capacity_bound": "pass; 8,192 maximum and typed exact-capacity rejection",
     "unmountable_contracts": "pass; forged and unsupported contracts reject",
-    "collection_rejection": "pass; duplicate and noncanonical records reject",
-    "implementation_commit": "1cd7680a9f8fd7ca221e99ab281df75f3bae36f5",
-    "implementation_tree": "23a77e8d396a41c942ade2fc15647cd092fe510e",
-    "implementation_parent": "79ed2a34312cab21c7335d1eb16e80f9715a2905"
+    "implementation_commit": "5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb",
+    "implementation_tree": "1c9414653acd65cce22b6f89c90befc88ce80013",
+    "implementation_parent": "f2cfbeef28f64a570e20aea97fb30a6af17ef75e"
   },
-  "mutants": [],
+  "mutants": [
+    "over-capacity state construction rejected",
+    "over-capacity state revalidation rejected",
+    "new effect at exact capacity rejected without state change"
+  ],
   "nonclaims": [
-    "I04 is an immutable research destination model and is not a network adapter.",
-    "I04 does not prove receipt provenance, delivery, lost-ack recovery, or production idempotency.",
-    "I04 does not prove runtime mounting or value movement.",
-    "M6 remains unmounted and non-promotable."
+    "I04 is an immutable research destination model and is not a network adapter",
+    "I04 does not prove receipt provenance, delivery, lost-ack recovery, or production idempotency",
+    "I04 does not prove runtime mounting or value movement",
+    "M6 remains unmounted and non-promotable"
   ]
 }
