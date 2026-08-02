@@ -1,0 +1,44 @@
+{
+  "schema": "zenodex/fcis/m6/f02/history-encoder-config/v1",
+  "profile_id": "fcis-m6-f02-canonical-history-encoder-v1",
+  "history_schema": "zenodex/fcis/m6/f02/authorized-history/v1",
+  "layout_schema": "zenodex/fcis/m6/f02/durable-layout/v1",
+  "max_atoms": 128,
+  "max_authority_epochs": 129,
+  "max_acknowledgments": 8192,
+  "evidence_kinds": [
+    "anf",
+    "proof_context",
+    "response",
+    "receipt",
+    "decision",
+    "bundle",
+    "replay",
+    "outbox"
+  ],
+  "row_families": [
+    "header",
+    "authority_rows",
+    "history_rows",
+    "evidence_rows",
+    "nullifier_rows",
+    "outbox_rows",
+    "ack_rows"
+  ],
+  "invariants": [
+    "encode_history is the sole public row materializer",
+    "history rows retain complete canonical F01 atom bytes",
+    "parallel row counts equal their source projections",
+    "all rows have exact canonical order",
+    "authority and context roots remain bound to every atom",
+    "layout root rederives from the complete layout projection"
+  ],
+  "nonclaims": [
+    "research encoder and layout value only",
+    "no database transaction or physical durability",
+    "no reopen or fixed-point recovery",
+    "no caller authentication or runtime authority",
+    "no external delivery authenticity",
+    "no accounting, backing, zUSD safety, or value movement"
+  ]
+}
