@@ -1,0 +1,21 @@
+{
+  "schema": "zenodex/fcis/m6/f04/ack-progress-config/v1",
+  "profile_id": "fcis-m6-f04-ack-progress-v1",
+  "ack_progress_schema": "zenodex/fcis/m6/f04/ack-progress/v1",
+  "prior_state_required": true,
+  "ack_policy": "monotone_addition_only",
+  "statuses": ["pending", "acked"],
+  "invariants": [
+    "prior and current layouts are independent F04 fixed points",
+    "non-ack history and all parallel projections remain identical",
+    "prior acknowledgments cannot disappear",
+    "existing acknowledgments cannot mutate",
+    "new acknowledgments are F02-provenanced",
+    "pending effect identities remain explicit"
+  ],
+  "nonclaims": [
+    "a current layout without prior evidence does not prove that an acknowledgment was deleted",
+    "F04A does not authenticate a destination receipt or mount an ack writer",
+    "F04A does not prove crash recovery, delivery, accounting, backing, zUSD safety, or M6 promotion"
+  ]
+}
