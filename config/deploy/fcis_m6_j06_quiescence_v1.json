@@ -2,7 +2,7 @@
   "schema": "zenodex/fcis/m6/j06/quiescence-gate-config/v1",
   "profile_id": "research-unmounted-j06-final-replay-quiescence",
   "expected_j04_manifest_root": "8bf0ac5af1164a52e9e3fb122a3f517d1c1b2fee90e7a13b6f7ec4329f9ba145",
-  "expected_k01_entrypoint_inventory_root": "d90d4140f79400b0d9094130f7f45488d5f7a6df32db0a23934acf3b5fd88385",
+  "expected_k01_entrypoint_inventory_root": "fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a",
   "expected_quiesced_epoch": 3,
   "expected_quiesced_authority_root": "15274929f06ed6f9da30915093d0c76d8170564fae1c302432551f41dea07611",
   "expected_legacy_profile_root": "16fa2532aa19d304813cceb2f8922ede8eb1c021b8116f34bff2e76f7d4c1231",
@@ -32,7 +32,7 @@
     "DIRECT_ADAPTER_WRITER_QUIESCED",
     "HEAD_REPLAY_EQUAL"
   ],
-  "pinned_quiescence_root": "1f9690d4b7ef894a9571aa21ca13eae19c9405298c9713988d2db7a16afda20d",
+  "pinned_quiescence_root": "9aafe665d1715757c852f65700f9e1c9d202d216afc5f44398941612ddb0e34a",
   "nonclaims": [
     "J06 is a bounded quiescence admission model, not a production barrier or datastore transaction",
     "K01 is a reviewed source-set inventory and does not prove dynamic reachability or deployment completeness",
