@@ -8,10 +8,9 @@ nonce, insert a datastore row, or authenticate a signature.
 
 from __future__ import annotations
 
-from dataclasses import InitVar, dataclass
+from dataclasses import dataclass, field
 from hashlib import sha256
-from typing import Final
-from weakref import WeakValueDictionary
+from typing import Final, cast, final
 
 from src.core.fcis_m6_e01_request_identity import (
     E01CommandFamilyV1,
@@ -115,33 +114,53 @@ def nullifier_root_from_body_v1(body: dict[str, object]) -> str:
     return _nullifier_root(_strict_nullifier_body(body))
 
 
-@dataclass(frozen=True, slots=True, weakref_slot=True)
+@final
+@dataclass(frozen=True, slots=True)
 class E02NullifierV1:
-    """Verifier-owned nullifier witness for one E01 request identity."""
+    """Replayable nullifier witness retaining its complete E02 sources."""
 
-    deployment_config_root: str
-    sender_id: str
-    command_family: E01CommandFamilyV1
-    nonce: int
-    request_identity_root: str
+    request_identity: E01RequestIdentityV1
+    current_nonce: int
     nullifier_root: str
-    _construction_token: InitVar[object | None] = None
+    _verification_marker: object | None = field(default=None, repr=False, compare=False)
 
-    def __post_init__(self, _construction_token: object | None) -> None:
-        if _construction_token is not _E02_NULLIFIER_CONSTRUCTION_TOKEN_V1:
+    def __post_init__(self) -> None:
+        if self._verification_marker is not _E02_NULLIFIER_CONSTRUCTION_TOKEN_V1:
             raise E02Error("nullifier construction is verifier-owned")
         self._validate_fields()
 
     def _validate_fields(self) -> None:
-        _digest(self.deployment_config_root, "deployment_config_root")
-        _text(self.sender_id, "sender_id", maximum_bytes=MAX_E02_SENDER_BYTES_V1)
-        if type(self.command_family) is not E01CommandFamilyV1:
-            raise E02Error("command_family has the wrong exact type")
-        _integer(self.nonce, "nonce", maximum=MAX_E02_U64_V1, positive=True)
-        _digest(self.request_identity_root, "request_identity_root")
+        identity = _require_verified_request_identity_v1(self.request_identity)
+        checked_current = _integer(
+            self.current_nonce,
+            "current_nonce",
+            maximum=MAX_E02_CURRENT_NONCE_V1,
+        )
+        if identity.nonce != checked_current + 1:
+            raise E02Error("command nonce is not the exact next sender nonce")
         expected_root = nullifier_root_from_body_v1(self.preimage_body())
         if _digest(self.nullifier_root, "nullifier_root") != expected_root:
             raise E02Error("nullifier_root is not canonically bound")
+
+    @property
+    def deployment_config_root(self) -> str:
+        return cast(str, self.request_identity.deployment_config_root)
+
+    @property
+    def sender_id(self) -> str:
+        return cast(str, self.request_identity.sender_id)
+
+    @property
+    def command_family(self) -> E01CommandFamilyV1:
+        return self.request_identity.command_family
+
+    @property
+    def nonce(self) -> int:
+        return cast(int, self.request_identity.nonce)
+
+    @property
+    def request_identity_root(self) -> str:
+        return cast(str, self.request_identity.request_identity_root)
 
     def preimage_body(self) -> dict[str, object]:
         return _nullifier_body(
@@ -161,39 +180,23 @@ class E02NullifierV1:
         }
 
 
-_E02_NULLIFIERS_V1: WeakValueDictionary[int, E02NullifierV1] = WeakValueDictionary()
-_E02_NULLIFIER_SNAPSHOTS_V1: dict[int, tuple[object, ...]] = {}
-
-
-def _nullifier_snapshot_v1(value: E02NullifierV1) -> tuple[object, ...]:
-    return (
-        value.deployment_config_root,
-        value.sender_id,
-        value.command_family,
-        value.nonce,
-        value.request_identity_root,
-        value.nullifier_root,
-    )
-
-
-def _register_nullifier_v1(value: E02NullifierV1) -> E02NullifierV1:
-    key = id(value)
-    _E02_NULLIFIERS_V1[key] = value
-    _E02_NULLIFIER_SNAPSHOTS_V1[key] = _nullifier_snapshot_v1(value)
-    return value
-
-
 def is_verified_nullifier_v1(value: object) -> bool:
-    """Return whether ``value`` is an unchanged verifier-derived witness."""
+    """Replay the retained E02 sources before accepting one witness."""
 
     if type(value) is not E02NullifierV1:
         return False
     nullifier = value
-    if _E02_NULLIFIERS_V1.get(id(nullifier)) is not nullifier:
-        return False
     try:
         nullifier._validate_fields()
-        return _E02_NULLIFIER_SNAPSHOTS_V1.get(id(nullifier)) == _nullifier_snapshot_v1(nullifier)
+        replayed = derive_nonce_nullifier_v1(
+            request_identity=nullifier.request_identity,
+            current_nonce=nullifier.current_nonce,
+        )
+        return (
+            replayed.request_identity == nullifier.request_identity
+            and replayed.current_nonce == nullifier.current_nonce
+            and replayed.to_wire() == nullifier.to_wire()
+        )
     except (AttributeError, E02Error, TypeError, ValueError, ArithmeticError, OverflowError):
         return False
 
@@ -237,16 +240,11 @@ def derive_nonce_nullifier_v1(
         command_family=identity.command_family,
         nonce=identity.nonce,
     )
-    return _register_nullifier_v1(
-        E02NullifierV1(
-            deployment_config_root=identity.deployment_config_root,
-            sender_id=identity.sender_id,
-            command_family=identity.command_family,
-            nonce=identity.nonce,
-            request_identity_root=identity.request_identity_root,
-            nullifier_root=_nullifier_root(body),
-            _construction_token=_E02_NULLIFIER_CONSTRUCTION_TOKEN_V1,
-        )
+    return E02NullifierV1(
+        request_identity=identity,
+        current_nonce=checked_current,
+        nullifier_root=_nullifier_root(body),
+        _verification_marker=_E02_NULLIFIER_CONSTRUCTION_TOKEN_V1,
     )
 
 

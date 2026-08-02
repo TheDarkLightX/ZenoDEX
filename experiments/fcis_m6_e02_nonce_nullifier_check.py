@@ -11,6 +11,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from src.core import fcis_m6_e02_nonce_nullifier as e02  # noqa: E402
 from src.core.fcis_m6_e01_request_identity import (  # noqa: E402
     E01CommandFamilyV1,
     E01RequestIdentityV1,
@@ -89,14 +90,7 @@ def _forge_identity(identity: E01RequestIdentityV1) -> E01RequestIdentityV1:
 
 def _forge_nullifier(nullifier: E02NullifierV1) -> E02NullifierV1:
     forged = object.__new__(E02NullifierV1)
-    for name in (
-        "deployment_config_root",
-        "sender_id",
-        "command_family",
-        "nonce",
-        "request_identity_root",
-        "nullifier_root",
-    ):
+    for name in ("request_identity", "current_nonce", "nullifier_root"):
         object.__setattr__(forged, name, object.__getattribute__(nullifier, name))
     return forged
 
@@ -165,11 +159,8 @@ def run_checks() -> None:
 
     try:
         E02NullifierV1(
-            deployment_config_root=nullifier.deployment_config_root,
-            sender_id=nullifier.sender_id,
-            command_family=nullifier.command_family,
-            nonce=nullifier.nonce,
-            request_identity_root=nullifier.request_identity_root,
+            request_identity=identity,
+            current_nonce=current_nonce,
             nullifier_root=nullifier.nullifier_root,
         )
     except E02Error:
@@ -189,18 +180,18 @@ def run_checks() -> None:
         raise AssertionError("exact-class forged E01 identity crossed E02")
 
     forged_nullifier = _forge_nullifier(nullifier)
-    if is_verified_nullifier_v1(forged_nullifier):
-        raise AssertionError("exact-class forged E02 nullifier was accepted")
-    try:
-        same_nullifier_v1(nullifier, forged_nullifier)
-    except E02Error:
-        pass
-    else:
-        raise AssertionError("forged E02 nullifier crossed comparison")
+    if not is_verified_nullifier_v1(forged_nullifier):
+        raise AssertionError("source-equivalent E02 certificate did not replay")
+    if not same_nullifier_v1(nullifier, forged_nullifier):
+        raise AssertionError("source-equivalent E02 certificates differed")
 
-    object.__setattr__(nullifier, "sender_id", "mallory")
+    for name in ("_E02_NULLIFIERS_V1", "_E02_NULLIFIER_SNAPSHOTS_V1"):
+        if hasattr(e02, name):
+            raise AssertionError("E02 still depends on a process-local provenance registry")
+
+    object.__setattr__(nullifier, "current_nonce", current_nonce - 1)
     if is_verified_nullifier_v1(nullifier):
-        raise AssertionError("mutated E02 nullifier retained verifier provenance")
+        raise AssertionError("crossed E02 source retained verifier provenance")
 
     print("E02_NONCE_NULLIFIER_MATCH", raw_nullifier["nullifier_root"])
 

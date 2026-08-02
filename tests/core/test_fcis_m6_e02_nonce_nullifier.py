@@ -8,6 +8,7 @@ from typing import cast
 import pytest
 
 from experiments.fcis_m6_e02_nonce_nullifier_check import _identity_from_vector, run_checks
+from src.core import fcis_m6_e02_nonce_nullifier as e02
 from src.core.fcis_m6_e01_request_identity import (
     E01CommandFamilyV1,
     _mint_authenticated_command_v1,
@@ -119,16 +120,30 @@ def test_nullifier_witness_is_verifier_owned_and_mutation_invalidates_it() -> No
     identity = _identity_from_vector()
     nullifier = derive_nonce_nullifier_v1(request_identity=identity, current_nonce=6)
     assert is_verified_nullifier_v1(nullifier)
-    forged = object.__new__(E02NullifierV1)
-    for name in (
-        "deployment_config_root",
-        "sender_id",
-        "command_family",
-        "nonce",
-        "request_identity_root",
-        "nullifier_root",
-    ):
-        object.__setattr__(forged, name, object.__getattribute__(nullifier, name))
-    assert not is_verified_nullifier_v1(forged)
-    object.__setattr__(nullifier, "sender_id", "mallory")
+    replayed_copy = object.__new__(E02NullifierV1)
+    object.__setattr__(replayed_copy, "request_identity", nullifier.request_identity)
+    object.__setattr__(replayed_copy, "current_nonce", nullifier.current_nonce)
+    object.__setattr__(replayed_copy, "nullifier_root", nullifier.nullifier_root)
+    assert is_verified_nullifier_v1(replayed_copy)
+
+    object.__setattr__(nullifier, "current_nonce", nullifier.current_nonce - 1)
     assert not is_verified_nullifier_v1(nullifier)
+
+
+def test_point_of_use_verification_replays_retained_sources_without_registry() -> None:
+    identity = _identity_from_vector()
+    current_nonce = cast(int, _payload()["current_nonce"])
+    nullifier = derive_nonce_nullifier_v1(
+        request_identity=identity,
+        current_nonce=current_nonce,
+    )
+
+    assert nullifier.request_identity is identity
+    assert nullifier.current_nonce == current_nonce
+
+    for name in ("_E02_NULLIFIERS_V1", "_E02_NULLIFIER_SNAPSHOTS_V1"):
+        registry = getattr(e02, name, None)
+        if registry is not None:
+            registry.clear()
+
+    assert is_verified_nullifier_v1(nullifier)

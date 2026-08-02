@@ -27,8 +27,9 @@ E02 schema document and vector.
 - exact next-nonce and overflow rejection;
 - deployment, sender, nonce, and command-family mutation tests;
 - strict missing/extra/Boolean/unknown-enum rejection;
-- caller-minted and exact-class forged witness rejection;
-- mutation invalidates verifier provenance;
+- caller-minted witness rejection;
+- exact retained-source replay without process-global E02 provenance state;
+- crossed source mutation invalidates verifier provenance;
 - focused Python quality gates and packet manifest validation.
 
 ## Nonclaims
