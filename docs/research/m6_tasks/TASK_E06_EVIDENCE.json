@@ -1,0 +1,91 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "E06",
+  "base_sha": "7e8fd88bc84d80552c01ec53a331ec5d21aaeb0a",
+  "source_head_sha": "8d9140bed783032ae3e5ff1591803e74e70b9577",
+  "source_head_tree": "7aeecc7d05c283233adb125c229f34d3a79d631b",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_e06_concurrency_v1.json",
+    "docs/research/m6_tasks/FCIS_M6_E06_CONCURRENCY_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_E06_CONCURRENCY_V1.json",
+    "docs/research/m6_tasks/TASK_E06_PLAN.md",
+    "docs/research/m6_tasks/TASK_E06_REPORT.md",
+    "docs/research/m6_tasks/TASK_E06_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_E06_SOURCE_MANIFEST.sha256",
+    "experiments/fcis_m6_e06_concurrency.py",
+    "experiments/fcis_m6_e06_concurrency_check.py",
+    "src/core/fcis_m6_e05_expected_root_cas.py",
+    "experiments/fcis_m6_e05_expected_root_cas.py",
+    "tests/core/test_fcis_m6_e06_concurrency.py",
+    "tools/build_fcis_m6_e06_concurrency.py"
+  ],
+  "commands": [
+    "python3 tools/build_fcis_m6_e06_concurrency.py",
+    "python3 tools/build_fcis_m6_e06_concurrency.py --check",
+    "PYTHONPATH=. python3 experiments/fcis_m6_e06_concurrency_check.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_e06_concurrency.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_e05_expected_root_cas.py tests/core/test_fcis_m6_e06_concurrency.py",
+    "python3 -m py_compile experiments/fcis_m6_e06_concurrency.py experiments/fcis_m6_e06_concurrency_check.py tools/build_fcis_m6_e06_concurrency.py tests/core/test_fcis_m6_e06_concurrency.py",
+    "python3 -m ruff check experiments/fcis_m6_e06_concurrency.py experiments/fcis_m6_e06_concurrency_check.py tools/build_fcis_m6_e06_concurrency.py tests/core/test_fcis_m6_e06_concurrency.py",
+    "python3 -m ruff format --check experiments/fcis_m6_e06_concurrency.py experiments/fcis_m6_e06_concurrency_check.py tools/build_fcis_m6_e06_concurrency.py tests/core/test_fcis_m6_e06_concurrency.py",
+    "python3 -m mypy --strict experiments/fcis_m6_e06_concurrency.py experiments/fcis_m6_e06_concurrency_check.py tools/build_fcis_m6_e06_concurrency.py tests/core/test_fcis_m6_e06_concurrency.py",
+    "python3 -m json.tool config/deploy/fcis_m6_e06_concurrency_v1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_E06_CONCURRENCY_V1.json",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks E06",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_E06_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_e06_concurrency_v1.json": "59475ef4fa0495313ccc05b68c6eae69d9ec9bcd9b61e7cde40b65aa3e905d16",
+    "docs/research/m6_tasks/FCIS_M6_E06_CONCURRENCY_SCHEMA_V1.md": "bbbfbae84ff7865c034c9d758fb96b2f08b773b8d0a4c51305ec565dd7b149ec",
+    "docs/research/m6_tasks/TASK_E06_CONCURRENCY_V1.json": "17a05dde1eec20a51e434129703cb1999168a34b5f08732c707ae37c334da67d",
+    "docs/research/m6_tasks/TASK_E06_PLAN.md": "5d4010108d95a344dc82e55ff295aec919f170cbb4440ae208230f1808df43d0",
+    "experiments/fcis_m6_e05_expected_root_cas.py": "fe7bfdfbf4e6c940e10353fc33e3cf2f9ee22c255307cbe9767d894ea13d5007",
+    "experiments/fcis_m6_e06_concurrency.py": "947cfa0f7ae232c38e15fca89da69385f2d6b86f2a2cb099aa50074e7dadc9d3",
+    "experiments/fcis_m6_e06_concurrency_check.py": "5ebdcf3f2bdd4704d755a44d2a5306e86cc710a8b504cf9b48f360791b98c1ef",
+    "src/core/fcis_m6_e05_expected_root_cas.py": "a383e6868d4cbfffc5bc410295fc489d8df69410233b1c51d873bb4ba14560df",
+    "tests/core/test_fcis_m6_e06_concurrency.py": "7c4c19ce0ed460b3bdf5e74fd27b8731c1e531651c671338b9788f1d1ac6919b",
+    "tools/build_fcis_m6_e06_concurrency.py": "d3a760e10b172432c4b0ce809a28ec06c916bf02d4d9c6b57564014d0fc132e9"
+  },
+  "results": {
+    "focused_e06_tests": "pass; 2 passed",
+    "combined_e05_e06_tests": "pass; 14 passed",
+    "independent_checker": "pass; E06_CONCURRENCY_CHECKS_PASS 5",
+    "source_vector": "pass; E06_CONCURRENCY_VECTOR_MATCH",
+    "same_command_retry": "one committed, one stale_snapshot_cas, rows 1/1/1",
+    "same_sender_nonce": "one committed, one stale_snapshot_cas, rows 1/1/1",
+    "same_commit_changed_fingerprint": "one committed, one stale_snapshot_cas, rows 1/1/1",
+    "quiescence_race": "head_changed plus stale_authority_cas, rows 0/0/0",
+    "authority_switch_race": "head_changed plus stale_authority_cas, rows 0/0/0",
+    "repeatability": "pass; two campaign summaries are byte-identical",
+    "implementation_commit": "8d9140bed783032ae3e5ff1591803e74e70b9577",
+    "implementation_tree": "7aeecc7d05c283233adb125c229f34d3a79d631b",
+    "implementation_parent": "7e8fd88bc84d80552c01ec53a331ec5d21aaeb0a"
+  },
+  "mutants": [
+    "same-command duplicate",
+    "same-sender/nonce different command",
+    "same commit ID changed fingerprint",
+    "publisher racing quiescence",
+    "publisher racing authority switch",
+    "worker failure",
+    "incomplete worker result",
+    "partial-row count mismatch"
+  ],
+  "nonclaims": [
+    "E06 is an isolated SQLite concurrency harness",
+    "E06 does not prove production datastore isolation or linearizability",
+    "quiescence and authority-switch actors are research head mutations, not the real M6 phase machine",
+    "E06 does not prove crash recovery, destination idempotency, accounting, backing, zUSD safety, or value movement",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
