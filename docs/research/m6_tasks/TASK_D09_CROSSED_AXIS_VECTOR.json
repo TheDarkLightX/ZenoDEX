@@ -1,9 +1,9 @@
 {
   "schema_version": "zenodex.fcis.m6.d09.crossed-axis.v1",
-  "transition_1_anf_root": "0x50f1f4119309fcb7e8a4a6d3ad86cc218be63c774fce8f61bb9d3cfd67432dd7",
-  "transition_2_anf_root": "0xa42f556f208221da6bae5021ad711d9309e651c1fd3d6d568a38c8e566821166",
-  "transition_1_bundle_root": "0x9416185495c104105ea43f77a23196c8c36c24d68872ebd873682545242bfd2a",
-  "transition_2_bundle_root": "0xf50a378c04c450cec3794c2919edebbbb33507a4d751986ac1dc11061c57c927",
+  "transition_1_anf_root": "0x5db91a6153c3e9e10f21ac1a05a0a834c2fa291dd6d67fd93d8cd85c0b99117c",
+  "transition_2_anf_root": "0xc68dd1adb62bd0bebb97aa80a4ffa4d92a36069fc124443bf8e7ea4188224599",
+  "transition_1_bundle_root": "0x5210bd91f04d948ea2f1b762aceb8834d60c1f64832e969c53b08b6df950a7cc",
+  "transition_2_bundle_root": "0x6936f8ab55baa60eb68478420951f23aedd4a06ea1922efbc60fe833e97c746e",
   "cases": {
     "semantic_transition_1_receipt_transition_2": "source_lineage_mismatch",
     "receipt_transition_1_bundle_transition_2": "source_lineage_mismatch",

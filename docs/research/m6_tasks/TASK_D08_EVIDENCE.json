@@ -2,9 +2,9 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "D08",
   "base_sha": "f721d3bc11929c7649f93655f362e7ee0cc13a07",
-  "source_head_sha": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-  "source_head_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
-  "branch": "codex/task-H03-deterministic-crash-20260801",
+  "source_head_sha": "cc6627f5d07ecbba27594650c9bd367850fb80a4",
+  "source_head_tree": "7af5f9e993e21b3fe7be03248adbe5a66e48eade",
+  "branch": "codex/task-D08-replayable-accept-20260802",
   "status": "TESTED",
   "evidence_files": [
     "src/core/fcis_m6_d08_combined_anf.py",
@@ -23,8 +23,10 @@
     "python3 -m ruff format --check src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py",
     "python3 -m mypy --strict src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py",
     "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_d08_combined_anf.py",
-    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d07_stutter_receipt.py tests/core/test_fcis_m6_d06_rule_manifest.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m6_d05_tcg_inventory.py tests/core/test_fcis_tree_chord_gate_authority.py tests/core/test_fcis_authority_normal_form_v1.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_decision_derivation.py tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d09_crossed_axis_temporal.py tests/core/test_fcis_m6_k02_commit_port.py tests/core/test_fcis_m6_d07_stutter_receipt.py tests/core/test_fcis_m6_d06_rule_manifest.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m6_d05_tcg_inventory.py tests/core/test_fcis_tree_chord_gate_authority.py tests/core/test_fcis_authority_normal_form_v1.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_decision_derivation.py tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h04_crash_recovery.py tests/tools/test_fcis_m6_k05_bypass_mutation.py",
     "PYTHONPATH=. python3 experiments/fcis_m6_d08_combined_anf_check.py",
+    "PYTHONPATH=. python3 experiments/fcis_m6_d08_combined_anf_check.py --write-vector",
     "python3 -m experiments.fcis_m6_d07_stutter_receipt_check",
     "python3 -m experiments.fcis_m6_d06_rule_manifest_check",
     "python3 -m experiments.fcis_m6_d05_tcg_inventory_check",
@@ -46,20 +48,22 @@
     "mypy": "mypy 2.1.0 (compiled: yes)"
   },
   "source_hashes": {
-    "src/core/fcis_m6_d08_combined_anf.py": "80a0c461ceb1e71a04592972b995c4f4353a41ec9080fe9ec2fdfa68a5c7366e",
-    "experiments/fcis_m6_d08_combined_anf_check.py": "7087d5654fc2064f9bacad40915e95d4a43a661506dd7c4e44a09d0a825454db",
-    "tests/core/test_fcis_m6_d08_combined_anf.py": "5a917348481f065a3915716ab381b3360a5f8fbc570b52c89d567d221453d2e2",
-    "docs/research/m6_tasks/TASK_D08_COMBINED_ANF_VECTOR.json": "fbdda916f6920fabc310dcef0cdc63663e7fa68106aef31780ea98d3602e5e4a",
+    "src/core/fcis_m6_d08_combined_anf.py": "c329857e4e35790c0f64aa8a722de42c44ddabb0d4cba2ce8a2397b6a01b1381",
+    "experiments/fcis_m6_d08_combined_anf_check.py": "cbc94d01360955275767d8825a7e5914796a1a9c227896c6bd4dc1555b02e1e9",
+    "tests/core/test_fcis_m6_d08_combined_anf.py": "c8d143aa678a819eb2f24515cf5a3ca9eece4ca0e238fa4c311e941ea82fafe9",
+    "docs/research/m6_tasks/TASK_D08_COMBINED_ANF_VECTOR.json": "3d2e2d3584182e1564753cd2f576b69f60b58608abe610bfeea1b49198e135b0",
     "docs/research/FCIS_M6_D08_COMBINED_ANF_SCHEMA_V1.md": "c3c42d3af0e47e8fc0c64abe62d91bf6e6b07cecc27de6c9a1dc119842b9314c",
     "docs/research/m6_tasks/TASK_D08_PLAN.md": "9c98094ca4d6065d94623b4107a4bb0088caf08ed2d267acbc3c32175f5a89d8",
-    "docs/research/m6_tasks/TASK_D08_REPORT.md": "a10ee49575e8bb126c9de8f94b040edbd3035c54b9d0e5362be42175f35d9fdc"
+    "docs/research/m6_tasks/TASK_D08_REPORT.md": "dcec6e633685d530ccc24de479e4ac4ce3e4ab5bfa429c28a73d521e96859374"
   },
   "results": {
-    "implementation_commit": "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6",
-    "implementation_tree": "5b0c6efa409f12cb62cd84b0e24aa3c373458273",
-    "implementation_parent": "c3213000060d3224e1291d2bbf9992e41f8fd74b",
-    "focused_d08_tests": "5 passed",
-    "d08_dependency_regression": "202 passed",
+    "implementation_commit": "cc6627f5d07ecbba27594650c9bd367850fb80a4",
+    "implementation_tree": "7af5f9e993e21b3fe7be03248adbe5a66e48eade",
+    "implementation_parent": "e52c52207b6f7df432331830f66f7ee294827f00",
+    "focused_d08_tests": "7 passed",
+    "d08_dependency_regression": "224 passed",
+    "publication_crash_recovery_regression": "50 passed",
+    "restart_replay": "pass; retained exact instance re-verifies without mutable process registry",
     "d08_vector_checker": "pass; D08_COMBINED_ANF_MATCH; 5 mutants killed",
     "d07_vector_checker": "pass; D07_STUTTER_RECEIPT_MATCH",
     "d06_vector_checker": "pass; D06_LINEAGE_RULE_MANIFEST_MATCH",
@@ -74,10 +78,10 @@
     "ruff_format": "pass; 3 files",
     "mypy_strict": "pass; 3 files",
     "json_vector": "pass",
-    "validator": "pending packet refresh",
-    "source_manifest": "pending packet refresh",
+    "validator": "pass; 8 manifest entries",
+    "source_manifest": "pass; 8 manifest entries",
     "runtime_mount": "none",
-    "remote_publication": "none"
+    "remote_publication": "review-only branch or PR carries no authority and is not a merge"
   },
   "mutants": [
     {
@@ -129,14 +133,20 @@
       "id": "D08_MALFORMED_TCG_CERTIFICATE",
       "status": "killed_by_test",
       "invariant": "malformed TCG evidence cannot escape as an exception"
+    },
+    {
+      "id": "D08_CROSSED_RETAINED_INSTANCE",
+      "status": "killed_by_test",
+      "invariant": "point-of-use replay must reject an acceptance whose retained verifier input was crossed"
     }
   ],
   "nonclaims": [
     "D08 is tested unmounted composition evidence for a finite research language.",
+    "The acceptance wrapper is process-local; restart recovery re-verifies the retained exact instance rather than trusting a serialized wrapper.",
     "The proof-context field is structural binding and does not verify a cryptographic proof.",
     "TCG and inventory inputs remain research premises until production sources and verifiers are mounted.",
     "The DRA snapshot relation does not refine a production datastore, crash protocol, concurrent transaction, or recovery worker.",
     "D08 does not prove source-input authentication, TCG completeness, destination idempotency, API no-bypass coverage, migration authority, deployment identity, or value movement.",
-    "No Lean, Julia, ESSO, production adapter, remote implementation commit, hosted CI run, draft PR, merge, deployment, migration, or runtime authority change is claimed."
+    "No Lean, Julia, ESSO, production adapter, merge, deployment, migration, or runtime authority change is claimed."
   ]
 }

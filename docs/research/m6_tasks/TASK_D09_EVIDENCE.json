@@ -2,9 +2,9 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "D09",
   "base_sha": "2504f9c8bd6b9feb31e519eac76a3aa6db27b54b",
-  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
-  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
-  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "source_head_sha": "cc6627f5d07ecbba27594650c9bd367850fb80a4",
+  "source_head_tree": "7af5f9e993e21b3fe7be03248adbe5a66e48eade",
+  "branch": "codex/task-D08-replayable-accept-20260802",
   "status": "TESTED",
   "evidence_files": [
     "experiments/fcis_m6_d09_crossed_axis_temporal_check.py",
@@ -23,6 +23,7 @@
     "python3 -m mypy --strict experiments/fcis_m6_d09_crossed_axis_temporal_check.py tests/core/test_fcis_m6_d09_crossed_axis_temporal.py",
     "PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_d09_crossed_axis_temporal.py",
     "PYTHONPATH=. python3 experiments/fcis_m6_d09_crossed_axis_temporal_check.py",
+    "PYTHONPATH=. python3 experiments/fcis_m6_d09_crossed_axis_temporal_check.py --write-vector",
     "PYTHONPATH=. python3 experiments/fcis_m6_d08_combined_anf_check.py",
     "python3 -m experiments.fcis_m6_d07_stutter_receipt_check",
     "python3 -m experiments.fcis_m6_d06_rule_manifest_check",
@@ -45,17 +46,17 @@
     "mypy": "mypy 2.1.0 (compiled: yes)"
   },
   "source_hashes": {
-    "experiments/fcis_m6_d09_crossed_axis_temporal_check.py": "c1d1d1cf8e589320a9847f19e4f748b3b527db1bd1b79393b34b2225931f61d6",
+    "experiments/fcis_m6_d09_crossed_axis_temporal_check.py": "acb331f113a85084ea4046add464521da4dcb89a00330d279f57f6d53c59118a",
     "tests/core/test_fcis_m6_d09_crossed_axis_temporal.py": "4f5fcf70815c95da825a44c2d00d5f8573fe405b6979419becbf291f8d1ac9e5",
-    "docs/research/m6_tasks/TASK_D09_CROSSED_AXIS_VECTOR.json": "8b6d8c891a860b0c26eccbf0726d6126d8f0f3070ae3f90d07ae2a233b0d0dfe",
+    "docs/research/m6_tasks/TASK_D09_CROSSED_AXIS_VECTOR.json": "9be902ede8dc8af546ce7b5d1ffe1dcf46c8f998c07ea19d822c92841adab2df",
     "docs/research/FCIS_M6_D09_CROSSED_AXIS_SCHEMA_V1.md": "7082b9fe9a16ae8290ec0ac830e1985d6461e0b9178067be1793e9d925d66c4b",
     "docs/research/m6_tasks/TASK_D09_PLAN.md": "44ebdde31cff908db0648a2bb2143d5f198c97d44a8f3eefceb4c8f65e4e390f",
-    "docs/research/m6_tasks/TASK_D09_REPORT.md": "1f7d69a8d33a021de9bba849fe5d3de21be5b086a3e4922552534e027f830d36"
+    "docs/research/m6_tasks/TASK_D09_REPORT.md": "043ba8d25c95cddd102af65dbd2a11a37e2fbdb684bd04415c01d51c72e9a869"
   },
   "results": {
-    "implementation_commit": "6adf03af9124ae17044bce097e460b42211b21d7",
-    "implementation_tree": "84fe640a06dd79aec99032360aa688c2bd3c82d8",
-    "implementation_parent": "2504f9c8bd6b9feb31e519eac76a3aa6db27b54b",
+    "implementation_commit": "cc6627f5d07ecbba27594650c9bd367850fb80a4",
+    "implementation_tree": "7af5f9e993e21b3fe7be03248adbe5a66e48eade",
+    "implementation_parent": "e52c52207b6f7df432331830f66f7ee294827f00",
     "focused_d09_tests": "3 passed",
     "d09_checker": "pass; D09_CROSSED_AXIS_MATCH; 8 mutants killed",
     "d08_checker": "pass; D08_COMBINED_ANF_MATCH",
@@ -75,7 +76,7 @@
     "validator": "pass; 7 manifest entries",
     "source_manifest": "pass; 7 manifest entries",
     "runtime_mount": "none",
-    "remote_publication": "none"
+    "remote_publication": "review-only branch or PR carries no authority and is not a merge"
   },
   "mutants": [
     {
@@ -124,6 +125,6 @@
     "The crossed-axis cases reject at the D08 lineage boundary and do not prove production row-level isolation or transaction atomicity.",
     "Mathematical specifications and isolated invariants are substantial components, while end-to-end refinement from authenticated input to proved transition remains incomplete.",
     "Atomic publication, recovery, outbox, migration refinement, mounted unique authority/no-bypass evidence, and the whole-system conservation/liability/backing/ZUSD theorem remain incomplete.",
-    "No Lean, Julia, ESSO, production adapter, remote implementation commit, hosted CI run, draft PR, merge, deployment, migration, runtime authority change, or value movement is claimed."
+    "No Lean, Julia, ESSO, production adapter, merge, deployment, migration, runtime authority change, or value movement is claimed."
   ]
 }

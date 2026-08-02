@@ -2,9 +2,9 @@
 
 TASK_ID: D08
 BASE_SHA: f721d3bc11929c7649f93655f362e7ee0cc13a07
-SOURCE_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
-SOURCE_HEAD_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
-BRANCH: codex/task-H03-deterministic-crash-20260801
+SOURCE_HEAD_SHA: cc6627f5d07ecbba27594650c9bd367850fb80a4
+SOURCE_HEAD_TREE: 7af5f9e993e21b3fe7be03248adbe5a66e48eade
+BRANCH: codex/task-D08-replayable-accept-20260802
 FILES_CHANGED:
 - src/core/fcis_m6_d08_combined_anf.py
 - experiments/fcis_m6_d08_combined_anf_check.py
@@ -20,14 +20,18 @@ research verifier. Each stage recomputes its own source before the later stage
 is evaluated. A successful result owns the complete canonical
 `PublicationAtomV1` used by the later publication port, rather than returning
 an ANF root alongside caller-selected publication fields. The acceptance
-result carries verifier registration and is revalidated at point of use, so an
-exact-class forged or mutated result cannot authorize publication. D08 rejects
+result retains the complete exact verifier instance. Every authority-bearing
+use freshly replays that instance and compares the recomputed ANF root and
+publication atom. No weak-reference registry, object-ID snapshot table, or
+other mutable process-global acceptance state remains. After restart, the
+retained exact instance can be verified again to mint a new process-local
+acceptance wrapper. D08 rejects
 later-root substitution, crossed or malformed TCG evidence, missing proof
 context, publication/history mismatch, and source extraction failures.
 
-IMPLEMENTATION_HEAD_SHA: 0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6
-IMPLEMENTATION_TREE: 5b0c6efa409f12cb62cd84b0e24aa3c373458273
-IMPLEMENTATION_PARENT: c3213000060d3224e1291d2bbf9992e41f8fd74b
+IMPLEMENTATION_HEAD_SHA: cc6627f5d07ecbba27594650c9bd367850fb80a4
+IMPLEMENTATION_TREE: 7af5f9e993e21b3fe7be03248adbe5a66e48eade
+IMPLEMENTATION_PARENT: e52c52207b6f7df432331830f66f7ee294827f00
 
 COMMANDS_RUN:
 - python3 -m py_compile src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py
@@ -35,8 +39,10 @@ COMMANDS_RUN:
 - python3 -m ruff format --check src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py
 - python3 -m mypy --strict src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py
 - PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_d08_combined_anf.py
-- PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d07_stutter_receipt.py tests/core/test_fcis_m6_d06_rule_manifest.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m6_d05_tcg_inventory.py tests/core/test_fcis_tree_chord_gate_authority.py tests/core/test_fcis_authority_normal_form_v1.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_decision_derivation.py tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py
+- PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d09_crossed_axis_temporal.py tests/core/test_fcis_m6_k02_commit_port.py tests/core/test_fcis_m6_d07_stutter_receipt.py tests/core/test_fcis_m6_d06_rule_manifest.py tests/core/test_fcis_lineage_closure.py tests/core/test_fcis_m6_d05_tcg_inventory.py tests/core/test_fcis_tree_chord_gate_authority.py tests/core/test_fcis_authority_normal_form_v1.py tests/core/test_fcis_commit_bundle_derivation.py tests/core/test_fcis_commit_reference.py tests/core/test_fcis_m5_authority_admission.py tests/core/test_fcis_m6_d03_anf_receipt_binding.py tests/core/test_fcis_source_bound_lineage.py tests/core/test_fcis_decision_derivation.py tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py
+- PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_h02_sqlite_publication.py tests/core/test_fcis_m6_h03_crash_points.py tests/core/test_fcis_m6_h04_crash_recovery.py tests/tools/test_fcis_m6_k05_bypass_mutation.py
 - PYTHONPATH=. python3 experiments/fcis_m6_d08_combined_anf_check.py
+- PYTHONPATH=. python3 experiments/fcis_m6_d08_combined_anf_check.py --write-vector
 - python3 -m experiments.fcis_m6_d07_stutter_receipt_check
 - python3 -m experiments.fcis_m6_d06_rule_manifest_check
 - python3 -m experiments.fcis_m6_d05_tcg_inventory_check
@@ -51,14 +57,20 @@ COMMANDS_RUN:
 - sha256sum --check --strict docs/research/m6_tasks/TASK_D08_SOURCE_MANIFEST.sha256
 
 RESULTS:
-- D08 focused tests passed: 5 passed.
-- D08 plus D07, D06, C3, D05, D04, D03, D02, D01, profile, and entitlement regression tests passed: 202 passed.
+- D08 focused tests passed: 7 passed.
+- D08, D09, K02, and upstream dependency regression tests passed: 224 passed.
+- H02/H03/H04/K05 publication, crash, recovery, and bypass regression tests
+  passed: 50 passed.
 - The D08 checker passed: D08_COMBINED_ANF_MATCH.
 - The checker killed five targeted mutants: foreign TCG topology, foreign C3 root,
   foreign proof root/context, foreign publication authority state, and base
   decision substituted for the later ANF decision.
-- The successful acceptance owns the exact recomputed publication atom;
-  downstream K02 rejects a forged exact-class acceptance object.
+- The successful acceptance retains the complete verifier input and owns the
+  exact recomputed publication atom. A second fresh verification produces the
+  same ANF root and atom without consulting process-global registration.
+- Point-of-use replay rejects a crossed retained instance even when the outer
+  acceptance fields are left unchanged; downstream K02 rejects a forged
+  exact-class acceptance object.
 - The focused tests additionally covered wrong exact type, source extraction
   failure, missing proof context, PRE/POST history mismatch, later decision
   substitution, and malformed TCG evidence.
@@ -70,17 +82,17 @@ RESULTS:
 - The D08 vector parsed and matched regenerated roots exactly.
 - Python compilation, Ruff, Ruff formatting, and strict mypy passed for all
   three D08 Python files.
-- No Lean proof, Julia execution, private ESSO run, hosted CI run, remote
-  publication, runtime mount, authority switch, deployment, migration, or
-  value movement is claimed.
+- No Lean proof, Julia execution, private ESSO run, runtime mount, authority
+  switch, merge, deployment, migration, or value movement is claimed.
 
 MUTANTS_ADDED: D08 covers TCG topology substitution, C3 claim-root
 substitution, proof-context substitution, publication authority substitution,
 later decision substitution, wrong exact instance type, source extraction
 failure, missing proof context, crossed PRE/POST history, and malformed TCG
-certificate. Focused tests and the deterministic checker reject each named
-mutation at the relevant stage. The downstream publication witness also
-retains the exact-class acceptance-forgery negative case.
+certificate, and crossed retained verifier instance. Focused tests and the
+deterministic checker reject each named mutation at the relevant stage. The
+downstream publication witness also retains the exact-class
+acceptance-forgery negative case.
 
 FORMAL_EVIDENCE: None. D08 supplies a typed executable composition relation, a
 canonical output vector, deterministic rejection codes, and mutation-killing
@@ -89,6 +101,8 @@ machine-checked or cryptographic proof.
 
 REMAINING_NONCLAIMS:
 - D08 is tested unmounted evidence for the finite composition language.
+- The acceptance wrapper is process-local. Restart recovery re-verifies the
+  retained exact instance; it does not deserialize or trust a prior wrapper.
 - TCG inventory, certificate, and proof context remain supplied research
   premises until their production sources and verifiers are mounted.
 - The DRA snapshot relation does not refine a production datastore transaction,
@@ -96,11 +110,10 @@ REMAINING_NONCLAIMS:
 - D08 does not prove source-input authentication, TCG completeness, destination
   idempotency, API no-bypass coverage, migration authority, deployment
   identity, or value movement.
-- No Lean, Julia, ESSO, production adapter, remote implementation commit,
-  hosted CI run, draft PR, merge, deployment, migration, or runtime authority
-  change is claimed.
+- No Lean, Julia, ESSO, production adapter, merge, deployment, migration, or
+  runtime authority change is claimed.
 
-REVIEW_RISKS: The combined verifier is an 841-line research hotspot and uses
+REVIEW_RISKS: The combined verifier is an 821-line research hotspot and uses
 pre-ANF base artifacts to keep TCG and DRA roots acyclic. Review should preserve
 that stage order. The structural proof-context check must not be promoted to
 proof verification. Production refinement still requires authenticated source

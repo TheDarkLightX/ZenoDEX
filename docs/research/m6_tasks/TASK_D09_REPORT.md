@@ -2,9 +2,9 @@
 
 TASK_ID: D09
 BASE_SHA: 2504f9c8bd6b9feb31e519eac76a3aa6db27b54b
-SOURCE_HEAD_SHA: 476ec022e755ff049c39bf9f08c6606ac87532ca
-SOURCE_HEAD_TREE: a1d495eae0b26a369487ceb48cad5472abec74db
-BRANCH: codex/task-C07-exact-migration-review-packet-20260801
+SOURCE_HEAD_SHA: cc6627f5d07ecbba27594650c9bd367850fb80a4
+SOURCE_HEAD_TREE: 7af5f9e993e21b3fe7be03248adbe5a66e48eade
+BRANCH: codex/task-D08-replayable-accept-20260802
 FILES_CHANGED:
 - experiments/fcis_m6_d09_crossed_axis_temporal_check.py
 - tests/core/test_fcis_m6_d09_crossed_axis_temporal.py
@@ -17,11 +17,13 @@ with distinct ANF and bundle roots, crosses the required semantic, receipt,
 bundle/outbox, TCG, DRA authority, and lineage axes, and checks exact typed
 rejection codes. It also sends same-root new_commit and migration candidates to
 the D07 stutter verifier and requires forbidden_operation rejection. The
-result is a deterministic eight-mutant vector.
+result is a deterministic eight-mutant vector. The checker now owns an explicit
+`--write-vector` regeneration mode and passes strict typing without untyped
+fixture-return or redundant-cast exceptions.
 
-IMPLEMENTATION_HEAD_SHA: 6adf03af9124ae17044bce097e460b42211b21d7
-IMPLEMENTATION_TREE: 84fe640a06dd79aec99032360aa688c2bd3c82d8
-IMPLEMENTATION_PARENT: 2504f9c8bd6b9feb31e519eac76a3aa6db27b54b
+IMPLEMENTATION_HEAD_SHA: cc6627f5d07ecbba27594650c9bd367850fb80a4
+IMPLEMENTATION_TREE: 7af5f9e993e21b3fe7be03248adbe5a66e48eade
+IMPLEMENTATION_PARENT: e52c52207b6f7df432331830f66f7ee294827f00
 
 COMMANDS_RUN:
 - python3 -m py_compile experiments/fcis_m6_d09_crossed_axis_temporal_check.py tests/core/test_fcis_m6_d09_crossed_axis_temporal.py
@@ -30,6 +32,7 @@ COMMANDS_RUN:
 - python3 -m mypy --strict experiments/fcis_m6_d09_crossed_axis_temporal_check.py tests/core/test_fcis_m6_d09_crossed_axis_temporal.py
 - PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_d09_crossed_axis_temporal.py
 - PYTHONPATH=. python3 experiments/fcis_m6_d09_crossed_axis_temporal_check.py
+- PYTHONPATH=. python3 experiments/fcis_m6_d09_crossed_axis_temporal_check.py --write-vector
 - PYTHONPATH=. python3 experiments/fcis_m6_d08_combined_anf_check.py
 - python3 -m experiments.fcis_m6_d07_stutter_receipt_check
 - python3 -m experiments.fcis_m6_d06_rule_manifest_check
@@ -63,9 +66,8 @@ RESULTS:
 - Python compilation, Ruff, Ruff formatting, and strict mypy passed for both
   D09 Python files.
 - The D09 vector parsed successfully.
-- No Lean proof, Julia execution, private ESSO run, hosted CI run, remote
-  publication, runtime mount, authority switch, deployment, migration, or
-  value movement is claimed.
+- No Lean proof, Julia execution, private ESSO run, runtime mount, authority
+  switch, merge, deployment, migration, or value movement is claimed.
 
 MUTANTS_ADDED: D09 adds semantic-transition-1/receipt-transition-2,
 receipt-transition-1/bundle-transition-2, bundle-transition-1/outbox-
@@ -86,9 +88,8 @@ REMAINING_NONCLAIMS:
 - D09 does not prove TCG completeness, proof soundness, datastore isolation,
   crash recovery, destination idempotency, API no-bypass coverage, migration
   authority, deployment identity, or value movement.
-- No Lean, Julia, ESSO, production adapter, remote implementation commit,
-  hosted CI run, draft PR, merge, deployment, migration, or runtime authority
-  change is claimed.
+- No Lean, Julia, ESSO, production adapter, merge, deployment, migration, or
+  runtime authority change is claimed.
 
 REVIEW_RISKS: The second transition is assembled through a controlled fixture
 input swap and the D08 builder. The bundle/outbox mutant uses the complete
@@ -96,4 +97,3 @@ foreign base bundle so the D08 lineage boundary rejects before outbox
 reconstruction. A future production mutant lane must cross actual independently
 stored rows and concurrent transactions, then retain the same named invariant
 and exact rejection boundary.
-

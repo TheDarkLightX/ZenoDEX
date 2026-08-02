@@ -2,9 +2,9 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "D05",
   "base_sha": "8601a61154a00aafb1c7ba84d88939b0af4a2685",
-  "source_head_sha": "476ec022e755ff049c39bf9f08c6606ac87532ca",
-  "source_head_tree": "a1d495eae0b26a369487ceb48cad5472abec74db",
-  "branch": "codex/task-C07-exact-migration-review-packet-20260801",
+  "source_head_sha": "cc6627f5d07ecbba27594650c9bd367850fb80a4",
+  "source_head_tree": "7af5f9e993e21b3fe7be03248adbe5a66e48eade",
+  "branch": "codex/task-D08-replayable-accept-20260802",
   "status": "TESTED",
   "evidence_files": [
     "config/deploy/fcis_m6_tcg_inventory_v1.json",
@@ -53,15 +53,15 @@
     "tools/build_fcis_m6_d05_tcg_inventory.py": "ad7c86cbb89ecdc1e8ddc631ff6c8e557f395d40071e6b3f200424c70195370d",
     "experiments/fcis_m6_d05_tcg_inventory_check.py": "097ad00694df3d69af4443c26f69193fba0e31eb2847965fbb6467caeeb6d4fe",
     "tests/core/test_fcis_m6_d05_tcg_inventory.py": "8c239876257994b7eb0d852d8d455add9edf32bfd579540ee0779c4774e0e7e9",
-    "docs/research/m6_tasks/TASK_D05_TCG_INVENTORY_VECTOR.json": "0a7f9daed287762278af7fca54ad76f6f024983c43f4e921176dc8771754403f",
+    "docs/research/m6_tasks/TASK_D05_TCG_INVENTORY_VECTOR.json": "c489713296cf101b946d8645559ef8bb012c8a2ac126ba1be07eda7f5c7a1738",
     "docs/research/m6_tasks/FCIS_M6_D05_TCG_INVENTORY_SCHEMA_V1.md": "b6766a389899f41d67bc48589a1ce6d85932fe66451c31e302aeb27994112bf0",
     "docs/research/m6_tasks/TASK_D05_PLAN.md": "d1cee97120f504046e321f35946ab85ffca9dc74355202c70f1a7e1a46824fa9",
-    "docs/research/m6_tasks/TASK_D05_REPORT.md": "6479c05443e0ac10c1ee844c1a70e8f524ecf60aa091a9f251374e0815c007ab"
+    "docs/research/m6_tasks/TASK_D05_REPORT.md": "1615bd875c082bfe817386c91a58075c1f660e7eba37b61d389fa3a50240b78e"
   },
   "results": {
-    "implementation_commit": "0741cc88cb8768eb2ec5478c3aa3048c57313d8a",
-    "implementation_tree": "c40167080553bcacfec2c23c4096913c1f4cf8b6",
-    "implementation_parent": "8601a61154a00aafb1c7ba84d88939b0af4a2685",
+    "implementation_commit": "cc6627f5d07ecbba27594650c9bd367850fb80a4",
+    "implementation_tree": "7af5f9e993e21b3fe7be03248adbe5a66e48eade",
+    "implementation_parent": "e52c52207b6f7df432331830f66f7ee294827f00",
     "focused_d05_tests": "6 passed",
     "d05_upstream_regression": "129 passed",
     "d05_vector_checker": "pass; D05_TCG_INVENTORY_MATCH",
@@ -79,12 +79,12 @@
     "json_vector": "pass",
     "validator": "pass; 10 manifest entries",
     "source_manifest": "pass; 10 manifest entries",
-    "publisher_inventory_root": "95fbc474cded934607e63cd0a3af6a7e78514033278818218f925ce0980870fb",
-    "topology_root": "9413e99452edf6106089600e48a214e2802a3b030c3697c0204460c94f579214",
+    "publisher_inventory_root": "e3b8fc99092de0fb56d08bf68ccb2f03278c776b684939765f86f1284fa9379e",
+    "topology_root": "e9fa1351ab36ecafa75ea9919ed791e31e17e998aa25521c4e3ce8a8f18f1857",
     "publisher_kind_count": 9,
     "source_manifest_entry_count": 19,
     "runtime_mount": "none",
-    "remote_publication": "none"
+    "remote_publication": "review-only branch or PR carries no authority and is not a merge"
   },
   "mutants": [
     {
@@ -128,6 +128,6 @@
     "The configuration is a reviewed input; D05 does not prove that it contains every production publisher, worker, direct write, deployment target, or effect sink.",
     "Source-file hashing does not prove runtime reachability, build inclusion, process isolation, caller authentication, datastore authority, or effect application semantics.",
     "D05 does not bind a concrete TCG certificate, C3 claim set, proof context, DRA history, migration epoch, recovery transition, or destination acknowledgment to the topology root.",
-    "No Lean proof, Julia execution, private ESSO run, production deployment scan, mounted caller, runtime authority switch, remote implementation commit, hosted CI run, draft PR, merge, migration, deployment, or value movement is claimed."
+    "No Lean proof, Julia execution, private ESSO run, production deployment scan, mounted caller, runtime authority switch, merge, migration, deployment, or value movement is claimed."
   ]
 }

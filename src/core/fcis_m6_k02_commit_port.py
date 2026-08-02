@@ -278,37 +278,57 @@ def initial_port_state_v1(head_root: object) -> K02PortStateV1:
 def request_fingerprint_root_v1(request: K02PublicationRequestV1) -> str:
     """Derive the exact retry identity from all publication-relevant fields."""
 
-    request.__post_init__()
+    if type(request) is not K02PublicationRequestV1:
+        raise K02Error("request has the wrong exact type")
     exact_anf = cast(d08.D08CombinedANFAcceptV1, request.anf_accept)
-    exact_atom = request.publication_atom
+    try:
+        exact_atom = d08.authorized_publication_atom_v1(exact_anf)
+    except (
+        d08.D08CombinedANFError,
+        DurableRetractionError,
+        AttributeError,
+        TypeError,
+        ValueError,
+        ArithmeticError,
+        OverflowError,
+    ) as exc:
+        raise K02Error("D08 publication aggregate is invalid") from exc
+    return _request_fingerprint_root_from_atom_v1(exact_anf, exact_atom)
+
+
+def _request_fingerprint_root_from_atom_v1(
+    anf_accept: d08.D08CombinedANFAcceptV1,
+    atom: PublicationAtomV1,
+) -> str:
     return cast(
         str,
         tagged_digest(
             "k02/request/v1/"
-            f"{request.commit_id}/{request.expected_pre_state_root}/"
-            f"{request.post_state_root}/{request.authority_epoch_root}/"
-            f"{request.effect_root}/{request.sequence}/{exact_anf.anf_root}/"
-            f"{exact_atom.atom_root}"
+            f"{atom.commit_id}/{atom.expected_pre_root}/"
+            f"{atom.post_state_root}/{atom.authority_state_root}/"
+            f"{outbox_root(cast(tuple[OutboxEffectV1, ...], atom.outbox))}/"
+            f"{atom.sequence}/{anf_accept.anf_root}/{atom.atom_root}"
         ),
     )
 
 
-def _response_root(request: K02PublicationRequestV1, fingerprint_root: str) -> str:
+def _response_root(atom: PublicationAtomV1, fingerprint_root: str) -> str:
     return cast(
         str,
         tagged_digest(
-            f"k02/response/v1/{request.commit_id}/{fingerprint_root}/{request.post_state_root}"
+            f"k02/response/v1/{atom.commit_id}/{fingerprint_root}/{atom.post_state_root}"
         ),
     )
 
 
-def _next_head_root(state: K02PortStateV1, request: K02PublicationRequestV1) -> str:
+def _next_head_root(state: K02PortStateV1, atom: PublicationAtomV1) -> str:
     return cast(
         str,
         tagged_digest(
             "k02/head/v1/"
-            f"{state.head_root}/{request.commit_id}/{request.post_state_root}/"
-            f"{request.authority_epoch_root}/{request.effect_root}/{request.sequence}"
+            f"{state.head_root}/{atom.commit_id}/{atom.post_state_root}/"
+            f"{atom.authority_state_root}/"
+            f"{outbox_root(cast(tuple[OutboxEffectV1, ...], atom.outbox))}/{atom.sequence}"
         ),
     )
 
@@ -340,21 +360,26 @@ def publish_v1(port: object, state: object, request: object) -> K02ResultV1:
     ):
         return _reject(K02RejectCodeV1.WRONG_STATE, "state")
     try:
-        exact_request.__post_init__()
+        exact_anf = exact_request.anf_accept
+    except AttributeError:
+        return _reject(K02RejectCodeV1.WRONG_REQUEST, "request")
+    if type(exact_anf) is not d08.D08CombinedANFAcceptV1:
+        return _reject(K02RejectCodeV1.WRONG_REQUEST, "request")
+    try:
+        exact_atom = d08.authorized_publication_atom_v1(exact_anf)
     except (
+        d08.D08CombinedANFError,
+        DurableRetractionError,
         AttributeError,
-        K02Error,
         TypeError,
         ValueError,
         ArithmeticError,
         OverflowError,
     ):
-        return _reject(K02RejectCodeV1.WRONG_REQUEST, "request")
-    if not d08.is_verified_combined_anf_accept_v1(exact_request.anf_accept):
         return _reject(K02RejectCodeV1.ANF_WITNESS_REJECTED, "anf_accept")
-    fingerprint_root = request_fingerprint_root_v1(exact_request)
+    fingerprint_root = _request_fingerprint_root_from_atom_v1(exact_anf, exact_atom)
     for record in exact_state.records:
-        if record.commit_id != exact_request.commit_id:
+        if record.commit_id != exact_atom.commit_id:
             continue
         if record.fingerprint_root != fingerprint_root:
             return _reject(K02RejectCodeV1.COMMIT_COLLISION, "commit_id")
@@ -364,27 +389,27 @@ def publish_v1(port: object, state: object, request: object) -> K02ResultV1:
             commit_id=record.commit_id,
             response_root=record.response_root,
         )
-    if exact_request.sequence != exact_state.next_sequence:
+    if exact_atom.sequence != exact_state.next_sequence:
         return _reject(K02RejectCodeV1.SEQUENCE_MISMATCH, "sequence")
-    if exact_request.expected_pre_state_root != exact_state.head_root:
+    if exact_atom.expected_pre_root != exact_state.head_root:
         return _reject(K02RejectCodeV1.STALE_HEAD, "expected_pre_state_root")
-    response_root = _response_root(exact_request, fingerprint_root)
+    response_root = _response_root(exact_atom, fingerprint_root)
     next_record = K02CommitRecordV1(
-        sequence=exact_request.sequence,
-        commit_id=exact_request.commit_id,
+        sequence=exact_atom.sequence,
+        commit_id=exact_atom.commit_id,
         fingerprint_root=fingerprint_root,
-        post_state_root=exact_request.post_state_root,
+        post_state_root=exact_atom.post_state_root,
         response_root=response_root,
     )
     next_state = K02PortStateV1(
-        head_root=_next_head_root(exact_state, exact_request),
+        head_root=_next_head_root(exact_state, exact_atom),
         next_sequence=exact_state.next_sequence + 1,
         records=(*exact_state.records, next_record),
     )
     return K02CommitTransitionV1(
         resolution=K02CommitResolutionV1.NEWLY_COMMITTED,
         state=next_state,
-        commit_id=exact_request.commit_id,
+        commit_id=exact_atom.commit_id,
         response_root=response_root,
     )
 
