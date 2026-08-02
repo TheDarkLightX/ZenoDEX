@@ -1,0 +1,14 @@
+{
+  "schema": "zenodex/fcis/m6/e02/nonce-nullifier-config/v1",
+  "profile_id": "research-unmounted-e02-nonce-nullifier",
+  "identifier_registry_version": "zenodex/fcis/m6-profile-registry/v1",
+  "semantic_allocator_profile_id": "adaptive-global-quota-entitlement/three-role/v1",
+  "current_nonce": 6,
+  "pinned_request_identity_root": "77e6b68d217fe7553c87cc6e82d60f67aaa7292e4c09d8df277c2a6add0819c4",
+  "pinned_nullifier_root": "bb4d65007c0346d225879479a983d4094595091b7fce5e7bdbbf7f5b0ea44f58",
+  "nonclaims": [
+    "E02 consumes a verifier-derived E01 identity but does not implement cryptographic authentication.",
+    "E02 does not consume or persist a production nonce, insert a nullifier row, or provide concurrency control.",
+    "M6 remains research-only, unmounted, and non-promotable."
+  ]
+}
