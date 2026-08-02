@@ -1,0 +1,90 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "F04A",
+  "base_sha": "9c58a90841f3e5f5dd85cef6cbabfda84bec0907",
+  "source_head_sha": "3a9606141c3762f8b2e57150b7b1a77531102bf1",
+  "source_head_tree": "46d56b1545d1632e82f3c62282648d9396cf0953",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_f04_ack_progress_v1.json",
+    "src/core/fcis_m6_f04_ack_progress.py",
+    "experiments/fcis_m6_f04_ack_progress_check.py",
+    "tests/core/test_fcis_m6_f04_ack_progress.py",
+    "tests/core/test_fcis_m6_f04_ack_progress_properties.py",
+    "tools/build_fcis_m6_f04_ack_progress.py",
+    "docs/research/m6_tasks/TASK_F04A_ACK_PROGRESS_V1.json",
+    "docs/research/m6_tasks/FCIS_M6_F04A_ACK_PROGRESS_V1.md",
+    "docs/research/m6_tasks/TASK_F04A_PLAN.md",
+    "docs/research/m6_tasks/TASK_F04A_REPORT.md",
+    "docs/research/m6_tasks/TASK_F04A_EVIDENCE.json",
+    "docs/research/m6_tasks/validate_companion_task_packet.py",
+    "docs/research/m6_tasks/TASK_F04A_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m json.tool config/deploy/fcis_m6_f04_ack_progress_v1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_F04A_ACK_PROGRESS_V1.json",
+    "PYTHONPATH=. python3 experiments/fcis_m6_f04_ack_progress_check.py",
+    "PYTHONPATH=. python3 tools/build_fcis_m6_f04_ack_progress.py --check",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_f04_ack_progress.py tests/core/test_fcis_m6_f04_ack_progress_properties.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_f04_ack_progress.py tests/core/test_fcis_m6_f04_ack_progress_properties.py tests/core/test_fcis_m6_f03_reopen.py tests/core/test_fcis_m6_f04_fixed_point.py tests/core/test_fcis_m6_f05_authenticated_genesis.py tests/core/test_fcis_m6_f06_reopen_authorization.py tests/core/test_fcis_m6_f07_checkpoint.py tests/core/test_fcis_m6_f08_recovery_faults.py tests/core/test_fcis_m6_g01_proof_context.py tests/core/test_fcis_m6_g02_proof_context_codec.py",
+    "python3 -m py_compile src/core/fcis_m6_f04_ack_progress.py experiments/fcis_m6_f04_ack_progress_check.py tools/build_fcis_m6_f04_ack_progress.py tests/core/test_fcis_m6_f04_ack_progress.py tests/core/test_fcis_m6_f04_ack_progress_properties.py",
+    "python3 -m ruff check src/core/fcis_m6_f04_ack_progress.py experiments/fcis_m6_f04_ack_progress_check.py tools/build_fcis_m6_f04_ack_progress.py tests/core/test_fcis_m6_f04_ack_progress.py tests/core/test_fcis_m6_f04_ack_progress_properties.py",
+    "python3 -m ruff format --check src/core/fcis_m6_f04_ack_progress.py experiments/fcis_m6_f04_ack_progress_check.py tools/build_fcis_m6_f04_ack_progress.py tests/core/test_fcis_m6_f04_ack_progress.py tests/core/test_fcis_m6_f04_ack_progress_properties.py",
+    "python3 -m mypy --strict src/core/fcis_m6_f04_ack_progress.py experiments/fcis_m6_f04_ack_progress_check.py tools/build_fcis_m6_f04_ack_progress.py tests/core/test_fcis_m6_f04_ack_progress.py tests/core/test_fcis_m6_f04_ack_progress_properties.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_companion_task_packet.py docs/research/m6_tasks F04A",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_F04A_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_f04_ack_progress_v1.json": "9c49313bf71b883c3f53ed83f8fabce01c29a62a5862446423ac4933766d5618",
+    "src/core/fcis_m6_f04_ack_progress.py": "ebb221d05523162dee59bc02d2352931f04a46a3f923c7cc8035f569892deec3",
+    "experiments/fcis_m6_f04_ack_progress_check.py": "c2ca44e57de09e2eb6aea7add19df3fb167f15a4ce65aef4a60a6ac42f021116",
+    "tests/core/test_fcis_m6_f04_ack_progress.py": "f2f3ed43e8ebe77bef7b1be8c910443c5549ded823114cdc78af9961b7418572",
+    "tests/core/test_fcis_m6_f04_ack_progress_properties.py": "5b8b72f0c1d00451ec0c8b5f139b90502dc37238bb2daaed37e8f1fb59499a71",
+    "tools/build_fcis_m6_f04_ack_progress.py": "fd5c349a9fa58309ecbe76e24302e3a0ebcdc97170a7562a8cab3f2f167eeeb1",
+    "docs/research/m6_tasks/TASK_F04A_ACK_PROGRESS_V1.json": "80e9703e7b3e01fa96728ed494bc3f8a6649ef0cf2fa06fa634895380ca2a521",
+    "docs/research/m6_tasks/FCIS_M6_F04A_ACK_PROGRESS_V1.md": "4952b1fe0a7a3907ae4dd254b40f16c2d5c33e6cfaa9f2f25440bf99d21e6a51",
+    "docs/research/m6_tasks/TASK_F04A_PLAN.md": "244dcc2c6b88783d0a0d484a0960f4f1382a905e7edcea11d6ad598c863480a0",
+    "docs/research/m6_tasks/validate_companion_task_packet.py": "2c8c995757ce5d3b326d00dd65a50bf58fd9b14e9f85e608a13a3eb5dc643fd1"
+  },
+  "results": {
+    "focused_and_property_tests": "pass; 4 passed in 1.89 seconds",
+    "adjacent_regression": "pass; 33 passed in 13.58 seconds",
+    "property_campaign": "pass; deterministic 24-example cap",
+    "independent_checker": "pass; F04A_ACK_PROGRESS_CHECKS_PASS acked",
+    "public_tool": "pass; F04A_ACK_PROGRESS_VECTOR_MATCH acked",
+    "pending_effect_count": 1,
+    "added_ack_count": 1,
+    "prior_ack_deletion": "typed rejection",
+    "prior_ack_mutation": "typed rejection",
+    "history_change": "typed rejection",
+    "current_only_missing_ack": "not admitted as a universal claim",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "ruff_format": "pass",
+    "mypy_strict": "pass",
+    "implementation_commit": "3a9606141c3762f8b2e57150b7b1a77531102bf1",
+    "implementation_tree": "46d56b1545d1632e82f3c62282648d9396cf0953",
+    "implementation_parent": "9c58a90841f3e5f5dd85cef6cbabfda84bec0907"
+  },
+  "mutants": [
+    "prior acknowledgment deletion",
+    "prior acknowledgment destination-receipt mutation",
+    "non-ack history change",
+    "untyped prior payload",
+    "generated deletion and mutation witnesses"
+  ],
+  "nonclaims": [
+    "F04A closes prior-state ack-only ambiguity only",
+    "current-only missing acknowledgment remains an F04 GAP without prior state or R10 obligation evidence",
+    "F04A does not authenticate a destination, write a datastore, prove crash recovery, account for value, or promote M6"
+  ]
+}
