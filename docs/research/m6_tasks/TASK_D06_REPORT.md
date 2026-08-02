@@ -2,9 +2,9 @@
 
 TASK_ID: D06
 BASE_SHA: 4120fbd0a6cf52fb7ea3dc8595ab4b14143a67fb
-SOURCE_HEAD_SHA: 476ec022e755ff049c39bf9f08c6606ac87532ca
-SOURCE_HEAD_TREE: a1d495eae0b26a369487ceb48cad5472abec74db
-BRANCH: codex/task-C07-exact-migration-review-packet-20260801
+SOURCE_HEAD_SHA: bdb8781861084a775a4c48a70afabc0545396354
+SOURCE_HEAD_TREE: e114841afd3a06745c9780865a5af18de802f8a0
+BRANCH: codex/task-m6-receipt-rebind-20260802
 FILES_CHANGED:
 - src/core/fcis_lineage_closure.py
 - experiments/fcis_m6_d06_rule_manifest_check.py
@@ -24,9 +24,9 @@ private test seam accepts only permutations of that exact rule set so bounded
 rule-order independence can be exercised without adding caller-selected
 production rules.
 
-IMPLEMENTATION_HEAD_SHA: d0fefb321d5e0c5ed027816137ce99b8de15d487
-IMPLEMENTATION_TREE: 8e12ffabe9334b57dc03a264e747f5a45a97f15a
-IMPLEMENTATION_PARENT: 4120fbd0a6cf52fb7ea3dc8595ab4b14143a67fb
+IMPLEMENTATION_HEAD_SHA: d8f4206f3a16ed61cdaaf5231bd8f62bcbe38c0f
+IMPLEMENTATION_TREE: 38c3673fc185bd88ad5d452a099c65b44a965447
+IMPLEMENTATION_PARENT: 22099f578978d621831bead94dede4a85d75305b
 
 COMMANDS_RUN:
 - python3 -m py_compile src/core/fcis_lineage_closure.py tests/core/test_fcis_m6_d06_rule_manifest.py experiments/fcis_m6_d06_rule_manifest_check.py
@@ -49,15 +49,18 @@ COMMANDS_RUN:
 
 RESULTS:
 - D06 focused tests passed: 6 passed.
-- D06 plus existing C3 lineage tests passed: 15 passed.
+- D06 plus existing C3 lineage tests passed: 16 passed.
 - D06 plus C3, D01-D05, profile, and entitlement regression tests passed: 188 passed.
 - The D06 checker passed: D06_LINEAGE_RULE_MANIFEST_MATCH.
 - Upstream deterministic checkers passed: D05_TCG_INVENTORY_MATCH, D04_ANF_BUNDLE_OUTBOX_MATCH, D03_ANF_RECEIPT_BINDING_MATCH, D02_SOURCE_BOUND_EVALUATION_MATCH, D01_VECTOR_MATCH, and C07_REVIEW_PACKET_MATCH.
 - The manifest contains four derived writers and the vector covers all 24 rule permutations.
 - Python compilation, Ruff, Ruff formatting, and strict mypy passed for all three D06 Python files.
 - The JSON vector parsed successfully.
-- The implementation commit is the direct child of the D05 receipt commit. The receipt is deliberately a later documentation/evidence child.
-- No Lean proof, Julia execution, private ESSO run, hosted CI run, remote publication, runtime mount, authority switch, deployment, migration, or value movement is claimed.
+- The D06 packet was rebound after the independently reviewed D04 repair
+  changed the shared lineage-closure source. The D06 manifest checker and all
+  24 declared rule permutations still pass at the exact source head.
+- No Lean proof, Julia execution, private ESSO run, runtime mount, authority
+  switch, merge, deployment, migration, or value movement is claimed.
 
 MUTANTS_ADDED: D06 covers duplicate derived writer, missing derived-key writer,
 cyclic dependency, reversed noncanonical rule order, manifest-root substitution,
@@ -79,9 +82,8 @@ REMAINING_NONCLAIMS:
 - D06 does not mount proof context, TCG completeness, DRA history, recovery,
   publication, outbox delivery, migration authority, destination idempotency,
   or value movement.
-- No Lean, Julia, ESSO, production adapter, remote implementation commit,
-  hosted CI run, draft PR, merge, deployment, or runtime authority change is
-  claimed.
+- No Lean, Julia, ESSO, production adapter, merge, deployment, or runtime
+  authority change is claimed.
 
 REVIEW_RISKS: The C3 module remains a high-complexity research hotspot. The
 manifest is private and source-local, so future claim-key or rule additions

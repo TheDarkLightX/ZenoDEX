@@ -324,7 +324,7 @@ class ANFPublicationWitnessV1:
 
     @property
     def anf_root(self) -> str:
-        return self.acceptance.anf_root[2:]
+        return cast(str, self.acceptance.anf_root)[2:]
 
 
 @dataclass(frozen=True, slots=True)
