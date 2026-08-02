@@ -1,7 +1,7 @@
 # I03 plan: safe outbox leasing
 
 Status: implemented and tested in the isolated SQLite adapter; research-only
-and unmounted. I04-I08 remain pending.
+and unmounted. Later I04-I08 slices are recorded separately.
 
 ## Objective
 

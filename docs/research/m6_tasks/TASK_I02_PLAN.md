@@ -1,7 +1,7 @@
 # I02 plan: committed outbox schema
 
 Status: implemented and tested in the isolated SQLite adapter; research-only
-and unmounted. I03-I08 remain pending.
+and unmounted. Later I03-I08 slices are recorded separately.
 
 ## Objective
 
@@ -27,4 +27,3 @@ canonical seed, typed operational reconstruction, semantic-ID stability, and
 orphan rejection. It does not implement worker leasing, destination
 deduplication, acknowledgment provenance, lost-ack recovery, or production
 datastore behavior. M6 remains unmounted and non-promotable.
-
