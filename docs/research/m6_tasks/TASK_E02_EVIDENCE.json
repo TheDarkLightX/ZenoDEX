@@ -2,9 +2,9 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "E02",
   "base_sha": "7e202c58cfae8aa678f6d4ca044dde9b0461bcc2",
-  "source_head_sha": "f21d55699fa833396d335183f61913418e9e1c02",
-  "source_head_tree": "fb5b8105eb0fc8be24acc94e76a2816b6cb920fc",
-  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "source_head_sha": "f62674bc11c01e8faa50ac79f9fab1f3c688eaf7",
+  "source_head_tree": "66bbf6b67bf106a03e6352bc20133dc75608bc82",
+  "branch": "codex/task-E02-replayable-nullifier-20260802",
   "status": "TESTED",
   "evidence_files": [
     "config/deploy/fcis_m6_e02_nonce_nullifier_v1.json",
@@ -42,25 +42,26 @@
   },
   "source_hashes": {
     "config/deploy/fcis_m6_e02_nonce_nullifier_v1.json": "233c4bcadbc938baa75a9c0c13fbe0305388c6c943da967b4c7681cf26d2f516",
-    "docs/research/m6_tasks/FCIS_M6_E02_NONCE_NULLIFIER_SCHEMA_V1.md": "f35fdb8a317bf1add15dc99d914a91a2fbe27ef2bd9fef1f13c5d44a18e8c0c5",
+    "docs/research/m6_tasks/FCIS_M6_E02_NONCE_NULLIFIER_SCHEMA_V1.md": "02c94aa89582e7b79ba45ca54cd879391781a98e381183ccb0c4aefe96d310a0",
     "docs/research/m6_tasks/TASK_E02_NONCE_NULLIFIER_V1.json": "0c47f678a4f9d7a02de2dc6d6f5a7cf896829865c4d5503ec1513573d68086e7",
-    "docs/research/m6_tasks/TASK_E02_PLAN.md": "f5185ebf0ac22cc1e9285c15a407231d488ebb96708f55d318f0968108d5ff85",
-    "experiments/fcis_m6_e02_nonce_nullifier_check.py": "b3895ea489aba90a9fdd7cc1ef2e9b07e8d8e0690dadd2af20e5df4565b1e597",
-    "src/core/fcis_m6_e02_nonce_nullifier.py": "d2001aaa143ddd3c4e6f8c5945edf15e530bf7251df827992a3aa59027bcca4c",
-    "tests/core/test_fcis_m6_e02_nonce_nullifier.py": "e3b4fda484132ea9e5215a464c8ca0acb563ed862b76955530b3e61fa8384e15",
+    "docs/research/m6_tasks/TASK_E02_PLAN.md": "4e31bd5ef82761062b94b703e7ccb94f774a8a59bfa6b54200483c96f5cdf66b",
+    "experiments/fcis_m6_e02_nonce_nullifier_check.py": "11c72e122ebbbe08bd422b398c36707ed88b959a255efe7ea5d7b2a5f5a19c62",
+    "src/core/fcis_m6_e02_nonce_nullifier.py": "6f3a78d4719e04b4d6bcb895061c3e85d4111ad163e6a7b12f54e77220a739e7",
+    "tests/core/test_fcis_m6_e02_nonce_nullifier.py": "d659d1388b3bab32e30f0bec7c848403952de5ee818d8ea8f66ebf4e7e7d249b",
     "tools/build_fcis_m6_e02_nonce_nullifier.py": "f581bc6b5e77f2290860b8657ae8852de683f4938a4cf03c4812a13b1ec83d7e"
   },
   "results": {
     "nullifier_root": "bb4d65007c0346d225879479a983d4094595091b7fce5e7bdbbf7f5b0ea44f58",
-    "focused_e02_tests": "pass; 5 passed",
-    "e01_e02_regression": "pass; 10 passed",
+    "focused_e02_tests": "pass; 6 passed",
+    "e01_e02_regression": "pass; 11 passed",
     "e02_checker": "pass; E02_NONCE_NULLIFIER_MATCH",
     "next_nonce_boundaries": "pass; zero and maximum-u64 command boundaries",
     "preimage_mutants": "pass; deployment, sender, nonce, family, field-set, Boolean, and enum cases",
-    "provenance_mutants": "pass; caller-minted, exact-class forged, and mutated witnesses reject",
-    "implementation_commit": "f21d55699fa833396d335183f61913418e9e1c02",
-    "implementation_tree": "fb5b8105eb0fc8be24acc94e76a2816b6cb920fc",
-    "implementation_parent": "7e202c58cfae8aa678f6d4ca044dde9b0461bcc2"
+    "provenance_mutants": "pass; caller-minted and crossed-source witnesses reject; exact-source copies replay",
+    "process_local_registry": "absent; point-of-use verification replays retained sources",
+    "implementation_commit": "f62674bc11c01e8faa50ac79f9fab1f3c688eaf7",
+    "implementation_tree": "66bbf6b67bf106a03e6352bc20133dc75608bc82",
+    "implementation_parent": "868ae8ef0da8a4f7fc52f444d7b459987f76c51e"
   },
   "mutants": [
     "non-next current nonce rejected",
@@ -75,11 +76,12 @@
     "unknown command family rejected",
     "caller-minted nullifier rejected",
     "exact-class forged E01 identity rejected",
-    "exact-class forged E02 nullifier rejected",
-    "mutated registered nullifier rejected"
+    "source-equivalent exact-class certificate replays",
+    "process-local E02 provenance registry is absent",
+    "crossed retained source rejected"
   ],
   "nonclaims": [
-    "E02 uses the E01 authenticated-command witness as an external verifier premise.",
+    "E02 uses the E01 authenticated-command witness and its verifier provenance as an external premise.",
     "E02 does not consume or persist a production nonce or enforce datastore uniqueness.",
     "E03 owns unique nullifier/commit/effect constraints and hard collision behavior.",
     "E02 does not prove publication, recovery, outbox delivery, migration, accounting, backing, zUSD safety, runtime reachability, or value movement.",
