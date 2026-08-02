@@ -1,0 +1,90 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "F06",
+  "base_sha": "d1c67df83bbe2d7ec3d08817d3442196dedc8de0",
+  "source_head_sha": "09c5275f8aa97283a76894f1030d4f6d7f724986",
+  "source_head_tree": "ab68e554929229fdeb6f10577fb8970f9492d85d",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_f06_reopen_authorization_v1.json",
+    "src/core/fcis_m6_f06_reopen_authorization.py",
+    "experiments/fcis_m6_f06_reopen_authorization_check.py",
+    "tests/core/test_fcis_m6_f06_reopen_authorization.py",
+    "tests/core/test_fcis_m6_f06_reopen_authorization_properties.py",
+    "tools/build_fcis_m6_f06_reopen_authorization.py",
+    "docs/research/m6_tasks/TASK_F06_REOPEN_AUTHORIZATION_V1.json",
+    "docs/research/m6_tasks/FCIS_M6_F06_REOPEN_AUTHORIZATION_V1.md",
+    "docs/research/m6_tasks/TASK_F06_PLAN.md",
+    "docs/research/m6_tasks/TASK_F06_REPORT.md",
+    "docs/research/m6_tasks/TASK_F06_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_F06_SOURCE_MANIFEST.sha256"
+  ],
+  "commands": [
+    "python3 -m json.tool config/deploy/fcis_m6_f06_reopen_authorization_v1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_F06_REOPEN_AUTHORIZATION_V1.json",
+    "PYTHONPATH=. python3 tools/build_fcis_m6_f06_reopen_authorization.py",
+    "PYTHONPATH=. python3 tools/build_fcis_m6_f06_reopen_authorization.py --check",
+    "PYTHONPATH=. python3 experiments/fcis_m6_f06_reopen_authorization_check.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_f06_reopen_authorization.py tests/core/test_fcis_m6_f06_reopen_authorization_properties.py",
+    "PYTHONPATH=. pytest -q tests/core/test_fcis_m6_f03_reopen.py tests/core/test_fcis_m6_f03_reopen_properties.py tests/core/test_fcis_m6_f05_authenticated_genesis.py tests/core/test_fcis_m6_f05_authenticated_genesis_properties.py tests/core/test_fcis_m6_f06_reopen_authorization.py tests/core/test_fcis_m6_f06_reopen_authorization_properties.py tests/core/test_fcis_m6_g01_proof_context.py tests/core/test_fcis_m6_g01_proof_context_properties.py tests/core/test_fcis_m6_g02_proof_context_codec.py tests/core/test_fcis_m6_g02_proof_context_codec_properties.py",
+    "python3 -m py_compile src/core/fcis_m6_f06_reopen_authorization.py experiments/fcis_m6_f06_reopen_authorization_check.py tools/build_fcis_m6_f06_reopen_authorization.py tests/core/test_fcis_m6_f06_reopen_authorization.py tests/core/test_fcis_m6_f06_reopen_authorization_properties.py",
+    "python3 -m ruff check src/core/fcis_m6_f06_reopen_authorization.py experiments/fcis_m6_f06_reopen_authorization_check.py tools/build_fcis_m6_f06_reopen_authorization.py tests/core/test_fcis_m6_f06_reopen_authorization.py tests/core/test_fcis_m6_f06_reopen_authorization_properties.py",
+    "python3 -m ruff format --check src/core/fcis_m6_f06_reopen_authorization.py experiments/fcis_m6_f06_reopen_authorization_check.py tools/build_fcis_m6_f06_reopen_authorization.py tests/core/test_fcis_m6_f06_reopen_authorization.py tests/core/test_fcis_m6_f06_reopen_authorization_properties.py",
+    "python3 -m mypy --strict src/core/fcis_m6_f06_reopen_authorization.py experiments/fcis_m6_f06_reopen_authorization_check.py tools/build_fcis_m6_f06_reopen_authorization.py tests/core/test_fcis_m6_f06_reopen_authorization.py tests/core/test_fcis_m6_f06_reopen_authorization_properties.py",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks F06",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_F06_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_f06_reopen_authorization_v1.json": "3c9f2c4b4a565a4a79dd0da597c4774860ff6a85c5a05025e22e99ade92da0f4",
+    "src/core/fcis_m6_f06_reopen_authorization.py": "a91549e67f85e7d66a232240b91fbea027327603372360402335afca6f5a04a2",
+    "experiments/fcis_m6_f06_reopen_authorization_check.py": "6cdb91366a4f4d8a00e108bc68eccd4c2fc95c59119c483235b972af27f7d3e5",
+    "tests/core/test_fcis_m6_f06_reopen_authorization.py": "8d48d5860723dfc161b08d0ccc4640a1e7a39a268558626f059130a664c1bbf2",
+    "tests/core/test_fcis_m6_f06_reopen_authorization_properties.py": "2180a7bef4e09b3c30f53d57550c6743b217c217806e9d6cbd302f38c4d1afa8",
+    "tools/build_fcis_m6_f06_reopen_authorization.py": "940c954bfd331c69b696f501b4813b5d14ab9454ef2045899ff34824a09c2cce",
+    "docs/research/m6_tasks/TASK_F06_REOPEN_AUTHORIZATION_V1.json": "5a9d346d7ad1019d2ee60f98b41d3ba9933aa1ca5a0e0a24b982f09bea24e9a6",
+    "docs/research/m6_tasks/FCIS_M6_F06_REOPEN_AUTHORIZATION_V1.md": "eca9d72c33b7e5943991f015c13dc6847d9dac07e39f85b9fb8051509398be83",
+    "docs/research/m6_tasks/TASK_F06_PLAN.md": "990656524f98953ff27903e25690e9682fe5c373abba6d3ea56a47cd3b57003f"
+  },
+  "results": {
+    "focused_and_property_tests": "pass; 3 passed",
+    "adjacent_regression": "pass; 26 passed in 4.47 seconds",
+    "property_campaign": "pass; deterministic 24-example cap",
+    "mutants_rejected": 6,
+    "independent_checker": "pass; F06_REOPEN_AUTHORIZATION_CHECKS_PASS 0x5e6b51ffcaa974b8d6a2b39a8ccc6df291238ce8bb6a5cb66d4d4ab9e9d55a6e",
+    "source_vector": "pass; F06_REOPEN_AUTHORIZATION_VECTOR_MATCH",
+    "head_root": "0xe6f8b654de286da4fbd3e725ba8a43e3fa6832de77b87943469439866bb510d2",
+    "evidence_root": "0x58270127cf643a076855dbd25c2f2065a0a2299f52d2c1d3a27ada9719ae33b3",
+    "token_root": "0x5e6b51ffcaa974b8d6a2b39a8ccc6df291238ce8bb6a5cb66d4d4ab9e9d55a6e",
+    "fresh_verifier_calls": "pass; 4 calls across issue and three operation uses",
+    "python_compile": "pass",
+    "ruff": "pass",
+    "ruff_format": "pass",
+    "mypy_strict": "pass",
+    "implementation_commit": "09c5275f8aa97283a76894f1030d4f6d7f724986",
+    "implementation_tree": "ab68e554929229fdeb6f10577fb8970f9492d85d",
+    "implementation_parent": "d1c67df83bbe2d7ec3d08817d3442196dedc8de0"
+  },
+  "mutants": [
+    "crossed evidence snapshot",
+    "forged token root",
+    "changed reopened head",
+    "rejecting external verifier",
+    "expired token",
+    "generated token-root substitutions"
+  ],
+  "nonclaims": [
+    "F06 is a typed research token relation, not an authenticated production capability",
+    "the external verifier adapter remains an authority premise",
+    "F06 does not prove datastore crash recovery, transactionality, migration, destination, accounting, backing, or zUSD safety",
+    "M6 remains unmounted and non-promotable"
+  ]
+}
