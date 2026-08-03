@@ -1,0 +1,40 @@
+{
+  "schema": "zenodex/fcis_m6_managed_zusd_issuance_closure_evidence/v1",
+  "implementation_commit": "6994861dfd7dc68c8ee92bd8e69e7aa20f4b730b",
+  "implementation_tree": "e046bb7ee0a5ee8de8741186b99fd67d79c07b15",
+  "implementation_parent": "30be10902bca208fa9436a3e4f6b9c7b21f68819",
+  "posture": "IMPLEMENTED_TESTED_UNMOUNTED",
+  "m6_complete": false,
+  "r13_complete": false,
+  "tests": {
+    "passed": 75,
+    "failed": 0,
+    "duration_seconds": 19.0
+  },
+  "gates": {
+    "ruff": "PASS",
+    "mypy_changed_source_modules": "PASS",
+    "py_compile_changed_files": "PASS",
+    "git_diff_check": "PASS",
+    "security_redflags": "PASS_0_FINDINGS"
+  },
+  "closed_counterexamples": [
+    "generic_zusd_mint",
+    "generic_zusd_burn",
+    "faucet_zusd_mint",
+    "generic_mint_then_zusd_repay_same_transaction",
+    "token_batch_partial_effect_before_managed_reject",
+    "faucet_batch_partial_effect_before_managed_reject",
+    "configured_zusd_identity_bypass",
+    "zeno_ledger_generic_zusd_mint"
+  ],
+  "explicit_nonclaims": [
+    "M6 completion",
+    "R13 completion",
+    "mounted production mediation",
+    "formal runtime refinement",
+    "borrowing fee supply identity",
+    "authenticated managed-asset configuration",
+    "all managed asset families covered"
+  ]
+}
