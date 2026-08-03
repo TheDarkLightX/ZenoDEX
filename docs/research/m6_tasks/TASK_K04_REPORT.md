@@ -2,8 +2,8 @@
 
 TASK_ID: K04
 BASE_SHA: 7da3b05d4161c961f1a57cf798307a3e125a2dab
-SOURCE_HEAD_SHA: 26da7c198a43e0c248cd5823d98c6ce3037c2813
-SOURCE_HEAD_TREE: 556ded187ad630ff3e5a4b5ec5422faca7946d9f
+SOURCE_HEAD_SHA: 379e0717137fb122175995de7c20250856375151
+SOURCE_HEAD_TREE: 5ff6f00973a948315d1c25575eab6c348055c5b2
 BRANCH: codex/task-m6-receipt-rebind-20260802
 
 FILES_CHANGED:
@@ -21,12 +21,16 @@ IMPLEMENTATION_HEAD_SHA: 26da7c198a43e0c248cd5823d98c6ce3037c2813
 IMPLEMENTATION_TREE: 556ded187ad630ff3e5a4b5ec5422faca7946d9f
 IMPLEMENTATION_PARENT: 7da3b05d4161c961f1a57cf798307a3e125a2dab
 
+DEPENDENCY_REFRESH_HEAD: The entrypoint credential repair changed the D05
+and K01 roots consumed by K04. K04 was rebound and regenerated at the exact
+functional head above; the typed K04 implementation is unchanged.
+
 CLAIM_IMPLEMENTED: K04 has been rebound to the current D05 publisher
 inventory, D05 topology, and K01 entrypoint inventory. The existing typed
 builder and checker were unchanged; the repair updates the authoritative
 configuration and generated vector so the builder again regenerates and pins
 the current topology anchor. The current K04 root is
-da8e43caab444a5f88e7f7affede1671822fb63d6de890daf80fea88c07a5c35.
+6644cae606656411d0da64461d80a13030be65905cfd31916a33f1143bc25ee3.
 
 COMMANDS_RUN:
 
@@ -48,11 +52,11 @@ COMMANDS_RUN:
 RESULTS:
 
 - D05 regeneration passed with current inventory root
-  `e3b8fc99092de0fb56d08bf68ccb2f03278c776b684939765f86f1284fa9379e` and
+  `fe407a21588db0932df41b224234a5a5950478aa12cc1c564857b7a5bbc41ac2` and
   current topology root
-  `e9fa1351ab36ecafa75ea9919ed791e31e17e998aa25521c4e3ce8a8f18f1857`.
+  `9b2db149fd06876cf9e9fa592d891042320e52dcf0640c952431d913f12402e1`.
 - K01 regeneration passed with current entrypoint root
-  `fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a`.
+  `c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2`.
 - K04 regeneration and checked vector passed with root
   `da8e43caab444a5f88e7f7affede1671822fb63d6de890daf80fea88c07a5c35`.
 - Publisher insertion, source-set insertion, D05-root substitution, and

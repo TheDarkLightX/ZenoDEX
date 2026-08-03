@@ -16,7 +16,8 @@ The audit scans Python string literals and SQLite connection calls for direct
 protected-table writers, scans deployment files for forbidden plaintext
 credential markers, checks required production-policy markers, verifies each
 declared launcher command, and checks that inventoried worker source paths are
-covered by the anchored audit set.
+covered by the anchored audit set. The container testnet-demo branch requires
+an explicitly supplied `DEMO_API_TOKEN`; it does not mint a fallback token.
 
 The result has two exact statuses:
 
@@ -29,7 +30,8 @@ The audit is verifier-owned. A caller cannot construct a valid audit, mutate a
 valid audit into a clean result, or use an `object.__new__` copy as deployment
 authority. A clean-deployment decision is also minted only by the point-of-use
 gate. Current evidence is `GAP`: the H02 SQLite adapter contains direct table
-writes and the container entrypoint contains a demo-token default.
+writes. The entrypoint credential-default gap was repaired and remains covered
+by a negative scanner witness and a missing-secret startup test.
 
 ## Evidence boundary
 

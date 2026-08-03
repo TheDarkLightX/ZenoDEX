@@ -2,8 +2,8 @@
 
 TASK_ID: K01
 BASE_SHA: 868ae8ef0da8a4f7fc52f444d7b459987f76c51e
-SOURCE_HEAD_SHA: 8cd4e451138e86a3fa1012b1081112644114fa97
-SOURCE_HEAD_TREE: e58d21d10835bfe5dddb314d1cc11bf7bd773dd8
+SOURCE_HEAD_SHA: 379e0717137fb122175995de7c20250856375151
+SOURCE_HEAD_TREE: 5ff6f00973a948315d1c25575eab6c348055c5b2
 BRANCH: codex/task-m6-receipt-rebind-20260802
 
 FILES_CHANGED:
@@ -21,9 +21,13 @@ IMPLEMENTATION_HEAD_SHA: 8cd4e451138e86a3fa1012b1081112644114fa97
 IMPLEMENTATION_TREE: e58d21d10835bfe5dddb314d1cc11bf7bd773dd8
 IMPLEMENTATION_PARENT: 868ae8ef0da8a4f7fc52f444d7b459987f76c51e
 
-DEPENDENCY_REBIND: The later H02 source edit changed a file included in the
-K01 source set. K01 was regenerated at the exact repair head before J06 was
-rebuilt, and the current K01 root is pinned by J06.
+DEPENDENCY_REFRESH_HEAD: The entrypoint credential repair changed a source
+file included in the K01 deployment-source set. K01 was regenerated at the
+exact functional head above; K01 implementation code is unchanged.
+
+DEPENDENCY_REBIND: The entrypoint source edit changed a file included in the
+K01 deployment-source set. K01 was regenerated at the exact repair head and
+the current root is pinned by the K04, K06, and K07 dependency chain.
 
 CLAIM_IMPLEMENTED: K01 adds a typed, source-bound inventory for fifteen
 reviewed command, authority, datastore, migration, recovery, legacy,
@@ -31,7 +35,7 @@ proof-input, and external-effect candidate surfaces. The inventory requires
 the nine D05 publisher IDs, records caller/input/state-effect/ANF-commit-port
 fields, classifies legacy and proof-only paths, hashes its exact source set,
 and derives the canonical entrypoint inventory root
-fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a.
+c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2.
 
 COMMANDS_RUN:
 
@@ -52,9 +56,9 @@ COMMANDS_RUN:
 RESULTS:
 
 - K01 vector regeneration passed with the exact root
-  fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a.
-- The source-bound vector was regenerated after the later H02 source edit;
-  the changed H02 bytes are therefore included in the K01 root.
+  c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2.
+- The source-bound vector was regenerated after the entrypoint credential
+  repair; the changed deployment bytes are therefore included in the K01 root.
 - The inventory contains fifteen canonically ordered rows and four explicit
   coverage notes.
 - The nine required D05 publisher IDs are present; omission is rejected.

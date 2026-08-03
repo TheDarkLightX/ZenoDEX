@@ -2,17 +2,22 @@
 
 TASK_ID: D05
 BASE_SHA: 8601a61154a00aafb1c7ba84d88939b0af4a2685
-SOURCE_HEAD_SHA: cc6627f5d07ecbba27594650c9bd367850fb80a4
-SOURCE_HEAD_TREE: 7af5f9e993e21b3fe7be03248adbe5a66e48eade
-BRANCH: codex/task-D08-replayable-accept-20260802
+SOURCE_HEAD_SHA: 379e0717137fb122175995de7c20250856375151
+SOURCE_HEAD_TREE: 5ff6f00973a948315d1c25575eab6c348055c5b2
+BRANCH: codex/task-m6-receipt-rebind-20260802
 
 IMPLEMENTATION_HEAD_SHA: cc6627f5d07ecbba27594650c9bd367850fb80a4
 IMPLEMENTATION_TREE: 7af5f9e993e21b3fe7be03248adbe5a66e48eade
 IMPLEMENTATION_PARENT: e52c52207b6f7df432331830f66f7ee294827f00
 
+DEPENDENCY_REFRESH: The reviewed `.docker/entrypoint.sh` credential repair
+changed a D05 deployment-source digest. The D05 vector was regenerated at the
+exact functional head above; D05 implementation code is unchanged.
+
 FILES_CHANGED:
 
 - config/deploy/fcis_m6_tcg_inventory_v1.json
+- .docker/entrypoint.sh (dependency source refresh)
 - src/core/fcis_tcg_inventory.py
 - tools/build_fcis_m6_d05_tcg_inventory.py
 - experiments/fcis_m6_d05_tcg_inventory_check.py
@@ -75,9 +80,9 @@ RESULTS:
   tree after the stacked runtime-source changes; no D05 constructor or verifier
   semantics changed in this refresh.
 - The independently derived publisher inventory root is
-  e3b8fc99092de0fb56d08bf68ccb2f03278c776b684939765f86f1284fa9379e.
+  fe407a21588db0932df41b224234a5a5950478aa12cc1c564857b7a5bbc41ac2.
 - The independently derived anchored topology root is
-  e9fa1351ab36ecafa75ea9919ed791e31e17e998aa25521c4e3ce8a8f18f1857.
+  9b2db149fd06876cf9e9fa592d891042320e52dcf0640c952431d913f12402e1.
 - No Lean proof, Julia execution, private ESSO run, production deployment scan,
   mounted caller, runtime authority switch, merge, migration, deployment, or
   value movement is claimed.

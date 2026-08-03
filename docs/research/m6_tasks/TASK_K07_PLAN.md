@@ -11,8 +11,11 @@ STATUS: GAP_RESEARCH_ONLY_UNMOUNTED
 5. Verify required production-strict policy markers.
 6. Bind every finding into one canonical audit root.
 7. Refuse a clean deployment decision while findings remain.
-8. Preserve the current H02 direct-writer and entrypoint credential witnesses.
+8. Repair the entrypoint credential default while preserving a negative
+   scanner witness for reintroduced fallback tokens.
+9. Preserve the H02 direct-writer finding as a blocking research-only gap.
 
 The current task intentionally stops at `GAP`. K07 does not delete or rewrite
-the direct writer, remove demo behavior, change deployment authority, or move
-value. Those are separate repair and mounted-boundary decisions.
+the H02 direct writer, change deployment authority, or move value. H02 direct
+writer ownership and the mounted unique-port theorem remain separate repair
+and deployment-boundary decisions.

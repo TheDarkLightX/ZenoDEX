@@ -2,11 +2,12 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "D05",
   "base_sha": "8601a61154a00aafb1c7ba84d88939b0af4a2685",
-  "source_head_sha": "cc6627f5d07ecbba27594650c9bd367850fb80a4",
-  "source_head_tree": "7af5f9e993e21b3fe7be03248adbe5a66e48eade",
-  "branch": "codex/task-D08-replayable-accept-20260802",
+  "source_head_sha": "379e0717137fb122175995de7c20250856375151",
+  "source_head_tree": "5ff6f00973a948315d1c25575eab6c348055c5b2",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
   "status": "TESTED",
   "evidence_files": [
+    ".docker/entrypoint.sh",
     "config/deploy/fcis_m6_tcg_inventory_v1.json",
     "src/core/fcis_tcg_inventory.py",
     "tools/build_fcis_m6_d05_tcg_inventory.py",
@@ -48,15 +49,16 @@
     "mypy": "mypy 2.1.0 (compiled: yes)"
   },
   "source_hashes": {
+    ".docker/entrypoint.sh": "49a18e7ce0d1d88902936a2b27b73f8bc7c534fe6175020398985d8b0c6564ed",
     "config/deploy/fcis_m6_tcg_inventory_v1.json": "86890ed13de433216d60e8d48e9b85cf25088cd72252bcd800cfcd25624832b6",
     "src/core/fcis_tcg_inventory.py": "d08f4ece40fc1cbadce8e5a4738d92e1ae09f8575e9ede795383ca16a32f0f2f",
     "tools/build_fcis_m6_d05_tcg_inventory.py": "ad7c86cbb89ecdc1e8ddc631ff6c8e557f395d40071e6b3f200424c70195370d",
     "experiments/fcis_m6_d05_tcg_inventory_check.py": "097ad00694df3d69af4443c26f69193fba0e31eb2847965fbb6467caeeb6d4fe",
     "tests/core/test_fcis_m6_d05_tcg_inventory.py": "8c239876257994b7eb0d852d8d455add9edf32bfd579540ee0779c4774e0e7e9",
-    "docs/research/m6_tasks/TASK_D05_TCG_INVENTORY_VECTOR.json": "c489713296cf101b946d8645559ef8bb012c8a2ac126ba1be07eda7f5c7a1738",
+    "docs/research/m6_tasks/TASK_D05_TCG_INVENTORY_VECTOR.json": "072eff9d5705e2be4f017874b8864c3741c2d4ee67be147ee64101d383a3901d",
     "docs/research/m6_tasks/FCIS_M6_D05_TCG_INVENTORY_SCHEMA_V1.md": "b6766a389899f41d67bc48589a1ce6d85932fe66451c31e302aeb27994112bf0",
     "docs/research/m6_tasks/TASK_D05_PLAN.md": "d1cee97120f504046e321f35946ab85ffca9dc74355202c70f1a7e1a46824fa9",
-    "docs/research/m6_tasks/TASK_D05_REPORT.md": "1615bd875c082bfe817386c91a58075c1f660e7eba37b61d389fa3a50240b78e"
+    "docs/research/m6_tasks/TASK_D05_REPORT.md": "58eb48348b079b4017a813360152f82470b8fb0556e0571f4ba2c38d8527aa18"
   },
   "results": {
     "implementation_commit": "cc6627f5d07ecbba27594650c9bd367850fb80a4",
@@ -79,8 +81,10 @@
     "json_vector": "pass",
     "validator": "pass; 10 manifest entries",
     "source_manifest": "pass; 10 manifest entries",
-    "publisher_inventory_root": "e3b8fc99092de0fb56d08bf68ccb2f03278c776b684939765f86f1284fa9379e",
-    "topology_root": "e9fa1351ab36ecafa75ea9919ed791e31e17e998aa25521c4e3ce8a8f18f1857",
+    "publisher_inventory_root": "fe407a21588db0932df41b224234a5a5950478aa12cc1c564857b7a5bbc41ac2",
+    "topology_root": "9b2db149fd06876cf9e9fa592d891042320e52dcf0640c952431d913f12402e1",
+    "dependency_refresh_commit": "379e0717137fb122175995de7c20250856375151",
+    "dependency_refresh_tree": "5ff6f00973a948315d1c25575eab6c348055c5b2",
     "publisher_kind_count": 9,
     "source_manifest_entry_count": 19,
     "runtime_mount": "none",

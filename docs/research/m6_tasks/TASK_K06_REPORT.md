@@ -2,9 +2,13 @@
 
 TASK_ID: K06
 BASE_SHA: 0b307ca01bfaa14d961ded7842b8023ad80e280b
-SOURCE_HEAD_SHA: 7824b451eaabf3b2649b7a9f7cb09dddffe225ac
-SOURCE_HEAD_TREE: af89e4e284135681f24b471afa236a4ec665fc8a
+SOURCE_HEAD_SHA: 379e0717137fb122175995de7c20250856375151
+SOURCE_HEAD_TREE: 5ff6f00973a948315d1c25575eab6c348055c5b2
 BRANCH: codex/task-m6-receipt-rebind-20260802
+
+DEPENDENCY_REFRESH_HEAD: The entrypoint credential repair changed the D05,
+K01, and K04 roots consumed by K06. K06 was regenerated at the exact
+functional head above; the K06 implementation code is unchanged.
 
 FILES_CHANGED:
 
@@ -43,11 +47,16 @@ COMMANDS_RUN:
 
 RESULTS:
 
-- K06 deterministic seal root: `139a29f1938dfffb9ea4c72b5f6e99765bb9d1d0254654941ddf3c9f20a82ab0`.
+- K06 deterministic seal root: `6da2c97dc141c631966a0960d4210799aa3881a7cc62c6c1d377b0ca0bf6130f`.
 - K03 policy and scan roots matched the K06 pins; the scan reported zero
   issues over four protected Python files and zero protected Rust files.
-- D05 regeneration matched the current K06 inventory and topology roots.
-- K01 regeneration matched the current K06 entrypoint inventory root.
+- D05 regeneration matched the current K06 inventory and topology roots
+  `fe407a21588db0932df41b224234a5a5950478aa12cc1c564857b7a5bbc41ac2` and
+  `9b2db149fd06876cf9e9fa592d891042320e52dcf0640c952431d913f12402e1`.
+- K01 regeneration matched the current K06 entrypoint inventory root
+  `c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2`.
+- K04 current topology root matched
+  `6644cae606656411d0da64461d80a13030be65905cfd31916a33f1143bc25ee3`.
 - J07 switch, post-context, epoch, and target writer-profile pins matched.
 - Target admission passed; legacy admission rejected with
   `legacy_writer_disabled`.
@@ -59,14 +68,9 @@ RESULTS:
 - Python compilation, Ruff, formatting, strict mypy, JSON parsing, and diff
   whitespace checks passed.
 
-UPSTREAM_DRIFT: At the K06 freeze, the older K04 packet did not pass its own
-current `tools/build_fcis_m6_k04_topology_anchor.py --check` command because
-its D05 pin was `95fbc474...` while current D05 regeneration was
-`e3b8fc99092de0fb56d08bf68ccb2f03278c776b684939765f86f1284fa9379e`. K06
-recorded the current D05 topology root directly. A separate K04 rebind was
-then completed at functional head
-`26da7c198a43e0c248cd5823d98c6ce3037c2813` with docs receipt
-`547901913c2090d19507b8b993f88276ff7f6a62`; its current-input gates pass.
+UPSTREAM_REFRESH: The K06 packet now records the current D05, K01, and K04
+roots after the entrypoint credential repair. The K04, K06, and K07 dependency
+checks pass at the exact functional head above.
 
 MUTANTS_ADDED: K06 kills legacy writer after terminal seal, stale authority
 epoch, pre-terminal phase, crossed topology root, crossed inventory root,

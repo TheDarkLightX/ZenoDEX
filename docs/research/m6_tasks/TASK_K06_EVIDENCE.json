@@ -2,11 +2,12 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "K06",
   "base_sha": "0b307ca01bfaa14d961ded7842b8023ad80e280b",
-  "source_head_sha": "7824b451eaabf3b2649b7a9f7cb09dddffe225ac",
-  "source_head_tree": "af89e4e284135681f24b471afa236a4ec665fc8a",
+  "source_head_sha": "379e0717137fb122175995de7c20250856375151",
+  "source_head_tree": "5ff6f00973a948315d1c25575eab6c348055c5b2",
   "branch": "codex/task-m6-receipt-rebind-20260802",
   "status": "TESTED",
   "evidence_files": [
+    ".docker/entrypoint.sh",
     "config/deploy/fcis_m6_k06_legacy_seal_v1.json",
     "docs/research/m6_tasks/FCIS_M6_K06_LEGACY_SEAL_SCHEMA_V1.md",
     "docs/research/m6_tasks/TASK_K06_LEGACY_SEAL_V1.json",
@@ -45,9 +46,10 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "config/deploy/fcis_m6_k06_legacy_seal_v1.json": "c37ce2a43c2d4f1c45297d6df0bb6c408acacf17ace1a14d8e8b126d524f1475",
+    ".docker/entrypoint.sh": "49a18e7ce0d1d88902936a2b27b73f8bc7c534fe6175020398985d8b0c6564ed",
+    "config/deploy/fcis_m6_k06_legacy_seal_v1.json": "49ffe98c2f28901950b6183417c2c3113b3402fa631b28d1e5c53acb728c0577",
     "docs/research/m6_tasks/FCIS_M6_K06_LEGACY_SEAL_SCHEMA_V1.md": "f5a5ee2b78806dbe644041010f7cd769408ab003f7648ceb656e028549315ad9",
-    "docs/research/m6_tasks/TASK_K06_LEGACY_SEAL_V1.json": "fe21b718f922190aca6407d3f803d2f7512d59a216c8f01ca3744eeb01513b62",
+    "docs/research/m6_tasks/TASK_K06_LEGACY_SEAL_V1.json": "63f25b7808bd4613653b5112adaa52777b8f10560585a5da7164cb775f1d39e6",
     "docs/research/m6_tasks/TASK_K06_PLAN.md": "ccb4b742ab98f3d4059d22432ea6fc08cfc24807d6cd084cbd6dec80fe39932f",
     "experiments/fcis_m6_k06_legacy_seal_check.py": "3dc9112619ad604188d549f60f114ff86e870198d2b0846cdf78d92d62af5055",
     "src/core/fcis_m6_k06_legacy_seal.py": "9c9741cd39832d3a6244b2abd2a6f3463735911eb4002587f9b86ebea81f6bf6",
@@ -55,11 +57,11 @@
     "tools/build_fcis_m6_k06_legacy_seal.py": "6c189972368b7445da6fe7314116ce7ce6e8cc4a202442939315d96ade659491"
   },
   "results": {
-    "seal_root": "139a29f1938dfffb9ea4c72b5f6e99765bb9d1d0254654941ddf3c9f20a82ab0",
+    "seal_root": "6da2c97dc141c631966a0960d4210799aa3881a7cc62c6c1d377b0ca0bf6130f",
     "k03_scan": "pass; zero issues over four Python files and zero Rust files",
-    "d05_current_root": "e3b8fc99092de0fb56d08bf68ccb2f03278c776b684939765f86f1284fa9379e",
-    "d05_current_topology_root": "e9fa1351ab36ecafa75ea9919ed791e31e17e998aa25521c4e3ce8a8f18f1857",
-    "k01_inventory_root": "fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a",
+    "d05_current_root": "fe407a21588db0932df41b224234a5a5950478aa12cc1c564857b7a5bbc41ac2",
+    "d05_current_topology_root": "9b2db149fd06876cf9e9fa592d891042320e52dcf0640c952431d913f12402e1",
+    "k01_inventory_root": "c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2",
     "target_admission": "pass",
     "legacy_admission": "typed legacy_writer_disabled rejection",
     "focused_tests": "pass; 1 passed",
@@ -68,7 +70,9 @@
     "implementation_commit": "7824b451eaabf3b2649b7a9f7cb09dddffe225ac",
     "implementation_tree": "af89e4e284135681f24b471afa236a4ec665fc8a",
     "implementation_parent": "0b307ca01bfaa14d961ded7842b8023ad80e280b",
-    "k04_current_check": "pass after follow-up K04 rebind at 547901913c2090d19507b8b993f88276ff7f6a62"
+    "k04_current_check": "pass; current K04 root 6644cae606656411d0da64461d80a13030be65905cfd31916a33f1143bc25ee3",
+    "dependency_refresh_commit": "379e0717137fb122175995de7c20250856375151",
+    "dependency_refresh_tree": "5ff6f00973a948315d1c25575eab6c348055c5b2"
   },
   "mutants": [
     "legacy writer after terminal seal",
