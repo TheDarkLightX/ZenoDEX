@@ -1,0 +1,102 @@
+{
+  "schema_version": "zenodex.fcis.m6.research-evidence.v1",
+  "task_id": "M6-ZUSD-FEE-SOURCE-BINDING-V2",
+  "base_sha": "7d905908c1448c468102f2144528f4d2ae34918d",
+  "implementation_commit": "2a275c3c882729fa2960749923b925ab3c6c2a90",
+  "implementation_tree": "1fc20bb410c26fe130bcbac6ade830df51425e3e",
+  "branch": "codex/task-m6-managed-asset-policy-20260803",
+  "status": "LOCAL_COMPOSITION_PROVED_BOUNDED_VERIFIED_IMPLEMENTED_TESTED_UNMOUNTED",
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0",
+    "lake": "Lake 5.0.0-src+db93fe1",
+    "lean": "Lean 4.27.0",
+    "z3": "4.15.4",
+    "cvc5": "1.1.2",
+    "esso_commit": "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
+  },
+  "formal_models": {
+    "fcis_fee_configuration_state_binding_v2": {
+      "source_sha256": "ec9352a0599679982286175f83e32588457a9a828802b1f1614ee052b9633a7b",
+      "ir_hash": "sha256:cbe690858e8965d660a1c7b839439431ec1205ba6f5f73be2e464c7cb541a0f4",
+      "fingerprint": "ea9aaa265b06d73c785c58f1d0e32836686c5fa521fe0a2d0bb07959dc706182",
+      "queries": 13,
+      "verdict": "VERIFIED",
+      "solvers_agreed": true,
+      "determinism": true
+    },
+    "zusd_authenticated_borrow_fee_occurrence_v1": {
+      "source_sha256": "80e0f6a10ec2796ba415311ccf23b6669d8678d7a713c2da63959db4cafdd67f",
+      "ir_hash": "sha256:82353f8a038265b34799fc92bf3b268e952e6e446ad0900c88b60c425ab10aaa",
+      "fingerprint": "acdccbf92bd7e6f8facb38c2ef6cd21007257db67efa6b334e879950189c311d",
+      "queries": 13,
+      "verdict": "VERIFIED",
+      "solvers_agreed": true,
+      "determinism": true
+    },
+    "zusd_state_bound_fee_accrual_allocation_v2": {
+      "source_sha256": "90383bad20ba9e07b0202d766cc99cd3416d21df724dde15420963f6de993509",
+      "ir_hash": "sha256:5688543bb2d635d5e89af31fd8e1d056dc3ae9a9eb4c9050c6aa45693796d83f",
+      "fingerprint": "c562943da452277afaa81caf34637189cddd0de56cf9f1e7635c198c59c807a4",
+      "queries": 11,
+      "verdict": "VERIFIED",
+      "solvers_agreed": true,
+      "determinism": true
+    }
+  },
+  "lean": {
+    "source_sha256": "9ee1641ce6bcabe0f6c0304036f7f05236eb86b859cb50bf6988b63d9605526e",
+    "focused_tests": "pass; 3 passed",
+    "direct_typecheck": "pass",
+    "aggregate_build": "pass before final Python-only split; Lean source unchanged",
+    "placeholders": 0,
+    "user_axioms": 0,
+    "unsafe_declarations": 0,
+    "top_theorem_axioms": [
+      "propext",
+      "Quot.sound"
+    ]
+  },
+  "tests": {
+    "focused_core": "pass; 27 passed",
+    "esso_and_mutation": "pass; 26 passed",
+    "lean": "pass; 3 passed",
+    "semantic_mutants": "pass; 23/23 killed",
+    "broad_fee_zusd_regression": "213 passed; 1 known pre-existing stale golden-fixture failure"
+  },
+  "quality": {
+    "ruff": "pass",
+    "strict_mypy": "pass; 9 source files",
+    "configured_mypy": "pass; 25 source files",
+    "py_compile": "pass",
+    "production_boundary": "pass",
+    "security_redflags": "pass; 0 findings across 9 core files",
+    "design_metrics": "pass; no flagged function or oversized file across 8 new critical modules",
+    "diff_check": "pass"
+  },
+  "closed_counterexamples": [
+    "B1A-valid but exact-state-unauthorized configuration substitution",
+    "request expected-sequence substitution",
+    "request deployment-configuration-root substitution",
+    "request authority-epoch substitution",
+    "crossed zUSD pre-state root",
+    "crossed scalar-claim, role-claim, or apportionment-state root",
+    "foreign managed asset or protocol-fee custody identity",
+    "foreign fee-distribution domain",
+    "crossed cumulative fee history",
+    "caller-supplied fee amount or allocation configuration",
+    "hostile post-construction mutation of controlled evidence"
+  ],
+  "nonclaims": [
+    "No mounted Tau or ZenoLedger global-state projection is implemented.",
+    "No store-current or expected-head authority is proved.",
+    "No external authentication or signer-quorum soundness is proved.",
+    "No Python/Rust/Tau/ZenoLedger refinement or byte parity is proved.",
+    "No whole-system issuance, balance, custody, or R13 theorem is proved.",
+    "No candidate, receipt, bundle, atomic publication, recovery, outbox, migration, or no-bypass mounting is implemented.",
+    "M6 remains research-only, unmounted, and non-promotable."
+  ]
+}
