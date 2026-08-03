@@ -1,0 +1,91 @@
+{
+  "schema_version": "zenodex.fcis.m6.research-evidence.v1",
+  "task_id": "M6-GLOBAL-STATE-CONTENT-PROJECTION-V1",
+  "base_sha": "461de21929e867bc459265a75c144e81d72143d7",
+  "implementation_commit": "e95f44061e2d4cd9fb3460cb50ee93460e702a76",
+  "implementation_tree": "61f213fc7f5cab327b99093467ce5a0b876bce97",
+  "branch": "codex/task-m6-managed-asset-policy-20260803",
+  "status": "CONTENT_PARITY_BOUNDED_VERIFIED_IMPLEMENTED_TESTED_AUTHORITY_BLOCKED_UNMOUNTED",
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0",
+    "z3": "4.15.4",
+    "cvc5": "1.1.2",
+    "esso_commit": "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
+  },
+  "closed_registries": {
+    "application_components": 14,
+    "known_global_gaps": 14,
+    "authority_obligations": 9
+  },
+  "formal_models": {
+    "fcis_m6_tau_zenoledger_content_parity_v1": {
+      "source_sha256": "6714f8d45ac8de247f94fcef66e62329ff0fc2e7b4523703210a9cd1793b313b",
+      "ir_hash": "sha256:999afe945e0fdc8429b93b45478ca60a671ad4f9d81e75fd0a4b3015815d50c5",
+      "fingerprint": "ed68642b6f21ce7d59075b195c679fa280670c65ad272561620b0ba9a5d33208",
+      "queries": 14,
+      "verdict": "VERIFIED",
+      "solvers_agreed": true,
+      "determinism": true
+    },
+    "fcis_m6_global_state_qualification_v1": {
+      "source_sha256": "11a9c2c25c38e88660cf56ff84723b3a4b9ddf25d119a7041fd8b2823d3fd9f8",
+      "ir_hash": "sha256:2c9eaac2fbdb23baf280736f2bd1515c4d1e5e7e47bfdbcda577d628fe6d32cc",
+      "fingerprint": "7df92385d1ff9191c9ed6c0c87b6f6c20fb693c415adbdaa3cbeddcba1d2d798",
+      "queries": 6,
+      "verdict": "VERIFIED",
+      "solvers_agreed": true,
+      "determinism": true
+    }
+  },
+  "tests": {
+    "projection_core_integration_formal": "pass; 47 passed",
+    "tau_recovery_ledger_regression": "pass; 90 passed",
+    "semantic_mutants": "pass; 18/18 killed",
+    "direct_esso_queries": "pass; 20/20"
+  },
+  "quality": {
+    "ruff": "pass",
+    "new_file_format_check": "pass; 8 files",
+    "mypy": "pass; 6 source files",
+    "py_compile": "pass; 6 source files",
+    "security_redflags": "pass; 0 findings across 6 source files",
+    "diff_check": "pass"
+  },
+  "review_passes": {
+    "count": 3,
+    "initial_verdict": "REVISE",
+    "areas": [
+      "carrier and adapter semantics",
+      "authority and currentness",
+      "formal-specification completeness"
+    ],
+    "final_re_review_performed": false
+  },
+  "closed_counterexamples": [
+    "wrapped null/null state accepted despite bare runtime serialization",
+    "source-dependent semantic content root",
+    "two observations of one source kind impersonating cross-source parity",
+    "self-consistent unsigned header represented as current ledger authority",
+    "application-content parity represented as global economic coherence",
+    "caller-created fake component roots represented as runtime authority",
+    "raw and 0x public-key aliases competing by input order",
+    "boolean, float, string, negative, or over-U256 native balance coercion",
+    "runtime/formal component-registry omission",
+    "content or qualification guard removal"
+  ],
+  "nonclaims": [
+    "No stable or current Tau committed view is proved.",
+    "No selected or execution-ancestral ZenoLedger head is proved.",
+    "No cross-source failover or handoff is proved.",
+    "No deployment, writer, migration, or current-head authority is proved.",
+    "No global economic coherence or complete-requirements theorem is proved.",
+    "No authenticated native-custody relation is proved.",
+    "No Rust, Tau, ZK, or deployed-runtime refinement is proved.",
+    "No atomic publication, recovery, outbox, migration, or no-bypass mounting is implemented.",
+    "M6 remains research-only, unmounted, and non-promotable."
+  ]
+}
