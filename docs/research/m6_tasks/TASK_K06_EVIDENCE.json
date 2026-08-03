@@ -1,0 +1,93 @@
+{
+  "schema_version": "zenodex.fcis.m6.task-evidence.v1",
+  "task_id": "K06",
+  "base_sha": "0b307ca01bfaa14d961ded7842b8023ad80e280b",
+  "source_head_sha": "7824b451eaabf3b2649b7a9f7cb09dddffe225ac",
+  "source_head_tree": "af89e4e284135681f24b471afa236a4ec665fc8a",
+  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "status": "TESTED",
+  "evidence_files": [
+    "config/deploy/fcis_m6_k06_legacy_seal_v1.json",
+    "docs/research/m6_tasks/FCIS_M6_K06_LEGACY_SEAL_SCHEMA_V1.md",
+    "docs/research/m6_tasks/TASK_K06_LEGACY_SEAL_V1.json",
+    "docs/research/m6_tasks/TASK_K06_PLAN.md",
+    "docs/research/m6_tasks/TASK_K06_REPORT.md",
+    "docs/research/m6_tasks/TASK_K06_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_K06_SOURCE_MANIFEST.sha256",
+    "experiments/fcis_m6_k06_legacy_seal_check.py",
+    "src/core/fcis_m6_k06_legacy_seal.py",
+    "tests/tools/test_fcis_m6_k06_legacy_seal.py",
+    "tools/build_fcis_m6_k06_legacy_seal.py"
+  ],
+  "commands": [
+    "python3 -m py_compile src/core/fcis_m6_k06_legacy_seal.py tools/build_fcis_m6_k06_legacy_seal.py experiments/fcis_m6_k06_legacy_seal_check.py tests/tools/test_fcis_m6_k06_legacy_seal.py",
+    "python3 -m ruff check src/core/fcis_m6_k06_legacy_seal.py tools/build_fcis_m6_k06_legacy_seal.py experiments/fcis_m6_k06_legacy_seal_check.py tests/tools/test_fcis_m6_k06_legacy_seal.py",
+    "python3 -m ruff format --check src/core/fcis_m6_k06_legacy_seal.py tools/build_fcis_m6_k06_legacy_seal.py experiments/fcis_m6_k06_legacy_seal_check.py tests/tools/test_fcis_m6_k06_legacy_seal.py",
+    "python3 -m mypy --strict src/core/fcis_m6_k06_legacy_seal.py tools/build_fcis_m6_k06_legacy_seal.py experiments/fcis_m6_k06_legacy_seal_check.py tests/tools/test_fcis_m6_k06_legacy_seal.py",
+    "python3 -m json.tool config/deploy/fcis_m6_k06_legacy_seal_v1.json",
+    "python3 -m json.tool docs/research/m6_tasks/TASK_K06_LEGACY_SEAL_V1.json",
+    "python3 tools/build_fcis_m6_k06_legacy_seal.py --check",
+    "PYTHONPATH=. python3 experiments/fcis_m6_k06_legacy_seal_check.py",
+    "PYTHONPATH=. python3 -m pytest -q tests/tools/test_fcis_m6_k06_legacy_seal.py",
+    "python3 tools/build_fcis_m6_k01_entrypoint_inventory.py --check",
+    "python3 experiments/fcis_m6_k03_static_no_bypass_check.py",
+    "python3 tools/build_fcis_m6_d05_tcg_inventory.py --check",
+    "python3 tools/build_fcis_m6_k04_topology_anchor.py --check",
+    "git diff --check",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K06",
+    "sha256sum --check --strict docs/research/m6_tasks/TASK_K06_SOURCE_MANIFEST.sha256"
+  ],
+  "tool_versions": {
+    "python": "Python 3.12.3",
+    "ruff": "ruff 0.16.0",
+    "mypy": "mypy 2.1.0 (compiled: yes)",
+    "pytest": "pytest 7.4.4",
+    "git": "git version 2.54.0"
+  },
+  "source_hashes": {
+    "config/deploy/fcis_m6_k06_legacy_seal_v1.json": "c37ce2a43c2d4f1c45297d6df0bb6c408acacf17ace1a14d8e8b126d524f1475",
+    "docs/research/m6_tasks/FCIS_M6_K06_LEGACY_SEAL_SCHEMA_V1.md": "ec19197e6868466bfb5d28e2b55a5d7a4103be19537da4bab789d0144713be2d",
+    "docs/research/m6_tasks/TASK_K06_LEGACY_SEAL_V1.json": "fe21b718f922190aca6407d3f803d2f7512d59a216c8f01ca3744eeb01513b62",
+    "docs/research/m6_tasks/TASK_K06_PLAN.md": "6ae38148b2c0ffcb4aa31a91555ae4a83493e5882b4fbd7d2b574fb87fced3b5",
+    "experiments/fcis_m6_k06_legacy_seal_check.py": "3dc9112619ad604188d549f60f114ff86e870198d2b0846cdf78d92d62af5055",
+    "src/core/fcis_m6_k06_legacy_seal.py": "9c9741cd39832d3a6244b2abd2a6f3463735911eb4002587f9b86ebea81f6bf6",
+    "tests/tools/test_fcis_m6_k06_legacy_seal.py": "2480b9c2857cbf45946acdce5842ccb4cd502334a67690ea32e8ba2dfe954ec3",
+    "tools/build_fcis_m6_k06_legacy_seal.py": "6c189972368b7445da6fe7314116ce7ce6e8cc4a202442939315d96ade659491"
+  },
+  "results": {
+    "seal_root": "139a29f1938dfffb9ea4c72b5f6e99765bb9d1d0254654941ddf3c9f20a82ab0",
+    "k03_scan": "pass; zero issues over four Python files and zero Rust files",
+    "d05_current_root": "e3b8fc99092de0fb56d08bf68ccb2f03278c776b684939765f86f1284fa9379e",
+    "d05_current_topology_root": "e9fa1351ab36ecafa75ea9919ed791e31e17e998aa25521c4e3ce8a8f18f1857",
+    "k01_inventory_root": "fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a",
+    "target_admission": "pass",
+    "legacy_admission": "typed legacy_writer_disabled rejection",
+    "focused_tests": "pass; 1 passed",
+    "adjacent_regression": "41 passed; 3 K04 tests blocked by stale D05 pin",
+    "mutant_campaign": "pass; 10 of 10 named mutants killed",
+    "implementation_commit": "7824b451eaabf3b2649b7a9f7cb09dddffe225ac",
+    "implementation_tree": "af89e4e284135681f24b471afa236a4ec665fc8a",
+    "implementation_parent": "0b307ca01bfaa14d961ded7842b8023ad80e280b",
+    "k04_current_check": "blocked; older K04 D05 pin is stale"
+  },
+  "mutants": [
+    "legacy writer after terminal seal",
+    "stale authority epoch",
+    "pre-terminal phase",
+    "crossed topology root",
+    "crossed inventory root",
+    "object.__new__ forged certificate",
+    "mutated feature flag",
+    "nonempty reachable legacy set",
+    "caller certificate constructor",
+    "unknown target writer"
+  ],
+  "nonclaims": [
+    "K06 is a bounded research-only functional model.",
+    "K06 does not remove production symbols or authenticate a production process.",
+    "K06 does not prove complete deployment reachability, credentials, datastore authority, or value movement.",
+    "The older K04 packet is stale against current D05 and remains a K07 repair obligation.",
+    "No mounted caller, deployment, migration, authority switch, or value movement is claimed.",
+    "M6 remains unmounted and non-promotable."
+  ]
+}
