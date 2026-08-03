@@ -59,12 +59,14 @@ RESULTS:
 - Python compilation, Ruff, formatting, strict mypy, JSON parsing, and diff
   whitespace checks passed.
 
-UPSTREAM_DRIFT: The older K04 packet does not pass its own current
-`tools/build_fcis_m6_k04_topology_anchor.py --check` command because its D05
-pin is `95fbc474...` while current D05 regeneration is
+UPSTREAM_DRIFT: At the K06 freeze, the older K04 packet did not pass its own
+current `tools/build_fcis_m6_k04_topology_anchor.py --check` command because
+its D05 pin was `95fbc474...` while current D05 regeneration was
 `e3b8fc99092de0fb56d08bf68ccb2f03278c776b684939765f86f1284fa9379e`. K06
-records the current D05 topology root directly and does not claim to repair
-K04. K07 must rebind K04 before a deployment audit.
+recorded the current D05 topology root directly. A separate K04 rebind was
+then completed at functional head
+`26da7c198a43e0c248cd5823d98c6ce3037c2813` with docs receipt
+`547901913c2090d19507b8b993f88276ff7f6a62`; its current-input gates pass.
 
 MUTANTS_ADDED: K06 kills legacy writer after terminal seal, stale authority
 epoch, pre-terminal phase, crossed topology root, crossed inventory root,
@@ -82,8 +84,8 @@ REMAINING_NONCLAIMS:
   a production process.
 - It does not prove complete dynamic call-graph closure, image inclusion,
   credential isolation, datastore authority, or worker reachability.
-- The K04 topology packet remains stale and K07 cannot be promoted until it is
-  repaired against current D05/K01 inputs.
+- K04 is now rebound against current D05/K01 inputs, while K07 still requires
+  its deployment and runtime audit evidence.
 - No mounted caller, authority switch, migration deployment, or value movement
   is claimed. M6 remains unmounted and non-promotable.
 

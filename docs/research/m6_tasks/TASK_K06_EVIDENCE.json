@@ -46,9 +46,9 @@
   },
   "source_hashes": {
     "config/deploy/fcis_m6_k06_legacy_seal_v1.json": "c37ce2a43c2d4f1c45297d6df0bb6c408acacf17ace1a14d8e8b126d524f1475",
-    "docs/research/m6_tasks/FCIS_M6_K06_LEGACY_SEAL_SCHEMA_V1.md": "ec19197e6868466bfb5d28e2b55a5d7a4103be19537da4bab789d0144713be2d",
+    "docs/research/m6_tasks/FCIS_M6_K06_LEGACY_SEAL_SCHEMA_V1.md": "f5a5ee2b78806dbe644041010f7cd769408ab003f7648ceb656e028549315ad9",
     "docs/research/m6_tasks/TASK_K06_LEGACY_SEAL_V1.json": "fe21b718f922190aca6407d3f803d2f7512d59a216c8f01ca3744eeb01513b62",
-    "docs/research/m6_tasks/TASK_K06_PLAN.md": "6ae38148b2c0ffcb4aa31a91555ae4a83493e5882b4fbd7d2b574fb87fced3b5",
+    "docs/research/m6_tasks/TASK_K06_PLAN.md": "ccb4b742ab98f3d4059d22432ea6fc08cfc24807d6cd084cbd6dec80fe39932f",
     "experiments/fcis_m6_k06_legacy_seal_check.py": "3dc9112619ad604188d549f60f114ff86e870198d2b0846cdf78d92d62af5055",
     "src/core/fcis_m6_k06_legacy_seal.py": "9c9741cd39832d3a6244b2abd2a6f3463735911eb4002587f9b86ebea81f6bf6",
     "tests/tools/test_fcis_m6_k06_legacy_seal.py": "2480b9c2857cbf45946acdce5842ccb4cd502334a67690ea32e8ba2dfe954ec3",
@@ -68,7 +68,7 @@
     "implementation_commit": "7824b451eaabf3b2649b7a9f7cb09dddffe225ac",
     "implementation_tree": "af89e4e284135681f24b471afa236a4ec665fc8a",
     "implementation_parent": "0b307ca01bfaa14d961ded7842b8023ad80e280b",
-    "k04_current_check": "blocked; older K04 D05 pin is stale"
+    "k04_current_check": "pass after follow-up K04 rebind at 547901913c2090d19507b8b993f88276ff7f6a62"
   },
   "mutants": [
     "legacy writer after terminal seal",
@@ -86,7 +86,7 @@
     "K06 is a bounded research-only functional model.",
     "K06 does not remove production symbols or authenticate a production process.",
     "K06 does not prove complete deployment reachability, credentials, datastore authority, or value movement.",
-    "The older K04 packet is stale against current D05 and remains a K07 repair obligation.",
+    "The older K04 packet was stale at the K06 freeze and was repaired separately; K07 deployment evidence remains open.",
     "No mounted caller, deployment, migration, authority switch, or value movement is claimed.",
     "M6 remains unmounted and non-promotable."
   ]

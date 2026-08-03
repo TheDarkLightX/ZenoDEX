@@ -48,6 +48,7 @@ unknown writer receives a typed rejection.
 This is a deterministic functional-core model over reviewed source-bound
 inputs. The build gate does not remove legacy symbols from a production image,
 authenticate a running process, prove complete call-graph closure, or establish
-deployment credential isolation. K04's older pinned packet is currently stale
-against the current D05 root; K07 must repair and rebind that topology packet
-before any deployment-bound claim.
+deployment credential isolation. At the K06 freeze, the older K04 packet was
+stale against the current D05 root. The follow-up K04 rebind at
+`547901913c2090d19507b8b993f88276ff7f6a62` now passes its current-input gates;
+deployment-bound claims remain open for K07.
