@@ -1,0 +1,218 @@
+# [FORGE] M6 Tau/ZenoLedger application-content parity v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "fcis_m6_tau_zenoledger_content_parity_v1"
+  created_by: "zenodex"
+  component_registry:
+    - "account_balances"
+    - "amm_pools"
+    - "lp_ownership"
+    - "lp_mint_age"
+    - "lp_duration_risk"
+    - "nonces"
+    - "legacy_fee_accumulator"
+    - "vault_reward_state"
+    - "oracle_freshness_state"
+    - "perps_state"
+    - "proof_mining_state"
+    - "zusd_monetary_state"
+    - "zusd_core_state"
+    - "zusd_protocol_fee_scalar_claim"
+  notes: |
+    Finite guard model for non-authoritative content admission and equality.
+    Tau inputs require canonical source bytes and a matching claimed app hash.
+    ZenoLedger inputs require structural header/body roots and a matching
+    post-state commitment. Both derive exact component roots and a closed
+    coverage partition. Parity requires one source of each kind and equal
+    source-neutral content roots.
+
+    This model does not establish a stable Tau view, a selected ZenoLedger
+    head, transition replay, currentness, finality, cross-source handoff,
+    deployment/writer binding, global economic coherence, sovereign carrier
+    refinement, publication, mounting, or no-bypass.
+
+observables:
+  state_vars:
+    - "tau_source_canonical"
+    - "tau_commitment_matches"
+    - "ledger_header_body_valid"
+    - "ledger_post_state_matches"
+    - "component_derivation_valid"
+    - "coverage_partition_exact"
+    - "source_kinds_distinct"
+    - "content_roots_equal"
+    - "registry_matches_runtime"
+    - "tau_admitted"
+    - "ledger_admitted"
+    - "parity_issued"
+    - "invalid_accept"
+  effects: []
+
+types: []
+
+state_vars:
+  - { id: "tau_source_canonical", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "tau_commitment_matches", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "ledger_header_body_valid", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "ledger_post_state_matches", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "component_derivation_valid", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "coverage_partition_exact", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "source_kinds_distinct", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "content_roots_equal", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "registry_matches_runtime", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "tau_admitted", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "ledger_admitted", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "parity_issued", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "invalid_accept", role: "data", type: { kind: "int", min: 0, max: 12 } }
+
+init:
+  - { var: "tau_source_canonical", expr: { const: 1 } }
+  - { var: "tau_commitment_matches", expr: { const: 1 } }
+  - { var: "ledger_header_body_valid", expr: { const: 1 } }
+  - { var: "ledger_post_state_matches", expr: { const: 1 } }
+  - { var: "component_derivation_valid", expr: { const: 1 } }
+  - { var: "coverage_partition_exact", expr: { const: 1 } }
+  - { var: "source_kinds_distinct", expr: { const: 1 } }
+  - { var: "content_roots_equal", expr: { const: 1 } }
+  - { var: "registry_matches_runtime", expr: { const: 1 } }
+  - { var: "tau_admitted", expr: { const: 0 } }
+  - { var: "ledger_admitted", expr: { const: 0 } }
+  - { var: "parity_issued", expr: { const: 0 } }
+  - { var: "invalid_accept", expr: { const: 0 } }
+
+invariants:
+  - id: "inv_no_invalid_accept"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "invalid_accept" }, { const: 0 }] }
+  - id: "inv_parity_requires_tau_admission"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "parity_issued" }, { var: "tau_admitted" }] }
+  - id: "inv_parity_requires_ledger_admission"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "parity_issued" }, { var: "ledger_admitted" }] }
+  - id: "inv_parity_requires_distinct_source_kinds"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "parity_issued" }, { var: "source_kinds_distinct" }] }
+  - id: "inv_parity_requires_equal_content_roots"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "parity_issued" }, { var: "content_roots_equal" }] }
+
+actions:
+  - id: "admit_tau_content"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "tau_source_canonical" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "tau_commitment_matches" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "component_derivation_valid" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "coverage_partition_exact" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "registry_matches_runtime" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "tau_admitted" }, { const: 0 }] }
+    updates:
+      - { var: "tau_admitted", expr: { const: 1 } }
+      - var: "invalid_accept"
+        expr:
+          op: "+"
+          args:
+            - { op: "-", args: [{ const: 1 }, { var: "tau_source_canonical" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "tau_commitment_matches" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "component_derivation_valid" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "coverage_partition_exact" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "registry_matches_runtime" }] }
+    effects: {}
+
+  - id: "admit_ledger_content"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "ledger_header_body_valid" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "ledger_post_state_matches" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "component_derivation_valid" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "coverage_partition_exact" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "registry_matches_runtime" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "ledger_admitted" }, { const: 0 }] }
+    updates:
+      - { var: "ledger_admitted", expr: { const: 1 } }
+      - var: "invalid_accept"
+        expr:
+          op: "+"
+          args:
+            - { op: "-", args: [{ const: 1 }, { var: "ledger_header_body_valid" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "ledger_post_state_matches" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "component_derivation_valid" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "coverage_partition_exact" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "registry_matches_runtime" }] }
+    effects: {}
+
+  - id: "issue_content_parity"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "tau_admitted" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "ledger_admitted" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "source_kinds_distinct" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "content_roots_equal" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "parity_issued" }, { const: 0 }] }
+    updates:
+      - { var: "parity_issued", expr: { const: 1 } }
+      - var: "invalid_accept"
+        expr:
+          op: "+"
+          args:
+            - { op: "-", args: [{ const: 1 }, { var: "source_kinds_distinct" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "content_roots_equal" }] }
+    effects: {}
+
+  - id: "invalidate_tau_source_canonical"
+    params: []
+    guard: { op: "=", args: [{ var: "tau_admitted" }, { const: 0 }] }
+    updates: [{ var: "tau_source_canonical", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_tau_commitment"
+    params: []
+    guard: { op: "=", args: [{ var: "tau_admitted" }, { const: 0 }] }
+    updates: [{ var: "tau_commitment_matches", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_ledger_header_body"
+    params: []
+    guard: { op: "=", args: [{ var: "ledger_admitted" }, { const: 0 }] }
+    updates: [{ var: "ledger_header_body_valid", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_ledger_post_state"
+    params: []
+    guard: { op: "=", args: [{ var: "ledger_admitted" }, { const: 0 }] }
+    updates: [{ var: "ledger_post_state_matches", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_component_derivation"
+    params: []
+    guard: { op: "and", args: [{ op: "=", args: [{ var: "tau_admitted" }, { const: 0 }] }, { op: "=", args: [{ var: "ledger_admitted" }, { const: 0 }] }] }
+    updates: [{ var: "component_derivation_valid", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_coverage_partition"
+    params: []
+    guard: { op: "and", args: [{ op: "=", args: [{ var: "tau_admitted" }, { const: 0 }] }, { op: "=", args: [{ var: "ledger_admitted" }, { const: 0 }] }] }
+    updates: [{ var: "coverage_partition_exact", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_registry_binding"
+    params: []
+    guard: { op: "and", args: [{ op: "=", args: [{ var: "tau_admitted" }, { const: 0 }] }, { op: "=", args: [{ var: "ledger_admitted" }, { const: 0 }] }] }
+    updates: [{ var: "registry_matches_runtime", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_source_kinds"
+    params: []
+    guard: { op: "=", args: [{ var: "parity_issued" }, { const: 0 }] }
+    updates: [{ var: "source_kinds_distinct", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_content_equality"
+    params: []
+    guard: { op: "=", args: [{ var: "parity_issued" }, { const: 0 }] }
+    updates: [{ var: "content_roots_equal", expr: { const: 0 } }]
+    effects: {}
+  - id: "stutter"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects: {}

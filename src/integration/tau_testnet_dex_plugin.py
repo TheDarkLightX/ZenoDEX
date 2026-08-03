@@ -27,6 +27,7 @@ from dataclasses import replace
 from typing import Any, Dict, Mapping, Optional, Tuple
 
 from ..core.dex import DexState
+from ..core.fixed_width import U256_MAX
 from ..core.managed_asset_policy import (
     AssetOperationV1,
     ManagedAssetPolicyV1,
@@ -311,6 +312,24 @@ def _parse_faucet_mint_entry(entry: Any, *, index: int) -> Tuple[Optional[Tuple[
     return (decoded_pk, decoded_asset, int(amount)), None
 
 
+def _validate_chain_balances(chain_balances: Dict[str, int]) -> None:
+    """Reject ambiguous or non-exact host-native custody inputs."""
+
+    seen: set[str] = set()
+    for external_pubkey, amount in chain_balances.items():
+        canonical_pubkey = _canonical_pubkey(
+            external_pubkey,
+            name="chain_balances pubkey",
+        )
+        if canonical_pubkey in seen:
+            raise ValueError("chain_balances contains duplicate decoded pubkey identity")
+        seen.add(canonical_pubkey)
+        if type(amount) is not int:
+            raise TypeError("chain_balances amount must be an exact int")
+        if amount < 0 or amount > U256_MAX:
+            raise ValueError("chain_balances amount must be within U256")
+
+
 def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) -> DexState:
     balances_copy = _copy_balance_table(state.balances)
 
@@ -319,15 +338,12 @@ def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) ->
         if asset == NATIVE_ASSET:
             balances_copy.set(pk, asset, 0)
 
-    for pk, amount in chain_balances.items():
-        try:
-            amt_i = int(amount)
-            canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        except Exception:
+    for pk in sorted(chain_balances):
+        amount = chain_balances[pk]
+        canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
+        if amount == 0:
             continue
-        if amt_i <= 0:
-            continue
-        balances_copy.set(canonical_pk, NATIVE_ASSET, amt_i)
+        balances_copy.set(canonical_pk, NATIVE_ASSET, amount)
 
     return replace(state, balances=balances_copy)
 
@@ -373,14 +389,12 @@ def _apply_faucet(
 
 
 def _balances_patch_for_native(*, before: Dict[str, int], after_state: DexState) -> Dict[str, int]:
+    _validate_chain_balances(before)
     out: Dict[str, int] = {}
     external_key_by_canonical: Dict[str, str] = {}
-    for pk in before.keys():
-        try:
-            canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        except Exception:
-            continue
-        external_key_by_canonical.setdefault(canonical_pk, pk)
+    for pk in sorted(before):
+        canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
+        external_key_by_canonical[canonical_pk] = pk
 
     keys = set(before.keys())
     # Include any addresses that appear in the DEX snapshot (native).
@@ -388,12 +402,9 @@ def _balances_patch_for_native(*, before: Dict[str, int], after_state: DexState)
         if asset == NATIVE_ASSET:
             keys.add(external_key_by_canonical.get(pk, pk))
 
-    for pk in keys:
-        old = int(before.get(pk, 0))
-        try:
-            lookup_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        except Exception:
-            lookup_pk = str(pk)
+    for pk in sorted(keys):
+        old = before.get(pk, 0)
+        lookup_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
         new = int(after_state.balances.get(lookup_pk, NATIVE_ASSET))
         if new != old:
             out[pk] = new
@@ -933,6 +944,10 @@ def apply_app_tx(
         return False, app_state_json, "", None, "operations must be an object"
     if not isinstance(chain_balances, dict):
         return False, app_state_json, "", None, "chain_balances must be an object"
+    try:
+        _validate_chain_balances(chain_balances)
+    except (TypeError, ValueError) as exc:
+        return False, app_state_json, "", None, str(exc)
 
     decoded_ops: Dict[str, Any] = {}
     for k, v in operations.items():

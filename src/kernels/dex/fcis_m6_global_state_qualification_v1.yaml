@@ -1,0 +1,123 @@
+# [FORGE] M6 global-state qualification boundary v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "fcis_m6_global_state_qualification_v1"
+  created_by: "zenodex"
+  global_gap_registry:
+    - "managed_asset_policy"
+    - "fee_role_claim_state"
+    - "fee_apportionment_state"
+    - "fee_authority_configuration"
+    - "authenticated_execution_context"
+    - "host_native_custody"
+    - "feature_activation_profile"
+    - "oracle_reporter_authority"
+    - "buy_and_burn_lifecycle"
+    - "sealed_bid_lifecycle"
+    - "sovereign_ledger_carriers"
+    - "writer_epoch_and_migration"
+    - "history_nullifier_receipt"
+    - "outbox_and_acknowledgment"
+  authority_obligation_registry:
+    - "tau_stable_committed_view"
+    - "ledger_selected_head"
+    - "ledger_execution_ancestry"
+    - "cross_source_handoff"
+    - "deployment_binding"
+    - "current_writer_binding"
+    - "global_economic_coherence"
+    - "sovereign_carrier_refinement"
+    - "requirements_registry_completeness"
+  notes: |
+    Qualification requires admitted content parity, complete application
+    content, an empty global-gap registry, and every authority/coherence
+    obligation discharged. The current runtime receipt intentionally satisfies
+    only content parity, so it cannot reach authoritative_issued.
+
+observables:
+  state_vars:
+    - "content_parity_admitted"
+    - "application_content_complete"
+    - "global_gaps_empty"
+    - "authority_obligations_closed"
+    - "authoritative_issued"
+    - "invalid_accept"
+  effects: []
+
+types: []
+
+state_vars:
+  - { id: "content_parity_admitted", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "application_content_complete", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "global_gaps_empty", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "authority_obligations_closed", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "authoritative_issued", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "invalid_accept", role: "data", type: { kind: "int", min: 0, max: 4 } }
+
+init:
+  - { var: "content_parity_admitted", expr: { const: 1 } }
+  - { var: "application_content_complete", expr: { const: 0 } }
+  - { var: "global_gaps_empty", expr: { const: 0 } }
+  - { var: "authority_obligations_closed", expr: { const: 0 } }
+  - { var: "authoritative_issued", expr: { const: 0 } }
+  - { var: "invalid_accept", expr: { const: 0 } }
+
+invariants:
+  - id: "inv_no_invalid_accept"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "invalid_accept" }, { const: 0 }] }
+  - id: "inv_authority_requires_parity"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "authoritative_issued" }, { var: "content_parity_admitted" }] }
+  - id: "inv_authority_requires_complete_application_content"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "authoritative_issued" }, { var: "application_content_complete" }] }
+  - id: "inv_authority_requires_no_global_gaps"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "authoritative_issued" }, { var: "global_gaps_empty" }] }
+  - id: "inv_authority_requires_closed_obligations"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "authoritative_issued" }, { var: "authority_obligations_closed" }] }
+
+actions:
+  - id: "issue_authoritative_projection"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "content_parity_admitted" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "application_content_complete" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "global_gaps_empty" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "authority_obligations_closed" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "authoritative_issued" }, { const: 0 }] }
+    updates:
+      - { var: "authoritative_issued", expr: { const: 1 } }
+      - var: "invalid_accept"
+        expr:
+          op: "+"
+          args:
+            - { op: "-", args: [{ const: 1 }, { var: "content_parity_admitted" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "application_content_complete" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "global_gaps_empty" }] }
+            - { op: "-", args: [{ const: 1 }, { var: "authority_obligations_closed" }] }
+    effects: {}
+  - id: "complete_application_content"
+    params: []
+    guard: { op: "=", args: [{ var: "application_content_complete" }, { const: 0 }] }
+    updates: [{ var: "application_content_complete", expr: { const: 1 } }]
+    effects: {}
+  - id: "close_global_gaps"
+    params: []
+    guard: { op: "=", args: [{ var: "global_gaps_empty" }, { const: 0 }] }
+    updates: [{ var: "global_gaps_empty", expr: { const: 1 } }]
+    effects: {}
+  - id: "close_authority_obligations"
+    params: []
+    guard: { op: "=", args: [{ var: "authority_obligations_closed" }, { const: 0 }] }
+    updates: [{ var: "authority_obligations_closed", expr: { const: 1 } }]
+    effects: {}
+  - id: "stutter"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects: {}

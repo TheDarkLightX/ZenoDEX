@@ -1,6 +1,8 @@
 import json
 import sys
 
+import pytest
+
 
 def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
     from src.integration.operations import parse_intents
@@ -76,6 +78,57 @@ def test_apply_app_tx_sync_only(monkeypatch):
     parsed = json.loads(app_state_json)
     assert isinstance(parsed, dict)
     assert parsed.get("version") == DEX_SNAPSHOT_VERSION
+
+
+@pytest.mark.parametrize(
+    "amount",
+    (True, False, 1.0, "1", -1, 1 << 256),
+)
+def test_apply_app_tx_rejects_non_exact_or_out_of_range_native_balance(
+    monkeypatch,
+    amount,
+):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+    ok, state_out, app_hash, patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={"00" * 48: amount},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+    assert ok is False
+    assert state_out == ""
+    assert app_hash == ""
+    assert patch is None
+    assert "chain_balances amount" in str(err)
+
+
+@pytest.mark.parametrize("reverse", (False, True))
+def test_apply_app_tx_rejects_duplicate_decoded_native_balance_identity(
+    monkeypatch,
+    reverse,
+):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+    raw = "11" * 48
+    entries = [(raw, 5), ("0x" + raw, 7)]
+    if reverse:
+        entries.reverse()
+    ok, state_out, app_hash, patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances=dict(entries),
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+    assert ok is False
+    assert state_out == ""
+    assert app_hash == ""
+    assert patch is None
+    assert "duplicate decoded pubkey identity" in str(err)
 
 
 def test_apply_app_tx_rejects_malformed_consensus_boolean_env(monkeypatch):
